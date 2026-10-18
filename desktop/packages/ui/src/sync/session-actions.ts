@@ -39,7 +39,7 @@ import { stripMessageDiffSnapshots } from "./sanitize"
 import { sessionEvents } from "@/lib/sessionEvents"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { toast } from "@/components/ui"
-import { seedSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
+import { seedSessionAutoAccept, inheritSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
 import { blockingRequestStamp } from "./blocking-request-events"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
@@ -1552,6 +1552,11 @@ export async function forkFromMessage(sessionId: string, messageId: string): Pro
   )
   const forkedSession = result.data
   if (!forkedSession) throw new Error("Failed to fork session")
+
+  // A fork is a new root session with no parentID, so it cannot inherit
+  // auto-accept through lineage. Copy the source session's effective setting
+  // so the fork keeps the session the user was actually running.
+  inheritSessionAutoAccept(forkedSession.id, sessionId)
 
   // Insert new session into child store so sidebar updates immediately
   const current = store.getState()

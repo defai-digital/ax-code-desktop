@@ -79,6 +79,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Forked sessions keep the source session's permission auto-accept setting instead of falling back to the new-session default.
+
 - Selecting a session from another project resolves its directory from the global session index, so deep links and restored sessions no longer fail with "belongs to a different project directory".
 
 - Permission auto-accept is on by default for new sessions, can be toggled from the new-chat composer before a session exists, and the choice is remembered per session; sessions that already existed stay off unless turned on.

@@ -37,3 +37,32 @@ export const seedSessionAutoAccept = (sessionId: string, parentID: string | null
   }
   pendingSeeds.push([sessionId, parentID])
 }
+
+export type SessionAutoAcceptInheritHandler = (sessionId: string, sourceSessionId: string) => void
+
+let inheritHandler: SessionAutoAcceptInheritHandler | null = null
+const pendingInheritSeeds: Array<[string, string]> = []
+
+export const registerSessionAutoAcceptInheritHandler = (next: SessionAutoAcceptInheritHandler | null): void => {
+  inheritHandler = next
+  if (!next || pendingInheritSeeds.length === 0) {
+    return
+  }
+  const seeds = pendingInheritSeeds.splice(0)
+  for (const [sessionId, sourceSessionId] of seeds) {
+    next(sessionId, sourceSessionId)
+  }
+}
+
+/**
+ * Record the source session's effective auto-accept value for a forked session.
+ * A fork is a new root session with no parentID, so lineage inheritance cannot
+ * cover a source that never had an explicit setting.
+ */
+export const inheritSessionAutoAccept = (sessionId: string, sourceSessionId: string): void => {
+  if (inheritHandler) {
+    inheritHandler(sessionId, sourceSessionId)
+    return
+  }
+  pendingInheritSeeds.push([sessionId, sourceSessionId])
+}

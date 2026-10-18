@@ -20,6 +20,7 @@ const removeSessionsMock = vi.fn()
 const archiveSessionsMock = vi.fn()
 const registeredSessionDirectories: Array<{ sessionID: string; directory: string }> = []
 const inputCalls: Array<{ method: string; params?: Record<string, unknown> }> = []
+const inheritSessionAutoAcceptMock = vi.fn()
 let mockCurrentSessionId: string | null = null
 let inputStoreState: {
   pendingInputText: string | null
@@ -335,6 +336,13 @@ vi.doMock("./sync-refs", () => ({
   },
 }))
 
+// The permission store owns the registered handler; the fork path must hand the
+// source session's setting to it instead of losing it to the legacy default.
+vi.doMock("@/stores/utils/sessionAutoAcceptSeed", () => ({
+  seedSessionAutoAccept: vi.fn(),
+  inheritSessionAutoAccept: inheritSessionAutoAcceptMock,
+}))
+
 import { create, type StoreApi } from "zustand"
 import { INITIAL_STATE } from "./types"
 import type { DirectoryStore } from "./child-store"
@@ -375,6 +383,7 @@ beforeEach(() => {
   upsertSessionMock.mockClear()
   removeSessionsMock.mockClear()
   setCurrentSessionMock.mockClear()
+  inheritSessionAutoAcceptMock.mockClear()
   mockCurrentSessionId = null
   inputStoreState = {
     pendingInputText: null,
@@ -886,6 +895,9 @@ describe("rollback and fork actions use the session directory", () => {
       },
     })
     expect(setCurrentSessionMock).toHaveBeenCalledWith("session-b-fork", "/other/project")
+    // A fork is a new root session with no parentID; it must carry the source
+    // session's effective auto-accept value instead of falling to the default.
+    expect(inheritSessionAutoAcceptMock).toHaveBeenCalledWith("session-b-fork", "session-b")
     // The attachment draft must switch to the fork before the restored files
     // land, or they are filed under the source session's draft.
     const draftSwitch = inputCalls.findIndex((call) => call.method === "setActiveAttachmentDraft")

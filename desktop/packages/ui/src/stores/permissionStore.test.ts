@@ -251,4 +251,28 @@ describe("permissionStore default auto-accept", () => {
     expect(usePermissionStore.getState().isSessionAutoAccepting("root")).toBe(false)
     expect(usePermissionStore.getState().isSessionAutoAccepting("other")).toBe(true)
   })
+
+  test("a forked session inherits the source session's effective value, not the default", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore } = await importStore({ pendingPermissions })
+
+    // The source has no explicit setting, so it is legacy-off even though the
+    // new-session default is on. The fork must keep that off value.
+    usePermissionStore.getState().inheritSessionAutoAccept("root", "fork-of-legacy")
+    expect(usePermissionStore.getState().autoAccept).toEqual({ "fork-of-legacy": false })
+
+    await usePermissionStore.getState().setSessionAutoAccept("root", true)
+    usePermissionStore.getState().inheritSessionAutoAccept("root", "fork-of-on")
+    expect(usePermissionStore.getState().autoAccept["fork-of-on"]).toBe(true)
+
+    await usePermissionStore.getState().setSessionAutoAccept("root", false)
+    usePermissionStore.getState().inheritSessionAutoAccept("root", "fork-of-off")
+    expect(usePermissionStore.getState().autoAccept["fork-of-off"]).toBe(false)
+
+    // An explicit setting on the fork is never overwritten.
+    await usePermissionStore.getState().setSessionAutoAccept("fork-of-on", false)
+    usePermissionStore.getState().inheritSessionAutoAccept("root", "fork-of-on")
+    expect(usePermissionStore.getState().autoAccept["fork-of-on"]).toBe(false)
+  })
 })

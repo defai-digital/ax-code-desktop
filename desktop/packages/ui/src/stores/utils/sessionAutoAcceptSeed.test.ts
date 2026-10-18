@@ -1,6 +1,11 @@
 import { describe, expect, test, vi } from "vitest"
 
-import { registerSessionAutoAcceptSeedHandler, seedSessionAutoAccept } from "./sessionAutoAcceptSeed"
+import {
+  inheritSessionAutoAccept,
+  registerSessionAutoAcceptInheritHandler,
+  registerSessionAutoAcceptSeedHandler,
+  seedSessionAutoAccept,
+} from "./sessionAutoAcceptSeed"
 
 describe("sessionAutoAcceptSeed", () => {
   test("forwards a created session to the registered handler", () => {
@@ -21,5 +26,19 @@ describe("sessionAutoAcceptSeed", () => {
 
     expect(handler).toHaveBeenCalledWith("session-b", "parent-b")
     registerSessionAutoAcceptSeedHandler(null)
+  })
+
+  test("forwards a fork to the inherit handler and queues until it registers", () => {
+    inheritSessionAutoAccept("fork-c", "source-c")
+
+    const handler = vi.fn()
+    registerSessionAutoAcceptInheritHandler(handler)
+
+    expect(handler).toHaveBeenCalledWith("fork-c", "source-c")
+
+    inheritSessionAutoAccept("fork-d", "source-d")
+    expect(handler).toHaveBeenCalledWith("fork-d", "source-d")
+
+    registerSessionAutoAcceptInheritHandler(null)
   })
 })

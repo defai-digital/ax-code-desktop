@@ -13,7 +13,10 @@ import { respondToPermission, waitForConnectionOrThrow } from "@/sync/session-ac
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { API_ENDPOINTS } from "@/lib/http"
 import { createAutoAcceptSync } from "./utils/autoAcceptSync"
-import { registerSessionAutoAcceptSeedHandler } from "./utils/sessionAutoAcceptSeed"
+import {
+  registerSessionAutoAcceptInheritHandler,
+  registerSessionAutoAcceptSeedHandler,
+} from "./utils/sessionAutoAcceptSeed"
 
 interface PermissionState {
   autoAccept: PermissionAutoAcceptMap
@@ -35,6 +38,12 @@ interface PermissionActions {
    * existing explicit value is never overwritten.
    */
   applyDefaultToNewSession: (sessionId: string, parentID: string | null) => void
+  /**
+   * Give a forked session the source session's effective auto-accept value.
+   * A fork is a new root session with no parentID, so lineage inheritance
+   * cannot carry a source that never had an explicit setting.
+   */
+  inheritSessionAutoAccept: (sourceSessionId: string, sessionId: string) => void
   /**
    * Drop auto-accept entries for deleted sessions. Without this the persisted
    * map only ever grows, and every startup re-broadcasts a suppression POST
@@ -335,6 +344,24 @@ export const usePermissionStore = create<PermissionStore>()(
           autoAcceptSync.set(sessionId, state.defaultAutoAccept)
         },
 
+        inheritSessionAutoAccept: (sourceSessionId: string, sessionId: string) => {
+          if (!sessionId || !sourceSessionId) {
+            return
+          }
+
+          const state = get()
+          if (Object.prototype.hasOwnProperty.call(state.autoAccept, sessionId)) {
+            return
+          }
+
+          const sessions = getAllSyncSessions()
+          const effective = autoRespondsPermissionBySession(state.autoAccept, sessions, sourceSessionId)
+          set({
+            autoAccept: { ...state.autoAccept, [sessionId]: effective },
+          })
+          autoAcceptSync.set(sessionId, effective)
+        },
+
         setSessionAutoAccept: async (sessionId: string | null, enabled: boolean) => {
           if (!sessionId) {
             // No session yet: the choice becomes the value newly created
@@ -534,4 +561,8 @@ export const usePermissionStore = create<PermissionStore>()(
 
 registerSessionAutoAcceptSeedHandler((sessionId, parentID) => {
   usePermissionStore.getState().applyDefaultToNewSession(sessionId, parentID)
+})
+
+registerSessionAutoAcceptInheritHandler((sessionId, sourceSessionId) => {
+  usePermissionStore.getState().inheritSessionAutoAccept(sourceSessionId, sessionId)
 })
