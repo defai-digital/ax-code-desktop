@@ -81,6 +81,7 @@ import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSessi
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useChatSearchDirectory } from "@/hooks/useChatSearchDirectory"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { useGitBranches, useGitStore, useIsGitRepo } from "@/stores/useGitStore"
@@ -319,7 +320,7 @@ export const RevertedMessageDock: React.FC<RevertedMessageDockProps> = React.mem
       try {
         const nextMessage = getNextUserMessageAfter(userMessages, messageId)
         if (nextMessage) {
-          await revertToMessage(sessionId, nextMessage.id, { skipRedoPush: true })
+          await revertToMessage(sessionId, nextMessage.id)
         } else {
           await handleSlashRedo(sessionId, { fullUnrevert: true })
         }
@@ -865,6 +866,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // Ref to track current message value without triggering re-renders in effects
   const messageRef = React.useRef(message)
   const pendingPastedAttachmentFilenamesRef = React.useRef<Set<string>>(new Set())
+  // Settles when every pasted image finished reading into the attachment list.
+  // The citation text is inserted synchronously, so a submit between the two
+  // would send the citation without the image it names.
+  const pendingPastedAttachmentReadsRef = React.useRef<Set<Promise<void>>>(new Set())
 
   // TODO: port sendMessage to session-actions (complex — creates sessions, handles attachments, etc.)
   const sendMessage = React.useRef<SessionSendMessage>((...args) =>
@@ -1506,6 +1511,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       toast.error(WORK_SESSION_SEND_DISABLED)
       return
     }
+    if (pendingPastedAttachmentReadsRef.current.size > 0) {
+      await Promise.all([...pendingPastedAttachmentReadsRef.current])
+    }
     const queuedOnly = options?.queuedOnly ?? false
     const queuedMessageId = options?.queuedMessageId
     const inputSnapshot = getCurrentInputSnapshot()
@@ -1812,11 +1820,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const sdk = axCodeClient.getSdkClient()
           const configState = useConfigStore.getState()
-          await sdk.session.summarize({
+          const result = await sdk.session.summarize({
             sessionID: currentSessionId,
             modelID: configState.currentModelId || "",
             providerID: configState.currentProviderId || "",
           })
+          // The generated SDK resolves with `{ error }` instead of throwing, so without
+          // this a rejected summarize cleared the composer and reported success.
+          if (result?.error) {
+            throw new Error(formatSdkError(result.error))
+          }
         } catch (error) {
           restoreConsumedInput(error)
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.compactFailed"))
@@ -2926,6 +2939,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         const filename = assignedFilenames[index]
         const file = renameFileForAttachmentCitation(imageFiles[index], filename)
         pendingPastedAttachmentFilenamesRef.current.add(filename)
+        let markReadSettled: () => void = () => {}
+        const readSettled = new Promise<void>((resolve) => {
+          markReadSettled = resolve
+        })
+        pendingPastedAttachmentReadsRef.current.add(readSettled)
         try {
           await addAttachedFile(file)
         } catch (error) {
@@ -2933,6 +2951,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           toast.error(error instanceof Error ? error.message : t("chat.chatInput.toast.clipboardAttachFailed"))
         } finally {
           pendingPastedAttachmentFilenamesRef.current.delete(filename)
+          pendingPastedAttachmentReadsRef.current.delete(readSettled)
+          markReadSettled()
         }
       }
     },

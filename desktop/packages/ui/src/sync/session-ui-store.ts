@@ -406,7 +406,7 @@ type SessionUIState = {
   moveSession: (sessionId: string, targetDirectory: string) => Promise<Session>
   shareSession: (sessionId: string) => Promise<Session | null>
   unshareSession: (sessionId: string) => Promise<Session | null>
-  revertToMessage: (sessionId: string, messageId: string, options?: { skipRedoPush?: boolean }) => Promise<void>
+  revertToMessage: (sessionId: string, messageId: string) => Promise<void>
   applyRollbackPoint: (sessionId: string, input: SessionRollbackApplyInput) => Promise<void>
   forkFromMessage: (sessionId: string, messageId: string) => Promise<void>
   setMessageFeedback: (sessionId: string, messageId: string, feedback: "up" | "down" | undefined) => Promise<void>
@@ -1100,6 +1100,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           agentMentionName,
           variant,
           inputMode,
+          messageId: options?.messageId,
           files,
           additionalParts: mergedAdditionalParts?.map((p) => ({
             text: p.text,
@@ -1368,7 +1369,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const targetMessage = getNextUserMessageAfter(userMessages, revertToId)
 
     if (targetMessage) {
-      await get().revertToMessage(sessionId, targetMessage.id, { skipRedoPush: true })
+      await get().revertToMessage(sessionId, targetMessage.id)
       const { dictionary } = useI18nStore.getState()
       toast.success(formatMessage(dictionary, "chat.revert.toast.redo"))
       return

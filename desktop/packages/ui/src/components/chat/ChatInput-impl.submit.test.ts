@@ -61,6 +61,7 @@ function createHarness(command: string) {
     linkedPr: null,
     buildSkillMentionInstruction: () => null,
     confirmedMentionsRef: { current: new Set(["notes.txt"]) },
+    pendingPastedAttachmentReadsRef: { current: new Set<Promise<void>>() },
     setMessage: (text: string) => {
       messageRef.current = text
     },
