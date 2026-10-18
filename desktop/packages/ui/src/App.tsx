@@ -239,6 +239,8 @@ function App({ apis }: AppProps) {
   const error = useSessionUIStore((s) => s.error)
   const clearError = useSessionUIStore((s) => s.clearError)
   const restorePersistedCurrentSession = useSessionUIStore((s) => s.restorePersistedCurrentSession)
+  const reconcileCurrentSessionDirectory = useSessionUIStore((s) => s.reconcileCurrentSessionDirectory)
+  const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
   const setDirectory = useDirectoryStore((state) => state.setDirectory)
   const isSwitchingDirectory = useDirectoryStore((state) => state.isSwitchingDirectory)
@@ -544,6 +546,24 @@ function App({ apis }: AppProps) {
     isConnected,
     isUnsupportedMobile,
     restorePersistedCurrentSession,
+  ])
+
+  // A deep link or the persisted target can select a session before its project
+  // directory is in the sync slice. Once the global index is ready, move the
+  // client to the session's real project so its message requests stop failing
+  // with "belongs to a different project directory".
+  React.useEffect(() => {
+    if (embeddedSessionChat || isUnsupportedMobile || !isConnected || !hasLoadedGlobalSessions) {
+      return
+    }
+    reconcileCurrentSessionDirectory()
+  }, [
+    currentSessionId,
+    embeddedSessionChat,
+    hasLoadedGlobalSessions,
+    isConnected,
+    isUnsupportedMobile,
+    reconcileCurrentSessionDirectory,
   ])
 
   React.useEffect(() => {

@@ -368,6 +368,13 @@ type SessionUIState = {
   setWorktreeMetadata: (sessionId: string, metadata: WorktreeMetadata | null) => void
   overrideNewSessionDraftTarget: (options: Record<string, unknown>) => void
   restorePersistedCurrentSession: () => boolean
+  /**
+   * Re-resolve the current session's directory once the global session index
+   * is ready. A deep link can select a session before its directory is in the
+   * sync slice; without this the client keeps the previous directory and the
+   * runtime rejects every message request for the session (409).
+   */
+  reconcileCurrentSessionDirectory: () => boolean
   resolvePendingDraftWorktreeTarget: (
     requestId: string,
     directory: string | null,
@@ -589,7 +596,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     const directoryState = useDirectoryStore.getState()
 
-    const sessionDir = resolveSessionDirectory(id, (sid) => get().worktreeMetadata.get(sid))
+    const sessionDir =
+      resolveSessionDirectory(id, (sid) => get().worktreeMetadata.get(sid)) ??
+      (id ? get().getDirectoryForSession(id) : null)
     const fallbackDir = axCodeClient.getDirectory() ?? directoryState.currentDirectory ?? null
     const resolvedDir = (directoryHint ? normalizePath(directoryHint) : null) ?? sessionDir ?? fallbackDir
 
@@ -915,6 +924,23 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     get().setCurrentSession(target.sessionId, target.directory)
+    return true
+  },
+
+  reconcileCurrentSessionDirectory: () => {
+    const sessionId = get().currentSessionId
+    if (!sessionId) return false
+
+    const directory = normalizePath(get().getDirectoryForSession(sessionId))
+    if (!directory) return false
+
+    const clientDirectory = normalizePath(axCodeClient.getDirectory() ?? null)
+    const storeDirectory = normalizePath(useDirectoryStore.getState().currentDirectory ?? null)
+    if (clientDirectory === directory && storeDirectory === directory) {
+      return false
+    }
+
+    get().setCurrentSession(sessionId, directory)
     return true
   },
 

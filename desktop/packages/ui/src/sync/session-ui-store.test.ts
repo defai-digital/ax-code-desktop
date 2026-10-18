@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { axCodeClient } from "@/lib/ax-code/client"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { attachmentToRouteFileInput, useSessionUIStore } from "./session-ui-store"
@@ -409,6 +411,57 @@ describe("session-worktree-store worktree routing", () => {
 
     expect(useSessionUIStore.getState().restorePersistedCurrentSession()).toBe(false)
     expect(useSessionUIStore.getState().currentSessionId).toBeNull()
+  })
+
+  test("setCurrentSession resolves the project directory from the global session index", () => {
+    const session = {
+      id: "ses_other_project",
+      title: "Other project",
+      directory: "/repo/other",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+
+    const previousClient = axCodeClient.getDirectory()
+    const previousStore = useDirectoryStore.getState().currentDirectory
+    axCodeClient.setDirectory("/repo/current")
+    useDirectoryStore.setState({ currentDirectory: "/repo/current" })
+    try {
+      // No directory hint and no sync entry for the session: the global index
+      // is the only place that still knows where the session belongs.
+      useSessionUIStore.getState().setCurrentSession(session.id)
+
+      expect(axCodeClient.getDirectory()).toBe("/repo/other")
+      expect(useDirectoryStore.getState().currentDirectory).toBe("/repo/other")
+    } finally {
+      axCodeClient.setDirectory(previousClient)
+      useDirectoryStore.setState({ currentDirectory: previousStore })
+    }
+  })
+
+  test("reconcileCurrentSessionDirectory repairs a session selected before its project loaded", () => {
+    const session = {
+      id: "ses_late_project",
+      title: "Late project",
+      directory: "/repo/late",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+
+    const previousClient = axCodeClient.getDirectory()
+    const previousStore = useDirectoryStore.getState().currentDirectory
+    axCodeClient.setDirectory("/repo/current")
+    useDirectoryStore.setState({ currentDirectory: "/repo/current" })
+    useSessionUIStore.setState({ currentSessionId: session.id })
+    try {
+      expect(useSessionUIStore.getState().reconcileCurrentSessionDirectory()).toBe(true)
+      expect(axCodeClient.getDirectory()).toBe("/repo/late")
+      expect(useDirectoryStore.getState().currentDirectory).toBe("/repo/late")
+      expect(useSessionUIStore.getState().reconcileCurrentSessionDirectory()).toBe(false)
+    } finally {
+      axCodeClient.setDirectory(previousClient)
+      useDirectoryStore.setState({ currentDirectory: previousStore })
+    }
   })
 })
 
