@@ -544,6 +544,9 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
 }
 
 const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
+// Resolving a pending worktree updates the draft object without changing its
+// lifetime. Opening or closing a draft invalidates sends waiting on that work.
+let draftLifecycleRevision = 0
 
 const normalizeSessionId = (sessionId?: string | null): string | null => {
   if (typeof sessionId !== "string") return null
@@ -683,6 +686,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
 
+    draftLifecycleRevision += 1
     set({
       newSessionDraft: {
         open: true,
@@ -723,6 +727,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // closeNewSessionDraft
   // ---------------------------------------------------------------------------
   closeNewSessionDraft: () => {
+    draftLifecycleRevision += 1
     set({
       newSessionDraft: {
         open: false,
@@ -1000,12 +1005,17 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     // ---- New session from draft ----
     if (startedFromDraft) {
+      const draftRevision = draftLifecycleRevision
       const draftTargetFolderId = draft.targetFolderId
       let draftDirectoryOverride = draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null
       const draftProjectId = draft.selectedProjectId ?? null
 
       if (draft.pendingWorktreeRequestId) {
         draftDirectoryOverride = await waitForPendingDraftWorktreeRequest(draft.pendingWorktreeRequestId)
+        if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
+          set({ error: INVALID_SEND_TARGET_MESSAGE })
+          throw new Error(INVALID_SEND_TARGET_MESSAGE)
+        }
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 

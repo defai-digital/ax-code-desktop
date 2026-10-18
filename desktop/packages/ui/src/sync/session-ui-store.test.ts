@@ -1,10 +1,15 @@
-import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+import { useConfigStore } from "@/stores/useConfigStore"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { attachmentToRouteFileInput, useSessionUIStore } from "./session-ui-store"
 import { getActiveSessionRef } from "./sync-context-impl"
+import {
+  createPendingDraftWorktreeRequest,
+  resolvePendingDraftWorktreeRequest,
+} from "@/lib/worktrees/pendingDraftWorktree"
 
 /**
  * Unit tests for session worktree routing through the authoritative store.
@@ -228,9 +233,20 @@ describe("session-worktree-store worktree routing", () => {
 
     try {
       await expect(
-        state.sendMessage("hello", "provider-id", "model-id", undefined, undefined, undefined, undefined, undefined, "normal", {
-          fromNewSessionDraft: true,
-        }),
+        state.sendMessage(
+          "hello",
+          "provider-id",
+          "model-id",
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          "normal",
+          {
+            fromNewSessionDraft: true,
+          },
+        ),
       ).rejects.toThrow("Cannot send message without an active session or draft")
       expect(useSessionUIStore.getState().currentSessionId).toBe("ses_other")
     } finally {
@@ -248,14 +264,89 @@ describe("session-worktree-store worktree routing", () => {
     })
 
     await expect(
-      useSessionUIStore.getState().sendMessage(
-        "hello", "provider-id", "model-id", undefined, undefined, undefined, undefined, undefined, "normal",
-        { fromNewSessionDraft: true },
-      ),
+      useSessionUIStore
+        .getState()
+        .sendMessage(
+          "hello",
+          "provider-id",
+          "model-id",
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          "normal",
+          { fromNewSessionDraft: true },
+        ),
     ).rejects.toThrow("Cannot send message without an active session or draft")
 
     expect(useSessionUIStore.getState().sessionAbortFlags).toEqual(abortFlags)
     expect(useSessionUIStore.getState().pendingChangesBarDismissed).toEqual(dismissed)
+  })
+
+  test.each(["closed", "replaced"])(
+    "does not create a session after a pending worktree draft is %s",
+    async (change) => {
+      const requestId = createPendingDraftWorktreeRequest()
+      const originalCreate = useSessionUIStore.getState().createSession
+      const activateDirectory = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue(undefined)
+      const createSession = vi.fn().mockResolvedValue(null)
+      useSessionUIStore.setState({
+        newSessionDraft: {
+          open: true,
+          directoryOverride: "/repo/original",
+          parentID: null,
+          pendingWorktreeRequestId: requestId,
+        },
+        createSession,
+      })
+      const pending = useSessionUIStore.getState().sendMessage("hello", "provider", "model")
+      const rejected = expect(pending).rejects.toThrow("Cannot send message without an active session or draft")
+      if (change === "replaced") {
+        useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/repo/replacement" })
+      } else {
+        useSessionUIStore.getState().closeNewSessionDraft()
+        useSessionUIStore.setState({ currentSessionId: "ses_other" })
+      }
+      resolvePendingDraftWorktreeRequest(requestId, "/repo/original/worktree")
+
+      try {
+        await rejected
+        expect(createSession).not.toHaveBeenCalled()
+        expect(useSessionUIStore.getState().currentSessionId).toBe(change === "closed" ? "ses_other" : null)
+        if (change === "replaced")
+          expect(useSessionUIStore.getState().newSessionDraft.directoryOverride).toBe("/repo/replacement")
+      } finally {
+        useSessionUIStore.setState({ createSession: originalCreate })
+        activateDirectory.mockRestore()
+      }
+    },
+  )
+
+  test("allows the original pending worktree to resolve before session creation", async () => {
+    const requestId = createPendingDraftWorktreeRequest()
+    const originalCreate = useSessionUIStore.getState().createSession
+    const createSession = vi.fn().mockResolvedValue(null)
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        open: true,
+        directoryOverride: "/repo/original",
+        parentID: null,
+        pendingWorktreeRequestId: requestId,
+      },
+      createSession,
+    })
+    const pending = useSessionUIStore.getState().sendMessage("hello", "provider", "model")
+    const rejected = expect(pending).rejects.toThrow("Failed to create session")
+    useSessionUIStore.getState().resolvePendingDraftWorktreeTarget(requestId, "/repo/original/worktree")
+    resolvePendingDraftWorktreeRequest(requestId, "/repo/original/worktree")
+
+    try {
+      await rejected
+      expect(createSession).toHaveBeenCalledWith(undefined, "/repo/original/worktree", null)
+    } finally {
+      useSessionUIStore.setState({ createSession: originalCreate })
+    }
   })
 
   test("restores the persisted active session target after reload", () => {
