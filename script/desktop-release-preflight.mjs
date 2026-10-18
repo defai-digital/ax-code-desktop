@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process"
-import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { verifyDesktopReleaseContract } from "./desktop-release-contract.mjs"

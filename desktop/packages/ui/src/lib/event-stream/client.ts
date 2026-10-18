@@ -283,7 +283,6 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
         // crash-looping upstream, not a healthy connection. A clean end reaches no
         // catch block, so without this the consumer was never told the stream dropped
         // and the loop reconnected at the base delay forever.
-        attemptFailed = true
         consecutiveFailures += 1
         if (!streamErrorLogged) {
           streamErrorLogged = true

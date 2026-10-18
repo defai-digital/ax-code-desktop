@@ -1,6 +1,5 @@
 import { execFileSync } from "node:child_process"
 import { appendFileSync, realpathSync } from "node:fs"
-import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 export const FULL_SCOPE = { verify: true, build: true, native: true, packaged: true }

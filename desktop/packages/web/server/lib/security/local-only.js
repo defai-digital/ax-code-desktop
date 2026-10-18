@@ -3,8 +3,9 @@ export const normalizeLoopbackHostname = (value) => {
   if (normalized.startsWith("[") && normalized.endsWith("]")) normalized = normalized.slice(1, -1)
   // A fully-qualified name keeps its root dot through URL and Host parsing (`localhost.`), and the
   // resolver reads it as the same host — refusing it 403'd every API call for a UI opened that way.
-  normalized = normalized.replace(/\.+$/, "")
-  return normalized
+  let end = normalized.length
+  while (end > 0 && normalized.charCodeAt(end - 1) === 46) end -= 1
+  return normalized.slice(0, end)
 }
 
 export const isLoopbackHostname = (value) => {

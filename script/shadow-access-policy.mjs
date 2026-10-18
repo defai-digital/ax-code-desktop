@@ -1,4 +1,3 @@
-import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 
