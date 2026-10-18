@@ -67,6 +67,11 @@ class NativeWebMcp {
     // The read whose element references the page may still act on; cleared with every document.
     this.readId = null
     this.interacting = false
+    // The page operation currently running (only one at a time) and the ids the runtime
+    // canceled while it ran. executeJavaScript cannot be aborted, so cancellation is
+    // observed at the checkpoints around the destructive act and before a reply is built.
+    this.activePageRequestId = null
+    this.canceledPageRequests = new Set()
     this.message = (_event, method, params) => this.onMessage(method, params)
     this.navigation = (_event, _url, _inPlace, mainFrame) => {
       if (mainFrame) this.invalidate()
@@ -258,6 +263,12 @@ class NativeWebMcp {
     if (this.interacting || this.pending.size !== 0) throw new Error("Another browser operation is in progress")
     const args = page.validate(request)
     this.interacting = true
+    this.activePageRequestId = typeof request.requestID === "string" ? request.requestID : null
+    const assertActive = () => {
+      if (request.requestID && this.canceledPageRequests.has(request.requestID)) {
+        throw new Error("The browser request was canceled")
+      }
+    }
     try {
       const run = async (payload) => {
         // Electron resolves with the script's own value, not a list of results.
@@ -276,26 +287,40 @@ class NativeWebMcp {
       if (request.operation === "read") {
         const readId = randomUUID()
         const result = await run({ op: "read", readId, maxText: page.MAX_TEXT, maxElements: page.MAX_ELEMENTS })
+        assertActive()
         if (request.generation !== this.generation) throw new Error("The browser document changed")
         this.readId = readId
         return done(page.fit({ readId, ...result }))
       }
       if (request.operation === "wait") {
         const result = await run({ op: "wait", ...args })
+        assertActive()
         if (request.generation !== this.generation) throw new Error("The browser document changed")
         return done(result)
       }
       if (args.readId !== this.readId) throw new Error("Element references are stale; read the page again")
+      // Checked immediately before the act: a cancel that landed while the request was
+      // queued must not still click/type on the page.
+      assertActive()
       const result = await run({ op: "act", ...args })
+      assertActive()
       if (result?.error) throw new Error(`The page refused the action: ${result.error}`)
       // Let a navigation the action started surface, so the reply carries the document it landed on.
       await new Promise((resolve) => setTimeout(resolve, 300))
       return done({ done: true, how: args.how, navigated: this.generation !== request.generation })
     } finally {
       this.interacting = false
+      if (this.activePageRequestId === request.requestID) this.activePageRequestId = null
+      if (request.requestID) this.canceledPageRequests.delete(request.requestID)
     }
   }
   cancel(requestID) {
+    // A page operation has no invocation id and cannot be aborted mid-script; record the
+    // cancellation so the checkpoints above stop it and the reply is suppressed.
+    if (typeof requestID === "string" && this.activePageRequestId === requestID) {
+      this.canceledPageRequests.add(requestID)
+      return
+    }
     const pending = this.pending.get(requestID)
     if (!pending) return
     if (pending.invocationId)

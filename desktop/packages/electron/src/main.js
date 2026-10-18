@@ -2232,7 +2232,10 @@ const writeWindowState = async (browserWindow) => {
   // triggers the final persist. The guard that skipped a destroyed window then returned
   // the root unchanged, discarding the bounds this call exists to record, so the app
   // reopened with its previous geometry.
-  const bounds = browserWindow.getBounds()
+  // getNormalBounds, not getBounds: while maximized/fullscreen the current bounds ARE the
+  // maximized rectangle, and persisting that as the restore geometry meant unmaximizing
+  // after a relaunch left the window at full-screen size instead of its previous size.
+  const bounds = browserWindow.getNormalBounds()
   const maximized = browserWindow.isMaximized()
   const fullscreen = browserWindow.isFullScreen()
   await mutateSettingsRoot((root) => {
@@ -2345,6 +2348,10 @@ const createAdditionalWindow = async (url) => {
   })
   attachDesktopBrowserWebviewPolicy(win.webContents)
   attachAppWindowChrome(win)
+  // The custom Windows/Linux maximize button reads this event; without it, native maximize
+  // paths on a secondary window left the button stale (geometry persistence stays
+  // main-window-only; writeWindowState guards that).
+  attachWindowStateListeners(win)
   win.once("ready-to-show", () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
     if (isTrustedRendererNavigation(targetUrl)) return { action: "allow" }
@@ -2366,9 +2373,7 @@ const createAdditionalWindow = async (url) => {
 }
 
 // ── Menu (native application menu) ─────────────────────────────────────────
-const dispatchMenuAction = (action) => {
-  const target = getMenuTargetWindow()
-  if (!target || target.isDestroyed()) return
+const sendMenuActionToWindow = (target, action) => {
   // The renderer registers its menu listener once the app has mounted, and a window this code just
   // created has only finished loading: sending straight away dropped the action (the same reason
   // handOffToMainWindow queues). Its own ready signal flushes what is queued.
@@ -2378,6 +2383,20 @@ const dispatchMenuAction = (action) => {
     return
   }
   target.webContents.send("openchamber:menu-action", action)
+}
+
+const dispatchMenuAction = (action) => {
+  const target = getMenuTargetWindow()
+  if (!target || target.isDestroyed()) {
+    // macOS keeps the app (and its menu bar) alive after the last window closes; a menu
+    // command must bring the app back and then run instead of silently doing nothing.
+    void revealMainWindow().then(() => {
+      const next = getMenuTargetWindow()
+      if (next && !next.isDestroyed()) sendMenuActionToWindow(next, action)
+    })
+    return
+  }
+  sendMenuActionToWindow(target, action)
 }
 
 const revealMainWindowForQuickDispatch = () => {
@@ -2418,7 +2437,12 @@ releaseQuickDispatchGlobalShortcut = () => {
   syncQuickDispatchGlobalShortcutFromSettings({ quickDispatchGlobalShortcut: false })
 }
 
-const dispatchCheckForUpdates = () => {
+const dispatchCheckForUpdates = async () => {
+  // With no window there is no renderer to show the update state; bring the app back first
+  // instead of emitting into an empty window list.
+  if (!getMenuTargetWindow()) {
+    await revealMainWindow()
+  }
   emitToAllWindows("openchamber:check-for-updates")
 }
 
@@ -3492,7 +3516,21 @@ app.whenReady().then(async () => {
         return
       }
       const responseHeaders = { ...(details.responseHeaders || {}) }
-      responseHeaders["Content-Security-Policy"] = [buildPackagedRendererCsp()]
+      // A response may already carry a policy this one must not erase: the preview proxy
+      // serves external pages with a `sandbox` directive that keeps them off the app
+      // origin. CSP policies combine (the most restrictive wins per directive), so append
+      // instead of replacing.
+      const existingKey = Object.keys(responseHeaders).find(
+        (key) => key.toLowerCase() === "content-security-policy",
+      )
+      const existing = existingKey ? responseHeaders[existingKey] : []
+      const existingValues = (Array.isArray(existing) ? existing : [existing]).filter(
+        (value) => typeof value === "string" && value.length > 0,
+      )
+      responseHeaders[existingKey ?? "Content-Security-Policy"] = [
+        ...existingValues,
+        buildPackagedRendererCsp(),
+      ]
       callback({ responseHeaders })
     })
   }

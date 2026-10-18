@@ -16,7 +16,10 @@ describe("main-window geometry persistence", () => {
     // is destroyed before a chained mutator runs. Reading the geometry inside the mutator
     // discarded it - the destroyed-window guard returned the root unchanged - so the app
     // reopened with the geometry it had before the move or resize.
-    expect(body.indexOf("getBounds()")).toBeLessThan(body.indexOf("mutateSettingsRoot("))
+    expect(body.indexOf("getNormalBounds()")).toBeLessThan(body.indexOf("mutateSettingsRoot("))
+    // Normal bounds, not current bounds: while maximized the current rectangle IS the
+    // maximized one, which then became the "normal" restore size after a relaunch.
+    expect(body).toContain("getNormalBounds()")
     expect(body).toContain("const maximized = browserWindow.isMaximized()")
     expect(body).toContain("const fullscreen = browserWindow.isFullScreen()")
     expect(body).not.toMatch(/isDestroyed\(\)\) return root/)

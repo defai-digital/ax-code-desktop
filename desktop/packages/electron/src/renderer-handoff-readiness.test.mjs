@@ -48,13 +48,21 @@ describe("main-window hand-off readiness", () => {
 
   test("a menu action for a renderer that is not listening is queued, not dropped", async () => {
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
-    const dispatch = mainSource.match(/const dispatchMenuAction = \(action\) => \{(?<body>[\s\S]*?)\n\}/)?.groups?.body
+    const sender = mainSource.match(/const sendMenuActionToWindow = \(target, action\) => \{(?<body>[\s\S]*?)\n\}/)
+      ?.groups?.body
 
-    expect(dispatch).toBeDefined()
+    expect(sender).toBeDefined()
     // The quick-dispatch shortcut creates the window and dispatches in the same turn, and the
     // renderer registers its menu listener only after the app mounts: the panel never opened.
-    expect(dispatch).toContain("if (target === mainWindow && !rendererReadyForOpenProject)")
-    expect(dispatch).toContain('pendingFocusOpens.push({ event: "openchamber:menu-action", detail: action })')
+    expect(sender).toContain("if (target === mainWindow && !rendererReadyForOpenProject)")
+    expect(sender).toContain('pendingFocusOpens.push({ event: "openchamber:menu-action", detail: action })')
+
+    // With no window at all (macOS keeps the app running) the action reveals the app first.
+    const dispatch = mainSource.match(/const dispatchMenuAction = \(action\) => \{(?<body>[\s\S]*?)\n\}/)?.groups
+      ?.body
+    expect(dispatch).toBeDefined()
+    expect(dispatch).toContain("revealMainWindow()")
+    expect(dispatch).toContain("sendMenuActionToWindow(next, action)")
   })
 
   test("a notification click reveals a window and queues its session", async () => {

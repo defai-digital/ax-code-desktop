@@ -113,7 +113,10 @@ const buildPackagedRendererCsp = () => {
     `font-src 'self' ${PACKAGED_RENDERER_ORIGIN} data:`,
     `connect-src ${connectSrc}`,
     "media-src 'self' blob:",
-    "frame-src 'none'",
+    // The renderer frames its own surfaces (preview proxy, file/HTML preview, embedded
+    // session chat) and the loopback dashboard. `frame-src 'none'` blanked all of them in
+    // packaged builds, where this policy — not the dev server's — governs the document.
+    "frame-src 'self' http://127.0.0.1:* http://localhost:* http://[::1]:*",
     "object-src 'none'",
     "base-uri 'none'",
   ].join("; ")
@@ -306,6 +309,10 @@ const proxyPackagedRuntimeRequest = async (request, { route, getRuntimeUpstream,
   // enforces loopback origins and rejects mismatches, so strip it here the
   // same way the web proxy does.
   headers.delete("origin")
+  // The renderer's own cookies (its app-origin UI session) are not the runtime's: the
+  // runtime authenticates with the injected Basic credential, logs requests and runs
+  // project code, so the cookie must not travel into that process.
+  headers.delete("cookie")
   // Identity encoding keeps SSE byte streams pass-through (matches the web
   // proxy's proxyReq behavior) and avoids compressed-body mismatches.
   headers.set("accept-encoding", "identity")
