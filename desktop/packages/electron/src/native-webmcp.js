@@ -73,8 +73,11 @@ class NativeWebMcp {
     this.activePageRequestId = null
     this.canceledPageRequests = new Set()
     this.message = (_event, method, params) => this.onMessage(method, params)
-    this.navigation = (_event, _url, _inPlace, mainFrame) => {
-      if (mainFrame) this.invalidate()
+    this.navigation = (_event, _url, inPlace, mainFrame) => {
+      // An in-place navigation (pushState, hash change) keeps the document and
+      // its registered tools; Page.frameNavigated does not fire for it, so
+      // clearing here left the agent's tool list empty until a full reload.
+      if (mainFrame && !inPlace) this.invalidate()
     }
     this.detached = () => {
       this.available = false

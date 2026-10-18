@@ -77,7 +77,11 @@ const watchdog = startParentDeathWatchdog({
   parentPort: process.parentPort,
   parentPid: process.ppid,
   onParentDeath: () => {
-    void stop()
+    // The parent is gone, so nothing will enforce this process's shutdown
+    // afterwards: exit through the fatal path, whose force timer guarantees
+    // the process leaves even when the server's graceful stop hangs on a
+    // child that refuses to die.
+    void stop(1)
   },
 })
 
