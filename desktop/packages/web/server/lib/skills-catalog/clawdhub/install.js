@@ -87,6 +87,13 @@ export async function installSkillsFromClawdHub({
     return { ok: false, error: { kind: "invalidSource", message: "No skills selected for installation" } }
   }
 
+  // Mirrors the repository installer: a decision is exactly "skip", "overwrite" or absent.
+  // Any other truthy client value used to pass the conflict gate and then do neither.
+  const normalizeConflictDecision = (value) => {
+    const trimmed = typeof value === "string" ? value.trim() : ""
+    return trimmed === "skip" || trimmed === "overwrite" ? trimmed : null
+  }
+
   // Build installation plans
   const skillPlans = requestedSkills.map((sel) => {
     const slug = sel.clawdhub?.slug || sel.skillDir
@@ -107,7 +114,7 @@ export async function installSkillsFromClawdHub({
 
     const targetDir = getTargetSkillDir({ scope, targetSource, workingDirectory, userSkillDir, skillName: plan.slug })
     if (fs.existsSync(targetDir)) {
-      const decision = conflictDecisions?.[plan.slug]
+      const decision = normalizeConflictDecision(conflictDecisions?.[plan.slug])
       const hasAutoPolicy = conflictPolicy === "skipAll" || conflictPolicy === "overwriteAll"
       if (!decision && !hasAutoPolicy) {
         conflicts.push({ skillName: plan.slug, scope, source: targetSource === "agents" ? "agents" : "ax-code" })
@@ -168,7 +175,7 @@ export async function installSkillsFromClawdHub({
       const exists = fs.existsSync(targetDir)
 
       // Determine conflict resolution
-      let decision = conflictDecisions?.[plan.slug] || null
+      let decision = normalizeConflictDecision(conflictDecisions?.[plan.slug])
       if (!decision) {
         if (exists && conflictPolicy === "skipAll") decision = "skip"
         if (exists && conflictPolicy === "overwriteAll") decision = "overwrite"
@@ -226,6 +233,18 @@ export async function installSkillsFromClawdHub({
         // SKILL.md and English-only checks — and releases the name when nothing landed.
         claimedSkillNames.add(plan.slug)
 
+        // Re-check the target after the network download and extraction: another install (or
+        // the user) may have created it meanwhile. The stale `exists` made the rename fail with
+        // ENOTEMPTY; under overwrite it backed up and replaced content a concurrent install had
+        // just reported as successful.
+        const targetExistsForReplacement = fs.existsSync(targetDir)
+        if (targetExistsForReplacement && decision !== "overwrite") {
+          // No decision was made (the target did not exist when asked), or it says skip. A copy
+          // over a live directory is not a replacement, and this path has no policy for it.
+          skipped.push({ skillName: plan.slug, reason: "Already installed (skipped)" })
+          continue
+        }
+
         // The installed copy is only removed once the replacement is downloaded, extracted and
         // validated: removing it before the download meant a network error, a yanked version or a bad
         // ZIP left the user with no skill at all while the result reported it as merely "skipped".
@@ -234,7 +253,7 @@ export async function installSkillsFromClawdHub({
         // cross-device copy out of space, a directory that reappeared under the target), and that was
         // the same loss one step later.
         let backupSkillDir = null
-        if (exists && decision === "overwrite") {
+        if (targetExistsForReplacement && decision === "overwrite") {
           backupDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), `clawdhub-replaced-${plan.slug}-`))
           backupSkillDir = path.join(backupDir, "skill")
           try {

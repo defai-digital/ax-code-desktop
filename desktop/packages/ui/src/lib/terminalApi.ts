@@ -266,7 +266,9 @@ class TerminalTransportManager {
           encodeControlFrame({ t: "b", s: sessionId, r: this.replayCursorBySession.get(sessionId) ?? 0, v: 2 }),
         )
       }
-      socket.send(data)
+      for (const chunk of chunkTerminalInput(data)) {
+        socket.send(chunk)
+      }
       return true
     } catch {
       this.handleSocketFailure(new Error("Terminal websocket send failed"))
@@ -950,15 +952,18 @@ export async function getTerminalSessionOutput(sessionId: string): Promise<Termi
 }
 
 const sendTerminalInputHttp = async (sessionId: string, data: string): Promise<void> => {
-  const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/input`, {
-    method: HTTP_DEFAULTS.method.post,
-    headers: HTTP_DEFAULTS.headers.textPlain,
-    body: data,
-  })
+  // Sequential chunks keep the paste in order; express.text would reject one oversized body.
+  for (const chunk of chunkTerminalInput(data)) {
+    const response = await fetch(`${HTTP_DEFAULTS.apiPath.terminal}/${sessionId}/input`, {
+      method: HTTP_DEFAULTS.method.post,
+      headers: HTTP_DEFAULTS.headers.textPlain,
+      body: chunk,
+    })
 
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: "Failed to send terminal input" }))
-    throw new Error(error.error || "Failed to send terminal input")
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: "Failed to send terminal input" }))
+      throw new Error(error.error || "Failed to send terminal input")
+    }
   }
 }
 
@@ -1151,6 +1156,38 @@ export function connectTerminalStream(
     unsubscribe()
     releaseTerminalTransportManager(sessionId, manager)
   }
+}
+
+// The terminal WS server closes a socket that receives a frame over its 64 KiB maxPayload
+// (`ws` code 1009), and express.text caps the HTTP fallback body below that. xterm hands a
+// whole paste to onData as one string, so a large paste silently dropped the input and
+// reconnected every view sharing the socket. Chunk by code point, under both limits.
+const TERMINAL_INPUT_FRAME_MAX_BYTES = 32 * 1024
+
+const utf8BytesOfCodePoint = (codePoint: number): number =>
+  codePoint <= 0x7f ? 1 : codePoint <= 0x7ff ? 2 : codePoint <= 0xffff ? 3 : 4
+
+const chunkTerminalInput = (data: string): string[] => {
+  if (data.length <= TERMINAL_INPUT_FRAME_MAX_BYTES / 4) {
+    return [data]
+  }
+  const chunks: string[] = []
+  let current = ""
+  let currentBytes = 0
+  for (const character of data) {
+    const size = utf8BytesOfCodePoint(character.codePointAt(0) ?? 0)
+    if (currentBytes + size > TERMINAL_INPUT_FRAME_MAX_BYTES && current.length > 0) {
+      chunks.push(current)
+      current = ""
+      currentBytes = 0
+    }
+    current += character
+    currentBytes += size
+  }
+  if (current.length > 0) {
+    chunks.push(current)
+  }
+  return chunks
 }
 
 export async function sendTerminalInput(sessionId: string, data: string): Promise<void> {

@@ -54,6 +54,24 @@ function readLinkHasMore(headers) {
   return /rel="next"/.test(link)
 }
 
+// Comment and file lists used to be read as one page of 100: an active PR silently lost
+// everything after the first hundred entries while callers treated the result as complete.
+// Bounded so a pathological PR cannot page forever.
+const GITHUB_LIST_MAX_PAGES = 5
+const GITHUB_LIST_PAGE_SIZE_FULL = 100
+async function listGitHubPages(fetchPage, params) {
+  const items = []
+  for (let page = 1; page <= GITHUB_LIST_MAX_PAGES; page += 1) {
+    const response = await fetchPage({ ...params, per_page: GITHUB_LIST_PAGE_SIZE_FULL, page })
+    const batch = Array.isArray(response?.data) ? response.data : []
+    items.push(...batch)
+    if (batch.length < GITHUB_LIST_PAGE_SIZE_FULL) {
+      break
+    }
+  }
+  return items
+}
+
 async function resolveRepoForRequest(octokit, directory, requestedRepo) {
   const { resolveGitHubRepoFromDirectory } = await import("./index.js")
   const { repo } = await resolveGitHubRepoFromDirectory(directory)
@@ -264,7 +282,8 @@ export function registerGitHubRoutes(app) {
       }
 
       const { Octokit } = await import("@octokit/rest")
-      const octokit = new Octokit({ auth: accessToken })
+      const { applyGitHubRequestTimeout } = await import("./octokit.js")
+      const octokit = applyGitHubRequestTimeout(new Octokit({ auth: accessToken }))
       const user = await getGitHubUserSummary(octokit)
 
       setGitHubAuth({
@@ -1279,13 +1298,12 @@ export function registerGitHubRoutes(app) {
         return res.json({ connected: true, repo: null, comments: [] })
       }
 
-      const result = await octokit.rest.issues.listComments({
+      const commentData = await listGitHubPages((params) => octokit.rest.issues.listComments(params), {
         owner: repo.owner,
         repo: repo.repo,
         issue_number: number,
-        per_page: 100,
       })
-      const comments = (Array.isArray(result?.data) ? result.data : []).map((comment) => ({
+      const comments = commentData.map((comment) => ({
         id: comment.id,
         url: comment.html_url,
         body: comment.body || "",
@@ -1573,13 +1591,12 @@ export function registerGitHubRoutes(app) {
         updatedAt: prData.updated_at,
       }
 
-      const issueCommentsResp = await octokit.rest.issues.listComments({
+      const issueCommentsData = await listGitHubPages((params) => octokit.rest.issues.listComments(params), {
         owner: repo.owner,
         repo: repo.repo,
         issue_number: number,
-        per_page: 100,
       })
-      const issueComments = (Array.isArray(issueCommentsResp?.data) ? issueCommentsResp.data : []).map((comment) => ({
+      const issueComments = issueCommentsData.map((comment) => ({
         id: comment.id,
         url: comment.html_url,
         body: comment.body || "",
@@ -1590,13 +1607,12 @@ export function registerGitHubRoutes(app) {
           : null,
       }))
 
-      const reviewCommentsResp = await octokit.rest.pulls.listReviewComments({
+      const reviewCommentsData = await listGitHubPages((params) => octokit.rest.pulls.listReviewComments(params), {
         owner: repo.owner,
         repo: repo.repo,
         pull_number: number,
-        per_page: 100,
       })
-      const reviewComments = (Array.isArray(reviewCommentsResp?.data) ? reviewCommentsResp.data : []).map(
+      const reviewComments = reviewCommentsData.map(
         (comment) => ({
           id: comment.id,
           url: comment.html_url,
@@ -1612,13 +1628,12 @@ export function registerGitHubRoutes(app) {
         }),
       )
 
-      const filesResp = await octokit.rest.pulls.listFiles({
+      const filesData = await listGitHubPages((params) => octokit.rest.pulls.listFiles(params), {
         owner: repo.owner,
         repo: repo.repo,
         pull_number: number,
-        per_page: 100,
       })
-      const files = (Array.isArray(filesResp?.data) ? filesResp.data : []).map((f) => ({
+      const files = filesData.map((f) => ({
         filename: f.filename,
         status: f.status,
         additions: f.additions,

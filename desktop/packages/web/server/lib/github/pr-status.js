@@ -353,9 +353,12 @@ const parseRepoFromApiUrl = (value) => {
   }
 }
 
-// Track repos where the GitHub Search API returned 403 (token lacks scope for that org)
+// Track repos where the GitHub Search API returned 403 (token lacks scope for that org).
+// Bounded: each distinct repo set (multi-project, fork networks) is a key, and this map only
+// cleared on an account switch.
 const _searchApiDisabledRepos = new Map()
 const SEARCH_API_RETRY_MS = 5 * 60 * 1000 // retry after 5 minutes
+const SEARCH_API_DISABLED_MAX = 200
 
 const searchFallbackPr = async ({ octokit, branch, repos }) => {
   // Build a repo key to check/store 403 status per-repo
@@ -384,7 +387,20 @@ const searchFallbackPr = async ({ octokit, branch, repos }) => {
       _searchApiDisabledRepos.delete(repoKey)
     } catch (error) {
       if (error?.status === 403) {
-        _searchApiDisabledRepos.set(repoKey, Date.now())
+        // A primary/secondary rate limit is transient: caching it for five minutes hid the
+        // PR behind a throttled response. Only a permission denial is recorded.
+        const headers = error?.response?.headers ?? {}
+        const rateLimited =
+          headers["x-ratelimit-remaining"] === "0" || typeof headers["retry-after"] === "string"
+        if (!rateLimited) {
+          if (_searchApiDisabledRepos.size >= SEARCH_API_DISABLED_MAX) {
+            const oldest = _searchApiDisabledRepos.keys().next().value
+            if (oldest !== undefined) {
+              _searchApiDisabledRepos.delete(oldest)
+            }
+          }
+          _searchApiDisabledRepos.set(repoKey, Date.now())
+        }
         return null
       }
       if (error?.status === 404) {
