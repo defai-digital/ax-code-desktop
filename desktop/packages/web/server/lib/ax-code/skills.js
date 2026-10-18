@@ -614,8 +614,9 @@ function deleteSkill(skillName, workingDirectory, target = {}) {
     const directory = path.dirname(skill.path)
     // A SKILL.md sitting directly in a skills root is discovered as a skill
     // too; its "directory" is the whole root, so deleting it would wipe every
-    // sibling skill. Only a folder named after the skill is removable.
-    if (path.basename(directory) !== skillName) continue
+    // sibling skill. Any deeper folder is fine even when its name differs from
+    // the frontmatter name (the catalog installer keeps the folder as-is).
+    if (path.resolve(directory) === path.resolve(containingRoot.root)) continue
     directories.set(directory, {
       scope: containingRoot.scope,
       source: containingRoot.source,

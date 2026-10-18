@@ -137,6 +137,35 @@ describe("resolveDesktopUpdateFeed", () => {
     expect(urls[1]).toContain("page=2")
   })
 
+  test("keeps the first page's answer when a later page fails", async () => {
+    let calls = 0
+    const releases = Array.from({ length: 99 }, (_, index) => cliRelease(`7.9.${index}`))
+    releases.push(desktopRelease("7.9.12"))
+    const feed = await resolveDesktopUpdateFeed({
+      fetchImpl: async () => {
+        calls += 1
+        if (calls === 1) return jsonResponse(releases)
+        throw new Error("network down")
+      },
+    })
+    expect(feed.tag).toBe("v7.9.12")
+    expect(calls).toBe(2)
+  })
+
+  test("still prefers a higher desktop version found on a later page", async () => {
+    const fullPage = Array.from({ length: 99 }, (_, index) => cliRelease(`7.9.${index}`))
+    fullPage.push(desktopRelease("7.9.12"))
+    let calls = 0
+    const feed = await resolveDesktopUpdateFeed({
+      fetchImpl: async () => {
+        calls += 1
+        // Creation order put a hotfix cut from an older commit below a newer tag.
+        return calls === 1 ? jsonResponse(fullPage) : jsonResponse([desktopRelease("7.9.13")])
+      },
+    })
+    expect(feed.tag).toBe("v7.9.13")
+  })
+
   test("fails loudly when the releases API errors", async () => {
     await expect(
       resolveDesktopUpdateFeed({ fetchImpl: async () => jsonResponse([], { ok: false, status: 403 }) }),

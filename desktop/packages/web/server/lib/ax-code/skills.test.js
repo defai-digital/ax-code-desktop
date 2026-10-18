@@ -318,6 +318,27 @@ describe("skill name safety", () => {
     }
   })
 
+  it("deletes a skill whose folder name differs from its frontmatter name", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const skillDir = path.join(projectRoot, ".ax-code", "skills", "review")
+    try {
+      await fsPromises.mkdir(skillDir, { recursive: true })
+      // The catalog installer copies the folder as-is, so the folder
+      // ("review") and the discovered name ("Review Code") legitimately differ.
+      await fsPromises.writeFile(
+        path.join(skillDir, "SKILL.md"),
+        ["---", "name: Review Code", "description: Review helper", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+
+      deleteSkill("Review Code", projectRoot, { scope: "project", source: "ax-code" })
+
+      await expect(fsPromises.stat(skillDir)).rejects.toThrow()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it("validates route skill names the same way as agent and command names", () => {
     expect(readSkillNameParam("safe-skill")).toBe("safe-skill")
     expect(readSkillNameParam("my.skill_2")).toBe("my.skill_2")

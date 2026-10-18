@@ -378,10 +378,11 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         },
         body: JSON.stringify(target ? { target } : {}),
         // A wedged runtime would otherwise hold this request open forever. The
-        // call waits for a full download and install, so the budget is generous;
-        // aborting a healthy install made the client report a failure the
-        // runtime then completed in the background.
-        signal: AbortSignal.timeout(15 * 60 * 1000),
+        // call waits for the download and install, so the budget is the
+        // longest one the HTTP stack actually honours (undici aborts a
+        // response that starts later than ~5 minutes); aborting earlier made
+        // the client report a failure the runtime then completed anyway.
+        signal: AbortSignal.timeout(4 * 60 * 1000),
       })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {

@@ -399,7 +399,11 @@ export const useSkillsStore = create<SkillsStore>()(
             }
 
             // The write landed even if the runtime reload did not: a failed
-            // refresh must not report the mutation itself as failed.
+            // refresh must not report the mutation itself as failed. Drop the
+            // row locally so the list matches what is on disk.
+            if (!loaded && payload?.reloadFailed) {
+              set({ skills: get().skills.filter((skill) => skill.name !== name) })
+            }
             return loaded || payload?.reloadFailed === true
           } catch {
             return false

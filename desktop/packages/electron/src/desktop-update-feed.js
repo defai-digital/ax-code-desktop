@@ -87,25 +87,35 @@ async function resolveDesktopUpdateFeed(options = {}) {
   let bestTag = null
   for (let page = 1; page <= maxPages; page += 1) {
     const pageQuery = page > 1 ? `&page=${page}` : ""
-    const response = await fetchImpl(`${RELEASES_API_URL}?per_page=${perPage}${pageQuery}`, {
-      headers: {
-        Accept: "application/vnd.github+json",
-        "User-Agent": "ax-code-desktop-updater",
-      },
-      // A stalled connection must not leave the update check pending forever.
-      signal: options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000),
-    })
+    let response
+    try {
+      response = await fetchImpl(`${RELEASES_API_URL}?per_page=${perPage}${pageQuery}`, {
+        headers: {
+          Accept: "application/vnd.github+json",
+          "User-Agent": "ax-code-desktop-updater",
+        },
+        // A stalled connection must not leave the update check pending forever.
+        signal: options.signal ?? AbortSignal.timeout(options.timeoutMs ?? 15_000),
+      })
+    } catch (error) {
+      // A later page is only a chance to find something newer; once a usable
+      // release is known, losing the request must not fail the whole check.
+      if (bestTag) break
+      throw error
+    }
     if (!response || !response.ok) {
+      if (bestTag) break
       const status = response ? `HTTP ${response.status}` : "no response"
       throw new Error(`Failed to list GitHub releases while resolving the desktop update feed (${status})`)
     }
     const releases = await response.json()
     const tag = latestDesktopReleaseTag(releases)
     if (tag) {
-      // Newest first: the first page that carries a desktop release has the
-      // newest one, and a later page's failure must not discard this answer.
-      bestTag = tag
-      break
+      // GitHub lists by creation time, not semver, so keep the highest tag
+      // across pages instead of trusting the first one seen.
+      const candidate = parseDesktopTagVersion(tag)
+      const best = bestTag ? parseDesktopTagVersion(bestTag) : null
+      if (!best || (candidate && compareDesktopTagVersions(candidate, best) > 0)) bestTag = tag
     }
     if (!Array.isArray(releases) || releases.length < perPage) break
   }
