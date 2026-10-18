@@ -280,9 +280,10 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
         Date.now() - attemptReadyAt < MIN_HEALTHY_CONNECTION_MS
       ) {
         // The stream reported ready and then ended cleanly within seconds — a
-        // crash-looping upstream, not a healthy connection. A clean end reaches no
-        // catch block, so without this the consumer was never told the stream dropped
-        // and the loop reconnected at the base delay forever.
+        // crash-looping upstream, not a healthy connection (one that survived the
+        // healthy window reconnects quietly at the base delay; see the
+        // short-lived-connections tests). A clean end reaches no catch block, so
+        // without this the consumer was never told the stream dropped.
         consecutiveFailures += 1
         if (!streamErrorLogged) {
           streamErrorLogged = true
