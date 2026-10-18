@@ -10,7 +10,6 @@ catalog:
   "typescript": "5.9.3"
 
 onlyBuiltDependencies:
-  - electron-nightly
   - electron
   - electron-winstaller
   - esbuild

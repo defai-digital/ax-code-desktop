@@ -71,8 +71,7 @@
       "electron",
       "electron-winstaller",
       "esbuild",
-      "node-pty",
-      "electron-nightly"
+      "node-pty"
     ]
   }
 }
