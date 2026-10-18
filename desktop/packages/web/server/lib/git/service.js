@@ -2442,6 +2442,8 @@ export async function revertFile(directory, filePath, options = {}) {
 
     if (scope === "all") {
       if (!existsInHead) {
+        // The type check runs before the index is touched: a directory that
+        // replaced a staged addition aborts the revert with the index intact.
         const worktreeEntry = await fsp.lstat(absolutePath).catch((error) => {
           if (error?.code === "ENOENT") return null
           throw error
@@ -2744,15 +2746,18 @@ export async function push(directory, options = {}) {
   // If caller didn't specify a branch, this is the common "Push"/"Commit & Push" path.
   // When there's no upstream yet (typical for freshly-created worktree branches), publish it on first push.
   if (!options.branch) {
+    let status = null
     try {
-      const status = await git.status()
-      if (status.current && !status.tracking) {
-        const result = await git.push(remoteName, status.current, buildUpstreamOptions(options.options))
-        return normalizePushResult(result)
-      }
+      status = await git.status()
     } catch (error) {
       // If we can't read status, fall back to the regular push path below.
       console.warn("Failed to read git status before push:", error)
+    }
+    // A failed publish push must surface, not fall through to the generic path
+    // below (which would push the branch's configured upstream instead).
+    if (status?.current && !status.tracking) {
+      const result = await git.push(remoteName, status.current, buildUpstreamOptions(options.options))
+      return normalizePushResult(result)
     }
   }
 

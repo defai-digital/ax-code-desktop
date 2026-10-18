@@ -25,6 +25,7 @@ import {
   isGitRepository,
   isRefusedRepositoryRoot,
   leavesRepositoryRoot,
+  push,
   removeWorktree,
   resetToCommit,
   resolveRepositoryFilePath,
@@ -1844,5 +1845,42 @@ describe("stageHunk and unstageHunk", () => {
     ].join("\n")
 
     await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow()
+  })
+})
+
+describe("push publish path", () => {
+  it("surfaces a rejected publish push instead of swallowing it into the generic path", async () => {
+    if (!canRunGit()) return
+
+    const origin = createTempDir()
+    runGit(origin, ["init", "--bare", "-b", "main"])
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+    runGit(repo, ["remote", "add", "origin", origin])
+    // A branch without an upstream takes the publish path (push --set-upstream).
+    runGit(repo, ["checkout", "-b", "feature"])
+
+    // Every push of the branch is rejected, and each attempt is counted. The
+    // publish push used to share the status-read try/catch, so its rejection
+    // was logged as a failed status read and re-attempted by the generic and
+    // missing-upstream paths: three remote attempts for one user action.
+    const attemptFile = path.join(createTempDir(), "attempts.txt")
+    const hook = path.join(origin, "hooks", "pre-receive")
+    fs.writeFileSync(
+      hook,
+      `#!/bin/sh\necho attempt >> ${JSON.stringify(attemptFile)}\necho "rejected by test hook" >&2\nexit 1\n`,
+    )
+    fs.chmodSync(hook, 0o755)
+
+    await expect(push(repo, { remote: "origin" })).rejects.toThrow(/rejected by test hook/)
+
+    const attempts = fs.existsSync(attemptFile) ? fs.readFileSync(attemptFile, "utf8").trim().split("\n") : []
+    expect(attempts).toHaveLength(1)
   })
 })
