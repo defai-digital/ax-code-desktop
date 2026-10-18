@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "Impossibile preparare l\u2019ambiente Python locale. Controlla l\u2019output del terminale dell\u2019azione; gli ambienti esistenti non sono stati eliminati.",
   "projectActions.streamlit.error.install": "Configurazione delle dipendenze non riuscita. Controlla l\u2019output del terminale e i file delle dipendenze del progetto, poi riprova.",
   "projectActions.streamlit.error.dependency": "L\u2019ambiente preparato non contiene Streamlit. Aggiungi Streamlit alle dipendenze del progetto, poi prepara di nuovo.",
-  "projectActions.streamlit.error.port": "La porta selezionata non \u00e8 disponibile. Lascia vuoto il campo della porta in Opzioni avanzate per selezionarne una automaticamente."
+  "projectActions.streamlit.error.port": "La porta selezionata non \u00e8 disponibile. Lascia vuoto il campo della porta in Opzioni avanzate per selezionarne una automaticamente.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Mostra diagramma",
+  "markdownRenderer.mermaid.actions.showSource": "Mostra sorgente",
+  "markdownRenderer.mermaid.actions.copyAscii": "Copia ASCII",
+  "markdownRenderer.mermaid.actions.downloadPng": "Scarica PNG",
+  "markdownRenderer.mermaid.actions.copyImage": "Copia immagine",
+  "markdownRenderer.mermaid.status.streaming": "Il diagramma verr\u00e0 mostrato al termine della risposta.",
+  "markdownRenderer.mermaid.status.loading": "Rendering del diagramma\u2026",
+  "markdownRenderer.mermaid.status.copied": "Copiato",
+  "markdownRenderer.mermaid.status.actionFailed": "Impossibile copiare o esportare il diagramma. Prova a scaricare SVG o copiare il sorgente.",
+  "markdownRenderer.mermaid.error.unsupported": "Questo tipo di diagramma non \u00e8 supportato. Il sorgente \u00e8 mostrato sotto.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Questo tipo richiede SVG. Seleziona SVG in Impostazioni > Aspetto > Rendering Mermaid. Il sorgente \u00e8 mostrato sotto.",
+  "markdownRenderer.mermaid.error.configuration": "Le direttive di configurazione e i metadati iniziali non sono supportati. Rimuovili per mostrare il diagramma.",
+  "markdownRenderer.mermaid.error.limit": "Limite di anteprima superato (20.000 caratteri o 500 righe). Dividi il diagramma.",
+  "markdownRenderer.mermaid.error.render": "Impossibile mostrare il diagramma. Controlla la sintassi Mermaid sotto.",
+  "markdownRenderer.mermaid.error.timeout": "Il layout ha impiegato troppo tempo. Semplifica il diagramma o riprova.",
+  "markdownRenderer.mermaid.error.unavailable": "Impossibile caricare il renderer. Riprova.",
+  "markdownRenderer.mermaid.error.busy": "Troppi diagrammi in elaborazione. Riprova al termine degli altri."
 }

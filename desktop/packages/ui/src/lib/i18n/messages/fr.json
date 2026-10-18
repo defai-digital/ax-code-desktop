@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "L\u2019environnement Python local n\u2019a pas pu \u00eatre pr\u00e9par\u00e9. V\u00e9rifiez la sortie du terminal de l\u2019action ; les environnements existants n\u2019ont pas \u00e9t\u00e9 supprim\u00e9s.",
   "projectActions.streamlit.error.install": "\u00c9chec de la configuration des d\u00e9pendances. V\u00e9rifiez la sortie du terminal et les fichiers de d\u00e9pendances du projet, puis r\u00e9essayez.",
   "projectActions.streamlit.error.dependency": "L\u2019environnement pr\u00e9par\u00e9 ne contient pas Streamlit. Ajoutez Streamlit aux d\u00e9pendances du projet, puis pr\u00e9parez de nouveau.",
-  "projectActions.streamlit.error.port": "Le port s\u00e9lectionn\u00e9 est indisponible. Laissez le champ du port vide dans Options avanc\u00e9es pour en s\u00e9lectionner un automatiquement."
+  "projectActions.streamlit.error.port": "Le port s\u00e9lectionn\u00e9 est indisponible. Laissez le champ du port vide dans Options avanc\u00e9es pour en s\u00e9lectionner un automatiquement.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Afficher le diagramme",
+  "markdownRenderer.mermaid.actions.showSource": "Afficher la source",
+  "markdownRenderer.mermaid.actions.copyAscii": "Copier en ASCII",
+  "markdownRenderer.mermaid.actions.downloadPng": "T\u00e9l\u00e9charger le PNG",
+  "markdownRenderer.mermaid.actions.copyImage": "Copier l\u2019image",
+  "markdownRenderer.mermaid.status.streaming": "Le diagramme sera affich\u00e9 une fois la r\u00e9ponse termin\u00e9e.",
+  "markdownRenderer.mermaid.status.loading": "Rendu du diagramme\u2026",
+  "markdownRenderer.mermaid.status.copied": "Copi\u00e9",
+  "markdownRenderer.mermaid.status.actionFailed": "Impossible de copier ou d\u2019exporter le diagramme. Essayez de t\u00e9l\u00e9charger le SVG ou de copier la source.",
+  "markdownRenderer.mermaid.error.unsupported": "Ce type de diagramme n\u2019est pas pris en charge. La source est affich\u00e9e ci-dessous.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Ce type de diagramme n\u00e9cessite SVG. S\u00e9lectionnez SVG dans Param\u00e8tres > Apparence > Rendu Mermaid. La source est affich\u00e9e ci-dessous.",
+  "markdownRenderer.mermaid.error.configuration": "Les directives de configuration et les m\u00e9tadonn\u00e9es initiales ne sont pas prises en charge. Supprimez-les pour afficher le diagramme.",
+  "markdownRenderer.mermaid.error.limit": "La limite d\u2019aper\u00e7u est d\u00e9pass\u00e9e (20 000 caract\u00e8res ou 500 lignes). Divisez le diagramme.",
+  "markdownRenderer.mermaid.error.render": "Impossible d\u2019afficher ce diagramme. V\u00e9rifiez la syntaxe Mermaid ci-dessous.",
+  "markdownRenderer.mermaid.error.timeout": "La mise en page a expir\u00e9. Simplifiez le diagramme ou r\u00e9essayez.",
+  "markdownRenderer.mermaid.error.unavailable": "Impossible de charger le moteur de rendu. R\u00e9essayez.",
+  "markdownRenderer.mermaid.error.busy": "Trop de diagrammes sont en cours de rendu. R\u00e9essayez apr\u00e8s leur affichage."
 }

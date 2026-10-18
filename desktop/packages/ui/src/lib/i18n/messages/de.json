@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "Die lokale Python-Umgebung konnte nicht vorbereitet werden. \u00dcberpr\u00fcfe die Terminalausgabe der Aktion; vorhandene Umgebungen wurden nicht gel\u00f6scht.",
   "projectActions.streamlit.error.install": "Abh\u00e4ngigkeits-Setup fehlgeschlagen. \u00dcberpr\u00fcfe die Terminalausgabe und die Abh\u00e4ngigkeitsdateien des Projekts, dann erneut versuchen.",
   "projectActions.streamlit.error.dependency": "Die vorbereitete Umgebung enth\u00e4lt Streamlit nicht. F\u00fcge Streamlit zu den Projektabh\u00e4ngigkeiten hinzu und bereite erneut vor.",
-  "projectActions.streamlit.error.port": "Der gew\u00e4hlte Port ist nicht verf\u00fcgbar. Lass das Port-Feld unter \u201eErweiterte Optionen\u201c leer, um automatisch einen zu w\u00e4hlen."
+  "projectActions.streamlit.error.port": "Der gew\u00e4hlte Port ist nicht verf\u00fcgbar. Lass das Port-Feld unter \u201eErweiterte Optionen\u201c leer, um automatisch einen zu w\u00e4hlen.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Diagramm anzeigen",
+  "markdownRenderer.mermaid.actions.showSource": "Quelltext anzeigen",
+  "markdownRenderer.mermaid.actions.copyAscii": "ASCII kopieren",
+  "markdownRenderer.mermaid.actions.downloadPng": "PNG herunterladen",
+  "markdownRenderer.mermaid.actions.copyImage": "Bild kopieren",
+  "markdownRenderer.mermaid.status.streaming": "Das Diagramm wird nach Abschluss der Antwort angezeigt.",
+  "markdownRenderer.mermaid.status.loading": "Diagramm wird gerendert\u2026",
+  "markdownRenderer.mermaid.status.copied": "Kopiert",
+  "markdownRenderer.mermaid.status.actionFailed": "Das Diagramm kann nicht kopiert oder exportiert werden. Laden Sie SVG herunter oder kopieren Sie den Quelltext.",
+  "markdownRenderer.mermaid.error.unsupported": "Dieser Diagrammtyp wird nicht unterst\u00fctzt. Der Quelltext wird unten angezeigt.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Dieser Diagrammtyp ben\u00f6tigt SVG. W\u00e4hlen Sie SVG unter Einstellungen > Darstellung > Mermaid-Rendering. Der Quelltext wird unten angezeigt.",
+  "markdownRenderer.mermaid.error.configuration": "Konfigurationsanweisungen und Frontmatter werden nicht unterst\u00fctzt. Entfernen Sie diese zum Rendern.",
+  "markdownRenderer.mermaid.error.limit": "Die Vorschaugrenze ist \u00fcberschritten (20.000 Zeichen oder 500 Zeilen). Teilen Sie das Diagramm auf.",
+  "markdownRenderer.mermaid.error.render": "Das Diagramm kann nicht gerendert werden. Pr\u00fcfen Sie die Mermaid-Syntax unten.",
+  "markdownRenderer.mermaid.error.timeout": "Das Diagrammlayout hat zu lange gedauert. Vereinfachen Sie es oder versuchen Sie es erneut.",
+  "markdownRenderer.mermaid.error.unavailable": "Der Renderer konnte nicht geladen werden. Versuchen Sie es erneut.",
+  "markdownRenderer.mermaid.error.busy": "Zu viele Diagramme werden gerendert. Versuchen Sie es nach deren Abschluss erneut."
 }

@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "renderers": { "beautiful-mermaid": "1.1.3", "mermaid": "12.2.0" },
+  "maxSourceCharacters": 20000,
+  "maxSourceLines": 500,
+  "workerTimeoutMs": 8000,
+  "types": [
+    { "id": "flowchart", "aliases": ["graph"], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "stateDiagram-v2", "aliases": ["stateDiagram"], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "sequenceDiagram", "aliases": [], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "classDiagram", "aliases": [], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "erDiagram", "aliases": [], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "xychart-beta", "aliases": [], "renderer": "beautiful-mermaid", "ascii": true },
+    { "id": "pie", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "gantt", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "mindmap", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "timeline", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "quadrantChart", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "sankey-beta", "aliases": [], "renderer": "mermaid", "ascii": false },
+    { "id": "treemap-beta", "aliases": [], "renderer": "mermaid", "ascii": false }
+  ]
+}
