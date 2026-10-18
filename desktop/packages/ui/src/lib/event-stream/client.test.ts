@@ -843,3 +843,33 @@ describe("createEventTransport — no WebSocket available", () => {
     transport.close()
   })
 })
+
+it("reports stale visibility recovery after a healthy connection", async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(0)
+  installFakeWebSocket()
+  setVisibilityState("hidden")
+  const errors: TransportError[] = []
+  const transport = createEventTransport(
+    {
+      drivers: { primary: { kind: "ws", url: () => "ws://127.0.0.1/api/event" } },
+      transport: "ws",
+      heartbeatTimeoutMs: 30000,
+      backoff: BACKOFF,
+    },
+    { ...noopHooks, onDisconnected: (e) => errors.push(e) },
+  )
+  const socket = FakeWebSocket.instances[0]
+  socket.emitOpen()
+  socket.emitMessage({ type: "ready" })
+  // Advance wall clock without firing throttled background heartbeat timers.
+  vi.setSystemTime(31000)
+  setVisibilityState("visible")
+  document.dispatchEvent(new Event("visibilitychange"))
+  await vi.advanceTimersByTimeAsync(0)
+  try {
+    expect(errors).toEqual([expect.objectContaining({ code: "heartbeat_timeout" })])
+  } finally {
+    transport.close()
+  }
+})

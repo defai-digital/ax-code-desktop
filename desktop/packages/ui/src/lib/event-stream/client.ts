@@ -274,11 +274,7 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
                 hidden: isHidden(),
               })
             : 0
-      } else if (
-        !attemptFailed &&
-        attemptReadyAt !== null &&
-        Date.now() - attemptReadyAt < MIN_HEALTHY_CONNECTION_MS
-      ) {
+      } else if (!attemptFailed && attemptReadyAt !== null && Date.now() - attemptReadyAt < MIN_HEALTHY_CONNECTION_MS) {
         // The stream reported ready and then ended cleanly within seconds — a
         // crash-looping upstream, not a healthy connection (one that survived the
         // healthy window reconnects quietly at the base delay; see the
@@ -312,6 +308,7 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
     if (document.visibilityState !== "visible") return
     if (heartbeatTimeoutMs === undefined) return
     if (Date.now() - lastActivityAt < heartbeatTimeoutMs) return
+    pendingInterrupt = { code: "heartbeat_timeout" }
     attempt?.abort()
   }
 

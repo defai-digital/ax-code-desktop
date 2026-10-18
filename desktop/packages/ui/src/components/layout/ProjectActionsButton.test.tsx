@@ -93,6 +93,25 @@ describe("project action preview lifecycle", () => {
     await act(async () => vi.advanceTimersByTimeAsync(400))
   }
 
+  test("remounted launcher records readiness without reopening the preview", async () => {
+    action = createManagedStreamlitAction("managed", "Streamlit", { version: 1, entrypoint: "app.py" })
+    await render()
+    await start()
+    const run = Object.values(useTerminalStore.getState().projectActionRuns)[0]!
+    await act(async () => root.unmount())
+    root = createRoot(container)
+    await render()
+    openPreview.mockClear()
+    await act(async () =>
+      output({
+        type: "data",
+        data: `AX_CODE_STREAMLIT ${JSON.stringify({ token: run.token, stage: "launching", url: "http://127.0.0.1:9001/" })}\nURL: http://127.0.0.1:9001/\n`,
+      }),
+    )
+    expect(openPreview).not.toHaveBeenCalled()
+    expect(useTerminalStore.getState().projectActionRuns[run.key].status).toBe("running")
+  })
+
   const handoff = () =>
     requestAnalysisAppRun({
       sessionId: "analysis-session",

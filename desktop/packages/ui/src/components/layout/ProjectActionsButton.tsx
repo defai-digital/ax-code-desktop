@@ -404,7 +404,9 @@ export const ProjectActionsButton = ({
         }
       }
       const maybeUrl =
-        !watch.openedUrl && action.autoOpenUrl === true
+        action.autoOpenUrl === true &&
+        (!watch.openedUrl ||
+          (action.waitForUrl && ["preparing", "waiting-for-preview", "preview-unavailable"].includes(entry.status)))
           ? action.waitForUrl
             ? readyProjectActionUrl(textForScan, action.openUrl || "")
             : extractBestUrl(textForScan)
@@ -417,21 +419,24 @@ export const ProjectActionsButton = ({
         : textForScan.slice(-512)
 
       if (maybeUrl) {
-        watch.openedUrl = true
-        if (watch.openInPreview) {
-          const run = useTerminalStore.getState().projectActionRuns[runKey]
-          if (run) {
-            setTabPreviewUrl(run.directory, run.tabId, maybeUrl, { locked: false, autoOpened: false })
-            if (run.status === "waiting-for-preview" || run.status === "preview-unavailable") {
-              updateProjectActionRunStatus(runKey, "running")
-            }
-            window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
-            delete previewWaitTimeoutByRunKeyRef.current[runKey]
-            openContextPreview(run.directory, maybeUrl)
+        const run = useTerminalStore.getState().projectActionRuns[runKey]
+        // Readiness belongs to the run even when a remounted launcher must not navigate.
+        if (run && (watch.openInPreview || action.waitForUrl)) {
+          setTabPreviewUrl(run.directory, run.tabId, maybeUrl, { locked: false, autoOpened: false })
+          if (run.status === "waiting-for-preview" || run.status === "preview-unavailable") {
+            updateProjectActionRunStatus(runKey, "running")
           }
-        } else {
-          void openExternal(maybeUrl)
-          toast.success(t("projectActions.toast.openedUrlFromOutput"))
+          window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+          delete previewWaitTimeoutByRunKeyRef.current[runKey]
+        }
+        if (!watch.openedUrl) {
+          watch.openedUrl = true
+          if (watch.openInPreview) {
+            if (run) openContextPreview(run.directory, maybeUrl)
+          } else {
+            void openExternal(maybeUrl)
+            toast.success(t("projectActions.toast.openedUrlFromOutput"))
+          }
         }
       }
       urlWatchByRunKeyRef.current[runKey] = watch

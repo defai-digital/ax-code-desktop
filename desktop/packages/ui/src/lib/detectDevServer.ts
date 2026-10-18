@@ -215,7 +215,7 @@ async function readOptionalTextFile(path: string): Promise<string | null> {
       cache: HTTP_DEFAULTS.cache.noStore,
     })
     if (!response.ok) return null
-    return response.text()
+    return await response.text()
   } catch {
     return null
   }

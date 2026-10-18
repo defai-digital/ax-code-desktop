@@ -12,6 +12,21 @@ const stubFiles = (contents: Record<string, string>) => {
 }
 
 describe("detectDevServerCommand", () => {
+  test("body-read failures do not reject Streamlit detection", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({ getRegisteredRuntimeAPIs: () => undefined }))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => ({
+        ok: true,
+        text: async () => {
+          throw new Error("body interrupted")
+        },
+      })),
+    )
+    const { detectStreamlitEntrypoints } = await import("./detectDevServer")
+    await expect(detectStreamlitEntrypoints("/project")).resolves.toEqual([])
+  })
+
   test("preserves a saved action's execution and readiness contract", async () => {
     stubFiles({})
     const { detectDevServerCommand } = await import("./detectDevServer")
