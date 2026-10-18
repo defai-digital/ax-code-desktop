@@ -180,6 +180,21 @@ describe("resyncBlockingRequestsForDirectory", () => {
     expect(store.getState().question["ses_a"] ?? []).toEqual([])
   })
 
+  test("restores a pending request whose session only had an older event", async () => {
+    // The session's own stamp sits below the global floor: it had an event earlier in this app
+    // session, but nothing since the request went out. Comparing against 0 treated that as a
+    // concurrent change and dropped the pending approval, leaving the agent waiting with no card.
+    const store = createDirectoryStore({ question: {}, permission: {} })
+    const { noteBlockingRequestEvent } = await import("../blocking-request-events")
+    noteBlockingRequestEvent("ses_a")
+    noteBlockingRequestEvent("ses_other")
+    pendingPermissionsResponse = [buildPermission()]
+
+    await resyncBlockingRequestsForDirectory("/repo", store)
+
+    expect(store.getState().permission["ses_a"]).toHaveLength(1)
+  })
+
   test("merges newly fetched questions/permissions into the directory store", async () => {
     const store = createDirectoryStore({})
     pendingQuestionsResponse = [buildQuestion()]

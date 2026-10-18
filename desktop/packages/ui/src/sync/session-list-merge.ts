@@ -11,6 +11,7 @@
 export interface SessionListEntry {
   readonly id: string
   readonly parentID?: string | null
+  readonly time?: { readonly updated?: number }
 }
 
 const byId = <T extends SessionListEntry>(a: T, b: T) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
@@ -18,26 +19,54 @@ const byId = <T extends SessionListEntry>(a: T, b: T) => (a.id < b.id ? -1 : a.i
 export function mergeSessionListPage<T extends SessionListEntry>(
   page: readonly T[],
   current: readonly T[],
-  knownBeforeRequest?: ReadonlySet<string>,
+  knownBeforeRequest?: ReadonlyMap<string, number | undefined>,
 ): T[] {
-  const listed = new Set(page.map((session) => session.id))
-  const carried = current.filter((session) => {
+  const currentById = new Map(current.map((session) => [session.id, session]))
+  const listed = new Set<string>()
+  const merged: T[] = []
+
+  for (const session of page) {
+    listed.add(session.id)
+    const currentEntry = currentById.get(session.id)
+    if (!currentEntry) {
+      // It existed when the request went out and is gone now: the session was deleted or
+      // archived while the page was in flight, so the page's copy is stale.
+      if (knownBeforeRequest?.has(session.id)) {
+        continue
+      }
+      merged.push(session)
+      continue
+    }
+
+    // An event applied after the request snapshot wins over the page's older view (a rename,
+    // share state, archive flag): the page was read before that event.
+    const beforeUpdated = knownBeforeRequest?.get(session.id)
+    const currentUpdated = currentEntry.time?.updated
+    if (typeof beforeUpdated === "number" && typeof currentUpdated === "number" && currentUpdated > beforeUpdated) {
+      merged.push(currentEntry)
+      continue
+    }
+    merged.push(session)
+  }
+
+  for (const session of current) {
     if (listed.has(session.id)) {
-      return false
+      continue
     }
     // Children are always carried: the page lists roots only.
     if (session.parentID) {
-      return true
+      merged.push(session)
+      continue
     }
     // A root the page no longer lists was deleted or archived on the server, and the page is
     // authoritative — but only for the sessions that existed when the page was read. A root this
     // client first learned about while the request was in flight cannot be in it: the answer came
     // from an index the request had already read, and dropping it hides a session the user just
     // created until the runtime's next update for it.
-    return Boolean(knownBeforeRequest && !knownBeforeRequest.has(session.id))
-  })
-  if (carried.length === 0) {
-    return [...page]
+    if (knownBeforeRequest && !knownBeforeRequest.has(session.id)) {
+      merged.push(session)
+    }
   }
-  return [...page, ...carried].sort(byId)
+
+  return merged.sort(byId)
 }

@@ -28,6 +28,8 @@ import { formatSdkError } from "@/lib/ax-code/sdkError"
 // session lifecycle event instead.
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useSessionWorktreeStore } from "./session-worktree-store"
+import { getAttachedSessionDirectory } from "./session-worktree-contract"
 import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { registerSessionDirectory } from "./sync-refs"
 import { isSyntheticPart } from "@/lib/messages/synthetic"
@@ -835,6 +837,14 @@ export async function moveSession(sessionId: string, targetDirectory: string): P
 
   const nextDirectory = (session as { directory?: string | null }).directory
   if (nextDirectory) {
+    // The worktree attachment outranks the routing index in getDirectoryForSession: a session
+    // moved out of a worktree otherwise kept sending prompts and optimistic parts to it.
+    const attachmentDirectory = getAttachedSessionDirectory(
+      useSessionWorktreeStore.getState().getAttachment(sessionId),
+    )
+    if (attachmentDirectory && normalizeProjectPath(attachmentDirectory) !== normalizeProjectPath(nextDirectory)) {
+      useSessionUIStore.getState().setWorktreeMetadata(sessionId, null)
+    }
     registerSessionDirectory(session.id, nextDirectory)
     sessionEvents.requestGitRefresh({ directory: nextDirectory })
   }
@@ -1004,6 +1014,19 @@ export async function optimisticSend(input: {
 // Abort
 // ---------------------------------------------------------------------------
 
+// Revert, unrevert and rollback abort the running turn before mutating. Arm the stop marker
+// exactly like abortCurrentOperation: the abort's busy -> idle edge must not fire the
+// queued-message auto-send while the mutation is still in flight. Cleared when the runtime
+// refused the abort, so a run that keeps going is not reported as stopped.
+async function abortBeforeLocalMutation(sessionId: string, abort: () => Promise<unknown>): Promise<void> {
+  useSessionUIStore.getState().markSessionAborted(sessionId)
+  try {
+    await abort()
+  } catch {
+    useSessionUIStore.getState().clearSessionAbort(sessionId)
+  }
+}
+
 export async function abortCurrentOperation(sessionId: string): Promise<void> {
   // Every other session call resolves the session's own directory; the current
   // one belongs to another project whenever the user switched projects while a
@@ -1135,11 +1158,7 @@ export async function revertToMessage(sessionId: string, messageId: string): Pro
   // Abort if busy before mutating session state
   const status = initial.session_status[sessionId]
   if (status && status.type !== "idle") {
-    try {
-      await client.session.abort({ sessionID: sessionId, directory })
-    } catch {
-      // ignore abort errors
-    }
+    await abortBeforeLocalMutation(sessionId, () => client.session.abort({ sessionID: sessionId, directory }))
   }
 
   // Re-read after the abort round-trip: the event reducer may have applied
@@ -1324,8 +1343,24 @@ async function replaceSessionMessagesFromServer(sessionId: string, directory: st
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
 
   store.setState((state) => {
-    const nextPart = state.part.without((state.message[sessionId] ?? []).map((message) => message.id))
-    const nextMessage = { ...state.message, [sessionId]: [] }
+    const currentMessages = state.message[sessionId] ?? []
+    const fetchedIds = new Set(records.map((record) => record.info.id))
+    const oldestFetchedId = records.reduce<string | null>(
+      (oldest, record) => (oldest === null || record.info.id < oldest ? record.info.id : oldest),
+      null,
+    )
+    // The fetch is one page of the newest messages: messages older than the page stay, or a
+    // rollback in a long session truncated the visible history (and left a hole under the next
+    // older page). Only the messages the page covers are replaced.
+    const olderLocal = oldestFetchedId
+      ? currentMessages.filter((message) => message.id < oldestFetchedId)
+      : []
+    const keptOlderIds = new Set(olderLocal.map((message) => message.id))
+    const droppedIds = currentMessages
+      .filter((message) => !fetchedIds.has(message.id) && !keptOlderIds.has(message.id))
+      .map((message) => message.id)
+    const nextPart = state.part.without(droppedIds)
+    const nextMessage = { ...state.message, [sessionId]: olderLocal }
     const materialized = materializeSessionSnapshots(
       { message: nextMessage, part: nextPart },
       sessionId,
@@ -1353,11 +1388,7 @@ export async function unrevertSession(sessionId: string): Promise<void> {
   // Abort if busy
   const status = state.session_status[sessionId]
   if (status && status.type !== "idle") {
-    try {
-      await client.session.abort({ sessionID: sessionId, directory })
-    } catch {
-      // ignore
-    }
+    await abortBeforeLocalMutation(sessionId, () => client.session.abort({ sessionID: sessionId, directory }))
   }
 
   const result = await client.session.unrevert({ sessionID: sessionId, directory })
@@ -1400,11 +1431,7 @@ export async function applyRollbackPoint(sessionId: string, input: SessionRollba
 
   const status = state.session_status[sessionId]
   if (status && status.type !== "idle") {
-    try {
-      await client.session.abort({ sessionID: sessionId, directory })
-    } catch {
-      // ignore abort errors; rollback route will still reject if the session remains busy
-    }
+    await abortBeforeLocalMutation(sessionId, () => client.session.abort({ sessionID: sessionId, directory }))
   }
 
   const result = await client.session.rollback({

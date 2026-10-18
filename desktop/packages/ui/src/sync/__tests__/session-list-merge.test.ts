@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { mergeSessionListPage } from "../session-list-merge"
 
-const session = (id: string, parentID?: string) => ({ id, parentID })
+const session = (id: string, parentID?: string, updated?: number) => ({ id, parentID, time: { updated } })
 
 describe("mergeSessionListPage", () => {
   test("keeps a child session the page does not list, in sorted order", () => {
@@ -28,7 +28,7 @@ describe("mergeSessionListPage", () => {
     // The answer comes from an index the request had already read, so a session created during the
     // flight is legitimately missing from it. Dropping it hid the session the user had just created
     // until the runtime's next update for it.
-    const knownBeforeRequest = new Set(["ses_old"])
+    const knownBeforeRequest = new Map([["ses_old", 1]])
     const merged = mergeSessionListPage(
       [session("ses_old")],
       [session("ses_old"), session("ses_new")],
@@ -39,10 +39,34 @@ describe("mergeSessionListPage", () => {
   })
 
   test("still drops a known root the page no longer lists", () => {
-    const knownBeforeRequest = new Set(["ses_gone", "ses_old"])
+    const knownBeforeRequest = new Map([
+      ["ses_gone", 1],
+      ["ses_old", 1],
+    ])
     const merged = mergeSessionListPage([session("ses_old")], [session("ses_old"), session("ses_gone")], knownBeforeRequest)
 
     expect(merged.map((entry) => entry.id)).toEqual(["ses_old"])
+  })
+
+  test("does not resurrect a session deleted while the page was in flight", () => {
+    // The page was read before the delete; the session is gone from the current store.
+    const knownBeforeRequest = new Map([["ses_gone", 10]])
+    const merged = mergeSessionListPage([session("ses_gone", undefined, 10), session("ses_ok", undefined, 10)], [], knownBeforeRequest)
+
+    expect(merged.map((entry) => entry.id)).toEqual(["ses_ok"])
+  })
+
+  test("keeps a local update that landed after the page was read", () => {
+    // A rename/share applied while the request was in flight is newer than the page's copy.
+    const knownBeforeRequest = new Map([["ses_a", 10]])
+    const merged = mergeSessionListPage(
+      [session("ses_a", undefined, 10)],
+      [session("ses_a", undefined, 20)],
+      knownBeforeRequest,
+    )
+
+    expect(merged).toHaveLength(1)
+    expect(merged[0].time?.updated).toBe(20)
   })
 
   test("returns the listed page when there is nothing local to add", () => {

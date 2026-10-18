@@ -6,7 +6,7 @@ import type { StoreApi } from "zustand"
 import { useStore } from "zustand"
 import type { AxCodeClient } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
-import { blockingRequestStamp } from "./blocking-request-events"
+import { blockingRequestStamp, blockingRequestStampFloor } from "./blocking-request-events"
 import { createEventPipeline } from "./event-pipeline"
 import { applyPartDeltaBatch } from "./part-delta-batch"
 import { subscribeSessionMessageRecords } from "./session-message-subscription"
@@ -30,6 +30,16 @@ import {
 } from "./event-routing"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { mergeSessionListPage } from "./session-list-merge"
+import { noteServerSessionStatus } from "./session-status-events"
+
+// A rebuilt directory store holds root sessions only; when a child session record is missing at
+// the moment it goes idle, the global lifecycle index still knows its parent.
+const findGlobalSessionParentId = (sessionID: string): string | null => {
+  if (!sessionID) return null
+  const global = useGlobalSessionsStore.getState()
+  const entry = [...global.activeSessions, ...global.archivedSessions].find((item) => item.id === sessionID)
+  return (entry as { parentID?: string | null } | undefined)?.parentID ?? null
+}
 import { createMaterializationQueue } from "./session-materialization-queue"
 import { useGlobalSyncStore } from "./global-sync-store"
 import { createPendingToastTracker, pendingToastId } from "./pendingToastTracker"
@@ -549,6 +559,12 @@ async function resyncDirectorySessionStatuses(
     currentStatuses: store.getState().session_status ?? {},
   })
   applySessionStatusSnapshot(store, applicableStatuses)
+  // A status the server confirmed is authoritative even when it matched the stored value and
+  // the reducer deduped it: a failed optimistic send uses the stamp to tell its own busy from
+  // the server's, and without this it could roll a running turn back to idle.
+  for (const sessionId of Object.keys(applicableStatuses)) {
+    noteServerSessionStatus(sessionId)
+  }
   return applicableStatuses
 }
 
@@ -595,6 +611,9 @@ export async function resyncBlockingRequestsForDirectory(
   const candidates = candidateSessionIds ?? Array.from(knownSessionIds)
   // A question asked and answered while the request is in flight leaves the id list looking unchanged,
   // which the signature comparison cannot see; the event stamp can.
+  const stampFloor = blockingRequestStampFloor()
+  // Only candidates get an explicit entry; any other session the answer mentions compares
+  // against the floor (a stamp above it means an event arrived while the request was in flight).
   const beforeStamps = new Map(candidates.map((sessionId) => [sessionId, blockingRequestStamp(sessionId)]))
   if (candidates.length === 0) return
 
@@ -651,7 +670,7 @@ export async function resyncBlockingRequestsForDirectory(
         // event-driven state.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) > (beforeStamps.get(sessionId) ?? stampFloor))
           continue
         merged[sessionId] = questions
       }
@@ -659,7 +678,7 @@ export async function resyncBlockingRequestsForDirectory(
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.question[sessionId])
-        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) > (beforeStamps.get(sessionId) ?? stampFloor))
           continue
         delete merged[sessionId]
       }
@@ -753,7 +772,7 @@ export async function resyncBlockingRequestsForDirectory(
         // snapshot computed before a concurrent live change overwrite it.
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) > (beforeStamps.get(sessionId) ?? stampFloor))
           continue
         merged[sessionId] = permissions
       }
@@ -761,7 +780,7 @@ export async function resyncBlockingRequestsForDirectory(
         if (grouped[sessionId]) continue
         const beforeSignature = beforeSignatures.get(sessionId) ?? ""
         const currentSignature = requestSignature(state.permission[sessionId])
-        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) !== (beforeStamps.get(sessionId) ?? 0))
+        if (currentSignature !== beforeSignature || blockingRequestStamp(sessionId) > (beforeStamps.get(sessionId) ?? stampFloor))
           continue
         delete merged[sessionId]
       }
@@ -1200,7 +1219,12 @@ function handleEvent(
     // Skip subtask sessions — only top-level sessions generate notifications
     const storeState = store.getState()
     const session = sessionID ? Binary.find(storeState.session, sessionID, (s) => s.id) : undefined
-    if (session && (session as { parentID?: string }).parentID) {
+    // A rebuilt directory store holds roots only: without the global fallback, a child session
+    // whose record is missing was treated as top-level and produced a turn-complete notification.
+    const notificationParentID =
+      (session as { parentID?: string | null } | undefined)?.parentID ??
+      (session ? null : findGlobalSessionParentId(sessionID ?? ""))
+    if (notificationParentID) {
       // subtask — skip notification
     } else if (sessionID) {
       if (payload.type === "session.idle") {
@@ -1229,7 +1253,9 @@ function handleEvent(
     if (idleSessionId && resolvedDirectory !== "global") {
       const sessionState = store.getState()
       const idleSession = Binary.find(sessionState.session, idleSessionId, (s) => s.id)
-      const parentID = idleSession ? (idleSession as Session & { parentID?: string | null }).parentID : null
+      const parentID = idleSession
+        ? (idleSession as Session & { parentID?: string | null }).parentID
+        : findGlobalSessionParentId(idleSessionId)
       if (parentID) {
         enqueueSessionMaterialization(resolvedDirectory, parentID, childStores)
       }
@@ -1408,7 +1434,12 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
                 // Which sessions this client already knew when the request went out: a root that
                 // first appears while the page is in flight was not in the index the answer was read
                 // from, so the merge must carry it instead of treating it as deleted.
-                const knownBeforeRequest = new Set(store.getState().session.map((session) => session.id))
+                // Per-session `time.updated` at request time: the page was read before any event
+                // that lands while it is in flight, so a newer local copy must win (and a session
+                // deleted in that window must not be resurrected by the page).
+                const knownBeforeRequest = new Map(
+                  store.getState().session.map((session) => [session.id, session.time?.updated]),
+                )
                 const result = await props.sdk.session.list({
                   directory: dir,
                   roots: true,
