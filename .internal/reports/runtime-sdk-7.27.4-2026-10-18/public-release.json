@@ -1,0 +1,98 @@
+{
+  "tag_name": "v7.27.4",
+  "html_url": "https://github.com/defai-digital/ax-code/releases/tag/v7.27.4",
+  "published_at": "2026-10-18T12:32:05Z",
+  "body": "# AX Code 7.27.4\n\n### Changed\n\n- Upgrade ax-tui to 2.1.2 for terminal input, native resource cleanup, and rendering fixes.\n- Publish SDK 2.6.35 with the matching release metadata.\n\n### Fixed\n\n- Bound clipboard image helper execution and reject failed or non-PNG output before falling back to another backend or text.\n",
+  "assets": [
+    {
+      "name": "ax-code-darwin-arm64.zip",
+      "size": 79602546,
+      "digest": "sha256:ca2ef952f095d27f3cb94cdf6d398bf1df4c267174882344d38b717a1fc2b055",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-darwin-arm64.zip"
+    },
+    {
+      "name": "ax-code-darwin-arm64.zip.minisig",
+      "size": 377,
+      "digest": "sha256:44453ed78d9ee0534aa161ed812f8b0bc60153f1a017dcc41db21e25fe63c2eb",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-darwin-arm64.zip.minisig"
+    },
+    {
+      "name": "ax-code-linux-arm64.tar.gz",
+      "size": 86011926,
+      "digest": "sha256:43ceb845abddd61680a4bb1882137b4a4fe02b3afd5088ab1220a62c17926305",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-linux-arm64.tar.gz"
+    },
+    {
+      "name": "ax-code-linux-arm64.tar.gz.minisig",
+      "size": 379,
+      "digest": "sha256:382ab927509f448525bd7046fdcd152726fa882feedc63510248bae8969863b2",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-linux-arm64.tar.gz.minisig"
+    },
+    {
+      "name": "ax-code-linux-x64.tar.gz",
+      "size": 87747473,
+      "digest": "sha256:a16759e38c3192e3855f9f68652ec86b205dbac35bf2c5c398e24c12e75858ff",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-linux-x64.tar.gz"
+    },
+    {
+      "name": "ax-code-linux-x64.tar.gz.minisig",
+      "size": 377,
+      "digest": "sha256:d982379953261ffb9ad07ae7493623b60301d57bf9912029168c134acc083066",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-linux-x64.tar.gz.minisig"
+    },
+    {
+      "name": "ax-code-windows-x64.zip",
+      "size": 94192949,
+      "digest": "sha256:174f71d6dc5d89af694ef03b1fa50b83e4e3297fb811dab20b0cd6da6fc32bbe",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-windows-x64.zip"
+    },
+    {
+      "name": "ax-code-windows-x64.zip.minisig",
+      "size": 376,
+      "digest": "sha256:8f68c1077966e3c1a14c96441cd04e4ff95f8c16897145c33f213e14413747fc",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-code-windows-x64.zip.minisig"
+    },
+    {
+      "name": "ax-minisign.pub",
+      "size": 113,
+      "digest": "sha256:41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/ax-minisign.pub"
+    },
+    {
+      "name": "install",
+      "size": 46829,
+      "digest": "sha256:bea199a176a677affe2c631534e3d0c48ade759403d838a0204d1ec7c63f2019",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install"
+    },
+    {
+      "name": "install.minisig",
+      "size": 360,
+      "digest": "sha256:1fa9dea356d373bab3d6efb46f0d7656bbaa7c350b514ac46b743657ea3d04e8",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install.minisig"
+    },
+    {
+      "name": "install.ps1",
+      "size": 41478,
+      "digest": "sha256:7ff00eb2da4b99054f53379816088b31b5a6454ab3ba39792f8466cd19df1ea4",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install.ps1"
+    },
+    {
+      "name": "install.ps1.minisig",
+      "size": 364,
+      "digest": "sha256:7b2bdd83aeea8042328212e09a9b208c3eeed71b6a8240b66b7fa225fe591d41",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install.ps1.minisig"
+    },
+    {
+      "name": "install.ps1.sha256",
+      "size": 78,
+      "digest": "sha256:73d25d40471a51313002ca09b26c3815d69efc9ecdf3dbcc1fc8f1a8b15bebe2",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install.ps1.sha256"
+    },
+    {
+      "name": "install.sha256",
+      "size": 74,
+      "digest": "sha256:9eb33286fd8aeb662335dbdd4e11fe502d2d33e28b7f52f856915560bdb6b85d",
+      "browser_download_url": "https://github.com/defai-digital/ax-code/releases/download/v7.27.4/install.sha256"
+    }
+  ]
+}

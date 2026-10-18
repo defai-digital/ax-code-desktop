@@ -1,0 +1,59 @@
+
+> ax-coder@7.27.1 check:boundaries /Users/akiralam/code/ax-code-desktop
+> pnpm run check:desktop-boundaries && pnpm run check:desktop-store-boundaries && pnpm run check:desktop-electron-runtime && pnpm run check:desktop-endpoint-contracts && pnpm run check:desktop-ipc-contracts && pnpm run check:desktop-package-tests && pnpm run check:no-sibling-dependencies && pnpm run check:source-ownership && pnpm run check:runtime-pin && pnpm run check:release-policy && pnpm run check:release-contract
+
+
+> ax-coder@7.27.1 check:desktop-boundaries /Users/akiralam/code/ax-code-desktop
+> tsx script/check-desktop-boundaries.ts --fail-on-violation
+
+Desktop boundary check passed
+
+> ax-coder@7.27.1 check:desktop-store-boundaries /Users/akiralam/code/ax-code-desktop
+> tsx script/check-desktop-store-boundaries.ts
+
+Desktop store boundary check passed
+
+> ax-coder@7.27.1 check:desktop-electron-runtime /Users/akiralam/code/ax-code-desktop
+> node desktop/scripts/check-electron-runtime.mjs
+
+Electron runtime syntax check passed (159 file(s)).
+
+> ax-coder@7.27.1 check:desktop-endpoint-contracts /Users/akiralam/code/ax-code-desktop
+> node desktop/scripts/check-endpoint-contracts.mjs
+
+Endpoint contract check passed.
+
+> ax-coder@7.27.1 check:desktop-ipc-contracts /Users/akiralam/code/ax-code-desktop
+> node desktop/scripts/check-desktop-ipc-contracts.mjs
+
+Desktop IPC contract check passed (41 invoked command(s), 57 handler(s), 57 manifest command(s)).
+
+> ax-coder@7.27.1 check:desktop-package-tests /Users/akiralam/code/ax-code-desktop
+> node desktop/scripts/check-package-test-scripts.mjs
+
+Desktop package test script check passed.
+
+> ax-coder@7.27.1 check:no-sibling-dependencies /Users/akiralam/code/ax-code-desktop
+> node script/check-no-sibling-dependencies.mjs
+
+AX Code sibling dependency check passed (3234 files inspected).
+
+> ax-coder@7.27.1 check:source-ownership /Users/akiralam/code/ax-code-desktop
+> node script/source-ownership-contract.mjs
+
+AX Code Desktop source ownership contract passed (3370 Desktop files).
+
+> ax-coder@7.27.1 check:runtime-pin /Users/akiralam/code/ax-code-desktop
+> node script/runtime-pin.mjs
+
+AX Code runtime pin check passed (7.27.4, 4 targets).
+
+> ax-coder@7.27.1 check:release-policy /Users/akiralam/code/ax-code-desktop
+> node script/release-policy.mjs check
+
+Desktop release policy check passed (cutover-approved).
+
+> ax-coder@7.27.1 check:release-contract /Users/akiralam/code/ax-code-desktop
+> node script/desktop-release-contract.mjs
+
+Desktop release contract check passed (app 7.27.1, SDK 2.6.35, runtime 7.27.4, cutover-approved).

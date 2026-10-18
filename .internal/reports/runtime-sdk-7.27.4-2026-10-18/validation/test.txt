@@ -1,0 +1,68 @@
+
+> ax-coder@7.27.1 test /Users/akiralam/code/ax-code-desktop
+> pnpm run test:scripts && pnpm --filter "./desktop/packages/*" --workspace-concurrency=1 --if-present run test
+
+
+> ax-coder@7.27.1 test:scripts /Users/akiralam/code/ax-code-desktop
+> vitest run --config vitest.config.ts
+
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop
+
+• turbo 2.9.14
+
+ Test Files  25 passed | 2 skipped (27)
+      Tests  195 passed | 7 skipped (202)
+   Start at  08:43:38
+   Duration  6.21s (transform 1.55s, setup 0ms, import 3.20s, tests 14.95s, environment 1ms)
+
+Scope: 3 of 4 workspace projects
+
+> @ax-code/electron@7.27.1 test /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+> vitest run
+
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+
+
+ Test Files  81 passed (81)
+      Tests  639 passed | 1 skipped (640)
+   Start at  08:43:45
+   Duration  3.72s (transform 1.17s, setup 0ms, import 2.70s, tests 15.42s, environment 6ms)
+
+
+> @openchamber/ui@7.27.1 test /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> node scripts/run-tests.mjs
+
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+
+ Test Files  505 passed (505)
+      Tests  3284 passed (3284)
+   Start at  08:43:49
+   Duration  26.55s (transform 20.16s, setup 9.56s, import 63.42s, tests 38.67s, environment 219.22s)
+
+
+> ax-code-desktop@7.27.1 test /Users/akiralam/code/ax-code-desktop/desktop/packages/web
+> vitest run
+
+
+ RUN  v4.1.12 /Users/akiralam/code/ax-code-desktop/desktop/packages/web
+
+(node:12689) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+(node:12952) [DEP0060] DeprecationWarning: The `util._extend` API is deprecated. Please use Object.assign() instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+8:44:17 AM [vite] (ssr) warning: invalid import "./${providerId}.js". Variable imports cannot import their own directory, place imports in a separate directory or make the import filename more specific. For example: import(`./foo/${bar}.js`).
+  Plugin: vite:dynamic-import-vars
+  File: /Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/quota/providers/minimax-shared.test.js
+Warning: A vi.hoisted() call in "/Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/quota/providers/minimax-shared.test.js" is not at the top level of the module. Although it appears nested, it will be hoisted and executed before any tests run. Move it to the top level to reflect its actual execution order. This will become an error in a future version.
+See: https://vitest.dev/guide/mocking/modules#how-it-works
+Warning: A vi.mock("../../ax-code/auth.js") call in "/Users/akiralam/code/ax-code-desktop/desktop/packages/web/server/lib/quota/providers/minimax-shared.test.js" is not at the top level of the module. Although it appears nested, it will be hoisted and executed before any tests run. Move it to the top level to reflect its actual execution order. This will become an error in a future version.
+See: https://vitest.dev/guide/mocking/modules#how-it-works
+
+ Test Files  137 passed (137)
+      Tests  1426 passed | 2 skipped (1428)
+   Start at  08:44:16
+   Duration  31.03s (transform 4.15s, setup 0ms, import 8.57s, tests 86.74s, environment 324ms)

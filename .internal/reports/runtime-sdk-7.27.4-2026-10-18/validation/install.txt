@@ -1,0 +1,14 @@
+Scope: all 4 workspace projects
+Progress: resolved 1, reused 0, downloaded 0, added 0
+ WARN  deprecated eslint@9.39.5: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+desktop/packages/web                     |  WARN  deprecated cron-parser@4.9.0
+ WARN  5 deprecated subdependencies found: boolean@3.2.0, glob@7.2.3, inflight@1.0.6, lodash.isequal@4.5.0, rimraf@2.6.3
+Packages: -1
+-
+Progress: resolved 1060, reused 984, downloaded 0, added 0, done
+. preinstall$ node script/require-pnpm.cjs
+. preinstall: Done
+. postinstall$ node desktop/scripts/fix-node-pty-permissions.mjs
+. postinstall: Done
+
+Done in 1.2s using pnpm v10.33.4

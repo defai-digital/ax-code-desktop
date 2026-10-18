@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "tests": {
+    "passed": 5544,
+    "skipped": 10
+  },
+  "commands": {
+    "install": 0,
+    "frozen": 0,
+    "test": 0,
+    "typecheck": 0,
+    "lint": 0,
+    "boundaries": 0,
+    "build": 0,
+    "native-sdk": 0
+  },
+  "sourceSha256": {
+    "config/ax-code-runtime.json": "c8feec5720336b0dbdc749d842733f786f8bdfc3e2364418d59f10802f5f367c",
+    "config/ax-code-sdk.json": "75754485095793710666169ee8cac189b7f0e63c7d28ab156c15760502172287",
+    "desktop/packages/electron/package.json": "c22b2c7fc1f54f44174919ace59ab9ef1f680215b27ad4d5fd880e2a24379b4f",
+    "desktop/packages/ui/package.json": "83b263ba7091c3f0647f84ce85a53ebaa9d3a1cc7abf215a16fd6bb6a61612fa",
+    "desktop/packages/web/package.json": "eb4af77affb1001745c3735bb90cd340230b1870e4bf02a0076b27cfe69f11f8",
+    "pnpm-lock.yaml": "fec022f024059751d8e4ee842db691110545f16a41caf3ea1b75ba0ba544b7a3"
+  },
+  "nativePlatformsExecuted": [
+    "darwin-arm64"
+  ],
+  "published": false,
+  "installedOverUserApp": false
+}

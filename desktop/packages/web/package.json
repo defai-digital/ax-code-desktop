@@ -28,7 +28,7 @@
   },
   "dependencies": {
     "@clack/prompts": "^1.8.1",
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.31",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.35",
     "@octokit/rest": "^22.0.1",
     "@openchamber/ui": "workspace:*",
     "@simplewebauthn/server": "13.3.2",
