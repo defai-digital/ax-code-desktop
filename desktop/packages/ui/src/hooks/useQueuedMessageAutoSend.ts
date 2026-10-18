@@ -13,6 +13,12 @@ import { useSelectionStore } from "@/sync/selection-store"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
+import {
+  extractInlineFileMentions,
+  filterMissingInlineAttachments,
+  loadConfirmedMentions,
+} from "@/components/chat/chatInputMentions"
+import { axCodeClient } from "@/lib/ax-code/client"
 import { getGlobalSyncSessionStatus } from "@/sync/sync-refs"
 import { useAllSessionStatuses } from "@/sync/sync-context"
 import { useSyncNotificationStore } from "@/sync/notification-store"
@@ -252,6 +258,41 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       if (!payload) {
         return
       }
+
+      // The queue stores the typed text. The manual send path extracts @path mentions when it
+      // builds the payload, but the auto-sender forwarded only the chip attachments, so a
+      // queued mention arrived as plain text while the same prompt sent by hand carried the
+      // file. Extract them here exactly as the composer does; a failure here must never stop
+      // the queued prompt from being delivered.
+      try {
+        const root = (
+          useSessionUIStore.getState().getDirectoryForSession(sessionId) ||
+          axCodeClient.getDirectory() ||
+          ""
+        )
+          .replace(/\\/g, "/")
+          .replace(/\/+$/, "")
+        if (root && payload.primaryText.includes("@")) {
+          const confirmed = loadConfirmedMentions(sessionId)
+          const mentioned = extractInlineFileMentions(payload.primaryText, {
+            root,
+            isKnownAgent: (name) =>
+              useAgentsStore.getState().getVisibleAgents().some((agent) => agent.name.toLowerCase() === name),
+            isConfirmedFilePath: (text) =>
+              text.includes("/") || text.includes("\\") || text.includes(".") || confirmed.has(text),
+          })
+          payload.primaryText = mentioned.sanitizedText
+          if (mentioned.attachments.length > 0) {
+            payload.primaryAttachments = await filterMissingInlineAttachments(
+              [...payload.primaryAttachments, ...mentioned.attachments],
+              (directory) => axCodeClient.listLocalDirectory(directory),
+            )
+          }
+        }
+      } catch (error) {
+        console.warn("[queue] queued mention extraction failed:", error)
+      }
+
       if (!payload.primaryText && payload.primaryAttachments.length === 0) {
         return
       }

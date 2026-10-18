@@ -13,7 +13,7 @@ describe("chat slash commands keep the composer's own state", () => {
   test("restores the review comments and files a handled slash command consumed", async () => {
     const source = await readSource()
 
-    const slashBlockStart = source.indexOf("const slashCommand = parseChatSlashCommand(primaryText, inputMode)")
+    const slashBlockStart = source.indexOf("const slashCommand = composerSlashCommand")
     expect(slashBlockStart).toBeGreaterThan(-1)
     const chainEnd = source.indexOf(SLASH_CHAIN_END, slashBlockStart)
     const slashBlock = source.slice(slashBlockStart, chainEnd)
@@ -50,5 +50,23 @@ describe("chat slash commands keep the composer's own state", () => {
     // pre-submit snapshot, and evaluated the session guard after the command had created or switched a session.
     const atBranchHead = chain.match(/\{\r?\n {8}releaseConsumedComposerState\(\)/g) ?? []
     expect(atBranchHead.length).toBe(handBacks.length)
+  })
+
+  test("never folds queued prompts into a shell or slash submit", async () => {
+    const source = await readSource()
+
+    // The submit kind must come from the composer, before the queue is merged: merging first
+    // ran the queued prompt in the terminal (shell mode) or sent the typed command to the
+    // model as a prompt part while clearing the queue.
+    const decisionAt = source.indexOf("const composerSlashCommand")
+    const mergeAt = source.indexOf("// Process queued messages first")
+    expect(decisionAt).toBeGreaterThan(-1)
+    expect(mergeAt).toBeGreaterThan(decisionAt)
+    const decisionBlock = source.slice(decisionAt, mergeAt)
+    expect(decisionBlock).toContain("const consumesQueue = !composerSlashCommand && !isShellSubmit")
+    expect(source.slice(mergeAt, mergeAt + 200)).toContain("if (consumesQueue) {")
+    expect(source).toContain("const slashCommand = composerSlashCommand")
+    // The queue is only cleared for a submit that consumed it.
+    expect(source).toContain("if (consumesQueue) {\n      if (currentSessionId && queuedMessageId)")
   })
 })

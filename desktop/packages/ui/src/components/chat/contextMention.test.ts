@@ -8,6 +8,7 @@ import {
   contextMentionKindsForQuery,
   filterCommitEntries,
   formatCommitLabel,
+  clipCommitSubject,
   formatTerminalOutputLabel,
   plainTerminalText,
   removeMentionQueryAtCursor,
@@ -33,6 +34,17 @@ const readBlobText = async (blob: Blob): Promise<string> =>
   })
 
 describe("context mention formatting", () => {
+  test("clips a commit subject without splitting a surrogate pair", () => {
+    // 68 ASCII chars put the cut exactly inside an emoji; slicing code units left a lone
+    // high surrogate in the label and attachment filename.
+    const subject = `${"a".repeat(68)}🙂 tail`
+    const clipped = clipCommitSubject(subject, 72)
+
+    expect(clipped.endsWith("...")).toBe(true)
+    expect(clipped).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    expect(Array.from(clipped.slice(0, -3)).every((character) => character.length > 0)).toBe(true)
+  })
+
   test("strips ANSI color and normalizes carriage returns", () => {
     expect(stripAnsi("\u001B[31mred\u001B[0m")).toBe("red")
     expect(plainTerminalText("\u001B[32mok\u001B[0m\r\nnext\rline")).toBe("ok\nnext\nline")

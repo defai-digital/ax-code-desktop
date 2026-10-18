@@ -142,7 +142,7 @@ describe("FileMentionAutocomplete recent files", () => {
 describe("FileMentionAutocomplete context mentions", () => {
   let container: HTMLDivElement
   let root: Root
-  const mentionRef = React.createRef<{ handleKeyDown: (key: string) => void }>()
+  const mentionRef = React.createRef<{ handleKeyDown: (key: string) => boolean }>()
   const onContextAttachment = vi.fn()
   const onClose = vi.fn()
 

@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 import {
   CHAT_DRAFT_PERSIST_DEBOUNCE_MS,
   getDraftKey,
+  getLiveDraft,
   getStoredDraft,
   saveStoredDraft,
+  setLiveDraft,
 } from "./chatInputDraftPersistence"
 
 // jsdom in this repo provides no localStorage — install the same Map-backed
@@ -79,5 +81,23 @@ describe("chatInputDraftPersistence", () => {
       throw new Error("denied")
     })
     expect(() => saveStoredDraft("session-1", "hello")).not.toThrow()
+  })
+
+  test("keeps the live draft ahead of the debounced storage write", () => {
+    // A remount reads its initial draft during render, before the outgoing instance's
+    // unmount flush reaches localStorage; the live map must already hold the last keystroke.
+    saveStoredDraft("session-1", "older")
+    setLiveDraft("session-1", "newer")
+
+    expect(getLiveDraft("session-1")).toBe("newer")
+    expect(getStoredDraft("session-1")).toBe("older")
+  })
+
+  test("clears the live draft when the stored draft is cleared", () => {
+    saveStoredDraft("session-1", "hello")
+    expect(getLiveDraft("session-1")).toBe("hello")
+
+    saveStoredDraft("session-1", "")
+    expect(getLiveDraft("session-1")).toBeUndefined()
   })
 })

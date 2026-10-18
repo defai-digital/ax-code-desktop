@@ -108,7 +108,7 @@ import {
   type HighlightRange,
   type MentionRange,
 } from "./composerHighlight"
-import { getStoredDraft, saveStoredDraft } from "./chatInputDraftPersistence"
+import { getLiveDraft, getStoredDraft, saveStoredDraft } from "./chatInputDraftPersistence"
 import {
   buildMentionDropInsertion,
   collectComposerMentionRanges,
@@ -820,10 +820,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // Track initial session ID (captured at mount time for draft restoration)
   const initialSessionIdRef = React.useRef<string | null>(null)
   const [message, setMessage] = React.useState(() => {
-    // Read per-session draft at mount time using the current session from the store
+    // Read per-session draft at mount time using the current session from the store. The live
+    // in-memory draft wins: a remount (layout branch swap) renders before the outgoing
+    // instance's debounced write reaches localStorage.
     const sessionId = useSessionUIStore.getState().currentSessionId
     initialSessionIdRef.current = sessionId
-    const draft = getStoredDraft(sessionId)
+    const draft = getLiveDraft(sessionId) ?? getStoredDraft(sessionId)
     if (draft) {
       initialDraftRef.current = draft
     }
@@ -1532,6 +1534,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       return
     }
 
+    // What kind of submit this is is decided by the COMPOSER, before any queued entries are
+    // folded in: queued entries are ordinary prompts and must never become a shell command or
+    // a slash command. Merging first ran the queued prompt in the terminal (shell mode) or
+    // sent the command text to the model as an extra prompt part, and the queue was cleared.
+    const composerMessage = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
+    const composerSlashCommand =
+      !queuedOnly && inputMode !== "shell" ? parseChatSlashCommand(composerMessage, inputMode) : null
+    const isShellSubmit = !queuedOnly && inputMode === "shell" && inputSnapshot.hasContent
+    const consumesQueue = !composerSlashCommand && !isShellSubmit
+
     // Build the primary message (first part) and additional parts
     let primaryText = ""
     let primaryAttachments: AttachedFile[] = []
@@ -1548,31 +1560,39 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // Consume any pending synthetic parts (from conflict resolution, etc.)
     const syntheticParts = consumePendingSyntheticParts()
 
-    // Process queued messages first
-    for (let i = 0; i < queuedMessagesToSend.length; i++) {
-      const queuedMsg = queuedMessagesToSend[i]
-      const { sanitizedText, mention } = parseAgentMentions(queuedMsg.content, agents)
-      const { sanitizedText: queuedText, attachments: mentionAttachments } = extractInlineFileMentions(sanitizedText)
-      addMentionedSkills(queuedText)
+    // Process queued messages first — unless the composer's own text is a command or a shell
+    // command, which consumes the composer alone and must leave the queue untouched.
+    if (consumesQueue) {
+      for (let i = 0; i < queuedMessagesToSend.length; i++) {
+        const queuedMsg = queuedMessagesToSend[i]
+        const { sanitizedText, mention } = parseAgentMentions(queuedMsg.content, agents)
+        const { sanitizedText: queuedText, attachments: mentionAttachments } = extractInlineFileMentions(sanitizedText)
+        addMentionedSkills(queuedText)
 
-      // Use agent mention from first message that has one
-      if (!agentMentionName && mention?.name) {
-        agentMentionName = mention.name
-      }
+        // Use agent mention from first message that has one
+        if (!agentMentionName && mention?.name) {
+          agentMentionName = mention.name
+        }
 
-      if (i === 0) {
-        // First queued message becomes primary
-        primaryText = queuedText
-        primaryAttachments = [...sanitizeAttachmentsForSend(queuedMsg.attachments), ...mentionAttachments]
-      } else {
-        // Subsequent queued messages become additional parts
-        const queuedAttachments = sanitizeAttachmentsForSend(queuedMsg.attachments)
-        additionalParts.push({
-          text: queuedText,
-          attachments: [...queuedAttachments, ...mentionAttachments],
-        })
+        if (i === 0) {
+          // First queued message becomes primary
+          primaryText = queuedText
+          primaryAttachments = [...sanitizeAttachmentsForSend(queuedMsg.attachments), ...mentionAttachments]
+        } else {
+          // Subsequent queued messages become additional parts
+          const queuedAttachments = sanitizeAttachmentsForSend(queuedMsg.attachments)
+          additionalParts.push({
+            text: queuedText,
+            attachments: [...queuedAttachments, ...mentionAttachments],
+          })
+        }
       }
     }
+
+    // The composer's own attachments — not the queue's (those come back with their queue
+    // entries) and not mention-derived ones (the restored text still carries the @paths).
+    // Restoring every attachment of the send duplicated queued files into the composer.
+    let composerAttachmentsForRestore: AttachedFile[] = []
 
     // Add current input (skip for queued-only auto-send)
     if (!queuedOnly && inputSnapshot.hasContent) {
@@ -1580,14 +1600,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       const { sanitizedText, mention } = parseAgentMentions(messageToSend, agents)
       const { sanitizedText: messageText, attachments: mentionAttachments } = extractInlineFileMentions(sanitizedText)
       const attachmentsToSend = sanitizeAttachmentsForSend(sendableAttachedFiles)
+      composerAttachmentsForRestore = attachmentsToSend
       addMentionedSkills(messageText)
 
       if (!agentMentionName && mention?.name) {
         agentMentionName = mention.name
       }
 
-      if (queuedMessagesToSend.length === 0) {
-        // No queue - current input is primary
+      if (queuedMessagesToSend.length === 0 || !consumesQueue) {
+        // No queue (or a command submit that does not touch it) - current input is primary
         primaryText = messageText
         primaryAttachments = [...attachmentsToSend, ...mentionAttachments]
       } else {
@@ -1605,7 +1626,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }
 
     if (drafts.length > 0) {
-      if (queuedMessagesToSend.length === 0) {
+      if (queuedMessagesToSend.length === 0 || !consumesQueue) {
         primaryText = appendInlineComments(primaryText, drafts)
       } else if (additionalParts.length > 0) {
         const lastPart = additionalParts[additionalParts.length - 1]
@@ -1657,15 +1678,22 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     // Snapshot what this submit consumes, so a failed send can put it back: the queue
     // entries it takes and the composer text it folds into the payload. Both are
-    // cleared below, before the send resolves.
-    const consumedQueueSnapshot = currentSessionId ? [...queuedMessagesToSend] : []
+    // cleared below, before the send resolves. A command submit consumes the composer
+    // alone, so it takes nothing from the queue.
+    const consumedQueueSnapshot = currentSessionId && consumesQueue ? [...queuedMessagesToSend] : []
     const consumedInputSnapshot = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : ""
+    // The @-mention confirmations this submit clears. A failed send restores them with the
+    // text; without them a top-level mention that relied on confirmation (@LICENSE, @src)
+    // is no longer attached on retry.
+    const consumedConfirmedMentions = new Set(confirmedMentionsRef.current)
 
     // Clear queue and input
-    if (currentSessionId && queuedMessageId) {
-      removeFromQueue(currentSessionId, queuedMessageId)
-    } else if (currentSessionId && hasQueuedMessages) {
-      clearQueue(currentSessionId)
+    if (consumesQueue) {
+      if (currentSessionId && queuedMessageId) {
+        removeFromQueue(currentSessionId, queuedMessageId)
+      } else if (currentSessionId && hasQueuedMessages) {
+        clearQueue(currentSessionId)
+      }
     }
     if (!queuedOnly) {
       setMessage("")
@@ -1687,7 +1715,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       textareaRef.current?.blur()
     }
 
-    const slashCommand = parseChatSlashCommand(primaryText, inputMode)
+    const slashCommand = composerSlashCommand
     if (slashCommand) {
       const commandName = slashCommand.name
 
@@ -1958,12 +1986,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
 
-    // Collect all attachments for error recovery. Mention-derived inline
-    // attachments are excluded from the restore set: the restored text still
-    // carries the `@path` mentions, so resending re-derives them — restoring
+    // Collect all attachments for error recovery. Only the composer's own attachments are
+    // restored to the composer; queue entries carry theirs back with the entry itself.
+    // Mention-derived inline attachments are excluded from the restore set: the restored
+    // text still carries the `@path` mentions, so resending re-derives them — restoring
     // them here too would attach the same file twice.
-    const allAttachments = [...primaryAttachments, ...additionalParts.flatMap((p) => p.attachments ?? [])]
-    const restorableAttachments = allAttachments.filter((attachment) => !isInlineServerAttachment(attachment))
+    const restorableAttachments = composerAttachmentsForRestore.filter(
+      (attachment) => !isInlineServerAttachment(attachment),
+    )
 
     const sendPromise = sendMessage(
       primaryText,
@@ -2015,24 +2045,50 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
         console.error("Message send failed:", rawMessage || error)
 
-        // Restore the composed text so a failed send doesn't destroy user input.
-        // Skip when the composer already has content — queued-only submits keep
-        // the text, and the user may have typed something new while in flight.
-        // Always persist the restored text to the sending session's own stored
-        // draft, but only write it into the live composer (`setMessage`) if the
-        // user is still viewing that same session — otherwise the failed send
-        // from session A would overwrite whatever session B currently has typed.
-        if (consumedInputSnapshot && messageRef.current.trim().length === 0) {
-          if (useSessionUIStore.getState().currentSessionId === currentSessionId) {
+        // The session this send belonged to. A new-chat draft is sent as a session the store
+        // creates mid-flight, and the store annotates the failure with its id: comparing
+        // against the captured null treated the created session as some other session, so
+        // the text was neither restored nor saved to it.
+        const failedSessionId =
+          (typeof (error as { sessionId?: unknown } | null)?.sessionId === "string"
+            ? (error as { sessionId: string }).sessionId
+            : null) ?? currentSessionId
+        const viewingFailedSession = useSessionUIStore.getState().currentSessionId === failedSessionId
+
+        // Restore the composed text so a failed send doesn't destroy user input. The live
+        // composer only takes it back while it is empty (the user may have typed something
+        // new); the sending session's stored draft is a different slot, so text typed in
+        // another session must not block persisting it there.
+        if (consumedInputSnapshot) {
+          if (viewingFailedSession && messageRef.current.trim().length === 0) {
             setMessage(consumedInputSnapshot)
+            saveStoredDraft(failedSessionId, consumedInputSnapshot)
+            for (const mention of consumedConfirmedMentions) {
+              confirmedMentionsRef.current.add(mention)
+            }
+            saveConfirmedMentions(failedSessionId, confirmedMentionsRef.current)
+          } else if (!viewingFailedSession) {
+            saveStoredDraft(failedSessionId, consumedInputSnapshot)
+            // Persist the snapshot, not the live set — it belongs to the session on screen.
+            saveConfirmedMentions(failedSessionId, consumedConfirmedMentions)
           }
-          saveStoredDraft(currentSessionId, consumedInputSnapshot)
         }
 
         // The snapshot above is the composer text before the review comments were appended,
         // so restoring the comments is what recovers them: with an empty composer the text
         // restore is skipped entirely and the comments were lost without a trace.
         restoreConsumedDrafts(drafts)
+
+        // Restore the composer's attachments, merged with whatever the user attached while
+        // the send was in flight: replacing the list dropped those.
+        const restoreComposerAttachments = (attachments: AttachedFile[]) => {
+          if (attachments.length === 0 || !viewingFailedSession) return
+          const currentFiles = useInputStore.getState().attachedFiles
+          const currentIds = new Set(currentFiles.map((file) => file.id))
+          const missing = attachments.filter((file) => !currentIds.has(file.id))
+          if (missing.length === 0) return
+          useInputStore.getState().setAttachedFiles([...currentFiles, ...missing])
+        }
 
         // A failed send must not consume the queue or the composer text: put the taken
         // entries back at the head and restore the text that was folded into them.
@@ -2067,23 +2123,19 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           normalized.includes("entity too large")
         ) {
           toast.error(t("chat.chatInput.toast.attachmentsTooLarge"))
-          if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            useInputStore.getState().setAttachedFiles(restorableAttachments)
-          }
+          restoreComposerAttachments(restorableAttachments)
           return
         }
 
         if (isSoftNetworkError) {
-          if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-            useInputStore.getState().setAttachedFiles(restorableAttachments)
+          if (restorableAttachments.length > 0 && viewingFailedSession) {
+            restoreComposerAttachments(restorableAttachments)
             toast.error(t("chat.chatInput.toast.sendAttachmentsFailed"))
           }
           return
         }
 
-        if (restorableAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-          useInputStore.getState().setAttachedFiles(restorableAttachments)
-        }
+        restoreComposerAttachments(restorableAttachments)
         toast.error(rawMessage || t("chat.chatInput.toast.messageSendFailed"))
       })
 
@@ -2176,35 +2228,45 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
 
+    // Shift+Enter is a newline, never an autocomplete selection. The menu still gets the
+    // plain keys; when it has no row to act on it reports the key unconsumed and the textarea
+    // handles it (Enter sends the message again).
+    const autocompleteKey = e.key === "Enter" && e.shiftKey ? null : e.key
+    const autocompleteKeys = ["Enter", "ArrowUp", "ArrowDown", "Escape", "Tab"]
+
     if (showCommandAutocomplete && commandRef.current) {
-      if (e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault()
-        commandRef.current.handleKeyDown(e.key)
-        return
+      if (autocompleteKey && autocompleteKeys.includes(autocompleteKey)) {
+        if (commandRef.current.handleKeyDown(autocompleteKey)) {
+          e.preventDefault()
+          return
+        }
       }
     }
 
     if (showSkillAutocomplete && skillRef.current) {
-      if (e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault()
-        skillRef.current.handleKeyDown(e.key)
-        return
+      if (autocompleteKey && autocompleteKeys.includes(autocompleteKey)) {
+        if (skillRef.current.handleKeyDown(autocompleteKey)) {
+          e.preventDefault()
+          return
+        }
       }
     }
 
     if (showSnippetAutocomplete && snippetRef.current) {
-      if (e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault()
-        snippetRef.current.handleKeyDown(e.key)
-        return
+      if (autocompleteKey && autocompleteKeys.includes(autocompleteKey)) {
+        if (snippetRef.current.handleKeyDown(autocompleteKey)) {
+          e.preventDefault()
+          return
+        }
       }
     }
 
     if (showFileMention && mentionRef.current) {
-      if (e.key === "Enter" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape" || e.key === "Tab") {
-        e.preventDefault()
-        mentionRef.current.handleKeyDown(e.key)
-        return
+      if (autocompleteKey && autocompleteKeys.includes(autocompleteKey)) {
+        if (mentionRef.current.handleKeyDown(autocompleteKey)) {
+          e.preventDefault()
+          return
+        }
       }
     }
 

@@ -6,7 +6,7 @@ import { useI18n } from "@/lib/i18n"
 import type { Snippet } from "@/types/snippet"
 
 export interface SnippetAutocompleteHandle {
-  handleKeyDown: (key: string) => void
+  handleKeyDown: (key: string) => boolean
 }
 
 interface SnippetAutocompleteProps {
@@ -80,22 +80,24 @@ export const SnippetAutocomplete = React.forwardRef<SnippetAutocompleteHandle, S
         handleKeyDown: (key: string) => {
           if (key === "Escape") {
             onClose()
-            return
+            return true
           }
           const itemCount = filteredSnippets.length
-          if (itemCount === 0) return
+          if (itemCount === 0) return false
           if (key === "ArrowDown") {
             setSelectedIndex((prev) => (prev + 1) % itemCount)
-            return
+            return true
           }
           if (key === "ArrowUp") {
             setSelectedIndex((prev) => (prev - 1 + itemCount) % itemCount)
-            return
+            return true
           }
           if (key === "Enter" || key === "Tab") {
             const snippet = filteredSnippets[selectedIndexRef.current]
             if (snippet) chooseSnippet(snippet)
+            return true
           }
+          return false
         },
       }),
       [chooseSnippet, filteredSnippets, onClose],

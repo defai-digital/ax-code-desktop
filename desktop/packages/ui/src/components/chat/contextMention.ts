@@ -50,7 +50,9 @@ export const shortCommitHash = (hash: string): string => hash.trim().slice(0, 7)
 export const clipCommitSubject = (subject: string, maxLength = 72): string => {
   const oneLine = subject.replace(/\s+/g, " ").trim()
   if (oneLine.length <= maxLength) return oneLine
-  return `${oneLine.slice(0, Math.max(0, maxLength - 3))}...`
+  // Clip on code points: slicing code units split a surrogate pair (an emoji at the cut) and
+  // left a lone surrogate in the attachment label and filename.
+  return `${Array.from(oneLine).slice(0, Math.max(0, maxLength - 3)).join("")}...`
 }
 
 export const formatTerminalOutputLabel = (shell: string): string => {

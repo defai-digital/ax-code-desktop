@@ -15,8 +15,26 @@ export const getStoredDraft = (sessionId: string | null): string => {
   }
 }
 
+// The live composer text per draft key, kept in memory. A remount reads its initial draft
+// during render, while the outgoing instance's unmount flush runs later in the same commit —
+// so localStorage could still hold the previous debounced snapshot and the last keystrokes
+// were lost. Every keystroke writes here first; the remount reads it before storage.
+const liveDrafts = new Map<string, string>()
+
+export const getLiveDraft = (sessionId: string | null): string | undefined => liveDrafts.get(getDraftKey(sessionId))
+
+export const setLiveDraft = (sessionId: string | null, draft: string): void => {
+  const key = getDraftKey(sessionId)
+  if (draft) {
+    liveDrafts.set(key, draft)
+  } else {
+    liveDrafts.delete(key)
+  }
+}
+
 // Helper to safely write/clear a per-session draft
 export const saveStoredDraft = (sessionId: string | null, draft: string): void => {
+  setLiveDraft(sessionId, draft)
   try {
     if (draft) {
       localStorage.setItem(getDraftKey(sessionId), draft)

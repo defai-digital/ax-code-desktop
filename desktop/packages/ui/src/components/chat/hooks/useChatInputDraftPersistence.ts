@@ -5,6 +5,7 @@ import {
   getDraftKey,
   getStoredDraft,
   saveStoredDraft,
+  setLiveDraft,
 } from "../chatInputDraftPersistence"
 import { loadConfirmedMentions, pruneConfirmedMentions, saveConfirmedMentions } from "../chatInputMentions"
 
@@ -42,11 +43,20 @@ export const useChatInputDraftPersistence = ({
   const skipNextDraftPersistRef = React.useRef(false)
   const lastPersistedDraftRef = React.useRef<Map<string, string>>(new Map())
   const currentSessionIdForDraftRef = React.useRef<string | null>(null)
+  // The session the current `message` belongs to. During a switch the prop changes one
+  // render before the restored draft does, so the sync effect must not write the old text
+  // under the new key.
+  const messageSessionIdRef = React.useRef<string | null>(currentSessionId)
 
-  // Keep messageRef in sync with message state
+  // Keep messageRef in sync with message state, and the in-memory live draft with it —
+  // a remount reads the live draft before the unmount flush reaches localStorage.
   React.useEffect(() => {
+    if (messageSessionIdRef.current !== currentSessionId) {
+      return
+    }
     messageRef.current = message
-  }, [message, messageRef])
+    setLiveDraft(currentSessionId, message)
+  }, [message, messageRef, currentSessionId])
 
   React.useEffect(() => {
     currentSessionIdForDraftRef.current = currentSessionId
@@ -112,6 +122,7 @@ export const useChatInputDraftPersistence = ({
     if (prevSessionIdRef.current !== currentSessionId) {
       const oldSessionId = prevSessionIdRef.current
       prevSessionIdRef.current = currentSessionId
+      messageSessionIdRef.current = currentSessionId
       setInputMode("normal")
       clearPendingDraftPersist()
       skipNextDraftPersistRef.current = true

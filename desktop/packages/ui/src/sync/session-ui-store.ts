@@ -1037,23 +1037,33 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
       const files = attachments?.map(attachmentToRouteFileInput)
 
-      await routeMessage({
-        sessionId: created.id,
-        directory: createdDirectory,
-        content,
-        providerID,
-        modelID,
-        agent: effectiveDraftAgent,
-        agentMentionName,
-        variant,
-        inputMode,
-        files,
-        additionalParts: mergedAdditionalParts?.map((p) => ({
-          text: p.text,
-          synthetic: p.synthetic,
-          files: p.attachments?.map(attachmentToRouteFileInput),
-        })),
-      })
+      try {
+        await routeMessage({
+          sessionId: created.id,
+          directory: createdDirectory,
+          content,
+          providerID,
+          modelID,
+          agent: effectiveDraftAgent,
+          agentMentionName,
+          variant,
+          inputMode,
+          files,
+          additionalParts: mergedAdditionalParts?.map((p) => ({
+            text: p.text,
+            synthetic: p.synthetic,
+            files: p.attachments?.map(attachmentToRouteFileInput),
+          })),
+        })
+      } catch (error) {
+        // The composer submitted from a draft it has no id for; this is the session the send
+        // belonged to, so a failed send can restore its text and attachments there (and only
+        // while that session is still on screen) if the user switched away in the meantime.
+        if (error && typeof error === "object") {
+          ;(error as { sessionId?: string }).sessionId = created.id
+        }
+        throw error
+      }
       return
     }
 

@@ -20,6 +20,7 @@ import {
 } from "@/components/views/filesViewPathUtils"
 import { toast } from "@/components/ui"
 import { useTerminalStore } from "@/stores/useTerminalStore"
+import { useInputStore } from "@/sync/input-store"
 import { getTerminalSessionOutput } from "@/lib/terminalApi"
 import { getCommitPatch } from "@/lib/gitApi"
 import { collectUnverifiedPaths, filterStaleRecentPaths, findStaleRecentPaths } from "./mentionRecentFiles"
@@ -48,7 +49,7 @@ type AgentInfo = {
 }
 
 export interface FileMentionHandle {
-  handleKeyDown: (key: string) => void
+  handleKeyDown: (key: string) => boolean
 }
 
 interface FileMentionAutocompleteProps {
@@ -560,6 +561,10 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
           return
         }
         attachingRef.current = true
+        // The context is built asynchronously; if the composer moved to another draft
+        // meanwhile, delivering it here would attach this project's output to the other
+        // session's draft.
+        const draftKey = useInputStore.getState().activeAttachmentDraftKey
         try {
           const resolved = await resolveTerminalContext({
             sessionId: target.sessionId,
@@ -569,6 +574,10 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
           })
           if (!resolved) {
             toast.error(t("chat.fileMentionAutocomplete.context.terminalEmpty"))
+            return
+          }
+          if (useInputStore.getState().activeAttachmentDraftKey !== draftKey) {
+            toast.error(t("chat.fileMentionAutocomplete.context.attachFailed"))
             return
           }
           const label = t("chat.fileMentionAutocomplete.context.terminal", { shell: resolved.shell })
@@ -593,10 +602,15 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
         return
       }
       attachingRef.current = true
+      const draftKey = useInputStore.getState().activeAttachmentDraftKey
       try {
         const resolved = await resolveUncommittedContext(contextGit, directory)
         if (!resolved) {
           toast.error(t("chat.fileMentionAutocomplete.context.diffEmpty"))
+          return
+        }
+        if (useInputStore.getState().activeAttachmentDraftKey !== draftKey) {
+          toast.error(t("chat.fileMentionAutocomplete.context.attachFailed"))
           return
         }
         deliverContext(t("chat.fileMentionAutocomplete.context.diff"), resolved.text, resolved.truncated, "after")
@@ -654,9 +668,14 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
           return
         }
         attachingRef.current = true
+        const draftKey = useInputStore.getState().activeAttachmentDraftKey
         try {
           const resolved = await resolveCommitContext(contextGit, directory, entry)
           if (!resolved) {
+            toast.error(t("chat.fileMentionAutocomplete.context.attachFailed"))
+            return
+          }
+          if (useInputStore.getState().activeAttachmentDraftKey !== draftKey) {
             toast.error(t("chat.fileMentionAutocomplete.context.attachFailed"))
             return
           }
@@ -697,32 +716,33 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
           if (key === "Escape") {
             if (commitPickerOpen) {
               closeCommitPicker()
-              return
+              return true
             }
             onClose()
-            return
+            return true
           }
 
           if (commitPickerOpen) {
             const total = 1 + visibleCommits.length
             if (key === "ArrowDown") {
               setSelectedIndex((prev) => (prev + 1) % total)
-              return
+              return true
             }
             if (key === "ArrowUp") {
               setSelectedIndex((prev) => (prev - 1 + total) % total)
-              return
+              return true
             }
             if (key === "Enter" || key === "Tab") {
               const safeIndex = ((selectedIndexRef.current % total) + total) % total
               if (safeIndex === 0) {
                 closeCommitPicker()
-                return
+                return true
               }
               const entry = visibleCommits[safeIndex - 1]
               if (entry) void attachCommit(entry)
+              return true
             }
-            return
+            return true
           }
 
           // The rows behind the spinner are not on screen while a search runs, and those arrays still hold the
@@ -740,17 +760,19 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             keyedRecentFiles.length +
             keyedFiles.length
           if (total === 0) {
-            return
+            // Unconsumed: Enter must still send the message when nothing matches the
+            // mention query (`@word` with no hits looked unsendable).
+            return false
           }
 
           if (key === "ArrowDown") {
             setSelectedIndex((prev) => (prev + 1) % total)
-            return
+            return true
           }
 
           if (key === "ArrowUp") {
             setSelectedIndex((prev) => (prev - 1 + total) % total)
-            return
+            return true
           }
 
           if (key === "Enter" || key === "Tab") {
@@ -758,19 +780,19 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
             if (safeIndex < contextEntries.length) {
               const entry = contextEntries[safeIndex]
               if (entry) activateContextEntry(entry)
-              return
+              return true
             }
             const rest = safeIndex - contextEntries.length
             if (rest < keyedAgents.length) {
               const agent = keyedAgents[rest]
               if (agent) handleAgentPick(agent.name)
-              return
+              return true
             }
             const dirIndex = rest - keyedAgents.length
             if (dirIndex < keyedDirectories.length) {
               const dir = keyedDirectories[dirIndex]
               if (dir) handleFileSelect(dir)
-              return
+              return true
             }
             const fileIndex = dirIndex - keyedDirectories.length
             const selectedFile =
@@ -778,7 +800,9 @@ export const FileMentionAutocomplete = React.forwardRef<FileMentionHandle, FileM
                 ? keyedRecentFiles[fileIndex]
                 : keyedFiles[fileIndex - keyedRecentFiles.length]
             if (selectedFile) handleFileSelect(selectedFile)
+            return true
           }
+          return false
         },
       }),
       [

@@ -28,7 +28,7 @@ export interface CommandInfo {
 }
 
 export interface CommandAutocompleteHandle {
-  handleKeyDown: (key: string) => void
+  handleKeyDown: (key: string) => boolean
 }
 
 const BASE_BADGE_CLASS =
@@ -195,23 +195,25 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
           const total = commands.length
           if (key === "Escape") {
             onClose()
-            return
+            return true
           }
 
           if (total === 0) {
-            return
+            // Nothing to navigate or select: report the key unconsumed so Enter still sends
+            // the message (a path starting with "/" looked unsendable).
+            return false
           }
 
           if (key === "ArrowDown") {
             keyboardNavigationRef.current = true
             setSelectedIndex((prev) => (prev + 1) % total)
-            return
+            return true
           }
 
           if (key === "ArrowUp") {
             keyboardNavigationRef.current = true
             setSelectedIndex((prev) => (prev - 1 + total) % total)
-            return
+            return true
           }
 
           if (key === "Enter" || key === "Tab") {
@@ -220,7 +222,9 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
             if (command) {
               onCommandSelect(command)
             }
+            return true
           }
+          return false
         },
       }),
       [commands, onClose, onCommandSelect],

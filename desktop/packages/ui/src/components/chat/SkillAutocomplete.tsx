@@ -11,7 +11,7 @@ interface SkillInfo {
 }
 
 export interface SkillAutocompleteHandle {
-  handleKeyDown: (key: string) => void
+  handleKeyDown: (key: string) => boolean
 }
 
 interface SkillAutocompleteProps {
@@ -87,23 +87,23 @@ export const SkillAutocomplete = React.forwardRef<SkillAutocompleteHandle, Skill
         handleKeyDown: (key: string) => {
           if (key === "Escape") {
             onClose()
-            return
+            return true
           }
 
           if (!filteredSkills.length) {
-            return
+            return false
           }
 
           if (key === "ArrowDown") {
             keyboardNavigationRef.current = true
             setSelectedIndex((prev) => (prev + 1) % filteredSkills.length)
-            return
+            return true
           }
 
           if (key === "ArrowUp") {
             keyboardNavigationRef.current = true
             setSelectedIndex((prev) => (prev - 1 + filteredSkills.length) % filteredSkills.length)
-            return
+            return true
           }
 
           if (key === "Enter" || key === "Tab") {
@@ -113,7 +113,9 @@ export const SkillAutocomplete = React.forwardRef<SkillAutocompleteHandle, Skill
             if (skill) {
               onSkillSelect(skill.name)
             }
+            return true
           }
+          return false
         },
       }),
       [filteredSkills, onSkillSelect, onClose],
