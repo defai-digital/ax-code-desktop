@@ -50,7 +50,12 @@ const DENIED_BASENAMES = new Set([".env", ".git-credentials", ".netrc", ".npmrc"
 const isInsideOrSameDirectory = (rootPath, targetPath, pathTools = path) => {
   if (!rootPath || !targetPath) return false
   const relative = pathTools.relative(rootPath, targetPath)
-  return relative === "" || (!relative.startsWith("..") && !pathTools.isAbsolute(relative))
+  // Only the parent hop itself escapes: a name that merely starts with ".."
+  // (e.g. a "..notes" file under the root) is inside it.
+  if (relative === ".." || relative.startsWith(`..${pathTools.sep}`) || pathTools.isAbsolute(relative)) {
+    return false
+  }
+  return true
 }
 
 const toPosixRelativePath = (relativePath, pathTools = path) =>

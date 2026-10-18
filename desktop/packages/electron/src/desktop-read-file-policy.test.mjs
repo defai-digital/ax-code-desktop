@@ -103,6 +103,9 @@ describe("desktop read file policy", () => {
       // with the segment name.
       "/Users/alice/.local/share/ax-code-old/notes.md",
       "/Users/alice/.config/openchamber-notes/todo.md",
+      // A name that merely starts with ".." is a file under the root, not a
+      // parent hop.
+      "/Users/alice/..notes.txt",
     ]) {
       expect(() => assertDesktopReadFileAllowed(target, options)).not.toThrow()
     }
