@@ -37,7 +37,10 @@ export function registerGitRoutes(app, options = {}) {
   const parsePathPayload = (body) => {
     const { path, paths } = body || {}
     const rawPaths = Array.isArray(paths) ? paths : [path]
-    return rawPaths.map((value) => (typeof value === "string" ? value.trim() : "")).filter(Boolean)
+    // Do not trim: a leading/trailing space is part of a real file name, and
+    // trimming staged or committed a different entry. Whitespace-only input
+    // is still rejected as a missing path.
+    return rawPaths.filter((value) => typeof value === "string" && value.trim().length > 0)
   }
 
   app.get("/api/git/identities", async (req, res) => {

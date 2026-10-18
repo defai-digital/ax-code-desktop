@@ -14,6 +14,7 @@ import {
   continueRebase,
   countStashFiles,
   createWorktree,
+  deleteRemoteBranch,
   getCommitFileDiff,
   getCommitFiles,
   getCommitPatch,
@@ -88,6 +89,42 @@ async function createTempRepo() {
 // ---------------------------------------------------------------------------
 // resolveBaseRefForLog
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// deleteRemoteBranch
+// ---------------------------------------------------------------------------
+
+describe("deleteRemoteBranch", () => {
+  const initBare = (dir) => runGit(dir, ["init", "--bare", "-b", "main"])
+
+  it("deletes from the branch's configured remote instead of assuming origin", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const originDir = createTempDir()
+    const upstreamDir = createTempDir()
+    initBare(originDir)
+    initBare(upstreamDir)
+    await git.commit("init", undefined, { "--allow-empty": null })
+    await git.addRemote("origin", originDir)
+    await git.addRemote("upstream", upstreamDir)
+    await git.raw(["push", "upstream", "main:feature"])
+    await git.raw(["push", "origin", "main:feature"])
+    await git.raw(["config", "branch.feature.remote", "upstream"])
+    await git.raw(["config", "branch.feature.merge", "refs/heads/feature"])
+
+    const result = await deleteRemoteBranch(tmpDir, { branch: "feature" })
+
+    expect(result).toEqual({ success: true, remote: "upstream" })
+    expect(runGit(upstreamDir, ["branch", "--list", "feature"]).trim()).toBe("")
+    // The same-named branch on origin is unrelated and must survive.
+    expect(runGit(originDir, ["branch", "--list", "feature"])).toContain("feature")
+  })
+
+  it("refuses to guess a remote when the branch tracks none", async () => {
+    const { tmpDir } = await createTempRepo()
+
+    await expect(deleteRemoteBranch(tmpDir, { branch: "feature" })).rejects.toThrow(/no configured remote/)
+  })
+})
 
 describe("resolveBaseRefForLog", () => {
   it("returns the local ref unchanged when it exists, even if origin also exists", async () => {

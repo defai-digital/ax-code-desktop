@@ -463,7 +463,16 @@ const normalizeStringList = (values) =>
     new Set((Array.isArray(values) ? values : [values]).map((value) => String(value || "").trim()).filter(Boolean)),
   )
 
-const normalizeFilePathList = (paths) => normalizeStringList(paths)
+// Paths are literal: `" foo"` is a real file name, and trimming it staged and
+// committed `foo` instead (or dropped the entry from a commit-all).
+const normalizeFilePathList = (paths) =>
+  Array.from(
+    new Set(
+      (Array.isArray(paths) ? paths : [paths]).filter(
+        (value) => typeof value === "string" && value.length > 0,
+      ),
+    ),
+  )
 
 // Only ".." itself or a leading "../" leaves the repository: a directory whose *name* starts with
 // ".." (`..cache/file.txt`) is a normal path inside it, and rejecting it made those files
@@ -2724,11 +2733,25 @@ export async function deleteRemoteBranch(directory, options = {}) {
 
   const { git } = await createRepositoryGitContext(directory)
   const targetBranch = branch.startsWith("refs/heads/") ? branch.substring("refs/heads/".length) : branch
-  const remoteName = remote || "origin"
+
+  // Defaulting to origin deleted an unrelated same-named branch when the
+  // worktree branch tracked another remote (upstream/fork). Delete from the
+  // configured upstream, and refuse when there is none to be sure about.
+  let remoteName = rejectOptionLikeValue(remote, "remote name")
+  if (!remoteName) {
+    const configured = await git.getConfig(`branch.${targetBranch}.remote`).catch(() => null)
+    remoteName = typeof configured?.value === "string" ? configured.value.trim() : ""
+  }
+  if (!remoteName) {
+    throw new Error(`Branch "${targetBranch}" has no configured remote; refusing to delete a remote branch`)
+  }
+  if (remoteName.startsWith("-")) {
+    throw new Error(`Invalid remote name: ${remoteName}`)
+  }
 
   try {
     await git.push(remoteName, `:${targetBranch}`)
-    return { success: true }
+    return { success: true, remote: remoteName }
   } catch (error) {
     console.error("Failed to delete remote branch:", error)
     throw error

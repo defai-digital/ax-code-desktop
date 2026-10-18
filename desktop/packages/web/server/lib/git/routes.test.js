@@ -154,7 +154,8 @@ describe("git routes index mutations", () => {
     )
 
     expect(response.statusCode).toBe(200)
-    expect(gitLibraries.stageFiles).toHaveBeenCalledWith("/repo", ["a.ts", "b.ts"])
+    // Paths are literal: the surrounding spaces belong to the file name.
+    expect(gitLibraries.stageFiles).toHaveBeenCalledWith("/repo", [" a.ts ", "b.ts"])
   })
 
   it("accepts legacy unstage path payloads", async () => {
@@ -193,7 +194,7 @@ describe("git routes index mutations", () => {
     )
 
     expect(response.statusCode).toBe(200)
-    expect(gitLibraries.unstageFiles).toHaveBeenCalledWith("/repo", ["a.ts", "b.ts"])
+    expect(gitLibraries.unstageFiles).toHaveBeenCalledWith("/repo", [" a.ts ", "b.ts"])
   })
 
   it("rejects invalid path payloads before calling git", async () => {
