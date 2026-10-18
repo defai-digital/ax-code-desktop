@@ -112,8 +112,13 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             {t(`supervision.missionControl.state.${row.state}` as Parameters<typeof t>[0])}
           </span>
         </span>
-        <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground" title={row.title}>
-          {row.title}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate typography-ui-label text-foreground" title={row.title}>
+            {row.title}
+          </span>
+          {row.state === "error" && row.errorMessage ? (
+            <span className="block truncate typography-micro text-muted-foreground">{row.errorMessage}</span>
+          ) : null}
         </span>
         {groupSlug ? (
           <button

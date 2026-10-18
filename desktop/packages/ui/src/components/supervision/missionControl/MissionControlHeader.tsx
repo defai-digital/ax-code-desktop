@@ -29,6 +29,7 @@ export interface MissionControlHeaderProps {
   onSubmitRename: () => void
   onCancelRename: () => void
   onDeleteWorkingSet: () => void
+  onDispatch: () => void
   onClose: () => void
 }
 
@@ -54,6 +55,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   onSubmitRename,
   onCancelRename,
   onDeleteWorkingSet,
+  onDispatch,
   onClose,
 }) => {
   const { t } = useI18n()
@@ -96,6 +98,9 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
         </span>
       ) : null}
       <div className="ml-auto flex min-w-0 items-center gap-2">
+        <Button size="sm" onClick={onDispatch}>
+          {t("supervision.dispatch.title")}
+        </Button>
         <div
           className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border p-0.5"
           role="tablist"

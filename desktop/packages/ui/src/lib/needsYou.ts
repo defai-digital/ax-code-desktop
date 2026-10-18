@@ -1,7 +1,7 @@
 /**
- * Sessions that need a human, independent of the project activity tone.
- * Question waits and finished-but-uncommitted runs stay visible even when
- * deriveProjectActivity only marks pending approvals as attention.
+ * Sessions that need a human. The project activity tone consumes these same
+ * reasons through needsAttentionSessionIds, so question waits, errors, and
+ * finished-but-uncommitted runs light attention alongside pending approvals.
  */
 
 /** Rows a needs-you list shows before "Show all": enough to act on, not enough to bury the page. */
@@ -83,19 +83,26 @@ export function selectNeedsYouSession(sessionId: string): string {
 
 /**
  * The session a project's attention status should open.
- * Prefer the oldest session that is waiting on a permission or a question.
+ * Any session with a needs-you reason is eligible: lowest urgency first
+ * (permission and question, then error, then uncommitted), then oldest.
  */
 export function attentionSessionForProject(
   projectId: string,
   sessions: readonly NeedsYouSessionInput[],
 ): string | null {
   const waiting = sessions
+    .map((session) => ({ session, reason: needsYouReason(session) }))
     .filter(
-      (session) =>
-        session.projectId === projectId && (session.permissionCount > 0 || session.questionCount > 0),
+      (entry): entry is { session: NeedsYouSessionInput; reason: NeedsYouReason } =>
+        entry.session.projectId === projectId && entry.reason !== null,
     )
-    .sort((left, right) => (left.updatedAt ?? 0) - (right.updatedAt ?? 0) || left.id.localeCompare(right.id))
-  return waiting[0]?.id ?? null
+    .sort(
+      (left, right) =>
+        NEEDS_YOU_URGENCY[left.reason] - NEEDS_YOU_URGENCY[right.reason] ||
+        (left.session.updatedAt ?? 0) - (right.session.updatedAt ?? 0) ||
+        left.session.id.localeCompare(right.session.id),
+    )
+  return waiting[0]?.session.id ?? null
 }
 
 /**

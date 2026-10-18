@@ -11,4 +11,5 @@ export interface SupervisionRow {
   directory: string | null
   updatedAt: number
   evidence: SupervisionEvidence | null
+  errorMessage?: string
 }

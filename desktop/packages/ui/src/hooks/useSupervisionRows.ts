@@ -14,6 +14,11 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useAllLiveSessions, useAllSessionStatuses } from "@/sync/sync-context"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { rollUpChildStates } from "@/lib/supervision/rollup"
+import {
+  latestUnseenSessionErrorMessage,
+  latestUnseenTreeSessionErrorMessage,
+} from "@/lib/supervision/sessionErrorMessage"
+import { useSyncNotificationStore } from "@/sync/notification-store"
 
 export type { SupervisionRow } from "@/lib/supervision/rows"
 
@@ -48,6 +53,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
   const statuses = useAllSessionStatuses()
   const projects = useProjectsStore((state) => state.projects)
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
+  const notifications = useSyncNotificationStore((state) => state.list)
 
   // "Ready to review" comes from git status, so warm it for every session directory.
   const directories = React.useMemo(() => {
@@ -74,18 +80,23 @@ function useComputedSupervisionRows(): SupervisionRow[] {
       const project = input.projectId ? projectById.get(input.projectId) : undefined
       const path = project?.path ?? input.directory
       const projectLabel = project?.label?.trim() || (path ? formatPathForDisplay(path, homeDirectory) : null)
+      const treeSessionIds = rolled.sessionIds
+      const errorMessage =
+        latestUnseenSessionErrorMessage(notifications, input.id) ??
+        latestUnseenTreeSessionErrorMessage(notifications, treeSessionIds)
       rows.push({
         sessionId: input.id,
         title: input.title?.trim() || input.id,
         state: rolled.state,
-        treeSessionIds: rolled.sessionIds,
+        treeSessionIds,
         projectId: input.projectId,
         projectLabel,
         directory: input.directory ?? null,
         updatedAt: input.updatedAt ?? 0,
         evidence: resolveSupervisionEvidence(session?.summary as SessionSummaryLike | undefined),
+        ...(errorMessage ? { errorMessage } : {}),
       })
     }
     return rankSupervisionRows(rows)
-  }, [homeDirectory, inputs, projects, sessions, statuses])
+  }, [homeDirectory, inputs, notifications, projects, sessions, statuses])
 }

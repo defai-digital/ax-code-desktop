@@ -11,7 +11,7 @@ import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/l
 import { sortProjectsForDisplay } from "@/lib/projectOrdering"
 import { formatProjectLastUsed } from "@/lib/projectLastUsed"
 import { deriveProjectActivity, type ProjectActivity } from "@/lib/projectStatus"
-import { attentionSessionForProject } from "@/lib/needsYou"
+import { attentionSessionForProject, needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
 import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { openProjectFolder } from "@/lib/projectOpen"
@@ -36,14 +36,28 @@ type ProjectsHomeProps = {
   onNewSession?: (projectId: string) => void
 }
 
-const IDLE: ProjectActivity = { tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 }
+const IDLE: ProjectActivity = {
+  tone: "idle",
+  activeSessions: 0,
+  busySessions: 0,
+  pendingApprovals: 0,
+  attentionSessions: 0,
+}
 
 /** Live per-project activity, derived from the sessions the runtime reports. */
-function useProjectActivity(projects: ProjectEntry[]): Map<string, ProjectActivity> {
+function useProjectActivity(
+  projects: ProjectEntry[],
+  needsYouInputs: readonly NeedsYouSessionInput[],
+): Map<string, ProjectActivity> {
   const sessions = useAllLiveSessions()
   const statuses = useAllSessionStatuses()
   const pendingPermissionSessionIds = usePendingPermissionSessionIds()
   const worktreeMetadata = useSessionUIStore((state) => state.worktreeMetadata)
+  const needsAttentionSessionIds = React.useMemo(
+    () =>
+      new Set(needsYouInputs.filter((input) => needsYouReason(input) !== null).map((input) => input.id)),
+    [needsYouInputs],
+  )
   return React.useMemo(
     () =>
       deriveProjectActivity({
@@ -56,8 +70,9 @@ function useProjectActivity(projects: ProjectEntry[]): Map<string, ProjectActivi
         })),
         statuses,
         pendingPermissionSessionIds,
+        needsAttentionSessionIds,
       }),
-    [pendingPermissionSessionIds, projects, sessions, statuses, worktreeMetadata],
+    [needsAttentionSessionIds, pendingPermissionSessionIds, projects, sessions, statuses, worktreeMetadata],
   )
 }
 
@@ -107,10 +122,10 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
   const listRef = React.useRef<HTMLDivElement | null>(null)
 
   const ordered = React.useMemo(() => sortProjectsForDisplay(projects), [projects])
-  const activity = useProjectActivity(ordered)
+  const needsYouInputs = useNeedsYouSessionInputs()
+  const activity = useProjectActivity(ordered, needsYouInputs)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
-  const needsYouInputs = useNeedsYouSessionInputs()
   const gitStatusDirectories = React.useMemo(() => {
     if (variant !== "home") return []
     const directories = new Set<string>()
@@ -327,7 +342,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             projectActivity.tone === "attention" ? attentionSessionForProject(project.id, needsYouInputs) : null
           const statusLabel =
             projectActivity.tone === "attention"
-              ? t("projects.home.status.attention", { count: projectActivity.pendingApprovals })
+              ? t("projects.home.status.needsYou", { count: projectActivity.attentionSessions })
               : projectActivity.tone === "running"
                 ? t("projects.home.status.running", { count: projectActivity.busySessions })
                 : projectActivity.activeSessions > 0

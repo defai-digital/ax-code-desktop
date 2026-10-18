@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import type { ProjectEntry } from "@/lib/api/types"
+import { axCodeClient } from "@/lib/ax-code/client"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import {
@@ -30,6 +31,7 @@ import { cn } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/messageQueueStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -193,12 +195,15 @@ export const QuickDispatchDialog: React.FC = () => {
   const activeProjectId = useProjectsStore((state) => state.activeProjectId)
   const rows = useSupervisionRows()
   const sessions = useAllLiveSessions()
+  const currentModelId = useConfigStore((state) => state.currentModelId)
+  const activeDirectoryKey = useConfigStore((state) => state.activeDirectoryKey)
 
   const [projectId, setProjectId] = React.useState<string | null>(null)
   const [filter, setFilter] = React.useState("")
   const [prompt, setPrompt] = React.useState("")
   const [openAfter, setOpenAfter] = React.useState(false)
   const [starting, setStarting] = React.useState(false)
+  const startingRef = React.useRef(false)
   const promptRef = React.useRef<HTMLTextAreaElement>(null)
 
   React.useEffect(() => {
@@ -258,8 +263,9 @@ export const QuickDispatchDialog: React.FC = () => {
   const startShortcut = formatShortcutForDisplay("mod+enter")
 
   const start = React.useCallback(async () => {
-    if (!selectedProject || !prompt.trim() || starting) return
+    if (!selectedProject || !prompt.trim() || startingRef.current) return
     const project = selectedProject
+    startingRef.current = true
     setStarting(true)
     try {
       const result = await startQuickDispatch({ project, prompt: prompt.trim(), openAfter })
@@ -289,9 +295,10 @@ export const QuickDispatchDialog: React.FC = () => {
       }
       toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
     } finally {
+      startingRef.current = false
       setStarting(false)
     }
-  }, [openAfter, prompt, selectedProject, setQuickDispatchOpen, starting, t])
+  }, [openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
 
   const jumpTo = (item: (typeof recent)[number]) => {
     openSupervisedSession({
@@ -300,6 +307,59 @@ export const QuickDispatchDialog: React.FC = () => {
       directory: item.directory,
     })
     setQuickDispatchOpen(false)
+  }
+
+  const sendToRecent = async (item: (typeof recent)[number]) => {
+    if (startingRef.current) return
+    const content = prompt.trim()
+    if (!content) {
+      jumpTo(item)
+      return
+    }
+
+    const choice = useSessionUIStore.getState().getLastUserChoice(item.sessionId)
+    const config = useConfigStore.getState()
+    const providerID = choice?.providerID || config.currentProviderId
+    const modelID = choice?.modelID || config.currentModelId
+    if (!providerID || !modelID) {
+      toast.error(t("chat.chatInput.toast.noModelSelected"))
+      return
+    }
+    if (!item.directory) {
+      toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
+      return
+    }
+    const sendConfig = {
+      providerID,
+      modelID,
+      agent: (choice?.agent ?? config.currentAgentName) || undefined,
+      variant: (choice?.variant ?? config.currentVariant) || undefined,
+    }
+
+    startingRef.current = true
+    setStarting(true)
+    try {
+      if (rows.some((row) => row.sessionId === item.sessionId && row.state === "running")) {
+        const queued = useMessageQueueStore.getState().addToQueue(item.sessionId, { content, sendConfig })
+        if (!queued) {
+          toast.error(t("chat.queuedMessage.full", { count: MESSAGE_QUEUE_MAX_PER_SESSION }))
+          return
+        }
+      } else {
+        await axCodeClient.withDirectory(item.directory, () =>
+          axCodeClient.sendMessage({ id: item.sessionId, text: content, ...sendConfig }),
+        )
+      }
+      if (openAfter) {
+        openSupervisedSession({ sessionId: item.sessionId, projectId: item.projectId, directory: item.directory })
+      }
+      setQuickDispatchOpen(false)
+    } catch {
+      toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
+    } finally {
+      startingRef.current = false
+      setStarting(false)
+    }
   }
 
   return (
@@ -358,6 +418,15 @@ export const QuickDispatchDialog: React.FC = () => {
             )}
           </label>
 
+          {selectedProject ? (
+            <div className="typography-micro text-muted-foreground">
+              <p>{t("supervision.dispatch.targetPreview", { path: selectedProject.path })}</p>
+              {currentModelId && activeDirectoryKey === selectedProject.path ? (
+                <p>{t("supervision.dispatch.targetModel", { model: currentModelId })}</p>
+              ) : null}
+            </div>
+          ) : null}
+
           <label className="flex flex-col gap-1.5">
             <span className="typography-ui-label text-foreground">{t("supervision.dispatch.prompt")}</span>
             <Textarea
@@ -398,14 +467,21 @@ export const QuickDispatchDialog: React.FC = () => {
         {recent.length > 0 ? (
           <div className="flex flex-col gap-1 border-t border-border/40 pt-3">
             <span className="typography-micro text-muted-foreground">{t("supervision.dispatch.recent")}</span>
+            <p className="typography-micro text-muted-foreground">{t("supervision.dispatch.recentHint")}</p>
             {recent.map((item) => (
               <button
                 key={item.sessionId}
                 type="button"
                 className="flex min-w-0 flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-interactive-hover"
-                onClick={() => jumpTo(item)}
+                disabled={starting}
+                onClick={() => void sendToRecent(item)}
               >
                 <span className="truncate typography-ui-label text-foreground">{item.title}</span>
+                {prompt.trim() ? (
+                  <span className="typography-micro text-muted-foreground">
+                    {t("supervision.dispatch.sendToRecent")}
+                  </span>
+                ) : null}
                 {item.projectLabel ? (
                   <span className="truncate typography-micro text-muted-foreground">{item.projectLabel}</span>
                 ) : null}

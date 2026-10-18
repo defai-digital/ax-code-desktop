@@ -15,7 +15,13 @@ describe("deriveProjectActivity", () => {
       statuses: {},
       pendingPermissionSessionIds: new Set(),
     })
-    expect(result.get("app")).toEqual({ tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 })
+    expect(result.get("app")).toEqual({
+      tone: "idle",
+      activeSessions: 0,
+      busySessions: 0,
+      pendingApprovals: 0,
+      attentionSessions: 0,
+    })
     expect(result.size).toBe(3)
   })
 
@@ -30,7 +36,13 @@ describe("deriveProjectActivity", () => {
       statuses: { s1: { type: "busy" }, s2: { type: "idle" } },
       pendingPermissionSessionIds: new Set(),
     })
-    expect(result.get("app")).toEqual({ tone: "running", activeSessions: 2, busySessions: 1, pendingApprovals: 0 })
+    expect(result.get("app")).toEqual({
+      tone: "running",
+      activeSessions: 2,
+      busySessions: 1,
+      pendingApprovals: 0,
+      attentionSessions: 0,
+    })
   })
 
   test("attributes nested project sessions to the nearest project", () => {
@@ -54,7 +66,13 @@ describe("deriveProjectActivity", () => {
       statuses: { s1: { type: "busy" }, s2: { type: "busy" } },
       pendingPermissionSessionIds: new Set(["s2"]),
     })
-    expect(result.get("other")).toEqual({ tone: "attention", activeSessions: 2, busySessions: 2, pendingApprovals: 1 })
+    expect(result.get("other")).toEqual({
+      tone: "attention",
+      activeSessions: 2,
+      busySessions: 2,
+      pendingApprovals: 1,
+      attentionSessions: 1,
+    })
   })
 
   test("ignores sessions outside every project", () => {
@@ -80,6 +98,29 @@ describe("deriveProjectActivity", () => {
       statuses: { s1: { type: "busy" } },
       pendingPermissionSessionIds: new Set(["s1"]),
     })
-    expect(result.get("other")).toEqual({ tone: "attention", activeSessions: 1, busySessions: 1, pendingApprovals: 1 })
+    expect(result.get("other")).toEqual({
+      tone: "attention",
+      activeSessions: 1,
+      busySessions: 1,
+      pendingApprovals: 1,
+      attentionSessions: 1,
+    })
+  })
+
+  test("a needs-attention session with no pending permission lights attention while idle", () => {
+    const result = deriveProjectActivity({
+      projects,
+      sessions: [{ id: "s1", directory: "/Users/dev/app" }],
+      statuses: { s1: { type: "idle" } },
+      pendingPermissionSessionIds: new Set(),
+      needsAttentionSessionIds: new Set(["s1"]),
+    })
+    expect(result.get("app")).toEqual({
+      tone: "attention",
+      activeSessions: 1,
+      busySessions: 0,
+      pendingApprovals: 0,
+      attentionSessions: 1,
+    })
   })
 })

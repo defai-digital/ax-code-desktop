@@ -31,6 +31,7 @@ export type SupervisionStore = PersistedSupervision & {
   navHistory: string[]
   navIndex: number
   missionControlOpen: boolean
+  boardFocusSessionId: string | null
   quickDispatchOpen: boolean
   needsYouPopoverOpen: boolean
   /** The multi-run group shown in the compare view, or null. */
@@ -145,6 +146,7 @@ export const useSupervisionStore = defineStore(
       navHistory: [],
       navIndex: -1,
       missionControlOpen: false,
+      boardFocusSessionId: null,
       quickDispatchOpen: false,
       needsYouPopoverOpen: false,
       compareRunGroupKey: null,

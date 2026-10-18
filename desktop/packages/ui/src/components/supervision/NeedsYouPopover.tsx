@@ -11,6 +11,7 @@ import {
   supervisionStatusRows,
 } from "@/lib/supervision/needsYouSurface"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
+import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -130,7 +131,10 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                   <button
                     key={row.sessionId}
                     type="button"
-                    onClick={() => openSession(row)}
+                    onClick={() => {
+                      openSession(row)
+                      if (row.state === "review") openBesideChat("diff")
+                    }}
                     className="flex w-full min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-2 text-left hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
                   >
                     <span className="flex min-w-0 items-center gap-2">
@@ -139,6 +143,11 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                         {row.state === "error" ? t("projects.home.needsYou.error") : t("supervision.state.review")}
                       </span>
                     </span>
+                    {row.state === "error" && row.errorMessage ? (
+                      <span className="block w-full min-w-0 truncate typography-micro text-muted-foreground">
+                        {row.errorMessage}
+                      </span>
+                    ) : null}
                     {row.projectLabel || line ? (
                       <span className="flex min-w-0 items-center gap-2 typography-micro text-muted-foreground">
                         {row.projectLabel ? <span className="min-w-0 truncate">{row.projectLabel}</span> : null}

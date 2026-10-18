@@ -73,7 +73,7 @@ import { useI18n } from "@/lib/i18n"
 
 import { SyncStatusIndicator } from "@/components/ui/SyncStatusIndicator"
 import { ReconnectBanner } from "@/components/ui/ReconnectBanner"
-import { NotificationCenter } from "@/components/notifications/NotificationCenter"
+import { ConnectedNotificationCenter } from "@/components/notifications/ConnectedNotificationCenter"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
@@ -95,6 +95,7 @@ type HeaderIconActionButtonProps = {
   visible?: boolean
   title: string
   ariaLabel: string
+  label?: string
   onClick: React.MouseEventHandler<HTMLButtonElement>
   className?: string
   Icon: IconName
@@ -106,6 +107,7 @@ const HeaderIconActionButton = React.memo(function HeaderIconActionButton({
   visible = true,
   title,
   ariaLabel,
+  label,
   onClick,
   className,
   Icon: iconName,
@@ -126,11 +128,13 @@ const HeaderIconActionButton = React.memo(function HeaderIconActionButton({
           aria-pressed={pressed}
           className={cn(
             className ?? DESKTOP_HEADER_ICON_BUTTON_CLASS,
+            label && "w-auto gap-1.5 px-2",
             // "On" reads as the brand color on a selected background, like the composer's mode toggles.
             pressed && "bg-interactive-selection text-primary hover:text-primary",
           )}
         >
           <Icon name={iconName} className={iconClassName ?? "h-[18px] w-[18px]"} />
+          {label ? <span className="hidden typography-ui-label lg:inline">{label}</span> : null}
         </button>
       </TooltipTrigger>
       <TooltipContent>
@@ -1759,6 +1763,7 @@ export const Header: React.FC = () => {
           shortcut: shortcutLabel("open_mission_control"),
         })}
         ariaLabel={t("supervision.missionControl.toggleAria")}
+        label={t("supervision.missionControl.title")}
         onClick={() => useSupervisionStore.getState().toggleMissionControl()}
         pressed={missionControlOpen}
         Icon={"equalizer-2"}
@@ -1779,7 +1784,7 @@ export const Header: React.FC = () => {
           </span>
         )}
       </span>
-      <NotificationCenter />
+      <ConnectedNotificationCenter />
       <div className={HEADER_ACTION_SEPARATOR_CLASS} aria-hidden />
       <div role="group" data-header-panels className={HEADER_PANEL_GROUP_CLASS}>
         <HeaderIconActionButton

@@ -35,8 +35,18 @@ export const MissionControl: React.FC = () => {
   const shortcutOverrides = useUIStore((s) => s.shortcutOverrides)
   const { requestConfirm, confirmDialog } = useConfirmDialog()
 
-  const [mode, setMode] = React.useState<"live" | "recent">("live")
-  const [selectedId, setSelectedId] = React.useState<string | null>(null)
+  const [mode, setMode] = React.useState<"live" | "recent">(() => {
+    const remembered = rows.find((row) => row.sessionId === useSupervisionStore.getState().boardFocusSessionId)
+    return remembered?.state === "idle" ? "recent" : "live"
+  })
+  const [selectedId, updateSelectedId] = React.useState<string | null>(() => {
+    const rememberedId = useSupervisionStore.getState().boardFocusSessionId
+    return rows.some((row) => row.sessionId === rememberedId) ? rememberedId : null
+  })
+  const setSelectedId = React.useCallback((sessionId: string | null) => {
+    updateSelectedId(sessionId)
+    useSupervisionStore.setState({ boardFocusSessionId: sessionId })
+  }, [])
   const [peekId, setPeekId] = React.useState<string | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [newSetName, setNewSetName] = React.useState("")
@@ -71,8 +81,10 @@ export const MissionControl: React.FC = () => {
   }, [])
 
   React.useEffect(() => {
+    // A filter that does not contain the remembered row may show another row.
+    // That fallback must not replace the session Mod+Shift+H returns to.
     if (filtered.length && !filtered.some((r) => r.sessionId === selectedId)) {
-      setSelectedId(filtered[0].sessionId)
+      updateSelectedId(filtered[0].sessionId)
     }
   }, [filtered, selectedId])
 
@@ -83,6 +95,7 @@ export const MissionControl: React.FC = () => {
   }, [effectiveSelectedId])
 
   const openRow = React.useCallback((row: SupervisionRow) => {
+    useSupervisionStore.setState({ boardFocusSessionId: row.sessionId })
     openSupervisedSession({ sessionId: row.sessionId, projectId: row.projectId, directory: row.directory })
   }, [])
 
@@ -166,7 +179,7 @@ export const MissionControl: React.FC = () => {
       event.preventDefault()
       const row = filtered[selectedIndex]
       if (row) {
-        openRow(row)
+        handlePrimary(row)
       }
       return
     }
@@ -287,6 +300,7 @@ export const MissionControl: React.FC = () => {
         onSubmitRename={submitRename}
         onCancelRename={() => setRenaming(false)}
         onDeleteWorkingSet={handleDeleteWorkingSet}
+        onDispatch={() => useSupervisionStore.getState().setQuickDispatchOpen(true)}
         onClose={handleClose}
       />
 

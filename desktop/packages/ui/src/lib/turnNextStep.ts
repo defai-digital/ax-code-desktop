@@ -1,6 +1,6 @@
 /**
  * Post-turn Review and Commit go to different surfaces.
- * Review opens the diff review. Commit opens the git sidebar.
+ * Review opens the diff beside chat via openBesideChat("diff"). Commit still opens the git sidebar.
  */
 
 export type TurnNextStepAction = "review" | "commit"

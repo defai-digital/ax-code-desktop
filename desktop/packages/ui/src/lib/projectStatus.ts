@@ -4,9 +4,10 @@ import { getProjectPathIdentityKey, projectPathMatchesRoot } from "@/lib/project
  * Derives an honest per-project activity summary from live session data.
  *
  * A project is "running" when any live session inside its folder is busy,
- * "attention" when one of those sessions is waiting for an approval, and
- * "idle" otherwise. Nothing here is guessed: every number comes from the
- * sessions the runtime actually reports.
+ * "attention" when one of those sessions needs a human (a pending approval
+ * or an id in needsAttentionSessionIds, built from the needs-you reasons),
+ * and "idle" otherwise. Nothing here is guessed: every number comes from
+ * the sessions the runtime actually reports.
  */
 export type ProjectActivityTone = "running" | "attention" | "idle"
 
@@ -15,6 +16,7 @@ export interface ProjectActivity {
   activeSessions: number
   busySessions: number
   pendingApprovals: number
+  attentionSessions: number
 }
 
 export interface ProjectActivitySession {
@@ -30,9 +32,16 @@ export interface ProjectActivityInput {
   sessions: ReadonlyArray<ProjectActivitySession>
   statuses: Readonly<Record<string, { type?: string } | undefined>>
   pendingPermissionSessionIds: ReadonlySet<string>
+  needsAttentionSessionIds?: ReadonlySet<string>
 }
 
-const IDLE_ACTIVITY: ProjectActivity = { tone: "idle", activeSessions: 0, busySessions: 0, pendingApprovals: 0 }
+const IDLE_ACTIVITY: ProjectActivity = {
+  tone: "idle",
+  activeSessions: 0,
+  busySessions: 0,
+  pendingApprovals: 0,
+  attentionSessions: 0,
+}
 
 type ProjectPathKey = { id: string; key: string }
 
@@ -79,17 +88,19 @@ export function deriveProjectActivity(input: ProjectActivityInput): Map<string, 
     const current = result.get(ownerId) ?? { ...IDLE_ACTIVITY }
     const busy = (input.statuses[session.id]?.type ?? "idle") !== "idle"
     const waiting = input.pendingPermissionSessionIds.has(session.id)
+    const needsAttention = waiting || (input.needsAttentionSessionIds?.has(session.id) ?? false)
     result.set(ownerId, {
       tone: current.tone,
       activeSessions: current.activeSessions + 1,
       busySessions: current.busySessions + (busy ? 1 : 0),
       pendingApprovals: current.pendingApprovals + (waiting ? 1 : 0),
+      attentionSessions: current.attentionSessions + (needsAttention ? 1 : 0),
     })
   }
 
   for (const [id, activity] of result) {
     const tone: ProjectActivityTone =
-      activity.pendingApprovals > 0 ? "attention" : activity.busySessions > 0 ? "running" : "idle"
+      activity.attentionSessions > 0 ? "attention" : activity.busySessions > 0 ? "running" : "idle"
     result.set(id, { ...activity, tone })
   }
   return result

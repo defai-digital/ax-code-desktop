@@ -55,6 +55,24 @@ describe("needs-you queue", () => {
     expect(attentionSessionForProject("missing", sessions)).toBeNull()
   })
 
+  test("project attention opens an error-only session in that project", () => {
+    const sessions = [
+      session({ id: "idle", projectId: "app", updatedAt: 1 }),
+      session({ id: "err", projectId: "app", hasError: true, updatedAt: 9 }),
+    ]
+
+    expect(attentionSessionForProject("app", sessions)).toBe("err")
+  })
+
+  test("project attention prefers a permission over an older error", () => {
+    const sessions = [
+      session({ id: "old-err", projectId: "app", hasError: true, updatedAt: 1 }),
+      session({ id: "perm", projectId: "app", permissionCount: 1, updatedAt: 20 }),
+    ]
+
+    expect(attentionSessionForProject("app", sessions)).toBe("perm")
+  })
+
   test("the switcher places waiting and error sessions before idle ones", () => {
     const ordered = orderSwitcherSessionIds(
       ["idle-a", "waiting", "idle-b", "error"],

@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { RequestActionCard } from "@/components/supervision/RequestActionCard"
+import type { PendingRequestEntry } from "@/sync/sync-context"
 
 // Answers in flight, by request (falling back to the notification id). Module scope so the claim survives the
 // entry's unmount when the panel closes, and the promise lets the remounted entry learn when the claim is released.
@@ -15,8 +17,9 @@ const answersInFlight = new Map<string, Promise<void>>()
 
 const NotificationEntry: React.FC<{
   item: NotificationItem
+  pendingRequest?: PendingRequestEntry
   onRemove: (id: string) => void
-}> = React.memo(function NotificationEntry({ item, onRemove }) {
+}> = React.memo(function NotificationEntry({ item, pendingRequest, onRemove }) {
   const { t } = useI18n()
 
   const typeIcon = item.type === "permission" ? "shield" : item.type === "session" ? "chat-1" : "alert"
@@ -94,7 +97,9 @@ const NotificationEntry: React.FC<{
           <span className="flex-shrink-0 typography-micro text-muted-foreground">{timeLabel}</span>
         </div>
         <p className="line-clamp-2 typography-micro text-muted-foreground">{item.message}</p>
-        {item.type === "permission" && item.onAllow && item.onDeny && (
+        {pendingRequest ? (
+          <RequestActionCard entry={pendingRequest} density="compact" />
+        ) : item.type === "permission" && item.onAllow && item.onDeny ? (
           <div className="mt-1.5 flex gap-2">
             <Button
               size="sm"
@@ -119,13 +124,16 @@ const NotificationEntry: React.FC<{
               {t("notificationCenter.deny")}
             </Button>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )
 })
 
-export const NotificationCenter: React.FC = React.memo(function NotificationCenter() {
+type NotificationCenterProps = { pendingRequests?: PendingRequestEntry[] }
+
+export const NotificationCenter: React.FC<NotificationCenterProps> = React.memo(function NotificationCenter(props) {
+  const { pendingRequests = [] } = props
   const { t } = useI18n()
   const notifications = useNotificationStore((s) => s.notifications)
   const isOpen = useNotificationStore((s) => s.isOpen)
@@ -221,7 +229,20 @@ export const NotificationCenter: React.FC = React.memo(function NotificationCent
         <ScrollableOverlay outerClassName="max-h-96 min-h-[120px]">
           <div className="flex flex-col gap-0.5 p-2">
             {hasNotifications ? (
-              notifications.map((item) => <NotificationEntry key={item.id} item={item} onRemove={removeNotification} />)
+              notifications.map((item) => (
+                <NotificationEntry
+                  key={item.id}
+                  item={item}
+                  pendingRequest={
+                    item.type === "permission"
+                      ? pendingRequests.find(
+                          (entry) => entry.kind === "permission" && entry.request.id === item.requestId,
+                        )
+                      : undefined
+                  }
+                  onRemove={removeNotification}
+                />
+              ))
             ) : (
               <div className="flex flex-col items-center justify-center gap-2 py-8 text-center">
                 <Icon name="checkbox-circle" className="h-8 w-8 text-muted-foreground" />

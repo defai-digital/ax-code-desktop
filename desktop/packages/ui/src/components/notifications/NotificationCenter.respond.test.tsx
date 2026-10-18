@@ -3,6 +3,8 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
+import type { PendingRequestEntry } from "@/sync/sync-context"
+import * as sessionActions from "@/sync/session-actions"
 
 const { NotificationCenter } = await import("./NotificationCenter")
 const { useNotificationStore } = await import("@/stores/useNotificationStore")
@@ -34,13 +36,14 @@ describe("NotificationCenter permission entry", () => {
     act(() => root.unmount())
     container.remove()
     useNotificationStore.setState({ notifications: [], isOpen: false })
+    vi.restoreAllMocks()
   })
 
-  const render = async () => {
+  const render = async (pendingRequests?: PendingRequestEntry[]) => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <NotificationCenter />
+          <NotificationCenter pendingRequests={pendingRequests} />
         </I18nProvider>,
       )
     })
@@ -55,6 +58,37 @@ describe("NotificationCenter permission entry", () => {
     })
     await act(async () => {})
   }
+
+  test.each([
+    ["notificationCenter.allow", "once"],
+    ["notificationCenter.deny", "reject"],
+  ] as const)("uses the live permission card for %s without SyncProvider", async (label, response) => {
+    const respond = vi.spyOn(sessionActions, "respondToPermission").mockResolvedValue(undefined)
+    const fallback = vi.fn(async () => {})
+    useNotificationStore.getState().addNotification(permissionItem({ onAllow: fallback, onDeny: fallback }))
+    await render([
+      {
+        kind: "permission",
+        sessionId: "ses_1",
+        request: {
+          id: "req_1",
+          sessionID: "ses_1",
+          permission: "bash",
+          patterns: ["git status"],
+          metadata: {},
+          always: ["*"],
+        },
+      },
+    ])
+
+    expect(container.textContent).toContain("git status")
+    expect(Array.from(container.querySelectorAll("button")).map((button) => button.textContent)).not.toContain(
+      "Allow always",
+    )
+    await click(dict[label])
+    expect(respond).toHaveBeenCalledWith("ses_1", "req_1", response)
+    expect(fallback).not.toHaveBeenCalled()
+  })
 
   test("keeps the entry when the answer did not land", async () => {
     // The entry called the handler and removed itself straight away, so a reply that failed — the permission is
