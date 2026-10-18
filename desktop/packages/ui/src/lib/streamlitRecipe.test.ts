@@ -45,6 +45,28 @@ describe("managed Streamlit execution", () => {
     }
   })
 
+  test("pins the working directory so a reused terminal does not run another project", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "streamlit-cwd-"))
+    const other = mkdtempSync(join(tmpdir(), "streamlit-other-"))
+    writeFileSync(join(dir, "app.py"), "import streamlit as st\n")
+    try {
+      const command = await streamlitRunCommand({ version: 1, entrypoint: "app.py" }, "test-token", false, dir)
+      // The shell starts in the wrong directory; the command must still run in the app's project.
+      let output = ""
+      try {
+        output = execFileSync("/bin/sh", ["-c", command], { cwd: other, encoding: "utf8", timeout: 15000 })
+      } catch (error) {
+        output = (error as { stdout?: string }).stdout ?? ""
+      }
+      expect(streamlitProgress(output, "test-token")).toContainEqual(
+        expect.objectContaining({ stage: "setup-required", source: "simple" }),
+      )
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+      rmSync(other, { recursive: true, force: true })
+    }
+  })
+
   test("rejects invalid paths and ports and ignores echoed, unrelated or nonlocal progress", () => {
     expect(sanitizeStreamlitRecipe({ version: 1, entrypoint: "../app.py" })).toBeUndefined()
     expect(sanitizeStreamlitRecipe({ version: 1, entrypoint: "app.py", port: 0 })).toBeUndefined()
@@ -55,5 +77,9 @@ describe("managed Streamlit execution", () => {
     expect(streamlitProgress(event("old", "http://127.0.0.1:9000/"), "current")).toEqual([])
     expect(streamlitProgress(event("current", "http://example.com:9000/"), "current")).toEqual([])
     expect(streamlitProgress(event("current", "http://127.0.0.1:9000/base/"), "current")).toHaveLength(1)
+    // URL normalizes the HTTP default port away; port 80 must still count as launched.
+    expect(streamlitProgress(event("current", "http://127.0.0.1:80/"), "current")).toHaveLength(1)
+    expect(streamlitProgress(event("current", "http://user@127.0.0.1:9000/"), "current")).toEqual([])
+    expect(streamlitProgress(event("current", "https://127.0.0.1:9000/"), "current")).toEqual([])
   })
 })

@@ -65,6 +65,10 @@ const ANSI_ESCAPE_PATTERN = new RegExp(`${ANSI_ESCAPE_PREFIX}\\[[0-9;?]*[ -/]*[@
 const URL_GLOBAL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
 const AUTO_DISCOVER_ACTION_ID = "__openchamber_auto_discover_preview__"
 const AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS = 15_000
+// Thrown when the request's staleness predicate flips mid-flight (the user switched
+// sessions or projects while a chunked command was still being sent). It is not an
+// error the user should see: the run record never started, so it is dropped silently.
+const STALE_ACTION_REQUEST_ERROR = new Error("stale project action request")
 
 const stripControlChars = (value: string): string => {
   let next = ""
@@ -778,7 +782,7 @@ export const ProjectActionsButton = ({
 
         const command =
           discovered.streamlit && token
-            ? await streamlitRunCommand(discovered.streamlit, token, setup)
+            ? await streamlitRunCommand(discovered.streamlit, token, setup, normalizedDirectory)
             : discovered.command
         const normalizedCommand = stripControlChars(command.trim().replace(/\r\n|\r/g, "\n"))
         if (requestIsCurrent && !requestIsCurrent()) throw new Error(t("projectActions.error.failedToRunAction"))
@@ -786,6 +790,9 @@ export const ProjectActionsButton = ({
           // Bound PTY input bursts so interactive shells can consume the command.
           const input = `${normalizedCommand}\r`
           for (let offset = 0; offset < input.length; offset += 512) {
+            // The predicate is only checked before the loop otherwise: a session or
+            // project switch mid-send would still finish an old request's command.
+            if (requestIsCurrent && !requestIsCurrent()) throw STALE_ACTION_REQUEST_ERROR
             const live = useTerminalStore.getState().projectActionRuns[key]
             if (!isCurrentTerminal() || live?.token !== token || live.status === "stopping") return
             await terminal.sendInput(runningSessionId, input.slice(offset, offset + 512))
@@ -827,6 +834,11 @@ export const ProjectActionsButton = ({
         delete streamCleanupByRunKeyRef.current[runKey]
         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
         delete previewWaitTimeoutByRunKeyRef.current[runKey]
+        // A stale request aborts silently: the user moved on, so there is no
+        // failure to report. The dropped run record must still be cleaned up.
+        if (error === STALE_ACTION_REQUEST_ERROR) {
+          return false
+        }
         toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
         return false
       } finally {

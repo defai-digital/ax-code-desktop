@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   connect: vi.fn(),
   error: vi.fn(),
   success: vi.fn(),
+  streamlitCommand: null as string | null,
 }))
 vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => ({ terminal: mocks.terminal }) }))
 vi.mock("@/lib/device", () => ({ useDeviceInfo: () => ({ isMobile: mocks.mobile }) }))
@@ -30,7 +31,7 @@ vi.mock("@/lib/terminalApi", () => ({
 vi.mock("@/lib/streamlitRecipe", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/streamlitRecipe")>()),
   streamlitRunCommand: async (recipe: unknown, token: string, setup: boolean) =>
-    `managed ${JSON.stringify({ recipe, token, setup })}`,
+    mocks.streamlitCommand ?? `managed ${JSON.stringify({ recipe, token, setup })}`,
 }))
 import { ProjectActionsButton } from "./ProjectActionsButton"
 import { useUIStore } from "@/stores/useUIStore"
@@ -53,6 +54,7 @@ describe("project action preview lifecycle", () => {
     vi.useFakeTimers()
     vi.resetAllMocks()
     mocks.mobile = true
+    mocks.streamlitCommand = null
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     action = createStreamlitProjectAction({
       id: "streamlit",
@@ -191,6 +193,24 @@ describe("project action preview lifecycle", () => {
     await act(async () => resolve({ actions: [] }))
     expect(mocks.save).not.toHaveBeenCalled()
     expect(mocks.terminal.createSession).not.toHaveBeenCalled()
+  })
+
+  test("artifact handoff aborts mid-send when the source session changes", async () => {
+    mocks.config.mockResolvedValue({ actions: [] })
+    // Long enough to span several 512-char chunks; the first send flips the
+    // session, so the next chunk must abort instead of finishing the old request.
+    mocks.streamlitCommand = "x".repeat(1500)
+    mocks.terminal.sendInput.mockImplementationOnce(async () => {
+      useSessionUIStore.setState({ currentSessionId: "different-session" })
+    })
+    await render()
+    await act(async () => {
+      handoff()
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(1000))
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+    expect(Object.values(useTerminalStore.getState().projectActionRuns)).toHaveLength(0)
+    expect(mocks.error).not.toHaveBeenCalled()
   })
 
   test("artifact handoff cannot dispatch after a session changes during terminal creation", async () => {

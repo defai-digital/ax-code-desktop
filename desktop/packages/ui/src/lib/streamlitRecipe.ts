@@ -50,9 +50,17 @@ export function createManagedStreamlitAction(
   }
 }
 
-export async function streamlitRunCommand(input: StreamlitRecipe, token: string, setup = false): Promise<string> {
+export async function streamlitRunCommand(
+  input: StreamlitRecipe,
+  token: string,
+  setup = false,
+  cwd?: string,
+): Promise<string> {
   const recipe = sanitizeStreamlitRecipe(input)
   if (!recipe || !/^[a-zA-Z0-9-]+$/.test(token)) throw new Error("Invalid Streamlit recipe")
+  if (cwd !== undefined && (cwd.length === 0 || !safeText(cwd))) {
+    throw new Error("Invalid Streamlit working directory")
+  }
   const compressed = new Response(new TextEncoder().encode(runner)).body!.pipeThrough(new CompressionStream("deflate"))
   const bytes = new Uint8Array(await new Response(compressed).arrayBuffer())
   const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(""))
@@ -60,10 +68,13 @@ export async function streamlitRunCommand(input: StreamlitRecipe, token: string,
   const missing = `AX_CODE_STREAMLIT ${JSON.stringify({ token, stage: "failed", code: "python" })}`
   // A subshell avoids changing the user's shell variables. Newlines keep PTY input
   // lines bounded; every argument (including source) remains a single quoted value.
+  // The runner uses the process cwd, so pin it: a reused action terminal may have
+  // drifted to another directory (the user cd'd there between runs).
+  const changeDirectory = cwd !== undefined ? `cd ${quote(cwd)} || exit 1\n` : ""
   const choose = recipe.interpreter
     ? `ax_streamlit_python=${quote(recipe.interpreter)}`
     : `if [ -x .venv/bin/python ]; then ax_streamlit_python=.venv/bin/python; elif [ -x venv/bin/python ]; then ax_streamlit_python=venv/bin/python; elif command -v python3 >/dev/null 2>&1; then ax_streamlit_python=python3; else ax_streamlit_python=python; fi`
-  return `(\n${choose}\nif command -v "$ax_streamlit_python" >/dev/null 2>&1 && "$ax_streamlit_python" -c 'import sys;sys.exit(sys.version_info < (3, 11))' >/dev/null 2>&1; then\n"$ax_streamlit_python" -c ${quote(bootstrap)} ${quote(JSON.stringify({ ...recipe, token, setup }))}\nelse\nprintf '%s\\n' ${quote(missing)}\nexit 1\nfi\n)`
+  return `(\n${changeDirectory}${choose}\nif command -v "$ax_streamlit_python" >/dev/null 2>&1 && "$ax_streamlit_python" -c 'import sys;sys.exit(sys.version_info < (3, 11))' >/dev/null 2>&1; then\n"$ax_streamlit_python" -c ${quote(bootstrap)} ${quote(JSON.stringify({ ...recipe, token, setup }))}\nelse\nprintf '%s\\n' ${quote(missing)}\nexit 1\nfi\n)`
 }
 
 export type StreamlitProgress = {
@@ -86,8 +97,10 @@ export function streamlitProgress(output: string, token: string): StreamlitProgr
         continue
       if (event.stage === "launching") {
         const url = new URL(event.url)
-        if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port || url.username || url.password)
-          continue
+        // URL normalizes the HTTP default port (80) to an empty string; that is
+        // still a valid loopback address, so only reject a non-http URL or a
+        // non-loopback host or one with credentials.
+        if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || url.username || url.password) continue
       }
       result.push(event)
     } catch {

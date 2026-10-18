@@ -79,6 +79,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Streamlit project runs pin their working directory, abort cleanly when the session or project changes mid-send, and accept a launch on the default HTTP port.
+
 - Forked sessions keep the source session's permission auto-accept setting instead of falling back to the new-session default.
 
 - Selecting a session from another project resolves its directory from the global session index, so deep links and restored sessions no longer fail with "belongs to a different project directory".
