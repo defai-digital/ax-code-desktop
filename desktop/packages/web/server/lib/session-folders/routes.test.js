@@ -130,4 +130,113 @@ describe("session folders routes", () => {
     expect(response.statusCode).toBe(500)
     expect(fsPromises.unlink).toHaveBeenCalledWith(expect.stringContaining("sessions-directories.json.tmp-"))
   })
+
+  const createMergeHarness = (baseSnapshot) => {
+    const { app, getRoute } = createRouteRegistry()
+    let written = null
+    const fsPromises = {
+      mkdir: vi.fn(async () => {}),
+      readFile: vi.fn(async () => JSON.stringify(baseSnapshot)),
+      writeFile: vi.fn(async (_tempPath, serialized) => {
+        written = JSON.parse(serialized)
+      }),
+      rename: vi.fn(async () => {}),
+    }
+    registerSessionFoldersRoutes(app, { fsPromises, path, openchamberDataDir: "/tmp/openchamber-test" })
+    return {
+      handler: getRoute("POST", "/api/session-folders"),
+      readWritten: () => written,
+    }
+  }
+
+  it("persists a deletion from a newer snapshot", async () => {
+    // The disk still lists the deleted folder; the incoming full snapshot (the
+    // single window's own view, newer than the file) no longer carries it. The
+    // per-id union kept it on disk forever and the next boot resurrected it.
+    const { handler, readWritten } = createMergeHarness({
+      version: 1,
+      updatedAt: 100,
+      foldersMap: { "/p": [{ id: "keep", name: "Keep", sessionIds: [], createdAt: 1, parentId: null }] },
+      collapsedFolderIds: ["gone"],
+    })
+
+    const response = createMockResponse()
+    await handler(
+      {
+        body: {
+          version: 1,
+          updatedAt: 200,
+          foldersMap: { "/p": [{ id: "keep", name: "Keep", sessionIds: [], createdAt: 1, parentId: null }] },
+          collapsedFolderIds: [],
+        },
+      },
+      response,
+    )
+
+    expect(response.statusCode).toBe(200)
+    const written = readWritten()
+    expect(written.foldersMap["/p"].map((folder) => folder.id)).toEqual(["keep"])
+    // The un-collapsed folder stays un-collapsed; ids of gone folders do not linger.
+    expect(written.collapsedFolderIds).toEqual([])
+  })
+
+  it("keeps folders a lagging writer never saw", async () => {
+    // An older in-flight write (another window's debounced save racing a newer
+    // one) must not erase a folder that landed on disk after it was taken.
+    const { handler, readWritten } = createMergeHarness({
+      version: 1,
+      updatedAt: 200,
+      foldersMap: {
+        "/p": [
+          { id: "shared", name: "Shared", sessionIds: [], createdAt: 1, parentId: null },
+          { id: "other-window", name: "Other", sessionIds: [], createdAt: 150, parentId: null },
+        ],
+      },
+      collapsedFolderIds: ["other-window"],
+    })
+
+    const response = createMockResponse()
+    await handler(
+      {
+        body: {
+          version: 1,
+          updatedAt: 100,
+          foldersMap: { "/p": [{ id: "shared", name: "Shared renamed", sessionIds: [], createdAt: 1, parentId: null }] },
+          collapsedFolderIds: [],
+        },
+      },
+      response,
+    )
+
+    expect(response.statusCode).toBe(200)
+    const written = readWritten()
+    const byId = new Map(written.foldersMap["/p"].map((folder) => [folder.id, folder]))
+    expect([...byId.keys()].sort()).toEqual(["other-window", "shared"])
+    expect(byId.get("shared").name).toBe("Shared renamed")
+    expect(written.collapsedFolderIds).toEqual(["other-window"])
+  })
+
+  it("drops collapsed ids of folders that no longer exist", async () => {
+    const { handler, readWritten } = createMergeHarness({
+      version: 1,
+      updatedAt: 100,
+      foldersMap: { "/p": [{ id: "keep", name: "Keep", sessionIds: [], createdAt: 1, parentId: null }] },
+      collapsedFolderIds: ["keep", "gone"],
+    })
+
+    const response = createMockResponse()
+    await handler(
+      {
+        body: {
+          version: 1,
+          updatedAt: 200,
+          foldersMap: { "/p": [{ id: "keep", name: "Keep", sessionIds: [], createdAt: 1, parentId: null }] },
+          collapsedFolderIds: ["keep", "gone"],
+        },
+      },
+      response,
+    )
+
+    expect(readWritten().collapsedFolderIds).toEqual(["keep"])
+  })
 })

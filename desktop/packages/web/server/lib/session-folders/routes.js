@@ -18,16 +18,28 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
     return JSON.parse(raw)
   }
 
-  // POST bodies are full client snapshots. Two windows each load once and then
-  // write their own whole map, so a plain overwrite silently drops folders
-  // created in the other window. Merge per scope by folder id instead: the
-  // incoming write wins for the entries it carries, and entries it never knew
-  // survive. A folder deleted in one window can resurface via a stale snapshot
-  // from another — the accepted price of a tombstone-free protocol, and far
-  // cheaper than silently losing folders.
+  // POST bodies are full client snapshots. Every window loads the disk state
+  // once at boot and then writes its own whole map, so the merge has to keep a
+  // folder another window created after this writer booted (the writer never
+  // knew it) while still letting a deletion or an un-collapse persist — the
+  // previous per-id union did neither: it resurrected every deleted folder on
+  // the very next write, even from the single window that deleted it.
+  //
+  // Rule: a snapshot at least as recent as the file is authoritative (its
+  // absences are the user's deletions, its collapsed list is the user's
+  // layout). A snapshot older than the file is a lagging writer — an in-flight
+  // debounced write racing a newer one — and only contributes its own entries
+  // per id; disk entries it lacks survive. The residual limitation is the
+  // protocol's, not the merge's: two windows that both stay open never
+  // re-hydrate, so a folder created in one after the other booted is lost when
+  // the other window writes next. Tombstones would fix that; nothing here can.
   const mergeSnapshots = (base, incoming) => {
     const baseMap = base?.foldersMap && typeof base.foldersMap === "object" ? base.foldersMap : {}
     const incomingMap = incoming?.foldersMap && typeof incoming.foldersMap === "object" ? incoming.foldersMap : {}
+    const baseUpdatedAt = typeof base?.updatedAt === "number" ? base.updatedAt : 0
+    const incomingUpdatedAt = typeof incoming?.updatedAt === "number" ? incoming.updatedAt : 0
+    const incomingIsAuthoritative = incomingUpdatedAt >= baseUpdatedAt
+
     const foldersMap = {}
     for (const scopeKey of new Set([...Object.keys(baseMap), ...Object.keys(incomingMap)])) {
       const byId = new Map()
@@ -37,16 +49,34 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
       for (const folder of Array.isArray(incomingMap[scopeKey]) ? incomingMap[scopeKey] : []) {
         if (folder && typeof folder.id === "string") byId.set(folder.id, folder)
       }
+      // An authoritative snapshot already replaced every base entry it carried;
+      // a base entry it lacks is a deletion. A lagging snapshot only overlays
+      // its own entries and must not erase what it never saw.
+      if (incomingIsAuthoritative) {
+        const incomingIds = new Set(
+          (Array.isArray(incomingMap[scopeKey]) ? incomingMap[scopeKey] : [])
+            .filter((folder) => folder && typeof folder.id === "string")
+            .map((folder) => folder.id),
+        )
+        for (const id of byId.keys()) {
+          if (!incomingIds.has(id)) byId.delete(id)
+        }
+      }
       foldersMap[scopeKey] = [...byId.values()]
     }
+
     const baseCollapsed = Array.isArray(base?.collapsedFolderIds) ? base.collapsedFolderIds : []
     const incomingCollapsed = Array.isArray(incoming?.collapsedFolderIds) ? incoming.collapsedFolderIds : []
-    const baseUpdatedAt = typeof base?.updatedAt === "number" ? base.updatedAt : 0
-    const incomingUpdatedAt = typeof incoming?.updatedAt === "number" ? incoming.updatedAt : 0
+    const collapsedFolderIds = incomingIsAuthoritative ? incomingCollapsed : [...new Set([...baseCollapsed, ...incomingCollapsed])]
+    const existingIds = new Set(
+      Object.values(foldersMap).flatMap((folders) =>
+        (Array.isArray(folders) ? folders : []).map((folder) => folder?.id).filter((id) => typeof id === "string"),
+      ),
+    )
     return {
       version: 1,
       foldersMap,
-      collapsedFolderIds: [...new Set([...baseCollapsed, ...incomingCollapsed])],
+      collapsedFolderIds: collapsedFolderIds.filter((id) => existingIds.has(id)),
       updatedAt: Math.max(baseUpdatedAt, incomingUpdatedAt),
     }
   }
