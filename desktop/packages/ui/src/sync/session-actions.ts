@@ -1508,6 +1508,11 @@ export async function forkFromMessage(sessionId: string, messageId: string): Pro
   const forkedDirectory = (forkedSession as { directory?: string | null }).directory ?? directory ?? null
   useSessionUIStore.getState().setCurrentSession(forkedSession.id, forkedDirectory)
 
+  // Point the attachment draft at the forked session before restoring its files.
+  // The composer switches drafts in an effect after this commit; restoring first
+  // appended the forked message's files to the *source* session's draft.
+  useInputStore.getState().setActiveAttachmentDraft(forkedSession.id)
+
   // Restore forked message text and file attachments to input
   if (messageText) {
     useInputStore.setState({

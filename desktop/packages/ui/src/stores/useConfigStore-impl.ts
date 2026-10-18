@@ -645,6 +645,29 @@ const normalizeProviderModels = (provider: { id?: string; models?: unknown }): P
 const _inFlightAgents = new Map<string, Promise<boolean>>()
 let _initializeAppInFlight: Promise<void> | null = null
 
+// A directory activated while the runtime was unreachable never loaded its
+// providers or agents. Startup recovery only fills an empty list, and the
+// single-home agents store still holds the previous project's list, so the
+// switch has to be retried once the connection is back.
+let pendingOfflineActivation: { key: string; directory: string | null } | null = null
+let pendingOfflineActivationUnsubscribe: (() => void) | null = null
+
+const scheduleOfflineActivationRetry = (directory: string | null | undefined) => {
+  pendingOfflineActivation = { key: toDirectoryKey(directory), directory: directory ?? null }
+  if (pendingOfflineActivationUnsubscribe) return
+  pendingOfflineActivationUnsubscribe = useConnectionStore.subscribe((state) => {
+    if (!selectIsConnected(state)) return
+    const pending = pendingOfflineActivation
+    pendingOfflineActivation = null
+    pendingOfflineActivationUnsubscribe?.()
+    pendingOfflineActivationUnsubscribe = null
+    if (!pending) return
+    // A newer switch made since then owns the store.
+    if (useConfigStore.getState().activeDirectoryKey !== pending.key) return
+    void useConfigStore.getState().activateDirectory(pending.directory)
+  })
+}
+
 export const useConfigStore = create<ConfigStore>()(
   devtools(
     persist(
@@ -751,6 +774,7 @@ export const useConfigStore = create<ConfigStore>()(
           })
 
           if (!selectIsConnected(useConnectionStore.getState())) {
+            scheduleOfflineActivationRetry(directory)
             return
           }
 

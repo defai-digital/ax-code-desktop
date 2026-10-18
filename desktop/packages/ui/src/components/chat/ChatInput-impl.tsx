@@ -2073,9 +2073,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             }
             saveConfirmedMentions(failedSessionId, confirmedMentionsRef.current)
           } else if (!viewingFailedSession) {
-            saveStoredDraft(failedSessionId, consumedInputSnapshot)
-            // Persist the snapshot, not the live set — it belongs to the session on screen.
-            saveConfirmedMentions(failedSessionId, consumedConfirmedMentions)
+            // Only write when the sending session's stored draft is still empty
+            // or unchanged: a follow-up typed there since (and persisted by the
+            // session switch) must not be replaced by the older sent text.
+            const storedDraft = getStoredDraft(failedSessionId)
+            if (storedDraft.length === 0 || storedDraft === consumedInputSnapshot) {
+              saveStoredDraft(failedSessionId, consumedInputSnapshot)
+              // Persist the snapshot, not the live set — it belongs to the session on screen.
+              saveConfirmedMentions(failedSessionId, consumedConfirmedMentions)
+            }
           }
         }
 
@@ -2087,7 +2093,26 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         // Restore the composer's attachments, merged with whatever the user attached while
         // the send was in flight: replacing the list dropped those.
         const restoreComposerAttachments = (attachments: AttachedFile[]) => {
-          if (attachments.length === 0 || !viewingFailedSession) return
+          if (attachments.length === 0) return
+          if (!viewingFailedSession) {
+            // Put them in the failed session's own draft slot. Dropping them
+            // because another session was on screen lost the attachment with no
+            // trace, even though the text went back.
+            if (!failedSessionId) return
+            useInputStore.setState((state) => {
+              const existing = state.attachmentsByDraft[failedSessionId] ?? []
+              const existingIds = new Set(existing.map((file) => file.id))
+              const missing = attachments.filter((file) => !existingIds.has(file.id))
+              if (missing.length === 0) return state
+              return {
+                attachmentsByDraft: {
+                  ...state.attachmentsByDraft,
+                  [failedSessionId]: [...existing, ...missing],
+                },
+              }
+            })
+            return
+          }
           const currentFiles = useInputStore.getState().attachedFiles
           const currentIds = new Set(currentFiles.map((file) => file.id))
           const missing = attachments.filter((file) => !currentIds.has(file.id))

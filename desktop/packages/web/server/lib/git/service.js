@@ -2413,7 +2413,16 @@ export async function revertFile(directory, filePath, options = {}) {
       .then(() => true)
       .catch(() => false)
 
-    if (!isTracked) {
+    // Staged state is not tracked state: a staged deletion still exists in HEAD
+    // and a staged addition does not. Deciding from the index alone sent both
+    // down the "untracked" path — the deletion silently stayed deleted and the
+    // addition failed after being unstaged.
+    const existsInHead = await git
+      .raw(["ls-tree", "--name-only", "HEAD", "--", literalPathspec(repoPath)])
+      .then((output) => String(output || "").trim().length > 0)
+      .catch(() => false)
+
+    if (!isTracked && !existsInHead) {
       try {
         await git.raw(["clean", "-f", "-d", "--", literalPathspec(repoPath)])
         return
@@ -2437,19 +2446,59 @@ export async function revertFile(directory, filePath, options = {}) {
       } catch (error) {
         await git.raw(["reset", "HEAD", "--", literalPathspec(repoPath)]).catch(() => {})
       }
+
+      if (!existsInHead) {
+        // A staged addition has no HEAD version to restore; reverting it means
+        // removing the file instead of failing with a checkout error.
+        await fsp.rm(absolutePath, { recursive: true, force: true }).catch((error) => {
+          if (error && typeof error === "object" && error.code === "ENOENT") return
+          throw error
+        })
+        return
+      }
+
+      await restoreWorktreeFromHead(git, repoPath)
+      return
     }
 
-    try {
-      await git.raw(["restore", "--", literalPathspec(repoPath)])
-    } catch (error) {
+    if (existsInHead) {
       try {
-        await git.raw(["checkout", "--", literalPathspec(repoPath)])
-      } catch (fallbackError) {
-        console.error("Failed to revert git file:", fallbackError)
-        throw fallbackError
+        await git.raw(["restore", "--worktree", "--", literalPathspec(repoPath)])
+      } catch (error) {
+        try {
+          await git.raw(["checkout", "--", literalPathspec(repoPath)])
+        } catch (fallbackError) {
+          console.error("Failed to revert git file:", fallbackError)
+          throw fallbackError
+        }
       }
+      return
+    }
+
+    // A staged addition with only its worktree changes to discard: restore the
+    // staged version into the worktree.
+    try {
+      await git.raw(["restore", "--worktree", "--", literalPathspec(repoPath)])
+    } catch (error) {
+      if (error && typeof error === "object" && /did not match/i.test(String(error.message || ""))) {
+        return
+      }
+      throw error
     }
   })
+}
+
+const restoreWorktreeFromHead = async (git, repoPath) => {
+  try {
+    await git.raw(["restore", "--source=HEAD", "--worktree", "--", literalPathspec(repoPath)])
+  } catch (error) {
+    try {
+      await git.raw(["checkout", "HEAD", "--", literalPathspec(repoPath)])
+    } catch (fallbackError) {
+      console.error("Failed to restore git file from HEAD:", fallbackError)
+      throw fallbackError
+    }
+  }
 }
 
 export async function collectDiffs(directory, files = []) {

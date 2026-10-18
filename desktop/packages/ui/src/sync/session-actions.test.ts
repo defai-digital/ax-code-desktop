@@ -297,6 +297,9 @@ vi.doMock("./input-store", () => ({
           attachedFiles: [...inputStoreState.attachedFiles, { source: "mcp-resource", ...params }],
         }
       },
+      setActiveAttachmentDraft: (key: string | null) => {
+        inputCalls.push({ method: "setActiveAttachmentDraft", params: { key } })
+      },
     }),
     setState: (patch: Partial<typeof inputStoreState>) => {
       inputStoreState = { ...inputStoreState, ...patch }
@@ -865,6 +868,14 @@ describe("rollback and fork actions use the session directory", () => {
       },
     })
     expect(setCurrentSessionMock).toHaveBeenCalledWith("session-b-fork", "/other/project")
+    // The attachment draft must switch to the fork before the restored files
+    // land, or they are filed under the source session's draft.
+    const draftSwitch = inputCalls.findIndex((call) => call.method === "setActiveAttachmentDraft")
+    const firstRestore = inputCalls.findIndex(
+      (call) => call.method === "addRestoredAttachment" || call.method === "addMcpResourceAttachment",
+    )
+    expect(inputCalls[draftSwitch]?.params).toEqual({ key: "session-b-fork" })
+    if (firstRestore !== -1) expect(draftSwitch).toBeLessThan(firstRestore)
     expect(inputStoreState.pendingInputText).toBe("try an alternate path")
   })
 

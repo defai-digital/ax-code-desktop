@@ -30,6 +30,7 @@ import {
   resolveRepositoryFilePath,
   resolveBaseRefForLog,
   revertCommit,
+  revertFile,
   stageFiles,
   stageHunk,
   unstageFiles,
@@ -123,6 +124,65 @@ describe("deleteRemoteBranch", () => {
     const { tmpDir } = await createTempRepo()
 
     await expect(deleteRemoteBranch(tmpDir, { branch: "feature" })).rejects.toThrow(/no configured remote/)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// revertFile
+// ---------------------------------------------------------------------------
+
+describe("revertFile", () => {
+  const repoWithFile = async (content = "base\n") => {
+    const { tmpDir, git } = await createTempRepo()
+    await fs.promises.writeFile(path.join(tmpDir, "file.txt"), content, "utf8")
+    await git.add("file.txt")
+    await git.commit("Initial commit")
+    return { tmpDir, git }
+  }
+
+  it("restores a staged deletion from HEAD", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await git.rm("file.txt")
+    expect((await git.status()).deleted).toContain("file.txt")
+
+    await revertFile(tmpDir, "file.txt", { scope: "all" })
+
+    expect(await fs.promises.readFile(path.join(tmpDir, "file.txt"), "utf8")).toBe("base\n")
+    expect((await git.status()).files).toHaveLength(0)
+  })
+
+  it("removes a staged addition instead of failing to check it out", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await fs.promises.writeFile(path.join(tmpDir, "new.txt"), "fresh\n", "utf8")
+    await git.add("new.txt")
+
+    await revertFile(tmpDir, "new.txt", { scope: "all" })
+
+    await expect(fs.promises.stat(path.join(tmpDir, "new.txt"))).rejects.toThrow()
+    expect((await git.status()).files).toHaveLength(0)
+  })
+
+  it("removes the destination of a staged rename", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await git.raw(["mv", "file.txt", "renamed.txt"])
+
+    await revertFile(tmpDir, "renamed.txt", { scope: "all" })
+
+    await expect(fs.promises.stat(path.join(tmpDir, "renamed.txt"))).rejects.toThrow()
+    // The source side of the rename is untouched until it is reverted itself.
+    expect((await git.status()).deleted).toContain("file.txt")
+  })
+
+  it("keeps a staged addition's index entry when only the worktree is reverted", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await fs.promises.writeFile(path.join(tmpDir, "new.txt"), "staged\n", "utf8")
+    await git.add("new.txt")
+    await fs.promises.writeFile(path.join(tmpDir, "new.txt"), "worktree\n", "utf8")
+
+    await revertFile(tmpDir, "new.txt", { scope: "working" })
+
+    expect(await fs.promises.readFile(path.join(tmpDir, "new.txt"), "utf8")).toBe("staged\n")
+    expect((await git.status()).created).toContain("new.txt")
   })
 })
 
