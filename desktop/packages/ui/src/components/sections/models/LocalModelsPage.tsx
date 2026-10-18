@@ -69,6 +69,10 @@ export const LocalModelsPage: React.FC = () => {
     return getCurrentDirectory()
   }, [activeProjectId])
   const [data, setData] = React.useState<AxEngineModelsResponse | null>(null)
+  // Which project the current snapshot came from: a directory switch keeps the
+  // previous list mounted until the new fetch lands, and reconciling that list
+  // against the new project would report its jobs as interrupted.
+  const dataDirectoryRef = React.useRef<string | null>(null)
   const [connection, setConnection] = React.useState<AxEngineConnectionView | null>(null)
   const [runtimeIdentity, setRuntimeIdentity] = React.useState<DesktopAxCodeRuntimeIdentity | null>(null)
   const [showAttachForm, setShowAttachForm] = React.useState(false)
@@ -107,6 +111,7 @@ export const LocalModelsPage: React.FC = () => {
       // previous project's models and connection while every action used the current directory.
       if (!mountedRef.current || currentDirectoryRef.current !== directory) return
       setError(null)
+      dataDirectoryRef.current = directory
       setData(next)
       setConnection(nextConnection)
       setRuntimeIdentity(nextRuntime)
@@ -159,9 +164,9 @@ export const LocalModelsPage: React.FC = () => {
   // while jobs are pending), so navigating away from this page cannot orphan a
   // toast; reconciling here as well just applies fresh poll data sooner.
   React.useEffect(() => {
-    if (!data) return
+    if (!data || dataDirectoryRef.current !== directory) return
     downloadToastTracker.reconcile(data.jobs, directory)
-  }, [data])
+  }, [data, directory])
 
   const handleDownload = async (model: AxEngineModelCatalogEntry) => {
     setBusyKey(model.id)
@@ -241,7 +246,10 @@ export const LocalModelsPage: React.FC = () => {
       let current = data
       try {
         current = await fetchAxEngineModels(directory, controller.signal)
-        if (mountedRef.current) setData(current)
+        if (mountedRef.current) {
+          dataDirectoryRef.current = directory
+          setData(current)
+        }
       } catch {
         // Fall back to the last snapshot; the runtime still refuses an unsafe install.
       }

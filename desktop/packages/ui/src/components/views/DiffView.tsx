@@ -1150,7 +1150,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
       return "side-by-side"
     },
-    [diffFileLayout, diffLayoutPreference, screenWidth],
+    [diffFileLayout, diffLayoutPreference, effectiveDirectory, screenWidth],
   )
 
   const currentLayoutForSelectedFile = React.useMemo<"inline" | "side-by-side" | null>(() => {
