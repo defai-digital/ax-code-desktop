@@ -59,6 +59,23 @@ the independent release target without enabling publication or changing the acti
 
 Public distribution commands require signed exact-inventory qualification; user publication approval is recorded under ADR-012.
 
+## Analysis outputs and diagrams
+
+- The AX Code runtime owns the canonical `analysis-output` skill and the static-versus-Streamlit decision. Do not
+  copy, fork, or reimplement that skill in Desktop or in a repo-local skill.
+- Desktop renders a completed assistant `ax-code-app` fence as a Run control. The payload is presentation data only:
+  `{"version":1,"kind":"streamlit","entrypoint":"<project-relative>.py"}`. It cannot carry commands, interpreters,
+  ports, URLs, environment variables, or setup authority.
+- The project runner owns the terminal, interpreter/port selection, preview, and Stop. Closing a preview leaves the
+  app running; the artifact itself never grants execution or installation.
+- Mermaid is rendered by `beautiful-mermaid` in `desktop/packages/ui`. Check the pinned version and the global
+  `desktop-mermaid-capability` skill before claiming a diagram type. Changing the promised set is a
+  capability-contract change, not a local renderer patch.
+- Static analysis results belong in the conversation or a committed report. An analysis app is for reusable inputs,
+  filters, parameters, or repeated use, and its entrypoint must exist in the project before the handoff is emitted.
+- Verify UI-only changes with `pnpm --dir desktop/packages/ui run type-check` and the focused Vitest files. Changes
+  that touch analysis-app rendering or project actions must also pass the full UI test suite.
+
 ## Documents and governance
 
 - Product requirements: `.internal/prd/`
