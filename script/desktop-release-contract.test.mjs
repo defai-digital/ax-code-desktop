@@ -14,10 +14,10 @@ describe("Desktop release contract", () => {
     })
     expect(contract.sdk).toMatchObject({
       name: "@defai-digital/ax-code-sdk",
-      version: "2.6.29",
-      producerCommit: "88c61f4d774ffbcb9c94438da8d109a350eb2cd0",
+      version: "2.6.31",
+      producerCommit: "f065aca7eafbb2129d520ac309a9b6c4e6cdc4b3",
     })
-    expect(contract.runtime).toMatchObject({ version: "7.27.0", releaseTag: "v7.27.0" })
+    expect(contract.runtime).toMatchObject({ version: "7.27.2", releaseTag: "v7.27.2" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)
   })
 
@@ -76,7 +76,7 @@ describe("Desktop release contract", () => {
     )
     const contract = verifyDesktopReleaseContract(repositoryRoot, withOverrides(overrides))
     expect(contract.manifests.root.version).toBe("7.24.99")
-    expect(contract.runtime.version).toBe("7.27.0")
+    expect(contract.runtime.version).toBe("7.27.2")
   })
 
   it("rejects a release tag prefix the updater would never see", () => {
