@@ -1,0 +1,14 @@
+{
+  "normal_run_never_creates_environment": true,
+  "explicit_local_setup_seconds": 10.63,
+  "repeat_run_seconds": 0.68,
+  "two_projects_distinct_ports": true,
+  "fixed_port_never_kills_owner": true,
+  "stop_frees_listeners": true,
+  "locked_uv_setup_repeat_and_stale_lock_refusal": true,
+  "requirements_setup": true,
+  "python": "Python 3.12.15",
+  "streamlit": "Streamlit, version 1.66.0",
+  "runner_sha256": "dbf73e47bb42d9d95636fd90164cdd55f27009e686819718e576ed9b733a6926",
+  "fixture_root": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-streamlit-project-run-fxfv24qk"
+}

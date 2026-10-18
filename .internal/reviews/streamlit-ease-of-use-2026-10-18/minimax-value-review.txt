@@ -1,0 +1,43 @@
+## Shortlist Verdict
+
+**Tier 1 (ship first):**
+1. **Data exploration / CSV tools** — fills a real Desktop gap. No native equivalent. Streamlit is purpose-built; single-file Python, no Docker.
+2. **Parameterized script frontends** — reuses the existing Python env; turns "rerun with N=42" loops into a form. Agent writes a 50-line `app.py` from natural language via the existing agent.
+
+**Tier 2:**
+3. **AI/model eval prototypes** — narrower audience; cheap to add after Tier 1.
+
+**Challenge — drop entirely:**
+4. **Duplicating native chat / supervision.** Aider's browser mode exists *because* Aider has no native app. AX Code Desktop already ships React/Electron chat, multi-project supervision, terminal, and embedded preview. A Streamlit chat would be a second UI for the same capability, prone to drift. The "canonical AX Code runtime must remain sole coding engine" rule forecloses this.
+
+## Borrow From Aider, Don't Port
+
+**Borrow:**
+- `streamlit.web.cli` invocation with `usageStats=false, magicEnabled=false, runOnSave=false` — deterministic, no telemetry, no autoreload surprises.
+- `st.cache_resource` for the project's coder handle — one process, one engine.
+- File multiselect + diff/undo as a real IDE surface, not a toy wrapper.
+
+**Do not port:**
+- Aider's chat box — redundant with Desktop's native chat.
+- The "experimental" browser-only mode — Aider's docs flag it; AX Code has no such constraint.
+- `runOnSave` — collides with deterministic Desktop preview.
+
+## Proposed First Delivery
+
+**"Data Explorer" tile.** When the existing agent recognizes a CSV/data intent, it writes one `app.py` (form + table + chart), installs project-pinned deps on first run, picks an auto-port, launches via local Python, and embeds the preview. **Stop** kills the child PID. Natural-language edits to the app continue to flow through the existing agent — never a second model loop. Containerization stays opt-in, never mandatory.
+
+## Acceptance Metrics
+
+**Evidence (verifiable now):**
+- Agent-written `app.py` launches without error on the local Python env.
+- Port assignment is deterministic and collision-free across reruns.
+- Preview renders in Desktop; **Stop** terminates the child PID.
+- Single agent loop in trace (no second inference).
+
+**Inference (needs measurement — not assumed):**
+- Reduction in "CSV → first chart" wall time vs. the current terminal workflow. The 10% figure is **not** measured data and must not be cited as such.
+- Retention: whether users re-open the tile after first use.
+
+The case for Streamlit is structural (gap-fit, low learning curve, single-file Python), not a numeric ROI.
+
+REVIEW_COMPLETE

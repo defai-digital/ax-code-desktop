@@ -1,12 +1,14 @@
 import type { OpenChamberProjectAction } from "./openchamberConfig"
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
+import { createManagedStreamlitAction } from "./streamlitRecipe"
 
 type DevServerInfo = {
   command: string
   label: string
   actionId?: string
   previewUrlHint?: string
+  action?: OpenChamberProjectAction
 }
 
 type PackageManager = "npm" | "yarn" | "pnpm" | "bun"
@@ -38,6 +40,8 @@ export async function detectDevServerCommand(
       command: devAction.command,
       label: devAction.name || "Start Preview",
       actionId: devAction.id,
+      action: devAction,
+      previewUrlHint: devAction.openUrl,
     }
   }
 
@@ -62,6 +66,15 @@ export async function detectDevServerCommand(
         label: `Start (${devScript})`,
       }
     }
+  }
+
+  const candidates = await detectStreamlitEntrypoints(directory)
+  if (candidates.length === 1) {
+    const action = createManagedStreamlitAction("__streamlit_project__", "Streamlit", {
+      version: 1,
+      entrypoint: candidates[0],
+    })
+    return { command: action.command, label: action.name, action }
   }
 
   // Fallback: static sites (no package.json) can be previewed via a simple file server.
@@ -106,6 +119,7 @@ async function allocatePreviewPort(): Promise<number | null> {
 function findDevServerAction(actions: OpenChamberProjectAction[]): OpenChamberProjectAction | null {
   // Look for actions with "dev", "preview", "start" in the name or command
   for (const action of actions) {
+    if (action.streamlit) return action
     const nameAndCommand = `${action.name} ${action.command}`.toLowerCase()
 
     // Check if it's likely a dev server action
@@ -117,6 +131,17 @@ function findDevServerAction(actions: OpenChamberProjectAction[]): OpenChamberPr
   }
 
   return null
+}
+
+/** Bounded root candidates only; multipage files and arbitrary helpers are not entrypoints. */
+export async function detectStreamlitEntrypoints(directory: string): Promise<string[]> {
+  const candidates = await Promise.all(
+    ["streamlit_app.py", "app.py", "main.py"].map(async (name) => {
+      const content = await readOptionalTextFile(`${directory}/${name}`)
+      return content && /^(?:import\s+streamlit(?:\s|$)|from\s+streamlit\s+import\s)/m.test(content) ? name : null
+    }),
+  )
+  return candidates.filter((name): name is string => name !== null)
 }
 
 /**

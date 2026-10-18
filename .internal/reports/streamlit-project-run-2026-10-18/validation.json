@@ -1,0 +1,32 @@
+{
+  "status": "passed",
+  "fullSuite": {
+    "passed": 5510,
+    "skipped": 10,
+    "log": "validation/test-final.log"
+  },
+  "finalTargetedRegressions": {
+    "files": 4,
+    "tests": 26,
+    "log": "validation/regression.log"
+  },
+  "finalLauncherRegressions": {
+    "tests": 19,
+    "log": "validation/launcher-final.log"
+  },
+  "checks": [
+    "typecheck",
+    "lint",
+    "check:locales",
+    "check:boundaries",
+    "build"
+  ],
+  "locales": {
+    "count": 14,
+    "keys": 4910
+  },
+  "native": "native/receipt.json",
+  "pty": "pty-receipt.json",
+  "runner": "runner-receipt.json",
+  "qualification": "Final runner transport/environment changes have targeted Python/PTY/native checks; final dialog completion guard has launcher regressions after the full suite. No signed package or runtime skill qualification."
+}

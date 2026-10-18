@@ -1,0 +1,47 @@
+**Verdict: B is the backbone; C becomes an explicitly chosen fallback, not a default. D rejected; A deferred.**
+
+## Method comparison (focus: reproducibility, isolation, recovery, boundaries)
+
+**A — agent-instructed.** Pros: zero new UI; natural intent. Cons: non-deterministic, no persistent process ownership today (verified), every rerun costs a prompt, failures vary per model mood. Reproducibility: poor. Not shippable as the primary path; keep as doc note ("you can also just ask").
+
+**B — deterministic project-aware run.** Pros: reuses owned terminal/preview/free-port; one explicit setup-and-run action; same command every time (`<python> -m streamlit run <entrypoint>` or `uv run --locked`); recovery = visible Stop + retry in the same terminal. Cons: needs honest detection with explicit failure. Reproducibility/isolation: best available without containers.
+
+**C — ephemeral `uv run --with`.** Good only for manifest-less quick experiments. Cons: documented to possibly conflict with project requirements; re-resolves per run (offline failure, non-reproducible); hides dependency state. Keep, but only as an explicitly chosen option.
+
+**D — Docker/hosted.** Strongest isolation, worst learning curve and human effort; new infrastructure. Reject for this goal.
+
+## Dependency decision rules (must be concrete)
+
+- `pyproject.toml` + `uv.lock` → `uv run --locked`. Stale/missing lock fails loudly → explicit "re-lock" action; never auto-rewrite (uv's `--locked` semantics).
+- `pyproject.toml` without lock → `uv run` (uv auto-locks/syncs by documented default); surface that a lockfile was created.
+- `requirements.txt` → explicit one-click: `<selected-python> -m venv .venv` + `pip install -r requirements.txt`, then reuse `.venv` forever. Idempotent marker; never global pip.
+- No manifest → user explicitly chooses: (a) ephemeral `uv run --no-project --with streamlit` for quick experiments, or (b) scaffold a minimal pyproject for maintained work. Both visible in UI, both replayable.
+- Entry point: detect `app.py`/`streamlit_app.py`/single streamlit-call file; pages/ modules are never entrypoints.
+- Missing Python or uv → explicit actionable setup panel with a copyable command; uv-missing falls back to plain venv+pip, not hard failure.
+- Offline → locked sync from cache works; ephemeral `--with` fails → single clear error, no retry loop, no killing unrelated processes.
+
+## Automatic vs explicit
+
+Automatic: detection, port via `/api/system/free-port`, env reuse, metadata emission, localhost/headless binds. Explicit: any install/re-lock, manifest-less mode choice. Nothing runs merely from opening a project.
+
+## Ownership & metadata
+
+The existing Desktop terminal keeps process lifetime (start/stop/restart); preview displays. Ship additive v3 metadata (command, cwd, readiness, URL, env id); old consumers ignore unknown fields — backward compatible. Runtime boundary: all of this stays in Desktop's deterministic action layer; no second agent, no fake LLM loop. A (agent path) can later call the same action once a persistent start API actually exists — do not invent it.
+
+## Smallest slice to ship now
+
+1. Detection (entrypoint + manifest kind) with explicit "can't tell" state.
+2. Run via existing terminal using the rules above; reuse existing venv.
+3. One explicit "Setup & Run" action when deps are missing (venv or uv sync only).
+4. v3 metadata in the discovery adapter (shell/readiness/URL/env id).
+Defer: restart-first UX, scaffolding wizard, anything container.
+
+## Normal-user story
+
+"I open my project, click Run. Streamlit appears in preview. First time only, one button installs into the project's own .venv; every later run just starts. Stop is where it always was."
+
+## Prior recommendation I now reject
+
+I previously proposed reconstructing behavior by parsing old shell strings — I reject that: reverse-parsing command lines is brittle guesswork; the deterministic v3 metadata channel is the correct substitute. I also drop the copyable-pip-command-only idea (it silently shifts installation labor back to the user).
+
+REVIEW_COMPLETE

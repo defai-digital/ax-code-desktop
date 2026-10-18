@@ -1,0 +1,25 @@
+English only. You are one participant in an actual five-model discussion (Grok CLI plus AX Code DeepSeek, Qwen, GLM, MiniMax). The lead already ran and collected all five initial opinions. Do not call tools or write files yourself; the lead owns implementation.
+
+IMPORTANT USER CORRECTION: This is NOT a UI styling/navigation exercise. The user asks how to USE Streamlit inside AX Code with the LEAST learning curve and human effort, wants research of alternative operating methods and pros/cons, and now explicitly asks us to PLAN AND IMPLEMENT the improvement. Reconsider previous advice. A copyable pip command alone may just shift work to the user.
+
+Current product: Streamlit runs as an app in an existing owned terminal, displayed in the existing ordinary preview. Recipe defaults python/app.py/8501. Users currently Add, separately Save, later Start. No environment/dependency management. A reproduced discovery adapter drops shell/readiness/URL metadata. Existing terminal/process ownership, project files APIs, /api/system/free-port and preview already exist. Generic actions are user configuration under the Desktop profile, not a runtime agent tool contract. No verified existing agent-to-persistent-Desktop-terminal start API; do not invent it. The current AX Code runtime owns agent tools, so we cannot fork a second agent or add a fake LLM loop in Desktop.
+
+Research verified against official docs today:
+- Streamlit docs recommend project-isolated venv; <selected-python> -m streamlit run <app> is supported. Current CLI supports explicit app file; router/pages/helper modules must not all be treated as entrypoints.
+- uv run in a pyproject project automatically locks/syncs dependencies; --locked fails for stale/missing lock rather than rewriting it. --no-sync skips environment checks. https://docs.astral.sh/uv/concepts/projects/sync/
+- uv run --with adds ephemeral layered dependencies that MAY conflict with project requirements; --no-project avoids project discovery. Requirements files and inline script metadata are supported by --with-requirements; running a Python file directly does not itself launch the Streamlit server. https://docs.astral.sh/uv/reference/cli/
+- Streamlit CLI configuration overrides project config; localhost bind/headless should remain, and baseUrlPath/port must be handled consistently. Keep CORS/XSRF.
+
+Prior discussion: All five found environment guessing, multi-step intent, generic errors and discovery parity problematic. Grok insists environment/port behavior belongs in the first coherent slice and prefers Open preview while running, visible Stop. DeepSeek had proposed Restart primary and deferring probes; GLM proposed parsing old shell strings; Qwen/MiniMax leaned on copyable install commands. Lead rejects arbitrary shell reverse-parsing, stopping unrelated processes, claiming user validation from synthetic tests, and automatic execution upon merely opening a project.
+
+Now compare these METHODS, not button cosmetics:
+A. Tell the existing AX Code agent in natural language to prepare and run the app (reuse canonical agent; acknowledge integration needed for persistent process ownership).
+B. Deterministic project-aware run support: detect entrypoint/dependency convention, reuse existing venv; uv locked project when supported; one explicit setup-and-run action when dependencies missing; existing terminal/preview for lifetime.
+C. uv ephemeral --with streamlit for every app.
+D. Docker/containerized runner or hosted/external Streamlit URL.
+
+Choose the lowest HUMAN effort and least learning curve with reliable repeat runs. Give pros/cons, a short normal-user story, what must be automatic versus explicitly chosen, dependency/lock and ownership rules, and the smallest implementation we should ship now. The user has authorized a new additive v3; prior v2's no-installer scope is not a permanent ban, but any dependency install must be explicit and project-isolated, never a hidden global install or an unbounded new environment manager. Existing environments and project dependency conventions must be respected. Prefer existing infrastructure over new services. Be concrete about unknown/missing Python or uv, requirements.txt/pyproject/uv.lock differences, offline and failed setup, and quick experiments vs maintained projects.
+
+Max 550 words. Identify one recommendation from the prior discussion you now reject/change. End with REVIEW_COMPLETE.
+
+FOCUS: Challenge complexity and the claim that one universal launcher is best. Make the final tradeoff between agent-first and deterministic run.

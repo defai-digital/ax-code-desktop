@@ -1,0 +1,242 @@
+Read ONLY supplied code. No tools, filesystem access or research needed. English <=700 words. User authorized implement Streamlit easiest local execution without Docker, using existing terminal owner. Review exact current source for bugs, no boilerplate or new runtime architecture. Runner: normal run must not install; setup project local only; locked uv/requirements/simple conventions; no env deletion; signal and port behavior. Identify concrete defects. Give file + function, concrete trigger, minimum fix. Say no findings if none. End REVIEW_COMPLETE.
+
+FILE desktop/packages/ui/src/lib/streamlitRunner.py
+"""Prepare a project recipe and exec Streamlit inside the existing owned terminal.
+
+Normal runs never install. Setup is a transient explicit user action. This helper
+does not supervise processes, download Python, or change dependency manifests.
+"""
+
+import json
+import os
+from pathlib import Path
+import shutil
+import socket
+import subprocess
+import sys
+
+
+def main(options):
+    token = options["token"]
+
+    def emit(stage, **details):
+        print("AX_CODE_STREAMLIT " + json.dumps(dict(token=token, stage=stage, **details)), flush=True)
+
+    def fail(code):
+        emit("failed", code=code)
+        return 1
+
+    emit("preparing")
+    if sys.version_info < (3, 11):
+        return fail("python")
+    import tomllib
+
+    root = Path.cwd()
+    entry = root / options["entrypoint"]
+    if not entry.is_file() or not entry.resolve().is_relative_to(root.resolve()):
+        return fail("file")
+
+    def read_toml(path):
+        return tomllib.loads(path.read_text()) if path.is_file() else {}
+
+    try:
+        project = read_toml(root / "pyproject.toml")
+        config = read_toml(Path.home() / ".streamlit/config.toml")
+        local_config = read_toml(root / ".streamlit/config.toml")
+        base = local_config.get("server", {}).get("baseUrlPath", config.get("server", {}).get("baseUrlPath", ""))
+        base = os.environ.get("STREAMLIT_SERVER_BASE_URL_PATH", base)
+        if not isinstance(base, str) or any(c in base for c in "?#\\\r\n"):
+            return fail("config")
+    except (ValueError, OSError):
+        return fail("config")
+
+    environment = root / ".venv"
+    if not environment.exists() and (root / "venv/pyvenv.cfg").is_file():
+        environment = root / "venv"
+    python = environment / "bin/python"
+    explicit = options.get("interpreter")
+    if explicit:
+        resolved = shutil.which(explicit)
+        if not resolved:
+            return fail("python")
+        python = Path(resolved)
+
+    # External environments can run, but never receive automatic package changes.
+    local_env = (environment / "pyvenv.cfg").is_file() and environment.resolve().is_relative_to(root.resolve())
+    if python.exists():
+        probe = subprocess.run([str(python), "-c", "import sys; print(sys.prefix)"], capture_output=True, text=True)
+        local_env = local_env and probe.returncode == 0 and Path(probe.stdout.strip()) == environment
+
+    locked = (root / "uv.lock").is_file()
+    requirements = (root / "requirements.txt").is_file()
+    managed_elsewhere = any((root / name).exists() for name in ("poetry.lock", "Pipfile", "environment.yml", "environment.yaml"))
+    source = "uv" if locked else "requirements" if requirements else "simple"
+    supported_setup = not explicit and not managed_elsewhere and (locked or requirements or not project)
+    uv = shutil.which("uv") if locked else None
+    env = os.environ.copy()
+    env.pop("VIRTUAL_ENV", None)
+    env["UV_PROJECT_ENVIRONMENT"] = str(environment)
+    env["UV_NO_PYTHON_DOWNLOADS"] = "1"
+
+    def installed():
+        return python.exists() and subprocess.run(
+            [str(python), "-c", "import streamlit"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        ).returncode == 0
+
+    needs_setup = not installed()
+    if locked:
+        if not uv:
+            return fail("uv")
+        # --check is read-only; --locked refuses to create or rewrite a lock.
+        check = subprocess.run([uv, "sync", "--check", "--locked", "--offline", "--no-python-downloads"], env=env)
+        needs_setup = needs_setup or check.returncode != 0
+
+    if options.get("setup"):
+        if not supported_setup:
+            return fail("unsupported")
+        if environment.exists() and not local_env:
+            return fail("environment")
+        emit("installing", source=source)
+        if locked:
+            command = [uv, "sync", "--locked", "--no-python-downloads", "--python", str(python if local_env else sys.executable)]
+        else:
+            if not local_env:
+                if subprocess.run([sys.executable, "-m", "venv", str(environment)]).returncode:
+                    return fail("environment")
+            command = [str(python), "-m", "pip", "--isolated", "install", "--no-user", "--prefix", str(environment)]
+            command += ["-r", "requirements.txt"] if requirements else ["streamlit==1.66.0"]
+        if subprocess.run(command, env=env).returncode:
+            return fail("install")
+        if not installed():
+            return fail("dependency")
+    elif needs_setup:
+        if not supported_setup:
+            return fail("unsupported")
+        emit("setup-required", source=source)
+        return 0
+
+    try:
+        with socket.socket() as sock:
+            sock.bind(("127.0.0.1", options.get("port") or 0))
+            port = sock.getsockname()[1]
+    except OSError:
+        return fail("port")
+
+    from urllib.parse import quote
+    url = "http://127.0.0.1:" + str(port) + "/" + quote(base.strip("/"), safe="/")
+    if not url.endswith("/"):
+        url += "/"
+    emit("launching", url=url)
+    # Preserve terminal ownership and signals. Readiness still requires Streamlit's
+    # startup URL; selecting a free port does not guarantee the subsequent bind.
+    os.execv(str(python), [str(python), "-m", "streamlit", "run", str(entry),
+                           "--server.address=127.0.0.1", "--server.port=" + str(port),
+                           "--server.headless=true", "--browser.gatherUsageStats=false"])
+
+
+if __name__ == "__main__":
+    opts = json.loads(sys.argv[1])
+    try:
+        sys.exit(main(opts))
+    except KeyboardInterrupt:
+        sys.exit(130)
+    except (OSError, ValueError):
+        print("AX_CODE_STREAMLIT " + json.dumps(dict(token=opts["token"], stage="failed", code="environment")), flush=True)
+        sys.exit(1)
+
+
+FILE desktop/packages/ui/src/lib/streamlitRecipe.ts
+import runner from "./streamlitRunner.py?raw"
+import type { OpenChamberProjectAction } from "./openchamberConfig"
+
+export type StreamlitRecipe = { version: 1; entrypoint: string; interpreter?: string; port?: number }
+const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`
+const safeText = (value: string) => !Array.from(value).some((c) => c.charCodeAt(0) < 32 || c.charCodeAt(0) === 127)
+
+export function sanitizeStreamlitRecipe(value: unknown): StreamlitRecipe | undefined {
+  if (!value || typeof value !== "object") return undefined
+  const r = value as Partial<StreamlitRecipe>
+  if (
+    r.version !== 1 ||
+    typeof r.entrypoint !== "string" ||
+    !safeText(r.entrypoint) ||
+    !r.entrypoint.endsWith(".py") ||
+    r.entrypoint.startsWith("/") ||
+    r.entrypoint.startsWith("-") ||
+    r.entrypoint.split(/[\\/]/).includes("..") ||
+    r.entrypoint.length > 1000
+  )
+    return undefined
+  if (
+    r.interpreter !== undefined &&
+    (typeof r.interpreter !== "string" || !r.interpreter.trim() || !safeText(r.interpreter))
+  )
+    return undefined
+  if (r.port !== undefined && (!Number.isInteger(r.port) || r.port < 1 || r.port > 65535)) return undefined
+  return {
+    version: 1,
+    entrypoint: r.entrypoint,
+    ...(r.interpreter ? { interpreter: r.interpreter } : {}),
+    ...(r.port ? { port: r.port } : {}),
+  }
+}
+
+export function createManagedStreamlitAction(
+  id: string,
+  name: string,
+  recipe: StreamlitRecipe,
+): OpenChamberProjectAction {
+  return {
+    id,
+    name,
+    command: `python -m streamlit run ${quote(recipe.entrypoint)}`,
+    icon: "server",
+    autoOpenUrl: true,
+    waitForUrl: true,
+    shell: "posix",
+    streamlit: recipe,
+  }
+}
+
+export function streamlitRunCommand(recipe: StreamlitRecipe, token: string, setup = false): string {
+  if (!sanitizeStreamlitRecipe(recipe) || !/^[a-zA-Z0-9-]+$/.test(token)) throw new Error("Invalid Streamlit recipe")
+  const missing = `AX_CODE_STREAMLIT ${JSON.stringify({ token, stage: "failed", code: "python" })}`
+  // A subshell avoids changing the user's shell variables. Newlines keep PTY input
+  // lines bounded; every argument (including source) remains a single quoted value.
+  const choose = recipe.interpreter
+    ? `ax_streamlit_python=${quote(recipe.interpreter)}`
+    : `if [ -x .venv/bin/python ]; then ax_streamlit_python=.venv/bin/python; elif [ -x venv/bin/python ]; then ax_streamlit_python=venv/bin/python; elif command -v python3 >/dev/null 2>&1; then ax_streamlit_python=python3; else ax_streamlit_python=python; fi`
+  return `(\n${choose}\nif command -v "$ax_streamlit_python" >/dev/null 2>&1; then\n"$ax_streamlit_python" -c ${quote(runner)} ${quote(JSON.stringify({ ...recipe, token, setup }))}\nelse\nprintf '%s\\n' ${quote(missing)}\nfi\n)`
+}
+
+export type StreamlitProgress = {
+  stage: "preparing" | "installing" | "setup-required" | "launching" | "failed"
+  source?: "uv" | "requirements" | "simple"
+  code?: string
+  url?: string
+}
+
+export function streamlitProgress(output: string, token: string): StreamlitProgress[] {
+  const result: StreamlitProgress[] = []
+  for (const line of output.split(/\r?\n/)) {
+    if (!line.startsWith("AX_CODE_STREAMLIT ")) continue
+    try {
+      const event = JSON.parse(line.slice(18))
+      if (
+        event.token !== token ||
+        !["preparing", "installing", "setup-required", "launching", "failed"].includes(event.stage)
+      )
+        continue
+      if (event.stage === "launching") {
+        const url = new URL(event.url)
+        if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port || url.username || url.password)
+          continue
+      }
+      result.push(event)
+    } catch {
+      /* Partial terminal lines are retained by the caller. */
+    }
+  }
+  return result
+}
+

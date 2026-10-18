@@ -1,0 +1,42 @@
+A. Friction points (ranked, observed vs hypothesis-needs-test)
+
+1. **Add ≠ Save** (observed, `ProjectActionsSection.tsx:184-189`). The Streamlit button only appends to an unsaved list and closes the form; a separate Save step is required. Two-step mental model with no inline indicator that the entry is unsaved.
+2. **Three unvalidated text fields with fact-looking defaults** (observed, `StreamlitActionForm.tsx:16-52`; `streamlitProjectAction.ts:24-38`). No file picker, no interpreter detection, no existence check, no inline explanation per field. `python`, `app.py`, `8501` are presented as truth.
+3. **15-second timeout returns a vague instruction** (observed, journey step 5). "Preview URL not received. Check the action's terminal output" does not classify missing Python, missing module, missing file, or port conflict — that is the scavenger hunt the brief calls out.
+4. **All projects default to port 8501 → predictable conflict** (observed). Free-port plumbing exists only for static previews; nothing surfaces a free-port hint to the Streamlit path.
+5. **Discovery round-trip drops Streamlit metadata** (observed, `detectDevServerCommand` returns only command/label/actionId). `shell`, `waitForUrl`, `openUrl` are lost, so auto-discovered actions do not auto-open or wait-for-URL identically. Hypothesis-needs-test: this is a meaningful "it doesn't open" source for users who picked the discovered option.
+6. **Hide preview ≠ stop server** (observed). Closing the panel leaves the process running and the port occupied; beginners will repeatedly hit the next launch with no signal that a prior run is still bound.
+
+B. Simplest primary flow
+Place a first-class "Run app" affordance in the existing project workspace, adjacent to the current Settings → Actions path (no new nav silo). Single primary CTA that toggles between Run and Stop.
+
+- **Existing Streamlit project**: "Add app" → detector picks interpreter (shebang / `.venv/bin/python` / `python3`/`python`), entrypoint (`app.py` or `streamlit_app.py`, else first `.py` importing streamlit), and a free port. Run.
+- **Python project missing Streamlit**: same surface detects the `.py` candidate, surfaces an explicit visible prompt ("Streamlit isn't installed in this environment — `pip install streamlit`", copyable, not auto-run). Do not silently install.
+- **Multiple apps**: list view with per-row Run/Stop; preview header shows the active app. Avoids "one slot per project."
+
+Ask only when ambiguous (multiple `.py` candidates, multiple interpreters). Hide interpreter path, port override, and flags there.
+
+Return-user path: last-run app reappears as a single "Run again" chip in the workspace, no re-form.
+
+C. Detect / ask / hide / recover
+- Detect: interpreter, entrypoint, free port (reuse `/api/system/free-port`).
+- Ask: only on genuine ambiguity.
+- Advanced: explicit interpreter path, port lock, custom flags.
+- Recovery (inline, no terminal):
+  - Missing interpreter → "Couldn't find a Python interpreter. Pick one in Advanced."
+  - Missing module → "Streamlit isn't installed here. Run: `pip install streamlit`" (copyable, not silent).
+  - Missing file → "Couldn't find app.py" + picker.
+  - Port busy → "Port 8501 is in use. Use the suggested free port, or stop the conflicting process."
+  - Slow vs failed startup: classify after a clear bound, not on the first 15-second miss.
+
+D. First slice, copy-only check, measurable checks, reject one overengineering
+- **First slice** (no new runtime, no silent install, no new silo): detector-driven picker (interpreter/entrypoint/free port), inline failure classification, discovery round-trip parity (`shell=posix`, `waitForUrl`, `openUrl` retained), explicit Stop that frees the port.
+- **Copy-only?** No. The copy is honest ("existing Python environment with Streamlit installed") but the surrounding flow doesn't back it up. Better strings without detection are a more polished failure.
+- **Four measurable checks**:
+  1. Time-to-first-render for a valid project ≤ 3 clicks and ≤ 30 s, no terminal visit (hypothesis until measured).
+  2. Missing-interpreter / missing-module / missing-file / occupied-port launches each produce a labeled inline cause (100 % on a synthetic corpus).
+  3. Auto-discovered Streamlit action retains shell/waitForUrl/openUrl so auto-open and direct launch match the manual path.
+  4. Stop terminates and frees the port within 2 s; the next Run on the same port succeeds without manual retry.
+- **Reject**: a guided "install Python + Streamlit for me" feature in v1. Boundaries forbid silent installs and auto-trust; bolting it on reproduces the original UX problem (hidden state, ambiguous recovery, a misleading one-click promise). It belongs in a separate, opt-in scope with a visible action, isolated env, and cleanup/cancel semantics.
+
+REVIEW_COMPLETE.

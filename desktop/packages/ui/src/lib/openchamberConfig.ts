@@ -11,6 +11,7 @@ import { createProjectIdFromPath } from "./projectId"
 import { projectPathIsInsideRoot } from "./projectResolution"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
+import { sanitizeStreamlitRecipe, type StreamlitRecipe } from "./streamlitRecipe"
 
 type ProjectRef = { id: string; path: string }
 
@@ -56,6 +57,7 @@ export interface OpenChamberProjectAction {
   openUrl?: string
   waitForUrl?: boolean
   shell?: "posix"
+  streamlit?: StreamlitRecipe
 }
 
 interface OpenChamberProjectActionsState {
@@ -407,6 +409,7 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
       openUrl?: unknown
       waitForUrl?: unknown
       shell?: unknown
+      streamlit?: unknown
     }
 
     const id = typeof record.id === "string" ? record.id.trim() : ""
@@ -429,6 +432,7 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
     const autoOpenUrl = record.autoOpenUrl === true
     const openUrlRaw = typeof record.openUrl === "string" ? record.openUrl.trim() : ""
     const openUrl = trimToMaxLength(openUrlRaw, AX_CODE_DESKTOP_PROJECT_ACTION_OPEN_URL_MAX_LENGTH)
+    const streamlit = sanitizeStreamlitRecipe(record.streamlit)
     sanitized.push({
       id,
       name,
@@ -438,6 +442,7 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
       ...(openUrl ? { openUrl } : {}),
       ...(record.waitForUrl === true ? { waitForUrl: true } : {}),
       ...(record.shell === "posix" ? { shell: "posix" as const } : {}),
+      ...(streamlit ? { streamlit, shell: "posix" as const, autoOpenUrl: true, waitForUrl: true } : {}),
       ...(platforms.length > 0 ? { platforms } : {}),
     })
   }

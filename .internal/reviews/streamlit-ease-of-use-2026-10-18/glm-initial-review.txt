@@ -1,0 +1,38 @@
+## A. Friction points, ranked
+
+1. **Launcher-parity bug (observed in source, not yet a user incident).** Discovery drops `shell`, `waitForUrl`, `openUrl`; `ProjectActionsButton` reconstructs a reduced generic action. The same Streamlit action can launch differently depending on path — no auto preview, no URL wait. This is the highest-value defect because it makes the feature feel "illogical" nondeterministically.
+2. **Add/Save split with no run in between (observed).** `StreamlitActionForm.onAdd` only appends to a local list and closes; the user must then find Save, leave Settings, find Project Actions, select, and click. Four surfaces before the first preview. `primaryActionId: null` on save also means no promoted default.
+3. **No validation or detection (observed).** Free-text interpreter/port with one generic `invalid` sentence; no file-existence, venv, or Streamlit-installed probing; raw shell shown immediately, which reads as "you must understand this."
+4. **Unclassified launch failure (observed behavior, hypothesis on impact).** 15s generic "Preview URL not received" for every failure mode: missing module, bad path, port conflict. The "check the terminal" instruction is precisely the scavenger hunt users can't do.
+5. **Port 8501 default for all projects (observed; collision frequency unmeasured).** `/api/system/free-port` exists but is unused here.
+6. **Recipe metadata is not persisted (observed).** Only the command string survives; restart/ownership/migration all inherit generic-shell semantics. Hidden preview keeps the server running with no visible owner cue.
+
+Missing evidence: no user study; "too difficult" lacks the failing step. Items 1–3 are source-verifiable; 4–6 severity is hypothesized.
+
+## B. Simplest primary flow
+
+Belongs in the existing **project run area** (Project Actions toolbar), not Settings and not a new silo. Settings keeps edit/delete only.
+
+- **Existing Streamlit project (first use):** Action labeled **"Run Streamlit app"**. Click → a compact confirm card shows detected app file, interpreter, auto-picked free port (as hint), primary button **"Run"**, secondary **"Change…"** (same three fields, no raw shell above the fold). Running state: button becomes **"Stop"**; globe opens preview.
+- **Python project without Streamlit:** Confirm card shows *"Streamlit is not installed in this project's Python environment."* Minimal honest path: instructions to install + **"Re-check"**. A guided **"Install streamlit and run"** is explicitly **new scope** (visible consent, project-isolated env, cancellable) — not in this slice, not silently claimed.
+- **Multiple apps:** picker listing `.py` files that import `streamlit`; last-used file preselected; other files reachable via **"Change…"**.
+- **Return user:** the saved action is a one-click **Run → preview**, port remembered, no form.
+
+## C. Detect / ask / hide / recover
+
+- **Detect (on the execution host, with stale/cancel-safe probes):** `.py` files importing streamlit; `streamlit` in requirements/pyproject/lock; venv interpreters present; port occupancy before launch (hint only — allocation is advisory until bind).
+- **Ask only when ambiguous:** which app file; which interpreter when multiple venvs exist (show detected paths; never silently fall back to system `python`).
+- **Advanced (collapsed):** raw command, port override, waitForUrl toggle, URL override, shell-dialect note (POSIX/macOS only — no Windows claim).
+- **Recovery by classification, from process output:** process exited pre-URL → surface captured stderr tail, classified: `No module named streamlit` → env fix guidance; file/interpreter not found → path fix; `Address already in use` → *"Port 8501 is busy. [Stop owning action] or [Use port N]"* — Stop only acts on action-owned processes; manual attaches are labeled unowned. **Restart** = stop+start of the owned process; **Save vs start**: "Save & Run" so the list-edit round trip never blocks a first run.
+
+## D. Slice, copy, checks, rejection
+
+**First slice (one vertical):** fix launcher parity (preserve `shell/waitForUrl/openUrl` through discovery) + persist structured recipe fields alongside `command` (migration: parse interpreter/entrypoint/port from existing commands; unparseable → "custom", never destructive) + classified failure panel + free-port hint + "Save & Run". **Copy alone is not enough** — parity and metadata are code; copy changes only fix points 3's wording.
+
+**Later scope:** auto-detection, multi-app picker, guided install, discovery of Streamlit projects in `detectDevServerCommand`.
+
+**Acceptance checks:** (1) discovered Streamlit action auto-opens preview (parity test on the reduced-action path); (2) launch with missing module shows a streamlit-specific message ≤15s, not the generic URL copy; (3) two projects launched back-to-back get distinct ports and both previews open; (4) a user can add and run a Streamlit app without visiting Settings Save.
+
+**Reject as overengineering:** a dedicated Streamlit runtime/supervisor or bundled-Python auto-install in this slice — it duplicates the terminal supervisor, adds trust/cleanup semantics, and violates the accepted v2 boundary.
+
+REVIEW_COMPLETE

@@ -1,0 +1,12 @@
+[
+  {
+    "shell": "/bin/bash",
+    "commandDeliveredThroughPty": true,
+    "explicitSetupRequired": true
+  },
+  {
+    "shell": "/bin/zsh",
+    "commandDeliveredThroughPty": true,
+    "explicitSetupRequired": true
+  }
+]

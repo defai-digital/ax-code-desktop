@@ -1,0 +1,18 @@
+Design discussion, English only. Do not call tools or write files. The earlier review request concerns users finding AX Code Desktop Streamlit setup too hard. The verified current flow is Settings > Actions > raw interpreter/app.py/8501 fields > Add (unsaved) > Save > leave settings > select action > Start. The command is displayed prominently. Failures mostly say to check terminal output. Source has no Streamlit file/environment detection, only project-action name matching, package.json scripts and static index.html discovery.
+
+DeepSeek completed an independent review. Its key proposals:
+- Put a Streamlit entry in Project Actions; Start preview should persist configuration and launch together.
+- Detect app files/environments; ask only for ambiguity; hide command and port under Advanced.
+- Inline specific recovery for missing Streamlit/file/interpreter and occupied port.
+- While running, make Restart primary and move Stop into overflow.
+- First slice is entry/picker/save-and-start/errors. Defer interpreter probes, port allocator, guided installation and Windows.
+
+Lead-review findings to challenge:
+1. DeepSeek's proposed acceptance (two projects on distinct ports, correct interpreter, zero typing) cannot be met if environment resolution and port selection are deferred.
+2. Restart as the primary running action risks losing state when the user's likely intention is Open preview. Proposed alternative: Start preview when stopped; Open preview when running; visible Stop; Restart in overflow.
+3. Source reproduction found detectDevServerCommand returns only command,label,actionId for an existing Streamlit action, dropping shell:'posix', waitForUrl:true, openUrl. ProjectActionsButton reconstructs a generic action from that reduced result. Direct start and Auto-discover differ. Both should invoke one shared launcher preserving original identity/configuration.
+4. Default setup belongs on an existing project Preview surface and Project Actions entry opens the SAME compact setup card, not another Apps section. Show App file, Environment summary, Start preview, collapsed Advanced. Persist structured Streamlit metadata. Keep generic custom commands supported without brittle shell reverse-parsing.
+5. Under accepted v2 there is no installer. Missing-package MVP should select an already-ready environment or offer a tailored setup instruction. A later explicit Install into project environment action needs its own environment/cancellation/dependency-policy design. Do not promise it now.
+6. Auto-detection reads bounded files without executing the project. Only user Start runs selected-interpreter probes and the app on the actual execution host. All late results are project/run scoped. Auto port defaults on; fixed port stays advanced; never kill unrelated servers. Missing/ambiguous app must use a picker, not run every import of streamlit (pages/helpers are not necessarily entry points).
+
+Please independently critique this design and DeepSeek's suggestions. Choose the smallest COHERENT slice that meaningfully improves usability, resolve Open vs Restart and environment/install scope, name any overlooked product risk, and give 4 testable acceptance conditions. Max 500 words. End with REVIEW_COMPLETE.

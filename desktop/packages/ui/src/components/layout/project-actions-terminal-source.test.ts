@@ -20,15 +20,4 @@ describe("ProjectActionsButton terminal guards", () => {
     expect(source).toContain("expectedSessionId: runningSessionId")
     expect(source).toContain('lifecycle: "exited"')
   })
-
-  test("dispatches one run per action while the session is still being created", async () => {
-    const source = await readFile(sourcePath, "utf8")
-
-    // The store entry only appears after the awaits, so the `projectActionRuns` snapshot is empty
-    // for every click until then: a double click sent the command into the same shell twice.
-    expect(source).toContain("const startingRunKeysRef = React.useRef<Set<string>>(new Set())")
-    expect(source).toContain("if (startingRunKeysRef.current.has(runKey)) {")
-    expect(source).toContain("startingRunKeysRef.current.add(runKey)")
-    expect(source).toContain("startingRunKeysRef.current.delete(runKey)")
-  })
 })

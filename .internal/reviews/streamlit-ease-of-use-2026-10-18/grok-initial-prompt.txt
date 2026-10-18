@@ -1,0 +1,229 @@
+You are an independent product UX reviewer. Answer in English only. Use only this evidence; do not call tools, inspect files, write files, or implement anything. We need candid criticism, not a higher rating.
+
+USER FEEDBACK: Users find the current Streamlit support in AX Code Desktop too difficult and illogical. The user specifically requests discussion with Grok CLI and DeepSeek through AX Code to decide how to simplify it. No detailed incident report is available yet; distinguish observed design flaws from hypotheses requiring user testing.
+
+PRODUCT: AX Code Desktop is a React desktop workspace supervising coding projects. Streamlit is a user's Python app shown inside the existing preview, not another AX Code GUI/runtime. The latest source is f736cc54 (product change 4f5267e1). Earlier native macOS tests prove Streamlit widgets/forms/stream/upload/download/restart work; they do NOT prove first-use usability. Ignore the earlier overall 8.4 UI rating: it did not measure this journey.
+
+CURRENT JOURNEY, verified in source:
+1. Find project Settings -> Actions -> Streamlit action.
+2. Form requires three text inputs: Python interpreter (default python), App file (.py) (default app.py), Port (default 8501). No file chooser, detection, environment/package/file existence validation, or inline explanation for each problem. Raw generated shell command is shown immediately.
+3. Add only adds to a local unsaved action list and closes the form. It expands a generic command editor with name/icon/command, auto-open URL, readiness checkbox, and URL override. There is then a separate Save operation for the list.
+4. Leave settings and find Project Actions, select the action, click to start. The toolbar uses an action button that becomes Stop when running; compact mode is icon-only with accessibility labels. A separate globe button opens preview once a URL exists.
+5. Launch uses the existing terminal and sh/bash/zsh. The recipe waits for a matching Streamlit startup URL on loopback. After 15 seconds without one it says 'Preview URL not received. Check the action’s terminal output.' A late matching URL can recover. It does not classify missing Python/module/file or port conflict for the user.
+6. Hiding the preview leaves the server running. Stop affects the action-owned terminal/process. Multiple projects default to the same port. Manually attached servers are outside action ownership.
+7. Existing config stores a generic shell command and preview flags, not structured Streamlit entrypoint/interpreter/port recipe metadata. Any proposal for editing/detection/migration must account for this.
+8. Existing generic auto-discover action exists; Python/Streamlit discovery is not confirmed. Do not assume it already supports Streamlit.
+
+BOUNDARIES: reuse existing terminal/project-action/preview ownership; do not introduce another runtime, global auto-start, blind package installation, automatic trust grants, or a new top-level navigation silo. The accepted v2 did not install dependencies or bundle Python. A future guided environment/install feature may be proposed as an explicit new scope, with a visible user action, isolated project environment, and cleanup/cancellation semantics; do not silently declare it implemented. Do not recommend disabling CORS/XSRF. Currently qualified shell dialect is POSIX, native test platform macOS; Windows support must not be claimed.
+
+REVIEW REQUEST (max 700 words):
+A. Rank 4-6 concrete friction points tied to source/user journey; distinguish missing evidence.
+B. Design the simplest primary flow for an existing Streamlit project, a Python project missing Streamlit, and a project with multiple apps. Include UI labels, primary actions, and the return-user path. Decide where it belongs in the existing workspace.
+C. Recommend what to detect, what to ask, what to hide under Advanced, and how failures should recover without a generic terminal scavenger hunt. Address occupied ports, ambiguous interpreter, multiple files, restart vs stop, saving vs starting.
+D. Identify the first implementable slice vs later scope; explain whether changing copy alone is enough. Give 4 measurable acceptance checks and one recommendation you would reject as overengineering.
+Do not invent user-study results or implementation claims. End with REVIEW_COMPLETE.
+
+SOURCE desktop/packages/ui/src/components/sections/projects/StreamlitActionForm.tsx:1-80
+1: import React from "react"
+2: import { Button } from "@/components/ui/button"
+3: import { Input } from "@/components/ui/input"
+4: import { useI18n } from "@/lib/i18n"
+5: import type { OpenChamberProjectAction } from "@/lib/openchamberConfig"
+6: import { createStreamlitProjectAction } from "@/lib/streamlitProjectAction"
+7: 
+8: export function StreamlitActionForm({
+9:   onAdd,
+10:   onCancel,
+11: }: {
+12:   onAdd: (action: OpenChamberProjectAction) => void
+13:   onCancel: () => void
+14: }) {
+15:   const { t } = useI18n()
+16:   const [interpreter, setInterpreter] = React.useState("python")
+17:   const [entrypoint, setEntrypoint] = React.useState("app.py")
+18:   const [port, setPort] = React.useState("8501")
+19:   const id = React.useId()
+20:   const action = createStreamlitProjectAction({
+21:     id,
+22:     name: t("settings.projects.actions.streamlit.name"),
+23:     interpreter,
+24:     entrypoint,
+25:     port,
+26:   })
+27:   return (
+28:     <form
+29:       className="my-3 max-w-[30rem] space-y-3 rounded-lg border border-border p-3"
+30:       onSubmit={(event) => {
+31:         event.preventDefault()
+32:         if (action) onAdd(action)
+33:       }}
+34:     >
+35:       <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.streamlit.description")}</p>
+36:       {(
+37:         [
+38:           ["interpreter", interpreter, setInterpreter],
+39:           ["entrypoint", entrypoint, setEntrypoint],
+40:           ["port", port, setPort],
+41:         ] as const
+42:       ).map(([field, value, setValue]) => (
+43:         <label key={field} className="flex flex-col gap-1 typography-meta">
+44:           {t(`settings.projects.actions.streamlit.${field}`)}
+45:           <Input
+46:             value={value}
+47:             onChange={(event) => setValue(event.target.value)}
+48:             autoComplete="off"
+49:             spellCheck={false}
+50:           />
+51:         </label>
+52:       ))}
+53:       {action ? (
+54:         <pre className="whitespace-pre-wrap break-all typography-micro">{action.command}</pre>
+55:       ) : (
+56:         <p role="alert" className="typography-meta text-destructive">
+57:           {t("settings.projects.actions.streamlit.invalid")}
+58:         </p>
+59:       )}
+60:       <div className="flex flex-wrap gap-2">
+61:         <Button type="submit" size="sm" disabled={!action}>
+62:           {t("settings.projects.actions.actions.add")}
+63:         </Button>
+64:         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
+65:           {t("common.cancel")}
+66:         </Button>
+67:       </div>
+68:     </form>
+69:   )
+70: }
+
+SOURCE desktop/packages/ui/src/components/sections/projects/ProjectActionsSection.tsx:119-202
+119:   }, [])
+120: 
+121:   const updateAction = React.useCallback(
+122:     (id: string, updater: (current: EditableProjectAction) => EditableProjectAction) => {
+123:       setActions((prev) => prev.map((entry) => (entry.id === id ? updater(entry) : entry)))
+124:     },
+125:     [],
+126:   )
+127: 
+128:   const handleSave = React.useCallback(async () => {
+129:     if (validationError) {
+130:       toast.error(validationError)
+131:       return
+132:     }
+133:     const targetProjectRef = projectRef
+134:     setIsSaving(true)
+135:     try {
+136:       const ok = await saveProjectActionsState(projectRef, {
+137:         actions,
+138:         primaryActionId: null,
+139:       })
+140:       if (!isCurrentProjectOperationTarget(targetProjectRef, projectRefRef.current)) {
+141:         return
+142:       }
+143:       if (!ok) {
+144:         toast.error(t("settings.projects.actions.toast.saveFailed"))
+145:         return
+146:       }
+147:       setInitialSnapshot(JSON.stringify({ actions }))
+148:       dispatchProjectScopedEvent(PROJECT_ACTIONS_UPDATED_EVENT, targetProjectRef.id)
+149:       toast.success(t("settings.projects.actions.toast.saved"))
+150:     } catch {
+151:       if (!isCurrentProjectOperationTarget(targetProjectRef, projectRefRef.current)) {
+152:         return
+153:       }
+154:       toast.error(t("settings.projects.actions.toast.saveFailed"))
+155:     } finally {
+156:       setIsSaving(false)
+157:     }
+158:   }, [actions, projectRef, t, validationError])
+159: 
+160:   const canSave = !isSaving && !isLoading && hasChanges && !validationError
+161: 
+162:   return (
+163:     <div className="mb-8">
+164:       <div className="mb-1 flex items-start justify-between gap-2">
+165:         <div>
+166:           <h3 className="typography-ui-header font-medium text-foreground">{t("settings.projects.actions.title")}</h3>
+167:           <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.description")}</p>
+168:         </div>
+169:         <div className="flex shrink-0 flex-wrap gap-2">
+170:           <Button type="button" variant="outline" size="xs" disabled={isLoading} onClick={() => setShowStreamlit(true)}>
+171:             {t("settings.projects.actions.streamlit.add")}
+172:           </Button>
+173:           <Button type="button" variant="outline" size="xs" className="!font-normal" onClick={handleAddAction}>
+174:             <Icon name="add" className="h-3.5 w-3.5" />
+175:             {t("settings.projects.actions.actions.add")}
+176:           </Button>
+177:         </div>
+178:       </div>
+179: 
+180:       {showStreamlit ? (
+181:         <StreamlitActionForm
+182:           key={projectRef.id}
+183:           onCancel={() => setShowStreamlit(false)}
+184:           onAdd={(action) => {
+185:             const created = { ...action, id: createActionId() }
+186:             setActions((current) => [...current, created])
+187:             setExpandedActions((current) => ({ ...current, [created.id]: true }))
+188:             setShowStreamlit(false)
+189:           }}
+190:         />
+191:       ) : null}
+192: 
+193:       <section className="pb-2 pt-0 space-y-2">
+194:         {isLoading ? (
+195:           <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.state.loading")}</p>
+196:         ) : actions.length === 0 ? (
+197:           <div className="py-2">
+198:             <p className="typography-meta text-muted-foreground">{t("settings.projects.actions.state.empty")}</p>
+199:           </div>
+200:         ) : (
+201:           <div className="space-y-0 max-w-[30rem]">
+202:             {actions.map((action) => {
+
+SOURCE desktop/packages/ui/src/lib/streamlitProjectAction.ts:16-48
+16: /** A user-selected command recipe, never an installer or a second process supervisor. */
+17: export function createStreamlitProjectAction(input: {
+18:   id: string
+19:   name: string
+20:   interpreter: string
+21:   entrypoint: string
+22:   port: string
+23: }): OpenChamberProjectAction | null {
+24:   const interpreter = input.interpreter.trim()
+25:   const entrypoint = input.entrypoint.trim()
+26:   const port = Number(input.port)
+27:   if (
+28:     !interpreter ||
+29:     !entrypoint ||
+30:     [input.interpreter, input.entrypoint].some(hasControlCharacters) ||
+31:     !/^[0-9]+$/.test(input.port) ||
+32:     !Number.isInteger(port) ||
+33:     port < 1 ||
+34:     port > 65535 ||
+35:     entrypoint.startsWith("-") ||
+36:     !entrypoint.endsWith(".py")
+37:   )
+38:     return null
+39:   return {
+40:     id: input.id,
+41:     name: input.name,
+42:     command: `${quotePosixArgument(interpreter)} -m streamlit run ${quotePosixArgument(entrypoint)} --server.address=127.0.0.1 --server.port=${port} --server.headless=true`,
+43:     icon: "server",
+44:     autoOpenUrl: true,
+45:     openUrl: `http://127.0.0.1:${port}/`,
+46:     waitForUrl: true,
+47:     shell: "posix",
+48:   }
+
+SOURCE desktop/packages/ui/src/lib/i18n/messages/en.settings.ts:213-222
+213:   "settings.projects.actions.streamlit.add": "Streamlit action",
+214:   "settings.projects.actions.streamlit.name": "Start Streamlit",
+215:   "settings.projects.actions.streamlit.description":
+216:     "Use an existing Python environment with Streamlit installed. This recipe runs in a bash, zsh, or sh terminal; paths are relative to the project.",
+217:   "settings.projects.actions.streamlit.interpreter": "Python interpreter",
+218:   "settings.projects.actions.streamlit.entrypoint": "App file (.py)",
+219:   "settings.projects.actions.streamlit.port": "Port",
+220:   "settings.projects.actions.streamlit.invalid":
+221:     "Enter an interpreter, a .py file, and a port from 1 to 65535. Use single-line paths.",
+222:   "settings.projects.actions.field.waitForUrl": "Wait for the startup URL in output",

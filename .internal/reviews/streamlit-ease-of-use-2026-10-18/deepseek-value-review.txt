@@ -1,0 +1,35 @@
+## Decision checkpoint
+**Objective:** pick one high-value, low-learning-curve Streamlit surface for AX Code Desktop, no Docker. **Evidence:** supplied verified Aider `main.py`/`gui.py` behavior and official Streamlit feature set. **Assumption (unverified):** ~10% usage is an estimate, not telemetry. Workspace is empty, so I could not re-verify Aider source locally; those facts are taken as given.
+
+## Ranking (value ÷ effort)
+1. **Parameterized script frontends** — highest. Streamlit's actual differentiator is Python-native widgets over an existing script. Reuses the local venv, zero JS, no Docker.
+2. **Data exploration / CSV tools** — high, slightly more effort (tables, charts, upload/download).
+3. **AI/model evaluation prototypes** — medium value, higher effort, and drifts toward a second agent loop. Demote.
+4. **Duplicating native chat/supervision** — negative value. Violates single-engine rule.
+
+**Challenge to the shortlist:** it ranks by feature popularity, not by "does this need Streamlit at all?" Desktop already has preview, terminal, and chat. Only #1 and #2 need Streamlit *specifically*; #3 mostly needs a notebook, and #4 needs nothing. I would also add a fifth candidate the list misses — "make the Python tool you just wrote runnable for a non-technical colleague" — which is really #1 with #2's polish.
+
+## Borrow from Aider
+- `check_streamlit_install` pattern: verify the optional dependency group *before* launch and emit one actionable message, never a traceback.
+- Launch through `streamlit.web.cli` with explicit args instead of a saved shell string — kills quoting and port bugs.
+- `st.cache_resource` for the heavy object across reruns (their Coder; ours: resolved env/connection).
+- `usageStats false`, `magicEnabled false`, `runOnSave false` — deterministic, telemetry-free, no surprise reruns.
+- One packaged entrypoint (`gui.py` equivalent) per app.
+
+## Do not port
+The browser GUI as a chat/editor surface, its file multiselect/diffs/undo, and any second model loop. Those duplicate Desktop's editor, terminal, and engine. Borrow the *launch discipline*, not the product.
+
+## One narrow first delivery
+A **"Run as Streamlit app"** action on the selected project: detect the local interpreter/venv, auto-pick a free port, launch, show preview + **Stop**. Dependency setup is a one-time, project-local prompt shown only when `streamlit` is absent. **No natural-language app creation in v1** — that path lacks a verified agent→persistent-terminal contract.
+
+## Observable acceptance metrics
+- Project selection → preview painted in ≤2 clicks, zero typed shell commands.
+- Cold launch ≤8s for a 50-line app (measured, warm venv).
+- Port collision resolved automatically in 20/20 two-app trials.
+- Stop leaves no orphan listener (`lsof` on the port returns empty).
+- Missing dependency → exactly one setup action; zero raw tracebacks surfaced.
+- App crash renders readable error in the preview panel; Desktop stays responsive.
+
+**Inference, not evidence:** the ranking, the 8s threshold, and the claim that #3 drifts into a second loop. **Evidence:** Aider source behavior, official Streamlit feature list, existing shell-recipe integration.
+
+REVIEW_COMPLETE

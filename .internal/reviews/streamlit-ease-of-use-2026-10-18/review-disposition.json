@@ -1,0 +1,101 @@
+{
+  "scopeCorrection": "User clarified execution methods and least human effort, then authorized plan and implementation; initial interface-only advice was superseded by the five-model workflow discussion.",
+  "reviewers": {
+    "grok": {
+      "completed": true,
+      "receipt": "grok-workflow-receipt.json",
+      "review": "grok-workflow-review.txt",
+      "position": "Project-aware deterministic run with explicit project-isolated setup"
+    },
+    "deepseek": {
+      "completed": true,
+      "receipt": "deepseek-workflow-receipt.json",
+      "review": "deepseek-workflow-review.txt",
+      "position": "Project-aware deterministic run with explicit project-isolated setup"
+    },
+    "qwen": {
+      "completed": true,
+      "receipt": "qwen-workflow-receipt.json",
+      "review": "qwen-workflow-review.txt",
+      "position": "Project-aware deterministic run with explicit project-isolated setup"
+    },
+    "glm": {
+      "completed": true,
+      "receipt": "glm-workflow-receipt.json",
+      "review": "glm-workflow-review.txt",
+      "position": "Project-aware deterministic run with explicit project-isolated setup"
+    },
+    "minimax": {
+      "completed": true,
+      "receipt": "minimax-workflow-receipt.json",
+      "review": "minimax-workflow-review.txt",
+      "position": "Project-aware deterministic run with explicit project-isolated setup"
+    }
+  },
+  "accepted": [
+    "Reuse existing terminal and preview",
+    "Preserve project dependency conventions",
+    "Explicit Setup and run instead of shell homework",
+    "Normal runs never install",
+    "Automatic port and current-run readiness",
+    "Structured recipe metadata and discovery parity"
+  ],
+  "rejected": [
+    "Auto-start on project open",
+    "Kill prior process on duplicate start or project switch",
+    "Reverse-parse arbitrary old shell commands",
+    "Treat uv run --locked as installation-free",
+    "Silently rewrite a lock or fallback from locked uv to pip",
+    "Require Docker or ephemeral --with for every app",
+    "Claim no verified agent API means the agent cannot run any process at all",
+    "Treat ephemeral dependency caches as guaranteed per-run downloads"
+  ],
+  "qualifications": [
+    "Grok initial packet timed out without output; compact discussion and corrected workflow round completed",
+    "All five are source-informed advisory reviews, not user-study results"
+  ],
+  "valueDiscussion": {
+    "completed": [
+      "deepseek-value",
+      "qwen-value",
+      "glm-value",
+      "minimax-value",
+      "grok-value2"
+    ],
+    "unavailable": [
+      "grok-value: non-substantive intention text, not counted"
+    ],
+    "decision": "Intent-aware canonical skill for static vs interactive artifacts; deterministic Desktop execution. No Docker dependency. Runtime skill/automatic handoff remains proposed.",
+    "rejectedSuggestions": [
+      "Treat all workflows as multi-agent orchestration",
+      "Require manual streamlit run shell commands as the final user journey",
+      "Cache a coder handle in a separate Streamlit tool",
+      "Turn off project magic/file watching merely because Aider does",
+      "Install automatically on data intent or claim an unimplemented agent-to-Desktop launch contract"
+    ]
+  },
+  "implementationReview": {
+    "deepseek": "completed substantive source review",
+    "grok": "200-second timeout without output; unavailable, not approval",
+    "accepted": [
+      "Invalid config shape emitted no failure event: now validated and regression tested",
+      "Broken local environment is not treated as prepared",
+      "Use selected Python PATH and clean environment for exec",
+      "Explicit interpreter bypasses uv environment checks",
+      "Missing Python shell path exits nonzero",
+      "Use sanitized recipe fields"
+    ],
+    "rejected": [
+      "Global Python automatic fallback: explicit override supported, default remains project-local per PRD",
+      "Skip locked environment check whenever Streamlit imports: would silently ignore stale project dependencies",
+      "Add --inexact universally: explicit uv sync follows the existing locked project; preservation does not mean all undeclared packages are immutable",
+      "Action command bypass: Desktop uses recipe metadata and generates the actual command at run time"
+    ],
+    "independentlyFixed": [
+      "Saved configuration false result now prevents launch",
+      "Duplicate alias cleanup releases only locks acquired by that invocation",
+      "Real PTY revealed large input loss; compressed source and bounded input bursts passed Bash/zsh",
+      "SO_REUSEADDR avoids false busy-port detection immediately after server stop; live collision still rejected"
+    ]
+  }
+}

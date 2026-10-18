@@ -1,0 +1,14 @@
+Streamlit should be a skill, not a pipeline or workflow, and not a second GUI.
+
+Aider `--browser` is an experimental packaged Streamlit shell: it reuses Coder and shows chat, file selection, diff, and undo. AX Code Desktop already has React/Electron chat, a terminal, and preview, so that shell would duplicate the product. A workflow is multi-agent orchestration this does not need. A pipeline that auto-runs the app is premature: the canonical agent generates files, Desktop executes them in the existing terminal, and no agent-to-Desktop automatic run handoff is verified.
+
+Route by output. Simple charts and reports stay static files (script, HTML, or Markdown) that the user runs in the Desktop terminal. Reusable interactive tools become one local Streamlit app when filters, parameters, or a tool they will reopen are required. No Docker.
+
+Ranked uses:
+1. Small explorers with filters or what-if inputs over data the user already has.
+2. Dashboards they open more than once.
+3. One-off charts only if interaction is required; otherwise skip Streamlit.
+
+Plan: one skill on chart, analysis, or dashboard requests; pick static files or a single `app.py`; agent writes files only; user runs `streamlit run` in the existing terminal; preview can show the local URL after they start it. Keep chat, diff, and undo on Desktop.
+
+REVIEW_COMPLETE

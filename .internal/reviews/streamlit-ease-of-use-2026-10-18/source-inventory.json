@@ -1,0 +1,18 @@
+{
+  "head": "f736cc54c416e171797980538b1f3de35994be6e",
+  "source": {
+    "desktop/packages/ui/src/components/sections/projects/StreamlitActionForm.tsx": "f5ee75a686d7f304bc86f9229bf89a9df207d403d6a3ab63189fe4ba60e96c44",
+    "desktop/packages/ui/src/components/sections/projects/ProjectActionsSection.tsx": "80612044074b9dd411bb7974b13ed12ea1b9f4cbcf439a01df77d9f3329b460d",
+    "desktop/packages/ui/src/lib/streamlitProjectAction.ts": "9e447bc91846fa5f5fb6cc694001b32279d49cf43d336bd68aee9027faa9a3be",
+    "desktop/packages/ui/src/lib/i18n/messages/en.settings.ts": "e8b5e1e259473dc98a073af33c4a6d52082f413a6d2ced317f753a72b5c9d302",
+    "desktop/packages/ui/src/lib/detectDevServer.ts": "037f1f308036caf97266a9717ce3ad71408eb2120305e7f1d36a1d525c5b36ed",
+    "desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx": "28cf5838a54857e7a0e06e3bc9747188bb28257e79a74532743815979f42ed03",
+    "desktop/packages/ui/src/lib/openchamberConfig.ts": "bfe1d7796ee2b3a822a81bfcb5c3dfe6f8a574c59ad3461d4c4e9d65a2ed7159",
+    "desktop/packages/ui/src/components/layout/ContextPanel-impl.tsx": "a46eca0f8cededd389893b778bb4464f43be291f0c728c8dea847a755faac3ce"
+  },
+  "preservedReferenceReadmeSha256": "84a5c0264d55859747acc898abff5e1a1545854282d153560bc57ead0bf73a27",
+  "cliVersions": {
+    "ax-code": "7.27.3",
+    "grok": "1.0.62"
+  }
+}

@@ -300,7 +300,7 @@ export const ProjectActionsSection: React.FC<ProjectActionsSectionProps> = ({ pr
                         <Textarea
                           value={action.command}
                           onChange={(event) =>
-                            updateAction(action.id, (current) => ({ ...current, command: event.target.value }))
+                            updateAction(action.id, (current) => ({ ...current, command: event.target.value, streamlit: undefined }))
                           }
                           placeholder={t("settings.projects.actions.field.commandPlaceholder")}
                           className="min-h-[88px] max-w-[30rem] font-mono typography-micro"

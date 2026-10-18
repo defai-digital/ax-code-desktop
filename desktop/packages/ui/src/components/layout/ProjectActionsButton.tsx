@@ -16,7 +16,12 @@ import { useUIStore } from "@/stores/useUIStore"
 import { useTerminalStore } from "@/stores/useTerminalStore"
 import { openExternalUrl } from "@/lib/url"
 import { useI18n } from "@/lib/i18n"
-import { getProjectActionsState, type OpenChamberProjectAction, type ProjectRef } from "@/lib/openchamberConfig"
+import {
+  getProjectActionsState,
+  saveProjectActionsState,
+  type OpenChamberProjectAction,
+  type ProjectRef,
+} from "@/lib/openchamberConfig"
 import {
   normalizeProjectActionDirectory,
   PROJECT_ACTIONS_UPDATED_EVENT,
@@ -24,10 +29,12 @@ import {
   toProjectActionRunKey,
 } from "@/lib/projectActions"
 import { projectScopedEventMatchesProject } from "@/lib/projectScopedEvents"
-import { detectDevServerCommand, readPackageJsonScripts } from "@/lib/detectDevServer"
+import { detectDevServerCommand, detectStreamlitEntrypoints, readPackageJsonScripts } from "@/lib/detectDevServer"
 import { connectTerminalStream, getTerminalSessionOutput, terminalStreamConsumerKey } from "@/lib/terminalApi"
 import { ensureClaimedTerminalSession } from "@/lib/terminalSessionCoordinator"
 import { isSupportedRecipeShell, readyProjectActionUrl } from "@/lib/streamlitProjectAction"
+import { StreamlitRunDialog } from "@/components/sections/projects/StreamlitRunDialog"
+import { streamlitRunCommand, streamlitProgress } from "@/lib/streamlitRecipe"
 import { isLoopbackHostname } from "@/lib/loopback"
 
 type UrlWatchEntry = {
@@ -168,6 +175,7 @@ export const ProjectActionsButton = ({
   const updateProjectActionRunStatus = useTerminalStore((state) => state.updateProjectActionRunStatus)
   const removeProjectActionRun = useTerminalStore((state) => state.removeProjectActionRun)
 
+  const [streamlitDialog, setStreamlitDialog] = React.useState<OpenChamberProjectAction | true | null>(null)
   const [actions, setActions] = React.useState<OpenChamberProjectAction[]>([])
   const [selectedActionId, setSelectedActionId] = React.useState<string | null>(null)
   const [isLoading, setIsLoading] = React.useState(false)
@@ -228,7 +236,7 @@ export const ProjectActionsButton = ({
         if (current && filtered.some((entry) => entry.id === current)) {
           return current
         }
-        return null
+        return state.primaryActionId ?? null
       })
     } catch {
       if (loadRequestIdRef.current !== requestId) {
@@ -271,6 +279,7 @@ export const ProjectActionsButton = ({
   )
 
   React.useEffect(() => {
+    setStreamlitDialog(null)
     void loadActions()
   }, [loadActions])
 
@@ -336,7 +345,7 @@ export const ProjectActionsButton = ({
   React.useEffect(() => {
     for (const [runKey, entry] of Object.entries(projectActionRuns)) {
       if (entry.directory !== normalizedDirectory || entry.status === "stopping") continue
-      const action = displayActions.find((item) => item.id === entry.actionId)
+      let action = entry.action ?? displayActions.find((item) => item.id === entry.actionId)
       if (!action) continue
       const watch = urlWatchByRunKeyRef.current[runKey] ?? {
         lastSeenChunkId: null,
@@ -366,6 +375,30 @@ export const ProjectActionsButton = ({
 
       const combined = nextChunks.map((chunk) => chunk.data).join("")
       const textForScan = `${watch.tail}${combined}`
+      if (entry.token) {
+        for (const progress of streamlitProgress(textForScan, entry.token)) {
+          const current = useTerminalStore.getState().projectActionRuns[runKey]
+          if (!current || current.token !== entry.token || current.status === "stopping") continue
+          if (progress.stage === "launching") {
+            action = { ...action, openUrl: progress.url }
+            setProjectActionRun({ ...current, action, progress, status: "waiting-for-preview" })
+            window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+            previewWaitTimeoutByRunKeyRef.current[runKey] = window.setTimeout(() => {
+              const live = useTerminalStore.getState().projectActionRuns[runKey]
+              if (live?.token === entry.token && live.status === "waiting-for-preview")
+                updateProjectActionRunStatus(runKey, "preview-unavailable")
+            }, AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS)
+          } else {
+            const status =
+              progress.stage === "setup-required" || progress.stage === "failed" ? progress.stage : "preparing"
+            setProjectActionRun({ ...current, progress, status })
+            if (status === "setup-required" || status === "failed") {
+              window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
+              setStreamlitDialog(action)
+            }
+          }
+        }
+      }
       const maybeUrl =
         !watch.openedUrl && action.autoOpenUrl === true
           ? action.waitForUrl
@@ -375,12 +408,14 @@ export const ProjectActionsButton = ({
       const lastChunkId = nextChunks[nextChunks.length - 1]?.id ?? watch.lastSeenChunkId
 
       watch.lastSeenChunkId = lastChunkId
-      watch.tail = textForScan.slice(-512)
+      watch.tail = entry.token
+        ? textForScan.slice(textForScan.lastIndexOf("\n") + 1).slice(-4096)
+        : textForScan.slice(-512)
 
       if (maybeUrl) {
         watch.openedUrl = true
         if (watch.openInPreview) {
-          const run = projectActionRuns[runKey]
+          const run = useTerminalStore.getState().projectActionRuns[runKey]
           if (run) {
             setTabPreviewUrl(run.directory, run.tabId, maybeUrl, { locked: false, autoOpened: false })
             if (run.status === "waiting-for-preview" || run.status === "preview-unavailable") {
@@ -412,6 +447,7 @@ export const ProjectActionsButton = ({
     openExternal,
     projectActionRuns,
     setTabPreviewUrl,
+    setProjectActionRun,
     t,
     terminalSessions,
     updateProjectActionRunStatus,
@@ -466,7 +502,7 @@ export const ProjectActionsButton = ({
   )
 
   const runAction = React.useCallback(
-    async (action: OpenChamberProjectAction) => {
+    async (action: OpenChamberProjectAction, setup = false) => {
       if (!allowMobile && isMobile) {
         return
       }
@@ -476,9 +512,10 @@ export const ProjectActionsButton = ({
         return
       }
 
-      const runKey = toProjectActionRunKey(normalizedDirectory, action.id)
-      const existingRun = projectActionRuns[runKey]
-      if (existingRun && existingRun.status === "running") {
+      let runKey = toProjectActionRunKey(normalizedDirectory, action.id)
+      const initialRunKey = runKey
+      const existingRun = useTerminalStore.getState().projectActionRuns[runKey]
+      if (existingRun && !["failed", "setup-required"].includes(existingRun.status)) {
         return
       }
       // The store only learns about the run at the end of this function's await chain, so the
@@ -488,20 +525,23 @@ export const ProjectActionsButton = ({
         return
       }
       startingRunKeysRef.current.add(runKey)
+      const claimedRunKeys = [runKey]
       let acquiredTerminal: { tabId: string; sessionId: string } | undefined
 
       try {
-        const discovered =
+        let discovered =
           action.id === AUTO_DISCOVER_ACTION_ID
-            ? await (async (): Promise<OpenChamberProjectAction> => {
+            ? await (async (): Promise<OpenChamberProjectAction | null> => {
                 const [actionsState, scripts] = await Promise.all([
                   getProjectActionsState({ id: stableProjectRef?.id ?? "", path: normalizedDirectory }),
                   readPackageJsonScripts(normalizedDirectory),
                 ])
                 const devServer = await detectDevServerCommand(normalizedDirectory, actionsState.actions, scripts)
                 if (!devServer) {
+                  if ((await detectStreamlitEntrypoints(normalizedDirectory)).length > 1) return null
                   throw new Error(t("contextPanel.preview.noDevServer"))
                 }
+                if (devServer.action) return devServer.action
                 return {
                   id: AUTO_DISCOVER_ACTION_ID,
                   name: t("projectActions.actions.autoDiscover"),
@@ -513,6 +553,46 @@ export const ProjectActionsButton = ({
               })()
             : action
 
+        if (!discovered) {
+          setStreamlitDialog(true)
+          return
+        }
+        if (discovered.streamlit && stableProjectRef) {
+          const saved = await getProjectActionsState(stableProjectRef)
+          const entrypoint = discovered.streamlit.entrypoint
+          const sameApp = saved.actions.find((item) => item.streamlit?.entrypoint === entrypoint)
+          if (sameApp) discovered = { ...discovered, id: sameApp.id, name: sameApp.name }
+        }
+        runKey = toProjectActionRunKey(normalizedDirectory, discovered.id)
+        if (runKey !== initialRunKey) {
+          const live = useTerminalStore.getState().projectActionRuns[runKey]
+          if (startingRunKeysRef.current.has(runKey) || (live && !["failed", "setup-required"].includes(live.status)))
+            return
+          startingRunKeysRef.current.add(runKey)
+          claimedRunKeys.push(runKey)
+        }
+        if (discovered.streamlit && stableProjectRef) {
+          const saved = await getProjectActionsState(stableProjectRef)
+          const next = [...saved.actions.filter((item) => item.id !== discovered.id), discovered]
+          if (!(await saveProjectActionsState(stableProjectRef, { actions: next, primaryActionId: discovered.id }))) {
+            throw new Error(t("settings.projects.actions.toast.saveFailed"))
+          }
+          if (
+            normalizeProjectActionDirectory(currentDirectoryRef.current) !== normalizedDirectory ||
+            !mountedRef.current
+          )
+            return
+          setActions(next)
+          setSelectedActionId(discovered.id)
+          window.dispatchEvent(
+            new CustomEvent(PROJECT_ACTIONS_UPDATED_EVENT, {
+              detail: { projectId: stableProjectRef.id, projectPath: stableProjectRef.path },
+            }),
+          )
+        } else if (action.id === AUTO_DISCOVER_ACTION_ID && discovered.id !== action.id) {
+          setSelectedActionId(discovered.id)
+        }
+        const token = discovered.streamlit ? crypto.randomUUID() : undefined
         const hasCustomOpenUrl = discovered.autoOpenUrl === true && (discovered.openUrl || "").trim().length > 0
         const { key, tabId, sessionId } = await getOrCreateActionTab(discovered, {
           revealTerminal: !hasCustomOpenUrl && action.id !== AUTO_DISCOVER_ACTION_ID,
@@ -626,7 +706,9 @@ export const ProjectActionsButton = ({
         }
 
         const manualOpenUrl = discovered.autoOpenUrl ? normalizeManualOpenUrl(discovered.openUrl) : null
-        const waitForUrl = discovered.autoOpenUrl === true && discovered.waitForUrl === true && Boolean(manualOpenUrl)
+        const waitForUrl =
+          Boolean(discovered.streamlit) ||
+          (discovered.autoOpenUrl === true && discovered.waitForUrl === true && Boolean(manualOpenUrl))
         if (discovered.shell === "posix") {
           const { shell } = await getTerminalSessionOutput(runningSessionId)
           if (!isSupportedRecipeShell(shell)) throw new Error(t("projectActions.error.unsupportedRecipeShell"))
@@ -639,14 +721,17 @@ export const ProjectActionsButton = ({
           actionId: discovered.id,
           tabId,
           sessionId: runningSessionId,
-          status:
-            waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)
+          action: discovered,
+          token,
+          status: discovered.streamlit
+            ? "preparing"
+            : waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)
               ? "waiting-for-preview"
               : "running",
         })
         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[key])
         delete previewWaitTimeoutByRunKeyRef.current[key]
-        if (waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl)) {
+        if (!discovered.streamlit && (waitForUrl || (discovered.id === AUTO_DISCOVER_ACTION_ID && !manualOpenUrl))) {
           previewWaitTimeoutByRunKeyRef.current[key] = window.setTimeout(() => {
             const current = useTerminalStore.getState().projectActionRuns[key]
             if (current?.sessionId === runningSessionId && current.status === "waiting-for-preview") {
@@ -678,8 +763,23 @@ export const ProjectActionsButton = ({
         }
         setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: hasCustomOpenUrl, autoOpened: false })
 
-        const normalizedCommand = stripControlChars(discovered.command.trim().replace(/\r\n|\r/g, "\n"))
-        await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)
+        const command =
+          discovered.streamlit && token
+            ? await streamlitRunCommand(discovered.streamlit, token, setup)
+            : discovered.command
+        const normalizedCommand = stripControlChars(command.trim().replace(/\r\n|\r/g, "\n"))
+        if (discovered.streamlit) {
+          // Bound PTY input bursts so interactive shells can consume the command.
+          const input = `${normalizedCommand}\r`
+          for (let offset = 0; offset < input.length; offset += 512) {
+            const live = useTerminalStore.getState().projectActionRuns[key]
+            if (!isCurrentTerminal() || live?.token !== token || live.status === "stopping") return
+            await terminal.sendInput(runningSessionId, input.slice(offset, offset + 512))
+            await sleep(10)
+          }
+        } else {
+          await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)
+        }
         const currentRun = useTerminalStore.getState().projectActionRuns[key]
         if (
           currentRun?.sessionId === runningSessionId &&
@@ -714,9 +814,10 @@ export const ProjectActionsButton = ({
         window.clearTimeout(previewWaitTimeoutByRunKeyRef.current[runKey])
         delete previewWaitTimeoutByRunKeyRef.current[runKey]
         toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
+        return false
       } finally {
         // The run is in the store from here on, so the snapshot guard can see it again.
-        startingRunKeysRef.current.delete(runKey)
+        for (const claimed of claimedRunKeys) startingRunKeysRef.current.delete(claimed)
       }
     },
     [
@@ -725,13 +826,12 @@ export const ProjectActionsButton = ({
       isMobile,
       normalizedDirectory,
       openContextPreview,
-      projectActionRuns,
       removeProjectActionRun,
       setConnecting,
       setProjectActionRun,
       setTabPreviewUrl,
       setTabSessionId,
-      stableProjectRef?.id,
+      stableProjectRef,
       t,
       terminal,
     ],
@@ -811,12 +911,32 @@ export const ProjectActionsButton = ({
     if (runningEntry?.status === "stopping") {
       return
     }
+    if (runningEntry?.status === "setup-required" || runningEntry?.status === "failed") {
+      setStreamlitDialog(runningEntry.action ?? action)
+      return
+    }
+    if (action.streamlit && runningEntry?.status === "running") {
+      const url = useTerminalStore
+        .getState()
+        .getDirectoryState(normalizedDirectory)
+        ?.tabs.find((tab) => tab.id === runningEntry.tabId)?.previewUrl
+      if (url) openContextPreview(normalizedDirectory, url)
+      return
+    }
     if (runningEntry) {
       void stopAction(action)
       return
     }
     void runAction(action)
-  }, [displayActions, normalizedDirectory, runAction, projectActionRuns, selectedAction, stopAction])
+  }, [
+    displayActions,
+    normalizedDirectory,
+    runAction,
+    projectActionRuns,
+    selectedAction,
+    stopAction,
+    openContextPreview,
+  ])
 
   const handleSelectAction = React.useCallback(
     (action: OpenChamberProjectAction, toggleStopIfRunning = false) => {
@@ -830,6 +950,10 @@ export const ProjectActionsButton = ({
       const runKey = toProjectActionRunKey(normalizedDirectory, action.id)
       const runningEntry = projectActionRuns[runKey]
       if (runningEntry?.status === "stopping") {
+        return
+      }
+      if (runningEntry?.status === "setup-required" || runningEntry?.status === "failed") {
+        setStreamlitDialog(runningEntry.action ?? action)
         return
       }
       if (runningEntry) {
@@ -864,14 +988,19 @@ export const ProjectActionsButton = ({
     resolvedSelected.id === AUTO_DISCOVER_ACTION_ID ? "search" : PROJECT_ACTION_ICON_MAP[selectedIconKey] || "play"
   const selectedRunKey = toProjectActionRunKey(normalizedDirectory, resolvedSelected.id)
   const selectedRunning = projectActionRuns[selectedRunKey]
+  const recoverable = selectedRunning?.status === "setup-required" || selectedRunning?.status === "failed"
+  const managedReady = Boolean(resolvedSelected.streamlit && selectedRunning?.status === "running")
   const isStoppingSelected = selectedRunning?.status === "stopping"
   const isWaitingForSelectedPreview = selectedRunning?.status === "waiting-for-preview"
   const previewUnavailable = selectedRunning?.status === "preview-unavailable"
-  const previewStatus = previewUnavailable
-    ? t("projectActions.preview.unavailable")
-    : isWaitingForSelectedPreview
-      ? t("projectActions.preview.waiting")
-      : undefined
+  const previewStatus =
+    selectedRunning?.status === "preparing"
+      ? t("projectActions.streamlit.preparing")
+      : previewUnavailable
+        ? t("projectActions.preview.unavailable")
+        : isWaitingForSelectedPreview
+          ? t("projectActions.preview.waiting")
+          : undefined
   const selectedRunPreviewUrl = selectedRunning
     ? (terminalSessions.get(selectedRunning.directory)?.tabs.find((tab) => tab.id === selectedRunning.tabId)
         ?.previewUrl ?? null)
@@ -884,9 +1013,47 @@ export const ProjectActionsButton = ({
     openContextPreview(selectedRunning.directory, selectedRunPreviewUrl)
   }
 
+  const dialogAction = streamlitDialog === true ? undefined : (streamlitDialog ?? undefined)
+  const dialogRun = dialogAction
+    ? projectActionRuns[toProjectActionRunKey(normalizedDirectory, dialogAction.id)]
+    : undefined
+  const streamlitDialogContent = streamlitDialog ? (
+    <StreamlitRunDialog
+      key={normalizedDirectory + (dialogAction?.id ?? "new")}
+      directory={normalizedDirectory}
+      action={dialogAction}
+      progress={dialogRun?.progress}
+      onClose={() => setStreamlitDialog((current) => (current === streamlitDialog ? null : current))}
+      onRun={runAction}
+    />
+  ) : null
+  const streamlitMenuItem = (
+    <DropdownMenuItem onClick={() => setStreamlitDialog(true)}>
+      <Icon name="server" className="mr-2 h-4 w-4" />
+      {t("projectActions.streamlit.run")}
+    </DropdownMenuItem>
+  )
+  const primaryLabel = managedReady
+    ? t("projectActions.actions.openPreview")
+    : selectedRunning && !recoverable
+      ? t("projectActions.actions.stopNamedAria", { name: resolvedSelected.name })
+      : t("projectActions.actions.runNamedAria", { name: resolvedSelected.name })
+  const managedStop = managedReady ? (
+    <button
+      type="button"
+      className="px-2"
+      aria-label={t("projectActions.actions.stopNamedAria", { name: resolvedSelected.name })}
+      onClick={() => void stopAction(resolvedSelected)}
+    >
+      <Icon name="stop" className="h-4 w-4" />
+    </button>
+  ) : null
+
   if (compact) {
     return (
       <div className="inline-flex items-center">
+        {streamlitDialogContent}
+        {managedStop}
         <button
           type="button"
           disabled={isLoading || isStoppingSelected}
@@ -900,15 +1067,13 @@ export const ProjectActionsButton = ({
           onClick={handlePrimaryClick}
           title={previewStatus}
           aria-description={previewStatus}
-          aria-label={
-            selectedRunning
-              ? t("projectActions.actions.stopNamedAria", { name: resolvedSelected.name })
-              : t("projectActions.actions.runNamedAria", { name: resolvedSelected.name })
-          }
+          aria-label={primaryLabel}
         >
-          {previewUnavailable ? (
+          {managedReady ? (
+            <Icon name="global" className="h-4 w-4" />
+          ) : previewUnavailable || recoverable ? (
             <Icon name="error-warning" className="h-4 w-4 text-[var(--status-warning)]" />
-          ) : isStoppingSelected || isWaitingForSelectedPreview ? (
+          ) : isStoppingSelected || isWaitingForSelectedPreview || selectedRunning?.status === "preparing" ? (
             <Icon name="loader-4" className="h-5 w-5 animate-spin text-[var(--status-warning)]" />
           ) : selectedRunning ? (
             <Icon name="stop" className="h-5 w-5 text-[var(--status-warning)]" />
@@ -946,6 +1111,7 @@ export const ProjectActionsButton = ({
               <Icon name="add" className="h-4 w-4" />
               <span className="typography-ui-label text-foreground">{t("projectActions.actions.addNewAction")}</span>
             </DropdownMenuItem>
+            {streamlitMenuItem}
             <DropdownMenuSeparator />
             {displayActions.map((entry) => {
               const iconKey = (entry.icon || "play") as keyof typeof PROJECT_ACTION_ICON_MAP
@@ -990,6 +1156,8 @@ export const ProjectActionsButton = ({
         className,
       )}
     >
+      {streamlitDialogContent}
+      {managedStop}
       <button
         type="button"
         onClick={handlePrimaryClick}
@@ -1001,16 +1169,14 @@ export const ProjectActionsButton = ({
           "px-2.5",
           "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed",
         )}
-        aria-label={
-          selectedRunning
-            ? t("projectActions.actions.stopNamedAria", { name: resolvedSelected.name })
-            : t("projectActions.actions.runNamedAria", { name: resolvedSelected.name })
-        }
+        aria-label={primaryLabel}
       >
         <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
-          {previewUnavailable ? (
+          {managedReady ? (
+            <Icon name="global" className="h-4 w-4" />
+          ) : previewUnavailable || recoverable ? (
             <Icon name="error-warning" className="h-4 w-4 text-[var(--status-warning)]" />
-          ) : isStoppingSelected || isWaitingForSelectedPreview ? (
+          ) : isStoppingSelected || isWaitingForSelectedPreview || selectedRunning?.status === "preparing" ? (
             <Icon name="loader-4" className="h-4 w-4 animate-spin text-[var(--status-warning)]" />
           ) : selectedRunning ? (
             <Icon name="stop" className="h-4 w-4 text-[var(--status-warning)]" />
@@ -1059,6 +1225,7 @@ export const ProjectActionsButton = ({
             <Icon name="add" className="h-4 w-4" />
             <span className="typography-ui-label text-foreground">{t("projectActions.actions.addNewAction")}</span>
           </DropdownMenuItem>
+          {streamlitMenuItem}
           <DropdownMenuSeparator />
           {displayActions.map((entry) => {
             const iconKey = (entry.icon || "play") as keyof typeof PROJECT_ACTION_ICON_MAP

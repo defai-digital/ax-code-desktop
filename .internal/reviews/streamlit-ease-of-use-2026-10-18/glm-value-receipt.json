@@ -1,0 +1,29 @@
+{
+  "reviewer": "glm",
+  "phase": "value",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-streamlit-ux-glm-value-fvcqqjo6",
+    "--model",
+    "defai-01-ax-trust-com/glm-5.3-flash",
+    "--sandbox",
+    "read-only",
+    "--disallowed-tools",
+    "bash,write,edit,apply_patch,task,webfetch,websearch",
+    "--prompt-file",
+    "/Users/akiralam/code/ax-code-desktop/.internal/reviews/streamlit-ease-of-use-2026-10-18/glm-value-prompt.txt",
+    "--format",
+    "json",
+    "--timeout",
+    "180",
+    "--title",
+    "Streamlit ease of use design review"
+  ],
+  "returncode": 0,
+  "timedOut": false,
+  "durationSeconds": 72.5,
+  "workingDirectory": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-streamlit-ux-glm-value-fvcqqjo6",
+  "assessment": "Availability must be confirmed from substantive final output, not exit status alone."
+}

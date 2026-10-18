@@ -1,0 +1,25 @@
+{
+  "method": "Real TypeScript functions transpiled to CommonJS in a VM; unused imports stubbed; no server or shell started",
+  "inputAction": {
+    "id": "streamlit-review-fixture",
+    "name": "Start Streamlit",
+    "command": "'.venv/bin/python' -m streamlit run 'streamlit_app.py' --server.address=127.0.0.1 --server.port=8501 --server.headless=true",
+    "icon": "server",
+    "autoOpenUrl": true,
+    "openUrl": "http://127.0.0.1:8501/",
+    "waitForUrl": true,
+    "shell": "posix"
+  },
+  "detected": {
+    "command": "'.venv/bin/python' -m streamlit run 'streamlit_app.py' --server.address=127.0.0.1 --server.port=8501 --server.headless=true",
+    "label": "Start Streamlit",
+    "actionId": "streamlit-review-fixture"
+  },
+  "omittedFromDetectionResult": [
+    "shell",
+    "waitForUrl",
+    "openUrl"
+  ],
+  "previewUrlHintMissing": true,
+  "consequence": "ProjectActionsButton rebuilds an auto-discovered generic action without the recipe shell/readiness/URL fields. This source path differs from directly starting the saved Streamlit action."
+}

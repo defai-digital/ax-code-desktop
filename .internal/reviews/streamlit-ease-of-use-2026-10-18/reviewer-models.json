@@ -1,0 +1,6 @@
+{
+  "deepseek": "defai-01-ax-trust-com/deepseek-flash",
+  "qwen": "defai-01-ax-trust-com/qwen/qwen3.8-flash",
+  "glm": "defai-01-ax-trust-com/glm-5.3-flash",
+  "minimax": "defai-01-ax-trust-com/MiniMax-M3"
+}

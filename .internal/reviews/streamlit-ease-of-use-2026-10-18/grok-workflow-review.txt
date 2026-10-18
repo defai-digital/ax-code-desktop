@@ -1,0 +1,31 @@
+I reject my earlier call for one first-slice launcher that detects the environment, picks the port, and runs every Streamlit app. That universal launcher is the complexity trap. Ship a narrow deterministic runner for projects that already declare how they run, plus one explicit setup step when they do not. Do not make the agent the Run button.
+
+**Agent-first vs deterministic**
+
+A feels lowest-effort because the user can type “run my Streamlit app.” It is the worse repeat-run contract. No verified API hands a persistent Desktop-owned terminal to the agent. Inventing one, or a second agent loop inside Desktop, is out of scope. Each run can choose a different file, a global pip, or a new venv, and failure comes back as generic prose. Use the existing agent only when the user asks it to explain an error or to choose among real entrypoint candidates. The server stays on the deterministic path: existing terminal, preview, and free-port.
+
+B is right only if it refuses to guess. Treating `pages/`, routers, and helpers as candidate apps, or searching venv, uv, Poetry, pipenv, and conda for “the” environment, is a second product. A wrong guess costs more effort than today’s Add, Save, Start.
+
+C as the only launcher is false simplicity. `uv run --with streamlit` can layer a copy that conflicts with pinned requirements, and it ignores an existing venv and `uv.lock`. It is a valid explicit “try once, don’t change the project” choice, and a bad default for a maintained app.
+
+D adds Docker or a hosted URL: a new service and a new mental model. Prefer the terminal and preview already here.
+
+**User story**
+
+The user selects `python/app.py`, or accepts that recipe default. If `.venv` or a uv project with `uv.lock` is present, Run starts `<python> -m streamlit run python/app.py` in the owned terminal, on localhost, headless, with CORS/XSRF unchanged, and reuses free-port and preview. The next Run repeats that command. If `streamlit` is missing, or there is no env but `requirements.txt` or `pyproject.toml` exists, one action states what will be created — a project-local `.venv`, or `uv sync --locked` — and installs only after that confirmation. A single file with no project manifest uses a separate choice: `uv run --no-project --with streamlit -- python -m streamlit run app.py`. That path writes nothing into the repo.
+
+**Automatic vs chosen**
+
+Automatic: the selected or default entrypoint only; an existing project venv; `uv run --locked` when `uv` and `uv.lock` exist; localhost, headless, free-port, preview URL, and lifetime in the current terminal. Opening a project never starts the app.
+
+Explicit: any install; creating a venv; `uv lock` or sync when the lock is missing or stale (`--locked` fails and must not rewrite it); the ephemeral `--with` path; any app file other than the selected one. Do not parse old shell strings. Do not stop unrelated processes.
+
+**Gaps and failure**
+
+No Python: stop and say so. Do not install Python. No `uv`, but Python exists: a project-local venv only after confirmation. Do not require `uv`. `requirements.txt`: install those pins into the project venv on confirmation, then run. `pyproject` without a lock: do not invent one; confirm `uv lock` or a venv install of the project. Offline or failed setup: leave the tool error in that terminal, keep the partial env, and run again only when the user retries. No global install and no second environment manager.
+
+**Ship now**
+
+One Run action, two branches, one confirm gate. Branch 1: existing `.venv` or a locked uv project, no install. Branch 2: a confirmed project-local install from the manifest the repo already has, then the same run command. Ephemeral `--with` is a labeled alternate, not the default. Agent-owned persistent start is not in this slice.
+
+REVIEW_COMPLETE

@@ -1,0 +1,25 @@
+DeepSeek is right about the job: one Streamlit entry, one compact card, detection that asks only when ambiguous, command and port behind Advanced, and errors that name the failure. The proposed first slice is incoherent. It defers environment resolution and port selection, the two behaviors its own acceptance depends on (right interpreter, distinct ports, no typing). A card that still requires those fields only relocates today’s Settings ritual.
+
+Smallest coherent slice:
+
+- One setup card on the existing project Preview surface. The Project Actions Streamlit entry opens that same card.
+- Show App file, Environment summary, and Start preview. Advanced holds command and port mode.
+- Bounded read-only discovery prefers conventional entry names and skips `pages/`, virtualenv trees, and secrets files. One strong candidate is prefilled and still visible. Zero or several candidates open a picker. Discovery executes nothing.
+- Persist structured metadata (app path, environment id, port mode, port). Generic custom commands stay opaque command strings.
+- One shared launcher for Start, re-entry, and auto-discover. It keeps action identity and full launch config, including browser-open behavior.
+- Start writes the action only after required fields resolve, then launches. A failed start leaves no canonical Streamlit action.
+- Auto port is the default: on Start, take 8501 or the next free port, store it on that action, and reuse it for Open and Restart. A fixed port stays in Advanced. An occupied port produces a specific message and the other process keeps running.
+- Environment: preselect a single obvious project environment; otherwise require a choice. On Start only, probe the selected interpreter. If Streamlit is missing, name that interpreter and show a copyable install line for it. No install button in this slice. Windows and any installer stay deferred until they have their own environment, cancellation, and dependency-policy design.
+
+Running controls: Start preview when stopped; Open preview when running; Stop stays visible; Restart lives in the overflow. Restart tears down session state, uploads, and widget state. Open is the action people want for a server that is already up, and Stop must be visible without hunting.
+
+Overlooked risk: `.streamlit/config.toml` can set port, address, and base URL. A launcher that also injects `--server.port` will fight that file, and Open can target the wrong host. Treat `config.toml` as input to the default port and open URL, and pass an explicit port only when the user chose a fixed port or auto-port had to move off the configured one. A naive import scan has the same class of failure: `pages/` and helpers are easy to launch as apps. The picker rule above is what prevents that.
+
+Acceptance:
+
+1. A project with one conventional `app.py` and one project environment that already imports Streamlit starts from the card with no typed fields; the card shows that file and interpreter; the browser opens the app; the next visit offers Open preview on the saved action.
+2. Two such projects in one session bind different ports; starting the second leaves the first running; each Open preview reaches its own app; a fixed port already in use shows an occupied-port error and leaves the holder running.
+3. Start and auto-discover use the same launcher. A saved Streamlit action relaunches with the same interpreter, app path, port, and browser open. An existing generic custom command still runs as authored.
+4. While running, the primary control is Open preview and Stop is visible without a menu; Restart is only in the overflow. A selected interpreter without Streamlit does not start a server; the message names that interpreter and includes a copyable install instruction.
+
+REVIEW_COMPLETE

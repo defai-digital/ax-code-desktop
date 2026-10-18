@@ -1,0 +1,37 @@
+Note: the requested Grok/DeepSeek consultation via AX Code was not run — this review's evidence-only constraint forbade tool use. Treat this as one independent input to that discussion.
+
+**A. Friction points (ranked)**
+
+1. **Two-step save/start (observed).** "Add" only appends to an unsaved local list, closes the form, and expands the generic command editor (ProjectActionsSection.tsx:184-189). A separate Save follows, then the user leaves Settings and hunts for Project Actions to run. The guided form hands over a raw shell command nobody asked for. The journey is 6+ steps across 2 surfaces.
+2. **Zero detection or validation (observed).** Three free-text fields (python/app.py/8501); validation is purely syntactic (streamlitProjectAction.ts:27-37): the file may not exist, `python` may not exist on macOS, Streamlit may be absent. The invalid message never names which problem occurred.
+3. **Unrecoverable failure message (observed).** The 15s timeout says "Preview URL not received. Check the action's terminal output." Missing interpreter, missing module, missing file, and port conflict are all invisible — a terminal scavenger hunt by design.
+4. **Discovery/launch parity gap (observed in source).** Discovery returns only command/label/actionId, dropping shell/waitForUrl/openUrl; a reconstructed reduced action may skip auto-preview. Real-user severity is a hypothesis — no incident report exists.
+5. **Port and ownership traps (observed mechanics, unproven harm).** Every project defaults to 8501; hiding the preview leaves the server running; manually attached servers are unowned. Whether users actually collide here is untested.
+6. **Label/navigation mismatch (labels observed; comprehension impact is hypothesis).** Entry is the noun "Streamlit action," the created item is "Start Streamlit," and the run surface differs from the creation surface. The earlier 8.4 rating never measured this journey.
+
+**B. Simplest primary flow**
+
+Replace the Settings form with one contextual Preview flow on the existing Project Actions surface (no new nav silo).
+
+- **Existing Streamlit project:** click "Run Streamlit app." A picker shows the detected app file (dropdown; default app.py), detected interpreter (project venv if present, else python3), and a read-only port with "8501 in use — trying 8502" hint. One primary action: **Start & Preview**. Command hidden under Advanced. Decisions: 0–1.
+- **Python project missing Streamlit:** the pre-run probe reports "Streamlit isn't installed in <interpreter>" with a copyable command and **Retry detection**. No silent install (boundary).
+- **Multiple apps:** the same dropdown lists detected candidates, most-likely first; "Not listed? Choose in Advanced."
+- **Return user:** the action persists as a Play/Stop toggle in the toolbar; one click starts and auto-opens preview.
+
+**C. Detect / ask / Advanced / recovery**
+
+Detect: .py files importing streamlit, common filenames, venv path, importability, port availability (free-port hint). Ask: only when detection is ambiguous — app first, interpreter second. Advanced: raw command, port/URL override, waitForUrl, name/icon. Recovery: pre-launch checks (interpreter exists? file exists? port free?) fail fast with specific messages before spawning anything; post-launch, classify stderr — ModuleNotFoundError → "Streamlit isn't installed"; "Address already in use" → port-conflict message with a working suggestion; missing file → app picker. Terminal stays as evidence, not as the interface. Restart = Stop+Start in the running menu; preview tab shows "server running" so hidden ≠ forgotten. Save merges into launch: "Start & Preview" persists the action; Settings keeps bulk save for power users.
+
+**D. First slice vs later scope**
+
+Copy changes alone are not enough; the friction is structural. **First slice (within current boundaries):** detection-backed pickers replacing the two free-text fields; save-merged-into-launch; pre-launch validation with classified errors; discovery parity fix preserving shell/waitForUrl/openUrl. **Later scope:** guided isolated environment + explicit install (new scope, cleanup/cancellation semantics), Windows, structured config migration beyond additive fields, port allocation with locking.
+
+Acceptance checks:
+1. One-candidate project: cold start reaches a working preview in ≤2 clicks and ≤1 decision (UI test).
+2. Parity: discovery-launched and toolbar-launched actions behave identically, including auto-preview (regression test).
+3. Missing Streamlit yields a specific "not installed" message within 2s without opening the terminal; occupied port yields a specific message with a working alternative.
+4. After Start & Preview, the action survives app restart with no separate Save visit (E2E).
+
+**Reject as overengineering:** auto-creating a managed virtualenv with silent dependency sync on first run — it violates the no-blind-install boundary and adds environment lifecycle far beyond the complaint.
+
+REVIEW_COMPLETE

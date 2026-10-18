@@ -1,0 +1,37 @@
+## MiniMax Round2 — Method comparison and red-team
+
+**Method A — "Tell the agent in natural language"**
+Pros: zero new UI; reuses canonical agent; one sentence intent.
+Cons: agent is an interactive loop, not a process owner. There is no verified agent→persistent-Desktop-terminal start API, so the agent either spawns a process the session cannot later stop, or the process dies when the agent turn ends. Treating "run streamlit" as a chat message hides state from the user (who restarts it after a crash? where does the URL live?) and re-creates the multi-step intent problem the lead already rejected.
+
+**Method B — Deterministic project-aware run** (recommended)
+Pros: matches existing Add/Save/Start mental model; entrypoint detection plus explicit fallback keeps user in control; reuses existing venv when present, uv locked project when supported, project-local install when neither; uses the existing terminal and preview that already exist; reproducible; works offline when wheels are cached.
+Cons: detection logic can mis-identify a router module as the entrypoint; one extra confirmation when nothing is detected.
+
+**Method C — `uv run --with streamlit` every time**
+Pros: zero project setup, works anywhere uv exists.
+Cons: re-resolves on every run (poor offline, slow); `--with` layered deps conflict with project-pinned streamlit; "streamlit failed" leaves the user thinking their project is broken; violates "respect existing environments."
+
+**Method D — Docker / hosted URL**
+Pros: reproducible isolation.
+Cons: assumes Docker, breaks "least learning curve," new service to maintain — explicitly rejected by the "prefer existing infrastructure" constraint.
+
+**Normal-user story**: User opens `my-streamlit-app` project. AX Code detects `app.py` + `pyproject.toml`, sees a `.venv` already exists, finds Streamlit importable, runs it in the existing terminal, surfaces URL in the existing preview, exposes Stop. Zero clicks when conventions match. When conventions are missing, one explicit "Install dependencies into project venv?" prompt — never a hidden global install.
+
+**Automatic vs explicit**:
+- Automatic: entrypoint detection, port reuse via `/api/system/free-port`, terminal/process lifetime owned by existing infrastructure, port-bind parsing, preview refresh, kill-prior-instance on duplicate start.
+- Explicit: any dependency install; any non-`app.py` entrypoint pick; project switch while running (kill-or-keep prompt).
+
+**Dependency / lock / ownership rules**:
+- Never auto-install globally; project venv or `uv add` only.
+- If `uv.lock` exists, use `uv run --locked`; stale lock → explicit "lock out of date" prompt, never silent rewrite.
+- If `requirements.txt` exists without venv, reuse `python -m streamlit run` with that interpreter; install only the missing module.
+- Offline: cached wheels succeed; missing cache → surface clear "offline, packages X Y Z unavailable" with a copyable but not auto-run command.
+
+**Smallest implementation to ship**: extend the existing Start action with (1) entrypoint detector (app.py / streamlit_app.py / pyproject [project.scripts]) with explicit override; (2) env probe (existing venv → run; pyproject+uv → `uv run --locked`; bare python with streamlit importable → run; otherwise prompt); (3) duplicate-run guard via free-port + kill-prior; (4) terminal ownership + Stop reusing existing APIs; (5) preview URL parsed from stdout (not reverse-parsed from arbitrary shell strings).
+
+**Recommendation I now reject from prior discussion**: the copyable-install-command answer Qwen and I leaned toward in round one. It merely relocates the work onto the user and abandons them offline; it is not a workflow, it is a workaround. Replacing it with B's explicit-but-one-click install prompt is the same total human effort when everything is set up correctly and dramatically lower when it isn't.
+
+**Red-team summary**: B survives missing deps (explicit prompt), offline (cached uv), ambiguous app (detection + override), duplicate run (free-port + kill), and cross-project lifecycle (project-scoped terminal, kill on switch). A and C fail at least two of these; D fails the brief.
+
+REVIEW_COMPLETE

@@ -1,0 +1,24 @@
+{
+  "platform": "darwin",
+  "arch": "arm64",
+  "electron": "44.9.0",
+  "checks": [
+    {
+      "name": "core-render",
+      "agentEnabled": false,
+      "webPreferences": {
+        "allowRunningInsecureContent": false,
+        "contextIsolation": true,
+        "nodeIntegration": false,
+        "sandbox": true,
+        "webSecurity": true
+      }
+    }
+  ],
+  "errors": [],
+  "origins": [
+    "http://127.0.0.1:59976/",
+    "http://127.0.0.1:59977/"
+  ],
+  "failure": "Error: Script failed to execute, this normally means an error was thrown. Check the renderer console for the error.\n    at node:electron/js2c/sandbox_bundle:2:98605\n    at IpcRendererInternal.<anonymous> (node:electron/js2c/sandbox_bundle:2:93432)\n    at IpcRendererInternal.emit (node:electron/js2c/sandbox_bundle:2:35958)\n    at Object.onMessage (node:electron/js2c/sandbox_bundle:2:92646)"
+}

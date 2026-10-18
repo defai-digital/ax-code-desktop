@@ -1,0 +1,48 @@
+## Architecture Overview
+Source-only review of the supplied files. The runner is a one-shot bootstrap: resolve interpreter/environment, optionally install, preflight a port, then `exec` Streamlit in the existing terminal. The TS layer builds the shell invocation and parses token-scoped progress. No new runtime architecture is needed; the defects are local control-flow and environment-selection bugs.
+
+## Strengths
+- Entrypoint validation rejects traversal, absolute paths, control characters, and symlink escapes.
+- Normal runs are mostly read-only; package installation is gated behind explicit `setup`.
+- `execv` correctly preserves terminal ownership and signal delivery after launch.
+- Progress events are token-scoped and the launch URL is constrained to loopback.
+
+## Issues Found
+
+1. **[HIGH] `streamlitRunner.py` → `main`: no fallback to the interpreter that launched the runner.**  
+   **Trigger:** no `.venv`/`venv`, no recipe `interpreter`, and system `python3` already has Streamlit. The shell selects `python3`, but the runner sets `python = .venv/bin/python` and never falls back to `sys.executable`; `installed()` is false and the run incorrectly returns `setup-required`.  
+   **Fix:** when no explicit interpreter and no project-local interpreter exists, use `Path(sys.executable)` for probing and launch, or pass the shell-selected interpreter into the runner.
+
+2. **[HIGH] `streamlitRunner.py` → `main`: `uv` is mandatory before normal-run readiness.**  
+   **Trigger:** `uv.lock` exists, `uv` is not on `PATH`, and `.venv` already has Streamlit. Normal run fails with `code=uv` before checking whether launch could proceed. Also, with an explicit external interpreter, the `uv sync --check` still checks the project `.venv`, then `unsupported` blocks the run.  
+   **Fix:** require `uv` and run the check only when setup is needed and no explicit interpreter is used; if Streamlit is installed, launch without `uv`.
+
+3. **[MEDIUM] `streamlitRunner.py` → `main`: setup can prune the existing environment.**  
+   **Trigger:** existing local `.venv` contains an extra package not present in `uv.lock`; setup runs `uv sync --locked` without `--inexact`, so uv’s default exact sync removes it. This conflicts with “no env deletion” if that includes preserving installed packages.  
+   **Fix:** add `--inexact` to the setup sync and document any remaining environment-recreation case.
+
+4. **[MEDIUM] `streamlitRunner.py` → `main`: `local_env` can remain true when Python is missing.**  
+   **Trigger:** `.venv/pyvenv.cfg` exists but `.venv/bin/python` does not (copied or partially built venv). The probe block is skipped, so `local_env` stays true; setup skips venv creation and either runs a nonexistent interpreter or passes it to `uv`.  
+   **Fix:** require `python.exists()` before treating the environment as local, and treat a failed probe as non-local.
+
+5. **[MEDIUM] `streamlitRunner.py` → `main`: launch ignores the prepared environment.**  
+   **Trigger:** parent terminal has `VIRTUAL_ENV=/other/venv`; `env` removes it and sets UV variables, but `os.execv` does not use `env`, so Streamlit and its children inherit the stale environment.  
+   **Fix:** use `os.execve(str(python), args, env)`.
+
+6. **[MEDIUM] `streamlitRunner.py` → `main`: malformed config shape escapes error handling.**  
+   **Trigger:** valid TOML such as `server = "x"` in local/global Streamlit config. `local_config.get("server", {}).get(...)` raises `AttributeError`, which is not caught by `(ValueError, OSError)`; no `failed` event is emitted.  
+   **Fix:** validate that `server` is a dict before calling `.get`, or catch `(TypeError, AttributeError)` and return `fail("config")`.
+
+7. **[MEDIUM] `streamlitRecipe.ts` → `streamlitRunCommand`: missing-interpreter path exits 0.**  
+   **Trigger:** no candidate Python is found. The shell prints the failed event, but `printf` returns 0, so the subshell reports success.  
+   **Fix:** append `exit 1` after the failed `printf`, or use `false`.
+
+8. **[LOW] `streamlitRecipe.ts` → `streamlitRunCommand`: sanitized copy is validated but original is serialized.**  
+   **Trigger:** `interpreter: " python3"` passes the `trim()` check, is not trimmed, then fails `command -v`; extra recipe fields also reach the runner.  
+   **Fix:** bind `const safe = sanitizeStreamlitRecipe(recipe)`, serialize/use `safe`, and trim `interpreter` in the sanitizer.
+
+9. **[LOW / conditional] `streamlitRecipe.ts` → `createManagedStreamlitAction`: `command` bypasses the runner.**  
+   **Trigger:** if the terminal owner executes `action.command` as-is, it runs `python -m streamlit run ...` directly, bypassing interpreter selection, venv setup, port preflight, and progress events.  
+   **Fix:** confirm the owner special-cases `action.streamlit`; otherwise make `command` the `streamlitRunCommand` invocation.
+
+REVIEW_COMPLETE

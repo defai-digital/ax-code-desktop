@@ -1,0 +1,49 @@
+## A. Ranked friction points (source-derived; no user study exists)
+
+1. **The journey is fragmented across three surfaces and two commits of intent.** Add lives in Settings → Actions (`ProjectActionsSection.tsx:170`), "Add" only appends to an unsaved list (`:184-189`), saving is a separate operation (`:128-158`), and starting happens in Project Actions. Users must complete four contexts for one outcome.
+2. **The form asks for facts the user cannot be expected to know.** Three raw text inputs with `python`, `app.py`, `8501` defaults (`StreamlitActionForm.tsx:16-18`) and no file chooser, probing, or per-field help. `python` may not exist, may not be the project venv, or may lack Streamlit.
+3. **Every failure collapses into one message.** The 15s "Preview URL not received" path cannot distinguish missing module, missing file, wrong interpreter, or occupied port. This is the single largest usability defect and the most likely cause of "illogical" feedback.
+4. **The raw shell command is the primary feedback.** `streamlitProjectAction.ts:42` is rendered at line 54 before the user has any reason to trust it, exposing implementation while hiding the answers they need.
+5. **Ownership semantics are invisible.** Hiding the preview keeps the server; Stop is action-scoped; globe is separate; compact mode is icon-only. Nothing on screen explains this.
+6. **Default port collision across projects** is structural, not incidental, and is guaranteed by the fixed `8501`.
+
+**Missing evidence:** no incident report, no first-use observation. Items 1–4 are directly readable in source; the claim that they *cause* abandonment is a hypothesis.
+
+## B. Simplest primary flow
+
+Put everything in **Project Actions**, not Settings. Settings should hold configuration only.
+
+- **Existing Streamlit project:** a single "Streamlit app" row with detected `app.py`, interpreter, and port pre-filled. Primary action **Start preview**. One click to running.
+- **Missing Streamlit:** the same row resolves to a card: "Streamlit is not installed in this environment." Primary: **Choose another interpreter**; secondary: **Copy install command**. Do not auto-install.
+- **Multiple apps:** an **App file** dropdown of detected entry points plus "Other file…". Ports assigned per app (8501, 8502) and remembered.
+- **Return user:** the row persists with last state and **Start** / **Restart**; no re-entry, no form.
+
+## C. Detect, ask, hide, recover
+
+- **Detect:** venv interpreters (`.venv/bin/python`, then `python3`, then `python`), Streamlit presence, candidate `.py` entry points, port availability.
+- **Ask:** which app when more than one; which interpreter only when genuinely ambiguous; port only on conflict.
+- **Hide under Advanced:** interpreter path, port, extra Streamlit flags, shell dialect.
+- **Recover:** parse terminal output for `ModuleNotFoundError: streamlit`, `FileNotFoundError`, `Address already in use`, `SyntaxError`, and render a specific inline card with the one relevant action ("Use port 8502"). Keep **View output** one click away — do not remove the terminal, and do not send users hunting through it by default.
+- **Ports:** remember per project; on conflict, rebind in one click rather than failing.
+- **Restart vs Stop:** Restart is primary while running and reuses the port; Stop moves to overflow.
+- **Saving vs starting:** **starting saves**. Never require a separate Save trip for a newly added action. Abandoning the form should leave nothing behind — currently a leftover unsaved list does.
+
+## D. Slicing
+
+**First slice:** move the entry point to Project Actions; app-picker plus defaults; save-and-start; classify the four failure signatures into inline recovery cards; rewrite copy. No new runtime, no installer.
+
+**Later scope:** interpreter/venv probing, guided install into an isolated environment, multi-app registry, port allocator, Windows.
+
+**Copy alone is not enough.** Copy fixes the failure *wording*, but the Settings detour, the double-save, and the unclassified error remain structural. Copy-only leaves the user standing in a generic terminal.
+
+**Acceptance checks:**
+1. For a project with `app.py`, a returning user reaches a running preview in ≤2 clicks with zero typing.
+2. A repo without Streamlit shows a named cause, not the generic timeout, within the startup window.
+3. Port conflict resolves in one action; two apps run on distinct ports without manual editing.
+4. Starting saves; abandoning the form leaves no unsaved action.
+
+**Reject as overengineering:** a guided dependency installer / auto-venv in slice one. It adds cleanup and cancellation semantics before any evidence that installation — rather than wrong interpreter, wrong file, or port collision — is the dominant failure. Also reject a dedicated Streamlit navigation silo.
+
+**On Grok/DeepSeek consultation:** treat it as hypothesis generation, not validation. The missing artifact is still user observation.
+
+REVIEW_COMPLETE

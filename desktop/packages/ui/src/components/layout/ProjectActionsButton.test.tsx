@@ -6,27 +6,38 @@ import type { TerminalStreamEvent } from "@/lib/api/types"
 
 const mocks = vi.hoisted(() => ({
   terminal: { createSession: vi.fn(), sendInput: vi.fn(), close: vi.fn(), forceKill: vi.fn() },
+  mobile: true,
   config: vi.fn(),
+  save: vi.fn(),
   output: vi.fn(),
   connect: vi.fn(),
   error: vi.fn(),
   success: vi.fn(),
 }))
 vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => ({ terminal: mocks.terminal }) }))
-vi.mock("@/lib/device", () => ({ useDeviceInfo: () => ({ isMobile: true }) }))
+vi.mock("@/lib/device", () => ({ useDeviceInfo: () => ({ isMobile: mocks.mobile }) }))
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@/components/ui", () => ({ toast: { error: mocks.error, success: mocks.success } }))
-vi.mock("@/lib/openchamberConfig", () => ({ getProjectActionsState: mocks.config }))
+vi.mock("@/lib/openchamberConfig", () => ({
+  getProjectActionsState: mocks.config,
+  saveProjectActionsState: mocks.save,
+}))
 vi.mock("@/lib/terminalApi", () => ({
   getTerminalSessionOutput: mocks.output,
   connectTerminalStream: mocks.connect,
   terminalStreamConsumerKey: (dir: string, tab: string) => `${dir}:${tab}`,
+}))
+vi.mock("@/lib/streamlitRecipe", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/streamlitRecipe")>()),
+  streamlitRunCommand: async (recipe: unknown, token: string, setup: boolean) =>
+    `managed ${JSON.stringify({ recipe, token, setup })}`,
 }))
 import { ProjectActionsButton } from "./ProjectActionsButton"
 import { useUIStore } from "@/stores/useUIStore"
 import { useTerminalStore } from "@/stores/useTerminalStore"
 import { createStreamlitProjectAction } from "@/lib/streamlitProjectAction"
 import { toProjectActionRunKey } from "@/lib/projectActions"
+import { createManagedStreamlitAction } from "@/lib/streamlitRecipe"
 
 describe("project action preview lifecycle", () => {
   let root: Root
@@ -39,6 +50,7 @@ describe("project action preview lifecycle", () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.resetAllMocks()
+    mocks.mobile = true
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     action = createStreamlitProjectAction({
       id: "streamlit",
@@ -48,6 +60,7 @@ describe("project action preview lifecycle", () => {
       port: "8501",
     })!
     mocks.config.mockImplementation(async () => ({ actions: [action] }))
+    mocks.save.mockResolvedValue(true)
     mocks.terminal.createSession.mockResolvedValue({ sessionId: "pty-fixture" })
     mocks.terminal.sendInput.mockResolvedValue(undefined)
     mocks.output.mockResolvedValue({ shell: "/bin/zsh", output: "", cwd: "/fixture" })
@@ -76,6 +89,101 @@ describe("project action preview lifecycle", () => {
     )
     await act(async () => vi.advanceTimersByTimeAsync(400))
   }
+
+  test("coalesces repeated discovery clicks and preserves the saved action's readiness contract", async () => {
+    mocks.mobile = false
+    let resolve!: (value: { sessionId: string }) => void
+    mocks.terminal.createSession.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    await render()
+    await act(async () => {
+      const button = container.querySelector<HTMLButtonElement>('[aria-label="projectActions.actions.runNamedAria"]')!
+      button.click()
+      button.click()
+    })
+    expect(mocks.terminal.createSession).toHaveBeenCalledTimes(1)
+    await act(async () => resolve({ sessionId: "pty-fixture" }))
+    await act(async () => vi.advanceTimersByTimeAsync(400))
+    expect(mocks.terminal.sendInput).toHaveBeenCalledExactlyOnceWith("pty-fixture", `${action.command}\r`)
+    expect(Object.values(useTerminalStore.getState().projectActionRuns)[0]?.actionId).toBe(action.id)
+    await act(async () => output({ type: "data", data: "URL: http://127.0.0.1:8501/\n" }))
+    expect(openPreview).toHaveBeenCalledExactlyOnceWith("/fixture", "http://127.0.0.1:8501/")
+    await act(async () => output({ type: "exit", exitCode: 0 }))
+    mocks.terminal.createSession.mockResolvedValue({ sessionId: "pty-retry" })
+    await start()
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(2)
+  })
+
+  test("managed preparation waits for real startup and does not time out an installation", async () => {
+    action = createManagedStreamlitAction("managed", "Streamlit", { version: 1, entrypoint: "app.py" })
+    await render()
+    await start()
+    const run = Object.values(useTerminalStore.getState().projectActionRuns)[0]!
+    expect(run.status).toBe("preparing")
+    expect(mocks.save).toHaveBeenCalled()
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+    await act(async () => vi.advanceTimersByTimeAsync(20000))
+    expect(useTerminalStore.getState().projectActionRuns[run.key].status).toBe("preparing")
+    const progress = `AX_CODE_STREAMLIT ${JSON.stringify({ token: run.token, stage: "launching", url: "http://127.0.0.1:9001/base/" })}\n`
+    await act(async () => output({ type: "data", data: progress.slice(0, 25) }))
+    expect(openPreview).not.toHaveBeenCalled()
+    await act(async () => output({ type: "data", data: progress.slice(25) + "URL: http://127.0.0.1:9001/base/\n" }))
+    expect(openPreview).toHaveBeenCalledExactlyOnceWith("/fixture", "http://127.0.0.1:9001/base/")
+    expect(useTerminalStore.getState().projectActionRuns[run.key].status).toBe("running")
+    expect(container.querySelector('[aria-label="projectActions.actions.stopNamedAria"]')).not.toBeNull()
+  })
+
+  test("setup requires a separate user action and does not inherit stale progress", async () => {
+    action = createManagedStreamlitAction("managed", "Streamlit", { version: 1, entrypoint: "app.py" })
+    await render()
+    await start()
+    const run = Object.values(useTerminalStore.getState().projectActionRuns)[0]!
+    await act(async () =>
+      output({
+        type: "data",
+        data: `AX_CODE_STREAMLIT ${JSON.stringify({ token: "old", stage: "setup-required", source: "simple" })}\n`,
+      }),
+    )
+    expect(useTerminalStore.getState().projectActionRuns[run.key].status).toBe("preparing")
+    await act(async () =>
+      output({
+        type: "data",
+        data: `AX_CODE_STREAMLIT ${JSON.stringify({ token: run.token, stage: "setup-required", source: "requirements" })}\n`,
+      }),
+    )
+    expect(useTerminalStore.getState().projectActionRuns[run.key].status).toBe("setup-required")
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+    const setup = Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent === "projectActions.streamlit.setupRun",
+    )!
+    expect(setup).toBeDefined()
+    await act(async () => setup.click())
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(2)
+    expect(mocks.terminal.sendInput.mock.calls[1][1]).toContain('"setup":true')
+    expect(Object.values(useTerminalStore.getState().projectActionRuns)[0]!.token).not.toBe(run.token)
+  })
+
+  test("a failed configuration save prevents launching an unremembered app", async () => {
+    action = createManagedStreamlitAction("managed", "Streamlit", { version: 1, entrypoint: "app.py" })
+    mocks.save.mockRejectedValue(new Error("save failed"))
+    await render()
+    await start()
+    expect(mocks.terminal.sendInput).not.toHaveBeenCalled()
+    expect(mocks.terminal.createSession).not.toHaveBeenCalled()
+    expect(mocks.error).toHaveBeenCalledWith("save failed")
+  })
+
+  test("a false save result also prevents execution", async () => {
+    action = createManagedStreamlitAction("managed", "Streamlit", { version: 1, entrypoint: "app.py" })
+    mocks.save.mockResolvedValue(false)
+    await render()
+    await start()
+    expect(mocks.terminal.sendInput).not.toHaveBeenCalled()
+    expect(mocks.error).toHaveBeenCalledWith("settings.projects.actions.toast.saveFailed")
+  })
 
   test("waits for the matching startup URL and streams without a visible terminal", async () => {
     await render()
@@ -203,16 +311,14 @@ describe("project action preview lifecycle", () => {
     const key = toProjectActionRunKey("/fixture", action.id)
     act(() => {
       useTerminalStore.getState().setTabSessionId("/fixture", tab.id, "replacement-session")
-      useTerminalStore
-        .getState()
-        .setProjectActionRun({
-          key,
-          directory: "/fixture",
-          actionId: action.id,
-          tabId: tab.id,
-          sessionId: "replacement-session",
-          status: "running",
-        })
+      useTerminalStore.getState().setProjectActionRun({
+        key,
+        directory: "/fixture",
+        actionId: action.id,
+        tabId: tab.id,
+        sessionId: "replacement-session",
+        status: "running",
+      })
     })
     await act(async () => resolve({ shell: "/bin/zsh" }))
     expect(mocks.terminal.sendInput).not.toHaveBeenCalled()

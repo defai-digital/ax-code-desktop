@@ -1,0 +1,26 @@
+**Recommendation: B — deterministic project-aware run — with A kept only as an optional escape hatch. I withdraw my earlier "make Restart primary and defer the probes": restarting hides the real failure and turns a missing dependency into a loop. Probe first, then act.**
+
+*Evidence/assumption: probes are cheap local subprocess calls; no verified agent→persistent-terminal start API, so A cannot be the critical path.*
+
+**Pros/cons**
+- **A (ask the agent):** zero config, handles weird projects; but nondeterministic, slow, may invent global installs, and needs integration work anyway. Keep as "Ask agent to fix setup," not as the run button.
+- **B:** repeatable, no shell homework, respects existing conventions; cost is a small detection table plus one setup action. Best effort/return.
+- **C (uv --with streamlit):** ignores project deps, version drift, per-run downloads, breaks offline; conflicts with real requirements. Reject.
+- **D (Docker/URL):** cold start, pulls, port mapping, no local-preview benefit. Reject now.
+
+**Normal-user story:** open project → one **Run app** → terminal shows startup → preview opens when healthy → **Stop**. If deps are missing: one dialog, "Set up in .venv?" → click → install runs in the visible terminal → run continues.
+
+**Detection ladder (ordered, no shell reverse-parsing)**
+1. Entry: explicit recipe path; else `streamlit_app.py` / `app.py` / `main.py` at root. Never glob `pages/` or helpers. Multiple candidates → one chooser, remembered.
+2. Env: existing `.venv`/`venv` where `python -c "import streamlit"` passes → reuse. Else `pyproject.toml` + `uv.lock` → `uv run --locked` (fails fast if stale; never rewrites lock). `pyproject` only → `uv run --no-sync` if env exists, else offer explicit setup. `requirements.txt` → venv + `-m pip install -r`. `streamlit` already importable in selected interpreter → just run.
+3. Launch: `<python> -m streamlit run <entry> --server.address 127.0.0.1 --server.headless true --server.port <free-port>`, keep CORS/XSRF, baseUrlPath consistent with the preview URL.
+
+**Automatic:** entry detection, env reuse, free port, launch args, readiness (`/_stcore/health`, ~15s), preview open after ready (not on spawn), stop/cleanup, metadata capture.
+**Explicit:** creating/installing an environment, choosing interpreter, non-default entrypoint, any lockfile write. Never global installs.
+**Ownership:** run in the existing owned terminal; process lifetime = terminal lifetime; Stop kills only that process tree. Never kill unrelated processes.
+
+**Edge cases:** missing Python → "choose interpreter." Missing uv with pyproject → fall back to venv/requirements, else explicit guidance. Offline → try `--locked --offline`, then "dependencies not cached; reuse existing .venv or go online." Failed setup → keep terminal output, offer Retry setup; never silently switch installers. Lock hash changed → re-probe, don't auto-reinstall. Quick experiment → allow ephemeral scratch, but still ask before install.
+
+**Ship now (additive v3):** (1) pure `detect()` returning `{entry, envKind, cmd, cwd}` with fixture tests; (2) launch over existing terminal/process ownership + free-port + readiness; (3) fix the discovery adapter to persist that metadata; (4) collapse Add/Save/Start into one **Run app**; (5) one setup dialog executing the chosen project-isolated command in the visible terminal. No agent on the critical path, no new services.
+
+REVIEW_COMPLETE

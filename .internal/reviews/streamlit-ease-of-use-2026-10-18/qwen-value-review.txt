@@ -1,0 +1,22 @@
+The workspace here is empty, so I rely on the previously verified aider/main.py + gui.py findings recorded in the brief rather than re-reading them.
+
+## Streamlit in AX Code Desktop — research discussion
+
+**Evidence vs. inference.** Verified: Aider's browser mode is officially experimental, gated by `check_streamlit_install` (aider-chat[browser]), launched via `streamlit.web.cli` on packaged `gui.py` with magic/runOnSave/usageStats off, and caches the Coder via `st.cache_resource`. Unverified/estimated: the 10% Docker figure (treat as hypothesis, not data), any Streamlit adoption or ROI in AX Code, and an agent-to-persistent-Desktop-terminal contract — so the launcher must spawn processes directly, not via scripted terminal.
+
+**Ranking (value ÷ effort, no-Docker users):**
+
+1. **Parameterized script frontends** — best ratio. Forms, `st.data_editor`, session state turn one-off scripts into shareable tools with zero deployment. The agent can generate the ~30-line wrapper trivially; no second model loop needed.
+2. **Data exploration/CSV tools** — high value, medium effort. Charts, file upload/download, editable tables are native Streamlit; the cost is UX design and the run/debug loop, which the launcher (below) largely removes.
+3. **AI/model-eval prototypes** — real but niche; overlaps with agent workflows and depends on external API keys. Defer.
+4. **Duplicating native chat/supervision** — reject outright. Aider's `gui.py` is a browser frontend *for Aider itself* because Aider has no native app. AX Code already ships React/Electron chat, multi-project supervision, terminal, and embedded preview. Porting that would create a second, inferior UI surface and blur which engine is canonical. It is negative value.
+
+**Challenge to the shortlist:** the four aren't parallel products. 1–2 are one capability — "run a Python app with a UI" — whose shared bottleneck is the current clumsy saved-shell recipe (python, app.py, port 8501, Save, run). Fix the pipeline once; templates for CSV tools and script frontends become content, not engineering.
+
+**Borrow from Aider:** the mechanics — packaged Streamlit entry via `streamlit.web.cli`, hard-disabling magic/runOnSave/usageStats, `st.cache_resource` for heavy-object reuse, and optional extra-style Streamlit install (never mandatory). **Do not port:** the chat UI, treating Streamlit as the coding surface, or any suggestion that the canonical AX Code runtime is replaceable by a browser frontend.
+
+**One narrow first delivery:** deterministic one-click project-app run — detect Streamlit in the project's existing local Python env, auto-allocate a free port, offer an explicit one-time project-local dependency install only if missing, open the embedded preview, provide Stop. No new authoring UI; natural-language app creation stays with the existing agent.
+
+**Acceptance metrics (instrument before expanding scope):** steps-from-detection-to-preview (target: recipe's ≥5 → 1); first-run success without editing port in app.py; port-collision incidents = 0; median time click→preview; Stop reliability with no orphaned processes; post-launch, how many projects still use the old shell recipe (adoption proxy, since no measured baseline exists). If those stay flat, Streamlit investment should stop at the launcher.
+
+REVIEW_COMPLETE

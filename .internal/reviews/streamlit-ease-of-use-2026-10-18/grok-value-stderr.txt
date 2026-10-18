@@ -1,0 +1,1 @@
+permission required: Execute `find /Users/akiralam /opt /usr/local -name 'main.py' -path '*/aider/*' 2>/dev/null | head -40; echo '---'; find /Users/akiralam -type d -name 'aider… was not run, as a headless run cannot ask for approval

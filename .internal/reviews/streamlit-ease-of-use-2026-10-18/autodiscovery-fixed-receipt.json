@@ -1,0 +1,20 @@
+{
+  "method": "Real source functions; no shell or server",
+  "preserved": true,
+  "detected": {
+    "command": "'.venv/bin/python' -m streamlit run 'streamlit_app.py' --server.address=127.0.0.1 --server.port=8501 --server.headless=true",
+    "label": "Start Streamlit",
+    "actionId": "streamlit-review-fixture",
+    "action": {
+      "id": "streamlit-review-fixture",
+      "name": "Start Streamlit",
+      "command": "'.venv/bin/python' -m streamlit run 'streamlit_app.py' --server.address=127.0.0.1 --server.port=8501 --server.headless=true",
+      "icon": "server",
+      "autoOpenUrl": true,
+      "openUrl": "http://127.0.0.1:8501/",
+      "waitForUrl": true,
+      "shell": "posix"
+    },
+    "previewUrlHint": "http://127.0.0.1:8501/"
+  }
+}
