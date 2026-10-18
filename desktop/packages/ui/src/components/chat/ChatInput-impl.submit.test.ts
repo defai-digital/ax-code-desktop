@@ -92,6 +92,8 @@ function createHarness(command: string) {
       }),
     },
     useSessionUIStore: { getState: () => state },
+    getNewSessionDraftRevision: () => 0,
+    ascendingId: (prefix: string) => `${prefix}_test`,
     sessionActions: { waitForConnectionOrThrow: vi.fn().mockResolvedValue(undefined) },
     renderMagicPrompt,
     sendMessage: sent,
@@ -120,7 +122,7 @@ describe("magic-command submit races", () => {
       await pending
 
       expect(h.sent).toHaveBeenCalledOnce()
-      expect(h.sent.mock.calls[0][9]).toEqual({ sessionId: undefined, fromNewSessionDraft: true })
+      expect(h.sent.mock.calls[0][9]).toEqual({ sessionId: undefined, fromNewSessionDraft: true, draftRevision: 0 })
     },
   )
 
@@ -166,5 +168,22 @@ describe("magic-command submit races", () => {
       await loadSubmit(h.dependencies)
     )()
     expect(h.messageRef.current).toBe("New input")
+  })
+
+  test("aborts a submit whose session changed while pasted attachments were reading", async () => {
+    const h = createHarness("explore")
+    let resolveRead!: () => void
+    h.dependencies.pendingPastedAttachmentReadsRef.current.add(
+      new Promise<void>((resolve) => {
+        resolveRead = resolve
+      }),
+    )
+    const submit = await loadSubmit(h.dependencies)
+    const pending = submit()
+    // The composer switched sessions while the pasted file was still reading.
+    h.state.currentSessionId = "other-session"
+    resolveRead()
+    await pending
+    expect(h.sent).not.toHaveBeenCalled()
   })
 })

@@ -54,7 +54,33 @@ export const MESSAGE_QUEUE_MAX_PER_SESSION = 50
 
 const QUEUE_STORAGE_KEY = "message-queue-store"
 const DISPATCH_CLAIM_PREFIX = "oc.queue.dispatch."
-// Long enough to cover the gap until the other window notices the removal through
+
+// A valid-JSON but wrong-shaped persisted payload must not poison the store: the
+// default merge would accept `queuedMessages: null` and the next session lookup
+// would throw on `null[sessionId]`.
+const sanitizePersistedQueues = (value: unknown): Record<string, QueuedMessage[]> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {}
+  }
+  const result: Record<string, QueuedMessage[]> = {}
+  for (const [sessionId, queue] of Object.entries(value as Record<string, unknown>)) {
+    if (!Array.isArray(queue)) continue
+    const entries = queue.filter(
+      (entry): entry is QueuedMessage =>
+        Boolean(
+          entry &&
+            typeof entry === "object" &&
+            typeof (entry as QueuedMessage).id === "string" &&
+            typeof (entry as QueuedMessage).content === "string" &&
+            typeof (entry as QueuedMessage).createdAt === "number",
+        ),
+    )
+    if (entries.length > 0) {
+      result[sessionId] = entries
+    }
+  }
+  return result
+}// Long enough to cover the gap until the other window notices the removal through
 // its storage event, short enough that a stale claim cannot block a real retry.
 const DISPATCH_CLAIM_TTL_MS = 60_000
 
@@ -256,6 +282,18 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           queuedMessages: state.queuedMessages,
           queueModeEnabled: state.queueModeEnabled,
         }),
+        merge: (persistedState, currentState) => {
+          const persisted = persistedState as Partial<MessageQueueState> | undefined
+          return {
+            ...currentState,
+            ...persisted,
+            queuedMessages: sanitizePersistedQueues(persisted?.queuedMessages),
+            queueModeEnabled:
+              typeof persisted?.queueModeEnabled === "boolean"
+                ? persisted.queueModeEnabled
+                : currentState.queueModeEnabled,
+          }
+        },
       },
     ),
     {

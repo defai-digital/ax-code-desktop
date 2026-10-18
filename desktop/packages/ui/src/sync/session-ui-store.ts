@@ -297,6 +297,12 @@ type SendMessageOptions = {
    * of delivering the prompt twice.
    */
   messageId?: string
+  /**
+   * The draft lifecycle revision the caller captured when it submitted. A mismatch
+   * means the user opened another draft while the prompt was rendering, so the
+   * captured text must not be delivered to the current draft's target.
+   */
+  draftRevision?: number
 }
 
 function notifyMessageSent(sessionId: string): void {
@@ -1014,6 +1020,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       set({ error: INVALID_SEND_TARGET_MESSAGE })
       throw new Error(INVALID_SEND_TARGET_MESSAGE)
     }
+    if (startedFromDraft && options?.draftRevision !== undefined && options.draftRevision !== draftLifecycleRevision) {
+      // The caller's text belongs to a draft that has since been replaced or closed;
+      // delivering it now would send it to the current draft's target instead.
+      set({ error: INVALID_SEND_TARGET_MESSAGE })
+      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+    }
 
     // Clear non-Git changed-files bar on new user message for current session
     const sid = startedFromDraft ? null : normalizeSessionId(options?.sessionId ?? get().currentSessionId)
@@ -1106,7 +1118,17 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         : additionalParts
 
       if (createdDirectory) {
-        await waitForWorktreeBootstrap(createdDirectory)
+        // A bootstrap failure must carry the created session's id too: the
+        // composer submitted from a draft it has no id for, and the restore path
+        // reads the id off the error to file the text and attachments correctly.
+        try {
+          await waitForWorktreeBootstrap(createdDirectory)
+        } catch (error) {
+          if (error && typeof error === "object") {
+            ;(error as { sessionId?: string }).sessionId = created.id
+          }
+          throw error
+        }
       }
 
       notifyMessageSent(created.id)
@@ -1225,14 +1247,17 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   // ---------------------------------------------------------------------------
   createSession: async (title, directoryOverride, parentID) => {
     const draft = get().newSessionDraft
+    const revisionAtStart = draftLifecycleRevision
     const targetFolderId = draft.targetFolderId
     get().closeNewSessionDraft()
 
     // The draft carries the project, parent session, folder and composed parts the user chose, and
     // it is closed before a request that can fail. Without putting it back, the retry starts a
     // session in whatever directory the app happens to be on instead of the one the user picked.
+    // But only put it back when nothing replaced it: a draft opened while this request was in
+    // flight belongs to a newer target, and restoring over it would silently overwrite it.
     const restoreDraft = () => {
-      if (draft?.open) {
+      if (draft?.open && draftLifecycleRevision === revisionAtStart + 1) {
         set({ newSessionDraft: draft })
       }
     }
@@ -1565,3 +1590,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     return get().sessionPlanAvailable.get(sessionId) ?? false
   },
 }))
+
+/** The draft lifecycle revision, for callers that must detect a draft swap mid-flight. */
+export const getNewSessionDraftRevision = (): number => draftLifecycleRevision

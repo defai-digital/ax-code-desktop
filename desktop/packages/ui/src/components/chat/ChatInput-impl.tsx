@@ -8,7 +8,7 @@ import {
   useMessageQueueStore,
   type QueuedMessage,
 } from "@/stores/messageQueueStore"
-import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useSessionUIStore, getNewSessionDraftRevision } from "@/sync/session-ui-store"
 import { getNextUserMessageAfter, getRevertedUserMessages } from "@/sync/revert-order"
 import { useSelectionStore } from "@/sync/selection-store"
 import { PartMap } from "@/sync/part-map"
@@ -94,7 +94,7 @@ import { useProjectKnowledge, projectKnowledgeFileLabel } from "@/hooks/useProje
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useChatSearchDirectory } from "@/hooks/useChatSearchDirectory"
-import { axCodeClient } from "@/lib/ax-code/client"
+import { axCodeClient, ascendingId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
@@ -1570,6 +1570,17 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }
     if (pendingPastedAttachmentReadsRef.current.size > 0) {
       await Promise.all([...pendingPastedAttachmentReadsRef.current])
+      // The composer may have switched sessions while the pasted files were being
+      // read. The snapshot below reads the live textarea, so a stale closure would
+      // send the new session's draft to the old session. Abort instead; nothing
+      // was consumed yet.
+      const liveSession = useSessionUIStore.getState()
+      if (
+        liveSession.currentSessionId !== currentSessionId ||
+        Boolean(liveSession.newSessionDraft?.open) !== newSessionDraftOpen
+      ) {
+        return
+      }
     }
     const queuedOnly = options?.queuedOnly ?? false
     const queuedMessageId = options?.queuedMessageId
@@ -1582,6 +1593,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       if (queuedMessagesToSend.length === 0 || !currentSessionId) return
     } else if ((!inputSnapshot.hasContent && !hasQueuedMessages) || (!currentSessionId && !newSessionDraftOpen)) {
       return
+    }
+
+    // A manually sent queue entry needs its retry id before the first dispatch:
+    // a lost response restores the entry, and a retry with a fresh id would
+    // deliver the same prompt twice. Mint and persist it like the auto-sender.
+    let queuedEntryMessageId = queuedMessagesToSend[0]?.messageId
+    if (queuedOnly && queuedMessagesToSend.length > 0 && !queuedEntryMessageId && currentSessionId) {
+      queuedEntryMessageId = ascendingId("msg")
+      useMessageQueueStore.getState().assignMessageId(currentSessionId, queuedMessagesToSend[0]!.id, queuedEntryMessageId)
     }
 
     const capturedSendConfig = queuedOnly ? queuedMessagesToSend[0]?.sendConfig : undefined
@@ -1748,6 +1768,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // cleared below, before the send resolves. A command submit consumes the composer
     // alone, so it takes nothing from the queue.
     const consumedQueueSnapshot = currentSessionId && consumesQueue ? [...queuedMessagesToSend] : []
+    // Where the consumed entries lived in the session queue, so a failed send puts a
+    // manually dispatched middle entry back in place instead of reordering the queue.
+    const consumedQueueIndex = queuedMessageId
+      ? Math.max(
+          0,
+          queuedMessages.findIndex((message) => message.id === queuedMessageId),
+        )
+      : 0
     const consumedInputSnapshot = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : ""
     // The @-mention confirmations this submit clears. A failed send restores them with the
     // text; without them a top-level mention that relied on confirmation (@LICENSE, @src)
@@ -1824,6 +1852,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const sendTarget = {
       sessionId: currentSessionId ?? undefined,
       fromNewSessionDraft: !currentSessionId && newSessionDraftOpen,
+      // Detect a draft swap while a prompt renders: the revision the draft had when
+      // this submit started. sendMessage refuses a mismatched revision instead of
+      // delivering the text to a draft the user opened in the meantime.
+      draftRevision: !currentSessionId && newSessionDraftOpen ? getNewSessionDraftRevision() : undefined,
     }
 
     const slashCommand = composerSlashCommand
@@ -2138,8 +2170,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         ...sendTarget,
         // A queued entry keeps one id across its attempts, so a manual send racing the
         // auto-sender (or a retry) is deduplicated by the server instead of delivering
-        // the same prompt twice.
-        messageId: queuedOnly ? consumedQueueSnapshot[0]?.messageId : undefined,
+        // the same prompt twice. Minted before dispatch when the entry had none yet.
+        messageId: queuedOnly ? queuedEntryMessageId : undefined,
       },
     )
 
@@ -2212,7 +2244,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
 
         // A failed send must not consume the queue or the composer text: put the taken
-        // entries back at the head and restore the text that was folded into them.
+        // entries back at the position they came from and restore the text that was
+        // folded into them. A manually dispatched middle entry must not jump the queue.
         if (currentSessionId && consumedQueueSnapshot.length > 0) {
           useMessageQueueStore.setState((queueState) => {
             const queue = queueState.queuedMessages[currentSessionId] ?? []
@@ -2221,8 +2254,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             if (restored.length === 0) {
               return queueState
             }
+            const index = Math.min(consumedQueueIndex, queue.length)
             return {
-              queuedMessages: { ...queueState.queuedMessages, [currentSessionId]: [...restored, ...queue] },
+              queuedMessages: {
+                ...queueState.queuedMessages,
+                [currentSessionId]: [...queue.slice(0, index), ...restored, ...queue.slice(index)],
+              },
             }
           })
         }
@@ -2249,9 +2286,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
 
         if (isSoftNetworkError) {
-          if (restorableAttachments.length > 0 && viewingFailedSession) {
+          if (restorableAttachments.length > 0) {
+            // restoreComposerAttachments already files them under the failed
+            // session's draft when it is not on screen; gating on
+            // viewingFailedSession lost the attachments entirely.
             restoreComposerAttachments(restorableAttachments)
-            toast.error(t("chat.chatInput.toast.sendAttachmentsFailed"))
+            if (viewingFailedSession) {
+              toast.error(t("chat.chatInput.toast.sendAttachmentsFailed"))
+            }
           }
           return
         }

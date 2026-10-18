@@ -105,4 +105,32 @@ describe("messageQueueStore", () => {
     const persisted = window.localStorage.getItem("message-queue-store")
     expect(persisted).toContain("from another window")
   })
+
+  it("falls back to an empty queue when the persisted payload has the wrong shape", async () => {
+    window.localStorage.setItem("message-queue-store", JSON.stringify({ state: { queuedMessages: null }, version: 0 }))
+    await useMessageQueueStore.persist.rehydrate()
+    expect(useMessageQueueStore.getState().queuedMessages).toEqual({})
+    expect(useMessageQueueStore.getState().getQueueForSession("ses_x")).toEqual([])
+  })
+
+  it("drops malformed queue entries during rehydration", async () => {
+    window.localStorage.setItem(
+      "message-queue-store",
+      JSON.stringify({
+        state: {
+          queuedMessages: {
+            ses_good: [{ id: "queued-1", content: "hi", createdAt: 1 }],
+            ses_bad_shape: "oops",
+            ses_mixed: [{ id: "queued-2", content: "ok", createdAt: 2 }, { content: "no id" }],
+          },
+        },
+        version: 0,
+      }),
+    )
+    await useMessageQueueStore.persist.rehydrate()
+    expect(useMessageQueueStore.getState().queuedMessages).toEqual({
+      ses_good: [{ id: "queued-1", content: "hi", createdAt: 1 }],
+      ses_mixed: [{ id: "queued-2", content: "ok", createdAt: 2 }],
+    })
+  })
 })

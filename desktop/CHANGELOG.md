@@ -79,6 +79,12 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- A pasted-attachment submit aborts if the session switched while the files were reading, instead of sending the new session's draft to the old one; a network-failed send restores its attachments to the failed session's draft even when it is not on screen.
+
+- A draft prompt is refused when the draft it was written for was replaced while the prompt rendered, a failed session creation no longer overwrites a draft opened in the meantime, and a worktree bootstrap failure restores the composer's text and attachments to the created session.
+
+- Queue sends mint a stable retry id on the first manual dispatch, a failed middle entry returns to its original position, and a corrupt persisted queue payload no longer breaks the store.
+
 - Streamlit project runs pin their working directory, abort cleanly when the session or project changes mid-send, and accept a launch on the default HTTP port.
 
 - Forked sessions keep the source session's permission auto-accept setting instead of falling back to the new-session default.

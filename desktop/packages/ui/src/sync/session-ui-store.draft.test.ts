@@ -7,7 +7,7 @@ vi.mock("./session-actions", async (importOriginal) => {
   return { ...actual, createSession: (...args: unknown[]) => createSessionAction(...args) }
 })
 
-const { useSessionUIStore } = await import("./session-ui-store")
+const { useSessionUIStore, getNewSessionDraftRevision } = await import("./session-ui-store")
 
 const draft = () => ({
   open: true,
@@ -58,5 +58,39 @@ describe("createSession draft rollback", () => {
 
     expect(created?.id).toBe("session-1")
     expect(useSessionUIStore.getState().newSessionDraft?.open).toBeFalsy()
+  })
+
+  test("does not restore the old draft over one opened while the create was in flight", async () => {
+    let resolveCreate!: (value: null) => void
+    createSessionAction.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      }),
+    )
+
+    const create = useSessionUIStore.getState().createSession("compose", "/proj-b", "session-parent")
+    // The user opened another draft while the create was in flight.
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj-c" })
+    resolveCreate(null)
+
+    await expect(create).resolves.toBeNull()
+    const current = useSessionUIStore.getState().newSessionDraft
+    expect(current?.open).toBe(true)
+    expect(current?.directoryOverride).toBe("/proj-c")
+  })
+
+  test("sendMessage rejects a stale draft revision instead of sending to the new draft's target", async () => {
+    const revision = getNewSessionDraftRevision()
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj-c" })
+
+    await expect(
+      useSessionUIStore
+        .getState()
+        .sendMessage("hello", "provider", "model", undefined, undefined, undefined, undefined, undefined, undefined, {
+          fromNewSessionDraft: true,
+          draftRevision: revision,
+        }),
+    ).rejects.toThrow("Cannot send message without an active session or draft")
+    expect(createSessionAction).not.toHaveBeenCalled()
   })
 })
