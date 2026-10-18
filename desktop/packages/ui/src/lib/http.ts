@@ -179,6 +179,9 @@ export const API_ENDPOINTS = {
   tools: {
     ids: `${API_PATHS.base}/experimental/tool/ids`,
   },
+  promptHistory: {
+    base: `${API_PATHS.base}/prompt-history`,
+  },
   system: {
     probeUrl: `${API_PATHS.base}/system/probe-url`,
     freePort: `${API_PATHS.base}/system/free-port`,

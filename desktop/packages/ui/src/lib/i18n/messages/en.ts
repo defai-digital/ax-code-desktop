@@ -2057,7 +2057,7 @@ export const dict = {
   "chat.chatInput.permissionAutoAccept.on": "Permission auto-accept: on",
   "chat.chatInput.permissionAutoAccept.off": "Permission auto-accept: off",
   "chat.chatInput.permissionAutoAccept.scopeHint":
-    "Applies to this session only and approves every permission request without asking. Auto approves only safe tools.",
+    "On by default. Approves every permission request without asking, and in a new chat sets the default for the session the next prompt creates. Auto approves only safe tools.",
   "chat.chatInput.executionMode.title": "Execution mode",
   "chat.chatInput.executionMode.manual": "Manual",
   "chat.chatInput.executionMode.autonomous": "Auto",

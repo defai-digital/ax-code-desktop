@@ -3508,7 +3508,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Activer l\u2019acceptation auto des autorisations",
   "chat.chatInput.permissionAutoAccept.on": "Acceptation auto des autorisations\u00a0: activ\u00e9e",
   "chat.chatInput.permissionAutoAccept.off": "Acceptation auto des autorisations\u00a0: d\u00e9sactiv\u00e9e",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "S’applique uniquement à cette session et approuve chaque demande d’autorisation sans demander. Auto n’approuve que les outils sûrs.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Activé par défaut. Approuve chaque demande d’autorisation sans demander et, dans un nouveau chat, définit la valeur par défaut de la session créée par le prochain message. Auto n’approuve que les outils sûrs.",
   "chat.chatInput.executionMode.title": "Mode d\u2019ex\u00e9cution",
   "chat.chatInput.executionMode.manual": "Manuel",
   "chat.chatInput.executionMode.autonomous": "Auto",

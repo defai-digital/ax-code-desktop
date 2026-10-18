@@ -17,6 +17,7 @@ import { useProjectsStore } from "./useProjectsStore"
 import { useSnippetsStore } from "./useSnippetsStore"
 import { getMultiRunSessionTitle } from "@/lib/multirun/title"
 import { getSyncChildStores, registerSessionDirectory } from "@/sync/sync-refs"
+import { seedSessionAutoAccept } from "./utils/sessionAutoAcceptSeed"
 
 const toGitSafeSlug = (value: string): string => {
   return value
@@ -213,6 +214,7 @@ export const useMultiRunStore = create<MultiRunStore>()(
                   const session = await axCodeClient.withDirectory(directory, () =>
                     axCodeClient.createSession({ title: sessionTitle }),
                   )
+                  seedSessionAutoAccept(session.id, null)
                   registerCreatedSession(session, directory)
 
                   createdRuns.push({
@@ -251,6 +253,7 @@ export const useMultiRunStore = create<MultiRunStore>()(
                 const session = await axCodeClient.withDirectory(worktreeMetadata.path, () =>
                   axCodeClient.createSession({ title: sessionTitle }),
                 )
+                seedSessionAutoAccept(session.id, null)
                 registerCreatedSession(session, worktreeMetadata.path)
                 // The session owns the worktree from here on.
                 createdWorktree = null

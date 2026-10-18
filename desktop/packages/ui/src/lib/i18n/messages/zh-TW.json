@@ -3508,7 +3508,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "\u555f\u7528\u6b0a\u9650\u81ea\u52d5\u63a5\u53d7",
   "chat.chatInput.permissionAutoAccept.on": "\u6b0a\u9650\u81ea\u52d5\u63a5\u53d7\uff1a\u958b",
   "chat.chatInput.permissionAutoAccept.off": "\u6b0a\u9650\u81ea\u52d5\u63a5\u53d7\uff1a\u95dc",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "只對這個工作階段有效，會直接核准所有權限請求而不再詢問。自動只會核准安全的工具。",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "預設開啟。會直接核准所有權限請求而不再詢問；在新對話中，它會作為下一則提示所建立工作階段的預設值。自動只會核准安全的工具。",
   "chat.chatInput.executionMode.title": "\u57f7\u884c\u6a21\u5f0f",
   "chat.chatInput.executionMode.manual": "\u624b\u52d5",
   "chat.chatInput.executionMode.autonomous": "\u81ea\u52d5",

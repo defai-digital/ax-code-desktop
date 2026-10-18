@@ -3514,7 +3514,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "\u5f00\u542f\u6743\u9650\u81ea\u52a8\u63a5\u53d7",
   "chat.chatInput.permissionAutoAccept.on": "\u6743\u9650\u81ea\u52a8\u63a5\u53d7\uff1a\u5f00",
   "chat.chatInput.permissionAutoAccept.off": "\u6743\u9650\u81ea\u52a8\u63a5\u53d7\uff1a\u5173",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "仅对此会话生效，会直接批准所有权限请求而不再询问。自动只会批准安全的工具。",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "默认开启。会直接批准所有权限请求而不再询问；在新对话中，它会作为下一条提示所创建会话的默认值。自动只会批准安全的工具。",
   "chat.chatInput.executionMode.title": "\u6267\u884c\u6a21\u5f0f",
   "chat.chatInput.executionMode.manual": "\u624b\u52a8",
   "chat.chatInput.executionMode.autonomous": "\u81ea\u52a8",

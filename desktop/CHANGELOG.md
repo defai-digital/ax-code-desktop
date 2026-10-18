@@ -79,6 +79,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Permission auto-accept is on by default for new sessions, can be toggled from the new-chat composer before a session exists, and the choice is remembered per session; sessions that already existed stay off unless turned on.
+
 - Bundle signed AX Code runtime 7.26.5 and exact SDK 2.6.27, including upstream MCP cancellation, permission-path and OSV cache fixes.
 
 - Log following preserves whole lines when Linux reuses a rotated file inode, discards unfinished text after truncation, and releases held descriptors on stop.

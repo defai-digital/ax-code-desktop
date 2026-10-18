@@ -3514,7 +3514,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Attiva l'accettazione automatica dei permessi",
   "chat.chatInput.permissionAutoAccept.on": "Accettazione automatica permessi: attiva",
   "chat.chatInput.permissionAutoAccept.off": "Accettazione automatica permessi: disattiva",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "Vale solo per questa sessione e approva ogni richiesta di autorizzazione senza chiedere. Auto approva solo gli strumenti sicuri.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Attivo per impostazione predefinita. Approva ogni richiesta di autorizzazione senza chiedere e, in una nuova chat, imposta il valore predefinito per la sessione creata dal prompt successivo. Auto approva solo gli strumenti sicuri.",
   "chat.chatInput.executionMode.title": "Modalit\u00e0 di esecuzione",
   "chat.chatInput.executionMode.manual": "Manuale",
   "chat.chatInput.executionMode.autonomous": "Auto",

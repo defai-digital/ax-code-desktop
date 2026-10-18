@@ -13,14 +13,28 @@ import { respondToPermission, waitForConnectionOrThrow } from "@/sync/session-ac
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { API_ENDPOINTS } from "@/lib/http"
 import { createAutoAcceptSync } from "./utils/autoAcceptSync"
+import { registerSessionAutoAcceptSeedHandler } from "./utils/sessionAutoAcceptSeed"
 
 interface PermissionState {
   autoAccept: PermissionAutoAcceptMap
+  /**
+   * The choice made in the new-chat composer before a session exists. Newly
+   * created root sessions record it as their own setting; sessions that
+   * already existed stay off unless the user turns them on. Persisted so the
+   * choice survives a restart.
+   */
+  defaultAutoAccept: boolean
 }
 
 interface PermissionActions {
   isSessionAutoAccepting: (sessionId: string) => boolean
-  setSessionAutoAccept: (sessionId: string, enabled: boolean) => Promise<void>
+  setSessionAutoAccept: (sessionId: string | null, enabled: boolean) => Promise<void>
+  /**
+   * Give a newly created root session its own auto-accept value. Child
+   * sessions are left unset so they inherit their parent's choice, and an
+   * existing explicit value is never overwritten.
+   */
+  applyDefaultToNewSession: (sessionId: string, parentID: string | null) => void
   /**
    * Drop auto-accept entries for deleted sessions. Without this the persisted
    * map only ever grows, and every startup re-broadcasts a suppression POST
@@ -51,6 +65,31 @@ const coerceAutoAcceptValue = (value: unknown): boolean => {
   }
 
   return false
+}
+
+// Newly created root sessions start with auto-accept on. A persisted value
+// that is missing or unreadable keeps that default instead of silently turning
+// the feature off.
+const coerceDefaultAutoAccept = (value: unknown): boolean => {
+  if (typeof value === "boolean") {
+    return value
+  }
+
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === "true") {
+      return true
+    }
+    if (normalized === "false") {
+      return false
+    }
+  }
+
+  if (typeof value === "number") {
+    return value === 1
+  }
+
+  return true
 }
 
 const isLegacyDirectoryAutoAcceptKey = (key: string): boolean => key.endsWith("/*")
@@ -251,6 +290,7 @@ export const usePermissionStore = create<PermissionStore>()(
     persist(
       (set, get) => ({
         autoAccept: {},
+        defaultAutoAccept: true,
 
         pruneAutoAccept: (sessionIds: Iterable<string>) => {
           const idSet = sessionIds instanceof Set ? sessionIds : new Set(sessionIds)
@@ -269,6 +309,8 @@ export const usePermissionStore = create<PermissionStore>()(
         },
 
         isSessionAutoAccepting: (sessionId: string) => {
+          // An empty ID is not a session (a malformed event, or the new-chat
+          // composer); the composer reads defaultAutoAccept directly.
           if (!sessionId) {
             return false
           }
@@ -277,8 +319,27 @@ export const usePermissionStore = create<PermissionStore>()(
           return autoRespondsPermissionBySession(get().autoAccept, sessions, sessionId)
         },
 
-        setSessionAutoAccept: async (sessionId: string, enabled: boolean) => {
+        applyDefaultToNewSession: (sessionId: string, parentID: string | null) => {
+          if (!sessionId || parentID) {
+            return
+          }
+
+          const state = get()
+          if (Object.prototype.hasOwnProperty.call(state.autoAccept, sessionId)) {
+            return
+          }
+
+          set({
+            autoAccept: { ...state.autoAccept, [sessionId]: state.defaultAutoAccept },
+          })
+          autoAcceptSync.set(sessionId, state.defaultAutoAccept)
+        },
+
+        setSessionAutoAccept: async (sessionId: string | null, enabled: boolean) => {
           if (!sessionId) {
+            // No session yet: the choice becomes the value newly created
+            // sessions record. Existing sessions keep their own setting.
+            set({ defaultAutoAccept: enabled })
             return
           }
 
@@ -406,7 +467,10 @@ export const usePermissionStore = create<PermissionStore>()(
       {
         name: "permission-store",
         storage: getStorage(),
-        partialize: (state) => ({ autoAccept: state.autoAccept }),
+        partialize: (state) => ({
+          autoAccept: state.autoAccept,
+          defaultAutoAccept: state.defaultAutoAccept,
+        }),
         merge: (persistedState, currentState) => {
           const merged = {
             ...currentState,
@@ -447,6 +511,7 @@ export const usePermissionStore = create<PermissionStore>()(
           return {
             ...merged,
             autoAccept: nextAutoAccept,
+            defaultAutoAccept: coerceDefaultAutoAccept(merged.defaultAutoAccept),
           }
         },
         onRehydrateStorage: () => (state) => {
@@ -466,3 +531,7 @@ export const usePermissionStore = create<PermissionStore>()(
     { name: "permission-store" },
   ),
 )
+
+registerSessionAutoAcceptSeedHandler((sessionId, parentID) => {
+  usePermissionStore.getState().applyDefaultToNewSession(sessionId, parentID)
+})

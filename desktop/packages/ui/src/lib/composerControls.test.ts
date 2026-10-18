@@ -65,6 +65,10 @@ describe("composer and navigation controls", () => {
     // Off must not look disabled.
     expect(chatInput).not.toContain('!permissionScopeSessionId && "opacity-30"')
     expect(chatInput).toContain('t("chat.chatInput.permissionAutoAccept.scopeHint")')
+    // The toggle works before the first prompt: no "open a session first" gate.
+    expect(chatInput).not.toContain("aria-disabled={!permissionScopeSessionId}")
+    expect(chatInput).not.toContain('t("chat.chatInput.toast.openSessionFirst")')
+    expect(chatInput).toContain(": state.defaultAutoAccept")
   })
 
   test("the work mode chip always shows the active mode in its color", () => {

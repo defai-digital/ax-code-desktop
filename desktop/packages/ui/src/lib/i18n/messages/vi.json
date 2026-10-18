@@ -3514,7 +3514,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "B\u1eadt t\u1ef1 \u0111\u1ed9ng ch\u1ea5p nh\u1eadn quy\u1ec1n",
   "chat.chatInput.permissionAutoAccept.on": "T\u1ef1 \u0111\u1ed9ng ch\u1ea5p nh\u1eadn quy\u1ec1n: b\u1eadt",
   "chat.chatInput.permissionAutoAccept.off": "T\u1ef1 \u0111\u1ed9ng ch\u1ea5p nh\u1eadn quy\u1ec1n: t\u1eaft",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "Chỉ áp dụng cho phiên này và phê duyệt mọi yêu cầu cấp quyền mà không hỏi. Tự động chỉ phê duyệt các công cụ an toàn.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Bật theo mặc định. Phê duyệt mọi yêu cầu cấp quyền mà không hỏi, và trong cuộc trò chuyện mới, đặt mặc định cho phiên mà lời nhắc tiếp theo tạo ra. Tự động chỉ phê duyệt các công cụ an toàn.",
   "chat.chatInput.executionMode.title": "Ch\u1ebf \u0111\u1ed9 th\u1ef1c thi",
   "chat.chatInput.executionMode.manual": "Th\u1ee7 c\u00f4ng",
   "chat.chatInput.executionMode.autonomous": "T\u1ef1 \u0111\u1ed9ng",

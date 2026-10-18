@@ -3,6 +3,7 @@ import path from "node:path"
 import ts from "typescript"
 import { describe, expect, test, vi } from "vitest"
 import { parseChatSlashCommand } from "./chatInputSlashCommand"
+import { promptTextToRemember } from "@/lib/promptHistoryRecall"
 
 // Execute the production submit handler without mounting the portfolio and runtime UI.
 // TypeScript finds the function so these tests exercise its real awaits and recovery paths.
@@ -66,6 +67,10 @@ function createHarness(command: string) {
       messageRef.current = text
     },
     messageRef,
+    promptTextToRemember,
+    promptHistoryDirectoryRef: { current: "" },
+    rememberSubmittedPrompt: vi.fn(),
+    exitPromptBrowsing: vi.fn(),
     saveStoredDraft: (id: string | null, text: string) => {
       storedDrafts.set(id, text)
     },

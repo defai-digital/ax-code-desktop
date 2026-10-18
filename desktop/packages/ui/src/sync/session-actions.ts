@@ -39,6 +39,7 @@ import { stripMessageDiffSnapshots } from "./sanitize"
 import { sessionEvents } from "@/lib/sessionEvents"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { toast } from "@/components/ui"
+import { seedSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
 
 const MESSAGE_REFETCH_LIMIT = 200
@@ -581,6 +582,11 @@ export async function createSession(
     if (result.error) throw new Error(`Failed to create session: ${formatSdkError(result.error)}`)
     const session = result.data
     if (!session) throw new Error("Failed to create session: response did not include session data")
+
+    // A new root session records the composer's auto-accept default now, so
+    // sessions that existed before the change stay off and a later default
+    // change does not flip this one. Child sessions inherit their parent.
+    seedSessionAutoAccept(session.id, session.parentID ?? parentID ?? null)
 
     const sessionDirectory = (session as { directory?: string }).directory ?? directory ?? null
     // Pre-populate routing index so SSE events arriving before session.created

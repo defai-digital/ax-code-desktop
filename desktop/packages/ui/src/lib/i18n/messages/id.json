@@ -3508,7 +3508,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Aktifkan terima-otomatis izin",
   "chat.chatInput.permissionAutoAccept.on": "Terima-otomatis izin: aktif",
   "chat.chatInput.permissionAutoAccept.off": "Terima-otomatis izin: nonaktif",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "Hanya berlaku untuk sesi ini dan menyetujui setiap permintaan izin tanpa bertanya. Otomatis hanya menyetujui alat yang aman.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Aktif secara default. Menyetujui setiap permintaan izin tanpa bertanya, dan di obrolan baru menetapkan default untuk sesi yang dibuat oleh prompt berikutnya. Otomatis hanya menyetujui alat yang aman.",
   "chat.chatInput.executionMode.title": "Mode eksekusi",
   "chat.chatInput.executionMode.manual": "Manual",
   "chat.chatInput.executionMode.autonomous": "Otomatis",

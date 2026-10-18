@@ -15,7 +15,7 @@ import { PartMap } from "@/sync/part-map"
 import { useInputStore } from "@/sync/input-store"
 import type { AttachedFile } from "@/stores/types/sessionTypes"
 import * as sessionActions from "@/sync/session-actions"
-import { useDirectorySync, useUserMessageHistory } from "@/sync/sync-context"
+import { useDirectorySync, useSessionDirectory, useUserMessageHistory } from "@/sync/sync-context"
 import {
   buildInlineCommentSessionKey,
   toRestorableInlineCommentDraft,
@@ -46,6 +46,20 @@ import { PendingChangesBar } from "./PendingChangesBar"
 import { DoneNotCommittedNudge } from "./DoneNotCommittedNudge"
 import { RecentPromptChips } from "./RecentPromptChips"
 import { recordRecentPrompt } from "@/lib/recentPrompts"
+import { appendPromptHistory, listPromptHistory } from "@/lib/promptHistoryApi"
+import {
+  appendLocalRecall,
+  applyPromptHistoryLoad,
+  mergePromptRecall,
+  promptRecallHistoryForNavigation,
+  promptTextToRemember,
+  retainUnseenPending,
+  stepPromptRecall,
+  unseenPendingEntries,
+  type PendingPromptRecall,
+  type PromptRecallEntry,
+} from "@/lib/promptHistoryRecall"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useNudgeDismissedAt, useSessionRunEndedAt } from "@/sync/run-state-store"
 import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-context"
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
@@ -551,7 +565,6 @@ const ComposerAttachmentControls = React.memo(
 type PermissionAutoAcceptButtonProps = {
   footerIconButtonClass: string
   iconSizeClass: string
-  permissionScopeSessionId: string | null
   permissionAutoAcceptEnabled: boolean
   handlePermissionAutoAcceptToggle: () => void
   withTooltip?: boolean
@@ -564,7 +577,6 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
   const {
     footerIconButtonClass,
     iconSizeClass,
-    permissionScopeSessionId,
     permissionAutoAcceptEnabled,
     handlePermissionAutoAcceptToggle,
     withTooltip = false,
@@ -591,7 +603,6 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
           ? "bg-[var(--status-warning-background)] text-[var(--status-warning)] hover:text-[var(--status-warning)]"
           : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
       )}
-      aria-disabled={!permissionScopeSessionId}
       onMouseDown={(event) => {
         event.preventDefault()
       }}
@@ -619,9 +630,6 @@ const PermissionAutoAcceptButton = React.memo(function PermissionAutoAcceptButto
       <TooltipContent side="top" sideOffset={8} className="max-w-[18rem]">
         <p className="font-medium">{tooltipLabel}</p>
         <p className="typography-micro text-muted-foreground">{t("chat.chatInput.permissionAutoAccept.scopeHint")}</p>
-        {!permissionScopeSessionId ? (
-          <p className="typography-micro text-muted-foreground">{t("chat.chatInput.toast.openSessionFirst")}</p>
-        ) : null}
       </TooltipContent>
     </Tooltip>
   )
@@ -849,9 +857,25 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   const [showSnippetAutocomplete, setShowSnippetAutocomplete] = React.useState(false)
   const [snippetQuery, setSnippetQuery] = React.useState("")
   const [textareaSize, setTextareaSize] = React.useState<{ height: number; maxHeight: number } | null>(null)
-  // Message history navigation state (up/down arrow to recall previous messages)
-  const [historyIndex, setHistoryIndex] = React.useState(-1) // -1 = not browsing, 0+ = index from most recent
-  const [draftMessage, setDraftMessage] = React.useState("") // Preserves input when entering history mode
+  // Message history navigation state (up/down arrow to recall previous messages).
+  // Index -1 is the live draft. Project prompt history and this session's sent text share one list.
+  const [historyIndex, setHistoryIndex] = React.useState(-1)
+  const [draftMessage, setDraftMessage] = React.useState("")
+  const [draftMode, setDraftMode] = React.useState<"normal" | "shell">("normal")
+  const [projectRecall, setProjectRecall] = React.useState<PromptRecallEntry[]>([])
+  const [browsingHistory, setBrowsingHistory] = React.useState<PromptRecallEntry[] | null>(null)
+  const projectRecallRef = React.useRef(projectRecall)
+  const pendingRecallRef = React.useRef(new Map<string, PendingPromptRecall[]>())
+  const recallCacheRef = React.useRef(new Map<string, PromptRecallEntry[]>())
+  const historyLoadGenerationRef = React.useRef(0)
+  const recallClockRef = React.useRef(0)
+  const promptHistoryDirectoryRef = React.useRef("")
+  const exitPromptBrowsing = React.useCallback(() => {
+    setHistoryIndex(-1)
+    setDraftMessage("")
+    setDraftMode("normal")
+    setBrowsingHistory(null)
+  }, [])
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const cursorPosRef = React.useRef(0)
   const previousMessageLengthRef = React.useRef(message.length)
@@ -882,14 +906,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // restore the previous session's draft into this one (and persist it as such), and would send
   // the previous session's files with this session's prompt.
   React.useEffect(() => {
-    setHistoryIndex(-1)
-    setDraftMessage("")
+    exitPromptBrowsing()
     setActiveAttachmentDraft(currentSessionId ?? "")
     // The linked issue and PR belong to one session too: left set, the next session's prompt carried their
     // context as synthetic parts and the chip stayed on screen for a thread that never linked them.
     setLinkedIssue(null)
     setLinkedPr(null)
-  }, [currentSessionId, setActiveAttachmentDraft])
+  }, [currentSessionId, exitPromptBrowsing, setActiveAttachmentDraft])
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const archivedSessions = useGlobalSessionsStore((s) => s.archivedSessions)
   const workSendDisabled = React.useMemo(() => {
@@ -900,6 +923,29 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     return isLegacyWorkSession(session)
   }, [activeSessions, archivedSessions, currentSessionId])
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
+  const effectiveDirectory = useEffectiveDirectory()
+  const knownSessionDirectory = useSessionDirectory(currentSessionId)
+  const rememberSubmittedPrompt = React.useCallback((directory: string, input: string, mode: "normal" | "shell") => {
+    const text = promptTextToRemember({ reason: "submit", typed: input })
+    if (!directory || !text) return
+    const entry: PromptRecallEntry = { input: text, mode, parts: [] }
+    const pending = pendingRecallRef.current.get(directory) ?? []
+    const item: PendingPromptRecall = { entry, settledAt: null }
+    pendingRecallRef.current.set(directory, [...pending, item])
+    const base =
+      directory === promptHistoryDirectoryRef.current
+        ? projectRecallRef.current
+        : (recallCacheRef.current.get(directory) ?? pending.map((row) => row.entry))
+    const next = appendLocalRecall(base, entry)
+    recallCacheRef.current.set(directory, next)
+    if (directory === promptHistoryDirectoryRef.current) {
+      projectRecallRef.current = next
+      setProjectRecall(next)
+    }
+    void appendPromptHistory(directory, entry).finally(() => {
+      item.settledAt = ++recallClockRef.current
+    })
+  }, [])
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const projectKnowledge = useProjectKnowledge(currentDirectory)
   const currentSessionDirectoryForSync = useSessionUIStore(
@@ -1324,6 +1370,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // User message history for up/down arrow navigation.
   // Keep this on a narrow hook instead of full session message records.
   const userMessageHistory = useUserMessageHistory(currentSessionId ?? "")
+  const liveRecall = React.useMemo(
+    () => mergePromptRecall({ project: projectRecall, sessionTexts: userMessageHistory }),
+    [projectRecall, userMessageHistory],
+  )
 
   useChatInputDraftPersistence({
     currentSessionId,
@@ -1420,7 +1470,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     const drafts = consumeDrafts(currentSessionId)
 
-    let messageToQueue = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
+    const typedForRecall = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
+    let messageToQueue = typedForRecall
     if (drafts.length > 0) {
       messageToQueue = appendInlineComments(messageToQueue, drafts)
     }
@@ -1451,6 +1502,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       return
     }
 
+    const remembered = promptTextToRemember({ reason: "queue-accept", typed: typedForRecall })
+    if (remembered) rememberSubmittedPrompt(promptHistoryDirectoryRef.current, remembered, "normal")
+    exitPromptBrowsing()
+
     // Clear input and attachments
     // Note: confirmedMentionsRef is NOT cleared here because queued messages
     // are processed later in handleSubmit which reads the ref via extractInlineFileMentions.
@@ -1479,6 +1534,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     currentVariant,
     inputMode,
     t,
+    rememberSubmittedPrompt,
+    exitPromptBrowsing,
   ])
 
   const handleQueuedMessageEdit = React.useCallback((content: string) => {
@@ -1706,14 +1763,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
     if (!queuedOnly) {
+      const remembered = promptTextToRemember({ reason: "submit", typed: composerMessage })
+      if (remembered) rememberSubmittedPrompt(promptHistoryDirectoryRef.current, remembered, inputMode)
       setMessage("")
       confirmedMentionsRef.current.clear()
       // Clear per-session draft on submit
       saveStoredDraft(currentSessionId, "")
       saveConfirmedMentions(currentSessionId, confirmedMentionsRef.current)
-      // Reset message history navigation state
-      setHistoryIndex(-1)
-      setDraftMessage("")
+      exitPromptBrowsing()
       if (attachedFiles.length > 0) {
         clearAttachedFiles()
       }
@@ -2251,12 +2308,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (inputMode === "shell" && e.key === "Escape") {
       e.preventDefault()
       setInputMode("normal")
+      if (historyIndex >= 0) exitPromptBrowsing()
       return
     }
 
     if (inputMode === "shell" && e.key === "Backspace" && message.length === 0) {
       e.preventDefault()
       setInputMode("normal")
+      if (historyIndex >= 0) exitPromptBrowsing()
       return
     }
 
@@ -2382,6 +2441,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       if (ta && selStart >= 0) {
         const applyEdit = (next: string, caretStart: number, caretEnd: number) => {
           e.preventDefault()
+          if (historyIndex >= 0) exitPromptBrowsing()
           setMessage(next)
           requestAnimationFrame(() => {
             const current = textareaRef.current
@@ -2429,40 +2489,55 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       }
     }
 
-    if (e.key === "ArrowUp" && canNavigateHistoryUp && userMessageHistory.length > 0) {
+    const recallHistory = promptRecallHistoryForNavigation({
+      live: liveRecall,
+      browsing: browsingHistory,
+      index: historyIndex,
+    })
+    if (e.key === "ArrowUp" && canNavigateHistoryUp && recallHistory.length > 0) {
       e.preventDefault()
-      if (historyIndex === -1) {
-        // Entering history mode - save current input as draft
-        setDraftMessage(message)
-        setHistoryIndex(0)
-        setMessage(userMessageHistory[0])
-      } else if (historyIndex < userMessageHistory.length - 1) {
-        // Navigate to older message
-        const newIndex = historyIndex + 1
-        setHistoryIndex(newIndex)
-        setMessage(userMessageHistory[newIndex])
+      const step = stepPromptRecall({
+        history: recallHistory,
+        index: historyIndex,
+        direction: "older",
+        draft: draftMessage,
+        draftMode,
+        message,
+        mode: inputMode,
+      })
+      if (step?.moved) {
+        if (historyIndex < 0) setBrowsingHistory([...recallHistory])
+        setHistoryIndex(step.index)
+        setDraftMessage(step.draft)
+        setDraftMode(step.draftMode)
+        setMessage(step.message)
+        if (step.mode !== inputMode) setInputMode(step.mode)
       }
-      // Move cursor to start after history navigation
+      // Move cursor to start after history navigation. At the oldest entry, stay there.
       requestAnimationFrame(() => {
         textareaRef.current?.setSelectionRange(0, 0)
       })
-      // If at oldest message, do nothing
       return
     }
 
     if (e.key === "ArrowDown" && canNavigateHistoryDown && historyIndex >= 0) {
       e.preventDefault()
-      if (historyIndex === 0) {
-        // Exit history mode - restore draft
-        setHistoryIndex(-1)
-        setMessage(draftMessage)
-        setDraftMessage("")
-      } else {
-        // Navigate to newer message
-        const newIndex = historyIndex - 1
-        setHistoryIndex(newIndex)
-        setMessage(userMessageHistory[newIndex])
-      }
+      const step = stepPromptRecall({
+        history: recallHistory,
+        index: historyIndex,
+        direction: "newer",
+        draft: draftMessage,
+        draftMode,
+        message,
+        mode: inputMode,
+      })
+      if (!step?.moved) return
+      setHistoryIndex(step.index)
+      setDraftMessage(step.draft)
+      setDraftMode(step.draftMode)
+      setMessage(step.message)
+      if (step.mode !== inputMode) setInputMode(step.mode)
+      if (step.index < 0) setBrowsingHistory(null)
       return
     }
 
@@ -2828,6 +2903,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   )
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    if (historyIndex >= 0) exitPromptBrowsing()
     const value = e.target.value
     const cursorPosition = e.target.selectionStart ?? value.length
 
@@ -3584,6 +3660,49 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       selectedDraftProjectPath,
     [newSessionDraft?.bootstrapPendingDirectory, newSessionDraft?.directoryOverride, selectedDraftProjectPath],
   )
+  // Session directory, else the draft's selected project or worktree, else the open project.
+  // An unresolved session directory must not borrow another project's history.
+  const promptHistoryDirectory = currentSessionId
+    ? knownSessionDirectory
+      ? (effectiveDirectory ?? knownSessionDirectory)
+      : ""
+    : newSessionDraftOpen
+      ? (selectedDraftDirectory ?? "")
+      : (effectiveDirectory ?? "")
+  promptHistoryDirectoryRef.current = promptHistoryDirectory
+  React.useEffect(() => {
+    const generation = ++historyLoadGenerationRef.current
+    const loadStartedAt = ++recallClockRef.current
+    exitPromptBrowsing()
+    const pending = promptHistoryDirectory ? (pendingRecallRef.current.get(promptHistoryDirectory) ?? []) : []
+    const cached = promptHistoryDirectory ? recallCacheRef.current.get(promptHistoryDirectory) : undefined
+    const initial = cached ?? pending.map((item) => item.entry)
+    projectRecallRef.current = initial
+    setProjectRecall(initial)
+    if (!promptHistoryDirectory) return
+    const directory = promptHistoryDirectory
+    let cancelled = false
+    void listPromptHistory(directory).then((result) => {
+      if (cancelled || generation !== historyLoadGenerationRef.current) return
+      const pendingNow = pendingRecallRef.current.get(directory) ?? []
+      const applied = applyPromptHistoryLoad({
+        generation,
+        currentGeneration: historyLoadGenerationRef.current,
+        ok: result.ok,
+        server: result.ok ? result.entries : [],
+        pending: unseenPendingEntries(pendingNow, loadStartedAt),
+        previous: projectRecallRef.current,
+      })
+      if (!result.ok) return
+      pendingRecallRef.current.set(directory, retainUnseenPending(pendingNow, loadStartedAt, applied.pending))
+      recallCacheRef.current.set(directory, applied.history)
+      projectRecallRef.current = applied.history
+      setProjectRecall(applied.history)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [exitPromptBrowsing, promptHistoryDirectory])
 
   const shouldKeepMissingSelectedDraftDirectory = React.useMemo(() => {
     const pendingDirectory = normalizePath(newSessionDraft?.bootstrapPendingDirectory ?? null)
@@ -3835,19 +3954,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     "flex cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] flex-shrink-0 disabled:cursor-not-allowed"
   const footerIconButtonClass = cn(iconButtonBaseClass, buttonSizeClass)
   const permissionScopeSessionId = currentSessionId ?? currentManagementSessionId
-  const permissionAutoAcceptEnabled = usePermissionStore((state) => {
-    if (!permissionScopeSessionId) {
-      return false
-    }
-    return state.isSessionAutoAccepting(permissionScopeSessionId)
-  })
+  const permissionAutoAcceptEnabled = usePermissionStore((state) =>
+    permissionScopeSessionId
+      ? state.isSessionAutoAccepting(permissionScopeSessionId)
+      : state.defaultAutoAccept,
+  )
 
   const handlePermissionAutoAcceptToggle = React.useCallback(() => {
-    if (!permissionScopeSessionId) {
-      toast.error(t("chat.chatInput.toast.openSessionFirst"))
-      return
-    }
-
+    // With no session yet the toggle becomes the default for the session the
+    // next prompt creates; once a session exists it applies to that session.
     const nextEnabled = !permissionAutoAcceptEnabled
     setSessionAutoAccept(permissionScopeSessionId, nextEnabled).catch(() => {
       toast.error(t("chat.chatInput.toast.togglePermissionAutoAcceptFailed"))
@@ -4466,7 +4581,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       <PermissionAutoAcceptButton
                         footerIconButtonClass={footerIconButtonClass}
                         iconSizeClass={iconSizeClass}
-                        permissionScopeSessionId={permissionScopeSessionId}
                         permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
                         handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
                       />
@@ -4523,7 +4637,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       <PermissionAutoAcceptButton
                         footerIconButtonClass={footerIconButtonClass}
                         iconSizeClass={iconSizeClass}
-                        permissionScopeSessionId={permissionScopeSessionId}
                         permissionAutoAcceptEnabled={permissionAutoAcceptEnabled}
                         handlePermissionAutoAcceptToggle={handlePermissionAutoAcceptToggle}
                         withTooltip

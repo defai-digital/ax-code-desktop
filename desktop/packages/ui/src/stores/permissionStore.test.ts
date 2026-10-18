@@ -190,3 +190,65 @@ describe("permissionStore setSessionAutoAccept", () => {
     expect(usePermissionStore.getState().autoAccept).toEqual({ other: true })
   })
 })
+
+describe("permissionStore default auto-accept", () => {
+  test("keeps existing sessions off while the new-chat default is on", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore } = await importStore({ pendingPermissions })
+
+    expect(usePermissionStore.getState().defaultAutoAccept).toBe(true)
+    expect(usePermissionStore.getState().isSessionAutoAccepting("root")).toBe(false)
+    expect(usePermissionStore.getState().isSessionAutoAccepting("unknown-session")).toBe(false)
+  })
+
+  test("toggles the default before a session exists", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore, fetchMock } = await importStore({ pendingPermissions })
+
+    await usePermissionStore.getState().setSessionAutoAccept(null, false)
+
+    expect(usePermissionStore.getState().defaultAutoAccept).toBe(false)
+    expect(usePermissionStore.getState().autoAccept).toEqual({})
+    expect(usePermissionStore.getState().isSessionAutoAccepting("root")).toBe(false)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  test("a new root session records the current default and children inherit", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore } = await importStore({ pendingPermissions })
+
+    usePermissionStore.getState().applyDefaultToNewSession("new-root", null)
+
+    expect(usePermissionStore.getState().autoAccept).toEqual({ "new-root": true })
+    expect(usePermissionStore.getState().isSessionAutoAccepting("new-root")).toBe(true)
+
+    // A child has no entry of its own, so it follows the parent.
+    usePermissionStore.getState().applyDefaultToNewSession("new-child", "new-root")
+    expect(usePermissionStore.getState().autoAccept).toEqual({ "new-root": true })
+
+    await usePermissionStore.getState().setSessionAutoAccept(null, false)
+    usePermissionStore.getState().applyDefaultToNewSession("later-root", null)
+
+    expect(usePermissionStore.getState().autoAccept).toEqual({
+      "new-root": true,
+      "later-root": false,
+    })
+  })
+
+  test("per-session settings keep precedence over a later default change", async () => {
+    const pendingPermissions = deferred<Array<{ id: string; sessionID: string }>>()
+    pendingPermissions.resolve([])
+    const { usePermissionStore } = await importStore({ pendingPermissions })
+
+    await usePermissionStore.getState().setSessionAutoAccept("root", false)
+    await usePermissionStore.getState().setSessionAutoAccept(null, true)
+    usePermissionStore.getState().applyDefaultToNewSession("other", null)
+
+    expect(usePermissionStore.getState().defaultAutoAccept).toBe(true)
+    expect(usePermissionStore.getState().isSessionAutoAccepting("root")).toBe(false)
+    expect(usePermissionStore.getState().isSessionAutoAccepting("other")).toBe(true)
+  })
+})

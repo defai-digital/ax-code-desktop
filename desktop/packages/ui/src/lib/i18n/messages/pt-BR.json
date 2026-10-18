@@ -3508,7 +3508,7 @@
   "chat.chatInput.permissionAutoAccept.enable": "Ativar aceite autom\u00e1tico de permiss\u00f5es",
   "chat.chatInput.permissionAutoAccept.on": "Aceite autom\u00e1tico de permiss\u00f5es: ativado",
   "chat.chatInput.permissionAutoAccept.off": "Aceite autom\u00e1tico de permiss\u00f5es: desativado",
-  "chat.chatInput.permissionAutoAccept.scopeHint": "Vale apenas para esta sessão e aprova todas as solicitações de permissão sem perguntar. Automático aprova apenas ferramentas seguras.",
+  "chat.chatInput.permissionAutoAccept.scopeHint": "Ativado por padrão. Aprova todas as solicitações de permissão sem perguntar e, em um novo chat, define o padrão para a sessão criada pelo próximo prompt. Automático aprova apenas ferramentas seguras.",
   "chat.chatInput.executionMode.title": "Modo de execu\u00e7\u00e3o",
   "chat.chatInput.executionMode.manual": "Manual",
   "chat.chatInput.executionMode.autonomous": "Autom\u00e1tico",

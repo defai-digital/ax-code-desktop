@@ -272,6 +272,7 @@ const RUNTIME_ENDPOINTS = new Set([
   "API_ENDPOINTS.session.status",
   "API_ENDPOINTS.session.promptForSession",
   "API_ENDPOINTS.tools.ids",
+  "API_ENDPOINTS.promptHistory.base",
 ])
 
 // Method-sensitive leaves: the runtime route only exists for these methods.
