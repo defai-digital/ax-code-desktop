@@ -29,6 +29,15 @@ describe("CI change selection", () => {
     })
   })
 
+  it("runs the Windows-only electron/src tests through the native matrix", () => {
+    expect(
+      classifyChanges([
+        "desktop/packages/electron/src/axcode-runtime-supervisor.test.mjs",
+        "desktop/packages/electron/src/wiki-viewer.test.mjs",
+      ]),
+    ).toEqual({ verify: true, build: true, native: true, packaged: true })
+  })
+
   it("builds and packages renderer changes without repeating unrelated native probes", () => {
     expect(
       classifyChanges(["desktop/packages/ui/src/components/Chat.tsx", "desktop/packages/web/public/icon.png"]),

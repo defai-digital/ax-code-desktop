@@ -1,4 +1,5 @@
 import fs from "node:fs"
+import os from "node:os"
 import path from "node:path"
 import { describe, expect, it } from "vitest"
 import {
@@ -15,6 +16,23 @@ describe("Desktop release policy", () => {
     expect(policy.publicRelease).toMatchObject({ enabled: true, repository: "defai-digital/ax-code-desktop" })
     expect(policy.shadow).toMatchObject({ artifactChannel: "github-actions", signingMode: "explicit-only" })
     expect(policy.cutover).toMatchObject({ repository: "defai-digital/ax-code-desktop", tagPrefix: "v" })
+  })
+
+  it("requires the recorded cutover block at cutover-approved stage", () => {
+    const directory = fs.mkdtempSync(path.join(os.tmpdir(), "release-policy-"))
+    try {
+      const policy = JSON.parse(
+        fs.readFileSync(path.join(repositoryRoot, "config/desktop-release-policy.json"), "utf8"),
+      )
+      delete policy.cutover
+      fs.mkdirSync(path.join(directory, "config"), { recursive: true })
+      fs.writeFileSync(path.join(directory, "config/desktop-release-policy.json"), JSON.stringify(policy))
+      expect(() => readReleasePolicy(directory)).toThrow(
+        "cutover-approved stage requires the recorded cutover block",
+      )
+    } finally {
+      fs.rmSync(directory, { recursive: true, force: true })
+    }
   })
 
   it("requires an explicit publish-never argument while shadow-only", () => {

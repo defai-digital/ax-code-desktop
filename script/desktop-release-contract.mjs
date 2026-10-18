@@ -177,6 +177,13 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   requireText(legacyPublisher, "script/release-policy.mjs assert-public", "legacy release policy")
 
   assert(policy.publicRelease.repository === identity.updater.repository, "release owner and updater owner diverged")
+  // The published tag is built from publicRelease.tagPrefix while the updater only accepts
+  // tags matching its own prefix: a policy edit back to the legacy prefix shipped releases
+  // the installed app would never see, with every gate green.
+  assert(
+    policy.publicRelease.tagPrefix === identity.updater.tagPrefix,
+    "public release tag prefix must match the updater tag prefix",
+  )
 
   return {
     identity,

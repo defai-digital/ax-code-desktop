@@ -123,7 +123,9 @@ function isSdkInternalImport(candidate: string) {
 
 function siblingSourcePackage(file: string, resolved: string | undefined) {
   if (!resolved) return undefined
-  const target = resolved.match(/^desktop\/packages\/([^/]+)\/src(?:\/|$)/)?.[1]
+  // Match the roots this checker scans: a static import of another package's server/bin/scripts
+  // tree is the same boundary breach as src, and only src was rejected.
+  const target = resolved.match(/^desktop\/packages\/([^/]+)\/(?:src|server|bin|scripts)(?:\/|$)/)?.[1]
   if (!target || target === desktopPackage(file)) return undefined
   return target
 }

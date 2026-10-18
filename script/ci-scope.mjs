@@ -15,6 +15,10 @@ function isUnitTest(file) {
   // These verifiers also execute on Windows in the native matrix.
   if (/^script\/(desktop-windows-bootstrap|windows-minisign-acl)\.test\.mjs$/.test(file)) return false
   if (file.startsWith("desktop/packages/electron/scripts/")) return false
+  // Run on Windows only by the native matrix (win32-only tests inside).
+  if (/^desktop\/packages\/electron\/src\/(axcode-runtime-supervisor|wiki-viewer)\.test\.mjs$/.test(file)) {
+    return false
+  }
   return /\.(test|spec)\.[cm]?[jt]sx?$/.test(file) || /\/(?:__tests__|tests?)\//.test(file)
 }
 

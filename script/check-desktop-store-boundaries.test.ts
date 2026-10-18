@@ -366,6 +366,17 @@ describe("R4 duplicate exported hook names", () => {
     expect(names).toEqual(["useSyncNotificationStore", "useSessionUnseenCount"])
   })
 
+  test("treats a local import-and-export as a transparent re-export", () => {
+    // `import { useX } ...; export { useX }` has no module specifier on the export declaration,
+    // so the name used to be attributed to both the defining and the re-exporting module.
+    expect(
+      collectExportedHookNames(
+        storeFile("useUIStore.ts"),
+        ['import { useUIStore } from "./useUIStore-impl"', "export { useUIStore }"].join("\n"),
+      ),
+    ).toEqual([])
+  })
+
   test("treats in-scope barrels as transparent", () => {
     expect(collectExportedHookNames(storeFile("useUIStore.ts"), 'export * from "./useUIStore-impl"')).toEqual([])
     expect(

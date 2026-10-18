@@ -4,6 +4,9 @@ import path from "node:path"
 
 const desktopRoot = path.resolve(import.meta.dirname, "..")
 const uiRoot = path.join(desktopRoot, "packages", "ui", "src")
+// The web package also invokes desktop commands in the packaged renderer
+// (`tauri.core.invoke("desktop_notify")`); omitting it let a renderer call pass with no handler.
+const webSrcRoot = path.join(desktopRoot, "packages", "web", "src")
 const electronRoot = path.join(desktopRoot, "packages", "electron", "src")
 const electronMain = path.join(electronRoot, "main.js")
 const contractFile = path.join(electronRoot, "desktop-ipc-contract.json")
@@ -48,6 +51,66 @@ function collectFiles(dir) {
 
 function lineNumberAt(source, index) {
   return source.slice(0, index).split(/\r?\n/).length
+}
+
+/**
+ * Blank out comments while preserving every offset and newline: a commented-out handler used to
+ * satisfy the manifest, and a commented-out invoke used to fail it. Keeping the layout means the
+ * line numbers reported by lineNumberAt stay correct.
+ */
+function stripCommentsPreservingLayout(source) {
+  const chars = source.split("")
+  let state = "code"
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index]
+    const next = chars[index + 1]
+    if (state === "code") {
+      if (char === "/" && next === "/") {
+        state = "line"
+        chars[index] = " "
+        continue
+      }
+      if (char === "/" && next === "*") {
+        state = "block"
+        chars[index] = " "
+        chars[index + 1] = " "
+        index += 1
+        continue
+      }
+      if (char === "'") state = "single"
+      else if (char === '"') state = "double"
+      else if (char === "`") state = "template"
+      continue
+    }
+    if (state === "line") {
+      if (char === "\n") state = "code"
+      else chars[index] = " "
+      continue
+    }
+    if (state === "block") {
+      if (char === "*" && next === "/") {
+        chars[index] = " "
+        chars[index + 1] = " "
+        index += 1
+        state = "code"
+        continue
+      }
+      if (char !== "\n") chars[index] = " "
+      continue
+    }
+    if (char === "\\") {
+      index += 1
+      continue
+    }
+    if (
+      (state === "single" && char === "'") ||
+      (state === "double" && char === '"') ||
+      (state === "template" && char === "`")
+    ) {
+      state = "code"
+    }
+  }
+  return chars.join("")
 }
 
 function extractCall(source, start) {
@@ -108,7 +171,7 @@ function extractCall(source, start) {
 }
 
 function collectHandlerContracts() {
-  const source = readFileSync(electronMain, "utf8")
+  const source = stripCommentsPreservingLayout(readFileSync(electronMain, "utf8"))
   const handlers = new Map()
   const callPattern = /\bhandleCommand\s*\(/g
 
@@ -158,7 +221,7 @@ function loadManifest() {
 }
 
 function collectHandlers() {
-  const source = readFileSync(electronMain, "utf8")
+  const source = stripCommentsPreservingLayout(readFileSync(electronMain, "utf8"))
   const handlers = new Set()
 
   for (const match of source.matchAll(handlerPattern)) {
@@ -169,11 +232,11 @@ function collectHandlers() {
 }
 
 function collectInvokes() {
-  const files = [...collectFiles(uiRoot), preload].sort()
+  const files = [...collectFiles(uiRoot), ...collectFiles(webSrcRoot), preload].sort()
   const invokes = new Map()
 
   for (const file of files) {
-    const source = readFileSync(file, "utf8")
+    const source = stripCommentsPreservingLayout(readFileSync(file, "utf8"))
     for (const pattern of invokePatterns) {
       for (const match of source.matchAll(pattern)) {
         const command = match[1]

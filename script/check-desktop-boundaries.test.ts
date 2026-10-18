@@ -82,6 +82,18 @@ describe("Desktop source boundaries", () => {
     ])
   })
 
+  test("protects every scanned sibling source tree, not only src", () => {
+    // web/server, web/bin and electron/scripts are scanned source roots; a static import of them
+    // from another package is the same boundary breach as src.
+    const electronScript = path.join(root, "desktop/packages/electron/scripts/tool.mjs")
+    expect(
+      reasons(electronScript, 'import x from "../../web/server/lib/security/response-headers.js"'),
+    ).toEqual([DESKTOP_BOUNDARY_REASONS.siblingSource])
+    expect(reasons(webSource, 'import y from "../../electron/scripts/package.mjs"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.siblingSource,
+    ])
+  })
+
   test("allows the UI package to use its own local alias", () => {
     expect(analyzeDesktopSource(uiSource, 'import "@/lib/http"')).toEqual([])
   })

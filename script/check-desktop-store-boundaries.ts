@@ -444,6 +444,27 @@ export function collectExportedHookNames(file: string, source: string): string[]
     if (name && HOOK_NAME_PATTERN.test(name)) names.push(name)
   }
 
+  // Names imported from another in-scope module are not defined here. A two-statement
+  // re-export (import then `export { useX }`) has no module specifier on the export, so
+  // without this the name was attributed to both modules and looked like a duplicate.
+  const importedFromScope = new Set<string>()
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) continue
+    if (!statement.moduleSpecifier || !ts.isStringLiteralLike(statement.moduleSpecifier)) continue
+    if (!isInStoreScope(resolveUiModule(file, statement.moduleSpecifier.text))) continue
+    const clause = statement.importClause
+    if (!clause) continue
+    if (clause.name) importedFromScope.add(clause.name.text)
+    if (!clause.namedBindings) continue
+    if (ts.isNamespaceImport(clause.namedBindings)) {
+      importedFromScope.add(clause.namedBindings.name.text)
+      continue
+    }
+    for (const element of clause.namedBindings.elements) {
+      importedFromScope.add(element.name.text)
+    }
+  }
+
   for (const statement of sourceFile.statements) {
     if (ts.isVariableStatement(statement) && hasExportModifier(statement)) {
       for (const declaration of statement.declarationList.declarations) {
@@ -468,6 +489,7 @@ export function collectExportedHookNames(file: string, source: string): string[]
     if (!clause || !ts.isNamedExports(clause)) continue
     for (const element of clause.elements) {
       if (element.isTypeOnly) continue
+      if (importedFromScope.has(element.name.text)) continue
       addIfHook(element.name.text)
     }
   }

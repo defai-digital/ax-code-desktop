@@ -79,6 +79,20 @@ describe("Desktop release contract", () => {
     expect(contract.runtime.version).toBe("7.27.0")
   })
 
+  it("rejects a release tag prefix the updater would never see", () => {
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withOverrides({
+          "config/desktop-release-policy.json": (policy) => ({
+            ...policy,
+            publicRelease: { ...policy.publicRelease, tagPrefix: "desktop-v" },
+          }),
+        }),
+      ),
+    ).toThrow("public release tag prefix must match the updater tag prefix")
+  })
+
   it("rejects mismatched Desktop package versions", () => {
     expect(() =>
       verifyDesktopReleaseContract(

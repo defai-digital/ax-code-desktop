@@ -446,16 +446,25 @@ const main = async () => {
   }
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ax-code-desktop-smoke-"))
-  const stubAxCode = await createStubAxCode(tmpDir)
-  const userDataDir = path.join(tmpDir, "electron-user-data")
-  const serverPort = await allocatePort()
-  const smokeAppPath = await createSmokeAppCopy({ appPath, tmpDir })
-  const executable = await findMacExecutable(smokeAppPath)
   const stdout = []
   const stderr = []
   let latestStartupDiagnostics = null
+  let stubAxCode = null
+  let child = null
+  let userDataDir = ""
+  let serverPort = 0
+  let smokeAppPath = ""
+  let executable = ""
 
-  const child = spawn(executable, buildSmokeAppArgs({ userDataDir }), {
+  // The copied .app is hundreds of megabytes and the stub may already be running: a setup
+  // failure before the main try/finally used to leave both behind in $TMPDIR.
+  try {
+    stubAxCode = await createStubAxCode(tmpDir)
+    userDataDir = path.join(tmpDir, "electron-user-data")
+    serverPort = await allocatePort()
+    smokeAppPath = await createSmokeAppCopy({ appPath, tmpDir })
+    executable = await findMacExecutable(smokeAppPath)
+    child = spawn(executable, buildSmokeAppArgs({ userDataDir }), {
     env: {
       ...process.env,
       AX_CODE_BINARY: stubAxCode,
@@ -465,11 +474,16 @@ const main = async () => {
       AX_CODE_DESKTOP_DISABLE_AUTO_UPDATE: "1",
       AX_CODE_DESKTOP_SMOKE_CRASH_ENDPOINT: "true",
     },
-    stdio: ["ignore", "pipe", "pipe"],
-  })
+      stdio: ["ignore", "pipe", "pipe"],
+    })
 
-  child.stdout.on("data", (chunk) => stdout.push(chunk.toString()))
-  child.stderr.on("data", (chunk) => stderr.push(chunk.toString()))
+    child.stdout.on("data", (chunk) => stdout.push(chunk.toString()))
+    child.stderr.on("data", (chunk) => stderr.push(chunk.toString()))
+  } catch (setupError) {
+    await cleanupStubProcesses(stubAxCode).catch(() => {})
+    await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
+    throw setupError
+  }
 
   try {
     await waitFor(
