@@ -78,7 +78,7 @@ export function prepareCanonicalAuthFixture(
     "providers",
     "auth",
     "export",
-    "--file",
+    "--output-file",
     referenceFile,
   ]
   let canonical

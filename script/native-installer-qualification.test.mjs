@@ -54,7 +54,8 @@ test.each(["stable", "missing-provider", "rewritten"])(
       fs.writeFileSync(auth, "synthetic plaintext", { mode: 0o600 })
       const prepare = () =>
         prepareCanonicalAuthFixture(root, auth, references, {
-          run: () => {
+          run: (_node, args) => {
+            expect(args.slice(-5)).toEqual(["providers", "auth", "export", "--output-file", references])
             reads++
             if (reads === 1 || behavior === "rewritten") fs.writeFileSync(auth, `synthetic canonical ${reads}`)
             fs.writeFileSync(
