@@ -305,17 +305,28 @@ function writeConfig(config, filePath = CONFIG_FILE) {
 
 function getJsonEntrySource(layers, sectionKey, entryName) {
   const { userConfig, projectConfig, customConfig, paths } = layers
-  const customSection = customConfig?.[sectionKey]?.[entryName]
+  // Own-property lookup: a bare `config.agent[name]` read answered for
+  // prototype keys too, so "toString" or "constructor" looked like a configured
+  // entry and a delete then tried to remove it from — and rewrite — the layer.
+  const readEntry = (config) => {
+    const section = config?.[sectionKey]
+    if (!section || typeof section !== "object" || !Object.prototype.hasOwnProperty.call(section, entryName)) {
+      return undefined
+    }
+    return section[entryName]
+  }
+
+  const customSection = readEntry(customConfig)
   if (customSection !== undefined) {
     return { section: customSection, config: customConfig, path: paths.customPath, exists: true }
   }
 
-  const projectSection = projectConfig?.[sectionKey]?.[entryName]
+  const projectSection = readEntry(projectConfig)
   if (projectSection !== undefined) {
     return { section: projectSection, config: projectConfig, path: paths.projectPath, exists: true }
   }
 
-  const userSection = userConfig?.[sectionKey]?.[entryName]
+  const userSection = readEntry(userConfig)
   if (userSection !== undefined) {
     return { section: userSection, config: userConfig, path: paths.userPath, exists: true }
   }

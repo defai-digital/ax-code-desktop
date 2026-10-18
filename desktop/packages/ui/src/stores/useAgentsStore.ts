@@ -125,7 +125,7 @@ interface AgentsStore {
   loadAgents: (options?: { directory?: string | null }) => Promise<boolean>
   createAgent: (config: AgentConfig) => Promise<boolean>
   updateAgent: (name: string, config: Partial<AgentConfig>) => Promise<boolean>
-  deleteAgent: (name: string) => Promise<boolean>
+  deleteAgent: (name: string, target?: { scope?: AgentScope | null }) => Promise<boolean>
   getAgentByName: (name: string) => Agent | undefined
   // Returns only visible agents (excludes hidden internal agents)
   getVisibleAgents: () => Agent[]
@@ -413,12 +413,17 @@ export const useAgentsStore = create<AgentsStore>()(
           }
         },
 
-        deleteAgent: async (name: string) => {
+        deleteAgent: async (name: string, target?: { scope?: AgentScope | null }) => {
           startConfigUpdate("Deleting agent configuration…")
           let requiresReload = false
           try {
             const configDirectory = getActiveConfigDirectory("AgentsStore")
-            const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""
+            // The name alone matched every scope server-side, so deleting a
+            // project override also removed the user-level agent of that name.
+            const params = new URLSearchParams()
+            if (configDirectory) params.set("directory", configDirectory)
+            if (target?.scope) params.set("scope", target.scope)
+            const queryParams = params.size > 0 ? `?${params.toString()}` : ""
 
             const response = await fetch(
               `${replacePathParams(API_ENDPOINTS.config.agent, {

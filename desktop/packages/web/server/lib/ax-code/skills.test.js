@@ -247,6 +247,50 @@ describe("skill name safety", () => {
     }
   })
 
+  it("deletes only the requested source when a skill name exists in several places", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const skillName = "oc-test-scoped-skill-4c1b2a"
+    const axCodeDir = path.join(projectRoot, ".ax-code", "skills", skillName)
+    const claudeDir = path.join(projectRoot, ".claude", "skills", skillName)
+    try {
+      for (const dir of [axCodeDir, claudeDir]) {
+        await fsPromises.mkdir(dir, { recursive: true })
+        await fsPromises.writeFile(
+          path.join(dir, "SKILL.md"),
+          ["---", `name: ${skillName}`, "description: Scoped", "---", "", "Body.", ""].join("\n"),
+          "utf8",
+        )
+      }
+
+      deleteSkill(skillName, projectRoot, { scope: "project", source: "claude" })
+
+      await expect(fsPromises.stat(claudeDir)).rejects.toThrow()
+      expect(await fsPromises.stat(axCodeDir)).toBeTruthy()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it("deletes a grouped skill resolved through discovery", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const skillName = "oc-test-grouped-skill-7d3f0e"
+    const groupedDir = path.join(projectRoot, ".ax-code", "skills", "testing-group", skillName)
+    try {
+      await fsPromises.mkdir(groupedDir, { recursive: true })
+      await fsPromises.writeFile(
+        path.join(groupedDir, "SKILL.md"),
+        ["---", `name: ${skillName}`, "description: Grouped", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+
+      deleteSkill(skillName, projectRoot, { scope: "project", source: "ax-code" })
+
+      await expect(fsPromises.stat(groupedDir)).rejects.toThrow()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
   it("validates route skill names the same way as agent and command names", () => {
     expect(readSkillNameParam("safe-skill")).toBe("safe-skill")
     expect(readSkillNameParam("my.skill_2")).toBe("my.skill_2")

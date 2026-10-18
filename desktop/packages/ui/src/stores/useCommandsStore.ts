@@ -83,7 +83,7 @@ interface CommandsStore {
   loadCommands: () => Promise<boolean>
   createCommand: (config: CommandConfig) => Promise<boolean>
   updateCommand: (name: string, config: Partial<CommandConfig>) => Promise<boolean>
-  deleteCommand: (name: string) => Promise<boolean>
+  deleteCommand: (name: string, target?: { scope?: CommandScope | null }) => Promise<boolean>
   getCommandByName: (name: string) => Command | undefined
 }
 
@@ -366,12 +366,17 @@ export const useCommandsStore = create<CommandsStore>()(
           }
         },
 
-        deleteCommand: async (name: string) => {
+        deleteCommand: async (name: string, target?: { scope?: CommandScope | null }) => {
           startConfigUpdate("Deleting command configuration…")
           let requiresReload = false
           try {
             const directory = getActiveConfigDirectory("CommandsStore")
-            const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
+            // Deleting by name alone removed the project and user copies
+            // together; the entry's scope scopes the delete to what was shown.
+            const params = new URLSearchParams()
+            if (directory) params.set("directory", directory)
+            if (target?.scope) params.set("scope", target.scope)
+            const queryParams = params.size > 0 ? `?${params.toString()}` : ""
 
             const response = await fetch(
               `${replacePathParams(API_ENDPOINTS.config.command, {

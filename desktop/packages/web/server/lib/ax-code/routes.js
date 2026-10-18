@@ -377,6 +377,9 @@ export const registerAxCodeRoutes = (app, dependencies) => {
           ...getAxCodeAuthHeaders(),
         },
         body: JSON.stringify(target ? { target } : {}),
+        // A wedged runtime would otherwise hold this request open forever; an
+        // install may take a while, so give it a generous but finite budget.
+        signal: AbortSignal.timeout(120_000),
       })
       const payload = await response.json().catch(() => null)
       if (!response.ok) {

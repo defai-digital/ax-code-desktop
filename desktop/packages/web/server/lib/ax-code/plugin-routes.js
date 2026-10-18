@@ -137,16 +137,12 @@ export const registerPluginRoutes = (app, dependencies) => {
         return res.status(400).json({ error: directoryError })
       }
       const rawSpecs = (req.query.specs || "").toString()
+      // Express has already decoded the query string; decoding again turned an
+      // encoded percent (`%2540` -> `%40`) into a different spec.
       const specs = rawSpecs
         ? rawSpecs
             .split(",")
-            .map((spec) => {
-              try {
-                return decodeURIComponent(spec)
-              } catch {
-                return spec
-              }
-            })
+            .map((spec) => spec.trim())
             .filter((spec) => spec.length > 0)
         : []
       const uniqueSpecs = Array.from(new Set(specs))

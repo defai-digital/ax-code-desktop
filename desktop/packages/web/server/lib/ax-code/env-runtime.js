@@ -7,6 +7,11 @@ import { mergePathValues } from "./path-utils.js"
 // Must match electron/src/login-shell-env.js LOGIN_SHELL_ENV_UNAVAILABLE.
 const HOST_LOGIN_SHELL_ENV_UNAVAILABLE = "unavailable"
 
+// PowerShell profile scripts and a wedged `cmd` can take arbitrarily long; the
+// snapshot is an optional convenience, so give each shell the same budget as a
+// login-shell capture and fall through to the next candidate.
+const WINDOWS_ENV_SNAPSHOT_TIMEOUT_MS = 2_000
+
 export const createAxCodeEnvRuntime = (deps) => {
   const {
     state,
@@ -140,11 +145,14 @@ export const createAxCodeEnvRuntime = (deps) => {
 
     for (const shellPath of powershellCandidates) {
       try {
-        const result = spawnSync(shellPath, ["-NoLogo", "-Command", psScript], {
+        const result = spawnSync(shellPath, ["-NoLogo", "-NoProfile", "-NonInteractive", "-Command", psScript], {
           encoding: "utf8",
           stdio: ["ignore", "pipe", "pipe"],
           maxBuffer: 10 * 1024 * 1024,
           windowsHide: true,
+          // A profile script or a wedged shell would otherwise block startup
+          // forever; the caller falls back to the next candidate.
+          timeout: WINDOWS_ENV_SNAPSHOT_TIMEOUT_MS,
         })
         if (result.status !== 0) {
           continue
@@ -163,6 +171,7 @@ export const createAxCodeEnvRuntime = (deps) => {
         stdio: ["ignore", "pipe", "pipe"],
         maxBuffer: 10 * 1024 * 1024,
         windowsHide: true,
+        timeout: WINDOWS_ENV_SNAPSHOT_TIMEOUT_MS,
       })
       if (result.status === 0 && typeof result.stdout === "string" && result.stdout.length > 0) {
         return parseNullSeparatedEnvSnapshot(result.stdout.replace(/\r?\n/g, "\0"))

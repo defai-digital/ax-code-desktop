@@ -40,6 +40,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
     }
     if (
       message.includes("is required") ||
+      message.includes("requires working directory") ||
       message.startsWith("Invalid ") ||
       message.includes("must be") ||
       message.includes("does not match")
@@ -91,7 +92,9 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to get agent sources:", error)
-      res.status(500).json({ error: "Failed to get agent configuration metadata" })
+      // A malformed name (Express decodes %2F into a path separator) is a bad
+      // request, not a server fault.
+      return respondEntityError(res, error, "Failed to get agent configuration metadata")
     }
   })
 
@@ -107,9 +110,34 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       res.json(configInfo)
     } catch (error) {
       console.error("Failed to get agent config:", error)
-      res.status(500).json({ error: "Failed to get agent configuration" })
+      return respondEntityError(res, error, "Failed to get agent configuration")
     }
   })
+
+  // The config write already succeeded when the runtime reload runs; a reload
+  // failure must not answer 500, or the client discards a change that is on
+  // disk. Same partial-success contract as the MCP routes above.
+  const completeEntityMutation = async (res, reloadLabel, reloadOptions, successMessage, failureMessage) => {
+    try {
+      await refreshAxCodeAfterConfigChange(reloadLabel, reloadOptions)
+      return res.json({
+        success: true,
+        requiresReload: true,
+        message: successMessage,
+        reloadDelayMs: clientReloadDelayMs,
+      })
+    } catch (error) {
+      console.error(`[API:${reloadLabel}] Reload failed after config write:`, error)
+      return res.json({
+        success: true,
+        requiresReload: false,
+        reloadFailed: true,
+        message: failureMessage,
+        reloadDelayMs: clientReloadDelayMs,
+        warning: error?.message || "ax-code reload failed after the configuration changed",
+      })
+    }
+  }
 
   app.post("/api/config/agents/:name", async (req, res) => {
     try {
@@ -123,16 +151,13 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       console.log("[Server] Creating agent")
 
       createAgent(agentName, config, directory, scope)
-      await refreshAxCodeAfterConfigChange("agent creation", {
-        agentName,
-      })
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Agent ${agentName} created successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return completeEntityMutation(
+        res,
+        "agent creation",
+        { agentName },
+        `Agent ${agentName} created successfully. Reloading interface…`,
+        `Agent ${agentName} was created, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to create agent:", error)
       return respondEntityError(res, error, "Failed to create agent")
@@ -151,16 +176,15 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       console.log("[Server] Updating agent")
 
       updateAgent(agentName, updates, directory)
-      await refreshAxCodeAfterConfigChange("agent update")
-
       console.log("[Server] Agent updated successfully")
 
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Agent ${agentName} updated successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return completeEntityMutation(
+        res,
+        "agent update",
+        undefined,
+        `Agent ${agentName} updated successfully. Reloading interface…`,
+        `Agent ${agentName} was updated, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("[Server] Failed to update agent:", error)
       console.error("[Server] Error stack:", error.stack)
@@ -176,7 +200,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
         return res.status(400).json({ error })
       }
 
-      const deleted = deleteAgent(agentName, directory)
+      const deleted = deleteAgent(agentName, directory, { scope: req.query.scope })
       if (!deleted) {
         // Nothing of this name was on disk or in the config. If the runtime knows it, it is a
         // built-in agent and deleting it means recording a disable marker; otherwise the name
@@ -188,14 +212,13 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
         }
         disableBuiltinAgent(agentName, directory)
       }
-      await refreshAxCodeAfterConfigChange("agent deletion")
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Agent ${agentName} deleted successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return completeEntityMutation(
+        res,
+        "agent deletion",
+        undefined,
+        `Agent ${agentName} deleted successfully. Reloading interface…`,
+        `Agent ${agentName} was deleted, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to delete agent:", error)
       return respondEntityError(res, error, "Failed to delete agent")
@@ -309,7 +332,7 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       })
     } catch (error) {
       console.error("Failed to get command sources:", error)
-      res.status(500).json({ error: "Failed to get command configuration metadata" })
+      return respondEntityError(res, error, "Failed to get command configuration metadata")
     }
   })
 
@@ -325,16 +348,13 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       console.log("[Server] Creating command")
 
       createCommand(commandName, config, directory, scope)
-      await refreshAxCodeAfterConfigChange("command creation", {
-        commandName,
-      })
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Command ${commandName} created successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return completeEntityMutation(
+        res,
+        "command creation",
+        { commandName },
+        `Command ${commandName} created successfully. Reloading interface…`,
+        `Command ${commandName} was created, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to create command:", error)
       return respondEntityError(res, error, "Failed to create command")
@@ -353,16 +373,15 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
       console.log("[Server] Updating command")
 
       updateCommand(commandName, updates, directory)
-      await refreshAxCodeAfterConfigChange("command update")
-
       console.log("[Server] Command updated successfully")
 
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Command ${commandName} updated successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return completeEntityMutation(
+        res,
+        "command update",
+        undefined,
+        `Command ${commandName} updated successfully. Reloading interface…`,
+        `Command ${commandName} was updated, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("[Server] Failed to update command:", error)
       console.error("[Server] Error stack:", error.stack)
@@ -378,15 +397,14 @@ export const registerConfigEntityRoutes = (app, dependencies) => {
         return res.status(400).json({ error })
       }
 
-      deleteCommand(commandName, directory)
-      await refreshAxCodeAfterConfigChange("command deletion")
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Command ${commandName} deleted successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      deleteCommand(commandName, directory, { scope: req.query.scope })
+      return completeEntityMutation(
+        res,
+        "command deletion",
+        undefined,
+        `Command ${commandName} deleted successfully. Reloading interface…`,
+        `Command ${commandName} was deleted, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to delete command:", error)
       return respondEntityError(res, error, "Failed to delete command")

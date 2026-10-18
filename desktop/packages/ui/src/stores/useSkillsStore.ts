@@ -89,6 +89,11 @@ interface SkillDraft {
   pendingFiles?: PendingFile[]
 }
 
+export interface SkillDeleteTarget {
+  scope?: SkillScope | null
+  source?: SkillSource | null
+}
+
 export interface SkillDetail {
   name: string
   sources: SkillSources
@@ -108,7 +113,7 @@ interface SkillsStore {
   getSkillDetail: (name: string) => Promise<SkillDetail | null>
   createSkill: (config: SkillConfig) => Promise<boolean>
   updateSkill: (name: string, config: Partial<SkillConfig>) => Promise<boolean>
-  deleteSkill: (name: string) => Promise<boolean>
+  deleteSkill: (name: string, target?: SkillDeleteTarget) => Promise<boolean>
   getSkillByName: (name: string) => DiscoveredSkill | undefined
 
   // Supporting files
@@ -344,12 +349,19 @@ export const useSkillsStore = create<SkillsStore>()(
           }
         },
 
-        deleteSkill: async (name: string) => {
+        deleteSkill: async (name: string, target?: SkillDeleteTarget) => {
           startConfigUpdate("Deleting skill...")
           let requiresReload = false
           try {
             const currentDirectory = getAxCodeCurrentDirectory()
-            const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : ""
+            // Name alone is not unique across scopes: the server would delete the
+            // same-named project and user copies together. Send the entry's own
+            // scope and source so only the copy the user acted on goes away.
+            const params = new URLSearchParams()
+            if (currentDirectory) params.set("directory", currentDirectory)
+            if (target?.scope) params.set("scope", target.scope)
+            if (target?.source) params.set("source", target.source)
+            const queryParams = params.size > 0 ? `?${params.toString()}` : ""
 
             const response = await fetch(`${replacePathParams(API_ENDPOINTS.config.skill, { name })}${queryParams}`, {
               method: "DELETE",

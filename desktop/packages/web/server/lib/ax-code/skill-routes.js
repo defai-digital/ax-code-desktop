@@ -603,6 +603,32 @@ export const registerSkillRoutes = (app, dependencies) => {
     }
   })
 
+  // The config write has already landed by the time the runtime reload runs.
+  // Reporting a reload failure as 500 made the client roll the mutation back
+  // in the UI even though the file on disk had changed, so answer with the
+  // same partial-success shape MCP and plugin routes use.
+  const respondAfterSkillMutation = async (res, reloadLabel, successMessage, failureMessage) => {
+    try {
+      await refreshAxCodeAfterConfigChange(reloadLabel)
+      return res.json({
+        success: true,
+        requiresReload: true,
+        message: successMessage,
+        reloadDelayMs: clientReloadDelayMs,
+      })
+    } catch (error) {
+      console.error(`[API:skill] Reload failed after config write (${reloadLabel}):`, error)
+      return res.json({
+        success: true,
+        requiresReload: false,
+        reloadFailed: true,
+        message: failureMessage,
+        reloadDelayMs: clientReloadDelayMs,
+        warning: error?.message || "ax-code reload failed after the skill configuration changed",
+      })
+    }
+  }
+
   app.post("/api/config/skills/:name", async (req, res) => {
     try {
       const skillName = readSkillNameParam(req.params.name)
@@ -619,14 +645,12 @@ export const registerSkillRoutes = (app, dependencies) => {
       console.log("[Server] Creating skill")
 
       createSkill(skillName, { ...config, source: skillSource }, directory, scope)
-      await refreshAxCodeAfterConfigChange("skill creation")
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Skill ${skillName} created successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return respondAfterSkillMutation(
+        res,
+        "skill creation",
+        `Skill ${skillName} created successfully. Reloading interface…`,
+        `Skill ${skillName} was created, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to create skill:", error)
       return respondSkillError(res, error, "Failed to create skill")
@@ -648,14 +672,12 @@ export const registerSkillRoutes = (app, dependencies) => {
       console.log("[Server] Updating skill")
 
       updateSkill(skillName, updates, directory, updates?.targetPath)
-      await refreshAxCodeAfterConfigChange("skill update")
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Skill ${skillName} updated successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      return respondAfterSkillMutation(
+        res,
+        "skill update",
+        `Skill ${skillName} updated successfully. Reloading interface…`,
+        `Skill ${skillName} was updated, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("[Server] Failed to update skill:", error)
       return respondSkillError(res, error, "Failed to update skill")
@@ -748,15 +770,17 @@ export const registerSkillRoutes = (app, dependencies) => {
         return res.status(400).json({ error })
       }
 
-      deleteSkill(skillName, directory)
-      await refreshAxCodeAfterConfigChange("skill deletion")
-
-      res.json({
-        success: true,
-        requiresReload: true,
-        message: `Skill ${skillName} deleted successfully. Reloading interface…`,
-        reloadDelayMs: clientReloadDelayMs,
-      })
+      const target = {
+        scope: typeof req.query.scope === "string" ? req.query.scope : null,
+        source: typeof req.query.source === "string" ? req.query.source : null,
+      }
+      deleteSkill(skillName, directory, target)
+      return respondAfterSkillMutation(
+        res,
+        "skill deletion",
+        `Skill ${skillName} deleted successfully. Reloading interface…`,
+        `Skill ${skillName} was deleted, but ax-code reload failed.`,
+      )
     } catch (error) {
       console.error("Failed to delete skill:", error)
       return respondSkillError(res, error, "Failed to delete skill")

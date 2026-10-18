@@ -96,9 +96,13 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
     }
 
     const skillName = deleteDialogSkill.name
+    const skillScope = deleteDialogSkill.scope
+    const skillSource = deleteDialogSkill.source
     setIsDeletePending(true)
     try {
-      const outcome = await runSettingsDeleteMutation(() => deleteSkill(skillName))
+      const outcome = await runSettingsDeleteMutation(() =>
+        deleteSkill(skillName, { scope: skillScope, source: skillSource }),
+      )
       if (outcome.status === "unexpected-error") {
         console.error("Failed to delete skill:", outcome.error)
         toast.error(t("settings.skills.sidebar.toast.deleteSkillFailed"))
@@ -221,7 +225,10 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
 
     if (success) {
       // Delete old skill
-      const deleteSuccess = await deleteSkill(renameDialogSkill.name)
+      const deleteSuccess = await deleteSkill(renameDialogSkill.name, {
+        scope: renameDialogSkill.scope,
+        source: renameDialogSkill.source,
+      })
       if (deleteSuccess) {
         toast.success(t("settings.skills.sidebar.toast.renamed", { name: sanitizedName }))
         setSelectedSkill(sanitizedName)

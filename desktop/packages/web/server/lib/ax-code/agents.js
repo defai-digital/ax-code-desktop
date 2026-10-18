@@ -556,11 +556,15 @@ function disableBuiltinAgent(agentName, workingDirectory) {
   console.log(`Disabled built-in agent: ${agentName}`)
 }
 
-function deleteAgent(agentName, workingDirectory) {
+function deleteAgent(agentName, workingDirectory, target = {}) {
+  const requestedScope =
+    target.scope === AGENT_SCOPE.PROJECT || target.scope === AGENT_SCOPE.USER ? target.scope : null
+  const wantsProject = !requestedScope || requestedScope === AGENT_SCOPE.PROJECT
+  const wantsUser = !requestedScope || requestedScope === AGENT_SCOPE.USER
   const lookupCache = createAgentLookupCache()
   let deleted = false
 
-  if (workingDirectory) {
+  if (workingDirectory && wantsProject) {
     const projectPath = getProjectAgentPath(workingDirectory, agentName)
     if (fs.existsSync(projectPath)) {
       fs.unlinkSync(projectPath)
@@ -569,16 +573,19 @@ function deleteAgent(agentName, workingDirectory) {
     }
   }
 
-  const userPath = getUserAgentPath(agentName, lookupCache)
-  if (fs.existsSync(userPath)) {
-    fs.unlinkSync(userPath)
-    console.log(`Deleted user-level agent .md file: ${userPath}`)
-    deleted = true
+  if (wantsUser) {
+    const userPath = getUserAgentPath(agentName, lookupCache)
+    if (fs.existsSync(userPath)) {
+      fs.unlinkSync(userPath)
+      console.log(`Deleted user-level agent .md file: ${userPath}`)
+      deleted = true
+    }
   }
 
   const layers = readConfigLayers(workingDirectory)
   const jsonSource = getJsonEntrySource(layers, "agent", agentName)
-  if (jsonSource.exists && jsonSource.config && jsonSource.path) {
+  const jsonScope = jsonSource.path === layers.paths.projectPath ? AGENT_SCOPE.PROJECT : AGENT_SCOPE.USER
+  if (jsonSource.exists && (!requestedScope || requestedScope === jsonScope)) {
     if (!jsonSource.config.agent) jsonSource.config.agent = {}
     delete jsonSource.config.agent[agentName]
     writeConfig(jsonSource.config, jsonSource.path)

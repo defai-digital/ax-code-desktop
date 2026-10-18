@@ -108,14 +108,6 @@ function findExternalSkillEntry(scope, workingDirectory, skillName) {
   return null
 }
 
-function getClaudeSkillDir(workingDirectory, skillName) {
-  return getExternalSkillDir(SKILL_SCOPE.PROJECT, workingDirectory, skillName, CLAUDE_SKILL_SOURCE)
-}
-
-function getUserClaudeSkillDir(skillName) {
-  return getExternalSkillDir(SKILL_SCOPE.USER, null, skillName, CLAUDE_SKILL_SOURCE)
-}
-
 function getUserAgentsSkillDir(skillName) {
   return getExternalSkillDir(SKILL_SCOPE.USER, null, skillName, AGENTS_SKILL_SOURCE)
 }
@@ -521,7 +513,7 @@ function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
   const mdPath = existing.path
   const mdDir = path.dirname(mdPath)
   const mdData = parseMdFile(mdPath)
-  const frontmatterName = typeof mdData.frontmatter?.name === "string" ? mdData.frontmatter.name : skillName
+  const frontmatterName = typeof mdData.frontmatter?.name === "string" ? mdData.frontmatter.name.trim() : skillName
   if (frontmatterName !== skillName) {
     throw new Error(`Skill "${skillName}" does not match ${mdPath}`)
   }
@@ -564,51 +556,72 @@ function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
   console.log(`Updated skill: ${skillName} (path: ${mdPath})`)
 }
 
-function deleteSkill(skillName, workingDirectory) {
-  assertSafeResourceName(skillName, "Skill")
-  let deleted = false
+// The directories a delete may touch. Listing them explicitly (instead of
+// deleting whatever path a caller names) keeps a request from removing files
+// outside the managed skill roots. A grouped skill (`skills/<group>/<name>`)
+// is found through discovery and accepted only when it lives under one of
+// these roots.
+function listSkillRoots(workingDirectory) {
+  const roots = []
+  const add = (root, scope, source) => {
+    if (root) roots.push({ root, scope, source })
+  }
 
   if (workingDirectory) {
-    const projectDir = getProjectSkillDir(workingDirectory, skillName)
-    if (fs.existsSync(projectDir)) {
-      fs.rmSync(projectDir, { recursive: true, force: true })
-      console.log(`Deleted project-level skill directory: ${projectDir}`)
-      deleted = true
-    }
-
-    const claudeDir = getClaudeSkillDir(workingDirectory, skillName)
-    if (fs.existsSync(claudeDir)) {
-      fs.rmSync(claudeDir, { recursive: true, force: true })
-      console.log(`Deleted claude-compat skill directory: ${claudeDir}`)
-      deleted = true
-    }
-
-    const projectAgentsDir = getProjectAgentsSkillDir(workingDirectory, skillName)
-    if (fs.existsSync(projectAgentsDir)) {
-      fs.rmSync(projectAgentsDir, { recursive: true, force: true })
-      console.log(`Deleted project-level agents skill directory: ${projectAgentsDir}`)
-      deleted = true
-    }
+    add(path.join(workingDirectory, ".ax-code", "skills"), SKILL_SCOPE.PROJECT, "ax-code")
+    add(path.join(workingDirectory, ".ax-code", "skill"), SKILL_SCOPE.PROJECT, "ax-code")
+    add(path.join(workingDirectory, CLAUDE_SKILL_SOURCE.rootName, "skills"), SKILL_SCOPE.PROJECT, CLAUDE_SKILL_SOURCE.source)
+    add(path.join(workingDirectory, AGENTS_SKILL_SOURCE.rootName, "skills"), SKILL_SCOPE.PROJECT, AGENTS_SKILL_SOURCE.source)
   }
 
-  const userDir = getUserSkillDir(skillName)
-  if (fs.existsSync(userDir)) {
-    fs.rmSync(userDir, { recursive: true, force: true })
-    console.log(`Deleted user-level skill directory: ${userDir}`)
-    deleted = true
+  add(path.join(AX_CODE_CONFIG_DIR, "skills"), SKILL_SCOPE.USER, "ax-code")
+  add(path.join(AX_CODE_CONFIG_DIR, "skill"), SKILL_SCOPE.USER, "ax-code")
+  add(path.join(os.homedir(), CLAUDE_SKILL_SOURCE.rootName, "skills"), SKILL_SCOPE.USER, CLAUDE_SKILL_SOURCE.source)
+  add(path.join(os.homedir(), AGENTS_SKILL_SOURCE.rootName, "skills"), SKILL_SCOPE.USER, AGENTS_SKILL_SOURCE.source)
+
+  return roots
+}
+
+function isPathWithinRoot(root, candidate) {
+  const relative = path.relative(path.resolve(root), path.resolve(candidate))
+  return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative)
+}
+
+function deleteSkill(skillName, workingDirectory, target = {}) {
+  assertSafeResourceName(skillName, "Skill")
+
+  const requestedScope =
+    target.scope === SKILL_SCOPE.PROJECT || target.scope === SKILL_SCOPE.USER ? target.scope : null
+  const requestedSource = typeof target.source === "string" && target.source ? target.source : null
+  const isTarget = (scope, source) =>
+    (!requestedScope || scope === requestedScope) && (!requestedSource || source === requestedSource)
+
+  const roots = listSkillRoots(workingDirectory)
+  // Without an explicit scope/source every copy of the name is removed, which
+  // is what a delete from a merged list used to do. The desktop sends the
+  // entry's own scope and source so sibling copies in other scopes survive.
+  const directories = new Map()
+  for (const { root, scope, source } of roots) {
+    if (!isTarget(scope, source)) continue
+    directories.set(path.join(root, skillName), { scope, source })
   }
 
-  const userAgentsDir = getUserAgentsSkillDir(skillName)
-  if (fs.existsSync(userAgentsDir)) {
-    fs.rmSync(userAgentsDir, { recursive: true, force: true })
-    console.log(`Deleted user-level agents skill directory: ${userAgentsDir}`)
-    deleted = true
+  for (const skill of discoverSkills(workingDirectory)) {
+    if (skill.name !== skillName || !skill.path || skill.path === BUILT_IN_SKILL_LOCATION) continue
+    const containingRoot = roots.find(({ root }) => isPathWithinRoot(root, skill.path))
+    if (!containingRoot) continue
+    if (!isTarget(containingRoot.scope, containingRoot.source)) continue
+    directories.set(path.dirname(skill.path), {
+      scope: containingRoot.scope,
+      source: containingRoot.source,
+    })
   }
 
-  const userClaudeDir = getUserClaudeSkillDir(skillName)
-  if (fs.existsSync(userClaudeDir)) {
-    fs.rmSync(userClaudeDir, { recursive: true, force: true })
-    console.log(`Deleted user-level claude skill directory: ${userClaudeDir}`)
+  let deleted = false
+  for (const directory of directories.keys()) {
+    if (!fs.existsSync(directory)) continue
+    fs.rmSync(directory, { recursive: true, force: true })
+    console.log(`Deleted skill directory: ${directory}`)
     deleted = true
   }
 

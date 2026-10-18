@@ -243,10 +243,14 @@ function updateCommand(commandName, updates, workingDirectory) {
   console.log(`Updated command: ${commandName} (scope: ${targetScope}, md: ${mdModified}, json: ${jsonModified})`)
 }
 
-function deleteCommand(commandName, workingDirectory) {
+function deleteCommand(commandName, workingDirectory, target = {}) {
+  const requestedScope =
+    target.scope === COMMAND_SCOPE.PROJECT || target.scope === COMMAND_SCOPE.USER ? target.scope : null
+  const wantsProject = !requestedScope || requestedScope === COMMAND_SCOPE.PROJECT
+  const wantsUser = !requestedScope || requestedScope === COMMAND_SCOPE.USER
   let deleted = false
 
-  if (workingDirectory) {
+  if (workingDirectory && wantsProject) {
     const projectPath = getProjectCommandPath(workingDirectory, commandName)
     if (fs.existsSync(projectPath)) {
       fs.unlinkSync(projectPath)
@@ -255,16 +259,19 @@ function deleteCommand(commandName, workingDirectory) {
     }
   }
 
-  const userPath = getUserCommandPath(commandName)
-  if (fs.existsSync(userPath)) {
-    fs.unlinkSync(userPath)
-    console.log(`Deleted user-level command .md file: ${userPath}`)
-    deleted = true
+  if (wantsUser) {
+    const userPath = getUserCommandPath(commandName)
+    if (fs.existsSync(userPath)) {
+      fs.unlinkSync(userPath)
+      console.log(`Deleted user-level command .md file: ${userPath}`)
+      deleted = true
+    }
   }
 
   const layers = readConfigLayers(workingDirectory)
   const jsonSource = getJsonEntrySource(layers, "command", commandName)
-  if (jsonSource.exists && jsonSource.config && jsonSource.path) {
+  const jsonScope = jsonSource.path === layers.paths.projectPath ? COMMAND_SCOPE.PROJECT : COMMAND_SCOPE.USER
+  if (jsonSource.exists && (!requestedScope || requestedScope === jsonScope)) {
     if (!jsonSource.config.command) jsonSource.config.command = {}
     delete jsonSource.config.command[commandName]
     writeConfig(jsonSource.config, jsonSource.path)
