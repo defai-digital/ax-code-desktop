@@ -26,6 +26,7 @@ import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { updateDesktopSettings } from "@/lib/persistence"
 import type { DesktopSettings, SkillCatalogConfig } from "@/lib/desktop"
 import { useI18n } from "@/lib/i18n"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 
 import { AddCatalogDialog } from "./AddCatalogDialog"
 import { InstallSkillDialog } from "./InstallSkillDialog"
@@ -74,7 +75,6 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
     isLoadingCatalog,
     isLoadingSource,
     isLoadingMore,
-    loadedSourceIds,
     clawdhubHasMoreBySource,
     lastCatalogError,
     reportCatalogError,
@@ -90,7 +90,6 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
       isLoadingCatalog: s.isLoadingCatalog,
       isLoadingSource: s.isLoadingSource,
       isLoadingMore: s.isLoadingMore,
-      loadedSourceIds: s.loadedSourceIds,
       clawdhubHasMoreBySource: s.clawdhubHasMoreBySource,
       lastCatalogError: s.lastCatalogError,
       reportCatalogError: s.reportCatalogError,
@@ -108,14 +107,16 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
     void loadCatalog()
   }, [loadCatalog])
 
+  // The source cache is per project: switching projects must reload the source
+  // so the "installed" flags describe the project on screen. loadSource itself
+  // skips the request when this project already has the items.
+  const effectiveDirectory = useEffectiveDirectory()
   React.useEffect(() => {
     if (!selectedSourceId) {
       return
     }
-    if (!loadedSourceIds[selectedSourceId]) {
-      void loadSource(selectedSourceId)
-    }
-  }, [selectedSourceId, loadedSourceIds, loadSource])
+    void loadSource(selectedSourceId)
+  }, [effectiveDirectory, selectedSourceId, loadSource])
 
   const items = React.useMemo(() => {
     if (!selectedSourceId) return []

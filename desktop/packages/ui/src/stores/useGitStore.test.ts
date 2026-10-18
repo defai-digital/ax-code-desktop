@@ -149,6 +149,30 @@ describe("useGitStore", () => {
     })
   })
 
+  test("does not let an older log response overwrite a newer one", async () => {
+    type LogResponse = Awaited<ReturnType<GitStoreAPI["getGitLog"]>>
+    const requests: Deferred<LogResponse>[] = []
+    const git: GitStoreAPI = {
+      ...createGitApi(async () => createStatus()),
+      getGitLog: async () => {
+        const request = createDeferred<LogResponse>()
+        requests.push(request)
+        return request.promise
+      },
+    }
+
+    const older = useGitStore.getState().fetchLog("/repo", git, 25)
+    const newer = useGitStore.getState().fetchLog("/repo", git, 25)
+    await Promise.resolve()
+
+    requests[1].resolve({ all: [{ hash: "new-commit" }], latest: { hash: "new-commit" }, total: 1 } as LogResponse)
+    await newer
+    requests[0].resolve({ all: [{ hash: "old-commit" }], latest: { hash: "old-commit" }, total: 1 } as LogResponse)
+    await older
+
+    expect(useGitStore.getState().getDirectoryState("/repo")?.log?.all).toEqual([{ hash: "new-commit" }])
+  })
+
   test("optimistically stages modified files and preserves untouched file references", () => {
     const target = { path: "src/index.ts", index: " ", working_dir: "M" }
     const untouched = { path: "README.md", index: " ", working_dir: "M" }

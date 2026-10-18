@@ -101,12 +101,21 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
           })
           return null
         }
-        set({
-          checking: false,
-          available: desktopInfo?.available ?? false,
-          info: desktopInfo,
-          lastChecked: Date.now(),
-          nextCheckInSec: null,
+        set((state) => {
+          // A staged download belongs to the version it was staged for. When
+          // the check finds another version, leaving `downloaded` set made
+          // "Restart to update" install the older package behind the new label.
+          const stagedVersion = state.downloaded ? state.info?.version ?? null : null
+          const nextVersion = desktopInfo?.version ?? null
+          const keepStaged = stagedVersion !== null && stagedVersion === nextVersion
+          return {
+            checking: false,
+            available: desktopInfo?.available ?? false,
+            info: desktopInfo,
+            lastChecked: Date.now(),
+            nextCheckInSec: null,
+            ...(keepStaged ? {} : { downloaded: false, progress: null }),
+          }
         })
 
         return null

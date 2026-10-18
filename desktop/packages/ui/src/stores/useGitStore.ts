@@ -102,6 +102,20 @@ const inFlightStatusFetches = new Map<string, { promise: Promise<boolean> }>()
 const inFlightEnsureAllByDirectory = new Map<string, Promise<void>>()
 const statusFetchRequestIds = new Map<string, number>()
 let statusFetchSequence = 0
+// Log, branch and identity reads have the same overlap problem as status: a
+// slower earlier response used to overwrite a newer one (a just-created commit
+// vanished from history).
+const listFetchRequestIds = new Map<string, number>()
+let listFetchSequence = 0
+
+const nextListFetchId = (key: string): number => {
+  const requestId = ++listFetchSequence
+  listFetchRequestIds.set(key, requestId)
+  return requestId
+}
+
+const isCurrentListFetch = (key: string, requestId: number): boolean =>
+  listFetchRequestIds.get(key) === requestId
 
 const getStatusFetchKey = (directory: string, mode: GitStatusFetchMode): string => `${mode}:${directory}`
 
@@ -642,8 +656,10 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         }
 
+        const requestId = nextListFetchId(`branches:${directory}`)
         try {
           const branches = await git.getGitBranches(directory)
+          if (!isCurrentListFetch(`branches:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const dirState = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, {
@@ -655,6 +671,7 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         } catch (error) {
           console.error("Failed to fetch git branches:", error)
+          if (!isCurrentListFetch(`branches:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingBranches: false })
@@ -674,8 +691,10 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         }
 
+        const requestId = nextListFetchId(`log:${directory}`)
         try {
           const log = await git.getGitLog(directory, { maxCount: effectiveMaxCount })
+          if (!isCurrentListFetch(`log:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const currentDirState = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, {
@@ -688,6 +707,7 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         } catch (error) {
           console.error("Failed to fetch git log:", error)
+          if (!isCurrentListFetch(`log:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingLog: false })
@@ -703,8 +723,10 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         }
 
+        const requestId = nextListFetchId(`identity:${directory}`)
         try {
           const identity = await git.getCurrentGitIdentity(directory)
+          if (!isCurrentListFetch(`identity:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const dirState = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, {
@@ -716,6 +738,7 @@ export const useGitStore = create<GitStore>()(
           set({ directories: newDirectories })
         } catch (error) {
           console.error("Failed to fetch git identity:", error)
+          if (!isCurrentListFetch(`identity:${directory}`, requestId)) return
           const newDirectories = new Map(get().directories)
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingIdentity: false })

@@ -1406,7 +1406,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // A command runs when it is sent, not when the session falls idle, and the queue's two dispatch
     // paths disagreed about what to do with one: the chip ran it through the command-aware submit
     // while auto-send delivered it to the model as text. Send it the way Ctrl+Enter does instead.
-    if (!isQueueableMessage(inputSnapshot.message, inputMode)) {
+    // Shell input follows the same rule: it is a command, not a prompt, and auto-send would have
+    // delivered the shell text to the model.
+    if (inputMode === "shell" || !isQueueableMessage(inputSnapshot.message, inputMode)) {
       void handleSubmitRef.current()
       return
     }
@@ -2004,7 +2006,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       agentMentionName,
       additionalParts.length > 0 ? additionalParts : undefined,
       variantToSend,
-      inputMode,
+      // A queued entry is an ordinary prompt regardless of what the composer is
+      // in now: sending it while in shell mode ran the prompt text as a shell
+      // command in the project directory.
+      queuedOnly ? "normal" : inputMode,
       {
         sessionId: currentSessionId ?? undefined,
         // A queued entry keeps one id across its attempts, so a manual send racing the

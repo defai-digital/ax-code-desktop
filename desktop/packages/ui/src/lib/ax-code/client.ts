@@ -508,11 +508,17 @@ class AxCodeService {
       }
 
       const previousDirectory = this.currentDirectory
-      this.currentDirectory = this.normalizeCandidatePath(directory) ?? directory
+      const scopedDirectory = this.normalizeCandidatePath(directory) ?? directory
+      this.currentDirectory = scopedDirectory
       try {
         return await fn()
       } finally {
-        this.currentDirectory = previousDirectory
+        // A project switch while this ran (setDirectory, or a session move) must
+        // win: restoring here sent every later unscoped request back to the old
+        // project.
+        if (this.currentDirectory === scopedDirectory) {
+          this.currentDirectory = previousDirectory
+        }
       }
     }
 

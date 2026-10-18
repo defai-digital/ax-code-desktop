@@ -79,6 +79,10 @@ const skillsCatalogLoadInFlight = createSingleFlight<boolean>()
 // Latest loadSource call wins: an older in-flight response must not clear the
 // loading flag (or raise an error) for a newer request.
 let skillsCatalogLoadSourceSeq = 0
+// Which project each source's items were fetched for. The cache used to be
+// global, so project A's "installed" flags were shown in project B and the
+// page skipped the load that would have corrected them.
+const skillsCatalogSourceDirectories = new Map<string, string | null>()
 // Latest loadCatalog call wins too: a forced refresh replaces the in-flight
 // load instead of joining it, so without a sequence the displaced load could
 // still write its stale snapshot (or restore its pre-refresh one) last.
@@ -258,6 +262,14 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
           return false
         }
 
+        const directoryForRequest = getAxCodeCurrentDirectory() ?? null
+        const alreadyLoadedForDirectory =
+          get().loadedSourceIds[sourceId] === true &&
+          skillsCatalogSourceDirectories.get(sourceId) === directoryForRequest
+        if (!options?.refresh && alreadyLoadedForDirectory) {
+          return true
+        }
+
         const requestId = ++skillsCatalogLoadSourceSeq
         const isCurrentRequest = () => skillsCatalogLoadSourceSeq === requestId
         set({ isLoadingSource: true, lastCatalogError: null })
@@ -293,6 +305,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
                 loadedSourceIds: { ...state.loadedSourceIds, [sourceId]: true },
                 clawdhubHasMoreBySource: { ...state.clawdhubHasMoreBySource, [sourceId]: false },
               }))
+              skillsCatalogSourceDirectories.set(sourceId, directoryForRequest)
               return true
             }
 
@@ -328,6 +341,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
               [sourceId]: Boolean(nextCursor),
             },
           }))
+          skillsCatalogSourceDirectories.set(sourceId, directoryForRequest)
 
           return true
         } catch (error) {

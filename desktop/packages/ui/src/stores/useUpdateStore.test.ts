@@ -218,6 +218,57 @@ describe("useUpdateStore runtime detection", () => {
     }
   })
 
+  test("drops a staged download when the update check finds another version", async () => {
+    let version = "1.1.2"
+    mockElectronUpdaterWindow(async (command) => {
+      invokedCommands.push(command)
+      if (command === "desktop_check_for_updates") {
+        return { available: true, version, currentVersion: "1.1.1" }
+      }
+      return null
+    })
+
+    try {
+      await useUpdateStore.getState().checkForUpdates()
+      await useUpdateStore.getState().downloadUpdate()
+      expect(useUpdateStore.getState()).toMatchObject({ downloaded: true })
+
+      // A later check finds a newer release: the staged 1.1.2 package must not
+      // be offered as "Restart to update 1.1.3".
+      version = "1.1.3"
+      await useUpdateStore.getState().checkForUpdates()
+
+      expect(useUpdateStore.getState()).toMatchObject({
+        available: true,
+        downloaded: false,
+        progress: null,
+        info: { version: "1.1.3" },
+      })
+    } finally {
+      restoreWindow()
+    }
+  })
+
+  test("keeps the staged download when the check reports the same version", async () => {
+    mockElectronUpdaterWindow(async (command) => {
+      invokedCommands.push(command)
+      if (command === "desktop_check_for_updates") {
+        return { available: true, version: "1.1.2", currentVersion: "1.1.1" }
+      }
+      return null
+    })
+
+    try {
+      await useUpdateStore.getState().checkForUpdates()
+      await useUpdateStore.getState().downloadUpdate()
+      await useUpdateStore.getState().checkForUpdates()
+
+      expect(useUpdateStore.getState().downloaded).toBe(true)
+    } finally {
+      restoreWindow()
+    }
+  })
+
   test("ignores a second restart while the first install is still in flight", async () => {
     // The updater accepts one quit-and-install per session; the repeat was refused and reported
     // as "Failed to restart AX Code" although the first install was already on its way.

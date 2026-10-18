@@ -8,22 +8,29 @@ import { CORE_BACKED_FS_ROUTES, DESKTOP_OWNED_FS_MUTATION_ROUTES, isCoreBackedFs
 const here = path.dirname(fileURLToPath(import.meta.url))
 
 describe("desktop owned route surface", () => {
-  it("marks read/list/raw as core-backed and keeps mutations on Desktop", () => {
-    expect(isCoreBackedFsRoute("GET", "/api/fs/read")).toBe(true)
-    expect(isCoreBackedFsRoute("GET", "/api/fs/raw")).toBe(true)
+  it("keeps listing core-backed and mutations on Desktop", () => {
+    expect(isCoreBackedFsRoute("GET", "/api/fs/list")).toBe(true)
+    expect(isCoreBackedFsRoute("GET", "/api/fs/read")).toBe(false)
+    expect(isCoreBackedFsRoute("GET", "/api/fs/raw")).toBe(false)
     expect(isCoreBackedFsRoute("POST", "/api/fs/write")).toBe(false)
     expect(DESKTOP_OWNED_FS_MUTATION_ROUTES).toContain("POST /api/fs/write")
-    expect(CORE_BACKED_FS_ROUTES).toHaveLength(3)
+    expect(CORE_BACKED_FS_ROUTES).toHaveLength(1)
   })
 
-  it("does not implement GET /api/fs/read, list, or raw with local open/readdir", () => {
+  it("reads bytes and text only through the validated canonical path", () => {
     const source = readFileSync(path.join(here, "fs/routes.js"), "utf8")
     const readHandler = source.slice(source.indexOf('app.get("/api/fs/read"'), source.indexOf('app.get("/api/fs/raw"'))
     const rawHandler = source.slice(source.indexOf('app.get("/api/fs/raw"'), source.indexOf('app.post("/api/fs/write"'))
     const listHandler = source.slice(source.indexOf('app.get("/api/fs/list"'))
-    expect(readHandler).toContain("coreFileAdapter.read")
+    // The runtime's /file/content cannot return bytes for a binary it does not
+    // classify, and its text payload is lossy; both handlers read the path the
+    // containment check already canonicalized.
+    expect(readHandler).toContain("decodeUtf8TextFile")
+    expect(readHandler).toContain("fsPromises.readFile(canonicalPath)")
+    expect(readHandler).toContain("isPathWithinRoot")
     expect(readHandler).not.toContain("fsPromises.open")
-    expect(rawHandler).toContain("coreFileAdapter.raw")
+    expect(rawHandler).toContain("fsPromises.readFile(canonicalPath)")
+    expect(rawHandler).toContain("isPathWithinRoot")
     expect(rawHandler).not.toContain("fsPromises.open")
     expect(listHandler).toContain("coreFileAdapter.list")
     expect(listHandler).not.toContain("fsPromises.readdir")

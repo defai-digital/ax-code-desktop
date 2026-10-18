@@ -251,6 +251,28 @@ describe("scoped client cache", () => {
 })
 
 describe("withDirectory queue resilience", () => {
+  test("a project switch made while a scoped call runs is not rolled back", async () => {
+    axCodeClient.setDirectory("/old-project")
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => {
+      release = () => resolve()
+    })
+
+    const scoped = axCodeClient.withDirectory("/scoped-project", async () => {
+      expect(axCodeClient.getDirectory()).toBe("/scoped-project")
+      await gate
+      return "done"
+    })
+
+    // The user switches project while the scoped call is still in flight.
+    axCodeClient.setDirectory("/new-project")
+    release()
+    await expect(scoped).resolves.toBe("done")
+
+    expect(axCodeClient.getDirectory()).toBe("/new-project")
+    axCodeClient.setDirectory(undefined)
+  })
+
   test("serializes three concurrent callers instead of letting two waiters run side by side", async () => {
     // A, B and C overlap: B and C both wait on A's entry. The slot must chain
     // (C queues behind B), otherwise B and C resume together, overwrite each
