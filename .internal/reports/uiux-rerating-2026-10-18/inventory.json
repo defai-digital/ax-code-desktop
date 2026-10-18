@@ -1,0 +1,179 @@
+{
+  "recordedAt": "2026-10-18T11:02:40.696856+00:00",
+  "assessedCommit": "4f5267e1177e749eb07001c73fc00ee8d9a847dc",
+  "baselineCommit": "d1e538df7496f48a2fa985ef2becb2997aa8f14a",
+  "platform": {
+    "system": "Darwin",
+    "release": "27.0.0",
+    "machine": "arm64"
+  },
+  "references": [
+    {
+      "id": "opencode",
+      "surface": "OpenCode GUI",
+      "commit": "22e771f5893e255ea78fc10557ed3fb98d3a1072",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 8.7,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "openhands",
+      "surface": "OpenHands GUI",
+      "commit": "045290739f0af2ae4cc89d2a209c6bd930bb81ee",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 8.4,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "goose",
+      "surface": "Goose Desktop",
+      "commit": "bfcc6ee6f1ee18d0c4c852a65c49b25f87ee40dc",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 8.3,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "cline",
+      "surface": "Cline desktop/shared UI",
+      "commit": "a42df8c8d5fd9d9f9a9073589baffe32ea9bb2f0",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 8.2,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "openchamber",
+      "surface": "OpenChamber",
+      "commit": "6a10ee19a12a1542cad01eee5add14e030ba4ac4",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 7.9,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "continue",
+      "surface": "Continue IDE GUI",
+      "commit": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 7.6,
+      "runtimeExecuted": false
+    },
+    {
+      "id": "aider",
+      "surface": "Aider browser GUI",
+      "commit": "5dc9490bb35f9729ef2c95d00a19ccd30c26339c",
+      "status": "",
+      "baselinePrefixMatches": true,
+      "retainedScore": 6.1,
+      "runtimeExecuted": false
+    }
+  ],
+  "reviewedSourceDigests": {
+    ".internal/reference/opencode/packages/app/src/new-session/view.tsx": "4d1b68fa2d572a59b293eedf0345b29df15f567d62d9f9244209f0ffe3bbc3cf",
+    ".internal/reference/opencode/packages/app/src/session/requests/session-permission-dock.tsx": "99168640990f26b8c00bc61ad3b77cd94e92a7f70bea7e7644bc97580d7a8159",
+    ".internal/reference/opencode/packages/app/src/shell/state/session-tabs.ts": "3ef1dc310661771be711f8c81d16277e639809220aa9b564430fd534920cc574",
+    ".internal/reference/opencode/packages/gui-extensions/src/review/panel.tsx": "8e8619f7e460000a1e694a8b164a5fe699f00b6b75907e40131a5c4ef64a1860",
+    ".internal/reference/openhands/src/components/features/home/home-chat-launcher.tsx": "d76eb42983bd663ae820defccca153abbfce0312e002a21864dace3b38830dd7",
+    ".internal/reference/openhands/src/components/shared/buttons/conversation-confirmation-buttons.tsx": "c33507dc88959d0fecdbb65316ae69ce910992d0ace6357cf62a58218718ed17",
+    ".internal/reference/openhands/src/components/features/conversation/conversation-tabs/conversation-tabs.tsx": "419612d2d9f9925e7fddda516b25a0061b29d6661657e5bdc92a502faf331618",
+    ".internal/reference/openhands/src/components/features/conversation-panel/budget-display.tsx": "6a6863daed79871c93b587cc5a985e75d6c31e71cc09e98c66ef6f676e1f2c83",
+    ".internal/reference/goose/ui/desktop/src/components/onboarding/OnboardingGuard.tsx": "e9706ff461372f95adab7a40ce40bba5f85d7dce44ad50e4a9c961edd1b0771a",
+    ".internal/reference/goose/ui/desktop/src/components/Layout/NavigationPanel.tsx": "c22680f34ed1f7917fd4eba58fca6aac57373f01427239c5d274ca7c64fd3fdc",
+    ".internal/reference/cline/sdk/packages/ui/components/agent-conversation-layout.tsx": "35b8ff0a0b3eadbf601b41cb2268e4a59ff209643ab5756a85f78e7b1479f3e3",
+    ".internal/reference/cline/sdk/packages/ui/components/agent-approval-card.tsx": "d0c3e960cb42658f4da167779df822f3b54d2e4095640a7333a39c787c0f8eef",
+    ".internal/reference/openchamber/packages/ui/src/components/layout/ContextPanelRail.tsx": "a011969223702390a86587ec703d7b0d8c396a9d754794bb49585f7cc71c260c",
+    ".internal/reference/openchamber/packages/ui/src/components/chat/usePermissionResponse.ts": "9ceb178b2b308c9e525470b2554899002d60b62a0a6f1981dd96b7b21188e723",
+    ".internal/reference/continue/gui/src/components/ModeSelect/ModeSelect.tsx": "f200e943eda4f55f9e4ed3e19e8de427b9b75f2b157059d8ad31957c529cd418",
+    ".internal/reference/continue/gui/src/components/AcceptRejectDiffButtons.tsx": "f1bb2ebdf9c61cdc797b9eaf6f8543fe7f56a7fa3efe00794823971f16d46146",
+    ".internal/reference/aider/aider/gui.py": "2671ef962d494c2187020b0e67c1e401638a005c669e06f2be264825e62f8ecc",
+    "desktop/packages/ui/src/components/onboarding/OnboardingScreen.tsx": "2e37ce70533dc3f4c51a6754be63ada7f5a6b7047ca07d47beb01ff7503083c5",
+    "desktop/packages/ui/src/components/onboarding/ChooserScreen.tsx": "7e6bf67f72bdd932e4de434a82a3754dda8a5169306c89d6b1cef9338819160d",
+    "desktop/packages/ui/src/components/onboarding/LocalSetupScreen.tsx": "fb3c608f8a5c165feb048622afce8987de1cb2128bfb5830a4f30cafb05512c9",
+    "desktop/packages/ui/src/components/supervision/WorkspaceNavigation.tsx": "075824bf65213b4a21741e968e8954406133bff12fb675aad929a557c96d1ece",
+    "desktop/packages/ui/src/components/supervision/RequestActionCard.tsx": "b1a4ed31f379524435ccf8dfc03eebd6cd73c4a451334645f00cb0081381e75b",
+    "desktop/packages/ui/src/components/supervision/EvidenceText.tsx": "1eab7471bb9916ea89658a190e611b334b38a946f1c7e78ea9cbd429201afbca",
+    "desktop/packages/ui/src/components/supervision/missionControl/MissionControlPeek.tsx": "3311bb4bc794c0666c558a26c6be5b27795da4cba23244d45b14cdb6e7d17106",
+    "desktop/packages/ui/src/components/layout/InspectorRail.tsx": "bfc93e8baddb3b379fab5dc6599c4f813f64503222201f1ed2366afc76e44292",
+    "desktop/packages/ui/src/stores/useRequestDecisionStore.ts": "470530caf68ba59b697fc881115210aca8be7ed76a79a9dd68997427b173747f",
+    "desktop/packages/ui/src/sync/session-actions.ts": "f0239e8d9409a21112cacec207286c5bf4435eaa1ec9cd7ebebade48abd5191b"
+  },
+  "implementationInventory": {
+    "path": ".internal/reports/supervision-streamlit-2026-10-18/source-inventory.json",
+    "sha256": "a06328c8868149d844b610fef3bf5e1fbb701bcc8fd8573c5c5a53a01b5d0e14",
+    "filesChecked": 37,
+    "mismatches": []
+  },
+  "reusedReceipts": {
+    ".internal/reports/supervision-streamlit-2026-10-18/validation.json": "9c00e313447de595c189a3a43da46a33739d9a80c4cf80802f37294a52c62416",
+    ".internal/reports/supervision-streamlit-2026-10-18/streamlit-native/receipt.json": "98f05509258d2340b25750ab34d6dd1eca7ad7ab5125bc44e936f0e44a292ccb"
+  },
+  "freshValidation": {
+    "fixtureBuild": {
+      "exitCode": 0,
+      "log": "fixture-build.log"
+    },
+    "focusedTests": {
+      "exitCode": 0,
+      "filesPassed": 8,
+      "passed": 77,
+      "failed": 0,
+      "log": "focused-tests.log"
+    },
+    "nativeUI": {
+      "exitCode": 0,
+      "cases": 24,
+      "electron": "44.9.0",
+      "measurements": "measurements.json",
+      "allAssertionsPassed": true,
+      "bodyOverflowAlsoChecked": true
+    }
+  },
+  "currentAxAssessment": {
+    "weights": {
+      "taskFlow": 0.25,
+      "stateAndFeedback": 0.25,
+      "informationArchitecture": 0.2,
+      "visualHierarchy": 0.2,
+      "accessibility": 0.1
+    },
+    "dimensionScores": {
+      "taskFlow": 8.5,
+      "stateAndFeedback": 8.8,
+      "informationArchitecture": 8.2,
+      "visualHierarchy": 8.2,
+      "accessibility": 7.8
+    },
+    "weightedTotal": 8.385,
+    "roundedScore": 8.4,
+    "roundedRank": 2,
+    "tiedWith": "OpenHands GUI",
+    "method": "Assessor heuristic; reference scores retained; not a controlled usability benchmark"
+  },
+  "excludedExistingChange": {
+    "path": ".internal/reference/README.md",
+    "sha256": "84a5c0264d55859747acc898abff5e1a1545854282d153560bc57ead0bf73a27"
+  },
+  "artifactDigests": {
+    "1440-zoom-1-en.png": "e0ad7aacd74cdf58edad171e3173fa656119b3f37186d968f4d449834fd4233b",
+    "420-inspector.png": "6df52dfa902cc1ca7723e67b3ef7ccbee44f5e0c3361e878ba7ba7eac203dbb5",
+    "420-zoom-1-en.png": "d9febf0dd8840fb010df10a59629a7e74a167393650f9450e838a745f68ad406",
+    "420-zoom-2-de.png": "067a46db8a01792914cd21de6d8de3923939a4e581a91d91357e2bf733d1586b",
+    "README.md": "ca3c14bc208e1c6be45447095515340f9560f9540ac3dde82b9c36e23996af3b",
+    "baseline.json": "f621edb3aa66737f692d7e8aa2d6122b4ed429cd46676b539ead4b7e22501e2c",
+    "fixture-build.log": "623fedb35cee522b9a158da5e3b6ee47ec434fc770ec8f7e45ce44d3583c0b60",
+    "focused-tests.log": "760784332a238770e45e7605b4771be1e2a2ad8644118033372c7fef235753fc",
+    "measurements.json": "6db88a186ff8732520b38c0115faf9dab88e19d3e8385d9b928f13752026f031"
+  },
+  "assessmentValidation": {
+    "localLinksChecked": 13,
+    "reviewedSourceDigestsChecked": 27,
+    "artifactDigestsChecked": 9,
+    "baselineWeightsPreserved": true,
+    "unchangedProductSource": true,
+    "existingChangePreserved": true
+  }
+}

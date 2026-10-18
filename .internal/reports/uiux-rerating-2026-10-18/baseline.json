@@ -1,0 +1,64 @@
+{
+  "source": "Original completed assistant assessment in the current conversation",
+  "sessionId": "01a14e5f-ad5e-7093-8aab-8b176e467222",
+  "messageId": "msg_03ee0dd633f5d012016ad494cdd0488197b75acc0de76e5b12",
+  "recordedAt": "2026-10-18T09:44:20.773Z",
+  "messageTextSha256": "3be544c69b633da435d4f8d70e3fec2188ad70e736c340d02e7f7ca2ae408c3f",
+  "axCommit": "d1e538df7496f48a2fa985ef2becb2997aa8f14a",
+  "axScore": 8.0,
+  "axRank": 5,
+  "includesV1": true,
+  "weights": {
+    "taskFlow": 0.25,
+    "stateAndFeedback": 0.25,
+    "informationArchitecture": 0.2,
+    "visualHierarchy": 0.2,
+    "accessibility": 0.1
+  },
+  "closeDifference": 0.3,
+  "historicalDimensionScores": null,
+  "references": [
+    {
+      "id": "opencode",
+      "surface": "OpenCode GUI",
+      "recordedCommitPrefix": "22e771f",
+      "score": 8.7
+    },
+    {
+      "id": "openhands",
+      "surface": "OpenHands GUI",
+      "recordedCommitPrefix": "0452907",
+      "score": 8.4
+    },
+    {
+      "id": "goose",
+      "surface": "Goose Desktop",
+      "recordedCommitPrefix": "bfcc6ee",
+      "score": 8.3
+    },
+    {
+      "id": "cline",
+      "surface": "Cline desktop/shared UI",
+      "recordedCommitPrefix": "a42df8c",
+      "score": 8.2
+    },
+    {
+      "id": "openchamber",
+      "surface": "OpenChamber",
+      "recordedCommitPrefix": "6a10ee19a",
+      "score": 7.9
+    },
+    {
+      "id": "continue",
+      "surface": "Continue IDE GUI",
+      "recordedCommitPrefix": "5522c6f",
+      "score": 7.6
+    },
+    {
+      "id": "aider",
+      "surface": "Aider browser GUI",
+      "recordedCommitPrefix": "5dc9490",
+      "score": 6.1
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+vite v7.3.7 building client environment for production...
+transforming...
+✓ 462 modules transformed.
+rendering chunks...
+computing gzip size...
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/renderer.html                                 0.38 kB │ gzip:   0.27 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/renderer-DpG5h0fn.css                218.11 kB │ gzip:  32.75 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/sessionRemovalCleanup-BZrZGeRt.js      7.38 kB │ gzip:   2.69 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/zh-CN-BYiE41DK.js                    327.81 kB │ gzip:  75.94 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/zh-TW-BnK9nLg1.js                    331.08 kB │ gzip:  75.34 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/id-BQHSkBDw.js                       339.18 kB │ gzip:  72.41 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/pt-BR-zri0AWv5.js                    350.84 kB │ gzip:  75.10 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/tr-C5NttT00.js                       352.38 kB │ gzip:  76.58 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/it-DEFuWNwX.js                       355.64 kB │ gzip:  75.79 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/es-dSN5Merb.js                       356.17 kB │ gzip:  75.88 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/de-CJVOOMr6.js                       360.93 kB │ gzip:  78.32 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/fr-CNlQQIcK.js                       366.90 kB │ gzip:  77.63 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/vi-Bnr0sO9h.js                       368.99 kB │ gzip:  75.45 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/ko-DLhKV3C_.js                       369.20 kB │ gzip:  78.21 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/ja-BQ3pF-ng.js                       400.08 kB │ gzip:  80.12 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/ru-CmGs1O_Y.js                       449.17 kB │ gzip:  87.36 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/renderer-BzXzV52X.js               1,305.01 kB │ gzip: 340.92 kB
+../../../../../../../../tmp/ax-code-supervision-v2-renderer/assets/heic2any-98xx-Zzr.js               1,352.90 kB │ gzip: 341.25 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 4.62s

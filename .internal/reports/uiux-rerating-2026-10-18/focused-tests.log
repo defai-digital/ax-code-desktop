@@ -1,0 +1,12 @@
+
+> @openchamber/ui@7.27.1 test /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> node scripts/run-tests.mjs src/components/supervision/RequestActionCard.test.tsx src/components/supervision/WorkspaceNavigation.test.tsx src/components/supervision/MissionControl.navigation.test.tsx src/components/supervision/missionControl/MissionControlPeek.test.tsx src/components/layout/InspectorRail.test.tsx src/components/onboarding/ChooserScreen.test.tsx src/components/onboarding/LocalSetupScreen.test.tsx src/sync/session-actions.test.ts
+
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+
+ Test Files  8 passed (8)
+      Tests  77 passed (77)
+   Start at  06:59:21
+   Duration  1.69s (transform 2.79s, setup 225ms, import 3.81s, tests 1.19s, environment 4.86s)
