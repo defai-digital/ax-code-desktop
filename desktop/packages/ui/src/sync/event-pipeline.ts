@@ -22,6 +22,7 @@ import {
 } from "./performance"
 import { API_PATHS } from "@/lib/http"
 import { createEventTransport } from "@/lib/event-stream/client"
+import { isLoopbackHostname } from "@/lib/loopback"
 import { markStreamConnected, markStreamDisconnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } from "@/lib/event-stream/types"
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
@@ -249,6 +250,19 @@ function buildGlobalEventWsUrl(lastEventId?: string): string {
     httpUrl.searchParams.set("lastEventId", lastEventId)
   }
   return toWebSocketUrl(httpUrl.toString())
+}
+
+// The event stream targets the desktop's own loopback server in the desktop shell; the
+// browser's offline event says nothing about that server's reachability and used to park a
+// healthy stream on the long backoff cap until `online` fired.
+function eventStreamTargetsLoopback(): boolean {
+  try {
+    const client = axCodeClient as { getBaseUrl?: () => string }
+    const base = typeof client.getBaseUrl === "function" ? client.getBaseUrl() : API_PATHS.base
+    return isLoopbackHostname(new URL(resolveAbsoluteUrl(base)).hostname)
+  } catch {
+    return false
+  }
 }
 
 type DirectoryQueue = {
@@ -754,6 +768,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
         maxExponent: RETRY_BACKOFF_MAX_EXPONENT,
       },
       wsReadyTimeoutMs,
+      offlineInterrupt: !eventStreamTargetsLoopback(),
     },
     {
       onFrame: (frame, meta) => {

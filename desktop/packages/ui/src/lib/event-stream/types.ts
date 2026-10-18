@@ -60,6 +60,10 @@ export type EventTransportConfig = {
   permanentHttpStatus?: (status: number) => boolean // default: 4xx except 408/429
   interruptSignals?: boolean // online/offline/visibility/pageshow/
   // system-resume/retry-now; default true
+  // Whether the browser's offline event marks this stream disconnected. Default true; a
+  // loopback server (the desktop's own) stays reachable with the network down, so an
+  // offline event there killed a healthy loopback stream and parked it on the long cap.
+  offlineInterrupt?: boolean
 }
 
 export type EventTransportHooks = {

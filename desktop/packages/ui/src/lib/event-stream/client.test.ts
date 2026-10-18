@@ -600,6 +600,107 @@ describe("createEventTransport — cursor plumbing", () => {
   })
 })
 
+describe("createEventTransport — short-lived connections", () => {
+  it("treats a stream that ends right after ready as a failure and escalates the backoff", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const openedAt: number[] = []
+    const disconnected: TransportError[] = []
+    const driver: SdkSseDriver = {
+      kind: "sse-sdk",
+      open: async () => {
+        openedAt.push(Date.now())
+        return {
+          stream: (async function* () {
+            yield { payload: { type: "server.connected" } }
+          })(),
+        }
+      },
+    }
+    const transport = createEventTransport(
+      { drivers: { primary: driver }, transport: "sse", backoff: BACKOFF },
+      { ...noopHooks, onDisconnected: (error) => disconnected.push(error) },
+    )
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(openedAt).toHaveLength(1)
+    // The stream reported ready and ended at once: the consumer must hear the drop...
+    expect(disconnected).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(20) // failure 1 → base delay
+    expect(openedAt).toHaveLength(2)
+    expect(disconnected).toHaveLength(2)
+
+    await vi.advanceTimersByTimeAsync(20)
+    expect(openedAt).toHaveLength(2) // failure 2 → 40ms, not yet
+    await vi.advanceTimersByTimeAsync(20)
+    expect(openedAt).toHaveLength(3)
+    expect(deltas(openedAt)).toEqual([20, 40])
+    transport.close()
+  })
+
+  it("does not penalize a connection that stayed up past the healthy window", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(0)
+    const openedAt: number[] = []
+    const disconnected: TransportError[] = []
+    let endStream: (() => void) | undefined
+    const driver: SdkSseDriver = {
+      kind: "sse-sdk",
+      open: async () => {
+        openedAt.push(Date.now())
+        return {
+          stream: (async function* () {
+            yield { payload: { type: "server.connected" } }
+            await new Promise<void>((resolve) => {
+              endStream = resolve
+            })
+          })(),
+        }
+      },
+    }
+    const transport = createEventTransport(
+      { drivers: { primary: driver }, transport: "sse", backoff: BACKOFF },
+      { ...noopHooks, onDisconnected: (error) => disconnected.push(error) },
+    )
+
+    await vi.advanceTimersByTimeAsync(0)
+    expect(openedAt).toHaveLength(1)
+
+    await vi.advanceTimersByTimeAsync(6_000) // healthy past the 5s window
+    endStream?.()
+    await vi.advanceTimersByTimeAsync(20)
+    expect(openedAt).toHaveLength(2)
+    expect(disconnected).toHaveLength(0)
+    transport.close()
+  })
+
+  it("ignores the browser offline event when offlineInterrupt is false (loopback target)", () => {
+    installFakeWebSocket()
+    setNavigatorOnline(true)
+    const disconnected: TransportError[] = []
+    const driver: WsDriver = { kind: "ws", url: () => "ws://127.0.0.1/api/global/event/ws" }
+    const transport = createEventTransport(
+      { drivers: { primary: driver }, transport: "ws", backoff: BACKOFF, offlineInterrupt: false },
+      { ...noopHooks, onDisconnected: (error) => disconnected.push(error) },
+    )
+
+    const socket = FakeWebSocket.instances[0]
+    socket.emitOpen()
+    socket.emitMessage({ type: "ready", scope: "global" })
+    expect(transport.state()).toBe("open")
+
+    setNavigatorOnline(false)
+    globalThis.window.dispatchEvent(new Event("offline"))
+
+    // A loopback server stays reachable while the network is down: no abort, no disconnect.
+    expect(disconnected).toHaveLength(0)
+    expect(transport.state()).toBe("open")
+    expect(FakeWebSocket.instances).toHaveLength(1)
+    transport.close()
+  })
+})
+
 describe("createEventTransport — lifecycle interrupts", () => {
   it("aborts a stale visible attempt (no activity within the heartbeat window)", async () => {
     vi.useFakeTimers()

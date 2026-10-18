@@ -138,9 +138,12 @@ describe("createEventPipeline — lazy SDK SSE failures", () => {
     })
 
     try {
-      // Clean completion re-loops on the 250ms base — no failure classification.
+      // A stream that reported ready and then ends within seconds is a crash-looping
+      // upstream: the consumer hears the drop and the retry escalates instead of
+      // re-looping on the base delay forever.
       await waitFor(() => sdkCalls >= 2)
-      expect(reasons).toEqual([])
+      expect(reasons).toHaveLength(1)
+      expect(reasons[0]).toContain("sse_error")
     } finally {
       cleanup()
     }

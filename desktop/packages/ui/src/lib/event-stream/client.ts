@@ -34,6 +34,10 @@ import {
 const DEFAULT_WS_READY_TIMEOUT_MS = 2_000
 const DEFAULT_WS_FALLBACK_WINDOW_MS = 60_000
 const DEFAULT_UNSTABLE_READY_WINDOW_MS = 2_000
+// Mirrors the server-side MIN_UPSTREAM_HEALTHY_UPTIME_MS rule: a connection that was
+// reported open and then ended within this window is a crash-looping upstream, not proof
+// of health — it must escalate the backoff instead of clearing it.
+const MIN_HEALTHY_CONNECTION_MS = 5_000
 
 type PendingInterrupt = {
   code: TransportErrorCode
@@ -48,6 +52,7 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   const wsFallbackWindowMs = config.wsFallbackWindowMs ?? DEFAULT_WS_FALLBACK_WINDOW_MS
   const unstableReadyWindowMs = config.unstableReadyWindowMs ?? DEFAULT_UNSTABLE_READY_WINDOW_MS
   const isPermanentHttpStatus = config.permanentHttpStatus ?? defaultIsPermanentHttpStatus
+  const offlineInterrupt = config.offlineInterrupt ?? true
   const abort = new AbortController()
 
   let state: TransportState = "idle"
@@ -61,6 +66,10 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   let lastActivityAt = Date.now()
   let streamErrorLogged = false
   let internalCursor: string | undefined
+  // When the current attempt reported ready; null before the first ready. Used after the
+  // attempt ends to tell a crash-looping upstream (open, then closed within seconds) from
+  // a healthy connection.
+  let attemptReadyAt: number | null = null
 
   // Single cursor owner: every driver reads/writes the resume cursor through
   // these two accessors (WS query param, SSE Last-Event-ID header, SDK
@@ -140,10 +149,12 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
     while (!abort.signal.aborted) {
       attempt = new AbortController()
       lastActivityAt = Date.now()
+      attemptReadyAt = null
       pendingInterrupt = null
       // Clean completion and silent aborts re-loop on the backoff base, like
       // the previous loop did on its initial retry delay.
       let retryDelayMs = config.backoff.baseMs
+      let attemptFailed = false
       const { driver, kind } = resolveDriver()
       attemptKind = kind
       setState("connecting")
@@ -160,8 +171,13 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
         activity,
         ready: () => {
           disconnectedCycle = false
-          consecutiveFailures = 0
+          // consecutiveFailures is NOT cleared here: an ack proves the stream opened, not
+          // that it stayed up. A crash-looping upstream acks and dies in milliseconds, and
+          // clearing here let that loop reconnect at the base delay forever. The counter
+          // resets only when the connection ends after surviving the healthy window (see
+          // below, and the server's MIN_UPSTREAM_HEALTHY_UPTIME_MS rule).
           streamErrorLogged = false
+          attemptReadyAt = Date.now()
           setState("open")
           // Fire onConnected on every successful connect — including the very
           // first one. Consumer connection state starts at "connecting" and
@@ -190,6 +206,7 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
       } catch (error) {
         const attemptError = toAttemptError(error, kind)
         if (attemptError.fallbackEligible && mode === "auto" && config.drivers.fallback) {
+          attemptFailed = true
           retryDelayMs = 0
           wsFallbackUntil = Date.now() + wsFallbackWindowMs
           // Transport switch (WS → SSE fallback), not a real disconnection.
@@ -197,6 +214,12 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
           // state; real networks can lose/buffer events around transport flips.
           hooks.onTransportSwitch?.()
         } else if (!isAbortError(error)) {
+          attemptFailed = true
+          // A connection that survived the healthy window before failing restarts the
+          // escalation; one that died sooner keeps climbing it.
+          if (attemptReadyAt !== null && Date.now() - attemptReadyAt >= MIN_HEALTHY_CONNECTION_MS) {
+            consecutiveFailures = 0
+          }
           consecutiveFailures += 1
           if (!streamErrorLogged) {
             streamErrorLogged = true
@@ -222,7 +245,10 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
           retryDelayMs =
             status !== undefined && isPermanentHttpStatus(status)
               ? config.backoff.capHiddenMs
-              : computeBackoffDelay(consecutiveFailures, config.backoff, { offline: isOffline(), hidden: isHidden() })
+              : computeBackoffDelay(consecutiveFailures, config.backoff, {
+                  offline: offlineInterrupt && isOffline(),
+                  hidden: isHidden(),
+                })
         }
       } finally {
         abort.signal.removeEventListener("abort", onAbort)
@@ -231,6 +257,11 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
       }
 
       if (abort.signal.aborted) return
+      // Only a connection that stayed up past the healthy window clears the failure count;
+      // one that ended sooner (cleanly or not) keeps it, so a crash loop escalates.
+      if (attemptReadyAt !== null && Date.now() - attemptReadyAt >= MIN_HEALTHY_CONNECTION_MS) {
+        consecutiveFailures = 0
+      }
       const interrupt = takePendingInterrupt()
       if (interrupt) {
         disconnectedCycle = true
@@ -238,10 +269,33 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
         retryDelayMs =
           interrupt.code === "offline"
             ? computeBackoffDelay(Math.max(1, consecutiveFailures), config.backoff, {
-                offline: isOffline(),
+                offline: offlineInterrupt && isOffline(),
                 hidden: isHidden(),
               })
             : 0
+      } else if (
+        !attemptFailed &&
+        attemptReadyAt !== null &&
+        Date.now() - attemptReadyAt < MIN_HEALTHY_CONNECTION_MS
+      ) {
+        // The stream reported ready and then ended cleanly within seconds — a
+        // crash-looping upstream, not a healthy connection. A clean end reaches no
+        // catch block, so without this the consumer was never told the stream dropped
+        // and the loop reconnected at the base delay forever.
+        attemptFailed = true
+        consecutiveFailures += 1
+        if (!streamErrorLogged) {
+          streamErrorLogged = true
+          console.error("[event-transport] stream ended immediately after ready")
+        }
+        disconnectedCycle = true
+        hooks.onDisconnected?.(
+          createTransportError(kind === "ws" ? "ws_closed" : "sse_error", kind, "connection ended right after ready"),
+        )
+        retryDelayMs = computeBackoffDelay(consecutiveFailures, config.backoff, {
+          offline: offlineInterrupt && isOffline(),
+          hidden: isHidden(),
+        })
       }
       if (retryDelayMs > 0) {
         setState("backoff")
@@ -293,8 +347,10 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   // Browser told us we're offline. Abort the current attempt — its socket /
   // fetch will throw soon anyway, this just stops sooner. The backoff then
   // returns the long cap so we wait for `online` instead of hammering a dead
-  // network.
+  // network. Skipped for loopback targets: the desktop's own server stays
+  // reachable while the network is down, so the event killed a healthy stream.
   const onOffline = () => {
+    if (!offlineInterrupt) return
     pendingInterrupt = { code: "offline" }
     attempt?.abort()
   }
@@ -330,6 +386,11 @@ export function createEventTransport(config: EventTransportConfig, hooks: EventT
   }
 
   const reconnect = (reason = "manual") => {
+    // Wake an inter-attempt backoff wait first (it only listens for the DOM event), then
+    // set the interrupt — the listener's generic detail must not overwrite the reason.
+    if (interruptSignals && typeof globalThis.window !== "undefined") {
+      globalThis.window.dispatchEvent(new Event(SYNC_RETRY_NOW_EVENT))
+    }
     pendingInterrupt = { code: "manual_retry", detail: reason }
     attempt?.abort()
   }

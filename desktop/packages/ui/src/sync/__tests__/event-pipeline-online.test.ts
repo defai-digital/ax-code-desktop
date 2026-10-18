@@ -1,6 +1,7 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { EventPipelineInput } from "../event-pipeline"
 import { createEventPipeline } from "../event-pipeline"
+import { axCodeClient } from "@/lib/ax-code/client"
 import {
   installEventPipelineBrowserGlobals,
   restoreBrowserGlobals,
@@ -12,10 +13,18 @@ const savedGlobals = saveBrowserGlobals()
 
 afterEach(() => {
   restoreBrowserGlobals(savedGlobals)
+  vi.restoreAllMocks()
 })
+
+// These tests pin the offline/online backoff behavior of a REMOTE server; the desktop's
+// loopback base URL now opts out of offline interrupts, so the client reports a remote base.
+const mockRemoteBaseUrl = () => {
+  vi.spyOn(axCodeClient, "getBaseUrl").mockReturnValue("https://ax-remote.example.com/api")
+}
 
 describe("createEventPipeline — online event", () => {
   it("does not spin reconnect attempts after the browser reports offline", async () => {
+    mockRemoteBaseUrl()
     const { windowTarget } = installEventPipelineBrowserGlobals({ visibilityState: "visible", onLine: true })
 
     let sdkCallCount = 0
@@ -92,6 +101,7 @@ describe("createEventPipeline — online event", () => {
   })
 
   it("cuts the inter-attempt wait short when `online` fires after disconnect", async () => {
+    mockRemoteBaseUrl()
     const { windowTarget } = installEventPipelineBrowserGlobals({ visibilityState: "visible", onLine: false })
 
     let sdkCallIndex = 0

@@ -6,12 +6,13 @@
  * lifetime of the entry.
  *
  * The facade parses the openchamber envelope protocol ({ type, properties }):
- * unparseable frames are dropped, the `openchamber:event-stream-ready`
- * envelope is consumed as the ready signal (fired through onReady, never
- * forwarded), everything else is forwarded to onEnvelope.
+ * unparseable frames are dropped, the ready envelope (the notification stream's
+ * `openchamber:notification-stream-ready`) is consumed as the ready signal (fired
+ * through onReady, never forwarded), everything else is forwarded to onEnvelope.
  */
 
 import { createEventTransport } from "./client"
+import { isLoopbackHostname } from "@/lib/loopback"
 import type { BackoffProfile, EventTransport } from "./types"
 
 export type EventStreamEnvelope = {
@@ -27,7 +28,10 @@ type SubscribeEventStreamOptions = {
   onReady?: () => void
 }
 
-const EVENT_STREAM_READY_TYPE = "openchamber:event-stream-ready"
+// The notification stream — the facade's only producer — announces readiness with
+// `openchamber:notification-stream-ready`; the generic name never matched anything the
+// server sends, so onReady subscribed through it was a dead path. Accept both.
+const EVENT_STREAM_READY_TYPES = new Set(["openchamber:notification-stream-ready", "openchamber:event-stream-ready"])
 
 // Browser-native EventSource retries on a roughly constant ~3s timer; that is
 // the schedule the notification stream has always effectively run on, so it
@@ -86,6 +90,15 @@ export function subscribeEventStream(opts: SubscribeEventStreamOptions): () => v
         // The small consumers never subscribed to browser lifecycle events;
         // keep it that way (browser-native EventSource had none either).
         interruptSignals: false,
+        // A loopback stream (the desktop's own server) is not affected by the
+        // machine going offline; the browser's offline event must not park it.
+        offlineInterrupt: (() => {
+          try {
+            return !isLoopbackHostname(new URL(opts.url, window.location.href).hostname)
+          } catch {
+            return true
+          }
+        })(),
       },
       {
         onFrame: (frame) => {
@@ -93,7 +106,7 @@ export function subscribeEventStream(opts: SubscribeEventStreamOptions): () => v
           if (!envelope) {
             return
           }
-          if (envelope.type === EVENT_STREAM_READY_TYPE) {
+          if (EVENT_STREAM_READY_TYPES.has(envelope.type)) {
             for (const subscriber of subscribers) {
               subscriber.onReady?.()
             }

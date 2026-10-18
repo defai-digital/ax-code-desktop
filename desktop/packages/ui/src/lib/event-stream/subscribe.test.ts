@@ -85,6 +85,26 @@ describe("subscribeEventStream — envelope filter", () => {
     expect(received).toEqual([{ type: "app:event", properties: {} }])
     unsubscribe()
   })
+
+  it("fires onReady for the notification stream's actual ready envelope", () => {
+    // The server announces readiness as `openchamber:notification-stream-ready`; the facade's
+    // original `openchamber:event-stream-ready` name never matched anything it sends.
+    let readyCount = 0
+    const unsubscribe = subscribeEventStream({
+      url: URL,
+      onEnvelope: () => {},
+      onReady: () => {
+        readyCount += 1
+      },
+    })
+
+    const source = FakeEventSource.instances[0]
+    source.emitOpen()
+    source.emitMessage(JSON.stringify({ type: "openchamber:notification-stream-ready" }))
+
+    expect(readyCount).toBe(1)
+    unsubscribe()
+  })
 })
 
 describe("subscribeEventStream — ready resets the attempt counter", () => {
@@ -121,17 +141,20 @@ describe("subscribeEventStream — ready resets the attempt counter", () => {
     await vi.advanceTimersByTimeAsync(100) // failure 2 → 100ms
     expect(connectAt).toHaveLength(3)
 
-    // Successful connection: ready envelope resets the attempt counter.
+    // Successful connection that stays up past the healthy window: the failure count resets
+    // when it ends (an ack alone no longer does — a crash-looping upstream acks and dies).
     FakeEventSource.instances[2].emitOpen()
     FakeEventSource.instances[2].emitMessage(JSON.stringify({ type: "openchamber:event-stream-ready" }))
     await flush()
+    await vi.advanceTimersByTimeAsync(5_000) // past the healthy-uptime window
     FakeEventSource.instances[2].emitError()
+    const erroredAt = Date.now()
     await vi.advanceTimersByTimeAsync(50) // back to base, not 200ms
     expect(connectAt).toHaveLength(4)
 
     expect(connectAt[1] - connectAt[0]).toBe(50)
     expect(connectAt[2] - connectAt[1]).toBe(100)
-    expect(connectAt[3] - connectAt[2]).toBe(50)
+    expect(connectAt[3] - erroredAt).toBe(50)
     unsubscribe()
   })
 })
