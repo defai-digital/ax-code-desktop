@@ -170,6 +170,18 @@ const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFile
     path: path.posix,
     fsPromises: {
       realpath: async (targetPath) => targetPath,
+      // Adapt the existing byte/stat fixtures to the descriptor-based read API.
+      open: async (filename) => ({
+        stat: async () => {
+          const stats = await fsPromises.stat(filename)
+          return {
+            ...stats,
+            isFile: () => (typeof stats.isFile === "function" ? stats.isFile() : !stats.isDirectory()),
+          }
+        },
+        readFile: () => fsPromises.readFile(filename),
+        close: async () => {},
+      }),
       ...fsPromises,
     },
     spawn,
@@ -354,12 +366,13 @@ describe("fs outside workspace authorization", () => {
   })
 
   it("allows outside-workspace reads inside an approved directory", async () => {
-    const fsPromises = {
-      stat: vi.fn(async () => ({ isDirectory: () => false })),
+    const file = {
+      stat: vi.fn(async () => ({ isFile: () => true })),
       readFile: vi.fn(async () => Buffer.from("approved")),
-      open: vi.fn(async () => {
-        throw new Error("must not open")
-      }),
+      close: vi.fn(async () => {}),
+    }
+    const fsPromises = {
+      open: vi.fn(async () => file),
     }
     const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] })
 
@@ -369,17 +382,19 @@ describe("fs outside workspace authorization", () => {
 
     expect(res.statusCode).toBe(200)
     expect(res.sent).toBe("approved")
-    expect(fsPromises.open).not.toHaveBeenCalled()
+    expect(fsPromises.open).toHaveBeenCalledWith("/tmp/approved/file.txt", expect.any(Number))
+    expect(file.close).toHaveBeenCalledOnce()
   })
 
   it("allows raw outside-workspace reads inside an approved directory", async () => {
     const content = Buffer.from("approved image")
-    const fsPromises = {
-      stat: vi.fn(async () => ({ isDirectory: () => false })),
+    const file = {
+      stat: vi.fn(async () => ({ isFile: () => true })),
       readFile: vi.fn(async () => content),
-      open: vi.fn(async () => {
-        throw new Error("must not open")
-      }),
+      close: vi.fn(async () => {}),
+    }
+    const fsPromises = {
+      open: vi.fn(async () => file),
     }
     const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] })
 
@@ -390,7 +405,8 @@ describe("fs outside workspace authorization", () => {
     expect(res.statusCode).toBe(200)
     expect(res.contentType).toBe("image/png")
     expect(res.sent).toEqual(content)
-    expect(fsPromises.open).not.toHaveBeenCalled()
+    expect(fsPromises.open).toHaveBeenCalledWith("/tmp/approved/image.png", expect.any(Number))
+    expect(file.close).toHaveBeenCalledOnce()
   })
 
   it("rejects directory listing through a workspace symlink that resolves outside the workspace", async () => {

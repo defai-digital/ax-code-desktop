@@ -1,3 +1,4 @@
+import { constants as fsConstants } from "node:fs"
 import { createRealpathCache } from "../path-realpath-cache.js"
 import { mapCoreFileNodesToDirectoryList } from "./core-file-adapter.js"
 
@@ -13,6 +14,24 @@ const decodeUtf8TextFile = (buffer) => {
     return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
   } catch {
     return null
+  }
+}
+
+const readRegularFileBytes = async (fsPromises, filename) => {
+  // Inspect and read the same descriptor. Path-based stat followed by readFile
+  // could read a replacement file. POSIX also refuses a substituted leaf symlink.
+  const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0)
+  const file = await fsPromises.open(filename, flags)
+  try {
+    const stats = await file.stat()
+    if (!stats.isFile()) {
+      throw Object.assign(new Error("Specified path is not a file"), {
+        code: stats.isDirectory() ? "EISDIR" : "EINVAL",
+      })
+    }
+    return await file.readFile()
+  } finally {
+    await file.close()
   }
 }
 
@@ -1052,18 +1071,10 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(403).json({ error: "Access to file denied" })
       }
 
-      // A directory read comes back from the core as a generic server fault (its
-      // envelope carries no errno), so it is classified here: the Files view turns
-      // this wording into a directory listing instead of a read failure.
-      const stats = await fsPromises.stat(canonicalPath).catch(() => null)
-      if (stats?.isDirectory()) {
-        return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
-      }
-
       // Read the validated canonical path instead of the core's text payload:
       // that payload decodes unrecognised binaries lossily, and the editor
       // saved the replacement characters back over the original bytes.
-      const buffer = await fsPromises.readFile(canonicalPath)
+      const buffer = await readRegularFileBytes(fsPromises, canonicalPath)
       const content = decodeUtf8TextFile(buffer)
       if (content === null) {
         return res.status(400).json({ error: "Specified path is not a text file" })
@@ -1072,17 +1083,12 @@ export const registerFsRoutes = (app, dependencies) => {
     } catch (error) {
       const err = error
       if (err && typeof err === "object" && err.code === "EISDIR" && canonicalPath) {
-        // The core reports a directory and a binary file alike, so tell the two apart here: the
-        // Files view turns a directory message into a listing, and would otherwise mis-handle a
-        // binary file the same way.
-        const isDirectory = await fsPromises
-          .stat(canonicalPath)
-          .then((entry) => entry.isDirectory())
-          .catch(() => false)
-        if (isDirectory) {
-          return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
-        }
-        return res.status(400).json({ error: err.message || "Path is not a text file" })
+        // The descriptor check distinguishes a directory from binary text. The
+        // Files view uses this wording to fall back to a directory listing.
+        return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
+      }
+      if (err && typeof err === "object" && err.code === "EINVAL") {
+        return res.status(400).json({ error: "Specified path is not a file" })
       }
       if (err && typeof err === "object" && err.code === "ENOENT") {
         if (optional) {
@@ -1090,7 +1096,7 @@ export const registerFsRoutes = (app, dependencies) => {
         }
         return res.status(404).json({ error: "File not found" })
       }
-      if (err && typeof err === "object" && err.code === "EACCES") {
+      if (err && typeof err === "object" && (err.code === "EACCES" || err.code === "ELOOP")) {
         return res.status(403).json({ error: "Access to file denied" })
       }
       console.error("Failed to read file:", error)
@@ -1128,13 +1134,6 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(403).json({ error: "Access to file denied" })
       }
 
-      // The core answers a directory read with a generic fault, so the route
-      // states what the caller asked for (as /api/fs/stat already does).
-      const stats = await fsPromises.stat(canonicalPath).catch(() => null)
-      if (stats?.isDirectory()) {
-        return res.status(400).json({ error: "Specified path is not a file" })
-      }
-
       const ext = path.extname(canonicalPath).toLowerCase()
       const mimeMap = {
         ".png": "image/png",
@@ -1164,7 +1163,7 @@ export const registerFsRoutes = (app, dependencies) => {
       // read returns an empty body for extensions it classifies as binary and
       // lossily re-encodes the rest, so a PDF failed the download and a .dat
       // was saved corrupted.
-      const buffer = await fsPromises.readFile(canonicalPath)
+      const buffer = await readRegularFileBytes(fsPromises, canonicalPath)
       if (download) {
         const fileName = path.basename(canonicalPath)
         // Header values only accept code points up to 0xFF: interpolating the raw
@@ -1187,13 +1186,13 @@ export const registerFsRoutes = (app, dependencies) => {
       return res.type(mimeType).send(buffer)
     } catch (error) {
       const err = error
-      if (err && typeof err === "object" && err.code === "EISDIR") {
+      if (err && typeof err === "object" && (err.code === "EISDIR" || err.code === "EINVAL")) {
         return res.status(400).json({ error: err.message || "Path is not a file" })
       }
       if (err && typeof err === "object" && err.code === "ENOENT") {
         return res.status(404).json({ error: "File not found" })
       }
-      if (err && typeof err === "object" && err.code === "EACCES") {
+      if (err && typeof err === "object" && (err.code === "EACCES" || err.code === "ELOOP")) {
         return res.status(403).json({ error: "Access to file denied" })
       }
       console.error("Failed to read raw file:", error)
