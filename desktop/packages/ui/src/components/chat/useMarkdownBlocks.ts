@@ -11,6 +11,7 @@ export const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: st
   const owner = React.useMemo(() => ({}), [])
   const revisionRef = React.useRef(0)
   const [result, setResult] = React.useState<WorkerResult | null>(null)
+  const [capacityRevision, setCapacityRevision] = React.useState(0)
   const useWorker = text.length >= LARGE_MARKDOWN_THRESHOLD
   const currentRef = React.useRef({ baseKey, text, live, useWorker, mounted: false })
   currentRef.current = { baseKey, text, live, useWorker, mounted: currentRef.current.mounted }
@@ -30,7 +31,7 @@ export const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: st
       return
     }
     const revision = ++revisionRef.current
-    markdownWorkerClient.request(owner, { text, live, baseKey }, (blocks) => {
+    const admission = markdownWorkerClient.request(owner, { text, live, baseKey }, (blocks) => {
       const current = currentRef.current
       if (
         !current.mounted ||
@@ -69,7 +70,12 @@ export const useStableMarkdownBlocks = (text: string, live: boolean, baseKey: st
         }
       })
     })
-  }, [baseKey, live, owner, text, useWorker])
+    if (admission === "deferred") {
+      // Keep the source only in this mounted hook. A queue slot or a recovery
+      // probe becoming available retries even an unchanged completed message.
+      return markdownWorkerClient.subscribeCapacity(() => setCapacityRevision((revision) => revision + 1))
+    }
+  }, [baseKey, live, owner, text, useWorker, capacityRevision])
 
   return React.useMemo(() => {
     let nextBlocks: ParsedMarkdownBlock[]

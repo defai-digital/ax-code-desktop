@@ -1,0 +1,102 @@
+{
+  "integrationBase": "f0025707de744e78fc15248e4f33315427c15a40",
+  "commands": {
+    "pnpm run test": "passed",
+    "pnpm run typecheck": "passed",
+    "pnpm run lint": "passed",
+    "pnpm run build": "passed",
+    "pnpm run check:boundaries": "passed (includes release contract)",
+    "pnpm run bench:sync-hotpath": "passed (assertions and diagnostic CPU samples)"
+  },
+  "tests": {
+    "root": {
+      "passed": 195,
+      "skipped": 7
+    },
+    "electron": {
+      "passed": 639,
+      "skipped": 1
+    },
+    "ui": {
+      "passed": 3197,
+      "skipped": 0
+    },
+    "web": {
+      "passed": 1426,
+      "skipped": 2
+    },
+    "totalPassed": 5457,
+    "totalSkipped": 10
+  },
+  "sourceFilesSha256": {
+    "desktop/packages/ui/src/components/chat/MessageList-impl.tsx": "5512a9869c2c36635f35a9014b1c9e26969e543e57140ccc1bf9ac73006349d5",
+    "desktop/packages/ui/src/components/chat/lib/turns/projectDisplayMessages.test.ts": "3fa1f3f94392d6e0c8f92a5471072dbb3e269abc5e7c92c52d4703df5eb2a88b",
+    "desktop/packages/ui/src/components/chat/lib/turns/projectDisplayMessages.ts": "e84e04ae0bb6fae40866a397e8c347523cdff844e31183f457fb605ac5d59f4d",
+    "desktop/packages/ui/src/components/chat/lib/turns/projectTurnRecords.test.ts": "0c0a31ceafaf1cb5332c5b05ab956e703cc14022c90ce004f732253d1bfd7ff5",
+    "desktop/packages/ui/src/components/chat/lib/turns/projectTurnRecords.ts": "7ddf3695ae49265fec755da862512a61b0cce2040cba138f478381409a0499cf",
+    "desktop/packages/ui/src/components/chat/markdownParser.worker.ts": "f1791f94ca5ed0d8cf0a2bb27574f895796cc0ecea63bb4eaf8e3a24e0142d0b",
+    "desktop/packages/ui/src/components/chat/markdownWorkerClient.test.ts": "8f2039527e95f571a1a1be11ef4b88efaf5948b4ffa8e483b3b282ea3e17f8a7",
+    "desktop/packages/ui/src/components/chat/markdownWorkerClient.ts": "72daec4197f485f661fbb7668398bd1238a85748315f98520e80655bc8eda22b",
+    "desktop/packages/ui/src/components/chat/markdownWorkerParser.test.ts": "7fc195157108afe116477aaa62f6011d9076753308872e643c336f0f9f3fdf26",
+    "desktop/packages/ui/src/components/chat/markdownWorkerParser.ts": "782edb54656edf34baa452de1760259a1944d61d083003c3a27b45200a17c954",
+    "desktop/packages/ui/src/components/chat/markdownWorkerProtocol.ts": "906e6414ce91ef9cad487426d3ad3eca6a3995979264dd83309245f4f330d15c",
+    "desktop/packages/ui/src/components/chat/useMarkdownBlocks.test.tsx": "d56165dde40ae244c8a622f81d7f1d6bb4b2e2624dde0e8ef6a12f69e3506929",
+    "desktop/packages/ui/src/components/chat/useMarkdownBlocks.ts": "e6116a56c457f27c6b451f335b657c5b6ada74cf1cf71fe53b0365a3cade59b3",
+    "desktop/packages/ui/src/sync/__tests__/event-pipeline-ordering.test.ts": "3651fb2cb8364e4c0c183a698dfe7ee800f7cf3cefbab4bff30631094c115f46",
+    "desktop/packages/ui/src/sync/__tests__/event-pipeline-scheduling.test.ts": "9f1aa2197189e3a4c177fee8738dfccace0db896d3dabb4a2edce289558093c9",
+    "desktop/packages/ui/src/sync/__tests__/session-materialization-queue.test.ts": "97cc134d9910ce74ec65ac678bb5d752d14d70fc8b896d8dc1c8bb0eb66e410b",
+    "desktop/packages/ui/src/sync/__tests__/streaming-hotpath.bench.ts": "a59f6357a1460227aa4091c4784a431d2cd263018afed31fc6d336cbb31381e1",
+    "desktop/packages/ui/src/sync/event-pipeline.ts": "129b3b413e3e536737c3ca22414a1bdeb643fd3956e2d96b6dee71480c466e00",
+    "desktop/packages/ui/src/sync/session-materialization-queue.ts": "9a48eee1e98046752ddfb4dd45efac47cea35a8605fe4f99f130a5a515bfc4ed"
+  },
+  "qualifications": [
+    "Independent worktree uses the frozen lockfile.",
+    "Native renderer smoke precedes final teardown and batch-drain follow-ups; it is not signed packaging, upgrade, rollback, or full-runtime qualification.",
+    "No completed final external implementation sign-off; see review receipts."
+  ],
+  "benchmarkCases": [
+    {
+      "cachedMessages": 200,
+      "deltasPerBatch": 20,
+      "sequentialMs": 0.026825000000000897,
+      "batchedMs": 0.010327050000000781,
+      "speedup": 2.5975472182277484
+    },
+    {
+      "cachedMessages": 2000,
+      "deltasPerBatch": 20,
+      "sequentialMs": 0.04317709999999977,
+      "batchedMs": 0.016868750000000432,
+      "speedup": 2.5595909596145927
+    },
+    {
+      "cachedMessages": 8000,
+      "deltasPerBatch": 20,
+      "sequentialMs": 0.11809374999999989,
+      "batchedMs": 0.05492294999999956,
+      "speedup": 2.1501712854098485
+    },
+    {
+      "turns": 500,
+      "fullMs": 0.7643208200000003,
+      "incrementalMs": 0.021701660000001084,
+      "speedup": 35.219463395885946
+    },
+    {
+      "case": "display-normalization",
+      "turns": 500,
+      "fullMs": 0.07143333999999868,
+      "incrementalMs": 0.00845583999999917
+    },
+    {
+      "case": "markdown-response-clone-proxy",
+      "characters": 73500,
+      "fullBlocks": 3001,
+      "suffixBlocks": 2,
+      "fullJsonBytes": 2511889,
+      "suffixJsonBytes": 1741,
+      "fullCloneMs": 24.189166999999998,
+      "suffixCloneMs": 0.018749999999954525
+    }
+  ]
+}

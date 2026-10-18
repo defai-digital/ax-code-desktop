@@ -144,6 +144,86 @@ const stabilizeTurnRecords = (turns: TurnRecord[], previousProjection?: TurnProj
   return reusedAnyTurn ? nextTurns : turns
 }
 
+const deriveTurn = (turn: TurnRecord, showTextJustificationActivity: boolean): TurnRecord => {
+  turn.summary = projectTurnSummary(turn.assistantMessages)
+  turn.summaryText = turn.summary.text ?? getUserSummaryBody(turn.userMessage)
+  turn.diffStats = projectTurnDiffStats(turn.userMessage)
+  const activity = projectTurnActivity({
+    turnId: turn.turnId,
+    assistantMessages: turn.assistantMessages,
+    summarySourceMessageId: turn.summary.sourceMessageId,
+    summarySourcePartId: turn.summary.sourcePartId,
+    showTextJustificationActivity,
+  })
+  turn.activityParts = activity.activityParts
+  turn.activitySegments = activity.activitySegments
+  turn.hasTools = activity.hasTools
+  turn.hasReasoning = activity.hasReasoning
+  turn.stream = buildTurnStreamState(turn.userMessage, turn.assistantMessages)
+  turn.startedAt = turn.stream.startedAt
+  turn.completedAt = turn.stream.completedAt
+  turn.durationMs = turn.stream.durationMs
+  return turn
+}
+
+type ProjectionSource = {
+  messages: ChatMessageEntry[]
+  uniqueIds: boolean
+  turnPosition: Map<string, number>
+}
+const sourceByProjection = new WeakMap<TurnProjectionResult, ProjectionSource>()
+
+// Immutable content updates cannot change grouping or index metadata. Check
+// source identity and topology before allocating any replacement turn shells.
+// Inserts, removals, reorders, reparenting and duplicate IDs use the full path.
+const projectContentChanges = (
+  messages: ChatMessageEntry[],
+  previous: TurnProjectionResult,
+): TurnProjectionResult | null => {
+  const source = sourceByProjection.get(previous)
+  if (!source?.uniqueIds || source.messages.length !== messages.length) return null
+  const changedTurns = new Set<string>()
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index]
+    const old = source.messages[index]
+    if (message === old) continue
+    if (
+      message.info.id !== old.info.id ||
+      resolveMessageRole(message) !== resolveMessageRole(old) ||
+      getMessageParentId(message) !== getMessageParentId(old)
+    )
+      return null
+    const turnId = previous.indexes.messageToTurnId.get(message.info.id)
+    if (turnId) changedTurns.add(turnId)
+  }
+  if (changedTurns.size === 0) {
+    sourceByProjection.set(previous, { ...source, messages })
+    return previous
+  }
+  const turns = previous.turns.slice()
+  const turnById = new Map(previous.indexes.turnById)
+  for (const turnId of changedTurns) {
+    const old = turnById.get(turnId)!
+    const records = old.messages.map((record) =>
+      record.message === messages[record.order] ? record : { ...record, message: messages[record.order] },
+    )
+    const turn = deriveTurn(
+      {
+        ...old,
+        messages: records,
+        userMessage: records[0].message,
+        assistantMessages: records.slice(1).map((record) => record.message),
+      },
+      previous.showTextJustificationActivity ?? false,
+    )
+    turns[source.turnPosition.get(turnId)!] = turn
+    turnById.set(turnId, turn)
+  }
+  const result = { ...previous, turns, indexes: { ...previous.indexes, turnById } }
+  sourceByProjection.set(result, { ...source, messages })
+  return result
+}
+
 export const projectTurnRecords = (
   messages: ChatMessageEntry[],
   options?: Partial<ProjectTurnRecordsOptions>,
@@ -151,6 +231,16 @@ export const projectTurnRecords = (
   const effectiveOptions: ProjectTurnRecordsOptions = {
     ...DEFAULT_OPTIONS,
     ...options,
+  }
+
+  const previousProjection =
+    effectiveOptions.previousProjection?.showTextJustificationActivity ===
+    effectiveOptions.showTextJustificationActivity
+      ? effectiveOptions.previousProjection
+      : null
+  if (previousProjection) {
+    const incremental = projectContentChanges(messages, previousProjection)
+    if (incremental) return incremental
   }
 
   const turns: TurnRecord[] = []
@@ -210,37 +300,13 @@ export const projectTurnRecords = (
     groupedMessageIds.add(message.info.id)
   })
 
-  const previousProjection =
-    effectiveOptions.previousProjection?.showTextJustificationActivity ===
-    effectiveOptions.showTextJustificationActivity
-      ? effectiveOptions.previousProjection
-      : null
   turns.forEach((turn, index) => {
     const previousTurn = previousProjection?.indexes.turnById.get(turn.turnId)
     if (previousTurn && canReusePreviousTurn(previousTurn, turn)) {
       turns[index] = previousTurn
       return
     }
-    turn.summary = projectTurnSummary(turn.assistantMessages)
-    turn.summaryText = turn.summary.text ?? getUserSummaryBody(turn.userMessage)
-    turn.diffStats = projectTurnDiffStats(turn.userMessage)
-
-    const activity = projectTurnActivity({
-      turnId: turn.turnId,
-      assistantMessages: turn.assistantMessages,
-      summarySourceMessageId: turn.summary.sourceMessageId,
-      summarySourcePartId: turn.summary.sourcePartId,
-      showTextJustificationActivity: effectiveOptions.showTextJustificationActivity,
-    })
-    turn.activityParts = activity.activityParts
-    turn.activitySegments = activity.activitySegments
-    turn.hasTools = activity.hasTools
-    turn.hasReasoning = activity.hasReasoning
-
-    turn.stream = buildTurnStreamState(turn.userMessage, turn.assistantMessages)
-    turn.startedAt = turn.stream.startedAt
-    turn.completedAt = turn.stream.completedAt
-    turn.durationMs = turn.stream.durationMs
+    deriveTurn(turn, effectiveOptions.showTextJustificationActivity)
   })
 
   const stableTurns = stabilizeTurnRecords(turns, previousProjection)
@@ -255,9 +321,15 @@ export const projectTurnRecords = (
     }
   })
 
-  return {
+  const result = {
     ...projection,
     showTextJustificationActivity: effectiveOptions.showTextJustificationActivity,
     ungroupedMessageIds,
   }
+  sourceByProjection.set(result, {
+    messages,
+    uniqueIds: new Set(messages.map((message) => message.info.id)).size === messages.length,
+    turnPosition: new Map(stableTurns.map((turn, index) => [turn.turnId, index])),
+  })
+  return result
 }

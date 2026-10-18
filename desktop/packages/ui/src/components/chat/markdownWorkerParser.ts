@@ -4,7 +4,7 @@ import remarkGfm from "remark-gfm"
 import remarkMath from "remark-math"
 import type { Root } from "mdast"
 import { buildFullMarkdownBlock, buildLiveMarkdownBlocks, type LiveMarkdownLexCache } from "./markdownStreamBlocks"
-import type { MarkdownParseRequest, ParsedMarkdownBlock } from "./markdownWorkerProtocol"
+import type { MarkdownParseRequest, MarkdownParseResponse, ParsedMarkdownBlock } from "./markdownWorkerProtocol"
 
 const parser = unified().use(remarkParse).use(remarkGfm).use(remarkMath)
 
@@ -51,3 +51,38 @@ export const createMarkdownWorkerParser = (parse = parseSyntax) => {
 // Stateless entry point for parity checks and standalone parsing.
 export const parseMarkdownInWorker = (request: MarkdownParseRequest): ParsedMarkdownBlock[] =>
   createMarkdownWorkerParser()(request)
+
+/** Omit unchanged blocks the receiver explicitly acknowledged; send the changed suffix. */
+export const createMarkdownWorkerResponder = () => {
+  const parse = createMarkdownWorkerParser()
+  let previous: { request: MarkdownParseRequest; blocks: ParsedMarkdownBlock[] } | null = null
+  return (request: MarkdownParseRequest): MarkdownParseResponse => {
+    const blocks = parse(request)
+    let stablePrefixCount = 0
+    if (
+      request.live &&
+      previous &&
+      request.ownerId !== undefined &&
+      request.ownerId === previous.request.ownerId &&
+      request.baseKey === previous.request.baseKey &&
+      request.baseRevision === previous.request.id
+    ) {
+      // The parser reuses references only for semantically stable blocks. A
+      // reference definition, rewrite, or final parse invalidates that reuse.
+      while (
+        stablePrefixCount < blocks.length &&
+        blocks[stablePrefixCount].mode === "full" &&
+        blocks[stablePrefixCount] === previous.blocks[stablePrefixCount]
+      )
+        stablePrefixCount++
+    }
+    const response: MarkdownParseResponse = {
+      id: request.id,
+      blocks: stablePrefixCount ? blocks.slice(stablePrefixCount) : blocks,
+      ...(stablePrefixCount ? { stablePrefixCount, baseRevision: previous!.request.id } : {}),
+    }
+    // One bounded response, shared with the parser, never a transcript cache.
+    previous = request.live ? { request, blocks } : null
+    return response
+  }
+}

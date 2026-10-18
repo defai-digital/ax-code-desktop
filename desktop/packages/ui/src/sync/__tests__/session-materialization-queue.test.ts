@@ -25,6 +25,15 @@ describe("createMaterializationQueue", () => {
     expect(queue.isCurrent(second)).toBe(true)
   })
 
+  test("retains the cooldown after a fast request completes", () => {
+    const queue = createMaterializationQueue()
+    const claim = queue.begin(KEY, 0)
+    queue.finish(claim)
+    expect(queue.isCurrent(claim)).toBe(false)
+    expect(queue.shouldEnqueue(KEY, 100, COOLDOWN)).toBe(false)
+    expect(queue.shouldEnqueue(KEY, COOLDOWN, COOLDOWN)).toBe(true)
+  })
+
   test("a replaced request leaves the newer one's registration alone", () => {
     const queue = createMaterializationQueue()
     const first = queue.begin(KEY, 0)
@@ -36,7 +45,8 @@ describe("createMaterializationQueue", () => {
     expect(queue.isCurrent(second)).toBe(true)
 
     queue.finish(second)
-    expect(queue.shouldEnqueue(KEY, COOLDOWN * 2, COOLDOWN)).toBe(true)
+    expect(queue.shouldEnqueue(KEY, COOLDOWN * 2, COOLDOWN)).toBe(false)
+    expect(queue.shouldEnqueue(KEY, COOLDOWN * 2 + 1, COOLDOWN)).toBe(true)
     expect(queue.isCurrent(second)).toBe(false)
   })
 })

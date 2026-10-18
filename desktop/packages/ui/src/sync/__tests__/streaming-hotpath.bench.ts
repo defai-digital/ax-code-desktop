@@ -9,6 +9,11 @@ import { applyPartDeltaBatch } from "../part-delta-batch"
 import { PartMap } from "../part-map"
 import { INITIAL_STATE, type State } from "../types"
 import { projectTurnRecords } from "../../components/chat/lib/turns/projectTurnRecords"
+import {
+  createDisplayMessageProjector,
+  projectDisplayMessages,
+} from "../../components/chat/lib/turns/projectDisplayMessages"
+import { createMarkdownWorkerResponder } from "../../components/chat/markdownWorkerParser"
 import type { ChatMessageEntry } from "../../components/chat/lib/turns/types"
 
 const median = (values: number[]) => values.sort((a, b) => a - b)[Math.floor(values.length / 2)]
@@ -100,3 +105,66 @@ const measureProjection = (reuse: boolean) => {
 const fullMs = measureProjection(false)
 const incrementalMs = measureProjection(true)
 console.log(JSON.stringify({ turns: 500, fullMs, incrementalMs, speedup: fullMs / incrementalMs }))
+
+// Preserve actual changing source identities across frames, as the session store
+// does. A same-array repeat would only measure a memo hit.
+const updates = Array.from({ length: 50 }, (_, index) => [
+  ...messages.slice(0, -1),
+  { ...tail, parts: [...tail.parts, { id: "new", type: "text", text: "x".repeat(index + 1) } as Part] },
+])
+const measureDisplay = (incremental: boolean) => {
+  const samples: number[] = []
+  for (let run = 0; run < 6; run++) {
+    const project = incremental ? createDisplayMessageProjector() : projectDisplayMessages
+    let result = project(messages)
+    const started = performance.now()
+    for (const update of updates) result = project(update)
+    if (run > 0) samples.push((performance.now() - started) / updates.length)
+    assert.deepEqual(result, projectDisplayMessages(updates[updates.length - 1]))
+  }
+  return median(samples)
+}
+console.log(
+  JSON.stringify({
+    case: "display-normalization",
+    turns: 500,
+    fullMs: measureDisplay(false),
+    incrementalMs: measureDisplay(true),
+  }),
+)
+
+// Node structuredClone is a transfer-cost proxy, not an Electron IPC timing.
+const respond = createMarkdownWorkerResponder()
+const markdown = "## Result\n\nSome **formatted** text with `code`.\n\n".repeat(1500)
+const first = respond({ id: 1, ownerId: 1, text: markdown, baseKey: "benchmark", live: true })
+const suffix = respond({
+  id: 2,
+  ownerId: 1,
+  baseRevision: 1,
+  text: markdown + "Next paragraph",
+  baseKey: "benchmark",
+  live: true,
+})
+assert.ok(suffix.stablePrefixCount && suffix.blocks && first.blocks)
+const complete = [...first.blocks.slice(0, suffix.stablePrefixCount), ...suffix.blocks]
+const measureClone = (value: unknown) => {
+  const samples: number[] = []
+  for (let run = 0; run < 6; run++) {
+    const started = performance.now()
+    structuredClone(value)
+    if (run > 0) samples.push(performance.now() - started)
+  }
+  return median(samples)
+}
+console.log(
+  JSON.stringify({
+    case: "markdown-response-clone-proxy",
+    characters: markdown.length,
+    fullBlocks: complete.length,
+    suffixBlocks: suffix.blocks.length,
+    fullJsonBytes: Buffer.byteLength(JSON.stringify(complete)),
+    suffixJsonBytes: Buffer.byteLength(JSON.stringify(suffix)),
+    fullCloneMs: measureClone(complete),
+    suffixCloneMs: measureClone(suffix),
+  }),
+)

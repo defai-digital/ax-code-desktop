@@ -105,6 +105,9 @@ describe("projectTurnRecords", () => {
 
     expect(next.turns[0]).toBe(initial.turns[0])
     expect(next.turns[1]).not.toBe(initial.turns[1])
+    expect(next.indexes.messageToTurnId).toBe(initial.indexes.messageToTurnId)
+    expect(next.indexes.messageMetaById).toBe(initial.indexes.messageMetaById)
+    expect(next.lastTurnMessageIds).toBe(initial.lastTurnMessageIds)
   })
 
   test("reuses the whole turns array when every turn is unchanged", () => {
@@ -122,6 +125,49 @@ describe("projectTurnRecords", () => {
 })
 
 describe("incremental turn derivation", () => {
+  test("matches full projection across content updates and structural invalidations", () => {
+    const user1 = createMessageEntry({ id: "u1", role: "user", createdAt: 1 })
+    const reply1 = createMessageEntry({ id: "a1", role: "assistant", parentID: "u1", createdAt: 2 })
+    const user2 = createMessageEntry({ id: "u2", role: "user", createdAt: 3 })
+    const reply2 = createMessageEntry({ id: "a2", role: "assistant", parentID: "u2", createdAt: 4 })
+    const system = createMessageEntry({ id: "s", role: "system", createdAt: 0 })
+    const content = (message: ChatMessageEntry, text: string): ChatMessageEntry => ({
+      ...message,
+      parts: [{ id: "text", type: "text", text } as Part],
+    })
+    const sequences: ChatMessageEntry[][] = [
+      [user1, reply1, user2, reply2],
+      [content(user1, "updated user"), content(reply1, "old turn"), user2, content(reply2, "stream")],
+      [user1, reply2, reply1, user2], // Out-of-order but still parented.
+      [system, user1, reply1, user2, reply2], // Prepend.
+      [system, user1, reply1, user2], // Delete.
+      [system, user1, reply1, user2, reply2, reply2], // Duplicate ID.
+      [system, user1, reply1, user2, reply2, content(reply2, "duplicate update")],
+      [user1, reply1, user2, { ...reply2, info: { ...reply2.info, parentID: "u1" } as Message }],
+      [user1, reply1, user2, { ...reply2, info: { ...reply2.info, clientRole: "system" } as unknown as Message }],
+      [user1, reply1, user2, reply2],
+    ]
+    let previous = projectTurnRecords([])
+    for (const messages of sequences) {
+      const before = structuredClone(previous)
+      const next = projectTurnRecords(messages, { previousProjection: previous })
+      expect(next).toEqual(projectTurnRecords(messages))
+      expect(previous).toEqual(before)
+      previous = next
+    }
+  })
+
+  test("ignores orphan content updates without invalidating grouping indexes", () => {
+    const orphan = createMessageEntry({ id: "a", role: "assistant", parentID: "missing", createdAt: 1 })
+    const before = projectTurnRecords([orphan])
+    const updated = { ...orphan, parts: [{ type: "text", text: "orphan update" } as Part] }
+    expect(projectTurnRecords([updated], { previousProjection: before })).toBe(before)
+    const parent = createMessageEntry({ id: "missing", role: "user", createdAt: 0 })
+    expect(projectTurnRecords([parent, updated], { previousProjection: before })).toEqual(
+      projectTurnRecords([parent, updated]),
+    )
+  })
+
   test("derives only the changed turn and invalidates reuse when display policy changes", () => {
     const user1 = createMessageEntry({ id: "u1", role: "user", createdAt: 1 })
     const reply1 = createMessageEntry({ id: "a1", role: "assistant", parentID: "u1", createdAt: 2 })

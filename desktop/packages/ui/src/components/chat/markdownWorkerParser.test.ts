@@ -1,5 +1,9 @@
 import { describe, expect, test, vi } from "vitest"
-import { createMarkdownWorkerParser, parseMarkdownInWorker } from "./markdownWorkerParser"
+import {
+  createMarkdownWorkerParser,
+  createMarkdownWorkerResponder,
+  parseMarkdownInWorker,
+} from "./markdownWorkerParser"
 import type { MarkdownParseRequest } from "./markdownWorkerProtocol"
 
 const request = (text: string, overrides: Partial<MarkdownParseRequest> = {}): MarkdownParseRequest => ({
@@ -8,6 +12,42 @@ const request = (text: string, overrides: Partial<MarkdownParseRequest> = {}): M
   live: true,
   baseKey: "test",
   ...overrides,
+})
+
+describe("worker response transfer", () => {
+  test("sends only the changed suffix against an acknowledged live revision", () => {
+    const respond = createMarkdownWorkerResponder()
+    const first = respond(request("# Heading\n\nStable **body**\n\nTail", { id: 1, ownerId: 1 }))
+    const input = request("# Heading\n\nStable **body**\n\nTail grows", { id: 2, ownerId: 1, baseRevision: 1 })
+    const next = respond(input)
+    expect(next.stablePrefixCount).toBe(2)
+    expect(next.blocks).toHaveLength(1)
+    expect([...first.blocks!.slice(0, next.stablePrefixCount), ...next.blocks!]).toEqual(parseMarkdownInWorker(input))
+  })
+
+  test.each([
+    { id: 2, ownerId: 2, baseRevision: 1 },
+    { id: 2, ownerId: 1, baseRevision: 0 },
+    { id: 2, ownerId: 1, baseRevision: 1, live: false },
+  ])("sends a full response for owner, revision, and finalization changes", (overrides) => {
+    const respond = createMarkdownWorkerResponder()
+    const text = "# Heading\n\nStable body\n\nTail"
+    respond(request(text, { id: 1, ownerId: 1 }))
+    const input = request(text + " grows", overrides)
+    const next = respond(input)
+    expect(next.stablePrefixCount ?? 0).toBe(0)
+    expect(next.blocks).toEqual(parseMarkdownInWorker(input))
+  })
+
+  test("a late reference definition invalidates the completed prefix", () => {
+    const respond = createMarkdownWorkerResponder()
+    const text = "# Heading\n\n[reference] text\n\nTail\n\n"
+    respond(request(text, { id: 1, ownerId: 1 }))
+    const input = request(text + "[reference]: https://example.com", { id: 2, ownerId: 1, baseRevision: 1 })
+    const next = respond(input)
+    expect(next.stablePrefixCount ?? 0).toBe(0)
+    expect(next.blocks).toEqual(parseMarkdownInWorker(input))
+  })
 })
 
 describe("Incremental worker Markdown parsing", () => {

@@ -1,11 +1,15 @@
-import { createMarkdownWorkerParser } from "./markdownWorkerParser"
-import { MAX_WORKER_MARKDOWN_CHARACTERS, type MarkdownParseRequest } from "./markdownWorkerProtocol"
+import { createMarkdownWorkerResponder } from "./markdownWorkerParser"
+import {
+  MAX_WORKER_MARKDOWN_CHARACTERS,
+  type MarkdownParseRequest,
+  type MarkdownParseResponse,
+} from "./markdownWorkerProtocol"
 
-const parseMarkdownInWorker = createMarkdownWorkerParser()
+const parseMarkdownInWorker = createMarkdownWorkerResponder()
 
 const scope = self as unknown as {
   onmessage: ((event: MessageEvent<MarkdownParseRequest>) => void) | null
-  postMessage: (response: { id: number; blocks: ReturnType<typeof parseMarkdownInWorker> | null }) => void
+  postMessage: (response: MarkdownParseResponse) => void
 }
 
 // Dedicated-worker messages arrive on an implicit MessagePort. The HTML
@@ -14,7 +18,7 @@ const scope = self as unknown as {
 scope.onmessage = ({ data }) => {
   try {
     if (data.text.length > MAX_WORKER_MARKDOWN_CHARACTERS) throw new Error("Markdown exceeds worker limit")
-    scope.postMessage({ id: data.id, blocks: parseMarkdownInWorker(data) })
+    scope.postMessage(parseMarkdownInWorker(data))
   } catch {
     scope.postMessage({ id: data.id, blocks: null })
   }

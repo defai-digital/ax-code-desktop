@@ -1,0 +1,117 @@
+{
+  "baselineCommit": "0ab190dab446b6c150b2a171a6f6e382f9960559",
+  "integrationBase": "f0025707de744e78fc15248e4f33315427c15a40",
+  "node": "v26.12.0",
+  "pnpm": "10.33.4",
+  "platform": "darwin-arm64",
+  "limitations": [
+    "Synthetic Node CPU timings, not production latency or FPS.",
+    "Host was shared with unrelated builds and tests.",
+    "Snapshot callback only collects events; transport is mocked.",
+    "Node structuredClone and JSON byte counts are worker-transfer proxies, not Electron IPC measurements."
+  ],
+  "snapshotReplay": {
+    "baseline": [
+      {
+        "case": "snapshot-ingestion",
+        "count": 500,
+        "medianMs": 6.361666000000014,
+        "samples": [4.688750000000027, 6.361666000000014, 6.604790999999977]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 1000,
+        "medianMs": 24.552749999999946,
+        "samples": [14.802124999999933, 24.552749999999946, 25.362082999999984]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 2000,
+        "medianMs": 164.953084,
+        "samples": [135.25025000000005, 164.953084, 182.06204100000002]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 4000,
+        "medianMs": 468.10445900000013,
+        "samples": [449.97691599999985, 468.10445900000013, 628.5232499999997]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 8000,
+        "medianMs": 1824.6257919999998,
+        "samples": [1793.9930839999997, 1824.6257919999998, 1993.0535419999997]
+      }
+    ],
+    "candidate": [
+      {
+        "case": "snapshot-ingestion",
+        "count": 500,
+        "medianMs": 0.6687499999999886,
+        "samples": [0.37999999999999545, 0.6687499999999886, 1.648166999999944]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 1000,
+        "medianMs": 1.0028750000000173,
+        "samples": [0.7068749999999682, 1.0028750000000173, 1.072291000000007]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 2000,
+        "medianMs": 1.2349590000000035,
+        "samples": [1.155666999999994, 1.2349590000000035, 1.2757500000000164]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 4000,
+        "medianMs": 2.5554579999999874,
+        "samples": [2.2647910000000024, 2.5554579999999874, 3.8009999999999877]
+      },
+      {
+        "case": "snapshot-ingestion",
+        "count": 8000,
+        "medianMs": 3.3667500000000246,
+        "samples": [2.520417000000009, 3.3667500000000246, 3.9992919999999685]
+      }
+    ]
+  },
+  "projectionAndWorker": [
+    {
+      "case": "history",
+      "turns": 500,
+      "baselineTurnMs": 0.4065458399999989,
+      "candidateTurnMs": 0.031693340000001624,
+      "baselineDisplayMs": 0.09528249999999844,
+      "candidateDisplayMs": 0.003461659999998119
+    },
+    {
+      "case": "history",
+      "turns": 2000,
+      "baselineTurnMs": 2.5457475000000023,
+      "candidateTurnMs": 0.30325917999999547,
+      "baselineDisplayMs": 0.5170458400000006,
+      "candidateDisplayMs": 0.016061659999995755
+    },
+    {
+      "case": "worker-response-clone-proxy",
+      "characters": 64113,
+      "fullBlocks": 1492,
+      "suffixBlocks": 2,
+      "fullJsonBytes": 1727471,
+      "suffixJsonBytes": 1830,
+      "fullCloneMs": 37.450042000000394,
+      "suffixCloneMs": 0.029166000000259373
+    },
+    {
+      "case": "worker-response-clone-proxy",
+      "characters": 256065,
+      "fullBlocks": 5956,
+      "suffixBlocks": 2,
+      "fullJsonBytes": 6901247,
+      "suffixJsonBytes": 1830,
+      "fullCloneMs": 127.253917,
+      "suffixCloneMs": 0.020958000000064203
+    }
+  ]
+}

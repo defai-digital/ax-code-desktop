@@ -27,6 +27,10 @@ import { markStreamConnected, markStreamDisconnected, useConnectionStore } from 
 import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } from "@/lib/event-stream/types"
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
 import { SYNC_RETRY_NOW_EVENT as TRANSPORT_SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/visibility"
+const MAX_QUEUED_EVENTS = 512
+const MAX_EVENTS_PER_SLICE = 128
+const FLUSH_BUDGET_MS = 8
+const MAX_COALESCED_DELTA_CHARACTERS = 64 * 1024
 const FLUSH_FRAME_MS = 33
 const BACKPRESSURE_FLUSH_FRAME_MS = 200
 const BACKPRESSURE_MODE_MS = 10_000
@@ -269,9 +273,19 @@ type DirectoryQueue = {
   queue: Event[]
   buffer: Event[]
   coalesced: Map<string, number>
+  deltaKeys: Map<string, Set<string>>
   timer: ReturnType<typeof setTimeout> | undefined
   last: number
   measurement?: PendingSyncMeasurement
+  cursor: number
+  flushing: boolean
+  drainAll: boolean
+  activeMeasurement?: PendingSyncMeasurement & {
+    queueWaitMs: number
+    callbackMs: number
+    failedCallbacks: number
+    lastCallbackAt: number
+  }
 }
 
 type CoalescedPart = {
@@ -391,6 +405,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     wsReadyTimeoutMs = DEFAULT_WS_READY_TIMEOUT_MS,
   } = input
   let disconnected = false
+  let closed = false
   let backpressureUntil = 0
 
   // One entry per connected workspace directory. Cardinality is bounded by
@@ -406,8 +421,12 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
       queue: [],
       buffer: [],
       coalesced: new Map(),
+      deltaKeys: new Map(),
       timer: undefined,
       last: 0,
+      cursor: 0,
+      flushing: false,
+      drainAll: false,
     }
     directories.set(directory, d)
     return d
@@ -443,110 +462,103 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     return `message.part.updated:${props.messageID}:${props.partID}`
   }
 
-  // Inverse of updatedPartKeyForDelta: a full part snapshot supersedes any
-  // pending deltas for that part. Returns the coalesce-key PREFIX (all fields)
-  // so the deltas' slots can be invalidated — otherwise a delta arriving after
-  // the snapshot would merge into a pre-snapshot delta slot, reordering it
-  // ahead of the snapshot and losing the post-snapshot delta.
-  const deltaKeyPrefixForUpdated = (payload: Event): string | undefined => {
-    if (payload.type !== "message.part.updated") return undefined
-    const props = payload.properties as { part?: { id?: string; messageID?: string } }
-    const partID = props.part?.id
-    const messageID = props.part?.messageID
-    if (typeof partID !== "string" || typeof messageID !== "string") return undefined
-    return `message.part.delta:${messageID}:${partID}:`
-  }
-
-  // A later `session.status` replaces the earlier one at its slot, which moves it ahead of anything
-  // queued between them. `session.idle` and `session.error` write the same status slice, so coalescing
-  // across one of them applied the new busy state first and the idle after it: the session then showed
-  // idle while the server was busy on the new turn — the working indicator and Stop button went away,
-  // and the queued-message auto-send saw a busy→idle edge and sent early.
-  const sessionStatusInterruptedBy = (payload: Event, queue: readonly Event[], coalescedIndex: number) => {
-    if (payload.type !== "session.status") return false
-    const sessionID = (payload.properties as { sessionID?: string }).sessionID
-    if (typeof sessionID !== "string") return false
-
-    for (let index = coalescedIndex + 1; index < queue.length; index += 1) {
-      const queued = queue[index]
-      if (
-        queued.type !== "session.status" &&
-        queued.type !== "session.idle" &&
-        queued.type !== "session.error"
-      ) {
-        continue
-      }
-      if ((queued.properties as { sessionID?: string }).sessionID === sessionID) return true
-    }
-    return false
-  }
-
-  const flushDir = (directory: string) => {
+  const flushDir = (directory: string, drainAll = false) => {
     const d = directories.get(directory)
     if (!d) return
-    if (d.timer) {
-      clearTimeout(d.timer)
-      d.timer = undefined
-    }
-    if (d.queue.length === 0) return
-
-    const events = d.queue
-    const measurement = d.measurement
-    d.measurement = undefined
-    const startedAt = measurement ? performanceRecorder!.now() : 0
-    const dispatchedEvents = events.length
-    let failedCallbacks = 0
-    d.queue = d.buffer
-    d.buffer = events
-    d.queue.length = 0
-    d.coalesced.clear()
-
-    d.last = Date.now()
-    syncDebug.pipeline.flush(events.length)
+    d.drainAll ||= drainAll
+    // A callback may enqueue more events or request cleanup. New events belong
+    // to the pending queue; they must never mutate the batch being dispatched.
+    if (d.flushing) return
+    if (d.timer) clearTimeout(d.timer)
+    d.timer = undefined
+    d.flushing = true
+    const sliceStartedAt = Date.now()
+    let processed = 0
     try {
-      for (let index = 0; index < events.length; index++) {
-        const payload = events[index]
-        // Isolate each event: a reducer throw on one malformed event (e.g.
-        // a version-skewed backend sending an unexpected properties shape)
-        // must not discard the rest of the batch coalesced into this frame —
-        // dropping in-flight streaming deltas corrupts the visible chat.
+      while (d.cursor < d.buffer.length || d.queue.length > 0) {
+        if (d.cursor === d.buffer.length) {
+          const empty = d.buffer
+          empty.length = 0
+          d.buffer = d.queue
+          d.queue = empty
+          d.cursor = 0
+          d.coalesced.clear()
+          d.deltaKeys.clear()
+          d.last = Date.now()
+          if (d.measurement && performanceRecorder) {
+            d.activeMeasurement = {
+              ...d.measurement,
+              queueWaitMs: performanceRecorder.now() - d.measurement.receivedAt,
+              callbackMs: 0,
+              failedCallbacks: 0,
+              lastCallbackAt: performanceRecorder.now(),
+            }
+          }
+          d.measurement = undefined
+          syncDebug.pipeline.flush(d.buffer.length)
+        }
+        const start = d.cursor++
+        const payload = d.buffer[start]
+        const measurement = d.activeMeasurement
+        const callbackStartedAt = measurement ? performanceRecorder!.now() : 0
+        if (measurement) measurement.queueWaitMs += Math.max(0, callbackStartedAt - measurement.lastCallbackAt)
         try {
           if (onDeltaBatch && payload.type === "message.part.delta") {
-            const start = index
-            while (index + 1 < events.length && events[index + 1].type === "message.part.delta") index++
-            onDeltaBatch(directory, events.slice(start, index + 1))
+            const batchLimit = d.drainAll ? MAX_EVENTS_PER_SLICE : MAX_EVENTS_PER_SLICE - processed
+            while (
+              d.cursor < d.buffer.length &&
+              d.cursor - start < batchLimit &&
+              d.buffer[d.cursor].type === "message.part.delta"
+            )
+              d.cursor++
+            onDeltaBatch(directory, d.buffer.slice(start, d.cursor))
           } else {
             onEvent(directory, payload)
           }
         } catch (error) {
-          failedCallbacks++
+          if (measurement) measurement.failedCallbacks++
           console.error("[event-pipeline] event handler threw during flush", error)
+        } finally {
+          if (measurement) {
+            measurement.lastCallbackAt = performanceRecorder!.now()
+            measurement.callbackMs += measurement.lastCallbackAt - callbackStartedAt
+          }
         }
+        processed += d.cursor - start
+        if (d.cursor === d.buffer.length) {
+          if (measurement && performanceRecorder) {
+            performanceRecorder.record({
+              transport: measurement.transport,
+              receivedEvents: measurement.receivedEvents,
+              dispatchedEvents: d.buffer.length,
+              coalescedEvents: measurement.coalescedEvents,
+              failedCallbacks: measurement.failedCallbacks,
+              backpressure: measurement.backpressure,
+              queueWaitMs: measurement.queueWaitMs,
+              callbackMs: measurement.callbackMs,
+            })
+          }
+          d.activeMeasurement = undefined
+          d.buffer.length = 0
+          d.cursor = 0
+        }
+        if (!d.drainAll && (processed >= MAX_EVENTS_PER_SLICE || Date.now() - sliceStartedAt >= FLUSH_BUDGET_MS)) break
       }
     } finally {
-      if (measurement && performanceRecorder) {
-        performanceRecorder.record({
-          transport: measurement.transport,
-          receivedEvents: measurement.receivedEvents,
-          dispatchedEvents,
-          coalescedEvents: measurement.coalescedEvents,
-          failedCallbacks,
-          backpressure: measurement.backpressure,
-          queueWaitMs: startedAt - measurement.receivedAt,
-          callbackMs: performanceRecorder.now() - startedAt,
-        })
+      d.flushing = false
+      d.drainAll = false
+      if (d.cursor < d.buffer.length || d.queue.length > 0) {
+        // A task boundary lets input and paint run between slices. Do not wait
+        // another coalescing interval for work already waiting in the queue.
+        d.timer = setTimeout(() => flushDir(directory), 0)
       }
-      // Clearing the buffer even on unexpected throws keeps the pipeline
-      // from re-delivering the same events on the next flush — a
-      // deterministic throw would otherwise enter an infinite loop.
-      d.buffer.length = 0
     }
   }
 
   const flushAll = () => {
     for (const directory of directories.keys()) {
       try {
-        flushDir(directory)
+        flushDir(directory, true)
       } catch (error) {
         // One directory's failure must not prevent others from flushing.
         console.error("[event-pipeline] flushDir failed for directory", directory, error)
@@ -556,7 +568,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
 
   const scheduleDir = (directory: string) => {
     const d = getOrCreateDir(directory)
-    if (d.timer) return
+    if (d.timer || d.flushing) return
     const elapsed = Date.now() - d.last
     const flushFrameMs = Date.now() < backpressureUntil ? BACKPRESSURE_FLUSH_FRAME_MS : FLUSH_FRAME_MS
     d.timer = setTimeout(() => flushDir(directory), Math.max(0, flushFrameMs - elapsed))
@@ -590,6 +602,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
   }
 
   const enqueueEvent = (directory: string, payload: Event, eventTransport: "ws" | "sse") => {
+    if (closed) return
     const receivedAt = performanceRecorder?.now()
     const normalizedPayload = normalizeEventType(payload)
     const routedDirectory =
@@ -598,6 +611,30 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
         : routeDirectory?.(directory, normalizedPayload) || directory
 
     const d = getOrCreateDir(routedDirectory)
+    // Lossless pressure relief: bound the number of retained events even when
+    // a buffered SSE replay drains before browser timers can run. Unlike normal
+    // scheduled slices, a high-water drain must finish before accepting more.
+    if (d.queue.length + d.buffer.length - d.cursor >= MAX_QUEUED_EVENTS) {
+      flushDir(routedDirectory, true)
+      // A dispatched callback can close the pipeline during pressure relief.
+      // Do not accept the in-flight frame or schedule work after that cleanup.
+      if (closed) return
+    }
+    // Deletion/archive is a barrier even when the same identifier is recreated
+    // in this frame. Replacing a pre-removal slot would move the new state ahead
+    // of the removal. Clearing these small indexes preserves every queued event.
+    if (
+      normalizedPayload.type === "message.part.removed" ||
+      normalizedPayload.type === "message.removed" ||
+      normalizedPayload.type === "session.deleted" ||
+      (normalizedPayload.type === "session.updated" && normalizedPayload.properties?.info?.time?.archived)
+    ) {
+      d.coalesced.clear()
+      d.deltaKeys.clear()
+    }
+    if (normalizedPayload.type === "session.idle" || normalizedPayload.type === "session.error") {
+      d.coalesced.delete(`session.status:${normalizedPayload.properties.sessionID}`)
+    }
     if (receivedAt !== undefined) {
       if (!d.measurement) {
         d.measurement = {
@@ -616,26 +653,21 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
     if (updatedKeyInterruptedByDelta) {
       d.coalesced.delete(updatedKeyInterruptedByDelta)
     }
-    const deltaPrefixInterruptedByUpdated = deltaKeyPrefixForUpdated(normalizedPayload)
-    if (deltaPrefixInterruptedByUpdated) {
-      for (const existingKey of d.coalesced.keys()) {
-        if (existingKey.startsWith(deltaPrefixInterruptedByUpdated)) {
-          d.coalesced.delete(existingKey)
-        }
-      }
-    }
     const k = key(normalizedPayload)
+    if (k && normalizedPayload.type === "message.part.updated") {
+      // Only visit delta fields for this part. Scanning all coalesce keys on
+      // every snapshot made a buffered replay of N distinct parts quadratic.
+      for (const deltaKey of d.deltaKeys.get(k) ?? []) d.coalesced.delete(deltaKey)
+      d.deltaKeys.delete(k)
+    }
+    if (k && updatedKeyInterruptedByDelta) {
+      let keys = d.deltaKeys.get(updatedKeyInterruptedByDelta)
+      if (!keys) d.deltaKeys.set(updatedKeyInterruptedByDelta, (keys = new Set()))
+      keys.add(k)
+    }
     if (k) {
       const i = d.coalesced.get(k)
       if (i !== undefined) {
-        // Appended rather than coalesced: the event between them has to be applied first.
-        if (sessionStatusInterruptedBy(normalizedPayload, d.queue, i)) {
-          d.coalesced.set(k, d.queue.length)
-          d.queue.push(normalizedPayload)
-          scheduleDir(routedDirectory)
-          return
-        }
-        if (d.measurement) d.measurement.coalescedEvents++
         if (normalizedPayload.type === "message.part.delta") {
           const prev = d.queue[i] as unknown as { properties: { delta: string; offset?: number } }
           const inc = normalizedPayload.properties as { delta: string; offset?: number }
@@ -646,10 +678,15 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
           // another (replay after a refetch) must not be merged at all: each needs
           // its own offset so the reducer can reconcile it.
           const contiguous =
-            prev.properties.offset === undefined ||
-            inc.offset === undefined ||
-            inc.offset === prev.properties.offset + prev.properties.delta.length
-          if (!contiguous) {
+            (prev.properties.offset === undefined && inc.offset === undefined) ||
+            (typeof prev.properties.offset === "number" &&
+              typeof inc.offset === "number" &&
+              Number.isInteger(prev.properties.offset) &&
+              Number.isInteger(inc.offset) &&
+              prev.properties.offset >= 0 &&
+              inc.offset >= 0 &&
+              inc.offset === prev.properties.offset + prev.properties.delta.length)
+          if (!contiguous || prev.properties.delta.length + inc.delta.length > MAX_COALESCED_DELTA_CHARACTERS) {
             d.coalesced.set(k, d.queue.length)
             d.queue.push(normalizedPayload)
             scheduleDir(routedDirectory)
@@ -666,6 +703,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
         } else {
           d.queue[i] = coalesceQueuedEvent(d.queue[i], normalizedPayload)
         }
+        if (d.measurement) d.measurement.coalescedEvents++
         syncDebug.pipeline.coalesced(normalizedPayload.type, k)
         return
       }
@@ -843,6 +881,7 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
   }
 
   const cleanup = () => {
+    closed = true
     transportHandle.close()
     flushAll()
   }

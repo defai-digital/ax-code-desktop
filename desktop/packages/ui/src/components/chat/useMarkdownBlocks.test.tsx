@@ -6,7 +6,7 @@ import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
 import { parseMarkdownInWorker } from "./markdownWorkerParser"
 import type { MarkdownParseRequest, ParsedMarkdownBlock } from "./markdownWorkerProtocol"
 
-const worker = vi.hoisted(() => ({ request: vi.fn(), release: vi.fn() }))
+const worker = vi.hoisted(() => ({ request: vi.fn(), release: vi.fn(), subscribeCapacity: vi.fn() }))
 vi.mock("./markdownWorkerClient", () => ({ markdownWorkerClient: worker }))
 
 const longText = "**original** " + "word ".repeat(4000)
@@ -28,6 +28,7 @@ describe("Large Markdown lifecycle", () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
     worker.request.mockReset()
     worker.release.mockReset()
+    worker.subscribeCapacity.mockReset()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -128,5 +129,18 @@ describe("Large Markdown lifecycle", () => {
     act(finish)
     expect(container.textContent).toBe("")
     root = createRoot(container)
+  })
+
+  test("retries an unchanged deferred body when capacity becomes available and unsubscribes", () => {
+    const unsubscribe = vi.fn()
+    worker.request.mockReturnValueOnce("deferred").mockReturnValue("queued")
+    worker.subscribeCapacity.mockReturnValue(unsubscribe)
+    render(longText, false)
+    const notify = worker.subscribeCapacity.mock.calls[0][0] as () => void
+    act(notify)
+    expect(worker.request).toHaveBeenCalledTimes(2)
+    expect(unsubscribe).toHaveBeenCalledOnce()
+    act(completion(1))
+    expect(container.querySelector("strong")?.textContent).toBe("original")
   })
 })

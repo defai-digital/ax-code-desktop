@@ -1,0 +1,49 @@
+{
+  "initialFocusedReviews": {
+    "muse": {
+      "reviewer": "muse",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 46.7
+    },
+    "grok": {
+      "reviewer": "grok",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 155.6
+    }
+  },
+  "planning": {
+    "grok": {
+      "reviewer": "grok",
+      "returncode": 0,
+      "timedout": false,
+      "seconds": 81.8
+    },
+    "muse": {
+      "status": "subscription_quota_exhausted",
+      "apiStatus": 429
+    }
+  },
+  "implementationReviewAttempts": {
+    "review": {
+      "reviewer": "grok",
+      "returncode": 143,
+      "timedout": true,
+      "seconds": 240.4
+    },
+    "worker-review": {
+      "reviewer": "grok",
+      "returncode": 143,
+      "timedout": true,
+      "seconds": 240.7
+    },
+    "pipeline-review": {
+      "reviewer": "grok",
+      "returncode": 143,
+      "timedout": true,
+      "seconds": 240.6
+    }
+  },
+  "decision": "No completed final external implementation sign-off. Use completed initial reviews and Grok planning as leads; accept findings only when supported by source, regressions, and measurements."
+}
