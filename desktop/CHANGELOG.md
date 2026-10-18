@@ -79,6 +79,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Removing a project directory or a worktree closes its terminal sessions and project-action runs instead of leaking PTYs, and closing a tab that was rebound to another session while closing keeps the new session's tab and PTY.
+
 - A pasted-attachment submit aborts if the session switched while the files were reading, instead of sending the new session's draft to the old one; a network-failed send restores its attachments to the failed session's draft even when it is not on screen.
 
 - A draft prompt is refused when the draft it was written for was replaced while the prompt rendered, a failed session creation no longer overwrites a draft opened in the meantime, and a worktree bootstrap failure restores the composer's text and attachments to the created session.

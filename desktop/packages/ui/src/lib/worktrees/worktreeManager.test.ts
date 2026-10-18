@@ -17,9 +17,15 @@ vi.mock("@/lib/worktrees/worktreeStatus", () => ({
   resolveProjectRoot: async () => "/repo",
 }))
 
+vi.mock("@/lib/terminalApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminalApi")>()),
+  closeTerminal: vi.fn(async () => undefined),
+}))
+
 import { listProjectWorktrees, pruneExpiredWorktreeListEntries, removeProjectWorktree } from "./worktreeManager"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionWorktreeStore } from "@/sync/session-worktree-store"
+import { useTerminalStore } from "@/stores/useTerminalStore"
 
 const entry = (at: number) => ({ value: [] as WorktreeMetadata[], at })
 
@@ -57,6 +63,7 @@ describe("removeProjectWorktree", () => {
     removeWorktreeMock.mockClear()
     useSessionUIStore.setState({ worktreeMetadata: new Map(), availableWorktrees: [], availableWorktreesByProject: new Map() })
     useSessionWorktreeStore.setState({ attachments: new Map() })
+    useTerminalStore.setState({ sessions: new Map(), projectActionRuns: {}, nextChunkId: 1, nextTabId: 1, hasHydrated: true })
     useSessionUIStore.getState().setWorktreeMetadata("ses_feature", metadata)
   })
 
@@ -71,6 +78,20 @@ describe("removeProjectWorktree", () => {
     expect(removeWorktreeMock).toHaveBeenCalledTimes(1)
     expect(useSessionUIStore.getState().worktreeMetadata.has("ses_feature")).toBe(false)
     expect(useSessionWorktreeStore.getState().getAttachment("ses_feature")).toBeUndefined()
+  })
+
+  test("closes the removed worktree's terminals and runs", async () => {
+    const terminalState = useTerminalStore.getState()
+    terminalState.ensureDirectory(metadata.path)
+    const tabId = useTerminalStore.getState().getDirectoryState(metadata.path)?.tabs[0]?.id
+    useTerminalStore.getState().setTabSessionId(metadata.path, tabId!, "pty-worktree")
+    const removeDirectorySpy = vi.spyOn(useTerminalStore.getState(), "removeDirectory")
+
+    await removeProjectWorktree(project, metadata, {})
+
+    expect(removeDirectorySpy).toHaveBeenCalledWith(metadata.path)
+    expect(useTerminalStore.getState().getDirectoryState(metadata.path)).toBeUndefined()
+    removeDirectorySpy.mockRestore()
   })
 
   test("reports a remote branch it could not delete instead of claiming success", async () => {

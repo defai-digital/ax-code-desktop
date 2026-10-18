@@ -344,6 +344,15 @@ export const useTerminalStore = create<TerminalStore>()(
               return state
             }
 
+            // If the tab was rebound to another session while the close was in
+            // flight, keep it: deleting the tab now would orphan the new
+            // session's PTY. A tab cleared to null by its own exit event still
+            // closes normally.
+            const currentTabSessionId = existing.tabs[idx]?.terminalSessionId ?? null
+            if (sessionId && currentTabSessionId !== null && currentTabSessionId !== sessionId) {
+              return state
+            }
+
             const nextTabs = existing.tabs.filter((t) => t.id !== tabId)
             const nextRuns = Object.fromEntries(
               Object.entries(state.projectActionRuns).filter(
@@ -661,6 +670,14 @@ export const useTerminalStore = create<TerminalStore>()(
 
         removeDirectory: (directory: string) => {
           const key = normalizeDirectory(directory)
+          // Close every PTY the directory owns before dropping the state: deleting
+          // the tabs first loses the session ids, and the processes keep running
+          // with no way to reach them again.
+          const entry = get().sessions.get(key)
+          const sessionIds = new Set<string>()
+          for (const tab of entry?.tabs ?? []) {
+            if (tab.terminalSessionId) sessionIds.add(tab.terminalSessionId)
+          }
           set((state) => {
             const newSessions = new Map(state.sessions)
             newSessions.delete(key)
@@ -669,10 +686,22 @@ export const useTerminalStore = create<TerminalStore>()(
             )
             return { sessions: newSessions, projectActionRuns: nextRuns }
           })
+          for (const sessionId of sessionIds) {
+            void closeTerminal(sessionId).catch(() => undefined)
+          }
         },
 
         clearAll: () => {
+          const sessionIds = new Set<string>()
+          for (const entry of get().sessions.values()) {
+            for (const tab of entry.tabs) {
+              if (tab.terminalSessionId) sessionIds.add(tab.terminalSessionId)
+            }
+          }
           set({ sessions: new Map(), projectActionRuns: {}, nextChunkId: 1, nextTabId: 1 })
+          for (const sessionId of sessionIds) {
+            void closeTerminal(sessionId).catch(() => undefined)
+          }
         },
       }),
       {

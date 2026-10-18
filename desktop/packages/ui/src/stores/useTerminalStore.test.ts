@@ -1,9 +1,16 @@
-import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 
+import { closeTerminal } from "@/lib/terminalApi"
 import { useTerminalStore } from "./useTerminalStore"
+
+vi.mock("@/lib/terminalApi", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/terminalApi")>()),
+  closeTerminal: vi.fn(async () => undefined),
+}))
 
 describe("useTerminalStore", () => {
   beforeEach(() => {
+    vi.mocked(closeTerminal).mockClear()
     useTerminalStore.setState({
       sessions: new Map(),
       projectActionRuns: {},
@@ -145,5 +152,39 @@ describe("useTerminalStore", () => {
     expect(tab?.terminalSessionId).toBe("replacement-session")
     expect(tab?.lifecycle).toBe("running")
     expect(tab?.bufferChunks).toEqual([])
+  })
+
+  test("removeDirectory closes the directory's PTY sessions before dropping them", () => {
+    const store = useTerminalStore.getState()
+    store.ensureDirectory("/repo")
+    const tabId = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]?.id
+    expect(tabId).toBeTruthy()
+    store.setTabSessionId("/repo", tabId!, "pty-1")
+
+    store.removeDirectory("/repo")
+
+    expect(useTerminalStore.getState().getDirectoryState("/repo")).toBeUndefined()
+    expect(vi.mocked(closeTerminal)).toHaveBeenCalledWith("pty-1")
+  })
+
+  test("closeTab keeps a tab that was rebound to another session while closing", async () => {
+    const store = useTerminalStore.getState()
+    store.ensureDirectory("/repo")
+    const tabId = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]?.id
+    expect(tabId).toBeTruthy()
+    store.setTabSessionId("/repo", tabId!, "pty-1")
+
+    // The close is in flight when the tab is rebound to another session.
+    vi.mocked(closeTerminal).mockImplementationOnce(async () => {
+      useTerminalStore.getState().setTabSessionId("/repo", tabId!, "pty-2")
+    })
+
+    await store.closeTab("/repo", tabId!)
+
+    const state = useTerminalStore.getState().getDirectoryState("/repo")
+    expect(state?.tabs.some((tab) => tab.id === tabId)).toBe(true)
+    expect(vi.mocked(closeTerminal)).toHaveBeenCalledWith("pty-1")
+    // The rebound session's PTY must not be closed by this tab's close.
+    expect(vi.mocked(closeTerminal)).not.toHaveBeenCalledWith("pty-2")
   })
 })
