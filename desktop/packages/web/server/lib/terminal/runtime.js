@@ -668,11 +668,23 @@ export function createTerminalRuntime({
     })
   }
 
+  // An idle prompt produces no output, so activity alone cannot tell "nobody is
+  // using this" from "a shell or dev server is sitting there". An attached
+  // client is the signal: killing a session under it closed a running build.
+  const isTerminalSessionAttached = (sessionId, session) => {
+    if (session?.clients?.size > 0) return true
+    for (const connection of terminalWsConnections) {
+      if (connection.boundSessionId === sessionId && connection.socket?.readyState === 1) return true
+    }
+    return false
+  }
+
   const idleSweepInterval = setInterval(
     () => {
       const now = Date.now()
       for (const [sessionId, session] of terminalSessions.entries()) {
         if (now - session.lastActivity > TERMINAL_IDLE_TIMEOUT) {
+          if (isTerminalSessionAttached(sessionId, session)) continue
           console.log(`Cleaning up idle terminal session: ${sessionId}`)
           try {
             killTerminalProcess(session.ptyProcess, "term")

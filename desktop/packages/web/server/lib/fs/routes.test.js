@@ -354,18 +354,14 @@ describe("fs outside workspace authorization", () => {
   })
 
   it("allows outside-workspace reads inside an approved directory", async () => {
-    const coreFileAdapter = {
-      read: vi.fn(async () => "approved"),
-      raw: vi.fn(),
-      list: vi.fn(async () => []),
-    }
     const fsPromises = {
       stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => Buffer.from("approved")),
       open: vi.fn(async () => {
         throw new Error("must not open")
       }),
     }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] }, coreFileAdapter)
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), {
       query: { path: "/tmp/approved/file.txt", allowOutsideWorkspace: "true" },
@@ -378,16 +374,14 @@ describe("fs outside workspace authorization", () => {
 
   it("allows raw outside-workspace reads inside an approved directory", async () => {
     const content = Buffer.from("approved image")
-    const coreFileAdapter = {
-      raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
-    }
     const fsPromises = {
       stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => content),
       open: vi.fn(async () => {
         throw new Error("must not open")
       }),
     }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] }, coreFileAdapter)
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: ["/tmp/approved"] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), {
       query: { path: "/tmp/approved/image.png", allowOutsideWorkspace: "true" },
@@ -821,17 +815,15 @@ describe("fs exec git-read cache", () => {
   })
 })
 
-describe("fs core file adapter responses", () => {
+describe("fs text and raw reads", () => {
   it("answers a non-text read as a client error rather than a server fault", async () => {
-    const coreFileAdapter = {
-      read: vi.fn(async () => {
-        const error = new Error("Specified path is not a text file")
-        error.code = "EISDIR"
-        throw error
-      }),
+    // Invalid UTF-8: previously the core's lossy decode reached the editor, and
+    // saving it overwrote the original bytes with U+FFFD.
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => Buffer.from([0xff, 0xfe, 0x80, 0x81])),
     }
-    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
 
@@ -840,17 +832,10 @@ describe("fs core file adapter responses", () => {
   })
 
   it("names a directory when a non-text read really was a directory", async () => {
-    const coreFileAdapter = {
-      read: vi.fn(async () => {
-        const error = new Error("Specified path is not a text file")
-        error.code = "EISDIR"
-        throw error
-      }),
-    }
-    // The core reports a directory and a binary file the same way; the Files view needs the
-    // directory wording to fall back to a listing instead of showing a read failure.
+    // The Files view needs the directory wording to fall back to a listing
+    // instead of showing a read failure.
     const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => true })) }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
 
@@ -858,16 +843,12 @@ describe("fs core file adapter responses", () => {
     expect(String(res.body.error)).toContain("is a directory")
   })
 
-  it("keeps the adapter wording for a binary file", async () => {
-    const coreFileAdapter = {
-      read: vi.fn(async () => {
-        const error = new Error("Specified path is not a text file")
-        error.code = "EISDIR"
-        throw error
-      }),
+  it("rejects NUL bytes as binary", async () => {
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => Buffer.from("text\0more", "utf8")),
     }
-    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/logo.png" } })
 
@@ -875,26 +856,20 @@ describe("fs core file adapter responses", () => {
     expect(res.body).toEqual({ error: "Specified path is not a text file" })
   })
 
-  it("passes the extension MIME to the core adapter for raw reads", async () => {
-    const content = Buffer.from("png-bytes")
-    const coreFileAdapter = {
-      raw: vi.fn(async () => ({ buffer: content, mimeType: "image/png" })),
+  it("serves raw bytes with the extension MIME", async () => {
+    const content = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0xff])
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => content),
     }
-    const { getRoute } = registerFs(
-      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
-      { approvedDirectories: [] },
-      coreFileAdapter,
-    )
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/logo.png" } })
 
     expect(res.statusCode).toBe(200)
-    expect(coreFileAdapter.raw).toHaveBeenCalledWith({
-      path: "/repo/logo.png",
-      directory: "/repo",
-      fallbackMime: "image/png",
-    })
+    expect(fsPromises.readFile).toHaveBeenCalledWith("/repo/logo.png")
     expect(res.contentType).toContain("image/png")
+    expect(res.sent).toEqual(content)
   })
 
   it("gives a raw SVG its own policy instead of the app's", async () => {
@@ -902,14 +877,11 @@ describe("fs core file adapter responses", () => {
     // a workspace SVG carrying one ran on the app's origin, where a same-origin request reaches the API
     // with the session cookie. The project-icon route already answers this way.
     const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"><script>fetch("/api/fs/list")</script></svg>')
-    const coreFileAdapter = {
-      raw: vi.fn(async () => ({ buffer: svg, mimeType: "image/svg+xml" })),
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => svg),
     }
-    const { getRoute } = registerFs(
-      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
-      { approvedDirectories: [] },
-      coreFileAdapter,
-    )
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/evil.svg" } })
 
@@ -919,17 +891,11 @@ describe("fs core file adapter responses", () => {
   })
 
   it("refuses to let a raw read be sniffed into a document", async () => {
-    const coreFileAdapter = {
-      raw: vi.fn(async () => ({
-        buffer: Buffer.from("<html><script>x</script>"),
-        mimeType: "application/octet-stream",
-      })),
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => Buffer.from("<html><script>x</script>")),
     }
-    const { getRoute } = registerFs(
-      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
-      { approvedDirectories: [] },
-      coreFileAdapter,
-    )
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/page" } })
 
@@ -937,24 +903,19 @@ describe("fs core file adapter responses", () => {
     expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
   })
 
-  it("answers a non-file raw read as a client error", async () => {
-    const coreFileAdapter = {
-      raw: vi.fn(async () => {
-        const error = new Error("Specified path is not a file")
-        error.code = "EISDIR"
-        throw error
+  it("answers a missing raw file as not found", async () => {
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => {
+        throw Object.assign(new Error("ENOENT: no such file"), { code: "ENOENT" })
       }),
     }
-    const { getRoute } = registerFs(
-      { stat: vi.fn(async () => ({ isDirectory: () => false })) },
-      { approvedDirectories: [] },
-      coreFileAdapter,
-    )
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
-    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/src" } })
+    const res = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/gone.png" } })
 
-    expect(res.statusCode).toBe(400)
-    expect(res.body).toEqual({ error: "Specified path is not a file" })
+    expect(res.statusCode).toBe(404)
+    expect(res.body).toEqual({ error: "File not found" })
   })
 
   it("does not inspect the raw request path after canonicalization fails", async () => {
@@ -970,26 +931,21 @@ describe("fs core file adapter responses", () => {
     expect(stat).not.toHaveBeenCalled()
   })
 
-  it("answers a directory read without asking the core, so the Files view can list it", async () => {
-    // The core reports a directory as a generic server fault with no errno, which
-    // the route cannot classify; stating it here is what lets the view fall back
-    // to a listing instead of showing a read failure.
-    const coreFileAdapter = { read: vi.fn(), raw: vi.fn() }
-    const { getRoute } = registerFs(
-      { stat: vi.fn(async () => ({ isDirectory: () => true })) },
-      { approvedDirectories: [] },
-      coreFileAdapter,
-    )
+  it("answers a directory read without reading it, so the Files view can list it", async () => {
+    // A directory must be stated as such here: the view falls back to a listing
+    // instead of showing a read failure.
+    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => true })), readFile: vi.fn() }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const read = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/src" } })
     expect(read.statusCode).toBe(400)
     expect(String(read.body.error)).toContain("is a directory")
-    expect(coreFileAdapter.read).not.toHaveBeenCalled()
+    expect(fsPromises.readFile).not.toHaveBeenCalled()
 
     const raw = await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/src" } })
     expect(raw.statusCode).toBe(400)
     expect(raw.body).toEqual({ error: "Specified path is not a file" })
-    expect(coreFileAdapter.raw).not.toHaveBeenCalled()
+    expect(fsPromises.readFile).not.toHaveBeenCalled()
   })
 
   it("reports a missing path when deleting instead of claiming success", async () => {
@@ -1103,9 +1059,11 @@ describe("fs core file adapter responses", () => {
 describe("fs raw download", () => {
   it("keeps a non-Latin-1 download name out of the header value", async () => {
     const content = Buffer.from("pdf")
-    const coreFileAdapter = { raw: vi.fn(async () => ({ buffer: content, mimeType: "application/pdf" })) }
-    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => content),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), {
       query: { path: "/repo/報告書.pdf", download: "true" },
@@ -1123,9 +1081,11 @@ describe("fs raw download", () => {
   })
 
   it("does not mark an error response as an attachment", async () => {
-    const coreFileAdapter = { raw: vi.fn(async () => Promise.reject(Object.assign(new Error("gone"), { code: "ENOENT" }))) }
-    const fsPromises = { stat: vi.fn(async () => ({ isDirectory: () => false })) }
-    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, coreFileAdapter)
+    const fsPromises = {
+      stat: vi.fn(async () => ({ isDirectory: () => false })),
+      readFile: vi.fn(async () => Promise.reject(Object.assign(new Error("gone"), { code: "ENOENT" }))),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] })
 
     const res = await callRoute(getRoute("GET", "/api/fs/raw"), {
       query: { path: "/repo/missing.pdf", download: "true" },

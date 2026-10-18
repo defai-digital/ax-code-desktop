@@ -3,6 +3,19 @@ import { mapCoreFileNodesToDirectoryList } from "./core-file-adapter.js"
 
 const EXEC_JOB_TTL_MS = 30 * 60 * 1000
 
+// A lossy decode is how opening a binary as text and saving it destroyed the
+// original bytes: every invalid sequence became U+FFFD. Only bytes that are
+// unambiguously UTF-8 text (and contain no NUL) may enter the editor.
+const decodeUtf8TextFile = (buffer) => {
+  const bytes = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer ?? [])
+  if (bytes.includes(0)) return null
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes)
+  } catch {
+    return null
+  }
+}
+
 const createCommandTimeoutMs = () => {
   const raw = Number(process.env.AX_CODE_DESKTOP_FS_EXEC_TIMEOUT_MS)
   if (Number.isFinite(raw) && raw > 0) return raw
@@ -1047,10 +1060,14 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(400).json({ error: `EISDIR: ${path.basename(canonicalPath)} is a directory` })
       }
 
-      if (!coreFileAdapter || typeof coreFileAdapter.read !== "function") {
-        return res.status(503).json({ error: "AX Code core file API is not ready" })
+      // Read the validated canonical path instead of the core's text payload:
+      // that payload decodes unrecognised binaries lossily, and the editor
+      // saved the replacement characters back over the original bytes.
+      const buffer = await fsPromises.readFile(canonicalPath)
+      const content = decodeUtf8TextFile(buffer)
+      if (content === null) {
+        return res.status(400).json({ error: "Specified path is not a text file" })
       }
-      const content = await coreFileAdapter.read({ path: canonicalPath, directory: canonicalBase })
       return res.type("text/plain").send(content)
     } catch (error) {
       const err = error
@@ -1143,10 +1160,11 @@ export const registerFsRoutes = (app, dependencies) => {
 
       const download = req.query.download === "true"
 
-      if (!coreFileAdapter || typeof coreFileAdapter.raw !== "function") {
-        return res.status(503).json({ error: "AX Code core file API is not ready" })
-      }
-      const raw = await coreFileAdapter.raw({ path: canonicalPath, directory: canonicalBase, fallbackMime: mimeType })
+      // Bytes come straight from the validated canonical path. The core's text
+      // read returns an empty body for extensions it classifies as binary and
+      // lossily re-encodes the rest, so a PDF failed the download and a .dat
+      // was saved corrupted.
+      const buffer = await fsPromises.readFile(canonicalPath)
       if (download) {
         const fileName = path.basename(canonicalPath)
         // Header values only accept code points up to 0xFF: interpolating the raw
@@ -1166,7 +1184,7 @@ export const registerFsRoutes = (app, dependencies) => {
         )
       }
       res.setHeader("Cache-Control", "no-store")
-      return res.type(raw.mimeType || mimeType).send(raw.buffer)
+      return res.type(mimeType).send(buffer)
     } catch (error) {
       const err = error
       if (err && typeof err === "object" && err.code === "EISDIR") {
