@@ -1,0 +1,1 @@
+Build a reusable local tool for sales.csv: let me upload another CSV with the same columns, filter by region, see monthly revenue, and download the filtered data. Use sensible defaults and simple controls. Create the files, check the arithmetic on the included sample, and explain how to use the result. Do not install dependencies or start a server during this task.

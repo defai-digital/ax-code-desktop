@@ -1,0 +1,30 @@
+{
+  "case": "interactive-explicit",
+  "model": "defai-01-ax-trust-com/MiniMax-M3",
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-explicit-64u6l6dv",
+  "skillSha256": "cc456bf6c4cd15eb5bf22a3d7a41704b59507d7b182de80e22408c6d20068b2b",
+  "skillDelivery": "Project-scoped fixture copy of canonical builtin source, because installed runtime predates this change. Builtin packaging/discovery tested separately from source.",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-explicit-64u6l6dv",
+    "--model",
+    "defai-01-ax-trust-com/MiniMax-M3",
+    "--sandbox",
+    "workspace-write",
+    "--disallowed-tools",
+    "bash,task,webfetch,websearch",
+    "--prompt",
+    "Create a small reusable Python app for sales.csv with a region selector, monthly revenue chart and filtered CSV download. Limit the app to 60 lines. Use read and write tools only; do not use a shell, install dependencies, or start a server. Finish by delivering the entrypoint and its app handoff.",
+    "--format",
+    "json",
+    "--timeout",
+    "180",
+    "--command",
+    "analysis-output"
+  ],
+  "exitCode": 0,
+  "timedOut": false,
+  "seconds": 26.57
+}

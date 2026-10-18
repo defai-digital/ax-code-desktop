@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Template ini memerlukan terminal bash, zsh, atau sh. Periksa pengaturan terminal Anda.",
   "projectActions.preview.unavailable": "URL pratinjau belum diterima. Periksa output terminal aksi.",
   "projectActions.preview.waiting": "Menunggu URL pratinjau\u2026",
+  "projectActions.streamlit.desktopWindow": "Buka obrolan proyek ini di jendela desktop untuk menjalankan aplikasi.",
   "projectActions.streamlit.run": "Jalankan aplikasi Streamlit",
   "projectActions.streamlit.description": "Jalankan aplikasi Python interaktif di proyek ini. AX Code memilih lingkungan dan port yang tersedia.",
   "projectActions.streamlit.advanced": "Opsi lanjutan",

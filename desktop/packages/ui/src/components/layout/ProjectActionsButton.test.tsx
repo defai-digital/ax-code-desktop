@@ -38,6 +38,8 @@ import { useTerminalStore } from "@/stores/useTerminalStore"
 import { createStreamlitProjectAction } from "@/lib/streamlitProjectAction"
 import { toProjectActionRunKey } from "@/lib/projectActions"
 import { createManagedStreamlitAction } from "@/lib/streamlitRecipe"
+import { requestAnalysisAppRun } from "@/lib/analysisAppArtifact"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 
 describe("project action preview lifecycle", () => {
   let root: Root
@@ -70,6 +72,7 @@ describe("project action preview lifecycle", () => {
       return vi.fn()
     })
     useTerminalStore.setState({ sessions: new Map(), projectActionRuns: {} })
+    useSessionUIStore.setState({ currentSessionId: "analysis-session" })
     useUIStore.setState({ openContextPreview: openPreview })
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -89,6 +92,106 @@ describe("project action preview lifecycle", () => {
     )
     await act(async () => vi.advanceTimersByTimeAsync(400))
   }
+
+  const handoff = () =>
+    requestAnalysisAppRun({
+      sessionId: "analysis-session",
+      directory: "/fixture",
+      artifact: { version: 1, kind: "streamlit", entrypoint: "app.py" },
+    })
+
+  test("artifact click reuses saved settings, coalesces clicks and reopens a ready app", async () => {
+    action = createManagedStreamlitAction("managed", "My saved app", {
+      version: 1,
+      entrypoint: "app.py",
+      interpreter: "/custom/python",
+      port: 9007,
+    })
+    await render()
+    await act(async () => {
+      expect(handoff()).toBe(true)
+      expect(handoff()).toBe(true)
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(mocks.terminal.createSession).toHaveBeenCalledTimes(1)
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+    expect(mocks.terminal.sendInput.mock.calls[0][1]).toContain('"interpreter":"/custom/python","port":9007')
+    const run = Object.values(useTerminalStore.getState().projectActionRuns)[0]!
+    await act(async () =>
+      output({
+        type: "data",
+        data: `AX_CODE_STREAMLIT ${JSON.stringify({ token: run.token, stage: "launching", url: "http://127.0.0.1:9007/" })}\nURL: http://127.0.0.1:9007/\n`,
+      }),
+    )
+    openPreview.mockClear()
+    await act(async () => {
+      handoff()
+    })
+    expect(openPreview).toHaveBeenCalledExactlyOnceWith("/fixture", "http://127.0.0.1:9007/")
+    expect(mocks.terminal.createSession).toHaveBeenCalledTimes(1)
+  })
+
+  test("artifact handoff creates a managed action without installation authority", async () => {
+    mocks.mobile = false
+    mocks.config.mockResolvedValue({ actions: [] })
+    await render()
+    await act(async () => {
+      handoff()
+    })
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+    expect(mocks.terminal.sendInput.mock.calls[0][1]).toContain('"setup":false')
+    expect(Object.values(useTerminalStore.getState().projectActionRuns)[0]?.action?.streamlit).toEqual({
+      version: 1,
+      entrypoint: "app.py",
+    })
+    const run = Object.values(useTerminalStore.getState().projectActionRuns)[0]!
+    await act(async () =>
+      output({
+        type: "data",
+        data: `AX_CODE_STREAMLIT ${JSON.stringify({ token: run.token, stage: "setup-required", source: "requirements" })}\n`,
+      }),
+    )
+    expect(document.body.textContent).toContain("projectActions.streamlit.setupRun")
+    // Preparation opens on the first run's event, with no second click and no install command.
+    expect(mocks.terminal.sendInput).toHaveBeenCalledTimes(1)
+  })
+
+  test("artifact handoff stops when the source session changes during a config read", async () => {
+    await render()
+    let resolve!: (value: { actions: OpenChamberProjectAction[] }) => void
+    mocks.config.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    await act(async () => {
+      expect(handoff()).toBe(true)
+    })
+    useSessionUIStore.setState({ currentSessionId: "different-session" })
+    await act(async () => resolve({ actions: [] }))
+    expect(mocks.save).not.toHaveBeenCalled()
+    expect(mocks.terminal.createSession).not.toHaveBeenCalled()
+  })
+
+  test("artifact handoff cannot dispatch after a session changes during terminal creation", async () => {
+    mocks.config.mockResolvedValue({ actions: [] })
+    let resolve!: (value: { sessionId: string }) => void
+    mocks.terminal.createSession.mockReturnValue(
+      new Promise((done) => {
+        resolve = done
+      }),
+    )
+    await render()
+    await act(async () => {
+      handoff()
+    })
+    useSessionUIStore.setState({ currentSessionId: "different-session" })
+    await act(async () => resolve({ sessionId: "late-terminal" }))
+    await act(async () => vi.advanceTimersByTimeAsync(500))
+    expect(mocks.terminal.sendInput).not.toHaveBeenCalled()
+    expect(Object.values(useTerminalStore.getState().projectActionRuns)).toHaveLength(0)
+  })
 
   test("coalesces repeated discovery clicks and preserves the saved action's readiness contract", async () => {
     mocks.mobile = false

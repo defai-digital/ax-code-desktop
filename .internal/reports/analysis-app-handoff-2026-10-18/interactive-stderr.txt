@@ -1,0 +1,1 @@
+!  permission requested: isolation_escalation (Bash command targets path outside workspace boundary: /dev/null); auto-rejecting

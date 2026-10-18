@@ -1,0 +1,25 @@
+51 lines — under the 60-line limit. The app is at `streamlit_app.py` next to `sales.csv`.
+
+**What it does**
+- Sidebar region multi-select (defaults to all regions)
+- `st.line_chart` of monthly revenue aggregated from the filtered rows
+- Metrics panel: row count + total revenue for the current selection
+- `st.dataframe` of the filtered rows
+- `st.download_button` that returns the filtered subset as `sales_filtered.csv`
+- Cached CSV load, friendly empty state if no region is picked, clear error if the CSV is missing
+
+**Files written**
+- `streamlit_app.py` — the app
+- `requirements.txt` — declares `streamlit` and `pandas` (not installed, per your instruction)
+
+**Verification**
+- Read `sales.csv` to confirm schema (`month,region,revenue`) before writing the loader.
+- Static line count: 51 lines (≤ 60).
+- No shell, no `pip install`, no server started; interaction not exercised because the brief restricts me to read/write.
+
+**Fallback run command** (when you choose to run it later)
+`python -m streamlit run streamlit_app.py`
+
+```ax-code-app
+{"version":1,"kind":"streamlit","entrypoint":"streamlit_app.py"}
+```

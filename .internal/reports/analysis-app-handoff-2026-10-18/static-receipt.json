@@ -1,0 +1,28 @@
+{
+  "case": "static",
+  "model": "defai-01-ax-trust-com/glm-5.3-flash",
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-static-pimtpx0c",
+  "skillSha256": "cc456bf6c4cd15eb5bf22a3d7a41704b59507d7b182de80e22408c6d20068b2b",
+  "skillDelivery": "Project-scoped fixture copy of canonical builtin source, because installed runtime predates this change. Builtin packaging/discovery tested separately from source.",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-static-pimtpx0c",
+    "--model",
+    "defai-01-ax-trust-com/glm-5.3-flash",
+    "--sandbox",
+    "workspace-write",
+    "--disallowed-tools",
+    "task,webfetch,websearch",
+    "--prompt",
+    "Analyze sales.csv and create a standalone SVG chart of monthly revenue for my presentation. Give the totals and a short explanation. This is a one-off chart; I do not need controls. Create the output file. Do not install dependencies or start a server.",
+    "--format",
+    "json",
+    "--timeout",
+    "180"
+  ],
+  "exitCode": 0,
+  "timedOut": false,
+  "seconds": 142.16
+}

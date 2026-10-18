@@ -42,7 +42,8 @@ export const CommandsPage: React.FC = () => {
     })),
   )
 
-  const selectedCommand = selectedCommandName ? getCommandByName(selectedCommandName) : null
+  const selectedCandidate = selectedCommandName ? getCommandByName(selectedCommandName) : null
+  const selectedCommand = selectedCandidate?.source === "skill" ? null : selectedCandidate
   const isNewCommand = Boolean(commandDraft && commandDraft.name === selectedCommandName && !selectedCommand)
 
   // The selection is persisted, so it can outlive the command (renamed or removed elsewhere, or a

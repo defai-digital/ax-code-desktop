@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Diese Vorlage ben\u00f6tigt ein bash-, zsh- oder sh-Terminal. Pr\u00fcfe deine Terminaleinstellungen.",
   "projectActions.preview.unavailable": "Vorschau-URL nicht empfangen. Pr\u00fcfe die Terminalausgabe der Aktion.",
   "projectActions.preview.waiting": "Warten auf Vorschau-URL\u2026",
+  "projectActions.streamlit.desktopWindow": "Öffne diesen Projektchat in einem Desktop-Fenster, um die App auszuführen.",
   "projectActions.streamlit.run": "Streamlit-App ausf\u00fchren",
   "projectActions.streamlit.description": "F\u00fchre eine interaktive Python-App in diesem Projekt aus. AX Code w\u00e4hlt die Umgebung und einen verf\u00fcgbaren Port aus.",
   "projectActions.streamlit.advanced": "Erweiterte Optionen",

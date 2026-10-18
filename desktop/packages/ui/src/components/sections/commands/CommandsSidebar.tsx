@@ -63,7 +63,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
 
   const skillNames = React.useMemo(() => new Set(skills.map((skill) => skill.name)), [skills])
   const commandOnlyItems = React.useMemo(
-    () => commands.filter((command) => !skillNames.has(command.name)),
+    () => commands.filter((command) => command.source !== "skill" && !skillNames.has(command.name)),
     [commands, skillNames],
   )
 
@@ -72,10 +72,10 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       return
     }
 
-    if (skillNames.has(selectedCommandName)) {
+    if (skillNames.has(selectedCommandName) || commands.some((command) => command.name === selectedCommandName && command.source === "skill")) {
       setSelectedCommand(null)
     }
-  }, [selectedCommandName, setSelectedCommand, skillNames])
+  }, [selectedCommandName, setSelectedCommand, skillNames, commands])
 
   const bgClass = "bg-background"
 

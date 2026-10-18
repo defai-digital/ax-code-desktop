@@ -36,6 +36,8 @@ import { PreparedMarkdown } from "./PreparedMarkdown"
 import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
 import { areMarkdownRendererPropsEqual } from "@/components/chat/markdownRendererMemo"
 import { useEnteredBlockCount } from "./useEnteredBlockCount"
+import { AnalysisAppCard } from "./AnalysisAppCard"
+import { parseAnalysisAppArtifact } from "@/lib/analysisAppArtifact"
 
 const useCurrentMermaidTheme = () => {
   const themeSystem = useOptionalThemeSystem()
@@ -851,12 +853,14 @@ const buildMarkdownComponents = ({
   previewLabel,
   previewTitle,
   isStreaming = false,
+  appSessionId,
 }: {
   syntaxTheme: { [key: string]: React.CSSProperties }
   onPreviewLoopback?: (url: string) => void
   previewLabel?: string
   previewTitle?: string
   isStreaming?: boolean
+  appSessionId?: string
 }): Components => ({
   table({ children, ...props }) {
     return <TableWrapper className={props.className}>{children}</TableWrapper>
@@ -1037,6 +1041,10 @@ const buildMarkdownComponents = ({
     const code = normalizeCodeBlockText(extractCodeText(child.props.children).replace(/\n$/, ""), language)
     if (language === "mermaid") {
       return <MermaidBlockWithMode source={code} deferRender={isStreaming} />
+    }
+    if (language === "ax-code-app" && appSessionId && !isStreaming) {
+      const artifact = parseAnalysisAppArtifact(code)
+      if (artifact) return <AnalysisAppCard artifact={artifact} sessionId={appSessionId} />
     }
     return (
       <MarkdownCodeBlock
@@ -1660,8 +1668,22 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         previewLabel,
         previewTitle,
         isStreaming,
+        appSessionId:
+          variant === "assistant" && enableFileReferences && part?.type === "text" && part.time?.end !== undefined
+            ? part.sessionID
+            : undefined,
       }),
-    [syntaxTheme, effectiveDirectory, handlePreviewLoopback, previewLabel, previewTitle, isStreaming],
+    [
+      syntaxTheme,
+      effectiveDirectory,
+      handlePreviewLoopback,
+      previewLabel,
+      previewTitle,
+      isStreaming,
+      variant,
+      enableFileReferences,
+      part,
+    ],
   )
   const componentKey = `markdown-${part?.id ? `part-${part.id}` : `message-${messageId}`}`
   const markdownBlocks = useStableMarkdownBlocks(content, isStreaming && !disableStreamAnimation, componentKey)

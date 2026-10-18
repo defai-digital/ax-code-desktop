@@ -1,0 +1,27 @@
+I've reached a hard stop on this environment.
+
+## What is verified
+
+`sales_tool.py` exists on disk at **71 lines** and contains the full tool: region filtering, monthly revenue SVG chart, filtered CSV export, all stdlib-only. The 71-line version's logic is complete and hand-traced correctly against `sales.csv` (all regions → 250/300/300; `East` → 100/120/140; `West` → 150/180/160).
+
+## What is not done
+
+1. **Not under 60 lines.** 71 is the current count.
+2. **Never executed.** No shell tool exists in this session; `bash_output` only reads background shells and none can be started.
+3. **Writes are landing inconsistently.** I sent a 59-line compact version three times via `write`. Each call reported "Wrote file successfully", yet every subsequent read showed different content: 70 lines, then 71, then again the 71-line draft *with* a two-line `write_chart(...)` call that a prior `edit` claimed to have collapsed to one line. `edit` has the same problem — it reports success, the read still shows the old text, and one attempt to match a block it had just saved failed with "Could not find oldString". Something between the tools and this file is not persisting or is serving stale content.
+
+I am not going to claim the line-limit or validation requirements are met when the file on disk contradicts it.
+
+## The tool as written (logical behavior)
+
+```bash
+python3 sales_tool.py                    # all regions
+python3 sales_tool.py --region East      # filter to one region
+python3 sales_tool.py --region West --outdir /tmp/west
+```
+
+Outputs `output/filtered.csv` (the filtered rows) and `output/chart.html` (a self-contained SVG bar chart, openable in any browser). Defaults resolve relative to the script's directory, so it runs from any cwd. Unknown region names produce an empty CSV and empty chart rather than a crash.
+
+## What I need from you
+
+A fresh session, or a confirmation that the file layer has been reset. In a clean session the remaining work is two steps: apply the 59-line compaction (drop the blank lines between functions, merge the `path.write_text(...)` call onto one line), then run `python3 -m py_compile sales_tool.py && python3 sales_tool.py --region East` and check `output/filtered.csv` has 3 rows.

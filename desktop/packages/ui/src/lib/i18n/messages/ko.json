@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "\uc774 \ub808\uc2dc\ud53c\uc5d0\ub294 bash, zsh \ub610\ub294 sh \ud130\ubbf8\ub110\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ud130\ubbf8\ub110 \uc124\uc815\uc744 \ud655\uc778\ud558\uc138\uc694.",
   "projectActions.preview.unavailable": "\ubbf8\ub9ac \ubcf4\uae30 URL\uc744 \ubc1b\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4. \uc791\uc5c5\uc758 \ud130\ubbf8\ub110 \ucd9c\ub825\uc744 \ud655\uc778\ud558\uc138\uc694.",
   "projectActions.preview.waiting": "\ubbf8\ub9ac \ubcf4\uae30 URL \ub300\uae30 \uc911\u2026",
+  "projectActions.streamlit.desktopWindow": "앱을 실행하려면 이 프로젝트의 채팅을 데스크톱 창에서 여세요.",
   "projectActions.streamlit.run": "Streamlit \uc571 \uc2e4\ud589",
   "projectActions.streamlit.description": "\uc774 \ud504\ub85c\uc81d\ud2b8\uc5d0\uc11c \ub300\ud654\ud615 Python \uc571\uc744 \uc2e4\ud589\ud569\ub2c8\ub2e4. AX Code\uac00 \ud658\uacbd\uacfc \uc0ac\uc6a9 \uac00\ub2a5\ud55c \ud3ec\ud2b8\ub97c \uc120\ud0dd\ud569\ub2c8\ub2e4.",
   "projectActions.streamlit.advanced": "\uace0\uae09 \uc635\uc158",

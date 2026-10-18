@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Esta receita requer um terminal bash, zsh ou sh. Verifique as configura\u00e7\u00f5es do terminal.",
   "projectActions.preview.unavailable": "URL de pr\u00e9-visualiza\u00e7\u00e3o n\u00e3o recebida. Verifique a sa\u00edda do terminal da a\u00e7\u00e3o.",
   "projectActions.preview.waiting": "Aguardando a URL de pr\u00e9-visualiza\u00e7\u00e3o\u2026",
+  "projectActions.streamlit.desktopWindow": "Abra o chat deste projeto em uma janela de desktop para executar o aplicativo.",
   "projectActions.streamlit.run": "Executar o app Streamlit",
   "projectActions.streamlit.description": "Execute um app Python interativo neste projeto. O AX Code seleciona o ambiente e uma porta dispon\u00edvel.",
   "projectActions.streamlit.advanced": "Op\u00e7\u00f5es avan\u00e7adas",

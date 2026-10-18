@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Ce mod\u00e8le n\u00e9cessite un terminal bash, zsh ou sh. V\u00e9rifiez les param\u00e8tres du terminal.",
   "projectActions.preview.unavailable": "URL d\u2019aper\u00e7u non re\u00e7ue. V\u00e9rifiez la sortie du terminal de l\u2019action.",
   "projectActions.preview.waiting": "En attente de l\u2019URL d\u2019aper\u00e7u\u2026",
+  "projectActions.streamlit.desktopWindow": "Ouvrez la discussion de ce projet dans une fenêtre de bureau pour lancer l’application.",
   "projectActions.streamlit.run": "Ex\u00e9cuter l\u2019application Streamlit",
   "projectActions.streamlit.description": "Ex\u00e9cutez une application Python interactive dans ce projet. AX Code s\u00e9lectionne l\u2019environnement et un port disponible.",
   "projectActions.streamlit.advanced": "Options avanc\u00e9es",

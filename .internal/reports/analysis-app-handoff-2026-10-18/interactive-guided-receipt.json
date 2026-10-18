@@ -1,0 +1,30 @@
+{
+  "case": "interactive-guided",
+  "model": "defai-01-ax-trust-com/qwen/qwen3.8-flash",
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-guided-vl_x69e5",
+  "skillSha256": "cc456bf6c4cd15eb5bf22a3d7a41704b59507d7b182de80e22408c6d20068b2b",
+  "skillDelivery": "Project-scoped fixture copy of canonical builtin source, because installed runtime predates this change. Builtin packaging/discovery tested separately from source.",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-guided-vl_x69e5",
+    "--model",
+    "defai-01-ax-trust-com/qwen/qwen3.8-flash",
+    "--sandbox",
+    "workspace-write",
+    "--disallowed-tools",
+    "bash,task,webfetch,websearch",
+    "--prompt",
+    "Build a small reusable graphical tool for sales.csv: upload another CSV with the same columns, select a region, see monthly revenue, and download filtered rows. Use sensible defaults. Keep the app under 70 lines. Create the files using read and write tools only; no shell, dependency installation, or server start. Explain how to use the result.",
+    "--format",
+    "json",
+    "--timeout",
+    "180",
+    "--append-system-prompt",
+    "For data analysis, charts, dashboards, or reusable Python forms, load `analysis-output` before choosing the output format when that skill is available and eligible for model invocation. Prefer static artifacts for one-off questions and an interactive app only when inputs, filters, or repeated use justify it. Respect a user-requested framework and the skill's invocation policy."
+  ],
+  "exitCode": 0,
+  "timedOut": false,
+  "seconds": 115.94
+}

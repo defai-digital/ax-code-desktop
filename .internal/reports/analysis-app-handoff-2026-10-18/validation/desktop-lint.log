@@ -1,0 +1,11 @@
+
+> ax-coder@7.27.1 lint /Users/akiralam/code/ax-code-desktop
+> pnpm --filter "./desktop/packages/*" --if-present run lint
+
+Scope: 3 of 4 workspace projects
+desktop/packages/electron lint$ eslint "./src/**/*.{js,mjs}" "./scripts/**/*.{js,mjs}" --config ../../eslint.config.js
+desktop/packages/ui lint$ eslint "./src/**/*.{ts,tsx}" --config ../../eslint.config.js
+desktop/packages/electron lint: Done
+desktop/packages/ui lint: Done
+desktop/packages/web lint$ eslint "./src/**/*.{ts,tsx}" "./server/**/*.js" --config ../../eslint.config.js
+desktop/packages/web lint: Done

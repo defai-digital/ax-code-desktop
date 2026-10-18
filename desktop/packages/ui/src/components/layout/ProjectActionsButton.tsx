@@ -34,8 +34,10 @@ import { connectTerminalStream, getTerminalSessionOutput, terminalStreamConsumer
 import { ensureClaimedTerminalSession } from "@/lib/terminalSessionCoordinator"
 import { isSupportedRecipeShell, readyProjectActionUrl } from "@/lib/streamlitProjectAction"
 import { StreamlitRunDialog } from "@/components/sections/projects/StreamlitRunDialog"
-import { streamlitRunCommand, streamlitProgress } from "@/lib/streamlitRecipe"
+import { createManagedStreamlitAction, streamlitRunCommand, streamlitProgress } from "@/lib/streamlitRecipe"
 import { isLoopbackHostname } from "@/lib/loopback"
+import { ANALYSIS_APP_RUN_EVENT, claimAnalysisAppRun } from "@/lib/analysisAppArtifact"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 
 type UrlWatchEntry = {
   lastSeenChunkId: number | null
@@ -201,6 +203,8 @@ export const ProjectActionsButton = ({
 
   const projectId = projectRef?.id ?? null
   const projectPath = projectRef?.path ?? ""
+  const currentProjectIdRef = React.useRef(projectId)
+  currentProjectIdRef.current = projectId
 
   const stableProjectRef = React.useMemo(() => {
     if (!projectId) {
@@ -502,7 +506,8 @@ export const ProjectActionsButton = ({
   )
 
   const runAction = React.useCallback(
-    async (action: OpenChamberProjectAction, setup = false) => {
+    async (action: OpenChamberProjectAction, setup = false, requestIsCurrent?: () => boolean) => {
+      if (requestIsCurrent && !requestIsCurrent()) return
       if (!allowMobile && isMobile) {
         return
       }
@@ -559,6 +564,7 @@ export const ProjectActionsButton = ({
         }
         if (discovered.streamlit && stableProjectRef) {
           const saved = await getProjectActionsState(stableProjectRef)
+          if (requestIsCurrent && !requestIsCurrent()) return
           const entrypoint = discovered.streamlit.entrypoint
           const sameApp = saved.actions.find((item) => item.streamlit?.entrypoint === entrypoint)
           if (sameApp) discovered = { ...discovered, id: sameApp.id, name: sameApp.name }
@@ -573,13 +579,15 @@ export const ProjectActionsButton = ({
         }
         if (discovered.streamlit && stableProjectRef) {
           const saved = await getProjectActionsState(stableProjectRef)
+          if (requestIsCurrent && !requestIsCurrent()) return
           const next = [...saved.actions.filter((item) => item.id !== discovered.id), discovered]
           if (!(await saveProjectActionsState(stableProjectRef, { actions: next, primaryActionId: discovered.id }))) {
             throw new Error(t("settings.projects.actions.toast.saveFailed"))
           }
           if (
             normalizeProjectActionDirectory(currentDirectoryRef.current) !== normalizedDirectory ||
-            !mountedRef.current
+            !mountedRef.current ||
+            (requestIsCurrent && !requestIsCurrent())
           )
             return
           setActions(next)
@@ -768,6 +776,7 @@ export const ProjectActionsButton = ({
             ? await streamlitRunCommand(discovered.streamlit, token, setup)
             : discovered.command
         const normalizedCommand = stripControlChars(command.trim().replace(/\r\n|\r/g, "\n"))
+        if (requestIsCurrent && !requestIsCurrent()) throw new Error(t("projectActions.error.failedToRunAction"))
         if (discovered.streamlit) {
           // Bound PTY input bursts so interactive shells can consume the command.
           const input = `${normalizedCommand}\r`
@@ -836,6 +845,50 @@ export const ProjectActionsButton = ({
       terminal,
     ],
   )
+
+  React.useEffect(() => {
+    if (!stableProjectRef || (!allowMobile && isMobile)) return
+    const handleRequest = (event: Event) => {
+      const request = claimAnalysisAppRun(event, useSessionUIStore.getState().currentSessionId, normalizedDirectory)
+      if (!request) return
+      const stillCurrent = () =>
+        mountedRef.current &&
+        currentProjectIdRef.current === stableProjectRef.id &&
+        useSessionUIStore.getState().currentSessionId === request.sessionId &&
+        normalizeProjectActionDirectory(currentDirectoryRef.current) === request.directory
+      void (async () => {
+        try {
+          const saved = await getProjectActionsState(stableProjectRef)
+          if (!stillCurrent()) return
+          const entrypoint = request.artifact.entrypoint
+          const action =
+            saved.actions.find((item) => item.streamlit?.entrypoint === entrypoint) ??
+            createManagedStreamlitAction(`streamlit-artifact:${entrypoint}`, entrypoint, { version: 1, entrypoint })
+          const running =
+            useTerminalStore.getState().projectActionRuns[toProjectActionRunKey(normalizedDirectory, action.id)]
+          setSelectedActionId(action.id)
+          if (running?.status === "failed" || running?.status === "setup-required") {
+            setStreamlitDialog(running.action ?? action)
+          } else if (running) {
+            const url = useTerminalStore
+              .getState()
+              .getDirectoryState(normalizedDirectory)
+              ?.tabs.find((tab) => tab.id === running.tabId)?.previewUrl
+            if (url && running.status !== "stopping") openContextPreview(normalizedDirectory, url)
+          } else {
+            await runAction(action, false, stillCurrent)
+          }
+        } catch (error) {
+          if (stillCurrent())
+            toast.error(error instanceof Error ? error.message : t("projectActions.error.failedToRunAction"))
+        }
+      })()
+    }
+    window.addEventListener(ANALYSIS_APP_RUN_EVENT, handleRequest)
+    return () => {
+      window.removeEventListener(ANALYSIS_APP_RUN_EVENT, handleRequest)
+    }
+  }, [stableProjectRef, allowMobile, isMobile, normalizedDirectory, runAction, openContextPreview, t])
 
   const stopAction = React.useCallback(
     async (action: OpenChamberProjectAction) => {

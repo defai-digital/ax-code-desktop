@@ -1,0 +1,5 @@
+
+> ax-code@7.27.4 check:skills /Users/akiralam/code/ax-code/packages/ax-code
+> tsx script/check-skills.ts
+
+ok: built-in skills conform to the standard-skill contract

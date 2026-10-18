@@ -1,0 +1,9 @@
+
+ RUN  v4.1.12 /Users/akiralam/code/ax-code/packages/ax-code
+
+
+ Test Files  3 passed (3)
+      Tests  50 passed (50)
+   Start at  08:36:09
+   Duration  7.06s (transform 9.68s, setup 4.48s, import 8.98s, tests 5.51s, environment 0ms)
+

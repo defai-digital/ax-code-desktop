@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "\u6b64\u6a21\u677f\u9700\u8981 bash\u3001zsh \u6216 sh \u7ec8\u7aef\u3002\u8bf7\u68c0\u67e5\u7ec8\u7aef\u8bbe\u7f6e\u3002",
   "projectActions.preview.unavailable": "\u672a\u6536\u5230\u9884\u89c8 URL\u3002\u8bf7\u68c0\u67e5\u6b64\u64cd\u4f5c\u7684\u7ec8\u7aef\u8f93\u51fa\u3002",
   "projectActions.preview.waiting": "\u6b63\u5728\u7b49\u5f85\u9884\u89c8 URL\u2026",
+  "projectActions.streamlit.desktopWindow": "请在桌面窗口中打开此项目的对话，以运行应用。",
   "projectActions.streamlit.run": "\u8fd0\u884c Streamlit \u5e94\u7528",
   "projectActions.streamlit.description": "\u5728\u6b64\u9879\u76ee\u4e2d\u8fd0\u884c\u4ea4\u4e92\u5f0f Python \u5e94\u7528\u3002AX Code \u4f1a\u9009\u62e9\u73af\u5883\u548c\u53ef\u7528\u7aef\u53e3\u3002",
   "projectActions.streamlit.advanced": "\u9ad8\u7ea7\u9009\u9879",

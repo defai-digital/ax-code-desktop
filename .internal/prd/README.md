@@ -25,3 +25,5 @@ Reviewed 2026-10-18. Status below distinguishes active requirements from histori
 | [Public release cutover](PRD-2026-10-12-public-desktop-release-cutover.md) | Historical 7.24.5 candidate requirements; ADR-012 and exact-candidate qualification govern subsequent releases |
 
 See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for archive hashes, supersession scope, and intentionally retained deferred decisions.
+
+- [PRD-2026-10-18-analysis-app-handoff-v4.md](PRD-2026-10-18-analysis-app-handoff-v4.md): Accepted; natural-language analysis and app handoff.

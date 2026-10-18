@@ -26,3 +26,5 @@ Reviewed 2026-10-18. Accepted decisions remain authoritative unless a later deci
 [Embedded provider producer proposal](archive/AX-CODE-ADR-PROPOSAL-2026-10-11-embedded-webmcp-transport-v1.md): historical draft, now represented by accepted AX Code ADR-184. It is not an outstanding approval request.
 
 The duplicate ADR-009 numbers are historical. Use full filenames or the qualified labels above; accepted records were not renumbered. See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and preservation receipts.
+
+- [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md): Accepted; paired AX Code ADR-256.

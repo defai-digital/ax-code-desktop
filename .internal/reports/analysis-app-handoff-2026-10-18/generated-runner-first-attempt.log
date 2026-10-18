@@ -1,0 +1,14 @@
+AX_CODE_STREAMLIT {"token": "generated-app-smoke", "stage": "preparing"}
+AX_CODE_STREAMLIT {"token": "generated-app-smoke", "stage": "launching", "url": "http://127.0.0.1:52683/"}
+2026-10-18 08:34:23.259 Uvicorn server started on 127.0.0.1:52683
+
+  You can now view your Streamlit app in your browser.
+
+  URL: http://127.0.0.1:52683
+
+  For better performance, install the Watchdog module:
+
+  $ xcode-select --install
+  $ pip install watchdog
+            
+  Stopping...

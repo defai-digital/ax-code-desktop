@@ -1,0 +1,1 @@
+!  permission requested: isolation_escalation (Network access is disabled by isolation policy (mode: workspace-write). The command wraps interpreted code or a container/namespace tool that per-command network checks cannot see. Set isolation.network to true or use full-access mode.); auto-rejecting

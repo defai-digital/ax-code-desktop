@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Esta plantilla requiere un terminal bash, zsh o sh. Revisa la configuraci\u00f3n del terminal.",
   "projectActions.preview.unavailable": "No se recibi\u00f3 la URL de vista previa. Revisa la salida del terminal de la acci\u00f3n.",
   "projectActions.preview.waiting": "Esperando la URL de vista previa\u2026",
+  "projectActions.streamlit.desktopWindow": "Abre el chat de este proyecto en una ventana de escritorio para ejecutar la aplicación.",
   "projectActions.streamlit.run": "Ejecutar app de Streamlit",
   "projectActions.streamlit.description": "Ejecuta una app interactiva de Python en este proyecto. AX Code selecciona el entorno y un puerto disponible.",
   "projectActions.streamlit.advanced": "Opciones avanzadas",

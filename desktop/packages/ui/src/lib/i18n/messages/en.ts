@@ -2508,6 +2508,7 @@ export const dict = {
   "openInApp.toast.pathCopied": "Path copied to clipboard",
   "projectActions.error.unsupportedRecipeShell":
     "This recipe needs a bash, zsh, or sh terminal. Check your terminal settings.",
+  "projectActions.streamlit.desktopWindow": "Open this project chat in a desktop window to run the app.",
   "projectActions.streamlit.run": "Run Streamlit app",
   "projectActions.streamlit.description": "Run an interactive Python app in this project. AX Code selects the environment and an available port.",
   "projectActions.streamlit.advanced": "Advanced options",

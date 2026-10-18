@@ -1,0 +1,58 @@
+
+> ax-code@ precheck:structure /Users/akiralam/code/ax-code
+> node script/only-allow-pnpm.mjs
+
+
+> ax-code@ check:structure /Users/akiralam/code/ax-code
+> tsx script/structure.ts && tsx script/check-agent-runtime-boundary.ts
+
+# Repo Structure Report
+
+## Docs
+- ok: required architecture notes are present
+
+## Deep Imports
+- ok: no raw src imports across package boundaries found
+
+## SDK Runtime Source Imports
+- ok: runtime imports SDK contracts through package exports
+
+## Runtime Internal Boundaries
+- ok: domain files do not import CLI or server interface modules directly
+
+## Workspace Dependency Cycles
+- ok: no workspace package manifest cycles found
+
+## Internal Files
+- ok: only approved internal architecture documents are tracked
+
+## V4 Guardrails
+- ok: no Effect, Solid, or AX Code TUI imports found in v4 guarded directories
+
+## Hotspots
+- packages/ax-code/src/cli/cmd: 79 direct files, 5 child folders, 111 total source files
+- packages/ax-code/src/cli/tui: 21 direct files, 7 child folders, 461 total source files
+
+## Hotspot Thresholds
+- 500+ line files: 171
+- 800+ line files: 78
+- warning: existing 800+ line files should shrink through scoped extraction before new large surfaces are added
+
+## Largest Files
+- 2869: packages/ax-code/src/mcp/webmcp-profile.ts
+- 2775: packages/ax-code/src/mcp/impl.ts
+- 2680: packages/ax-code/src/session/prompt-impl.ts
+- 2116: packages/ax-code/src/tool/bash-impl.ts
+- 2110: packages/ax-code/src/session/processor-impl.ts
+- 2093: packages/ax-code/src/cli/cmd/run.ts
+- 2076: packages/ax-code/src/config/config-impl.ts
+- 2069: packages/ax-code/src/session/task-queue.ts
+- 1892: packages/ax-code/src/cli/tui/routes/session/index.tsx
+- 1819: packages/ax-code/src/server/routes/session-impl.ts
+
+## Legacy Root Folders
+- ok: no legacy root folders found
+
+## Unexpected Root Folders
+- ok: no unexpected root folders found
+

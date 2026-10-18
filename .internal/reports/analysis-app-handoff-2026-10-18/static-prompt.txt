@@ -1,0 +1,1 @@
+Analyze sales.csv and create a standalone SVG chart of monthly revenue for my presentation. Give the totals and a short explanation. This is a one-off chart; I do not need controls. Create the output file. Do not install dependencies or start a server.

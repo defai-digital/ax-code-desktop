@@ -112,11 +112,11 @@ export const CommandAutocomplete = React.forwardRef<CommandAutocompleteHandle, C
         try {
           const skillNames = new Set(skills.map((skill) => skill.name))
           const customCommands: CommandInfo[] = commandsWithMetadata
-            .filter((cmd) => cmd.source !== "skill")
+            .filter((cmd) => cmd.source !== "skill" || !skillNames.has(cmd.name))
             .map((cmd, index) => ({
               id: `ax-code:${cmd.scope ?? "global"}:${cmd.name}:${cmd.agent ?? ""}:${cmd.model ?? ""}:${index}`,
               name: cmd.name,
-              source: "ax-code",
+              source: cmd.source === "skill" ? "skill" : "ax-code",
               description: cmd.description,
               agent: cmd.agent ?? undefined,
               model: cmd.model ?? undefined,

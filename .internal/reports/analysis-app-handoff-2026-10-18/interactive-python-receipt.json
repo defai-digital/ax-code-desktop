@@ -1,0 +1,28 @@
+{
+  "case": "interactive-python",
+  "model": "defai-01-ax-trust-com/deepseek-flash",
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-python-7rzrjz9y",
+  "skillSha256": "cc456bf6c4cd15eb5bf22a3d7a41704b59507d7b182de80e22408c6d20068b2b",
+  "skillDelivery": "Project-scoped fixture copy of canonical builtin source, because installed runtime predates this change. Builtin packaging/discovery tested separately from source.",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-python-7rzrjz9y",
+    "--model",
+    "defai-01-ax-trust-com/deepseek-flash",
+    "--sandbox",
+    "workspace-write",
+    "--disallowed-tools",
+    "bash,task,webfetch,websearch",
+    "--prompt",
+    "Make a small reusable Python tool for sales.csv: region selection, monthly revenue chart, filtered CSV download. Keep it under 60 lines. Create the files using read and write tools only. Do not use a shell, install dependencies, or start a server. Explain how to use the result.",
+    "--format",
+    "json",
+    "--timeout",
+    "180"
+  ],
+  "exitCode": 0,
+  "timedOut": false,
+  "seconds": 136.93
+}

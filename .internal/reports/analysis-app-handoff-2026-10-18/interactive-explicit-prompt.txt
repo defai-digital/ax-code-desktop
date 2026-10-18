@@ -1,0 +1,1 @@
+Create a small reusable Python app for sales.csv with a region selector, monthly revenue chart and filtered CSV download. Limit the app to 60 lines. Use read and write tools only; do not use a shell, install dependencies, or start a server. Finish by delivering the entrypoint and its app handoff.

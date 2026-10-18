@@ -1,0 +1,13 @@
+
+> @openchamber/ui@7.27.1 test /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> node scripts/run-tests.mjs
+
+
+ RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+
+ Test Files  505 passed (505)
+      Tests  3284 passed (3284)
+   Start at  08:33:44
+   Duration  27.48s (transform 21.64s, setup 9.98s, import 67.08s, tests 42.17s, environment 226.56s)
+

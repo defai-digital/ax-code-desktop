@@ -1,0 +1,12 @@
+
+> ax-coder@7.27.1 typecheck /Users/akiralam/code/ax-code-desktop
+> pnpm --filter "./desktop/packages/*" --if-present run type-check
+
+Scope: 3 of 4 workspace projects
+desktop/packages/electron type-check$ node ../../scripts/check-electron-runtime.mjs
+desktop/packages/ui type-check$ tsc --noEmit
+desktop/packages/electron type-check: Electron runtime syntax check passed (159 file(s)).
+desktop/packages/electron type-check: Done
+desktop/packages/ui type-check: Done
+desktop/packages/web type-check$ tsc --noEmit
+desktop/packages/web type-check: Done

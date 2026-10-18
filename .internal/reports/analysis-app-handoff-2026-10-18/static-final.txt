@@ -1,0 +1,21 @@
+The chart is done and verified by read-back.
+
+**Artifact:** [monthly_revenue.svg](monthly_revenue.svg) — standalone 800×500 SVG, no scripts or external references, drop-in for slides.
+
+**Totals** (computed from sales.csv, 6 rows aggregated across East/West):
+
+| Month | Revenue |
+|---|---|
+| Jan 2026 | 250 |
+| Feb 2026 | 300 |
+| Mar 2026 | 300 |
+| **Q1 total** | **850** |
+
+By region: East 360, West 490.
+
+**Short explanation:** Revenue grew 20% from January (250) to February (300), then held flat at 300 in March. The plateau means February's growth came entirely from the step up; West is the stronger region overall (490 vs 360, ~58% of total). Since the file only covers Q1 2026, these are the complete monthly figures — no missing months in the source data.
+
+**Verification notes:**
+- Totals were computed with a Python aggregation pass, not estimated (output: 250/300/300, regions 360/490, total 850).
+- Bar geometry was checked manually: each bar's y + height = 400 exactly (sits on the baseline), and heights are proportional to the values at the same scale (320px per 350 units: 250 → 228.57px, 300 → 274.29px). Gridlines and tick labels match that scale.
+- Not tested: an XML-parser validation pass and actual rendering — the machine-validation command was declined. The SVG is hand-checked for balanced tags and standard elements; if anything looks off when you open it in a slide deck, that's where I'd look first.

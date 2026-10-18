@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "M\u1eabu n\u00e0y c\u1ea7n terminal bash, zsh ho\u1eb7c sh. Ki\u1ec3m tra c\u00e0i \u0111\u1eb7t terminal.",
   "projectActions.preview.unavailable": "Ch\u01b0a nh\u1eadn \u0111\u01b0\u1ee3c URL xem tr\u01b0\u1edbc. Ki\u1ec3m tra \u0111\u1ea7u ra terminal c\u1ee7a thao t\u00e1c.",
   "projectActions.preview.waiting": "\u0110ang ch\u1edd URL xem tr\u01b0\u1edbc\u2026",
+  "projectActions.streamlit.desktopWindow": "Mở cuộc trò chuyện của dự án này trong cửa sổ máy tính để chạy ứng dụng.",
   "projectActions.streamlit.run": "Ch\u1ea1y \u1ee9ng d\u1ee5ng Streamlit",
   "projectActions.streamlit.description": "Ch\u1ea1y m\u1ed9t \u1ee9ng d\u1ee5ng Python t\u01b0\u01a1ng t\u00e1c trong d\u1ef1 \u00e1n n\u00e0y. AX Code s\u1ebd ch\u1ecdn m\u00f4i tr\u01b0\u1eddng v\u00e0 c\u1ed5ng kh\u1ea3 d\u1ee5ng.",
   "projectActions.streamlit.advanced": "T\u00f9y ch\u1ecdn n\u00e2ng cao",

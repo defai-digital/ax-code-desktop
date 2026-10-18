@@ -1,0 +1,24 @@
+{
+  "completed": true,
+  "model": "defai-01-ax-trust-com/MiniMax-M3",
+  "artifact": {
+    "version": 1,
+    "kind": "streamlit",
+    "entrypoint": "streamlit_app.py"
+  },
+  "defaultTotal": 850,
+  "eastTotal": 360,
+  "eastRows": 3,
+  "emptySelectionHandled": true,
+  "downloadControlPresent": true,
+  "guidedAppEastTotal": 360,
+  "guidedAppWestTotal": 490,
+  "guidedAppUploadControlPresent": true,
+  "svgXmlValid": true,
+  "runnerHttpReady": true,
+  "actualUrlObserved": true,
+  "stopFreedListener": true,
+  "python": "3.12.15 (main, Sep 30 2026, 22:04:19) [Clang 21.0.0 (clang-2100.3.34.2)]",
+  "runnerSha256": "dbf73e47bb42d9d95636fd90164cdd55f27009e686819718e576ed9b733a6926",
+  "qualification": "Real generated app with Streamlit AppTest plus actual Python runner/HTTP lifecycle. Desktop renderer/click/terminal adapter are covered by React behavioral tests; this is not a signed installed-app end-to-end test."
+}

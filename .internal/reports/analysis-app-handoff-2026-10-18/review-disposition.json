@@ -1,0 +1,25 @@
+{
+  "deepseek": {
+    "status": "completed substantive review",
+    "fixed": [
+      "Mobile Run is disabled with a translated explanation.",
+      "Card observes active preparation and shows progress; running app reopens preview.",
+      "Malformed in-process serialization returns no claim.",
+      "Skill permits additive dependency changes and explicitly handles non-Streamlit outputs."
+    ],
+    "notReproduced": [
+      "Duplicate launches: existing runAction synchronous lock and a new repeated-handoff test prove one launch.",
+      "Worktree mismatch: Header.openDirectory uses attached worktree/session directory; the card resolves the same source identity and refuses cross-project dispatch.",
+      "Missing first setup dialog: existing per-run terminal event already opens recovery; new artifact-click regression verifies no second click is needed."
+    ]
+  },
+  "grok": {
+    "status": "unavailable",
+    "reason": "200-second bounded call timed out with empty output; not counted as approval"
+  },
+  "independentFindings": [
+    "Runtime skills were filtered out of Desktop command catalog, making explicit slash invocation undiscoverable; preserved runtime entries for dispatch and autocomplete, excluded them from editable command settings.",
+    "Implicit model selection alone was inconsistent; added an eligibility-aware analysis-output loading instruction to the existing runtime Craft prompt, without a keyword classifier or new runtime.",
+    "Markdown memoization now includes source session, part type and completion, so finalized cards do not keep stale rendering."
+  ]
+}

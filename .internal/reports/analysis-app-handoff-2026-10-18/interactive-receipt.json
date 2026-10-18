@@ -1,0 +1,28 @@
+{
+  "case": "interactive",
+  "model": "defai-01-ax-trust-com/qwen/qwen3.8-flash",
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-mqrvxvet",
+  "skillSha256": "cc456bf6c4cd15eb5bf22a3d7a41704b59507d7b182de80e22408c6d20068b2b",
+  "skillDelivery": "Project-scoped fixture copy of canonical builtin source, because installed runtime predates this change. Builtin packaging/discovery tested separately from source.",
+  "command": [
+    "/Users/akiralam/.ax-code/bin/ax-code",
+    "run",
+    "--dir",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-analysis-interactive-mqrvxvet",
+    "--model",
+    "defai-01-ax-trust-com/qwen/qwen3.8-flash",
+    "--sandbox",
+    "workspace-write",
+    "--disallowed-tools",
+    "task,webfetch,websearch",
+    "--prompt",
+    "Build a reusable local tool for sales.csv: let me upload another CSV with the same columns, filter by region, see monthly revenue, and download the filtered data. Use sensible defaults and simple controls. Create the files, check the arithmetic on the included sample, and explain how to use the result. Do not install dependencies or start a server during this task.",
+    "--format",
+    "json",
+    "--timeout",
+    "180"
+  ],
+  "exitCode": 124,
+  "timedOut": false,
+  "seconds": 180.86
+}

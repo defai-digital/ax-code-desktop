@@ -18,6 +18,10 @@ export const areMarkdownRendererPropsEqual = (prev: MarkdownRendererProps, next:
     prev.messageId === next.messageId &&
     prev.onShowPopup === next.onShowPopup &&
     prev.enableFileReferences === next.enableFileReferences &&
-    prev.part?.id === next.part?.id
+    prev.part?.id === next.part?.id &&
+    prev.part?.sessionID === next.part?.sessionID &&
+    prev.part?.type === next.part?.type &&
+    (prev.part?.type === "text" ? prev.part.time?.end : undefined) ===
+      (next.part?.type === "text" ? next.part.time?.end : undefined)
   )
 }

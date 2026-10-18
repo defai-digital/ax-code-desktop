@@ -1,0 +1,68 @@
+{
+  "desktopTests": {
+    "passed": 5544,
+    "skipped": 10,
+    "detail": "Full repository run: root 195/7, Electron 639/1, UI 3282/0, web 1426/2. Final UI rerun after slash catalog changes: 3284/0 replaces UI count."
+  },
+  "runtimeTests": {
+    "skillAndSystem": 50,
+    "scriptsPassed": 422,
+    "scriptsSkipped": 96
+  },
+  "checks": [
+    "Desktop typecheck",
+    "Desktop lint",
+    "Desktop build",
+    "Desktop boundaries and release contract",
+    "14 locales / 4911 keys / 63843 translated entries",
+    "Runtime typecheck",
+    "Runtime skill standard validation",
+    "Runtime structure"
+  ],
+  "runtimeCommit": "ff84ba9f160d2e6a1e6cea5aa79adb58c7029658",
+  "desktopBaseCommit": "69963b28",
+  "sourceSha256": {
+    "desktop/packages/ui/src/components/chat/AnalysisAppCard.test.tsx": "9fe0d18c0abdac5e153f6be0b8f5e40fb7a66467012dbaf33d7434f0c369c6f1",
+    "desktop/packages/ui/src/components/chat/AnalysisAppCard.tsx": "7ba827fd815fd58bfa495b66701f31bb04e6aaf0137de1fdef36d6de8098ac7f",
+    "desktop/packages/ui/src/components/chat/CommandAutocomplete.runtimeSkill.test.tsx": "81a908ebcda9f5fe136e8b067c7f92be79e7291d3b25419aab8f2c810c759441",
+    "desktop/packages/ui/src/components/chat/CommandAutocomplete.tsx": "a04bc5f09a982cf993121d09ab90efaa1d40753c5b7809f57636cdd2acfce39f",
+    "desktop/packages/ui/src/components/chat/MarkdownRendererImpl-impl.analysisApp.test.tsx": "64a6c02bc51b63e6ff81a7403f9a90087353c1290ff9936cabe4769a217de2ee",
+    "desktop/packages/ui/src/components/chat/MarkdownRendererImpl-impl.tsx": "0380f838650a342c37662e63ab8c24cf4190bedc0a9ffe1618cad3d146936b18",
+    "desktop/packages/ui/src/components/chat/markdownRendererMemo.ts": "f3e443402ad498b32a9e811639922686fd51ab4fc3d861cc4decf8fa9ba4745b",
+    "desktop/packages/ui/src/components/layout/ProjectActionsButton.test.tsx": "af4e6a2fa9b5b8d7bbd21c63c2e6092cbebd26814febb98a3b19dce7af104dfe",
+    "desktop/packages/ui/src/components/layout/ProjectActionsButton.tsx": "7866eaa32268bf1a2cbdbc1b40b33d9462ab4d423b3ab080ad0fbabeb69cf54e",
+    "desktop/packages/ui/src/components/sections/commands/CommandsPage.tsx": "0bbf2f451ee01272adbf4763663fcfe26beac9b797fc9f9a93127516e0a67714",
+    "desktop/packages/ui/src/components/sections/commands/CommandsSidebar.tsx": "14a3d0abd0af91d01fd197c50ffd2ad640739f9cb6cb2939309eb72889b199a6",
+    "desktop/packages/ui/src/lib/analysisAppArtifact.test.ts": "362a5553d8557945e9446214ff641a57fec5b5cdf5fd5baf8e1b4e286da89b57",
+    "desktop/packages/ui/src/lib/analysisAppArtifact.ts": "1b38dc93cf784c5c3e35f08fbc3a769f0e4408b93abb2dbc156b023a318b9cac",
+    "desktop/packages/ui/src/lib/i18n/messages/de.json": "808a7852a91af0a89d8ed714f861d379e5f09552d987d69436b1cd772903537a",
+    "desktop/packages/ui/src/lib/i18n/messages/en.ts": "d3f6152c5df817a355107345074ad41b92dd2114f100ef44b63740abca17c72e",
+    "desktop/packages/ui/src/lib/i18n/messages/es.json": "98365d78f7bbf503ef808469e8b7b91db617cb147190f0f3e87201b725708497",
+    "desktop/packages/ui/src/lib/i18n/messages/fr.json": "7991b609b212a164906529d3913433747902444decd21cad52353375f1ceb154",
+    "desktop/packages/ui/src/lib/i18n/messages/id.json": "3a6a0f5736902fce4641f419d4f354eeeee02be239321a09bdc8902253422b43",
+    "desktop/packages/ui/src/lib/i18n/messages/it.json": "1e1a7e580a97a9d3ca7538549c2d09cd5d731a88c5ddd8f557b5eae5d94fd75f",
+    "desktop/packages/ui/src/lib/i18n/messages/ja.json": "629254c4c14939e2ed325f17698073cdbab9e361404c69084ee239e3abbffddc",
+    "desktop/packages/ui/src/lib/i18n/messages/ko.json": "595557657775d99524bb88a6b3ee4ee664cd2c7fbd6966595fb2eb756f836b81",
+    "desktop/packages/ui/src/lib/i18n/messages/pt-BR.json": "bca69843a3c9332f10869994d8fa92d8c3f40c9542301ef53813e573e13ea9f3",
+    "desktop/packages/ui/src/lib/i18n/messages/ru.json": "37a087d4d2cf0f1a68ef635b7feb67d480ae0721a42fdb089b3fc5f8ed86adee",
+    "desktop/packages/ui/src/lib/i18n/messages/tr.json": "c2cdd18160f91dd22943ef4b04e5c3e04b3a625a3945177095d4de18cf44bc64",
+    "desktop/packages/ui/src/lib/i18n/messages/vi.json": "97f5a723a730d04b4863f3f74ce342d8c044a17ebfc8506c7dec2a2173544a78",
+    "desktop/packages/ui/src/lib/i18n/messages/zh-CN.json": "04de44091efe757c02afa524fe1a60c96047de73de2b918bdf3b887748617ddd",
+    "desktop/packages/ui/src/lib/i18n/messages/zh-TW.json": "fbda41a4b4b94b85a7356f9347a53af37f31ca40e900bd18fb409d1602c9cc03",
+    "desktop/packages/ui/src/stores/useCommandsStore.test.ts": "41e6f5a505f37c32890c2490edfa1f6b75e5e2747399804903d0563d6217fd82",
+    "desktop/packages/ui/src/stores/useCommandsStore.ts": "f29ea9ea96c7977bfed5acb0c36f7a3a0c55fe15cf705aadc2f1a70a0c85659d"
+  },
+  "distribution": {
+    "runtimePinChanged": false,
+    "sdkPinChanged": false,
+    "installedAppUpdated": false,
+    "pushed": false,
+    "published": false
+  },
+  "limitations": [
+    "Model-selected invocation is not guaranteed across providers or custom agent prompts; /analysis-output is a deterministic invocation entry.",
+    "Live model fixtures use the installed runtime plus a project-local copy of the canonical skill; the guided case appends the exact new Craft sentence. Source tests qualify builtin discovery and system prompt assembly separately.",
+    "Generated app AppTest and real Python runner HTTP lifecycle plus React handoff tests are not signed installed-app end-to-end qualification.",
+    "Inherited POSIX/Python requirements and prior Windows/remote qualification limits remain."
+  ]
+}

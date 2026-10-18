@@ -1,0 +1,16 @@
+2026-10-18 08:34:21.381 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-10-18 08:34:22.645 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-18 08:34:22.678 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+Traceback (most recent call last):
+  File "/Users/akiralam/code/ax-code-desktop/.internal/reports/analysis-app-handoff-2026-10-18/verify-generated.py", line 72, in <module>
+    assert url and 'URL: ' + url in ''.join(lines)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

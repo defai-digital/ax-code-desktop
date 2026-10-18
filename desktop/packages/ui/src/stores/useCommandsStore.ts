@@ -57,6 +57,7 @@ const buildCommandsSignature = (commands: Command[]): string =>
     command.description,
     command.agent,
     command.model,
+    command.source,
     // The template is the command's editable body; a reload that only changed it
     // must not be dropped as "unchanged" (the editor and Duplicate both read it).
     command.template,
@@ -140,9 +141,11 @@ export const useCommandsStore = create<CommandsStore>()(
                   axCodeClient.listCommandsWithDetails(),
                 )
 
-                const configurableCommands = commands.filter((cmd) => cmd.source !== "skill")
                 const commandsWithScope = await Promise.all(
-                  configurableCommands.map(async (cmd) => {
+                  commands.map(async (cmd) => {
+                    // Runtime invocation policy already filtered this catalog. Keep skills
+                    // available for slash dispatch without treating them as editable commands.
+                    if (cmd.source === "skill") return cmd
                     try {
                       // Force no-cache
                       const response = await fetch(

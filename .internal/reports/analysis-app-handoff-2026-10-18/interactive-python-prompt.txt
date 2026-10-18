@@ -1,0 +1,1 @@
+Make a small reusable Python tool for sales.csv: region selection, monthly revenue chart, filtered CSV download. Keep it under 60 lines. Create the files using read and write tools only. Do not use a shell, install dependencies, or start a server. Explain how to use the result.

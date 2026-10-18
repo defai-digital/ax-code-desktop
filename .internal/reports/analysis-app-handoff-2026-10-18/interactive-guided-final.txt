@@ -1,0 +1,29 @@
+Done. Files created and verified by readback and static review.
+
+**Files**
+- `streamlit_app.py` — 53 lines (under the 70 limit)
+- `requirements.txt` — declares `streamlit` and `pandas`
+
+**What the app does**
+- Defaults to the bundled `sales.csv` sitting next to the app; uploading a CSV replaces it.
+- Validates the schema (`month, region, revenue`, case/whitespace-tolerant headers) with actionable errors; coerces `revenue` to numbers and warns about rows it drops.
+- Region dropdown (sorted, first region preselected), bar chart of monthly revenue for that region, plus total and month count.
+- "Download filtered rows (CSV)" exports exactly the selected region's rows, named e.g. `sales_east.csv`.
+
+**How to use**
+In AX Code Desktop, click **Run** on the app declaration below; if dependencies are missing, choose **Prepare and run** as a separate step. Desktop owns the port and preview. Fallback in any terminal, from this project directory:
+
+```
+python -m pip install -r requirements.txt
+python -m streamlit run streamlit_app.py
+```
+
+Then open the local URL Streamlit prints, pick or upload a CSV, select a region, and use the download button.
+
+```ax-code-app
+{"version":1,"kind":"streamlit","entrypoint":"streamlit_app.py"}
+```
+
+**Validation notes** — What was tested: file readback, LSP parse (clean except expected unresolved-import warnings, since installation was disallowed), a logic walkthrough against `sales.csv` (East → Jan 100 / Feb 120 / Mar 140, total 360), and `impact_analyze` on the new file (affected symbols: 0, risk: low, score 0 — nothing else depends on it). What was not tested: the running UI — no server start, dependency install, or shell use was permitted, so rendered behavior is unverified until you run it. The `possibly-unbound df/source` LSP hints are false positives: `st.stop()` halts the script in those branches.
+
+**Choices made autonomously:** Streamlit (repeated input + filters per skill guidance), `streamlit_app.py` as entrypoint, bundled-file default with upload override, single-region select (not multi), unpinned requirements.

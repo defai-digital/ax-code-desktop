@@ -1,0 +1,13 @@
+2026-10-18 08:38:54.998 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2026-10-18 08:38:55.501 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-18 08:38:55.533 Please replace `use_container_width` with `width`.
+
+`use_container_width` will be removed after 2025-12-31.
+
+For `use_container_width=True`, use `width='stretch'`. For `use_container_width=False`, use `width='content'`.
+2026-10-18 08:38:55.539 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+{"completed": true, "model": "defai-01-ax-trust-com/MiniMax-M3", "artifact": {"version": 1, "kind": "streamlit", "entrypoint": "streamlit_app.py"}, "defaultTotal": 850, "eastTotal": 360, "eastRows": 3, "emptySelectionHandled": true, "downloadControlPresent": true, "guidedAppEastTotal": 360, "guidedAppWestTotal": 490, "guidedAppUploadControlPresent": true, "svgXmlValid": true, "runnerHttpReady": true, "actualUrlObserved": true, "stopFreedListener": true, "python": "3.12.15 (main, Sep 30 2026, 22:04:19) [Clang 21.0.0 (clang-2100.3.34.2)]", "runnerSha256": "dbf73e47bb42d9d95636fd90164cdd55f27009e686819718e576ed9b733a6926", "qualification": "Real generated app with Streamlit AppTest plus actual Python runner/HTTP lifecycle. Desktop renderer/click/terminal adapter are covered by React behavioral tests; this is not a signed installed-app end-to-end test."}

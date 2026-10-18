@@ -1,0 +1,1 @@
+Build a small reusable graphical tool for sales.csv: upload another CSV with the same columns, select a region, see monthly revenue, and download filtered rows. Use sensible defaults. Keep the app under 70 lines. Create the files using read and write tools only; no shell, dependency installation, or server start. Explain how to use the result.

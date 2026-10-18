@@ -1,0 +1,18 @@
+
+> ax-code@ pretest:scripts /Users/akiralam/code/ax-code
+> node script/only-allow-pnpm.mjs
+
+
+> ax-code@ test:scripts /Users/akiralam/code/ax-code
+> vitest run
+
+
+ RUN  v4.1.12 /Users/akiralam/code/ax-code
+
+Tiel peer chart is up to date
+
+ Test Files  55 passed | 1 skipped (56)
+      Tests  422 passed | 96 skipped (518)
+   Start at  08:29:13
+   Duration  8.52s (transform 890ms, setup 0ms, import 1.91s, tests 36.15s, environment 3ms)
+

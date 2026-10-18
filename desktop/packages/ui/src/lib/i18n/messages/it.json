@@ -4891,6 +4891,7 @@
   "projectActions.error.unsupportedRecipeShell": "Questa procedura richiede un terminale bash, zsh o sh. Controlla le impostazioni del terminale.",
   "projectActions.preview.unavailable": "URL di anteprima non ricevuto. Controlla l\u2019output del terminale dell\u2019azione.",
   "projectActions.preview.waiting": "In attesa dell\u2019URL di anteprima\u2026",
+  "projectActions.streamlit.desktopWindow": "Apri la chat di questo progetto in una finestra desktop per eseguire l’app.",
   "projectActions.streamlit.run": "Esegui l\u2019app Streamlit",
   "projectActions.streamlit.description": "Esegui un\u2019app Python interattiva in questo progetto. AX Code seleziona l\u2019ambiente e una porta disponibile.",
   "projectActions.streamlit.advanced": "Opzioni avanzate",

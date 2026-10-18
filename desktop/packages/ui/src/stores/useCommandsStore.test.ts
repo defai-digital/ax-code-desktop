@@ -88,6 +88,19 @@ describe("useCommandsStore", () => {
     globalThis.fetch = fetchMock as unknown as typeof fetch
   })
 
+  test("preserves runtime skill commands for slash dispatch without reading editable configuration", async () => {
+    const list = createDeferred<unknown[]>()
+    commandLists.push(list)
+    const loading = useCommandsStore.getState().loadCommands()
+    list.resolve([{ name: "analysis-output", source: "skill", description: "Analyze data", template: "Analyze" }])
+    expect(await loading).toBe(true)
+    expect(useCommandsStore.getState().getCommandByName("analysis-output")?.source).toBe("skill")
+    expect(fetchCalls).toEqual([])
+    useCommandsStore.setState({ commands: [] })
+    expect(await useCommandsStore.getState().loadCommands()).toBe(true)
+    expect(useCommandsStore.getState().commands[0]?.name).toBe("analysis-output")
+  })
+
   test("keeps the newest command list after switching project directories", async () => {
     const staleCommands = createDeferred<unknown[]>()
     const latestCommands = createDeferred<unknown[]>()
