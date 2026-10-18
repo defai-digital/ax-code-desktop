@@ -17,7 +17,8 @@ describe("DiffView header layout wiring", () => {
     const handler = source.slice(handlerIndex, source.indexOf("\n  )", handlerIndex))
     expect(handler).toContain("setDiffLayoutForAllFiles(")
     expect(handler).not.toContain("setDiffFileLayout(")
-    // The toggle on a file row still changes that one file.
-    expect(source).toContain("setDiffFileLayout(file.path, nextLayout)")
+    // The toggle on a file row still changes that one file (keyed by project,
+    // so two projects' copies of the same path keep separate layouts).
+    expect(source).toContain("setDiffFileLayout(directory, file.path, nextLayout)")
   })
 })

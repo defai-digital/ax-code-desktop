@@ -319,13 +319,18 @@ export const IntegrateCommitsSection: React.FC<{
     if (ui.kind !== "conflict") return
     try {
       await abortIntegrate(ui.state)
-      toast.message(t("gitView.integrate.cherryPickAbortedToast"))
-      clearIntegrateConflictState(currentSessionId)
-    } finally {
-      const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
-      if (next) setUi({ kind: "ready", plan: next })
-      else setUi({ kind: "idle" })
+    } catch (e) {
+      // The cherry-pick is still in progress; switching to "ready" here told
+      // the user it was over and hid the conflict state they still need.
+      const message = e instanceof Error ? e.message : String(e)
+      toast.error(t("gitView.toast.abortOperationFailed"), { description: message })
+      return
     }
+    toast.message(t("gitView.integrate.cherryPickAbortedToast"))
+    clearIntegrateConflictState(currentSessionId)
+    const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
+    if (next) setUi({ kind: "ready", plan: next })
+    else setUi({ kind: "idle" })
   }, [ui, repoRoot, sourceBranch, targetBranch, currentSessionId, t])
 
   const handleContinue = React.useCallback(async () => {

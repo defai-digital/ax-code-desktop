@@ -748,6 +748,10 @@ export const GitView: React.FC = () => {
 
     const state = readBranchConflictState(currentSessionId, currentDirectory)
     if (!state) {
+      // This directory has no conflict: the dialog may be left over from the
+      // project the user was looking at before the switch.
+      setConflictDialogOpen(false)
+      setConflictFiles([])
       return
     }
 
@@ -1350,7 +1354,9 @@ export const GitView: React.FC = () => {
     const blockingReasons = getMutationBlockingReasons(worktreeAttachment)
     if (blockingReasons.length > 0) {
       toast.error(t("gitView.toast.cannotRenameBranch", { reason: formatBlockingReason(blockingReasons[0]) }))
-      return
+      // The inline editor closes on a resolved promise, hiding the field the
+      // user is still in the middle of editing.
+      throw new Error(formatBlockingReason(blockingReasons[0]))
     }
 
     try {
@@ -1361,6 +1367,7 @@ export const GitView: React.FC = () => {
     } catch (err) {
       const message = err instanceof Error ? err.message : t("gitView.toast.renameBranchFailed", { oldName, newName })
       toast.error(message)
+      throw err instanceof Error ? err : new Error(message)
     }
   }
 
@@ -2117,6 +2124,12 @@ export const GitView: React.FC = () => {
 
   const handleAbortConflict = React.useCallback(async () => {
     if (!currentDirectory) return
+    // The dialog can outlive a project switch; aborting here would run against
+    // the project now on screen instead of the one that has the conflict.
+    if (!readBranchConflictState(currentSessionId, currentDirectory)) {
+      setConflictDialogOpen(false)
+      return
+    }
 
     try {
       if (conflictOperation === "merge") {
@@ -2133,7 +2146,16 @@ export const GitView: React.FC = () => {
       const message = err instanceof Error ? err.message : `Failed to abort ${conflictOperation}`
       toast.error(message)
     }
-  }, [currentDirectory, git, conflictOperation, refreshStatusAndBranches, refreshLog, clearConflictState, t])
+  }, [
+    currentDirectory,
+    currentSessionId,
+    git,
+    conflictOperation,
+    refreshStatusAndBranches,
+    refreshLog,
+    clearConflictState,
+    t,
+  ])
 
   // Check if there are unresolved conflicts (files with 'U' status)
   const hasUnresolvedConflicts = React.useMemo(() => {

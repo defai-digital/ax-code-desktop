@@ -155,7 +155,7 @@ type CodeMirrorEditorProps = {
   highlightLines?: { start: number; end: number }
   blockWidgets?: BlockWidgetDef[]
   onViewReady?: (view: EditorView) => void
-  onViewDestroy?: () => void
+  onViewDestroy?: (view: EditorView) => void
   enableSearch?: boolean
   searchOpen?: boolean
   onSearchOpenChange?: (open: boolean) => void
@@ -479,8 +479,11 @@ export function CodeMirrorEditor({
     }
 
     return () => {
-      onViewDestroyRef.current?.()
-      viewRef.current?.destroy()
+      // The view is passed along: a host that keeps one ref across two editors
+      // (the normal and fullscreen panes) must not clear the survivor's ref.
+      const destroyedView = viewRef.current
+      if (destroyedView) onViewDestroyRef.current?.(destroyedView)
+      destroyedView?.destroy()
       viewRef.current = null
       setPortalWidgets([])
     }

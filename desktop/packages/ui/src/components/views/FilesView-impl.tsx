@@ -906,14 +906,6 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   } = fileCommentController
 
   React.useEffect(() => {
-    setLineSelection(null)
-    reset()
-    setMainTabGuard(null)
-    setDraftContent("")
-    setIsSaving(false)
-  }, [selectedFile?.path, reset, setMainTabGuard])
-
-  React.useEffect(() => {
     setCommentSelection(lineSelection)
   }, [lineSelection, setCommentSelection])
 
@@ -1050,6 +1042,13 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     [files, mapDirectoryEntries, showGitignored],
   )
 
+  // Read by refreshRoot without widening its dependency list: a refresh must
+  // reload the folders that are still expanded, but refreshDirectory's
+  // identity is used by the polling effect and must not change when a folder
+  // is toggled.
+  const expandedPathsRef = React.useRef(expandedPaths)
+  expandedPathsRef.current = expandedPaths
+
   const refreshRoot = React.useCallback(async () => {
     if (!root) {
       return
@@ -1060,7 +1059,21 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     activeDirectoryLoadIdsRef.current = new Map()
     setChildrenByDir((prev) => (Object.keys(prev).length === 0 ? prev : {}))
 
+    // Reload the folders that stay expanded. Clearing the cache leaves their
+    // rows in place with no children, so without this they render empty until
+    // the user collapses and expands them again.
+    const expandedToLoad = expandedPathsRef.current
+      .map((entry) => normalizePath(entry))
+      .filter(
+        (normalized): normalized is string =>
+          !!normalized && normalized !== root && normalized.startsWith(`${root}/`),
+      )
+      .sort((a, b) => a.split("/").length - b.split("/").length)
+
     await loadDirectory(root)
+    for (let index = 0; index < expandedToLoad.length; index += 3) {
+      await Promise.all(expandedToLoad.slice(index, index + 3).map((dir) => loadDirectory(dir)))
+    }
   }, [loadDirectory, root])
 
   /**
@@ -1519,6 +1532,35 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
 
   const isDirty = draftContent !== displayedContent
 
+  // Sidebar tree clicks and chat file links set the store selection directly,
+  // so handleSelectFile's dirty guard never ran and the buffer was replaced
+  // with no prompt. Detect that here, before the reset effect below clears the
+  // draft, and let the same save/discard dialog decide.
+  const externalDirtySelectionRef = React.useRef(false)
+  externalDirtySelectionRef.current = Boolean(
+    loadedFilePath && selectedFile?.path && selectedFile.path !== loadedFilePath && isDirty,
+  )
+  // Keeps the reset effect from wiping the draft while the prompt is open,
+  // including the re-render that restores the tab to the loaded file.
+  const holdDraftForPromptRef = React.useRef(false)
+
+  React.useEffect(() => {
+    if (!externalDirtySelectionRef.current) return
+    holdDraftForPromptRef.current = true
+    pendingSelectFileRef.current = selectedFile
+    setConfirmDiscardOpen(true)
+    if (root && loadedFilePath) setSelectedPath(root, loadedFilePath)
+  }, [loadedFilePath, root, selectedFile, setSelectedPath])
+
+  React.useEffect(() => {
+    if (holdDraftForPromptRef.current) return
+    setLineSelection(null)
+    reset()
+    setMainTabGuard(null)
+    setDraftContent("")
+    setIsSaving(false)
+  }, [selectedFile?.path, reset, setMainTabGuard])
+
   const saveDraft = React.useCallback(async () => {
     if (!selectedFile || !files.writeFile) {
       toast.error(t("filesView.toast.savingNotSupported"))
@@ -1529,7 +1571,9 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
       return true
     }
 
-    const savedPath = selectedFile.path
+    // The draft belongs to the loaded file, which can differ from the store
+    // selection when a link switched the tab before the prompt was answered.
+    const savedPath = loadedFilePath ?? selectedFile.path
     const savedDraftContent = draftContent
     // The write below is async — if the user switches to a different file before it
     // resolves (e.g. via the "discard changes" flow), this closure's `selectedFile`/
@@ -1588,6 +1632,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     files,
     isDirty,
     loadedFileLineEnding,
+    loadedFilePath,
     readFileStat,
     root,
     selectedFile,
@@ -1914,6 +1959,12 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   }, [ensurePathVisible, selectedFile?.path])
 
   React.useEffect(() => {
+    // The unsaved-draft guard above owns this transition: it restores the tab
+    // and the dialog decides; loading here would already have read the file.
+    if (externalDirtySelectionRef.current) {
+      return
+    }
+
     if (!selectedFile) {
       activeFileLoadIdRef.current += 1
       setFileLoading(false)
@@ -1978,6 +2029,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     pendingClosePathRef.current = null
 
     setConfirmDiscardOpen(false)
+    holdDraftForPromptRef.current = false
 
     // Discard draft by reverting back to last loaded content
     setDraftContent(displayedContent)
@@ -2041,6 +2093,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     pendingClosePathRef.current = null
 
     setConfirmDiscardOpen(false)
+    holdDraftForPromptRef.current = false
 
     if (closePath) {
       if (root) {
@@ -3578,8 +3631,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                       nudgeEditorSelectionAboveKeyboard(view)
                     })
                   }}
-                  onViewDestroy={() => {
-                    if (editorViewRef.current) {
+                  onViewDestroy={(view) => {
+                    if (editorViewRef.current === view) {
                       editorViewRef.current = null
                     }
                     setEditorViewReadyNonce((value) => value + 1)
@@ -3809,8 +3862,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
                       nudgeEditorSelectionAboveKeyboard(view)
                     })
                   }}
-                  onViewDestroy={() => {
-                    if (editorViewRef.current) {
+                  onViewDestroy={(view) => {
+                    if (editorViewRef.current === view) {
                       editorViewRef.current = null
                     }
                   }}

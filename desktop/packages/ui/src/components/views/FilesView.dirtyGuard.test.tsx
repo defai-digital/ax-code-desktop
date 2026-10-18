@@ -254,4 +254,31 @@ describe("FilesView unsaved-changes guard", () => {
     expect(readFile.mock.calls.map((call) => call[0])).not.toContain("/repo/b.txt")
     expect(document.body.textContent).toContain(dict["filesView.unsaved.title"])
   })
+
+  test("a selection set outside the editor prompts instead of dropping the draft", async () => {
+    await render()
+    expect(editorOnChange).toBeTypeOf("function")
+
+    await act(async () => {
+      editorOnChange?.("alpha edited\n")
+    })
+
+    // The sidebar tree and chat file links write the store directly, so this
+    // change never passes through handleSelectFile's guard.
+    tabsState.selectedPath = "/repo/b.txt"
+    await act(async () => {
+      bump()
+    })
+    await act(async () => {})
+
+    expect(document.body.textContent).toContain(dict["filesView.unsaved.title"])
+    expect(readFile.mock.calls.map((call) => call[0])).not.toContain("/repo/b.txt")
+    // The tab is restored to the file whose draft is still in the editor.
+    expect(tabsState.selectedPath).toBe("/repo/a.txt")
+
+    await clickByText(dict["filesView.unsaved.discard"])
+    await act(async () => {})
+
+    expect(readFile.mock.calls.map((call) => call[0])).toContain("/repo/b.txt")
+  })
 })
