@@ -529,6 +529,27 @@ export const useSessionFoldersStore = create<SessionFoldersStore>()(
   ),
 )
 
+// A window that starts before the local server answers used to give up permanently: hydration is
+// bootstrapped once and the flag was set in `finally` even when the read failed, so disk folders
+// (from another window or machine) never appeared. Retry a few times with backoff instead.
+let diskHydrationAttempts = 0
+let diskHydrationRetryTimer: number | null = null
+const MAX_DISK_HYDRATION_ATTEMPTS = 5
+
+const scheduleDiskHydrationRetry = (): void => {
+  if (typeof window === "undefined" || diskHydrationRetryTimer) {
+    return
+  }
+  if (diskHydrationAttempts >= MAX_DISK_HYDRATION_ATTEMPTS) {
+    return
+  }
+  diskHydrationAttempts += 1
+  diskHydrationRetryTimer = window.setTimeout(() => {
+    diskHydrationRetryTimer = null
+    void hydrateSessionFoldersFromDisk()
+  }, Math.min(30_000, 2_000 * diskHydrationAttempts))
+}
+
 const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
   if (diskHydrated || diskHydrationInFlight || typeof window === "undefined") {
     return
@@ -539,6 +560,7 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
   try {
     const response = await fetch(SESSION_FOLDERS_API_PATH).catch(() => null)
     if (!response || !response.ok) {
+      scheduleDiskHydrationRetry()
       return
     }
 
@@ -548,6 +570,7 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
     } | null
 
     if (!parsed) {
+      scheduleDiskHydrationRetry()
       return
     }
 
@@ -558,6 +581,7 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
 
     const hasDiskData = Object.keys(diskFolders).length > 0 || diskCollapsed.size > 0
     if (!hasDiskData) {
+      diskHydrated = true
       return
     }
 
@@ -565,6 +589,9 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
     // win over the (now stale) disk snapshot — otherwise it would vanish
     // from the UI the instant hydration lands.
     if (hasLocalFoldersMutation) {
+      // The local state is authoritative; completing hydration here keeps the stale disk copy
+      // from landing on a later retry.
+      diskHydrated = true
       return
     }
 
@@ -575,11 +602,11 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
 
     persistFolders(diskFolders)
     persistCollapsed(diskCollapsed)
+    diskHydrated = true
   } catch {
-    // ignored
+    scheduleDiskHydrationRetry()
   } finally {
     diskHydrationInFlight = false
-    diskHydrated = true
   }
 }
 

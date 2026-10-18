@@ -329,6 +329,8 @@ type SessionUIState = {
   availableWorktreesByProject: Map<string, WorktreeMetadata[]>
   sessionAbortFlags: Map<string, { timestamp: number; acknowledged: boolean }>
   abortControllers: Map<string, AbortController>
+  /** Fan-out cleanup for a hard-deleted session: per-session maps and the worktree attachment. */
+  clearRemovedSessionState: (sessionIds: Iterable<string>) => void
   isLoading: boolean
   lastLoadedDirectory: string | null
   // Plan mode - per-session plan file availability (set when plan_enter tool creates a plan)
@@ -769,6 +771,31 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       flags.set(sessionId, { timestamp: Date.now(), acknowledged: false })
       return { sessionAbortFlags: flags }
     })
+  },
+
+  clearRemovedSessionState: (sessionIds) => {
+    const idSet = sessionIds instanceof Set ? sessionIds : new Set(sessionIds)
+    if (idSet.size === 0) return
+    set((state) => {
+      const abortFlags = new Map(state.sessionAbortFlags)
+      const planAvailable = new Map(state.sessionPlanAvailable)
+      const dismissedBars = new Map(state.pendingChangesBarDismissed)
+      for (const id of idSet) {
+        // acknowledgeSessionAbort only flips the flag and nothing removes the entry otherwise.
+        abortFlags.delete(id)
+        planAvailable.delete(id)
+        dismissedBars.delete(id)
+      }
+      return {
+        sessionAbortFlags: abortFlags,
+        sessionPlanAvailable: planAvailable,
+        pendingChangesBarDismissed: dismissedBars,
+      }
+    })
+    for (const id of idSet) {
+      // Also drops the legacy map and the authoritative worktree attachment.
+      get().setWorktreeMetadata(id, null)
+    }
   },
 
   clearSessionAbort: (sessionId) => {

@@ -755,6 +755,10 @@ export const useConfigStore = create<ConfigStore>()(
           }
 
           await get().loadProviders({ directory: fromDirectoryKey(directoryKey) })
+          // A switch that finished while the provider load was in flight must win: this
+          // continuation belongs to the previous project, and the agents store is single-home,
+          // so loading them now would overwrite the active project's list.
+          if (get().activeDirectoryKey !== directoryKey) return
           await get().loadAgents({ directory: fromDirectoryKey(directoryKey) })
         },
 
@@ -1919,12 +1923,17 @@ export const useConfigStore = create<ConfigStore>()(
           const state = persisted as { directoryScoped?: Record<string, Record<string, unknown>> } | undefined
           for (const snapshot of Object.values(state?.directoryScoped ?? {})) {
             delete snapshot.agents
+            // Provider catalogues are re-fetched on activation and were the bulk of every
+            // snapshot; persisting them grew localStorage until safeStorage gave up entirely.
+            snapshot.providers = []
           }
           return state
         },
         partialize: (state) => ({
           activeDirectoryKey: state.activeDirectoryKey,
-          directoryScoped: state.directoryScoped,
+          directoryScoped: Object.fromEntries(
+            Object.entries(state.directoryScoped).map(([key, snapshot]) => [key, { ...snapshot, providers: [] }]),
+          ),
           currentProviderId: state.currentProviderId,
           currentModelId: state.currentModelId,
           currentVariant: state.currentVariant,

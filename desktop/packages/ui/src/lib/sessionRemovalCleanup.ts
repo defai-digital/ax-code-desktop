@@ -12,6 +12,7 @@ import { usePermissionStore } from "@/stores/permissionStore"
 import { useInlineCommentDraftStore } from "@/stores/useInlineCommentDraftStore"
 import { useSessionMultiSelectStore } from "@/stores/useSessionMultiSelectStore"
 import { useSessionRollbackStore } from "@/stores/useSessionRollbackStore"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 
 export function cleanupRemovedSessions(ids: Iterable<string>): void {
   const idSet = ids instanceof Set ? ids : new Set(ids)
@@ -33,4 +34,7 @@ export function cleanupRemovedSessions(ids: Iterable<string>): void {
   // Keep an active multi-select consistent so the selection count cannot
   // include sessions that no longer exist.
   useSessionMultiSelectStore.getState().removeMany([...idSet])
+  // Abort flags, plan-availability and dismissed change bars are never removed by their own
+  // actions; the worktree attachment would keep routing to a dead session's worktree.
+  useSessionUIStore.getState().clearRemovedSessionState(idSet)
 }

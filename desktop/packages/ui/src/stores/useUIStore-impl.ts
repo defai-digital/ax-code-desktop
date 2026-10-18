@@ -119,6 +119,16 @@ const isLegacyDefaultTemplates = (value: unknown): boolean => {
   )
 }
 
+const MAX_DIFF_FILE_LAYOUTS = 500
+
+/**
+ * Per-file diff layout overrides are keyed by project as well as path: git paths are relative to
+ * the repository, so `src/index.ts` in two projects shared one override, and every path ever
+ * toggled stayed in the persisted map forever.
+ */
+export const diffLayoutKey = (directory: string | null | undefined, filePath: string): string =>
+  `${(directory ?? "").replace(/\\/g, "/").replace(/\/+$/, "")}\u0000${filePath}`
+
 const CONTEXT_PANEL_DEFAULT_WIDTH = 380
 const CONTEXT_PANEL_MIN_WIDTH = 380
 const CONTEXT_PANEL_MAX_WIDTH = 1400
@@ -767,7 +777,11 @@ interface UIStore {
   addRecentEffort: (providerID: string, modelID: string, variant: string | undefined) => void
   setDiffLayoutPreference: (mode: "dynamic" | "inline" | "side-by-side") => void
   setDiffLayoutForAllFiles: (mode: "inline" | "side-by-side") => void
-  setDiffFileLayout: (filePath: string, mode: "inline" | "side-by-side") => void
+  setDiffFileLayout: (
+    directory: string | null | undefined,
+    filePath: string,
+    mode: "inline" | "side-by-side",
+  ) => void
   setDiffWrapLines: (wrap: boolean) => void
   setDiffViewMode: (mode: "single" | "stacked") => void
   setGitChangesViewMode: (mode: "flat" | "tree") => void
@@ -1772,13 +1786,18 @@ export const useUIStore = create<UIStore>()(
           set({ diffLayoutPreference: mode, diffFileLayout: {} })
         },
 
-        setDiffFileLayout: (filePath, mode) => {
-          set((state) => ({
-            diffFileLayout: {
-              ...state.diffFileLayout,
-              [filePath]: mode,
-            },
-          }))
+        setDiffFileLayout: (directory, filePath, mode) => {
+          const key = diffLayoutKey(directory, filePath)
+          set((state) => {
+            const next = { ...state.diffFileLayout, [key]: mode }
+            const keys = Object.keys(next)
+            if (keys.length > MAX_DIFF_FILE_LAYOUTS) {
+              for (const stale of keys.slice(0, keys.length - MAX_DIFF_FILE_LAYOUTS)) {
+                delete next[stale]
+              }
+            }
+            return { diffFileLayout: next }
+          })
         },
 
         setDiffWrapLines: (wrap) => {

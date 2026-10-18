@@ -1,6 +1,6 @@
 import React from "react"
 
-import { useUIStore } from "@/stores/useUIStore"
+import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from "@/stores/useGitStore"
@@ -864,7 +864,7 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
                 mode={renderSideBySide ? "side-by-side" : "unified"}
                 onModeChange={(mode: DiffViewMode) => {
                   const nextLayout: "inline" | "side-by-side" = mode === "side-by-side" ? "side-by-side" : "inline"
-                  setDiffFileLayout(file.path, nextLayout)
+                  setDiffFileLayout(directory, file.path, nextLayout)
                 }}
                 className="opacity-70"
               />
@@ -1132,7 +1132,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const getLayoutForFile = React.useCallback(
     (file: FileEntry): "inline" | "side-by-side" => {
-      const override = diffFileLayout[file.path]
+      const override = diffFileLayout[diffLayoutKey(effectiveDirectory, file.path)]
       if (override) return override
 
       if (diffLayoutPreference === "inline") {

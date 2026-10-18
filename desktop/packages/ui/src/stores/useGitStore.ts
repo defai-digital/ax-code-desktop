@@ -354,12 +354,24 @@ export const useGitStore = create<GitStore>()(
           bumpDiffFetchGeneration(directory)
         }
 
-        if (directory && !directories.has(directory)) {
-          const newDirectories = new Map(directories)
+        // Diff text is the largest per-project payload (the per-directory cache is capped at
+        // 20 MB) and only the project on screen needs it: keeping every visited project's cache
+        // grew memory without bound. Status/log/branches stay; diffs refetch on demand.
+        let prunedDirectories = directories
+        if (directories.size > 1) {
+          prunedDirectories = new Map(directories)
+          for (const [key, entry] of directories) {
+            if (key === directory || entry.diffCache.size === 0) continue
+            prunedDirectories.set(key, { ...entry, diffCache: new Map() })
+          }
+        }
+
+        if (directory && !prunedDirectories.has(directory)) {
+          const newDirectories = new Map(prunedDirectories)
           newDirectories.set(directory, createEmptyDirectoryState())
           set({ activeDirectory: directory, directories: newDirectories })
         } else {
-          set({ activeDirectory: directory })
+          set({ activeDirectory: directory, directories: prunedDirectories })
         }
       },
 
