@@ -39,17 +39,28 @@ describe("ChangesPanel virtualization", () => {
     // whose deps never moved with either froze it at the first render - where the scroll
     // element is not attached yet, so it was empty - and a 1000+ change list then rendered no
     // rows at all inside a full-height scroll area.
+    // A real ResizeObserver delivers an initial notification for every observed element; the
+    // virtualizer relies on that (and on later observations) to measure the scroll element.
+    // A silent stub left the virtual window empty after the library update.
     vi.stubGlobal(
       "ResizeObserver",
       class {
-        observe() {}
+        private callback: ResizeObserverCallback
+        constructor(callback: ResizeObserverCallback) {
+          this.callback = callback
+        }
+        observe(target: Element) {
+          this.callback([{ target } as ResizeObserverEntry], this as unknown as ResizeObserver)
+        }
         unobserve() {}
         disconnect() {}
       },
     )
     // jsdom reports every element as zero-sized. The virtualizer reads the scroll element's
-    // offsetHeight for the viewport and each row's rect for its measured size.
+    // clientHeight/clientWidth for the viewport and each row's rect for its measured size.
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(600)
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(800)
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(
       () =>
         ({ width: 800, height: 34, top: 0, left: 0, right: 800, bottom: 34, x: 0, y: 0, toJSON: () => ({}) }) as DOMRect,

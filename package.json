@@ -47,19 +47,19 @@
     "release:preflight": "node script/desktop-release-preflight.mjs"
   },
   "devDependencies": {
-    "@eslint/js": "^9.33.0",
-    "@tailwindcss/postcss": "^4.0.0",
+    "@eslint/js": "^9.39.5",
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "catalog:",
-    "eslint": "^9.33.0",
+    "eslint": "^9.39.5",
     "eslint-plugin-react-hooks": "^5.2.0",
-    "eslint-plugin-react-refresh": "^0.4.20",
+    "eslint-plugin-react-refresh": "^0.4.26",
     "fast-glob": "catalog:",
-    "globals": "^16.3.0",
+    "globals": "^16.5.0",
     "prettier": "3.6.2",
     "tsx": "4.22.4",
     "turbo": "2.9.14",
     "typescript": "catalog:",
-    "typescript-eslint": "^8.39.1",
+    "typescript-eslint": "^8.71.2",
     "vitest": "4.1.11"
   },
   "prettier": {

@@ -20,16 +20,16 @@
     "build:shell": "node scripts/copy-web-assets.mjs && pnpm run bundle:main && pnpm run rebuild:native"
   },
   "dependencies": {
-    "electron-updater": "^6.3.9",
-    "node-pty": "1.1.0",
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.29"
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.29",
+    "electron-updater": "^6.8.9",
+    "node-pty": "1.1.0"
   },
   "devDependencies": {
     "@electron/asar": "catalog:",
     "@electron/rebuild": "4.2.1",
     "electron": "44.7.0",
     "electron-builder": "catalog:",
-    "esbuild": "^0.24.2",
+    "esbuild": "0.28.1",
     "resedit": "catalog:"
   }
 }
