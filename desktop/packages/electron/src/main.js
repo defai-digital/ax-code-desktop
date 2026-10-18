@@ -753,10 +753,13 @@ function createMainWindowShell() {
     // check (startsWith) would treat e.g. `http://localhost:<port>@evil.com` or
     // `http://localhost:<port>9` as internal and load it in the trusted window
     // (which has privileged preload IPC capabilities).
-    if (isTrustedRendererNavigation(url)) {
-      return { action: "allow" }
+    // No window.open target gets its own window either way: a child window
+    // inherits this window's privileged preload without the navigation guards
+    // attached below, and a trusted loopback URL includes the preview proxy
+    // paths, whose content is not the app's own.
+    if (!isTrustedRendererNavigation(url)) {
+      safeOpenExternal(url)
     }
-    safeOpenExternal(url)
     return { action: "deny" }
   })
 
@@ -1748,6 +1751,9 @@ const pathExists = async (candidate) => {
 
 const resolveAppBundlePath = async (appName) => {
   if (process.platform !== "darwin") return null
+  // The renderer names the app; a separator or a parent hop would steer the
+  // candidate paths below outside the application directories.
+  if (!appName || /[/\\]/.test(appName) || appName.includes("..")) return null
   const bundleName = appName.endsWith(".app") ? appName : `${appName}.app`
   const candidates = [
     `/Applications/${bundleName}`,
@@ -1760,9 +1766,13 @@ const resolveAppBundlePath = async (appName) => {
   }
   try {
     const { stdout } = await execFileAsync("mdfind", ["-name", bundleName], { encoding: "utf8" })
+    // mdfind -name matches substrings, so "Code.app" also finds
+    // "Visual Studio Code.app" and "Code.app.zip"; only an exact
+    // bundle basename names the requested app.
     const first = (stdout || "")
       .split("\n")
       .map((line) => line.trim())
+      .filter((line) => path.basename(line) === bundleName)
       .find(Boolean)
     return first || null
   } catch {
@@ -2356,8 +2366,11 @@ const createAdditionalWindow = async (url) => {
   attachWindowStateListeners(win)
   win.once("ready-to-show", () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    if (isTrustedRendererNavigation(targetUrl)) return { action: "allow" }
-    safeOpenExternal(targetUrl)
+    // A window.open child inherits this window's privileged preload without the
+    // navigation guards attached below, so no target gets its own window.
+    if (!isTrustedRendererNavigation(targetUrl)) {
+      safeOpenExternal(targetUrl)
+    }
     return { action: "deny" }
   })
   attachRendererNavigationGuards(win.webContents, {
@@ -3304,8 +3317,11 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
   attachAppWindowChrome(win)
   win.once("ready-to-show", () => win.show())
   win.webContents.setWindowOpenHandler(({ url: targetUrl }) => {
-    if (isTrustedRendererNavigation(targetUrl)) return { action: "allow" }
-    safeOpenExternal(targetUrl)
+    // A window.open child inherits this window's privileged preload without the
+    // navigation guards attached below, so no target gets its own window.
+    if (!isTrustedRendererNavigation(targetUrl)) {
+      safeOpenExternal(targetUrl)
+    }
     return { action: "deny" }
   })
   attachRendererNavigationGuards(win.webContents, {

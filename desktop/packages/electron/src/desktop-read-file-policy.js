@@ -40,6 +40,10 @@ const DENIED_SEGMENTS = [
   "library/safari",
   "appdata/local/google/chrome",
   "appdata/local/microsoft/edge",
+  // Firefox on Windows keeps profiles (logins.json, key4.db, cookies.sqlite)
+  // under %APPDATA%\Mozilla — the same files the .mozilla rule already denies
+  // on Linux.
+  "appdata/roaming/mozilla",
 ]
 const DENIED_BASENAMES = new Set([".env", ".git-credentials", ".netrc", ".npmrc", ".pypirc"])
 

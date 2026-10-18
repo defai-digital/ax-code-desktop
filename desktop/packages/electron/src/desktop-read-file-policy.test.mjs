@@ -81,6 +81,17 @@ describe("desktop read file policy", () => {
     }
   })
 
+  test("denies Firefox profiles on Windows", () => {
+    const options = { home: "C:\\Users\\alice", tmp: "C:\\Users\\alice\\AppData\\Local\\Temp", pathTools: path.win32 }
+    for (const target of [
+      "C:\\Users\\alice\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default\\logins.json",
+      "C:\\Users\\alice\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default\\key4.db",
+      "C:\\Users\\alice\\AppData\\Roaming\\Mozilla\\Firefox\\Profiles\\abc.default\\cookies.sqlite",
+    ]) {
+      expect(() => assertDesktopReadFileAllowed(target, options)).toThrow("Access to this path is not allowed")
+    }
+  })
+
   test("still allows ordinary files next to the denied stores", () => {
     const options = { home: "/Users/alice", tmp: "/tmp", pathTools: path.posix }
     for (const target of [
