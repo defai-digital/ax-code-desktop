@@ -13,16 +13,20 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // The populate effect reads through `selectedAgent`, an object: deleting or creating another agent, or a
     // config-change event, gives it a new identity and re-populated the form over whatever was half-typed.
     expect(source).toContain("loadedAgentKeyRef")
-    expect(source).toContain("if (loadedAgentKeyRef.current === populateKey)")
-    expect(source).toContain("loadedAgentKeyRef.current = populateKey")
+    expect(source).toContain("if (loadedAgentKeyRef.current === loadKey)")
+    expect(source).toContain("loadedAgentKeyRef.current = loadKey")
+    // The key includes the active project: a project-scoped agent with the same name exists in
+    // every project, and without the directory the switch kept the previous project's values.
+    expect(source).toContain("const loadKey = `${populateKey}|${currentDirectory ?? \"\"}`")
   })
 
   test("the commands editor only re-populates when it switches to another command", async () => {
     const source = await readPage("commands/CommandsPage.tsx")
 
     expect(source).toContain("loadedCommandKeyRef")
-    expect(source).toContain("if (loadedCommandKeyRef.current === populateKey)")
-    expect(source).toContain("loadedCommandKeyRef.current = populateKey")
+    expect(source).toContain("if (loadedCommandKeyRef.current === loadKey)")
+    expect(source).toContain("loadedCommandKeyRef.current = loadKey")
+    expect(source).toContain("const loadKey = `${populateKey}|${currentDirectory ?? \"\"}`")
   })
 
   test("both move the dirty baseline on save", async () => {
@@ -89,7 +93,7 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // also wiped the rule the user was in the middle of typing.
     const source = await readPage("agents/AgentsPage.tsx")
 
-    const guardIndex = source.indexOf("if (loadedAgentKeyRef.current === populateKey)")
+    const guardIndex = source.indexOf("if (loadedAgentKeyRef.current === loadKey)")
     expect(guardIndex).toBeGreaterThan(-1)
     // The reset belongs to the populate that the guard lets through: it must come after the guard and before the
     // form is filled.

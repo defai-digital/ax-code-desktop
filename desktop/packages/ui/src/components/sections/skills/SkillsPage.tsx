@@ -13,6 +13,7 @@ import {
   type PendingFile,
 } from "@/stores/useSkillsStore"
 import { useShallow } from "zustand/react/shallow"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
@@ -221,6 +222,8 @@ const SkillsInstalledPage: React.FC = () => {
     [t],
   )
 
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
+
   React.useEffect(() => {
     const loadSkillDetails = async () => {
       if (isNewSkill && skillDraft) {
@@ -239,7 +242,10 @@ const SkillsInstalledPage: React.FC = () => {
         setSupportingFiles([])
         setPendingFiles(skillDraft.pendingFiles || [])
       } else if (selectedSkillName && selectedSkill) {
-        if (loadedSkillNameRef.current === selectedSkillName) {
+        // A project can carry a same-named skill; the project is part of the loaded key so a
+        // switch reloads this project's targetPath instead of rewriting the other project's file.
+        const loadKey = `${selectedSkillName}|${currentDirectory ?? ""}`
+        if (loadedSkillNameRef.current === loadKey) {
           // Detail for this skill is already loaded into the edit fields. A
           // background refresh of the `skills` list (e.g. an unrelated "Reload
           // AX Code") re-runs this effect via the `selectedSkill` identity
@@ -266,7 +272,7 @@ const SkillsInstalledPage: React.FC = () => {
           setOriginalDescription(nextDescription)
           setOriginalInstructions(nextInstructions)
           setSupportingFiles(md.supportingFiles || [])
-          loadedSkillNameRef.current = selectedSkillName
+          loadedSkillNameRef.current = loadKey
         } else if (result.status === "failed") {
           console.error("Failed to load skill details:", result.error)
         }
@@ -281,7 +287,7 @@ const SkillsInstalledPage: React.FC = () => {
     }
 
     loadSkillDetails()
-  }, [selectedSkill, isNewSkill, selectedSkillName, skills, skillDraft, getSkillDetail])
+  }, [selectedSkill, isNewSkill, selectedSkillName, skills, skillDraft, getSkillDetail, currentDirectory])
 
   const skillEditorExtensions = React.useMemo<Extension[]>(() => {
     const extensions: Extension[] = [createFlexokiCodeMirrorTheme(currentTheme)]

@@ -54,15 +54,19 @@ export const GitIdentityEditorDialog: React.FC<GitIdentityEditorDialogProps> = (
 }) => {
   const { t } = useI18n()
   const getProfileById = useGitIdentitiesStore((s) => s.getProfileById)
+  const profiles = useGitIdentitiesStore((s) => s.profiles)
   const createProfile = useGitIdentitiesStore((s) => s.createProfile)
   const updateProfile = useGitIdentitiesStore((s) => s.updateProfile)
   const deleteProfile = useGitIdentitiesStore((s) => s.deleteProfile)
   const defaultGitIdentityId = useGitIdentitiesStore((s) => s.defaultGitIdentityId)
   const setDefaultGitIdentityId = useGitIdentitiesStore((s) => s.setDefaultGitIdentityId)
 
+  // Derived from the subscribed list, not the stable selector action: after a save the
+  // action identity does not change, so the memo kept the pre-save object and reopening
+  // the dialog showed (and could re-save) the old values.
   const selectedProfile = React.useMemo(
-    () => (profileId && profileId !== "new" && !importData ? getProfileById(profileId) : null),
-    [profileId, getProfileById, importData],
+    () => (profileId && profileId !== "new" && !importData ? profiles.find((p) => p.id === profileId) ?? null : null),
+    [profileId, profiles, importData],
   )
   const isNewProfile = profileId === "new" || importData != null
   const isGlobalProfile = profileId === "global"

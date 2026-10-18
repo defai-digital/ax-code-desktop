@@ -591,6 +591,10 @@ export const McpPage: React.FC = () => {
 
   const selectedMcpNameKey = selectedMcpName ?? ""
   const selectedServer = getMcpByName(selectedMcpNameKey)
+  // A project-scoped server with the same name exists in every project: the form key must
+  // change with the active project or the previous project's values stay on screen (and a
+  // save writes them into the new project).
+  const selectedMcpLoadKey = `${selectedMcpNameKey}|${currentDirectory ?? ""}`
   const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey && !selectedServer)
 
   // Same stale persisted selection as the other config pages.
@@ -795,7 +799,7 @@ export const McpPage: React.FC = () => {
       return
     }
     if (selectedServer) {
-      if (loadedMcpNameRef.current === selectedMcpNameKey) {
+      if (loadedMcpNameRef.current === selectedMcpLoadKey) {
         // This server's config is already loaded into the form. A background
         // reload of the list re-runs this effect via the `selectedServer`
         // identity change, but re-populating here would silently overwrite
@@ -858,9 +862,9 @@ export const McpPage: React.FC = () => {
         timeout: nextTimeout,
         enabled: selectedServer.enabled,
       }
-      loadedMcpNameRef.current = selectedMcpNameKey
+      loadedMcpNameRef.current = selectedMcpLoadKey
     }
-  }, [selectedServer, isNewServer, mcpDraft, selectedMcpNameKey])
+  }, [currentDirectory, isNewServer, mcpDraft, selectedMcpLoadKey, selectedMcpNameKey, selectedServer])
 
   const isDirty = React.useMemo(() => {
     const init = initialRef.current

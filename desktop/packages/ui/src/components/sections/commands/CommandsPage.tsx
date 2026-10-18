@@ -12,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { parseModelIdentifier } from "@/lib/modelIdentifier"
 
 export const CommandsPage: React.FC = () => {
   const { t } = useI18n()
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
   const {
     selectedCommandName,
     getCommandByName,
@@ -84,7 +86,10 @@ export const CommandsPage: React.FC = () => {
 
   React.useEffect(() => {
     const populateKey = isNewCommand ? `draft:${commandDraft?.name ?? ""}` : `command:${selectedCommandName ?? ""}`
-    if (loadedCommandKeyRef.current === populateKey) {
+    // Project-scoped commands share names across projects; key by the active project too, or the
+    // form keeps the previous project's values and a save writes them into the new one.
+    const loadKey = `${populateKey}|${currentDirectory ?? ""}`
+    if (loadedCommandKeyRef.current === loadKey) {
       return
     }
 
@@ -110,7 +115,7 @@ export const CommandsPage: React.FC = () => {
         model: modelValue,
         template: templateValue,
       }
-      loadedCommandKeyRef.current = populateKey
+      loadedCommandKeyRef.current = loadKey
     } else if (selectedCommand) {
       const descriptionValue = selectedCommand.description || ""
       const agentValue = selectedCommand.agent || ""
@@ -129,11 +134,11 @@ export const CommandsPage: React.FC = () => {
         model: modelValue,
         template: templateValue,
       }
-      loadedCommandKeyRef.current = populateKey
+      loadedCommandKeyRef.current = loadKey
     } else {
       loadedCommandKeyRef.current = null
     }
-  }, [selectedCommand, isNewCommand, selectedCommandName, commands, commandDraft])
+  }, [selectedCommand, isNewCommand, selectedCommandName, commands, commandDraft, currentDirectory])
 
   const isDirty = React.useMemo(() => {
     const initial = initialStateRef.current

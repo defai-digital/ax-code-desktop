@@ -111,7 +111,14 @@ export const useSessionActions = (args: Args) => {
     if (!args.editingId) return
     const trimmed = args.editTitle.trim()
     if (trimmed) {
-      await args.updateSessionTitle(args.editingId, trimmed)
+      try {
+        await args.updateSessionTitle(args.editingId, trimmed)
+      } catch {
+        // The action layer already surfaced the failure. Keep the row in edit mode so the
+        // user can retry, and never let the rejection escape (the callers are onSubmit and
+        // a document mousedown listener, neither of which can catch it).
+        return
+      }
     }
     args.setEditingId(null)
     args.setEditTitle("")

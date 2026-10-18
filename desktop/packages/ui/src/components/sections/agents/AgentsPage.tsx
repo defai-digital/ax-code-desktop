@@ -482,7 +482,10 @@ export const AgentsPage: React.FC = () => {
 
   React.useEffect(() => {
     const populateKey = isNewAgent ? `draft:${agentDraft?.name ?? ""}` : `agent:${selectedAgentName ?? ""}`
-    if (loadedAgentKeyRef.current === populateKey) {
+    // Project-scoped agents share names across projects; including the active project makes a
+    // switch repopulate instead of leaving the previous project's values (and their baseline).
+    const loadKey = `${populateKey}|${currentDirectory ?? ""}`
+    if (loadedAgentKeyRef.current === loadKey) {
       return
     }
 
@@ -525,7 +528,7 @@ export const AgentsPage: React.FC = () => {
         globalPermission: permissionState.global,
         permissionRules: permissionState.rules,
       }
-      loadedAgentKeyRef.current = populateKey
+      loadedAgentKeyRef.current = loadKey
       return
     }
 
@@ -564,12 +567,12 @@ export const AgentsPage: React.FC = () => {
         globalPermission: permissionState.global,
         permissionRules: permissionState.rules,
       }
-      loadedAgentKeyRef.current = populateKey
+      loadedAgentKeyRef.current = loadKey
     } else {
       // Nothing selected and no draft: forget the key, so selecting the same agent again populates.
       loadedAgentKeyRef.current = null
     }
-  }, [agentDraft, applyPermissionState, isNewAgent, selectedAgent, selectedAgentName])
+  }, [agentDraft, applyPermissionState, currentDirectory, isNewAgent, selectedAgent, selectedAgentName])
 
   const isDirty = React.useMemo(() => {
     const initial = initialStateRef.current

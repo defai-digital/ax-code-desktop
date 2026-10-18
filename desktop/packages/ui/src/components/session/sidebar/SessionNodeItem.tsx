@@ -892,8 +892,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       </DropdownMenuItem>
       {sessionDirectory && !archivedBucket
         ? (() => {
-            const scopeFolders = getFoldersForScope(sessionDirectory)
-            const currentFolderId = getSessionFolderId(sessionDirectory, session.id)
+            // Folders belong to the group that renders this row (the project root), not to
+            // the session's own directory: a session in a nested folder was listed under the
+            // root group while its menu read/wrote a scope the sidebar never shows.
+            const folderScope = normalizePath(groupDirectory ?? null) ?? sessionDirectory
+            const scopeFolders = getFoldersForScope(folderScope)
+            const currentFolderId = getSessionFolderId(folderScope, session.id)
             return (
               <>
                 <DropdownMenuSeparator />
@@ -926,8 +930,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                           <DropdownMenuItem
                             key={folder.id}
                             onClick={() => {
-                              if (currentFolderId === folder.id) removeSessionFromFolder(sessionDirectory, session.id)
-                              else addSessionToFolder(sessionDirectory, folder.id, session.id)
+                              if (currentFolderId === folder.id) removeSessionFromFolder(folderScope, session.id)
+                              else addSessionToFolder(folderScope, folder.id, session.id)
                             }}
                           >
                             <span className="flex-1 truncate">{folder.name}</span>
@@ -940,9 +944,9 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => {
-                          const newFolder = createFolderAndStartRename(sessionDirectory)
+                          const newFolder = createFolderAndStartRename(folderScope)
                           if (!newFolder) return
-                          addSessionToFolder(sessionDirectory, newFolder.id, session.id)
+                          addSessionToFolder(folderScope, newFolder.id, session.id)
                         }}
                       >
                         <Icon name="add" className="mr-1 h-4 w-4" />
@@ -951,7 +955,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                       {currentFolderId ? (
                         <DropdownMenuItem
                           onClick={() => {
-                            removeSessionFromFolder(sessionDirectory, session.id)
+                            removeSessionFromFolder(folderScope, session.id)
                           }}
                           className="text-destructive focus:text-destructive"
                         >
