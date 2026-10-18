@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "Yerel Python ortam\u0131 haz\u0131rlanamad\u0131. Eylemin terminal \u00e7\u0131kt\u0131s\u0131n\u0131 denetleyin; mevcut ortamlar silinmedi.",
   "projectActions.streamlit.error.install": "Ba\u011f\u0131ml\u0131l\u0131k kurulumu ba\u015far\u0131s\u0131z oldu. Terminal \u00e7\u0131kt\u0131s\u0131n\u0131 ve proje ba\u011f\u0131ml\u0131l\u0131k dosyalar\u0131n\u0131 denetleyin, ard\u0131ndan tekrar deneyin.",
   "projectActions.streamlit.error.dependency": "Haz\u0131rlanan ortam Streamlit i\u00e7ermiyor. Streamlit\u2019i proje ba\u011f\u0131ml\u0131l\u0131klar\u0131na ekleyin, ard\u0131ndan yeniden haz\u0131rlay\u0131n.",
-  "projectActions.streamlit.error.port": "Se\u00e7ilen ba\u011flant\u0131 noktas\u0131 kullan\u0131lam\u0131yor. Otomatik se\u00e7im i\u00e7in Geli\u015fmi\u015f se\u00e7eneklerde ba\u011flant\u0131 noktas\u0131 alan\u0131n\u0131 bo\u015f b\u0131rak\u0131n."
+  "projectActions.streamlit.error.port": "Se\u00e7ilen ba\u011flant\u0131 noktas\u0131 kullan\u0131lam\u0131yor. Otomatik se\u00e7im i\u00e7in Geli\u015fmi\u015f se\u00e7eneklerde ba\u011flant\u0131 noktas\u0131 alan\u0131n\u0131 bo\u015f b\u0131rak\u0131n.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Diyagram\u0131 g\u00f6ster",
+  "markdownRenderer.mermaid.actions.showSource": "Kayna\u011f\u0131 g\u00f6ster",
+  "markdownRenderer.mermaid.actions.copyAscii": "ASCII kopyala",
+  "markdownRenderer.mermaid.actions.downloadPng": "PNG indir",
+  "markdownRenderer.mermaid.actions.copyImage": "Resmi kopyala",
+  "markdownRenderer.mermaid.status.streaming": "Yan\u0131t tamamland\u0131\u011f\u0131nda diyagram g\u00f6sterilecek.",
+  "markdownRenderer.mermaid.status.loading": "Diyagram \u00e7iziliyor\u2026",
+  "markdownRenderer.mermaid.status.copied": "Kopyaland\u0131",
+  "markdownRenderer.mermaid.status.actionFailed": "Diyagram kopyalanamad\u0131 veya d\u0131\u015fa aktar\u0131lamad\u0131. SVG indirmeyi ya da kayna\u011f\u0131 kopyalamay\u0131 deneyin.",
+  "markdownRenderer.mermaid.error.unsupported": "Bu diyagram t\u00fcr\u00fc desteklenmiyor. Kaynak a\u015fa\u011f\u0131da g\u00f6steriliyor.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Bu t\u00fcr SVG gerektirir. Ayarlar > G\u00f6r\u00fcn\u00fcm > Mermaid \u0130\u015fleme b\u00f6l\u00fcm\u00fcnde SVG se\u00e7in. Kaynak a\u015fa\u011f\u0131da g\u00f6steriliyor.",
+  "markdownRenderer.mermaid.error.configuration": "Yap\u0131land\u0131rma y\u00f6nergeleri ve \u00f6n bilgiler desteklenmiyor. \u00c7izim i\u00e7in bunlar\u0131 kald\u0131r\u0131n.",
+  "markdownRenderer.mermaid.error.limit": "\u00d6nizleme s\u0131n\u0131r\u0131 a\u015f\u0131ld\u0131 (20.000 karakter veya 500 sat\u0131r). Diyagram\u0131 k\u00fc\u00e7\u00fclt\u00fcn veya b\u00f6l\u00fcn.",
+  "markdownRenderer.mermaid.error.render": "Diyagram \u00e7izilemedi. A\u015fa\u011f\u0131daki Mermaid s\u00f6zdizimini kontrol edin.",
+  "markdownRenderer.mermaid.error.timeout": "Diyagram d\u00fczeni \u00e7ok uzun s\u00fcrd\u00fc. Basitle\u015ftirin veya yeniden deneyin.",
+  "markdownRenderer.mermaid.error.unavailable": "\u00c7izim motoru y\u00fcklenemedi. Yeniden deneyin.",
+  "markdownRenderer.mermaid.error.busy": "\u00c7ok fazla diyagram \u00e7iziliyor. Di\u011ferleri tamamland\u0131\u011f\u0131nda yeniden deneyin."
 }

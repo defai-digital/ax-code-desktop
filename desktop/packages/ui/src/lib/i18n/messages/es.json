@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "No se pudo preparar el entorno de Python local. Revisa la salida de la terminal de la acci\u00f3n; los entornos existentes no se han eliminado.",
   "projectActions.streamlit.error.install": "Error al configurar las dependencias. Revisa la salida de la terminal y los archivos de dependencias del proyecto y vuelve a intentarlo.",
   "projectActions.streamlit.error.dependency": "El entorno preparado no contiene Streamlit. A\u00f1ade Streamlit a las dependencias del proyecto y vuelve a preparar.",
-  "projectActions.streamlit.error.port": "El puerto seleccionado no est\u00e1 disponible. Deja el puerto en blanco en Opciones avanzadas para seleccionar uno autom\u00e1ticamente."
+  "projectActions.streamlit.error.port": "El puerto seleccionado no est\u00e1 disponible. Deja el puerto en blanco en Opciones avanzadas para seleccionar uno autom\u00e1ticamente.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Mostrar diagrama",
+  "markdownRenderer.mermaid.actions.showSource": "Mostrar c\u00f3digo fuente",
+  "markdownRenderer.mermaid.actions.copyAscii": "Copiar ASCII",
+  "markdownRenderer.mermaid.actions.downloadPng": "Descargar PNG",
+  "markdownRenderer.mermaid.actions.copyImage": "Copiar imagen",
+  "markdownRenderer.mermaid.status.streaming": "El diagrama se mostrar\u00e1 cuando termine la respuesta.",
+  "markdownRenderer.mermaid.status.loading": "Generando diagrama\u2026",
+  "markdownRenderer.mermaid.status.copied": "Copiado",
+  "markdownRenderer.mermaid.status.actionFailed": "No se puede copiar ni exportar el diagrama. Pruebe a descargar SVG o copiar el c\u00f3digo fuente.",
+  "markdownRenderer.mermaid.error.unsupported": "Este tipo de diagrama no es compatible. El c\u00f3digo fuente aparece abajo.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Este tipo requiere SVG. Seleccione SVG en Configuraci\u00f3n > Apariencia > Renderizado de Mermaid. El c\u00f3digo fuente aparece abajo.",
+  "markdownRenderer.mermaid.error.configuration": "No se admiten directivas de configuraci\u00f3n ni metadatos iniciales. Elim\u00ednelos para mostrar el diagrama.",
+  "markdownRenderer.mermaid.error.limit": "Se supera el l\u00edmite de vista previa (20.000 caracteres o 500 l\u00edneas). Divida el diagrama.",
+  "markdownRenderer.mermaid.error.render": "No se puede mostrar el diagrama. Revise la sintaxis de Mermaid abajo.",
+  "markdownRenderer.mermaid.error.timeout": "El dise\u00f1o del diagrama tard\u00f3 demasiado. Simplif\u00edquelo o reintente.",
+  "markdownRenderer.mermaid.error.unavailable": "No se pudo cargar el renderizador. Reintente.",
+  "markdownRenderer.mermaid.error.busy": "Hay demasiados diagramas en proceso. Reintente cuando terminen los dem\u00e1s."
 }

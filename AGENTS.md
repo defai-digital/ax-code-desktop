@@ -70,9 +70,11 @@ Public distribution commands require signed exact-inventory qualification; user 
   ports, URLs, environment variables, or setup authority.
 - The project runner owns the terminal, interpreter/port selection, preview, and Stop. Closing a preview leaves the
   app running; the artifact itself never grants execution or installation.
-- Mermaid is rendered by `beautiful-mermaid` in `desktop/packages/ui`. Check the pinned version and the global
-  `desktop-mermaid-capability` skill before claiming a diagram type. Changing the promised set is a
-  capability-contract change, not a local renderer patch.
+- Mermaid's machine-readable capability contract is
+  `desktop/packages/ui/src/components/chat/mermaidCapabilities.json`. It distinguishes the pinned worker renderer's
+  SVG/ASCII types from the lazily loaded official renderer's SVG-only types. Consult it and the global
+  `desktop-mermaid-capability` skill before claiming a diagram type. Changes require matching fixtures, rendered
+  verification, and a versioned capability-contract record; do not duplicate the list here or in a project skill.
 - Static analysis results belong in the conversation or a committed report. An analysis app is for reusable inputs,
   filters, parameters, or repeated use, and its entrypoint must exist in the project before the handoff is emitted.
 - Verify UI-only changes with `pnpm --dir desktop/packages/ui run type-check` and the focused Vitest files. Changes

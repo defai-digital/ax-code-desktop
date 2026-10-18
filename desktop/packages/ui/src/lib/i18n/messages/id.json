@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "Lingkungan Python lokal tidak dapat disiapkan. Periksa output terminal aksi; lingkungan yang ada tidak dihapus.",
   "projectActions.streamlit.error.install": "Penyiapan dependensi gagal. Periksa output terminal dan berkas dependensi proyek, lalu coba lagi.",
   "projectActions.streamlit.error.dependency": "Lingkungan yang disiapkan tidak memuat Streamlit. Tambahkan Streamlit ke dependensi proyek, lalu siapkan lagi.",
-  "projectActions.streamlit.error.port": "Port yang dipilih tidak tersedia. Kosongkan kolom port di Opsi lanjutan untuk memilih secara otomatis."
+  "projectActions.streamlit.error.port": "Port yang dipilih tidak tersedia. Kosongkan kolom port di Opsi lanjutan untuk memilih secara otomatis.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Tampilkan diagram",
+  "markdownRenderer.mermaid.actions.showSource": "Tampilkan sumber",
+  "markdownRenderer.mermaid.actions.copyAscii": "Salin ASCII",
+  "markdownRenderer.mermaid.actions.downloadPng": "Unduh PNG",
+  "markdownRenderer.mermaid.actions.copyImage": "Salin gambar",
+  "markdownRenderer.mermaid.status.streaming": "Diagram akan ditampilkan setelah respons selesai.",
+  "markdownRenderer.mermaid.status.loading": "Merender diagram\u2026",
+  "markdownRenderer.mermaid.status.copied": "Disalin",
+  "markdownRenderer.mermaid.status.actionFailed": "Tidak dapat menyalin atau mengekspor diagram. Coba unduh SVG atau salin sumbernya.",
+  "markdownRenderer.mermaid.error.unsupported": "Jenis diagram ini tidak didukung. Sumber ditampilkan di bawah.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Jenis ini memerlukan SVG. Pilih SVG di Pengaturan > Tampilan > Rendering Mermaid. Sumber ditampilkan di bawah.",
+  "markdownRenderer.mermaid.error.configuration": "Direktif konfigurasi dan metadata awal tidak didukung. Hapus untuk merender diagram.",
+  "markdownRenderer.mermaid.error.limit": "Batas pratinjau terlampaui (20.000 karakter atau 500 baris). Pecah menjadi diagram yang lebih kecil.",
+  "markdownRenderer.mermaid.error.render": "Tidak dapat merender diagram. Periksa sintaks Mermaid di bawah.",
+  "markdownRenderer.mermaid.error.timeout": "Tata letak diagram terlalu lama. Sederhanakan diagram atau coba lagi.",
+  "markdownRenderer.mermaid.error.unavailable": "Renderer tidak dapat dimuat. Coba lagi.",
+  "markdownRenderer.mermaid.error.busy": "Terlalu banyak diagram sedang dirender. Coba lagi setelah diagram lain selesai."
 }

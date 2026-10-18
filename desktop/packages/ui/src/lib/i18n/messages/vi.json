@@ -4909,5 +4909,22 @@
   "projectActions.streamlit.error.environment": "Kh\u00f4ng th\u1ec3 chu\u1ea9n b\u1ecb m\u00f4i tr\u01b0\u1eddng Python c\u1ee5c b\u1ed9. H\u00e3y ki\u1ec3m tra \u0111\u1ea7u ra terminal c\u1ee7a h\u00e0nh \u0111\u1ed9ng; c\u00e1c m\u00f4i tr\u01b0\u1eddng hi\u1ec7n c\u00f3 kh\u00f4ng b\u1ecb x\u00f3a.",
   "projectActions.streamlit.error.install": "Thi\u1ebft l\u1eadp ph\u1ee5 thu\u1ed9c th\u1ea5t b\u1ea1i. H\u00e3y ki\u1ec3m tra \u0111\u1ea7u ra terminal v\u00e0 c\u00e1c t\u1ec7p ph\u1ee5 thu\u1ed9c c\u1ee7a d\u1ef1 \u00e1n, sau \u0111\u00f3 th\u1eed l\u1ea1i.",
   "projectActions.streamlit.error.dependency": "M\u00f4i tr\u01b0\u1eddng \u0111\u00e3 chu\u1ea9n b\u1ecb kh\u00f4ng c\u00f3 Streamlit. H\u00e3y th\u00eam Streamlit v\u00e0o ph\u1ee5 thu\u1ed9c c\u1ee7a d\u1ef1 \u00e1n, sau \u0111\u00f3 chu\u1ea9n b\u1ecb l\u1ea1i.",
-  "projectActions.streamlit.error.port": "C\u1ed5ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng kh\u1ea3 d\u1ee5ng. H\u00e3y \u0111\u1ec3 tr\u1ed1ng c\u1ed5ng trong T\u00f9y ch\u1ecdn n\u00e2ng cao \u0111\u1ec3 t\u1ef1 \u0111\u1ed9ng ch\u1ecdn m\u1ed9t c\u1ed5ng."
+  "projectActions.streamlit.error.port": "C\u1ed5ng \u0111\u00e3 ch\u1ecdn kh\u00f4ng kh\u1ea3 d\u1ee5ng. H\u00e3y \u0111\u1ec3 tr\u1ed1ng c\u1ed5ng trong T\u00f9y ch\u1ecdn n\u00e2ng cao \u0111\u1ec3 t\u1ef1 \u0111\u1ed9ng ch\u1ecdn m\u1ed9t c\u1ed5ng.",
+  "markdownRenderer.mermaid.actions.showDiagram": "Hi\u1ec7n s\u01a1 \u0111\u1ed3",
+  "markdownRenderer.mermaid.actions.showSource": "Hi\u1ec7n m\u00e3 ngu\u1ed3n",
+  "markdownRenderer.mermaid.actions.copyAscii": "Sao ch\u00e9p ASCII",
+  "markdownRenderer.mermaid.actions.downloadPng": "T\u1ea3i PNG",
+  "markdownRenderer.mermaid.actions.copyImage": "Sao ch\u00e9p \u1ea3nh",
+  "markdownRenderer.mermaid.status.streaming": "S\u01a1 \u0111\u1ed3 s\u1ebd hi\u1ec3n th\u1ecb khi ph\u1ea3n h\u1ed3i ho\u00e0n t\u1ea5t.",
+  "markdownRenderer.mermaid.status.loading": "\u0110ang d\u1ef1ng s\u01a1 \u0111\u1ed3\u2026",
+  "markdownRenderer.mermaid.status.copied": "\u0110\u00e3 sao ch\u00e9p",
+  "markdownRenderer.mermaid.status.actionFailed": "Kh\u00f4ng th\u1ec3 sao ch\u00e9p ho\u1eb7c xu\u1ea5t s\u01a1 \u0111\u1ed3. H\u00e3y t\u1ea3i SVG ho\u1eb7c sao ch\u00e9p m\u00e3 ngu\u1ed3n.",
+  "markdownRenderer.mermaid.error.unsupported": "Lo\u1ea1i s\u01a1 \u0111\u1ed3 n\u00e0y ch\u01b0a \u0111\u01b0\u1ee3c h\u1ed7 tr\u1ee3. M\u00e3 ngu\u1ed3n hi\u1ec3n th\u1ecb b\u00ean d\u01b0\u1edbi.",
+  "markdownRenderer.mermaid.error.asciiUnsupported": "Lo\u1ea1i s\u01a1 \u0111\u1ed3 n\u00e0y c\u1ea7n SVG. Ch\u1ecdn SVG trong C\u00e0i \u0111\u1eb7t > Giao di\u1ec7n > K\u1ebft xu\u1ea5t Mermaid. M\u00e3 ngu\u1ed3n hi\u1ec3n th\u1ecb b\u00ean d\u01b0\u1edbi.",
+  "markdownRenderer.mermaid.error.configuration": "Kh\u00f4ng h\u1ed7 tr\u1ee3 ch\u1ec9 th\u1ecb c\u1ea5u h\u00ecnh v\u00e0 si\u00eau d\u1eef li\u1ec7u \u0111\u1ea7u trang. H\u00e3y x\u00f3a ch\u00fang \u0111\u1ec3 d\u1ef1ng s\u01a1 \u0111\u1ed3.",
+  "markdownRenderer.mermaid.error.limit": "V\u01b0\u1ee3t gi\u1edbi h\u1ea1n xem tr\u01b0\u1edbc (20.000 k\u00fd t\u1ef1 ho\u1eb7c 500 d\u00f2ng). H\u00e3y chia th\u00e0nh c\u00e1c s\u01a1 \u0111\u1ed3 nh\u1ecf h\u01a1n.",
+  "markdownRenderer.mermaid.error.render": "Kh\u00f4ng th\u1ec3 d\u1ef1ng s\u01a1 \u0111\u1ed3. Ki\u1ec3m tra c\u00fa ph\u00e1p Mermaid b\u00ean d\u01b0\u1edbi.",
+  "markdownRenderer.mermaid.error.timeout": "B\u1ed1 tr\u00ed s\u01a1 \u0111\u1ed3 m\u1ea5t qu\u00e1 l\u00e2u. H\u00e3y \u0111\u01a1n gi\u1ea3n h\u00f3a ho\u1eb7c th\u1eed l\u1ea1i.",
+  "markdownRenderer.mermaid.error.unavailable": "Kh\u00f4ng th\u1ec3 t\u1ea3i b\u1ed9 k\u1ebft xu\u1ea5t. H\u00e3y th\u1eed l\u1ea1i.",
+  "markdownRenderer.mermaid.error.busy": "C\u00f3 qu\u00e1 nhi\u1ec1u s\u01a1 \u0111\u1ed3 \u0111ang \u0111\u01b0\u1ee3c d\u1ef1ng. Th\u1eed l\u1ea1i khi c\u00e1c s\u01a1 \u0111\u1ed3 kh\u00e1c ho\u00e0n t\u1ea5t."
 }

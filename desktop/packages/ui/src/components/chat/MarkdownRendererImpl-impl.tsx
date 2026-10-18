@@ -1,6 +1,5 @@
 import React from "react"
 import "katex/dist/katex.min.css"
-import { renderMermaidASCII, renderMermaidSVG } from "beautiful-mermaid"
 import type { Components } from "react-markdown"
 import { FadeInOnReveal } from "./message/FadeInOnReveal"
 import type { Part } from "@defai-digital/ax-code-sdk/v2"
@@ -30,7 +29,7 @@ import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import type { EditorAPI } from "@/lib/api/types"
 import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
 import { getSafeMarkdownHref } from "./markdownLinks"
-import { sanitizeMermaidSvg } from "./sanitizeSvg"
+import { MermaidBlock } from "./MermaidBlock"
 import { useStableMarkdownBlocks } from "./useMarkdownBlocks"
 import { PreparedMarkdown } from "./PreparedMarkdown"
 import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
@@ -390,174 +389,6 @@ const TableWrapper: React.FC<{ children?: React.ReactNode; className?: string }>
   )
 }
 
-const MermaidBlock: React.FC<{ source: string; mode: "svg" | "ascii"; deferRender?: boolean }> = ({
-  source,
-  mode,
-  deferRender = false,
-}) => {
-  const { t } = useI18n()
-  const currentTheme = useCurrentMermaidTheme()
-  const { isMobile, isTablet } = useDeviceInfo()
-  const [copied, setCopied] = React.useState(false)
-  const [downloaded, setDownloaded] = React.useState(false)
-  const copiedResetTimerRef = React.useRef<number | null>(null)
-  const downloadedResetTimerRef = React.useRef<number | null>(null)
-
-  // Skip expensive mermaid layout while the assistant is still streaming incomplete fences.
-  const svg = React.useMemo(() => {
-    if (deferRender || mode !== "svg") return ""
-    try {
-      return sanitizeMermaidSvg(
-        renderMermaidSVG(source, {
-          bg: currentTheme.colors.surface.elevated,
-          fg: currentTheme.colors.surface.foreground,
-          line: currentTheme.colors.interactive.border,
-          accent: currentTheme.colors.primary.base,
-          muted: currentTheme.colors.surface.mutedForeground,
-          surface: currentTheme.colors.surface.muted,
-          border: currentTheme.colors.interactive.border,
-          transparent: true,
-          font: "Inter, sans-serif",
-        }),
-      )
-    } catch {
-      return ""
-    }
-  }, [currentTheme, deferRender, mode, source])
-
-  const ascii = React.useMemo(() => {
-    if (deferRender || mode !== "ascii") return ""
-    try {
-      return renderMermaidASCII(source)
-    } catch {
-      return ""
-    }
-  }, [deferRender, mode, source])
-
-  const copyVisibilityClass = isMobile || isTablet ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-
-  React.useEffect(() => {
-    return () => {
-      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
-      downloadedResetTimerRef.current = clearReplaceableTimeout(downloadedResetTimerRef.current)
-    }
-  }, [])
-
-  const markCopied = React.useCallback(() => {
-    setCopied(true)
-    copiedResetTimerRef.current = resetReplaceableTimeout(copiedResetTimerRef.current, () => {
-      setCopied(false)
-      copiedResetTimerRef.current = null
-    }, 2_000)
-  }, [])
-
-  const markDownloaded = React.useCallback(() => {
-    setDownloaded(true)
-    downloadedResetTimerRef.current = resetReplaceableTimeout(downloadedResetTimerRef.current, () => {
-      setDownloaded(false)
-      downloadedResetTimerRef.current = null
-    }, 2_000)
-  }, [])
-
-  const handleCopyAscii = async (asciiText: string) => {
-    if (!asciiText) return
-    const result = await copyTextToClipboard(asciiText)
-    if (result.ok) {
-      markCopied()
-    }
-  }
-
-  const handleCopyMermaidSource = async () => {
-    if (!source) return
-    const result = await copyTextToClipboard(source)
-    if (result.ok) {
-      markCopied()
-    }
-  }
-
-  const handleDownloadSvg = () => {
-    if (!svg) return
-    try {
-      const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = `diagram-${Date.now()}.svg`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
-      markDownloaded()
-    } catch {
-      toast.error(t("markdownRenderer.mermaid.toast.downloadFailed"))
-    }
-  }
-
-  if (mode === "ascii") {
-    const asciiText = ascii || source
-
-    return (
-      <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
-        <div data-markdown="mermaid-scroll">
-          <pre data-markdown="mermaid-ascii">{asciiText}</pre>
-        </div>
-        <div className={cn("absolute top-1 right-2 transition-opacity", copyVisibilityClass)}>
-          <button
-            onClick={() => handleCopyAscii(asciiText)}
-            className="p-1 rounded hover:bg-interactive-hover/60 text-muted-foreground hover:text-foreground transition-colors"
-            title={t("markdownRenderer.mermaid.actions.copyTitle")}
-          >
-            {copied ? <Icon name="check" className="size-3.5" /> : <Icon name="file-copy" className="size-3.5" />}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!svg) {
-    return (
-      <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
-        <div data-markdown="mermaid-scroll">
-          <pre data-markdown="mermaid-ascii">{source}</pre>
-        </div>
-        <div className={cn("absolute top-1 right-2 transition-opacity", copyVisibilityClass)}>
-          <button
-            onClick={() => handleCopyAscii(source)}
-            className="p-1 rounded hover:bg-interactive-hover/60 text-muted-foreground hover:text-foreground transition-colors"
-            title={t("markdownRenderer.mermaid.actions.copyTitle")}
-          >
-            {copied ? <Icon name="check" className="size-3.5" /> : <Icon name="file-copy" className="size-3.5" />}
-          </button>
-        </div>
-      </div>
-    )
-  }
-
-  return (
-    <div data-markdown="mermaid-block" data-mermaid-source={source} className="group">
-      <div data-markdown="mermaid-scroll">
-        <div data-markdown="mermaid" dangerouslySetInnerHTML={{ __html: svg }} />
-      </div>
-      <div className={cn("absolute top-1 right-2 flex items-center gap-1 transition-opacity", copyVisibilityClass)}>
-        <button
-          onClick={handleCopyMermaidSource}
-          className="p-1 rounded hover:bg-interactive-hover/60 text-muted-foreground hover:text-foreground transition-colors"
-          title={t("markdownRenderer.mermaid.actions.copySourceTitle")}
-        >
-          {copied ? <Icon name="check" className="size-3.5" /> : <Icon name="file-copy" className="size-3.5" />}
-        </button>
-        <button
-          onClick={handleDownloadSvg}
-          className="p-1 rounded hover:bg-interactive-hover/60 text-muted-foreground hover:text-foreground transition-colors"
-          title={t("markdownRenderer.mermaid.actions.downloadSvgTitle")}
-        >
-          {downloaded ? <Icon name="check" className="size-3.5" /> : <Icon name="download" className="size-3.5" />}
-        </button>
-      </div>
-    </div>
-  )
-}
-
 type MermaidControlOptions = {
   download: boolean
   copy: boolean
@@ -844,7 +675,8 @@ const MarkdownCodeBlock: React.FC<{
  */
 const MermaidBlockWithMode: React.FC<{ source: string; deferRender: boolean }> = ({ source, deferRender }) => {
   const mermaidRenderingMode = useUIStore((state) => state.mermaidRenderingMode)
-  return <MermaidBlock source={source} mode={mermaidRenderingMode} deferRender={deferRender} />
+  const theme = useCurrentMermaidTheme()
+  return <MermaidBlock source={source} mode={mermaidRenderingMode} theme={theme} deferRender={deferRender} />
 }
 
 const buildMarkdownComponents = ({
