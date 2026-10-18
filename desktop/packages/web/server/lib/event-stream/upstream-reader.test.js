@@ -287,6 +287,39 @@ describe("createUpstreamSseReader", () => {
     expect(eventIds).toEqual(["evt-1", "evt-2"])
   })
 
+  it("strips a leading byte order mark before parsing the first event", async () => {
+    const events = []
+    let reader
+
+    reader = createUpstreamSseReader({
+      buildUrl: () => "http://127.0.0.1:4096/global/event",
+      reconnectDelayMs: 0,
+      isReadyEvent: ({ payload }) => payload?.type === "server.connected",
+      fetchImpl: async (_url, options) =>
+        createSseResponse({
+          signal: options.signal,
+          blocks: ['\uFEFFid: evt-1\ndata: {"type":"server.connected","properties":{"directory":"/tmp/project"}}\n\n'],
+        }),
+      onConnect() {
+        reader.stop()
+      },
+      onEvent(event) {
+        events.push(event)
+      },
+    })
+
+    await reader.start()
+
+    expect(events).toHaveLength(1)
+    expect(events[0].eventId).toBe("evt-1")
+    expect(events[0].payload).toEqual({
+      type: "server.connected",
+      properties: {
+        directory: "/tmp/project",
+      },
+    })
+  })
+
   it("does not acknowledge a lazy upstream until server.connected follows replay", async () => {
     const order = []
     let reader

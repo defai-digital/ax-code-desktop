@@ -246,6 +246,9 @@ export function createUpstreamSseReader({
             onConnect?.({ response, lastEventId })
           }
 
+          // The default decoder strips a leading byte order mark, which the SSE
+          // parsing algorithm requires before the first `data:` line is matched.
+          // (ignoreBOM: true would keep it.)
           const decoder = new TextDecoder()
           reader = response.body.getReader()
           let buffer = ""
