@@ -285,6 +285,13 @@ export function routeMessage(params: {
 type SendMessageOptions = {
   sessionId?: string
   /**
+   * Set when the submit started from the new-session draft. The draft can be
+   * closed by a session switch while the composer awaits (style instruction,
+   * expansion, attachment filtering); resolving the target at send time then
+   * delivered the prompt to whatever session the user had selected.
+   */
+  fromNewSessionDraft?: boolean
+  /**
    * Stable message id for a caller that may retry the same logical message. The
    * server uses it as the real user message id, so a retry is deduplicated instead
    * of delivering the prompt twice.
@@ -981,10 +988,18 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     const draft = get().newSessionDraft
+    const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
     const trimmedAgent = typeof agent === "string" && agent.trim().length > 0 ? agent.trim() : undefined
 
     // ---- New session from draft ----
-    if (!options?.sessionId && draft?.open) {
+    if (startedFromDraft) {
+      if (!draft?.open) {
+        // The draft was closed (a session was selected) while the submit was in
+        // flight. Sending to the now-current session would deliver the prompt to
+        // a target the user never chose; the caller restores the text instead.
+        set({ error: INVALID_SEND_TARGET_MESSAGE })
+        throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      }
       const draftTargetFolderId = draft.targetFolderId
       let draftDirectoryOverride = draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null
       const draftProjectId = draft.selectedProjectId ?? null

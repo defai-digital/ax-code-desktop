@@ -217,6 +217,27 @@ describe("session-worktree-store worktree routing", () => {
     expect(useSessionUIStore.getState().error).toBe("Cannot send message without an active session or draft")
   })
 
+  test("does not send a draft submit to a session selected while it was in flight", async () => {
+    // The submit started from the new-chat draft; by the time sendMessage ran, a
+    // session switch had closed the draft. Resolving the target from live state
+    // delivered the prompt to that session (possibly in another project).
+    const state = useSessionUIStore.getState()
+    const previousSession = state.currentSessionId
+    const previousDraft = state.newSessionDraft
+    useSessionUIStore.setState({ currentSessionId: "ses_other", newSessionDraft: undefined })
+
+    try {
+      await expect(
+        state.sendMessage("hello", "provider-id", "model-id", undefined, undefined, undefined, undefined, undefined, "normal", {
+          fromNewSessionDraft: true,
+        }),
+      ).rejects.toThrow("Cannot send message without an active session or draft")
+      expect(useSessionUIStore.getState().currentSessionId).toBe("ses_other")
+    } finally {
+      useSessionUIStore.setState({ currentSessionId: previousSession, newSessionDraft: previousDraft })
+    }
+  })
+
   test("restores the persisted active session target after reload", () => {
     const session = {
       id: "ses_restore",

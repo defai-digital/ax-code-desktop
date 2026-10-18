@@ -2012,6 +2012,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       queuedOnly ? "normal" : inputMode,
       {
         sessionId: currentSessionId ?? undefined,
+        // Decided before the awaits above: the draft may be closed by a session
+        // switch while this submit is in flight.
+        fromNewSessionDraft: !currentSessionId && newSessionDraftOpen,
         // A queued entry keeps one id across its attempts, so a manual send racing the
         // auto-sender (or a retry) is deduplicated by the server instead of delivering
         // the same prompt twice.
