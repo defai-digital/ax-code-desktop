@@ -365,6 +365,30 @@ describe("ax-code runtime supervision", () => {
     expect(ctx.supervision.state).toBe("idle")
   })
 
+  test("a manual restart reports the origin drop while the runtime is stopped", async () => {
+    const ctx = createSupervision({ settings: { axCodeBinary: "/custom/ax-code" } })
+    await startHealthy(ctx)
+    expect(ctx.originReports).toEqual([{ origin: FIXED_ORIGIN, exhausted: false }])
+
+    const restarted = ctx.supervision.restart({ reprepare: true })
+    await flushMicrotasks()
+    // The old runtime is gone: the protocol handler must see a null origin
+    // (its 503 {restarting:true} answer) instead of proxying to the dead port
+    // until the new runtime is healthy.
+    expect(ctx.originReports.at(-1)).toEqual({ origin: null, exhausted: false })
+
+    // The stopped fake child exits on demand, resolving the graceful stop.
+    ctx.fakeSpawn.children[0].emitExit(0)
+    await flushMicrotasks()
+    expect(ctx.fakeSpawn.children).toHaveLength(2)
+    ctx.fakeSpawn.children[1].emitListening()
+    await flushMicrotasks()
+    await flushMicrotasks()
+    await expect(restarted).resolves.toEqual({ port: RESERVED_PORT, origin: FIXED_ORIGIN })
+    expect(ctx.supervision.state).toBe("healthy")
+    expect(ctx.originReports.at(-1)).toEqual({ origin: FIXED_ORIGIN, exhausted: false })
+  })
+
   test("FSM crash recovery respawns on the SAME fixed port and re-reports the origin", async () => {
     const ctx = createSupervision()
     await startHealthy(ctx)

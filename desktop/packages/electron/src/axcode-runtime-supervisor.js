@@ -565,11 +565,17 @@ function createAxCodeRuntimeSupervision(options = {}) {
       // after every restart — report it (again) so consumers clear the
       // "restarting" state.
       reportOrigin(fixedOrigin, { exhausted: false })
-    } else if (event.to === "degraded" || event.to === "restarting") {
-      reportOrigin(null, { exhausted: false })
     } else if (event.to === "exhausted") {
       logger.error(`[electron] ax-code runtime crashed too many times (${event.crashRestarts}), giving up on restart`)
       reportOrigin(null, { exhausted: true, diagnostics: buildExhaustionDiagnostics(event) })
+    } else if (currentOrigin && event.to !== "idle") {
+      // A manual restart passes stopping → stopped → resolving → spawning →
+      // booting, none of which is `restarting`: without this, the protocol
+      // handler kept proxying to the port of a runtime that is already dead
+      // instead of answering 503 {restarting: true}. Only a supervision that
+      // has been healthy reports the drop — an initial boot has no origin to
+      // clear, and `idle` after a failed start already reported it.
+      reportOrigin(null, { exhausted: false })
     }
   }
 
