@@ -25,6 +25,8 @@ describe("createSession draft rollback", () => {
     createSessionAction.mockReset()
     useSessionUIStore.setState({
       newSessionDraft: draft() as never,
+      currentSessionId: null,
+      draftCreateInFlight: false,
       error: null,
     })
   })
@@ -58,6 +60,65 @@ describe("createSession draft rollback", () => {
 
     expect(created?.id).toBe("session-1")
     expect(useSessionUIStore.getState().newSessionDraft?.open).toBeFalsy()
+  })
+
+  test("restores the original draft after the chat container auto-opened one during the create", async () => {
+    // createSession closes the draft before the request. ChatContainer keeps a generic draft
+    // open during the flight so the composer stays mounted, but that auto-open must not move
+    // the lifecycle revision: restoreDraft compares against the close's revisionAtStart + 1.
+    let rejectCreate!: (error: Error) => void
+    createSessionAction.mockReturnValueOnce(
+      new Promise((_, reject) => {
+        rejectCreate = reject
+      }),
+    )
+    const revisionBefore = getNewSessionDraftRevision()
+    const unsubscribe = useSessionUIStore.subscribe((state) => {
+      if (!state.draftCreateInFlight) return
+      if (!state.currentSessionId && !state.newSessionDraft?.open) {
+        useSessionUIStore.getState().openNewSessionDraft({ preserveLifecycleRevision: true })
+      }
+    })
+
+    try {
+      const create = useSessionUIStore.getState().createSession("compose", "/proj-b", "session-parent")
+      // The generic draft is open while the request is pending, which keeps the composer
+      // available, and the close's +1 is still the current revision.
+      expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
+      expect(getNewSessionDraftRevision()).toBe(revisionBefore + 1)
+
+      rejectCreate(new Error("runtime unavailable"))
+      await expect(create).resolves.toBeNull()
+    } finally {
+      unsubscribe()
+    }
+
+    const restored = useSessionUIStore.getState().newSessionDraft
+    expect(restored?.open).toBe(true)
+    expect(restored?.directoryOverride).toBe("/proj-b")
+    expect(restored?.targetFolderId).toBe("folder-1")
+    expect(restored?.parentID).toBe("session-parent")
+    expect(restored?.title).toBe("compose")
+    expect(getNewSessionDraftRevision()).toBe(revisionBefore + 1)
+  })
+
+  test("selecting the created session closes the draft opened during the flight", async () => {
+    let resolveCreate!: (value: { id: string; directory: string }) => void
+    createSessionAction.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      }),
+    )
+
+    const create = useSessionUIStore.getState().createSession("compose", "/proj-b", null)
+    useSessionUIStore.getState().openNewSessionDraft({ preserveLifecycleRevision: true })
+    expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
+
+    resolveCreate({ id: "session-1", directory: "/proj-b" })
+    await expect(create).resolves.toMatchObject({ id: "session-1" })
+
+    useSessionUIStore.getState().setCurrentSession("session-1", "/proj-b")
+    expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(false)
   })
 
   test("does not restore the old draft over one opened while the create was in flight", async () => {

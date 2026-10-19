@@ -683,6 +683,44 @@ describe("session mutations treat an SDK error response as a failure", () => {
     expect(markSessionAbortedMock).toHaveBeenCalledWith("session-a")
     expect(clearSessionAbortMock).not.toHaveBeenCalled()
   })
+
+  test("a refused abort before a revert clears the stop marker and lets the mutation proceed", async () => {
+    // The SDK resolves `{ error }` on a refused abort. Without inspecting the result the
+    // marker armed for the abort stayed set, so the still-running turn was reported as
+    // stopped and the busy -> idle queue auto-send was blocked.
+    const store = createStore({})
+    store.setState({
+      session: [
+        { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
+      session_status: { "session-a": { type: "busy" } },
+      message: {
+        "session-a": [
+          { id: "msg-a", sessionID: "session-a", role: "user", time: { created: 1 } } as unknown as Message,
+        ],
+      },
+    })
+    mockScopedClient.session.abort.mockImplementationOnce((params: Record<string, unknown>) => {
+      sessionCalls.push({ method: "session.abort", params })
+      return Promise.resolve({ error: { message: "Run is not active" } } as never)
+    })
+    markSessionAbortedMock.mockClear()
+    clearSessionAbortMock.mockClear()
+
+    const { revertToMessage, setActionRefs } = await import("./session-actions")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
+
+    await expect(revertToMessage("session-a", "msg-a")).resolves.toBeUndefined()
+
+    expect(markSessionAbortedMock).toHaveBeenCalledWith("session-a")
+    expect(clearSessionAbortMock).toHaveBeenCalledWith("session-a")
+    // The local mutation still runs even though the runtime refused the abort.
+    expect(sessionCalls.map((call) => call.method)).toContain("session.revert")
+  })
 })
 
 describe("rollback and fork actions use the session directory", () => {

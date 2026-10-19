@@ -22,7 +22,7 @@ describe("chat slash commands keep the composer's own state", () => {
     // command; a command does not send that text, and nothing else restores the drafts (the only copy left) — so
     // the comments and the files used to disappear with no trace.
     expect(slashBlock).toContain("restoreConsumedDrafts(drafts)")
-    expect(slashBlock).toContain("setAttachedFiles(attachedFiles)")
+    expect(slashBlock).toContain("setAttachedFiles(liveAttachments)")
   })
 
   test("hands that state back only from a branch that handles the command", async () => {

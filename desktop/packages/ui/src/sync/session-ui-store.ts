@@ -331,9 +331,23 @@ type NewSessionDraftState = {
   syntheticParts?: SyntheticContextPart[]
   targetFolderId?: string
 }
+type OpenNewSessionDraftOptions = Partial<NewSessionDraftState> & {
+  /**
+   * The chat container's auto-open while a draft-backed create is in flight. The
+   * draft was just closed for the request, so this re-open must keep the lifecycle
+   * revision at the close's +1: createSession's rollback guard compares against it.
+   */
+  preserveLifecycleRevision?: boolean
+}
 type SessionUIState = {
   currentSessionId: string | null
   newSessionDraft: NewSessionDraftState
+  /**
+   * A draft-backed session create is in flight. The chat container keeps a generic draft
+   * open during that window so the composer stays available; that auto-open preserves the
+   * lifecycle revision createSession's draft rollback guard compares against.
+   */
+  draftCreateInFlight: boolean
   abortPromptSessionId: string | null
   abortPromptExpiresAt: number | null
   error: string | null
@@ -357,7 +371,7 @@ type SessionUIState = {
 
   // Actions — UI state management
   setCurrentSession: (id: string | null, directoryHint?: string | null) => void
-  openNewSessionDraft: (options?: Partial<NewSessionDraftState>) => void
+  openNewSessionDraft: (options?: OpenNewSessionDraftOptions) => void
   closeNewSessionDraft: () => void
   setNewSessionDraftTarget: (
     target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null },
@@ -574,6 +588,7 @@ const normalizeSessionId = (sessionId?: string | null): string | null => {
 export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   currentSessionId: null,
   newSessionDraft: { ...DEFAULT_DRAFT },
+  draftCreateInFlight: false,
   abortPromptSessionId: null,
   abortPromptExpiresAt: null,
   error: null,
@@ -701,7 +716,11 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
 
-    draftLifecycleRevision += 1
+    // Re-opening a draft during a draft-backed create must not consume the +1 the
+    // close performed: createSession's rollback guard compares against it.
+    if (!options?.preserveLifecycleRevision) {
+      draftLifecycleRevision += 1
+    }
     set({
       newSessionDraft: {
         open: true,
@@ -726,10 +745,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // New chat always starts in Agent work mode (not sticky council/arena).
     useWorkModeStore.getState().resetToAgent(directory)
 
-    // Clear composer attachments when opening a new session draft.
-    // Attachments from the previous session (e.g. restored by revert) must
-    // not bleed into the new session's input.
-    useInputStore.getState().clearAttachedFiles()
+    // Do not clear attachments here: at this point the active attachment draft is still the
+    // session being left, so clearing dropped that session's stash. The composer's
+    // setActiveAttachmentDraft effect switches to the new draft's own list after the render,
+    // stashing this session's files instead of deleting them.
 
     if (options?.initialPrompt) {
       useInputStore.getState().setPendingInputText(options.initialPrompt)
@@ -1249,6 +1268,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const draft = get().newSessionDraft
     const revisionAtStart = draftLifecycleRevision
     const targetFolderId = draft.targetFolderId
+    // Closing the draft leaves no draft and no selected session, so the chat container
+    // opens a generic draft to keep the composer available. The flag tells that auto-open
+    // this draft belongs to an in-flight create: it must not bump the lifecycle revision,
+    // or restoreDraft's guard would refuse to put the original draft back. Hold it until
+    // this call either selects the created session or restores the draft.
+    set({ draftCreateInFlight: true })
     get().closeNewSessionDraft()
 
     // The draft carries the project, parent session, folder and composed parts the user chose, and
@@ -1283,6 +1308,8 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       restoreDraft()
       set({ error: e instanceof Error ? e.message : String(e) })
       return null
+    } finally {
+      set({ draftCreateInFlight: false })
     }
   },
 
@@ -1500,15 +1527,23 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const session = await get().createSession(undefined, directory ?? null, null)
     if (!session) return
 
-    await axCodeClient.sendMessage({
-      id: session.id,
-      providerID: sendChoice.providerID,
-      modelID: sendChoice.modelID,
-      text: assistantPlanText,
-      prefaceText: EXECUTION_FORK_META_TEXT,
-      agent: sendChoice.agent,
-      variant: sendChoice.variant,
-    })
+    try {
+      await axCodeClient.sendMessage({
+        id: session.id,
+        providerID: sendChoice.providerID,
+        modelID: sendChoice.modelID,
+        text: assistantPlanText,
+        prefaceText: EXECUTION_FORK_META_TEXT,
+        agent: sendChoice.agent,
+        variant: sendChoice.variant,
+      })
+    } catch (error) {
+      // The caller fires this as `void`, so a rejected send was an unhandled rejection and
+      // left the user on the newly created, empty session with no error shown. The session is
+      // kept: it was created and selected successfully, and the user can retry from it.
+      console.error("[session-ui-store] createSessionFromAssistantMessage send failed", error)
+      set({ error: error instanceof Error ? error.message : String(error) })
+    }
   },
 
   // ---------------------------------------------------------------------------

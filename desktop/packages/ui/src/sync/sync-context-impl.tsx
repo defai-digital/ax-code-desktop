@@ -326,7 +326,8 @@ function enqueueSessionMaterialization(directory: string, sessionID: string, chi
   })
 }
 
-async function materializeSessionFromServer(
+/** Exposed for unit testing. Not part of the stable consumer surface. */
+export async function materializeSessionFromServer(
   directory: string,
   sessionID: string,
   store: StoreApi<DirectoryStore>,
@@ -337,9 +338,22 @@ async function materializeSessionFromServer(
   // the directory it was created in, so prefer it over the caller's guess.
   const ownDirectory = store.getState().session.find((s) => s.id === sessionID)?.directory
   const scopedClient = axCodeClient.getScopedSdkClient(ownDirectory || directory)
-  const result = await retry(() =>
-    scopedClient.session.messages({ sessionID, limit: SESSION_MATERIALIZATION_MESSAGE_LIMIT }),
-  )
+  // The SDK resolves with `{ data, error }` on non-2xx instead of throwing; surface it as an
+  // Error inside retry() so warmup 5xx responses retry (instead of materializing a phantom
+  // empty snapshot and cooling down for 5s) and permanent failures keep their status.
+  const result = await retry(async () => {
+    const response = await scopedClient.session.messages({
+      sessionID,
+      limit: SESSION_MATERIALIZATION_MESSAGE_LIMIT,
+    })
+    if (response.error || response.data === undefined) {
+      const status = response.response?.status
+      const error = new Error(`session.messages failed${status ? ` (${status})` : ""}`)
+      if (status !== undefined) (error as Error & { status?: number }).status = status
+      throw error
+    }
+    return response
+  })
   const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
   if (records.length === 0) return
   // A newer request for this session started while this one was in flight: its answer is newer than

@@ -1022,10 +1022,16 @@ export async function optimisticSend(input: {
 // exactly like abortCurrentOperation: the abort's busy -> idle edge must not fire the
 // queued-message auto-send while the mutation is still in flight. Cleared when the runtime
 // refused the abort, so a run that keeps going is not reported as stopped.
-async function abortBeforeLocalMutation(sessionId: string, abort: () => Promise<unknown>): Promise<void> {
+async function abortBeforeLocalMutation(
+  sessionId: string,
+  abort: () => Promise<{ error?: unknown } | null | undefined>,
+): Promise<void> {
   useSessionUIStore.getState().markSessionAborted(sessionId)
   try {
-    await abort()
+    // The generated SDK resolves `{ error }` on a refused abort instead of throwing, so the
+    // result has to be inspected: otherwise the marker armed above is never cleared and the
+    // still-running turn is reported as stopped.
+    assertSessionCallSucceeded(await abort(), "abortBeforeLocalMutation")
   } catch {
     useSessionUIStore.getState().clearSessionAbort(sessionId)
   }

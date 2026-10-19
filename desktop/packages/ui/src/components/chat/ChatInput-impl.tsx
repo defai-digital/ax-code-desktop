@@ -64,6 +64,7 @@ import { useNudgeDismissedAt, useSessionRunEndedAt } from "@/sync/run-state-stor
 import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-context"
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useCurrentSessionActivity } from "@/hooks/useSessionActivity"
+import { isQueuedAutoSendHeld } from "@/hooks/useQueuedMessageAutoSend"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { isDesktopShell } from "@/lib/desktop"
@@ -112,7 +113,7 @@ import { extractGitChangedFiles } from "./changedFiles"
 import { useI18n } from "@/lib/i18n"
 import { fetchResponseStyleInstruction } from "@/lib/responseStyle"
 import { wrapSystemReminder } from "@/lib/systemReminder"
-import { getSyncMessages } from "@/sync/sync-refs"
+import { getGlobalSyncSessionStatus, getSyncMessages } from "@/sync/sync-refs"
 import { eventMatchesShortcut, getEffectiveShortcutCombo, normalizeCombo } from "@/lib/shortcuts"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
 import { isSyntheticPart } from "@/lib/messages/synthetic"
@@ -244,6 +245,15 @@ const normalizePath = (value?: string | null): string | null => {
   }
   return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
 }
+
+// Mirrors the refusal sendMessage raises for a stale send target, so a draft that was
+// retargeted while its prompt rendered fails through the same recovery path.
+const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
+
+// The auto-sender defers a queued entry while the session shows an unseen error or was
+// aborted within this window. An entry that lands after the busy -> idle edge has to
+// honor the same holds instead of dispatching itself immediately.
+const QUEUED_ABORT_HOLD_MS = 2000
 
 const getProjectDisplayLabel = (project: { label?: string; path: string }): string => {
   const label = project.label?.trim()
@@ -1440,11 +1450,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const getCurrentInputSnapshot = React.useCallback(() => {
     const currentMessage = textareaRef.current?.value ?? message
+    // Read attachments from the live store: a paste read can settle after this
+    // closure was created but before the submit finishes waiting for it.
+    const currentAttachments = useInputStore.getState().attachedFiles
     return {
       message: currentMessage,
-      hasContent: currentMessage.trim().length > 0 || sendableAttachedFiles.length > 0 || hasDrafts,
+      hasContent: currentMessage.trim().length > 0 || currentAttachments.length > 0 || hasDrafts,
     }
-  }, [hasDrafts, message, sendableAttachedFiles.length])
+  }, [hasDrafts, message])
 
   // Keep a ref to handleSubmit so callbacks don't depend on it.
   type SubmitOptions = {
@@ -1453,75 +1466,129 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   }
   const handleSubmitRef = React.useRef<(options?: SubmitOptions) => Promise<void>>(async () => {})
 
+  // A queue press that waits for a pasted-file read can be followed by another press before
+  // React renders the first clear, and both would queue the same text. The guard also keeps
+  // the awaited path from re-entering while it is in flight.
+  const queueMessageInFlightRef = React.useRef(false)
+  // An entry added after its paste read outlived the busy -> idle edge: the auto-sender has
+  // already spent that edge on an empty queue, so the entry is dispatched through the chip
+  // path once the render that contains it has committed.
+  const pendingLateQueueDispatchRef = React.useRef<string | null>(null)
+
   // Add message to queue instead of sending
-  const handleQueueMessage = React.useCallback(() => {
-    const inputSnapshot = getCurrentInputSnapshot()
-    if (!inputSnapshot.hasContent || !currentSessionId) return
+  const handleQueueMessage = React.useCallback(async () => {
+    if (queueMessageInFlightRef.current) return
+    queueMessageInFlightRef.current = true
+    try {
+      // A pasted image finishes reading after its citation was inserted. Queueing before the
+      // read settles stores the citation without the file the entry names. Without a pending
+      // read the whole body below runs synchronously, so the entry is queued before any
+      // busy -> idle edge can pass it.
+      const waitedForPasteReads = pendingPastedAttachmentReadsRef.current.size > 0
+      if (waitedForPasteReads) {
+        await Promise.all([...pendingPastedAttachmentReadsRef.current])
+        // Same rule as handleSubmit: the composer may have moved on while the file was
+        // reading, and this entry belongs to the session captured at submit time.
+        const liveSession = useSessionUIStore.getState()
+        if (
+          liveSession.currentSessionId !== currentSessionId ||
+          Boolean(liveSession.newSessionDraft?.open) !== newSessionDraftOpen
+        ) {
+          return
+        }
+      }
+      const inputSnapshot = getCurrentInputSnapshot()
+      if (!inputSnapshot.hasContent || !currentSessionId) return
 
-    // A command runs when it is sent, not when the session falls idle, and the queue's two dispatch
-    // paths disagreed about what to do with one: the chip ran it through the command-aware submit
-    // while auto-send delivered it to the model as text. Send it the way Ctrl+Enter does instead.
-    // Shell input follows the same rule: it is a command, not a prompt, and auto-send would have
-    // delivered the shell text to the model.
-    if (inputMode === "shell" || !isQueueableMessage(inputSnapshot.message, inputMode)) {
-      void handleSubmitRef.current()
-      return
-    }
+      // A command runs when it is sent, not when the session falls idle, and the queue's two dispatch
+      // paths disagreed about what to do with one: the chip ran it through the command-aware submit
+      // while auto-send delivered it to the model as text. Send it the way Ctrl+Enter does instead.
+      // Shell input follows the same rule: it is a command, not a prompt, and auto-send would have
+      // delivered the shell text to the model.
+      if (inputMode === "shell" || !isQueueableMessage(inputSnapshot.message, inputMode)) {
+        void handleSubmitRef.current()
+        return
+      }
 
-    const drafts = consumeDrafts(currentSessionId)
+      const drafts = consumeDrafts(currentSessionId)
 
-    const typedForRecall = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
-    let messageToQueue = typedForRecall
-    if (drafts.length > 0) {
-      messageToQueue = appendInlineComments(messageToQueue, drafts)
-    }
-    const attachmentsToQueue = sanitizeAttachmentsForSend(sendableAttachedFiles)
+      const typedForRecall = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
+      let messageToQueue = typedForRecall
+      if (drafts.length > 0) {
+        messageToQueue = appendInlineComments(messageToQueue, drafts)
+      }
+      const attachmentsToQueue = sanitizeAttachmentsForSend(useInputStore.getState().attachedFiles)
 
-    const queued = addToQueue(currentSessionId, {
-      content: messageToQueue,
-      attachments: attachmentsToQueue.length > 0 ? attachmentsToQueue : undefined,
-      sendConfig:
-        currentProviderId && currentModelId
-          ? {
-              providerID: currentProviderId,
-              modelID: currentModelId,
-              agent: currentAgentName ?? undefined,
-              variant: currentVariant ?? undefined,
-            }
-          : undefined,
-    })
+      // The entry is appended synchronously below. Remember the ids that preceded it so the
+      // new one can be found after the add without changing addToQueue's return contract.
+      const queuedIdsBefore = waitedForPasteReads
+        ? new Set(
+            useMessageQueueStore
+              .getState()
+              .getQueueForSession(currentSessionId)
+              .map((message) => message.id),
+          )
+        : null
 
-    // A full queue refuses the entry: keep the composer (and its attachments) intact
-    // instead of clearing input that was never queued. The review comments came out of the
-    // store above and were only folded into the text that is being kept here, so they have to
-    // go back too - nothing else can restore them.
-    if (!queued) {
-      restoreConsumedDrafts(drafts)
-      // A full queue refuses the entry: say why, or Enter looks like it did nothing.
-      toast.error(t("chat.queuedMessage.full", { count: MESSAGE_QUEUE_MAX_PER_SESSION }))
-      return
-    }
+      const queued = addToQueue(currentSessionId, {
+        content: messageToQueue,
+        attachments: attachmentsToQueue.length > 0 ? attachmentsToQueue : undefined,
+        sendConfig:
+          currentProviderId && currentModelId
+            ? {
+                providerID: currentProviderId,
+                modelID: currentModelId,
+                agent: currentAgentName ?? undefined,
+                variant: currentVariant ?? undefined,
+              }
+            : undefined,
+      })
 
-    const remembered = promptTextToRemember({ reason: "queue-accept", typed: typedForRecall })
-    if (remembered) rememberSubmittedPrompt(promptHistoryDirectoryRef.current, remembered, "normal")
-    exitPromptBrowsing()
+      // A full queue refuses the entry: keep the composer (and its attachments) intact
+      // instead of clearing input that was never queued. The review comments came out of the
+      // store above and were only folded into the text that is being kept here, so they have to
+      // go back too - nothing else can restore them.
+      if (!queued) {
+        restoreConsumedDrafts(drafts)
+        // A full queue refuses the entry: say why, or Enter looks like it did nothing.
+        toast.error(t("chat.queuedMessage.full", { count: MESSAGE_QUEUE_MAX_PER_SESSION }))
+        return
+      }
 
-    // Clear input and attachments
-    // Note: confirmedMentionsRef is NOT cleared here because queued messages
-    // are processed later in handleSubmit which reads the ref via extractInlineFileMentions.
-    // The ref is cleared in handleSubmit after all queued messages are sent.
-    setMessage("")
-    if (attachmentsToQueue.length > 0) {
-      clearAttachedFiles()
-    }
+      // Only when the queue was empty does a late add need the kick: an edge that
+      // found other entries dispatches them and the following busy -> idle edges
+      // drain this one in order. Kicking a later entry here would jump the queue.
+      if (queuedIdsBefore && queuedIdsBefore.size === 0) {
+        const added = useMessageQueueStore
+          .getState()
+          .getQueueForSession(currentSessionId)
+          .find((message) => !queuedIdsBefore.has(message.id))
+        if (added) pendingLateQueueDispatchRef.current = added.id
+      }
 
-    if (!isMobile) {
-      textareaRef.current?.focus()
+      const remembered = promptTextToRemember({ reason: "queue-accept", typed: typedForRecall })
+      if (remembered) rememberSubmittedPrompt(promptHistoryDirectoryRef.current, remembered, "normal")
+      exitPromptBrowsing()
+
+      // Clear input and attachments
+      // Note: confirmedMentionsRef is NOT cleared here because queued messages
+      // are processed later in handleSubmit which reads the ref via extractInlineFileMentions.
+      // The ref is cleared in handleSubmit after all queued messages are sent.
+      setMessage("")
+      if (attachmentsToQueue.length > 0) {
+        clearAttachedFiles()
+      }
+
+      if (!isMobile) {
+        textareaRef.current?.focus()
+      }
+    } finally {
+      queueMessageInFlightRef.current = false
     }
   }, [
     getCurrentInputSnapshot,
     currentSessionId,
-    sendableAttachedFiles,
+    newSessionDraftOpen,
     sanitizeAttachmentsForSend,
     addToQueue,
     clearAttachedFiles,
@@ -1537,6 +1604,34 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     rememberSubmittedPrompt,
     exitPromptBrowsing,
   ])
+
+  const dispatchLateQueuedMessage = React.useCallback(() => {
+    const queuedMessageId = pendingLateQueueDispatchRef.current
+    if (!queuedMessageId) return
+    pendingLateQueueDispatchRef.current = null
+    if (!currentSessionId) return
+    // The auto-sender removes the entry before sending. If the idle edge and this late add
+    // landed in the same commit, it may already own (or have finished) this entry.
+    const stillQueued = useMessageQueueStore
+      .getState()
+      .getQueueForSession(currentSessionId)
+      .some((message) => message.id === queuedMessageId)
+    if (!stillQueued) return
+    // Honor the auto-sender's holds: an unseen error or a just-aborted turn keeps a queued
+    // entry parked for the user (the chip stays available for a manual send).
+    const abortRecord = useSessionUIStore.getState().sessionAbortFlags.get(currentSessionId)
+    if (abortRecord && Date.now() - abortRecord.timestamp < QUEUED_ABORT_HOLD_MS) return
+    if (isQueuedAutoSendHeld(currentSessionId)) return
+    if (getGlobalSyncSessionStatus(currentSessionId)?.type !== "idle") return
+    void handleSubmitRef.current({ queuedOnly: true, queuedMessageId })
+  }, [currentSessionId])
+
+  React.useEffect(() => {
+    // `queuedMessages` is the commit signal: the late entry exists in the store but not in
+    // the render that started the awaited queue press, so the dispatch waits for this run.
+    void queuedMessages
+    dispatchLateQueuedMessage()
+  }, [dispatchLateQueuedMessage, queuedMessages])
 
   const handleQueuedMessageEdit = React.useCallback((content: string) => {
     // Popping the chip removed the entry from the queue, so that text now lives only
@@ -1585,6 +1680,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const queuedOnly = options?.queuedOnly ?? false
     const queuedMessageId = options?.queuedMessageId
     const inputSnapshot = getCurrentInputSnapshot()
+    // A paste read may have settled while the submit waited for it; this render's
+    // closure predates that, so the submit's own attachments come from the live store.
+    const liveAttachments = useInputStore.getState().attachedFiles
     const queuedMessagesToSend = queuedMessageId
       ? queuedMessages.filter((message) => message.id === queuedMessageId)
       : queuedMessages
@@ -1686,7 +1784,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       const messageToSend = inputSnapshot.message.replace(/^\n+|\n+$/g, "")
       const { sanitizedText, mention } = parseAgentMentions(messageToSend, agents)
       const { sanitizedText: messageText, attachments: mentionAttachments } = extractInlineFileMentions(sanitizedText)
-      const attachmentsToSend = sanitizeAttachmentsForSend(sendableAttachedFiles)
+      // Live store, not this render's closure: a paste read may have settled while
+      // the submit was waiting for it, after this closure was created.
+      const attachmentsToSend = sanitizeAttachmentsForSend(liveAttachments)
       composerAttachmentsForRestore = attachmentsToSend
       addMentionedSkills(messageText)
 
@@ -1766,8 +1866,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // Snapshot what this submit consumes, so a failed send can put it back: the queue
     // entries it takes and the composer text it folds into the payload. Both are
     // cleared below, before the send resolves. A command submit consumes the composer
-    // alone, so it takes nothing from the queue.
-    const consumedQueueSnapshot = currentSessionId && consumesQueue ? [...queuedMessagesToSend] : []
+    // alone, so it takes nothing from the queue. assignMessageId replaces the store
+    // entry with a new object, so the render-time entry must carry the assigned id
+    // here too — otherwise the failure restore drops it and a retry mints a fresh id.
+    const consumedQueueSnapshot =
+      currentSessionId && consumesQueue
+        ? queuedMessagesToSend.map((message, index) =>
+            index === 0 && queuedEntryMessageId ? { ...message, messageId: queuedEntryMessageId } : message,
+          )
+        : []
     // Where the consumed entries lived in the session queue, so a failed send puts a
     // manually dispatched middle entry back in place instead of reordering the queue.
     const consumedQueueIndex = queuedMessageId
@@ -1799,7 +1906,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       saveStoredDraft(currentSessionId, "")
       saveConfirmedMentions(currentSessionId, confirmedMentionsRef.current)
       exitPromptBrowsing()
-      if (attachedFiles.length > 0) {
+      // The attachments that were sent (and must now be cleared) include any paste
+      // read that settled during the submit's wait.
+      if (liveAttachments.length > 0) {
         clearAttachedFiles()
       }
       // Close expanded input overlay when submitting
@@ -1858,6 +1967,43 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       draftRevision: !currentSessionId && newSessionDraftOpen ? getNewSessionDraftRevision() : undefined,
     }
 
+    // The draft revision does not move when the draft project/directory switcher
+    // retargets the open draft, and sendMessage resolves the target from the live
+    // draft after the prompt has rendered. Capture the identity too, so a prompt
+    // that took long enough for the user to pick another project is refused instead
+    // of being created and sent in that project. A pending worktree/bootstrap target
+    // is resolved in the store (and the switcher is locked meanwhile), so it is
+    // exempt: its directory is expected to change during the send.
+    const capturedDraftTarget =
+      !currentSessionId &&
+      newSessionDraftOpen &&
+      !newSessionDraft?.pendingWorktreeRequestId &&
+      !newSessionDraft?.bootstrapPendingDirectory
+        ? {
+            projectId: newSessionDraft?.selectedProjectId ?? null,
+            directory:
+              normalizePath(newSessionDraft?.bootstrapPendingDirectory ?? null) ??
+              normalizePath(newSessionDraft?.directoryOverride ?? null),
+          }
+        : null
+    const isDraftTargetCurrent = () => {
+      if (!capturedDraftTarget) return true
+      const liveDraft = useSessionUIStore.getState().newSessionDraft
+      if (!liveDraft?.open) return false
+      const liveDirectory =
+        normalizePath(liveDraft.bootstrapPendingDirectory ?? null) ??
+        normalizePath(liveDraft.directoryOverride ?? null)
+      return (
+        (liveDraft.selectedProjectId ?? null) === capturedDraftTarget.projectId &&
+        liveDirectory === capturedDraftTarget.directory
+      )
+    }
+    const assertDraftTargetCurrent = () => {
+      if (!isDraftTargetCurrent()) {
+        throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      }
+    }
+
     const slashCommand = composerSlashCommand
     if (slashCommand) {
       const commandName = slashCommand.name
@@ -1872,8 +2018,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         if (drafts.length > 0) {
           restoreConsumedDrafts(drafts)
         }
-        if (attachedFiles.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
-          useInputStore.getState().setAttachedFiles(attachedFiles)
+        if (liveAttachments.length > 0 && useSessionUIStore.getState().currentSessionId === currentSessionId) {
+          useInputStore.getState().setAttachedFiles(liveAttachments)
         }
       }
 
@@ -1937,6 +2083,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             : ""
           const visibleText = await renderMagicPrompt("session.summary.visible", { topic_line: topicLine })
           const instructionsText = await renderMagicPrompt("session.summary.instructions", { topic_block: topicBlock })
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -1961,6 +2108,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.review.visible")
           const instructionsText = await renderMagicPrompt("session.review.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -1988,6 +2136,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.plan.visible")
           const instructionsText = await renderMagicPrompt("session.plan.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -2012,6 +2161,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.catchup.visible")
           const instructionsText = await renderMagicPrompt("session.catchup.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -2036,6 +2186,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.debug.visible")
           const instructionsText = await renderMagicPrompt("session.debug.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -2060,6 +2211,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.weigh.visible")
           const instructionsText = await renderMagicPrompt("session.weigh.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -2084,6 +2236,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           await sessionActions.waitForConnectionOrThrow()
           const visibleText = await renderMagicPrompt("session.explore.visible")
           const instructionsText = await renderMagicPrompt("session.explore.instructions")
+          assertDraftTargetCurrent()
           await sendMessage(
             visibleText,
             providerIdToSend,
@@ -2153,27 +2306,33 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       (attachment) => !isInlineServerAttachment(attachment),
     )
 
-    const sendPromise = sendMessage(
-      primaryText,
-      providerIdToSend,
-      modelIdToSend,
-      agentNameToSend,
-      primaryAttachments,
-      agentMentionName,
-      additionalParts.length > 0 ? additionalParts : undefined,
-      variantToSend,
-      // A queued entry is an ordinary prompt regardless of what the composer is
-      // in now: sending it while in shell mode ran the prompt text as a shell
-      // command in the project directory.
-      queuedOnly ? "normal" : inputMode,
-      {
-        ...sendTarget,
-        // A queued entry keeps one id across its attempts, so a manual send racing the
-        // auto-sender (or a retry) is deduplicated by the server instead of delivering
-        // the same prompt twice. Minted before dispatch when the entry had none yet.
-        messageId: queuedOnly ? queuedEntryMessageId : undefined,
-      },
-    )
+    // The awaits above (response style, snippet expansion, attachment filtering) can
+    // outlive a draft retarget, and sendMessage resolves the live draft afterwards.
+    // Refuse like the stale-revision check and let the failure path restore the input.
+    const draftTargetRefusal = isDraftTargetCurrent() ? null : new Error(INVALID_SEND_TARGET_MESSAGE)
+    const sendPromise = draftTargetRefusal
+      ? Promise.reject(draftTargetRefusal)
+      : sendMessage(
+          primaryText,
+          providerIdToSend,
+          modelIdToSend,
+          agentNameToSend,
+          primaryAttachments,
+          agentMentionName,
+          additionalParts.length > 0 ? additionalParts : undefined,
+          variantToSend,
+          // A queued entry is an ordinary prompt regardless of what the composer is
+          // in now: sending it while in shell mode ran the prompt text as a shell
+          // command in the project directory.
+          queuedOnly ? "normal" : inputMode,
+          {
+            ...sendTarget,
+            // A queued entry keeps one id across its attempts, so a manual send racing the
+            // auto-sender (or a retry) is deduplicated by the server instead of delivering
+            // the same prompt twice. Minted before dispatch when the entry had none yet.
+            messageId: queuedOnly ? queuedEntryMessageId : undefined,
+          },
+        )
 
     if (typeof window === "undefined") {
       scrollToBottom?.()
@@ -2218,19 +2377,21 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         const restoreComposerAttachments = (attachments: AttachedFile[]) => {
           if (attachments.length === 0) return
           if (!viewingFailedSession) {
-            // Put them in the failed session's own draft slot. Dropping them
+            // Put them in the failed target's own draft slot. Dropping them
             // because another session was on screen lost the attachment with no
-            // trace, even though the text went back.
-            if (!failedSessionId) return
+            // trace, even though the text went back. A send from a new-chat draft
+            // has no captured session id; its slot is keyed "" (the key
+            // setActiveAttachmentDraft(currentSessionId ?? "") uses for drafts).
+            const failedDraftKey = failedSessionId ?? ""
             useInputStore.setState((state) => {
-              const existing = state.attachmentsByDraft[failedSessionId] ?? []
+              const existing = state.attachmentsByDraft[failedDraftKey] ?? []
               const existingIds = new Set(existing.map((file) => file.id))
               const missing = attachments.filter((file) => !existingIds.has(file.id))
               if (missing.length === 0) return state
               return {
                 attachmentsByDraft: {
                   ...state.attachmentsByDraft,
-                  [failedSessionId]: [...existing, ...missing],
+                  [failedDraftKey]: [...existing, ...missing],
                 },
               }
             })

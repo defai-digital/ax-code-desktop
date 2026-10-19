@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
-import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Message, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -8,6 +8,11 @@ import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"
 import { attachmentToRouteFileInput, useSessionUIStore } from "./session-ui-store"
 import { getActiveSessionRef } from "./sync-context-impl"
+import { useInputStore } from "./input-store"
+import { PartMap } from "./part-map"
+import { setSyncRefs } from "./sync-refs"
+import { INITIAL_STATE } from "./types"
+import type { ChildStoreManager } from "./child-store"
 import {
   createPendingDraftWorktreeRequest,
   resolvePendingDraftWorktreeRequest,
@@ -466,6 +471,35 @@ describe("session-worktree-store worktree routing", () => {
 })
 
 describe("session-ui-store attachments", () => {
+  test("keeps the previous session's attachments when opening a new-session draft", () => {
+    // openNewSessionDraft used to clear the active attachment draft before the composer's
+    // effect switched drafts, which deleted the stash of the session being left.
+    const file = {
+      id: "f1",
+      file: new File([], "notes.png", { type: "image/png" }),
+      filename: "notes.png",
+      mimeType: "image/png",
+      size: 3,
+      dataUrl: "data:,x",
+      source: "local" as const,
+    }
+    useInputStore.getState().setActiveAttachmentDraft("")
+    useInputStore.getState().setAttachedFiles([])
+    useInputStore.getState().setActiveAttachmentDraft("ses_attached")
+    useInputStore.getState().setAttachedFiles([file])
+
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/repo" })
+    // The composer's setActiveAttachmentDraft effect runs after the render; emulate it.
+    useInputStore.getState().setActiveAttachmentDraft("")
+
+    expect(useInputStore.getState().attachedFiles).toEqual([])
+    useInputStore.getState().setActiveAttachmentDraft("ses_attached")
+    expect(useInputStore.getState().attachedFiles).toEqual([file])
+
+    useInputStore.getState().setActiveAttachmentDraft("")
+    useInputStore.getState().setAttachedFiles([])
+  })
+
   test("preserves MCP resource source metadata for prompt file parts", () => {
     expect(
       attachmentToRouteFileInput({
@@ -551,5 +585,65 @@ describe("session abort flags lifecycle", () => {
     useSessionUIStore.getState().openNewSessionDraft()
 
     expect(getActiveSessionRef()).toEqual({ directory: "", sessionId: "" })
+  })
+})
+
+describe("createSessionFromAssistantMessage", () => {
+  test("surfaces a failed follow-up send instead of leaving an unhandled rejection", async () => {
+    // The caller fires this as `void`; without a catch the user was left on the newly created,
+    // empty session with no error and an unhandled promise rejection.
+    const sourceMessage = {
+      id: "msg_source",
+      sessionID: "ses_source",
+      role: "assistant",
+      time: { created: 1 },
+    } as unknown as Message
+    const directoryState = {
+      ...INITIAL_STATE,
+      message: { ses_source: [sourceMessage] },
+      part: PartMap.from({
+        msg_source: [
+          { id: "prt_source", type: "text", messageID: "msg_source", sessionID: "ses_source", text: "plan" },
+        ],
+      }),
+    }
+    const childStores = {
+      children: new Map(),
+      getState: () => directoryState,
+    } as unknown as ChildStoreManager
+    setSyncRefs(childStores, "/repo")
+
+    const originalCreate = useSessionUIStore.getState().createSession
+    const config = useConfigStore.getState()
+    const originalProviderId = config.currentProviderId
+    const originalModelId = config.currentModelId
+    const originalAgentName = config.currentAgentName
+    const send = vi.spyOn(axCodeClient, "sendMessage").mockRejectedValueOnce(new Error("runtime down"))
+    useSessionUIStore.setState({
+      createSession: vi.fn().mockResolvedValue({ id: "ses_new", directory: "/repo" }) as never,
+      error: null,
+    })
+    useConfigStore.setState({
+      currentProviderId: "provider",
+      currentModelId: "model",
+      currentAgentName: "agent",
+    })
+
+    try {
+      await expect(
+        useSessionUIStore.getState().createSessionFromAssistantMessage("msg_source"),
+      ).resolves.toBeUndefined()
+
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({ id: "ses_new", text: "plan" }))
+      expect(useSessionUIStore.getState().error).toBe("runtime down")
+    } finally {
+      send.mockRestore()
+      useSessionUIStore.setState({ createSession: originalCreate, error: null })
+      useConfigStore.setState({
+        currentProviderId: originalProviderId,
+        currentModelId: originalModelId,
+        currentAgentName: originalAgentName,
+      })
+    }
   })
 })

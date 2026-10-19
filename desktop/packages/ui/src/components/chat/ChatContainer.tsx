@@ -373,6 +373,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft)
   const setCurrentSession = useSessionUIStore((s) => s.setCurrentSession)
   const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft)
+  const draftCreateInFlight = useSessionUIStore((s) => s.draftCreateInFlight)
   const projects = useProjectsStore((s) => s.projects)
   const activeProjectId = useProjectsStore((s) => s.activeProjectId)
 
@@ -625,9 +626,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   React.useEffect(() => {
     const hasSessionRoute = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("session")
     if (shouldAutoOpenChatDraft({ autoOpenDraft, currentSessionId, draftOpen, hasSessionRoute })) {
-      openNewSessionDraft()
+      // A draft-backed create closes its draft before the request, which would leave this
+      // surface blank (and the composer gone) until the request settles. Keep a generic
+      // draft open during that window, but do not move the lifecycle revision: createSession
+      // restores the original draft only when it can see exactly the close's +1. On success
+      // selecting the created session closes this generic draft.
+      openNewSessionDraft(draftCreateInFlight ? { preserveLifecycleRevision: true } : undefined)
     }
-  }, [autoOpenDraft, currentSessionId, draftOpen, openNewSessionDraft])
+  }, [autoOpenDraft, currentSessionId, draftOpen, draftCreateInFlight, openNewSessionDraft])
 
   const activeTurnChangeRef = React.useRef<(turnId: string | null) => void>(() => {})
   const handleActiveTurnChange = React.useCallback((turnId: string | null) => {

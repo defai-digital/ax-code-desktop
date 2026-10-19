@@ -1,9 +1,10 @@
 import { describe, expect, test, vi } from "vitest"
 import { create, type StoreApi } from "zustand"
-import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
+import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2/client"
 
 // The reconnect pass reads the SDK through the module-level client and the project-level status fetch.
 const sessionsById: Record<string, Session> = {}
+const scopedMessagesMock = vi.fn(async () => ({ data: [] as Array<{ info: Message; parts?: Part[] }> }))
 
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
@@ -15,7 +16,7 @@ vi.doMock("@/lib/ax-code/client", () => ({
     getScopedSdkClient: () => ({
       session: {
         get: vi.fn(async ({ sessionID }: { sessionID: string }) => ({ data: sessionsById[sessionID] ?? null })),
-        messages: vi.fn(async () => ({ data: [] })),
+        messages: scopedMessagesMock,
       },
     }),
   },
@@ -46,7 +47,7 @@ import type { State } from "../types"
 import type { DirectoryStore } from "../child-store"
 
 const { INITIAL_STATE } = await import("../types")
-const { recoverSessionSnapshotsAfterGap } = await import("../sync-context")
+const { recoverSessionSnapshotsAfterGap, materializeSessionFromServer } = await import("../sync-context")
 
 const makeSession = (id: string, overrides: Partial<Session> = {}): Session =>
   ({
@@ -100,5 +101,32 @@ describe("reconnect session snapshot", () => {
     await settle()
 
     expect(store.getState().session.map((session) => session.id)).toEqual(["ses_child"])
+  })
+})
+
+describe("session snapshot materialization", () => {
+  test("retries a warmup 5xx answer instead of materializing a phantom empty snapshot", async () => {
+    // The SDK resolves `{ error }` on 5xx instead of throwing. Without inspecting it, retry()
+    // never retried, the empty page returned early, and the cooldown skipped the next attempt.
+    const message = {
+      id: "msg_materialized",
+      sessionID: "ses_materialize",
+      role: "assistant",
+      time: { created: 1 },
+    } as unknown as Message
+    // The reconnect test above may have issued its own snapshot reads in the background.
+    scopedMessagesMock.mockClear()
+    scopedMessagesMock
+      .mockResolvedValueOnce({ error: { message: "warmup" }, response: { status: 503 } } as never)
+      .mockResolvedValueOnce({
+        data: [{ info: message, parts: [] }],
+        response: { headers: { get: () => null } },
+      } as never)
+    const store = createDirectoryStore({ session: [makeSession("ses_materialize")] })
+
+    await materializeSessionFromServer("/repo", "ses_materialize", store, () => true)
+
+    expect(scopedMessagesMock).toHaveBeenCalledTimes(2)
+    expect(store.getState().message["ses_materialize"]?.map((entry) => entry.id)).toEqual(["msg_materialized"])
   })
 })
