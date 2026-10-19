@@ -41,7 +41,7 @@ The app is installed at `/Applications/AX Code.app`. Open **AX Code** from Appli
 Windows x64 (AMD64), PowerShell 5.1 or newer:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://download.automatosx.com/ax-code-desktop/install.ps1 | iex"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "irm -UseBasicParsing https://download.automatosx.com/ax-code-desktop/install.ps1 | iex"
 ```
 
 The bootstrap checks the Authenticode signature, then opens the installer. Confirm the publisher is
