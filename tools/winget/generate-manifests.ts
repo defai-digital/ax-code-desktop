@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 import { createHash } from "node:crypto"
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs"
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 
@@ -172,7 +172,17 @@ export async function generateManifests(argv = process.argv.slice(2)) {
   return { output, repository: contract.repository, tag }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+const isMain = (() => {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    // Node canonicalises import.meta.url through realpath; the argv side must
+    // match or a symlinked invocation silently skips the run.
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+})()
 if (isMain) {
   generateManifests()
     .then((result) => console.log(`Wrote Desktop winget manifests to ${result.output}`))

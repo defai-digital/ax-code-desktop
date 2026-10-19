@@ -1,4 +1,5 @@
 import fs from "node:fs/promises"
+import { realpathSync } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import fg from "fast-glob"
@@ -304,7 +305,17 @@ async function main() {
 }
 
 const entry = process.argv[1]
-if (entry && path.resolve(entry) === fileURLToPath(import.meta.url)) {
+// Node canonicalises import.meta.url through realpath; the argv side must match
+// or a symlinked invocation silently skips the boundary check.
+const isMain = (() => {
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+})()
+if (isMain) {
   main().catch((error) => {
     console.error(error instanceof Error ? error.stack || error.message : error)
     process.exitCode = 1
