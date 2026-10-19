@@ -1,14 +1,21 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import os from "os"
 import path from "path"
-import { mkdtemp, readFile, rm, writeFile } from "fs/promises"
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises"
 
 import { createProjectConfigRuntime } from "../projects/project-config.js"
 import { createScheduledTaskConvergence } from "./convergence.js"
 
 const silentLogger = { info: () => {}, warn: () => {}, error: () => {} }
 
-const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, maxAttempts, expandSnippets } = {}) => {
+const createHarness = async ({
+  runtimeTasks = [],
+  runtimeHandler,
+  listProjects,
+  maxAttempts,
+  expandSnippets,
+  fsPromises: fsPromisesOverride,
+} = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-"))
   const projectsDir = path.join(tempRoot, "projects")
   const markerPath = path.join(tempRoot, "scheduled-tasks-migrated.json")
@@ -34,7 +41,7 @@ const createHarness = async ({ runtimeTasks = [], runtimeHandler, listProjects, 
     })
 
   const convergence = createScheduledTaskConvergence({
-    fsPromises: await import("fs/promises"),
+    fsPromises: fsPromisesOverride || (await import("fs/promises")),
     path,
     projectsDirPath: projectsDir,
     markerPath,
@@ -698,6 +705,94 @@ describe("scheduled task convergence migration", () => {
     expect(gets).toHaveLength(1)
     expect(gets[0].url).toContain("/scheduled-task")
     expect(gets[0].url).toContain("directory=%2Fwork%2Falpha")
+  })
+
+  it("leaves a project whose config cannot be read for the next boot instead of finalizing the marker", async () => {
+    // A transient read failure (EACCES, EMFILE) used to report the pass as migrated with the
+    // task never attempted: the marker finalized over it and no later boot re-read the file.
+    const realFs = await import("fs/promises")
+    let failReads = true
+    const fsPromises = {
+      ...realFs,
+      readFile: async (target, ...rest) => {
+        if (failReads && String(target).endsWith("proj-a.json")) {
+          const error = new Error("EACCES: permission denied, open 'proj-a.json'")
+          error.code = "EACCES"
+          throw error
+        }
+        return realFs.readFile(target, ...rest)
+      },
+    }
+    const harness = await createHarness({ fsPromises })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectID: "proj-a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const first = await harness.convergence.migrate()
+
+    expect(first).toMatchObject({ migrated: false, reason: "retry-pending", attempts: 1 })
+    expect(harness.requests.filter((request) => request.method === "POST")).toHaveLength(0)
+    const progressMarker = await harness.readMarker()
+    expect(progressMarker.migratedAt).toBeUndefined()
+    expect((await harness.readProject("proj-a.json")).scheduledTasks).toHaveLength(1)
+
+    // Next boot, with the file readable again: the task migrates.
+    failReads = false
+    const second = await harness.convergence.migrate()
+
+    expect(second).toMatchObject({ migrated: true, attempts: 2 })
+    expect(harness.requests.find((request) => request.method === "POST")?.body?.title).toContain("Digest")
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toBeUndefined()
+  })
+
+  it("retries a project whose config JSON fails to parse instead of skipping it past the marker", async () => {
+    // A malformed file was a permanent skip on the very first pass: the marker finalized with
+    // zero retries and a torn read from a non-atomic write never got its tasks migrated. Parse
+    // failures are now left for next boot like unreadable files.
+    const harness = await createHarness()
+    cleanup = harness.cleanup
+    await mkdir(harness.projectsDir, { recursive: true })
+    await writeFile(path.join(harness.projectsDir, "proj-a.json"), "{ not json", "utf8")
+
+    const first = await harness.convergence.migrate()
+
+    expect(first).toMatchObject({ migrated: false, reason: "retry-pending", attempts: 1 })
+    expect(harness.requests.filter((request) => request.method === "POST")).toHaveLength(0)
+    const progressMarker = await harness.readMarker()
+    expect(progressMarker.migratedAt).toBeUndefined()
+
+    // The file heals (the concurrent writer finished) and the next boot migrates the task.
+    await harness.writeProject("proj-a.json", {
+      projectID: "proj-a",
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask()],
+    })
+
+    const second = await harness.convergence.migrate()
+
+    expect(second).toMatchObject({ migrated: true, attempts: 2 })
+    expect(harness.requests.find((request) => request.method === "POST")?.body?.title).toContain("Digest")
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toBeUndefined()
+  })
+
+  it("finalizes the marker over a project config that never becomes readable once attempts are exhausted", async () => {
+    // A genuinely corrupt file never heals: it burns the boot retries and the marker finalizes
+    // after maxAttempts with the warning in its record — the file itself is never rewritten.
+    const harness = await createHarness({ maxAttempts: 1 })
+    cleanup = harness.cleanup
+    await mkdir(harness.projectsDir, { recursive: true })
+    const target = path.join(harness.projectsDir, "proj-a.json")
+    await writeFile(target, "{ not json", "utf8")
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, attempts: 1, exhausted: true })
+    expect(await readFile(target, "utf8")).toBe("{ not json")
   })
 })
 

@@ -264,6 +264,25 @@ describe("resolveRuntimeBinary", () => {
     expect(resolved?.binary).toBe(path.join("/win/tools", "ax-code.bat"))
   })
 
+  test("on win32, the search path is found under the stock `Path` key casing", () => {
+    const path = require("path")
+    // main.js hands the supervisor a plain spread of process.env, which loses Windows'
+    // case-insensitive environment lookup — the search path there is conventionally `Path`.
+    const resolved = resolveRuntimeBinary({
+      env: { Path: "/win/tools" },
+      settings: {},
+      isExecutable: (candidate) => candidate === path.join("/win/tools", "ax-code.cmd"),
+      platform: "win32",
+    })
+    expect(resolved).toEqual({ binary: path.join("/win/tools", "ax-code.cmd"), source: "path" })
+  })
+
+  test("on posix, a `Path` key is not treated as the search path", () => {
+    expect(
+      resolveRuntimeBinary({ env: { Path: "/exec/bin" }, settings: {}, isExecutable, platform: "darwin" }),
+    ).toBeNull()
+  })
+
   test("returns null when nothing executable is found", () => {
     expect(resolveRuntimeBinary({ env: { PATH: "/nope" }, settings: {}, isExecutable: () => false })).toBeNull()
   })

@@ -165,9 +165,17 @@ export const createScheduledTaskConvergence = (deps) => {
       // A transient I/O failure (EACCES, EMFILE, the file vanishing mid-pass) is not a corrupt
       // file: mark it unreadable so the pass leaves it for next boot instead of finalizing the
       // marker over tasks it never read.
-      return { config: null, unreadable: true }
+      return { config: null, warning: "project config could not be read; left for next boot" }
     }
-    return { config: safeParseJsonObject(raw), unreadable: false }
+    const config = safeParseJsonObject(raw)
+    if (!config) {
+      // A parse failure can be transient too — a torn read of a non-atomic external write
+      // heals on the next boot — so it is left for next boot like the I/O case. A genuinely
+      // corrupt file never heals: it burns the boot retries and the marker finalizes after
+      // maxAttempts with this warning in its record, instead of skipping the file unseen.
+      return { config: null, warning: "project config JSON could not be parsed; left for next boot" }
+    }
+    return { config }
   }
 
   const isRetryableRuntimeError = (error) => {
@@ -299,14 +307,10 @@ export const createScheduledTaskConvergence = (deps) => {
       const fileStem = fileName.slice(0, -".json".length)
       const readResult = await readProjectConfigFile(fileName)
       if (!readResult.config) {
-        if (readResult.unreadable) {
-          // Counted like the runtime-unreachable case below: the file is left untouched and
-          // its tasks retry next boot instead of being skipped past the marker.
-          retryableRemaining += 1
-          warnings.push({ project: fileStem, task: null, warning: "project config could not be read; left for next boot" })
-          continue
-        }
-        warnings.push({ project: fileStem, task: null, warning: "project config JSON is unreadable; skipped" })
+        // Counted like the runtime-unreachable case below: the file is left untouched and
+        // its tasks retry next boot instead of being skipped past the marker.
+        retryableRemaining += 1
+        warnings.push({ project: fileStem, task: null, warning: readResult.warning })
         continue
       }
       // The file name is the project id only while that id fits in a name: a longer one is written under a

@@ -167,6 +167,20 @@ function searchPathFor(name, envPath, isExecutable, platform) {
   return null
 }
 
+// The env handed here is a plain copy of process.env (main.js spreads it through
+// applyBundledAxCodeEnv), which drops Windows' case-insensitive environment lookup:
+// the stock search-path key there is `Path`, so reading env.PATH alone reports a
+// PATH-installed CLI as missing. Scan the keys case-insensitively on win32 only —
+// POSIX environments are case-sensitive and a `Path` there is not the search path.
+const searchPathEnvValue = (env, platform) => {
+  if (typeof env.PATH === "string") return env.PATH
+  if (platform !== "win32") return undefined
+  for (const key of Object.keys(env)) {
+    if (key.toUpperCase() === "PATH" && typeof env[key] === "string") return env[key]
+  }
+  return undefined
+}
+
 // Resolution order (SPEC Slice 3 / env-runtime.js): settings.axCodeBinary >
 // explicit env vars > bundled staged binary > ax-code on PATH. Returns
 // { binary, source } or null when nothing executable is found.
@@ -185,7 +199,7 @@ function resolveRuntimeBinary({ env, settings, isExecutable = defaultIsExecutabl
   if (bundled && isExecutable(bundled)) {
     return { binary: bundled, source: "bundled" }
   }
-  const onPath = searchPathFor("ax-code", env.PATH, isExecutable, platform)
+  const onPath = searchPathFor("ax-code", searchPathEnvValue(env, platform), isExecutable, platform)
   if (onPath) {
     return { binary: onPath, source: "path" }
   }
