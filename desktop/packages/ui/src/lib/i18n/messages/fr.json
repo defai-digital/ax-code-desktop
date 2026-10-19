@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Impossible d\u2019afficher ce diagramme. V\u00e9rifiez la syntaxe Mermaid ci-dessous.",
   "markdownRenderer.mermaid.error.timeout": "La mise en page a expir\u00e9. Simplifiez le diagramme ou r\u00e9essayez.",
   "markdownRenderer.mermaid.error.unavailable": "Impossible de charger le moteur de rendu. R\u00e9essayez.",
-  "markdownRenderer.mermaid.error.busy": "Trop de diagrammes sont en cours de rendu. R\u00e9essayez apr\u00e8s leur affichage."
+  "markdownRenderer.mermaid.error.busy": "Trop de diagrammes sont en cours de rendu. R\u00e9essayez apr\u00e8s leur affichage.",
+  "supervision.missionControl.popOut": "Ouvrir dans une fenêtre séparée",
+  "supervision.commandPalette.popOut": "Ouvrir le centre de missions dans une fenêtre séparée"
 }

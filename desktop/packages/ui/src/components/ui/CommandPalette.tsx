@@ -43,6 +43,7 @@ import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { nextNeedsHumanSession } from "@/lib/supervision/sessionState"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import { supervisionPopoutPaletteEntry } from "@/lib/supervision/popout"
 
 type CommandEntry = {
   id: string
@@ -202,6 +203,16 @@ export const CommandPalette: React.FC = () => {
         }),
       },
     ]
+    const popout = supervisionPopoutPaletteEntry(t("supervision.commandPalette.popOut"))
+    if (popout) {
+      list.splice(1, 0, {
+        id: popout.id,
+        title: popout.title,
+        icon: <Icon name="window" className="mr-2 h-4 w-4" />,
+        searchText: popout.searchText,
+        onSelect: run(() => void popout.onSelect()),
+      })
+    }
     for (const project of projects) {
       const label = project.label?.trim() || project.path
       const title = t("supervision.commandPalette.goToProject", { label })

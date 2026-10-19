@@ -52,6 +52,7 @@ export type DesktopCommandArgs = {
     sessionId: string
     directory?: string | null
   }
+  desktop_open_supervision_window: Record<string, never>
   desktop_open_wiki_viewer: Record<string, unknown>
   desktop_quit_and_install: Record<string, unknown>
   desktop_read_file: Record<string, unknown>

@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Kh\u00f4ng th\u1ec3 d\u1ef1ng s\u01a1 \u0111\u1ed3. Ki\u1ec3m tra c\u00fa ph\u00e1p Mermaid b\u00ean d\u01b0\u1edbi.",
   "markdownRenderer.mermaid.error.timeout": "B\u1ed1 tr\u00ed s\u01a1 \u0111\u1ed3 m\u1ea5t qu\u00e1 l\u00e2u. H\u00e3y \u0111\u01a1n gi\u1ea3n h\u00f3a ho\u1eb7c th\u1eed l\u1ea1i.",
   "markdownRenderer.mermaid.error.unavailable": "Kh\u00f4ng th\u1ec3 t\u1ea3i b\u1ed9 k\u1ebft xu\u1ea5t. H\u00e3y th\u1eed l\u1ea1i.",
-  "markdownRenderer.mermaid.error.busy": "C\u00f3 qu\u00e1 nhi\u1ec1u s\u01a1 \u0111\u1ed3 \u0111ang \u0111\u01b0\u1ee3c d\u1ef1ng. Th\u1eed l\u1ea1i khi c\u00e1c s\u01a1 \u0111\u1ed3 kh\u00e1c ho\u00e0n t\u1ea5t."
+  "markdownRenderer.mermaid.error.busy": "C\u00f3 qu\u00e1 nhi\u1ec1u s\u01a1 \u0111\u1ed3 \u0111ang \u0111\u01b0\u1ee3c d\u1ef1ng. Th\u1eed l\u1ea1i khi c\u00e1c s\u01a1 \u0111\u1ed3 kh\u00e1c ho\u00e0n t\u1ea5t.",
+  "supervision.missionControl.popOut": "Mở trong cửa sổ riêng",
+  "supervision.commandPalette.popOut": "Mở trung tâm nhiệm vụ trong cửa sổ riêng"
 }

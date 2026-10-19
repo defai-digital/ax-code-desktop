@@ -52,6 +52,8 @@ const allowedUiEntrypoints = new Set([
   "@openchamber/ui/api/gitApiHttp",
   "@openchamber/ui/api/types",
   "@openchamber/ui/apps/renderElectronMiniChatApp",
+  // Supervision pop-out window entry (SPEC-2026-10-19-supervision-popout-v1).
+  "@openchamber/ui/apps/renderElectronSupervisionApp",
 ])
 
 const uiForbiddenDependencies = [

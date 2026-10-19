@@ -17,7 +17,8 @@ export interface MissionControlPeekProps {
   newSetName: string
   onNewSetNameChange: (value: string) => void
   onOpen: (row: SupervisionRow) => void
-  onReviewChanges: (row: SupervisionRow) => void
+  /** Opens the changes beside the chat; omitted where there is no chat (the pop-out window). */
+  onReviewChanges?: (row: SupervisionRow) => void
   onAddToWorkingSet: (workingSetId: string, sessionId: string) => void
   onStartCreateSet: (sessionId: string) => void
   onSubmitCreateSet: (row: SupervisionRow) => void
@@ -46,7 +47,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   }
 
   const handleReviewChangesClick = () => {
-    onReviewChanges(row)
+    onReviewChanges?.(row)
   }
 
   const handleWorkingSetChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -121,7 +122,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
           >
             {t("supervision.missionControl.action.openSession")}
           </Button>
-          {row.evidence ? (
+          {row.evidence && onReviewChanges ? (
             <Button
               size="sm"
               variant="outline"

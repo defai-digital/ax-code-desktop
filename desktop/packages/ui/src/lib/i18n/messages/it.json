@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Impossibile mostrare il diagramma. Controlla la sintassi Mermaid sotto.",
   "markdownRenderer.mermaid.error.timeout": "Il layout ha impiegato troppo tempo. Semplifica il diagramma o riprova.",
   "markdownRenderer.mermaid.error.unavailable": "Impossibile caricare il renderer. Riprova.",
-  "markdownRenderer.mermaid.error.busy": "Troppi diagrammi in elaborazione. Riprova al termine degli altri."
+  "markdownRenderer.mermaid.error.busy": "Troppi diagrammi in elaborazione. Riprova al termine degli altri.",
+  "supervision.missionControl.popOut": "Apri in una finestra separata",
+  "supervision.commandPalette.popOut": "Apri il centro missioni in una finestra separata"
 }

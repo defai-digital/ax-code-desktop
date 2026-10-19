@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "\u7121\u6cd5\u7e6a\u88fd\u5716\u8868\u3002\u8acb\u6aa2\u67e5\u4e0b\u65b9 Mermaid \u8a9e\u6cd5\u3002",
   "markdownRenderer.mermaid.error.timeout": "\u5716\u8868\u6392\u7248\u903e\u6642\u3002\u8acb\u7c21\u5316\u5716\u8868\u6216\u91cd\u8a66\u3002",
   "markdownRenderer.mermaid.error.unavailable": "\u7121\u6cd5\u8f09\u5165\u5716\u8868\u6e32\u67d3\u5668\u3002\u8acb\u91cd\u8a66\u3002",
-  "markdownRenderer.mermaid.error.busy": "\u540c\u6642\u7e6a\u88fd\u7684\u5716\u8868\u904e\u591a\u3002\u8acb\u7b49\u5176\u4ed6\u5716\u8868\u5b8c\u6210\u5f8c\u91cd\u8a66\u3002"
+  "markdownRenderer.mermaid.error.busy": "\u540c\u6642\u7e6a\u88fd\u7684\u5716\u8868\u904e\u591a\u3002\u8acb\u7b49\u5176\u4ed6\u5716\u8868\u5b8c\u6210\u5f8c\u91cd\u8a66\u3002",
+  "supervision.missionControl.popOut": "在獨立視窗中開啟",
+  "supervision.commandPalette.popOut": "在獨立視窗中開啟任務中心"
 }

@@ -14,7 +14,8 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 | [Supervision workspace](PRD-2026-10-15-supervision-workspace.md) | Accepted requirements; board, requests, inspector and comparison exist in source; refined by usability v1 |
 | [Supervision usability v1](PRD-2026-10-18-supervision-usability-v1.md) | Implemented; the five UI/UX findings shipped |
 | [Analysis routing v5](PRD-2026-10-18-analysis-routing-v5.md) | Accepted and implemented; supersedes the dedicated Streamlit product path in v3 and v4 |
-| [Competitive quality v1](PRD-2026-10-19-competitive-quality-v1.md) | Active plan. Phases 0 and 1 authorized and implemented; Phases 2 and 3 need the listed records first |
+| [Competitive quality v1](PRD-2026-10-19-competitive-quality-v1.md) | Active plan. Phases 0 and 1 implemented; Phase 2 in progress (items 9, 11, 12, 14 recorded; 8 waits for AX Code) |
+| [Supervision v3](PRD-2026-10-19-supervision-v3.md) | Accepted; pop-out window and multi-run identity |
 
 ## Completed and historical records
 

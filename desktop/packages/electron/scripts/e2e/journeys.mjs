@@ -1,5 +1,5 @@
 import { parseCspDirectiveSources } from "./csp.mjs"
-import { waitForCondition } from "./cdp.mjs"
+import { CdpSession, listTargets, waitForCondition, waitForTarget } from "./cdp.mjs"
 
 // Installed before every document load: records CSP violations from the very
 // first inline script onward, which a listener attached after load would miss.
@@ -87,4 +87,34 @@ export const journeySettings = async ({ session, platform = process.platform }) 
   return { name: "settings", ok: true, detail: "settings view opened with the keyboard shortcut" }
 }
 
-export const JOURNEYS = [journeyBoot, journeyPreloadBridge, journeyCspClean, journeySettings]
+export const isSupervisionPageTarget = (target) =>
+  target?.type === "page" && typeof target.url === "string" && target.url.includes("/supervision.html")
+
+export const OPEN_SUPERVISION_WINDOW_EXPRESSION = `window.__AX_CODE_DESKTOP__.invoke("desktop_open_supervision_window", {})`
+
+export const SUPERVISION_BOARD_EXPRESSION = `document.querySelector('[data-mission-control="popout"]') !== null`
+
+// SPEC-2026-10-19-supervision-popout-v1: the command opens one pop-out whose
+// page renders the Mission Control board; asking again focuses that window.
+export const journeySupervisionPopout = async ({ session, debuggingPort }) => {
+  await session.evaluate(OPEN_SUPERVISION_WINDOW_EXPRESSION)
+  const target = await waitForTarget(debuggingPort, isSupervisionPageTarget, { timeoutMs: 20_000 })
+  const popout = await CdpSession.connect(target.webSocketDebuggerUrl)
+  try {
+    await waitForCondition(() => popout.evaluate(SUPERVISION_BOARD_EXPRESSION), {
+      timeoutMs: 30_000,
+      label: "supervision board",
+    })
+    await session.evaluate(OPEN_SUPERVISION_WINDOW_EXPRESSION)
+    const windows = (await listTargets(debuggingPort)).filter(isSupervisionPageTarget).length
+    return {
+      name: "supervision-popout",
+      ok: windows === 1,
+      detail: `board rendered at ${new URL(target.url).pathname}; supervision windows after a second open: ${windows}`,
+    }
+  } finally {
+    popout.close()
+  }
+}
+
+export const JOURNEYS = [journeyBoot, journeyPreloadBridge, journeyCspClean, journeySettings, journeySupervisionPopout]

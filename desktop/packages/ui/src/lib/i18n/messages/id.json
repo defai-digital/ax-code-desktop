@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Tidak dapat merender diagram. Periksa sintaks Mermaid di bawah.",
   "markdownRenderer.mermaid.error.timeout": "Tata letak diagram terlalu lama. Sederhanakan diagram atau coba lagi.",
   "markdownRenderer.mermaid.error.unavailable": "Renderer tidak dapat dimuat. Coba lagi.",
-  "markdownRenderer.mermaid.error.busy": "Terlalu banyak diagram sedang dirender. Coba lagi setelah diagram lain selesai."
+  "markdownRenderer.mermaid.error.busy": "Terlalu banyak diagram sedang dirender. Coba lagi setelah diagram lain selesai.",
+  "supervision.missionControl.popOut": "Buka di jendela terpisah",
+  "supervision.commandPalette.popOut": "Buka Pusat misi di jendela terpisah"
 }

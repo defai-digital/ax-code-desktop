@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { isAppPageTarget } from "./cdp.mjs"
 import { parseCspDirectiveSources } from "./csp.mjs"
-import { findForbiddenScriptSources, isCspConsoleMessage } from "./journeys.mjs"
+import { JOURNEYS, findForbiddenScriptSources, isCspConsoleMessage, isSupervisionPageTarget } from "./journeys.mjs"
 import { buildLaunchSpec } from "./launch.mjs"
 import { parseArgs, summarize } from "./run.mjs"
 import { STUB_LIST_ROUTES, buildStubRuntimeScript } from "./stub-runtime.mjs"
@@ -106,5 +106,22 @@ describe("harness plumbing", () => {
     expect(script).toContain('version: "7.27.6"')
     expect(STUB_LIST_ROUTES).toContain("/session")
     expect(script.startsWith("#!/usr/bin/env node")).toBe(true)
+  })
+})
+
+describe("supervision pop-out journey", () => {
+  test("matches only the supervision window's page target", () => {
+    expect(isSupervisionPageTarget({ type: "page", url: "http://127.0.0.1:9556/supervision.html" })).toBe(true)
+    expect(isSupervisionPageTarget({ type: "page", url: "app://ax-code/supervision.html" })).toBe(true)
+    expect(isSupervisionPageTarget({ type: "page", url: "http://127.0.0.1:9556/" })).toBe(false)
+    expect(isSupervisionPageTarget({ type: "page", url: "http://127.0.0.1:9556/mini-chat.html" })).toBe(false)
+    expect(isSupervisionPageTarget({ type: "service_worker", url: "http://127.0.0.1:9556/supervision.html" })).toBe(
+      false,
+    )
+  })
+
+  test("runs after the settings journey", () => {
+    const names = JOURNEYS.map((journey) => journey.name)
+    expect(names.indexOf("journeySupervisionPopout")).toBe(names.indexOf("journeySettings") + 1)
   })
 })

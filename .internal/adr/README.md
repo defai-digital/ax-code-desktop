@@ -23,6 +23,13 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md) | Historical accepted handoff; execution superseded by ADR-017; paired AX Code ADR-256 |
 | [ADR-017: Analysis routing](ADR-017-analysis-routing-without-streamlit-runtime.md) | Active; supersedes ADR-016 for execution; paired AX Code ADR-257 |
 | [ADR-018: Renderer security baseline](ADR-018-renderer-security-baseline.md) | Active; explicit renderer sandbox, hashed inline scripts, no `'unsafe-eval'` for app documents |
+| [ADR-019: Typed desktop IPC contract](ADR-019-typed-desktop-ipc-contract.md) | Active; contract-declared argument schemas, central validation, generated renderer types; migration incremental |
+| [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; worktree execution moves to the runtime after the paired AX Code API ships |
+
+## Open producer proposals
+
+[Stable worktree API](proposals/AX-CODE-ADR-PROPOSAL-2026-10-19-stable-worktree-api.md): requested by ADR-020; awaiting an
+AX Code decision.
 
 ## Archived proposals
 

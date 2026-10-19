@@ -104,7 +104,9 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000 
     const packaged = documentUrl.startsWith("app://") || target.url.startsWith("app://")
     for (const journey of JOURNEYS) {
       try {
-        results.push(await journey({ session, documentCsp, consoleMessages, packaged }))
+        results.push(
+          await journey({ session, documentCsp, consoleMessages, packaged, debuggingPort: launch.debuggingPort }),
+        )
       } catch (error) {
         results.push({ name: journey.name.replace(/^journey/, "").toLowerCase(), ok: false, detail: error.message })
       }

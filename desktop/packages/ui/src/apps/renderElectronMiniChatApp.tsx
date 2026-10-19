@@ -8,51 +8,12 @@ import { SessionAuthGate } from "@/components/auth/SessionAuthGate"
 import { ThemeProvider } from "@/components/providers/ThemeProvider"
 import { ThemeSystemProvider } from "@/contexts/ThemeSystemContext"
 import type { RuntimeAPIs } from "@/lib/api/types"
-import { startAppearanceAutoSave } from "@/lib/appearanceAutoSave"
-import { applyPersistedDirectoryPreferences } from "@/lib/directoryPersistence"
-import { initializeLocale, I18nProvider } from "@/lib/i18n"
-import { initializeAppearancePreferences, syncDesktopSettings } from "@/lib/persistence"
-import { startModelPrefsAutoSave } from "@/lib/modelPrefsAutoSave"
-import { startTypographyWatcher } from "@/lib/typographyWatcher"
-import { useUIStore } from "@/stores/useUIStore"
+import { I18nProvider } from "@/lib/i18n"
 import { ElectronMiniChatApp } from "./ElectronMiniChatApp"
-
-/**
- * Appearance settings live in the shared `ui-store`. A window only learns about the
- * other window's change by rehydrating from the storage event, and the mini chat has
- * no other path — without this it keeps the appearance it was opened with (font size,
- * font, padding, reasoning traces) until it is closed.
- */
-const startSharedUiStoreSync = () => {
-  if (typeof window === "undefined") return
-  window.addEventListener("storage", (event) => {
-    if (event.storageArea !== window.localStorage || event.key !== "ui-store") return
-    void useUIStore.persist.rehydrate()
-  })
-}
-
-const initializeSharedPreferences = () => {
-  startSharedUiStoreSync()
-  const localeReady = initializeLocale()
-
-  void initializeAppearancePreferences()
-    .then(() => {
-      void Promise.all([syncDesktopSettings(), applyPersistedDirectoryPreferences()]).catch((err) => {
-        console.error("[mini-chat-main] settings init failed:", err)
-      })
-
-      startAppearanceAutoSave()
-      startModelPrefsAutoSave()
-      startTypographyWatcher()
-    })
-    .catch((err) => {
-      console.error("[mini-chat-main] appearance init failed:", err)
-    })
-  return localeReady
-}
+import { initializeSecondaryWindowPreferences } from "./secondaryWindowPreferences"
 
 export function renderElectronMiniChatApp(apis: RuntimeAPIs) {
-  const localeReady = initializeSharedPreferences()
+  const localeReady = initializeSecondaryWindowPreferences("mini-chat-main")
 
   const rootElement = document.getElementById("root")
   if (!rootElement) {

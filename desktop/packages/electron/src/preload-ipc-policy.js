@@ -37,6 +37,7 @@ const DESKTOP_INVOKE_COMMANDS = new Set([
   "desktop_open_in_app",
   "desktop_open_path",
   "desktop_open_session_mini_chat_window",
+  "desktop_open_supervision_window",
   "desktop_quit_and_install",
   "desktop_read_file",
   "desktop_record_startup_event",

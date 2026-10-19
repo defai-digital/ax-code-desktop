@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "N\u00e3o foi poss\u00edvel renderizar o diagrama. Verifique a sintaxe Mermaid abaixo.",
   "markdownRenderer.mermaid.error.timeout": "O layout demorou demais. Simplifique o diagrama ou tente novamente.",
   "markdownRenderer.mermaid.error.unavailable": "N\u00e3o foi poss\u00edvel carregar o renderizador. Tente novamente.",
-  "markdownRenderer.mermaid.error.busy": "H\u00e1 muitos diagramas sendo renderizados. Tente novamente quando os outros terminarem."
+  "markdownRenderer.mermaid.error.busy": "H\u00e1 muitos diagramas sendo renderizados. Tente novamente quando os outros terminarem.",
+  "supervision.missionControl.popOut": "Abrir em uma janela separada",
+  "supervision.commandPalette.popOut": "Abrir o centro de missões em uma janela separada"
 }

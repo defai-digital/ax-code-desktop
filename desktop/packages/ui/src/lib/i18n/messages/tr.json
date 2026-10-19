@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Diyagram \u00e7izilemedi. A\u015fa\u011f\u0131daki Mermaid s\u00f6zdizimini kontrol edin.",
   "markdownRenderer.mermaid.error.timeout": "Diyagram d\u00fczeni \u00e7ok uzun s\u00fcrd\u00fc. Basitle\u015ftirin veya yeniden deneyin.",
   "markdownRenderer.mermaid.error.unavailable": "\u00c7izim motoru y\u00fcklenemedi. Yeniden deneyin.",
-  "markdownRenderer.mermaid.error.busy": "\u00c7ok fazla diyagram \u00e7iziliyor. Di\u011ferleri tamamland\u0131\u011f\u0131nda yeniden deneyin."
+  "markdownRenderer.mermaid.error.busy": "\u00c7ok fazla diyagram \u00e7iziliyor. Di\u011ferleri tamamland\u0131\u011f\u0131nda yeniden deneyin.",
+  "supervision.missionControl.popOut": "Ayrı bir pencerede aç",
+  "supervision.commandPalette.popOut": "Görev merkezini ayrı bir pencerede aç"
 }

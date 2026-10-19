@@ -90,6 +90,7 @@ const { createRendererCrashPolicy } = require("./renderer-crash-policy")
 const { createSettingsWriteHandler } = require("./settings-write-handler")
 const { indexContract, validateCommandArgs } = require("./ipc-args")
 const { loadUrlWithTimeout } = require("./load-url-timeout")
+const { createSupervisionWindowController } = require("./supervision-window")
 const { shouldCheckForUpdatesOnStartup } = require("./startup-update-policy")
 const { sendUpdateProgressToWindows } = require("./update-progress")
 const { resolveDesktopUpdateFeed } = require("./desktop-update-feed")
@@ -2480,15 +2481,17 @@ const dispatchCheckForUpdates = async () => {
   handOffToMainWindow("openchamber:check-for-updates")
 }
 
-// Mini-chat windows (/mini-chat.html) and the wiki viewer (a temp file://
-// export) have no menu-action listener: sending Settings/New Session there
+// Mini-chat windows (/mini-chat.html), the supervision pop-out (/supervision.html)
+// and the wiki viewer (a temp file:// export) have no menu-action listener: sending Settings/New Session there
 // dropped the command on the floor while the main window sat unfocused.
 const isMenuCapableWindow = (win) => {
   if (!win || win.isDestroyed()) return false
   const url = win.webContents.getURL()
   // The main window has no committed URL yet during its first load.
   if (win === mainWindow && !url) return true
-  return Boolean(url) && !url.includes("/mini-chat.html") && !url.startsWith("file:")
+  return (
+    Boolean(url) && !url.includes("/mini-chat.html") && !url.includes("/supervision.html") && !url.startsWith("file:")
+  )
 }
 
 const getMenuTargetWindow = () => {
@@ -3383,6 +3386,27 @@ handleCommand("desktop_open_draft_mini_chat_window", async (args) => {
   const directory = typeof args.directory === "string" ? args.directory.trim() : ""
   const projectId = typeof args.projectId === "string" ? args.projectId.trim() : ""
   await createMiniChatWindow({ mode: "draft", directory, projectId })
+  return null
+})
+
+// Mission Control in its own window (SPEC-2026-10-19-supervision-popout-v1).
+const supervisionWindow = createSupervisionWindowController({
+  BrowserWindow,
+  webPreferences: rendererWebPreferences,
+  chromeOptions: appWindowChromeOptions,
+  attachChrome: attachAppWindowChrome,
+  attachWebviewPolicy: attachDesktopBrowserWebviewPolicy,
+  attachNavigationGuards: attachRendererNavigationGuards,
+  isTrustedUrl: isTrustedRendererNavigation,
+  openExternal: safeOpenExternal,
+  loadUrlWithTimeout,
+  getOrigin: localRendererOrigin,
+  timeoutMs: WINDOW_LOAD_TIMEOUT_MS,
+  beforeCreate: applyRendererApiOrigin,
+})
+
+handleCommand("desktop_open_supervision_window", async () => {
+  await supervisionWindow.open()
   return null
 })
 

@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "No se puede mostrar el diagrama. Revise la sintaxis de Mermaid abajo.",
   "markdownRenderer.mermaid.error.timeout": "El dise\u00f1o del diagrama tard\u00f3 demasiado. Simplif\u00edquelo o reintente.",
   "markdownRenderer.mermaid.error.unavailable": "No se pudo cargar el renderizador. Reintente.",
-  "markdownRenderer.mermaid.error.busy": "Hay demasiados diagramas en proceso. Reintente cuando terminen los dem\u00e1s."
+  "markdownRenderer.mermaid.error.busy": "Hay demasiados diagramas en proceso. Reintente cuando terminen los dem\u00e1s.",
+  "supervision.missionControl.popOut": "Abrir en una ventana aparte",
+  "supervision.commandPalette.popOut": "Abrir el centro de misiones en una ventana aparte"
 }

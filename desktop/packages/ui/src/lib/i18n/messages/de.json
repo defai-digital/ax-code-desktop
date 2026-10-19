@@ -4900,5 +4900,7 @@
   "markdownRenderer.mermaid.error.render": "Das Diagramm kann nicht gerendert werden. Pr\u00fcfen Sie die Mermaid-Syntax unten.",
   "markdownRenderer.mermaid.error.timeout": "Das Diagrammlayout hat zu lange gedauert. Vereinfachen Sie es oder versuchen Sie es erneut.",
   "markdownRenderer.mermaid.error.unavailable": "Der Renderer konnte nicht geladen werden. Versuchen Sie es erneut.",
-  "markdownRenderer.mermaid.error.busy": "Zu viele Diagramme werden gerendert. Versuchen Sie es nach deren Abschluss erneut."
+  "markdownRenderer.mermaid.error.busy": "Zu viele Diagramme werden gerendert. Versuchen Sie es nach deren Abschluss erneut.",
+  "supervision.missionControl.popOut": "In separatem Fenster öffnen",
+  "supervision.commandPalette.popOut": "Missionszentrale in separatem Fenster öffnen"
 }

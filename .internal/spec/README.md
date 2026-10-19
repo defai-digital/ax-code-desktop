@@ -29,6 +29,10 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 | [Mermaid Capabilities v2](SPEC-2026-10-19-mermaid-capabilities-v2.md)                       | Implemented and shipped in 7.27.3; versioned capability contract                  | AGENTS.md                                |
 | [Renderer Security Baseline v1](SPEC-2026-10-19-renderer-security-baseline-v1.md)           | Accepted 2026-10-19; implemented                                                  | ADR-018                                  |
 | [Desktop End-to-End Harness v1](SPEC-2026-10-19-desktop-e2e-harness-v1.md)                  | Accepted 2026-10-19; implemented; CI steps non-blocking                           | PRD competitive quality                  |
+| [Desktop IPC Contract v2](SPEC-2026-10-19-desktop-ipc-contract-v2.md)                       | Accepted 2026-10-19; validator, generator and first batch implemented             | ADR-019                                  |
+| [Supervision Pop-out v1](SPEC-2026-10-19-supervision-popout-v1.md)                          | Accepted 2026-10-19; amends the process model with one window type                | PRD supervision v3                       |
+| [Multi-run Identity v1](SPEC-2026-10-19-multirun-identity-v1.md)                            | Accepted 2026-10-19                                                               | PRD supervision v3                       |
+| [Desktop Localization v2](SPEC-2026-10-19-desktop-localization-v2.md)                       | Accepted 2026-10-19; direction support without a new locale                       | PRD competitive quality                  |
 
 ## Deferred
 

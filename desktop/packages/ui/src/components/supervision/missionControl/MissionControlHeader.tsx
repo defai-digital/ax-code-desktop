@@ -31,8 +31,12 @@ export interface MissionControlHeaderProps {
   onSubmitRename: () => void
   onCancelRename: () => void
   onDeleteWorkingSet: () => void
-  onDispatch: () => void
-  onClose: () => void
+  /** Quick dispatch; omitted in the pop-out window, which does not host the dispatch dialog. */
+  onDispatch?: () => void
+  /** Leaves the board; omitted in the pop-out window, which the user closes like any window. */
+  onClose?: () => void
+  /** Opens the board in its own window; only offered by the embedded board in the Electron shell. */
+  onPopOut?: () => void
 }
 
 export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
@@ -61,6 +65,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   onDeleteWorkingSet,
   onDispatch,
   onClose,
+  onPopOut,
 }) => {
   const { t } = useI18n()
 
@@ -113,9 +118,11 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
             <option value="compact">{t("supervision.missionControl.compact")}</option>
           </select>
         </label>
-        <Button size="sm" onClick={onDispatch}>
-          {t("supervision.dispatch.title")}
-        </Button>
+        {onDispatch ? (
+          <Button size="sm" onClick={onDispatch}>
+            {t("supervision.dispatch.title")}
+          </Button>
+        ) : null}
         <div
           className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border p-0.5"
           role="group"
@@ -232,16 +239,32 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
             </Button>
           </span>
         ) : null}
-        <span className="hidden shrink-0 typography-micro text-muted-foreground lg:inline">{shortcutHint}</span>
-        <button
-          type="button"
-          aria-label={t("supervision.missionControl.closeAria")}
-          title={`${t("supervision.missionControl.closeAria")} (${shortcutHint})`}
-          onClick={onClose}
-          className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-        >
-          <Icon name="close" className="h-4 w-4" aria-hidden="true" />
-        </button>
+        {onPopOut ? (
+          <button
+            type="button"
+            aria-label={t("supervision.missionControl.popOut")}
+            title={t("supervision.missionControl.popOut")}
+            onClick={onPopOut}
+            data-mission-control-popout=""
+            className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <Icon name="window" className="h-4 w-4" aria-hidden="true" />
+          </button>
+        ) : null}
+        {onClose ? (
+          <>
+            <span className="hidden shrink-0 typography-micro text-muted-foreground lg:inline">{shortcutHint}</span>
+            <button
+              type="button"
+              aria-label={t("supervision.missionControl.closeAria")}
+              title={`${t("supervision.missionControl.closeAria")} (${shortcutHint})`}
+              onClick={onClose}
+              className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <Icon name="close" className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </>
+        ) : null}
       </div>
     </div>
   )

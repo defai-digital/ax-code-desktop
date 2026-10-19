@@ -20,7 +20,8 @@ export interface MissionControlRowProps {
   onSelect: (sessionId: string) => void
   onOpen: (row: SupervisionRowData) => void
   onPrimary: (row: SupervisionRowData) => void
-  onCompare: (groupKey: string) => void
+  /** Opens multi-run compare; omitted where compare cannot open (the pop-out window). */
+  onCompare?: (groupKey: string) => void
   onRemoveFromSet: (workingSetId: string, sessionId: string) => void
   children?: React.ReactNode
 }
@@ -58,7 +59,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
 
   const handleCompareClick = (event: React.MouseEvent) => {
     event.stopPropagation()
-    if (groupSlug) {
+    if (groupSlug && onCompare) {
       onCompare(groupSlug)
     }
   }
@@ -115,7 +116,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           {row.updatedAt ? formatRelativeAge(Date.now() - row.updatedAt, t) : "\u2014"}
         </span>
         <span role="gridcell" className="mission-actions flex min-w-0 flex-wrap items-center gap-2">
-          {groupSlug ? (
+          {groupSlug && onCompare ? (
             <button
               type="button"
               onClick={handleCompareClick}

@@ -45,6 +45,7 @@
     { "command": "desktop_ssh_logs_clear", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_session_mini_chat_window", "safeForRemote": false, "args": "object", "params": { "sessionId": { "type": "string" }, "directory": { "type": "string", "optional": true, "nullable": true } } },
     { "command": "desktop_open_draft_mini_chat_window", "safeForRemote": false, "args": "object", "params": { "directory": { "type": "string", "optional": true, "nullable": true }, "projectId": { "type": "string", "optional": true, "nullable": true }, "pinned": { "type": "boolean", "optional": true } } },
+    { "command": "desktop_open_supervision_window", "safeForRemote": false, "args": "none" },
     { "command": "desktop_set_window_pinned", "safeForRemote": false, "args": "object" },
     { "command": "desktop_get_window_pinned", "safeForRemote": false, "args": "object" },
     { "command": "desktop_focus_main_window", "safeForRemote": false, "args": "object", "params": { "sessionId": { "type": "string", "optional": true, "nullable": true }, "directory": { "type": "string", "optional": true, "nullable": true }, "mode": { "type": "string", "optional": true, "nullable": true }, "projectId": { "type": "string", "optional": true, "nullable": true } } },

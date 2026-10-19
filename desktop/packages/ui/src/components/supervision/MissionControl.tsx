@@ -8,6 +8,12 @@ import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/short
 import { filterRows, moveSelection, primaryActionFor } from "@/lib/supervision/missionControl"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
+import {
+  canOpenSupervisionPopout,
+  openDraftInMainWindow,
+  openSessionInMainWindow,
+  openSupervisionPopout,
+} from "@/lib/supervision/popout"
 import { requestsForSessionTree } from "@/lib/supervision/requests"
 import { summarizeWorkInProgress, type SupervisionState } from "@/lib/supervision/sessionState"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
@@ -18,8 +24,18 @@ import { MissionControlHeader } from "./missionControl/MissionControlHeader"
 import { MissionControlPeek } from "./missionControl/MissionControlPeek"
 import { MissionControlRow } from "./missionControl/MissionControlRow"
 
-export const MissionControl: React.FC = () => {
+export interface MissionControlProps {
+  /**
+   * `embedded` is the board inside the main window. `popout` is the same board in its own window
+   * (SPEC-2026-10-19-supervision-popout-v1): opening a session hands it to the main window, and controls
+   * that only make sense beside the main window's chat are hidden.
+   */
+  variant?: "embedded" | "popout"
+}
+
+export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embedded" }) => {
   const { t } = useI18n()
+  const isPopout = variant === "popout"
   const rows = useSupervisionRows()
   const density = useSupervisionStore((s) => s.density)
   const setDensity = useSupervisionStore((s) => s.setDensity)
@@ -96,17 +112,26 @@ export const MissionControl: React.FC = () => {
     }
   }, [effectiveSelectedId])
 
-  const openRow = React.useCallback((row: SupervisionRow) => {
-    useSupervisionStore.setState({ boardFocusSessionId: row.sessionId })
-    openSupervisedSession({ sessionId: row.sessionId, projectId: row.projectId, directory: row.directory })
-  }, [])
+  const openRow = React.useCallback(
+    (row: SupervisionRow) => {
+      useSupervisionStore.setState({ boardFocusSessionId: row.sessionId })
+      const target = { sessionId: row.sessionId, projectId: row.projectId, directory: row.directory }
+      if (isPopout) {
+        void openSessionInMainWindow(target)
+        return
+      }
+      openSupervisedSession(target)
+    },
+    [isPopout],
+  )
 
   const reviewChangesForRow = React.useCallback(
     (row: SupervisionRow) => {
       openRow(row)
-      openBesideChat("diff")
+      // The pop-out has no chat to open the diff beside; the session opens in the main window instead.
+      if (!isPopout) openBesideChat("diff")
     },
-    [openRow],
+    [isPopout, openRow],
   )
 
   const handlePrimary = (row: SupervisionRow) => {
@@ -142,7 +167,7 @@ export const MissionControl: React.FC = () => {
       event.preventDefault()
       if (peekId) {
         setPeekId(null)
-      } else {
+      } else if (!isPopout) {
         setMissionControlOpen(false)
       }
       return
@@ -256,6 +281,10 @@ export const MissionControl: React.FC = () => {
   }
 
   const handleNewSession = () => {
+    if (isPopout) {
+      void openDraftInMainWindow()
+      return
+    }
     useSessionUIStore.getState().openNewSessionDraft()
     setMissionControlOpen(false)
   }
@@ -294,6 +323,7 @@ export const MissionControl: React.FC = () => {
       onKeyDown={handleKeyDown}
       className="mission-control-board flex min-h-0 flex-1 flex-col outline-none"
       data-density={density}
+      data-mission-control={variant}
     >
       <MissionControlHeader
         density={density}
@@ -319,8 +349,9 @@ export const MissionControl: React.FC = () => {
         onSubmitRename={submitRename}
         onCancelRename={cancelRename}
         onDeleteWorkingSet={handleDeleteWorkingSet}
-        onDispatch={() => useSupervisionStore.getState().setQuickDispatchOpen(true)}
-        onClose={handleClose}
+        onDispatch={isPopout ? undefined : () => useSupervisionStore.getState().setQuickDispatchOpen(true)}
+        onClose={isPopout ? undefined : handleClose}
+        onPopOut={!isPopout && canOpenSupervisionPopout() ? () => void openSupervisionPopout() : undefined}
       />
 
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -355,7 +386,7 @@ export const MissionControl: React.FC = () => {
                 onSelect={setSelectedId}
                 onOpen={openRow}
                 onPrimary={handlePrimary}
-                onCompare={setCompareRunGroupKey}
+                onCompare={isPopout ? undefined : setCompareRunGroupKey}
                 onRemoveFromSet={removeFromWorkingSet}
               >
                 <MissionControlPeek
@@ -366,7 +397,7 @@ export const MissionControl: React.FC = () => {
                   newSetName={peekNewSetName}
                   onNewSetNameChange={setPeekNewSetName}
                   onOpen={openRow}
-                  onReviewChanges={reviewChangesForRow}
+                  onReviewChanges={isPopout ? undefined : reviewChangesForRow}
                   onAddToWorkingSet={addToWorkingSet}
                   onStartCreateSet={handleStartPeekCreateSet}
                   onSubmitCreateSet={handleSubmitPeekCreateSet}
