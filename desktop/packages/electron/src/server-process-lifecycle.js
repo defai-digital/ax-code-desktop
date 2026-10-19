@@ -13,6 +13,8 @@ function createServerProcessLifecycle({
 }) {
   let stopping = false
   let exited = false
+  let requestedExitCode = 0
+  let forceExitTimer = null
 
   const finish = (exitCode) => {
     if (exited) return
@@ -20,17 +22,29 @@ function createServerProcessLifecycle({
     exit(exitCode)
   }
 
-  async function stop(exitCode = 0) {
-    if (stopping) return
-    stopping = true
-
-    const forceExitTimer =
-      exitCode === 0
-        ? null
-        : setTimer(() => {
-            finish(exitCode)
-          }, fatalShutdownTimeoutMs)
+  // One force-exit bound covers the whole process. A fatal stop that arrives
+  // while a graceful stop is already awaiting the server still needs it: the
+  // graceful stop was started with exitCode 0 and therefore armed no timer, so
+  // a child that refuses to die would keep this process and its port alive.
+  const armForceExit = (exitCode) => {
+    if (exited || forceExitTimer) return
+    forceExitTimer = setTimer(() => {
+      finish(exitCode)
+    }, fatalShutdownTimeoutMs)
     forceExitTimer?.unref?.()
+  }
+
+  async function stop(exitCode = 0) {
+    if (stopping) {
+      if (exitCode !== 0) {
+        requestedExitCode = exitCode
+        armForceExit(exitCode)
+      }
+      return
+    }
+    stopping = true
+    requestedExitCode = exitCode
+    if (exitCode !== 0) armForceExit(exitCode)
 
     try {
       // Graceful shutdown also terminates the ax-code child the server spawned.
@@ -39,7 +53,7 @@ function createServerProcessLifecycle({
       logger.error("[server-process] graceful shutdown failed:", error)
     } finally {
       if (forceExitTimer) clearTimer(forceExitTimer)
-      finish(exitCode)
+      finish(requestedExitCode)
     }
   }
 

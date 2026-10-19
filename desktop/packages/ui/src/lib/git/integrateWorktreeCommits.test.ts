@@ -40,7 +40,7 @@ describe("computeIntegratePlan", () => {
     ).rejects.toThrow(/Unsupported command/)
   })
 
-  test("keeps a real non-zero exit as an empty plan instead of an error", async () => {
+  test("treats the expected show-ref exit 1 for a missing local branch as an absent branch", async () => {
     execCommandMock.mockImplementation(async (command: string) => {
       if (command.startsWith("git show-ref")) {
         return { command, success: false, exitCode: 1, stdout: "", stderr: "" }
@@ -51,6 +51,49 @@ describe("computeIntegratePlan", () => {
     const plan = await computeIntegratePlan({ repoRoot: "/repo", sourceBranch: "feat", targetBranch: "main" })
 
     expect(plan.commits).toEqual([])
+  })
+
+  test("rejects a cherry that ran and failed instead of reading its empty output as an empty plan", async () => {
+    // `git cherry nonexistent-branch HEAD` exits 128 with empty stdout; that
+    // must surface as an error, not as "No commits to move".
+    execCommandMock.mockImplementation(async (command: string) => {
+      if (command.startsWith("git show-ref")) {
+        return { command, success: false, exitCode: 1, stdout: "", stderr: "" }
+      }
+      if (command.startsWith("git cherry")) {
+        return {
+          command,
+          success: false,
+          exitCode: 128,
+          stdout: "",
+          stderr: "fatal: bad revision 'feat'",
+        }
+      }
+      return ok(command)
+    })
+
+    await expect(
+      computeIntegratePlan({ repoRoot: "/repo", sourceBranch: "feat", targetBranch: "main" }),
+    ).rejects.toThrow("Unable to list commits to move (fatal: bad revision 'feat')")
+  })
+
+  test("rejects a rev-list that ran and failed after cherry succeeded", async () => {
+    execCommandMock.mockImplementation(async (command: string) => {
+      if (command.startsWith("git show-ref")) {
+        return { command, success: false, exitCode: 1, stdout: "", stderr: "" }
+      }
+      if (command.startsWith("git cherry")) {
+        return ok(command, "+ aaaaaaa1")
+      }
+      if (command.startsWith("git rev-list")) {
+        return { command, success: false, exitCode: 128, stdout: "", stderr: "fatal: bad revision" }
+      }
+      return ok(command)
+    })
+
+    await expect(
+      computeIntegratePlan({ repoRoot: "/repo", sourceBranch: "feat", targetBranch: "main" }),
+    ).rejects.toThrow("Unable to list commits to move (fatal: bad revision)")
   })
 
   test("lists only the commits cherry reports as missing from the target", async () => {

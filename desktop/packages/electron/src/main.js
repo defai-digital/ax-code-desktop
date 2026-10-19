@@ -2460,9 +2460,11 @@ releaseQuickDispatchGlobalShortcut = () => {
 }
 
 const dispatchCheckForUpdates = async () => {
-  // With no window there is no renderer to show the update state; bring the app back first
-  // instead of emitting into an empty window list.
-  if (!getMenuTargetWindow()) {
+  // The event is delivered to the main window only, so gate on that window rather than on
+  // whichever window the menu targets. On macOS the app menu stays usable after the main
+  // window closes, and with a secondary window open getMenuTargetWindow() finds it while
+  // handOffToMainWindow() still has no main window to deliver to: the click vanished.
+  if (!mainWindow || mainWindow.isDestroyed()) {
     await revealMainWindow()
   }
   // A freshly created window's renderer has not mounted its listeners yet
@@ -3192,11 +3194,16 @@ handleCommand(
   async (args, event) => {
     const browserWindow = event ? BrowserWindow.fromWebContents(event.sender) : mainWindow
     if (!browserWindow || browserWindow.isDestroyed()) throw new Error("Window is not available")
+    // The renderer reports CSS pixels from getBoundingClientRect(), but capturePage() and
+    // getContentBounds() use DIPs. Scale by the window zoom factor, or a zoomed window
+    // captures a region offset and scaled from the one the renderer asked for.
+    const zoom = typeof event?.sender?.getZoomFactor === "function" ? event.sender.getZoomFactor() : 1
+    const scale = Number.isFinite(zoom) && zoom > 0 ? zoom : 1
     const bounds = browserWindow.getContentBounds()
-    const x = Number.isFinite(args.x) ? Math.max(0, Math.floor(args.x)) : 0
-    const y = Number.isFinite(args.y) ? Math.max(0, Math.floor(args.y)) : 0
-    const width = Number.isFinite(args.width) ? Math.max(1, Math.floor(args.width)) : 1
-    const height = Number.isFinite(args.height) ? Math.max(1, Math.floor(args.height)) : 1
+    const x = Number.isFinite(args.x) ? Math.max(0, Math.floor(args.x * scale)) : 0
+    const y = Number.isFinite(args.y) ? Math.max(0, Math.floor(args.y * scale)) : 0
+    const width = Number.isFinite(args.width) ? Math.max(1, Math.floor(args.width * scale)) : 1
+    const height = Number.isFinite(args.height) ? Math.max(1, Math.floor(args.height * scale)) : 1
     const clampedX = Math.min(x, Math.max(0, bounds.width - 1))
     const clampedY = Math.min(y, Math.max(0, bounds.height - 1))
     const rect = {

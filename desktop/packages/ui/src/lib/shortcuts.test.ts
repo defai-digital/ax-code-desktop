@@ -1,9 +1,12 @@
 import { describe, expect, test } from "vitest"
 import {
   eventMatchesShortcut,
+  formatShortcutForDisplay,
   getCustomizableShortcutActions,
   getEffectiveShortcutCombo,
   getShortcutAction,
+  keyToShortcutToken,
+  normalizeCombo,
 } from "./shortcuts"
 
 describe("search_all_sessions shortcut", () => {
@@ -36,5 +39,35 @@ describe("search_all_sessions shortcut", () => {
     expect(eventMatchesShortcut(new KeyboardEvent("keydown", { key: "f", code: "KeyF", ctrlKey: true }), combo)).toBe(
       false,
     )
+  })
+})
+
+describe("shifted comma and period keys", () => {
+  // The settings capture path records the token from keyToShortcutToken and
+  // then runs normalizeCombo, which canonicalizes ","/"." to comma/period.
+  // The event-matching path only runs keyToShortcutToken, so both sides must
+  // produce the same canonical token or a recorded binding never fires.
+  test("records Cmd/Ctrl+Shift+, as mod+shift+comma and matches it", () => {
+    expect(keyToShortcutToken("<")).toBe("comma")
+
+    const recorded = normalizeCombo(`mod+shift+${keyToShortcutToken("<")}`)
+    expect(recorded).toBe("mod+shift+comma")
+
+    const event = new KeyboardEvent("keydown", { key: "<", code: "Comma", ctrlKey: true, shiftKey: true })
+    expect(eventMatchesShortcut(event, recorded)).toBe(true)
+    expect(eventMatchesShortcut(event, "mod+shift+,")).toBe(true)
+    expect(formatShortcutForDisplay(recorded).endsWith(",")).toBe(true)
+  })
+
+  test("records Cmd/Ctrl+Shift+. as mod+shift+period and matches it", () => {
+    expect(keyToShortcutToken(">")).toBe("period")
+
+    const recorded = normalizeCombo(`mod+shift+${keyToShortcutToken(">")}`)
+    expect(recorded).toBe("mod+shift+period")
+
+    const event = new KeyboardEvent("keydown", { key: ">", code: "Period", ctrlKey: true, shiftKey: true })
+    expect(eventMatchesShortcut(event, recorded)).toBe(true)
+    expect(eventMatchesShortcut(event, "mod+shift+.")).toBe(true)
+    expect(formatShortcutForDisplay(recorded).endsWith(".")).toBe(true)
   })
 })

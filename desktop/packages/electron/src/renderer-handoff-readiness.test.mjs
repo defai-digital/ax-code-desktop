@@ -65,6 +65,21 @@ describe("main-window hand-off readiness", () => {
     expect(dispatch).toContain("sendMenuActionToWindow(next, action)")
   })
 
+  test("check for updates reveals the main window when only a secondary window is menu-capable", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const dispatch = mainSource.match(/const dispatchCheckForUpdates = async \(\) => \{(?<body>[\s\S]*?)\n\}/)?.groups
+      ?.body
+
+    expect(dispatch).toBeDefined()
+    // The event is delivered through handOffToMainWindow, which targets only the main window.
+    // Gating on getMenuTargetWindow() skipped the reveal when a secondary window was focused,
+    // and the hand-off then dropped the click because mainWindow was null.
+    expect(dispatch).toContain("if (!mainWindow || mainWindow.isDestroyed())")
+    expect(dispatch).toContain("await revealMainWindow()")
+    expect(dispatch).not.toContain("!getMenuTargetWindow()")
+    expect(dispatch).toContain('handOffToMainWindow("openchamber:check-for-updates")')
+  })
+
   test("a notification click reveals a window and queues its session", async () => {
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
     const click = mainSource.match(/notification\.on\("click", \(\) => \{(?<body>[\s\S]*?)\n  \}\)/)?.groups?.body

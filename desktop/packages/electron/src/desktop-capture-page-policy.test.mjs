@@ -45,6 +45,16 @@ describe("desktop capture page IPC policy", () => {
     expect(command).toMatchObject({ safeForRemote: false })
   })
 
+  test("scales the renderer's CSS-pixel rect to DIPs before capturing", async () => {
+    const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
+    const handler = extractHandleCommandCall(mainSource, "desktop_capture_page_rect")
+
+    expect(handler).toContain("event.sender.getZoomFactor()")
+    for (const field of ["x", "y", "width", "height"]) {
+      expect(handler, field).toContain(`args.${field} * scale`)
+    }
+  })
+
   test("does not mark the capture handler as remote-safe", async () => {
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
     const handler = extractHandleCommandCall(mainSource, "desktop_capture_page_rect")

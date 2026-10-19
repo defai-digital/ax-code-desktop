@@ -86,9 +86,15 @@ const watchdog = startParentDeathWatchdog({
 })
 
 async function stop(exitCode = 0) {
-  // Clean shutdown must not re-trigger the parent-death watchdog.
-  watchdog.stop()
-  await lifecycle.stop(exitCode)
+  // Keep the parent-death watchdog armed until the graceful stop settles. If the
+  // parent dies during that window, the watchdog's fatal stop can still arm the
+  // lifecycle's force-exit timer; disarming it first left a hanging child holding
+  // the loopback port with nothing left to bound the shutdown.
+  try {
+    await lifecycle.stop(exitCode)
+  } finally {
+    watchdog.stop()
+  }
 }
 
 process.parentPort.on("message", (event) => {

@@ -56,15 +56,17 @@ const stdoutText = (result: CommandExecResult): string => (result.stdout || "").
 const stderrText = (result: CommandExecResult): string => (result.stderr || "").trim()
 
 /**
- * A command that never produced an exit code cannot be read as "the command ran
- * and found nothing": the exec endpoint answers an unsupported command without
- * spawning anything, and a spawn failure, a killed child or a timeout also
- * leaves `exitCode` undefined. Every one of those must surface as an error —
- * silently turning them into an empty plan is what made the integrate section
- * claim there was nothing to move.
+ * A read command that did not succeed cannot be read as "the command ran and
+ * found nothing". A non-zero exit is a failed query — `git cherry` on a
+ * missing branch exits 128 with empty stdout — and a command that never
+ * produced an exit code is equally unusable: the exec endpoint answers an
+ * unsupported command without spawning anything, and a spawn failure, a
+ * killed child or a timeout also leaves `exitCode` undefined. Every one of
+ * those must surface as an error — silently turning them into an empty plan
+ * is what made the integrate section claim there was nothing to move.
  */
 const assertCommandCompleted = (result: CommandExecResult, action: string): void => {
-  if (result.success || typeof result.exitCode === "number") return
+  if (result.success) return
   throw new Error(`${action} (${stderrText(result) || result.error || "command did not complete"})`)
 }
 

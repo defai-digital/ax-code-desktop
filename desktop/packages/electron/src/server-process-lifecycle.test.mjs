@@ -62,6 +62,78 @@ describe("server process lifecycle", () => {
     expect(exit).toHaveBeenCalledTimes(1)
   })
 
+  test("arms a force exit when a fatal stop arrives during a graceful stop", async () => {
+    let resolveStop
+    const pendingStop = new Promise((resolve) => {
+      resolveStop = resolve
+    })
+    let forceExit
+    const timer = { unref: vi.fn() }
+    const setTimer = vi.fn((callback) => {
+      forceExit = callback
+      return timer
+    })
+    const clearTimer = vi.fn()
+    const exit = vi.fn()
+    const lifecycle = createServerProcessLifecycle({
+      processTarget: new EventEmitter(),
+      getServerHandle: () => ({ stop: () => pendingStop }),
+      exit,
+      setTimer,
+      clearTimer,
+      logger: { error: vi.fn() },
+      fatalShutdownTimeoutMs: 25,
+    })
+
+    const graceful = lifecycle.stop(0)
+    await Promise.resolve()
+    // A graceful stop has no force timer of its own.
+    expect(setTimer).not.toHaveBeenCalled()
+
+    await lifecycle.stop(1)
+    expect(setTimer).toHaveBeenCalledTimes(1)
+    expect(setTimer).toHaveBeenCalledWith(expect.any(Function), 25)
+
+    forceExit()
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+
+    resolveStop()
+    await graceful
+    expect(clearTimer).toHaveBeenCalledWith(timer)
+    expect(exit).toHaveBeenCalledTimes(1)
+  })
+
+  test("a fatal stop escalates an in-flight graceful stop's exit code", async () => {
+    let resolveStop
+    const pendingStop = new Promise((resolve) => {
+      resolveStop = resolve
+    })
+    const setTimer = vi.fn(() => ({ unref: vi.fn() }))
+    const clearTimer = vi.fn()
+    const exit = vi.fn()
+    const lifecycle = createServerProcessLifecycle({
+      processTarget: new EventEmitter(),
+      getServerHandle: () => ({ stop: () => pendingStop }),
+      exit,
+      setTimer,
+      clearTimer,
+      logger: { error: vi.fn() },
+    })
+
+    const graceful = lifecycle.stop(0)
+    await Promise.resolve()
+    await lifecycle.stop(1)
+
+    resolveStop()
+    await graceful
+
+    expect(setTimer).toHaveBeenCalledTimes(1)
+    expect(clearTimer).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledTimes(1)
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
   test("exits normally after a requested graceful stop without a force timer", async () => {
     const exit = vi.fn()
     const setTimer = vi.fn()
