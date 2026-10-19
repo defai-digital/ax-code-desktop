@@ -757,7 +757,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
 
   if (layout === "fill") {
     return (
-      <div className={cn("flex flex-col relative", "size-full")} data-diff-virtual-root>
+      <div className={cn("flex flex-col relative", "size-full")} data-diff-virtual-root dir="ltr">
         <div className="flex-1 relative min-h-0">
           <ScrollableOverlay
             outerClassName="pierre-diff-wrapper size-full"
@@ -777,7 +777,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
 
   // Fallback for 'inline' layout
   return (
-    <div className={cn("relative", "w-full")}>
+    <div className={cn("relative", "w-full")} dir="ltr">
       <div ref={diffRootRef} className="pierre-diff-wrapper w-full overflow-x-auto overflow-y-visible relative">
         <div ref={diffContainerRef} className="w-full" />
       </div>

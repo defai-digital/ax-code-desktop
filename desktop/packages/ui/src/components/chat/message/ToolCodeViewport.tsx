@@ -33,6 +33,7 @@ const LargeToolCodeViewport = ({ source, children, diffStyle = "unified" }: Tool
   // A zero-height loading host makes Pierre anchor its bottom when syntax arrives.
   return (
     <div
+      dir="ltr"
       data-tool-code-viewport
       role="region"
       aria-label={t("chat.toolPart.output")}

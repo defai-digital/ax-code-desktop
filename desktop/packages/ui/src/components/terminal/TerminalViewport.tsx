@@ -1695,6 +1695,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
     return (
       <div
         ref={containerRef}
+        dir="ltr"
         className={cn("relative h-full w-full terminal-viewport-container", className)}
         data-hidden-input-overlay-active={useHiddenInputOverlay ? "true" : undefined}
         style={{ backgroundColor: theme.background }}

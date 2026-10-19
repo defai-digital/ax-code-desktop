@@ -1,6 +1,21 @@
 import manifest from "./locales.json" with { type: "json" }
 const locales = Object.keys(manifest.labels)
 const isLocale = (value) => typeof value === "string" && Object.hasOwn(manifest.labels, value)
+// Base languages written right to left. They resolve to "rtl" even before a locale entry declares it.
+const rtlLanguages = new Set(["ar", "he", "fa", "ur"])
+
+// Writing direction of a locale code. An explicit `directions` entry in locales.json wins; otherwise the base
+// language decides, and anything unknown or malformed is left to right.
+function localeDirection(code) {
+  if (typeof code !== "string") return "ltr"
+  const declared = Object.hasOwn(manifest.directions || {}, code) ? manifest.directions[code] : undefined
+  if (declared === "rtl" || declared === "ltr") return declared
+  try {
+    return rtlLanguages.has(new Intl.Locale(code.replace(/_/g, "-")).language) ? "rtl" : "ltr"
+  } catch {
+    return "ltr"
+  }
+}
 
 function resolveLocale(value) {
   if (typeof value !== "string") return undefined
@@ -101,6 +116,7 @@ function conversationInstruction(locale) {
 export {
   locales,
   isLocale,
+  localeDirection,
   resolveLocale,
   resolvePreferences,
   normalizePreferences,

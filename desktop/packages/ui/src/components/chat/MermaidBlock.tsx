@@ -213,7 +213,7 @@ export function MermaidBlock({
           )}
         </div>
       )}
-      <div data-markdown="mermaid-scroll">
+      <div data-markdown="mermaid-scroll" dir="ltr">
         {showSource || !output ? (
           <pre data-markdown="mermaid-ascii">{source}</pre>
         ) : mode === "ascii" ? (

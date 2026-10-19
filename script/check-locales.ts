@@ -16,6 +16,11 @@ const allowed = sharedSpelling as Record<string, string[]>
 if (Object.keys(manifest.labels).sort().join("|") !== Object.keys(manifest.conversationNames).sort().join("|")) {
   errors.push("Interface and conversation locale manifests differ")
 }
+// `directions` is optional; an absent locale is left to right unless its base language is written right to left.
+for (const [locale, dir] of Object.entries((manifest as { directions?: Record<string, unknown> }).directions ?? {})) {
+  if (!Object.hasOwn(manifest.labels, locale)) errors.push(`Unknown direction locale ${locale}`)
+  if (dir !== "ltr" && dir !== "rtl") errors.push(`${locale}: invalid direction ${String(dir)}`)
+}
 for (const [key, value] of Object.entries(nativeEnglish)) {
   if (english[key as keyof typeof english] !== value) errors.push(`Native English source differs: ${key}`)
 }

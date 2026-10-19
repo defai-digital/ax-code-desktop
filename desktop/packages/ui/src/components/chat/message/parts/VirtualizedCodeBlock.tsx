@@ -178,6 +178,7 @@ export const VirtualizedCodeBlock: React.FC<VirtualizedCodeBlockProps> = React.m
   if (!shouldVirtualize) {
     return (
       <div
+        dir="ltr"
         className="typography-code font-mono w-full min-w-0 ax-virtualized-prism"
         style={{ maxHeight, overflow: "auto" }}
       >
@@ -228,6 +229,7 @@ const VirtualizedRows: React.FC<VirtualizedRowsProps> = React.memo(
     return (
       <div
         ref={parentRef}
+        dir="ltr"
         className="typography-code font-mono w-full min-w-0 ax-virtualized-prism"
         style={{ maxHeight, overflow: "auto" }}
       >

@@ -650,7 +650,7 @@ const MarkdownCodeBlock: React.FC<{
           />
         </div>
       ) : (
-        <div className="px-3 py-2.5">
+        <div className="px-3 py-2.5" dir="ltr">
           {highlight && !skipHighlight ? (
             <SyntaxHighlighter
               language={language}
@@ -892,6 +892,7 @@ const buildMarkdownComponents = ({
     return (
       <code
         {...props}
+        dir="ltr"
         className={cn("rounded bg-[var(--surface-elevated)] px-1 py-0.5 font-mono text-[0.95em]", className)}
         data-markdown="inline-code"
       >

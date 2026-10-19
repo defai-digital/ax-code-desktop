@@ -602,6 +602,7 @@ export function CodeMirrorEditor({
     <>
       <div
         ref={hostRef}
+        dir="ltr"
         className={cn(
           "h-full w-full",
           "[&_.cm-editor]:h-full [&_.cm-editor]:w-full",

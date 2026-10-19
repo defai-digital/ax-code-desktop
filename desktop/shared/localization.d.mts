@@ -2,6 +2,7 @@ import manifest from "./locales.json"
 export type Locale = keyof typeof manifest.labels
 export type InterfacePreference = Locale | "system"
 export type ConversationPreference = Locale | "auto"
+export type TextDirection = "ltr" | "rtl"
 export type LanguagePreferences = {
   schema: 1
   interface: InterfacePreference
@@ -11,6 +12,7 @@ export type LanguagePreferences = {
 export type ResolvedLanguagePreferences = LanguagePreferences & { locale: Locale; formatLocale: string }
 export const locales: Locale[]
 export function isLocale(value: unknown): value is Locale
+export function localeDirection(code: unknown): TextDirection
 export function resolveLocale(value: unknown): { locale: Locale; formatLocale: string } | undefined
 export function normalizePreferences(value: unknown): LanguagePreferences
 export function resolvePreferences(

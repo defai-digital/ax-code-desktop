@@ -2,6 +2,7 @@ import React from "react"
 import { useI18nStore, formatMessage, formatPluralMessage } from "./store"
 import { I18nContext, type I18nContextValue } from "./react-context"
 import { LANGUAGE_LABELS, LOCALES } from "./runtime"
+import { applyDocumentLocale } from "./direction"
 
 export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const locale = useI18nStore((state) => state.locale)
@@ -9,10 +10,7 @@ export const I18nProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const formatLocale = useI18nStore((state) => state.formatLocale)
   const setLocale = useI18nStore((state) => state.setLocale)
   React.useEffect(() => {
-    if (typeof document !== "undefined") {
-      document.documentElement.lang = locale
-      document.documentElement.dir = "ltr"
-    }
+    applyDocumentLocale(locale)
   }, [locale])
   const value = React.useMemo<I18nContextValue>(() => {
     const number = new Intl.NumberFormat(formatLocale)

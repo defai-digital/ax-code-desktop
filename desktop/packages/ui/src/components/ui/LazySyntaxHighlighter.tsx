@@ -6,6 +6,7 @@ type LazySyntaxHighlighterProps = {
   className?: string
   codeTagProps?: { style?: React.CSSProperties; [key: string]: unknown }
   customStyle?: React.CSSProperties
+  dir?: "ltr" | "rtl"
   language?: string
   PreTag?: React.ElementType
   style?: Record<string, React.CSSProperties>
@@ -29,14 +30,15 @@ const PlainCodeFallback: React.FC<LazySyntaxHighlighterProps> = ({
   const FallbackPreTag = PreTag
 
   return (
-    <FallbackPreTag className={className} style={customStyle}>
+    <FallbackPreTag className={className} style={customStyle} dir="ltr">
       <code style={codeTagProps?.style}>{children}</code>
     </FallbackPreTag>
   )
 }
 
+// Code reads left to right whatever the interface direction; the highlighter forwards `dir` to its pre tag.
 export const LazySyntaxHighlighter: React.FC<LazySyntaxHighlighterProps> = (props) => (
   <React.Suspense fallback={<PlainCodeFallback {...props} />}>
-    <SyntaxHighlighter {...props} />
+    <SyntaxHighlighter {...props} dir="ltr" />
   </React.Suspense>
 )

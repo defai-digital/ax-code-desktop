@@ -10,9 +10,11 @@ that passes `check:locales`. Arabic is the expected first one, in a later change
 
 ## 2. Locale metadata
 
-- Each entry in `desktop/shared/locales.json` may carry `"dir": "rtl"`; absent means `ltr`. A shared helper
-  `localeDirection(code)` returns `"rtl"` for entries marked so and for the base languages `ar`, `he`, `fa` and `ur`
-  even before an entry exists.
+- `desktop/shared/locales.json` keeps per-field maps keyed by locale code (`labels`, `conversationNames`), so direction is
+  an optional top-level map `"directions": { "<code>": "ltr" | "rtl" }`; absent means `ltr`. `check-locales.ts` rejects
+  unknown codes and values. The shared helper `localeDirection(code)` (`desktop/shared/localization.mjs`) returns the
+  explicit value, otherwise `"rtl"` for the base languages `ar`, `he`, `fa` and `ur` (including region forms such as
+  `ar-EG`), otherwise `"ltr"`.
 - `ui/src/lib/i18n/context.tsx` sets `document.documentElement.dir` and `lang` from the active locale instead of the
   fixed `"ltr"`.
 

@@ -802,7 +802,7 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
               >
                 {descriptor.code}
               </span>
-              <span className="min-w-0 flex-1 overflow-hidden typography-ui-label" title={file.path}>
+              <span className="min-w-0 flex-1 overflow-hidden typography-ui-label" title={file.path} dir="ltr">
                 <span className="flex min-w-0 items-center gap-2">
                   <FileTypeIcon filePath={file.path} className="h-3.5 w-3.5 flex-shrink-0 align-middle" />
                   {(() => {
