@@ -40,10 +40,23 @@ export const applySecurityHeaders = (req, res) => {
   }
   res.setHeader("Referrer-Policy", "no-referrer")
   res.setHeader("X-XSS-Protection", "0")
-  res.setHeader(
-    "Content-Security-Policy",
-    // img-src allows https://models.dev for provider logo fallbacks
-    // (packages/ui/src/hooks/useProviderLogo.ts).
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;",
-  )
+  res.setHeader("Content-Security-Policy", buildWebServerCsp(req))
+}
+
+// img-src allows https://models.dev for provider logo fallbacks
+// (packages/ui/src/hooks/useProviderLogo.ts).
+const CSP_COMMON_TAIL =
+  "style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:;"
+
+// The app document runs without JavaScript eval, matching the packaged app://
+// policy; 'wasm-unsafe-eval' keeps the terminal's WebAssembly renderer
+// (ADR-018). Preview and dashboard proxy responses render pages Desktop does
+// not author (a user's dev server, runtime reports), so they keep the previous
+// allowance; the preview proxy separately rewrites upstream policies.
+export const buildWebServerCsp = (req) => {
+  const proxied = isPreviewProxyRequest(req) || isDashboardProxyRequest(req)
+  const scriptSrc = proxied
+    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+    : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+  return `default-src 'self'; ${scriptSrc}; ${CSP_COMMON_TAIL}`
 }

@@ -27,6 +27,7 @@ describe("createDesktopRendererWebPreferences", () => {
   test("enables the desktop browser webview without enabling node integration", () => {
     expect(createDesktopRendererWebPreferences("/tmp/preload.js")).toEqual({
       preload: "/tmp/preload.js",
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
       webSecurity: true,

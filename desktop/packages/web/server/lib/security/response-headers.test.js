@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   applyPackagedRendererCorsHeaders,
   applySecurityHeaders,
+  buildWebServerCsp,
   isDashboardProxyRequest,
   isPreviewProxyRequest,
 } from "./response-headers.js"
@@ -41,6 +42,21 @@ describe("response security headers", () => {
     applySecurityHeaders({ path: "/" }, res)
 
     expect(res.getHeader("Content-Security-Policy")).toContain("img-src 'self' data: blob: https://models.dev")
+  })
+
+  it("serves the app document without JavaScript eval", () => {
+    const res = createMockResponse()
+    applySecurityHeaders({ path: "/" }, res)
+    const csp = res.getHeader("Content-Security-Policy")
+    expect(csp).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';")
+    expect(csp).not.toContain("'unsafe-eval'")
+  })
+
+  it("keeps the previous script allowance for proxied preview and dashboard pages", () => {
+    for (const path of ["/api/preview/proxy/abc123/", "/dre-graph/session/s1", "/run-report/session/s1"]) {
+      expect(buildWebServerCsp({ path })).toContain("script-src 'self' 'unsafe-inline' 'unsafe-eval';")
+    }
+    expect(buildWebServerCsp({ path: "/assets/main.js" })).not.toContain("'unsafe-eval'")
   })
 
   it("adds credentialed CORS headers for the packaged app:// renderer", () => {

@@ -132,7 +132,7 @@ const {
   PACKAGED_RENDERER_ORIGIN,
   PACKAGED_RENDERER_PRIVILEGED_SCHEMES,
   PACKAGED_RENDERER_SCHEME,
-  buildPackagedRendererCsp,
+  resolvePackagedResponseCsp,
   buildRendererApiOrigin,
   createPackagedRendererProtocolHandler,
   isPackagedRendererUrl,
@@ -3570,10 +3570,12 @@ app.whenReady().then(async () => {
       const existingValues = (Array.isArray(existing) ? existing : [existing]).filter(
         (value) => typeof value === "string" && value.length > 0,
       )
-      responseHeaders[existingKey ?? "Content-Security-Policy"] = [
-        ...existingValues,
-        buildPackagedRendererCsp(),
-      ]
+      const appended = resolvePackagedResponseCsp(details.url, existingValues)
+      if (!appended) {
+        callback({})
+        return
+      }
+      responseHeaders[existingKey ?? "Content-Security-Policy"] = [...existingValues, appended]
       callback({ responseHeaders })
     })
   }

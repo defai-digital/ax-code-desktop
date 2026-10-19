@@ -8,6 +8,10 @@ function createDesktopRendererWebPreferences(preload, options = {}) {
     : []
   return {
     preload,
+    // Electron sandboxes renderers by default; pin it so a future default or a
+    // caller override cannot silently give the privileged preload Node access
+    // (ADR-018). The preload is bundled for a sandboxed renderer.
+    sandbox: true,
     contextIsolation: true,
     nodeIntegration: false,
     webSecurity: true,

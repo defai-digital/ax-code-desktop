@@ -13,22 +13,6 @@
     <link rel="icon" type="image/png" href="/favicon-16.png" sizes="16x16" />
     <link rel="apple-touch-icon" href="/favicon-512.png" />
 
-    <!-- Preload Nerd Fonts for terminal icon display -->
-    <link
-      rel="preload"
-      href="https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/JetBrainsMonoNerdFont-Regular.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin="anonymous"
-    />
-    <link
-      rel="preload"
-      href="https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/FiraCodeNerdFont-Regular.woff2"
-      as="font"
-      type="font/woff2"
-      crossorigin="anonymous"
-    />
-
     <script>
       // Blocking script to detect and apply theme before first paint
       ;(function () {
@@ -85,15 +69,11 @@
 
     <!-- Inline CSS for loading screen and Nerd Fonts (before Tailwind loads) -->
     <style>
-      /* Nerd Font @font-face declarations for terminal icon support */
+      /* Nerd Font @font-face declarations for terminal icon support. Local installs only:
+         font-src allows 'self' and data:, so remote files would be blocked anyway. */
       @font-face {
         font-family: "JetBrainsMono Nerd Font";
-        src:
-          local("JetBrainsMono Nerd Font"),
-          url("https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/JetBrainsMonoNerdFont-Regular.woff2")
-            format("woff2"),
-          url("https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/JetBrainsMonoNerdFont-Regular.woff")
-            format("woff");
+        src: local("JetBrainsMono Nerd Font");
         font-weight: normal;
         font-style: normal;
         font-display: swap;
@@ -102,12 +82,7 @@
 
       @font-face {
         font-family: "FiraCode Nerd Font";
-        src:
-          local("FiraCode Nerd Font"),
-          url("https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/FiraCodeNerdFont-Regular.woff2")
-            format("woff2"),
-          url("https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/FiraCodeNerdFont-Regular.woff")
-            format("woff");
+        src: local("FiraCode Nerd Font");
         font-weight: normal;
         font-style: normal;
         font-display: swap;
@@ -191,32 +166,10 @@
       }, 10000)
     </script>
 
-    <!-- CSS Font Loading API for reliable Nerd Font loading -->
+    <!-- Terminal font stack: locally installed Nerd Fonts apply through .fonts-loaded.
+         Remote font files are not fetched: font-src allows only 'self' and data:. -->
     <script>
-      ;(function () {
-        const fonts = [
-          {
-            name: "JetBrainsMono Nerd Font",
-            url: "https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/JetBrainsMonoNerdFont-Regular.woff2",
-          },
-          {
-            name: "FiraCode Nerd Font",
-            url: "https://cdn.jsdelivr.net/gh/mshaugh/nerdfont-webfonts@v3.3.0/build/fonts/FiraCodeNerdFont-Regular.woff2",
-          },
-        ]
-
-        const fontPromises = fonts.map((font) => {
-          const fontFace = new FontFace(font.name, `url(${font.url}) format('woff2')`)
-          document.fonts.add(fontFace)
-          return fontFace.load().catch((err) => {
-            console.warn(`Failed to load font: ${font.name}`, err)
-          })
-        })
-
-        Promise.allSettled(fontPromises).then(() => {
-          document.documentElement.classList.add("fonts-loaded")
-        })
-      })()
+      document.documentElement.classList.add("fonts-loaded")
     </script>
 
     <!-- Polyfill for process before loading React -->

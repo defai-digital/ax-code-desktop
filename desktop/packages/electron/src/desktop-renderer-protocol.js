@@ -1,5 +1,6 @@
 "use strict"
 
+const crypto = require("crypto")
 const path = require("path")
 const { routeApiRequest } = require("./api-prefix-router")
 const { isLoopbackDesktopHostname } = require("./desktop-hosts")
@@ -27,20 +28,18 @@ const PACKAGED_RENDERER_PRIVILEGED_SCHEMES = [
   },
 ]
 
+// CSP host-sources cannot be IPv6 literals: Chromium ignores `[::1]` sources and
+// logs a warning on every load, so they never granted anything and are omitted.
 const LOOPBACK_CONNECT_SRC = [
   "'self'",
   "http://127.0.0.1:*",
   "http://localhost:*",
-  "http://[::1]:*",
   "https://127.0.0.1:*",
   "https://localhost:*",
-  "https://[::1]:*",
   "ws://127.0.0.1:*",
   "ws://localhost:*",
-  "ws://[::1]:*",
   "wss://127.0.0.1:*",
   "wss://localhost:*",
-  "wss://[::1]:*",
 ]
 
 const isPackagedRendererOrigin = (raw) => {
@@ -98,14 +97,50 @@ const readRendererApiOriginFromArgv = (argv, env = process.env) => {
   return fromEnv
 }
 
-const buildPackagedRendererCsp = () => {
+const SCRIPT_ELEMENT_PATTERN = /<script\b([^>]*)>([\s\S]*?)<\/script\s*>/gi
+const SCRIPT_SRC_ATTRIBUTE_PATTERN = /(?:^|\s)src\s*=/i
+const SCRIPT_TYPE_ATTRIBUTE_PATTERN = /(?:^|\s)type\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/i
+const EXECUTABLE_SCRIPT_TYPES = new Set(["", "text/javascript", "application/javascript", "module"])
+
+// SHA-256 sources for the inline scripts in one HTML document (ADR-018). The
+// browser hashes script text after HTML input preprocessing, which turns CRLF
+// and lone CR into LF, so the digest is taken over normalized text. Scripts
+// with a src attribute and non-executable data blocks (JSON, importmap) are
+// not hashed: CSP hash sources never apply to them.
+const collectInlineScriptHashes = (html) => {
+  const text = String(html ?? "").replace(/\r\n?/g, "\n")
+  const hashes = new Set()
+  for (const match of text.matchAll(SCRIPT_ELEMENT_PATTERN)) {
+    const attributes = match[1] || ""
+    if (SCRIPT_SRC_ATTRIBUTE_PATTERN.test(attributes)) continue
+    const typeMatch = attributes.match(SCRIPT_TYPE_ATTRIBUTE_PATTERN)
+    const type = (typeMatch ? (typeMatch[1] ?? typeMatch[2] ?? typeMatch[3] ?? "") : "").trim().toLowerCase()
+    if (!EXECUTABLE_SCRIPT_TYPES.has(type)) continue
+    const digest = crypto.createHash("sha256").update(match[2], "utf8").digest("base64")
+    hashes.add(`'sha256-${digest}'`)
+  }
+  return [...hashes].sort()
+}
+
+// `proxiedContent` is for loopback responses served through app:// (runtime
+// dashboards, run reports): Desktop does not author those documents, so their
+// inline scripts keep the pre-ADR-018 allowance. Desktop's own documents get
+// only the hashes of the inline scripts they actually contain.
+const buildPackagedRendererCsp = ({ inlineScriptHashes = [], proxiedContent = false } = {}) => {
   const connectSrc = LOOPBACK_CONNECT_SRC.join(" ")
+  const scriptHashes = Array.isArray(inlineScriptHashes)
+    ? inlineScriptHashes.filter((value) => typeof value === "string" && /^'sha256-[A-Za-z0-9+/=]+'$/.test(value))
+    : []
+  const scriptSources = proxiedContent
+    ? ["script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"]
+    : ["script-src 'self' 'wasm-unsafe-eval'", ...scriptHashes]
   return [
     `default-src 'self' ${PACKAGED_RENDERER_ORIGIN}`,
     // 'wasm-unsafe-eval' (deliberately not 'unsafe-eval') permits WebAssembly
     // compilation only — the ghostty-vt terminal renderer compiles a WASM
-    // module at startup, and workers inherit this policy.
-    "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'",
+    // module at startup, and workers inherit this policy. Inline scripts are
+    // allowed only by the hashes of the document being served (ADR-018).
+    scriptSources.join(" "),
     "style-src 'self' 'unsafe-inline'",
     // Provider logos fall back to https://models.dev/logos/<id>.svg when no
     // SVG is bundled (see packages/ui/src/hooks/useProviderLogo.ts).
@@ -116,10 +151,30 @@ const buildPackagedRendererCsp = () => {
     // The renderer frames its own surfaces (preview proxy, file/HTML preview, embedded
     // session chat) and the loopback dashboard. `frame-src 'none'` blanked all of them in
     // packaged builds, where this policy — not the dev server's — governs the document.
-    "frame-src 'self' http://127.0.0.1:* http://localhost:* http://[::1]:*",
+    "frame-src 'self' http://127.0.0.1:* http://localhost:*",
     "object-src 'none'",
     "base-uri 'none'",
   ].join("; ")
+}
+
+// The header-stage policy for an app:// response. Static renderer assets
+// already carry the handler's hashed policy, and appending a hash-free copy
+// would block their inline scripts (combined policies intersect). Proxied
+// loopback responses get the proxied-content policy appended so an upstream
+// policy (for example a preview `sandbox` directive) is kept, not replaced.
+const resolvePackagedResponseCsp = (url, existingValues = []) => {
+  let pathname = ""
+  try {
+    pathname = new URL(url).pathname
+  } catch {
+    return null
+  }
+  if (isLoopbackApiPath(pathname)) return buildPackagedRendererCsp({ proxiedContent: true })
+  const values = Array.isArray(existingValues) ? existingValues : [existingValues]
+  const hasRendererPolicy = values.some(
+    (value) => typeof value === "string" && value.startsWith(`default-src 'self' ${PACKAGED_RENDERER_ORIGIN}`),
+  )
+  return hasRendererPolicy ? null : buildPackagedRendererCsp()
 }
 
 const parseCspDirective = (csp, name) => {
@@ -393,11 +448,15 @@ const createPackagedRendererProtocolHandler = ({
       // Serve original bytes. Rewriting HTML to inject the API origin stopped
       // Chromium from executing Vite module scripts on app://.
       const body = await readFile(resolved.path)
+      const contentType = mimeForPackagedRendererAsset(resolved.path)
+      const inlineScriptHashes = contentType.startsWith("text/html")
+        ? collectInlineScriptHashes(Buffer.isBuffer(body) ? body.toString("utf8") : String(body ?? ""))
+        : []
       return new Response(body, {
         status: 200,
         headers: {
-          "Content-Type": mimeForPackagedRendererAsset(resolved.path),
-          "Content-Security-Policy": buildPackagedRendererCsp(),
+          "Content-Type": contentType,
+          "Content-Security-Policy": buildPackagedRendererCsp({ inlineScriptHashes }),
         },
       })
     } catch {
@@ -422,6 +481,8 @@ module.exports = {
   buildRendererApiOriginAdditionalArguments,
   readRendererApiOriginFromArgv,
   buildPackagedRendererCsp,
+  collectInlineScriptHashes,
+  resolvePackagedResponseCsp,
   parseCspDirective,
   isLoopbackConnectSrc,
   resolvePackagedRendererAssetPath,

@@ -1,5 +1,8 @@
+import { createHash } from "node:crypto"
+import { readFileSync } from "node:fs"
 import { createRequire } from "node:module"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { describe, expect, test } from "vitest"
 
 const require = createRequire(import.meta.url)
@@ -14,6 +17,8 @@ const {
   buildRendererApiOriginAdditionalArguments,
   readRendererApiOriginFromArgv,
   buildPackagedRendererCsp,
+  collectInlineScriptHashes,
+  resolvePackagedResponseCsp,
   parseCspDirective,
   isLoopbackConnectSrc,
   resolvePackagedRendererAssetPath,
@@ -36,6 +41,11 @@ describe("packaged renderer protocol policy", () => {
     expect(connectSrc.every((source) => isLoopbackConnectSrc(source))).toBe(true)
   })
 
+  test("CSP contains no IPv6 literal sources, which browsers reject", () => {
+    expect(buildPackagedRendererCsp()).not.toContain("[")
+    expect(buildPackagedRendererCsp({ proxiedContent: true })).not.toContain("[")
+  })
+
   test("CSP img-src allows models.dev provider logos", () => {
     const imgSrc = parseCspDirective(buildPackagedRendererCsp(), "img-src")
     expect(imgSrc).toContain("https://models.dev")
@@ -48,6 +58,59 @@ describe("packaged renderer protocol policy", () => {
     const scriptSrc = parseCspDirective(buildPackagedRendererCsp(), "script-src")
     expect(scriptSrc).toContain("'wasm-unsafe-eval'")
     expect(scriptSrc).not.toContain("'unsafe-eval'")
+  })
+
+  test("CSP script-src never allows unhashed inline scripts", () => {
+    expect(parseCspDirective(buildPackagedRendererCsp(), "script-src")).not.toContain("'unsafe-inline'")
+    const hashed = parseCspDirective(buildPackagedRendererCsp({ inlineScriptHashes: ["'sha256-abc='"] }), "script-src")
+    expect(hashed).toEqual(["'self'", "'wasm-unsafe-eval'", "'sha256-abc='"])
+    // Anything that is not a well-formed hash source is dropped rather than widening the policy.
+    const injected = parseCspDirective(
+      buildPackagedRendererCsp({ inlineScriptHashes: ["'unsafe-inline'", "* 'unsafe-eval'"] }),
+      "script-src",
+    )
+    expect(injected).toEqual(["'self'", "'wasm-unsafe-eval'"])
+  })
+
+  test("header-stage CSP keeps the hashed asset policy and covers proxied content", () => {
+    const hashed = buildPackagedRendererCsp({ inlineScriptHashes: ["'sha256-abc='"] })
+    // A hash-free copy appended to the hashed policy would block the document's inline scripts.
+    expect(resolvePackagedResponseCsp("app://ax-code/", [hashed])).toBeNull()
+    expect(resolvePackagedResponseCsp("app://ax-code/assets/app.js", [buildPackagedRendererCsp()])).toBeNull()
+    expect(resolvePackagedResponseCsp("app://ax-code/", [])).toBe(buildPackagedRendererCsp())
+    // Proxied runtime documents keep their inline-script allowance, appended beside any upstream policy.
+    const proxied = resolvePackagedResponseCsp("app://ax-code/run-report/session/ses_1", ["sandbox allow-scripts"])
+    expect(parseCspDirective(proxied, "script-src")).toEqual(["'self'", "'unsafe-inline'", "'wasm-unsafe-eval'"])
+    expect(parseCspDirective(proxied, "script-src")).not.toContain("'unsafe-eval'")
+    expect(resolvePackagedResponseCsp("not a url", [])).toBeNull()
+  })
+
+  test("hashes executable inline scripts only", () => {
+    const sha = (text) => `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`
+    const html = [
+      "<script>a()</script>",
+      '<script type="module">b()</script>',
+      '<SCRIPT type="text/javascript">c()</SCRIPT >',
+      '<script type="module" src="/assets/main.js"></script>',
+      '<script type="application/json">{"d":1}</script>',
+      '<script type="importmap">{"imports":{}}</script>',
+      "<script>a()</script>",
+    ].join("\n")
+    expect(collectInlineScriptHashes(html)).toEqual([sha("a()"), sha("b()"), sha("c()")].sort())
+  })
+
+  test("hashes script text after HTML newline normalization", () => {
+    const sha = (text) => `'sha256-${createHash("sha256").update(text, "utf8").digest("base64")}'`
+    expect(collectInlineScriptHashes("<script>\r\nx = '\u00e9'\r\n</script>")).toEqual([sha("\nx = '\u00e9'\n")])
+    expect(collectInlineScriptHashes("<script>a\rb</script>")).toEqual([sha("a\nb")])
+  })
+
+  test("hashes every inline bootstrap script in the shipped index.html", () => {
+    const indexPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../web/index.html")
+    const html = readFileSync(indexPath, "utf8")
+    const inlineCount = [...html.matchAll(/<script>/g)].length
+    expect(inlineCount).toBeGreaterThan(0)
+    expect(collectInlineScriptHashes(html)).toHaveLength(inlineCount)
   })
 
   test("asset path resolver blocks escape from web-dist", () => {
@@ -115,10 +178,43 @@ describe("packaged renderer protocol policy", () => {
     const ok = await handle({ url: "app://ax-code/" })
     expect(ok.status).toBe(200)
     expect(await ok.text()).toBe(original)
+    expect(parseCspDirective(ok.headers.get("content-security-policy"), "script-src")).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+    ])
     expect(ok.headers.get("content-type")).toContain("text/html")
     expect(ok.headers.get("access-control-allow-origin")).toBeNull()
     const escaped = await handle({ url: "app://ax-code/%2e%2e/secret" })
     expect(escaped.status).toBeGreaterThanOrEqual(400)
+  })
+
+  test("protocol handler allows the served document's inline scripts by hash", async () => {
+    const html = "<html><head><script>boot()</script></head><body></body></html>"
+    const files = new Map([
+      [path.resolve("/app/web-dist", "index.html"), Buffer.from(html, "utf8")],
+      [path.resolve("/app/web-dist", "assets/app.js"), Buffer.from("<script>boot()</script>", "utf8")],
+    ])
+    const handle = createPackagedRendererProtocolHandler({
+      webDistPath: "/app/web-dist",
+      getApiOrigin: () => "http://127.0.0.1:50959",
+      readFile: async (filePath) => {
+        const body = files.get(filePath)
+        if (body === undefined) throw new Error("missing")
+        return body
+      },
+    })
+    const page = await handle({ url: "app://ax-code/" })
+    expect(parseCspDirective(page.headers.get("content-security-policy"), "script-src")).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+      ...collectInlineScriptHashes(html),
+    ])
+    // Only HTML documents earn hashes: a script asset that happens to contain markup does not.
+    const asset = await handle({ url: "app://ax-code/assets/app.js" })
+    expect(parseCspDirective(asset.headers.get("content-security-policy"), "script-src")).toEqual([
+      "'self'",
+      "'wasm-unsafe-eval'",
+    ])
   })
 
   test("protocol handler proxies UI session checks to the loopback server", async () => {
