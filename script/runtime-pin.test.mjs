@@ -38,7 +38,7 @@ describe("runtime pin", () => {
   })
   it("validates the committed runtime pin and public key independently of Desktop versions", () => {
     const pin = verifyRuntimePin(repositoryRoot)
-    expect(pin.version).toBe("7.27.5")
+    expect(pin.version).toBe("7.27.6")
     expect(Object.keys(pin.artifacts)).toHaveLength(4)
   })
 
@@ -54,9 +54,9 @@ describe("runtime pin", () => {
     const pin = readRuntimePin(repositoryRoot)
     const artifact = runtimeArtifactForTarget(pin, { platform: "linux", arch: "x64" })
     expect(releaseAssetUrls(pin, artifact)).toEqual({
-      archiveUrl: "https://github.com/defai-digital/ax-code/releases/download/v7.27.5/ax-code-linux-x64.tar.gz",
+      archiveUrl: "https://github.com/defai-digital/ax-code/releases/download/v7.27.6/ax-code-linux-x64.tar.gz",
       signatureUrl:
-        "https://github.com/defai-digital/ax-code/releases/download/v7.27.5/ax-code-linux-x64.tar.gz.minisig",
+        "https://github.com/defai-digital/ax-code/releases/download/v7.27.6/ax-code-linux-x64.tar.gz.minisig",
     })
   })
 

@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-19",
+  "runtime": {
+    "version": "7.27.6",
+    "releaseTag": "v7.27.6",
+    "producerCommit": "7e0ba70303efa993021a4887e958e91cc51b1cc3",
+    "release": "https://github.com/defai-digital/ax-code/releases/tag/v7.27.6",
+    "publishedAt": "2026-10-19T12:10:03Z",
+    "runtimeDownloadDirectory": "session scratchpad (outside the repository)",
+    "signatureVerification": "minisign -V against resources/keys/ax-minisign.pub; all four artifacts verified; trusted comments match computed SHA-256; sizes and digests match the GitHub asset inventory",
+    "publicKeySha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+    "releasePublicKeySha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+    "artifacts": {
+      "darwin-arm64": {
+        "size": 79614037,
+        "sha256": "7bcae5ef627427a5efcc67362162cf40d0dd7c0beb24afb9e3e57c63f6efe734",
+        "signatureSize": 377,
+        "signatureSha256": "f1a36e4bd026a69a548bab130f785cff213f7229be82e35daad6c34c0794e992",
+        "executed": "--version reported 7.27.6 on this Mac"
+      },
+      "linux-arm64": {
+        "size": 86019371,
+        "sha256": "27e29f0629b18a8885774d76f32a7cf6eec40f9dcddc4e0d0b7e9b8ca1e03a91",
+        "signatureSize": 379,
+        "signatureSha256": "d2c1212edbef61f23bcb4ae0f98a89bdb6923095326b1792306d7a58e4efa76b",
+        "executed": false
+      },
+      "linux-x64": {
+        "size": 87758523,
+        "sha256": "11a1209168cb7ecc2041400cc14d51406bc754851ae8e818c4ba762660a77f4e",
+        "signatureSize": 377,
+        "signatureSha256": "f5c1bc9ca5d7b25f24d7eeee0f6d006cb7870022a35a0295630fc0a7a8a6c39f",
+        "executed": false
+      },
+      "win32-x64": {
+        "size": 94215400,
+        "sha256": "ddc3bf388f5e7cbef9c38a78ab39151dbaa9b23db1e797f5d11fd52e21a57bf9",
+        "signatureSize": 376,
+        "signatureSha256": "0fc153ffa86c51afdb8b10f2869d0e532f40a903a9ecc6196af479a14296a677",
+        "executed": false
+      }
+    }
+  },
+  "sdk": {
+    "version": "2.6.37",
+    "specifier": "jsr:@defai-digital/ax-code-sdk@2.6.37",
+    "sdkRegistry": "https://npm.jsr.io/@jsr/defai-digital__ax-code-sdk",
+    "producerCommit": "7e0ba70303efa993021a4887e958e91cc51b1cc3",
+    "publishTag": "sdk-v2.6.37",
+    "dist": {
+      "name": "@jsr/defai-digital__ax-code-sdk",
+      "tarball": "https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.37.tgz",
+      "shasum": "69D3F6F7516CBB3D6A53F5A0B764097952D12439",
+      "integrity": "sha512-672TWinPfhkOiY+oiWYzApcZd0HxXHaXWZRU5v1zKUUMgnrP0kVoAx9fuQ8sNLCrWd9FOUrz7+cBKUuSyCY3FQ=="
+    },
+    "lockfileIntegrityMatchesRegistry": true,
+    "apiChange": "VcsInfo.branch is optional (runtime keeps the known branch on git failures); Desktop already treats vcs and branch as optional"
+  },
+  "changedFiles": {
+    "config/ax-code-runtime.json": "c22e3db8e6f3c12be75ce51eccb2e94ad8212fb521b50a200f39b01b2701b0cf",
+    "config/ax-code-sdk.json": "87f4478a1b8289355c8934bfee39912164ddb059af74dbdcd94661f0d7754a1e",
+    "pnpm-lock.yaml": "99cdb28a10a52bb4efe6c047301227a2c33e3de6b1d24610a39317c00ad78290",
+    "desktop/packages/electron/package.json": "db4ece5c0a7cb6c8642b66330bfc4114cd96b4b1a289349f1fa371ad418d52c6",
+    "desktop/packages/ui/package.json": "86b91877c948cd05c136159518870bd2aab6fcd8551e612ee1579b79533b4d13",
+    "desktop/packages/web/package.json": "a97b1a769aab6311412cee6afcf059d41459c9c520a7c662cdbe65281f65f675"
+  },
+  "desktopVersion": "7.27.2",
+  "boundaries": "Linux/Windows binaries were signature-verified but not executed on this Mac. This report is not signed Desktop installation, upgrade, or rollback qualification."
+}

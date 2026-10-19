@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "sdkVersion": "2.6.37",
+  "runtimeVersion": "7.27.6",
+  "health": true,
+  "capabilities": true,
+  "commandCatalog": true,
+  "analysisSkillInPublishedRuntime": true,
+  "fixture": "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-sdk-2.6.37-smoke-EJVyU7",
+  "platform": "darwin",
+  "arch": "arm64",
+  "scope": "Downloaded signed native runtime with the actual installed JSR SDK; isolated loopback server, no model request or user installation."
+}
