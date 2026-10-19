@@ -99,6 +99,8 @@ jobs:
         run: pnpm run test
 
       - name: Build Desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm run build
 
       - name: Record preflight evidence
@@ -141,6 +143,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Build and pack web compatibility package
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: |
           set -euo pipefail
           pnpm --filter ax-code-desktop run build
@@ -269,6 +273,8 @@ jobs:
         run: node script/apple-notary-credentials.mjs --configure
 
       - name: Build Desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm run build
 
       - name: Package unsigned macOS shadow candidate
@@ -461,6 +467,7 @@ jobs:
       - name: Build and package Windows shadow candidate
         shell: bash
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           AX_CODE_STAGE_REQUIRED: "true"
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
@@ -572,6 +579,7 @@ jobs:
 
       - name: Build and package Linux shadow candidate
         env:
+          NODE_OPTIONS: --max-old-space-size=4096
           AX_CODE_STAGE_REQUIRED: "true"
           ELECTRON_BUILDER_ARCH: ${{ matrix.arch }}
         run: |

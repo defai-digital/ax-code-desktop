@@ -75,6 +75,8 @@ jobs:
 
       - name: Build Desktop
         if: needs.changes.outputs.build == 'true'
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm run build
 
   electron-native-compatibility:
@@ -173,6 +175,8 @@ jobs:
         run: brew install minisign
 
       - name: Build Desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
         run: pnpm run build
 
       - name: Package isolated unsigned app
