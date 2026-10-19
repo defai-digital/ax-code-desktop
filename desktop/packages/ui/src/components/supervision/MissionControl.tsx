@@ -194,6 +194,11 @@ export const MissionControl: React.FC = () => {
     }
   }
 
+  const cancelRename = () => {
+    setRenaming(false)
+    setRenameValue("")
+  }
+
   const submitCreate = () => {
     const name = newSetName.trim()
     if (!name) {
@@ -201,6 +206,7 @@ export const MissionControl: React.FC = () => {
     }
     const id = createWorkingSet(name)
     setActiveWorkingSet(id)
+    cancelRename()
     setNewSetName("")
     setCreating(false)
   }
@@ -214,8 +220,14 @@ export const MissionControl: React.FC = () => {
   }
 
   const handleSelectMode = (nextMode: "live" | "recent") => {
+    cancelRename()
     setActiveWorkingSet(null)
     setMode(nextMode)
+  }
+
+  const handleSelectWorkingSet = (id: string) => {
+    cancelRename()
+    setActiveWorkingSet(id)
   }
 
   const handleStartRename = () => {
@@ -237,6 +249,7 @@ export const MissionControl: React.FC = () => {
         { destructive: true },
       )
       if (confirmed) {
+        cancelRename()
         deleteWorkingSet(setToDelete.id)
       }
     })()
@@ -263,6 +276,7 @@ export const MissionControl: React.FC = () => {
     }
     const id = createWorkingSet(name, [row.sessionId])
     setActiveWorkingSet(id)
+    cancelRename()
     setPeekNewSetFor(null)
   }
 
@@ -295,7 +309,7 @@ export const MissionControl: React.FC = () => {
         renameValue={renameValue}
         shortcutHint={shortcutHint}
         onSelectMode={handleSelectMode}
-        onSelectWorkingSet={setActiveWorkingSet}
+        onSelectWorkingSet={handleSelectWorkingSet}
         onStartCreate={() => setCreating(true)}
         onNewSetNameChange={setNewSetName}
         onSubmitCreate={submitCreate}
@@ -303,7 +317,7 @@ export const MissionControl: React.FC = () => {
         onStartRename={handleStartRename}
         onRenameValueChange={setRenameValue}
         onSubmitRename={submitRename}
-        onCancelRename={() => setRenaming(false)}
+        onCancelRename={cancelRename}
         onDeleteWorkingSet={handleDeleteWorkingSet}
         onDispatch={() => useSupervisionStore.getState().setQuickDispatchOpen(true)}
         onClose={handleClose}

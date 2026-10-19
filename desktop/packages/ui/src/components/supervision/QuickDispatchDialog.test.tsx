@@ -162,6 +162,32 @@ describe("QuickDispatchDialog recent sessions", () => {
     axCodeClient.setDirectory(previousDirectory)
   })
 
+  test("Space on the checkbox changes the option exactly once", async () => {
+    await render()
+    const checkbox = document.querySelector<HTMLElement>('[role="checkbox"]')!
+    // keydown and keyup are separate browser tasks, so let React flush between them.
+    await act(async () => {
+      checkbox.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      checkbox.dispatchEvent(new KeyboardEvent("keyup", { key: " ", bubbles: true, cancelable: true }))
+    })
+    expect(document.querySelector<HTMLElement>('[role="button"][aria-pressed]')!.getAttribute("aria-pressed")).toBe(
+      "true",
+    )
+  })
+
+  test("Enter on the checkbox still changes the option", async () => {
+    await render()
+    const checkbox = document.querySelector<HTMLElement>('[role="checkbox"]')!
+    await act(async () => {
+      checkbox.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true, cancelable: true }))
+    })
+    expect(document.querySelector<HTMLElement>('[role="button"][aria-pressed]')!.getAttribute("aria-pressed")).toBe(
+      "true",
+    )
+  })
+
   test("queues into a running session with its own send configuration", async () => {
     live.rows[0].state = "running"
     await render()

@@ -19,6 +19,7 @@ export function openSupervisedSession(target: OpenSessionTarget): void {
   useUIStore.getState().setActiveMainTab("chat")
   useSessionUIStore.getState().setCurrentSession(target.sessionId, target.directory ?? null)
   const supervision = useSupervisionStore.getState()
+  supervision.setCompareRunGroupKey(null)
   supervision.setMissionControlOpen(false)
   supervision.setNeedsYouPopoverOpen(false)
   supervision.recordSessionVisit(target.sessionId)

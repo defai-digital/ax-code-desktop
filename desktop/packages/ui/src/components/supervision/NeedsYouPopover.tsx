@@ -83,6 +83,7 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
 
   const openMissionControl = React.useCallback(() => {
     const supervision = useSupervisionStore.getState()
+    supervision.setCompareRunGroupKey(null)
     supervision.setMissionControlOpen(true)
     supervision.setNeedsYouPopoverOpen(false)
   }, [])

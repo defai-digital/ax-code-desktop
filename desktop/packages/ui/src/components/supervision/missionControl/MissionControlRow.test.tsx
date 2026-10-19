@@ -69,6 +69,13 @@ describe("Mission Control row interaction", () => {
     expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(6)
     expect(container.textContent).toContain(row.projectLabel)
   })
+  test("double-clicking row actions does not open the session", () => {
+    render()
+    for (const button of Array.from(container.querySelectorAll("button"))) {
+      act(() => button.dispatchEvent(new MouseEvent("dblclick", { bubbles: true })))
+    }
+    expect(onOpen).not.toHaveBeenCalled()
+  })
   test.each(["permission", "question", "error", "review", "running", "idle"] as const)(
     "%s keeps a textual status and stable row identity",
     (state) => {

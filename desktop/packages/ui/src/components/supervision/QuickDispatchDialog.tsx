@@ -446,6 +446,8 @@ export const QuickDispatchDialog: React.FC = () => {
             aria-pressed={openAfter}
             onClick={() => setOpenAfter(!openAfter)}
             onKeyDown={(event) => {
+              // The checkbox activates Space on keyup; toggling here as well would cancel it out.
+              if (event.key === " " && event.target !== event.currentTarget) return
               if (event.key === " " || event.key === "Enter") {
                 event.preventDefault()
                 setOpenAfter(!openAfter)

@@ -81,4 +81,67 @@ describe("board keyboard and density interaction", () => {
     key(container.querySelector('[role="grid"]')!, "Escape")
     expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
   })
+
+  const renameInput = () =>
+    container.querySelector<HTMLInputElement>('input[aria-label="supervision.missionControl.renameWorkingSet"]')
+  const startRename = () =>
+    act(() =>
+      container.querySelector<HTMLElement>('[aria-label="supervision.missionControl.renameWorkingSet"]')!.click(),
+    )
+  const buttonByText = (text: string) =>
+    Array.from(container.querySelectorAll("button")).find((button) => button.textContent === text)
+  const setWorkingSets = () =>
+    act(() =>
+      useSupervisionStore.setState({
+        workingSets: [
+          { id: "set-a", name: "Alpha", sessionIds: ["a"] },
+          { id: "set-b", name: "Beta", sessionIds: ["b"] },
+        ],
+        activeWorkingSetId: "set-a",
+      }),
+    )
+
+  test("switching working sets cancels an open rename", () => {
+    setWorkingSets()
+    startRename()
+    expect(renameInput()?.value).toBe("Alpha")
+    const beta = buttonByText("Beta")
+    if (!beta) throw new Error("Beta working set not rendered")
+    act(() => beta.click())
+    expect(useSupervisionStore.getState().activeWorkingSetId).toBe("set-b")
+    expect(renameInput()).toBeNull()
+  })
+
+  test("switching mode and back to a working set cancels an open rename", () => {
+    setWorkingSets()
+    startRename()
+    const live = buttonByText("supervision.missionControl.filter.live")
+    if (!live) throw new Error("Live filter not rendered")
+    act(() => live.click())
+    expect(useSupervisionStore.getState().activeWorkingSetId).toBeNull()
+    const alpha = buttonByText("Alpha")
+    if (!alpha) throw new Error("Alpha working set not rendered")
+    act(() => alpha.click())
+    expect(renameInput()).toBeNull()
+  })
+
+  test("creating a working set cancels an open rename", () => {
+    setWorkingSets()
+    startRename()
+    act(() =>
+      container.querySelector<HTMLElement>('[aria-label="supervision.missionControl.newWorkingSet"]')!.click(),
+    )
+    const nameInput = container.querySelector<HTMLInputElement>(
+      'input[aria-label="supervision.missionControl.workingSetNamePlaceholder"]',
+    )!
+    act(() => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(nameInput, "Gamma")
+      nameInput.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    const create = buttonByText("supervision.missionControl.createWorkingSet")
+    if (!create) throw new Error("Create working set button not rendered")
+    act(() => create.click())
+    expect(useSupervisionStore.getState().activeWorkingSetId).not.toBe("set-a")
+    expect(renameInput()).toBeNull()
+  })
 })

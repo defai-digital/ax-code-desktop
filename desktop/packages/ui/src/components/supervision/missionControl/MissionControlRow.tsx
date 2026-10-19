@@ -52,6 +52,10 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
     onOpen(row)
   }
 
+  const handleActionDoubleClick = (event: React.MouseEvent) => {
+    event.stopPropagation()
+  }
+
   const handleCompareClick = (event: React.MouseEvent) => {
     event.stopPropagation()
     if (groupSlug) {
@@ -115,6 +119,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             <button
               type="button"
               onClick={handleCompareClick}
+              onDoubleClick={handleActionDoubleClick}
               className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
             >
               {t("supervision.missionControl.action.compare")}
@@ -124,6 +129,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             size="sm"
             className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
             onClick={handlePrimaryClick}
+            onDoubleClick={handleActionDoubleClick}
             aria-label={`${primaryLabel} \u2014 ${row.title}`}
           >
             {primaryLabel}
@@ -134,6 +140,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               aria-label={t("supervision.missionControl.action.removeFromSet")}
               title={t("supervision.missionControl.action.removeFromSet")}
               onClick={handleRemoveClick}
+              onDoubleClick={handleActionDoubleClick}
               className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
             >
               <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
