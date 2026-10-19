@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { execFileSync } from "node:child_process"
 import type { CommandExecResult } from "@/lib/api/types"
 
 const execCommandMock = vi.fn<(command: string, cwd: string) => Promise<CommandExecResult>>()
@@ -123,6 +127,30 @@ describe("continueIntegrate", () => {
     vi.resetModules()
   })
 
+  test.each([
+    { success: false, exitCode: 128, stdout: "", stderr: "fatal: unable to read index" },
+    { success: false, error: "command timed out" },
+  ])("never resets a target worktree when its final cleanliness query fails: %j", async (failure) => {
+    execCommandMock.mockImplementation(async (command: string, cwd: string) => {
+      if (command === "git status --porcelain" && cwd === "/target") return { command, ...failure }
+      return ok(command)
+    })
+    const { continueIntegrate } = await import("./integrateWorktreeCommits")
+    await continueIntegrate({
+      repoRoot: "/repo",
+      tempWorktreePath: "/tmp/wt",
+      sourceBranch: "feat",
+      targetBranch: "main",
+      cleanTargetWorktrees: ["/target"],
+      remainingCommits: ["c1"],
+      currentCommit: "c1",
+      totalCommits: 1,
+    })
+    expect(
+      execCommandMock.mock.calls.some(([command, cwd]) => cwd === "/target" && /reset|read-tree/.test(command)),
+    ).toBe(false)
+  })
+
   test("reports every commit the integration moved, not just the tail after the conflict", async () => {
     // `remainingCommits` is only what was left when the conflict stopped the run, so a resumed five-commit
     // integration reported two or three. The count is what the success toast shows.
@@ -142,4 +170,49 @@ describe("continueIntegrate", () => {
 
     expect(result).toEqual({ kind: "success", moved: 5 })
   })
+})
+
+test.each([false, true])("synchronizes the original clean tree and preserves concurrent edits: %s", async (edit) => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "ax-integrate-real-"))
+  const repo = path.join(directory, "repo")
+  const temp = path.join(directory, "integration")
+  fs.mkdirSync(repo)
+  const git = (...args: string[]) =>
+    execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim()
+  try {
+    git("init", "-b", "main")
+    git("config", "user.email", "test@example.invalid")
+    git("config", "user.name", "Integration test")
+    fs.writeFileSync(path.join(repo, "file.txt"), "base\n")
+    git("add", ".")
+    git("commit", "-m", "base")
+    git("switch", "-c", "feature")
+    fs.writeFileSync(path.join(repo, "file.txt"), "feature\n")
+    git("commit", "-am", "feature")
+    const commit = git("rev-parse", "HEAD")
+    git("switch", "main")
+    execCommandMock.mockImplementation(async (command: string, cwd: string) => {
+      if (command.startsWith("mkdir ")) return ok(command)
+      if (command.startsWith("mktemp ")) return ok(command, temp)
+      if (edit && command.startsWith("git worktree remove"))
+        fs.writeFileSync(path.join(repo, "file.txt"), "user edit\n")
+      try {
+        return ok(
+          command,
+          execFileSync("/bin/sh", ["-c", command], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }),
+        )
+      } catch (error) {
+        const e = error as { status?: number; stdout?: string; stderr?: string }
+        return { command, success: false, exitCode: e.status ?? 1, stdout: e.stdout ?? "", stderr: e.stderr ?? "" }
+      }
+    })
+    const { integrateWorktreeCommits } = await import("./integrateWorktreeCommits")
+    await expect(
+      integrateWorktreeCommits({ repoRoot: repo, sourceBranch: "feature", targetBranch: "main", commits: [commit] }),
+    ).resolves.toEqual({ kind: "success", moved: 1 })
+    expect(fs.readFileSync(path.join(repo, "file.txt"), "utf8")).toBe(edit ? "user edit\n" : "feature\n")
+    if (!edit) expect(git("status", "--porcelain")).toBe("")
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true })
+  }
 })

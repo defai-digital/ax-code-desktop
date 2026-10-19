@@ -108,6 +108,15 @@ export function parseIntegrateConflictState(raw: string | null, repoRoot: string
     sourceBranch: parsed.sourceBranch,
     targetBranch: parsed.targetBranch,
     cleanTargetWorktrees,
+    targetWorktreeHeads:
+      parsed.targetWorktreeHeads && typeof parsed.targetWorktreeHeads === "object"
+        ? Object.fromEntries(
+            Object.entries(parsed.targetWorktreeHeads).filter(
+              ([key, value]) =>
+                cleanTargetWorktrees.includes(key) && typeof value === "string" && /^[a-f0-9]{40}$/.test(value),
+            ),
+          )
+        : undefined,
     remainingCommits,
     currentCommit: parsed.currentCommit,
     totalCommits,

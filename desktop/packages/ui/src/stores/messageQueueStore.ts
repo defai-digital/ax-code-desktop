@@ -65,29 +65,28 @@ const sanitizePersistedQueues = (value: unknown): Record<string, QueuedMessage[]
   const result: Record<string, QueuedMessage[]> = {}
   for (const [sessionId, queue] of Object.entries(value as Record<string, unknown>)) {
     if (!Array.isArray(queue)) continue
-    const entries = queue.filter(
-      (entry): entry is QueuedMessage =>
-        Boolean(
-          entry &&
-            typeof entry === "object" &&
-            typeof (entry as QueuedMessage).id === "string" &&
-            typeof (entry as QueuedMessage).content === "string" &&
-            typeof (entry as QueuedMessage).createdAt === "number",
-        ),
+    const entries = queue.filter((entry): entry is QueuedMessage =>
+      Boolean(
+        entry &&
+          typeof entry === "object" &&
+          typeof (entry as QueuedMessage).id === "string" &&
+          typeof (entry as QueuedMessage).content === "string" &&
+          typeof (entry as QueuedMessage).createdAt === "number",
+      ),
     )
     if (entries.length > 0) {
       result[sessionId] = entries
     }
   }
   return result
-}// Long enough to cover the gap until the other window notices the removal through
+}
+
+// Long enough to cover the gap until the other window notices the removal through
 // its storage event, short enough that a stale claim cannot block a real retry.
 const DISPATCH_CLAIM_TTL_MS = 60_000
 
-// One token per claim call: the claim writes its own token and only wins when
-// reading that token back. Two windows racing the same entry therefore cannot
-// both win — whoever writes last is the one that reads its own token, and the
-// loser skips the dispatch.
+// Read-back detects an overwritten claim in older clients without Web Locks.
+// Cross-window exclusion requires the browser lock around the entire claim.
 const claimOwnerToken = (): string => `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
 
 const parseClaimTimestamp = (value: string | null): number | null => {
@@ -101,7 +100,7 @@ const parseClaimTimestamp = (value: string | null): number | null => {
  * edge and each would dispatch the entry; the first to claim it sends, the other
  * skips. Expired claims are pruned on the way through so the keys stay bounded.
  */
-export const claimQueuedDispatch = (messageId: string): boolean => {
+const claimQueuedDispatchInStorage = (messageId: string): boolean => {
   if (typeof window === "undefined") return true
   try {
     const storage = window.localStorage
@@ -128,6 +127,22 @@ export const claimQueuedDispatch = (messageId: string): boolean => {
     // Storage unavailable: behave as before (single-window assumption).
     return true
   }
+}
+
+/** Serialize the check/write/read across windows in the same browser origin. */
+export const claimQueuedDispatch = async (messageId: string): Promise<boolean> => {
+  if (typeof navigator !== "undefined" && navigator.locks) {
+    try {
+      return await navigator.locks.request(`${DISPATCH_CLAIM_PREFIX}${messageId}`, () =>
+        claimQueuedDispatchInStorage(messageId),
+      )
+    } catch {
+      // A refused lock is not ownership. Keep the queued entry available for retry.
+      return false
+    }
+  }
+  // Legacy/non-secure browser contexts retain best-effort storage coordination.
+  return claimQueuedDispatchInStorage(messageId)
 }
 
 export const releaseQueuedDispatchClaim = (messageId: string): void => {

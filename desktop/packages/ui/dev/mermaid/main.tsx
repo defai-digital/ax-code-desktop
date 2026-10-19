@@ -7,6 +7,7 @@ import { mermaidFixtures, largeMermaidFixture } from "../../src/components/chat/
 import { mermaidCapabilities, type MermaidRequest } from "../../src/components/chat/mermaidProtocol"
 import { renderMermaidDiagram } from "../../src/components/chat/mermaidRenderer"
 import { mermaidSvgToPng } from "../../src/components/chat/mermaidExport"
+import { sanitizeMermaidSvg } from "../../src/components/chat/sanitizeSvg"
 import "../../src/index.css"
 
 function App() {
@@ -72,6 +73,37 @@ function App() {
         }
         setResults([...entries])
       }
+    }
+    try {
+      const before = getComputedStyle(document.body).display
+      const image = new Image()
+      image.src = `data:image/svg+xml,${encodeURIComponent(sanitizeMermaidSvg('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><style>body{display:none!important}</style><rect width="10" height="10" fill="red"/></svg>'))}`
+      document.body.append(image)
+      try {
+        await image.decode()
+        if (getComputedStyle(document.body).display !== before) throw new Error("Diagram CSS escaped its image")
+        entries.push("PASS SVG stylesheet isolation")
+      } finally {
+        image.remove()
+      }
+      const host = document.createElementNS("http://www.w3.org/2000/svg", "svg")
+      host.innerHTML = '<rect id="hostIcon" width="10" height="10" fill="red"/>'
+      document.body.append(host)
+      try {
+        image.src = `data:image/svg+xml,${encodeURIComponent(sanitizeMermaidSvg('<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><use href="#hostIcon"/></svg>'))}`
+        await image.decode()
+        const canvas = document.createElement("canvas")
+        canvas.width = canvas.height = 10
+        const context = canvas.getContext("2d")!
+        context.drawImage(image, 0, 0)
+        if (context.getImageData(0, 0, 10, 10).data.some((value, index) => index % 4 === 3 && value !== 0))
+          throw new Error("Diagram referenced a host fragment")
+        entries.push("PASS SVG fragment isolation")
+      } finally {
+        host.remove()
+      }
+    } catch (error) {
+      entries.push(`FAIL SVG isolation: ${String(error)}`)
     }
     let ticks = 0
     const timer = setInterval(() => ticks++, 10)

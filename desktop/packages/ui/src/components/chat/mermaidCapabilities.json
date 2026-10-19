@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "renderers": { "beautiful-mermaid": "1.1.3", "mermaid": "12.2.0" },
   "maxSourceCharacters": 20000,
   "maxSourceLines": 500,

@@ -171,3 +171,30 @@ describe("Mermaid rendering lifecycle", () => {
     await expect(render(request(), signal())).resolves.toContain("<svg")
   })
 })
+
+test("recovers worker rendering after an official layout stalls without overlapping official jobs", async () => {
+  const worker = new FakeWorker()
+  let release!: (svg: string) => void
+  const official = vi.fn(
+    () =>
+      new Promise<string>((resolve) => {
+        release = resolve
+      }),
+  )
+  const render = createMermaidRenderer({
+    createWorker: () => worker as unknown as Worker,
+    renderOfficial: official,
+    timeoutMs: 5,
+  })
+  const stalled = render(request(mermaidFixtures.pie), signal())
+  const workerResult = render(request(), signal())
+  await expect(stalled).rejects.toMatchObject({ code: "timeout" })
+  await expect(workerResult).resolves.toContain("<svg")
+  await expect(render(request(mermaidFixtures.gantt), signal())).rejects.toMatchObject({ code: "unavailable" })
+  expect(official).toHaveBeenCalledTimes(1)
+  release('<svg viewBox="0 0 1 1"/>')
+  await Promise.resolve()
+  await Promise.resolve()
+  official.mockResolvedValue('<svg viewBox="0 0 1 1"/>')
+  await expect(render(request(mermaidFixtures.gantt), signal())).resolves.toContain("<svg")
+})

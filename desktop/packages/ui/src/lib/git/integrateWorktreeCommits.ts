@@ -23,6 +23,8 @@ export type IntegrateInProgress = {
   targetBranch: string
   /** Worktrees on target branch that were clean pre-integration; safe to fast-sync after ref update. */
   cleanTargetWorktrees: string[]
+  /** Original clean index/tree baselines, captured before advancing the shared branch. */
+  targetWorktreeHeads?: Record<string, string>
   remainingCommits: string[]
   currentCommit: string
   /**
@@ -74,6 +76,7 @@ type GitWorktreeEntry = { path: string; branchRef: string | null }
 
 async function listGitWorktrees(repoRoot: string): Promise<GitWorktreeEntry[]> {
   const out = await execCommand("git worktree list --porcelain", repoRoot)
+  assertCommandCompleted(out, "Unable to list worktrees")
   const lines = (out.stdout || "").split(/\r?\n/)
 
   const entries: GitWorktreeEntry[] = []
@@ -99,7 +102,7 @@ async function computeCleanWorktreesToSync(args: {
   repoRoot: string
   targetBranch: string
   excludePaths: string[]
-}): Promise<string[]> {
+}): Promise<{ paths: string[]; heads: Record<string, string> }> {
   const targetRef = `refs/heads/${args.targetBranch}`
   const exclude = new Set(args.excludePaths)
   const entries = await listGitWorktrees(args.repoRoot)
@@ -109,29 +112,43 @@ async function computeCleanWorktreesToSync(args: {
     .filter((p) => p && !exclude.has(p))
 
   const clean: string[] = []
+  const heads: Record<string, string> = {}
   for (const path of candidates) {
     const status = await execCommand("git status --porcelain", path)
-    if (!stdoutText(status)) {
-      clean.push(path)
+    if (isOk(status) && !stdoutText(status)) {
+      const head = await execCommand("git rev-parse HEAD", path)
+      if (isOk(head) && /^[a-f0-9]{40}$/.test(stdoutText(head))) {
+        clean.push(path)
+        heads[path] = stdoutText(head)
+      }
     }
   }
-  return clean
+  return { paths: clean, heads }
 }
 
-async function syncCleanTargetWorktrees(paths: string[]): Promise<void> {
+async function syncCleanTargetWorktrees(
+  paths: string[],
+  heads: Record<string, string> = {},
+  targetBranch: string,
+): Promise<void> {
   for (const path of paths) {
-    // Re-check cleanliness right before resetting: `paths` was computed once,
-    // up front, but integration can pause on a conflict for an arbitrary
-    // amount of user time before this runs (via continueIntegrate). A
-    // worktree that was clean at that snapshot may have picked up
-    // uncommitted work since, and `git reset --hard` would silently discard
-    // it. Skip any worktree that is no longer clean instead of blindly
-    // resetting it.
     const status = await execCommand("git status --porcelain", path).catch(() => undefined)
-    if (!status || stdoutText(status)) {
-      continue
-    }
-    await execCommand("git reset --hard", path).catch(() => undefined)
+    if (!status || !isOk(status)) continue
+    const baseline = heads[path]
+    // Old persisted conflicts lack a trustworthy baseline; leave those trees intact.
+    if (!baseline || !/^[a-f0-9]{40}$/.test(baseline)) continue
+    const branch = await execCommand("git symbolic-ref --quiet HEAD", path)
+    if (!isOk(branch) || stdoutText(branch) !== `refs/heads/${targetBranch}`) continue
+    // HEAD already follows the advanced shared branch, so plain status reports the
+    // old index as a staged reverse diff. Compare both index and files to the
+    // captured clean commit instead, and refuse untracked files or failed queries.
+    const index = await execCommand(`git diff --cached --quiet ${baseline} --`, path)
+    const files = await execCommand(`git diff --quiet ${baseline} --`, path)
+    const untracked = await execCommand("git ls-files --others --exclude-standard", path)
+    if (!isOk(index) || !isOk(files) || !isOk(untracked) || stdoutText(untracked)) continue
+    // Git's two-tree update refuses conflicting edits, including ones made after
+    // the checks above. Never use a destructive hard reset for synchronization.
+    await execCommand(`git read-tree -u -m ${baseline} HEAD`, path).catch(() => undefined)
   }
 }
 
@@ -278,18 +295,20 @@ export async function integrateWorktreeCommits(plan: IntegratePlan): Promise<Int
 
   let remaining: string[] = []
   try {
-    await maybeFastForwardUpstream(tmpDir)
-
-    const clean = await execCommand("git status --porcelain", tmpDir)
-    if (stdoutText(clean)) {
-      throw new Error("Target branch has local changes; abort integration and retry")
-    }
-
-    const cleanTargetWorktrees = await computeCleanWorktreesToSync({
+    const targetSnapshot = await computeCleanWorktreesToSync({
       repoRoot: plan.repoRoot,
       targetBranch: plan.targetBranch,
       excludePaths: [tmpDir],
-    }).catch(() => [])
+    }).catch(() => ({ paths: [], heads: {} }))
+    const cleanTargetWorktrees = targetSnapshot.paths
+    const targetWorktreeHeads = targetSnapshot.heads
+    await maybeFastForwardUpstream(tmpDir)
+
+    const clean = await execCommand("git status --porcelain", tmpDir)
+    assertCommandCompleted(clean, "Unable to verify integration worktree status")
+    if (stdoutText(clean)) {
+      throw new Error("Target branch has local changes; abort integration and retry")
+    }
 
     remaining = [...plan.commits]
     while (remaining.length > 0) {
@@ -312,6 +331,7 @@ export async function integrateWorktreeCommits(plan: IntegratePlan): Promise<Int
             sourceBranch: plan.sourceBranch,
             targetBranch: plan.targetBranch,
             cleanTargetWorktrees,
+            targetWorktreeHeads,
             remainingCommits: remaining,
             currentCommit: sha,
             totalCommits: plan.commits.length,
@@ -324,7 +344,7 @@ export async function integrateWorktreeCommits(plan: IntegratePlan): Promise<Int
     }
 
     await removeTempWorktree(plan.repoRoot, tmpDir)
-    await syncCleanTargetWorktrees(cleanTargetWorktrees).catch(() => undefined)
+    await syncCleanTargetWorktrees(cleanTargetWorktrees, targetWorktreeHeads, plan.targetBranch).catch(() => undefined)
     return { kind: "success", moved: plan.commits.length }
   } catch (e) {
     // Cleanup on any non-conflict error.
@@ -376,6 +396,7 @@ export async function continueIntegrate(state: IntegrateInProgress): Promise<Int
           sourceBranch: state.sourceBranch,
           targetBranch: state.targetBranch,
           cleanTargetWorktrees: state.cleanTargetWorktrees,
+          targetWorktreeHeads: state.targetWorktreeHeads,
           remainingCommits: still,
           currentCommit: sha,
           totalCommits: state.totalCommits,
@@ -387,6 +408,8 @@ export async function continueIntegrate(state: IntegrateInProgress): Promise<Int
   }
 
   await removeTempWorktree(state.repoRoot, state.tempWorktreePath)
-  await syncCleanTargetWorktrees(state.cleanTargetWorktrees).catch(() => undefined)
+  await syncCleanTargetWorktrees(state.cleanTargetWorktrees, state.targetWorktreeHeads, state.targetBranch).catch(
+    () => undefined,
+  )
   return { kind: "success", moved: state.totalCommits }
 }

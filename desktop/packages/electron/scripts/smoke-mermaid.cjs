@@ -38,7 +38,7 @@ async function run() {
     throw new Error(`Timed out: ${code}\n${await evaluate("document.body.innerText")}\n${errors.join("\n")}`)
   }
   await window.loadURL(`${PACKAGED_RENDERER_ORIGIN}/index.html`)
-  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] svg"))')
+  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] img"))')
   if (evidence) fs.writeFileSync(path.join(evidence, "pie-light.png"), (await window.webContents.capturePage()).toPNG())
   await evaluate(
     `Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Run render/export matrix").click()`,
@@ -50,16 +50,17 @@ async function run() {
   const results = await evaluate(`document.querySelector('[aria-label="Verification results"]').textContent`)
   console.log(results)
   assert.ok(!results.includes("FAIL"), results)
-  assert.equal(results.split("\n").length, 39)
+  assert.equal(results.split("\n").length, 41)
   await evaluate(
     `Array.from(document.querySelectorAll("label")).find(l => l.textContent.trim() === "Dark theme").querySelector("input").click()`,
   )
-  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] svg"))')
-  await waitFor('Boolean(document.querySelector("[data-mermaid-theme=dark] [data-markdown=mermaid] svg"))')
-  const darkTitleFill = await evaluate(
-    'getComputedStyle(document.querySelector("[data-markdown=mermaid] svg .pieTitleText")).fill',
+  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] img"))')
+  await waitFor('Boolean(document.querySelector("[data-mermaid-theme=dark] [data-markdown=mermaid] img"))')
+  await waitFor('document.querySelector("[data-markdown=mermaid] img")?.naturalWidth > 0')
+  const darkImageSource = await evaluate(
+    'decodeURIComponent(document.querySelector("[data-markdown=mermaid] img").src)',
   )
-  assert.notEqual(darkTitleFill, "rgb(0, 0, 0)", "Dark-theme title must retain its text styling")
+  assert.ok(darkImageSource.includes("pieTitleText"), "Dark-theme image must preserve its SVG title styling")
   if (evidence) fs.writeFileSync(path.join(evidence, "pie-dark.png"), (await window.webContents.capturePage()).toPNG())
   await evaluate(
     `Array.from(document.querySelectorAll("label")).find(l => l.textContent.trim() === "Fullscreen styles").querySelector("input").click()`,
@@ -95,9 +96,9 @@ async function run() {
   await downloaded
   assert.ok(!nativeImage.createFromPath(downloadPath).isEmpty(), "Downloaded PNG must decode")
   await evaluate(`Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Show source").click()`)
-  assert.equal(await evaluate('Boolean(document.querySelector("[data-markdown=mermaid] svg"))'), false)
+  assert.equal(await evaluate('Boolean(document.querySelector("[data-markdown=mermaid] img"))'), false)
   await evaluate(`Array.from(document.querySelectorAll("button")).find(b => b.textContent === "Show diagram").click()`)
-  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] svg"))')
+  await waitFor('Boolean(document.querySelector("[data-markdown=mermaid] img"))')
   await evaluate(
     `Array.from(document.querySelectorAll("label")).find(l => l.textContent.trim() === "ASCII mode").querySelector("input").click()`,
   )

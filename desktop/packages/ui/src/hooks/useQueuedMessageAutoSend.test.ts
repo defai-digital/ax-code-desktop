@@ -126,8 +126,9 @@ const {
   useQueuedMessageAutoSend,
 } = await import("./useQueuedMessageAutoSend")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
-const { useMessageQueueStore, claimQueuedDispatch, releaseQueuedDispatchClaim } =
-  await import("@/stores/messageQueueStore")
+const { useMessageQueueStore, claimQueuedDispatch, releaseQueuedDispatchClaim } = await import(
+  "@/stores/messageQueueStore"
+)
 
 describe("shouldDispatchQueuedAutoSend", () => {
   test("dispatches only after an active session becomes idle", () => {
@@ -411,6 +412,36 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     container.remove()
   })
 
+  test("keeps the edge armed when an error hold arrives while claiming", async () => {
+    useMessageQueueStore
+      .getState()
+      .addToQueue("session-a", {
+        content: "queued message",
+        sendConfig: { providerID: "provider-1", modelID: "model-1" },
+      })
+    claimHookRef.current = () => {
+      claimHookRef.current = null
+      useSyncNotificationStore
+        .getState()
+        .append({
+          type: "error",
+          session: "session-a",
+          time: Date.now(),
+          viewed: false,
+          error: { message: "late hold" },
+        })
+    }
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(0)
+    await React.act(async () => {
+      useSyncNotificationStore.getState().markSessionViewed("session-a")
+    })
+    expect(sendMessageCalls).toHaveLength(1)
+  })
+
   test("sends the queued message when the error hold lifts without another status change", async () => {
     useMessageQueueStore.getState().addToQueue("session-a", {
       content: "queued message",
@@ -502,7 +533,12 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
     expect(sendMessageCalls).toHaveLength(1)
     // The failed entry is back at the head, ready for the next edge.
-    expect(useMessageQueueStore.getState().getQueueForSession("session-a").map((m) => m.id)).toEqual([queued.id])
+    expect(
+      useMessageQueueStore
+        .getState()
+        .getQueueForSession("session-a")
+        .map((m) => m.id),
+    ).toEqual([queued.id])
 
     // Next idle edge: the retry must carry the same id so the server can deduplicate.
     sendShouldFail = false
@@ -566,14 +602,14 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     }
   })
 
-  test("pins the retry id on the entry even when the claim is lost", async () => {
+  test("leaves the retry identity untouched when the claim is lost", async () => {
     useMessageQueueStore.getState().addToQueue("session-a", {
       content: "queued message",
       sendConfig: { providerID: "provider-1", modelID: "model-1" },
     })
     const [claimed] = useMessageQueueStore.getState().getQueueForSession("session-a")
     // Another window owns the entry; this one must not send it.
-    expect(claimQueuedDispatch(claimed.id)).toBe(true)
+    expect(await claimQueuedDispatch(claimed.id)).toBe(true)
 
     render()
     statusState.current = { "session-a": { type: "idle" } }
@@ -581,11 +617,9 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
 
     expect(sendMessageCalls).toHaveLength(0)
-    // The retry id is persisted before the claim, so if the other window (or a
-    // later retry here) dispatches the entry again it sends the SAME id and the
-    // server deduplicates instead of delivering the prompt twice.
+    // A losing window must not persist its stale queue snapshot or mint an id.
     const [after] = useMessageQueueStore.getState().getQueueForSession("session-a")
-    expect(after.messageId).toMatch(/^msg_/)
+    expect(after.messageId).toBeUndefined()
 
     releaseQueuedDispatchClaim(claimed.id)
     statusState.current = { "session-a": { type: "busy" } }
@@ -595,7 +629,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     await React.act(async () => {})
 
     expect(sendMessageCalls).toHaveLength(1)
-    expect(sendOptionsOf(0).messageId).toBe(after.messageId)
+    expect(sendOptionsOf(0).messageId).toMatch(/^msg_/)
   })
 
   test("a failed wake-up send waits for the next edge instead of retrying in a loop", async () => {
@@ -682,7 +716,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     })
     const [claimed] = useMessageQueueStore.getState().getQueueForSession("session-a")
     // Another window owns this entry and sends it.
-    expect(claimQueuedDispatch(claimed.id)).toBe(true)
+    expect(await claimQueuedDispatch(claimed.id)).toBe(true)
 
     render()
     statusState.current = { "session-a": { type: "idle" } }

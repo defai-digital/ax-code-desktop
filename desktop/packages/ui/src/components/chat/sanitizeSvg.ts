@@ -1,8 +1,8 @@
 import DOMPurify from "dompurify"
 
 // Defense-in-depth for LLM-generated mermaid diagrams: the SVG returned by
-// either renderer is untrusted input that gets injected via
-// dangerouslySetInnerHTML, so sanitize it against the SVG profile before use.
+// either renderer is untrusted input. Sanitize before image display and export;
+// the image document also isolates diagram styles and fragment identifiers.
 export const sanitizeMermaidSvg = (svg: string): string => {
   const fragment = DOMPurify.sanitize(svg, {
     USE_PROFILES: { svg: true, svgFilters: true },
@@ -15,8 +15,8 @@ export const sanitizeMermaidSvg = (svg: string): string => {
     /\\|(?:image-set|cross-fade|paint|image)\s*\(/i.test(value)
       ? ""
       : value
-          .replace(/@import\b[^;]*(?:;|$)/gi, "")
-          .replace(/@font-face\s*\{[^}]*\}/gi, "")
+          .replace(/@import\b[^;]*(?:;|$)/gi, " ")
+          .replace(/@font-face\s*\{[^}]*\}/gi, " ")
           .replace(/url\(\s*(['"]?)(.*?)\1\s*\)/gi, (_match, _quote: string, url: string) =>
             /^#[\w:.-]+$/.test(url.trim()) ? `url(${url.trim()})` : "none",
           )

@@ -93,3 +93,8 @@ describe("sanitizeMermaidSvg", () => {
     expect(svg).toContain("@keyframes dash")
   })
 })
+
+test("does not reassemble a stylesheet import while removing malformed CSS", () => {
+  const svg = sanitizeMermaidSvg('<svg><style>@imp@import "x";ort "https://example.com/style.css";</style></svg>')
+  expect(svg).not.toMatch(/@import\s+["']/i)
+})

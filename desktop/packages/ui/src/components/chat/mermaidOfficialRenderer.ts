@@ -70,6 +70,8 @@ export async function renderOfficialMermaid(request: MermaidRequest, signal: Abo
   container.style.cssText = "position:fixed;left:-100000px;top:0;visibility:hidden;pointer-events:none"
   container.setAttribute("aria-hidden", "true")
   document.body.append(container)
+  const removeContainer = () => container.remove()
+  signal.addEventListener("abort", removeContainer, { once: true })
   try {
     const { svg } = await mermaid.render(`ax-mermaid-${++sequence}`, request.source, container)
     signal.throwIfAborted()
@@ -78,6 +80,7 @@ export async function renderOfficialMermaid(request: MermaidRequest, signal: Abo
     if (signal.aborted) throw signal.reason
     throw new MermaidRenderError("render", error instanceof Error ? error.message : String(error))
   } finally {
+    signal.removeEventListener("abort", removeContainer)
     container.remove()
   }
 }

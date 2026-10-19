@@ -32,6 +32,7 @@ export function createMermaidRenderer({
   let active = false
   let worker: Worker | undefined
   let sequence = 0
+  let officialPending = false
 
   function inWorker(request: MermaidRequest, signal: AbortSignal): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -80,6 +81,53 @@ export function createMermaidRenderer({
     })
   }
 
+  function inOfficial(request: MermaidRequest, signal: AbortSignal): Promise<string> {
+    // A deadline can release the queue, but cannot terminate DOM-dependent work.
+    // Do not overlap global Mermaid configuration until that work really settles.
+    if (officialPending) return Promise.reject(new MermaidRenderError("unavailable"))
+    officialPending = true
+    const controller = new AbortController()
+    return new Promise((resolve, reject) => {
+      let settled = false
+      const finish = (error?: unknown, output?: string) => {
+        if (settled) return
+        settled = true
+        clearTimeout(timer)
+        signal.removeEventListener("abort", abort)
+        if (error) reject(error)
+        else resolve(output ?? "")
+      }
+      const abort = () => {
+        controller.abort(signal.reason)
+        finish(signal.reason)
+      }
+      const timer = setTimeout(() => {
+        const error = new MermaidRenderError("timeout")
+        controller.abort(error)
+        finish(error)
+      }, timeoutMs)
+      signal.addEventListener("abort", abort, { once: true })
+      let operation: Promise<string>
+      try {
+        operation = renderOfficial(request, controller.signal)
+      } catch (error) {
+        officialPending = false
+        finish(error)
+        return
+      }
+      void operation.then(
+        (output) => {
+          officialPending = false
+          finish(undefined, output)
+        },
+        (error) => {
+          officialPending = false
+          finish(error)
+        },
+      )
+    })
+  }
+
   async function drain() {
     if (active) return
     active = true
@@ -95,7 +143,7 @@ export function createMermaidRenderer({
             output =
               capability.renderer === "beautiful-mermaid"
                 ? await inWorker(job.request, job.signal)
-                : await renderOfficial(job.request, job.signal)
+                : await inOfficial(job.request, job.signal)
             job.signal.throwIfAborted()
             if (job.request.mode === "svg") output = sanitizeMermaidSvg(output)
             if (!output || (job.request.mode === "svg" && !output.includes("<svg")))

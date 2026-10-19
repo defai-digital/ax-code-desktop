@@ -10,12 +10,14 @@ const isCherryPickInProgressMock = vi.fn()
 const getIntegrateConflictDetailsMock = vi.fn()
 const readIntegrateConflictStateMock = vi.fn()
 const execCommandMock = vi.fn()
+const continueIntegrateMock = vi.fn()
+const abortIntegrateMock = vi.fn()
 
 vi.doMock("@/lib/git/integrateWorktreeCommits", () => ({
   computeIntegratePlan: computeIntegratePlanMock,
   integrateWorktreeCommits: integrateWorktreeCommitsMock,
-  abortIntegrate: vi.fn(),
-  continueIntegrate: vi.fn(),
+  abortIntegrate: abortIntegrateMock,
+  continueIntegrate: continueIntegrateMock,
   getIntegrateConflictDetails: getIntegrateConflictDetailsMock,
   isCherryPickInProgress: isCherryPickInProgressMock,
 }))
@@ -53,6 +55,8 @@ describe("IntegrateCommitsSection plan failure", () => {
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
+    continueIntegrateMock.mockReset()
+    abortIntegrateMock.mockReset()
     computeIntegratePlanMock.mockReset()
     integrateWorktreeCommitsMock.mockReset()
     execCommandMock.mockReset()
@@ -73,17 +77,48 @@ describe("IntegrateCommitsSection plan failure", () => {
     vi.resetModules()
   })
 
+  test("serializes Continue and Abort while a conflict operation is pending", async () => {
+    computeIntegratePlanMock.mockResolvedValue({ ...baseProps, commits: [] })
+    readIntegrateConflictStateMock.mockReturnValue({
+      repoRoot: "/repo",
+      sourceBranch: "feat",
+      targetBranch: "main",
+      tempWorktreePath: "/tmp/integrate",
+      currentCommit: "abc",
+      remainingCommits: ["abc"],
+      cleanTargetWorktrees: [],
+      totalCommits: 1,
+    })
+    isCherryPickInProgressMock.mockResolvedValue(true)
+    getIntegrateConflictDetailsMock.mockResolvedValue({ unmergedFiles: ["conflict.txt"] })
+    continueIntegrateMock.mockReturnValue(new Promise(() => {}))
+    await React.act(async () => {
+      root.render(
+        <I18nProvider>
+          <IntegrateCommitsSection {...baseProps} />
+        </I18nProvider>,
+      )
+    })
+    const buttons = [...container.querySelectorAll("button")]
+    const next = buttons.find((button) => button.textContent?.trim() === "Continue")!
+    const abort = buttons.find((button) => button.textContent?.trim() === "Abort")!
+    expect(next).toBeDefined()
+    await React.act(async () => {
+      next.click()
+      next.click()
+      abort.click()
+    })
+    expect(continueIntegrateMock).toHaveBeenCalledTimes(1)
+    expect(abortIntegrateMock).not.toHaveBeenCalled()
+    expect(next.disabled).toBe(true)
+    expect(abort.disabled).toBe(true)
+  })
+
   test("shows a check-failed message instead of a false 'no commits to move'", async () => {
     computeIntegratePlanMock.mockRejectedValue(new Error("Unable to list commits to move (Unsupported command)"))
 
     await React.act(async () => {
-      root.render(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(IntegrateCommitsSection, baseProps),
-        ),
-      )
+      root.render(React.createElement(I18nProvider, null, React.createElement(IntegrateCommitsSection, baseProps)))
     })
 
     expect(container.textContent).toContain("Unable to check commits to move")
@@ -99,13 +134,7 @@ describe("IntegrateCommitsSection plan failure", () => {
     })
 
     await React.act(async () => {
-      root.render(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(IntegrateCommitsSection, baseProps),
-        ),
-      )
+      root.render(React.createElement(I18nProvider, null, React.createElement(IntegrateCommitsSection, baseProps)))
     })
 
     expect(container.textContent).toContain("No commits to move")
@@ -131,13 +160,7 @@ describe("IntegrateCommitsSection plan failure", () => {
     getIntegrateConflictDetailsMock.mockResolvedValue({ unmergedFiles: ["conflict.txt"] })
 
     await React.act(async () => {
-      root.render(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(IntegrateCommitsSection, baseProps),
-        ),
-      )
+      root.render(React.createElement(I18nProvider, null, React.createElement(IntegrateCommitsSection, baseProps)))
     })
     await React.act(async () => {})
 
@@ -170,13 +193,7 @@ describe("IntegrateCommitsSection plan failure", () => {
     )
 
     await React.act(async () => {
-      root.render(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(IntegrateCommitsSection, baseProps),
-        ),
-      )
+      root.render(React.createElement(I18nProvider, null, React.createElement(IntegrateCommitsSection, baseProps)))
     })
 
     const buttons = () => Array.from(container.querySelectorAll("button"))
@@ -233,13 +250,7 @@ describe("IntegrateCommitsSection plan failure", () => {
     getIntegrateConflictDetailsMock.mockResolvedValue({ unmergedFiles: ["conflict.txt"] })
 
     await React.act(async () => {
-      root.render(
-        React.createElement(
-          I18nProvider,
-          null,
-          React.createElement(IntegrateCommitsSection, baseProps),
-        ),
-      )
+      root.render(React.createElement(I18nProvider, null, React.createElement(IntegrateCommitsSection, baseProps)))
     })
     await React.act(async () => {})
 

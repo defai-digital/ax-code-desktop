@@ -72,6 +72,8 @@ export const IntegrateCommitsSection: React.FC<{
   )
 
   const [ui, setUi] = React.useState<IntegrateUiState>({ kind: "idle" })
+  const conflictOperationRef = React.useRef(false)
+  const [conflictOperationPending, setConflictOperationPending] = React.useState(false)
   const [showAllCommits, setShowAllCommits] = React.useState(false)
   const [commitSummaries, setCommitSummaries] = React.useState<Array<{ sha: string; short: string; subject: string }>>(
     [],
@@ -131,8 +133,7 @@ export const IntegrateCommitsSection: React.FC<{
     // makes the order of the two updates irrelevant — a plan that lands late must not replace the
     // conflict view, or Move becomes clickable again over a worktree that still holds the
     // half-finished cherry-pick.
-    const keepPanelOwner = (state: IntegrateUiState): boolean =>
-      state.kind === "conflict" || state.kind === "running"
+    const keepPanelOwner = (state: IntegrateUiState): boolean => state.kind === "conflict" || state.kind === "running"
     setUi({ kind: "loading" })
     void (async () => {
       try {
@@ -325,43 +326,57 @@ export const IntegrateCommitsSection: React.FC<{
   }, [ui, onRefresh, repoRoot, sourceBranch, targetBranch, currentSessionId, t])
 
   const handleAbort = React.useCallback(async () => {
-    if (ui.kind !== "conflict") return
+    if (ui.kind !== "conflict" || conflictOperationRef.current) return
+    conflictOperationRef.current = true
+    setConflictOperationPending(true)
     try {
-      await abortIntegrate(ui.state)
-    } catch (e) {
-      // The cherry-pick is still in progress; switching to "ready" here told
-      // the user it was over and hid the conflict state they still need.
-      const message = e instanceof Error ? e.message : String(e)
-      toast.error(t("gitView.toast.abortOperationFailed"), { description: message })
-      return
+      try {
+        await abortIntegrate(ui.state)
+      } catch (e) {
+        // The cherry-pick is still in progress; switching to "ready" here told
+        // the user it was over and hid the conflict state they still need.
+        const message = e instanceof Error ? e.message : String(e)
+        toast.error(t("gitView.toast.abortOperationFailed"), { description: message })
+        return
+      }
+      toast.message(t("gitView.integrate.cherryPickAbortedToast"))
+      clearIntegrateConflictState(currentSessionId)
+      const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
+      if (next) setUi({ kind: "ready", plan: next })
+      else setUi({ kind: "idle" })
+    } finally {
+      conflictOperationRef.current = false
+      setConflictOperationPending(false)
     }
-    toast.message(t("gitView.integrate.cherryPickAbortedToast"))
-    clearIntegrateConflictState(currentSessionId)
-    const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
-    if (next) setUi({ kind: "ready", plan: next })
-    else setUi({ kind: "idle" })
   }, [ui, repoRoot, sourceBranch, targetBranch, currentSessionId, t])
 
   const handleContinue = React.useCallback(async () => {
-    if (ui.kind !== "conflict") return
+    if (ui.kind !== "conflict" || conflictOperationRef.current) return
+    conflictOperationRef.current = true
+    setConflictOperationPending(true)
     try {
-      const result = await continueIntegrate(ui.state)
-      if (result.kind === "success") {
-        toast.success(t("gitView.integrate.cherryPickFinishedToast"))
-        const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
-        if (next) setUi({ kind: "ready", plan: next })
-        else setUi({ kind: "idle" })
-        clearIntegrateConflictState(currentSessionId)
-        onRefresh?.()
-        return
+      try {
+        const result = await continueIntegrate(ui.state)
+        if (result.kind === "success") {
+          toast.success(t("gitView.integrate.cherryPickFinishedToast"))
+          const next = await computeIntegratePlan({ repoRoot, sourceBranch, targetBranch }).catch(() => null)
+          if (next) setUi({ kind: "ready", plan: next })
+          else setUi({ kind: "idle" })
+          clearIntegrateConflictState(currentSessionId)
+          onRefresh?.()
+          return
+        }
+        if (result.kind === "conflict") {
+          setUi({ kind: "conflict", state: result.state, details: result.details })
+          saveIntegrateConflictState(currentSessionId, result.state)
+        }
+      } catch (e) {
+        const message = e instanceof Error ? e.message : String(e)
+        toast.error(t("gitView.integrate.cherryPickContinueFailedToast"), { description: message })
       }
-      if (result.kind === "conflict") {
-        setUi({ kind: "conflict", state: result.state, details: result.details })
-        saveIntegrateConflictState(currentSessionId, result.state)
-      }
-    } catch (e) {
-      const message = e instanceof Error ? e.message : String(e)
-      toast.error(t("gitView.integrate.cherryPickContinueFailedToast"), { description: message })
+    } finally {
+      conflictOperationRef.current = false
+      setConflictOperationPending(false)
     }
   }, [ui, repoRoot, sourceBranch, targetBranch, onRefresh, currentSessionId, t])
 
@@ -546,14 +561,20 @@ export const IntegrateCommitsSection: React.FC<{
               )}
             </div>
             <div className="flex items-center gap-2 pt-1">
-              <Button size="sm" variant="ghost" className="typography-meta" onClick={() => void handleAbort()}>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="typography-meta"
+                disabled={conflictOperationPending}
+                onClick={() => void handleAbort()}
+              >
                 {t("gitView.operation.abort")}
               </Button>
               <Button
                 size="sm"
                 variant="secondary"
                 className="typography-meta gap-1"
-                disabled={!currentSessionId}
+                disabled={!currentSessionId || conflictOperationPending}
                 onClick={() => void handleResolveWithAi({ state: ui.state, details: ui.details }, false)}
               >
                 <Icon name="sparkling" className="size-3.5" />
@@ -563,12 +584,18 @@ export const IntegrateCommitsSection: React.FC<{
                 size="sm"
                 variant="secondary"
                 className="typography-meta gap-1"
+                disabled={conflictOperationPending}
                 onClick={() => void handleResolveWithAi({ state: ui.state, details: ui.details }, true)}
               >
                 <Icon name="sparkling" className="size-3.5" />
                 {t("gitView.integrate.newSession")}
               </Button>
-              <Button size="sm" className="typography-meta" onClick={() => void handleContinue()}>
+              <Button
+                size="sm"
+                className="typography-meta"
+                disabled={conflictOperationPending}
+                onClick={() => void handleContinue()}
+              >
                 {t("gitView.operation.continue")}
               </Button>
             </div>

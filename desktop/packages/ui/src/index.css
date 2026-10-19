@@ -1175,13 +1175,13 @@ html:not(.dark) .chat-scroll {
   background: transparent;
 }
 
-[data-markdown="mermaid-block"] [data-markdown="mermaid"] svg {
+[data-markdown="mermaid-block"] [data-markdown="mermaid"] :is(svg, img) {
   min-width: 0;
   max-width: none !important;
   height: auto !important;
 }
 
-[data-markdown="mermaid-block"] svg {
+[data-markdown="mermaid-block"] :is(svg, img) {
   display: block;
   background: var(--surface-elevated);
 }
@@ -1235,7 +1235,7 @@ html:not(.dark) .chat-scroll {
   background: transparent;
 }
 
-.markdown-mermaid-fullscreen [data-markdown="mermaid-block"] svg {
+.markdown-mermaid-fullscreen [data-markdown="mermaid-block"] :is(svg, img) {
   width: auto !important;
   height: auto !important;
   max-width: none !important;

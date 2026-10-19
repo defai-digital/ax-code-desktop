@@ -219,7 +219,10 @@ export function MermaidBlock({
         ) : mode === "ascii" ? (
           <pre data-markdown="mermaid-ascii">{output}</pre>
         ) : (
-          <div data-markdown="mermaid" dangerouslySetInnerHTML={{ __html: output }} />
+          <div data-markdown="mermaid">
+            {/* SVG image documents isolate styles, IDs and fragment references from the app. */}
+            <img src={`data:image/svg+xml;charset=utf-8,${encodeURIComponent(output)}`} alt={source} />
+          </div>
         )}
       </div>
     </div>

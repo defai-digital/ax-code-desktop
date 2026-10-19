@@ -77,22 +77,20 @@ export const sendQueuedAutoSendPayload = (
   resolved: ResolvedQueuedSendConfig,
   messageId: string,
 ) => {
-  return useSessionUIStore
-    .getState()
-    .sendMessage(
-      payload.primaryText,
-      resolved.providerID,
-      resolved.modelID,
-      resolved.agent,
-      payload.primaryAttachments,
-      payload.agentMentionName,
-      undefined,
-      resolved.variant,
-      "normal",
-      // The entry's retry id makes a repeated, ambiguous or duplicate send of this
-      // entry idempotent on the server instead of delivering the prompt twice.
-      { sessionId, messageId },
-    )
+  return useSessionUIStore.getState().sendMessage(
+    payload.primaryText,
+    resolved.providerID,
+    resolved.modelID,
+    resolved.agent,
+    payload.primaryAttachments,
+    payload.agentMentionName,
+    undefined,
+    resolved.variant,
+    "normal",
+    // The entry's retry id makes a repeated, ambiguous or duplicate send of this
+    // entry idempotent on the server instead of delivering the prompt twice.
+    { sessionId, messageId },
+  )
 }
 
 const resolveSessionSendConfig = (sessionId: string) => {
@@ -244,7 +242,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
       if (isAutoSendDeferred(sessionId)) {
-        return
+        return "deferred" as const
       }
 
       // Skip when the session's status is unknown rather than assuming idle: an
@@ -277,7 +275,10 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           const mentioned = extractInlineFileMentions(payload.primaryText, {
             root,
             isKnownAgent: (name) =>
-              useAgentsStore.getState().getVisibleAgents().some((agent) => agent.name.toLowerCase() === name),
+              useAgentsStore
+                .getState()
+                .getVisibleAgents()
+                .some((agent) => agent.name.toLowerCase() === name),
             isConfirmedFilePath: (text) =>
               text.includes("/") || text.includes("\\") || text.includes(".") || confirmed.has(text),
           })
@@ -301,7 +302,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       // Re-check before claiming: the session may have gone busy, an abort or unseen-error
       // hold may have landed, or the user may have deleted the chip meanwhile.
       if (isAutoSendDeferred(sessionId)) {
-        return
+        return "deferred" as const
       }
       if ((getGlobalSyncSessionStatus(sessionId)?.type ?? "idle") !== "idle") {
         return
@@ -326,34 +327,28 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         return
       }
 
-      // Mint and persist the retry id BEFORE claiming: the cross-window claim is
-      // not atomic (and storage may be unavailable), so two windows can still
-      // dispatch the same entry — sharing one persisted id makes that duplicate
-      // send idempotent on the server instead of delivering the prompt twice.
-      // Minting it here rather than at queue time keeps the id in transcript
-      // order, since the store renders messages by id.
-      const messageId = payload.messageId ?? ascendingId("msg")
-      if (!payload.messageId) {
-        useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, messageId)
-      }
+      // Claim before minting or persisting a retry id: losing windows must not
+      // overwrite the winning window's queue snapshot with their own id.
+      if (!(await claimQueuedDispatch(payload.queuedMessageId))) return
 
-      // Another window may be reacting to the same busy -> idle edge with the same
-      // entry in its own copy of the shared queue; only the claim owner sends it.
-      // Claimed before the in-flight mark so a lost claim leaves no state behind —
-      // a session stuck in inFlightSessionsRef never dispatches again.
-      if (!claimQueuedDispatch(payload.queuedMessageId)) {
-        return
+      // Waiting for the cross-window lock yields. Recheck the live session and
+      // queue before consuming the entry or changing its retry identity.
+      const currentEntry = useMessageQueueStore
+        .getState()
+        .getQueueForSession(sessionId)
+        .find((message) => message.id === payload.queuedMessageId)
+      if (
+        !currentEntry ||
+        isAutoSendDeferred(sessionId) ||
+        (getGlobalSyncSessionStatus(sessionId)?.type ?? "idle") !== "idle"
+      ) {
+        releaseQueuedDispatchClaim(payload.queuedMessageId)
+        return currentEntry ? ("deferred" as const) : undefined
       }
-
-      // The claim and the id write are not atomic either, so the entry may carry the other window's id
-      // by now. Both windows have to send the id the queue actually holds, or the duplicate send this
-      // comment describes is not deduplicated on the server — two different ids deliver the prompt
-      // twice, which is the case the shared id exists to prevent.
-      const dispatchMessageId =
-        useMessageQueueStore
-          .getState()
-          .getQueueForSession(sessionId)
-          .find((message) => message.id === payload.queuedMessageId)?.messageId ?? messageId
+      const dispatchMessageId = currentEntry.messageId ?? payload.messageId ?? ascendingId("msg")
+      if (!currentEntry.messageId) {
+        useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, dispatchMessageId)
+      }
 
       inFlightSessionsRef.current.add(sessionId)
 
@@ -413,7 +408,17 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
     for (const sessionId of sessionIdsToDispatch) {
       const queue = queuedMessages[sessionId]
       if (queue) {
-        void dispatchSessionQueue(sessionId, queue)
+        const priorStatus = previousStatusRef.current.get(sessionId)
+        void dispatchSessionQueue(sessionId, queue).then((result) => {
+          if (result !== "deferred" || (priorStatus !== "busy" && priorStatus !== "retry")) return
+          if (useMessageQueueStore.getState().getQueueForSession(sessionId).length === 0) return
+          // A hold can arrive after the transition was selected but before a
+          // claim commits. Restore the edge and schedule its hold/wake-up check.
+          if (previousStatusRef.current.get(sessionId) === "idle") {
+            previousStatusRef.current.set(sessionId, priorStatus)
+            bumpAbortWakeupTick()
+          }
+        })
       }
     }
 

@@ -41,7 +41,7 @@ test("waits for finalized streaming content before rendering", async () => {
   expect(render).not.toHaveBeenCalled()
   expect(host.textContent).toContain("when the response is complete")
   await show()
-  expect(host.querySelector("svg")).not.toBeNull()
+  expect(host.querySelector("img")).not.toBeNull()
 })
 
 test("hides stale output while source/theme changes and ignores obsolete completions", async () => {
@@ -59,7 +59,7 @@ test("hides stale output while source/theme changes and ignores obsolete complet
   await show({ source: "flowchart LR; C-->D", theme: getDefaultTheme(true) })
   expect(oldSignal.aborted).toBe(true)
   await act(async () => resolveOld("<svg><text>Stale</text></svg>"))
-  expect(host.querySelector("svg")?.textContent).toBe("New")
+  expect(decodeURIComponent(host.querySelector("img")?.src ?? "")).toContain("<text>New</text>")
   expect(render.mock.calls[1][0].dark).toBe(true)
 })
 
@@ -81,7 +81,7 @@ test("explains ASCII limitations and allows retry after a worker failure", async
   render.mockResolvedValueOnce('<svg viewBox="0 0 1 1"/>')
   const retry = [...host.querySelectorAll("button")].find((button) => button.textContent === "Retry")!
   await act(async () => retry.click())
-  expect(host.querySelector("svg")).not.toBeNull()
+  expect(host.querySelector("img")).not.toBeNull()
 })
 
 test("toggles source without recalculating layout and aborts on unmount", async () => {
@@ -89,11 +89,21 @@ test("toggles source without recalculating layout and aborts on unmount", async 
   await show()
   const toggle = [...host.querySelectorAll("button")].find((button) => button.textContent === "Show source")!
   await act(async () => toggle.click())
-  expect(host.querySelector("svg")).toBeNull()
+  expect(host.querySelector("img")).toBeNull()
   expect(host.querySelector("pre")?.textContent).toBe(props.source)
   await act(async () => toggle.click())
-  expect(host.querySelector("svg")).not.toBeNull()
+  expect(host.querySelector("img")).not.toBeNull()
   expect(render).toHaveBeenCalledTimes(1)
   await act(async () => root.render(null))
   expect(render.mock.calls[0][1].aborted).toBe(true)
+})
+
+test("isolates diagram CSS and fragment references in an image document", async () => {
+  render.mockResolvedValue('<svg><style>body{display:none!important}</style><use href="#hostIcon"/></svg>')
+  await show()
+  expect(host.querySelector("svg, style, use")).toBeNull()
+  const image = host.querySelector("img")!
+  expect(image.src).toMatch(/^data:image\/svg\+xml/)
+  expect(decodeURIComponent(image.src)).toContain("body{display:none!important}")
+  expect(image.alt).toBe(props.source)
 })

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   MESSAGE_QUEUE_MAX_PER_SESSION,
   claimQueuedDispatch,
@@ -11,7 +11,7 @@ describe("messageQueueStore", () => {
     useMessageQueueStore.getState().clearAllQueues()
   })
 
-  it("clearSessions drops queues for deleted sessions only", () => {
+  it("clearSessions drops queues for deleted sessions only", async () => {
     useMessageQueueStore.getState().addToQueue("ses_deleted", { content: "stale" })
     useMessageQueueStore.getState().addToQueue("ses_kept", { content: "live" })
 
@@ -22,7 +22,7 @@ describe("messageQueueStore", () => {
     expect(useMessageQueueStore.getState().getQueueForSession("ses_kept")).toHaveLength(1)
   })
 
-  it("refuses entries once the session queue is full instead of dropping the oldest", () => {
+  it("refuses entries once the session queue is full instead of dropping the oldest", async () => {
     // Regression: the cap trimmed the oldest entry, which is the next one to send - a
     // message the user had already written disappeared with no notice. Refusing lets
     // the caller keep the input it was about to queue.
@@ -40,27 +40,73 @@ describe("messageQueueStore", () => {
     expect(results.at(-1)).toBe(false)
   })
 
-  it("gives the first window the dispatch claim for a queued entry", () => {
+  it("prevents two windows that both observed an absent claim from dispatching", async () => {
+    let tail = Promise.resolve()
+    const request = vi.fn((_name: string, callback: () => boolean) => {
+      const result = tail.then(callback)
+      tail = result.then(() => undefined)
+      return result
+    })
+    const locks = Object.getOwnPropertyDescriptor(navigator, "locks")
+    const storage = Object.getOwnPropertyDescriptor(window, "localStorage")
+    const entries = new Map<string, string>()
+    let interleave = true
+    let competing: ReturnType<typeof claimQueuedDispatch> | undefined
+    Object.defineProperty(navigator, "locks", { configurable: true, value: { request } })
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        get length() {
+          return entries.size
+        },
+        key: (index: number) => [...entries.keys()][index] ?? null,
+        getItem: (key: string) => {
+          const observed = entries.get(key) ?? null
+          if (interleave && key === "oc.queue.dispatch.queued-locked") {
+            interleave = false
+            competing = claimQueuedDispatch("queued-locked")
+          }
+          return observed
+        },
+        setItem: (key: string, value: string) => {
+          entries.set(key, value)
+        },
+        removeItem: (key: string) => {
+          entries.delete(key)
+        },
+      },
+    })
+    try {
+      expect(await claimQueuedDispatch("queued-locked")).toBe(true)
+      expect(await competing).toBe(false)
+    } finally {
+      if (locks) Object.defineProperty(navigator, "locks", locks)
+      else Reflect.deleteProperty(navigator, "locks")
+      if (storage) Object.defineProperty(window, "localStorage", storage)
+    }
+  })
+
+  it("gives the first window the dispatch claim for a queued entry", async () => {
     // Two windows see the same busy → idle edge with the same entry in their shared
     // queue; without a claim both would send it.
-    expect(claimQueuedDispatch("queued-1")).toBe(true)
-    expect(claimQueuedDispatch("queued-1")).toBe(false)
+    expect(await claimQueuedDispatch("queued-1")).toBe(true)
+    expect(await claimQueuedDispatch("queued-1")).toBe(false)
   })
 
-  it("frees the claim again after a failed send", () => {
-    expect(claimQueuedDispatch("queued-2")).toBe(true)
+  it("frees the claim again after a failed send", async () => {
+    expect(await claimQueuedDispatch("queued-2")).toBe(true)
     releaseQueuedDispatchClaim("queued-2")
-    expect(claimQueuedDispatch("queued-2")).toBe(true)
+    expect(await claimQueuedDispatch("queued-2")).toBe(true)
   })
 
-  it("ignores and prunes an expired claim", () => {
+  it("ignores and prunes an expired claim", async () => {
     window.localStorage.setItem("oc.queue.dispatch.queued-3", String(Date.now() - 120_000))
-    expect(claimQueuedDispatch("queued-3")).toBe(true)
+    expect(await claimQueuedDispatch("queued-3")).toBe(true)
     // The stale key was replaced by the fresh claim, not duplicated.
     expect(window.localStorage.getItem("oc.queue.dispatch.queued-3")).not.toBeNull()
   })
 
-  it("loses the claim when another window overwrites the record right after the write", () => {
+  it("loses the claim when another window overwrites the record right after the write", async () => {
     // The claim is check-then-set, so the losing interleaving is: our write lands,
     // the other window's write lands after it. Reading the record back and
     // requiring our own owner token is what makes the last writer win.
@@ -87,7 +133,7 @@ describe("messageQueueStore", () => {
     Object.defineProperty(window, "localStorage", { configurable: true, value: racingStorage })
 
     try {
-      expect(claimQueuedDispatch("queued-race")).toBe(false)
+      expect(await claimQueuedDispatch("queued-race")).toBe(false)
     } finally {
       if (originalDescriptor) {
         Object.defineProperty(window, "localStorage", originalDescriptor)
@@ -95,12 +141,12 @@ describe("messageQueueStore", () => {
     }
   })
 
-  it("treats a claim written without a token (older build) as expired", () => {
+  it("treats a claim written without a token (older build) as expired", async () => {
     window.localStorage.setItem("oc.queue.dispatch.queued-legacy", "not-a-timestamp")
-    expect(claimQueuedDispatch("queued-legacy")).toBe(true)
+    expect(await claimQueuedDispatch("queued-legacy")).toBe(true)
   })
 
-  it("rehydrates from another window's storage write", () => {
+  it("rehydrates from another window's storage write", async () => {
     useMessageQueueStore.getState().addToQueue("ses_shared", { content: "from another window" })
     const persisted = window.localStorage.getItem("message-queue-store")
     expect(persisted).toContain("from another window")
