@@ -884,6 +884,21 @@ export async function unshareSession(sessionId: string): Promise<Session | null>
  * into the store AND registered in the shadow Map. mergeOptimisticPage
  * handles deduplication when the server echoes back the real message.
  */
+/**
+ * Whether a failed optimistic send may restore the status it overwrote.
+ * Only when the store still holds this call's own busy object AND no server
+ * status event arrived meanwhile (the stamp covers events the reducer
+ * deduped because the value matched). Extracted for property testing.
+ */
+export function shouldRollbackOptimisticStatus(input: {
+  currentStatus: unknown
+  optimisticBusy: unknown
+  statusStampBeforeSend: number
+  statusStampNow: number
+}): boolean {
+  return input.currentStatus === input.optimisticBusy && input.statusStampNow === input.statusStampBeforeSend
+}
+
 export async function optimisticSend(input: {
   sessionId: string
   content: string
@@ -1001,7 +1016,14 @@ export async function optimisticSend(input: {
     // different value (the store no longer holds this object) or it published an equal `busy` that the
     // reducer deduped away (the store still holds it — the usual case). Rolling either back shows a live
     // turn as idle.
-    if (currentStatus === optimisticBusy && serverSessionStatusStamp(input.sessionId) === statusEventsBeforeSend) {
+    if (
+      shouldRollbackOptimisticStatus({
+        currentStatus,
+        optimisticBusy,
+        statusStampBeforeSend: statusEventsBeforeSend,
+        statusStampNow: serverSessionStatusStamp(input.sessionId),
+      })
+    ) {
       const restored = { ...s.session_status }
       if (previousStatus === undefined) {
         delete restored[input.sessionId]

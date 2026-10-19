@@ -196,6 +196,53 @@ export const computeQueuedAutoSendStatusUpdate = (
   return { nextStatusMap, sessionIdsToDispatch }
 }
 
+/**
+ * Claim / retry-id / hold / restore decisions for one dispatch, extracted as
+ * pure functions so the model test drives the exact logic the hook runs.
+ * The hook supplies live readings (deferred, status, entry) and an id mint;
+ * these functions own what happens next.
+ */
+export type QueuedDispatchBeforeClaim = "deferred" | "skip" | "claim"
+
+export function decideQueuedDispatchBeforeClaim(input: {
+  isDeferred: boolean
+  statusType: string | undefined
+  entryPresent: boolean
+  hasContent: boolean
+}): QueuedDispatchBeforeClaim {
+  if (input.isDeferred) return "deferred"
+  if (input.statusType !== "idle") return "skip"
+  if (!input.entryPresent) return "skip"
+  if (!input.hasContent) return "skip"
+  return "claim"
+}
+
+export type QueuedDispatchAfterClaim =
+  | { action: "missing" }
+  | { action: "deferred" }
+  | { action: "dispatch"; messageId: string; assignMessageId: boolean }
+
+export function decideQueuedDispatchAfterClaim(input: {
+  entryPresent: boolean
+  isDeferred: boolean
+  statusType: string | undefined
+  currentMessageId?: string
+  payloadMessageId?: string
+  mintMessageId: () => string
+}): QueuedDispatchAfterClaim {
+  if (!input.entryPresent) return { action: "missing" }
+  if (input.isDeferred || input.statusType !== "idle") return { action: "deferred" }
+  const messageId = input.currentMessageId ?? input.payloadMessageId ?? input.mintMessageId()
+  return { action: "dispatch", messageId, assignMessageId: !input.currentMessageId }
+}
+
+export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean }): {
+  releaseClaim: boolean
+  restoreEntry: boolean
+} {
+  return { releaseClaim: true, restoreEntry: !input.queueHasEntry }
+}
+
 export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?: boolean }) {
   const enabled = typeof enabledOrOptions === "boolean" ? enabledOrOptions : (enabledOrOptions?.enabled ?? true)
   const queuedMessages = useMessageQueueStore((state) => state.queuedMessages)
@@ -301,22 +348,19 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       // The extraction above awaits a directory listing, so the caller's checks predate it.
       // Re-check before claiming: the session may have gone busy, an abort or unseen-error
       // hold may have landed, or the user may have deleted the chip meanwhile.
-      if (isAutoSendDeferred(sessionId)) {
-        return "deferred" as const
-      }
-      if ((getGlobalSyncSessionStatus(sessionId)?.type ?? "idle") !== "idle") {
-        return
-      }
-      if (
-        !useMessageQueueStore
+      const beforeClaim = decideQueuedDispatchBeforeClaim({
+        isDeferred: isAutoSendDeferred(sessionId),
+        statusType: getGlobalSyncSessionStatus(sessionId)?.type ?? "idle",
+        entryPresent: useMessageQueueStore
           .getState()
           .getQueueForSession(sessionId)
-          .some((message) => message.id === payload.queuedMessageId)
-      ) {
-        return
+          .some((message) => message.id === payload.queuedMessageId),
+        hasContent: Boolean(payload.primaryText) || payload.primaryAttachments.length > 0,
+      })
+      if (beforeClaim === "deferred") {
+        return "deferred" as const
       }
-
-      if (!payload.primaryText && payload.primaryAttachments.length === 0) {
+      if (beforeClaim === "skip") {
         return
       }
 
@@ -337,16 +381,24 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         .getState()
         .getQueueForSession(sessionId)
         .find((message) => message.id === payload.queuedMessageId)
-      if (
-        !currentEntry ||
-        isAutoSendDeferred(sessionId) ||
-        (getGlobalSyncSessionStatus(sessionId)?.type ?? "idle") !== "idle"
-      ) {
+      const afterClaim = decideQueuedDispatchAfterClaim({
+        entryPresent: Boolean(currentEntry),
+        isDeferred: isAutoSendDeferred(sessionId),
+        statusType: getGlobalSyncSessionStatus(sessionId)?.type ?? "idle",
+        currentMessageId: currentEntry?.messageId,
+        payloadMessageId: payload.messageId,
+        mintMessageId: () => ascendingId("msg"),
+      })
+      if (afterClaim.action === "missing") {
         releaseQueuedDispatchClaim(payload.queuedMessageId)
-        return currentEntry ? ("deferred" as const) : undefined
+        return undefined
       }
-      const dispatchMessageId = currentEntry.messageId ?? payload.messageId ?? ascendingId("msg")
-      if (!currentEntry.messageId) {
+      if (afterClaim.action === "deferred") {
+        releaseQueuedDispatchClaim(payload.queuedMessageId)
+        return "deferred" as const
+      }
+      const dispatchMessageId = afterClaim.messageId
+      if (afterClaim.assignMessageId) {
         useMessageQueueStore.getState().assignMessageId(sessionId, payload.queuedMessageId, dispatchMessageId)
       }
 
@@ -381,8 +433,16 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           id: "queued-auto-send-failed",
         })
         // Let this or another window try again.
-        releaseQueuedDispatchClaim(payload.queuedMessageId)
-        if (dispatchedEntry) {
+        const onFailure = decideQueuedDispatchOnFailure({
+          queueHasEntry: dispatchedEntry
+            ? useMessageQueueStore
+                .getState()
+                .getQueueForSession(sessionId)
+                .some((message) => message.id === dispatchedEntry.id)
+            : false,
+        })
+        if (onFailure.releaseClaim) releaseQueuedDispatchClaim(payload.queuedMessageId)
+        if (dispatchedEntry && onFailure.restoreEntry) {
           // Restore the message so a failed send does not lose it.
           useMessageQueueStore.setState((state) => {
             const queue = state.queuedMessages[sessionId] ?? []
