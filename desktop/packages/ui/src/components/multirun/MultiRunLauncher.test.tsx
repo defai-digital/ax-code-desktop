@@ -11,9 +11,14 @@ type CreateMultiRunResult = {
   startedRunCount: number
 }
 
-const { createMultiRun, toastError, addedModels, instanceIds } = vi.hoisted(() => ({
-  createMultiRun: vi.fn<() => Promise<CreateMultiRunResult | null>>(),
+type CreateMultiRunParamsStub = {
+  groups: { prompt: string; models: unknown[] }[]
+}
+
+const { createMultiRun, toastError, mentionKeyDown, addedModels, instanceIds } = vi.hoisted(() => ({
+  createMultiRun: vi.fn<(params: CreateMultiRunParamsStub) => Promise<CreateMultiRunResult | null>>(),
   toastError: vi.fn<(message: string) => void>(),
+  mentionKeyDown: vi.fn<(key: string) => void>(),
   addedModels: { current: 0 },
   instanceIds: { current: 0 },
 }))
@@ -87,7 +92,25 @@ vi.mock("./ModelMultiSelect", () => ({
   },
 }))
 vi.mock("@/components/chat/CommandAutocomplete", () => ({ CommandAutocomplete: () => null }))
-vi.mock("@/components/chat/FileMentionAutocomplete", () => ({ FileMentionAutocomplete: () => null }))
+// The mention popup is the one autocomplete these tests drive: its imperative handle is what the
+// prompt forwards Enter/Escape to, so the IME guard must stop those keys before they arrive.
+vi.mock("@/components/chat/FileMentionAutocomplete", async () => {
+  const ReactModule = await import("react")
+  return {
+    FileMentionAutocomplete: ReactModule.forwardRef<
+      { handleKeyDown: (key: string) => boolean },
+      Record<string, never>
+    >(function FileMentionAutocompleteMock(_props, ref) {
+      ReactModule.useImperativeHandle(ref, () => ({
+        handleKeyDown: (key: string) => {
+          mentionKeyDown(key)
+          return false
+        },
+      }))
+      return ReactModule.createElement("div", { "data-mention-autocomplete": "" })
+    }),
+  }
+})
 vi.mock("@/components/chat/SnippetAutocomplete", () => ({ SnippetAutocomplete: () => null }))
 
 const { MultiRunLauncher } = await import("./MultiRunLauncher")
@@ -96,6 +119,9 @@ const escapeEvent = () => {
   const event = new KeyboardEvent("keydown", { key: "Escape", bubbles: true, cancelable: true })
   return event
 }
+
+const imeKeyEvent = (key: string, init: KeyboardEventInit = {}) =>
+  new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...init })
 
 const byPlaceholder = (container: HTMLElement, placeholder: string, tag = "textarea") =>
   container.querySelector<HTMLTextAreaElement | HTMLInputElement>(`${tag}[placeholder="${placeholder}"]`)
@@ -161,6 +187,21 @@ describe("MultiRunLauncher", () => {
     })
     expect(onCancel).not.toHaveBeenCalled()
   })
+
+  // Escape also dismisses IME candidate selection. Treating that keypress as the launcher's own
+  // dismissal closed the window and discarded the half-typed prompt.
+  test("Escape during IME composition does not cancel the launcher", async () => {
+    await renderLauncher()
+    for (const event of [
+      imeKeyEvent("Escape", { isComposing: true }),
+      imeKeyEvent("Escape", { keyCode: 229 }),
+    ]) {
+      act(() => {
+        window.dispatchEvent(event)
+      })
+    }
+    expect(onCancel).not.toHaveBeenCalled()
+  })
 })
 
 describe("MultiRunLauncher run count", () => {
@@ -173,6 +214,7 @@ describe("MultiRunLauncher run count", () => {
     addedModels.current = 0
     createMultiRun.mockReset()
     toastError.mockReset()
+    mentionKeyDown.mockReset()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -201,12 +243,14 @@ describe("MultiRunLauncher run count", () => {
     })
   }
 
+  const promptTextarea = (groupIndex: number) =>
+    container.querySelectorAll<HTMLTextAreaElement>(
+      `textarea[placeholder="${dict["multirun.launcher.groups.prompt.placeholder"]}"]`,
+    )[groupIndex]
+
   const typePrompt = async (groupIndex: number, text: string) => {
     await act(async () => {
-      const prompts = container.querySelectorAll<HTMLTextAreaElement>(
-        `textarea[placeholder="${dict["multirun.launcher.groups.prompt.placeholder"]}"]`,
-      )
-      setReactValue(prompts[groupIndex], text)
+      setReactValue(promptTextarea(groupIndex), text)
     })
   }
 
@@ -231,6 +275,12 @@ describe("MultiRunLauncher run count", () => {
 
   const startButton = () => container.querySelector<HTMLButtonElement>('button[type="submit"]')!
 
+  const clickStart = async () => {
+    await act(async () => {
+      startButton().click()
+    })
+  }
+
   test("the start button counts only the groups that will be submitted", async () => {
     await renderLauncher()
     await typeName()
@@ -247,6 +297,46 @@ describe("MultiRunLauncher run count", () => {
     expect(startButton().textContent).toBe(
       dict["multirun.launcher.actions.startWithRunCount"].replace("{count}", "2"),
     )
+  })
+
+  // Enter commits an IME composition. Forwarding it to the mention popup selected the highlighted
+  // file instead of finishing the CJK text the user was typing.
+  test("Enter during IME composition does not reach the mention autocomplete", async () => {
+    await renderLauncher()
+    await typePrompt(0, "@")
+    // The popup is open, so a forwarded key would reach its handle (and the assertions below).
+    expect(container.querySelector("[data-mention-autocomplete]")).not.toBeNull()
+
+    for (const event of [
+      imeKeyEvent("Enter", { isComposing: true }),
+      imeKeyEvent("Enter", { keyCode: 229 }),
+    ]) {
+      await act(async () => {
+        promptTextarea(0).dispatchEvent(event)
+      })
+      expect(mentionKeyDown).not.toHaveBeenCalled()
+      expect(event.defaultPrevented).toBe(false)
+    }
+  })
+
+  // The per-group textarea used to be `required`, so native constraint validation blocked the
+  // explicitly supported partial submit before handleSubmit could skip the empty group.
+  test("an empty later group does not block starting the filled groups", async () => {
+    createMultiRun.mockResolvedValue({ groupSlug: "slug", sessionIds: ["a"], firstSessionId: "a", startedRunCount: 1 })
+    await renderLauncher()
+    await typeName()
+    await typePrompt(0, "review this")
+    await addModel(0)
+    await addGroup()
+
+    expect(promptTextarea(1).required).toBe(false)
+
+    await clickStart()
+
+    expect(createMultiRun).toHaveBeenCalledTimes(1)
+    expect(createMultiRun.mock.calls[0][0].groups).toHaveLength(1)
+    expect(createMultiRun.mock.calls[0][0].groups[0].prompt).toBe("review this")
+    expect(onCreated).toHaveBeenCalledTimes(1)
   })
 
   // The store reports a run whose session could not be created only in its own log, and still returns a
@@ -344,4 +434,29 @@ describe("MultiRunLauncher run count", () => {
     expect(values).toContain("pnpm build")
   })
 
+  // The row used to be keyed by its own value, so every keystroke remounted the input and dropped
+  // the caret — the next character could not be typed into the same field.
+  test("typing a setup command keeps the same input focused", async () => {
+    await renderLauncher()
+
+    const setupTrigger = Array.from(container.querySelectorAll("button")).find((button) =>
+      (button.textContent ?? "").includes(dict["multirun.launcher.setupCommands.label"]),
+    )
+    await act(async () => {
+      setupTrigger?.click()
+    })
+    await act(async () => {
+      buttonByText(container, dict["multirun.launcher.setupCommands.addCommand"])?.click()
+    })
+
+    const input = byPlaceholder(container, dict["multirun.launcher.setupCommands.commandPlaceholder"], "input")
+    expect(input).not.toBeNull()
+    input!.focus()
+    await act(async () => {
+      setReactValue(input!, "pnpm")
+    })
+
+    expect(byPlaceholder(container, dict["multirun.launcher.setupCommands.commandPlaceholder"], "input")).toBe(input)
+    expect(document.activeElement).toBe(input)
+  })
 })

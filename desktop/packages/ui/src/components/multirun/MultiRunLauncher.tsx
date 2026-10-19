@@ -15,6 +15,7 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { getWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import type { ProjectRef } from "@/lib/openchamberConfig"
+import { isIMECompositionEvent } from "@/lib/ime"
 import {
   toMultiRunFileAttachment,
   type CreateMultiRunParams,
@@ -258,6 +259,11 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
   React.useEffect(() => {
     if (!onCancel) return
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape also cancels IME candidate selection, so the launcher must not treat that keypress as
+      // its own dismissal and throw the prompt away.
+      if (e.isComposing || e.keyCode === 229) {
+        return
+      }
       if (e.key !== "Escape") {
         return
       }
@@ -630,7 +636,7 @@ export const MultiRunLauncher: React.FC<MultiRunLauncherProps> = ({
                   ) : (
                     <>
                       {setupCommands.map((command, index) => (
-                        <div key={`${command}-${index}`} className="flex gap-1.5">
+                        <div key={index} className="flex gap-1.5">
                           <Input
                             value={command}
                             onChange={(e) => {
@@ -975,6 +981,10 @@ const RunGroupCard: React.FC<RunGroupCardProps> = ({
 
   const handlePromptKeyDown = React.useCallback(
     (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+      // Enter/Escape also commit or dismiss IME candidates. Forwarding them to an autocomplete would
+      // pick the highlighted file instead of committing the composition, and would swallow Escape.
+      if (isIMECompositionEvent(event)) return
+
       if (showCommandAutocomplete && commandRef.current) {
         if (
           event.key === "Enter" ||
@@ -1051,7 +1061,6 @@ const RunGroupCard: React.FC<RunGroupCardProps> = ({
             onKeyDown={handlePromptKeyDown}
             placeholder={t("multirun.launcher.groups.prompt.placeholder")}
             className="typography-meta min-h-[80px] max-h-[200px] resize-none overflow-y-auto field-sizing-content"
-            required
           />
 
           {showCommandAutocomplete ? (

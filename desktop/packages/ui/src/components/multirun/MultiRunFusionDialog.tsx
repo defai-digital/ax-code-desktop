@@ -37,9 +37,12 @@ const buildSourcePart = (source: FusionSource, text: string, index: number): str
   return `\n\n--- RESULT ${index + 1}: ${title} ---\n${text.trim()}\n--- END RESULT ${index + 1} ---`
 }
 
-const getSessionProjectDirectory = (sessionId: string, directory: string | null): string | null => {
+const getSessionProjectDirectory = (sessionId: string): string | null => {
   const metadata = useSessionUIStore.getState().getWorktreeMetadata(sessionId)
-  return metadata?.projectDirectory ?? directory
+  // The session directory is the lane's own worktree, not the project it came from. Falling back to
+  // it made every sibling lane look like a different project once the in-memory worktree metadata
+  // was gone (after a relaunch), so fusion silently kept only the representative lane.
+  return metadata?.projectDirectory ?? null
 }
 
 const getLastAssistantText = async (source: FusionSource): Promise<string> => {
@@ -115,8 +118,7 @@ export function MultiRunFusionDialog({
   React.useEffect(() => {
     if (!open || !parsed) return
 
-    const currentDirectory = useSessionUIStore.getState().getDirectoryForSession(session.id)
-    const currentProjectDirectory = getSessionProjectDirectory(session.id, currentDirectory)
+    const currentProjectDirectory = getSessionProjectDirectory(session.id)
     const nextSources = allSessions
       .map((candidate): FusionSource | null => {
         const candidateParsed = parseMultiRunSessionTitle(candidate.title)
@@ -125,7 +127,9 @@ export function MultiRunFusionDialog({
         if (excludedSessionIds.has(candidate.id)) return null
         const directory =
           useSessionUIStore.getState().getDirectoryForSession(candidate.id) ?? resolveGlobalSessionDirectory(candidate)
-        const projectDirectory = getSessionProjectDirectory(candidate.id, directory)
+        const projectDirectory = getSessionProjectDirectory(candidate.id)
+        // Only reject when both lanes are known to belong to different projects. With the metadata
+        // unavailable there is nothing to compare, and rejecting would drop the whole fusion set.
         if (currentProjectDirectory && projectDirectory && currentProjectDirectory !== projectDirectory) return null
         return { session: candidate, directory, projectDirectory }
       })

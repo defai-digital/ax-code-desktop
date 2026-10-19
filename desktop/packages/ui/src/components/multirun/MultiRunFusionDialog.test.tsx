@@ -7,7 +7,11 @@ type SessionStub = { id: string; title: string; time?: { created?: number; updat
 
 // `useAllLiveSessions` is re-read on every render, so the test mutates this array
 // in place to simulate live session updates arriving from the sync layer.
-const { liveSessions } = vi.hoisted(() => ({ liveSessions: { current: [] as SessionStub[] } }))
+const { liveSessions, sessionDirectories, worktreeMetadata } = vi.hoisted(() => ({
+  liveSessions: { current: [] as SessionStub[] },
+  sessionDirectories: { current: new Map<string, string>() },
+  worktreeMetadata: { current: new Map<string, { projectDirectory: string }>() },
+}))
 
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
 
@@ -69,8 +73,8 @@ vi.mock("@/stores/useConfigStore", () => {
 vi.mock("@/sync/session-ui-store", () => ({
   useSessionUIStore: {
     getState: () => ({
-      getDirectoryForSession: () => null,
-      getWorktreeMetadata: () => undefined,
+      getDirectoryForSession: (sessionId: string) => sessionDirectories.current.get(sessionId) ?? null,
+      getWorktreeMetadata: (sessionId: string) => worktreeMetadata.current.get(sessionId),
       createSession: vi.fn(),
       setCurrentSession: vi.fn(),
     }),
@@ -106,6 +110,8 @@ describe("MultiRunFusionDialog excluded sources", () => {
     primary = { id: "s1", title: "demo/p1/m1/1", time: { created: 1 } }
     sibling = { id: "s2", title: "demo/p2/m2/2", time: { created: 2 } }
     liveSessions.current = [primary, sibling]
+    sessionDirectories.current = new Map()
+    worktreeMetadata.current = new Map()
     onOpenChange = vi.fn()
   })
 
@@ -149,5 +155,26 @@ describe("MultiRunFusionDialog excluded sources", () => {
     renderDialog(true)
 
     expect(sourceRowTitles(container)).toHaveLength(2)
+  })
+
+  // Worktree metadata lives only in memory, so after a relaunch every lane's session falls back to
+  // its own worktree directory. Treating that directory as the project identity made each sibling
+  // look like a different project, and fusion silently kept only the representative lane.
+  test("keeps sibling worktrees when worktree metadata is unavailable after a relaunch", () => {
+    sessionDirectories.current.set("s1", "/repo/.worktrees/run-1")
+    sessionDirectories.current.set("s2", "/repo/.worktrees/run-2")
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toHaveLength(2)
+  })
+
+  test("still excludes lanes from a different project when worktree metadata is present", () => {
+    worktreeMetadata.current.set("s1", { projectDirectory: "/repo/one" })
+    worktreeMetadata.current.set("s2", { projectDirectory: "/repo/two" })
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toHaveLength(1)
   })
 })
