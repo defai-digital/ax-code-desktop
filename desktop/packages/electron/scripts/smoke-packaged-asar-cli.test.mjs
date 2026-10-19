@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest"
+import { spawnSync } from "node:child_process"
+import fs from "node:fs"
 import net from "node:net"
+import os from "node:os"
 import path from "node:path"
 import { extractAssetPath, packagedPaths, parseSmokeArgs, request } from "./smoke-packaged-asar-cli.mjs"
 
@@ -29,6 +32,24 @@ describe("packaged ASAR CLI smoke", () => {
       "/assets/app.css",
     )
     expect(extractAssetPath("<html></html>")).toBeUndefined()
+  })
+})
+
+describe("CLI entry guard", () => {
+  test("runs as a command when its path carries a symlink", () => {
+    const script = path.resolve(import.meta.dirname, "smoke-packaged-asar-cli.mjs")
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-asar-cli-link-"))
+    const link = path.join(tempDir, "smoke-packaged-asar-cli-link.mjs")
+    fs.symlinkSync(script, link)
+
+    try {
+      // Invalid arguments make a running entry point fail instead of exiting 0 silently.
+      const result = spawnSync("node", [link], { encoding: "utf8" })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("Packaging must select exactly one of --mac, --win, or --linux")
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })
 

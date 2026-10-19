@@ -19,9 +19,9 @@
  * The pure helpers are exported for unit testing; the file IO only runs when the
  * script is invoked directly (e.g. `node finalize-windows-latest-yml.mjs`).
  */
-import fs from "fs"
+import fs, { realpathSync } from "fs"
 import path from "path"
-import { pathToFileURL } from "url"
+import { fileURLToPath } from "url"
 
 // download-artifact@v4 without merge-multiple creates a subdir named after the
 // artifact: latest-yml-<target>/latest.yml
@@ -128,5 +128,14 @@ function main() {
   )
 }
 
-const isMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
-if (isMain) main()
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) main()

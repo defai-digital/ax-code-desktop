@@ -12,6 +12,9 @@
  *   pnpm run perf:report -- --port 3000
  */
 
+import { realpathSync } from "node:fs"
+import { fileURLToPath } from "node:url"
+
 const DEFAULT_BASE_URL = "http://localhost:3000"
 
 // Streams whose delivered-vs-upstream first-chunk delta stays under this are
@@ -397,8 +400,16 @@ const main = async () => {
   }
 }
 
-const { pathToFileURL } = await import("node:url")
-const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href
-if (isDirectRun) {
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   await main()
 }

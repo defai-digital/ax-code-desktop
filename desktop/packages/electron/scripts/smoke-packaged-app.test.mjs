@@ -6,6 +6,7 @@ import {
   bundledAxCodeLauncherPath,
   desktopMainLogPath,
   findMissingStartupEvents,
+  isStubProcessCommand,
   outputConfirmsBundledRuntime,
   parseArgs,
   readExpectedBundledAxCodeVersion,
@@ -37,6 +38,15 @@ describe("smoke-packaged-app args", () => {
   test("creates a distinct macOS bundle identifier for each smoke app copy", () => {
     expect(buildSmokeBundleIdentifier("smoke-run-123")).toBe("ai.defai.ax-code-app.smoke.smokerun123")
     expect(() => buildSmokeBundleIdentifier("")).toThrow("smoke run identifier")
+  })
+
+  test("never matches unrelated processes when the stub path is missing", () => {
+    // setup can fail before createStubAxCode() returns; `includes(null)` used to compare
+    // against the string "null" and swept unrelated commands such as `node /dev/null ...`.
+    expect(isStubProcessCommand("node /dev/null serve --port 3000", null)).toBe(false)
+    expect(isStubProcessCommand("node /dev/null serve --port 3000", undefined)).toBe(false)
+    expect(isStubProcessCommand("node /dev/null serve --port 3000", "")).toBe(false)
+    expect(isStubProcessCommand("/tmp/smoke/ax-code", "/tmp/smoke/ax-code")).toBe(true)
   })
 
   test("reports startup events that did not reach diagnostics", () => {

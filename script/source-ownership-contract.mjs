@@ -22,6 +22,14 @@ function parseJson(file) {
   return JSON.parse(fs.readFileSync(file, "utf8"))
 }
 
+export function workspaceDeclaresDesktopPackages(workspace) {
+  const withoutComments = workspace
+    .split(/\r?\n/)
+    .map((line) => line.replace(/(^|\s)#.*$/, "$1"))
+    .join("\n")
+  return withoutComments.includes("desktop/packages/*")
+}
+
 export function sourceOwnershipViolations(root = repositoryRoot) {
   const violations = []
   const tracked = new Set(
@@ -46,7 +54,9 @@ export function sourceOwnershipViolations(root = repositoryRoot) {
   }
 
   const workspace = fs.readFileSync(path.join(root, "pnpm-workspace.yaml"), "utf8")
-  if (!workspace.includes("desktop/packages/*")) violations.push("Desktop packages must be in the pnpm workspace")
+  if (!workspaceDeclaresDesktopPackages(workspace)) {
+    violations.push("Desktop packages must be in the pnpm workspace")
+  }
 
   try {
     readReleasePolicy(root)

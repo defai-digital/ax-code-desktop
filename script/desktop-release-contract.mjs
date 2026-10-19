@@ -17,8 +17,76 @@ function readJson(root, relativePath, fileSystem) {
   return JSON.parse(fileSystem.readFileSync(path.join(root, relativePath), "utf8"))
 }
 
+/**
+ * Blank out comments while preserving offsets, so a commented-out declaration cannot satisfy a
+ * contract that the live configuration no longer meets. Handles JavaScript comments and the `#`
+ * comments used by the YAML and shell files this contract inspects; quoted text is untouched.
+ */
+function stripCommentsPreservingLayout(source) {
+  const chars = source.split("")
+  let state = "code"
+  for (let index = 0; index < chars.length; index += 1) {
+    const char = chars[index]
+    const next = chars[index + 1]
+    if (state === "code") {
+      if (char === "/" && next === "/") {
+        state = "line"
+        chars[index] = " "
+        continue
+      }
+      if (char === "/" && next === "*") {
+        state = "block"
+        chars[index] = " "
+        chars[index + 1] = " "
+        index += 1
+        continue
+      }
+      if (char === "#") {
+        state = "line"
+        chars[index] = " "
+        continue
+      }
+      if (char === "'") state = "single"
+      else if (char === '"') state = "double"
+      else if (char === "`") state = "template"
+      continue
+    }
+    if (state === "line") {
+      if (char === "\n") state = "code"
+      else chars[index] = " "
+      continue
+    }
+    if (state === "block") {
+      if (char === "*" && next === "/") {
+        chars[index] = " "
+        chars[index + 1] = " "
+        index += 1
+        state = "code"
+        continue
+      }
+      if (char !== "\n") chars[index] = " "
+      continue
+    }
+    if (char === "\\") {
+      index += 1
+      continue
+    }
+    if (
+      (state === "single" && char === "'") ||
+      (state === "double" && char === '"') ||
+      (state === "template" && char === "`")
+    ) {
+      state = "code"
+    }
+  }
+  return chars.join("")
+}
+
 function requireText(source, value, label) {
-  assert(source.includes(value), `${label} must contain ${JSON.stringify(value)}`)
+  assert(
+    stripCommentsPreservingLayout(source).includes(value),
+    `${label} must contain ${JSON.stringify(value)}`,
+  )
 }
 
 export function sha256File(file, fileSystem = fs) {
@@ -94,7 +162,9 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   assert(manifests.web.bin?.[identity.packages.legacyCommand] === "./bin/cli.js", "legacy command changed")
   assert(manifests.ui.name === identity.packages.ui, "UI package identity changed")
   assert(
-    manifests.web.dependencies?.[sdk.name] === sdk.specifier && manifests.ui.dependencies?.[sdk.name] === sdk.specifier,
+    manifests.electron.dependencies?.[sdk.name] === sdk.specifier &&
+      manifests.web.dependencies?.[sdk.name] === sdk.specifier &&
+      manifests.ui.dependencies?.[sdk.name] === sdk.specifier,
     "Desktop consumers must use the exact SDK pin",
   )
 

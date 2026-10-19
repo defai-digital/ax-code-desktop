@@ -553,6 +553,10 @@ function makeImportVariableName(themeId) {
   return `${safeBase}_Raw`
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
 function registerThemeInPresets(themeId) {
   if (!fs.existsSync(PRESETS_PATH)) {
     throw new Error(`presets.ts not found at: ${PRESETS_PATH}`)
@@ -564,8 +568,10 @@ function registerThemeInPresets(themeId) {
   const importLine = `import ${importVar} from '${importPath}';`
   const arrayEntry = `${importVar} as Theme`
 
-  // Check if already imported
-  const importExists = presetsSource.includes(importLine)
+  // Match by module path instead of the exact import line: presets.ts is
+  // Prettier-formatted with double quotes and no semicolons, so the generated
+  // single-quoted line never matched an existing registration.
+  const importExists = new RegExp(`from\\s+["']\\./${escapeRegExp(themeId)}\\.json["']`).test(presetsSource)
 
   // Check if already in array
   const arrayEntryExists = presetsSource.includes(arrayEntry)

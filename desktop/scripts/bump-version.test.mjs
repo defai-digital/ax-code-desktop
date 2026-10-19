@@ -1,3 +1,4 @@
+import { spawnSync } from "child_process"
 import fs from "fs"
 import os from "os"
 import path from "path"
@@ -69,5 +70,20 @@ describe("bump-version", () => {
     expect(updated.map((entry) => entry.path)).not.toContain("../package.json")
     expect(fs.existsSync(path.join(repo, "package.json"))).toBe(false)
     expect(readVersion(repo, "desktop/packages/electron/package.json")).toBe("4.0.0")
+  })
+
+  it("runs as a command when its path carries a symlink", () => {
+    const script = path.resolve(import.meta.dirname, "bump-version.mjs")
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-bump-version-link-"))
+    const link = path.join(tempDir, "bump-version-link.mjs")
+    fs.symlinkSync(script, link)
+
+    try {
+      const result = spawnSync("node", [link], { encoding: "utf8" })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("Usage: node scripts/bump-version.mjs")
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

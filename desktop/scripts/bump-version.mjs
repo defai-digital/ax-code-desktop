@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import fs from "fs"
+import fs, { realpathSync } from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 
@@ -59,5 +59,14 @@ const main = () => {
   console.log("  git push origin main --tags")
 }
 
-const entry = process.argv[1]
-if (entry && path.resolve(entry) === fileURLToPath(import.meta.url)) main()
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) main()

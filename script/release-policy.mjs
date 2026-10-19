@@ -33,10 +33,12 @@ export function readReleasePolicy(root = repositoryRoot, fileSystem = fs) {
   )
   assert(policy.shadow?.signingMode === "explicit-only", "shadow.signingMode must be explicit-only")
   assert(
-    policy.stage !== "cutover-approved" || policy.cutover !== undefined,
+    policy.stage !== "cutover-approved" ||
+      (policy.cutover !== null && typeof policy.cutover === "object" && !Array.isArray(policy.cutover)),
     "cutover-approved stage requires the recorded cutover block",
   )
   if (policy.cutover) {
+    assert(Array.isArray(policy.cutover.requiredEvidence), "cutover.requiredEvidence must be a list")
     assert(policy.cutover.repository === "defai-digital/ax-code-desktop", "independent cutover repository is invalid")
     assert(policy.cutover.tagPrefix === "v", "independent cutover tags must use v")
     assert(

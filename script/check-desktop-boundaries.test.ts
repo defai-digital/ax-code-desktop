@@ -82,6 +82,22 @@ describe("Desktop source boundaries", () => {
     ])
   })
 
+  test("blocks UI-package subpath traversal and aliases that escape the repository", () => {
+    // Normalizing these specifiers collapsed the traversal before the private-entrypoint and
+    // sibling-source rules saw it, so they resolved into the electron package (or the sibling
+    // checkout) with no violation.
+    expect(reasons(webSource, 'import "@openchamber/ui/../../electron/src/api-prefix-router.js"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.privateUi,
+      DESKTOP_BOUNDARY_REASONS.siblingSource,
+    ])
+    expect(
+      reasons(webSource, 'import "@openchamber/ui/../../../../../ax-code/packages/session/src/index.ts"'),
+    ).toEqual([DESKTOP_BOUNDARY_REASONS.privateUi, DESKTOP_BOUNDARY_REASONS.siblingSource])
+    expect(reasons(uiSource, 'import "@/../../../../../ax-code/packages/session/src/index.ts"')).toEqual([
+      DESKTOP_BOUNDARY_REASONS.siblingSource,
+    ])
+  })
+
   test("protects every scanned sibling source tree, not only src", () => {
     // web/server, web/bin and electron/scripts are scanned source roots; a static import of them
     // from another package is the same boundary breach as src.
@@ -126,6 +142,20 @@ describe("Desktop manifest boundaries", () => {
     const file = path.join(root, "desktop/packages/ui/package.json")
 
     expect(analyzeDesktopManifest(file, manifest).map((item) => item.specifier)).toEqual(["express", "electron"])
+  })
+
+  test("blocks desktop shell packages in UI dependencies", () => {
+    const manifest = JSON.stringify(
+      { dependencies: { "@ax-code/electron": "workspace:*", "ax-code-desktop": "workspace:*" } },
+      null,
+      2,
+    )
+    const file = path.join(root, "desktop/packages/ui/package.json")
+
+    expect(analyzeDesktopManifest(file, manifest).map((item) => item.specifier)).toEqual([
+      "@ax-code/electron",
+      "ax-code-desktop",
+    ])
   })
 })
 

@@ -218,7 +218,15 @@ process.on('SIGINT', () => server.close(() => process.exit(0)));
   return stubPath
 }
 
+export const isStubProcessCommand = (command, stubAxCode) =>
+  typeof stubAxCode === "string" && stubAxCode.length > 0 && command.includes(stubAxCode)
+
 const cleanupStubProcesses = async (stubAxCode) => {
+  // Setup can fail before createStubAxCode() returns, and `command.includes(null)`
+  // compares against the string "null" — matching unrelated processes such as `node
+  // /dev/null ...`. An empty path would match every process for the same reason.
+  if (typeof stubAxCode !== "string" || stubAxCode.length === 0) return
+
   try {
     const { stdout } = await execFileAsync("ps", ["-Ao", "pid=,command="])
     const pids = String(stdout)
@@ -227,7 +235,7 @@ const cleanupStubProcesses = async (stubAxCode) => {
         const match = line.trim().match(/^(\d+)\s+(.+)$/)
         if (!match) return null
         const pid = Number.parseInt(match[1], 10)
-        return Number.isFinite(pid) && match[2].includes(stubAxCode) ? pid : null
+        return Number.isFinite(pid) && isStubProcessCommand(match[2], stubAxCode) ? pid : null
       })
       .filter((pid) => pid && pid !== process.pid)
 

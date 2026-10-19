@@ -35,6 +35,34 @@ describe("Desktop release policy", () => {
     }
   })
 
+  it("rejects a null cutover block and non-list evidence", () => {
+    const readPolicyWith = (mutate) => {
+      const directory = fs.mkdtempSync(path.join(os.tmpdir(), "release-policy-"))
+      try {
+        const policy = JSON.parse(
+          fs.readFileSync(path.join(repositoryRoot, "config/desktop-release-policy.json"), "utf8"),
+        )
+        mutate(policy)
+        fs.mkdirSync(path.join(directory, "config"), { recursive: true })
+        fs.writeFileSync(path.join(directory, "config/desktop-release-policy.json"), JSON.stringify(policy))
+        return readReleasePolicy(directory)
+      } finally {
+        fs.rmSync(directory, { recursive: true, force: true })
+      }
+    }
+
+    expect(() =>
+      readPolicyWith((policy) => {
+        policy.cutover = null
+      }),
+    ).toThrow("cutover-approved stage requires the recorded cutover block")
+    expect(() =>
+      readPolicyWith((policy) => {
+        policy.cutover.requiredEvidence = "signed-shadow"
+      }),
+    ).toThrow("cutover.requiredEvidence must be a list")
+  })
+
   it("requires an explicit publish-never argument while shadow-only", () => {
     const policy = { ...readReleasePolicy(repositoryRoot), stage: "shadow-only", publicRelease: { enabled: false } }
     expect(() => assertPackagePublishingMode(["--mac", "--arm64", "--publish=never"], policy)).not.toThrow()

@@ -32,6 +32,12 @@ const devOnlySiblingSourceImports: ReadonlyArray<{ file: string; specifier: stri
     reason:
       "Dev-mode Vite proxy reuses the packaged app:// route-ownership table so dev and packaged API routing stay in parity (SPEC-2026-08-29 S2.4b).",
   },
+  {
+    file: "desktop/packages/web/vite-api-runtime-proxy.test.ts",
+    specifier: "../electron/src/api-prefix-router.js",
+    reason:
+      "Test-only parity fixture reads the packaged app:// route-ownership table to prove the Vite dev proxy classifies paths identically (SPEC-2026-08-29 S2.4b).",
+  },
 ]
 
 const blockedRuntimeAreas = ["session", "provider", "tool", "storage", "mcp", "workflow", "runtime", "config"]
@@ -54,6 +60,8 @@ const uiForbiddenDependencies = [
   "http-proxy-middleware",
   "node-pty",
   "simple-git",
+  "@ax-code/electron",
+  "ax-code-desktop",
 ]
 
 const dependencyFields = ["dependencies", "devDependencies", "peerDependencies", "optionalDependencies"] as const
@@ -92,15 +100,22 @@ function resolveRelativeImport(file: string, specifier: string) {
 // and has to be judged there. Normalizing the specifier alone collapsed `@/../electron/src/x.js`
 // into a plain relative path, which neither the web-alias rule nor the sibling-source rule saw.
 const UI_SOURCE_ROOT = "desktop/packages/ui/src"
+const UI_PACKAGE_ROOT = "desktop/packages/ui"
+const UI_PACKAGE_PREFIX = "@openchamber/ui/"
 
 function resolveAliasImport(file: string, specifier: string) {
   // Only inside the package that owns the alias: from another package the alias is already a
   // violation of its own (webUiAlias), and resolving it there reported the same import twice.
   if (desktopPackage(file) !== "ui" || !specifier.startsWith("@/")) return undefined
   const cleanSpecifier = specifier.split(/[?#]/, 1)[0] ?? specifier
-  const resolvedFromUi = normalize(path.posix.join(UI_SOURCE_ROOT, cleanSpecifier.slice(2)))
-  if (!resolvedFromUi.startsWith("..")) return resolvedFromUi
-  return undefined
+  return normalize(path.posix.join(UI_SOURCE_ROOT, cleanSpecifier.slice(2)))
+}
+
+// `@openchamber/ui/*` maps to the UI source tree, so a subpath that walks out with `..` has to be
+// judged where it actually lands instead of being normalized away before the rules see it.
+function resolveUiPackageImport(specifier: string) {
+  if (!specifier.startsWith(UI_PACKAGE_PREFIX)) return undefined
+  return normalize(path.posix.join(UI_SOURCE_ROOT, specifier.slice(UI_PACKAGE_PREFIX.length)))
 }
 
 function isPrivateRuntimeImport(candidate: string) {
@@ -157,8 +172,10 @@ export function analyzeDesktopSource(file: string, source: string) {
   const sourceLines = source.split(/\r?\n/)
 
   for (const item of extractImportSpecifiers(source, file)) {
+    const rawSpecifier = item.specifier.split(/[?#]/, 1)[0] ?? item.specifier
     const specifier = normalize(item.specifier)
     const aliased = resolveAliasImport(file, item.specifier)
+    const uiPackageResolved = resolveUiPackageImport(rawSpecifier)
     const resolved = resolveRelativeImport(file, item.specifier) ?? aliased
     const candidates = resolved ? [specifier, resolved] : [specifier]
 
@@ -170,7 +187,9 @@ export function analyzeDesktopSource(file: string, source: string) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.sdkInternals, sourceLines))
     }
 
-    if (owner !== "ui" && specifier.startsWith("@openchamber/ui/") && !allowedUiEntrypoints.has(specifier)) {
+    // Judged on the raw specifier: normalize collapses `..`, so `@openchamber/ui/../../electron/...`
+    // stopped looking like a UI entrypoint and escaped this rule entirely.
+    if (owner !== "ui" && rawSpecifier.startsWith(UI_PACKAGE_PREFIX) && !allowedUiEntrypoints.has(rawSpecifier)) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.privateUi, sourceLines))
     }
 
@@ -180,7 +199,15 @@ export function analyzeDesktopSource(file: string, source: string) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.webUiAlias, sourceLines))
     }
 
-    if (siblingSourcePackage(file, resolved) && !isDevOnlySiblingSourceImport(file, item.specifier)) {
+    // An alias or UI-package subpath that walks out of its source tree has left the documented
+    // package surface, even when it lands outside every scanned sibling tree (for example a path
+    // into the sibling AX Code checkout).
+    const escapesUiSource = aliased !== undefined && !hasPathPrefix(aliased, UI_SOURCE_ROOT)
+    const escapesUiPackage = uiPackageResolved !== undefined && !hasPathPrefix(uiPackageResolved, UI_PACKAGE_ROOT)
+    if (
+      (escapesUiSource || escapesUiPackage || siblingSourcePackage(file, resolved)) &&
+      !isDevOnlySiblingSourceImport(file, item.specifier)
+    ) {
       violations.push(violation(file, item, DESKTOP_BOUNDARY_REASONS.siblingSource, sourceLines))
     }
   }

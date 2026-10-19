@@ -22,6 +22,20 @@ describe("extractImportSpecifiers", () => {
     ])
   })
 
+  test("recognizes createRequire factories and parenthesized literals", () => {
+    const source = [
+      'const router = createRequire(import.meta.url)("../electron/src/api-prefix-router.js")',
+      'const common = require(("parenthesized-require"))',
+      'const lazy = import((("parenthesized-import")))',
+    ].join("\n")
+
+    expect(extractImportSpecifiers(source, "fixture.ts")).toEqual([
+      { specifier: "../electron/src/api-prefix-router.js", line: 1, column: 47 },
+      { specifier: "parenthesized-require", line: 2, column: 25 },
+      { specifier: "parenthesized-import", line: 3, column: 23 },
+    ])
+  })
+
   test("ignores comments, ordinary strings, and non-literal loader arguments", () => {
     const source = [
       '// import value from "comment-only"',

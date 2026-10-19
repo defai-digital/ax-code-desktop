@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { parseLatestYml, emitYml, mergeLatestYmls } from "./finalize-windows-latest-yml.mjs"
 
@@ -68,5 +72,25 @@ describe("emitYml", () => {
     // electron-updater treats the first file as the canonical path/sha512.
     expect(reparsed.path).toBe("AX Code-0.9.2-x64.exe")
     expect(reparsed.sha512).toBe("X64SHA==")
+  })
+})
+
+describe("CLI entry guard", () => {
+  test("runs as a command when its path carries a symlink", () => {
+    const script = path.resolve(import.meta.dirname, "finalize-windows-latest-yml.mjs")
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-finalize-latest-link-"))
+    const link = path.join(tempDir, "finalize-windows-latest-yml-link.mjs")
+    fs.symlinkSync(script, link)
+    const env = { ...process.env }
+    delete env.LATEST_YML_DIR
+    delete env.AX_CODE_DESKTOP_VERSION
+
+    try {
+      const result = spawnSync("node", [link], { encoding: "utf8", env })
+      expect(result.status).not.toBe(0)
+      expect(result.stderr).toContain("LATEST_YML_DIR is not set")
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

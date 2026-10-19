@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execFile, spawn } from "node:child_process"
-import fs from "node:fs"
+import fs, { realpathSync } from "node:fs"
 import http from "node:http"
 import net from "node:net"
 import os from "node:os"
@@ -189,8 +189,17 @@ export async function runSmoke(argv = process.argv.slice(2), installedTarget) {
   }
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
-if (isMain) {
+function isDirectRun() {
+  const entry = process.argv[1]
+  if (!entry) return false
+  try {
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return false
+  }
+}
+
+if (isDirectRun()) {
   runSmoke().catch((error) => {
     console.error(`[smoke-packaged-asar-cli] ${error instanceof Error ? error.message : String(error)}`)
     process.exit(1)

@@ -1,3 +1,7 @@
+import { spawnSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 import { describe, expect, test } from "vitest"
 
 import {
@@ -269,5 +273,23 @@ describe("parseArgs", () => {
     expect(parseArgs([])).toEqual({ baseUrl: "http://localhost:3000", json: false })
     expect(parseArgs(["--url", "http://localhost:9999/"])).toEqual({ baseUrl: "http://localhost:9999", json: false })
     expect(parseArgs(["--port", "4567", "--json"])).toEqual({ baseUrl: "http://localhost:4567", json: true })
+  })
+})
+
+describe("CLI entry guard", () => {
+  test("runs as a command when its path carries a symlink", () => {
+    const script = path.resolve(import.meta.dirname, "ax-code-perf-report.mjs")
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ax-code-perf-report-link-"))
+    const link = path.join(tempDir, "ax-code-perf-report-link.mjs")
+    fs.symlinkSync(script, link)
+
+    try {
+      // Nothing listens on port 1, so a running entry point reports the failed fetch.
+      const result = spawnSync("node", [link, "--url", "http://127.0.0.1:1"], { encoding: "utf8" })
+      expect(result.status).toBe(1)
+      expect(result.stderr).toContain("Failed to reach AX Code Desktop")
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 })

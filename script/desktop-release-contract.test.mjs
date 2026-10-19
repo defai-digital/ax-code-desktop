@@ -55,6 +55,47 @@ describe("Desktop release contract", () => {
     },
   })
 
+  const withTextOverride = (relativePath, value) => ({
+    ...fs,
+    readFileSync(file, ...args) {
+      return path.relative(repositoryRoot, file).split(path.sep).join("/") === relativePath
+        ? value
+        : fs.readFileSync(file, ...args)
+    },
+  })
+
+  it("rejects required values that appear only in comments", () => {
+    const updateFeed = [
+      '// const GITHUB_OWNER = "defai-digital"',
+      '// const GITHUB_REPO = "ax-code-desktop"',
+      '// const DESKTOP_RELEASE_TAG_PREFIX = "v"',
+      'const GITHUB_OWNER = "defai-digital"',
+      'const GITHUB_REPO = "wrong-repository"',
+      'const DESKTOP_RELEASE_TAG_PREFIX = "v"',
+    ].join("\n")
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withTextOverride("desktop/packages/electron/src/desktop-update-feed.js", updateFeed),
+      ),
+    ).toThrow("update feed repository")
+  })
+
+  it("requires the exact SDK pin in the Electron consumer", () => {
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withOverrides({
+          "desktop/packages/electron/package.json": (manifest) => {
+            const dependencies = { ...manifest.dependencies }
+            delete dependencies["@defai-digital/ax-code-sdk"]
+            return { ...manifest, dependencies }
+          },
+        }),
+      ),
+    ).toThrow("Desktop consumers must use the exact SDK pin")
+  })
+
   it("rejects floating Electron dependencies", () => {
     const fileSystem = withOverrides({
       "desktop/packages/electron/package.json": (manifest) => ({
