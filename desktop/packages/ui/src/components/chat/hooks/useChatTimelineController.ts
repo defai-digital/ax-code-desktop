@@ -2,6 +2,7 @@ import React from "react"
 
 import type { ChatMessageEntry } from "../lib/turns/types"
 import type { MessageListHandle } from "../MessageList"
+import { projectDisplayMessages } from "../lib/turns/projectDisplayMessages"
 import { TURN_WINDOW_DEFAULTS } from "../lib/turns/constants"
 import {
   buildTurnWindowModel,
@@ -99,31 +100,36 @@ export const useChatTimelineController = ({
 }: UseChatTimelineControllerOptions): UseChatTimelineControllerResult => {
   const previousTurnWindowModelRef = React.useRef<TurnWindowModel | null>(null)
   const previousMessagesRef = React.useRef<ChatMessageEntry[] | null>(null)
+  // MessageList renders the display projection (clientRole overrides and hidden bridge
+  // rows), so navigation and its turn model must be built from that same list. Otherwise
+  // a visible projected turn, such as a compaction command shown as a user turn, would be
+  // absent from turnIds and ArrowUp/ArrowDown, hashes or the scroll spy would miss it.
+  const displayMessages = React.useMemo(() => projectDisplayMessages(messages), [messages])
   const turnWindowModel = React.useMemo(() => {
     const key = sessionId ?? ""
     const cached = key ? turnModelCache.get(key) : undefined
-    if (cached && cached.messages === messages) {
+    if (cached && cached.messages === displayMessages) {
       rememberTurnModel(key, cached)
       previousTurnWindowModelRef.current = cached.model
-      previousMessagesRef.current = messages
+      previousMessagesRef.current = displayMessages
       return cached.model
     }
 
     const incrementalModel = updateTurnWindowModelIncremental(
       previousTurnWindowModelRef.current,
       previousMessagesRef.current,
-      messages,
+      displayMessages,
     )
-    const nextModel = incrementalModel ?? buildTurnWindowModel(messages)
+    const nextModel = incrementalModel ?? buildTurnWindowModel(displayMessages)
     previousTurnWindowModelRef.current = nextModel
-    previousMessagesRef.current = messages
+    previousMessagesRef.current = displayMessages
 
-    if (key && messages.length > 0) {
-      rememberTurnModel(key, { messages, model: nextModel })
+    if (key && displayMessages.length > 0) {
+      rememberTurnModel(key, { messages: displayMessages, model: nextModel })
     }
 
     return nextModel
-  }, [messages, sessionId])
+  }, [displayMessages, sessionId])
 
   const [turnStart, setTurnStart] = React.useState(() => getInitialTurnStart(turnWindowModel.turnCount))
   const [isLoadingOlder, setIsLoadingOlder] = React.useState(false)
@@ -335,8 +341,8 @@ export const useChatTimelineController = ({
   }, [resolvePendingRenderWaiters, resolvePendingScrollRequest])
 
   const renderedMessages = React.useMemo(() => {
-    return windowMessagesByTurn(messages, turnWindowModel, turnStart)
-  }, [messages, turnStart, turnWindowModel])
+    return windowMessagesByTurn(displayMessages, turnWindowModel, turnStart)
+  }, [displayMessages, turnStart, turnWindowModel])
 
   React.useLayoutEffect(() => {
     resolvePendingRenderWaiters()
@@ -526,9 +532,21 @@ export const useChatTimelineController = ({
           prePrependScrollRef.current = null
         }
         // Keep the auto-follow unseen baseline in step with what was prepended:
-        // older history arriving at the top is not new unread activity.
+        // older history arriving at the top is not new unread activity. The array
+        // can also grow at the tail while the fetch is in flight, so count only the
+        // messages that landed before the previously-oldest one.
         if (sessionIdRef.current === fetchTargetSessionId) {
-          const prependedCount = messagesRef.current.length - beforeMessageCount
+          const afterMessages = messagesRef.current
+          const previousOldestIndex =
+            typeof beforeOldestMessageId === "string"
+              ? afterMessages.findIndex((message) => message.info?.id === beforeOldestMessageId)
+              : -1
+          const prependedCount =
+            previousOldestIndex >= 0
+              ? previousOldestIndex
+              : beforeMessageCount === 0
+                ? afterMessages.length - beforeMessageCount
+                : 0
           if (prependedCount > 0) {
             notePrependedMessages?.(prependedCount)
           }

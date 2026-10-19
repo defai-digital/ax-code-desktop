@@ -6,13 +6,14 @@ import { useChatTurnNavigation } from "./useChatTurnNavigation"
 describe("useChatTurnNavigation hash targets", () => {
   let container: HTMLDivElement
   let root: ReturnType<typeof createRoot>
+  let navigation: ReturnType<typeof useChatTurnNavigation> | null = null
 
   const scrollToTurn = vi.fn()
   const scrollToMessage = vi.fn()
   const resumeToBottom = vi.fn()
 
   const Probe = ({ turnIds }: { turnIds: string[] }) => {
-    useChatTurnNavigation({
+    navigation = useChatTurnNavigation({
       sessionId: "ses_1",
       turnIds,
       activeTurnId: null,
@@ -28,6 +29,7 @@ describe("useChatTurnNavigation hash targets", () => {
     scrollToTurn.mockReset()
     scrollToMessage.mockReset()
     resumeToBottom.mockReset()
+    navigation = null
     window.history.replaceState(null, "", "/")
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -78,6 +80,40 @@ describe("useChatTurnNavigation hash targets", () => {
     expect(scrollToMessage).toHaveBeenCalledWith("msg_1", { behavior: "auto" })
 
     render(["abc"])
+    await act(async () => {})
+    expect(scrollToMessage).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not re-apply a hash written by explicit turn navigation after a turn is appended", async () => {
+    scrollToTurn.mockResolvedValue(true)
+
+    render(["abc", "def"])
+    await act(async () => {})
+
+    await act(async () => {
+      await navigation?.scrollByTurnOffset(-1)
+    })
+    expect(scrollToTurn).toHaveBeenCalledTimes(1)
+    expect(window.location.hash).toBe("#turn-abc")
+
+    render(["abc", "def", "ghi"])
+    await act(async () => {})
+    expect(scrollToTurn).toHaveBeenCalledTimes(1)
+  })
+
+  test("does not re-apply a hash written by explicit message navigation after a turn is appended", async () => {
+    scrollToMessage.mockResolvedValue(true)
+
+    render(["abc"])
+    await act(async () => {})
+
+    await act(async () => {
+      await navigation?.scrollToMessageId("msg_1")
+    })
+    expect(scrollToMessage).toHaveBeenCalledTimes(1)
+    expect(window.location.hash).toBe("#message-msg_1")
+
+    render(["abc", "def"])
     await act(async () => {})
     expect(scrollToMessage).toHaveBeenCalledTimes(1)
   })

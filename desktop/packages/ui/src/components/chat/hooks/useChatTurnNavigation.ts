@@ -92,6 +92,10 @@ export const useChatTurnNavigation = ({
 }: UseChatTurnNavigationOptions): ChatTurnNavigation => {
   const turnIdsRef = React.useRef(turnIds)
   const activeTurnIdRef = React.useRef(activeTurnId)
+  // Hash targets are applied once. Re-applying on every new turn (the effect depends on
+  // turnIds.length so the target may not exist yet when the hash arrives) would drag the
+  // reader back to a stale turn and release the follow whenever a turn is appended.
+  const appliedHashRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
     turnIdsRef.current = turnIds
@@ -107,11 +111,18 @@ export const useChatTurnNavigation = ({
         return false
       }
 
-      if (options?.updateHash !== false) {
+      const updateHash = options?.updateHash !== false
+      if (updateHash) {
         setHash(`turn-${turnId}`)
       }
 
-      return scrollToTurn(turnId, { behavior: options?.behavior })
+      const applied = await scrollToTurn(turnId, { behavior: options?.behavior })
+      // A hash this app wrote is already applied. Without this, a later turn-list
+      // change (the optimistic send) re-runs the hash effect and navigates back.
+      if (applied && updateHash) {
+        appliedHashRef.current = `#turn-${turnId}`
+      }
+      return applied
     },
     [scrollToTurn],
   )
@@ -122,11 +133,16 @@ export const useChatTurnNavigation = ({
         return false
       }
 
-      if (options?.updateHash !== false) {
+      const updateHash = options?.updateHash !== false
+      if (updateHash) {
         setHash(`message-${messageId}`)
       }
 
-      return scrollToMessage(messageId, { behavior: options?.behavior })
+      const applied = await scrollToMessage(messageId, { behavior: options?.behavior })
+      if (applied && updateHash) {
+        appliedHashRef.current = `#message-${messageId}`
+      }
+      return applied
     },
     [scrollToMessage],
   )
@@ -147,6 +163,7 @@ export const useChatTurnNavigation = ({
         }
 
         setHash(null)
+        appliedHashRef.current = null
         resumeToBottom()
         return true
       }
@@ -158,13 +175,9 @@ export const useChatTurnNavigation = ({
 
   const resumeToLatest = React.useCallback(() => {
     setHash(null)
+    appliedHashRef.current = null
     resumeToBottom()
   }, [resumeToBottom])
-
-  // Hash targets are applied once. Re-applying on every new turn (the effect depends on
-  // turnIds.length so the target may not exist yet when the hash arrives) would drag the
-  // reader back to a stale turn and release the follow whenever a turn is appended.
-  const appliedHashRef = React.useRef<string | null>(null)
 
   React.useEffect(() => {
     if (!sessionId || typeof window === "undefined") {
