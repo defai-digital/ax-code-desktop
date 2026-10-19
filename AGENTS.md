@@ -13,7 +13,7 @@ Guidance for coding agents operating in the AX Code Desktop repository.
 The product is AX Code and this desktop app is AX Code Desktop (ADR-015). Do not write "AX Coder" in new text;
 older records use that name for this repository.
 
-AX Code Desktop is the planned persistent desktop experience for supervising multiple coding projects. It owns the
+AX Code Desktop is the persistent desktop experience for supervising multiple coding projects. It owns the
 portfolio UI, human-added project registry, desired-state controls, exception inbox, and project-management
 experience. It does not own a second coding runtime.
 
@@ -28,15 +28,21 @@ Canonical boundaries:
 
 ## Current phase
 
-Phases 1 and 2 are complete, and Phase 3 external release evidence is in progress. The reviewed Desktop source and
-its filtered history live under `desktop/`, and the independent workspace consumes the published JSR SDK with a
-frozen lockfile and a pinned signed AX Code runtime. Independent CI, CodeQL, and a manual private-repository shadow
-workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
+Extraction phases 1 to 3 are complete. The reviewed Desktop source and its filtered history live under `desktop/`, and
+the independent workspace consumes the published JSR SDK with a frozen lockfile and a pinned signed AX Code runtime.
+Independent CI, CodeQL and the signed shadow workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
 tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Code Desktop is the sole current GUI source owner.
 
-The repository has an active public remote at `defai-digital/ax-code-desktop`. Independent CI and native smoke
-checks have run. Signed cross-platform shadow, upgrade, and rollback evidence remains pending. ADR-009 prepares
-the independent release target without enabling publication or changing the active updater. Public release and independent updater cutover are authorized under ADR-012. Live Cloudflare activation still requires verified signed native installation, upgrade, rollback and profile/configuration continuity receipts. Do not change the compatibility identity or move GUI source back into the AX Code runtime repository.
+The repository has an active public remote at `defai-digital/ax-code-desktop`, and public releases ship from it under
+ADR-012. 7.27.3 was published on 2026-10-19 after signed shadow qualification and native install, upgrade, rollback and
+profile/configuration continuity receipts (`.internal/reports/RELEASE-2026-10-19-v7.27.3-publication.md`). ADR-012
+does not pre-qualify later versions: every release needs its own exact-inventory signed qualification and explicit
+publication approval. Do not change the compatibility identity or move GUI source back into the AX Code runtime
+repository.
+
+The active improvement plan is `.internal/prd/PRD-2026-10-19-competitive-quality-v1.md` (renderer security baseline,
+end-to-end harness, structure and supervision work). Settled decisions and their records are indexed in
+`.internal/prd/README.md`, `.internal/adr/README.md` and `.internal/spec/README.md`.
 
 ## Environment and commands
 
@@ -55,6 +61,8 @@ the independent release target without enabling publication or changing the acti
 | Workflow syntax               | `actionlint .github/workflows/*.yml`                               |
 | Development app               | `pnpm run dev`                                                     |
 | Release readiness (read-only)  | `pnpm run release:preflight`                                       |
+| End-to-end journeys (after build) | `pnpm run e2e:desktop` (`-- --app <path>.app` for packaged)     |
+| Source-text test ratchet       | `pnpm run check:source-text-tests` (part of `check:boundaries`)    |
 | Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 
 Public distribution commands require signed exact-inventory qualification; user publication approval is recorded under ADR-012.
@@ -113,7 +121,7 @@ Product-boundary or source-ownership work requires, in order:
 
 ## Initial implementation record
 
-The active plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
+The extraction umbrella plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
 
 Phase 1 evidence is in `.internal/reports/extraction/`. Phase 2 completion evidence is in
 `.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. Phase 3 local implementation evidence is
@@ -121,4 +129,5 @@ in `.internal/reports/PHASE-3-2026-09-02-shadow-release-implementation.md`. Loca
 `.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`. The workspace consumes the SDK pin in
 `config/ax-code-sdk.json`, the signed runtime pin in `config/ax-code-runtime.json`, and the compatibility identity and
 release state in `config/desktop-identity.json` and `config/desktop-release-policy.json`. Public release commands
-remain unavailable until signed shadow, update, rollback, and human release-cutover gates pass.
+publish only an exact candidate that passed signed shadow, update, rollback and continuity qualification, with explicit
+user approval for that version.

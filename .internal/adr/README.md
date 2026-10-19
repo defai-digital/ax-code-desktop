@@ -1,6 +1,6 @@
 # AX Code Desktop ADR index
 
-Reviewed 2026-10-18. Accepted decisions remain authoritative unless a later decision explicitly supersedes a clause. Implementation dates and old release versions in accepted records are historical, not live deployment evidence.
+Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted decisions remain authoritative unless a later decision explicitly supersedes a clause. Implementation dates and old release versions in accepted records are historical, not live deployment evidence.
 
 | ADR | Standing and supersession scope |
 | --- | --- |
@@ -20,13 +20,16 @@ Reviewed 2026-10-18. Accepted decisions remain authoritative unless a later deci
 | [ADR-013: Browser routing](ADR-013-browser-entrypoint-routing.md) | Active CLI/Desktop browser separation |
 | [ADR-014: Agent page interaction](ADR-014-agent-page-interaction.md) | Active page-interaction boundary; paired producer ADR-198 exists |
 | [ADR-015: Product naming](ADR-015-product-name-ax-code.md) | Active product name and compatibility identity requirements |
+| [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md) | Historical accepted handoff; execution superseded by ADR-017; paired AX Code ADR-256 |
+| [ADR-017: Analysis routing](ADR-017-analysis-routing-without-streamlit-runtime.md) | Active; supersedes ADR-016 for execution; paired AX Code ADR-257 |
+| [ADR-018: Renderer security baseline](ADR-018-renderer-security-baseline.md) | Active; explicit renderer sandbox, hashed inline scripts, no `'unsafe-eval'` for app documents |
 
 ## Archived proposals
 
 [Embedded provider producer proposal](archive/AX-CODE-ADR-PROPOSAL-2026-10-11-embedded-webmcp-transport-v1.md): historical draft, now represented by accepted AX Code ADR-184. It is not an outstanding approval request.
 
+ADR-005 remains deferred as a durable portfolio service. Mission Control, the Needs You queue and multi-run comparison
+are renderer projections over runtime state and do not satisfy it; their state ownership is recorded in the competitive
+quality PRD (Phase 2).
+
 The duplicate ADR-009 numbers are historical. Use full filenames or the qualified labels above; accepted records were not renumbered. See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and preservation receipts.
-
-- [ADR-016: Analysis app handoff](ADR-016-analysis-app-handoff.md): Historical accepted handoff; execution superseded by ADR-017; paired AX Code ADR-256.
-
-- [ADR-017: Analysis routing without a dedicated Streamlit runtime](ADR-017-analysis-routing-without-streamlit-runtime.md) supersedes ADR-016 for execution; accepted 2026-10-18.

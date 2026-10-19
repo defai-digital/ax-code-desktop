@@ -194,6 +194,7 @@ deb:
 publish:
   provider: github
   owner: defai-digital
-  # Candidate metadata targets the independent owner. Publishing remains
-  # disabled and the active updater stays frozen until ADR-009 cutover gates pass.
+  # Update metadata targets the independent owner. Publication authority is
+  # ADR-012; every release still needs exact-inventory signed qualification
+  # (config/desktop-release-policy.json). Local packaging uses --publish=never.
   repo: ax-code-desktop
