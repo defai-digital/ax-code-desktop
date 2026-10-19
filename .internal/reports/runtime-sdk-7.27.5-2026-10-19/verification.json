@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-19",
+  "runtime": {
+    "version": "7.27.5",
+    "releaseTag": "v7.27.5",
+    "producerCommit": "2703c67229b1e063416bb3e512cbcfaa5dddc597",
+    "release": "https://github.com/defai-digital/ax-code/releases/tag/v7.27.5",
+    "publishedAt": "2026-10-19T04:43:48Z",
+    "runtimeDownloadDirectory": "/tmp/ax-7.27.5",
+    "signatureVerification": "minisign -V against resources/keys/ax-minisign.pub; all four artifacts verified; trusted comments match computed SHA-256",
+    "publicKeySha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+    "releasePublicKeySha256": "41de2e31510ccfc6f3450d8de1e8ed59481413d00f8a58d65bddbc05042397b2",
+    "artifacts": {
+      "darwin-arm64": { "size": 79612323, "sha256": "814ede991288c9ede07e5d039b04832901f31b0bee7267a6b983de07f4cd74d4", "signatureSize": 377, "signatureSha256": "ffe45c58b16dd298d7e33faf1acad8b2c7e844f34f48a0352150b905a6fcef8b", "executed": "--version reported 7.27.5 on this Mac" },
+      "linux-arm64": { "size": 86024353, "sha256": "f006dd60126dbdd8af5aea67e93eea7ca36cc3911a3dc31a40297e1eb883cce0", "signatureSize": 379, "signatureSha256": "f7bcebdbd50fdcd1766d461d10a5cd8024a1d2589fba0ebc820af5d330503bb6", "executed": false },
+      "linux-x64": { "size": 87756433, "sha256": "f6d0a4f6b16bce8b50a3da15e4deb55bc970fd26e507608726b83a1a35de484c", "signatureSize": 377, "signatureSha256": "1658018c834699fe72d754c0095d15ce25bdcf75237ccbd9e42c7eb249fda7da", "executed": false },
+      "win32-x64": { "size": 94203806, "sha256": "86e82cd3fd60bb055b45919de2cc98e065888ebebc5c9b68de4d3ce2e3c5d64d", "signatureSize": 376, "signatureSha256": "24fe0e5d1944cca10157ed63cd3b0e890e99d966e47a4550e9d0fcbcc3c6c061", "executed": false }
+    }
+  },
+  "sdk": {
+    "version": "2.6.36",
+    "specifier": "jsr:@defai-digital/ax-code-sdk@2.6.36",
+    "sdkRegistry": "https://npm.jsr.io/@jsr/defai-digital__ax-code-sdk",
+    "producerCommit": "2703c67229b1e063416bb3e512cbcfaa5dddc597",
+    "dist": {
+      "name": "@jsr/defai-digital__ax-code-sdk",
+      "tarball": "https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.36.tgz",
+      "shasum": "558D266B89A222E525805B29BFB353385483FFB3",
+      "integrity": "sha512-RSPaxqMf3+djKGO4+tlF7C6NvyWZUkmNuKSXVgecdm/JzoeHcn6QODv5g/LZQK5ViDrXzpdlRQaX0LnZCI/xkg=="
+    },
+    "lockfileIntegrityMatchesRegistry": true
+  },
+  "changedFiles": {
+    "config/ax-code-runtime.json": "d1527806df7c7f1d24957c8b7b7c21f68b8a75c780cffdb3f164b7b36c730439",
+    "config/ax-code-sdk.json": "8b883a29b3e217d564fd70c232a3ef394cf21246b1a0428c35052153b5f4be5d",
+    "pnpm-lock.yaml": "6427b8a7d0e580e08fb7907a7f34f7b6740189c5d1621c5cf85a203f84a8c3d2",
+    "desktop/packages/electron/package.json": "bf8b3787ebc79e864bba8e4e130875410cb804f21ba03ca30665a9fb6e4591cb",
+    "desktop/packages/ui/package.json": "4d3c3ec8a416c892ea270063793d8c4a1a1c930c742187addd43adbc4722c459",
+    "desktop/packages/web/package.json": "4fdc82546992ae73007a86fc50df76ca2db5080ef101e41191eea60e665362f5"
+  },
+  "desktopVersion": "7.27.2",
+  "boundaries": "Runtime 7.27.5 ships the analysis-output builtin and merge-and-sync-github command; this pin update delivers them to packaged users. Linux/Windows binaries were signature-verified but not executed on this Mac. This report is not signed Desktop installation, upgrade, or rollback qualification."
+}

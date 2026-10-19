@@ -20,7 +20,7 @@
     "build:shell": "node scripts/copy-web-assets.mjs && pnpm run bundle:main && pnpm run rebuild:native"
   },
   "dependencies": {
-    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.35",
+    "@defai-digital/ax-code-sdk": "jsr:@defai-digital/ax-code-sdk@2.6.36",
     "electron-updater": "^6.8.9",
     "node-pty": "1.1.0"
   },

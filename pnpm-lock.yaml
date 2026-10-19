@@ -110,8 +110,8 @@ importers:
   desktop/packages/electron:
     dependencies:
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.35
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.35'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.36
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.36'
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9
@@ -207,8 +207,8 @@ importers:
         specifier: 6.39.13
         version: 6.39.13
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.35
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.35'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.36
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.36'
       '@dnd-kit/core':
         specifier: ^6.3.1
         version: 6.3.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -421,8 +421,8 @@ importers:
         specifier: ^1.8.1
         version: 1.8.1
       '@defai-digital/ax-code-sdk':
-        specifier: jsr:@defai-digital/ax-code-sdk@2.6.35
-        version: '@jsr/defai-digital__ax-code-sdk@2.6.35'
+        specifier: jsr:@defai-digital/ax-code-sdk@2.6.36
+        version: '@jsr/defai-digital__ax-code-sdk@2.6.36'
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
@@ -1288,8 +1288,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@jsr/defai-digital__ax-code-sdk@2.6.35':
-    resolution: {integrity: sha512-gf9tc6Uj/W1rBayayEDfGj7/rF4JHB4x7G+uOz+MpZwz3oLK+QEQ/809wDKnRZ4P/seo4DMOqJB8LdEbZ8ffNQ==, tarball: https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.35.tgz}
+  '@jsr/defai-digital__ax-code-sdk@2.6.36':
+    resolution: {integrity: sha512-RSPaxqMf3+djKGO4+tlF7C6NvyWZUkmNuKSXVgecdm/JzoeHcn6QODv5g/LZQK5ViDrXzpdlRQaX0LnZCI/xkg==, tarball: https://npm.jsr.io/~/11/@jsr/defai-digital__ax-code-sdk/2.6.36.tgz}
 
   '@kwsites/file-exists@1.1.1':
     resolution: {integrity: sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw==}
@@ -6429,7 +6429,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.6.0
 
-  '@jsr/defai-digital__ax-code-sdk@2.6.35':
+  '@jsr/defai-digital__ax-code-sdk@2.6.36':
     dependencies:
       '@msgpack/msgpack': 3.1.3
       zod: 4.3.6
@@ -7662,10 +7662,10 @@ snapshots:
 
   '@types/unist@3.0.3': {}
 
-  '@typescript-eslint/eslint-plugin@8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)':
+  '@typescript-eslint/eslint-plugin@8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)':
     dependencies:
       '@eslint-community/regexpp': 4.12.2
-      '@typescript-eslint/parser': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+      '@typescript-eslint/parser': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3)
       '@typescript-eslint/scope-manager': 8.71.2
       '@typescript-eslint/type-utils': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/utils': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
@@ -11079,7 +11079,7 @@ snapshots:
 
   typescript-eslint@8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3):
     dependencies:
-      '@typescript-eslint/eslint-plugin': 8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
+      '@typescript-eslint/eslint-plugin': 8.71.2(@typescript-eslint/parser@8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/parser': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
       '@typescript-eslint/typescript-estree': 8.71.2(typescript@5.8.3)
       '@typescript-eslint/utils': 8.71.2(eslint@9.39.5(jiti@2.7.0))(typescript@5.8.3)
