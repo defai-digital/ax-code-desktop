@@ -215,7 +215,9 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
       // In desktop boot flow, always restart the entire Tauri app so Rust
       // can re-evaluate the boot outcome with the updated binary path.
       if (isTauriShell()) {
-        await restartDesktopApp()
+        if (!(await restartDesktopApp())) {
+          setCheckError(t("onboarding.desktopRecovery.error.actionFailed"))
+        }
         return
       }
 

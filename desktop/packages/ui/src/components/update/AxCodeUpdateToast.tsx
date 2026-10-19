@@ -43,6 +43,17 @@ export const AxCodeUpdateToast: React.FC = () => {
   const cliUpgradingRef = React.useRef(false)
   const cliStatusRef = React.useRef<AxCodeCliStatus | null>(null)
   const mountedRef = React.useRef(true)
+  // The runtime check fires before the first CLI status check on startup. The
+  // announcement waits on this promise so the dedup guard below can see the
+  // status instead of the initial `null`; a failed check still settles it so
+  // an update is not lost while the status is unknown.
+  const [cliInitialCheck] = React.useState(() => {
+    let resolve!: () => void
+    const promise = new Promise<void>((settle) => {
+      resolve = settle
+    })
+    return { promise, resolve }
+  })
 
   React.useEffect(() => {
     mountedRef.current = true
@@ -60,6 +71,7 @@ export const AxCodeUpdateToast: React.FC = () => {
 
   const reloadAxCode = React.useCallback(() => {
     toast.dismiss(UPGRADE_TOAST_ID)
+    toast.dismiss(CLI_UPGRADE_TOAST_ID)
     void reloadAxCodeConfiguration({
       message: t("axCodeUpdate.toast.reload.message"),
       mode: "projects",
@@ -202,7 +214,7 @@ export const AxCodeUpdateToast: React.FC = () => {
   }, [reloadAxCode, t])
 
   React.useEffect(() => {
-    const showUpdateAvailableToast = (version: string) => {
+    const showUpdateAvailableToast = async (version: string) => {
       // Upstream setting wins over our dedup logic: if user disabled
       // ax-code update notifications, dismiss any active toast and bail
       // before consulting dedup state.
@@ -210,6 +222,8 @@ export const AxCodeUpdateToast: React.FC = () => {
         toast.dismiss(UPDATE_TOAST_ID)
         return
       }
+      await cliInitialCheck.promise
+      if (!mountedRef.current) return
       // When Desktop's runtime is the user's own CLI, the CLI toast offers
       // the update for that binary; two toasts would start two upgrades. Only
       // skip it when that toast can stand in: an off-PATH install, or a CLI too
@@ -245,7 +259,7 @@ export const AxCodeUpdateToast: React.FC = () => {
 
     const onUpdateAvailable = (event: Event) => {
       const version = resolveAxCodeUpdateVersion((event as CustomEvent<unknown>).detail)
-      showUpdateAvailableToast(version)
+      void showUpdateAvailableToast(version)
     }
 
     let cancelled = false
@@ -290,7 +304,7 @@ export const AxCodeUpdateToast: React.FC = () => {
         const bundled = status?.binarySource === "bundled"
         const version = bundled ? "" : resolveAxCodeUpgradeStatusVersion(status)
         if (version) {
-          showUpdateAvailableToast(version)
+          void showUpdateAvailableToast(version)
         }
       } catch {
         const delay = CHECK_RETRY_DELAYS_MS[attempt]
@@ -316,7 +330,7 @@ export const AxCodeUpdateToast: React.FC = () => {
       for (const timeoutId of timeoutIds) clearTimeout(timeoutId)
       window.removeEventListener("openchamber:ax-code-update-available", onUpdateAvailable)
     }
-  }, [runUpgrade, showAxCodeUpdateNotifications, t])
+  }, [cliInitialCheck, runUpgrade, showAxCodeUpdateNotifications, t])
 
   React.useEffect(() => {
     if (!showAxCodeUpdateNotifications) return
@@ -369,11 +383,13 @@ export const AxCodeUpdateToast: React.FC = () => {
         const status = await fetchAxCodeCliStatus({ check: true })
         if (cancelled) return
         cliStatusRef.current = status
+        if (attempt === 0) cliInitialCheck.resolve()
         showCliToast(status)
         timeoutIds.push(setTimeout(() => void checkCli(1), CLI_RECHECK_INTERVAL_MS))
       } catch {
         const delay = CHECK_RETRY_DELAYS_MS[attempt]
         if (!cancelled) {
+          if (attempt === 0) cliInitialCheck.resolve()
           timeoutIds.push(setTimeout(() => void checkCli(attempt + 1), delay ?? CLI_RECHECK_INTERVAL_MS))
         }
       }
@@ -384,7 +400,7 @@ export const AxCodeUpdateToast: React.FC = () => {
       cancelled = true
       for (const timeoutId of timeoutIds) clearTimeout(timeoutId)
     }
-  }, [runCliUpgrade, showAxCodeUpdateNotifications, t])
+  }, [cliInitialCheck, runCliUpgrade, showAxCodeUpdateNotifications, t])
 
   return null
 }

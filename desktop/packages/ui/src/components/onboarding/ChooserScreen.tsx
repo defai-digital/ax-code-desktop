@@ -276,7 +276,9 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
       await updateDesktopSettings({ axCodeBinary: axCodeBinary.trim() })
       if (isTauriShell()) {
         await persistLocalChoice()
-        await restartDesktopApp()
+        if (!(await restartDesktopApp())) {
+          setApplyError(t("onboarding.desktopRecovery.error.actionFailed"))
+        }
         return
       }
       await fetch(API_ENDPOINTS.config.reload, { method: "POST" })

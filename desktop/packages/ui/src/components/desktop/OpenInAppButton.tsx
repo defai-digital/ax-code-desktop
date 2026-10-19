@@ -48,6 +48,10 @@ const AppIcon = ({
 
   const src = iconDataUrl || fallbackIconDataUrl
 
+  React.useEffect(() => {
+    setFailed(false)
+  }, [src])
+
   if (src && !failed) {
     return <img src={src} alt="" className="h-4 w-4 rounded-sm" onError={() => setFailed(true)} />
   }

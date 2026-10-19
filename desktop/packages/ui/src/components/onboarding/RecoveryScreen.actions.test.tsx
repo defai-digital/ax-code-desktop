@@ -7,7 +7,7 @@ import { dict } from "@/lib/i18n/messages/en"
 const { desktopHostsGet, desktopHostsSet, restartDesktopApp, toastError, tauriShell } = vi.hoisted(() => ({
   desktopHostsGet: vi.fn(),
   desktopHostsSet: vi.fn(),
-  restartDesktopApp: vi.fn(async () => {}),
+  restartDesktopApp: vi.fn(async () => true),
   toastError: vi.fn(),
   tauriShell: { current: false },
 }))
@@ -43,7 +43,8 @@ describe("RecoveryScreen actions", () => {
     root = createRoot(container)
     desktopHostsGet.mockReset()
     desktopHostsSet.mockReset()
-    restartDesktopApp.mockClear()
+    restartDesktopApp.mockReset()
+    restartDesktopApp.mockResolvedValue(true)
     toastError.mockReset()
     tauriShell.current = false
   })
@@ -107,5 +108,42 @@ describe("RecoveryScreen actions", () => {
 
     expect(toastError).toHaveBeenCalledWith("reload request failed")
     expect(onRetry).not.toHaveBeenCalled()
+  })
+
+  test("reports a desktop restart that returned false", async () => {
+    // `restartDesktopApp` resolves false instead of rejecting when the invoke
+    // fails, and an ignored result made the retry look like it had started.
+    tauriShell.current = true
+    restartDesktopApp.mockResolvedValue(false)
+    await render("local-unavailable")
+
+    await clickLabel(dict["onboarding.desktopRecovery.localUnavailable.retry"])
+
+    expect(restartDesktopApp).toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalledWith(dict["onboarding.desktopRecovery.error.actionFailed"])
+  })
+
+  test("reports a restart that failed after switching the default to local", async () => {
+    tauriShell.current = true
+    desktopHostsGet.mockResolvedValue({ hosts: [], defaultHostId: "remote", initialHostChoiceCompleted: true })
+    desktopHostsSet.mockResolvedValue(undefined)
+    restartDesktopApp.mockResolvedValue(false)
+    await render("remote-unreachable")
+
+    await clickLabel(dict["onboarding.desktopRecovery.common.useLocal"])
+
+    expect(desktopHostsSet).toHaveBeenCalled()
+    expect(restartDesktopApp).toHaveBeenCalled()
+    expect(toastError).toHaveBeenCalledWith(dict["onboarding.desktopRecovery.error.actionFailed"])
+  })
+
+  test("does not report a restart that succeeded", async () => {
+    tauriShell.current = true
+    await render("local-unavailable")
+
+    await clickLabel(dict["onboarding.desktopRecovery.localUnavailable.retry"])
+
+    expect(restartDesktopApp).toHaveBeenCalled()
+    expect(toastError).not.toHaveBeenCalled()
   })
 })

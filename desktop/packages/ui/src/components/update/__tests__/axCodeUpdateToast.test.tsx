@@ -14,10 +14,14 @@ const toastSpies = vi.hoisted(() => ({
   dismiss: vi.fn(),
 }))
 
+const reloadAxCodeConfiguration = vi.hoisted(() => vi.fn(async () => {}))
+
 vi.mock("@/components/ui/toast", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/components/ui/toast")>()
   return { ...actual, toast: { ...actual.toast, ...toastSpies } }
 })
+
+vi.mock("@/stores/useAgentsStore", () => ({ reloadAxCodeConfiguration }))
 
 interface ToastOptions {
   id?: string
@@ -27,6 +31,13 @@ interface ToastOptions {
 /** The options of the last `toast.info` call carrying this id. */
 const findToast = (id: string): ToastOptions | undefined =>
   toastSpies.info.mock.calls
+    .map((call) => call[1] as ToastOptions | undefined)
+    .filter((options): options is ToastOptions => options?.id === id)
+    .at(-1)
+
+/** The options of the last `toast.warning` call carrying this id. */
+const findWarningToast = (id: string): ToastOptions | undefined =>
+  toastSpies.warning.mock.calls
     .map((call) => call[1] as ToastOptions | undefined)
     .filter((options): options is ToastOptions => options?.id === id)
     .at(-1)
@@ -103,6 +114,7 @@ beforeEach(() => {
   mounted = true
   statusCalls = 0
   fetchMock.mockClear()
+  reloadAxCodeConfiguration.mockClear()
   for (const spy of Object.values(toastSpies)) spy.mockClear()
   useUIStore.setState({ showAxCodeUpdateNotifications: true })
   vi.stubGlobal("fetch", fetchMock)
@@ -179,5 +191,76 @@ describe("AxCodeUpdateToast", () => {
     await dispatchUpdateAvailable("7.26.0")
 
     expect(findToast("ax-code-update-available")).toBeTruthy()
+  })
+
+  test("waits for the first CLI status check before announcing a runtime update", async () => {
+    // The runtime check fires at 5s, before the CLI check at 8s. Announcing
+    // immediately left the dedup guard with a null status and offered the same
+    // upgrade twice; the announcement now waits for the CLI answer.
+    handler = (url) =>
+      url.includes("upgrade-status")
+        ? { available: true, latestVersion: "9.2.0", binarySource: "path" }
+        : { ...cliStatus, isRuntimeBinary: true, updateAvailable: true }
+    await render()
+
+    await advance(5_000)
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+
+    await advance(3_000)
+    expect(findToast("ax-code-cli-update-available")).toBeTruthy()
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+  })
+
+  test("announces a runtime update when the first CLI status check fails", async () => {
+    // The wait gates on the check settling, not succeeding: an unreachable
+    // status endpoint must not swallow the update notification.
+    handler = (url) => {
+      if (url.includes("upgrade-status")) {
+        return { available: true, latestVersion: "9.2.0", binarySource: "path" }
+      }
+      throw new Error("cli status unavailable")
+    }
+    await render()
+
+    await advance(5_000)
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+
+    await advance(3_000)
+    expect(findToast("ax-code-update-available")).toBeTruthy()
+  })
+
+  test("dismisses the restart-failed CLI warning when its reload action runs", async () => {
+    // The warning is shown with the CLI upgrade id but its Reload action
+    // dismissed the runtime id, leaving a duration-Infinity toast on screen.
+    handler = (url, init) => {
+      if (url.includes("upgrade-status")) return { binarySource: "path" }
+      if (url.endsWith("/cli/upgrade") && init?.method === "POST") {
+        return { __status: 202, accepted: true, upgrade: { state: "running", targetVersion: "7.26.0" } }
+      }
+      return {
+        ...cliStatus,
+        upgrade: { state: "succeeded", version: "7.26.0", runtimeRestartFailed: true },
+      }
+    }
+    await render()
+    await advance(9_000)
+
+    const offer = findToast("ax-code-cli-update-available")
+    expect(offer?.action).toBeTruthy()
+    await act(async () => {
+      offer?.action?.onClick()
+    })
+    await advance(2_000)
+
+    const warning = findWarningToast("ax-code-cli-upgrade-progress")
+    expect(warning?.action).toBeTruthy()
+
+    toastSpies.dismiss.mockClear()
+    await act(async () => {
+      warning?.action?.onClick()
+    })
+
+    expect(toastSpies.dismiss).toHaveBeenCalledWith("ax-code-cli-upgrade-progress")
+    expect(reloadAxCodeConfiguration).toHaveBeenCalled()
   })
 })

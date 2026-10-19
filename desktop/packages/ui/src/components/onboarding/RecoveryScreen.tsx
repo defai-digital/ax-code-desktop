@@ -61,7 +61,9 @@ export function RecoveryScreen({
       // In desktop boot flow, always restart the entire Tauri app so Rust
       // can re-evaluate the boot outcome.
       if (isTauriShell()) {
-        await restartDesktopApp()
+        if (!(await restartDesktopApp())) {
+          reportActionFailure(new Error(t("onboarding.desktopRecovery.error.actionFailed")))
+        }
         return
       }
 
@@ -70,7 +72,7 @@ export function RecoveryScreen({
     } catch (error) {
       reportActionFailure(error)
     }
-  }, [onRetry, reportActionFailure])
+  }, [onRetry, reportActionFailure, t])
 
   const handleRecoveryUseLocal = React.useCallback(async () => {
     const step = resolveRecoveryNextStep(variant, "use-local")
@@ -84,7 +86,9 @@ export function RecoveryScreen({
       await persistLocalChoice()
 
       if (isTauriShell()) {
-        await restartDesktopApp()
+        if (!(await restartDesktopApp())) {
+          reportActionFailure(new Error(t("onboarding.desktopRecovery.error.actionFailed")))
+        }
         return
       }
 
@@ -92,7 +96,7 @@ export function RecoveryScreen({
     } catch (error) {
       reportActionFailure(error)
     }
-  }, [variant, persistLocalChoice, onEnterLocalSetup, reportActionFailure])
+  }, [variant, persistLocalChoice, onEnterLocalSetup, reportActionFailure, t])
 
   return (
     <>

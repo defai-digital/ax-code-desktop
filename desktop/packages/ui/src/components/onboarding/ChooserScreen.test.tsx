@@ -2,9 +2,11 @@ import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { dict } from "@/lib/i18n/messages/en"
 
 const updateDesktopSettings = vi.fn()
 const desktopHostsSet = vi.fn(async () => {})
+const restartDesktopApp = vi.fn(async () => true)
 const toastError = vi.fn()
 // Flipped by the tests that need the desktop shell path.
 const tauriShell = { current: false }
@@ -17,7 +19,7 @@ vi.doMock("@/lib/desktop", () => ({
   isDesktopShell: () => false,
   isTauriShell: () => tauriShell.current,
   startDesktopWindowDrag: () => {},
-  restartDesktopApp: async () => {},
+  restartDesktopApp,
 }))
 vi.doMock("@/lib/desktopHosts", () => ({
   desktopHostsGet: async () => ({ hosts: [], defaultHostId: "local" }),
@@ -36,6 +38,8 @@ describe("ChooserScreen custom binary path", () => {
     updateDesktopSettings.mockReset()
     desktopHostsSet.mockClear()
     desktopHostsSet.mockImplementation(async () => {})
+    restartDesktopApp.mockReset()
+    restartDesktopApp.mockResolvedValue(true)
     toastError.mockReset()
     tauriShell.current = false
     vi.unstubAllGlobals()
@@ -84,6 +88,47 @@ describe("ChooserScreen custom binary path", () => {
     const alert = container.querySelector('[role="alert"]')
     expect(alert?.textContent).toContain("settings write failed")
   })
+
+  test("surfaces a desktop restart that returned false after the path was saved", async () => {
+    // `restartDesktopApp` resolves false on a failed invoke. Ignoring it left the path
+    // saved and the old binary still running, with nothing on screen to say so.
+    tauriShell.current = true
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 200 })))
+    restartDesktopApp.mockResolvedValue(false)
+
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    roots.push(root)
+
+    act(() => {
+      root.render(
+        <I18nProvider>
+          <ChooserScreen />
+        </I18nProvider>,
+      )
+    })
+
+    const apply = Array.from(container.querySelectorAll("button")).find((button) =>
+      button.textContent?.includes("Apply"),
+    ) as HTMLButtonElement
+    const input = apply?.parentElement?.querySelector("input") as HTMLInputElement
+
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
+      setter?.call(input, "/opt/ax-code/bin/ax-code")
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+
+    await act(async () => {
+      apply.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    await act(async () => {})
+
+    expect(restartDesktopApp).toHaveBeenCalled()
+    const alert = container.querySelector('[role="alert"]')
+    expect(alert?.textContent).toContain(dict["onboarding.desktopRecovery.error.actionFailed"])
+  })
 })
 
 describe("ChooserScreen CLI check", () => {
@@ -94,6 +139,8 @@ describe("ChooserScreen CLI check", () => {
       act(() => root.unmount())
     }
     updateDesktopSettings.mockReset()
+    restartDesktopApp.mockReset()
+    restartDesktopApp.mockResolvedValue(true)
     toastError.mockReset()
     tauriShell.current = false
     vi.unstubAllGlobals()
