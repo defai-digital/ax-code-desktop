@@ -18,19 +18,14 @@ const parseJsonObjects = (value: string): Record<string, unknown>[] => {
   const text = value.trim()
   const candidates = new Set<string>()
 
-  const fencedMatches = text.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)
-  for (const match of fencedMatches) {
-    if (match[1]) candidates.add(match[1].trim())
-  }
-
-  const firstObjectStart = text.indexOf("{")
-  if (firstObjectStart >= 0) {
-    for (let end = text.length; end > firstObjectStart; end -= 1) {
-      if (text[end - 1] === "}") {
-        candidates.add(text.slice(firstObjectStart, end))
-        break
-      }
-    }
+  // Only the whole reply may be a generated result. Scanning for any fenced
+  // block or `{...}` suffix turned prose that merely mentioned an object with
+  // `subject`/`title`/`body` into a commit/PR card that replaced the reply.
+  const fencedMatch = text.match(/^```(?:json)?\s*([\s\S]*?)```$/i)
+  if (fencedMatch?.[1]) {
+    candidates.add(fencedMatch[1].trim())
+  } else if (text.startsWith("{") && text.endsWith("}")) {
+    candidates.add(text)
   }
 
   const parsed: Record<string, unknown>[] = []

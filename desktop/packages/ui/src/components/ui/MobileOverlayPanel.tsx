@@ -16,6 +16,9 @@ interface MobileOverlayPanelProps {
 }
 
 const OVERLAY_ROOT_ID = "mobile-overlay-root"
+const OVERLAY_STACK: symbol[] = []
+
+const isTopmostOverlay = (id: symbol) => OVERLAY_STACK[OVERLAY_STACK.length - 1] === id
 
 const ensureOverlayRoot = () => {
   if (typeof document === "undefined") return null
@@ -39,6 +42,8 @@ export const MobileOverlayPanel: React.FC<MobileOverlayPanelProps> = ({
   renderHeader,
 }) => {
   const overlayRootRef = React.useRef<HTMLElement | null>(null)
+  const panelRef = React.useRef<HTMLDivElement | null>(null)
+  const overlayIdRef = React.useRef(Symbol("mobile-overlay-panel"))
 
   if (typeof document !== "undefined" && !overlayRootRef.current) {
     overlayRootRef.current = ensureOverlayRoot()
@@ -48,12 +53,44 @@ export const MobileOverlayPanel: React.FC<MobileOverlayPanelProps> = ({
     if (!open) {
       return
     }
+    const overlayId = overlayIdRef.current
+    OVERLAY_STACK.push(overlayId)
+    return () => {
+      const index = OVERLAY_STACK.lastIndexOf(overlayId)
+      if (index >= 0) OVERLAY_STACK.splice(index, 1)
+    }
+  }, [open])
+
+  React.useEffect(() => {
+    if (!open) {
+      return
+    }
     const previousOverflow = document.body.style.overflow
     document.body.style.overflow = "hidden"
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        onClose()
+      if (event.key !== "Escape") {
+        return
       }
+      // Escape also dismisses CJK IME candidates; the composing keydown must
+      // not close the panel.
+      if (event.isComposing || event.keyCode === 229) {
+        return
+      }
+      // Only the topmost panel closes; a panel opened from inside another
+      // would otherwise close both.
+      if (!isTopmostOverlay(overlayIdRef.current)) {
+        return
+      }
+      // Let an open nested popup consume Escape before the panel does.
+      const target = event.target
+      const owningLayer =
+        target instanceof Element
+          ? target.closest('[role="dialog"], [role="listbox"], [role="menu"]')
+          : null
+      if (owningLayer && owningLayer !== panelRef.current) {
+        return
+      }
+      onClose()
     }
     document.addEventListener("keydown", handleKeyDown)
     return () => {
@@ -70,6 +107,7 @@ export const MobileOverlayPanel: React.FC<MobileOverlayPanelProps> = ({
 
   const content = (
     <div
+      ref={panelRef}
       className="fixed inset-0 z-50 flex flex-col bg-background/70"
       role="dialog"
       aria-modal="true"

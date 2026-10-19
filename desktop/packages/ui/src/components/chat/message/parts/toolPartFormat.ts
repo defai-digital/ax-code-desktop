@@ -44,6 +44,20 @@ export const formatDuration = (start: number, end?: number, now: number = Date.n
   return `${displaySeconds.toFixed(1)}s`
 }
 
+const parseHunkHeader = (
+  line: string,
+): { newStart: number; oldRemaining: number; newRemaining: number } | null => {
+  const match = line.match(/^@@\s+-(\d+)(?:,(\d+))?\s+\+(\d+)(?:,(\d+))?\s+@@/)
+  if (!match) return null
+  const newStart = Number.parseInt(match[3] ?? "", 10)
+  const oldRemaining = Number.parseInt(match[2] ?? "1", 10)
+  const newRemaining = Number.parseInt(match[4] ?? "1", 10)
+  if (!Number.isFinite(newStart) || !Number.isFinite(oldRemaining) || !Number.isFinite(newRemaining)) {
+    return null
+  }
+  return { newStart, oldRemaining, newRemaining }
+}
+
 export const parseDiffStats = (metadata?: Record<string, unknown>): { added: number; removed: number } | null => {
   const diffText = getPatchText((metadata as { patch?: unknown } | undefined)?.patch) ?? getPatchText(metadata?.diff)
   if (!diffText) return null
@@ -51,11 +65,25 @@ export const parseDiffStats = (metadata?: Record<string, unknown>): { added: num
   let added = 0
   let removed = 0
   let inHunk = false
+  let oldRemaining: number | null = null
+  let newRemaining: number | null = null
+
+  // While the hunk's declared counts still expect content, an adjacent
+  // `---`/`+++` pair is that content (e.g. replacing `-- foo` with `++ foo`),
+  // not a file header.
+  const hunkBodyOpen = () =>
+    inHunk &&
+    oldRemaining !== null &&
+    newRemaining !== null &&
+    (oldRemaining > 0 || newRemaining > 0)
 
   const lines = diffText.split("\n")
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index]
     if (line.startsWith("@@")) {
+      const header = parseHunkHeader(line)
+      oldRemaining = header?.oldRemaining ?? null
+      newRemaining = header?.newRemaining ?? null
       inHunk = true
       continue
     }
@@ -63,13 +91,23 @@ export const parseDiffStats = (metadata?: Record<string, unknown>): { added: num
     // there, never inside one: a hunk's own `+++foo`/`---foo` line is added or
     // removed content. Without the reset, a multi-file patch counts every
     // later file's `--- a/x`/`+++ b/x` header as a removed/added line.
-    if (line.startsWith("diff ") || (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
+    if (line.startsWith("diff ") || (!hunkBodyOpen() && line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
       inHunk = false
+      oldRemaining = null
+      newRemaining = null
       continue
     }
     if (inHunk) {
-      if (line.startsWith("+")) added++
-      else if (line.startsWith("-")) removed++
+      if (line.startsWith("+")) {
+        added++
+        if (newRemaining !== null) newRemaining -= 1
+      } else if (line.startsWith("-")) {
+        removed++
+        if (oldRemaining !== null) oldRemaining -= 1
+      } else if (line.startsWith(" ")) {
+        if (oldRemaining !== null) oldRemaining -= 1
+        if (newRemaining !== null) newRemaining -= 1
+      }
     } else {
       if (line.startsWith("+") && !line.startsWith("+++")) added++
       if (line.startsWith("-") && !line.startsWith("---")) removed++
@@ -100,19 +138,29 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
   let currentNewLine: number | undefined
   let firstHunkStart: number | undefined
   let inHunk = false
+  let oldRemaining: number | null = null
+  let newRemaining: number | null = null
+
+  // While the hunk's declared counts still expect content, an adjacent
+  // `---`/`+++` pair is that content (e.g. replacing `-- foo` with `++ foo`),
+  // not a file header, and the added line still marks the first change.
+  const hunkBodyOpen = () =>
+    inHunk &&
+    oldRemaining !== null &&
+    newRemaining !== null &&
+    (oldRemaining > 0 || newRemaining > 0)
 
   for (let index = 0; index < lines.length; index += 1) {
     const line = lines[index].replace(/\r$/, "")
 
-    const hunkMatch = line.match(/^@@\s+-\d+(?:,\d+)?\s+\+(\d+)(?:,\d+)?\s+@@/)
-    if (hunkMatch) {
-      const parsed = Number.parseInt(hunkMatch[1] ?? "", 10)
-      if (Number.isFinite(parsed)) {
-        currentNewLine = Math.max(1, parsed)
-        if (!Number.isFinite(firstHunkStart)) {
-          firstHunkStart = currentNewLine
-        }
+    const header = parseHunkHeader(line)
+    if (header) {
+      currentNewLine = Math.max(1, header.newStart)
+      if (!Number.isFinite(firstHunkStart)) {
+        firstHunkStart = currentNewLine
       }
+      oldRemaining = header.oldRemaining
+      newRemaining = header.newRemaining
       inHunk = true
       continue
     }
@@ -120,8 +168,10 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
     // A new file section ends the previous hunk. Headers only ever appear there,
     // never inside one: a hunk's own `+++foo`/`---foo` line is added or removed
     // content, and skipping it would report a later line than the real change.
-    if (line.startsWith("diff ") || (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
+    if (line.startsWith("diff ") || (!hunkBodyOpen() && line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ "))) {
       inHunk = false
+      oldRemaining = null
+      newRemaining = null
       continue
     }
 
@@ -135,6 +185,10 @@ const extractFirstChangedLineFromDiff = (diffText: string): number | undefined =
 
     if (line.startsWith(" ")) {
       currentNewLine += 1
+      if (oldRemaining !== null) oldRemaining -= 1
+      if (newRemaining !== null) newRemaining -= 1
+    } else if (line.startsWith("-")) {
+      if (oldRemaining !== null) oldRemaining -= 1
     }
   }
 

@@ -92,6 +92,18 @@ describe("parseDiffStats", () => {
     expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
   })
 
+  test("counts an adjacent ---/+++ replacement pair inside a hunk", () => {
+    const patch = ["--- a/f", "+++ b/f", "@@ -1,1 +1,1 @@", "--- old", "+++ new"].join("\n")
+
+    expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
+  })
+
+  test("counts the reverse-order replacement pair inside a hunk", () => {
+    const patch = ["--- a/f", "+++ b/f", "@@ -1,1 +1,1 @@", "+++ new", "--- old"].join("\n")
+
+    expect(parseDiffStats({ patch })).toEqual({ added: 1, removed: 1 })
+  })
+
   test("does not count later file headers in a multi-file patch", () => {
     const patch = [
       "--- a/src/a.ts",
@@ -186,6 +198,18 @@ describe("getFirstChangedLineFromMetadata", () => {
     const patch = ["--- a/f", "+++ b/f", "@@ -10,2 +10,3 @@", " ctx", "+++hello"].join("\n")
 
     expect(getFirstChangedLineFromMetadata("edit", { patch })).toBe(11)
+  })
+
+  test("finds the line of a replacement whose removed and added lines start with ---/+++", () => {
+    const patch = ["--- a/f", "+++ b/f", "@@ -4,1 +4,1 @@", "--- old", "+++ new"].join("\n")
+
+    expect(getFirstChangedLineFromMetadata("edit", { patch })).toBe(4)
+  })
+
+  test("finds the same replacement when the added line comes first", () => {
+    const patch = ["--- a/f", "+++ b/f", "@@ -4,1 +4,1 @@", "+++ new", "--- old"].join("\n")
+
+    expect(getFirstChangedLineFromMetadata("edit", { patch })).toBe(4)
   })
 
   test("does not mistake a later file's +++ header for an added line", () => {

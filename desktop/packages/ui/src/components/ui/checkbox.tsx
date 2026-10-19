@@ -28,44 +28,48 @@ export const Checkbox = React.memo<CheckboxProps>(function Checkbox({
   const iconSize = "h-[10px] w-[10px] min-h-[10px] min-w-[10px]"
   const isOn = checked || indeterminate
   return (
-    <BaseCheckbox.Root
-      checked={checked}
-      onCheckedChange={(next) => onChange(Boolean(next))}
-      disabled={disabled}
-      indeterminate={indeterminate}
-      aria-label={ariaLabel}
-      className={cn(
-        // AlignUI-style rounded box. Use a real border so press/hover states never lose the outline.
-        "group/checkbox relative flex shrink-0 self-center items-center justify-center rounded-[4px] border outline-none",
-        boxSize,
-        "transition-[background-color,border-color,box-shadow] duration-200 ease-out",
-        // Drive fill directly from React props so the initial paint matches
-        // the final state without waiting for Base UI to hydrate data attrs.
-        isOn
-          ? "border-[color:color-mix(in_srgb,var(--primary-base)_65%,var(--interactive-border))] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[color:color-mix(in_srgb,var(--primary-base)_75%,var(--interactive-border))]"
-          : "border-[var(--interactive-border)] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[var(--interactive-border)]",
-        // focus: transparent offset so parent bg (e.g. sidebar) doesn't create a visible gap
-        "focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent",
-        // disabled
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        className,
-      )}
-    >
-      <BaseCheckbox.Indicator
-        keepMounted
+    // Base UI lets the original click reach ancestors, so inside a clickable
+    // row the row handler toggled a second time and the option never changed.
+    <span className="contents" onClick={(event) => event.stopPropagation()}>
+      <BaseCheckbox.Root
+        checked={checked}
+        onCheckedChange={(next) => onChange(Boolean(next))}
+        disabled={disabled}
+        indeterminate={indeterminate}
+        aria-label={ariaLabel}
         className={cn(
-          "flex items-center justify-center text-[var(--primary-base)]",
-          // hide when fully unchecked (no state)
-          "data-[unchecked]:hidden",
-          iconClassName,
+          // AlignUI-style rounded box. Use a real border so press/hover states never lose the outline.
+          "group/checkbox relative flex shrink-0 self-center items-center justify-center rounded-[4px] border outline-none",
+          boxSize,
+          "transition-[background-color,border-color,box-shadow] duration-200 ease-out",
+          // Drive fill directly from React props so the initial paint matches
+          // the final state without waiting for Base UI to hydrate data attrs.
+          isOn
+            ? "border-[color:color-mix(in_srgb,var(--primary-base)_65%,var(--interactive-border))] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[color:color-mix(in_srgb,var(--primary-base)_75%,var(--interactive-border))]"
+            : "border-[var(--interactive-border)] bg-transparent shadow-none hover:bg-[var(--interactive-hover)] hover:border-[var(--interactive-border)]",
+          // focus: transparent offset so parent bg (e.g. sidebar) doesn't create a visible gap
+          "focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] focus-visible:ring-offset-1 focus-visible:ring-offset-transparent",
+          // disabled
+          "disabled:cursor-not-allowed disabled:opacity-50",
+          className,
         )}
       >
-        {indeterminate ? (
-          <Icon name="subtract" className={cn(iconSize, "text-[var(--primary-base)]")} />
-        ) : (
-          <Icon name="check" className={cn(iconSize, "text-[var(--primary-base)]")} />
-        )}
-      </BaseCheckbox.Indicator>
-    </BaseCheckbox.Root>
+        <BaseCheckbox.Indicator
+          keepMounted
+          className={cn(
+            "flex items-center justify-center text-[var(--primary-base)]",
+            // hide when fully unchecked (no state)
+            "data-[unchecked]:hidden",
+            iconClassName,
+          )}
+        >
+          {indeterminate ? (
+            <Icon name="subtract" className={cn(iconSize, "text-[var(--primary-base)]")} />
+          ) : (
+            <Icon name="check" className={cn(iconSize, "text-[var(--primary-base)]")} />
+          )}
+        </BaseCheckbox.Indicator>
+      </BaseCheckbox.Root>
+    </span>
   )
 })

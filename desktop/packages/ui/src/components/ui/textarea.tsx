@@ -26,6 +26,34 @@ type TextareaProps = React.ComponentProps<"textarea"> & {
   endSlot?: React.ReactNode
 }
 
+const parsePixels = (value: string): number => {
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+/**
+ * The drag floor must fit the textarea's own CSS min-height plus the footer
+ * row, the row gap and the wrapper's vertical padding; otherwise dragging up
+ * lets the textarea overflow through the rounded border.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the resize regression test.
+export const resolveTextareaResizeFloor = (wrapper: HTMLElement): number => {
+  const textarea = wrapper.querySelector("textarea")
+  if (!textarea) return 82
+
+  const minHeight = Number.parseFloat(window.getComputedStyle(textarea).minHeight)
+  if (!Number.isFinite(minHeight)) return 82
+
+  const footer = textarea.nextElementSibling instanceof HTMLElement ? textarea.nextElementSibling : null
+  const footerHeight = footer?.getBoundingClientRect().height ?? 0
+  const row = textarea.parentElement
+  const rowGap = row ? parsePixels(window.getComputedStyle(row).rowGap) : 0
+  const wrapperStyle = window.getComputedStyle(wrapper)
+  const verticalPadding = parsePixels(wrapperStyle.paddingTop) + parsePixels(wrapperStyle.paddingBottom)
+
+  return Math.max(82, minHeight + footerHeight + rowGap + verticalPadding)
+}
+
 function ResizeHandle({
   onResizeStart,
   ariaLabel,
@@ -74,7 +102,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   ) => {
     const { t } = useI18n()
     const wrapperRef = React.useRef<HTMLDivElement>(null)
-    const dragStateRef = React.useRef<{ startY: number; startHeight: number } | null>(null)
+    const dragStateRef = React.useRef<{ startY: number; startHeight: number; minHeight: number } | null>(null)
     const [resizedHeight, setResizedHeight] = React.useState<number | null>(null)
     const effectiveResizedHeight = controlledResizedHeight ?? resizedHeight
 
@@ -85,6 +113,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         dragStateRef.current = {
           startY: event.clientY,
           startHeight: wrapper.getBoundingClientRect().height,
+          minHeight: resolveTextareaResizeFloor(wrapper),
         }
         const target = event.currentTarget
         target.setPointerCapture(event.pointerId)
@@ -93,7 +122,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           const state = dragStateRef.current
           if (!state) return
           const next = state.startHeight + (moveEvent.clientY - state.startY)
-          const nextHeight = Math.max(82, next)
+          const nextHeight = Math.max(state.minHeight, next)
           if (onResizeHeightChange) {
             onResizeHeightChange(nextHeight)
           } else {

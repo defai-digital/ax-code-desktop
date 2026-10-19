@@ -50,6 +50,68 @@ const CONTAIN_LAYOUT_STYLE = { contain: "layout" as const, transform: "translate
 const MESSAGE_FOOTER_CONTAINER_STYLE = { containerType: "inline-size" as const, containerName: "message-footer" }
 const INLINE_MESSAGE_ACTIONS_CLASS_NAME = "mt-2 mb-1 flex items-center justify-start gap-1.5"
 
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the image export regression tests.
+export const collectMessageExportSources = (root: HTMLElement | null): HTMLElement[] => {
+  if (!root) return []
+  return Array.from(root.querySelectorAll<HTMLElement>("[data-message-text-export-source]"))
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the image export regression tests.
+export const cloneMessageExportElement = (originalElement: HTMLElement): HTMLElement => {
+  const originalStyle = window.getComputedStyle(originalElement)
+  const clone = originalElement.cloneNode(true) as HTMLElement
+  clone.style.cssText = `
+    ${originalStyle.cssText}
+    transform: none;
+    contain: none;
+  `
+
+  const actionRows = clone.querySelectorAll<HTMLElement>('[data-message-actions="true"]')
+  actionRows.forEach((row) => {
+    row.style.display = "none"
+  })
+  const actionGroups = clone.querySelectorAll<HTMLElement>('[data-message-action-group="true"]')
+  actionGroups.forEach((group) => {
+    group.style.display = "none"
+  })
+
+  const timestampElements = clone.querySelectorAll<HTMLElement>('[aria-label^="Message time:"]')
+  const footerRowsAdjusted = new Set<HTMLElement>()
+  timestampElements.forEach((element) => {
+    const label = element.getAttribute("aria-label")
+    const timestamp = label?.replace("Message time:", "").trim()
+    if (!timestamp || element.textContent?.includes(timestamp)) {
+      return
+    }
+
+    const timestampText = document.createElement("span")
+    timestampText.style.marginLeft = "4px"
+    timestampText.textContent = timestamp
+    element.appendChild(timestampText)
+
+    const metaGroup = element.parentElement
+    const footerRow = metaGroup?.parentElement as HTMLElement | null
+    if (!footerRow || footerRowsAdjusted.has(footerRow)) {
+      return
+    }
+
+    footerRow.style.justifyContent = "flex-start"
+    footerRowsAdjusted.add(footerRow)
+  })
+
+  return clone
+}
+
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the image export regression tests.
+export const createMessageExportStack = (sourceElements: HTMLElement[]): HTMLElement => {
+  const stack = document.createElement("div")
+  stack.style.cssText = "display: flex; flex-direction: column; gap: 16px;"
+  for (const element of sourceElements) {
+    stack.appendChild(cloneMessageExportElement(element))
+  }
+  return stack
+}
+
 type SubtaskPartLike = Part & {
   type: "subtask"
   description?: unknown
@@ -671,7 +733,7 @@ interface AssistantMessageActionButtonsProps {
   hasCopyableText: boolean
   isTouchContext: boolean
   onCopyMessage?: () => void | boolean | Promise<void | boolean>
-  onShareImage: (sourceElement?: HTMLElement | null) => Promise<void>
+  onShareImage: (sourceElement?: HTMLElement | null, sourceElements?: HTMLElement[]) => Promise<void>
   feedback?: "up" | "down"
   onFeedback?: (value: "up" | "down" | undefined) => void | Promise<void>
   feedbackPending?: boolean
@@ -780,9 +842,10 @@ const AssistantMessageActionButtons = React.memo(
 
         setIsSharing(true)
         try {
-          const root = event.currentTarget.closest("[data-message-text-export-root]")
-          const sourceElement = root?.querySelector<HTMLElement>("[data-message-text-export-source]") ?? null
-          await onShareImage(sourceElement)
+          const root = event.currentTarget.closest<HTMLElement>("[data-message-text-export-root]")
+          const sourceElements = collectMessageExportSources(root)
+          const sourceElement = sourceElements.length === 1 ? sourceElements[0] : null
+          await onShareImage(sourceElement, sourceElements)
         } finally {
           setIsSharing(false)
         }
@@ -1356,15 +1419,20 @@ const AssistantMessageBody = React.memo(
     )
 
     const shareMessageAsImage = React.useCallback(
-      async (requestedSourceElement?: HTMLElement | null) => {
-        const sourceElement = requestedSourceElement ?? messageTextContentRef.current ?? messageContentRef.current
+      async (requestedSourceElement?: HTMLElement | null, requestedSourceElements?: HTMLElement[]) => {
+        const multipleSourceElements =
+          requestedSourceElements && requestedSourceElements.length > 1 ? requestedSourceElements : null
+        const sourceElement =
+          multipleSourceElements?.[0] ??
+          requestedSourceElement ??
+          messageTextContentRef.current ??
+          messageContentRef.current
         if (!sourceElement) return
 
         let wrapper: HTMLDivElement | null = null
         try {
           const { toPng } = await import("html-to-image")
-          const originalElement = sourceElement
-          const computedStyle = window.getComputedStyle(originalElement)
+          const computedStyle = window.getComputedStyle(sourceElement)
           const rootStyle = window.getComputedStyle(document.documentElement)
           const resolvedBackgroundColor =
             rootStyle.getPropertyValue("--surface-background").trim() ||
@@ -1379,47 +1447,11 @@ const AssistantMessageBody = React.memo(
                     display: inline-block;
                 `
 
-          const clone = originalElement.cloneNode(true) as HTMLElement
-          clone.style.cssText = `
-                    ${computedStyle.cssText}
-                    transform: none;
-                    contain: none;
-                `
-
-          const actionRows = clone.querySelectorAll<HTMLElement>('[data-message-actions="true"]')
-          actionRows.forEach((row) => {
-            row.style.display = "none"
-          })
-          const actionGroups = clone.querySelectorAll<HTMLElement>('[data-message-action-group="true"]')
-          actionGroups.forEach((group) => {
-            group.style.display = "none"
-          })
-
-          const timestampElements = clone.querySelectorAll<HTMLElement>('[aria-label^="Message time:"]')
-          const footerRowsAdjusted = new Set<HTMLElement>()
-          timestampElements.forEach((element) => {
-            const label = element.getAttribute("aria-label")
-            const timestamp = label?.replace("Message time:", "").trim()
-            if (!timestamp || element.textContent?.includes(timestamp)) {
-              return
-            }
-
-            const timestampText = document.createElement("span")
-            timestampText.style.marginLeft = "4px"
-            timestampText.textContent = timestamp
-            element.appendChild(timestampText)
-
-            const metaGroup = element.parentElement
-            const footerRow = metaGroup?.parentElement as HTMLElement | null
-            if (!footerRow || footerRowsAdjusted.has(footerRow)) {
-              return
-            }
-
-            footerRow.style.justifyContent = "flex-start"
-            footerRowsAdjusted.add(footerRow)
-          })
-
-          wrapper.appendChild(clone)
+          if (multipleSourceElements) {
+            wrapper.appendChild(createMessageExportStack(multipleSourceElements))
+          } else {
+            wrapper.appendChild(cloneMessageExportElement(sourceElement))
+          }
           document.body.appendChild(wrapper)
 
           const dataUrl = await toPng(wrapper, {
