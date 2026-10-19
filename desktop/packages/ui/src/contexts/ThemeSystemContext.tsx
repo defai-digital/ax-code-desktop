@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback, useState } from "react"
+import React, { useEffect, useMemo, useCallback, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import type { Theme, ThemeMode } from "@/types/theme"
 import type { DesktopSettings } from "@/lib/desktop"
@@ -208,6 +208,9 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
   const [systemPrefersDark, setSystemPrefersDark] = useState<boolean>(() => getSystemPreference())
   const [customThemes, setCustomThemes] = useState<Theme[]>([])
   const [customThemesLoading, setCustomThemesLoading] = useState(false)
+  // This provider mounts outside SessionAuthGate, so the first themes request can run before the UI
+  // session exists and receive a 401. Remember it so settings sync after unlock can retry.
+  const themesNeedAuthReloadRef = useRef(false)
   const isLocalDesktopOrigin = useMemo(() => isDesktopLocalOriginActive(), [])
   const isDesktopShell = useMemo(() => isTauriShell(), [])
 
@@ -275,7 +278,8 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
       })
 
       if (res.status === 401) {
-        // UI auth gate will handle prompting; avoid noisy retries here.
+        // UI auth gate will handle prompting; the settings-synced handler retries after unlock.
+        themesNeedAuthReloadRef.current = true
         return null
       }
 
@@ -283,6 +287,7 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
         return null
       }
 
+      themesNeedAuthReloadRef.current = false
       const payload = await res.json()
       const incoming = Array.isArray(payload?.themes) ? payload.themes : []
       const normalized = incoming.filter(isValidCustomTheme)
@@ -587,11 +592,18 @@ export function ThemeSystemProvider({ children, defaultThemeId }: ThemeSystemPro
           darkThemeId: nextDark,
         }
       })
+
+      // Settings sync runs right after UI unlock. If the mount-time themes request was rejected by
+      // the auth gate, retry now so a selected custom theme resolves instead of falling back.
+      if (themesNeedAuthReloadRef.current) {
+        themesNeedAuthReloadRef.current = false
+        void reloadCustomThemes()
+      }
     }
 
     window.addEventListener("openchamber:settings-synced", handleSettingsSynced)
     return () => window.removeEventListener("openchamber:settings-synced", handleSettingsSynced)
-  }, [])
+  }, [reloadCustomThemes])
 
   const setTheme = useCallback(
     (themeId: string) => {

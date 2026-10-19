@@ -119,7 +119,7 @@ export const useMcpStore = create<McpStore>()(
 
       try {
         const api = getMcpApiClient(directory)
-        const result = await api.mcp.status()
+        const result = await api.mcp.status(undefined, { throwOnError: true })
         const data = (result.data ?? {}) as McpStatusMap
 
         if (!isCurrentRefresh()) {

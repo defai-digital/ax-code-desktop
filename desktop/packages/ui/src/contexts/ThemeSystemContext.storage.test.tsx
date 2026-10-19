@@ -9,10 +9,18 @@ vi.mock("@/lib/desktop", () => ({
 vi.mock("@/lib/desktopNative", () => ({ setDesktopWindowTheme: vi.fn() }))
 vi.mock("@/lib/persistence", () => ({ updateDesktopSettings: vi.fn(async () => {}) }))
 
+import { generateTheme } from "@/lib/theme/generateTheme"
 import { ThemeSystemProvider } from "./ThemeSystemContext"
+import { ThemeSystemContext } from "./theme-system-context"
 
 declare global {
   var IS_REACT_ACT_ENVIRONMENT: boolean | undefined
+}
+
+const CustomThemeProbe = () => {
+  const context = React.useContext(ThemeSystemContext)
+  const hasCustomTheme = context?.availableThemes.some((theme) => theme.metadata.id === "generated-retry") ?? false
+  return <div data-custom-theme={String(hasCustomTheme)} />
 }
 
 describe("theme system storage", () => {
@@ -45,6 +53,7 @@ describe("theme system storage", () => {
     container.remove()
     Reflect.deleteProperty(window, "localStorage")
     Reflect.deleteProperty(window, "matchMedia")
+    vi.unstubAllGlobals()
   })
 
   test("mounts when the browser blocks storage access", () => {
@@ -62,5 +71,41 @@ describe("theme system storage", () => {
         root.render(React.createElement(ThemeSystemProvider, null, null))
       }),
     ).not.toThrow()
+  })
+
+  test("retries custom themes when settings sync after an auth-gated fetch", async () => {
+    const customTheme = generateTheme({
+      id: "generated-retry",
+      name: "Generated retry",
+      variant: "dark",
+      base: "#24262d",
+      accent: "#6d75e8",
+    })
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 401, ok: false })
+      .mockResolvedValueOnce({ status: 200, ok: true, json: async () => ({ themes: [customTheme] }) })
+    vi.stubGlobal("fetch", fetchMock)
+
+    await React.act(async () => {
+      root.render(React.createElement(ThemeSystemProvider, null, React.createElement(CustomThemeProbe)))
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(container.querySelector("[data-custom-theme]")?.getAttribute("data-custom-theme")).toBe("false")
+
+    // The provider mounts outside SessionAuthGate, so the mount-time fetch ran while locked. The
+    // gate runs syncDesktopSettings right after unlock, which dispatches this event.
+    await React.act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("openchamber:settings-synced", {
+          detail: { useSystemTheme: true, lightThemeId: "default-light", darkThemeId: "default-dark" },
+        }),
+      )
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/config/themes")
+    expect(container.querySelector("[data-custom-theme]")?.getAttribute("data-custom-theme")).toBe("true")
   })
 })

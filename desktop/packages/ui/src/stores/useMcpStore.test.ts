@@ -4,14 +4,17 @@ import type { McpResource, McpStatus } from "@defai-digital/ax-code-sdk/v2"
 type Deferred<T> = {
   promise: Promise<T>
   resolve: (value: T) => void
+  reject: (error: unknown) => void
 }
 
 const createDeferred = <T>(): Deferred<T> => {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => {
+  let reject!: (error: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
     resolve = res
+    reject = rej
   })
-  return { promise, resolve }
+  return { promise, resolve, reject }
 }
 
 const status = (state: McpStatus["status"]): McpStatus =>
@@ -67,6 +70,7 @@ const importStore = async () => {
   const storeModule = await import("./useMcpStore")
   return {
     ...storeModule,
+    apiClient,
     getScopedApiClient,
     statusRequests,
     resourceRead,
@@ -95,6 +99,28 @@ describe("useMcpStore", () => {
     await staleRefresh
 
     expect(useMcpStore.getState().getStatusForDirectory("/repo").server?.status).toBe("connected")
+  })
+
+  test("records a failed status refresh instead of writing an empty status map", async () => {
+    const { apiClient, statusRequests, useMcpStore } = await importStore()
+    useMcpStore.setState({
+      byDirectory: { "/repo": { server: status("connected") } },
+      diagnosticsByDirectory: { "/repo": { broken: { status: "failed", error: "still here" } } },
+    })
+
+    const refresh = useMcpStore.getState().refresh({ directory: "/repo" })
+    await Promise.resolve()
+
+    expect(apiClient.mcp.status).toHaveBeenCalledWith(undefined, { throwOnError: true })
+
+    statusRequests[0].reject(new Error("503 Service Unavailable"))
+    await refresh
+
+    const state = useMcpStore.getState()
+    expect(state.getStatusForDirectory("/repo").server?.status).toBe("connected")
+    expect(state.getDiagnosticForDirectory("/repo").broken?.error).toBe("still here")
+    expect(state.getErrorForDirectory("/repo")).toBe("503 Service Unavailable")
+    expect(state.loadingKeys["/repo"]).toBe(false)
   })
 
   test("normalizes scoped directory keys for Windows paths", async () => {

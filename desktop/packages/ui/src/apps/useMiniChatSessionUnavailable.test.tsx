@@ -3,16 +3,18 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 type SessionStub = { id: string; time?: { updated?: number } }
+type StoreStub = { currentSessionId: string | null; newSessionDraft: { open: boolean } }
 
-const { liveSessions, currentSessionId } = vi.hoisted(() => ({
+const { liveSessions, currentSessionId, draftOpen } = vi.hoisted(() => ({
   liveSessions: { current: [] as SessionStub[] },
   currentSessionId: { current: null as string | null },
+  draftOpen: { current: false },
 }))
 
 vi.mock("@/sync/sync-context", () => ({ useSessions: () => liveSessions.current }))
 vi.mock("@/sync/session-ui-store", () => ({
-  useSessionUIStore: (selector: (state: { currentSessionId: string | null }) => unknown) =>
-    selector({ currentSessionId: currentSessionId.current }),
+  useSessionUIStore: (selector: (state: StoreStub) => unknown) =>
+    selector({ currentSessionId: currentSessionId.current, newSessionDraft: { open: draftOpen.current } }),
 }))
 
 const { useMiniChatSessionUnavailable } = await import("./useMiniChatSessionUnavailable")
@@ -49,6 +51,7 @@ describe("useMiniChatSessionUnavailable", () => {
     root = createRoot(container)
     liveSessions.current = []
     currentSessionId.current = null
+    draftOpen.current = false
   })
 
   afterEach(() => {
@@ -95,6 +98,25 @@ describe("useMiniChatSessionUnavailable", () => {
   test("waiting on the session the window already shows is not unavailable", () => {
     currentSessionId.current = "wanted"
     renderProbe("wanted")
+
+    advance(10_000)
+
+    expect(unavailable()).toBe(false)
+  })
+
+  // A deleted session stays current until the switcher picks something. "New session" clears it and
+  // opens a draft, which used to satisfy the wait condition and replaced the draft with the
+  // unavailable card five seconds later.
+  test("a new-session draft is not unavailable", () => {
+    currentSessionId.current = "gone"
+    renderProbe("gone")
+
+    advance(5_000)
+    expect(unavailable()).toBe(false)
+
+    currentSessionId.current = null
+    draftOpen.current = true
+    renderProbe("gone")
 
     advance(10_000)
 

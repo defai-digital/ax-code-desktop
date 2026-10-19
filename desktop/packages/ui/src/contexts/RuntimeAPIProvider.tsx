@@ -119,14 +119,14 @@ function withContentCache(files: FilesAPI): FilesAPI {
             })
             if (!latest || !statMatches(hit, latest)) {
               removeCacheEntry(path)
-              return readFreshFile(path)
+              return readFreshFile(path, options)
             }
           }
           touchContentLru(path)
           return { content: hit.content, path: hit.path }
         }
 
-        return readFreshFile(path)
+        return readFreshFile(path, options)
       }
     : undefined
 

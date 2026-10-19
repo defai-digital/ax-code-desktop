@@ -22,16 +22,19 @@ type SessionUnavailableConfig = {
 export const useMiniChatSessionUnavailable = (config: SessionUnavailableConfig): boolean => {
   const sessions = useSessions()
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
+  const draftOpen = useSessionUIStore((state) => Boolean(state.newSessionDraft?.open))
   const [timedOut, setTimedOut] = React.useState(false)
   const deadlineRef = React.useRef<number | null>(null)
 
   // Keep waiting only while nothing valid is selected: once the user picks a
-  // different session in the switcher, the unavailable screen must clear for
-  // it instead of waiting forever for the missing URL session.
+  // different session in the switcher — including a new-session draft, which
+  // clears currentSessionId — the unavailable screen must clear for it instead
+  // of replacing the draft after the timeout.
   const waiting =
     config.mode === "session" &&
     Boolean(config.sessionId) &&
     currentSessionId === null &&
+    !draftOpen &&
     !sessions.some((entry) => entry.id === config.sessionId)
 
   React.useEffect(() => {

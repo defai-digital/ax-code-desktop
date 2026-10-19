@@ -87,6 +87,11 @@ const skillsCatalogSourceDirectories = new Map<string, string | null>()
 // load instead of joining it, so without a sequence the displaced load could
 // still write its stale snapshot (or restore its pre-refresh one) last.
 let skillsCatalogLoadSeq = 0
+// The load that currently owns the sequence id, per cache key. A cache hit for a
+// directory whose own load is still the latest request must not advance the
+// sequence: that load is this cache's refresh. A same-key load that another
+// directory's newer load already superseded does not protect it.
+const skillsCatalogLoadOwners = new Map<string, { token: symbol; requestId: number }>()
 
 interface SkillsCatalogState {
   sources: SkillsCatalogSource[]
@@ -156,9 +161,18 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
         const now = Date.now()
         const loadedAt = skillsCatalogLastLoadedAt.get(cacheKey) ?? 0
         const hasCachedCatalog = get().sources.length > 0
-        const requestId = ++skillsCatalogLoadSeq
-        const isCurrentLoad = () => skillsCatalogLoadSeq === requestId
         if (!options?.refresh && hasCachedCatalog && now - loadedAt < SKILLS_CATALOG_LOAD_CACHE_TTL_MS) {
+          // A cache hit is the newest word for the store, but not for a directory
+          // whose own load is still the latest request: refreshing this cache key
+          // is the load that produces its next word, and clearing the flag or
+          // moving the sequence here would discard its response. Loads for other
+          // directories — even a same-key load already displaced by one — are
+          // superseded by this hit.
+          const owner = skillsCatalogLoadOwners.get(cacheKey)
+          if (!owner || owner.requestId !== skillsCatalogLoadSeq) {
+            skillsCatalogLoadSeq += 1
+            set({ isLoadingCatalog: false })
+          }
           return true
         }
 
@@ -168,6 +182,16 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
         }
 
         return skillsCatalogLoadInFlight.run(cacheKey, async () => {
+          // The request id belongs to the call that owns the single-flight slot:
+          // a duplicate call joins this promise without running this callback, so
+          // it can no longer invalidate the load it is waiting on.
+          const requestId = ++skillsCatalogLoadSeq
+          const isCurrentLoad = () => skillsCatalogLoadSeq === requestId
+          // Ownership is per cache key and only the callback that started the work
+          // installs it, so a displaced load settling late cannot clear the owner of
+          // the newer load that replaced it.
+          const ownerToken = Symbol(cacheKey)
+          skillsCatalogLoadOwners.set(cacheKey, { token: ownerToken, requestId })
           set({ isLoadingCatalog: true, lastCatalogError: null })
 
           const previous = {
@@ -202,10 +226,19 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
               }
 
               const sources = payload.sources && payload.sources.length > 0 ? payload.sources : previous.sources
-              const itemsBySource = options?.refresh ? {} : get().itemsBySource || {}
-              const pageInfoBySource = options?.refresh ? {} : get().pageInfoBySource || {}
-              const loadedSourceIds = options?.refresh ? {} : get().loadedSourceIds || {}
-              const clawdhubHasMoreBySource = options?.refresh ? {} : get().clawdhubHasMoreBySource || {}
+              // A refresh drops the cache only for sources that disappeared: the
+              // page does not re-run loadSource when the selected source id is
+              // unchanged, so clearing it would show "0 skills found" until the
+              // user switched sources.
+              const sourceIds = new Set(sources.map((source) => source.id))
+              const pruneRemovedSources = <T>(record: Record<string, T>): Record<string, T> =>
+                options?.refresh
+                  ? Object.fromEntries(Object.entries(record).filter(([sourceId]) => sourceIds.has(sourceId)))
+                  : record
+              const itemsBySource = pruneRemovedSources(get().itemsBySource || {})
+              const pageInfoBySource = pruneRemovedSources(get().pageInfoBySource || {})
+              const loadedSourceIds = pruneRemovedSources(get().loadedSourceIds || {})
+              const clawdhubHasMoreBySource = pruneRemovedSources(get().clawdhubHasMoreBySource || {})
               const currentSelected = get().selectedSourceId
               const selectedSourceId =
                 currentSelected && sources.some((s) => s.id === currentSelected)
@@ -250,6 +283,9 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
 
             return false
           } finally {
+            if (skillsCatalogLoadOwners.get(cacheKey)?.token === ownerToken) {
+              skillsCatalogLoadOwners.delete(cacheKey)
+            }
             if (isCurrentLoad()) {
               set({ isLoadingCatalog: false })
             }
