@@ -160,11 +160,17 @@ export const DefaultsSettings: React.FC = () => {
     [setAgent, setSettingsDefaultAgent],
   )
 
+  const persistFileViewerPreview = React.useCallback(
+    (enabled: boolean) => {
+      setSettingsDefaultFileViewerPreview(enabled)
+      updateDesktopSettings({ defaultFileViewerPreview: enabled }).catch(console.warn)
+    },
+    [setSettingsDefaultFileViewerPreview],
+  )
+
   const handleToggleFileViewerPreview = React.useCallback(() => {
-    const next = !settingsDefaultFileViewerPreview
-    setSettingsDefaultFileViewerPreview(next)
-    updateDesktopSettings({ defaultFileViewerPreview: next }).catch(console.warn)
-  }, [settingsDefaultFileViewerPreview, setSettingsDefaultFileViewerPreview])
+    persistFileViewerPreview(!settingsDefaultFileViewerPreview)
+  }, [persistFileViewerPreview, settingsDefaultFileViewerPreview])
 
   const availableVariants = React.useMemo(() => {
     if (!parsedModel.providerId || !parsedModel.modelId) return []
@@ -318,6 +324,8 @@ export const DefaultsSettings: React.FC = () => {
           aria-pressed={settingsDefaultFileViewerPreview}
           onClick={handleToggleFileViewerPreview}
           onKeyDown={(event) => {
+            // The checkbox activates Space on keyup; toggling here as well would cancel it out.
+            if (event.key === " " && event.target !== event.currentTarget) return
             if (event.key === " " || event.key === "Enter") {
               event.preventDefault()
               handleToggleFileViewerPreview()
@@ -326,7 +334,7 @@ export const DefaultsSettings: React.FC = () => {
         >
           <Checkbox
             checked={settingsDefaultFileViewerPreview}
-            onChange={setSettingsDefaultFileViewerPreview}
+            onChange={persistFileViewerPreview}
             ariaLabel={t("settings.openchamber.defaults.field.openFilesPreviewAria")}
           />
           <span className="typography-ui-label text-foreground">

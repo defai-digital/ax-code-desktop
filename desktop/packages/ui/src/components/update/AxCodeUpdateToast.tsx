@@ -224,6 +224,15 @@ export const AxCodeUpdateToast: React.FC = () => {
       }
       await cliInitialCheck.promise
       if (!mountedRef.current) return
+      // The wait can outlive the setting: read it again after the CLI check and
+      // let the effect cleanup cancel a pending announcement, so disabling
+      // notifications mid-wait (or before the check settles) never shows a
+      // duration-Infinity toast later.
+      if (cancelled) return
+      if (!useUIStore.getState().showAxCodeUpdateNotifications) {
+        toast.dismiss(UPDATE_TOAST_ID)
+        return
+      }
       // When Desktop's runtime is the user's own CLI, the CLI toast offers
       // the update for that binary; two toasts would start two upgrades. Only
       // skip it when that toast can stand in: an off-PATH install, or a CLI too

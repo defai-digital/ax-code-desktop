@@ -229,6 +229,66 @@ describe("AxCodeUpdateToast", () => {
     expect(findToast("ax-code-update-available")).toBeTruthy()
   })
 
+  test("does not announce a runtime update disabled while waiting for the CLI check", async () => {
+    // The runtime check fires at 5s and waits for the CLI answer at 8s. Turning
+    // notifications off in that window used to leave the pending announcement
+    // showing a duration-Infinity toast that the dismiss effect had already run.
+    handler = (url) =>
+      url.includes("upgrade-status")
+        ? { available: true, latestVersion: "9.2.0", binarySource: "path" }
+        : { ...cliStatus, updateAvailable: false }
+    await render()
+    await advance(5_000)
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+
+    const getState = vi
+      .spyOn(useUIStore, "getState")
+      .mockReturnValue({ ...useUIStore.getState(), showAxCodeUpdateNotifications: false })
+    try {
+      toastSpies.dismiss.mockClear()
+      await advance(3_000)
+
+      expect(findToast("ax-code-update-available")).toBeUndefined()
+      expect(toastSpies.dismiss).toHaveBeenCalledWith("ax-code-update-available")
+    } finally {
+      getState.mockRestore()
+    }
+  })
+
+  test("does not wake a stale runtime announcement after notifications are re-enabled", async () => {
+    // Disabling before the first CLI check settles leaves the awaited promise
+    // pending. Re-enabling later used to wake that stale announcement, which
+    // still showed the runtime toast found before the setting was turned off.
+    let upgradeStatusCalls = 0
+    handler = (url) => {
+      if (url.includes("upgrade-status")) {
+        upgradeStatusCalls += 1
+        return upgradeStatusCalls === 1
+          ? { available: true, latestVersion: "9.2.0", binarySource: "path" }
+          : { binarySource: "path" }
+      }
+      return { ...cliStatus, updateAvailable: false }
+    }
+    await render()
+    await advance(5_000)
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+
+    await act(async () => {
+      useUIStore.setState({ showAxCodeUpdateNotifications: false })
+    })
+    await advance(1_000)
+    await act(async () => {
+      useUIStore.setState({ showAxCodeUpdateNotifications: true })
+    })
+
+    // The new runtime check at 11s finds nothing; the new CLI check at 14s
+    // settles the promise the stale announcement is still awaiting.
+    await advance(10_000)
+
+    expect(upgradeStatusCalls).toBeGreaterThanOrEqual(2)
+    expect(findToast("ax-code-update-available")).toBeUndefined()
+  })
+
   test("dismisses the restart-failed CLI warning when its reload action runs", async () => {
     // The warning is shown with the CLI upgrade id but its Reload action
     // dismissed the runtime id, leaving a duration-Infinity toast on screen.

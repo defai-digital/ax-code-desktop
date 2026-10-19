@@ -9,15 +9,21 @@ const { updateDesktopSettings } = vi.hoisted(() => ({
 
 vi.mock("@/lib/persistence", () => ({ updateDesktopSettings }))
 
-const { setProvider, setModel, setSettingsDefaultModel, setSettingsDefaultVariant, setCurrentVariant } = vi.hoisted(
-  () => ({
-    setProvider: vi.fn(),
-    setModel: vi.fn(),
-    setSettingsDefaultModel: vi.fn(),
-    setSettingsDefaultVariant: vi.fn(),
-    setCurrentVariant: vi.fn(),
-  }),
-)
+const {
+  setProvider,
+  setModel,
+  setSettingsDefaultModel,
+  setSettingsDefaultVariant,
+  setCurrentVariant,
+  setSettingsDefaultFileViewerPreview,
+} = vi.hoisted(() => ({
+  setProvider: vi.fn(),
+  setModel: vi.fn(),
+  setSettingsDefaultModel: vi.fn(),
+  setSettingsDefaultVariant: vi.fn(),
+  setCurrentVariant: vi.fn(),
+  setSettingsDefaultFileViewerPreview: vi.fn(),
+}))
 
 vi.mock("@/stores/useConfigStore", () => {
   const state = {
@@ -40,7 +46,7 @@ vi.mock("@/stores/useConfigStore", () => {
     setSettingsDefaultAgent: vi.fn(),
     setSettingsAutoCreateWorktree: vi.fn(),
     setSettingsGitmojiEnabled: vi.fn(),
-    setSettingsDefaultFileViewerPreview: vi.fn(),
+    setSettingsDefaultFileViewerPreview,
   }
   const useConfigStore = ((selector?: (value: typeof state) => unknown) =>
     selector ? selector(state) : state) as unknown as {
@@ -78,6 +84,7 @@ describe("DefaultsSettings default model", () => {
     root = createRoot(container)
     updateDesktopSettings.mockClear()
     setSettingsDefaultModel.mockClear()
+    setSettingsDefaultFileViewerPreview.mockClear()
     modelSelectorOnChange.current = null
   })
 
@@ -150,5 +157,73 @@ describe("DefaultsSettings default model", () => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+
+  const renderDefaults = async () => {
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () => ({ ok: true, json: async () => ({}) }) as unknown as Response) as typeof fetch
+    try {
+      await act(async () => {
+        root.render(React.createElement(I18nProvider, null, React.createElement(DefaultsSettings)))
+      })
+      await act(async () => {})
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  }
+
+  const previewCheckbox = () => {
+    const checkboxes = container.querySelectorAll<HTMLElement>('[role="checkbox"]')
+    if (checkboxes.length !== 2) throw new Error(`expected 2 checkboxes, found ${checkboxes.length}`)
+    return checkboxes[1]
+  }
+
+  test("persists the preview default when the checkbox itself is clicked", async () => {
+    // The checkbox sits inside a clickable row, and its own onChange only wrote
+    // the in-memory store: the row click was the only persistence path. Stopping
+    // propagation for in-row checkboxes made clicking the box itself revert on
+    // restart while clicking the row text still worked.
+    await renderDefaults()
+
+    await act(async () => {
+      previewCheckbox().click()
+    })
+
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledTimes(1)
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledWith(true)
+    expect(updateDesktopSettings).toHaveBeenCalledTimes(1)
+    expect(updateDesktopSettings.mock.calls[0][0]).toEqual({ defaultFileViewerPreview: true })
+  })
+
+  test("persists the preview default once from keyboard activation", async () => {
+    await renderDefaults()
+
+    await act(async () => {
+      const target = previewCheckbox()
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true }))
+      target.dispatchEvent(new KeyboardEvent("keyup", { key: " ", bubbles: true, cancelable: true }))
+    })
+
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledTimes(1)
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledWith(true)
+    expect(updateDesktopSettings).toHaveBeenCalledTimes(1)
+    expect(updateDesktopSettings.mock.calls[0][0]).toEqual({ defaultFileViewerPreview: true })
+  })
+
+  test("still persists the preview default when the row text is clicked", async () => {
+    await renderDefaults()
+
+    const row = previewCheckbox().closest<HTMLElement>('[role="button"]')
+    const label = row?.querySelector<HTMLElement>("span.typography-ui-label")
+    if (!label) throw new Error("preview row label not rendered")
+
+    await act(async () => {
+      label.click()
+    })
+
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledTimes(1)
+    expect(setSettingsDefaultFileViewerPreview).toHaveBeenCalledWith(true)
+    expect(updateDesktopSettings).toHaveBeenCalledTimes(1)
+    expect(updateDesktopSettings.mock.calls[0][0]).toEqual({ defaultFileViewerPreview: true })
   })
 })
