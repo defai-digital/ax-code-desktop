@@ -1,8 +1,8 @@
 {
   "name": "@ax-code/electron",
-  "version": "7.27.2",
+  "version": "7.27.3",
   "private": true,
-  "description": "AX Code \u2014 Electron desktop shell",
+  "description": "AX Code — Electron desktop shell",
   "author": "DEFAI Private Limited",
   "homepage": "https://github.com/defai-digital/ax-code",
   "desktopName": "ax-code-desktop.desktop",
