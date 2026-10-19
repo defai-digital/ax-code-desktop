@@ -79,6 +79,17 @@ function Start-Process { param([string]$FilePath, [switch]$Wait, [switch]$PassTh
   return { files, installed, run }
 }
 
+describe("Windows bootstrap output contract (source-level)", () => {
+  it("suppresses the PowerShell 5.1 progress bar that freezes large downloads", () => {
+    expect(original).toContain("$ProgressPreference = 'SilentlyContinue'")
+  })
+  it("prints progress while resolving, downloading, and opening the installer", () => {
+    expect(original).toContain("resolving the latest signed release")
+    expect(original).toMatch(/Write-Output "AX Code Desktop: downloading AX-Code-/)
+    expect(original).toContain("opening the installer")
+  })
+})
+
 describe.skipIf(!available)("Windows bootstrap validation in PowerShell (mocked OS and signatures)", () => {
   it(
     "launches NSIS only after consistent metadata and artifact verification",

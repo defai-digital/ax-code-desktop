@@ -1,6 +1,9 @@
 # AX Code Desktop bootstrap for native Windows x64. PowerShell 5.1 or newer.
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
+# The Windows PowerShell 5.1 progress bar makes large Invoke-WebRequest downloads
+# crawl to the point of looking frozen; suppress it for the duration of the script.
+$ProgressPreference = 'SilentlyContinue'
 $Base = 'https://download.automatosx.com/ax-code-desktop'
 $PublicKey = 'RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO'
 $NativeArchitecture = if ($env:PROCESSOR_ARCHITEW6432) { $env:PROCESSOR_ARCHITEW6432 } else { $env:PROCESSOR_ARCHITECTURE }
@@ -48,6 +51,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Invalid release signature' }
     }
     $Latest = Join-Path $Temporary 'latest.txt'
+    Write-Output 'AX Code Desktop: resolving the latest signed release...'
     SignedDownload ($Base + '/latest.txt') $Latest
     $Tag = [IO.File]::ReadAllText($Latest).TrimEnd("`n")
     if ($Tag -cnotmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') { throw 'Invalid stable release tag' }
@@ -80,13 +84,16 @@ try {
     $ExpectedReady = $Tag + "`n" + $Header[2] + "`n" + (Hash $Manifest) + "`n"
     if ([IO.File]::ReadAllText($Ready) -cne $ExpectedReady) { throw 'Release is not ready for this manifest' }
     $Installer = Join-Path $Temporary $InstallerRow[1]
+    Write-Output "AX Code Desktop: downloading AX-Code-$Version-win-x64.exe ($([math]::Round([long]$InstallerRow[2] / 1MB)) MB)..."
     SignedDownload ($Release + '/' + $InstallerRow[1]) $Installer
+    Write-Output 'AX Code Desktop: verifying the installer hash and signature...'
     if ((Get-Item -LiteralPath $Installer).Length -ne [long]$InstallerRow[2]) { throw 'Installer size mismatch' }
     if ((Hash $Installer) -cne $InstallerRow[3]) { throw 'Installer SHA-256 mismatch' }
     $Signature = Get-AuthenticodeSignature -LiteralPath $Installer
     if ($Signature.Status -ne 'Valid' -or $null -eq $Signature.SignerCertificate -or
         $Signature.SignerCertificate.Thumbprint -ne 'FC40F1109912C025E751E804AA9BD1538A2D12EF') { throw 'Unexpected Windows Authenticode signature' }
     if (Get-Process -Name 'AX Code' -ErrorAction SilentlyContinue) { throw 'Close AX Code before installing' }
+    Write-Output 'AX Code Desktop: opening the installer — complete the installer window to finish.'
     $Process = Start-Process -FilePath $Installer -Wait -PassThru
     if ($Process.ExitCode -notin @(0, 3010)) { throw "NSIS installation failed: $($Process.ExitCode)" }
     Write-Output "Installed AX Code Desktop $Version. User data and credentials were preserved."
