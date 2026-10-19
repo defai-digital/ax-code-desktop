@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "Keine Einstellungen entsprechen der Suche.",
   "settings.toast.saveFailed": "Einstellungen konnten nicht gespeichert werden",
   "settings.page.projects.title": "Projekte",
-  "settings.page.models.title": "Modelle",
+  "settings.page.models.title": "Lokale Modelle",
   "settings.page.remoteInstances.title": "Remote-Instanzen",
   "settings.page.providers.title": "Anbieter",
   "settings.page.agents.title": "Agenten",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "Der Renderer konnte nicht geladen werden. Versuchen Sie es erneut.",
   "markdownRenderer.mermaid.error.busy": "Zu viele Diagramme werden gerendert. Versuchen Sie es nach deren Abschluss erneut.",
   "supervision.missionControl.popOut": "In separatem Fenster öffnen",
-  "supervision.commandPalette.popOut": "Missionszentrale in separatem Fenster öffnen"
+  "supervision.commandPalette.popOut": "Missionszentrale in separatem Fenster öffnen",
+  "localModels.description": "AX Engine-Modelle auf dem Runtime-Host ausf\u00fchren und verwalten.",
+  "localModels.unavailable.title": "Lokale Modelle sind auf diesem Host nicht verf\u00fcgbar",
+  "localModels.unavailable.description": "Dieser Runtime-Host kann AX Engine nicht lokal ausf\u00fchren. Modelle \u00fcber Anbieter k\u00f6nnen Sie weiterhin nutzen.",
+  "localModels.openProviders": "Anbieter \u00f6ffnen",
+  "localModels.checkFailed": "Die Verf\u00fcgbarkeit lokaler Modelle konnte nicht gepr\u00fcft werden. Versuchen Sie es erneut.",
+  "localModels.retry": "Erneut versuchen",
+  "localModels.advancedConnection": "Erweiterte Verbindung",
+  "localModels.connectionDescription": "Der verwaltete lokale Modus startet bei Nutzung automatisch. Bestehende Server verbinden sich mit einem localhost-Endpunkt auf dem Runtime-Host; entfernte URLs werden nicht unterst\u00fctzt."
 }

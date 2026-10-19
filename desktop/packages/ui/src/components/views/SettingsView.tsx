@@ -25,6 +25,8 @@ import { ProjectsSidebar } from "@/components/sections/projects/ProjectsSidebar"
 import { ProjectsPage } from "@/components/sections/projects/ProjectsPage"
 import { ProvidersSidebar } from "@/components/sections/providers/ProvidersSidebar"
 import { ProvidersPage } from "@/components/sections/providers/ProvidersPage"
+import { LocalModelsProvider } from "@/components/sections/models/LocalModelsProvider"
+import { showLocalModelsNavigation, useLocalModelsState } from "@/components/sections/models/localModelsState"
 import { LocalModelsPage } from "@/components/sections/models/LocalModelsPage"
 import { GitPage } from "@/components/sections/git-identities/GitPage"
 import type { AXCodeSection } from "@/components/sections/ax-code/types"
@@ -199,7 +201,18 @@ const SettingsHome: React.FC<{ onOpen: (slug: SettingsPageSlug) => void }> = ({ 
   )
 }
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed }) => {
+export const SettingsView: React.FC<SettingsViewProps> = (props) => {
+  const open = useUIStore((state) => state.isSettingsDialogOpen)
+  return (
+    <LocalModelsProvider enabled={Boolean(open || props.isWindowed)}>
+      <SettingsViewContent {...props} />
+    </LocalModelsProvider>
+  )
+}
+
+const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed }) => {
+  const localModels = useLocalModelsState()
+  const showModels = showLocalModelsNavigation(localModels.data, localModels.connection, localModels.error)
   const { t } = useI18n()
   const deviceInfo = useDeviceInfo()
   const isMobile = deviceInfo.isMobile
@@ -241,7 +254,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       .filter((page) => !page.hideFromNavigation)
       .filter((page) => isPageAvailable(page, runtimeCtx))
       .filter((page) => !(isMobile && page.slug === "shortcuts"))
-  }, [runtimeCtx, isMobile])
+      .filter((page) => page.slug !== "models" || showModels || Boolean(navQuery.trim()))
+  }, [runtimeCtx, isMobile, showModels, navQuery])
 
   const sortedFilteredPages = React.useMemo(() => {
     const rank = new Map<SettingsPageSlug, number>(pageOrder.map((s, i) => [s, i]))

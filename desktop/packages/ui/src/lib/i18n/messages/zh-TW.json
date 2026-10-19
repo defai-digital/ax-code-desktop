@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "\u6c92\u6709\u7b26\u5408\u641c\u5c0b\u689d\u4ef6\u7684\u8a2d\u5b9a\u3002",
   "settings.toast.saveFailed": "\u5132\u5b58\u8a2d\u5b9a\u5931\u6557",
   "settings.page.projects.title": "\u5c08\u6848",
-  "settings.page.models.title": "\u6a21\u578b",
+  "settings.page.models.title": "\u672c\u6a5f\u6a21\u578b",
   "settings.page.remoteInstances.title": "\u9060\u7aef\u57f7\u884c\u500b\u9ad4",
   "settings.page.providers.title": "\u63d0\u4f9b\u8005",
   "settings.page.agents.title": "\u4ee3\u7406",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "\u7121\u6cd5\u8f09\u5165\u5716\u8868\u6e32\u67d3\u5668\u3002\u8acb\u91cd\u8a66\u3002",
   "markdownRenderer.mermaid.error.busy": "\u540c\u6642\u7e6a\u88fd\u7684\u5716\u8868\u904e\u591a\u3002\u8acb\u7b49\u5176\u4ed6\u5716\u8868\u5b8c\u6210\u5f8c\u91cd\u8a66\u3002",
   "supervision.missionControl.popOut": "在獨立視窗中開啟",
-  "supervision.commandPalette.popOut": "在獨立視窗中開啟任務中心"
+  "supervision.commandPalette.popOut": "在獨立視窗中開啟任務中心",
+  "localModels.description": "\u5728 runtime \u4e3b\u6a5f\u4e0a\u57f7\u884c\u53ca\u7ba1\u7406 AX Engine \u6a21\u578b\u3002",
+  "localModels.unavailable.title": "\u6b64\u4e3b\u6a5f\u7121\u6cd5\u4f7f\u7528\u672c\u6a5f\u6a21\u578b",
+  "localModels.unavailable.description": "\u6b64 runtime \u4e3b\u6a5f\u7121\u6cd5\u5728\u672c\u6a5f\u57f7\u884c AX Engine\u3002\u60a8\u4ecd\u53ef\u900f\u904e\u4f9b\u61c9\u5546\u4f7f\u7528\u6a21\u578b\u3002",
+  "localModels.openProviders": "\u958b\u555f\u4f9b\u61c9\u5546\u8a2d\u5b9a",
+  "localModels.checkFailed": "\u7121\u6cd5\u78ba\u8a8d\u672c\u6a5f\u6a21\u578b\u662f\u5426\u53ef\u7528\uff0c\u8acb\u91cd\u8a66\u3002",
+  "localModels.retry": "\u91cd\u8a66",
+  "localModels.advancedConnection": "\u9032\u968e\u9023\u7dda",
+  "localModels.connectionDescription": "\u53d7\u7ba1\u7406\u7684\u672c\u6a5f\u6a21\u5f0f\u6703\u5728\u4f7f\u7528\u6642\u81ea\u52d5\u555f\u52d5\u3002\u65e2\u6709\u4f3a\u670d\u5668\u6703\u9023\u63a5 runtime \u4e3b\u6a5f\u7684 localhost \u7aef\u9ede\uff1b\u4e0d\u652f\u63f4\u9060\u7aef\u7db2\u5740\u3002"
 }

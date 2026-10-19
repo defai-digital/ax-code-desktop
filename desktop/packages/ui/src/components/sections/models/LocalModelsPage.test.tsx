@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { LocalModelsProvider } from "./LocalModelsProvider"
 import { LocalModelsPage } from "./LocalModelsPage"
 
 const toastMock = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }))
@@ -38,6 +39,8 @@ const staleManaged = {
 
 let container: HTMLDivElement
 let root: Root
+let modelsFailure: boolean
+let connectionMode: "managed" | "attach"
 let modelsBody: unknown
 // Bodies served before falling back to modelsBody, one per models request.
 let modelsQueue: unknown[]
@@ -57,6 +60,7 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => 
     calls.push(`${method} ${new URL(url, "http://x").pathname}`)
   if (url.includes("/provider/ax-engine/models")) {
     modelsCalls.push(url)
+    if (modelsFailure) return json({ error: "Runtime unavailable" }, 500)
     // A queued entry may be a promise, so a test can hold one directory's answer until after another
     // directory's load has run.
     const queued = modelsQueue.length ? modelsQueue.shift() : modelsBody
@@ -64,7 +68,7 @@ const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => 
   }
   if (url.includes("/provider/ax-engine/connection"))
     return json({
-      mode: "managed",
+      mode: connectionMode,
       baseURL: "http://127.0.0.1:31418/v1",
       ready: false,
       models: [],
@@ -89,7 +93,9 @@ const render = async () => {
   await act(async () => {
     root.render(
       <I18nProvider>
-        <LocalModelsPage />
+        <LocalModelsProvider>
+          <LocalModelsPage />
+        </LocalModelsProvider>
       </I18nProvider>,
     )
   })
@@ -109,6 +115,8 @@ beforeEach(() => {
   document.body.appendChild(container)
   root = createRoot(container)
   calls = []
+  modelsFailure = false
+  connectionMode = "managed"
   modelsCalls = []
   modelsQueue = []
   installResponse = async () => json({ installed: true, alreadyPresent: false, version: "7.7.0", binaryPath: "/x" })
@@ -323,5 +331,100 @@ describe("LocalModelsPage AX Engine status", () => {
     await flush()
     expect(toastMock.success).toHaveBeenCalledWith("AX Engine install cancelled")
     expect(button("Install")).not.toBeNull()
+  })
+})
+
+describe("local model platform availability", () => {
+  test.each([
+    ["win32", "x64", "AX_ENGINE_UNSUPPORTED_PLATFORM: AX Engine requires macOS"],
+    ["linux", "arm64", "AX_ENGINE_UNSUPPORTED_PLATFORM: AX Engine requires macOS"],
+    ["darwin", "x64", "AX_ENGINE_UNSUPPORTED_ARCH: Apple Silicon is required"],
+    ["darwin", "arm64", "AX_ENGINE_UNSUPPORTED_CHIP: Apple Silicon M2 or later is required"],
+    ["darwin", "arm64", "AX_ENGINE_UNSUPPORTED_MACOS: macOS 26 or later is required"],
+  ])("explains unsupported %s/%s without offering local or connection actions", async (platform, arch, reason) => {
+    modelsBody = {
+      ...models(staleManaged),
+      eligibility: { supported: false, platform, arch, blockers: [reason], warnings: [] },
+    }
+    await render()
+    expect(text()).toContain("Local models are unavailable on this host")
+    expect(text()).toContain(reason.split(": ")[1])
+    expect(text()).not.toContain("AX_ENGINE_UNSUPPORTED")
+    for (const label of ["Managed local", "Existing server", "Prewarm", "Install", "Update to 7.7.0"])
+      expect(button(label)).toBeNull()
+    expect(document.querySelector("input")).toBeNull()
+    const { useUIStore } = await import("@/stores/useUIStore")
+    const before = useUIStore.getState().settingsPage
+    await act(async () => button("Open Providers")?.click())
+    expect(useUIStore.getState().settingsPage).toBe("providers")
+    act(() => useUIStore.setState({ settingsPage: before }))
+    expect(calls).toEqual([])
+  })
+
+  test("does not expose connection controls while host readiness is unknown", async () => {
+    let release!: (response: Response) => void
+    modelsQueue = [
+      new Promise<Response>((resolve) => {
+        release = resolve
+      }),
+    ]
+    modelsBody = models(staleManaged)
+    await render()
+    expect(text()).not.toContain("Local models are unavailable")
+    expect(button("Managed local")).toBeNull()
+    expect(button("Prewarm")).toBeNull()
+    await act(async () => release(json(modelsBody)))
+    await flush()
+    expect(button("Managed local")).not.toBeNull()
+    expect(document.querySelector("details")?.open).toBe(false)
+  })
+
+  test("keeps an existing attach connection editable on an unsupported host", async () => {
+    connectionMode = "attach"
+    modelsBody = { ...models(staleManaged), eligibility: { ...eligibility, supported: false, platform: "linux" } }
+    await render()
+    expect(document.querySelector("details")?.open).toBe(true)
+    expect(button("Update")).not.toBeNull()
+    expect(text()).toContain("Attached endpoint unavailable")
+    expect(text()).toContain("remote URLs are not supported")
+    expect(button("Managed local")).toBeNull()
+    expect(button("Prewarm")).toBeNull()
+    expect(button("Update to 7.7.0")).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  test("retains attach management even when the catalog check fails", async () => {
+    connectionMode = "attach"
+    modelsFailure = true
+    await render()
+    expect(button("Update")).not.toBeNull()
+    expect(button("Refresh")).not.toBeNull()
+    expect(text()).not.toContain("Local models are unavailable")
+    expect(text()).toContain("Unable to check local model availability")
+  })
+
+  test("reports a failed check as retryable and recovers to the supported page", async () => {
+    modelsFailure = true
+    modelsBody = models(staleManaged)
+    await render()
+    expect(text()).toContain("Unable to check local model availability")
+    expect(text()).not.toContain("Local models are unavailable")
+    expect(button("Managed local")).toBeNull()
+    modelsFailure = false
+    await act(async () => button("Retry")?.click())
+    await flush()
+    expect(button("Update to 7.7.0")).not.toBeNull()
+    expect(button("Retry")).toBeNull()
+    expect(calls).toEqual([])
+  })
+
+  test("retains Stop for an existing local server after the host becomes unsupported", async () => {
+    modelsBody = { ...models(staleManaged, true), eligibility: { ...eligibility, supported: false } }
+    await render()
+    expect(button("Stop")).not.toBeNull()
+    expect(button("Managed local")).toBeNull()
+    await act(async () => button("Stop")?.click())
+    await flush()
+    expect(calls).toEqual(["POST /api/provider/ax-engine/stop"])
   })
 })

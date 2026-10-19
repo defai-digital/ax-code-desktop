@@ -270,10 +270,14 @@ export const installAxEngine = async (
   }) as Promise<AxEngineInstallResult>
 }
 
-export const fetchAxEngineConnection = async (directory: string | null): Promise<AxEngineConnectionView> => {
+export const fetchAxEngineConnection = async (
+  directory: string | null,
+  signal?: AbortSignal,
+): Promise<AxEngineConnectionView> => {
   return fetchProviderJsonWithRetry(buildDirectoryUrl(API_ENDPOINTS.provider.axEngineConnection, directory), {
     method: "GET",
     headers: { Accept: "application/json" },
+    signal,
   }) as Promise<AxEngineConnectionView>
 }
 

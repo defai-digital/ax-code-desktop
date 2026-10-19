@@ -1,0 +1,53 @@
+{
+  "date": "2026-10-19",
+  "focusedTests": 34,
+  "fullUiTests": 3552,
+  "fullUiFiles": 546,
+  "finalTestOnlyAddition": "Closed settings dialog does not probe; covered in final focused run.",
+  "checks": {
+    "focused": {
+      "exitCode": 0,
+      "fullLogSha256": "6674cecb91aefb6ab0b8b0c3561c1d7ff0feed35c76c0d000b93312679a411bc",
+      "excerpt": true,
+      "output": "focused.txt"
+    },
+    "ui-tests": {
+      "exitCode": 0,
+      "fullLogSha256": "36efc1d5e0cc4f471ede5d285037f4bd7016a2f112ef5d672b6dcb741b71b112",
+      "excerpt": true,
+      "output": "ui-tests.txt"
+    },
+    "typecheck": {
+      "exitCode": 0,
+      "fullLogSha256": "a8b651da72fe527ce3d3c97ddeceb8fbccfc9477d1e81ccc8b482eaecd6e5d8f",
+      "excerpt": false,
+      "output": "typecheck.txt"
+    },
+    "lint": {
+      "exitCode": 0,
+      "fullLogSha256": "5d5b46aafd074aa1ba04866c260c230e8b975f5a1ad7a842aafdcb2fd3145212",
+      "excerpt": false,
+      "output": "lint.txt"
+    },
+    "locales": {
+      "exitCode": 0,
+      "fullLogSha256": "0f31b0a56c5aee0ea2643a7b2831788a039ea598d8f11c7467474ae79f236090",
+      "excerpt": false,
+      "output": "locales.txt"
+    },
+    "boundaries": {
+      "exitCode": 0,
+      "fullLogSha256": "4ff35c0c3b71e3b0237c6bebb7e477be2a88563cda6e43f71629031837d0d4e8",
+      "excerpt": false,
+      "output": "boundaries.txt"
+    },
+    "build": {
+      "exitCode": 0,
+      "fullLogSha256": "193b0aac465112c8dc738552c23e5bc8d1d781f307a26168be79597a5299371a",
+      "excerpt": true,
+      "output": "build.txt"
+    }
+  },
+  "nativeWindowsLinuxQualified": false,
+  "published": false
+}

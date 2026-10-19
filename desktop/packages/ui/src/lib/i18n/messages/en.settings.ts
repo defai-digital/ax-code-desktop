@@ -28,7 +28,7 @@ export const settingsDict = {
   "settings.view.nav.searchNoResults": "No settings match your search.",
   "settings.toast.saveFailed": "Failed to save settings",
   "settings.page.projects.title": "Projects",
-  "settings.page.models.title": "Models",
+  "settings.page.models.title": "Local Models",
   "settings.page.remoteInstances.title": "Remote Instances",
   "settings.page.providers.title": "Providers",
   "settings.page.agents.title": "Agents",

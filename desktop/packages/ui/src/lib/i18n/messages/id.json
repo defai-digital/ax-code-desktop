@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "Tidak ada pengaturan yang cocok dengan pencarian Anda.",
   "settings.toast.saveFailed": "Gagal menyimpan pengaturan",
   "settings.page.projects.title": "Proyek",
-  "settings.page.models.title": "Model",
+  "settings.page.models.title": "Model lokal",
   "settings.page.remoteInstances.title": "Instans Remote",
   "settings.page.providers.title": "Penyedia",
   "settings.page.agents.title": "Agen",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "Renderer tidak dapat dimuat. Coba lagi.",
   "markdownRenderer.mermaid.error.busy": "Terlalu banyak diagram sedang dirender. Coba lagi setelah diagram lain selesai.",
   "supervision.missionControl.popOut": "Buka di jendela terpisah",
-  "supervision.commandPalette.popOut": "Buka Pusat misi di jendela terpisah"
+  "supervision.commandPalette.popOut": "Buka Pusat misi di jendela terpisah",
+  "localModels.description": "Jalankan dan kelola model AX Engine di host runtime.",
+  "localModels.unavailable.title": "Model lokal tidak tersedia di host ini",
+  "localModels.unavailable.description": "Host runtime ini tidak dapat menjalankan AX Engine secara lokal. Anda tetap dapat menggunakan model melalui Penyedia.",
+  "localModels.openProviders": "Buka Penyedia",
+  "localModels.checkFailed": "Tidak dapat memeriksa ketersediaan model lokal. Coba lagi.",
+  "localModels.retry": "Coba lagi",
+  "localModels.advancedConnection": "Koneksi lanjutan",
+  "localModels.connectionDescription": "Mode lokal terkelola dimulai otomatis saat digunakan. Server yang ada terhubung ke endpoint localhost di host runtime; URL jarak jauh tidak didukung."
 }

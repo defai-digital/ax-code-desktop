@@ -1,0 +1,4 @@
+> ax-coder@7.27.3 check:locales /Users/akiralam/code/ax-code-desktop
+> tsx script/check-locales.ts
+
+Checked 14 locales, 4912 keys and 63856 translated entries.

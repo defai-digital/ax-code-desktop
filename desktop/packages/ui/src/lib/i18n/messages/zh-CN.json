@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "\u6ca1\u6709\u7b26\u5408\u641c\u7d22\u6761\u4ef6\u7684\u8bbe\u7f6e\u3002",
   "settings.toast.saveFailed": "\u4fdd\u5b58\u8bbe\u7f6e\u5931\u8d25",
   "settings.page.projects.title": "\u9879\u76ee",
-  "settings.page.models.title": "\u6a21\u578b",
+  "settings.page.models.title": "\u672c\u5730\u6a21\u578b",
   "settings.page.remoteInstances.title": "\u8fdc\u7a0b\u5b9e\u4f8b",
   "settings.page.providers.title": "\u63d0\u4f9b\u5546",
   "settings.page.agents.title": "\u667a\u80fd\u4f53",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "\u65e0\u6cd5\u52a0\u8f7d\u56fe\u8868\u6e32\u67d3\u5668\u3002\u8bf7\u91cd\u8bd5\u3002",
   "markdownRenderer.mermaid.error.busy": "\u540c\u65f6\u7ed8\u5236\u7684\u56fe\u8868\u8fc7\u591a\u3002\u8bf7\u7b49\u5176\u4ed6\u56fe\u8868\u5b8c\u6210\u540e\u91cd\u8bd5\u3002",
   "supervision.missionControl.popOut": "在单独窗口中打开",
-  "supervision.commandPalette.popOut": "在单独窗口中打开任务中心"
+  "supervision.commandPalette.popOut": "在单独窗口中打开任务中心",
+  "localModels.description": "\u5728 runtime \u4e3b\u673a\u4e0a\u8fd0\u884c\u548c\u7ba1\u7406 AX Engine \u6a21\u578b\u3002",
+  "localModels.unavailable.title": "\u6b64\u4e3b\u673a\u65e0\u6cd5\u4f7f\u7528\u672c\u5730\u6a21\u578b",
+  "localModels.unavailable.description": "\u6b64 runtime \u4e3b\u673a\u65e0\u6cd5\u5728\u672c\u5730\u8fd0\u884c AX Engine\u3002\u60a8\u4ecd\u53ef\u901a\u8fc7\u63d0\u4f9b\u5546\u4f7f\u7528\u6a21\u578b\u3002",
+  "localModels.openProviders": "\u6253\u5f00\u63d0\u4f9b\u5546\u8bbe\u7f6e",
+  "localModels.checkFailed": "\u65e0\u6cd5\u786e\u8ba4\u672c\u5730\u6a21\u578b\u662f\u5426\u53ef\u7528\uff0c\u8bf7\u91cd\u8bd5\u3002",
+  "localModels.retry": "\u91cd\u8bd5",
+  "localModels.advancedConnection": "\u9ad8\u7ea7\u8fde\u63a5",
+  "localModels.connectionDescription": "\u6258\u7ba1\u672c\u5730\u6a21\u5f0f\u4f1a\u5728\u4f7f\u7528\u65f6\u81ea\u52a8\u542f\u52a8\u3002\u73b0\u6709\u670d\u52a1\u5668\u8fde\u63a5 runtime \u4e3b\u673a\u7684 localhost \u7aef\u70b9\uff1b\u4e0d\u652f\u6301\u8fdc\u7a0b\u5730\u5740\u3002"
 }

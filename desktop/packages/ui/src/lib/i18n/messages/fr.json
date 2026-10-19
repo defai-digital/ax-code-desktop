@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "Aucun param\u00e8tre ne correspond \u00e0 votre recherche.",
   "settings.toast.saveFailed": "\u00c9chec de l\u2019enregistrement des param\u00e8tres",
   "settings.page.projects.title": "Projets",
-  "settings.page.models.title": "Mod\u00e8les",
+  "settings.page.models.title": "Mod\u00e8les locaux",
   "settings.page.remoteInstances.title": "Instances distantes",
   "settings.page.providers.title": "Fournisseurs",
   "settings.page.agents.title": "Agents",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "Impossible de charger le moteur de rendu. R\u00e9essayez.",
   "markdownRenderer.mermaid.error.busy": "Trop de diagrammes sont en cours de rendu. R\u00e9essayez apr\u00e8s leur affichage.",
   "supervision.missionControl.popOut": "Ouvrir dans une fenêtre séparée",
-  "supervision.commandPalette.popOut": "Ouvrir le centre de missions dans une fenêtre séparée"
+  "supervision.commandPalette.popOut": "Ouvrir le centre de missions dans une fenêtre séparée",
+  "localModels.description": "Ex\u00e9cutez et g\u00e9rez les mod\u00e8les AX Engine sur l\u2019h\u00f4te du runtime.",
+  "localModels.unavailable.title": "Les mod\u00e8les locaux sont indisponibles sur cet h\u00f4te",
+  "localModels.unavailable.description": "Cet h\u00f4te du runtime ne peut pas ex\u00e9cuter AX Engine localement. Vous pouvez toujours utiliser des mod\u00e8les via les fournisseurs.",
+  "localModels.openProviders": "Ouvrir les fournisseurs",
+  "localModels.checkFailed": "Impossible de v\u00e9rifier la disponibilit\u00e9 des mod\u00e8les locaux. R\u00e9essayez.",
+  "localModels.retry": "R\u00e9essayer",
+  "localModels.advancedConnection": "Connexion avanc\u00e9e",
+  "localModels.connectionDescription": "Le mode local g\u00e9r\u00e9 d\u00e9marre automatiquement \u00e0 l\u2019utilisation. Un serveur existant se connecte \u00e0 localhost sur l\u2019h\u00f4te du runtime ; les URL distantes ne sont pas prises en charge."
 }

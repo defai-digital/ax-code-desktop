@@ -7,24 +7,20 @@ import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
 import { toast } from "@/components/ui"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { cn } from "@/lib/utils"
-import { useProjectsStore } from "@/stores/useProjectsStore"
+import { useUIStore } from "@/stores/useUIStore"
+import { hasLocalModelResources, useLocalModelsState } from "./localModelsState"
 import {
   cancelAxEngineModelDownload,
   deleteAxEngineModel,
-  fetchAxEngineConnection,
   fetchAxEngineModels,
-  fetchDesktopAxCodeRuntimeIdentity,
   installAxEngine,
   isExternalInstalledAxCodeBinary,
   startAxEngineServer,
   startAxEngineModelDownload,
   stopAxEngineServer,
   updateAxEngineConnection,
-  type AxEngineConnectionView,
   type AxEngineModelCatalogEntry,
   type AxEngineModelJobSummary,
-  type AxEngineModelsResponse,
-  type DesktopAxCodeRuntimeIdentity,
 } from "@/lib/ax-code/axEngineModelsApi"
 import {
   axEngineMissingDetails,
@@ -34,7 +30,6 @@ import {
   stripAxEngineErrorCode,
 } from "@/lib/ax-code/axEngineDependency"
 import { downloadToastTracker } from "@/lib/ax-code/axEngineDownloadToasts"
-import { getCurrentDirectory } from "@/lib/ax-code/providerApi"
 import { formatLocalModelBytes } from "./localModelFormat"
 import { useI18n } from "@/lib/i18n"
 
@@ -63,23 +58,12 @@ const activeJobFor = (jobs: AxEngineModelJobSummary[], model: AxEngineModelCatal
   )
 
 export const LocalModelsPage: React.FC = () => {
-  const activeProjectId = useProjectsStore((state) => state.activeProjectId)
-  const directory = React.useMemo(() => {
-    void activeProjectId
-    return getCurrentDirectory()
-  }, [activeProjectId])
-  const [data, setData] = React.useState<AxEngineModelsResponse | null>(null)
-  // Which project the current snapshot came from: a directory switch keeps the
-  // previous list mounted until the new fetch lands, and reconciling that list
-  // against the new project would report its jobs as interrupted.
-  const dataDirectoryRef = React.useRef<string | null>(null)
-  const [connection, setConnection] = React.useState<AxEngineConnectionView | null>(null)
-  const [runtimeIdentity, setRuntimeIdentity] = React.useState<DesktopAxCodeRuntimeIdentity | null>(null)
+  const { directory, data, connection, runtimeIdentity, loading, error, load, setData, setConnection } =
+    useLocalModelsState()
+  const setSettingsPage = useUIStore((state) => state.setSettingsPage)
   const [showAttachForm, setShowAttachForm] = React.useState(false)
   const [attachBaseURL, setAttachBaseURL] = React.useState("http://127.0.0.1:31418/v1")
   const [attachApiKey, setAttachApiKey] = React.useState("")
-  const [loading, setLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
   const [busyKey, setBusyKey] = React.useState<string | null>(null)
   const { requestConfirm, confirmDialog } = useConfirmDialog()
   const { t } = useI18n()
@@ -87,63 +71,27 @@ export const LocalModelsPage: React.FC = () => {
   // advances smoothly between the 2s catalog polls.
   const [now, setNow] = React.useState(() => Date.now())
   const mountedRef = React.useRef(true)
-  // The directory the request in flight belongs to. The fetch retries internally for up to ~18s
-  // while the CLI restarts, so without a guard the 2s poll stacks concurrent requests and an older
-  // response can clobber fresher job state. A request for *another* directory must not be skipped
-  // with it: the previous directory's answer is dropped when it lands, and this directory still has
-  // to be loaded.
-  const inFlightDirectoryRef = React.useRef<string | null>(null)
   const currentDirectoryRef = React.useRef(directory)
   currentDirectoryRef.current = directory
-  const connectionInitializedRef = React.useRef(false)
   const installAbortRef = React.useRef<AbortController | null>(null)
-
-  const load = React.useCallback(async () => {
-    if (inFlightDirectoryRef.current === directory) return
-    inFlightDirectoryRef.current = directory
-    try {
-      const [next, nextConnection, nextRuntime] = await Promise.all([
-        fetchAxEngineModels(directory),
-        fetchAxEngineConnection(directory),
-        fetchDesktopAxCodeRuntimeIdentity(),
-      ])
-      // A response for a directory the app has left is not this page's state: setting it showed the
-      // previous project's models and connection while every action used the current directory.
-      if (!mountedRef.current || currentDirectoryRef.current !== directory) return
-      setError(null)
-      dataDirectoryRef.current = directory
-      setData(next)
-      setConnection(nextConnection)
-      setRuntimeIdentity(nextRuntime)
-      if (!connectionInitializedRef.current) {
-        connectionInitializedRef.current = true
-        setAttachBaseURL(nextConnection.baseURL)
-        setShowAttachForm(nextConnection.mode === "attach")
-      }
-    } catch (err) {
-      if (!mountedRef.current || currentDirectoryRef.current !== directory) return
-      const message = err instanceof Error ? err.message : "Failed to load local models"
-      setError(message)
-    } finally {
-      if (inFlightDirectoryRef.current === directory) {
-        inFlightDirectoryRef.current = null
-        if (mountedRef.current) setLoading(false)
-      }
-    }
-  }, [directory])
-
+  const connectionInitializedRef = React.useRef(false)
   React.useEffect(() => {
     connectionInitializedRef.current = false
+    setShowAttachForm(false)
+    setAttachApiKey("")
   }, [directory])
-
+  React.useEffect(() => {
+    if (!connection || connectionInitializedRef.current) return
+    connectionInitializedRef.current = true
+    setAttachBaseURL(connection.baseURL)
+    setShowAttachForm(connection.mode === "attach")
+  }, [connection])
   React.useEffect(() => {
     mountedRef.current = true
-    setLoading(true)
-    void load()
     return () => {
       mountedRef.current = false
     }
-  }, [load])
+  }, [])
 
   const hasActiveJob = data?.jobs.some((job) => job.status === "queued" || job.status === "running") ?? false
   React.useEffect(() => {
@@ -164,7 +112,7 @@ export const LocalModelsPage: React.FC = () => {
   // while jobs are pending), so navigating away from this page cannot orphan a
   // toast; reconciling here as well just applies fresh poll data sooner.
   React.useEffect(() => {
-    if (!data || dataDirectoryRef.current !== directory) return
+    if (!data) return
     downloadToastTracker.reconcile(data.jobs, directory)
   }, [data, directory])
 
@@ -246,10 +194,7 @@ export const LocalModelsPage: React.FC = () => {
       let current = data
       try {
         current = await fetchAxEngineModels(directory, controller.signal)
-        if (mountedRef.current) {
-          dataDirectoryRef.current = directory
-          setData(current)
-        }
+        if (mountedRef.current && currentDirectoryRef.current === directory) setData(current)
       } catch {
         // Fall back to the last snapshot; the runtime still refuses an unsafe install.
       }
@@ -284,7 +229,8 @@ export const LocalModelsPage: React.FC = () => {
     if (mountedRef.current) await load()
   }
   const handleCancelInstall = () => installAbortRef.current?.abort()
-  const canStartServer = Boolean(startCandidate) && !hasActiveJob && !loading
+  const canManageLocal = data?.eligibility.supported === true && !error
+  const canStartServer = canManageLocal && Boolean(startCandidate) && !hasActiveJob && !loading
   const axCodeCliSummary = runtimeIdentity?.binaryPath
     ? `${runtimeIdentity.binaryPath}${runtimeIdentity.version ? ` · v${runtimeIdentity.version}` : ""}`
     : "Resolving ax-code CLI…"
@@ -306,6 +252,7 @@ export const LocalModelsPage: React.FC = () => {
   }
 
   const handleManagedConnection = async () => {
+    if (!canManageLocal) return
     setBusyKey("ax-engine-connection")
     try {
       const next = await updateAxEngineConnection({ mode: "managed" }, directory)
@@ -345,22 +292,52 @@ export const LocalModelsPage: React.FC = () => {
     }
   }
 
+  const unsupported = data?.eligibility.supported === false
+  const retainedResources = hasLocalModelResources(data)
+  const showManagement = canManageLocal || retainedResources
+  const availabilityMessage = (
+    <section className="space-y-3 rounded-lg border border-border p-5" aria-label={t("localModels.unavailable.title")}>
+      <h2 className="typography-ui-header">{t("localModels.unavailable.title")}</h2>
+      <p className="typography-ui-label text-muted-foreground">{t("localModels.unavailable.description")}</p>
+      {data?.eligibility.blockers.map((reason) => (
+        <p key={reason} className="typography-meta text-muted-foreground">
+          {stripAxEngineErrorCode(reason)}
+        </p>
+      ))}
+      <Button onClick={() => setSettingsPage("providers")}>{t("localModels.openProviders")}</Button>
+    </section>
+  )
+
+  if ((!data || !connection || error) && connection?.mode !== "attach") {
+    return (
+      <div className="space-y-4 p-6">
+        <h1 className="typography-ui-header">{t("settings.page.models.title")}</h1>
+        {error ? (
+          <>
+            <p role="alert">{t("localModels.checkFailed")}</p>
+            <p className="typography-meta text-muted-foreground">{stripAxEngineErrorCode(error)}</p>
+            <Button onClick={() => void load()} disabled={loading}>
+              {t("localModels.retry")}
+            </Button>
+          </>
+        ) : (
+          <ViewLoadingSkeleton rows={3} label={t("common.loading")} />
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background">
       {confirmDialog}
       <div className="border-b border-border px-6 py-4">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0 space-y-1">
-            <h1 className="typography-ui-header font-semibold text-foreground">Models</h1>
-            <p className="typography-meta text-muted-foreground">
-              Download and manage local AX Engine models with automatic MTP or Direct decode. The model list is served
-              by the live ax-code process (single source of truth in{" "}
-              <code className="typography-micro">packages/ax-code/src/provider/ax-engine/constants.ts</code>
-              ). AX Engine requires macOS 26+, Apple Silicon M2 or later.
-            </p>
+            <h1 className="typography-ui-header font-semibold text-foreground">{t("settings.page.models.title")}</h1>
+            <p className="typography-meta text-muted-foreground">{t("localModels.description")}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            {connection?.mode !== "attach" && (
+            {connection?.mode !== "attach" && (canManageLocal || data?.server.running) && (
               <Button
                 variant={data?.server.running ? "outline" : "default"}
                 size="sm"
@@ -389,230 +366,253 @@ export const LocalModelsPage: React.FC = () => {
 
       <ScrollableOverlay outerClassName="flex-1 min-h-0" className="p-6">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
-          <div className="rounded-lg border border-border bg-[var(--surface-elevated)] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="space-y-1">
-                <div className="typography-ui-label font-medium text-foreground">Connection</div>
-                <div className="typography-micro text-muted-foreground">
-                  Managed mode starts automatically when used. Attach mode connects to an AX Engine server you already
-                  run.
+          {unsupported && availabilityMessage}
+          {(canManageLocal || connection?.mode === "attach") && (
+            <details
+              open={connection?.mode === "attach" || showAttachForm}
+              className="rounded-lg border border-border bg-[var(--surface-elevated)] p-4"
+            >
+              <summary className="cursor-pointer typography-ui-label">{t("localModels.advancedConnection")}</summary>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="typography-ui-label font-medium text-foreground">Connection</div>
+                  <div className="typography-micro text-muted-foreground">{t("localModels.connectionDescription")}</div>
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={connection?.mode === "managed" && !showAttachForm ? "default" : "outline"}
-                  onClick={() => void handleManagedConnection()}
-                  disabled={busyKey === "ax-engine-connection"}
-                >
-                  Managed local
-                </Button>
-                <Button
-                  size="sm"
-                  variant={showAttachForm ? "default" : "outline"}
-                  onClick={() => setShowAttachForm(true)}
-                  disabled={busyKey === "ax-engine-connection"}
-                >
-                  Existing server
-                </Button>
-              </div>
-            </div>
-
-            {showAttachForm && (
-              <div className="mt-4 grid gap-3 border-t border-border pt-4 md:grid-cols-[minmax(240px,1fr)_minmax(180px,0.7fr)_auto]">
-                <label className="space-y-1">
-                  <span className="typography-micro font-medium text-foreground">Endpoint</span>
-                  <Input
-                    value={attachBaseURL}
-                    onChange={(event) => setAttachBaseURL(event.target.value)}
-                    placeholder="http://127.0.0.1:31418/v1"
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="typography-micro font-medium text-foreground">API key</span>
-                  <Input
-                    type="password"
-                    value={attachApiKey}
-                    onChange={(event) => setAttachApiKey(event.target.value)}
-                    placeholder={connection?.hasApiKey ? "Saved securely" : "local"}
-                  />
-                </label>
-                <div className="flex items-end">
+                <div className="flex items-center gap-2">
+                  {canManageLocal && (
+                    <Button
+                      size="sm"
+                      variant={connection?.mode === "managed" && !showAttachForm ? "default" : "outline"}
+                      onClick={() => void handleManagedConnection()}
+                      disabled={busyKey === "ax-engine-connection"}
+                    >
+                      Managed local
+                    </Button>
+                  )}
                   <Button
                     size="sm"
-                    onClick={() => void handleAttachConnection()}
-                    disabled={busyKey === "ax-engine-connection" || !attachBaseURL.trim()}
+                    variant={showAttachForm ? "default" : "outline"}
+                    onClick={() => setShowAttachForm(true)}
+                    disabled={busyKey === "ax-engine-connection"}
                   >
-                    <Icon
-                      name={busyKey === "ax-engine-connection" ? "loader" : "link-unlink-m"}
-                      className={cn("h-4 w-4", busyKey === "ax-engine-connection" && "animate-spin")}
-                    />
-                    {connection?.mode === "attach" ? "Update" : "Connect"}
+                    Existing server
                   </Button>
                 </div>
-                <div className="typography-micro text-muted-foreground md:col-span-3">
-                  The endpoint is validated before saving. Leave the key blank to keep the saved credential or use the
-                  local default on first connect.
-                </div>
               </div>
-            )}
 
-            {connection && (
-              <div
-                className={cn(
-                  "mt-3 typography-micro",
-                  connection.ready ? "text-[var(--status-success)]" : "text-muted-foreground",
+              {showAttachForm && (
+                <div className="mt-4 grid gap-3 border-t border-border pt-4 md:grid-cols-[minmax(240px,1fr)_minmax(180px,0.7fr)_auto]">
+                  <label className="space-y-1">
+                    <span className="typography-micro font-medium text-foreground">Endpoint</span>
+                    <Input
+                      value={attachBaseURL}
+                      onChange={(event) => setAttachBaseURL(event.target.value)}
+                      placeholder="http://127.0.0.1:31418/v1"
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="typography-micro font-medium text-foreground">API key</span>
+                    <Input
+                      type="password"
+                      value={attachApiKey}
+                      onChange={(event) => setAttachApiKey(event.target.value)}
+                      placeholder={connection?.hasApiKey ? "Saved securely" : "local"}
+                    />
+                  </label>
+                  <div className="flex items-end">
+                    <Button
+                      size="sm"
+                      onClick={() => void handleAttachConnection()}
+                      disabled={busyKey === "ax-engine-connection" || !attachBaseURL.trim()}
+                    >
+                      <Icon
+                        name={busyKey === "ax-engine-connection" ? "loader" : "link-unlink-m"}
+                        className={cn("h-4 w-4", busyKey === "ax-engine-connection" && "animate-spin")}
+                      />
+                      {connection?.mode === "attach" ? "Update" : "Connect"}
+                    </Button>
+                  </div>
+                  <div className="typography-micro text-muted-foreground md:col-span-3">
+                    The endpoint is validated before saving. Leave the key blank to keep the saved credential or use the
+                    local default on first connect.
+                  </div>
+                </div>
+              )}
+
+              {connection && (
+                <div
+                  className={cn(
+                    "mt-3 typography-micro",
+                    connection.ready ? "text-[var(--status-success)]" : "text-muted-foreground",
+                  )}
+                >
+                  {connection.mode === "attach"
+                    ? connection.ready
+                      ? `Attached · ${connection.baseURL} · ${connection.models.length} model${
+                          connection.models.length === 1 ? "" : "s"
+                        }`
+                      : `Attached endpoint unavailable${connection.error ? ` · ${connection.error}` : ""}`
+                    : connection.ready
+                      ? `Managed server ready · ${connection.baseURL}`
+                      : "Managed local · starts automatically when a downloaded model is used"}
+                </div>
+              )}
+            </details>
+          )}
+
+          {showManagement && (
+            <>
+              {usingExternalCatalogRuntime && (
+                <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 typography-meta text-amber-100">
+                  Catalog is served by an <strong>installed</strong> ax-code CLI (
+                  <code className="typography-micro">{runtimeIdentity?.binaryPath}</code>
+                  ). Local AX Code edits will not appear until Desktop uses a matching installed or explicit runtime.
+                  For development, run <code className="typography-micro">pnpm run dev</code> and set{" "}
+                  <code className="typography-micro">settings.axCodeBinary</code> /{" "}
+                  <code className="typography-micro">AX_CODE_BINARY</code> to the desired executable.
+                </div>
+              )}
+
+              <div className="grid gap-3 lg:grid-cols-5">
+                <StatusBox title="Host" value={hostSummary} blocked={data ? !data.eligibility.supported : false} />
+                <StatusBox
+                  title="AX Code CLI"
+                  value={axCodeCliSummary}
+                  blocked={usingExternalCatalogRuntime}
+                  action={
+                    data?.catalog?.modelIDs?.length ? (
+                      <span className="typography-micro text-muted-foreground">
+                        {data.catalog.modelIDs.length} catalog model{data.catalog.modelIDs.length === 1 ? "" : "s"}
+                      </span>
+                    ) : undefined
+                  }
+                />
+                <StatusBox
+                  title="AX Engine"
+                  value={engineView.summary}
+                  tooltip={engineView.path ? `${engineView.summary}\n${engineView.path}` : undefined}
+                  blocked={data ? !data.dependency.available || engineView.warnings.length > 0 : false}
+                  action={
+                    canInstallEngine ? (
+                      installBusy ? (
+                        <Button size="sm" variant="outline" onClick={handleCancelInstall}>
+                          <Icon name="loader" className="h-4 w-4 animate-spin" />
+                          Cancel
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={() => void handleInstallEngine()} disabled={Boolean(busyKey)}>
+                          <Icon name="download" className="h-4 w-4" />
+                          {engineUpdateVersion ? `Update to ${engineUpdateVersion}` : "Install"}
+                        </Button>
+                      )
+                    ) : undefined
+                  }
+                />
+                <StatusBox
+                  title="Server"
+                  value={
+                    connection?.mode === "attach"
+                      ? connection.ready
+                        ? `Attached · ${connection.models.length} model${connection.models.length === 1 ? "" : "s"}`
+                        : "Attached · unavailable"
+                      : serverSummary
+                  }
+                  blocked={
+                    connection?.mode === "attach"
+                      ? !connection.ready
+                      : data
+                        ? Boolean(data.server.blockers.length) || (data.server.running && !data.server.ready)
+                        : false
+                  }
+                />
+                <StatusBox
+                  title="Download Cache"
+                  value={
+                    data ? `${data.diskRoot.path} · ${formatLocalModelBytes(data.diskRoot.freeBytes)} free` : "Checking"
+                  }
+                  blocked={Boolean(data?.diskRoot.blockers.length)}
+                />
+              </div>
+
+              {installBusy && (
+                <div className="typography-micro text-muted-foreground" aria-live="polite">
+                  {engineUpdateVersion ? `Updating AX Engine to ${engineUpdateVersion}…` : "Installing AX Engine…"} AX
+                  Code downloads its pinned, signed release and verifies it before use. Cancel stops it before the new
+                  version replaces the old one.
+                </div>
+              )}
+
+              {(engineView.warnings.length > 0 || engineView.updateHint || engineMissingDetails.length > 0) && (
+                <div className="space-y-1 rounded-md border border-[var(--status-warning)]/35 bg-[var(--status-warning)]/5 px-3 py-2 typography-micro text-foreground">
+                  {engineView.warnings.map((warning) => (
+                    <div key={warning}>{warning}</div>
+                  ))}
+                  {engineView.updateHint && <div className="text-muted-foreground">{engineView.updateHint}</div>}
+                  {engineMissingDetails.map((line) => (
+                    <div key={line} className="select-text text-muted-foreground">
+                      {line}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {error && (
+                <div className="rounded-md border border-[var(--status-error)]/30 bg-[var(--status-error)]/5 px-3 py-2 typography-ui-label text-[var(--status-error)]">
+                  {error}
+                </div>
+              )}
+
+              <div className="overflow-hidden rounded-lg border border-border bg-[var(--surface-elevated)]">
+                <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.7fr)_minmax(180px,0.9fr)_auto] gap-3 border-b border-border px-4 py-2 typography-micro font-medium text-muted-foreground md:grid">
+                  <span>Model</span>
+                  <span>Status</span>
+                  <span>Requirements</span>
+                  <span className="text-right">Actions</span>
+                </div>
+                {loading && !data ? (
+                  <ViewLoadingSkeleton rows={4} label="Loading models" />
+                ) : (
+                  data?.models.map((model) => {
+                    const job = activeJobFor(data.jobs, model)
+                    return (
+                      <ModelRow
+                        key={model.id}
+                        model={
+                          canManageLocal
+                            ? model
+                            : { ...model, fit: { ...model.fit, downloadable: false, runnable: false } }
+                        }
+                        job={job}
+                        now={now}
+                        busy={busyKey === model.id || (job ? busyKey === job.id : false)}
+                        onDownload={() => {
+                          if (canManageLocal) void handleDownload(model)
+                        }}
+                        onCancel={() => {
+                          if (!job) return
+                          void handleCancel(job)
+                        }}
+                        onDelete={() => {
+                          void (async () => {
+                            const ok = await requestConfirm(`Delete local copy of ${model.name}?`, {
+                              destructive: true,
+                            })
+                            if (!ok) return
+                            void runAction(model.id, () => deleteAxEngineModel(model.id, directory), "Model deleted")
+                          })()
+                        }}
+                      />
+                    )
+                  })
                 )}
-              >
-                {connection.mode === "attach"
-                  ? connection.ready
-                    ? `Attached · ${connection.baseURL} · ${connection.models.length} model${
-                        connection.models.length === 1 ? "" : "s"
-                      }`
-                    : `Attached endpoint unavailable${connection.error ? ` · ${connection.error}` : ""}`
-                  : connection.ready
-                    ? `Managed server ready · ${connection.baseURL}`
-                    : "Managed local · starts automatically when a downloaded model is used"}
               </div>
-            )}
-          </div>
-
-          {usingExternalCatalogRuntime && (
-            <div className="mt-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 typography-meta text-amber-100">
-              Catalog is served by an <strong>installed</strong> ax-code CLI (
-              <code className="typography-micro">{runtimeIdentity?.binaryPath}</code>
-              ). Local AX Code edits will not appear until Desktop uses a matching installed or explicit runtime. For
-              development, run <code className="typography-micro">pnpm run dev</code> and set{" "}
-              <code className="typography-micro">settings.axCodeBinary</code> /{" "}
-              <code className="typography-micro">AX_CODE_BINARY</code> to the desired executable.
-            </div>
+            </>
           )}
-
-          <div className="grid gap-3 lg:grid-cols-5">
-            <StatusBox title="Host" value={hostSummary} blocked={data ? !data.eligibility.supported : false} />
-            <StatusBox
-              title="AX Code CLI"
-              value={axCodeCliSummary}
-              blocked={usingExternalCatalogRuntime}
-              action={
-                data?.catalog?.modelIDs?.length ? (
-                  <span className="typography-micro text-muted-foreground">
-                    {data.catalog.modelIDs.length} catalog model{data.catalog.modelIDs.length === 1 ? "" : "s"}
-                  </span>
-                ) : undefined
-              }
-            />
-            <StatusBox
-              title="AX Engine"
-              value={engineView.summary}
-              tooltip={engineView.path ? `${engineView.summary}\n${engineView.path}` : undefined}
-              blocked={data ? !data.dependency.available || engineView.warnings.length > 0 : false}
-              action={
-                canInstallEngine ? (
-                  installBusy ? (
-                    <Button size="sm" variant="outline" onClick={handleCancelInstall}>
-                      <Icon name="loader" className="h-4 w-4 animate-spin" />
-                      Cancel
-                    </Button>
-                  ) : (
-                    <Button size="sm" onClick={() => void handleInstallEngine()} disabled={Boolean(busyKey)}>
-                      <Icon name="download" className="h-4 w-4" />
-                      {engineUpdateVersion ? `Update to ${engineUpdateVersion}` : "Install"}
-                    </Button>
-                  )
-                ) : undefined
-              }
-            />
-            <StatusBox
-              title="Server"
-              value={
-                connection?.mode === "attach"
-                  ? connection.ready
-                    ? `Attached · ${connection.models.length} model${connection.models.length === 1 ? "" : "s"}`
-                    : "Attached · unavailable"
-                  : serverSummary
-              }
-              blocked={
-                connection?.mode === "attach"
-                  ? !connection.ready
-                  : data
-                    ? Boolean(data.server.blockers.length) || (data.server.running && !data.server.ready)
-                    : false
-              }
-            />
-            <StatusBox
-              title="Download Cache"
-              value={
-                data ? `${data.diskRoot.path} · ${formatLocalModelBytes(data.diskRoot.freeBytes)} free` : "Checking"
-              }
-              blocked={Boolean(data?.diskRoot.blockers.length)}
-            />
-          </div>
-
-          {installBusy && (
-            <div className="typography-micro text-muted-foreground" aria-live="polite">
-              {engineUpdateVersion ? `Updating AX Engine to ${engineUpdateVersion}…` : "Installing AX Engine…"} AX Code
-              downloads its pinned, signed release and verifies it before use. Cancel stops it before the new version
-              replaces the old one.
-            </div>
+          {!showManagement && error && (
+            <p role="alert" className="typography-meta">
+              {t("localModels.checkFailed")}
+            </p>
           )}
-
-          {(engineView.warnings.length > 0 || engineView.updateHint || engineMissingDetails.length > 0) && (
-            <div className="space-y-1 rounded-md border border-[var(--status-warning)]/35 bg-[var(--status-warning)]/5 px-3 py-2 typography-micro text-foreground">
-              {engineView.warnings.map((warning) => (
-                <div key={warning}>{warning}</div>
-              ))}
-              {engineView.updateHint && <div className="text-muted-foreground">{engineView.updateHint}</div>}
-              {engineMissingDetails.map((line) => (
-                <div key={line} className="select-text text-muted-foreground">
-                  {line}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {error && (
-            <div className="rounded-md border border-[var(--status-error)]/30 bg-[var(--status-error)]/5 px-3 py-2 typography-ui-label text-[var(--status-error)]">
-              {error}
-            </div>
-          )}
-
-          <div className="overflow-hidden rounded-lg border border-border bg-[var(--surface-elevated)]">
-            <div className="hidden grid-cols-[minmax(220px,1.4fr)_minmax(140px,0.7fr)_minmax(180px,0.9fr)_auto] gap-3 border-b border-border px-4 py-2 typography-micro font-medium text-muted-foreground md:grid">
-              <span>Model</span>
-              <span>Status</span>
-              <span>Requirements</span>
-              <span className="text-right">Actions</span>
-            </div>
-            {loading && !data ? (
-              <ViewLoadingSkeleton rows={4} label="Loading models" />
-            ) : (
-              data?.models.map((model) => {
-                const job = activeJobFor(data.jobs, model)
-                return (
-                  <ModelRow
-                    key={model.id}
-                    model={model}
-                    job={job}
-                    now={now}
-                    busy={busyKey === model.id || (job ? busyKey === job.id : false)}
-                    onDownload={() => void handleDownload(model)}
-                    onCancel={() => {
-                      if (!job) return
-                      void handleCancel(job)
-                    }}
-                    onDelete={() => {
-                      void (async () => {
-                        const ok = await requestConfirm(`Delete local copy of ${model.name}?`, { destructive: true })
-                        if (!ok) return
-                        void runAction(model.id, () => deleteAxEngineModel(model.id, directory), "Model deleted")
-                      })()
-                    }}
-                  />
-                )
-              })
-            )}
-          </div>
         </div>
       </ScrollableOverlay>
     </div>

@@ -1,0 +1,2 @@
+> @openchamber/ui@7.27.3 type-check /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> tsc --noEmit

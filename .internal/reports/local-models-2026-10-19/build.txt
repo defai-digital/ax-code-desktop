@@ -1,0 +1,19 @@
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [electron] web assets → packages/electron/resources/web-dist
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: > @ax-code/electron@7.27.3 bundle:main /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+@ax-code/electron:build:shell: > node scripts/bundle-main.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [electron] copied tray icons → dist/resources/icons
+@ax-code/electron:build:shell: [electron] bundle → dist/{main,preload,server-process,server}.js + dist/desktop-cli.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: > @ax-code/electron@7.27.3 rebuild:native /Users/akiralam/code/ax-code-desktop/desktop/packages/electron
+@ax-code/electron:build:shell: > node scripts/rebuild-native.mjs
+@ax-code/electron:build:shell:
+@ax-code/electron:build:shell: [rebuild-native] electron 44.9.0, arch arm64
+@ax-code/electron:build:shell: [rebuild-native] modules: node-pty
+@ax-code/electron:build:shell: [rebuild-native] done
+
+ Tasks:    3 successful, 3 total
+Cached:    0 cached, 3 total
+  Time:    1m19.236s

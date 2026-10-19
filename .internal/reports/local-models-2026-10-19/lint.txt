@@ -1,0 +1,2 @@
+> @openchamber/ui@7.27.3 lint /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> eslint "./src/**/*.{ts,tsx}" --config ../../eslint.config.js

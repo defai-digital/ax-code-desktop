@@ -27,7 +27,7 @@
   "settings.view.nav.searchNoResults": "Nenhuma configura\u00e7\u00e3o corresponde \u00e0 pesquisa.",
   "settings.toast.saveFailed": "Falha ao salvar configura\u00e7\u00f5es",
   "settings.page.projects.title": "Projetos",
-  "settings.page.models.title": "Modelos",
+  "settings.page.models.title": "Modelos locais",
   "settings.page.remoteInstances.title": "Inst\u00e2ncias remotas",
   "settings.page.providers.title": "Provedores",
   "settings.page.agents.title": "Agentes",
@@ -4902,5 +4902,13 @@
   "markdownRenderer.mermaid.error.unavailable": "N\u00e3o foi poss\u00edvel carregar o renderizador. Tente novamente.",
   "markdownRenderer.mermaid.error.busy": "H\u00e1 muitos diagramas sendo renderizados. Tente novamente quando os outros terminarem.",
   "supervision.missionControl.popOut": "Abrir em uma janela separada",
-  "supervision.commandPalette.popOut": "Abrir o centro de missões em uma janela separada"
+  "supervision.commandPalette.popOut": "Abrir o centro de missões em uma janela separada",
+  "localModels.description": "Execute e gerencie modelos AX Engine no host do runtime.",
+  "localModels.unavailable.title": "Os modelos locais n\u00e3o est\u00e3o dispon\u00edveis neste host",
+  "localModels.unavailable.description": "Este host do runtime n\u00e3o pode executar o AX Engine localmente. Voc\u00ea ainda pode usar modelos pelos provedores.",
+  "localModels.openProviders": "Abrir provedores",
+  "localModels.checkFailed": "N\u00e3o foi poss\u00edvel verificar a disponibilidade dos modelos locais. Tente novamente.",
+  "localModels.retry": "Tentar novamente",
+  "localModels.advancedConnection": "Conex\u00e3o avan\u00e7ada",
+  "localModels.connectionDescription": "O modo local gerenciado inicia automaticamente ao ser usado. Servidor existente se conecta a localhost no host do runtime; URLs remotas n\u00e3o s\u00e3o compat\u00edveis."
 }

@@ -1,0 +1,11 @@
+(node:91661) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:91656) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:91659) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  546 passed (546)
+      Tests  3552 passed (3552)
+   Start at  19:52:29
+   Duration  32.02s (transform 37.41s, setup 12.10s, import 103.34s, tests 52.55s, environment 233.50s)

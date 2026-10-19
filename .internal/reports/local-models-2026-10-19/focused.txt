@@ -1,0 +1,13 @@
+RUN  v4.1.11 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+(node:92412) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:92411) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:92413) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+ Test Files  3 passed (3)
+      Tests  34 passed (34)
+   Start at  19:53:25
+   Duration  2.54s (transform 2.00s, setup 84ms, import 2.81s, tests 967ms, environment 713ms)

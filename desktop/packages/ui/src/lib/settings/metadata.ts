@@ -47,7 +47,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   },
   {
     slug: "models",
-    title: "Models",
+    title: "Local Models",
     group: "ax-code",
     kind: "single",
     keywords: ["models", "local models", "ax-engine", "download", "mtp", "mlx", "qwen", "gemma", "glm"],
