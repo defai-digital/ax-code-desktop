@@ -113,7 +113,7 @@ const resolveDefaultAppPath = async () => {
   return ""
 }
 
-const findMacExecutable = async (appPath) => {
+export const findMacExecutable = async (appPath) => {
   const macosDir = path.join(appPath, "Contents", "MacOS")
   const entries = await fs.readdir(macosDir)
   for (const entry of entries) {
@@ -124,7 +124,7 @@ const findMacExecutable = async (appPath) => {
   throw new Error(`No executable found in ${macosDir}`)
 }
 
-const createSmokeAppCopy = async ({ appPath, tmpDir }) => {
+export const createSmokeAppCopy = async ({ appPath, tmpDir }) => {
   const smokeAppPath = path.join(tmpDir, "AX Code Smoke.app")
   // Frameworks inside an app bundle contain relative symlinks. Preserving them
   // is required for the copied app to remain signable.
