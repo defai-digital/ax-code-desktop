@@ -21,6 +21,7 @@ export {
   createAgent,
   updateAgent,
   deleteAgent,
+  disableBuiltinAgent,
 } from "./agents.js"
 
 export { getCommandScope, getCommandSources, createCommand, updateCommand, deleteCommand } from "./commands.js"

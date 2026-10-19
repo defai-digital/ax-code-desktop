@@ -695,6 +695,13 @@ export const registerAxCodeProxy = (app, deps) => {
       // "origin mismatch". This is server-to-server proxy traffic; no Origin needed.
       proxyReq.removeHeader("origin")
 
+      // The UI session and preview cookies authenticate browser flows against this
+      // server and its preview proxy. ax-code authenticates with the credential
+      // injected above, so forwarding them would only move a replayable credential
+      // into the runtime's request logs and error dumps. The SSE path drops the
+      // cookie in collectForwardProxyHeaders; these http-proxy paths must too.
+      proxyReq.removeHeader("cookie")
+
       // Defensive: request identity encoding from upstream ax-code.
       // This avoids compressed-body/header mismatches in multi-proxy setups.
       proxyReq.setHeader("accept-encoding", "identity")

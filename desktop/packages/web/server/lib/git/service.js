@@ -1801,40 +1801,43 @@ export async function getStatus(directory, options = {}) {
     const [stagedStatsRaw, workingStatsRaw] = lightMode
       ? ["", ""]
       : await Promise.all([
-          git.raw(["diff", "--cached", "--numstat"]).catch(() => ""),
-          git.raw(["diff-files", "--numstat"]).catch(() => ""),
+          git.raw(["diff", "--cached", "--numstat", "-z"]).catch(() => ""),
+          git.raw(["diff-files", "--numstat", "-z"]).catch(() => ""),
         ])
 
     const stagedDiffStats = {}
     const workingDiffStats = {}
 
+    // `-z` keeps paths raw instead of C-quoting them (`"r\303\251sum\303\251.txt"`),
+    // which never matched the status entry's real path. A rename/copy record ends after
+    // its second tab; its source and destination follow as separate NUL records.
     const accumulateStats = (raw, target) => {
       if (!raw) return
-      raw
-        .split("\n")
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .forEach((line) => {
-          const parts = line.split("\t")
-          if (parts.length < 3) {
-            return
-          }
-          const [insertionsRaw, deletionsRaw, ...pathParts] = parts
-          // numstat reports a rename as `old => new` (or `dir/{old => new}`), while the
-          // status entry's path is the destination, so the raw key would never match.
-          const path = extractGitNumstatDestinationPath(pathParts.join("\t"))
-          if (!path) {
-            return
-          }
-          const insertions = insertionsRaw === "-" ? 0 : parseInt(insertionsRaw, 10) || 0
-          const deletions = deletionsRaw === "-" ? 0 : parseInt(deletionsRaw, 10) || 0
+      const records = raw.split("\0")
+      for (let index = 0; index < records.length; index += 1) {
+        const record = records[index]
+        if (!record) continue
 
-          const existing = target[path] || { insertions: 0, deletions: 0 }
-          target[path] = {
-            insertions: existing.insertions + insertions,
-            deletions: existing.deletions + deletions,
-          }
-        })
+        const parts = record.split("\t")
+        if (parts.length < 3) continue
+
+        const [insertionsRaw, deletionsRaw, ...pathParts] = parts
+        let path = pathParts.join("\t")
+        if (!path) {
+          path = records[index + 2]
+          index += 2
+          if (!path) continue
+        }
+
+        const insertions = insertionsRaw === "-" ? 0 : parseInt(insertionsRaw, 10) || 0
+        const deletions = deletionsRaw === "-" ? 0 : parseInt(deletionsRaw, 10) || 0
+
+        const existing = target[path] || { insertions: 0, deletions: 0 }
+        target[path] = {
+          insertions: existing.insertions + insertions,
+          deletions: existing.deletions + deletions,
+        }
+      }
     }
 
     accumulateStats(stagedStatsRaw, stagedDiffStats)
@@ -2219,11 +2222,33 @@ const parseIsBinaryFromNumstat = (raw) => {
   return added === "-" || deleted === "-"
 }
 
-const extractGitStatusPath = (status, pathPart) => {
-  if ((status === "R" || status === "C") && pathPart.includes("\t")) {
-    return pathPart.split("\t").pop() || pathPart
+// `-z` writes every path raw, so non-ASCII names are not C-quoted; a rename or
+// copy is three NUL records (status, source, destination) instead of a line.
+const parseGitNameStatusZ = (raw) => {
+  const records = String(raw || "").split("\0")
+  const entries = []
+  for (let index = 0; index < records.length; index += 1) {
+    const match = /^([A-Z])\d*$/.exec(records[index])
+    if (!match) {
+      continue
+    }
+    const status = match[1]
+    if (status === "R" || status === "C") {
+      const source = records[index + 1]
+      const path = records[index + 2]
+      index += 2
+      if (source && path) {
+        entries.push({ status, source, path })
+      }
+      continue
+    }
+    const path = records[index + 1]
+    index += 1
+    if (path) {
+      entries.push({ status, source: null, path })
+    }
   }
-  return pathPart
+  return entries
 }
 
 const extractGitNumstatDestinationPath = (filePath) => {
@@ -2302,6 +2327,32 @@ const isBinaryDiff = async (directoryPath, filePath, staged) => {
   return false
 }
 
+/** The source path of a staged rename whose destination is `destinationPath`, or null. */
+const resolveStagedRenameSourcePath = async (git, destinationPath) => {
+  // A pathspec-limited diff reports the rename as an addition, so the whole index has to be scanned.
+  const raw = await git.raw(["diff", "--cached", "--name-status", "-z", "-M"]).catch(() => "")
+  for (const entry of parseGitNameStatusZ(raw)) {
+    if ((entry.status === "R" || entry.status === "C") && entry.path === destinationPath) {
+      return entry.source
+    }
+  }
+  return null
+}
+
+const readHeadFileSide = async (git, repoRoot, sourcePath, isImage, mimeType) => {
+  if (!isImage) {
+    return await git.show([`HEAD:${sourcePath}`])
+  }
+
+  const { stdout } = await execFileAsync(getGitBinary(), ["show", `HEAD:${sourcePath}`], {
+    cwd: repoRoot,
+    encoding: "buffer",
+    windowsHide: true,
+    maxBuffer: 50 * 1024 * 1024, // 50MB max
+  })
+  return stdout && stdout.length > 0 ? `data:${mimeType};base64,${stdout.toString("base64")}` : ""
+}
+
 export async function getFileDiff(directory, { path: filePath, staged = false } = {}) {
   if (!directory || !filePath) {
     throw new Error("directory and path are required for getFileDiff")
@@ -2327,26 +2378,17 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
 
   let original = ""
   try {
-    if (isImage) {
-      // For images, use git show with raw output and convert to base64
-      try {
-        const { stdout } = await execFileAsync(getGitBinary(), ["show", `HEAD:${repoPath}`], {
-          cwd: repoRoot,
-          encoding: "buffer",
-          windowsHide: true,
-          maxBuffer: 50 * 1024 * 1024, // 50MB max
-        })
-        if (stdout && stdout.length > 0) {
-          original = `data:${mimeType};base64,${stdout.toString("base64")}`
-        }
-      } catch {
-        original = ""
-      }
-    } else {
-      original = await git.show([`HEAD:${repoPath}`])
-    }
+    original = await readHeadFileSide(git, repoRoot, repoPath, isImage, mimeType)
   } catch {
     original = ""
+    // A staged rename has no destination entry in HEAD; read the original from
+    // the rename's source instead of rendering the whole file as added.
+    if (staged) {
+      const renameSource = await resolveStagedRenameSourcePath(git, repoPath)
+      if (renameSource) {
+        original = await readHeadFileSide(git, repoRoot, renameSource, isImage, mimeType).catch(() => "")
+      }
+    }
   }
 
   let modified = ""
@@ -3155,7 +3197,9 @@ const restoreStagedIndexEntries = async (git, paths, entries) => {
       await git.raw(["update-index", "--force-remove", "--", filePath])
       continue
     }
-    await git.raw(["update-index", "--cacheinfo", `${entry.mode},${entry.object},${filePath}`])
+    // `--add` is required for an entry that is not in the index anymore (a staged addition that was
+    // just unstaged); the three-argument form passes the path without any comma-delimited parsing.
+    await git.raw(["update-index", "--add", "--cacheinfo", entry.mode, entry.object, filePath])
   }
 }
 
@@ -4460,18 +4504,31 @@ export async function getCommitFiles(directory, commitHash) {
   const { git } = await createRepositoryGitContext(directory)
 
   try {
-    const numstatRaw = await git.raw(["show", "--numstat", "--format=", commitHash])
+    // `-z` keeps non-ASCII paths raw instead of C-quoting them: a quoted path is not
+    // a path, so the history view rendered it garbled and `commit-file-diff` rejected it.
+    const numstatRaw = await git.raw(["show", "--numstat", "-z", "--format=", commitHash])
 
     const files = []
-    const lines = numstatRaw.trim().split("\n").filter(Boolean)
+    const records = String(numstatRaw || "").split("\0")
 
-    for (const line of lines) {
-      const parts = line.split("\t")
+    for (let index = 0; index < records.length; index += 1) {
+      const record = records[index]
+      if (!record) continue
+
+      const parts = record.split("\t")
       if (parts.length < 3) continue
 
       const [insertionsRaw, deletionsRaw, ...pathParts] = parts
-      const filePath = pathParts.join("\t")
-      if (!filePath) continue
+      let filePath = pathParts.join("\t")
+      let isRename = false
+      // A rename's numstat record ends after its second tab and names its source and
+      // destination as the next two NUL records.
+      if (!filePath) {
+        filePath = records[index + 2]
+        isRename = Boolean(records[index + 1] && filePath)
+        index += 2
+        if (!isRename) continue
+      }
 
       const insertions = insertionsRaw === "-" ? 0 : parseInt(insertionsRaw, 10) || 0
       const deletions = deletionsRaw === "-" ? 0 : parseInt(deletionsRaw, 10) || 0
@@ -4479,11 +4536,11 @@ export async function getCommitFiles(directory, commitHash) {
 
       let changeType = "M"
 
-      // `git show --numstat` writes a rename as `old.ts => new.ts` or `src/{old.ts => new.ts}`, which is
+      // `git show --numstat` can write a rename as `old.ts => new.ts` or `src/{old.ts => new.ts}`, which is
       // not a path: the history view passed it back as `commit-file-diff`'s `path` and every renamed file
       // answered 500. The destination is what the file is called at this commit.
       const displayPath = filePath.includes(" => ") ? extractGitNumstatDestinationPath(filePath) : filePath
-      if (filePath.includes(" => ")) {
+      if (isRename || filePath.includes(" => ")) {
         changeType = "R"
       }
 
@@ -4496,16 +4553,11 @@ export async function getCommitFiles(directory, commitHash) {
       })
     }
 
-    const nameStatusRaw = await git.raw(["show", "--name-status", "--format=", commitHash]).catch(() => "")
+    const nameStatusRaw = await git.raw(["show", "--name-status", "-z", "--format=", commitHash]).catch(() => "")
 
     const statusMap = new Map()
-    const statusLines = nameStatusRaw.trim().split("\n").filter(Boolean)
-    for (const line of statusLines) {
-      const match = line.match(/^([AMDRC])\d*\t(.+)$/)
-      if (match) {
-        const [, status, pathPart] = match
-        statusMap.set(extractGitStatusPath(status, pathPart), status)
-      }
+    for (const entry of parseGitNameStatusZ(nameStatusRaw)) {
+      statusMap.set(entry.path, entry.status)
     }
 
     for (const file of files) {
@@ -4924,11 +4976,10 @@ export async function getCommitPatch(directory, hash, { maxBytes = COMMIT_PATCH_
 
 /** The source path of a rename in this commit, or null when `displayPath` was not renamed. */
 const resolveCommitRenameSourcePath = async (repoRoot, hash, displayPath) => {
-  const nameStatus = await runGitCommand(repoRoot, ["show", "--name-status", "-M", "--format=", hash])
+  const nameStatus = await runGitCommand(repoRoot, ["show", "--name-status", "-z", "-M", "--format=", hash])
   if (!nameStatus.success) return null
-  for (const line of nameStatus.stdout.trim().split("\n").filter(Boolean)) {
-    const match = line.match(/^R\d*\t(.+)\t(.+)$/)
-    if (match && match[2] === displayPath) return match[1]
+  for (const entry of parseGitNameStatusZ(nameStatus.stdout)) {
+    if (entry.status === "R" && entry.path === displayPath) return entry.source
   }
   return null
 }

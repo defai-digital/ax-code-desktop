@@ -1077,6 +1077,22 @@ describe("getFileDiff", () => {
       isBinary: false,
     })
   })
+
+  it("reads a staged rename's original from its source path", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    initRepoWithFile(repo, "old.txt", "one\ntwo\n")
+    runGit(repo, ["mv", "old.txt", "new.txt"])
+
+    // The destination does not exist in HEAD, so reading `HEAD:new.txt` failed and the
+    // whole file rendered as added; the original content lives at the rename source.
+    await expect(getFileDiff(repo, { path: "new.txt", staged: true })).resolves.toMatchObject({
+      original: "one\ntwo\n",
+      modified: "one\ntwo\n",
+      isBinary: false,
+    })
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1109,6 +1125,36 @@ describe("getStatus diff stats", () => {
     // render as "+0 -0".
     expect(status.diffStats.staged["lib/b.ts"]).toEqual({ insertions: 1, deletions: 1 })
     expect(status.diffStats.staged["src/a.ts => lib/b.ts"]).toBeUndefined()
+  })
+
+  it("keys non-ASCII paths by their real names instead of git's C-quoted form", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+
+    fs.writeFileSync(path.join(repo, "résumé.txt"), "one\ntwo\n")
+    fs.writeFileSync(path.join(repo, "naïve.txt"), "one\ntwo\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    fs.writeFileSync(path.join(repo, "résumé.txt"), "one\ntwo\nthree\n")
+    runGit(repo, ["add", "résumé.txt"])
+    fs.writeFileSync(path.join(repo, "naïve.txt"), "one\ntwo\nthree\n")
+    fs.writeFileSync(path.join(repo, "日本語.txt"), "a\nb\n")
+
+    const status = await getStatus(repo)
+
+    expect(status.diffStats.staged["résumé.txt"]).toEqual({ insertions: 1, deletions: 0 })
+    expect(status.diffStats.working["naïve.txt"]).toEqual({ insertions: 1, deletions: 0 })
+    expect(status.diffStats.working["日本語.txt"]).toEqual({ insertions: 2, deletions: 0 })
+
+    // Porcelain v1 C-quotes these as `"r\303\251sum\303\251.txt"`; such a key never
+    // matches the file row's real path, so the row rendered "+0 -0".
+    const keys = [...Object.keys(status.diffStats.staged), ...Object.keys(status.diffStats.working)]
+    expect(keys.filter((key) => key.startsWith('"'))).toEqual([])
   })
 
   it("keeps a partially staged file's staged and working counts apart", async () => {
@@ -1266,6 +1312,32 @@ describe("commit with selected files", () => {
     expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("D  a.txt")
     expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
   })
+
+  it("keeps a staged addition staged when another file is committed", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "a.txt"), "a\n")
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    // The user staged a new file and selected only b.txt to commit.
+    fs.writeFileSync(path.join(repo, "new.txt"), "fresh\n")
+    runGit(repo, ["add", "new.txt"])
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\nchanged\n")
+    runGit(repo, ["add", "b.txt"])
+
+    await commit(repo, "Only b", { files: ["b.txt"], stageFiles: ["b.txt"] })
+
+    // `update-index --cacheinfo` without `--add` cannot restore an entry that unstaging
+    // removed, and the logged failure silently left the addition untracked.
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("A  new.txt")
+    expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1321,6 +1393,59 @@ describe("getCommitFiles rename handling", () => {
     // a path: the history view handed it to `commit-file-diff` and every renamed file answered 500.
     expect(renamed?.path).toBe("lib/b.ts")
     await expect(getCommitFileDiff(repo, hash, renamed.path, false)).resolves.toMatchObject({ isBinary: false })
+  })
+
+  it("returns a non-ASCII path raw so its diff can be loaded", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "résumé.txt"), "one\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    fs.writeFileSync(path.join(repo, "résumé.txt"), "one\ntwo\n")
+    runGit(repo, ["commit", "-am", "edit"])
+
+    const [hash] = runGit(repo, ["rev-parse", "HEAD"]).trim().split("\n")
+    const { files } = await getCommitFiles(repo, hash)
+
+    // Without `-z` git C-quotes the path (`"r\303\251sum\303\251.txt"`), which is not a path:
+    // the history view showed it garbled and `commit-file-diff` answered "Invalid file path".
+    expect(files).toEqual([expect.objectContaining({ path: "résumé.txt", insertions: 1, deletions: 0 })])
+    await expect(getCommitFileDiff(repo, hash, "résumé.txt", false)).resolves.toMatchObject({
+      original: "one\n",
+      modified: "one\ntwo\n",
+      isBinary: false,
+    })
+  })
+
+  it("reports a non-ASCII renamed destination and reads its original from the source", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "old.txt"), "one\ntwo\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    runGit(repo, ["mv", "old.txt", "résumé.txt"])
+    runGit(repo, ["commit", "-m", "rename"])
+
+    const [hash] = runGit(repo, ["rev-parse", "HEAD"]).trim().split("\n")
+    const { files } = await getCommitFiles(repo, hash)
+    const renamed = files.find((file) => file.changeType === "R")
+
+    expect(renamed?.path).toBe("résumé.txt")
+    await expect(getCommitFileDiff(repo, hash, renamed.path, false)).resolves.toMatchObject({
+      original: "one\ntwo\n",
+      modified: "one\ntwo\n",
+      isBinary: false,
+    })
   })
 })
 

@@ -265,3 +265,57 @@ describe("api proxy client abort", () => {
     }
   })
 })
+
+describe("api proxy credential headers", () => {
+  it("strips Desktop cookies from proxied API and dashboard requests", async () => {
+    const received = []
+    const upstream = http.createServer((req, res) => {
+      received.push({ url: req.url, headers: req.headers })
+      res.writeHead(200, { "content-type": "application/json" })
+      res.end("{}")
+    })
+    await new Promise((resolve) => upstream.listen(0, "127.0.0.1", resolve))
+    const upstreamPort = upstream.address().port
+
+    const app = express()
+    registerAxCodeProxy(app, {
+      fs,
+      os,
+      path,
+      OPEN_CODE_READY_GRACE_MS: 60_000,
+      getRuntime: () => ({
+        axCodePort: upstreamPort,
+        axCodeBaseUrl: `http://127.0.0.1:${upstreamPort}`,
+        isAxCodeReady: true,
+        isRestartingAxCode: false,
+      }),
+      getAxCodeAuthHeaders: () => ({ Authorization: "Basic runtime" }),
+      buildAxCodeUrl: (route) => `http://127.0.0.1:${upstreamPort}${route}`,
+      ensureAxCodeApiPrefix: () => {},
+    })
+    const server = app.listen(0, "127.0.0.1")
+    await new Promise((resolve) => server.once("listening", resolve))
+
+    try {
+      // The UI session cookie authenticates the renderer against this server, and the
+      // preview token belongs to the preview proxy; neither is the runtime's credential.
+      for (const requestPath of ["/api/provider", "/dre-graph"]) {
+        await request(server)
+          .get(requestPath)
+          .set("Cookie", "oc_ui_session_4096=session-token; oc_preview_token=preview-token")
+          .expect(200)
+      }
+
+      expect(received).toHaveLength(2)
+      for (const entry of received) {
+        expect(entry.headers.cookie).toBeUndefined()
+        expect(entry.headers.authorization).toBe("Basic runtime")
+      }
+    } finally {
+      server.closeAllConnections?.()
+      upstream.closeAllConnections?.()
+      await new Promise((resolve) => server.close(resolve))
+      await new Promise((resolve) => upstream.close(resolve))
+    }
+  })
+})
