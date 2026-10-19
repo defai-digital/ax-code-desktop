@@ -7,10 +7,14 @@ type SessionStub = { id: string; title: string; time?: { created?: number; updat
 
 // `useAllLiveSessions` is re-read on every render, so the test mutates this array
 // in place to simulate live session updates arriving from the sync layer.
-const { liveSessions, sessionDirectories, worktreeMetadata } = vi.hoisted(() => ({
+const { liveSessions, sessionDirectories, worktreeMetadata, projects, availableWorktreesByProject } = vi.hoisted(() => ({
   liveSessions: { current: [] as SessionStub[] },
   sessionDirectories: { current: new Map<string, string>() },
   worktreeMetadata: { current: new Map<string, { projectDirectory: string }>() },
+  projects: { current: [] as { id: string; path: string }[] },
+  availableWorktreesByProject: {
+    current: new Map<string, { path: string; projectDirectory: string }[]>(),
+  },
 }))
 
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), warning: vi.fn() } }))
@@ -70,16 +74,27 @@ vi.mock("@/stores/useConfigStore", () => {
   return { useConfigStore }
 })
 
-vi.mock("@/sync/session-ui-store", () => ({
-  useSessionUIStore: {
-    getState: () => ({
-      getDirectoryForSession: (sessionId: string) => sessionDirectories.current.get(sessionId) ?? null,
-      getWorktreeMetadata: (sessionId: string) => worktreeMetadata.current.get(sessionId),
-      createSession: vi.fn(),
-      setCurrentSession: vi.fn(),
-    }),
-  },
+vi.mock("@/stores/useProjectsStore", () => ({
+  useProjectsStore: (selector: (state: { projects: { id: string; path: string }[] }) => unknown) =>
+    selector({ projects: projects.current }),
 }))
+
+vi.mock("@/sync/session-ui-store", () => {
+  const getState = () => ({
+    getDirectoryForSession: (sessionId: string) => sessionDirectories.current.get(sessionId) ?? null,
+    getWorktreeMetadata: (sessionId: string) => worktreeMetadata.current.get(sessionId),
+    availableWorktreesByProject: availableWorktreesByProject.current,
+    createSession: vi.fn(),
+    setCurrentSession: vi.fn(),
+  })
+  const useSessionUIStore = ((selector?: (state: ReturnType<typeof getState>) => unknown) =>
+    selector ? selector(getState()) : getState()) as unknown as {
+    (selector?: (state: ReturnType<typeof getState>) => unknown): unknown
+    getState: () => ReturnType<typeof getState>
+  }
+  useSessionUIStore.getState = getState
+  return { useSessionUIStore }
+})
 
 const { MultiRunFusionDialog } = await import("./MultiRunFusionDialog")
 
@@ -112,6 +127,8 @@ describe("MultiRunFusionDialog excluded sources", () => {
     liveSessions.current = [primary, sibling]
     sessionDirectories.current = new Map()
     worktreeMetadata.current = new Map()
+    projects.current = []
+    availableWorktreesByProject.current = new Map()
     onOpenChange = vi.fn()
   })
 
@@ -176,5 +193,50 @@ describe("MultiRunFusionDialog excluded sources", () => {
     renderDialog(true)
 
     expect(sourceRowTitles(container)).toHaveLength(1)
+  })
+
+  // Non-isolated runs never record worktree metadata, so the session directory is the only
+  // identity they have. Two projects with identically named multirun sessions used to fuse the
+  // other project's content because both identities were null.
+  test("still excludes lanes from a different non-isolated project by resolved directory", () => {
+    projects.current = [
+      { id: "one", path: "/repo/one" },
+      { id: "two", path: "/repo/two" },
+    ]
+    sessionDirectories.current.set("s1", "/repo/one")
+    sessionDirectories.current.set("s2", "/repo/two")
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toHaveLength(1)
+  })
+
+  test("keeps non-isolated lanes that belong to the same project", () => {
+    projects.current = [{ id: "repo", path: "/repo" }]
+    sessionDirectories.current.set("s1", "/repo/one")
+    sessionDirectories.current.set("s2", "/repo/two")
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toHaveLength(2)
+  })
+
+  test("resolves sibling worktree directories to their owning project", () => {
+    projects.current = [{ id: "repo", path: "/repo" }]
+    sessionDirectories.current.set("s1", "/repo/.worktrees/run-1")
+    sessionDirectories.current.set("s2", "/repo/.worktrees/run-2")
+    availableWorktreesByProject.current = new Map([
+      [
+        "/repo",
+        [
+          { path: "/repo/.worktrees/run-1", projectDirectory: "/repo" },
+          { path: "/repo/.worktrees/run-2", projectDirectory: "/repo" },
+        ],
+      ],
+    ])
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toHaveLength(2)
   })
 })

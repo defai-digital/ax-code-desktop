@@ -132,10 +132,14 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
   }
 
   const wasOpenRef = React.useRef(open)
+  // Once the user changes a picker, the store's resolved selection must never replace that
+  // choice while the dialog is open.
+  const userTouchedRef = React.useRef(false)
   React.useEffect(() => {
     const wasOpen = wasOpenRef.current
     wasOpenRef.current = open
     if (!open || wasOpen) return
+    userTouchedRef.current = false
     setExecution(getInitialExecution(initialSelectionRef.current))
   }, [open])
 
@@ -156,6 +160,33 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
       variant: "",
     }))
   }, [open, providers, execution.providerID, execution.modelID])
+
+  // Opening the dialog loads the project's providers, and `activateDirectory` clears the current
+  // selection before resolving the stored default asynchronously. The open transition can therefore
+  // seed empty values, and the fallback above fills in the first provider before the default lands.
+  // Until the user touches a picker, follow the store as it resolves so Send uses the project's
+  // default instead of the first model in the list. Declared after the fallback so its update wins
+  // when both run on the same commit.
+  React.useEffect(() => {
+    if (!open || userTouchedRef.current) return
+    setExecution((prev) => {
+      const next = getInitialExecution({
+        providerID: currentProviderID,
+        modelID: currentModelID,
+        variant: currentVariant,
+        agent: currentAgentName,
+      })
+      if (
+        prev.providerID === next.providerID &&
+        prev.modelID === next.modelID &&
+        prev.variant === next.variant &&
+        prev.agent === next.agent
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [open, currentProviderID, currentModelID, currentVariant, currentAgentName])
 
   const agentFilter = React.useCallback((agent: { mode?: string }) => isPrimaryMode(agent.mode), [])
 
@@ -219,6 +250,7 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
               className="w-full justify-between"
               dropdownPortalToBody
               onChange={(providerID, modelID) => {
+                userTouchedRef.current = true
                 setExecution((prev) => ({ ...prev, providerID, modelID, variant: "" }))
               }}
             />
@@ -231,7 +263,10 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
               value={execution.variant}
               options={variantOptions}
               disabled={!hasVariantOptions}
-              onChange={(variant) => setExecution((prev) => ({ ...prev, variant }))}
+              onChange={(variant) => {
+                userTouchedRef.current = true
+                setExecution((prev) => ({ ...prev, variant }))
+              }}
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -241,7 +276,10 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
             <AgentSelector
               agentName={execution.agent}
               filter={agentFilter}
-              onChange={(agent) => setExecution((prev) => ({ ...prev, agent }))}
+              onChange={(agent) => {
+                userTouchedRef.current = true
+                setExecution((prev) => ({ ...prev, agent }))
+              }}
             />
           </div>
         </div>

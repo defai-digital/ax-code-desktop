@@ -13,11 +13,15 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Icon } from "@/components/icon/Icon"
 import { ProviderLogo } from "@/components/ui/ProviderLogo"
+import type { ProjectEntry } from "@/lib/api/types"
 import { useI18n } from "@/lib/i18n"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { normalizeProjectPath, resolveProjectForSessionDirectory } from "@/lib/projectResolution"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import type { WorktreeMetadata } from "@/types/worktree"
 import { useAllLiveSessions } from "@/sync/sync-context"
 import { getSyncMessages, getSyncParts } from "@/sync/sync-refs"
 import { flattenAssistantTextParts } from "@/lib/messages/messageText"
@@ -37,12 +41,21 @@ const buildSourcePart = (source: FusionSource, text: string, index: number): str
   return `\n\n--- RESULT ${index + 1}: ${title} ---\n${text.trim()}\n--- END RESULT ${index + 1} ---`
 }
 
-const getSessionProjectDirectory = (sessionId: string): string | null => {
+const getSessionProjectDirectory = (
+  sessionId: string,
+  directory: string | null,
+  projects: ProjectEntry[],
+  availableWorktreesByProject: Map<string, WorktreeMetadata[]>,
+): string | null => {
   const metadata = useSessionUIStore.getState().getWorktreeMetadata(sessionId)
-  // The session directory is the lane's own worktree, not the project it came from. Falling back to
-  // it made every sibling lane look like a different project once the in-memory worktree metadata
-  // was gone (after a relaunch), so fusion silently kept only the representative lane.
-  return metadata?.projectDirectory ?? null
+  // The session directory can be the lane's own worktree, not the project it came from. Comparing it
+  // directly made every sibling lane look like a different project once the in-memory worktree
+  // metadata was gone (after a relaunch), so metadata is still preferred. Non-isolated runs never
+  // record that metadata; resolving their directory to its owning project root gives them the same
+  // identity, and a worktree path resolves to its owner too.
+  if (metadata?.projectDirectory) return normalizeProjectPath(metadata.projectDirectory)
+  const project = resolveProjectForSessionDirectory(projects, availableWorktreesByProject, directory)
+  return normalizeProjectPath(project?.path ?? null)
 }
 
 const getLastAssistantText = async (source: FusionSource): Promise<string> => {
@@ -88,6 +101,8 @@ export function MultiRunFusionDialog({
   const liveSessions = useAllLiveSessions()
   const activeSessions = useGlobalSessionsStore((state) => state.activeSessions)
   const archivedSessions = useGlobalSessionsStore((state) => state.archivedSessions)
+  const projects = useProjectsStore((state) => state.projects)
+  const availableWorktreesByProject = useSessionUIStore((state) => state.availableWorktreesByProject)
   const providers = useConfigStore((state) => state.providers)
   const currentProviderId = useConfigStore((state) => state.currentProviderId)
   const currentModelId = useConfigStore((state) => state.currentModelId)
@@ -118,7 +133,14 @@ export function MultiRunFusionDialog({
   React.useEffect(() => {
     if (!open || !parsed) return
 
-    const currentProjectDirectory = getSessionProjectDirectory(session.id)
+    const currentDirectory =
+      useSessionUIStore.getState().getDirectoryForSession(session.id) ?? resolveGlobalSessionDirectory(session)
+    const currentProjectDirectory = getSessionProjectDirectory(
+      session.id,
+      currentDirectory,
+      projects,
+      availableWorktreesByProject,
+    )
     const nextSources = allSessions
       .map((candidate): FusionSource | null => {
         const candidateParsed = parseMultiRunSessionTitle(candidate.title)
@@ -127,9 +149,15 @@ export function MultiRunFusionDialog({
         if (excludedSessionIds.has(candidate.id)) return null
         const directory =
           useSessionUIStore.getState().getDirectoryForSession(candidate.id) ?? resolveGlobalSessionDirectory(candidate)
-        const projectDirectory = getSessionProjectDirectory(candidate.id)
-        // Only reject when both lanes are known to belong to different projects. With the metadata
-        // unavailable there is nothing to compare, and rejecting would drop the whole fusion set.
+        const projectDirectory = getSessionProjectDirectory(
+          candidate.id,
+          directory,
+          projects,
+          availableWorktreesByProject,
+        )
+        // Only reject when both lanes are known to belong to different projects. With the project
+        // identity unavailable on either side there is nothing to compare, and rejecting would drop
+        // the whole fusion set.
         if (currentProjectDirectory && projectDirectory && currentProjectDirectory !== projectDirectory) return null
         return { session: candidate, directory, projectDirectory }
       })
@@ -137,7 +165,7 @@ export function MultiRunFusionDialog({
       .sort((a, b) => (a.session.time?.created ?? 0) - (b.session.time?.created ?? 0))
 
     setSources(nextSources)
-  }, [allSessions, excludedSessionIds, open, parsed, session.id])
+  }, [allSessions, availableWorktreesByProject, excludedSessionIds, open, parsed, projects, session, session.id])
 
   React.useEffect(() => {
     if (!open) setExcludedSessionIds(new Set())

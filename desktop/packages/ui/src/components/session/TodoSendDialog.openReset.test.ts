@@ -24,8 +24,30 @@ describe("TodoSendDialog execution reset", () => {
     expect(body).not.toContain("currentModelID")
     expect(body).not.toContain("currentVariant")
     expect(body).not.toContain("currentAgentName")
-    expect(source).not.toContain(
+  })
+
+  // Opening on a project whose providers are not loaded yet seeds empty values, and the provider
+  // fallback then picks the list's first model. The stored default resolves later, so the selection
+  // has to follow it until the user makes a choice of their own.
+  test("adopts the store selection resolved after open until a picker is touched", async () => {
+    const source = await readFile(path.resolve(__dirname, "TodoSendDialog.tsx"), "utf8")
+
+    expect(source).toContain("const userTouchedRef = React.useRef(false)")
+
+    const reseedStart = source.indexOf("if (!open || userTouchedRef.current) return")
+    expect(reseedStart).toBeGreaterThan(-1)
+
+    const reseed = source.slice(reseedStart)
+    expect(reseed).toContain("providerID: currentProviderID")
+    expect(reseed).toContain("modelID: currentModelID")
+    expect(reseed).toContain("variant: currentVariant")
+    expect(reseed).toContain("agent: currentAgentName")
+    expect(source).toContain(
       "}, [open, currentProviderID, currentModelID, currentVariant, currentAgentName])",
     )
+
+    // Every picker marks the dialog as user-owned, so a later store reload cannot replace it.
+    const touchedAssignments = source.match(/userTouchedRef\.current = true/g) ?? []
+    expect(touchedAssignments.length).toBeGreaterThanOrEqual(3)
   })
 })
