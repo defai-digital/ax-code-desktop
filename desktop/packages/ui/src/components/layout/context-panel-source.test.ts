@@ -46,4 +46,18 @@ describe("ContextPanel browser source guards", () => {
 
     expect(errorBranches).toHaveLength(3)
   })
+
+  test("hands focus to a per-directory tab opened behind a focused global browser", async () => {
+    const source = await readFile(sourcePath, "utf8")
+
+    // `openContextPanelTab` (store) leaves `browserPanel.focused` set, so a tab opened from a
+    // badge or the sidebar was active-but-invisible and the next press closed it. The panel
+    // re-asserts the newly opened tab through the action that clears that focus.
+    const detect = source.indexOf("contextPanelTabOpenedSince(previous, current)")
+    const assert = source.indexOf("setActiveContextPanelTab(directoryKey, perDirActiveTab.id)")
+
+    expect(detect).toBeGreaterThan(-1)
+    expect(assert).toBeGreaterThan(detect)
+    expect(source).toContain("if (!browserPanel?.focused || !perDirOpen || !perDirActiveTab) return")
+  })
 })

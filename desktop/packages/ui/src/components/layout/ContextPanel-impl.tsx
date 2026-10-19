@@ -21,6 +21,7 @@ import { ContextPanelContent } from "./ContextSidebarTab"
 import { getContextPanelRelativePathLabel } from "./contextPanelPathLabels"
 import {
   CONTEXT_PANEL_TAB_LABEL_MAX_CHARS as CONTEXT_TAB_LABEL_MAX_CHARS,
+  contextPanelTabOpenedSince,
   getContextPanelSessionIDFromDedupeKey as getSessionIDFromDedupeKey,
   getContextPanelTabLabel as getTabLabel,
   normalizeContextPanelDirectoryKey as normalizeDirectoryKey,
@@ -2217,6 +2218,26 @@ export const ContextPanel: React.FC = () => {
   const isOpen = showBrowser || Boolean(perDirOpen && activeTab)
   const isExpanded = Boolean(isOpen && panelState?.expanded)
   const width = clampWidth(panelState?.width ?? CONTEXT_PANEL_DEFAULT_WIDTH)
+
+  // A focused global browser outranks per-directory tabs, but `openContextPanelTab`
+  // never clears that focus: a tab opened from a badge/sidebar used to stay
+  // active-but-invisible and the next press closed it. Re-assert the newly opened
+  // tab so `setActiveContextPanelTab` (which does clear the focus) wins.
+  const lastOpenedTabRef = React.useRef({
+    directoryKey,
+    touchedAt: perDirActiveTab?.touchedAt ?? null,
+  })
+
+  React.useEffect(() => {
+    const previous = lastOpenedTabRef.current
+    const current = { directoryKey, touchedAt: perDirActiveTab?.touchedAt ?? null }
+    lastOpenedTabRef.current = current
+
+    if (!contextPanelTabOpenedSince(previous, current)) return
+    if (!browserPanel?.focused || !perDirOpen || !perDirActiveTab) return
+
+    setActiveContextPanelTab(directoryKey, perDirActiveTab.id)
+  }, [browserPanel?.focused, directoryKey, perDirActiveTab, perDirOpen, setActiveContextPanelTab])
 
   const [isResizing, setIsResizing] = React.useState(false)
   const [suppressWidthTransition, setSuppressWidthTransition] = React.useState(false)

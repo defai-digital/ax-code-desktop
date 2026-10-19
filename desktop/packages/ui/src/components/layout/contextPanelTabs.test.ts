@@ -1,7 +1,10 @@
-import { describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test } from "vitest"
 
+import { normalizeProjectPath } from "@/lib/projectResolution"
+import { useUIStore } from "@/stores/useUIStore"
 import {
   CONTEXT_PANEL_TAB_LABEL_MAX_CHARS,
+  contextPanelTabOpenedSince,
   getContextPanelFileNameFromPath,
   getContextPanelModeLabel,
   getContextPanelSessionIDFromDedupeKey,
@@ -22,9 +25,9 @@ describe("normalizeContextPanelDirectoryKey", () => {
     expect(normalizeContextPanelDirectoryKey("C:\\Users\\alice\\project")).toBe("C:/Users/alice/project")
   })
 
-  test("strips trailing slashes and collapses repeated slashes", () => {
+  test("strips trailing slashes and keeps inner separators like the canonical key", () => {
     expect(normalizeContextPanelDirectoryKey("/repo/project///")).toBe("/repo/project")
-    expect(normalizeContextPanelDirectoryKey("/repo//nested///project")).toBe("/repo/nested/project")
+    expect(normalizeContextPanelDirectoryKey("/repo//nested///project///")).toBe("/repo//nested///project")
   })
 
   test("preserves the UNC double-slash prefix", () => {
@@ -33,7 +36,121 @@ describe("normalizeContextPanelDirectoryKey", () => {
 
   test("keeps a lone root slash", () => {
     expect(normalizeContextPanelDirectoryKey("/")).toBe("/")
-    expect(normalizeContextPanelDirectoryKey("///")).toBe("/")
+    expect(normalizeContextPanelDirectoryKey("///")).toBe("")
+  })
+
+  test("uppercases Windows drive letters and keeps drive roots", () => {
+    expect(normalizeContextPanelDirectoryKey("c:\\dev\\app")).toBe("C:/dev/app")
+    expect(normalizeContextPanelDirectoryKey("c:/dev/app/")).toBe("C:/dev/app")
+    expect(normalizeContextPanelDirectoryKey("c:/")).toBe("C:/")
+    expect(normalizeContextPanelDirectoryKey("c:")).toBe("C:/")
+  })
+
+  test("matches the canonical project-path key used by the store", () => {
+    const values = [
+      "",
+      "/",
+      "///",
+      "/repo//nested///project/",
+      "//server/share/project/",
+      "c:\\dev\\app",
+      "C:/dev/app/",
+      "c:/",
+      " C:\\dev\\app ",
+    ]
+
+    for (const value of values) {
+      expect(normalizeContextPanelDirectoryKey(value)).toBe(normalizeProjectPath(value) ?? "")
+    }
+  })
+})
+
+describe("contextPanelTabOpenedSince", () => {
+  const directoryKey = "/repo/project"
+
+  test("detects a newer active tab in the same directory", () => {
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: 10 },
+        { directoryKey, touchedAt: 20 },
+      ),
+    ).toBe(true)
+  })
+
+  test("treats the first tab in a directory as newly opened", () => {
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: null },
+        { directoryKey, touchedAt: 20 },
+      ),
+    ).toBe(true)
+  })
+
+  test("ignores an unchanged snapshot and a closed panel", () => {
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: 20 },
+        { directoryKey, touchedAt: 20 },
+      ),
+    ).toBe(false)
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: 20 },
+        { directoryKey, touchedAt: null },
+      ),
+    ).toBe(false)
+  })
+
+  test("ignores another directory and an older active tab", () => {
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: 20 },
+        { directoryKey: "/repo/other", touchedAt: 30 },
+      ),
+    ).toBe(false)
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey, touchedAt: 20 },
+        { directoryKey, touchedAt: 10 },
+      ),
+    ).toBe(false)
+  })
+})
+
+describe("focused global browser hand-off", () => {
+  const directory = "/repo/project"
+
+  afterEach(() => {
+    useUIStore.setState({
+      browserPanel: { isOpen: false, url: "", focused: false },
+      contextPanelByDirectory: {},
+    })
+  })
+
+  test("a tab opened while the browser is focused becomes the active panel view", () => {
+    useUIStore.setState({
+      browserPanel: { isOpen: true, url: "", focused: true },
+      contextPanelByDirectory: {},
+    })
+
+    useUIStore.getState().openContextPanelTab(directory, { mode: "context" })
+
+    // openContextPanelTab activates the tab but leaves the browser focused: without the
+    // hand-off the tab is active-but-invisible and the next press closes it.
+    const panel = useUIStore.getState().contextPanelByDirectory[directory]
+    const activeTabTouchedAt = panel?.tabs.find((tab) => tab.id === panel.activeTabId)?.touchedAt ?? null
+    expect(activeTabTouchedAt).not.toBeNull()
+    expect(useUIStore.getState().browserPanel.focused).toBe(true)
+    expect(
+      contextPanelTabOpenedSince(
+        { directoryKey: directory, touchedAt: null },
+        { directoryKey: directory, touchedAt: activeTabTouchedAt },
+      ),
+    ).toBe(true)
+
+    useUIStore.getState().setActiveContextPanelTab(directory, panel?.activeTabId ?? "")
+
+    expect(useUIStore.getState().browserPanel.focused).toBe(false)
   })
 })
 

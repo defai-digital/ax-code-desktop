@@ -1,28 +1,32 @@
 import type { useI18n } from "@/lib/i18n"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { ContextPanelMode } from "@/stores/useUIStore"
 
 export type ContextPanelTranslateFn = ReturnType<typeof useI18n>["t"]
 
 export const CONTEXT_PANEL_TAB_LABEL_MAX_CHARS = 24
 
-export const normalizeContextPanelDirectoryKey = (value: string): string => {
-  if (!value) return ""
+// Store writes and panel reads must agree on the directory key, so this delegates
+// to the canonical project-path normalization (drive-letter case, drive roots).
+export const normalizeContextPanelDirectoryKey = (value: string): string => normalizeProjectPath(value) ?? ""
 
-  const raw = value.replace(/\\/g, "/")
-  const hadUncPrefix = raw.startsWith("//")
-  let normalized = raw.replace(/\/+$/g, "")
-  normalized = normalized.replace(/\/+/g, "/")
-
-  if (hadUncPrefix && !normalized.startsWith("//")) {
-    normalized = `/${normalized}`
-  }
-
-  if (normalized === "") {
-    return raw.startsWith("/") ? "/" : ""
-  }
-
-  return normalized
+export interface ContextPanelTabTouchSnapshot {
+  directoryKey: string
+  touchedAt: number | null
 }
+
+/**
+ * Whether a per-directory tab was opened (or re-opened) since the previous render.
+ * `openContextPanelTab` refreshes the active tab's `touchedAt` but leaves a focused
+ * global browser in front, so ContextPanel hands focus back when this returns true.
+ */
+export const contextPanelTabOpenedSince = (
+  previous: ContextPanelTabTouchSnapshot,
+  current: ContextPanelTabTouchSnapshot,
+): boolean =>
+  previous.directoryKey === current.directoryKey &&
+  current.touchedAt !== null &&
+  (previous.touchedAt === null || current.touchedAt > previous.touchedAt)
 
 export const getContextPanelModeLabel = (mode: ContextPanelMode, t: ContextPanelTranslateFn): string => {
   if (mode === "chat") return t("contextPanel.mode.chat")

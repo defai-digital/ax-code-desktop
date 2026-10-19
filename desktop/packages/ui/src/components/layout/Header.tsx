@@ -79,6 +79,7 @@ import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
+import { normalizeContextPanelDirectoryKey as normalize } from "./contextPanelTabs"
 
 const DESKTOP_HEADER_ICON_BUTTON_CLASS =
   "app-region-no-drag inline-flex h-8 w-8 items-center justify-center gap-2 rounded-md typography-ui-label font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)] disabled:pointer-events-none disabled:opacity-50 hover:bg-interactive-hover hover:text-foreground transition-colors"
@@ -719,12 +720,6 @@ const isSameContextUsage = (a: SessionContextUsage | null, b: SessionContextUsag
   )
 }
 
-const normalize = (value: string): string => {
-  if (!value) return ""
-  const replaced = value.replace(/\\/g, "/")
-  return replaced === "/" ? "/" : replaced.replace(/\/+$/, "")
-}
-
 const getActiveContextMode = (
   panelState:
     | {
@@ -794,7 +789,9 @@ export const Header: React.FC = () => {
     s.notifications.reduce((count, item) => (item.read ? count : count + 1), 0),
   )
 
-  const getCurrentModel = useConfigStore((state) => state.getCurrentModel)
+  // Select the derived model, not the stable getter, so a provider/model switch
+  // re-renders the header and its context-usage limits (same as UsageIndicator).
+  const currentModel = useConfigStore((state) => state.getCurrentModel())
   const runtimeApis = useRuntimeAPIs()
   const [isDevShutdownInFlight, setIsDevShutdownInFlight] = React.useState(false)
 
@@ -895,7 +892,6 @@ export const Header: React.FC = () => {
     setIsDesktopApp(isDesktopShell())
   }, [])
 
-  const currentModel = getCurrentModel()
   const limit =
     currentModel && typeof currentModel.limit === "object" && currentModel.limit !== null
       ? (currentModel.limit as Record<string, unknown>)

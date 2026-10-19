@@ -61,6 +61,9 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
   const [pendingUploadIconPreviewUrl, setPendingUploadIconPreviewUrl] = React.useState<string | null>(null)
   const [previewImageFailed, setPreviewImageFailed] = React.useState(false)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  // In-flight icon work must not save after the dialog closes: every open/close
+  // starts a new generation, and each await re-checks the captured one.
+  const saveGenerationRef = React.useRef(0)
 
   const clearPendingUploadIcon = React.useCallback(() => {
     setPendingUploadIconFile(null)
@@ -74,6 +77,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
 
   React.useEffect(() => {
     if (open) {
+      saveGenerationRef.current += 1
       setName(projectName)
       setIcon(initialIcon)
       setColor(initialColor)
@@ -86,9 +90,20 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
 
   React.useEffect(() => {
     return () => {
+      saveGenerationRef.current += 1
       clearPendingUploadIcon()
     }
   }, [clearPendingUploadIcon])
+
+  const handleOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      if (!nextOpen) {
+        saveGenerationRef.current += 1
+      }
+      onOpenChange(nextOpen)
+    },
+    [onOpenChange],
+  )
 
   const handleSave = async () => {
     const trimmed = name.trim()
@@ -98,10 +113,13 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
     // twice and running the removal and the dialog's close handlers again.
     if (isUploadingIcon || isRemovingCustomIcon) return
 
+    const saveGeneration = saveGenerationRef.current
+
     if (pendingUploadIconFile) {
       setIsUploadingIcon(true)
       const uploadResult = await uploadProjectIcon(projectId, pendingUploadIconFile)
       setIsUploadingIcon(false)
+      if (saveGeneration !== saveGenerationRef.current) return
       if (!uploadResult.ok) {
         toast.error(uploadResult.error || t("projectEditDialog.toast.failedToUploadIcon"))
         return
@@ -111,12 +129,15 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
       setPendingRemoveImageIcon(false)
     }
 
+    if (saveGeneration !== saveGenerationRef.current) return
+
     const willRemoveImageIcon = pendingRemoveImageIcon && hasStoredImageIcon
 
     if (willRemoveImageIcon) {
       setIsRemovingCustomIcon(true)
       const result = await removeProjectIcon(projectId)
       setIsRemovingCustomIcon(false)
+      if (saveGeneration !== saveGenerationRef.current) return
       if (!result.ok) {
         toast.error(result.error || t("projectEditDialog.toast.failedToRemoveIcon"))
         return
@@ -126,13 +147,15 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
       setIconBackground(null)
     }
 
+    if (saveGeneration !== saveGenerationRef.current) return
+
     onSave({
       label: trimmed,
       icon,
       color,
       iconBackground: normalizeProjectIconBackground(willRemoveImageIcon ? null : iconBackground),
     })
-    onOpenChange(false)
+    handleOpenChange(false)
   }
 
   const currentColorVar = color ? (PROJECT_COLOR_MAP[color] ?? null) : null
@@ -229,7 +252,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
   }, [clearPendingUploadIcon, discoverProjectIcon, isDiscoveringIcon, projectId, t])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader className="min-w-0">
           <DialogTitle>{t("projectEditDialog.title")}</DialogTitle>
@@ -444,7 +467,7 @@ export const ProjectEditDialog: React.FC<ProjectEditDialogProps> = ({
         </div>
 
         <DialogFooter>
-          <Button variant="ghost" onClick={() => onOpenChange(false)}>
+          <Button variant="ghost" onClick={() => handleOpenChange(false)}>
             {t("projectEditDialog.actions.cancel")}
           </Button>
           <Button onClick={handleSave} disabled={!name.trim() || isUploadingIcon || isRemovingCustomIcon}>

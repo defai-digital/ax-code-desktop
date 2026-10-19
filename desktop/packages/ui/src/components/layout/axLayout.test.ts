@@ -34,6 +34,17 @@ describe("AX Code layout", () => {
     expect(group).toContain("pressed={isRightSidebarOpen}")
   })
 
+  test("the header tracks the configured model and the canonical directory key", () => {
+    const header = source("layout/Header.tsx")
+
+    // Subscribing to the store's stable getter did not re-render on a model switch, so the
+    // context limits and usage percentage stayed on the previous model.
+    expect(header).toContain("const currentModel = useConfigStore((state) => state.getCurrentModel())")
+    expect(header).not.toContain("state.getCurrentModel)")
+    // Header and ContextPanel must read the same keys the store writes.
+    expect(header).toContain("normalizeContextPanelDirectoryKey as normalize")
+  })
+
   test("the composer frames its run controls and sends with a filled brand disc", () => {
     const input = source("chat/ChatInput-impl.tsx")
     expect(input).toMatch(
