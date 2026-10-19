@@ -71,21 +71,35 @@ export function useDraftStarters(): UseDraftStartersResult {
     return { id: found.id, path: found.path }
   }, [activeProjectId, projects])
 
-  const [projectStarters, setProjectStarters] = React.useState<DraftStarterRef[]>([])
+  // The loaded list is tagged with the project it belongs to. Without the tag a
+  // mutation that ran while another project's read was still in flight wrote
+  // the previous project's list into the newly selected project's config.
+  const [projectStarters, setProjectStarters] = React.useState<{
+    projectId: string | null
+    refs: DraftStarterRef[]
+    loaded: boolean
+  }>({ projectId: null, refs: [], loaded: false })
 
   React.useEffect(() => {
-    let cancelled = false
     if (!projectRef) {
-      setProjectStarters([])
+      setProjectStarters({ projectId: null, refs: [], loaded: false })
       return
     }
+    const projectId = projectRef.id
+    // Clear immediately so the previous project's list cannot be shown or
+    // persisted under this one before its own read resolves.
+    setProjectStarters({ projectId, refs: [], loaded: false })
+    let cancelled = false
     getProjectDraftStarters(projectRef)
       .then((refs) => {
-        if (!cancelled) setProjectStarters(refs)
+        if (cancelled) return
+        setProjectStarters((current) =>
+          current.projectId === projectId ? { projectId, refs, loaded: true } : current,
+        )
       })
-      .catch(() => {
-        if (!cancelled) setProjectStarters([])
-      })
+      // Leave the list unloaded so project-scope mutations stay gated: writing
+      // an empty list over a config that failed to load would erase it.
+      .catch(() => undefined)
     return () => {
       cancelled = true
     }
@@ -147,17 +161,27 @@ export function useDraftStarters(): UseDraftStartersResult {
     () => globalRefs.map((r) => resolve(r, "global")).filter((x): x is ResolvedStarter => x !== null),
     [globalRefs, resolve],
   )
+  // Until this project's read settles its list is unknown: expose nothing so
+  // another project's refs are never shown (or persisted) under this one.
+  const projectRefs = React.useMemo(
+    () => (projectRef && projectStarters.projectId === projectRef.id ? projectStarters.refs : []),
+    [projectRef, projectStarters.projectId, projectStarters.refs],
+  )
+  // Project-scope mutations are allowed only once their own read has succeeded;
+  // otherwise their base list could belong to a different project.
+  const projectReady = Boolean(projectRef && projectStarters.projectId === projectRef.id && projectStarters.loaded)
+
   const project = React.useMemo(
-    () => projectStarters.map((r) => resolve(r, "project")).filter((x): x is ResolvedStarter => x !== null),
-    [projectStarters, resolve],
+    () => projectRefs.map((r) => resolve(r, "project")).filter((x): x is ResolvedStarter => x !== null),
+    [projectRefs, resolve],
   )
 
   const pinnedKeys = React.useMemo(() => {
     const set = new Set<string>()
     for (const r of globalRefs) set.add(starterKey(r))
-    for (const r of projectStarters) set.add(starterKey(r))
+    for (const r of projectRefs) set.add(starterKey(r))
     return set
-  }, [globalRefs, projectStarters])
+  }, [globalRefs, projectRefs])
 
   const pinnable = React.useMemo<PinnableItem[]>(() => {
     const items: PinnableItem[] = []
@@ -203,42 +227,47 @@ export function useDraftStarters(): UseDraftStartersResult {
 
   const persistProject = React.useCallback(
     (next: DraftStarterRef[]) => {
-      setProjectStarters(next)
-      if (projectRef) void saveProjectDraftStarters(projectRef, next)
+      if (!projectRef || !projectReady) return
+      setProjectStarters((current) =>
+        current.projectId === projectRef.id ? { ...current, refs: next, loaded: true } : current,
+      )
+      void saveProjectDraftStarters(projectRef, next)
     },
-    [projectRef],
+    [projectRef, projectReady],
   )
 
   const addStarter = React.useCallback(
     (item: PinnableItem) => {
       const ref: DraftStarterRef = { type: item.type, name: item.name }
       if (item.scope === "project") {
-        if (!projectRef || projectStarters.some((r) => sameStarter(r, ref))) return
-        persistProject([...projectStarters, ref])
+        if (!projectReady || projectRefs.some((r) => sameStarter(r, ref))) return
+        persistProject([...projectRefs, ref])
       } else {
         const base = globalRaw ?? DEFAULT_GLOBAL_STARTERS
         if (base.some((r) => sameStarter(r, ref))) return
         persistGlobal([...base, ref])
       }
     },
-    [projectRef, projectStarters, globalRaw, persistProject, persistGlobal],
+    [projectReady, projectRefs, globalRaw, persistProject, persistGlobal],
   )
 
   const removeStarter = React.useCallback(
     (group: StarterGroup, ref: DraftStarterRef) => {
       if (group === "project") {
-        persistProject(projectStarters.filter((r) => !sameStarter(r, ref)))
+        if (!projectReady) return
+        persistProject(projectRefs.filter((r) => !sameStarter(r, ref)))
       } else {
         const base = globalRaw ?? DEFAULT_GLOBAL_STARTERS
         persistGlobal(base.filter((r) => !sameStarter(r, ref)))
       }
     },
-    [projectStarters, globalRaw, persistProject, persistGlobal],
+    [projectReady, projectRefs, globalRaw, persistProject, persistGlobal],
   )
 
   const reorder = React.useCallback(
     (group: StarterGroup, fromId: string, toId: string) => {
-      const base = group === "project" ? projectStarters : (globalRaw ?? DEFAULT_GLOBAL_STARTERS)
+      if (group === "project" && !projectReady) return
+      const base = group === "project" ? projectRefs : (globalRaw ?? DEFAULT_GLOBAL_STARTERS)
       const from = base.findIndex((r) => chipId(group, r) === fromId)
       const to = base.findIndex((r) => chipId(group, r) === toId)
       if (from < 0 || to < 0 || from === to) return
@@ -246,7 +275,7 @@ export function useDraftStarters(): UseDraftStartersResult {
       if (group === "project") persistProject(next)
       else persistGlobal(next)
     },
-    [projectStarters, globalRaw, persistProject, persistGlobal],
+    [projectReady, projectRefs, globalRaw, persistProject, persistGlobal],
   )
 
   return {

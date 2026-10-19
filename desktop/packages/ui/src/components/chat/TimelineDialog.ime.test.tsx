@@ -46,7 +46,7 @@ vi.mock("@/stores/useSessionRollbackStore", () => ({
     getPoints: () => [],
     isLoading: () => false,
     getError: () => null,
-    refreshPoints: vi.fn(),
+    refreshPoints: vi.fn(async () => []),
     previewRollback: vi.fn(),
   }),
 }))

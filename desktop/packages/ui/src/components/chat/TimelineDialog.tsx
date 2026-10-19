@@ -124,10 +124,12 @@ export const TimelineDialog: React.FC<TimelineDialogProps> = ({
 
   React.useEffect(() => {
     if (!open || !currentSessionId) return
+    // The store records the failure in its error state; swallow the rejection so
+    // this fire-and-forget refresh does not become an unhandled rejection.
     void refreshRollbackPoints(currentSessionId, {
       directory: currentSessionDirectory,
       silent: rollbackPoints.length > 0,
-    })
+    }).catch(() => undefined)
   }, [currentSessionDirectory, currentSessionId, open, refreshRollbackPoints, rollbackPoints.length])
 
   React.useEffect(() => {
@@ -506,7 +508,7 @@ function RollbackPointsStrip({
               disabled={isLoading}
               onClick={(event) => {
                 event.stopPropagation()
-                void onRefresh()
+                void onRefresh().catch(() => undefined)
               }}
               aria-label={t("chat.timeline.rollback.refresh")}
             >

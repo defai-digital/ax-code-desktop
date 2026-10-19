@@ -10,7 +10,6 @@ import { generateSyntaxTheme } from "@/lib/theme/syntaxThemeGenerator"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { Icon } from "@/components/icon/Icon"
 import { DiffPreview, WritePreview } from "./DiffPreview"
-import { AllowPatternBuilder } from "./AllowPatternBuilder"
 import { useI18n } from "@/lib/i18n"
 import { toast } from "@/components/ui"
 import {
@@ -67,7 +66,6 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   const { t } = useI18n()
   const [isResponding, setIsResponding] = React.useState(false)
   const [hasResponded, setHasResponded] = React.useState(false)
-  const [showPatternBuilder, setShowPatternBuilder] = React.useState(false)
   const respondToPermission = sessionActions.respondToPermission
   const sessions = useSessions()
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
@@ -525,9 +523,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               </button>
             )}
 
+            {/* The reply API carries only once/always/reject. The runtime applies
+                its own always rule, so do not offer an editable pattern that
+                would be silently discarded; show the server-provided rule. */}
             {!canAlways ? null : alwaysPatterns.length > 0 ? (
               <button
-                onClick={() => setShowPatternBuilder(true)}
+                onClick={() => handleResponse("always")}
                 disabled={isResponding}
                 className={cn(
                   "flex items-center gap-1.5 sm:gap-1 px-3 sm:px-2 py-1.5 sm:py-1 typography-meta font-medium rounded transition-all min-h-[32px] sm:min-h-0 w-full sm:w-auto",
@@ -558,7 +559,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               </button>
             ) : (
               <button
-                onClick={() => setShowPatternBuilder(true)}
+                onClick={() => handleResponse("always")}
                 disabled={isResponding}
                 className={cn(
                   "flex items-center gap-1.5 sm:gap-1 px-3 sm:px-2 py-1.5 sm:py-1 typography-meta font-medium rounded transition-all min-h-[32px] sm:min-h-0 w-full sm:w-auto",
@@ -578,17 +579,6 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                 <Icon name="time" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
                 {t("chat.permissionCard.actions.allowAlways")}
               </button>
-            )}
-
-            {showPatternBuilder && (
-              <AllowPatternBuilder
-                permission={permission}
-                onConfirm={() => {
-                  setShowPatternBuilder(false)
-                  void handleResponse("always")
-                }}
-                onCancel={() => setShowPatternBuilder(false)}
-              />
             )}
 
             <button

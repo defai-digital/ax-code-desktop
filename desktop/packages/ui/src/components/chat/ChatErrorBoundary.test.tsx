@@ -51,4 +51,29 @@ describe("ChatErrorBoundary", () => {
     expect(container.textContent).toContain("Session content ses_next")
     expect(container.textContent).not.toContain("ses_failed")
   })
+
+  test("keeps an error raised during the new session's first render", () => {
+    let renders = 0
+    const ThrowOnFirstRender = () => {
+      renders += 1
+      throw new Error("new session render failed")
+    }
+
+    renderBoundary("ses_previous", false)
+    act(() => {
+      root.render(
+        <I18nProvider>
+          <ChatErrorBoundary sessionId="ses_next">
+            <ThrowOnFirstRender />
+          </ChatErrorBoundary>
+        </I18nProvider>,
+      )
+    })
+
+    // Three renders are React's own error recovery (concurrent attempt, sync
+    // retry, boundary pass). Clearing the error in componentDidUpdate adds a
+    // retry of the broken subtree, which showed up as five renders.
+    expect(container.textContent).toContain("ses_next")
+    expect(renders).toBe(3)
+  })
 })

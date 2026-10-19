@@ -37,7 +37,10 @@ export const SandboxToggle: React.FC<SandboxToggleProps> = ({
 
   const isOn = sandbox === true
   const label = isOn ? t("chat.chatInput.sandbox.on") : t("chat.chatInput.sandbox.off")
-  const disabled = pending || sandbox === undefined
+  // A failed read leaves the value unset (the store clears pending without
+  // writing a state). Treat unknown as off and let the click write instead of
+  // leaving the control disabled forever with no way to retry.
+  const disabled = pending
 
   const button = (
     <button

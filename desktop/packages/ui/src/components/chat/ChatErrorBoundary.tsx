@@ -46,8 +46,12 @@ class ChatErrorBoundaryView extends React.Component<ChatErrorBoundaryViewProps, 
     }
   }
 
-  componentDidUpdate(prevProps: ChatErrorBoundaryViewProps) {
-    if (prevProps.sessionId !== this.props.sessionId && this.state.hasError) {
+  componentDidUpdate(prevProps: ChatErrorBoundaryViewProps, prevState: ChatErrorBoundaryState) {
+    // Only clear an error that already existed before this update. The new
+    // session's first render can throw, and `getDerivedStateFromError` sets
+    // `hasError` during that same update; clearing it here would immediately
+    // retry the broken subtree.
+    if (prevState.hasError && prevProps.sessionId !== this.props.sessionId && this.state.hasError) {
       this.setState({ hasError: false, error: undefined, errorInfo: undefined })
     }
   }

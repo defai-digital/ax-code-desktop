@@ -13,13 +13,15 @@ export const UsageIndicator: React.FC = React.memo(() => {
   const surfaceMode = useChatSurfaceMode()
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const getContextUsage = useSessionUIStore((s) => s.getContextUsage)
-  const getCurrentModel = useConfigStore((s) => s.getCurrentModel)
+  // Select the derived model, not the stable getter: the selector re-runs when
+  // the provider/model ids (or their model list) change, so a model switch
+  // re-renders this memoized component even while the session is idle.
+  const currentModel = useConfigStore((s) => s.getCurrentModel())
   // getContextUsage reads sync state imperatively; subscribing to the session
   // is what re-renders this component as turns complete (same pattern as
   // Header's context usage display).
   const session = useSession(currentSessionId ?? null)
 
-  const currentModel = getCurrentModel()
   const limit =
     currentModel && typeof currentModel.limit === "object" && currentModel.limit !== null
       ? (currentModel.limit as Record<string, unknown>)
