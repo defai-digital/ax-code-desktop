@@ -72,7 +72,12 @@ export const WebMcpAllowlistSection: React.FC<Props> = ({ serverName, directory 
     }
   }, [directory, serverName, tKey])
 
+  // The refresh closure a mutation captures belongs to the render that started it. Track the
+  // currently rendered target so a completion from a server/project the user has left cannot
+  // claim the shared generation and publish its records over the new view.
+  const targetRef = React.useRef({ directory, serverName })
   React.useEffect(() => {
+    targetRef.current = { directory, serverName }
     setRecords(null)
   }, [directory, serverName])
 
@@ -102,12 +107,18 @@ export const WebMcpAllowlistSection: React.FC<Props> = ({ serverName, directory 
       } catch (error) {
         if (mountedRef.current) setActionError(tKey(webMcpAllowlistErrorKey(error)))
       } finally {
-        await refresh()
+        // A mutation that started on another server/project must not refresh through the closure
+        // it captured: that call would claim the shared generation, discard the new target's
+        // in-flight request, and publish the old records onto the new view.
+        const target = targetRef.current
+        if (target.directory === directory && target.serverName === serverName) {
+          await refresh()
+        }
         if (mountedRef.current) setBusy(false)
       }
       return succeeded
     },
-    [refresh, tKey],
+    [directory, refresh, serverName, tKey],
   )
 
   const handleAdd = async () => {

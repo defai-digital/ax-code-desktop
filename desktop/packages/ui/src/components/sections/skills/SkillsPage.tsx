@@ -226,8 +226,23 @@ const SkillsInstalledPage: React.FC = () => {
 
   React.useEffect(() => {
     const loadSkillDetails = async () => {
+      // A new-skill draft has no persisted detail, but it still needs a stable load key: a
+      // background refresh of the `skills` list must not re-apply the initial draft over what
+      // the user has already typed.
+      const populateKey = isNewSkill ? `draft:${skillDraft?.name ?? ""}` : `${selectedSkillName ?? ""}`
+      // A project can carry a same-named skill; the project is part of the loaded key so a
+      // switch reloads this project's targetPath instead of rewriting the other project's file.
+      const loadKey = `${populateKey}|${currentDirectory ?? ""}`
+      if (loadedSkillNameRef.current === loadKey) {
+        // Detail for this skill (or draft) is already loaded into the edit fields. A
+        // background refresh of the `skills` list (e.g. an unrelated "Reload
+        // AX Code") re-runs this effect via the list identity change, but
+        // re-populating here would silently overwrite whatever the user is
+        // currently typing. Saving already updates the "original" baseline
+        // directly without needing a reload.
+        return
+      }
       if (isNewSkill && skillDraft) {
-        loadedSkillNameRef.current = null
         skillDetailRequestRef.current += 1
         const nextDescription = skillDraft.description || ""
         const nextInstructions = skillDraft.instructions || ""
@@ -241,19 +256,8 @@ const SkillsInstalledPage: React.FC = () => {
         setOriginalInstructions("")
         setSupportingFiles([])
         setPendingFiles(skillDraft.pendingFiles || [])
+        loadedSkillNameRef.current = loadKey
       } else if (selectedSkillName && selectedSkill) {
-        // A project can carry a same-named skill; the project is part of the loaded key so a
-        // switch reloads this project's targetPath instead of rewriting the other project's file.
-        const loadKey = `${selectedSkillName}|${currentDirectory ?? ""}`
-        if (loadedSkillNameRef.current === loadKey) {
-          // Detail for this skill is already loaded into the edit fields. A
-          // background refresh of the `skills` list (e.g. an unrelated "Reload
-          // AX Code") re-runs this effect via the `selectedSkill` identity
-          // change, but re-fetching here would silently overwrite whatever the
-          // user is currently typing. Skip it — saving already updates the
-          // "original" baseline directly without needing a reload.
-          return
-        }
         const requestId = skillDetailRequestRef.current + 1
         skillDetailRequestRef.current = requestId
         setIsLoading(true)

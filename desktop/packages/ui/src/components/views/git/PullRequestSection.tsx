@@ -465,7 +465,7 @@ export const PullRequestSection: React.FC<{
   const [isLoadingCommentsDetails, setIsLoadingCommentsDetails] = React.useState(false)
 
   const attemptedBodyHydrationRef = React.useRef<Set<string>>(new Set())
-  const lastSyncedPrNumberRef = React.useRef<number | null>(null)
+  const lastSyncedPrKeyRef = React.useRef<string | null>(null)
   const didUserOverrideRemoteRef = React.useRef(false)
   const autoRemoteProbeDoneRef = React.useRef<Set<string>>(new Set())
   const pendingActionRefreshTimersRef = React.useRef<number[]>([])
@@ -497,6 +497,20 @@ export const PullRequestSection: React.FC<{
   const isHydratingCurrentPrBody = Boolean(
     currentPrBodyHydrationKey && hydratingPrBodyKey === currentPrBodyHydrationKey,
   )
+  // The section stays mounted across a project switch (GitView reuses it), so dialog state keyed
+  // only by the pull request number can outlive the directory it was loaded from. Anything that
+  // belongs to one PR of one repository is dropped when that identity changes.
+  const currentPrDialogKeyRef = React.useRef<string | null>(currentPrBodyHydrationKey)
+  currentPrDialogKeyRef.current = currentPrBodyHydrationKey
+
+  React.useEffect(() => {
+    setChecksDialogOpen(false)
+    setCheckDetails(null)
+    setIsLoadingCheckDetails(false)
+    setCommentsDialogOpen(false)
+    setCommentsDetails(null)
+    setIsLoadingCommentsDetails(false)
+  }, [currentPrBodyHydrationKey])
 
   React.useEffect(() => {
     if (!github?.prContext || !pr) {
@@ -561,23 +575,27 @@ export const PullRequestSection: React.FC<{
       setIsEditingPr(false)
       setEditTitle("")
       setEditBody("")
-      lastSyncedPrNumberRef.current = null
+      lastSyncedPrKeyRef.current = null
       return
     }
 
-    const numberChanged = lastSyncedPrNumberRef.current !== null && lastSyncedPrNumberRef.current !== pr.number
+    // Two repositories can each have an open PR with the same number, and the section survives a
+    // project switch. Keying the sync on the number alone kept the previous repository's draft in
+    // the editor, so saving wrote repo A's title/body into repo B's pull request.
+    const prSyncKey = `${directory}#${pr.number}`
+    const prChanged = lastSyncedPrKeyRef.current !== null && lastSyncedPrKeyRef.current !== prSyncKey
 
-    if (numberChanged) {
+    if (prChanged) {
       setIsEditingPr(false)
     }
 
-    if (!isEditingPr || numberChanged) {
+    if (!isEditingPr || prChanged) {
       setEditTitle(pr.title || "")
       setEditBody(pr.body || "")
     }
 
-    lastSyncedPrNumberRef.current = pr.number
-  }, [isEditingPr, pr])
+    lastSyncedPrKeyRef.current = prSyncKey
+  }, [directory, isEditingPr, pr])
 
   const openChecksDialog = React.useCallback(async () => {
     if (!github?.prContext) {
@@ -586,6 +604,7 @@ export const PullRequestSection: React.FC<{
     }
     if (!pr) return
 
+    const requestKey = `${directory}#${pr.number}`
     setChecksDialogOpen(true)
     setExpandedCheckStepKeys(new Set())
     setIsLoadingCheckDetails(true)
@@ -595,12 +614,16 @@ export const PullRequestSection: React.FC<{
         includeCheckDetails: true,
         sourceRepo: prSourceRepo,
       })
+      if (currentPrDialogKeyRef.current !== requestKey) return
       setCheckDetails(ctx)
     } catch (e) {
+      if (currentPrDialogKeyRef.current !== requestKey) return
       const message = e instanceof Error ? e.message : String(e)
       toast.error(t("gitView.pr.toast.loadCheckDetailsFailed"), { description: message })
     } finally {
-      setIsLoadingCheckDetails(false)
+      if (currentPrDialogKeyRef.current === requestKey) {
+        setIsLoadingCheckDetails(false)
+      }
     }
   }, [directory, github, pr, prSourceRepo, t])
 
@@ -611,6 +634,7 @@ export const PullRequestSection: React.FC<{
     }
     if (!pr) return
 
+    const requestKey = `${directory}#${pr.number}`
     setCommentsDialogOpen(true)
     setIsLoadingCommentsDetails(true)
     try {
@@ -619,12 +643,16 @@ export const PullRequestSection: React.FC<{
         includeCheckDetails: false,
         sourceRepo: prSourceRepo,
       })
+      if (currentPrDialogKeyRef.current !== requestKey) return
       setCommentsDetails(ctx)
     } catch (e) {
+      if (currentPrDialogKeyRef.current !== requestKey) return
       const message = e instanceof Error ? e.message : String(e)
       toast.error(t("gitView.pr.toast.loadCommentsFailed"), { description: message })
     } finally {
-      setIsLoadingCommentsDetails(false)
+      if (currentPrDialogKeyRef.current === requestKey) {
+        setIsLoadingCommentsDetails(false)
+      }
     }
   }, [directory, github, pr, prSourceRepo, t])
 

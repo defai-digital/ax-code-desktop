@@ -51,6 +51,11 @@ export const IntegrateCommitsSection: React.FC<{
   React.useEffect(() => {
     setTargetBranch(defaultTargetBranch)
   }, [defaultTargetBranch])
+  // `handleMove` closes over the render that started the move. If the target branch changes while
+  // the cherry-pick runs (a stale default prop, or a selection made before the control locked), the
+  // re-plan after success must use the current target rather than the plan that was executed.
+  const targetBranchRef = React.useRef(targetBranch)
+  targetBranchRef.current = targetBranch
 
   // Focus search input when branch dropdown opens
   React.useEffect(() => {
@@ -294,7 +299,11 @@ export const IntegrateCommitsSection: React.FC<{
                   branch: ui.plan.targetBranch,
                 }),
         })
-        const next = await computeIntegratePlan(ui.plan)
+        const next = await computeIntegratePlan({
+          repoRoot,
+          sourceBranch,
+          targetBranch: targetBranchRef.current,
+        })
         setUi({ kind: "ready", plan: next })
         onRefresh?.()
         return
@@ -398,7 +407,15 @@ export const IntegrateCommitsSection: React.FC<{
 
           <DropdownMenu open={branchDropdownOpen} onOpenChange={setBranchDropdownOpen}>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className="gap-1.5">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                // Only an in-flight move (or its conflict) owns the temp worktree. A plan
+                // fetch can stall with `loading` set, and locking the picker then trapped
+                // the user: picking another branch is how the panel re-plans.
+                disabled={ui.kind === "running" || ui.kind === "conflict"}
+              >
                 {t("gitView.integrate.target")}
                 <span className="max-w-[160px] truncate font-mono typography-micro text-muted-foreground">
                   {targetBranch}

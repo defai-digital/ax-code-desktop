@@ -1534,33 +1534,41 @@ export const DiffView: React.FC<DiffViewProps> = ({
           }
         }
 
-        let diffForNavigation = cachedDiffData
-        if (targetLine === null || !diffForNavigation) {
-          const response = await git.getGitFileDiff(effectiveDirectory, { path: filePath, staged: activeDiffStaged })
-          diffForNavigation = {
-            original: response.original ?? "",
-            modified: response.modified ?? "",
-            isBinary: response.isBinary,
+        try {
+          let diffForNavigation = cachedDiffData
+          if (targetLine === null || !diffForNavigation) {
+            const response = await git.getGitFileDiff(effectiveDirectory, { path: filePath, staged: activeDiffStaged })
+            diffForNavigation = {
+              original: response.original ?? "",
+              modified: response.modified ?? "",
+              isBinary: response.isBinary,
+            }
+            if (!activeDiffStaged) {
+              setDiff(effectiveDirectory, filePath, diffForNavigation)
+            }
           }
-          if (!activeDiffStaged) {
-            setDiff(effectiveDirectory, filePath, diffForNavigation)
+
+          const resolvedTargetLine =
+            targetLine ??
+            (diffForNavigation.isBinary || isImageFile(filePath)
+              ? 1
+              : getFirstChangedModifiedLine(diffForNavigation.original, diffForNavigation.modified))
+
+          const absolutePath = toViewAbsolutePath(effectiveDirectory, filePath)
+          const openValidation = await validateContextFileOpen(files, absolutePath)
+          if (!openValidation.ok) {
+            toast.error(getContextFileOpenFailureMessage(openValidation.reason))
+            return
           }
+
+          openContextFileAtLine(effectiveDirectory, absolutePath, resolvedTargetLine, 1)
+        } catch (error) {
+          // Both call sites fire this with `void`, so a rejected fetch (file deleted, renamed, or
+          // refused by the server) used to become an unhandled rejection with no user-visible
+          // result. Surface it like the file-open failure above instead.
+          const message = error instanceof Error ? error.message : String(error)
+          toast.error(getContextFileOpenFailureMessage("unreadable"), { description: message })
         }
-
-        const resolvedTargetLine =
-          targetLine ??
-          (diffForNavigation.isBinary || isImageFile(filePath)
-            ? 1
-            : getFirstChangedModifiedLine(diffForNavigation.original, diffForNavigation.modified))
-
-        const absolutePath = toViewAbsolutePath(effectiveDirectory, filePath)
-        const openValidation = await validateContextFileOpen(files, absolutePath)
-        if (!openValidation.ok) {
-          toast.error(getContextFileOpenFailureMessage(openValidation.reason))
-          return
-        }
-
-        openContextFileAtLine(effectiveDirectory, absolutePath, resolvedTargetLine, 1)
       } finally {
         setOpeningEditorFilePath((current) => (current === filePath ? null : current))
       }

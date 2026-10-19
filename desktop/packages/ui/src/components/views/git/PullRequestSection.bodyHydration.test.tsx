@@ -30,14 +30,14 @@ const DIRECTORY = "/repo"
 const BRANCH = "feature"
 const PR_NUMBER = 7
 
-const status = (body: string): GitHubPullRequestStatus => ({
+const status = (body: string, title = "The pull request"): GitHubPullRequestStatus => ({
   connected: true,
   resolvedRemoteName: "origin",
   pr: {
     number: PR_NUMBER,
     state: "open",
     draft: false,
-    title: "The pull request",
+    title,
     body,
     url: `https://github.com/example/repo/pull/${PR_NUMBER}`,
     base: "main",
@@ -49,6 +49,28 @@ const status = (body: string): GitHubPullRequestStatus => ({
   canMerge: true,
   repo: { owner: "example", repo: "repo", url: "https://github.com/example/repo" },
 })
+
+const statusEntry = (directory: string, body: string, title?: string) => ({
+  key: getGitHubPrStatusKey(directory, BRANCH, null),
+  entry: {
+    status: status(body, title),
+    isLoading: false,
+    error: null,
+    isInitialStatusResolved: true,
+    lastRefreshAt: 0,
+    lastDiscoveryPollAt: 0,
+    watchers: 0,
+    params: null,
+    identity: null,
+    resolvedRemoteName: null,
+  },
+})
+
+const seedStatuses = (...statuses: ReturnType<typeof statusEntry>[]) => {
+  useGitHubPrStatusStore.setState({
+    entries: Object.fromEntries(statuses.map(({ key, entry }) => [key, entry])),
+  })
+}
 
 describe("PullRequestSection body hydration", () => {
   let container: HTMLDivElement
@@ -69,11 +91,11 @@ describe("PullRequestSection body hydration", () => {
     vi.restoreAllMocks()
   })
 
-  const renderSection = async () => {
+  const renderSection = async (directory = DIRECTORY) => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <PullRequestSection directory={DIRECTORY} branch={BRANCH} baseBranch="main" />
+          <PullRequestSection directory={directory} branch={BRANCH} baseBranch="main" />
         </I18nProvider>,
       )
     })
@@ -129,6 +151,83 @@ describe("PullRequestSection body hydration", () => {
 
   const showsLoadingDescription = () =>
     container.textContent?.includes(dict["gitView.pr.loadingDescription"]) ?? false
+
+  const setInputValue = (input: HTMLInputElement, value: string) => {
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+      setter?.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+
+  const editTitleInput = () =>
+    container.querySelector<HTMLInputElement>(`input[placeholder="${dict["gitView.pr.placeholder.title"]}"]`)
+
+  // Two repositories can each have an open PR with the same number. The section stays mounted
+  // across the switch, so the draft used to survive and saving wrote repo A's text into repo B.
+  test("does not carry the edit draft into another repository's same-numbered PR", async () => {
+    const otherDirectory = "/other-repo"
+    seedStatuses(
+      statusEntry(DIRECTORY, "Body A", "Title A"),
+      statusEntry(otherDirectory, "Body B", "Title B"),
+    )
+
+    await renderSection()
+    const editButton = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${dict["gitView.pr.actions.editPrAria"]}"]`,
+    )
+    expect(editButton).not.toBeNull()
+    act(() => editButton?.click())
+
+    const titleInput = editTitleInput()
+    expect(titleInput).not.toBeNull()
+    setInputValue(titleInput!, "Draft from repo A")
+
+    await renderSection(otherDirectory)
+
+    expect(container.textContent).toContain("Title B")
+    expect(editTitleInput()).toBeNull()
+  })
+
+  test("closes the comments dialog and ignores a late response when the directory changes", async () => {
+    const otherDirectory = "/other-repo"
+    seedStatuses(
+      statusEntry(DIRECTORY, "Body A"),
+      statusEntry(otherDirectory, "Body B"),
+    )
+
+    let resolveComments: (value: unknown) => void = () => {}
+    prContext.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveComments = resolve
+      }),
+    )
+
+    await renderSection()
+    const commentsButton = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${dict["gitView.pr.actions.openCommentsAria"]}"]`,
+    )
+    expect(commentsButton).not.toBeNull()
+    act(() => commentsButton?.click())
+    await act(async () => {})
+    expect(document.querySelector('[data-slot="dialog-content"]')).not.toBeNull()
+
+    await renderSection(otherDirectory)
+
+    // The dialog belonged to repo A; it must not sit under repo B's header.
+    expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull()
+
+    // A response that started before the switch must not populate the dialog afterwards.
+    await act(async () => {
+      resolveComments({
+        issueComments: [{ id: 1, body: "Comment from repo A", author: { login: "alice" } }],
+      })
+    })
+    await act(async () => {})
+
+    expect(document.body.textContent).not.toContain("Comment from repo A")
+    expect(document.querySelector('[data-slot="dialog-content"]')).toBeNull()
+  })
 
   // A pull request with no description is the reachable case: the hydration request answers with an
   // empty body, the store still writes a fresh entry (so this section re-renders while the fetching

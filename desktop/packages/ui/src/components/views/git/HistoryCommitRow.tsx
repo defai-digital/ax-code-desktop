@@ -363,7 +363,9 @@ export const HistoryCommitRow = React.memo(
         const cached = diffCache.get(key)
         const isOpen = openDiffPaths.has(key)
 
-        if (isOpen && cached && cached !== "error") {
+        // A large diff that was never loaded has no cache entry, only the open path. Requiring a
+        // cache value here made the row impossible to collapse; only an error should retry.
+        if (isOpen && cached !== "error") {
           // Close it
           setOpenDiffPaths((prev) => {
             const next = new Set(prev)

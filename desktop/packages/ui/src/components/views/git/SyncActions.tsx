@@ -156,10 +156,13 @@ export const SyncActions: React.FC<SyncActionsProps> = ({
                       event.stopPropagation()
                     }}
                     onClick={(event) => {
-                      skipRemoteSelectRef.current = true
                       event.preventDefault()
                       event.stopPropagation()
                       onRemoveRemote(remote)
+                      // This click stops propagation, so the menu item's onSelect — the only
+                      // place that resets the guard — never runs. Leaving it set swallowed the
+                      // next remote selection and left the menu open.
+                      skipRemoteSelectRef.current = false
                     }}
                     aria-label={t("gitView.header.removeRemoteAria", { name: remote.name })}
                     title={t("gitView.header.removeRemoteTitle", { name: remote.name })}

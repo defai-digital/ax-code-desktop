@@ -5,17 +5,23 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 
 const computeIntegratePlanMock = vi.fn()
+const integrateWorktreeCommitsMock = vi.fn()
 const isCherryPickInProgressMock = vi.fn()
 const getIntegrateConflictDetailsMock = vi.fn()
 const readIntegrateConflictStateMock = vi.fn()
+const execCommandMock = vi.fn()
 
 vi.doMock("@/lib/git/integrateWorktreeCommits", () => ({
   computeIntegratePlan: computeIntegratePlanMock,
-  integrateWorktreeCommits: vi.fn(),
+  integrateWorktreeCommits: integrateWorktreeCommitsMock,
   abortIntegrate: vi.fn(),
   continueIntegrate: vi.fn(),
   getIntegrateConflictDetails: getIntegrateConflictDetailsMock,
   isCherryPickInProgress: isCherryPickInProgressMock,
+}))
+
+vi.doMock("@/lib/execCommands", () => ({
+  execCommand: execCommandMock,
 }))
 
 vi.doMock("./conflictStorage", () => ({
@@ -48,6 +54,9 @@ describe("IntegrateCommitsSection plan failure", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     computeIntegratePlanMock.mockReset()
+    integrateWorktreeCommitsMock.mockReset()
+    execCommandMock.mockReset()
+    execCommandMock.mockResolvedValue({ success: true, stdout: "", stderr: "" })
     isCherryPickInProgressMock.mockReset()
     isCherryPickInProgressMock.mockResolvedValue(false)
     getIntegrateConflictDetailsMock.mockReset()
@@ -144,6 +153,62 @@ describe("IntegrateCommitsSection plan failure", () => {
     await React.act(async () => {})
 
     expect(container.textContent).toContain("conflict.txt")
+  })
+
+  test("keeps the target branch control usable while the plan loads and locks it while a move owns the panel", async () => {
+    let resolvePlan: (plan: unknown) => void = () => {}
+    computeIntegratePlanMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolvePlan = resolve
+      }),
+    )
+    let resolveMove: (result: unknown) => void = () => {}
+    integrateWorktreeCommitsMock.mockReturnValue(
+      new Promise((resolve) => {
+        resolveMove = resolve
+      }),
+    )
+
+    await React.act(async () => {
+      root.render(
+        React.createElement(
+          I18nProvider,
+          null,
+          React.createElement(IntegrateCommitsSection, baseProps),
+        ),
+      )
+    })
+
+    const buttons = () => Array.from(container.querySelectorAll("button"))
+    const targetTrigger = buttons().find((button) => button.textContent?.includes("Target"))
+    // The plan request has no timeout: a stalled fetch must not take the picker down,
+    // because picking another branch is how the panel re-plans.
+    expect(targetTrigger?.disabled).toBe(false)
+    expect(container.textContent).toContain("Checking")
+
+    await React.act(async () => {
+      resolvePlan({ repoRoot: "/repo", sourceBranch: "feat", targetBranch: "main", commits: ["abcdef1"] })
+    })
+    await React.act(async () => {})
+
+    const moveButton = buttons().find((button) => button.textContent?.trim() === "Move")
+    expect(targetTrigger?.disabled).toBe(false)
+    expect(moveButton?.disabled).toBe(false)
+
+    await React.act(async () => {
+      moveButton?.click()
+    })
+
+    // While the cherry-pick runs the plan effect stops re-planning. The control that changes the
+    // target must stop accepting selections too, or a mid-run pick leaves the header pointing at
+    // one branch while the panel re-plans the branch that was actually moved to.
+    expect(targetTrigger?.disabled).toBe(true)
+    expect(container.textContent).toContain("Moving")
+
+    await React.act(async () => {
+      resolveMove({ kind: "success", moved: 1 })
+    })
+    await React.act(async () => {})
   })
 
   test("keeps the restored conflict when the plan resolves without an intervening render", async () => {

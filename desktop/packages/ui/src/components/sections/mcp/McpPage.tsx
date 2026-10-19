@@ -1904,6 +1904,7 @@ export const McpPage: React.FC = () => {
                         )}
                       </div>
                       <EnvEditor
+                        key={selectedMcpLoadKey}
                         value={headerEntries}
                         onChange={setHeaderEntries}
                         keyTransform={(value) => value.trimStart()}
@@ -2031,6 +2032,7 @@ export const McpPage: React.FC = () => {
               </Button>
             ) : (
               <EnvEditor
+                key={selectedMcpLoadKey}
                 value={envEntries}
                 onChange={setEnvEntries}
                 keyPlaceholder={t("settings.mcp.page.env.keyPlaceholder")}

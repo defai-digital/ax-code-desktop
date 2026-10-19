@@ -1,3 +1,5 @@
+import { readFile } from "node:fs/promises"
+import path from "node:path"
 import { describe, expect, test } from "vitest"
 
 import { revealedRowsAfterRemoval } from "./envRowReveal"
@@ -26,5 +28,23 @@ describe("revealedRowsAfterRemoval", () => {
     const revealed = new Set([0, 1])
     revealedRowsAfterRemoval(revealed, 0)
     expect([...revealed]).toEqual([0, 1])
+  })
+})
+
+// McpPage needs the whole settings shell to mount, so its editor wiring is asserted against the
+// source, as neighbouring view contracts are.
+describe("McpPage env editor remount", () => {
+  test("keys both editors by the selected server and project", async () => {
+    const source = await readFile(path.resolve(__dirname, "McpPage.tsx"), "utf8")
+    const editors = source.match(/<EnvEditor\s[\s\S]*?\/>/g) ?? []
+
+    // Switching servers reuses the same component instance, so revealed value rows carried over
+    // and the next server's secret at the same index rendered in plain text.
+    expect(editors).toHaveLength(2)
+    for (const editor of editors) {
+      expect(editor).toContain("key={selectedMcpLoadKey}")
+    }
+    expect(source).toContain("const selectedMcpLoadKey =")
+    expect(source).toContain("selectedMcpNameKey}|${currentDirectory ?? \"\"}")
   })
 })

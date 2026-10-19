@@ -37,6 +37,19 @@ describe("WorktreeBranchDisplay rename", () => {
     })
   }
 
+  // Each character is a separate input event, as a real keyboard produces. Setting the whole value
+  // at once hid the keystroke sanitization that ate a trailing `/`, `-` or `.` after every key.
+  const typeSequentially = (value: string) => {
+    for (const char of value) {
+      act(() => {
+        const element = input()
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+        setter?.call(element, element.value + char)
+        element.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    }
+  }
+
   const save = () =>
     act(() => {
       saveButton().click()
@@ -72,14 +85,28 @@ describe("WorktreeBranchDisplay rename", () => {
     expect(onRename).toHaveBeenCalledWith("main", "feature/rename")
   })
 
+  test("keeps a slash typed mid-name instead of dropping it", async () => {
+    render("main")
+    openEditor()
+    type("")
+    typeSequentially("feature/foo")
+
+    expect(input().value).toBe("feature/foo")
+    expect(saveButton().disabled).toBe(false)
+
+    await save()
+
+    expect(onRename).toHaveBeenCalledWith("main", "feature/foo")
+  })
+
   test("offers no save while the name is the branch that already exists", () => {
-    // `feature a` sanitizes to the current branch: the field shows `feature-a`, so the save
-    // button cannot look like it renamed anything.
+    // `feature a` sanitizes to the current branch, so the save button cannot look like it
+    // renamed anything even though the field keeps what was typed.
     render("feature-a")
     openEditor()
     type("feature a")
 
-    expect(input().value).toBe("feature-a")
+    expect(input().value).toBe("feature a")
     expect(saveButton().disabled).toBe(true)
     expect(onRename).not.toHaveBeenCalled()
   })
@@ -89,7 +116,7 @@ describe("WorktreeBranchDisplay rename", () => {
     openEditor()
     type("---")
 
-    expect(input().value).toBe("")
+    expect(input().value).toBe("---")
     expect(saveButton().disabled).toBe(true)
 
     expect(onRename).not.toHaveBeenCalled()

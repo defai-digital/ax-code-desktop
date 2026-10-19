@@ -82,10 +82,10 @@ export const WorktreeBranchDisplay: React.FC<WorktreeBranchDisplayProps> = ({
           <input
             ref={inputRef}
             value={editBranchName}
-            // Sanitized as it is typed, so the field shows the name git would be given: entering
-            // `feature a` for `feature-a` reads as the branch that already exists instead of
-            // looking like a rename that the save button then quietly drops.
-            onChange={(e) => setEditBranchName(sanitizeBranchNameInput(e.target.value))}
+            // Keep what was typed. Sanitizing every keystroke stripped a trailing `/`, `-` or `.`,
+            // so `feature/foo` became `featurefoo` as soon as the slash was typed. The sanitized
+            // value is only used for validation and the rename itself, as BranchSelector does.
+            onChange={(e) => setEditBranchName(e.target.value)}
             className="flex-1 min-w-0 bg-transparent typography-ui-label outline-none placeholder:text-muted-foreground"
             placeholder={t("gitView.branch.namePlaceholder")}
             onKeyDown={handleKeyDown}
