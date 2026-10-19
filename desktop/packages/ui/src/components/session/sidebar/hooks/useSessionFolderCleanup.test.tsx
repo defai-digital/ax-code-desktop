@@ -13,16 +13,19 @@ const session = (id: string): Session =>
 
 const renderCleanup = (args: {
   isSessionsLoading: boolean
+  hasLoadedGlobalSessions?: boolean
   sessions: Session[]
   archivedSessions: Session[]
   normalizedProjects?: Array<{ id: string; normalizedPath: string }>
+  cleanupSessions?: (scopeKey: string, validSessionIds: Set<string>) => void
 }): void => {
   const Probe = () => {
     useSessionFolderCleanup({
       ...args,
+      hasLoadedGlobalSessions: args.hasLoadedGlobalSessions ?? true,
       normalizedProjects: args.normalizedProjects ?? [],
       availableWorktreesByProject: new Map(),
-      cleanupSessions: useSessionFoldersStore.getState().cleanupSessions,
+      cleanupSessions: args.cleanupSessions ?? useSessionFoldersStore.getState().cleanupSessions,
     })
     return null
   }
@@ -74,6 +77,26 @@ describe("session folder cleanup", () => {
     })
 
     expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, nestedSession.id)).toBe(folder.id)
+  })
+
+  test("does not prune folders before the global session index has loaded", () => {
+    // Cold start: the projects store has hydrated, so the scope is known, but the
+    // session index is still empty. Pruning then emptied every folder and
+    // persisted it. `isLoading` in the session UI store is never set in
+    // production, so the not-yet-loaded flag is what has to stop the effect.
+    const cleanupSessions = vi.fn()
+
+    renderCleanup({
+      isSessionsLoading: false,
+      hasLoadedGlobalSessions: false,
+      sessions: [],
+      archivedSessions: [],
+      normalizedProjects: [{ id: "p1", normalizedPath: SCOPE }],
+      cleanupSessions,
+    })
+
+    expect(cleanupSessions).not.toHaveBeenCalled()
+    expect(useSessionFoldersStore.getState().getSessionFolderId(SCOPE, SESSION_ID)).not.toBeNull()
   })
 
   test("still drops the folder entry of a session that is gone", () => {

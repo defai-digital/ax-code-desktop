@@ -114,17 +114,30 @@ export function TodoSendDialog(props: TodoSendDialogProps) {
     void loadAgentsStoreAgents()
   }, [open, loadProviders, loadConfigAgents, loadAgentsStoreAgents, projectDirectory])
 
+  // Opening the dialog loads the provider and agent lists, and `useConfigStore`
+  // can rewrite the current selection while that happens. Reading the selection
+  // through a ref keeps the reset tied to the open transition, so it seeds the
+  // dialog once instead of replacing the model or agent the user just picked.
+  const initialSelectionRef = React.useRef({
+    providerID: currentProviderID,
+    modelID: currentModelID,
+    variant: currentVariant,
+    agent: currentAgentName,
+  })
+  initialSelectionRef.current = {
+    providerID: currentProviderID,
+    modelID: currentModelID,
+    variant: currentVariant,
+    agent: currentAgentName,
+  }
+
+  const wasOpenRef = React.useRef(open)
   React.useEffect(() => {
-    if (!open) return
-    setExecution(
-      getInitialExecution({
-        providerID: currentProviderID,
-        modelID: currentModelID,
-        variant: currentVariant,
-        agent: currentAgentName,
-      }),
-    )
-  }, [open, currentProviderID, currentModelID, currentVariant, currentAgentName])
+    const wasOpen = wasOpenRef.current
+    wasOpenRef.current = open
+    if (!open || wasOpen) return
+    setExecution(getInitialExecution(initialSelectionRef.current))
+  }, [open])
 
   React.useEffect(() => {
     if (!open || providers.length === 0) return

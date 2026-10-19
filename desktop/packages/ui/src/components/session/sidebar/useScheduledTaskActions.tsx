@@ -35,6 +35,20 @@ type EditorTarget = {
   family: ScheduledTaskFamily | null
 }
 
+/**
+ * Whether the editor cannot express the family's schedule as its weekday × time
+ * grid. A single cron task reports `compact` like any one-member family, but the
+ * editor's draft maps it to the daily fallback — reconciling that draft would
+ * rewrite the cron expression to daily 09:00 even when the schedule was untouched.
+ */
+export const isIrregularFamily = (families: readonly ScheduledTaskFamily[]): boolean => {
+  if (families.length !== 1) {
+    return true
+  }
+  const [family] = families
+  return family.primary.schedule.type === "cron" || !describeFamilySchedule(family).compact
+}
+
 export type ScheduledTaskActions = {
   openNewTask: (directory: string, projectLabel: string) => void
   openEditTask: (family: ScheduledTaskFamily, directory: string, projectLabel: string) => void
@@ -157,7 +171,7 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         }
         const status = submit.enabledChanged ? (submit.enabled ? "active" : "paused") : null
         const current = groupScheduledTaskFamilies(members)
-        const irregular = current.length !== 1 || !describeFamilySchedule(current[0]).compact
+        const irregular = isIrregularFamily(current)
         const plan =
           irregular && !submit.scheduleChanged
             ? planFamilyFieldUpdate(

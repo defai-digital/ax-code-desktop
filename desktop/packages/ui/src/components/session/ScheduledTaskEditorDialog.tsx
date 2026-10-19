@@ -46,6 +46,48 @@ const TIMEZONE_OPTIONS = (() => {
   ]
 })()
 
+// `Intl.supportedValuesOf("timeZone")` omits "UTC", while migrated tasks and the
+// fallback timezone use it. The selected value has to stay selectable even when
+// it is not in the platform list.
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the timezone regression tests.
+export const buildTimezoneOptions = (selected: string): string[] =>
+  Array.from(new Set([selected, "UTC", ...TIMEZONE_OPTIONS].filter(Boolean)))
+
+/**
+ * Format an instant as wall-clock date and time in `timeZone`. A once task has to
+ * be read back in the timezone the save will reinterpret it in, otherwise an
+ * unrelated edit shifts its run time by the difference between the zones.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the timezone regression tests.
+export const formatWallClockInTimeZone = (
+  date: Date,
+  timeZone: string,
+): { date: string; time: string } | null => {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date)
+    const values = new Map(parts.map((part) => [part.type, part.value]))
+    const year = values.get("year")
+    const month = values.get("month")
+    const day = values.get("day")
+    const hour = values.get("hour")
+    const minute = values.get("minute")
+    if (!year || !month || !day || !hour || !minute) {
+      return null
+    }
+    return { date: `${year}-${month}-${day}`, time: `${hour}:${minute}` }
+  } catch {
+    return null
+  }
+}
+
 const getLocalDateISO = () => {
   const now = new Date()
   const year = now.getFullYear()
@@ -576,7 +618,8 @@ const scheduleSectionKey = (schedule: ScheduledTaskDraft["schedule"]): string =>
     timezone: schedule.timezone.trim(),
   })
 
-const toDraft = (
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the timezone regression tests.
+export const toDraft = (
   task: ScheduledTask | null,
   defaults: {
     providerID: string
@@ -612,6 +655,9 @@ const toDraft = (
   const schedule = source.schedule
   const scheduleTimezone = "timezone" in schedule && schedule.timezone ? schedule.timezone : timezoneFallback
   const onceRunAt = schedule.type === "once" ? new Date(schedule.runAt) : null
+  // Read the run time back in the same timezone the save reinterprets it in.
+  // Local getters only round-trip when that timezone is the machine's own.
+  const onceWallClock = onceRunAt ? formatWallClockInTimeZone(onceRunAt, scheduleTimezone) : null
   const weekly = schedule.type === "weekly"
   return {
     id: source.id,
@@ -623,10 +669,8 @@ const toDraft = (
     schedule: {
       kind: schedule.type === "once" ? "once" : weekly ? "weekly" : "daily",
       times: family ? unionMemberTimes(family.members) : normalizeDraftTimes(source),
-      onceDate: onceRunAt
-        ? `${onceRunAt.getFullYear()}-${pad2(onceRunAt.getMonth() + 1)}-${pad2(onceRunAt.getDate())}`
-        : getLocalDateISO(),
-      onceTime: onceRunAt ? `${pad2(onceRunAt.getHours())}:${pad2(onceRunAt.getMinutes())}` : "09:00",
+      onceDate: onceWallClock?.date ?? getLocalDateISO(),
+      onceTime: onceWallClock?.time ?? "09:00",
       weekdays: family && weekly ? unionMemberWeekdays(family.members) : weekly ? [schedule.day] : [1],
       timezone: scheduleTimezone,
     },
@@ -746,6 +790,10 @@ export function ScheduledTaskEditorDialog(props: {
   const mentionRef = React.useRef<FileMentionHandle>(null)
   const commandRef = React.useRef<CommandAutocompleteHandle>(null)
   const snippetRef = React.useRef<SnippetAutocompleteHandle>(null)
+  const timezoneOptions = React.useMemo(
+    () => buildTimezoneOptions(draft.schedule.timezone),
+    [draft.schedule.timezone],
+  )
   const localeUse24Hour = React.useMemo(() => getUses24Hour(formatLocale), [formatLocale])
   const localeWeekStartsOn = React.useMemo(() => getWeekStartsOn(formatLocale), [formatLocale])
   const use24Hour = React.useMemo(() => {
@@ -1402,7 +1450,7 @@ export function ScheduledTaskEditorDialog(props: {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {TIMEZONE_OPTIONS.map((timezone) => (
+                  {timezoneOptions.map((timezone) => (
                     <SelectItem key={timezone} value={timezone}>
                       {timezone}
                     </SelectItem>

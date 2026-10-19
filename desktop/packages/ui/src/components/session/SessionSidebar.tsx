@@ -4,6 +4,7 @@ import { useI18n } from "@/lib/i18n"
 import { useDeviceInfo } from "@/lib/device"
 import { isDesktopShell } from "@/lib/desktop"
 import { openProjectFolder } from "@/lib/projectOpen"
+import { projectPathMatchesRoot } from "@/lib/projectResolution"
 import { formatDirectoryName, cn } from "@/lib/utils"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useAllLiveSessions, useAllSessionStatuses } from "@/sync/sync-context"
@@ -118,7 +119,8 @@ type PrIndicator = {
   } | null
 }
 
-const buildKnownSessionDirectories = (
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the directory filter regression tests.
+export const buildKnownSessionDirectories = (
   projects: Array<{ path: string }>,
   availableWorktreesByProject: Map<string, WorktreeMetadata[]>,
 ): Set<string> => {
@@ -136,12 +138,21 @@ const buildKnownSessionDirectories = (
   return directories
 }
 
-const isKnownActiveSessionDirectory = (session: Session, knownDirectories: Set<string>): boolean => {
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the directory filter regression tests.
+export const isKnownActiveSessionDirectory = (session: Session, knownDirectories: Set<string>): boolean => {
   if (session.time?.archived) return true
   const directory = normalizePath(resolveGlobalSessionDirectory(session))?.toLowerCase()
   if (!directory) return true
   if (knownDirectories.size === 0) return true
-  return knownDirectories.has(directory)
+  // The rest of the app assigns a session to the most specific containing project
+  // (`useProjectSessionLists`), so a session started in a subdirectory must stay
+  // visible too. Matching roots by prefix keeps `/repo2` out of `/repo`.
+  for (const knownDirectory of knownDirectories) {
+    if (projectPathMatchesRoot(directory, knownDirectory)) {
+      return true
+    }
+  }
+  return false
 }
 
 const SIDEBAR_PR_NO_PR_RETRY_MS = 5 * 60_000
@@ -825,6 +836,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const isSessionsLoading = useSessionUIStore((state) => state.isLoading)
   useSessionFolderCleanup({
     isSessionsLoading,
+    hasLoadedGlobalSessions,
     sessions,
     archivedSessions,
     normalizedProjects,

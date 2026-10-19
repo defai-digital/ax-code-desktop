@@ -101,6 +101,10 @@ export function GitHubIntegrationDialog({ open, onOpenChange, onSelect }: GitHub
       listStateRef.current.activeTab === requestTab
 
     setLoading(true)
+    // A tab switch supersedes an in-flight loadMore, whose completion only resets
+    // its spinner while it is still the current request. Clear it here so the
+    // spinner cannot stay up forever and block further pagination.
+    setLoadingMore(false)
     setError(null)
     setPage(1)
     setHasMore(false)

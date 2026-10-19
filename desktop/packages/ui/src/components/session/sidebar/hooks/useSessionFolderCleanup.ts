@@ -11,6 +11,11 @@ type NormalizedProject = {
 
 type Args = {
   isSessionsLoading: boolean
+  /**
+   * The global session index hydrates asynchronously. Until its first snapshot
+   * lands, an empty `sessions` list says nothing about which sessions exist.
+   */
+  hasLoadedGlobalSessions: boolean
   sessions: Session[]
   archivedSessions: Session[]
   normalizedProjects: NormalizedProject[]
@@ -19,11 +24,21 @@ type Args = {
 }
 
 export const useSessionFolderCleanup = (args: Args): void => {
-  const { isSessionsLoading, sessions, archivedSessions, normalizedProjects, availableWorktreesByProject, cleanupSessions } =
-    args
+  const {
+    isSessionsLoading,
+    hasLoadedGlobalSessions,
+    sessions,
+    archivedSessions,
+    normalizedProjects,
+    availableWorktreesByProject,
+    cleanupSessions,
+  } = args
 
   React.useEffect(() => {
-    if (isSessionsLoading) {
+    // `isLoading` in the session UI store is never set by production code, so on a
+    // cold start this effect used to run with the still-empty session index and
+    // prune every known project scope. Wait for the global index to hydrate.
+    if (isSessionsLoading || !hasLoadedGlobalSessions) {
       return
     }
 
@@ -90,5 +105,13 @@ export const useSessionFolderCleanup = (args: Args): void => {
       }
       cleanupSessions(scopeKey, ids ?? new Set<string>())
     })
-  }, [archivedSessions, availableWorktreesByProject, cleanupSessions, isSessionsLoading, normalizedProjects, sessions])
+  }, [
+    archivedSessions,
+    availableWorktreesByProject,
+    cleanupSessions,
+    hasLoadedGlobalSessions,
+    isSessionsLoading,
+    normalizedProjects,
+    sessions,
+  ])
 }
