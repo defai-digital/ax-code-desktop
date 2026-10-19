@@ -805,13 +805,37 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           stateWithPointerId.rafId = window.requestAnimationFrame(step)
         }
 
+        const handlePointerCancel = (event: PointerEvent) => {
+          if (event.pointerType !== "touch" || stateWithPointerId.pointerId !== event.pointerId) {
+            return
+          }
+
+          // A cancelled gesture is not a tap and must not start a fling with
+          // pre-cancel velocity.
+          stopKinetic()
+          stateWithPointerId.pointerId = null
+          stateWithPointerId.startX = null
+          stateWithPointerId.startY = null
+          stateWithPointerId.moved = false
+          stateWithPointerId.lastY = null
+          stateWithPointerId.lastTime = null
+          stateWithPointerId.velocity = 0
+          try {
+            container.releasePointerCapture(event.pointerId)
+          } catch {
+            /* ignored */
+          }
+        }
+
         container.addEventListener("pointerdown", handlePointerDown, listenerOptions)
         container.addEventListener("pointermove", handlePointerMove, listenerOptions)
         container.addEventListener("pointerup", handlePointerUp, listenerOptions)
-        container.addEventListener("pointercancel", handlePointerUp, listenerOptions)
+        container.addEventListener("pointercancel", handlePointerCancel, listenerOptions)
 
         const previousTouchAction = container.style.touchAction
-        container.style.touchAction = "manipulation"
+        const previousOverscrollBehaviorY = container.style.overscrollBehaviorY
+        container.style.touchAction = "none"
+        container.style.overscrollBehaviorY = "contain"
 
         touchScrollCleanupRef.current = () => {
           stopKinetic()
@@ -823,8 +847,9 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           container.removeEventListener("pointerdown", handlePointerDown, listenerOptions)
           container.removeEventListener("pointermove", handlePointerMove, listenerOptions)
           container.removeEventListener("pointerup", handlePointerUp, listenerOptions)
-          container.removeEventListener("pointercancel", handlePointerUp, listenerOptions)
+          container.removeEventListener("pointercancel", handlePointerCancel, listenerOptions)
           container.style.touchAction = previousTouchAction
+          container.style.overscrollBehaviorY = previousOverscrollBehaviorY
         }
 
         return
@@ -960,13 +985,27 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         state.rafId = window.requestAnimationFrame(step)
       }
 
+      const handleTouchCancel = () => {
+        // A cancelled gesture is not a tap and must not start a fling with
+        // pre-cancel velocity.
+        stopKinetic()
+        state.lastY = null
+        state.lastTime = null
+        state.velocity = 0
+        state.startX = null
+        state.startY = null
+        state.didMove = false
+      }
+
       container.addEventListener("touchstart", handleTouchStart, listenerOptions)
       container.addEventListener("touchmove", handleTouchMove, listenerOptions)
       container.addEventListener("touchend", handleTouchEnd as unknown as EventListener, listenerOptions)
-      container.addEventListener("touchcancel", handleTouchEnd as unknown as EventListener, listenerOptions)
+      container.addEventListener("touchcancel", handleTouchCancel, listenerOptions)
 
       const previousTouchAction = container.style.touchAction
-      container.style.touchAction = "manipulation"
+      const previousOverscrollBehaviorY = container.style.overscrollBehaviorY
+      container.style.touchAction = "none"
+      container.style.overscrollBehaviorY = "contain"
 
       touchScrollCleanupRef.current = () => {
         stopKinetic()
@@ -978,8 +1017,9 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         container.removeEventListener("touchstart", handleTouchStart, listenerOptions)
         container.removeEventListener("touchmove", handleTouchMove, listenerOptions)
         container.removeEventListener("touchend", handleTouchEnd as unknown as EventListener, listenerOptions)
-        container.removeEventListener("touchcancel", handleTouchEnd as unknown as EventListener, listenerOptions)
+        container.removeEventListener("touchcancel", handleTouchCancel, listenerOptions)
         container.style.touchAction = previousTouchAction
+        container.style.overscrollBehaviorY = previousOverscrollBehaviorY
       }
     }, [enableTouchScroll, useHiddenInputOverlay, focusHiddenInput, fontSize])
 
@@ -990,6 +1030,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
       let localTextareaObserver: MutationObserver | null = null
       let localDisposables: Array<{ dispose: () => void }> = []
       let restorePatchedScrollToBottom: (() => void) | null = null
+      let restoreRenderScrollbar: (() => void) | null = null
       let restoreContainerFocus: (() => void) | null = null
 
       const container = containerRef.current
@@ -1086,6 +1127,21 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
 
           terminal.loadAddon(fitAddon)
           terminal.open(container)
+          if (enableTouchScroll) {
+            // Ghostty paints a native canvas scrollbar for ~1.5s on every scroll. It is
+            // not touch-interactive and covers the last character columns, so touch
+            // scrolling uses the dedicated overlay scrollbar instead.
+            const renderer = (
+              terminal as unknown as { renderer?: { renderScrollbar?: (...args: unknown[]) => void } }
+            ).renderer
+            if (renderer && typeof renderer.renderScrollbar === "function") {
+              const originalRenderScrollbar = renderer.renderScrollbar
+              renderer.renderScrollbar = () => {}
+              restoreRenderScrollbar = () => {
+                renderer.renderScrollbar = originalRenderScrollbar
+              }
+            }
+          }
           // Publish the refs only once the terminal is usable. open() can throw (a wasm or
           // renderer failure), and a published ref then pointed at a terminal whose every
           // method throws: the chunks effect read it as live and its reset() tripped the
@@ -1188,6 +1244,8 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         localDisposables.forEach((disposable) => disposable.dispose())
         restorePatchedScrollToBottom?.()
         restorePatchedScrollToBottom = null
+        restoreRenderScrollbar?.()
+        restoreRenderScrollbar = null
         if (localTerminalTextarea) {
           localTerminalTextarea.removeEventListener("focus", handleTerminalTextareaFocus)
           localTerminalTextarea.removeEventListener("blur", handleTerminalTextareaBlur)

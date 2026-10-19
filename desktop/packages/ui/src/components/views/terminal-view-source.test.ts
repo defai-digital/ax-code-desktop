@@ -81,3 +81,83 @@ describe("TerminalView source guards", () => {
     expect(source).toMatch(/\} catch \(error\) \{\n\s+\/\/ A write that throws[\s\S]*?isWritingRef\.current = false/)
   })
 })
+
+describe("TerminalViewport touch scroll source guards", () => {
+  const viewportSourcePath = path.resolve(__dirname, "../terminal/TerminalViewport.tsx")
+
+  const readTouchScrollSetup = async () => {
+    const source = await readFile(viewportSourcePath, "utf8")
+    const start = source.indexOf("const setupTouchScroll = React.useCallback")
+    const end = source.indexOf(
+      "}, [enableTouchScroll, useHiddenInputOverlay, focusHiddenInput, fontSize])",
+      start,
+    )
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    return { source, setup: source.slice(start, end) }
+  }
+
+  const count = (text: string, pattern: RegExp) => text.match(pattern)?.length ?? 0
+
+  test("owns touch gestures with touch-action none and contain overscroll in both branches", async () => {
+    const { setup } = await readTouchScrollSetup()
+
+    // touch-action: manipulation lets the browser claim the pan, so it cancels the
+    // pointer stream after a few moves and the custom scroll stalls.
+    expect(count(setup, /container\.style\.touchAction = "none"/g)).toBe(2)
+    expect(setup).not.toContain('container.style.touchAction = "manipulation"')
+    expect(count(setup, /const previousOverscrollBehaviorY = container\.style\.overscrollBehaviorY/g)).toBe(2)
+    expect(count(setup, /container\.style\.overscrollBehaviorY = "contain"/g)).toBe(2)
+
+    // Both cleanup functions restore the exact previous values.
+    expect(count(setup, /container\.style\.touchAction = previousTouchAction/g)).toBe(2)
+    expect(count(setup, /container\.style\.overscrollBehaviorY = previousOverscrollBehaviorY/g)).toBe(2)
+  })
+
+  test("cancelled gestures neither tap-focus the hidden input nor fling", async () => {
+    const { setup } = await readTouchScrollSetup()
+
+    expect(setup).not.toMatch(/addEventListener\("pointercancel", handlePointerUp/)
+    expect(setup).not.toMatch(/addEventListener\("touchcancel", handleTouchEnd/)
+    expect(setup).toContain('addEventListener("pointercancel", handlePointerCancel')
+    expect(setup).toContain('addEventListener("touchcancel", handleTouchCancel')
+
+    const pointerCancelStart = setup.indexOf("const handlePointerCancel")
+    const pointerCancelEnd = setup.indexOf('container.addEventListener("pointerdown"', pointerCancelStart)
+    const pointerCancel = setup.slice(pointerCancelStart, pointerCancelEnd)
+    expect(pointerCancel.length).toBeGreaterThan(0)
+    expect(pointerCancel).toContain("stopKinetic()")
+    expect(pointerCancel).not.toContain("focusHiddenInput")
+    expect(pointerCancel).not.toContain("requestAnimationFrame")
+    expect(pointerCancel).toMatch(/try \{\n\s+container\.releasePointerCapture\(event\.pointerId\)/)
+    expect(pointerCancel).toContain("stateWithPointerId.pointerId = null")
+    expect(pointerCancel).toContain("stateWithPointerId.velocity = 0")
+
+    const touchCancelStart = setup.indexOf("const handleTouchCancel")
+    const touchCancelEnd = setup.indexOf('container.addEventListener("touchstart"', touchCancelStart)
+    const touchCancel = setup.slice(touchCancelStart, touchCancelEnd)
+    expect(touchCancel.length).toBeGreaterThan(0)
+    expect(touchCancel).toContain("stopKinetic()")
+    expect(touchCancel).not.toContain("focusHiddenInput")
+    expect(touchCancel).not.toContain("requestAnimationFrame")
+    expect(touchCancel).toContain("state.velocity = 0")
+    expect(touchCancel).toContain("state.didMove = false")
+  })
+
+  test("suppresses ghostty's native canvas scrollbar in touch mode and restores it on teardown", async () => {
+    const { source } = await readTouchScrollSetup()
+
+    const openAt = source.indexOf("terminal.open(container)")
+    const patchAt = source.indexOf("renderer.renderScrollbar = () => {}")
+    expect(openAt).toBeGreaterThan(-1)
+    expect(patchAt).toBeGreaterThan(openAt)
+    expect(source.slice(openAt, patchAt)).toContain("if (enableTouchScroll) {")
+    expect(source).toContain('typeof renderer.renderScrollbar === "function"')
+    expect(source).toContain("restoreRenderScrollbar = () => {")
+
+    const cleanupAt = source.indexOf("restorePatchedScrollToBottom?.()")
+    expect(cleanupAt).toBeGreaterThan(-1)
+    expect(source.indexOf("restoreRenderScrollbar?.()", cleanupAt)).toBeGreaterThan(cleanupAt)
+    expect(source.indexOf("restoreRenderScrollbar = null", cleanupAt)).toBeGreaterThan(cleanupAt)
+  })
+})
