@@ -11,12 +11,17 @@ The runtime validates `metadata.multiRun` with `SessionMetadata.MultiRun` (AX Co
 
 ## 2. Writing
 
-- `useMultiRunStore.createMultiRun` generates one `groupId` per launch (stable random ID) and one `variantId` per lane.
+- `useMultiRunStore.createMultiRun` generates one random launch ID (`mr_<32 hex>`). Each run group of the launch gets its
+  own `groupId` (the launch ID for a single group, `<launchId>_gN` when the launch has several groups, so groups with
+  different prompts stay separately comparable), and each lane a `variantId` (`<groupId>.<lane index>`).
   After each lane session is created, it calls the SDK session update with
   `metadata: { ...existing, multiRun: { groupId, variantId, model, agent, worktree } }`, omitting unknown optional fields.
 - A failed metadata update does not fail the launch. The lane still groups by title; the failure is logged once per
   launch.
-- IDs match the runtime's `ID` rule (check the schema in `metadata.ts` for length and character limits and generate within them).
+- IDs match the runtime's `ID` rule (1 to 160 characters, no character-set limit); `worktree` is at most 4,096
+  characters. Optional fields over a limit are omitted.
+- The runtime replaces the whole `metadata` object on session update (it does not merge namespaces), so the write uses
+  the created session's `metadata` as the base and sets only `multiRun`.
 
 ## 3. Reading
 

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import type { SupervisionRow as SupervisionRowData } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
-import { multiRunGroupKeyFromParsed } from "@/lib/supervision/multiRunGroups"
+import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { cn } from "@/lib/utils"
@@ -39,7 +39,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   children,
 }) => {
   const { t } = useI18n()
-  const groupSlug = multiRunGroupKeyFromParsed(parseMultiRunSessionTitle(row.title))
+  const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
     onSelect(row.sessionId)

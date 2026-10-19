@@ -1,7 +1,8 @@
 import React from "react"
 
+import { readMultiRunIdentity } from "@/lib/multirun/identity"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
-import { multiRunGroupKeyFromParsed } from "@/lib/supervision/multiRunGroups"
+import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { useAllLiveSessions } from "@/sync/sync-context"
 
 /**
@@ -14,6 +15,9 @@ export function useMultiRunGroupKeyForSession(sessionId: string | null | undefin
     if (!sessionId) return null
     const session = sessions.find((candidate) => candidate.id === sessionId)
     if (!session) return null
-    return multiRunGroupKeyFromParsed(parseMultiRunSessionTitle(session.title))
+    return multiRunGroupKeyForRow(
+      { title: session.title, multiRun: readMultiRunIdentity(session) },
+      parseMultiRunSessionTitle,
+    )
   }, [sessionId, sessions])
 }

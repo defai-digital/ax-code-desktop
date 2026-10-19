@@ -13,6 +13,19 @@ let currentDirectory = "/repo"
 
 const routeMessageMock = vi.fn(() => Promise.resolve())
 
+type SessionUpdateArgs = { sessionID: string; directory?: string; metadata?: Record<string, unknown> }
+const defaultSessionUpdate = async (args: SessionUpdateArgs) => ({
+  data: {
+    id: args.sessionID,
+    title: "updated",
+    directory: args.directory,
+    metadata: args.metadata,
+    time: { created: 1, updated: 2 },
+  } as unknown as Session,
+})
+const sessionUpdateMock = vi.fn(defaultSessionUpdate)
+const scopedDirectories: string[] = []
+
 vi.doMock("@/sync/session-ui-store", () => ({
   routeMessage: routeMessageMock,
   useSessionUIStore: {
@@ -43,7 +56,10 @@ vi.doMock("@/lib/ax-code/client", () => ({
         }) as Session,
     ),
     checkHealth: vi.fn(() => Promise.resolve(true)),
-    getScopedSdkClient: vi.fn(() => ({})),
+    getScopedSdkClient: vi.fn((directory: string) => {
+      scopedDirectories.push(directory)
+      return { session: { update: sessionUpdateMock } }
+    }),
     getDirectory: vi.fn(() => currentDirectory),
   },
 }))
@@ -244,6 +260,9 @@ describe("useMultiRunStore", () => {
     useMultiRunStore.setState({ isLoading: false, error: null })
     routeMessageMock.mockReset()
     routeMessageMock.mockImplementation(() => Promise.resolve())
+    sessionUpdateMock.mockReset()
+    sessionUpdateMock.mockImplementation(defaultSessionUpdate)
+    scopedDirectories.length = 0
   })
 
   test("registers created sessions without waiting for a sidebar refresh", async () => {
@@ -301,6 +320,140 @@ describe("useMultiRunStore", () => {
       expect.objectContaining({ path: "/repo/.worktrees/fix-thing" }),
       { deleteLocalBranch: true },
     )
+  })
+})
+
+describe("useMultiRunStore multi-run metadata", () => {
+  beforeEach(() => {
+    childState.session = []
+    useMultiRunStore.setState({ isLoading: false, error: null })
+    routeMessageMock.mockReset()
+    routeMessageMock.mockImplementation(() => Promise.resolve())
+    sessionUpdateMock.mockReset()
+    sessionUpdateMock.mockImplementation(defaultSessionUpdate)
+    scopedDirectories.length = 0
+  })
+
+  const metadataOf = (callIndex: number) =>
+    (sessionUpdateMock.mock.calls[callIndex]?.[0] as SessionUpdateArgs | undefined)?.metadata as
+      | ({ multiRun?: Record<string, unknown> } & Record<string, unknown>)
+      | undefined
+
+  test("launch writes metadata.multiRun and preserves existing metadata", async () => {
+    const { axCodeClient } = await import("@/lib/ax-code/client")
+    vi.mocked(axCodeClient.createSession).mockResolvedValueOnce({
+      id: "ses_multirun",
+      title: "fix-thing/anthropic/claude-sonnet-4-5",
+      directory: "/repo",
+      metadata: { queue: { source: "multi-run" }, app: { pinned: true } },
+      time: { created: 1, updated: 1 },
+    } as unknown as Session)
+
+    const result = await useMultiRunStore.getState().createMultiRun({
+      name: "Fix thing",
+      isolateRuns: false,
+      agent: "build",
+      groups: [{ prompt: "Fix it", models: [{ providerID: "anthropic", modelID: "claude-sonnet-4-5" }] }],
+    })
+
+    expect(result?.sessionIds).toEqual(["ses_multirun"])
+    expect(sessionUpdateMock).toHaveBeenCalledTimes(1)
+    const args = sessionUpdateMock.mock.calls[0][0] as SessionUpdateArgs
+    expect(args.sessionID).toBe("ses_multirun")
+    expect(args.directory).toBe("/repo")
+    expect(scopedDirectories).toEqual(["/repo"])
+    const metadata = metadataOf(0)
+    expect(metadata?.queue).toEqual({ source: "multi-run" })
+    expect(metadata?.app).toEqual({ pinned: true })
+    const multiRun = metadata?.multiRun as Record<string, string>
+    expect(Object.keys(multiRun).sort()).toEqual(["agent", "groupId", "model", "variantId"])
+    expect(multiRun.model).toBe("anthropic/claude-sonnet-4-5")
+    expect(multiRun.agent).toBe("build")
+    expect(multiRun.groupId.length).toBeGreaterThan(0)
+    expect(multiRun.groupId.length).toBeLessThanOrEqual(160)
+    expect(multiRun.variantId.length).toBeLessThanOrEqual(160)
+    // The registered session carries the identity so grouping works before the next event.
+    expect((childState.session[0] as Session & { metadata?: unknown }).metadata).toEqual(metadata)
+  })
+
+  test("lanes of one run group share a groupId with distinct variants; run groups and launches differ", async () => {
+    const launch = () =>
+      useMultiRunStore.getState().createMultiRun({
+        name: "Fix thing",
+        isolateRuns: false,
+        groups: [
+          {
+            prompt: "Fix it",
+            models: [
+              { providerID: "anthropic", modelID: "claude" },
+              { providerID: "anthropic", modelID: "claude" },
+            ],
+          },
+          { prompt: "Other", models: [{ providerID: "openai", modelID: "gpt-5" }] },
+        ],
+      })
+
+    await launch()
+    const first = [0, 1, 2].map((index) => metadataOf(index)?.multiRun as Record<string, string>)
+    expect(first[0].groupId).toBe(first[1].groupId)
+    expect(first[0].variantId).not.toBe(first[1].variantId)
+    expect(first[2].groupId).not.toBe(first[0].groupId)
+    expect(first[0]).not.toHaveProperty("agent")
+    expect(first[0]).not.toHaveProperty("worktree")
+
+    await launch()
+    const second = metadataOf(3)?.multiRun as Record<string, string>
+    expect(second.groupId).not.toBe(first[0].groupId)
+  })
+
+  test("isolated lanes record their worktree path", async () => {
+    const { checkIsGitRepository } = await import("@/lib/gitApi")
+    vi.mocked(checkIsGitRepository).mockResolvedValueOnce(true)
+    const { createWorktreeWithDefaults } = await import("@/lib/worktrees/worktreeCreate")
+    vi.mocked(createWorktreeWithDefaults).mockResolvedValueOnce({
+      path: "/repo/.worktrees/fix-thing",
+      branch: "fix-thing",
+      worktreeRoot: "/repo",
+      worktreeStatus: "ready",
+      headState: "branch",
+    } as never)
+
+    const result = await useMultiRunStore.getState().createMultiRun({
+      name: "Fix thing",
+      isolateRuns: true,
+      groups: [{ prompt: "Fix it", models: [{ providerID: "anthropic", modelID: "claude" }] }],
+    })
+
+    expect(result?.sessionIds).toEqual(["ses_multirun"])
+    expect(scopedDirectories).toEqual(["/repo/.worktrees/fix-thing"])
+    expect(metadataOf(0)?.multiRun).toMatchObject({ worktree: "/repo/.worktrees/fix-thing" })
+  })
+
+  test("a failed metadata update does not fail the launch and is logged once", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined)
+    sessionUpdateMock.mockRejectedValueOnce(new Error("update failed"))
+    sessionUpdateMock.mockResolvedValueOnce({ error: { message: "bad" } } as never)
+
+    const result = await useMultiRunStore.getState().createMultiRun({
+      name: "Fix thing",
+      isolateRuns: false,
+      groups: [
+        {
+          prompt: "Fix it",
+          models: [
+            { providerID: "anthropic", modelID: "claude" },
+            { providerID: "openai", modelID: "gpt-5" },
+          ],
+        },
+      ],
+    })
+
+    expect(result?.sessionIds).toHaveLength(2)
+    expect(result?.startedRunCount).toBe(2)
+    expect(useMultiRunStore.getState().error).toBeNull()
+    const metadataWarnings = warn.mock.calls.filter((call) => String(call[0]).includes("multi-run metadata"))
+    expect(metadataWarnings).toHaveLength(1)
+    warn.mockRestore()
   })
 })
 

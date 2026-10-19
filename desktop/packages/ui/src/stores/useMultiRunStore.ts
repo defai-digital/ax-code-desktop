@@ -16,6 +16,12 @@ import { useDirectoryStore } from "./useDirectoryStore"
 import { useProjectsStore } from "./useProjectsStore"
 import { useSnippetsStore } from "./useSnippetsStore"
 import { getMultiRunSessionTitle } from "@/lib/multirun/title"
+import {
+  buildMultiRunIdentity,
+  createMultiRunGroupId,
+  withMultiRunIdentity,
+  type MultiRunIdentity,
+} from "@/lib/multirun/identity"
 import { getSyncChildStores, registerSessionDirectory } from "@/sync/sync-refs"
 import { seedSessionAutoAccept } from "./utils/sessionAutoAcceptSeed"
 
@@ -77,6 +83,34 @@ const registerCreatedSession = (session: Session, directory: string): Session =>
   }
 
   return sessionWithDirectory
+}
+
+/**
+ * Record `metadata.multiRun` on a freshly created lane session through the published SDK session
+ * update. The runtime replaces `metadata` as a whole, so the session's existing metadata is merged in
+ * first. Returns the updated session, or the original one when the update fails: a lane without
+ * metadata still groups by its title, so a failure never fails the launch.
+ */
+const recordMultiRunIdentity = async (
+  session: Session,
+  directory: string,
+  identity: MultiRunIdentity,
+  onFailure: (error: unknown) => void,
+): Promise<Session> => {
+  try {
+    const result = await axCodeClient.getScopedSdkClient(directory).session.update({
+      sessionID: session.id,
+      directory,
+      metadata: withMultiRunIdentity(session.metadata, identity),
+    })
+    if (result.error || !result.data) {
+      throw new Error("Session metadata update was not accepted")
+    }
+    return result.data
+  } catch (error) {
+    onFailure(error)
+    return session
+  }
 }
 
 const resolveActiveProject = (): ProjectRef | null => {
@@ -172,6 +206,16 @@ export const useMultiRunStore = create<MultiRunStore>()(
 
           const commandsToRun = setupCommands?.filter((cmd) => cmd.trim().length > 0) ?? []
 
+          // One stable identity per run group of this launch: a run group has its own prompt and is
+          // compared on its own, as its `gN` title segment already separates it.
+          const launchGroupId = createMultiRunGroupId()
+          let metadataFailureLogged = false
+          const onMetadataFailure = (error: unknown) => {
+            if (metadataFailureLogged) return
+            metadataFailureLogged = true
+            console.warn("[MultiRun] Failed to record multi-run metadata; lanes group by title:", error)
+          }
+
           for (let gi = 0; gi < groups.length; gi++) {
             const group = groups[gi]
             const prompt = group.prompt
@@ -183,8 +227,20 @@ export const useMultiRunStore = create<MultiRunStore>()(
             }
 
             const modelIndexes = new Map<string, number>()
+            const groupId = groups.length > 1 ? `${launchGroupId}_g${gi + 1}` : launchGroupId
+            let laneOrdinal = 0
 
             for (const model of group.models) {
+              laneOrdinal += 1
+              const variantId = `${groupId}.${laneOrdinal}`
+              const identityFor = (worktree?: string) =>
+                buildMultiRunIdentity({
+                  groupId,
+                  variantId,
+                  model: `${model.providerID}/${model.modelID}`,
+                  agent,
+                  worktree,
+                })
               const key = `${model.providerID}:${model.modelID}`
               const count = modelCounts.get(key) || 1
               const index = (modelIndexes.get(key) || 0) + 1
@@ -211,9 +267,13 @@ export const useMultiRunStore = create<MultiRunStore>()(
               let createdWorktree: WorktreeMetadata | null = null
               try {
                 if (!shouldIsolateRuns) {
-                  const session = await axCodeClient.withDirectory(directory, () =>
+                  const created = await axCodeClient.withDirectory(directory, () =>
                     axCodeClient.createSession({ title: sessionTitle }),
                   )
+                  const identity = identityFor()
+                  const session = identity
+                    ? await recordMultiRunIdentity(created, directory, identity, onMetadataFailure)
+                    : created
                   seedSessionAutoAccept(session.id, null)
                   registerCreatedSession(session, directory)
 
@@ -250,13 +310,17 @@ export const useMultiRunStore = create<MultiRunStore>()(
                   kind: "standard" as const,
                 }
 
-                const session = await axCodeClient.withDirectory(worktreeMetadata.path, () =>
+                const created = await axCodeClient.withDirectory(worktreeMetadata.path, () =>
                   axCodeClient.createSession({ title: sessionTitle }),
                 )
-                seedSessionAutoAccept(session.id, null)
-                registerCreatedSession(session, worktreeMetadata.path)
                 // The session owns the worktree from here on.
                 createdWorktree = null
+                const identity = identityFor(worktreeMetadata.path)
+                const session = identity
+                  ? await recordMultiRunIdentity(created, worktreeMetadata.path, identity, onMetadataFailure)
+                  : created
+                seedSessionAutoAccept(session.id, null)
+                registerCreatedSession(session, worktreeMetadata.path)
 
                 useSessionUIStore.getState().setWorktreeMetadata(session.id, enrichedMetadata)
 

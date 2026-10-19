@@ -8,6 +8,7 @@ import {
   type SessionSummaryLike,
 } from "@/lib/supervision/sessionState"
 import type { SupervisionRow } from "@/lib/supervision/rows"
+import { readMultiRunIdentity } from "@/lib/multirun/identity"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -84,6 +85,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
       const errorMessage =
         latestUnseenSessionErrorMessage(notifications, input.id) ??
         latestUnseenTreeSessionErrorMessage(notifications, treeSessionIds)
+      const multiRun = readMultiRunIdentity(session)
       rows.push({
         sessionId: input.id,
         title: input.title?.trim() || input.id,
@@ -95,6 +97,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         updatedAt: input.updatedAt ?? 0,
         evidence: resolveSupervisionEvidence(session?.summary as SessionSummaryLike | undefined),
         ...(errorMessage ? { errorMessage } : {}),
+        ...(multiRun ? { multiRun } : {}),
       })
     }
     return rankSupervisionRows(rows)

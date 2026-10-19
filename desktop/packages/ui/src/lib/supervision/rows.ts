@@ -1,3 +1,4 @@
+import type { MultiRunIdentity } from "@/lib/multirun/identity"
 import type { SupervisionEvidence, SupervisionState } from "./sessionState"
 
 export interface SupervisionRow {
@@ -12,4 +13,6 @@ export interface SupervisionRow {
   updatedAt: number
   evidence: SupervisionEvidence | null
   errorMessage?: string
+  /** Validated `metadata.multiRun` of the session; absent for sessions without it. */
+  multiRun?: MultiRunIdentity
 }
