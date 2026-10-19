@@ -16,6 +16,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 | [Analysis routing v5](PRD-2026-10-18-analysis-routing-v5.md) | Accepted and implemented; supersedes the dedicated Streamlit product path in v3 and v4 |
 | [Competitive quality v1](PRD-2026-10-19-competitive-quality-v1.md) | Active plan. Phases 0 and 1 implemented; Phase 2 in progress (items 9, 11, 12, 14 recorded; 8 waits for AX Code) |
 | [Supervision v3](PRD-2026-10-19-supervision-v3.md) | Accepted; pop-out window and multi-run identity |
+| [Trusted supervision v1](PRD-2026-10-19-trusted-supervision-v1.md) | Accepted; Phase A (runtime goal on supervision rows, web-document script hashes, trust scorecard) authorized; Phases B and C are requirements only |
 
 ## Completed and historical records
 
