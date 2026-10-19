@@ -3,6 +3,7 @@ import type { DraftStarterRef } from "@/lib/draftStarters"
 import type { ShortcutCombo } from "@/lib/shortcuts"
 import { getDesktopBridge, hasDesktopBridge } from "./desktopBridge"
 import { isLoopbackHostname } from "./loopback"
+import type { DesktopCommandArgs, DesktopCommandName } from "@/lib/desktopIpcContract.gen"
 
 export type UpdateInfo = {
   available: boolean
@@ -212,9 +213,17 @@ export const recordDesktopStartupEvent = async (name: string, details?: Record<s
   }
 }
 
-export const invokeDesktop = async <T = unknown>(
-  command: string,
-  args?: Record<string, unknown>,
+/**
+ * Arguments for `command`: checked against the generated IPC contract (ADR-019) when the
+ * command is a literal and `T` is inferred; a non-literal name keeps the loose shape.
+ */
+export type DesktopInvokeArgs<C extends string> = C extends DesktopCommandName
+  ? DesktopCommandArgs[C]
+  : Record<string, unknown>
+
+export const invokeDesktop = async <T = unknown, C extends string = string>(
+  command: C,
+  args?: DesktopInvokeArgs<C>,
 ): Promise<T | null> => {
   if (typeof window === "undefined") return null
   const bridge = getDesktopBridge()

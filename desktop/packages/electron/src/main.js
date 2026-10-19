@@ -88,6 +88,7 @@ const { recoverFromMissingRuntime } = require("./runtime-missing-recovery")
 const { createRuntimeRestartRequestHandler } = require("./runtime-restart-request")
 const { createRendererCrashPolicy } = require("./renderer-crash-policy")
 const { createSettingsWriteHandler } = require("./settings-write-handler")
+const { indexContract, validateCommandArgs } = require("./ipc-args")
 const { loadUrlWithTimeout } = require("./load-url-timeout")
 const { shouldCheckForUpdatesOnStartup } = require("./startup-update-policy")
 const { sendUpdateProgressToWindows } = require("./update-progress")
@@ -1040,7 +1041,12 @@ const isLocalSender = (wc) => {
 }
 
 // Registration helper: rejects privileged IPC from any untrusted renderer.
+// ADR-019: commands that declare `params` in the contract are validated here
+// before their handler runs; undeclared commands pass through during migration.
+const desktopIpcContract = indexContract(require("./desktop-ipc-contract.json"))
+
 const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
+  const contractEntry = desktopIpcContract.get(name)
   ipcMain.handle(name, async (event, args) => {
     if (!isLocalSender(event.sender) && !safeForRemote) {
       throw new Error("IPC not available for this origin")
@@ -1051,6 +1057,8 @@ const handleCommand = (name, fn, { safeForRemote = false } = {}) => {
     if (!safeForRemote && event.senderFrame && event.senderFrame !== event.sender.mainFrame) {
       throw new Error("IPC is only available to the window's main frame")
     }
+    const validation = validateCommandArgs(contractEntry, args)
+    if (!validation.ok) throw new Error(`Invalid arguments for ${name}: ${validation.error}`)
     return fn(args || {}, event)
   })
 }

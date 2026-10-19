@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 import { readdirSync, readFileSync } from "node:fs"
+import { createRequire } from "node:module"
 import path from "node:path"
+import { generatedTypesPath, renderDesktopIpcTypes } from "./generate-desktop-ipc-types.mjs"
+
+const { assertValidParamsDeclaration } = createRequire(import.meta.url)("../packages/electron/src/ipc-args.js")
 
 const desktopRoot = path.resolve(import.meta.dirname, "..")
 const uiRoot = path.join(desktopRoot, "packages", "ui", "src")
@@ -192,7 +196,7 @@ function collectHandlerContracts() {
 function loadManifest() {
   const parsed = JSON.parse(readFileSync(contractFile, "utf8"))
   const failures = []
-  if (parsed?.version !== 1) failures.push("version must be 1")
+  if (parsed?.version !== 2) failures.push("version must be 2")
   if (!Array.isArray(parsed?.commands)) failures.push("commands must be an array")
 
   const commands = new Map()
@@ -214,7 +218,21 @@ function loadManifest() {
     if (commands.has(entry.command)) {
       failures.push(`${prefix}.command duplicates ${entry.command}`)
     }
+    try {
+      assertValidParamsDeclaration(entry)
+    } catch (error) {
+      failures.push(`${prefix}.params: ${error.message}`)
+    }
     commands.set(entry.command, entry)
+  }
+
+  // ADR-019: the renderer's argument types are generated from this manifest.
+  let committedTypes = ""
+  try {
+    committedTypes = readFileSync(generatedTypesPath, "utf8")
+  } catch {}
+  if (committedTypes !== renderDesktopIpcTypes(parsed)) {
+    failures.push(`${toRelative(generatedTypesPath)} is stale; run node desktop/scripts/generate-desktop-ipc-types.mjs`)
   }
 
   return { commands, failures }
@@ -307,6 +325,7 @@ if (
   process.exit(1)
 }
 
+const untyped = [...manifest.values()].filter((entry) => entry.args === "object" && !entry.params).length
 console.log(
-  `Desktop IPC contract check passed (${invokes.size} invoked command(s), ${handlers.size} handler(s), ${manifest.size} manifest command(s)).`,
+  `Desktop IPC contract check passed (${invokes.size} invoked command(s), ${handlers.size} handler(s), ${manifest.size} manifest command(s), ${untyped} without params).`,
 )

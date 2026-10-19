@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "commands": [
     { "command": "desktop_get_launch_at_login", "safeForRemote": false, "args": "object" },
     { "command": "desktop_set_launch_at_login", "safeForRemote": false, "args": "object" },
@@ -8,13 +8,13 @@
     { "command": "desktop_quit_and_install", "safeForRemote": false, "args": "object" },
     { "command": "desktop_restart", "safeForRemote": false, "args": "object" },
     { "command": "desktop_tray_update", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_set_badge_count", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_set_badge_count", "safeForRemote": false, "args": "object", "params": { "count": { "type": "number", "optional": true, "nullable": true } } },
     { "command": "desktop_dialog_open", "safeForRemote": false, "args": "object" },
     { "command": "desktop_record_startup_event", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_open_path", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_reveal_path", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_open_path", "safeForRemote": false, "args": "object", "params": { "path": { "type": "string" }, "app": { "type": "string", "optional": true, "nullable": true } } },
+    { "command": "desktop_reveal_path", "safeForRemote": false, "args": "object", "params": { "path": { "type": "string" } } },
     { "command": "desktop_open_wiki_viewer", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_open_external_url", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_open_external_url", "safeForRemote": false, "args": "object", "params": { "url": { "type": "string" } } },
     { "command": "desktop_open_in_app", "safeForRemote": false, "args": "object" },
     { "command": "desktop_open_file_in_app", "safeForRemote": false, "args": "object" },
     { "command": "desktop_get_installed_apps", "safeForRemote": false, "args": "object" },
@@ -34,7 +34,7 @@
     { "command": "desktop_set_window_theme", "safeForRemote": true, "args": "object" },
     { "command": "desktop_set_vibrancy", "safeForRemote": false, "args": "object" },
     { "command": "desktop_new_window", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_new_window_at_url", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_new_window_at_url", "safeForRemote": false, "args": "object", "params": { "url": { "type": "string" } } },
     { "command": "desktop_ssh_instances_get", "safeForRemote": false, "args": "object" },
     { "command": "desktop_ssh_instances_set", "safeForRemote": false, "args": "object" },
     { "command": "desktop_ssh_import_hosts", "safeForRemote": false, "args": "object" },
@@ -43,11 +43,11 @@
     { "command": "desktop_ssh_status", "safeForRemote": false, "args": "object" },
     { "command": "desktop_ssh_logs", "safeForRemote": false, "args": "object" },
     { "command": "desktop_ssh_logs_clear", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_open_session_mini_chat_window", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_open_draft_mini_chat_window", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_open_session_mini_chat_window", "safeForRemote": false, "args": "object", "params": { "sessionId": { "type": "string" }, "directory": { "type": "string", "optional": true, "nullable": true } } },
+    { "command": "desktop_open_draft_mini_chat_window", "safeForRemote": false, "args": "object", "params": { "directory": { "type": "string", "optional": true, "nullable": true }, "projectId": { "type": "string", "optional": true, "nullable": true }, "pinned": { "type": "boolean", "optional": true } } },
     { "command": "desktop_set_window_pinned", "safeForRemote": false, "args": "object" },
     { "command": "desktop_get_window_pinned", "safeForRemote": false, "args": "object" },
-    { "command": "desktop_focus_main_window", "safeForRemote": false, "args": "object" },
+    { "command": "desktop_focus_main_window", "safeForRemote": false, "args": "object", "params": { "sessionId": { "type": "string", "optional": true, "nullable": true }, "directory": { "type": "string", "optional": true, "nullable": true }, "mode": { "type": "string", "optional": true, "nullable": true }, "projectId": { "type": "string", "optional": true, "nullable": true } } },
     { "command": "desktop_close_current_window", "safeForRemote": true, "args": "object" },
     { "command": "desktop_minimize_current_window", "safeForRemote": true, "args": "object" },
     { "command": "desktop_toggle_current_window_maximized", "safeForRemote": true, "args": "object" },
@@ -56,7 +56,7 @@
     { "command": "desktop_is_window_fullscreen", "safeForRemote": true, "args": "object" },
     { "command": "desktop_set_window_title", "safeForRemote": true, "args": "object" },
     { "command": "desktop_get_app_version", "safeForRemote": true, "args": "object" },
-    {"command": "desktop_language_get", "safeForRemote": false, "args": "none"},
-    {"command": "desktop_language_set", "safeForRemote": false, "args": "object"}
+    { "command": "desktop_language_get", "safeForRemote": false, "args": "none" },
+    { "command": "desktop_language_set", "safeForRemote": false, "args": "object" }
   ]
 }

@@ -1,7 +1,5 @@
-import { isDesktopShell } from "@/lib/desktop"
+import { isDesktopShell, type DesktopInvokeArgs } from "@/lib/desktop"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
-
-type InvokeArgs = Record<string, unknown>
 
 const getInvoke = () => {
   if (typeof window === "undefined") {
@@ -11,7 +9,10 @@ const getInvoke = () => {
   return typeof tauri?.core?.invoke === "function" ? tauri.core.invoke : null
 }
 
-export const invokeDesktopCommand = async <TValue = unknown>(command: string, args?: InvokeArgs): Promise<TValue> => {
+export const invokeDesktopCommand = async <TValue = unknown, C extends string = string>(
+  command: C,
+  args?: DesktopInvokeArgs<C>,
+): Promise<TValue> => {
   const invoke = getInvoke()
   if (!invoke) {
     throw new Error("Desktop runtime is not available")
