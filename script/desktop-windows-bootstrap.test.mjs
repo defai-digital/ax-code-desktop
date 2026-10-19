@@ -53,7 +53,11 @@ function Get-AuthenticodeSignature {
   return @{ Status = 'Valid'; SignerCertificate = @{ Thumbprint = 'FC40F1109912C025E751E804AA9BD1538A2D12EF' } }
 }
 function Get-Process { param([string]$Name, [string]$ErrorAction) }
-function Start-Process { param([string]$FilePath, [switch]$Wait, [switch]$PassThru); [IO.File]::WriteAllText(${quote(installed)}, $FilePath); return @{ ExitCode = 0 } }
+function Start-Process {
+  param([string]$FilePath, [switch]$PassThru)
+  [IO.File]::WriteAllText(${quote(installed)}, $FilePath)
+  return [pscustomobject]@{ ExitCode = 0; Handle = 1 } | Add-Member -MemberType ScriptMethod -Name WaitForExit -Value {} -PassThru
+}
 `
   // Native OS/API and signatures are mocked; parsing, hashing and validation run in real PowerShell.
   let source = original
@@ -82,6 +86,13 @@ function Start-Process { param([string]$FilePath, [switch]$Wait, [switch]$PassTh
 describe("Windows bootstrap output contract (source-level)", () => {
   it("suppresses the PowerShell 5.1 progress bar that freezes large downloads", () => {
     expect(original).toContain("$ProgressPreference = 'SilentlyContinue'")
+  })
+  it("stays ASCII so Windows PowerShell 5.1 decodes the irm | iex download unchanged", () => {
+    expect(original).toMatch(/^[\x00-\x7F]*$/)
+  })
+  it("waits for the installer process rather than its whole job, which includes the launched app", () => {
+    expect(original).not.toMatch(/Start-Process[^\n]*-Wait/)
+    expect(original).toContain("$Process.WaitForExit()")
   })
   it("prints progress while resolving, downloading, and opening the installer", () => {
     expect(original).toContain("resolving the latest signed release")

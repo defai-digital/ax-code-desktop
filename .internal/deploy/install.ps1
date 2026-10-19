@@ -28,7 +28,8 @@ try {
 } finally {
     [Runtime.InteropServices.Marshal]::FreeHGlobal($SystemInfo)
 }
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+# Add TLS 1.2 without removing protocols (such as TLS 1.3) the system already enables.
+[Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
 $Temporary = Join-Path ([IO.Path]::GetTempPath()) ('ax-code-desktop-install-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $Temporary | Out-Null
 function Download([string]$Url, [string]$Destination) {
@@ -93,8 +94,14 @@ try {
     if ($Signature.Status -ne 'Valid' -or $null -eq $Signature.SignerCertificate -or
         $Signature.SignerCertificate.Thumbprint -ne 'FC40F1109912C025E751E804AA9BD1538A2D12EF') { throw 'Unexpected Windows Authenticode signature' }
     if (Get-Process -Name 'AX Code' -ErrorAction SilentlyContinue) { throw 'Close AX Code before installing' }
-    Write-Output 'AX Code Desktop: opening the installer — complete the installer window to finish.'
-    $Process = Start-Process -FilePath $Installer -Wait -PassThru
+    Write-Output 'AX Code Desktop: opening the installer - complete the installer window to finish.'
+    # With -Wait, Windows PowerShell 5.1 Start-Process waits for every process in the
+    # installer's job, including AX Code when the finish page launches it, so the
+    # console would hang until the app closes. Wait for the installer itself only.
+    $Process = Start-Process -FilePath $Installer -PassThru
+    # Read the handle before exit so Windows PowerShell keeps the exit code.
+    $null = $Process.Handle
+    $Process.WaitForExit()
     if ($Process.ExitCode -notin @(0, 3010)) { throw "NSIS installation failed: $($Process.ExitCode)" }
     Write-Output "Installed AX Code Desktop $Version. User data and credentials were preserved."
 } finally {
