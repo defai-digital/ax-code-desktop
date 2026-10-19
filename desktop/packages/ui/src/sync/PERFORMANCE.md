@@ -42,6 +42,16 @@ each of `all`, `ws`, `sse`, and `mixed`. Counters accumulate since reset; neares
 describe the retained recent samples. `mixed` means the same queue received both WS and SSE events
 before flushing. Reset clears completed measurements; already queued events can enter the next sample.
 
+Queue pressure uses a lossless cooperative drain. When pending events for a directory reach the
+512-event soft high-water mark, `enqueueEvent` runs one bounded flush slice (at most 128 events or
+8 ms, always dispatching at least one event) instead of draining the whole backlog in a single
+synchronous block. A slice cut short reschedules itself with `setTimeout(0)`, so the backlog drains
+across task boundaries and no event is dropped or reordered. A 2048-event hard cap keeps a full
+synchronous drain as the last-resort memory bound; it is only reachable when re-entrant enqueues
+or an overlong callback defeat the slice drain. `flushAll()` on connect and `cleanup()` remain
+fully synchronous. The SDK SSE adapter already yields about every 8 ms, so the soft mark is mostly
+reached by synchronous bursts such as a reconnect replay; the change bounds what one callback can do.
+
 The sample unit is one directory flush batch, not an event. `receivedEvents` counts accepted events
 before coalescing; `dispatchedEvents` counts events offered to callbacks after coalescing, including
 events in a delta batch and failed callbacks. `failedCallbacks` counts callback invocations that threw.

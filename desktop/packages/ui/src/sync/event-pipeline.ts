@@ -28,6 +28,7 @@ import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } f
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
 import { SYNC_RETRY_NOW_EVENT as TRANSPORT_SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/visibility"
 const MAX_QUEUED_EVENTS = 512
+const MAX_QUEUED_EVENTS_HARD = MAX_QUEUED_EVENTS * 4
 const MAX_EVENTS_PER_SLICE = 128
 const FLUSH_BUDGET_MS = 8
 const MAX_COALESCED_DELTA_CHARACTERS = 64 * 1024
@@ -612,12 +613,27 @@ export function createEventPipeline(input: EventPipelineInput): EventPipeline {
 
     const d = getOrCreateDir(routedDirectory)
     // Lossless pressure relief: bound the number of retained events even when
-    // a buffered SSE replay drains before browser timers can run. Unlike normal
-    // scheduled slices, a high-water drain must finish before accepting more.
-    if (d.queue.length + d.buffer.length - d.cursor >= MAX_QUEUED_EVENTS) {
+    // a buffered SSE replay drains before browser timers can run. At the soft
+    // high-water mark (512) run one bounded cooperative slice instead of a
+    // full synchronous drain: the slice always dispatches at least one event
+    // before checking its budget, so pending cannot grow while arrivals are
+    // one event per callback, and no single callback does more than one
+    // slice. A slice cut short leaves a scheduled follow-up via flushDir's
+    // finally block. If flushDir returns early because a flush is already
+    // in progress (re-entrant enqueue), do not recurse: the active flush
+    // will rotate this event from the queue, or its finally block will
+    // schedule the follow-up slice.
+    // The hard cap (2048) keeps the old full synchronous drain as the
+    // last-resort memory bound. It is only reachable when re-entrant
+    // enqueues or an overlong callback defeat the slice drain.
+    const pending = d.queue.length + d.buffer.length - d.cursor
+    if (pending >= MAX_QUEUED_EVENTS_HARD) {
       flushDir(routedDirectory, true)
       // A dispatched callback can close the pipeline during pressure relief.
       // Do not accept the in-flight frame or schedule work after that cleanup.
+      if (closed) return
+    } else if (pending >= MAX_QUEUED_EVENTS) {
+      flushDir(routedDirectory)
       if (closed) return
     }
     // Deletion/archive is a barrier even when the same identifier is recreated

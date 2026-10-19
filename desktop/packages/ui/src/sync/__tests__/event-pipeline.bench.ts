@@ -367,6 +367,77 @@ const scenarios: Scenario[] = [
 ]
 
 // ---------------------------------------------------------------------------
+// High-water block case: maximum single synchronous block per enqueue
+// ---------------------------------------------------------------------------
+
+/**
+ * 2,000 distinct non-coalescing events with a ~0.2 ms handler, replayed through the SDK SSE adapter.
+ * Reports the largest synchronous dispatch block per task. The adapter yields about every 8 ms, so this
+ * path normally never reaches the 512-event soft high-water mark: the figure describes the steady-state
+ * block size, not a before/after of the high-water change. The per-callback bound at the mark is asserted
+ * by event-pipeline-cooperative-drain.test.ts, which feeds a synchronous burst.
+ */
+async function runHighWaterBlockScenario(): Promise<void> {
+  const events = Array.from({ length: 2000 }, (_, i) => ({
+    directory: "/project",
+    payload: {
+      type: "permission.replied",
+      properties: { sessionID: "s", requestID: String(i), reply: "once" },
+    },
+  })) as unknown as SyntheticEvent[]
+  let release: () => void = () => {}
+  const hold = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  let delivered = 0
+  let currentBlock = 0
+  let blockStartedAt = 0
+  let checkpointScheduled = false
+  let maxBlockEvents = 0
+  let maxBlockMs = 0
+  const sdk = createReplaySdk(events, hold)
+  const { cleanup } = createEventPipeline({
+    sdk,
+    onEvent: () => {
+      if (currentBlock === 0) blockStartedAt = performance.now()
+      currentBlock++
+      delivered++
+      // ~0.2 ms of synchronous handler work per event.
+      const until = performance.now() + 0.2
+      while (performance.now() < until) {
+        // busy wait
+      }
+      if (!checkpointScheduled) {
+        checkpointScheduled = true
+        queueMicrotask(() => {
+          if (currentBlock > maxBlockEvents) maxBlockEvents = currentBlock
+          const blockMs = performance.now() - blockStartedAt
+          if (blockMs > maxBlockMs) maxBlockMs = blockMs
+          currentBlock = 0
+          checkpointScheduled = false
+        })
+      }
+    },
+  })
+  const deadline = Date.now() + 30_000
+  while (delivered < 2000 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 10))
+  }
+  cleanup()
+  release()
+  console.log(
+    JSON.stringify({
+      case: "high-water-block",
+      events: 2000,
+      handlerMs: 0.2,
+      delivered,
+      maxBlockEventsNew: maxBlockEvents,
+      maxBlockMsNew: Number(maxBlockMs.toFixed(2)),
+    }),
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -383,6 +454,7 @@ async function main(): Promise<void> {
     results.push(r)
     console.log(formatRow(r))
   }
+  await runHighWaterBlockScenario()
 
   console.log("\nLegend:")
   console.log("  in       — total events fed into the pipeline")
