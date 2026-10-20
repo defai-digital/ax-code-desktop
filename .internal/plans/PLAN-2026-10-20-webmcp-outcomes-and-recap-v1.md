@@ -145,3 +145,9 @@ rule edit/restoration checks and the clipped custom-pattern/action row at narrow
 [Plan](PLAN-2026-10-20-global-permission-patterns.md) and
 [report](../reports/CONFIG-EDITORS-2026-10-20-global-permission-patterns.md) record hidden Default patterns and payload
 loss on unrelated edits, repaired visibility/serialization, JSON key preservation, full UI tests and native edit/reset proof.
+
+### Permission pattern capabilities
+
+[Plan](PLAN-2026-10-20-permission-pattern-capabilities.md) and
+[report](../reports/CONFIG-EDITORS-2026-10-20-permission-pattern-capabilities.md) record the action-only SDK fields
+incorrectly offered for custom patterns, the typed capability filter, and mounted/native regression evidence.

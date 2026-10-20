@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { Icon } from "@/components/icon/Icon"
 import { normalizePermissionToolIds } from "./permissionToolIds"
+import { supportsPermissionPatterns } from "./permissionPatternCapabilities"
 import {
   buildPermissionRuleKey,
   isPermissionAction,
@@ -381,7 +382,7 @@ export const AgentsPage: React.FC = () => {
     for (const key of knownPermissionNames) {
       names.add(key)
     }
-    return Array.from(names).sort((a, b) => a.localeCompare(b))
+    return Array.from(names).filter(supportsPermissionPatterns).sort((a, b) => a.localeCompare(b))
   }, [knownPermissionNames])
 
   const upsertRule = React.useCallback((permissionName: string, pattern: string, action: PermissionAction) => {

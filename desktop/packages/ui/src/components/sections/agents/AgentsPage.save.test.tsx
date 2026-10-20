@@ -187,3 +187,13 @@ test("retains named-tool patterns alongside wildcard patterns in the JSON payloa
   expect(JSON.parse(JSON.stringify(fixtures.save.mock.calls[0][0])).permission).toEqual(permission)
   await act(async () => resolveSave(true))
 })
+
+test("custom pattern choices exclude action-only permissions but retain pattern-capable tools", async () => {
+  const button = (label: string) => Array.from(container.querySelectorAll("button")).find((item) => item.textContent === label)!
+  await act(async () => button("settings.agents.page.permissions.advancedEditor").click())
+  await act(async () => button("settings.agents.page.permissions.permissionPlaceholder").click())
+  const options = Array.from(document.querySelectorAll('[role="option"]')).map((item) => item.textContent)
+  expect(options).toContain("Bash")
+  expect(options).toContain("settings.agents.page.permissions.defaultLabel")
+  expect(options).not.toContain("WebFetch")
+})
