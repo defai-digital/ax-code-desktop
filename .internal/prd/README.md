@@ -4,6 +4,11 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 
 ## Active and deferred requirements
 
+Scheduling addendum proposal: [Scheduled outcomes v1](PRD-2026-10-20-scheduled-outcomes-v1.md), with
+[a focused review](../reports/SCHEDULED-TASKS-2026-10-20-review.md) and
+[implementation plan](../plans/PLAN-2026-10-20-scheduled-outcomes-v1.md). This adds recurring outcomes to the WebMCP/recap
+proposal; no new scheduler or automatic recurring spend is authorized.
+
 Product-direction proposal: [WebMCP outcomes and project recap v1](PRD-2026-10-20-webmcp-outcomes-and-recap-v1.md), with
 [a phased plan](../plans/PLAN-2026-10-20-webmcp-outcomes-and-recap-v1.md). New recap/workflow requirements are proposed;
 the earlier authorized Settings/WebMCP repair slice remains in progress. Accepted records below are not superseded.
