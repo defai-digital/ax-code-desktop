@@ -25,6 +25,11 @@ const task = (overrides: Partial<ScheduledTask> & { id: string }): ScheduledTask
   ...overrides,
 })
 
+it("preserves unavailable history even before a task has a last-run timestamp", () => {
+  const [family] = groupScheduledTaskFamilies([task({ id: "unknown", lastRunStatus: "unknown" })])
+  expect(family.lastRunStatus).toBe("unknown")
+})
+
 const part = (index: number, total: number, overrides: Partial<ScheduledTask> = {}): ScheduledTask =>
   task({
     id: `st_${index}`,

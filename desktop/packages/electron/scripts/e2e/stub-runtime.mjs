@@ -81,6 +81,7 @@ try {
 const pending = scenario && scenario.approveRequest ? [scenario.approveRequest] : [];
 let currentGoal = null;
 let foreignGoalEmitted = false;
+let scheduledFixture = [];
 const eventClients = new Set();
 const sendEvent = (res, directory, payload) => {
   try {
@@ -127,6 +128,25 @@ const server = http.createServer((req, res) => {
   }
   if (scenario) {
     const directory = scenario.projectDirectory;
+    if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'POST') {
+      readBody(req, (body) => {
+        scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];
+        json(res, { count: scheduledFixture.length });
+      });
+      return;
+    }
+    if (pathname === '/scheduled-task' && req.method === 'GET') {
+      const scope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+      json(res, scope === directory ? scheduledFixture.map(entry => entry.task) : []);
+      return;
+    }
+    const historyMatch = pathname.match(/^\\/scheduled-task\\/([^/]+)\\/runs$/);
+    if (historyMatch && req.method === 'GET') {
+      const scope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+      const entry = scope === directory ? scheduledFixture.find(entry => entry.task.id === historyMatch[1]) : null;
+      json(res, entry ? entry.history : []);
+      return;
+    }
     if (pathname === STEP_ROUTE && req.method === 'POST') {
       readBody(req, (body) => {
         const step = typeof body.step === 'string' ? body.step : '';

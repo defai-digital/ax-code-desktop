@@ -218,6 +218,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     const busy = actions.busyKeys.has(entry.key)
     const running = family.lastRunStatus === "running"
     const failing = family.lastRunStatus === "error"
+    const unknown = family.lastRunStatus === "unknown"
     const paused = !family.anyActive
     const statusText = running
       ? t("sessions.sidebar.scheduled.status.running")
@@ -288,7 +289,11 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                 <span aria-hidden="true">·</span>
               </>
             ) : null}
-            {failing && !running ? (
+            {unknown ? (
+              <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                {t("sessions.sidebar.scheduled.history.loadFailed")}
+              </span>
+            ) : failing && !running ? (
               <span className="truncate text-status-error">{t("sessions.sidebar.scheduled.status.failed")}</span>
             ) : (
               <span className="truncate">{schedule}</span>

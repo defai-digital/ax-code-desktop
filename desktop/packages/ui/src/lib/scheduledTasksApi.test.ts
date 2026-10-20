@@ -78,8 +78,60 @@ describe("scheduledTasksApi", () => {
     scheduledTask.listRuns.mockRejectedValue(new Error("boom"))
 
     const tasks = await fetchScheduledTasks("/work/alpha")
-    expect(tasks[0].lastRunStatus).toBe("success")
+    expect(tasks[0].lastRunStatus).toBe("unknown")
     expect(tasks[0].lastRunAt).toBe(42)
+  })
+
+  test.each([
+    { error: { message: "history unavailable" } },
+    { data: [] },
+    { data: {} },
+    { data: [{ status: "unrecognized", time: { created: 5 } }] },
+  ])("never infers success from a timestamp when history is unusable: %j", async (response) => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42 })] })
+    scheduledTask.listRuns.mockResolvedValue(response)
+    expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("unknown")
+  })
+
+  test("confirmed new outcomes replace stale task errors", async () => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42, error: "old failure" })] })
+    scheduledTask.listRuns.mockResolvedValue({
+      data: [{ status: "completed", time: { created: 42 } }],
+    })
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task.lastRunStatus).toBe("success")
+    expect(task.lastError).toBeUndefined()
+  })
+
+  test("concurrent project loads keep same task IDs and out-of-order histories isolated", async () => {
+    const directories = ["/work/alpha", "/work/beta", "/work/gamma"]
+    const pending = new Map<string, (value: unknown) => void>()
+    const clients = new Map(
+      directories.map((directory) => [
+        directory,
+        {
+          scheduledTask: {
+            list: vi.fn(async () => ({ data: [runtimeTask({ directory, lastRunAt: 42 })] })),
+            listRuns: vi.fn(() => new Promise((resolve) => pending.set(directory, resolve))),
+          },
+        },
+      ]),
+    )
+    getScopedApiClient.mockImplementation((directory: string) => clients.get(directory))
+    const loads = directories.map((directory) => fetchScheduledTasks(directory))
+    await vi.waitFor(() => expect(pending.size).toBe(3))
+    pending.get("/work/gamma")!({ error: { message: "offline" } })
+    pending.get("/work/beta")!({ data: [{ status: "failed", error: "beta failure", time: { created: 42 } }] })
+    pending.get("/work/alpha")!({ data: [{ status: "running", time: { created: 42 } }] })
+    const results = await Promise.all(loads)
+    expect(results.map(([task]) => [task.directory, task.id, task.lastRunStatus, task.lastError])).toEqual([
+      ["/work/alpha", "st_1", "running", undefined],
+      ["/work/beta", "st_1", "error", "beta failure"],
+      ["/work/gamma", "st_1", "unknown", undefined],
+    ])
+    for (const client of clients.values()) {
+      expect(client.scheduledTask.listRuns).toHaveBeenCalledWith({ scheduledTaskID: "st_1", limit: 1 })
+    }
   })
 
   test("fetchScheduledTasks throws a readable error on list failure", async () => {

@@ -122,6 +122,8 @@ const aggregateLastRun = (
   members: readonly ScheduledTask[],
 ): { lastRunStatus: ScheduledTaskRunDisplayStatus; lastError?: string } => {
   if (members.some((member) => member.lastRunStatus === "running")) return { lastRunStatus: "running" }
+  // A missing member history cannot prove the outcome of the whole family.
+  if (members.some((member) => member.lastRunStatus === "unknown")) return { lastRunStatus: "unknown" }
   const latest = [...members]
     .filter((member) => typeof member.lastRunAt === "number")
     .sort((a, b) => (b.lastRunAt ?? 0) - (a.lastRunAt ?? 0))[0]

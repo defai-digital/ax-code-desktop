@@ -5,12 +5,14 @@ import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
-const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(() => ({
-  fetchScheduledTasks: vi.fn(),
-  createScheduledTasks: vi.fn(),
-  setScheduledTasksEnabled: vi.fn(),
-  deleteScheduledTasks: vi.fn(),
-}))
+const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(
+  () => ({
+    fetchScheduledTasks: vi.fn(),
+    createScheduledTasks: vi.fn(),
+    setScheduledTasksEnabled: vi.fn(),
+    deleteScheduledTasks: vi.fn(),
+  }),
+)
 
 vi.mock("@/lib/scheduledTasksApi", () => ({
   fetchScheduledTasks,
@@ -165,6 +167,25 @@ describe("SidebarScheduledTasks", () => {
     expect(editorProps.current?.projectLabel).toBe("Beta")
   })
 
+  test("an unavailable history stays visible without corrupting another project's running row", async () => {
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({
+        id: "same-id",
+        directory,
+        title: "Nightly",
+        lastRunStatus: directory === "/work/alpha" ? "running" : "unknown",
+      }),
+    ])
+    await render()
+    const rows = Array.from(container.querySelectorAll("[data-scheduled-task-row]"))
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain("Alpha")
+    expect(rows[0].textContent).toContain("Running")
+    expect(rows[0].textContent).not.toContain("Couldn't load the run history")
+    expect(rows[1].textContent).toContain("Beta")
+    expect(rows[1].textContent).toContain("Couldn't load the run history")
+  })
+
   test("hides the list during a session search", async () => {
     fetchScheduledTasks.mockImplementation(async (directory: string) => [
       task({ id: `${directory}-t`, directory, title: "Task" }),
@@ -316,4 +337,3 @@ describe("SidebarScheduledTasks", () => {
     expect(rowTitles()).toEqual(["Kept", "Kept"])
   })
 })
-

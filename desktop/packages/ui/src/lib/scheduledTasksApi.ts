@@ -13,7 +13,7 @@ import type {
 // `directory` = the project path). The retired desktop endpoints under
 // `/api/projects/:projectId/scheduled-tasks` are gone.
 
-export type ScheduledTaskRunDisplayStatus = "idle" | "running" | "success" | "error"
+export type ScheduledTaskRunDisplayStatus = "idle" | "running" | "success" | "error" | "unknown"
 
 export type ScheduledTask = {
   id: string
@@ -137,7 +137,7 @@ const toScheduledTask = (info: RuntimeTaskInfo): ScheduledTask => ({
   catchUpPolicy: info.catchUpPolicy === "skip" ? "skip" : "run_once",
   ...(typeof info.nextRunAt === "number" ? { nextRunAt: info.nextRunAt } : {}),
   ...(typeof info.lastRunAt === "number" ? { lastRunAt: info.lastRunAt } : {}),
-  lastRunStatus: info.error ? "error" : info.lastRunAt ? "success" : "idle",
+  lastRunStatus: typeof info.lastRunAt === "number" ? "unknown" : info.error ? "error" : "idle",
   ...(info.error ? { lastError: info.error } : {}),
   time: info.time,
 })
@@ -168,19 +168,22 @@ const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, fn: (it
 }
 
 const withLatestRun = async (directory: string, task: ScheduledTask): Promise<ScheduledTask> => {
+  const unavailable = (): ScheduledTask => ({ ...task, lastRunStatus: "unknown", lastError: undefined })
   try {
     const response = await clientFor(directory).scheduledTask.listRuns({ scheduledTaskID: task.id, limit: 1 })
-    const runs = Array.isArray(response.data) ? (response.data as RuntimeRunInfo[]) : []
+    if (response.error || !Array.isArray(response.data)) return unavailable()
+    const runs = response.data as RuntimeRunInfo[]
     const latest = runs[0]
-    if (!latest) return task
+    if (!latest) return task.lastRunStatus === "idle" ? task : unavailable()
+    if (!isRunStatus(latest.status)) return unavailable()
     return {
       ...task,
       lastRunStatus: runDisplayStatus(latest),
-      ...(latest.error ? { lastError: latest.error } : {}),
+      lastError: latest.error || undefined,
     }
   } catch {
     // Run history is display-only; keep the list row usable without it.
-    return task
+    return unavailable()
   }
 }
 
