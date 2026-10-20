@@ -201,3 +201,11 @@ paths, whitespace and label/path collisions, exact compact attention destination
 Tab navigation and explicit Tab capture, composition events, global binding containment, and native save/reload/reset.
 The refreshed full Settings audit is supplemented with delivered key events instead of treating field focus as proof
 of keyboard behavior.
+
+### MCP inventory and save completion isolation
+
+[Plan](PLAN-2026-10-20-mcp-save-isolation.md) and
+[report](../reports/SETTINGS-2026-10-20-mcp-save-isolation.md) cover delayed cross-project save completions, draft and
+busy-state ownership, immediate clean baselines and a native two-stage directory/inventory race. Two native passes
+use intercepted HTTP configuration fixtures; no real MCP process, OAuth or configuration writer is qualified.
+Remaining create-edit and concurrent-auth leads are explicitly unconfirmed, and the broader audit stays active.

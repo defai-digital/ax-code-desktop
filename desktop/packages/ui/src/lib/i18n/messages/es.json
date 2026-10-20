@@ -1296,6 +1296,8 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "Intento de conexi\u00f3n terminado. Actualiza el estado para ver detalles.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Crea el servidor antes de ejecutar acciones en vivo",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Guarda los cambios antes de ejecutar acciones en vivo",
+  "settings.mcp.page.inventory.unavailable": "No se pudieron cargar los ajustes de MCP de este proyecto.",
+  "settings.mcp.page.inventory.retry": "Reintentar",
   "settings.mcp.page.toast.refreshStatusFailed": "No se pudo actualizar el estado de MCP",
   "settings.mcp.page.toast.oauthRedirectUrlBuildFailed": "No se pudo construir la URL de redirecci\u00f3n OAuth de MCP",
   "settings.mcp.page.toast.oauthBrowserCallbackSaveFailed": "No se pudo guardar la URL de retorno del navegador para la autorizaci\u00f3n MCP",

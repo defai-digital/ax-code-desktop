@@ -97,6 +97,7 @@ let mcpLoadSequence = 0
 
 interface McpConfigStore {
   mcpServers: McpServerWithScope[]
+  loadedDirectory: string | null | undefined
   selectedMcpName: string | null
   isLoading: boolean
   mcpDraft: McpDraft | null
@@ -121,6 +122,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
     persist(
       (set, get) => ({
         mcpServers: [],
+        loadedDirectory: undefined,
         selectedMcpName: null,
         isLoading: false,
         mcpDraft: null,
@@ -141,7 +143,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             // so an older in-flight load for another directory cannot write its
             // result over this list when it settles.
             mcpLoadSequence += 1
-            set({ mcpServers: cachedConfigs, isLoading: false })
+            set({ mcpServers: cachedConfigs, loadedDirectory: configDirectory, isLoading: false })
             return true
           }
 
@@ -165,7 +167,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               }
               const data: McpServerWithScope[] = await response.json()
               if (!isCurrentLoad()) return true
-              set({ mcpServers: data, isLoading: false })
+              set({ mcpServers: data, loadedDirectory: configDirectory, isLoading: false })
               setConfigCacheEntry(mcpCacheByKey, cacheKey, data)
               mcpLastLoadedAt.set(cacheKey, Date.now())
               return true

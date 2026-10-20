@@ -119,6 +119,7 @@ describe("useMcpConfigStore", () => {
     expect(fetchCalls).toHaveLength(2)
     expect(fetchCalls[0]?.input).toBe("/api/config/mcp?directory=%2Fworkspace%2Fproject")
     expect(useMcpConfigStore.getState().mcpServers).toEqual([latestServer])
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/project")
     expect(useMcpConfigStore.getState().isLoading).toBe(false)
   })
 
@@ -158,6 +159,25 @@ describe("useMcpConfigStore", () => {
       "/api/config/mcp?directory=%2Fworkspace%2Fnew-project",
     ])
     expect(useMcpConfigStore.getState().mcpServers).toEqual([latestServer])
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/new-project")
     expect(useMcpConfigStore.getState().isLoading).toBe(false)
+  })
+
+  test("cache hits restore inventory provenance and pending loads retain the previous provenance", async () => {
+    queueFetchResponses([jsonResponse([])])
+    await useMcpConfigStore.getState().loadMcpConfigs()
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/project")
+    const pending = createDeferred<Response>()
+    queueFetchResponses([pending.promise])
+    activeProjectPath = "/workspace/other"
+    const load = useMcpConfigStore.getState().loadMcpConfigs()
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/project")
+    pending.resolve(jsonResponse([]))
+    await load
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/other")
+    activeProjectPath = "/workspace/project"
+    await useMcpConfigStore.getState().loadMcpConfigs()
+    expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/project")
+    expect(fetchCalls).toHaveLength(2)
   })
 })

@@ -108,6 +108,18 @@ validation, the journey brings its own window to the front and verifies `documen
 window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
 field's validation failed.
 
+For deferred MCP configuration saves across two projects:
+
+```sh
+node desktop/packages/electron/scripts/e2e/mcp-save-webmcp.mjs --artifacts /tmp/ax-mcp-save
+```
+
+This journey intercepts every MCP configuration HTTP method before opening the page, seeds disabled remote servers
+in memory, delays a save while native WebMCP selects another project, and verifies field/dirty-state readback after
+completion. It also checks successful unchanged saves, project return values and populated narrow light/dark views.
+The configuration writer receives no fixture mutation. This qualifies Desktop form handling, not actual disk writes,
+MCP execution, OAuth or durable runtime concurrency. Never disable interception while fixture writes remain pending.
+
 Snapshots include `documentFocused`; check it before qualifying focus/blur behavior and observe the actual result
 after the action. An inactive document can change activeElement without dispatching blur/focusout. Page.bringToFront
 alone may not activate a different Electron native window. The isolated comparison below uses the existing native

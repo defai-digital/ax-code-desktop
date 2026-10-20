@@ -1395,6 +1395,8 @@ export const settingsDict = {
   "settings.mcp.page.toast.connectionAttemptFinished": "Connection attempt finished. Refresh status for details.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Create the server before running live actions",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Save changes before running live actions",
+  "settings.mcp.page.inventory.unavailable": "Could not load MCP settings for this project.",
+  "settings.mcp.page.inventory.retry": "Retry",
   "settings.mcp.page.toast.refreshStatusFailed": "Failed to refresh MCP status",
   "settings.mcp.page.toast.oauthRedirectUrlBuildFailed": "Unable to build MCP OAuth redirect URL",
   "settings.mcp.page.toast.oauthBrowserCallbackSaveFailed":

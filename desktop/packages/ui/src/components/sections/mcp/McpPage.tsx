@@ -555,6 +555,7 @@ export const McpPage: React.FC = () => {
   const {
     selectedMcpName,
     mcpServers,
+    loadedDirectory,
     mcpDraft,
     isLoading,
     setMcpDraft,
@@ -563,10 +564,12 @@ export const McpPage: React.FC = () => {
     createMcp,
     updateMcp,
     deleteMcp,
+    loadMcpConfigs,
   } = useMcpConfigStore(
     useShallow((s) => ({
       selectedMcpName: s.selectedMcpName,
       mcpServers: s.mcpServers,
+      loadedDirectory: s.loadedDirectory,
       mcpDraft: s.mcpDraft,
       isLoading: s.isLoading,
       setMcpDraft: s.setMcpDraft,
@@ -575,6 +578,7 @@ export const McpPage: React.FC = () => {
       createMcp: s.createMcp,
       updateMcp: s.updateMcp,
       deleteMcp: s.deleteMcp,
+      loadMcpConfigs: s.loadMcpConfigs,
     })),
   )
 
@@ -596,10 +600,11 @@ export const McpPage: React.FC = () => {
   // save writes them into the new project).
   const selectedMcpLoadKey = `${selectedMcpNameKey}|${currentDirectory ?? ""}`
   const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey && !selectedServer)
+  const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
 
   // Same stale persisted selection as the other config pages.
   const hasStaleSelection = isStaleConfigSelection({
-    isLoading,
+    isLoading: isLoading || !inventoryMatchesDirectory,
     selectedName: selectedMcpName,
     selectedItem: selectedServer,
     draft: mcpDraft,
@@ -650,6 +655,14 @@ export const McpPage: React.FC = () => {
     [currentDirectory, selectedMcpNameKey],
   )
   const runtimeActionKeyRef = React.useRef(runtimeActionKey)
+  // Returning to the same server is a new form, even when its name and directory match.
+  // Inventory refreshes during create do not replace the draft's editing context.
+  const formGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    formGenerationRef.current += 1
+    setIsSaving(false)
+    return () => { formGenerationRef.current += 1 }
+  }, [currentDirectory, selectedMcpName, mcpDraft])
 
   const initialRef = React.useRef<{
     mcpType: "local" | "remote"
@@ -765,6 +778,7 @@ export const McpPage: React.FC = () => {
 
   // Populate form when selection changes
   React.useEffect(() => {
+    if (!inventoryMatchesDirectory) return
     if (isNewServer && mcpDraft) {
       loadedMcpNameRef.current = null
       setDraftName(mcpDraft.name)
@@ -864,9 +878,11 @@ export const McpPage: React.FC = () => {
       }
       loadedMcpNameRef.current = selectedMcpLoadKey
     }
-  }, [currentDirectory, isNewServer, mcpDraft, selectedMcpLoadKey, selectedMcpNameKey, selectedServer])
+  }, [currentDirectory, inventoryMatchesDirectory, isNewServer, mcpDraft, selectedMcpLoadKey, selectedMcpNameKey, selectedServer])
 
-  const isDirty = React.useMemo(() => {
+  // The baseline also advances after async save/auth completion without a field changing.
+  // Recompute on render so the resulting state update immediately reflects that baseline.
+  const isDirty = (() => {
     const init = initialRef.current
     if (!init) return false
     return (
@@ -883,22 +899,10 @@ export const McpPage: React.FC = () => {
       oauthRedirectUri !== init.oauthRedirectUri ||
       timeout !== init.timeout
     )
-  }, [
-    mcpType,
-    command,
-    url,
-    envEntries,
-    headerEntries,
-    oauthEnabled,
-    oauthClientId,
-    oauthClientSecret,
-    oauthScope,
-    oauthRedirectUri,
-    timeout,
-    enabled,
-  ])
+  })()
 
   const handleSave = async () => {
+    if (!inventoryMatchesDirectory) return
     const name = isNewServer ? draftName.trim() : selectedMcpNameKey
     if (!name) {
       toast.error(t("settings.mcp.page.toast.nameRequired"))
@@ -933,31 +937,34 @@ export const McpPage: React.FC = () => {
       timeout,
       enabled,
     }
+    const submittedGeneration = formGenerationRef.current
     setIsSaving(true)
     try {
       const result = isNewServer ? await createMcp(draft) : await updateMcp(name, draft)
       if (result.ok) {
         await clearPendingMcpAuthContext(authStateKey)
-        resetTransientAuthState()
-        if (isNewServer) {
-          setMcpDraft(null)
-          setSelectedMcp(name)
-        } else {
-          // The post-save list reload no longer re-populates the form (see the
-          // loaded-name guard above), so the dirty-check baseline must move here.
-          initialRef.current = {
-            mcpType,
-            command,
-            url,
-            envEntries,
-            headerEntries,
-            oauthEnabled,
-            oauthClientId,
-            oauthClientSecret,
-            oauthScope,
-            oauthRedirectUri,
-            timeout,
-            enabled,
+        if (formGenerationRef.current === submittedGeneration) {
+          resetTransientAuthState()
+          if (isNewServer) {
+            setMcpDraft(null)
+            setSelectedMcp(name)
+          } else {
+            // The post-save list reload no longer re-populates the form (see the
+            // loaded-name guard above), so the dirty-check baseline must move here.
+            initialRef.current = {
+              mcpType,
+              command,
+              url,
+              envEntries,
+              headerEntries,
+              oauthEnabled,
+              oauthClientId,
+              oauthClientSecret,
+              oauthScope,
+              oauthRedirectUri,
+              timeout,
+              enabled,
+            }
           }
         }
         await refreshStatus({ directory: currentDirectory, silent: true })
@@ -987,7 +994,7 @@ export const McpPage: React.FC = () => {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.unexpectedError"))
     } finally {
-      setIsSaving(false)
+      if (formGenerationRef.current === submittedGeneration) setIsSaving(false)
     }
   }
 
@@ -1417,6 +1424,19 @@ export const McpPage: React.FC = () => {
           <Icon name="plug" className="mx-auto mb-3 h-12 w-12 opacity-50" />
           <p className="typography-markdown">{t("settings.mcp.page.empty.selectServer")}</p>
           <p className="typography-meta mt-1 opacity-75">{t("settings.mcp.page.empty.addNewOne")}</p>
+        </div>
+      </div>
+    )
+  }
+
+  // A directory can change one render before its inventory begins loading. Never expose
+  // the previous project's editable values under the new project's controls.
+  if (!inventoryMatchesDirectory) {
+    return (
+      <div className="flex h-full items-center justify-center" role={isLoading ? "status" : "alert"} aria-busy={isLoading}>
+        <div className="text-center text-muted-foreground space-y-2">
+          <p>{t(isLoading ? "common.loading" : "settings.mcp.page.inventory.unavailable")}</p>
+          {!isLoading && <Button variant="outline" size="xs" onClick={() => void loadMcpConfigs({ force: true })}>{t("settings.mcp.page.inventory.retry")}</Button>}
         </div>
       </div>
     )

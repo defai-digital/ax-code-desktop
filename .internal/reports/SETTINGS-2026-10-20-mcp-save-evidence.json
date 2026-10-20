@@ -1,0 +1,181 @@
+{
+  "schema": "ax-code-desktop.mcp-save-isolation-evidence.v1",
+  "baseline": "303f0475",
+  "date": "2026-10-20",
+  "runs": [
+    {
+      "name": "negative4",
+      "artifacts": "/tmp/ax-mcp-save-native-negative4-20261020",
+      "nativeLogSha256": "1842bae40c7f9465e0ed2f128a35601f86380d3ddc80c1ef845bc7c26e3666b4",
+      "requestsSha256": "fcb5045f660c413f251b9d8823c362abf9389be7a69888141f88ded184d8a577",
+      "nativeActions": 11,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp/review",
+          "completed": false
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "failed: Beta form retained Alpha URL before completion",
+      "screenshotsInspected": false
+    },
+    {
+      "name": "fixed1",
+      "artifacts": "/tmp/ax-mcp-save-native-fixed1-20261020",
+      "nativeLogSha256": "3766743eae099696c006a471fff6da8a941d40c3aad39ae26df9e8d7f2e56985",
+      "requestsSha256": "1503a5d6751c64b9c2fb720a192fef66abc97f85efe8375940f843565bfeb502",
+      "nativeActions": 23,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "screenshotsInspected": true
+    },
+    {
+      "name": "fixed2",
+      "artifacts": "/tmp/ax-mcp-save-native-fixed2-20261020",
+      "nativeLogSha256": "3766743eae099696c006a471fff6da8a941d40c3aad39ae26df9e8d7f2e56985",
+      "requestsSha256": "ea4e398229f067cf93f6beefdca7f5fa8c08de723ccddf6916cf450a82ac8868",
+      "nativeActions": 23,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "screenshotsInspected": false
+    }
+  ],
+  "checks": {
+    "mountedAndStore": "15 passed",
+    "fullUi": "568 files, 3803 passed",
+    "build": "passed; includes UI typecheck",
+    "typecheck": "passed",
+    "focusedLint": "passed",
+    "boundariesAndReleaseIdentity": "passed",
+    "locales": "14 locales, 4939 keys, 64207 entries",
+    "settingsWebMcp": "15 pages, 616 control observations passed",
+    "ordinaryDesktopE2e": "10 checks passed"
+  },
+  "limits": [
+    "Configuration HTTP intercepted before opening MCP; no real config writer or MCP process exercised",
+    "No live OAuth exchange, real provider, runtime restart or persisted disk write qualified",
+    "Physical mobile and assistive technology not qualified",
+    "Intermediate full UI re-run had two timeout failures and one ensuing hook setup failure; focused recheck and final full run passed without timeout or test changes",
+    "Reviewer hypotheses about edits during create and concurrent OAuth remain separate unconfirmed leads"
+  ]
+}

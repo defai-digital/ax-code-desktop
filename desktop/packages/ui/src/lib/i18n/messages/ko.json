@@ -1296,6 +1296,8 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "\uc5f0\uacb0 \uc2dc\ub3c4\uac00 \ub05d\ub0ac\uc2b5\ub2c8\ub2e4. \uc790\uc138\ud55c \ub0b4\uc6a9\uc740 \uc0c1\ud0dc\ub97c \uc0c8\ub85c\uace0\uce68\ud558\uc138\uc694.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "\uc2e4\uc2dc\uac04 \uc791\uc5c5\uc744 \uc2e4\ud589\ud558\uae30 \uc804\uc5d0 \uc11c\ubc84\ub97c \ub9cc\ub4dc\uc138\uc694",
   "settings.mcp.page.toast.saveBeforeLiveActions": "\uc2e4\uc2dc\uac04 \uc791\uc5c5\uc744 \uc2e4\ud589\ud558\uae30 \uc804\uc5d0 \ubcc0\uacbd \uc0ac\ud56d\uc744 \uc800\uc7a5\ud558\uc138\uc694",
+  "settings.mcp.page.inventory.unavailable": "이 프로젝트의 MCP 설정을 불러올 수 없습니다.",
+  "settings.mcp.page.inventory.retry": "다시 시도",
   "settings.mcp.page.toast.refreshStatusFailed": "MCP \uc0c1\ud0dc\ub97c \uc0c8\ub85c\uace0\uce68\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "settings.mcp.page.toast.oauthRedirectUrlBuildFailed": "MCP OAuth \ub9ac\ub514\ub809\uc158 URL\uc744 \ub9cc\ub4e4\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
   "settings.mcp.page.toast.oauthBrowserCallbackSaveFailed": "MCP \uc778\uc99d\uc6a9 \ube0c\ub77c\uc6b0\uc800 \ucf5c\ubc31 URL\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",

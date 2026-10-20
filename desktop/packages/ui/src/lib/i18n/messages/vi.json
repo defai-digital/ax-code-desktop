@@ -1296,6 +1296,8 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "L\u1ea7n th\u1eed k\u1ebft n\u1ed1i \u0111\u00e3 k\u1ebft th\u00fac. H\u00e3y l\u00e0m m\u1edbi tr\u1ea1ng th\u00e1i \u0111\u1ec3 xem chi ti\u1ebft.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "H\u00e3y t\u1ea1o m\u00e1y ch\u1ee7 tr\u01b0\u1edbc khi ch\u1ea1y thao t\u00e1c tr\u1ef1c ti\u1ebfp",
   "settings.mcp.page.toast.saveBeforeLiveActions": "H\u00e3y l\u01b0u thay \u0111\u1ed5i tr\u01b0\u1edbc khi ch\u1ea1y thao t\u00e1c tr\u1ef1c ti\u1ebfp",
+  "settings.mcp.page.inventory.unavailable": "Không thể tải cài đặt MCP cho dự án này.",
+  "settings.mcp.page.inventory.retry": "Thử lại",
   "settings.mcp.page.toast.refreshStatusFailed": "Kh\u00f4ng l\u00e0m m\u1edbi \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i MCP",
   "settings.mcp.page.toast.oauthRedirectUrlBuildFailed": "Kh\u00f4ng t\u1ea1o \u0111\u01b0\u1ee3c URL chuy\u1ec3n h\u01b0\u1edbng OAuth c\u1ee7a MCP",
   "settings.mcp.page.toast.oauthBrowserCallbackSaveFailed": "Kh\u00f4ng l\u01b0u \u0111\u01b0\u1ee3c URL g\u1ecdi l\u1ea1i tr\u00ean tr\u00ecnh duy\u1ec7t cho \u1ee7y quy\u1ec1n MCP",

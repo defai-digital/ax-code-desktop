@@ -1,0 +1,22 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp/ax-mcp-save-review-20261020/muse (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+Top finding: the generation key is both unstable and misaligned with the form-loading key, so valid saves can be discarded while some stale saves still pass.
+
+Concrete issues:
+
+- The layout effect keys on `selectedMcpName` and `mcpDraft` object identity, while loading is keyed by `selectedMcpLoadKey`. If an inventory refresh recreates an equal `mcpDraft` before `createMcp` resolves, generation advances unnecessarily: the acknowledged create will not clear the draft or select the created server, leaving the user on a now-duplicate create form and resetting `isSaving` during a possible retry. Conversely, if `selectedMcpLoadKey` distinguishes scope or another loading dimension for the same name/directory/draft, a stale update can still write `initialRef` and clear auth/busy state on the newly loaded form.
+- `await clearPendingMcpAuthContext(authStateKey)` and `await refreshStatus(...)` remain inside the same `try` as the mutation. If either origin cleanup/refresh rejects after the mutation is acknowledged, the success or `reloadFailed` outcome is replaced by a save-error toast. Isolate those post-save operations so their failures cannot mask the outcome.
+- Edits during an update survive only if field updates are immutable: the new baseline stores the same `command`, `envEntries`, and `headerEntries` array references captured at submit. In-place entry edits would mutate the baseline too. Edits during a create have a stronger problem: post-create selection triggers the populate effect, which reloads submitted values over any edits made while creation was pending.
+- Generation isolates form changes, not same-form async sessions. Starting OAuth while a save is in flight, then having the save succeed, still calls `resetTransientAuthState()` and can erase that newer auth attempt; auth completion advancing the baseline during the save can likewise be overwritten by the save’s baseline write.
+
+Missing regression scenarios:
+
+- Inventory refresh with a recreated but equal draft before create resolves; selection and draft clearing must still occur.
+- Same name in a different scope/load context while an old update is pending.
+- Navigate A → B, start B’s save, then resolve A; also A → B → A before A resolves. Neither may clear B/A-return busy state or baseline.
+- Edit entries, command, headers during update and during create; assert newest values remain and dirty is computed against the submitted snapshot.
+- Start auth during save; make auth cleanup and status refresh reject after successful mutation and after `reloadFailed`.
+- Baseline-only auth completion with no field setter, verifying dirty flips on the next render.
+
+Smaller safe approach: compute one stable `formKey` from `currentDirectory`, `selectedMcpLoadKey`, and a draft stable id/revision; in the layout effect, increment generation only when that stored key changes, drop the cleanup increment, and capture that key at submit. If drafts have no stable id, accept/invalidate generation in the same branch that actually populates from a draft, rather than on every draft identity change.

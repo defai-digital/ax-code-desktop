@@ -1296,6 +1296,8 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "Upaya koneksi selesai. Segarkan status untuk detail.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Buat server sebelum menjalankan tindakan langsung",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Simpan perubahan sebelum menjalankan tindakan langsung",
+  "settings.mcp.page.inventory.unavailable": "Pengaturan MCP untuk proyek ini tidak dapat dimuat.",
+  "settings.mcp.page.inventory.retry": "Coba lagi",
   "settings.mcp.page.toast.refreshStatusFailed": "Gagal menyegarkan status MCP",
   "settings.mcp.page.toast.oauthRedirectUrlBuildFailed": "Tidak dapat membangun URL pengalihan OAuth MCP",
   "settings.mcp.page.toast.oauthBrowserCallbackSaveFailed": "Gagal menyimpan URL callback browser untuk otorisasi MCP",
