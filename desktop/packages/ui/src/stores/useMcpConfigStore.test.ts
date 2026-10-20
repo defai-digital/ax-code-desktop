@@ -287,11 +287,13 @@ describe("useMcpConfigStore", () => {
     expect(fetchCalls).toHaveLength(0)
   })
 
-  test("failed post-delete refresh keeps the existing same-context selection cleanup", async () => {
+  test("failed post-delete refresh reports partial success and keeps same-context selection cleanup", async () => {
     const original: McpServerWithScope = { name: "review", type: "remote", url: "https://original.invalid", enabled: false }
     useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath })
     queueFetchResponses([jsonResponse({ ok: true }), jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
-    expect(await useMcpConfigStore.getState().deleteMcp("review")).toEqual(expect.objectContaining({ ok: true }))
+    expect(await useMcpConfigStore.getState().deleteMcp("review")).toEqual(
+      expect.objectContaining({ ok: true, reloadFailed: true }),
+    )
     expect(useMcpConfigStore.getState().selectedMcpName).toBeNull()
   })
 

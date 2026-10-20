@@ -396,7 +396,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             }
             return {
               ok: true,
-              reloadFailed: payload?.reloadFailed === true,
+              reloadFailed: payload?.reloadFailed === true || !refreshed,
               message: payload?.message,
               warning: payload?.warning,
             }
