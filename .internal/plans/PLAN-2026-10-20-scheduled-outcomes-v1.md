@@ -83,3 +83,5 @@ provider/test workloads for runtime qualification where supported, without activ
   one-time wall clocks in the editor and migration; capture the default system timezone once per renderer lifetime.
 - [Invalid-time guidance](../reports/SCHEDULED-TASKS-2026-10-20-time-guidance.md): actionable inline date/time
   feedback, field accessibility, narrow-dialog visibility, correction recovery and native save receipts.
+- [Partial-create recovery guard](../reports/SCHEDULED-TASKS-2026-10-20-partial-create.md): retain failed drafts,
+  disclose confirmed versus uncertain creation and prevent direct resubmission; producer idempotency remains open.

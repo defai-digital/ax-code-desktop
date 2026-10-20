@@ -83,6 +83,10 @@ let currentGoal = null;
 let foreignGoalEmitted = false;
 let scheduledFixture = [];
 let scheduledWrites = [];
+let scheduledCreateAttempts = 0;
+let scheduledFailCreateAt = 0;
+let scheduledFixtureModel = false;
+let scheduledFailAfterWrite = false;
 const eventClients = new Set();
 const sendEvent = (res, directory, payload) => {
   try {
@@ -133,12 +137,25 @@ const server = http.createServer((req, res) => {
       readBody(req, (body) => {
         scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];
         scheduledWrites = [];
+        scheduledCreateAttempts = 0;
+        scheduledFailCreateAt = body.failCreateAt || 0;
+        scheduledFixtureModel = body.fixtureModel === true;
+        scheduledFailAfterWrite = body.failAfterWrite === true;
         json(res, { count: scheduledFixture.length });
       });
       return;
     }
     if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'GET') {
-      json(res, { tasks: scheduledFixture, writes: scheduledWrites });
+      json(res, { tasks: scheduledFixture, writes: scheduledWrites, createAttempts: scheduledCreateAttempts });
+      return;
+    }
+    if (pathname === '/config/providers' && scheduledFixtureModel) {
+      json(res, { providers: [{
+        id: 'fixture', name: 'Fixture', models: {
+          'fixture-model': { id: 'fixture-model', name: 'Fixture model', providerID: 'fixture',
+            limit: { context: 131072, output: 16384 }, capabilities: { input: { text: true }, output: { text: true } } }
+        }
+      }], default: { fixture: 'fixture-model' } });
       return;
     }
     const scheduledScope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
@@ -150,6 +167,11 @@ const server = http.createServer((req, res) => {
         return;
       }
       readBody(req, (body) => {
+        if (!updateMatch && ++scheduledCreateAttempts === scheduledFailCreateAt && !scheduledFailAfterWrite) {
+          res.statusCode = 503;
+          json(res, { message: 'Controlled create failure' });
+          return;
+        }
         const existing = updateMatch ? scheduledFixture.find(entry => entry.task.id === updateMatch[1]) : null;
         if (updateMatch && !existing) {
           res.statusCode = 404;
@@ -166,6 +188,11 @@ const server = http.createServer((req, res) => {
         };
         if (!existing) scheduledFixture.push({ task, history: [] });
         scheduledWrites.push({ operation: updateMatch ? 'update' : 'create', directory, taskID: task.id, fields });
+        if (!updateMatch && scheduledCreateAttempts === scheduledFailCreateAt && scheduledFailAfterWrite) {
+          res.statusCode = 503;
+          json(res, { message: 'Controlled create failure' });
+          return;
+        }
         json(res, task);
       });
       return;

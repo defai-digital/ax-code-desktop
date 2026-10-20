@@ -1842,6 +1842,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Speichern",
   "sessions.scheduledTasks.editor.actions.saving": "Wird gespeichert...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "Aufgabe konnte nicht gespeichert werden",
+  "sessions.scheduledTasks.editor.creationUncertain": "Best\u00e4tigte Erstellungen: {count}. Aufgaben k\u00f6nnten bereits aktiv sein, auch ohne Best\u00e4tigung. Schlie\u00dfen Sie diesen Editor und pr\u00fcfen Sie die geplanten Aufgaben, bevor Sie erneut Aufgaben erstellen.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "Aufgabenname ist erforderlich",
   "sessions.scheduledTasks.editor.validation.promptRequired": "Prompt ist erforderlich",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Modell ist erforderlich",

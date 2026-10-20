@@ -49,7 +49,7 @@ const runtimeTask = (overrides: Record<string, unknown> = {}) => ({
 
 describe("scheduledTasksApi", () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     getScopedApiClient.mockReturnValue({ scheduledTask })
   })
 
@@ -167,6 +167,47 @@ describe("scheduledTasksApi", () => {
     scheduledTask.update.mockResolvedValue({ data: runtimeTask() })
     await updateScheduledTask("/work/alpha", "st_1", { title: "New", status: "paused" })
     expect(scheduledTask.update).toHaveBeenCalledWith({ scheduledTaskID: "st_1", title: "New", status: "paused" })
+  })
+
+  test.each(["create", "pause"])("reports confirmed identities before a later %s failure", async (stage) => {
+    const onCreated = vi.fn()
+    scheduledTask.create
+      .mockResolvedValueOnce({ data: runtimeTask({ id: "st_confirmed" }) })
+      .mockRejectedValueOnce(new Error("unconfirmed response"))
+    scheduledTask.pause.mockRejectedValueOnce(new Error("pause failed"))
+    const payload = {
+      title: "A",
+      prompt: "p",
+      schedule: { type: "daily" as const, time: "09:00" },
+      catchUpPolicy: "run_once" as const,
+    }
+    await expect(
+      createScheduledTasks("/work/alpha", [payload, payload], {
+        pause: stage === "pause",
+        onCreated,
+      }),
+    ).rejects.toThrow(stage === "pause" ? "pause failed" : "unconfirmed response")
+    expect(onCreated.mock.calls).toEqual([["st_confirmed"]])
+  })
+
+  test("does not report a task as confirmed when the response has no identity", async () => {
+    const onCreated = vi.fn()
+    scheduledTask.create.mockResolvedValueOnce({ data: {} })
+    await expect(
+      createScheduledTasks(
+        "/work/alpha",
+        [
+          {
+            title: "A",
+            prompt: "p",
+            schedule: { type: "daily", time: "09:00" },
+            catchUpPolicy: "run_once",
+          },
+        ],
+        { onCreated },
+      ),
+    ).rejects.toThrow("no task identity")
+    expect(onCreated).not.toHaveBeenCalled()
   })
 
   test("setScheduledTaskEnabled maps to pause/resume", async () => {

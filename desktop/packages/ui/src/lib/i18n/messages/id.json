@@ -1836,6 +1836,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Simpan",
   "sessions.scheduledTasks.editor.actions.saving": "Menyimpan...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "Gagal menyimpan tugas",
+  "sessions.scheduledTasks.editor.creationUncertain": "Pembuatan terkonfirmasi: {count}. Tugas mungkin sudah aktif, termasuk yang belum dikonfirmasi. Tutup editor ini dan periksa tugas terjadwal sebelum membuat lagi.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "Nama tugas wajib diisi",
   "sessions.scheduledTasks.editor.validation.promptRequired": "Prompt wajib diisi",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Model wajib diisi",

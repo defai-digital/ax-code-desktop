@@ -192,6 +192,8 @@ export const dict = {
   "sessions.scheduledTasks.editor.actions.save": "Save",
   "sessions.scheduledTasks.editor.actions.saving": "Saving...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "Failed to save task",
+  "sessions.scheduledTasks.editor.creationUncertain":
+    "Confirmed created: {count}. Tasks may already be active, including ones without a confirmation. Close this editor and review the scheduled tasks before creating again.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "Task name is required",
   "sessions.scheduledTasks.editor.validation.promptRequired": "Prompt is required",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Model is required",

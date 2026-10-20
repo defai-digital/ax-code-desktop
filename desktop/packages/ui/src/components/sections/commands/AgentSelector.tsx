@@ -152,7 +152,8 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div
+            <button
+              type="button"
               className={cn(
                 "flex items-center gap-2 px-2 rounded-lg bg-interactive-selection/20 border border-border/20 cursor-pointer hover:bg-interactive-hover/30 h-6 w-fit",
                 className,
@@ -163,7 +164,7 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
                 {agentName || t("settings.commands.agentSelector.notSelected")}
               </span>
               <Icon name="arrow-down-s" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
-            </div>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="max-w-[300px]">
             <DropdownMenuItem className="typography-meta" onSelect={() => handleAgentChange("")}>

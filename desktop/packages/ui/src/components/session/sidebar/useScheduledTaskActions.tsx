@@ -5,6 +5,7 @@ import { refreshGlobalSessions } from "@/stores/useGlobalSessionsStore"
 import { getScheduledTaskGroup, useScheduledTasksStore } from "@/stores/useScheduledTasksStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useI18n } from "@/lib/i18n"
+import { ScheduledTaskCreateRecoveryRequired } from "@/lib/scheduledTaskErrors"
 import {
   createScheduledTasks,
   deleteScheduledTasks,
@@ -74,6 +75,11 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
   const { requestConfirm, confirmDialog } = useConfirmDialog()
   const [editorOpen, setEditorOpen] = React.useState(false)
   const [editorTarget, setEditorTarget] = React.useState<EditorTarget | null>(null)
+  const [saveBlockedReason, setSaveBlockedReason] = React.useState<string | null>(null)
+  const createAttempt = React.useRef<{ confirmed: Set<string>; blockedReason: string | null }>({
+    confirmed: new Set(),
+    blockedReason: null,
+  })
   const [busyKeys, setBusyKeys] = React.useState<ReadonlySet<string>>(() => new Set())
   const [historyTarget, setHistoryTarget] = React.useState<ScheduledTaskRunHistoryTarget | null>(null)
 
@@ -93,11 +99,15 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
   }, [])
 
   const openNewTask = React.useCallback((directory: string, projectLabel: string) => {
+    createAttempt.current = { confirmed: new Set(), blockedReason: null }
+    setSaveBlockedReason(null)
     setEditorTarget({ directory: normalizeDirectory(directory), projectLabel, family: null })
     setEditorOpen(true)
   }, [])
 
   const openEditTask = React.useCallback((family: ScheduledTaskFamily, directory: string, projectLabel: string) => {
+    createAttempt.current = { confirmed: new Set(), blockedReason: null }
+    setSaveBlockedReason(null)
     setEditorTarget({ directory: normalizeDirectory(directory), projectLabel, family })
     setEditorOpen(true)
   }, [])
@@ -126,6 +136,8 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
 
   const handleSave = React.useCallback(
     async (submit: ScheduledTaskEditorSubmit) => {
+      const attempt = createAttempt.current
+      if (!submit.memberIDs && attempt.blockedReason) throw new Error(attempt.blockedReason)
       const target = editorTarget
       const directory = target?.directory ?? ""
       if (!directory) {
@@ -196,16 +208,19 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         }
       } else {
         try {
-          await createScheduledTasks(directory, payloads, { pause: !submit.enabled })
+          await createScheduledTasks(directory, payloads, {
+            pause: !submit.enabled,
+            onCreated: (taskID) => attempt.confirmed.add(taskID),
+          })
         } catch (error) {
-          // A fan-out draft creates several tasks and the runtime starts each one active, so a
-          // failure part way through (including a pause that did not take) leaves tasks behind
-          // that the list did not show. Reload so the user sees them; the editor re-enters this
-          // branch on a retry and creates the whole set again, so a retry still duplicates what
-          // this one created — adopting it would need the create path to take over an existing
-          // family, which is a decision about what creating a task with a repeated name means.
+          // A missing acknowledgement does not prove creation failed. Without a producer
+          // idempotency key, resending this draft can duplicate confirmed or uncertain writes.
+          attempt.blockedReason = t("sessions.scheduledTasks.editor.creationUncertain", {
+            count: attempt.confirmed.size,
+          })
+          if (createAttempt.current === attempt) setSaveBlockedReason(attempt.blockedReason)
           await loadGroup(directory)
-          throw error
+          throw new ScheduledTaskCreateRecoveryRequired(attempt.blockedReason, { cause: error })
         }
       }
       await loadGroup(directory)
@@ -340,6 +355,7 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
         task={editorTarget?.family?.primary ?? null}
         family={editorTarget?.family ?? undefined}
         projectLabel={editorTarget?.projectLabel}
+        saveBlockedReason={saveBlockedReason}
         onOpenChange={handleEditorOpenChange}
         onSave={handleSave}
       />

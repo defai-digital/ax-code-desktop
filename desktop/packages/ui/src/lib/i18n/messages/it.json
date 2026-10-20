@@ -1842,6 +1842,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Salva",
   "sessions.scheduledTasks.editor.actions.saving": "Salvataggio...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "Salvataggio dell'attivit\u00e0 non riuscito",
+  "sessions.scheduledTasks.editor.creationUncertain": "Creazioni confermate: {count}. Le attivit\u00e0 potrebbero essere gi\u00e0 attive, anche senza conferma. Chiudi questo editor e controlla le attivit\u00e0 pianificate prima di crearne altre.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "Il nome dell'attivit\u00e0 \u00e8 obbligatorio",
   "sessions.scheduledTasks.editor.validation.promptRequired": "Il prompt \u00e8 obbligatorio",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Il modello \u00e8 obbligatorio",

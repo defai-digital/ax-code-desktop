@@ -1836,6 +1836,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Enregistrer",
   "sessions.scheduledTasks.editor.actions.saving": "Enregistrement\u2026",
   "sessions.scheduledTasks.editor.toast.saveFailed": "\u00c9chec de l\u2019enregistrement de la t\u00e2che",
+  "sessions.scheduledTasks.editor.creationUncertain": "Cr\u00e9ations confirm\u00e9es : {count}. Des t\u00e2ches peuvent d\u00e9j\u00e0 \u00eatre actives, m\u00eame sans confirmation. Fermez cet \u00e9diteur et v\u00e9rifiez les t\u00e2ches planifi\u00e9es avant de cr\u00e9er \u00e0 nouveau.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "Le nom de la t\u00e2che est requis",
   "sessions.scheduledTasks.editor.validation.promptRequired": "L\u2019invite est requise",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Le mod\u00e8le est requis",

@@ -168,7 +168,9 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
   return (
     <DropdownMenu open={isReady && isDropdownOpen} onOpenChange={isReady ? setIsDropdownOpen : undefined}>
       <DropdownMenuTrigger asChild>
-        <div
+        <button
+          type="button"
+          disabled={!isReady}
           className={cn(
             "border-input data-[placeholder]:text-muted-foreground flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-transparent px-2 py-2 typography-ui-label whitespace-nowrap shadow-none outline-none hover:bg-interactive-hover data-[popup-open]:bg-interactive-active h-6 w-fit",
             !isReady && "opacity-60 cursor-not-allowed",
@@ -193,7 +195,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
             </>
           )}
           <Icon name="arrow-down-s" className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-        </div>
+        </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         className="w-[min(380px,calc(100vw-2rem))] p-0 flex flex-col"

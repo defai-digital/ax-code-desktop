@@ -291,6 +291,22 @@ describe("SidebarScheduledTasks", () => {
 
     expect(createScheduledTasks).toHaveBeenCalledTimes(1)
     expect(fetchScheduledTasks).toHaveBeenCalledWith("/work/alpha")
+    await act(async () => {
+      await expect(
+        editorProps.current?.onSave({
+          enabled: false,
+          enabledChanged: true,
+          scheduleChanged: true,
+          input: {
+            name: "Nightly",
+            prompt: "Do it",
+            catchUpPolicy: "run_once",
+            schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
+          },
+        }),
+      ).rejects.toThrow("review the scheduled tasks")
+    })
+    expect(createScheduledTasks).toHaveBeenCalledTimes(1)
   })
 
   test("pauses every part the store has now, not the row's snapshot", async () => {

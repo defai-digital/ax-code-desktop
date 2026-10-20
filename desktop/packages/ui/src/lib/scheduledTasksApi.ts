@@ -294,7 +294,7 @@ export const fetchScheduledTaskRuns = async (
 export const createScheduledTasks = async (
   directory: string,
   payloads: RuntimeTaskPayload[],
-  options?: { pause?: boolean },
+  options?: { pause?: boolean; onCreated?: (taskID: string) => void },
 ): Promise<void> => {
   const client = clientFor(directory)
   for (const payload of payloads) {
@@ -302,8 +302,12 @@ export const createScheduledTasks = async (
     if (response.error || !response.data) {
       throw new Error(formatSdkError(response.error, "Failed to save scheduled task"))
     }
+    const created = response.data as RuntimeTaskInfo
+    if (typeof created.id !== "string" || !created.id) {
+      throw new Error("Scheduled task creation returned no task identity")
+    }
+    options?.onCreated?.(created.id)
     if (options?.pause) {
-      const created = response.data as RuntimeTaskInfo
       const paused = await client.scheduledTask.pause({ scheduledTaskID: created.id })
       if (paused.error) {
         throw new Error(formatSdkError(paused.error, "Task was created but could not be paused"))

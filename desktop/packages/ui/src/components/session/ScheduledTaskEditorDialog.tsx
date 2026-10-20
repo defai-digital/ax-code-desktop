@@ -1,5 +1,6 @@
 import * as React from "react"
 import { STARTUP_TIMEZONE } from "@/lib/startupTimezone"
+import { ScheduledTaskCreateRecoveryRequired } from "@/lib/scheduledTaskErrors"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { ScrollShadow } from "@/components/ui/ScrollShadow"
@@ -60,10 +61,7 @@ export const buildTimezoneOptions = (selected: string): string[] =>
  * unrelated edit shifts its run time by the difference between the zones.
  */
 // eslint-disable-next-line react-refresh/only-export-components -- Exported for the timezone regression tests.
-export const formatWallClockInTimeZone = (
-  date: Date,
-  timeZone: string,
-): { date: string; time: string } | null => {
+export const formatWallClockInTimeZone = (date: Date, timeZone: string): { date: string; time: string } | null => {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
       timeZone,
@@ -761,10 +759,11 @@ export function ScheduledTaskEditorDialog(props: {
   family?: ScheduledTaskFamily
   /** Display name of the project the task belongs to, shown under the title. */
   projectLabel?: string
+  saveBlockedReason?: string | null
   onOpenChange: (open: boolean) => void
   onSave: (submit: ScheduledTaskEditorSubmit) => Promise<void>
 }) {
-  const { open, task, family, projectLabel, onOpenChange, onSave } = props
+  const { open, task, family, projectLabel, saveBlockedReason, onOpenChange, onSave } = props
   const { t, formatLocale } = useI18n()
   const loadProviders = useConfigStore((state) => state.loadProviders)
   const loadAgents = useConfigStore((state) => state.loadAgents)
@@ -811,10 +810,7 @@ export function ScheduledTaskEditorDialog(props: {
   const mentionRef = React.useRef<FileMentionHandle>(null)
   const commandRef = React.useRef<CommandAutocompleteHandle>(null)
   const snippetRef = React.useRef<SnippetAutocompleteHandle>(null)
-  const timezoneOptions = React.useMemo(
-    () => buildTimezoneOptions(draft.schedule.timezone),
-    [draft.schedule.timezone],
-  )
+  const timezoneOptions = React.useMemo(() => buildTimezoneOptions(draft.schedule.timezone), [draft.schedule.timezone])
   const scheduleErrorId = React.useId()
   const scheduleError = React.useMemo(() => onceScheduleError(draft.schedule, t), [draft.schedule, t])
   const localeUse24Hour = React.useMemo(() => getUses24Hour(formatLocale), [formatLocale])
@@ -1187,6 +1183,7 @@ export function ScheduledTaskEditorDialog(props: {
   )
 
   const handleSubmit = React.useCallback(async () => {
+    if (saveBlockedReason) return
     const validationError = validateDraft(draft, t)
     if (validationError) {
       // The persistent field alert already explains this error without covering the footer.
@@ -1241,11 +1238,13 @@ export function ScheduledTaskEditorDialog(props: {
       })
       onOpenChange(false)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.editor.toast.saveFailed"))
+      if (!(error instanceof ScheduledTaskCreateRecoveryRequired)) {
+        toast.error(error instanceof Error ? error.message : t("sessions.scheduledTasks.editor.toast.saveFailed"))
+      }
     } finally {
       setSaving(false)
     }
-  }, [draft, onOpenChange, onSave, scheduleError, t, task])
+  }, [draft, onOpenChange, onSave, saveBlockedReason, scheduleError, t, task])
 
   const descriptionId = React.useId()
   const hasOpenFloatingMenu = React.useCallback(() => {
@@ -1711,7 +1710,12 @@ export function ScheduledTaskEditorDialog(props: {
   )
 
   const footerRow = (
-    <div className="flex items-center justify-between gap-3">
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      {saveBlockedReason ? (
+        <p role="alert" className="w-full typography-micro text-status-warning">
+          {saveBlockedReason}
+        </p>
+      ) : null}
       <label className="inline-flex items-center gap-2">
         <Checkbox
           checked={draft.enabled}
@@ -1725,7 +1729,7 @@ export function ScheduledTaskEditorDialog(props: {
         <Button type="button" variant="ghost" size="sm" onClick={() => onOpenChange(false)} disabled={saving}>
           {t("sessions.scheduledTasks.editor.actions.cancel")}
         </Button>
-        <Button type="button" size="sm" onClick={handleSubmit} disabled={saving}>
+        <Button type="button" size="sm" onClick={handleSubmit} disabled={saving || Boolean(saveBlockedReason)}>
           {saving
             ? t("sessions.scheduledTasks.editor.actions.saving")
             : t("sessions.scheduledTasks.editor.actions.save")}

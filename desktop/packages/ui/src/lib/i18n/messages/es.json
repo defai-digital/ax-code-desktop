@@ -1836,6 +1836,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Guardar",
   "sessions.scheduledTasks.editor.actions.saving": "Guardando...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "No se pudo guardar la tarea",
+  "sessions.scheduledTasks.editor.creationUncertain": "Creaciones confirmadas: {count}. Las tareas pueden estar ya activas, incluso sin confirmaci\u00f3n. Cierra este editor y revisa las tareas programadas antes de volver a crear.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "El nombre de la tarea es obligatorio",
   "sessions.scheduledTasks.editor.validation.promptRequired": "La indicaci\u00f3n es obligatoria",
   "sessions.scheduledTasks.editor.validation.modelRequired": "El modelo es obligatorio",

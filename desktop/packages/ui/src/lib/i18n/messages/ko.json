@@ -1842,6 +1842,7 @@
   "sessions.scheduledTasks.editor.actions.save": "\uc800\uc7a5",
   "sessions.scheduledTasks.editor.actions.saving": "\uc800\uc7a5 \uc911...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "\uc791\uc5c5\uc744 \uc800\uc7a5\ud558\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4",
+  "sessions.scheduledTasks.editor.creationUncertain": "\uc0dd\uc131\uc774 \ud655\uc778\ub41c \uc791\uc5c5: {count}. \ud655\uc778\ub418\uc9c0 \uc54a\uc740 \uc791\uc5c5\uc744 \ud3ec\ud568\ud558\uc5ec \uc774\ubbf8 \ud65c\uc131\ud654\ub41c \uc791\uc5c5\uc774 \uc788\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \uc774 \ud3b8\uc9d1\uae30\ub97c \ub2eb\uace0 \uc608\uc57d\ub41c \uc791\uc5c5\uc744 \ud655\uc778\ud55c \ud6c4 \ub2e4\uc2dc \uc0dd\uc131\ud558\uc138\uc694.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "\uc791\uc5c5 \uc774\ub984\uc740 \ud544\uc218\uc785\ub2c8\ub2e4",
   "sessions.scheduledTasks.editor.validation.promptRequired": "\ud504\ub86c\ud504\ud2b8\ub294 \ud544\uc218\uc785\ub2c8\ub2e4",
   "sessions.scheduledTasks.editor.validation.modelRequired": "\ubaa8\ub378\uc740 \ud544\uc218\uc785\ub2c8\ub2e4",

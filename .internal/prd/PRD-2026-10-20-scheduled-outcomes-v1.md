@@ -37,6 +37,9 @@ before activation. A template cannot confer new permissions, guarantee a browser
   a previous timestamp is not proof of success. Scheduler completion can be shown as such without claiming app acceptance.
 - A partial multi-slot create must expose created members and a safe next action. Retrying cannot silently recreate every
   successful slot. Acknowledged side effects and uncertain responses require separate handling.
+  Until producer operation identity supports safe continuation, a failed new-task create must retain the draft,
+  disclose the confirmed count and possible active tasks, and block direct resubmission with a review-first action.
+  This per-editor guard does not qualify durable idempotency, retry after reopening, or automatic continuation.
 - Disabled creation must not silently start an active task. If atomic paused creation is absent from the producer contract,
   resolve the contract before promising it. Do not invent a Desktop scheduler or compensating retry engine.
 - One-time success, skipped overlap, missed-skip, timeout, model/provider failure and approval-needed remain distinguishable.

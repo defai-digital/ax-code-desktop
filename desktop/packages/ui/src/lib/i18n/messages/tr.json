@@ -1842,6 +1842,7 @@
   "sessions.scheduledTasks.editor.actions.save": "Kaydet",
   "sessions.scheduledTasks.editor.actions.saving": "Kaydediliyor...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "G\u00f6rev kaydedilemedi",
+  "sessions.scheduledTasks.editor.creationUncertain": "Olu\u015fturuldu\u011fu do\u011frulanan g\u00f6revler: {count}. Onay al\u0131nmam\u0131\u015f olanlar dahil g\u00f6revler zaten etkin olabilir. Yeniden olu\u015fturmadan \u00f6nce bu d\u00fczenleyiciyi kapat\u0131n ve zamanlanm\u0131\u015f g\u00f6revleri inceleyin.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "G\u00f6rev ad\u0131 gerekli",
   "sessions.scheduledTasks.editor.validation.promptRequired": "\u0130stem gerekli",
   "sessions.scheduledTasks.editor.validation.modelRequired": "Model gerekli",

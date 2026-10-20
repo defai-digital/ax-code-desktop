@@ -1842,6 +1842,7 @@
   "sessions.scheduledTasks.editor.actions.save": "L\u01b0u",
   "sessions.scheduledTasks.editor.actions.saving": "\u0110ang l\u01b0u...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "Kh\u00f4ng l\u01b0u \u0111\u01b0\u1ee3c t\u00e1c v\u1ee5",
+  "sessions.scheduledTasks.editor.creationUncertain": "\u0110\u00e3 x\u00e1c nh\u1eadn t\u1ea1o: {count}. C\u00e1c t\u00e1c v\u1ee5 c\u00f3 th\u1ec3 \u0111\u00e3 ho\u1ea1t \u0111\u1ed9ng, k\u1ec3 c\u1ea3 nh\u1eefng t\u00e1c v\u1ee5 ch\u01b0a \u0111\u01b0\u1ee3c x\u00e1c nh\u1eadn. H\u00e3y \u0111\u00f3ng tr\u00ecnh ch\u1ec9nh s\u1eeda n\u00e0y v\u00e0 ki\u1ec3m tra c\u00e1c t\u00e1c v\u1ee5 \u0111\u00e3 l\u00ean l\u1ecbch tr\u01b0\u1edbc khi t\u1ea1o l\u1ea1i.",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "C\u1ea7n c\u00f3 t\u00ean t\u00e1c v\u1ee5",
   "sessions.scheduledTasks.editor.validation.promptRequired": "C\u1ea7n c\u00f3 prompt",
   "sessions.scheduledTasks.editor.validation.modelRequired": "C\u1ea7n c\u00f3 m\u00f4 h\u00ecnh",

@@ -1836,6 +1836,7 @@
   "sessions.scheduledTasks.editor.actions.save": "\u5132\u5b58",
   "sessions.scheduledTasks.editor.actions.saving": "\u5132\u5b58\u4e2d...",
   "sessions.scheduledTasks.editor.toast.saveFailed": "\u5132\u5b58\u5de5\u4f5c\u5931\u6557",
+  "sessions.scheduledTasks.editor.creationUncertain": "\u5df2\u78ba\u8a8d\u5efa\u7acb\uff1a{count}\u3002\u4efb\u52d9\u53ef\u80fd\u5df2\u5728\u555f\u7528\u72c0\u614b\uff0c\u5305\u542b\u672a\u6536\u5230\u78ba\u8a8d\u7684\u4efb\u52d9\u3002\u8acb\u95dc\u9589\u6b64\u7de8\u8f2f\u5668\u4e26\u6aa2\u67e5\u6392\u7a0b\u4efb\u52d9\uff0c\u518d\u91cd\u65b0\u5efa\u7acb\u3002",
   "sessions.scheduledTasks.editor.validation.taskNameRequired": "\u5fc5\u9808\u63d0\u4f9b\u5de5\u4f5c\u540d\u7a31",
   "sessions.scheduledTasks.editor.validation.promptRequired": "\u5fc5\u9808\u63d0\u4f9b\u63d0\u793a",
   "sessions.scheduledTasks.editor.validation.modelRequired": "\u5fc5\u9808\u63d0\u4f9b\u6a21\u578b",
