@@ -61,8 +61,8 @@ const normalizeWeekdays = (weekdays: number[]): number[] =>
 // Convert a wall-clock date+time in an IANA timezone to an epoch timestamp
 // without a tz database dependency: guess the UTC instant, read back the wall
 // clock in the target zone, and iterate the offset correction to a fixpoint.
-// DST-gap inputs land on the nearest representable instant, which the runtime
-// schedule validator then accepts or rejects like any other timestamp.
+// Reject a nonexistent wall clock instead of silently choosing a different
+// hour/day. The runtime receives only an epoch and cannot detect that shift.
 const TZ_FORMATTERS = new Map<string, Intl.DateTimeFormat>()
 
 const tzFormatter = (timezone: string): Intl.DateTimeFormat => {
@@ -128,6 +128,7 @@ export const zonedTimeToEpochMs = (date: string, time: string, timezone: string)
       if (next === candidate) break
       candidate = next
     }
+    if (wallClockAsUtcMs(candidate, timezone) !== target) return null
   } catch {
     return null
   }

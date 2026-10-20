@@ -78,3 +78,6 @@ provider/test workloads for runtime qualification where supported, without activ
   daily/weekly repair and two-slot save/reopen receipt. Includes the startup reload race found during retesting.
 - [Runtime dispatch](../reports/PARALLEL-PROJECTS-2026-10-20-runtime-dispatch.md): six scheduled tasks across three
   real project instances with a controlled prompt boundary. Provider/MCP and packaged execution remain unqualified.
+
+- [DST gaps and startup timezone](../reports/SCHEDULED-TASKS-2026-10-20-dst-gap-repair.md): reject nonexistent
+  one-time wall clocks in the editor and migration; capture the default system timezone once per renderer lifetime.

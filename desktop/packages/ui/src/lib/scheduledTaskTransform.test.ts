@@ -26,6 +26,26 @@ describe("stripFanOutSuffix", () => {
 })
 
 describe("zonedTimeToEpochMs", () => {
+  test.each([
+    ["2027-03-14", "02:30", "America/New_York"],
+    ["2027-03-28", "02:30", "Europe/Berlin"],
+    ["2027-10-03", "02:15", "Australia/Lord_Howe"],
+    ["2011-12-30", "12:00", "Pacific/Apia"],
+  ])("rejects nonexistent wall clock %s %s in %s", (date, time, zone) => {
+    expect(zonedTimeToEpochMs(date, time, zone)).toBeNull()
+  })
+
+  test("preserves valid instants on either side of the spring gap", () => {
+    expect(zonedTimeToEpochMs("2027-03-14", "01:30", "America/New_York")).toBe(Date.parse("2027-03-14T06:30:00Z"))
+    expect(zonedTimeToEpochMs("2027-03-14", "03:30", "America/New_York")).toBe(Date.parse("2027-03-14T07:30:00Z"))
+  })
+
+  test("keeps an existing instant for an ambiguous autumn wall clock", () => {
+    expect([Date.parse("2027-11-07T05:30:00Z"), Date.parse("2027-11-07T06:30:00Z")]).toContain(
+      zonedTimeToEpochMs("2027-11-07", "01:30", "America/New_York"),
+    )
+  })
+
   test("converts a UTC wall clock", () => {
     expect(zonedTimeToEpochMs("2026-09-01", "09:30", "UTC")).toBe(Date.parse("2026-09-01T09:30:00Z"))
   })
@@ -139,10 +159,7 @@ describe("buildRuntimeScheduledTaskPayloads", () => {
       baseDraft({ name: "z".repeat(300), schedule: { kind: "daily", times: ["09:00", "10:00"], timezone: "UTC" } }),
     )
 
-    expect(payloads?.map((payload) => payload.title)).toEqual([
-      `${"z".repeat(194)} (1/2)`,
-      `${"z".repeat(194)} (2/2)`,
-    ])
+    expect(payloads?.map((payload) => payload.title)).toEqual([`${"z".repeat(194)} (1/2)`, `${"z".repeat(194)} (2/2)`])
   })
 
   test("returns null for invalid drafts", () => {

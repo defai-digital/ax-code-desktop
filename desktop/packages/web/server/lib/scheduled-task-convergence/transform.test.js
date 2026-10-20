@@ -4,6 +4,18 @@ import { isRuntimeCronExpression, isSlashCommandPrompt, slotTitle, transformDesk
 
 const NOW = Date.parse("2026-08-30T12:00:00Z")
 
+it.each([
+  ["2027-03-14", "02:30", "America/New_York"],
+  ["2027-03-28", "02:30", "Europe/Berlin"],
+  ["2027-10-03", "02:15", "Australia/Lord_Howe"],
+  ["2011-12-30", "12:00", "Pacific/Apia"],
+])("does not migrate nonexistent wall clock %s %s in %s to a different instant", (date, time, timezone) => {
+  const result = transform(baseTask({ schedule: { kind: "once", date, time, timezone } }))
+  expect(result.status).toBe("skip")
+  expect(result.history).toBe(false)
+  expect(result.reason).toContain("invalid")
+})
+
 const baseTask = (overrides = {}) => ({
   id: "task-1",
   name: "Nightly digest",
@@ -69,11 +81,7 @@ describe("slotTitle", () => {
     const name = "x".repeat(300)
     const titles = [0, 1, 2].map((index) => slotTitle(name, index, 3))
 
-    expect(titles).toEqual([
-      `${"x".repeat(194)} (1/3)`,
-      `${"x".repeat(194)} (2/3)`,
-      `${"x".repeat(194)} (3/3)`,
-    ])
+    expect(titles).toEqual([`${"x".repeat(194)} (1/3)`, `${"x".repeat(194)} (2/3)`, `${"x".repeat(194)} (3/3)`])
     expect(new Set(titles).size).toBe(3)
     for (const title of titles) {
       expect(title.length).toBeLessThanOrEqual(200)

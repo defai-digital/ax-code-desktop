@@ -1,9 +1,28 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 import { buildRuntimeScheduledTaskPayloads } from "@/lib/scheduledTaskTransform"
 import { buildTimezoneOptions, formatWallClockInTimeZone, toDraft } from "./ScheduledTaskEditorDialog"
+import { STARTUP_TIMEZONE } from "@/lib/startupTimezone"
 
 const defaults = { providerID: "provider", modelID: "model", agent: "" }
+
+describe("system timezone defaults", () => {
+  it("reuses the startup timezone across drafts without detecting it again", () => {
+    const resolved = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions")
+    try {
+      expect(toDraft(null, defaults).schedule.timezone).toBe(STARTUP_TIMEZONE)
+      expect(toDraft(null, defaults).schedule.timezone).toBe(STARTUP_TIMEZONE)
+      const task: ScheduledTask = {
+        ...onceTask(Date.parse("2027-03-14T06:30:00Z")),
+        schedule: { type: "daily", time: "09:30", timezone: "America/New_York" },
+      }
+      expect(toDraft(task, defaults).schedule.timezone).toBe("America/New_York")
+      expect(resolved).not.toHaveBeenCalled()
+    } finally {
+      resolved.mockRestore()
+    }
+  })
+})
 
 const onceTask = (runAt: number, timezone?: string): ScheduledTask =>
   ({

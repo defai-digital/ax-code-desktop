@@ -1,4 +1,5 @@
 import React from "react"
+import "@/lib/startupTimezone"
 import { MainLayout } from "@/components/layout/MainLayout"
 import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { ChatView } from "@/components/views/ChatView"

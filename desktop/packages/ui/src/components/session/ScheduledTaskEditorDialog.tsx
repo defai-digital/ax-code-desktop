@@ -1,4 +1,5 @@
 import * as React from "react"
+import { STARTUP_TIMEZONE } from "@/lib/startupTimezone"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { cn } from "@/lib/utils"
 import { ScrollShadow } from "@/components/ui/ScrollShadow"
@@ -628,7 +629,7 @@ export const toDraft = (
   },
   family?: ScheduledTaskFamily,
 ): ScheduledTaskDraft => {
-  const timezoneFallback = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  const timezoneFallback = STARTUP_TIMEZONE
   const source = family?.primary ?? task
   if (!source) {
     return {

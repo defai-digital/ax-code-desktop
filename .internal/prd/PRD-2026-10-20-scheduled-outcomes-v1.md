@@ -44,6 +44,19 @@ before activation. A template cannot confer new permissions, guarantee a browser
 
 ## P1: Scheduled results and recap
 
+### Timezone default clarification (user follow-up, 2026-10-20)
+
+At renderer startup, capture the system/browser IANA timezone once using
+`Intl.DateTimeFormat().resolvedOptions().timeZone`; UTC is the fallback only when detection is unavailable.
+New schedules reuse this startup value without detecting the timezone on each draft creation or edit.
+Restarting/reloading the renderer refreshes the default. Show the selected timezone and allow an explicit override.
+Existing recurring schedules retain their saved timezone when the system timezone changes; never silently move a
+09:00 New York schedule to 09:00 Tokyo because the user traveled. A once schedule stores an absolute epoch;
+displaying it in the current local timezone must preserve that instant when saved unchanged.
+Acceptance covers detected Tokyo/New York defaults, missing-zone UTC fallback, preserved saved recurrence zones,
+no repeated detection when creating/editing drafts, and unchanged one-time epoch round-trips. A future explicit
+follow-system-zone option requires its own behavior definition; it is not implied by this default.
+
 A scheduled result has project/task/run identity, trigger/occurrence, execution host, timestamps, configuration revision,
 execution status, outcome verification status, evidence links, errors and a useful next action. An available result is
 readable without generating a fresh model response. Stale/partial/unavailable evidence is explicit.

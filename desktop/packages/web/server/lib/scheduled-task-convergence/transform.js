@@ -160,7 +160,9 @@ const resolveScheduleSlots = (task, now) => {
       return { error: "one-time schedule is missing date or time" }
     }
     const parsed = DateTime.fromFormat(`${date} ${time}`, "yyyy-LL-dd HH:mm", { zone: timezone })
-    if (!parsed.isValid) {
+    // Luxon normalizes gaps to another wall clock while still reporting a
+    // valid instant. Do not migrate that as though the user selected it.
+    if (!parsed.isValid || parsed.toFormat("yyyy-LL-dd HH:mm") !== `${date} ${time}`) {
       return { error: `one-time schedule date/time is invalid: ${date} ${time}` }
     }
     let runAt = parsed.toMillis()
