@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 import { I18nProvider } from "@/lib/i18n"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { createDesktopUiTools } from "@/lib/desktopUiWebMcp"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -84,6 +85,47 @@ afterEach(() => {
 })
 
 describe("HooksPage", () => {
+  test("identical hook events have independent, contextual command expansion targets", async () => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList)
+    hooksGet.mockResolvedValue({ data: { ...trustedWorkspace, hooks: [
+      trustedWorkspace.hooks[0], { ...trustedWorkspace.hooks[0], command: `${longCommand} --check` },
+    ] } })
+    await renderPage()
+    const { tools, dispose } = createDesktopUiTools(document)
+    try {
+      const state = tools[0].execute({}) as { controls: Array<{ name: string; ref: string }> }
+      const targets = state.controls.filter(control => control.name.startsWith("Show full command"))
+      expect(targets.map(control => control.name)).toEqual(["Show full command: PreToolUse · 1", "Show full command: PreToolUse · 2"])
+      await act(async () => { tools[1].execute({ ref: targets[1].ref }) })
+      const expanded = document.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')!
+      const command = document.getElementById(expanded.getAttribute("aria-controls")!)!
+      expect(expanded.getAttribute("aria-label")).toBe("Hide full command: PreToolUse · 2")
+      expect(command.textContent).toBe(`${longCommand} --check`)
+      expect(command.classList.contains("truncate")).toBe(false)
+      expect(document.querySelector("code")?.classList.contains("truncate")).toBe(true)
+      await act(async () => { expanded.click() })
+      expect(command.classList.contains("truncate")).toBe(true)
+    } finally { dispose() }
+  })
+
+  test("a late refresh cannot replace a different project's workspace", async () => {
+    let finishRefresh!: (result: { data: HookWorkspace }) => void
+    hooksGet.mockResolvedValueOnce({ data: trustedWorkspace })
+    await renderPage()
+    hooksGet.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve }))
+    await act(async () => { button("Refresh")?.click() })
+    const other = { ...trustedWorkspace, file: { ...trustedWorkspace.file, path: "/repo/other/.ax-code/hooks.json" },
+      packs: [{ name: "other-project-pack", enabled: true }] }
+    hooksGet.mockResolvedValueOnce({ data: other })
+    await act(async () => { useDirectoryStore.setState({ currentDirectory: "/repo/other" }) })
+    await flush()
+    await act(async () => { finishRefresh({ data: trustedWorkspace }) })
+    await flush()
+    expect(text()).toContain("other-project-pack")
+    expect(text()).not.toContain(HOOKS_PATH)
+    expect(axCodeClient.getScopedSdkClient).toHaveBeenLastCalledWith("/repo/other")
+  })
+
   test("keeps malformed responses inside the retryable load error and recovers", async () => {
     hooksGet.mockResolvedValueOnce({ data: {} })
     await renderPage()

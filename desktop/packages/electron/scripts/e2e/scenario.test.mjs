@@ -107,6 +107,28 @@ spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their 
   expect(await (await read(`/session/${other.session.id}/goal`, other.session.directory)).json()).toBeNull()
 })
 
+spawnTest("Hooks fixtures isolate directories, preserve default behavior and expose failures", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/hooks/project", portfolio: true })
+  const handle = await startStub({ scenario })
+  expect(await (await fetch(`${handle.base}/hooks`)).json()).toEqual({})
+  const workspaces = [scenario.projectDirectory, scenario.portfolio[0].project.worktree].map((directory, index) => ({
+    directory, workspace: { marker: `project-${index}` }, delayMs: index === 0 ? 40 : 0,
+  }))
+  const seed = (workspaces) => fetch(`${handle.base}/__e2e__/hooks`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaces }),
+  })
+  await seed(workspaces)
+  for (const entry of workspaces) {
+    expect(await (await fetch(`${handle.base}/hooks?directory=${encodeURIComponent(entry.directory)}`)).json()).toEqual(entry.workspace)
+  }
+  expect((await fetch(`${handle.base}/hooks?directory=/unknown`)).status).toBe(404)
+  expect((await (await fetch(`${handle.base}/__e2e__/hooks`)).json()).reads).toHaveLength(3)
+  await seed([{ ...workspaces[0], status: 503, workspace: { message: "Hooks temporarily unavailable" } }])
+  const failed = await fetch(`${handle.base}/hooks`, { headers: { "x-ax-code-directory": scenario.projectDirectory } })
+  expect(failed.status).toBe(503)
+  expect(await failed.json()).toEqual({ message: "Hooks temporarily unavailable" })
+})
+
 spawnTest("portfolio scheduled reads isolate duplicate task IDs and histories by directory", async () => {
   const scenario = buildE2eScenario({ directory: "/tmp/portfolio/project", portfolio: true })
   const handle = await startStub({ scenario })

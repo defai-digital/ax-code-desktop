@@ -50,8 +50,9 @@ function sourceText(entry: HookEntry, t: (key: I18nKey) => string): string {
   return source.name || t("settings.hooks.list.source.pack")
 }
 
-const HookCommand: React.FC<{ command: string }> = ({ command }) => {
+const HookCommand: React.FC<{ command: string; context: string }> = ({ command, context }) => {
   const { t } = useI18n()
+  const commandId = React.useId()
   const [expanded, setExpanded] = React.useState(false)
   const canExpand = hookCommandNeedsExpansion(command)
 
@@ -59,6 +60,7 @@ const HookCommand: React.FC<{ command: string }> = ({ command }) => {
     <div className="min-w-0 space-y-1">
       <div className="typography-micro text-muted-foreground">{t("settings.hooks.list.column.command")}</div>
       <code
+        id={commandId}
         className={cn(
           "block font-mono typography-micro text-foreground",
           expanded ? "whitespace-pre-wrap break-all" : "truncate",
@@ -73,6 +75,8 @@ const HookCommand: React.FC<{ command: string }> = ({ command }) => {
           size="xs"
           variant="ghost"
           aria-expanded={expanded}
+          aria-controls={commandId}
+          aria-label={`${expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}: ${context}`}
           onClick={() => setExpanded((current) => !current)}
         >
           {expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}
@@ -172,7 +176,7 @@ const HooksWorkspaceView: React.FC<{
                     ) : null}
                     <span className={badgeClass}>{sourceText(entry, t)}</span>
                   </div>
-                  <HookCommand command={entry.command} />
+                  <HookCommand command={entry.command} context={`${entry.event} · ${index + 1}`} />
                 </li>
               )
             })}

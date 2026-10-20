@@ -108,6 +108,17 @@ validation, the journey brings its own window to the front and verifies `documen
 window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
 field's validation failed.
 
+For populated Hooks and same-name Settings project targets:
+
+```sh
+node desktop/packages/electron/scripts/e2e/hooks-targets-webmcp.mjs --artifacts /tmp/ax-hooks-targets
+```
+
+This isolated two-project journey checks path-bearing project choices, independent long-command expansion, scoped
+refresh, retained content after a refresh error, retry and a completed late response from the previous project.
+It captures wide/narrow and light/dark screenshots. It reads fixture Hooks data without executing commands or changing
+trust/configuration. Project menu transitions are checked through the specific selector's expanded state.
+
 For the nested agent permission editor:
 
 ```sh

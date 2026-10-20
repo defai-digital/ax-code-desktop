@@ -1,0 +1,61 @@
+{
+  "expanders": [
+    {
+      "ref": "d77c268d-aa10-4a10-b199-6abf5a5ffb3b:12:21",
+      "name": "Show full command",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "d77c268d-aa10-4a10-b199-6abf5a5ffb3b:12:22",
+      "name": "Show full command",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    }
+  ],
+  "options": [
+    {
+      "ref": "d77c268d-aa10-4a10-b199-6abf5a5ffb3b:7:21",
+      "name": "Electron",
+      "role": "menuitemradio",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": "true"
+    },
+    {
+      "ref": "d77c268d-aa10-4a10-b199-6abf5a5ffb3b:7:22",
+      "name": "Shared Project",
+      "role": "menuitemradio",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": "false"
+    },
+    {
+      "ref": "d77c268d-aa10-4a10-b199-6abf5a5ffb3b:7:23",
+      "name": "Shared Project",
+      "role": "menuitemradio",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": "false"
+    }
+  ],
+  "defects": [
+    "Settings project target lacks directory: /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-whgGk8/project",
+    "Settings project target lacks directory: /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-whgGk8/other-project",
+    "Hook command expansion targets are indistinguishable"
+  ]
+}

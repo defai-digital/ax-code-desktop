@@ -1,0 +1,613 @@
+Review the supplied React UI diff for concrete user-facing bugs only. Native WebMCP reproduced duplicate Settings project names and identical Hook command expand names. The repair adds path context for displayed name collisions and contextual command expansion with aria-controls. Check selection correctness, accessible naming, narrow layout and lifecycle. Report only actionable findings supported by the supplied code; otherwise say no concrete finding. Read-only advisory review: do not use tools, shell, web, or delegate. Do not claim tests or screenshots were reviewed.
+
+CURRENT FILE: desktop/packages/ui/src/components/sections/shared/SettingsProjectSelector.tsx
+import React from "react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import { Icon } from "@/components/icon/Icon"
+import { useProjectsStore } from "@/stores/useProjectsStore"
+import { cn } from "@/lib/utils"
+import { useI18n } from "@/lib/i18n"
+
+const formatProjectLabel = (label: string): string => {
+  return label.replace(/[-_]/g, " ").replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ className }) => {
+  const { t } = useI18n()
+  const projects = useProjectsStore((state) => state.projects)
+  const activeProjectId = useProjectsStore((state) => state.activeProjectId)
+  const setActiveProject = useProjectsStore((state) => state.setActiveProject)
+
+  const sortedProjects = React.useMemo(() => {
+    const entries = [...projects].sort((a, b) => (a.label || a.path).localeCompare(b.label || b.path)).map(project => {
+      const raw = project.label?.trim() || project.path.split("/").filter(Boolean).pop() || project.path ||
+        t("settings.shared.projectSelector.fallbackProject")
+      return { ...project, displayLabel: formatProjectLabel(raw).replace(/\s+/g, " ").trim() }
+    })
+    const counts = new Map<string, number>()
+    for (const project of entries) counts.set(project.displayLabel, (counts.get(project.displayLabel) ?? 0) + 1)
+    return entries.map(project => ({ ...project, ambiguous: (counts.get(project.displayLabel) ?? 0) > 1 }))
+  }, [projects, t])
+
+  const activeProject = React.useMemo(() => {
+    if (sortedProjects.length === 0) {
+      return null
+    }
+    return sortedProjects.find((p) => p.id === activeProjectId) ?? sortedProjects[0]
+  }, [activeProjectId, sortedProjects])
+
+  if (sortedProjects.length === 0) {
+    return null
+  }
+
+  const label = activeProject?.displayLabel
+
+  return (
+    <div className={cn(className)}>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-label={t("settings.shared.projectSelector.switchProjectAria")}
+            title={t("settings.shared.projectSelector.switchProjectTitle")}
+            className={cn(
+              // Mirror Input sizing so headers align visually.
+              "text-foreground border border-border/80 appearance-none flex min-h-8 w-full min-w-0 rounded-lg bg-transparent px-3 py-1 outline-none",
+              "hover:border-input focus-visible:ring-1 focus-visible:ring-primary/50 focus-visible:border-primary/70",
+              "flex items-center gap-1.5 text-left",
+            )}
+          >
+            <Icon name="folder" className="h-4 w-4 shrink-0 opacity-70" />
+            <span className="min-w-0 flex-1">
+              <span className="block break-all typography-ui-label font-medium">{label}</span>
+              {activeProject?.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{activeProject.path}</span> : null}
+            </span>
+            <Icon name="arrow-down-s" className="size-4 shrink-0 opacity-50" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-96 max-w-[calc(100vw-2rem)]">
+          <DropdownMenuRadioGroup
+            value={activeProject?.id ?? ""}
+            onValueChange={(value) => {
+              if (!value) return
+              setActiveProject(value)
+            }}
+          >
+            {sortedProjects.map((project) => {
+              const itemLabel = project.displayLabel
+              return (
+                <DropdownMenuRadioItem key={project.id} value={project.id}
+                  aria-label={project.ambiguous ? `${itemLabel} · ${project.path}` : itemLabel}>
+                  <span className="min-w-0">
+                    <span className="block break-all typography-ui-label">{itemLabel}</span>
+                    {project.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{project.path}</span> : null}
+                  </span>
+                </DropdownMenuRadioItem>
+              )
+            })}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  )
+}
+
+CURRENT FILE: desktop/packages/ui/src/components/sections/hooks/HooksPage.tsx
+import React from "react"
+import type { HookEntry, HookWorkspace } from "@defai-digital/ax-code-sdk/v2"
+import { Button } from "@/components/ui/button"
+import { Icon } from "@/components/icon/Icon"
+import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
+import { SettingsPageLayout } from "@/components/sections/shared/SettingsPageLayout"
+import { SettingsProjectSelector } from "@/components/sections/shared/SettingsProjectSelector"
+import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
+import { useI18n, type I18nKey } from "@/lib/i18n"
+import { cn } from "@/lib/utils"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useUIStore } from "@/stores/useUIStore"
+import { fetchHookWorkspace } from "./hooksLoad"
+import {
+  deriveHooksFileStatus,
+  deriveHooksTrustNotice,
+  hookCommandNeedsExpansion,
+  hookMatcherLabel,
+  hookSourceLabel,
+  hooksLoadErrorMessage,
+  type HooksFileStatus,
+} from "./hooksModel"
+
+const FILE_STATUS_KEYS: Record<HooksFileStatus, I18nKey> = {
+  missing: "settings.hooks.file.status.missing",
+  valid: "settings.hooks.file.status.valid",
+  invalid: "settings.hooks.file.status.invalid",
+}
+
+const TRUST_ENV = "AX_CODE_TRUST_PROJECT_CONFIG=1"
+
+const badgeClass =
+  "typography-micro rounded px-1.5 py-0.5 border border-border/50 bg-[var(--surface-muted)] text-muted-foreground"
+
+function EmphasizedTrustText({ text }: { text: string }) {
+  const index = text.indexOf(TRUST_ENV)
+  if (index < 0) return text
+  return (
+    <>
+      {text.slice(0, index)}
+      <code className="font-mono">{TRUST_ENV}</code>
+      {text.slice(index + TRUST_ENV.length)}
+    </>
+  )
+}
+
+function sourceText(entry: HookEntry, t: (key: I18nKey) => string): string {
+  const source = hookSourceLabel(entry)
+  if (source.kind === "project") return t("settings.hooks.list.source.project")
+  return source.name || t("settings.hooks.list.source.pack")
+}
+
+const HookCommand: React.FC<{ command: string; context: string }> = ({ command, context }) => {
+  const { t } = useI18n()
+  const commandId = React.useId()
+  const [expanded, setExpanded] = React.useState(false)
+  const canExpand = hookCommandNeedsExpansion(command)
+
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="typography-micro text-muted-foreground">{t("settings.hooks.list.column.command")}</div>
+      <code
+        id={commandId}
+        className={cn(
+          "block font-mono typography-micro text-foreground",
+          expanded ? "whitespace-pre-wrap break-all" : "truncate",
+        )}
+        title={command}
+      >
+        {command}
+      </code>
+      {canExpand ? (
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          aria-expanded={expanded}
+          aria-controls={commandId}
+          aria-label={`${expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}: ${context}`}
+          onClick={() => setExpanded((current) => !current)}
+        >
+          {expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}
+        </Button>
+      ) : null}
+    </div>
+  )
+}
+
+const HooksWorkspaceView: React.FC<{
+  workspace: HookWorkspace
+  onOpenFile: (path: string) => void
+}> = ({ workspace, onOpenFile }) => {
+  const { t } = useI18n()
+  const notice = deriveHooksTrustNotice(workspace)
+  const status = deriveHooksFileStatus(workspace.file)
+  const path = workspace.file.path.trim()
+
+  return (
+    <div className="space-y-6">
+      {notice === "ignored" ? (
+        <div
+          role="status"
+          className="rounded-md border border-[var(--status-warning)]/40 bg-[var(--status-warning)]/10 px-3 py-2 typography-meta text-foreground"
+        >
+          <EmphasizedTrustText text={t("settings.hooks.trust.ignored")} />
+        </div>
+      ) : null}
+      {notice === "absent" ? (
+        <div
+          role="status"
+          className="rounded-md border border-border bg-[var(--surface-muted)] px-3 py-2 typography-meta text-muted-foreground"
+        >
+          {t("settings.hooks.trust.absent")}
+        </div>
+      ) : null}
+
+      <section className="space-y-2">
+        <h2 className="typography-ui-label font-semibold text-foreground">{t("settings.hooks.file.heading")}</h2>
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-border px-3 py-3">
+          <div className="min-w-0 space-y-1">
+            {path ? <div className="break-all font-mono typography-micro text-foreground">{path}</div> : null}
+            <div className="flex flex-wrap items-center gap-2">
+              <span
+                className={cn(
+                  badgeClass,
+                  status === "valid" && "border-[var(--status-success)]/30 text-[var(--status-success)]",
+                  status === "invalid" && "border-[var(--status-error)]/30 text-[var(--status-error)]",
+                )}
+              >
+                {t(FILE_STATUS_KEYS[status])}
+              </span>
+              {status === "invalid" && workspace.file.error ? (
+                <span className="typography-micro text-[var(--status-error)]">{workspace.file.error}</span>
+              ) : null}
+            </div>
+          </div>
+          {path ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              aria-label={t("settings.hooks.file.openAria")}
+              onClick={() => onOpenFile(path)}
+            >
+              {t("settings.hooks.file.open")}
+            </Button>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="typography-ui-label font-semibold text-foreground">{t("settings.hooks.list.heading")}</h2>
+        {workspace.hooks.length === 0 ? (
+          <p className="typography-ui-label text-muted-foreground">{t("settings.hooks.list.empty")}</p>
+        ) : (
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {workspace.hooks.map((entry, index) => {
+              const matcher = hookMatcherLabel(entry.matcher)
+              return (
+                <li key={`${index}:${entry.event}:${entry.source}:${entry.pack ?? ""}`} className="space-y-2 px-3 py-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="typography-ui-label font-medium text-foreground">{entry.event}</span>
+                    <span className="typography-micro text-muted-foreground">
+                      <span className="sr-only">{t("settings.hooks.list.column.matcher")}: </span>
+                      {matcher.kind === "all" ? t("settings.hooks.list.matcher.allTools") : matcher.value}
+                    </span>
+                    {entry.protocol === "claude-code" ? (
+                      <span className={badgeClass}>{t("settings.hooks.list.badge.protocol")}</span>
+                    ) : null}
+                    {entry.blockOnFailure ? (
+                      <span
+                        className={cn(badgeClass, "border-[var(--status-warning)]/30 text-[var(--status-warning)]")}
+                      >
+                        {t("settings.hooks.list.badge.blockOnFailure")}
+                      </span>
+                    ) : null}
+                    <span className={badgeClass}>{sourceText(entry, t)}</span>
+                  </div>
+                  <HookCommand command={entry.command} context={`${entry.event} · ${index + 1}`} />
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="typography-ui-label font-semibold text-foreground">{t("settings.hooks.packs.heading")}</h2>
+        <p className="typography-meta text-muted-foreground">{t("settings.hooks.packs.description")}</p>
+        {workspace.packs.length === 0 ? (
+          <p className="typography-ui-label text-muted-foreground">{t("settings.hooks.packs.empty")}</p>
+        ) : (
+          <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+            {workspace.packs.map((pack) => (
+              <li key={pack.name} className="space-y-1 px-3 py-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="typography-ui-label font-medium text-foreground">{pack.name}</span>
+                  <span
+                    className={cn(
+                      badgeClass,
+                      pack.enabled && "border-[var(--status-success)]/30 text-[var(--status-success)]",
+                    )}
+                  >
+                    {pack.enabled ? t("settings.hooks.packs.enabled") : t("settings.hooks.packs.disabled")}
+                  </span>
+                </div>
+                {pack.description ? <p className="typography-meta text-muted-foreground">{pack.description}</p> : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  )
+}
+
+export const HooksPage: React.FC = () => {
+  const { t } = useI18n()
+  const runtime = React.useContext(RuntimeAPIContext)
+  // SettingsProjectSelector writes the active project here, the same directory MCP reads.
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const directory = currentDirectory.trim()
+  const [workspace, setWorkspace] = React.useState<HookWorkspace | null>(null)
+  const [loading, setLoading] = React.useState(directory.length > 0)
+  const [error, setError] = React.useState<string | null>(null)
+  const requestRef = React.useRef(0)
+
+  const load = React.useCallback((nextDirectory: string, mode: "replace" | "refresh") => {
+    const requestId = ++requestRef.current
+    if (mode === "replace") setWorkspace(null)
+    setError(null)
+    setLoading(true)
+    void fetchHookWorkspace(nextDirectory).then(
+      (next) => {
+        if (requestId !== requestRef.current) return
+        setWorkspace(next)
+        setError(null)
+        setLoading(false)
+      },
+      (reason: unknown) => {
+        if (requestId !== requestRef.current) return
+        if (mode === "replace") setWorkspace(null)
+        setError(hooksLoadErrorMessage(reason))
+        setLoading(false)
+      },
+    )
+  }, [])
+
+  React.useEffect(() => {
+    if (!directory) {
+      requestRef.current += 1
+      setWorkspace(null)
+      setError(null)
+      setLoading(false)
+      return
+    }
+    load(directory, "replace")
+  }, [directory, load])
+
+  const openFile = React.useCallback(
+    (path: string) => {
+      if (!directory || !path) return
+      const editor = runtime?.editor
+      if (editor) {
+        void editor.openFile(path)
+        return
+      }
+      useUIStore.getState().openContextFile(directory, path)
+    },
+    [directory, runtime],
+  )
+
+  const retry = () => {
+    if (!directory || loading) return
+    load(directory, workspace ? "refresh" : "replace")
+  }
+
+  const showSkeleton = Boolean(directory) && loading && !workspace
+  const showError = error !== null && !showSkeleton
+
+  return (
+    <SettingsPageLayout>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 space-y-1">
+          <h1 className="typography-ui-header font-semibold text-foreground">{t("settings.page.hooks.title")}</h1>
+          <p className="typography-ui-label text-muted-foreground">{t("settings.hooks.page.description")}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          aria-label={t("settings.hooks.page.refreshAria")}
+          disabled={!directory || loading}
+          onClick={() => {
+            if (!directory || loading) return
+            load(directory, workspace ? "refresh" : "replace")
+          }}
+        >
+          <Icon name="refresh" className={cn("h-4 w-4", loading && "animate-spin")} />
+          {t("settings.hooks.page.refresh")}
+        </Button>
+      </div>
+
+      <SettingsProjectSelector />
+
+      {!directory ? (
+        <p className="typography-ui-label text-muted-foreground">{t("settings.hooks.page.noDirectory")}</p>
+      ) : null}
+
+      {showSkeleton ? <ViewLoadingSkeleton label={t("settings.hooks.page.loading")} /> : null}
+
+      {showError ? (
+        <div role="alert" className="space-y-3 rounded-lg border border-border px-3 py-3">
+          <p className="typography-ui-label text-foreground">{t("settings.hooks.page.error")}</p>
+          {error ? <p className="typography-micro text-muted-foreground">{error}</p> : null}
+          <Button type="button" size="sm" variant="outline" onClick={retry} disabled={loading}>
+            {t("settings.hooks.page.retry")}
+          </Button>
+        </div>
+      ) : null}
+
+      {workspace ? <HooksWorkspaceView key={directory} workspace={workspace} onOpenFile={openFile} /> : null}
+    </SettingsPageLayout>
+  )
+}
+
+DIFF INCLUDING MOUNTED TESTS:
+diff --git a/desktop/packages/ui/src/components/sections/hooks/HooksPage.test.tsx b/desktop/packages/ui/src/components/sections/hooks/HooksPage.test.tsx
+index 3d69387a..56dda76a 100644
+--- a/desktop/packages/ui/src/components/sections/hooks/HooksPage.test.tsx
++++ b/desktop/packages/ui/src/components/sections/hooks/HooksPage.test.tsx
+@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+
+ import { I18nProvider } from "@/lib/i18n"
+ import { axCodeClient } from "@/lib/ax-code/client"
++import { createDesktopUiTools } from "@/lib/desktopUiWebMcp"
+ import { useDirectoryStore } from "@/stores/useDirectoryStore"
+ import { useProjectsStore } from "@/stores/useProjectsStore"
+ import { useUIStore } from "@/stores/useUIStore"
+@@ -84,6 +85,47 @@ afterEach(() => {
+ })
+
+ describe("HooksPage", () => {
++  test("identical hook events have independent, contextual command expansion targets", async () => {
++    vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList)
++    hooksGet.mockResolvedValue({ data: { ...trustedWorkspace, hooks: [
++      trustedWorkspace.hooks[0], { ...trustedWorkspace.hooks[0], command: `${longCommand} --check` },
++    ] } })
++    await renderPage()
++    const { tools, dispose } = createDesktopUiTools(document)
++    try {
++      const state = tools[0].execute({}) as { controls: Array<{ name: string; ref: string }> }
++      const targets = state.controls.filter(control => control.name.startsWith("Show full command"))
++      expect(targets.map(control => control.name)).toEqual(["Show full command: PreToolUse · 1", "Show full command: PreToolUse · 2"])
++      await act(async () => { tools[1].execute({ ref: targets[1].ref }) })
++      const expanded = document.querySelector<HTMLButtonElement>('button[aria-expanded="true"]')!
++      const command = document.getElementById(expanded.getAttribute("aria-controls")!)!
++      expect(expanded.getAttribute("aria-label")).toBe("Hide full command: PreToolUse · 2")
++      expect(command.textContent).toBe(`${longCommand} --check`)
++      expect(command.classList.contains("truncate")).toBe(false)
++      expect(document.querySelector("code")?.classList.contains("truncate")).toBe(true)
++      await act(async () => { expanded.click() })
++      expect(command.classList.contains("truncate")).toBe(true)
++    } finally { dispose() }
++  })
++
++  test("a late refresh cannot replace a different project's workspace", async () => {
++    let finishRefresh!: (result: { data: HookWorkspace }) => void
++    hooksGet.mockResolvedValueOnce({ data: trustedWorkspace })
++    await renderPage()
++    hooksGet.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve }))
++    await act(async () => { button("Refresh")?.click() })
++    const other = { ...trustedWorkspace, file: { ...trustedWorkspace.file, path: "/repo/other/.ax-code/hooks.json" },
++      packs: [{ name: "other-project-pack", enabled: true }] }
++    hooksGet.mockResolvedValueOnce({ data: other })
++    await act(async () => { useDirectoryStore.setState({ currentDirectory: "/repo/other" }) })
++    await flush()
++    await act(async () => { finishRefresh({ data: trustedWorkspace }) })
++    await flush()
++    expect(text()).toContain("other-project-pack")
++    expect(text()).not.toContain(HOOKS_PATH)
++    expect(axCodeClient.getScopedSdkClient).toHaveBeenLastCalledWith("/repo/other")
++  })
++
+   test("keeps malformed responses inside the retryable load error and recovers", async () => {
+     hooksGet.mockResolvedValueOnce({ data: {} })
+     await renderPage()
+diff --git a/desktop/packages/ui/src/components/sections/hooks/HooksPage.tsx b/desktop/packages/ui/src/components/sections/hooks/HooksPage.tsx
+index d44ccf53..92b3bd19 100644
+--- a/desktop/packages/ui/src/components/sections/hooks/HooksPage.tsx
++++ b/desktop/packages/ui/src/components/sections/hooks/HooksPage.tsx
+@@ -50,8 +50,9 @@ function sourceText(entry: HookEntry, t: (key: I18nKey) => string): string {
+   return source.name || t("settings.hooks.list.source.pack")
+ }
+
+-const HookCommand: React.FC<{ command: string }> = ({ command }) => {
++const HookCommand: React.FC<{ command: string; context: string }> = ({ command, context }) => {
+   const { t } = useI18n()
++  const commandId = React.useId()
+   const [expanded, setExpanded] = React.useState(false)
+   const canExpand = hookCommandNeedsExpansion(command)
+
+@@ -59,6 +60,7 @@ const HookCommand: React.FC<{ command: string }> = ({ command }) => {
+     <div className="min-w-0 space-y-1">
+       <div className="typography-micro text-muted-foreground">{t("settings.hooks.list.column.command")}</div>
+       <code
++        id={commandId}
+         className={cn(
+           "block font-mono typography-micro text-foreground",
+           expanded ? "whitespace-pre-wrap break-all" : "truncate",
+@@ -73,6 +75,8 @@ const HookCommand: React.FC<{ command: string }> = ({ command }) => {
+           size="xs"
+           variant="ghost"
+           aria-expanded={expanded}
++          aria-controls={commandId}
++          aria-label={`${expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}: ${context}`}
+           onClick={() => setExpanded((current) => !current)}
+         >
+           {expanded ? t("settings.hooks.list.command.collapse") : t("settings.hooks.list.command.expand")}
+@@ -172,7 +176,7 @@ const HooksWorkspaceView: React.FC<{
+                     ) : null}
+                     <span className={badgeClass}>{sourceText(entry, t)}</span>
+                   </div>
+-                  <HookCommand command={entry.command} />
++                  <HookCommand command={entry.command} context={`${entry.event} · ${index + 1}`} />
+                 </li>
+               )
+             })}
+diff --git a/desktop/packages/ui/src/components/sections/shared/SettingsProjectSelector.tsx b/desktop/packages/ui/src/components/sections/shared/SettingsProjectSelector.tsx
+index 39886879..e41f1bdd 100644
+--- a/desktop/packages/ui/src/components/sections/shared/SettingsProjectSelector.tsx
++++ b/desktop/packages/ui/src/components/sections/shared/SettingsProjectSelector.tsx
+@@ -22,8 +22,15 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
+   const setActiveProject = useProjectsStore((state) => state.setActiveProject)
+
+   const sortedProjects = React.useMemo(() => {
+-    return [...projects].sort((a, b) => (a.label || a.path).localeCompare(b.label || b.path))
+-  }, [projects])
++    const entries = [...projects].sort((a, b) => (a.label || a.path).localeCompare(b.label || b.path)).map(project => {
++      const raw = project.label?.trim() || project.path.split("/").filter(Boolean).pop() || project.path ||
++        t("settings.shared.projectSelector.fallbackProject")
++      return { ...project, displayLabel: formatProjectLabel(raw).replace(/\s+/g, " ").trim() }
++    })
++    const counts = new Map<string, number>()
++    for (const project of entries) counts.set(project.displayLabel, (counts.get(project.displayLabel) ?? 0) + 1)
++    return entries.map(project => ({ ...project, ambiguous: (counts.get(project.displayLabel) ?? 0) > 1 }))
++  }, [projects, t])
+
+   const activeProject = React.useMemo(() => {
+     if (sortedProjects.length === 0) {
+@@ -36,13 +43,7 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
+     return null
+   }
+
+-  const rawLabel =
+-    activeProject?.label && activeProject.label.trim().length > 0
+-      ? activeProject.label
+-      : activeProject?.path.split("/").filter(Boolean).pop() ||
+-        activeProject?.path ||
+-        t("settings.shared.projectSelector.fallbackProject")
+-  const label = formatProjectLabel(rawLabel)
++  const label = activeProject?.displayLabel
+
+   return (
+     <div className={cn(className)}>
+@@ -54,17 +55,20 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
+             title={t("settings.shared.projectSelector.switchProjectTitle")}
+             className={cn(
+               // Mirror Input sizing so headers align visually.
+-              "text-foreground border border-border/80 appearance-none flex h-8 w-full min-w-0 rounded-lg bg-transparent px-3 py-1 outline-none",
++              "text-foreground border border-border/80 appearance-none flex min-h-8 w-full min-w-0 rounded-lg bg-transparent px-3 py-1 outline-none",
+               "hover:border-input focus-visible:ring-1 focus-visible:ring-primary/50 focus-visible:border-primary/70",
+               "flex items-center gap-1.5 text-left",
+             )}
+           >
+-            <Icon name="folder" className="h-4 w-4 opacity-70" />
+-            <span className="min-w-0 flex-1 truncate typography-ui-label font-medium">{label}</span>
+-            <Icon name="arrow-down-s" className="size-4 opacity-50" />
++            <Icon name="folder" className="h-4 w-4 shrink-0 opacity-70" />
++            <span className="min-w-0 flex-1">
++              <span className="block break-all typography-ui-label font-medium">{label}</span>
++              {activeProject?.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{activeProject.path}</span> : null}
++            </span>
++            <Icon name="arrow-down-s" className="size-4 shrink-0 opacity-50" />
+           </button>
+         </DropdownMenuTrigger>
+-        <DropdownMenuContent align="start" className="w-auto">
++        <DropdownMenuContent align="start" className="w-96 max-w-[calc(100vw-2rem)]">
+           <DropdownMenuRadioGroup
+             value={activeProject?.id ?? ""}
+             onValueChange={(value) => {
+@@ -73,13 +77,14 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
+             }}
+           >
+             {sortedProjects.map((project) => {
+-              const raw = project.label?.trim()
+-                ? project.label.trim()
+-                : project.path.split("/").filter(Boolean).pop() || project.path
+-              const itemLabel = formatProjectLabel(raw)
++              const itemLabel = project.displayLabel
+               return (
+-                <DropdownMenuRadioItem key={project.id} value={project.id}>
+-                  <span className="min-w-0 truncate typography-ui-label">{itemLabel}</span>
++                <DropdownMenuRadioItem key={project.id} value={project.id}
++                  aria-label={project.ambiguous ? `${itemLabel} · ${project.path}` : itemLabel}>
++                  <span className="min-w-0">
++                    <span className="block break-all typography-ui-label">{itemLabel}</span>
++                    {project.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{project.path}</span> : null}
++                  </span>
+                 </DropdownMenuRadioItem>
+               )
+             })}

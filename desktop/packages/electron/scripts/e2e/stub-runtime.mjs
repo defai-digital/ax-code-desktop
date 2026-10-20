@@ -89,6 +89,8 @@ let scheduledCreateAttempts = 0;
 let scheduledFailCreateAt = 0;
 let scheduledFixtureModel = false;
 let scheduledFailAfterWrite = false;
+let hooksFixture = null;
+let hooksReads = [];
 const eventClients = new Set();
 const sendEvent = (res, directory, payload) => {
   try {
@@ -138,6 +140,32 @@ const server = http.createServer((req, res) => {
     const scopedDirectory = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
     const sessions = [scenario.session, ...portfolio.map(entry => entry.session)];
     const projects = [scenario.project, ...portfolio.map(entry => entry.project)];
+    if (pathname === '/__e2e__/hooks' && req.method === 'POST') {
+      readBody(req, (body) => {
+        hooksFixture = Array.isArray(body.workspaces) ? body.workspaces : [];
+        hooksReads = [];
+        json(res, { count: hooksFixture.length });
+      });
+      return;
+    }
+    if (pathname === '/__e2e__/hooks' && req.method === 'GET') {
+      json(res, { reads: hooksReads });
+      return;
+    }
+    if (pathname === '/hooks' && req.method === 'GET' && hooksFixture !== null) {
+      const entry = projects.some(project => project.worktree === scopedDirectory)
+        ? hooksFixture.find(item => item.directory === scopedDirectory) : null;
+      const read = { directory: scopedDirectory, status: entry ? (entry.status || 200) : 404, completed: false };
+      hooksReads.push(read);
+      const respond = () => {
+        read.completed = true;
+        res.statusCode = entry ? (entry.status || 200) : 404;
+        json(res, entry ? entry.workspace : { error: 'no hooks fixture for directory' });
+      };
+      if (entry && entry.delayMs > 0) setTimeout(respond, entry.delayMs);
+      else respond();
+      return;
+    }
     if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'POST') {
       readBody(req, (body) => {
         scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];

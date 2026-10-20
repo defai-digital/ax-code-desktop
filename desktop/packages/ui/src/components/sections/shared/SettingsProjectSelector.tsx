@@ -22,8 +22,15 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
   const setActiveProject = useProjectsStore((state) => state.setActiveProject)
 
   const sortedProjects = React.useMemo(() => {
-    return [...projects].sort((a, b) => (a.label || a.path).localeCompare(b.label || b.path))
-  }, [projects])
+    const entries = [...projects].sort((a, b) => (a.label || a.path).localeCompare(b.label || b.path)).map(project => {
+      const raw = project.label?.trim() || project.path.split("/").filter(Boolean).pop() || project.path ||
+        t("settings.shared.projectSelector.fallbackProject")
+      return { ...project, displayLabel: formatProjectLabel(raw).replace(/\s+/g, " ").trim() }
+    })
+    const counts = new Map<string, number>()
+    for (const project of entries) counts.set(project.displayLabel, (counts.get(project.displayLabel) ?? 0) + 1)
+    return entries.map(project => ({ ...project, ambiguous: (counts.get(project.displayLabel) ?? 0) > 1 }))
+  }, [projects, t])
 
   const activeProject = React.useMemo(() => {
     if (sortedProjects.length === 0) {
@@ -36,13 +43,7 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
     return null
   }
 
-  const rawLabel =
-    activeProject?.label && activeProject.label.trim().length > 0
-      ? activeProject.label
-      : activeProject?.path.split("/").filter(Boolean).pop() ||
-        activeProject?.path ||
-        t("settings.shared.projectSelector.fallbackProject")
-  const label = formatProjectLabel(rawLabel)
+  const label = activeProject?.displayLabel
 
   return (
     <div className={cn(className)}>
@@ -54,17 +55,20 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
             title={t("settings.shared.projectSelector.switchProjectTitle")}
             className={cn(
               // Mirror Input sizing so headers align visually.
-              "text-foreground border border-border/80 appearance-none flex h-8 w-full min-w-0 rounded-lg bg-transparent px-3 py-1 outline-none",
+              "text-foreground border border-border/80 appearance-none flex min-h-8 w-full min-w-0 rounded-lg bg-transparent px-3 py-1 outline-none",
               "hover:border-input focus-visible:ring-1 focus-visible:ring-primary/50 focus-visible:border-primary/70",
               "flex items-center gap-1.5 text-left",
             )}
           >
-            <Icon name="folder" className="h-4 w-4 opacity-70" />
-            <span className="min-w-0 flex-1 truncate typography-ui-label font-medium">{label}</span>
-            <Icon name="arrow-down-s" className="size-4 opacity-50" />
+            <Icon name="folder" className="h-4 w-4 shrink-0 opacity-70" />
+            <span className="min-w-0 flex-1">
+              <span className="block break-all typography-ui-label font-medium">{label}</span>
+              {activeProject?.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{activeProject.path}</span> : null}
+            </span>
+            <Icon name="arrow-down-s" className="size-4 shrink-0 opacity-50" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-auto">
+        <DropdownMenuContent align="start" className="w-96 max-w-[calc(100vw-2rem)]">
           <DropdownMenuRadioGroup
             value={activeProject?.id ?? ""}
             onValueChange={(value) => {
@@ -73,13 +77,14 @@ export const SettingsProjectSelector: React.FC<{ className?: string }> = ({ clas
             }}
           >
             {sortedProjects.map((project) => {
-              const raw = project.label?.trim()
-                ? project.label.trim()
-                : project.path.split("/").filter(Boolean).pop() || project.path
-              const itemLabel = formatProjectLabel(raw)
+              const itemLabel = project.displayLabel
               return (
-                <DropdownMenuRadioItem key={project.id} value={project.id}>
-                  <span className="min-w-0 truncate typography-ui-label">{itemLabel}</span>
+                <DropdownMenuRadioItem key={project.id} value={project.id} closeOnClick
+                  aria-label={project.ambiguous ? `${itemLabel} · ${project.path}` : itemLabel}>
+                  <span className="min-w-0">
+                    <span className="block break-all typography-ui-label">{itemLabel}</span>
+                    {project.ambiguous ? <span className="block break-all font-mono typography-micro text-muted-foreground">{project.path}</span> : null}
+                  </span>
                 </DropdownMenuRadioItem>
               )
             })}
