@@ -81,6 +81,8 @@ try {
 const pending = scenario && scenario.approveRequest ? [scenario.approveRequest] : [];
 let currentGoal = null;
 let foreignGoalEmitted = false;
+let portfolioGoalsActive = false;
+const portfolio = scenario && Array.isArray(scenario.portfolio) ? scenario.portfolio : [];
 let scheduledFixture = [];
 let scheduledWrites = [];
 let scheduledCreateAttempts = 0;
@@ -133,6 +135,9 @@ const server = http.createServer((req, res) => {
   }
   if (scenario) {
     const directory = scenario.projectDirectory;
+    const scopedDirectory = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+    const sessions = [scenario.session, ...portfolio.map(entry => entry.session)];
+    const projects = [scenario.project, ...portfolio.map(entry => entry.project)];
     if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'POST') {
       readBody(req, (body) => {
         scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];
@@ -233,6 +238,12 @@ const server = http.createServer((req, res) => {
             });
           }
           currentGoal = null;
+          if (portfolioGoalsActive) {
+            for (const entry of portfolio) {
+              broadcast(entry.session.directory, { type: 'session.goal', properties: { sessionID: entry.session.id, goal: null } });
+            }
+          }
+          portfolioGoalsActive = false;
           foreignGoalEmitted = false;
           json(res, { ok: true, step: step });
           return;
@@ -249,6 +260,16 @@ const server = http.createServer((req, res) => {
         if (step === 'goal') {
           currentGoal = scenario.goal;
           broadcast(directory, { type: 'session.goal', properties: { sessionID: scenario.session.id, goal: scenario.goal } });
+          json(res, { ok: true, step: step });
+          return;
+        }
+        if (step === 'portfolio-goals') {
+          currentGoal = scenario.goal;
+          portfolioGoalsActive = true;
+          broadcast(directory, { type: 'session.goal', properties: { sessionID: scenario.session.id, goal: currentGoal } });
+          for (const entry of portfolio) {
+            broadcast(entry.session.directory, { type: 'session.goal', properties: { sessionID: entry.session.id, goal: entry.goal } });
+          }
           json(res, { ok: true, step: step });
           return;
         }
@@ -278,20 +299,36 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/session' || pathname === '/experimental/session') {
-      const requestedDirectory = url.searchParams.get('directory');
-      if ((requestedDirectory && requestedDirectory !== directory) || url.searchParams.get('archived') === 'true') {
-        json(res, []);
-        return;
-      }
-      json(res, [scenario.session]);
+      json(res, url.searchParams.get('archived') === 'true' ? [] :
+        sessions.filter(entry => !scopedDirectory || entry.directory === scopedDirectory));
       return;
     }
     if (pathname === '/project') {
-      json(res, [scenario.project]);
+      json(res, projects);
       return;
     }
     if (pathname === '/project/current') {
-      json(res, scenario.project);
+      json(res, projects.find(entry => entry.worktree === scopedDirectory) || scenario.project);
+      return;
+    }
+    if (pathname === '/session/status') {
+      json(res, {});
+      return;
+    }
+    const messagesMatch = pathname.match(/^\\/session\\/([^/]+)\\/message$/);
+    if (messagesMatch && req.method === 'GET' && portfolio.length) {
+      const sessionID = decodeURIComponent(messagesMatch[1]);
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || item.directory === scopedDirectory));
+      res.statusCode = entry ? 200 : 404;
+      json(res, entry ? (scenario.portfolioMessages[sessionID] || []) : { error: 'session not found in this directory' });
+      return;
+    }
+    const sessionMatch = pathname.match(/^\\/session\\/([^/]+)$/);
+    if (sessionMatch && req.method === 'GET') {
+      const entry = sessions.find(item => item.id === decodeURIComponent(sessionMatch[1]) &&
+        (!scopedDirectory || item.directory === scopedDirectory));
+      res.statusCode = entry ? 200 : 404;
+      json(res, entry || { error: 'session not found in this directory' });
       return;
     }
     if (pathname === '/permission' && req.method === 'GET') {
@@ -343,15 +380,20 @@ const server = http.createServer((req, res) => {
     const goalMatch = pathname.match(/^\\/session\\/([^/]+)\\/goal$/);
     if (goalMatch && req.method === 'GET') {
       const goalSessionID = decodeURIComponent(goalMatch[1]);
+      const portfolioEntry = portfolio.find(entry => entry.session.id === goalSessionID);
+      if (portfolioEntry) {
+        json(res, portfolioGoalsActive && (!scopedDirectory || portfolioEntry.session.directory === scopedDirectory) ? portfolioEntry.goal : null);
+        return;
+      }
       if (goalSessionID === scenario.session.id) {
-        json(res, currentGoal);
+        json(res, !scopedDirectory || scopedDirectory === directory ? currentGoal : null);
         return;
       }
       json(res, foreignGoalEmitted && scenario.foreignGoal && goalSessionID === scenario.foreignGoal.sessionID ? scenario.foreignGoal : null);
       return;
     }
-    if (pathname === '/path' && url.searchParams.get('directory') === directory) {
-      json(res, Object.assign({}, OBJECT_ROUTES['/path'], { directory: directory, worktree: directory }));
+    if (pathname === '/path' && projects.some(entry => entry.worktree === scopedDirectory)) {
+      json(res, Object.assign({}, OBJECT_ROUTES['/path'], { directory: scopedDirectory, worktree: scopedDirectory }));
       return;
     }
   }

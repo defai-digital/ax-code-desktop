@@ -61,8 +61,11 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
     (projectId: string | null, directory: string | null) => {
       const project = projectId ? projects.find((entry) => entry.id === projectId) : undefined
       const label = project?.label?.trim()
-      if (label) return label
       const path = project?.path ?? directory
+      if (label) {
+        const duplicate = projects.some((entry) => entry.id !== projectId && entry.label?.trim() === label)
+        return duplicate && path ? `${label} · ${formatPathForDisplay(path, homeDirectory)}` : label
+      }
       return path ? formatPathForDisplay(path, homeDirectory) : null
     },
     [homeDirectory, projects],
@@ -129,13 +132,13 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
               <Icon name={REASON_ICON[entry.reason]} className="h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]" />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate typography-ui-label text-foreground">{entry.title}</span>
+                {project ? (
+                  <span className="break-all typography-micro text-muted-foreground">
+                    {project}
+                  </span>
+                ) : null}
                 <SupervisionGoalLine goal={entry.goal} className="typography-micro text-muted-foreground" />
               </span>
-              {project ? (
-                <span className="hidden min-w-0 max-w-[40%] truncate typography-micro text-muted-foreground sm:inline">
-                  {project}
-                </span>
-              ) : null}
               <span className="shrink-0 typography-micro text-[var(--status-warning)]">
                 {needsYouReasonLabel(entry.reason, t)}
               </span>

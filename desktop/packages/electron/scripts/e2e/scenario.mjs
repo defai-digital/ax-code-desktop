@@ -21,10 +21,10 @@ export const E2E_GOAL_UPDATED_REMAINING_TOKENS = 300
 export const E2E_FOREIGN_GOAL_OBJECTIVE = "Foreign goal that must not leak onto the scripted row"
 export const E2E_STEP_ROUTE = "/__e2e__/step"
 
-export const buildE2eScenario = ({ directory, now = Date.now() } = {}) => {
+export const buildE2eScenario = ({ directory, now = Date.now(), portfolio = false } = {}) => {
   if (typeof directory !== "string" || !directory.trim()) throw new Error("A scenario project directory is required")
   const time = { created: now, updated: now }
-  return {
+  const scenario = {
     version: 1,
     projectDirectory: directory,
     project: { id: E2E_PROJECT_ID, worktree: directory },
@@ -84,6 +84,33 @@ export const buildE2eScenario = ({ directory, now = Date.now() } = {}) => {
       time: { created: now, updated: now + 60_000 },
     },
   }
+  if (portfolio) {
+    scenario.approveRequest = null
+    scenario.session.title = "Review the result"
+    const otherDirectory = path.join(path.dirname(directory), "other-project")
+    scenario.portfolio = [{
+      project: { id: "proj_e2e_other", worktree: otherDirectory },
+      session: {
+        ...scenario.session, id: "ses_e2e_other", projectID: "proj_e2e_other",
+        directory: otherDirectory, slug: "other-project-session",
+      },
+      goal: { ...scenario.goal, sessionID: "ses_e2e_other" },
+    }]
+    scenario.portfolioMessages = Object.fromEntries([scenario.session, scenario.portfolio[0].session].map((session, index) => {
+      const messageID = `msg_e2e_portfolio_${index}`
+      return [session.id, [{
+        info: {
+          id: messageID, sessionID: session.id, role: "user", time: { created: now },
+          agent: "build", model: { providerID: "fixture", modelID: "fixture" },
+        },
+        parts: [{
+          id: `part_e2e_portfolio_${index}`, sessionID: session.id, messageID, type: "text",
+          text: `Fixture conversation for project ${index === 0 ? "A" : "B"}`,
+        }],
+      }]]
+    }))
+  }
+  return scenario
 }
 
 /** Parses the stub's reply log: one JSON object per line, blank lines ignored. */

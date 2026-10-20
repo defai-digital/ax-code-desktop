@@ -158,3 +158,10 @@ incorrectly offered for custom patterns, the typed capability filter, and mounte
 [proposed requirements](../prd/PRD-2026-10-20-reference-informed-supervision-v1.md) and
 [plan](PLAN-2026-10-20-reference-informed-supervision-v1.md) combine pinned local OpenChamber, Orca, Herdr and OpenCode
 inspection with online primary research. They prioritize identity, readable saved recap and observable schedule outcomes.
+
+### Needs You project identity
+
+[Plan](PLAN-2026-10-20-needs-you-project-identity.md) and
+[report](../reports/SUPERVISION-2026-10-20-needs-you-project-identity.md) record duplicate-label ambiguity and hidden
+project context at narrow widths. Mounted regressions and a two-project native WebMCP journey verify visible paths,
+correct conversation navigation, light/dark rendering and the unchanged default harness.

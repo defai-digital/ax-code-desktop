@@ -67,8 +67,9 @@ export const runHarness = async ({
   timeoutMs = 60_000,
   journeys = JOURNEYS,
   uiWebMcp = false,
+  portfolio = false,
 } = {}) => {
-  const launch = await launchDesktop({ app, uiWebMcp })
+  const launch = await launchDesktop({ app, uiWebMcp, portfolio })
   const consoleMessages = []
   const results = []
   let session = null

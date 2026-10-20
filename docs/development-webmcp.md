@@ -40,6 +40,17 @@ pnpm run e2e:desktop:webmcp -- --artifacts /tmp/ax-desktop-ui-webmcp
 pnpm run e2e:desktop:settings-webmcp -- --artifacts /tmp/ax-desktop-settings-webmcp
 ```
 
+For portfolio identity and navigation, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/portfolio-identity-webmcp.mjs --artifacts /tmp/ax-portfolio-identity
+```
+
+This seeds two temporary projects with identical labels and session titles. Native WebMCP discovers distinct Needs You
+actions and opens each project's fixture conversation. DOM and screenshot checks verify readable directory context at
+800 and 600 CSS pixels, including a light-theme check. The narrower emulated viewport is a rendering stress case, not a
+new native minimum-window-size promise. This is fixture-backed navigation verification, not concurrent provider execution.
+
 The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,
 restores it, verifies the DOM and checks CSP and renderer errors. The Settings audit inventories all 15 tabs and paged
 controls, exercises select options, numeric editing/reset, reversible local preferences, shortcut search/focus and Hooks

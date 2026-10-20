@@ -132,7 +132,7 @@ const killStubProcesses = async (stubRuntime) => {
  * Launches the built app (unpackaged by default, or a packaged macOS .app) in
  * an isolated profile. Teardown stops only processes this launch started.
  */
-export const launchDesktop = async ({ app = "", uiWebMcp = false } = {}) => {
+export const launchDesktop = async ({ app = "", uiWebMcp = false, portfolio = false } = {}) => {
   if (app && uiWebMcp) throw new Error("UI WebMCP is available only in unpackaged development builds")
   // The app resolves directories to their real path before it talks to the runtime (macOS /var is a link to /private/var),
   // so the seeded project, the scenario and every path under it must already be real or the stub never matches a request.
@@ -144,8 +144,9 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false } = {}) => {
   try {
     // Report the pinned runtime version so version gates behave as in a real install.
     stubRuntime = await writeStubRuntime(tmpDir, { version: readRuntimePin().version })
-    // Seed one git-less project into the isolated profile so the scripted
-    // session has a directory the renderer will bootstrap.
+    // Seed a git-less project into the isolated profile so the scripted
+    // session has a directory the renderer will bootstrap. Portfolio journeys
+    // opt into a second project under the same temporary root.
     const projectDir = path.join(tmpDir, "project")
     const dataDir = path.join(tmpDir, "data")
     const userDataDir = path.join(tmpDir, "user-data")
@@ -163,18 +164,21 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false } = {}) => {
     assertPathInsideDirectory(scenarioPath, tmpDir, "Scenario path")
     assertPathInsideDirectory(repliesPath, tmpDir, "Replies path")
     assertPathInsideDirectory(stubOriginPath, tmpDir, "Stub origin file")
-    const scenario = { ...buildE2eScenario({ directory: projectDir, now }), originFile: stubOriginPath }
+    const scenario = { ...buildE2eScenario({ directory: projectDir, now, portfolio }), originFile: stubOriginPath }
+    const projects = [scenario.project, ...(scenario.portfolio || []).map(entry => entry.project)]
+    for (const project of projects) await fs.mkdir(project.worktree, { recursive: true })
     await fs.writeFile(scenarioPath, `${JSON.stringify(scenario, null, 2)}\n`)
     await fs.writeFile(repliesPath, "")
     await fs.writeFile(
       path.join(dataDir, "settings.json"),
       `${JSON.stringify(
         {
-          projects: [
-            { id: scenario.project.id, path: projectDir, addedAt: now, lastOpenedAt: now, sidebarCollapsed: false },
-          ],
+          projects: projects.map(project => ({
+            id: project.id, path: project.worktree, addedAt: now, lastOpenedAt: now, sidebarCollapsed: false,
+            ...(portfolio ? { label: "Shared project" } : {}),
+          })),
           activeProjectId: scenario.project.id,
-          approvedDirectories: [projectDir],
+          approvedDirectories: projects.map(project => project.worktree),
         },
         null,
         2,
@@ -207,8 +211,7 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false } = {}) => {
       repliesPath,
       uiWebMcp,
     })
-    // The app adds its working directory as a project and sometimes selects it. Running from the seeded project keeps the
-    // profile's only project the active one, so a run never depends on where the harness was started.
+    // Run from the primary fixture project so the launch does not inherit the caller's working directory.
     child = spawn(spec.command, spec.args, { env: spec.env, cwd: projectDir, stdio: ["ignore", "pipe", "pipe"] })
     child.stdout.on("data", (chunk) => stdout.push(chunk.toString()))
     child.stderr.on("data", (chunk) => stderr.push(chunk.toString()))

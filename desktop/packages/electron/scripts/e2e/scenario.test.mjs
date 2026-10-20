@@ -77,6 +77,36 @@ afterEach(async () => {
 
 const readReplies = async (handle) => parseReplyLog(await fs.readFile(handle.repliesPath, "utf8").catch(() => ""))
 
+spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their own project", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/portfolio/project", portfolio: true })
+  const other = scenario.portfolio[0]
+  const handle = await startStub({ scenario })
+  const read = async (route, directory) => {
+    const url = new URL(route, handle.base)
+    if (directory) url.searchParams.set("directory", directory)
+    return fetch(url)
+  }
+  expect(await (await read("/experimental/session")).json()).toHaveLength(2)
+  expect(await (await read("/session", other.session.directory)).json()).toEqual([other.session])
+  expect(await (await read("/session", "/unknown")).json()).toEqual([])
+  expect(await (await read("/session/status", other.session.directory)).json()).toEqual({})
+  expect((await read(`/session/${other.session.id}`, scenario.projectDirectory)).status).toBe(404)
+  expect(await (await read(`/session/${other.session.id}`, other.session.directory)).json()).toEqual(other.session)
+  expect(await (await read(`/session/${other.session.id}/message`, other.session.directory)).json()).toEqual(scenario.portfolioMessages[other.session.id])
+  expect((await read(`/session/${other.session.id}/message`, scenario.projectDirectory)).status).toBe(404)
+  expect(await (await read("/project/current", other.session.directory)).json()).toEqual(other.project)
+  await fetch(`${handle.base}/__e2e__/step`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "portfolio-goals" }),
+  })
+  expect(await (await read(`/session/${other.session.id}/goal`, other.session.directory)).json()).toEqual(other.goal)
+  expect(await (await read(`/session/${other.session.id}/goal`, scenario.projectDirectory)).json()).toBeNull()
+  expect(await (await read(`/session/${scenario.session.id}/goal`, other.session.directory)).json()).toBeNull()
+  await fetch(`${handle.base}/__e2e__/step`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "reset" }),
+  })
+  expect(await (await read(`/session/${other.session.id}/goal`, other.session.directory)).json()).toBeNull()
+})
+
 describe("buildE2eScenario", () => {
   test("describes one session, two distinct requests and a blocked budget goal", () => {
     const scenario = buildE2eScenario({ directory: "/tmp/e2e-project", now: 1_700_000_000_000 })
