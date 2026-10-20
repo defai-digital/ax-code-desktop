@@ -1,0 +1,13 @@
+**Decision frame.** Objective: judge whether AX Code Desktop should surface lifecycle hooks. Evidence: the page is read-only, the runtime owns execution and safety; no adoption/latency/support data exists. Assumption: Desktop's job is credible evidence and project identity, not orchestration. Plan: recommend repositioning, not removal.
+
+**Distinguish the layers.** The runtime hook mechanism (shell commands at PreToolUse/PostToolUse/Stop, trust-gated, unsandboxed commands, four-process cap) is infrastructure and needs no product endorsement. The Desktop **page** is an inspection surface. Removing the page does not remove the mechanism; keeping the page does not validate the mechanism.
+
+**Strongest case for keeping (as-is).** Read-only inspection answers a real trust question: "which unsandboxed commands run in this project?" Per-project trust, path, and source let a lead audit what a teammate trusted. It is low-risk, edits nothing, and supports incident triage when a hook blocks or slows work.
+
+**Strongest case for reducing.** The page invites users to treat it as a workflow feature. Packs are reminders, not proof — format-after-edit and require-tests-on-stop can create false confidence in "working changes with evidence." Users cannot act from the page (no enable/edit), so most visits end in "open configuration file." A top-level Settings item implies first-class capability and permanent maintenance for an unmeasured mechanism.
+
+**Recommendation: reposition, don't remove.** Move it from top-level Settings into a project's Advanced/Security subsection, reframed as "Runtime hook configuration (read-only)". Keep available packs visible only as starting points, labelled "reminders, not verification." Add a one-line banner: commands are unsandboxed; trust is per-project.
+
+**Concrete valuable jobs:** pre-flight audit of trust/paths before sharing a project; diagnosing why a command was blocked; reviewing which pack a teammate applied. **Non-goals:** editing/enabling hooks in Desktop, running hooks manually, hook-based scheduling, hook-driven verification claims, replacing notifications or the scheduler.
+
+**Falsifiable validation plan.** Instrument page visits, time-on-page, subsequent "open config" clicks, and trust-related support tickets. Pre-register thresholds for a 4–6 week window: if <1% of active projects open the page and tickets don't drop, hide it behind Advanced. If it remains dormant for two releases with no support signal, remove the page while keeping runtime hooks. Confirmation would require observed reductions in trust-related incidents or repeated, task-motivated visits. Absent that data, no claim of value.

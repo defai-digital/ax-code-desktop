@@ -1,0 +1,16 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp/ax-hooks-value-review-20261020/muse (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+**Recommendation: keep the runtime mechanism, but demote and simplify the Desktop page.** Do not decide removal yet — there is no adoption, reliability, or cost evidence either way.
+
+**Distinction:** Runtime hooks are an execution mechanism: shell commands at lifecycle events, some blockable with veto, others observation-only, model-visible feedback, project hooks disabled until explicitly trusted. The Desktop Hooks page is only read-only visibility: trust/validity/path, effective event/matcher/command/source, packs, refresh, and open-config. Evaluating one does not settle the other.
+
+**Strongest case for keeping:** Hooks give projects a local, synchronous enforcement and feedback point that permissions, notifications, and the scheduler cannot replicate — e.g. block edits to protected files, run format-after-edit, add context on stop, integrate team-specific checks into the model loop. Because commands are unsandboxed user code and project hooks require trust, visibility into *what will run, from where, and whether it is trusted/valid* is a safety requirement, not a nicety. Removing the mechanism would push users to wrappers and external automation with less provenance.
+
+**Strongest case for removing/reducing:** This is a power-user feature competing with Desktop’s core jobs — working changes with evidence, return recaps, scheduled tasks, correct project identity. A top-level Settings page overstates its importance, adds same-name-project ambiguity and support surface, and risks false assurance: format/test packs are reminders, not proof; there is no general security or exactly-once guarantee; latency, timeouts, and four-process concurrency limits can degrade sessions. Future orchestration belongs to AX Agent, enterprise policy to AX Trust — hooks must not become redundant orchestration or recurring spend.
+
+**Priorities:** 1) Move the page under per-project Settings → Advanced/Diagnostics, contextual to the selected project. 2) Keep it read-only; fix identity ambiguity first. 3) Show blockable vs observation-only, trust source, and “reminder, not verification” labels plainly. 4) Offer two or three valuable jobs only: protect files, format/lint feedback, stop-time checks.
+
+**Non-goals:** hook editing/running in Desktop, scheduling, durable workflows, enterprise policy distribution, WebMCP, proving tests passed.
+
+**Falsifiable validation (pre-register thresholds before seeing data):** Instrument for 8–12 weeks: share of active projects with a trusted enabled hook, weekly hook executions per enabling project, block rate and overturn/appeal rate, timeout/failure rate, added session latency, and hook-related support tickets. Hide the page if <2% of active projects enable hooks *and* enabling users open it <once/month — keep runtime and config-file access. Justify eventual runtime removal only if blockable use-cases are fully covered by permissions/AX Trust, or failure/timeout/latency costs exceed the measured prevention benefit in a demotion A/B where task success does not drop when the page is hidden.

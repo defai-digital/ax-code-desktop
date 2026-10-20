@@ -1,0 +1,13 @@
+Act as an independent product and engineering reviewer. Use only this supplied context; do not use tools, browse, execute commands, delegate, or change files. Respond in English, at most 350 words.
+
+Question: Are lifecycle hooks high value for AX Code Desktop users? Should we keep, remove, simplify, or reposition them? Distinguish the runtime mechanism from a top-level Desktop Settings page. Argue the strongest case for keeping and for removing/reducing it, then recommend priorities and a falsifiable validation plan. Do not assume adoption or invent usage data.
+
+Verified context:
+- AX Code Desktop supervises multiple coding projects; main priorities are working changes with evidence, return recaps, scheduled tasks and correct project identity. Runtime owns coding/tools/verification; Desktop is a client. AX Agent owns future durable orchestration; AX Trust owns enterprise policy.
+- Current Desktop Hooks page is read-only: per-project trust/validity/path, effective hook event/matcher/command/source, available packs, refresh/retry and open configuration file. It does not edit, enable or run hooks. This is not React hooks or Git hooks.
+- AX Code lifecycle hooks run shell commands at events (PreToolUse, PostToolUse, Stop, etc.). Only defined blockable events can veto; observation-only events cannot. Project hooks are disabled unless explicitly trusted outside repository configuration. Commands remain unsandboxed user code; runtime sanitizes environment, bounds output, times out processes and limits concurrent hook processes to four per runtime process.
+- Existing packs include format-after-edit and require-tests-on-stop, but these are reminders, not proof formatting or tests actually passed; protect-env-files warns; other hooks can block specified calls. Hook feedback can reach the model. No general security or exactly-once guarantee is established.
+- Desktop already has notifications, canonical permission decisions and a scheduler. WebMCP interacts with applications; it is not the same lifecycle mechanism. We should avoid redundant orchestration or automatic recurring spend.
+- Native UI testing found ambiguous same-name Settings project options and duplicate command expand buttons. Repairs are under validation. We have no hook adoption, reliability, latency, retention or support-cost measurements.
+
+Offer concrete valuable jobs, non-goals, and what would justify hiding the page or eventual removal. Do not treat competitor adoption or agreement among models as proof of value.
