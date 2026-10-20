@@ -1,4 +1,5 @@
 import type { SidebarSection } from "@/constants/sidebar"
+import { SETTINGS_NAVIGATION } from "./navigation"
 
 export type SettingsPageSlug =
   | "home"
@@ -18,7 +19,7 @@ export type SettingsPageSlug =
   | "sessions"
   | "notifications"
 
-export type SettingsPageGroup = "appearance" | "projects" | "general" | "ax-code" | "git" | "skills" | "advanced"
+export type SettingsPageGroup = "general" | "projects" | "models" | "coding" | "advanced"
 
 export interface SettingsRuntimeContext {
   isWeb: boolean
@@ -36,11 +37,10 @@ export interface SettingsPageMeta {
   isAvailable?: (ctx: SettingsRuntimeContext) => boolean
 }
 
-export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
+const SETTINGS_PAGES: readonly Omit<SettingsPageMeta, "group">[] = [
   {
     slug: "home",
     title: "Settings",
-    group: "general",
     kind: "single",
     description: "Search and jump to common pages.",
     keywords: ["search", "settings"],
@@ -48,21 +48,18 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "models",
     title: "Local Models",
-    group: "ax-code",
     kind: "single",
     keywords: ["models", "local models", "ax-engine", "download", "mtp", "mlx", "qwen", "gemma", "glm"],
   },
   {
     slug: "projects",
     title: "Projects",
-    group: "projects",
     kind: "split",
     keywords: ["project", "projects", "worktree", "worktrees", "repo", "repository", "directory"],
   },
   {
     slug: "providers",
     title: "Providers",
-    group: "ax-code",
     kind: "split",
     keywords: [
       "provider",
@@ -80,49 +77,42 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "agents",
     title: "Agents",
-    group: "ax-code",
     kind: "split",
     keywords: ["agent", "agents", "prompts", "tools", "permissions"],
   },
   {
     slug: "behavior",
     title: "Behavior",
-    group: "ax-code",
     kind: "single",
-    keywords: ["behavior", "agents.md", "system prompt", "global rules", "instructions", "override"],
+    keywords: ["behavior", "agents.md", "system prompt", "global rules", "instructions", "override", "response style", "concise", "detailed"],
   },
   {
     slug: "commands",
     title: "Commands",
-    group: "ax-code",
     kind: "split",
     keywords: ["command", "commands", "slash", "macros", "automation"],
   },
   {
     slug: "mcp",
     title: "MCP",
-    group: "ax-code",
     kind: "split",
     keywords: ["mcp", "model context protocol", "servers", "tools", "remote", "stdio"],
   },
   {
     slug: "hooks",
     title: "Hooks",
-    group: "ax-code",
     kind: "single",
-    keywords: ["hooks", "lifecycle", "PreToolUse", "automation"],
+    keywords: ["hooks", "lifecycle", "PreToolUse", "automation", "diagnostics", "trust", "configuration"],
   },
   {
     slug: "skills.installed",
     title: "Skills",
-    group: "skills",
     kind: "split",
     keywords: ["skill", "skills", "instructions", "install", "catalog"],
   },
   {
     slug: "git",
     title: "Git",
-    group: "git",
     kind: "single",
     keywords: [
       "git",
@@ -143,7 +133,6 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "appearance",
     title: "Appearance",
-    group: "appearance",
     kind: "single",
     keywords: [
       "theme",
@@ -161,7 +150,6 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "chat",
     title: "Chat",
-    group: "general",
     kind: "single",
     keywords: [
       "tools",
@@ -180,25 +168,27 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
   {
     slug: "shortcuts",
     title: "Shortcuts",
-    group: "general",
     kind: "single",
     keywords: ["keyboard", "hotkeys", "shortcuts", "bindings"],
   },
   {
     slug: "sessions",
     title: "Sessions",
-    group: "general",
     kind: "single",
     keywords: ["defaults", "default agent", "default model", "retention", "memory", "limits", "zen"],
   },
   {
     slug: "notifications",
     title: "Notifications",
-    group: "general",
     kind: "single",
     keywords: ["alerts", "native", "summary", "summarization"],
   },
 ] as const
+
+export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = SETTINGS_PAGES.map(page => ({
+  ...page,
+  group: SETTINGS_NAVIGATION.find(group => group.pages.includes(page.slug))?.id ?? "general",
+}))
 
 const LEGACY_SIDEBAR_SECTION_TO_SETTINGS_SLUG: Record<SidebarSection, SettingsPageSlug> = {
   sessions: "sessions",

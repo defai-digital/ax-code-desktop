@@ -1,0 +1,12 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+Findings, from this diff only:
+
+1. **Medium: unlisted pages silently disappear.** [groupSettingsPages()](/private/tmp) only emits slugs listed in `SETTINGS_NAVIGATION`, and `sortedFilteredPages` is now built solely from it. Previously, unlisted pages fell back to rank `999` and remained visible and searchable. A future or renamed metadata slug omitted from the navigation list will vanish without warning. The current lists contain the same 15 slugs, so this is not triggered by the present data.
+
+2. **Medium: grouping has two sources of truth.** Rendering groups by the navigation slug list, while exact-group search filters by metadata `page.group`. If those mappings diverge, a page can appear under one heading but be returned—or missed—by another group’s exact search. Current mappings align, but every regrouping must now be edited in both places.
+
+3. **Low: orphan group headings are possible.** A heading renders for every non-empty group, but pages without a `getSettingsNavIcon()` result render `null`. A group whose pages all lack icons would show a heading with no items.
+
+4. **Low: duplicate IDs if the nav is mounted twice.** All headings reuse one `navId`; simultaneous desktop and mobile nav instances would duplicate the `aria-labelledby` targets.

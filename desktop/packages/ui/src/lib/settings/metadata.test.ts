@@ -32,10 +32,10 @@ describe("settings metadata", () => {
     expect(resolveAvailableSettingsSlug("skills.catalog", { isDesktop: true, isWeb: false })).toBe("skills.installed")
   })
 
-  it("registers the read-only hooks page with the AX Code automation pages", () => {
+  it("keeps the read-only hooks route accessible under Advanced", () => {
     const page = SETTINGS_PAGE_METADATA.find((entry) => entry.slug === "hooks")
     expect(page).toMatchObject({
-      group: "ax-code",
+      group: "advanced",
       kind: "single",
       keywords: expect.arrayContaining(["hooks", "lifecycle", "PreToolUse", "automation"]),
     })

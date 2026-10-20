@@ -45,10 +45,14 @@ build-specific WebMCP support, independent outcome checks, overlapping/missed sc
 See the [official-source research](../reports/RESEARCH-2026-10-20-online-outcome-journeys.md) and
 [execution plan](../plans/PLAN-2026-10-20-online-outcome-journeys-v1.md). Documentation research does not qualify implementation.
 
-Hooks value proposal: [Hooks positioning and diagnostic access v1](PRD-2026-10-20-hooks-positioning-v1.md) retains the
-runtime extension while proposing a less prominent, contextual Desktop inspection path. See the
+Hooks value and arrangement: [Hooks positioning and diagnostic access v1](PRD-2026-10-20-hooks-positioning-v1.md) retains
+the runtime extension; the user authorized its Advanced navigation placement. See the
 [source-backed recommendation](../reports/PRODUCT-2026-10-20-hooks-value.md) and
-[six-model advisory discussion](../reviews/hooks-value-2026-10-20/README.md). No navigation move or removal is implemented.
+[six-model advisory discussion](../reviews/hooks-value-2026-10-20/README.md). Runtime removal is not authorized.
+
+Accepted navigation implementation: [Predictable Settings navigation v1](PRD-2026-10-20-settings-navigation-v1.md), with
+[plan](../plans/PLAN-2026-10-20-settings-navigation-v1.md), fixes logical group/item order and places Hooks and Behavior in
+Advanced while keeping normal model, coding and project setup directly discoverable.
 
 ## Completed and historical records
 

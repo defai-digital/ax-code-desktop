@@ -47,6 +47,7 @@ import {
   type SettingsPageMeta,
 } from "@/lib/settings/metadata"
 import { getSettingsNavIcon } from "@/lib/settings/navIcons"
+import { groupSettingsPages, SETTINGS_NAVIGATION } from "@/lib/settings/navigation"
 
 // Same constraints as main sidebar
 const SETTINGS_NAV_MIN_WIDTH = 176
@@ -69,24 +70,6 @@ interface SettingsViewProps {
   /** Rendered inside a window/dialog (skip traffic light padding) */
   isWindowed?: boolean
 }
-
-const pageOrder: SettingsPageSlug[] = [
-  "models",
-  "appearance",
-  "chat",
-  "notifications",
-  "sessions",
-  "shortcuts",
-  "git",
-  "projects",
-  "agents",
-  "behavior",
-  "commands",
-  "mcp",
-  "hooks",
-  "providers",
-  "skills.installed",
-]
 
 function buildRuntimeContext(isDesktop: boolean): SettingsRuntimeContext {
   const isWeb = !isDesktop && isWebRuntime()
@@ -224,6 +207,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
   const [mobileStage, setMobileStage] = React.useState<MobileStage>("nav")
   const autoNavSlugRef = React.useRef<string | null>(null)
   const [navQuery, setNavQuery] = React.useState("")
+  const navId = React.useId()
   const [skillsPane, setSkillsPane] = React.useState<"installed" | "catalog">("installed")
 
   const [navWidth, setNavWidth] = React.useState(216)
@@ -258,8 +242,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
   }, [runtimeCtx, isMobile, showModels, navQuery])
 
   const sortedFilteredPages = React.useMemo(() => {
-    const rank = new Map<SettingsPageSlug, number>(pageOrder.map((s, i) => [s, i]))
-    return visiblePages.slice().sort((a, b) => (rank.get(a.slug) ?? 999) - (rank.get(b.slug) ?? 999))
+    return groupSettingsPages(visiblePages).flatMap(group => group.pages)
   }, [visiblePages])
 
   const activeProjectId = useProjectsStore((state) => state.activeProjectId)
@@ -424,13 +407,20 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
   )
 
   const navSearchablePages = React.useMemo(() => {
-    if (!navQuery.trim()) {
+    const query = navQuery.trim()
+    if (!query) {
       return sortedFilteredPages
     }
-    return filterByFuzzyQuery(sortedFilteredPages, navQuery, (page) =>
-      [getPageTitle(page.slug), page.group, ...(page.keywords ?? [])].join(" "),
-    )
-  }, [sortedFilteredPages, navQuery, getPageTitle])
+    const exactGroup = SETTINGS_NAVIGATION.find(group =>
+      [group.id, t(group.titleKey)].some(label => label.toLowerCase() === query.toLowerCase()))
+    if (exactGroup) return sortedFilteredPages.filter(page => page.group === exactGroup.id)
+    return filterByFuzzyQuery(sortedFilteredPages, query, (page) => {
+      const group = SETTINGS_NAVIGATION.find(group => group.id === page.group)
+      return [getPageTitle(page.slug), group ? t(group.titleKey) : page.group,
+        page.group, ...(page.keywords ?? [])].join(" ")
+    })
+  }, [sortedFilteredPages, navQuery, getPageTitle, t])
+  const navGroups = React.useMemo(() => groupSettingsPages(navSearchablePages), [navSearchablePages])
 
   const renderUnavailable = React.useCallback(() => {
     return (
@@ -623,7 +613,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
 
   const renderSettingsNav = () => {
     return (
-      <div className="flex h-full flex-col overflow-hidden">
+      <nav aria-label={t("settings.view.home.title")} data-settings-navigation className="flex h-full flex-col overflow-hidden">
         <div className="px-2 pt-3">
           <div className="relative">
             <Icon
@@ -647,34 +637,42 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
                 {t("settings.view.nav.searchNoResults")}
               </div>
             )}
-            {navSearchablePages.map((page) => {
-              const selected = settingsSlug === page.slug
-              const iconName = getSettingsNavIcon(page.slug)
-              if (!iconName) return null
+            {navGroups.map(group => (
+              <div key={group.id} role="group" aria-labelledby={`${navId}-${group.id}`} data-settings-group={group.id}
+                className="space-y-0.5 first:mt-0 mt-3">
+                <h2 id={`${navId}-${group.id}`} className="px-2 pb-1 typography-micro font-medium text-muted-foreground">
+                  {t(group.titleKey)}
+                </h2>
+                {group.pages.map((page) => {
+                  const selected = settingsSlug === page.slug
+                  const iconName = getSettingsNavIcon(page.slug)
+                  if (!iconName) return null
 
-              return (
-                <Tooltip key={page.slug}>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      onClick={() => openPage(page.slug)}
-                      aria-current={selected ? "page" : undefined}
-                      className={cn(
-                        "flex h-8 items-center gap-2 rounded-md px-2 overflow-hidden",
-                        selected
-                          ? "bg-interactive-selection text-foreground"
-                          : "text-foreground hover:bg-interactive-hover",
-                      )}
-                    >
-                      <Icon name={iconName} className="h-4 w-4 shrink-0" />
-                      <span className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden transition-opacity duration-150 opacity-100">
-                        <span className="typography-ui-label font-normal truncate">{getPageTitle(page.slug)}</span>
-                      </span>
-                    </button>
-                  </TooltipTrigger>
-                </Tooltip>
-              )
-            })}
+                  return (
+                    <Tooltip key={page.slug}>
+                      <TooltipTrigger asChild>
+                        <button
+                          type="button"
+                          onClick={() => openPage(page.slug)}
+                          aria-current={selected ? "page" : undefined}
+                          className={cn(
+                            "flex h-8 w-full items-center gap-2 rounded-md px-2 overflow-hidden",
+                            selected
+                              ? "bg-interactive-selection text-foreground"
+                              : "text-foreground hover:bg-interactive-hover",
+                          )}
+                        >
+                          <Icon name={iconName} className="h-4 w-4 shrink-0" />
+                          <span className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden transition-opacity duration-150 opacity-100">
+                            <span className="typography-ui-label font-normal truncate">{getPageTitle(page.slug)}</span>
+                          </span>
+                        </button>
+                      </TooltipTrigger>
+                    </Tooltip>
+                  )
+                })}
+              </div>
+            ))}
           </div>
         </div>
 
@@ -706,7 +704,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
             </Tooltip>
           </div>
         </div>
-      </div>
+      </nav>
     )
   }
 

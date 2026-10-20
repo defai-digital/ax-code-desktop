@@ -1,0 +1,608 @@
+{
+  "readings": [
+    {
+      "label": "fixed Settings group order",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after Hooks",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after Appearance",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after Providers",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after Behavior",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after Chat",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "Advanced search keeps order",
+      "groups": [
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "cleared search restores full order",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "empty search has no phantom groups",
+      "groups": []
+    },
+    {
+      "label": "second search clear restores order",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "order after reopen",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "narrow order",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    },
+    {
+      "label": "light order",
+      "groups": [
+        {
+          "id": "general",
+          "pages": [
+            "Appearance",
+            "Chat",
+            "Sessions",
+            "Notifications",
+            "Shortcuts"
+          ]
+        },
+        {
+          "id": "projects",
+          "pages": [
+            "Projects",
+            "Git"
+          ]
+        },
+        {
+          "id": "models",
+          "pages": [
+            "Providers",
+            "Local Models"
+          ]
+        },
+        {
+          "id": "coding",
+          "pages": [
+            "Agents",
+            "Commands",
+            "Skills",
+            "MCP"
+          ]
+        },
+        {
+          "id": "advanced",
+          "pages": [
+            "Behavior",
+            "Hooks"
+          ]
+        }
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "action": "click",
+      "name": "Settings"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Providers"
+    },
+    {
+      "action": "click",
+      "name": "Behavior"
+    },
+    {
+      "action": "click",
+      "name": "Chat"
+    },
+    {
+      "action": "fill",
+      "name": "Search settings",
+      "value": "Advanced"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    },
+    {
+      "action": "fill",
+      "name": "Search settings",
+      "value": ""
+    },
+    {
+      "action": "fill",
+      "name": "Search settings",
+      "value": "response style"
+    },
+    {
+      "action": "click",
+      "name": "Behavior"
+    },
+    {
+      "action": "fill",
+      "name": "You are a helpful AI assistant... Use this space to define absolute rules for how the AI should behave across all sessions and providers.",
+      "value": "Unsent navigation draft"
+    },
+    {
+      "action": "fill",
+      "name": "Search settings",
+      "value": "zzzznothingmatches"
+    },
+    {
+      "action": "fill",
+      "name": "Search settings",
+      "value": ""
+    },
+    {
+      "action": "fill",
+      "name": "You are a helpful AI assistant... Use this space to define absolute rules for how the AI should behave across all sessions and providers.",
+      "value": ""
+    },
+    {
+      "action": "click",
+      "name": "Close settings"
+    },
+    {
+      "action": "click",
+      "name": "Settings"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Light"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    }
+  ]
+}

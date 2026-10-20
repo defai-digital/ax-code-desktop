@@ -1,0 +1,298 @@
+Review this Settings navigation change for concrete correctness/usability bugs. English, at most 200 words, no tools or delegation. User authorized fixed logical groups and moving Hooks plus global Behavior to Advanced; Advanced is visible, not collapsed. Keep providers/agents/MCP in main groups. Search preserves order, exact translated group names select that group, fuzzy matches otherwise. Existing platform availability/direct links/mobile detail navigation are preserved. Only report evidence-backed issues; do not claim source beyond this diff, tests or screenshots were reviewed.
+
+import type { I18nKey } from "@/lib/i18n"
+import type { SettingsPageGroup, SettingsPageMeta, SettingsPageSlug } from "./metadata"
+
+/** Product order is shared by all Settings layouts and retained while filtering. */
+export const SETTINGS_NAVIGATION: readonly {
+  id: SettingsPageGroup
+  titleKey: I18nKey
+  pages: readonly SettingsPageSlug[]
+}[] = [
+  { id: "general", titleKey: "settings.view.nav.group.preferences", pages: ["appearance", "chat", "sessions", "notifications", "shortcuts"] },
+  { id: "projects", titleKey: "settings.view.nav.group.projects", pages: ["projects", "git"] },
+  { id: "models", titleKey: "settings.view.nav.group.models", pages: ["providers", "models"] },
+  { id: "coding", titleKey: "settings.view.nav.group.coding", pages: ["agents", "commands", "skills.installed", "mcp"] },
+  { id: "advanced", titleKey: "settings.view.nav.group.advanced", pages: ["behavior", "hooks"] },
+]
+
+export function groupSettingsPages(pages: readonly SettingsPageMeta[]) {
+  const bySlug = new Map(pages.map(page => [page.slug, page]))
+  return SETTINGS_NAVIGATION.map(group => ({
+    ...group,
+    pages: group.pages.flatMap(slug => {
+      const page = bySlug.get(slug)
+      return page ? [page] : []
+    }),
+  })).filter(group => group.pages.length > 0)
+}
+
+diff --git a/desktop/packages/ui/src/components/views/SettingsView.tsx b/desktop/packages/ui/src/components/views/SettingsView.tsx
+index 473eccdd..1e469d0f 100644
+--- a/desktop/packages/ui/src/components/views/SettingsView.tsx
++++ b/desktop/packages/ui/src/components/views/SettingsView.tsx
+@@ -47,6 +47,7 @@ import {
+   type SettingsPageMeta,
+ } from "@/lib/settings/metadata"
+ import { getSettingsNavIcon } from "@/lib/settings/navIcons"
++import { groupSettingsPages, SETTINGS_NAVIGATION } from "@/lib/settings/navigation"
+
+ // Same constraints as main sidebar
+ const SETTINGS_NAV_MIN_WIDTH = 176
+@@ -70,24 +71,6 @@ interface SettingsViewProps {
+   isWindowed?: boolean
+ }
+
+-const pageOrder: SettingsPageSlug[] = [
+-  "models",
+-  "appearance",
+-  "chat",
+-  "notifications",
+-  "sessions",
+-  "shortcuts",
+-  "git",
+-  "projects",
+-  "agents",
+-  "behavior",
+-  "commands",
+-  "mcp",
+-  "hooks",
+-  "providers",
+-  "skills.installed",
+-]
+-
+ function buildRuntimeContext(isDesktop: boolean): SettingsRuntimeContext {
+   const isWeb = !isDesktop && isWebRuntime()
+   return { isWeb, isDesktop }
+@@ -224,6 +207,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+   const [mobileStage, setMobileStage] = React.useState<MobileStage>("nav")
+   const autoNavSlugRef = React.useRef<string | null>(null)
+   const [navQuery, setNavQuery] = React.useState("")
++  const navId = React.useId()
+   const [skillsPane, setSkillsPane] = React.useState<"installed" | "catalog">("installed")
+
+   const [navWidth, setNavWidth] = React.useState(216)
+@@ -258,8 +242,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+   }, [runtimeCtx, isMobile, showModels, navQuery])
+
+   const sortedFilteredPages = React.useMemo(() => {
+-    const rank = new Map<SettingsPageSlug, number>(pageOrder.map((s, i) => [s, i]))
+-    return visiblePages.slice().sort((a, b) => (rank.get(a.slug) ?? 999) - (rank.get(b.slug) ?? 999))
++    return groupSettingsPages(visiblePages).flatMap(group => group.pages)
+   }, [visiblePages])
+
+   const activeProjectId = useProjectsStore((state) => state.activeProjectId)
+@@ -424,13 +407,20 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+   )
+
+   const navSearchablePages = React.useMemo(() => {
+-    if (!navQuery.trim()) {
++    const query = navQuery.trim()
++    if (!query) {
+       return sortedFilteredPages
+     }
+-    return filterByFuzzyQuery(sortedFilteredPages, navQuery, (page) =>
+-      [getPageTitle(page.slug), page.group, ...(page.keywords ?? [])].join(" "),
+-    )
+-  }, [sortedFilteredPages, navQuery, getPageTitle])
++    const exactGroup = SETTINGS_NAVIGATION.find(group =>
++      [group.id, t(group.titleKey)].some(label => label.toLowerCase() === query.toLowerCase()))
++    if (exactGroup) return sortedFilteredPages.filter(page => page.group === exactGroup.id)
++    return filterByFuzzyQuery(sortedFilteredPages, query, (page) => {
++      const group = SETTINGS_NAVIGATION.find(group => group.id === page.group)
++      return [getPageTitle(page.slug), group ? t(group.titleKey) : page.group,
++        page.group, ...(page.keywords ?? [])].join(" ")
++    })
++  }, [sortedFilteredPages, navQuery, getPageTitle, t])
++  const navGroups = React.useMemo(() => groupSettingsPages(navSearchablePages), [navSearchablePages])
+
+   const renderUnavailable = React.useCallback(() => {
+     return (
+@@ -623,7 +613,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+
+   const renderSettingsNav = () => {
+     return (
+-      <div className="flex h-full flex-col overflow-hidden">
++      <nav aria-label={t("settings.view.home.title")} data-settings-navigation className="flex h-full flex-col overflow-hidden">
+         <div className="px-2 pt-3">
+           <div className="relative">
+             <Icon
+@@ -647,34 +637,42 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+                 {t("settings.view.nav.searchNoResults")}
+               </div>
+             )}
+-            {navSearchablePages.map((page) => {
+-              const selected = settingsSlug === page.slug
+-              const iconName = getSettingsNavIcon(page.slug)
+-              if (!iconName) return null
+-
+-              return (
+-                <Tooltip key={page.slug}>
+-                  <TooltipTrigger asChild>
+-                    <button
+-                      type="button"
+-                      onClick={() => openPage(page.slug)}
+-                      aria-current={selected ? "page" : undefined}
+-                      className={cn(
+-                        "flex h-8 items-center gap-2 rounded-md px-2 overflow-hidden",
+-                        selected
+-                          ? "bg-interactive-selection text-foreground"
+-                          : "text-foreground hover:bg-interactive-hover",
+-                      )}
+-                    >
+-                      <Icon name={iconName} className="h-4 w-4 shrink-0" />
+-                      <span className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden transition-opacity duration-150 opacity-100">
+-                        <span className="typography-ui-label font-normal truncate">{getPageTitle(page.slug)}</span>
+-                      </span>
+-                    </button>
+-                  </TooltipTrigger>
+-                </Tooltip>
+-              )
+-            })}
++            {navGroups.map(group => (
++              <div key={group.id} role="group" aria-labelledby={`${navId}-${group.id}`} data-settings-group={group.id}
++                className="space-y-0.5 first:mt-0 mt-3">
++                <h2 id={`${navId}-${group.id}`} className="px-2 pb-1 typography-micro font-medium text-muted-foreground">
++                  {t(group.titleKey)}
++                </h2>
++                {group.pages.map((page) => {
++                  const selected = settingsSlug === page.slug
++                  const iconName = getSettingsNavIcon(page.slug)
++                  if (!iconName) return null
++
++                  return (
++                    <Tooltip key={page.slug}>
++                      <TooltipTrigger asChild>
++                        <button
++                          type="button"
++                          onClick={() => openPage(page.slug)}
++                          aria-current={selected ? "page" : undefined}
++                          className={cn(
++                            "flex h-8 w-full items-center gap-2 rounded-md px-2 overflow-hidden",
++                            selected
++                              ? "bg-interactive-selection text-foreground"
++                              : "text-foreground hover:bg-interactive-hover",
++                          )}
++                        >
++                          <Icon name={iconName} className="h-4 w-4 shrink-0" />
++                          <span className="flex items-center gap-1.5 whitespace-nowrap overflow-hidden transition-opacity duration-150 opacity-100">
++                            <span className="typography-ui-label font-normal truncate">{getPageTitle(page.slug)}</span>
++                          </span>
++                        </button>
++                      </TooltipTrigger>
++                    </Tooltip>
++                  )
++                })}
++              </div>
++            ))}
+           </div>
+         </div>
+
+@@ -706,7 +704,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed
+             </Tooltip>
+           </div>
+         </div>
+-      </div>
++      </nav>
+     )
+   }
+
+diff --git a/desktop/packages/ui/src/lib/settings/metadata.ts b/desktop/packages/ui/src/lib/settings/metadata.ts
+index 6a69b819..1f93d5ca 100644
+--- a/desktop/packages/ui/src/lib/settings/metadata.ts
++++ b/desktop/packages/ui/src/lib/settings/metadata.ts
+@@ -18,7 +18,7 @@ export type SettingsPageSlug =
+   | "sessions"
+   | "notifications"
+
+-export type SettingsPageGroup = "appearance" | "projects" | "general" | "ax-code" | "git" | "skills" | "advanced"
++export type SettingsPageGroup = "general" | "projects" | "models" | "coding" | "advanced"
+
+ export interface SettingsRuntimeContext {
+   isWeb: boolean
+@@ -48,7 +48,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
+   {
+     slug: "models",
+     title: "Local Models",
+-    group: "ax-code",
++    group: "models",
+     kind: "single",
+     keywords: ["models", "local models", "ax-engine", "download", "mtp", "mlx", "qwen", "gemma", "glm"],
+   },
+@@ -62,7 +62,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
+   {
+     slug: "providers",
+     title: "Providers",
+-    group: "ax-code",
++    group: "models",
+     kind: "split",
+     keywords: [
+       "provider",
+@@ -80,49 +80,49 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
+   {
+     slug: "agents",
+     title: "Agents",
+-    group: "ax-code",
++    group: "coding",
+     kind: "split",
+     keywords: ["agent", "agents", "prompts", "tools", "permissions"],
+   },
+   {
+     slug: "behavior",
+     title: "Behavior",
+-    group: "ax-code",
++    group: "advanced",
+     kind: "single",
+-    keywords: ["behavior", "agents.md", "system prompt", "global rules", "instructions", "override"],
++    keywords: ["behavior", "agents.md", "system prompt", "global rules", "instructions", "override", "response style", "concise", "detailed"],
+   },
+   {
+     slug: "commands",
+     title: "Commands",
+-    group: "ax-code",
++    group: "coding",
+     kind: "split",
+     keywords: ["command", "commands", "slash", "macros", "automation"],
+   },
+   {
+     slug: "mcp",
+     title: "MCP",
+-    group: "ax-code",
++    group: "coding",
+     kind: "split",
+     keywords: ["mcp", "model context protocol", "servers", "tools", "remote", "stdio"],
+   },
+   {
+     slug: "hooks",
+     title: "Hooks",
+-    group: "ax-code",
++    group: "advanced",
+     kind: "single",
+-    keywords: ["hooks", "lifecycle", "PreToolUse", "automation"],
++    keywords: ["hooks", "lifecycle", "PreToolUse", "automation", "diagnostics", "trust", "configuration"],
+   },
+   {
+     slug: "skills.installed",
+     title: "Skills",
+-    group: "skills",
++    group: "coding",
+     kind: "split",
+     keywords: ["skill", "skills", "instructions", "install", "catalog"],
+   },
+   {
+     slug: "git",
+     title: "Git",
+-    group: "git",
++    group: "projects",
+     kind: "single",
+     keywords: [
+       "git",
+@@ -143,7 +143,7 @@ export const SETTINGS_PAGE_METADATA: readonly SettingsPageMeta[] = [
+   {
+     slug: "appearance",
+     title: "Appearance",
+-    group: "appearance",
++    group: "general",
+     kind: "single",
+     keywords: [
+       "theme",

@@ -2,6 +2,7 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
+import { loadDictionary, useI18nStore } from "@/lib/i18n/store"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { useUIStore } from "@/stores/useUIStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -100,6 +101,64 @@ test("hides only Local Models on a confirmed unsupported runtime and keeps direc
   expect(fetchMock.mock.calls.filter(([url]) => String(url).includes("/ax-engine/models"))).toHaveLength(1)
 })
 
+test("grouped navigation stays stable through page selection, search and clear", async () => {
+  supported = true
+  await render()
+  const inventory = () => [...container.querySelectorAll('[data-settings-group]')].map(group => ({
+    id: group.getAttribute("data-settings-group"),
+    pages: [...group.querySelectorAll("button")].map(button => button.textContent?.trim()),
+  }))
+  const baseline = inventory()
+  expect(baseline).toEqual([
+    { id: "general", pages: ["Appearance", "Chat", "Sessions", "Notifications", "Shortcuts"] },
+    { id: "projects", pages: ["Projects", "Git"] },
+    { id: "models", pages: ["Providers", "Local Models"] },
+    { id: "coding", pages: ["Agents", "Commands", "Skills", "MCP"] },
+    { id: "advanced", pages: ["Behavior", "Hooks"] },
+  ])
+  await act(async () => navButton("Chat")?.click())
+  await flush()
+  expect(inventory()).toEqual(baseline)
+  const search = container.querySelector<HTMLInputElement>('[data-settings-navigation] input')!
+  const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+  const filter = async (query: string) => {
+    await act(async () => { setValue.call(search, query); search.dispatchEvent(new Event("input", { bubbles: true })) })
+    await flush()
+  }
+  await filter("advanced")
+  expect(inventory()).toEqual([{ id: "advanced", pages: ["Behavior", "Hooks"] }])
+  expect(useUIStore.getState().settingsPage).toBe("chat")
+  await act(async () => navButton("Hooks")?.click())
+  await flush()
+  expect(useUIStore.getState().settingsPage).toBe("hooks")
+  await filter("")
+  expect(inventory()).toEqual(baseline)
+  expect(container.querySelector('[data-settings-group="advanced"] [aria-current="page"]')?.textContent).toBe("Hooks")
+  for (const group of container.querySelectorAll('[data-settings-group]')) {
+    expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.tagName).toBe("H2")
+  }
+})
+
+test("translated Advanced group search finds the same destinations", async () => {
+  const original = useI18nStore.getState()
+  try {
+    const dictionary = await loadDictionary("zh-TW")
+    await act(async () => useI18nStore.setState({ locale: "zh-TW", dictionary }))
+    await render()
+    const search = container.querySelector<HTMLInputElement>('[data-settings-navigation] input')!
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+    await act(async () => { setValue.call(search, "進階"); search.dispatchEvent(new Event("input", { bubbles: true })) })
+    await flush()
+    const groups = container.querySelectorAll('[data-settings-group]')
+    expect(groups).toHaveLength(1)
+    expect(groups[0].getAttribute("data-settings-group")).toBe("advanced")
+    expect(groups[0].querySelector("h2")?.textContent).toBe("進階")
+    expect([...groups[0].querySelectorAll("button")].map(button => button.textContent)).toEqual([
+      dictionary["settings.page.behavior.title"], dictionary["settings.page.hooks.title"],
+    ])
+  } finally { await act(async () => useI18nStore.setState(original)) }
+})
+
 test("does not probe a closed settings dialog and checks the host when it opens", async () => {
   useUIStore.setState({ isSettingsDialogOpen: false })
   await act(async () =>
@@ -134,6 +193,8 @@ test("does not classify a pending check as unsupported", async () => {
   })
   await render()
   expect(navButton("Local Models")).toBeDefined()
+  const order = () => [...container.querySelectorAll('[data-settings-group] button')].map(button => button.textContent)
+  const initialOrder = order()
   await act(async () =>
     release(
       json({
@@ -146,6 +207,7 @@ test("does not classify a pending check as unsupported", async () => {
   )
   await flush()
   expect(navButton("Local Models")).toBeUndefined()
+  expect(order()).toEqual(initialOrder.filter(label => label !== "Local Models"))
 })
 
 test("search can explain an unavailable feature without restoring its ordinary navigation entry", async () => {
