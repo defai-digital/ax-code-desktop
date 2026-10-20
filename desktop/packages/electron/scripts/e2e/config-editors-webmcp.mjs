@@ -12,6 +12,9 @@ const outcome = await runHarness({
   uiWebMcp: true,
   journeys: [journeyBoot, journeyPreloadBridge, async function journeyConfigEditors({ session }) {
     const audit = new SettingsWebMcpAudit(session, args.artifacts ? path.join(args.artifacts, "pages") : "")
+    // An inactive Electron window can change activeElement without delivering blur events.
+    await session.send("Page.bringToFront")
+    await audit.wait("document.hasFocus()", "native window focus for blur validation")
     await audit.client.enable()
     await audit.click("Settings")
     await audit.page("Commands")
@@ -71,9 +74,39 @@ const outcome = await runHarness({
     await audit.click("Global", { role: "option" })
     await audit.wait('document.querySelector("[data-settings-view] [data-slot=select-trigger]")?.textContent.trim() === "Global"', "agent global scope display")
     if (!(await audit.find("Save Changes")).disabled) throw new Error("Restoring agent scope must leave its draft clean")
+    await audit.click("Increase value: Temperature")
+    await audit.wait(`document.querySelector('[aria-label="Temperature"]')?.value === "0.8"`, "temperature increment")
+    await audit.click("Decrease value: Top P")
+    await audit.wait(`document.querySelector('[aria-label="Top P"]')?.value === "0.8"`, "top p decrement")
+    await audit.fill("Temperature", "1.2")
+    await audit.click("Top P", { role: "input" })
+    await audit.wait(`document.querySelector('[aria-label="Temperature"]')?.value === "1.2"`, "temperature fill commit")
+    await audit.fill("Top P", "2")
+    await audit.click("Temperature", { role: "input" })
+    await audit.wait(`document.querySelector('[aria-label="Top P"]')?.value === "1"`, "top p maximum clamp")
+    if (!(await audit.find("Increase value: Top P")).disabled) throw new Error("Top P increment must be disabled at its maximum")
+    await audit.click("Clear temperature override")
+    await audit.click("Clear top p override")
+    if (!(await audit.find("Save Changes")).disabled) throw new Error("Cleared parameter overrides must restore clean state")
     await audit.capture("Agent editor scope")
+    try {
+      await session.send("Emulation.setDeviceMetricsOverride", { width: 800, height: 700, deviceScaleFactor: 1, mobile: false })
+      await audit.capture("Agent editor narrow")
+      await audit.wait(`(() => {
+        const root = document.querySelector('[data-settings-view]')?.getBoundingClientRect()
+        const controls = document.querySelectorAll('[data-settings-view] input[placeholder="agent-name"], [data-settings-view] input[placeholder="—"], [data-settings-view] [aria-label="Override Model: Not selected"], [data-settings-view] [aria-label^="Increase value:"], [data-settings-view] [aria-label^="Decrease value:"]')
+        return root && controls.length === 8 && Array.from(controls).every(element => {
+          const rect = element.getBoundingClientRect()
+          return rect.width >= 16 && rect.left >= root.left && rect.right <= root.right
+        })
+      })()`, "narrow agent fields remain inside Settings")
+      await audit.click("Top P", { role: "input" })
+      await audit.capture("Agent parameters narrow")
+    } finally {
+      await session.send("Emulation.clearDeviceMetricsOverride")
+    }
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "config-editor-calls.json"), `${JSON.stringify(audit.calls, null, 2)}\n`)
-    return { name: "config-editors-webmcp", ok: true, detail: "Command and agent scope labels, distinct command selectors, picker actions, required-template validation, field readback, clean-state restoration and narrow layout passed; no valid save submitted" }
+    return { name: "config-editors-webmcp", ok: true, detail: "Agent numeric edit/step/clamp/clear and narrow bounds, command and agent scope labels, distinct command selectors, picker actions, required-template validation, field readback, clean-state restoration and narrow layout passed; no valid save submitted" }
   }],
 })
 outcome.lines.forEach((line) => console.log(line))

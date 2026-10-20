@@ -127,3 +127,9 @@ checks affected control bounds rather than accepting root overflow checks alone.
 [Plan](PLAN-2026-10-20-editor-scope-labels.md) and
 [report](../reports/CONFIG-EDITORS-2026-10-20-scope-labels.md) cover translated Global/Project labels in Commands and
 Agents, native switching in both forms, clean-state restoration, and screenshot verification.
+
+### Agent parameter controls follow-up
+
+[Plan](PLAN-2026-10-20-agent-parameter-controls.md) and
+[report](../reports/CONFIG-EDITORS-2026-10-20-agent-parameters.md) record field-specific numeric control names,
+container-based Agent layout, native step/edit/clamp/clear checks, and a foreground-window prerequisite for blur validation.

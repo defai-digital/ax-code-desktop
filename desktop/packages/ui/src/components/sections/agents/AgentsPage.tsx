@@ -8,7 +8,6 @@ import { useAgentsStore, type AgentConfig, type AgentScope } from "@/stores/useA
 import { useShallow } from "zustand/react/shallow"
 import { useDirectorySync } from "@/sync/sync-context"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
-import { useDeviceInfo } from "@/lib/device"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { cn } from "@/lib/utils"
 import { ModelSelector } from "./ModelSelector"
@@ -159,7 +158,6 @@ const buildPermissionConfigWithGlobal = (
 
 export const AgentsPage: React.FC = () => {
   const { t } = useI18n()
-  const { isMobile } = useDeviceInfo()
   const {
     selectedAgentName,
     getAgentByName,
@@ -721,8 +719,8 @@ export const AgentsPage: React.FC = () => {
   }
 
   return (
-    <ScrollableOverlay outerClassName="h-full" className="w-full">
-      <div className="mx-auto w-full max-w-3xl p-3 sm:p-6 sm:pt-8">
+    <ScrollableOverlay outerClassName="h-full" className="w-full @container/agent-editor">
+      <div className="mx-auto w-full max-w-3xl p-3 @2xl/agent-editor:p-6 @2xl/agent-editor:pt-8">
         {/* Header & Actions */}
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="min-w-0">
@@ -745,13 +743,13 @@ export const AgentsPage: React.FC = () => {
 
           <section className="px-2 pb-2 pt-0 space-y-0">
             {isNewAgent && (
-              <div className="flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8">
-                <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+              <div className="flex flex-col gap-2 py-1.5 @2xl/agent-editor:flex-row @2xl/agent-editor:items-center @2xl/agent-editor:gap-8">
+                <div className="flex min-w-0 flex-col @2xl/agent-editor:w-56 shrink-0">
                   <span className="typography-ui-label text-foreground">
                     {t("settings.agents.page.field.agentName")}
                   </span>
                 </div>
-                <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/agent-editor:w-fit @2xl/agent-editor:flex-initial">
                   <div className="flex items-center">
                     <span className="typography-ui-label text-muted-foreground mr-1">@</span>
                     <Input
@@ -853,14 +851,15 @@ export const AgentsPage: React.FC = () => {
           </div>
 
           <section className="px-2 pb-2 pt-0 space-y-0">
-            <div className="flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8">
-              <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+            <div className="flex flex-col gap-2 py-1.5 @2xl/agent-editor:flex-row @2xl/agent-editor:items-center @2xl/agent-editor:gap-8">
+              <div className="flex min-w-0 flex-col @2xl/agent-editor:w-56 shrink-0">
                 <span className="typography-ui-label text-foreground">
                   {t("settings.agents.page.field.overrideModel")}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/agent-editor:w-fit @2xl/agent-editor:flex-initial">
                 <ModelSelector
+                  ariaLabel={t("settings.agents.page.field.overrideModel")}
                   providerId={parseModelIdentifier(model)?.providerId ?? ""}
                   modelId={parseModelIdentifier(model)?.modelId ?? ""}
                   onChange={(providerId: string, modelId: string) => {
@@ -874,8 +873,8 @@ export const AgentsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className={cn("py-1.5", isMobile ? "flex flex-col gap-3" : "flex items-center gap-8")}>
-              <div className={cn("flex min-w-0 flex-col", isMobile ? "w-full" : "sm:w-56 shrink-0")}>
+            <div className="py-1.5 flex flex-col gap-3 @2xl/agent-editor:flex-row @2xl/agent-editor:items-center @2xl/agent-editor:gap-8">
+              <div className="flex min-w-0 flex-col @2xl/agent-editor:w-56 shrink-0">
                 <div className="flex items-center gap-1.5">
                   <span className="typography-ui-label text-foreground">
                     {t("settings.agents.page.field.temperature")}
@@ -893,8 +892,9 @@ export const AgentsPage: React.FC = () => {
                   {t("settings.agents.page.field.temperatureRange")}
                 </span>
               </div>
-              <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
+              <div className="flex flex-wrap items-center gap-2 w-full @2xl/agent-editor:w-fit">
                 <NumberInput
+                  aria-label={t("settings.agents.page.field.temperature")}
                   value={temperature}
                   fallbackValue={0.7}
                   onValueChange={setTemperature}
@@ -923,8 +923,8 @@ export const AgentsPage: React.FC = () => {
               </div>
             </div>
 
-            <div className={cn("py-1.5", isMobile ? "flex flex-col gap-3" : "flex items-center gap-8")}>
-              <div className={cn("flex min-w-0 flex-col", isMobile ? "w-full" : "sm:w-56 shrink-0")}>
+            <div className="py-1.5 flex flex-col gap-3 @2xl/agent-editor:flex-row @2xl/agent-editor:items-center @2xl/agent-editor:gap-8">
+              <div className="flex min-w-0 flex-col @2xl/agent-editor:w-56 shrink-0">
                 <div className="flex items-center gap-1.5">
                   <span className="typography-ui-label text-foreground">{t("settings.agents.page.field.topP")}</span>
                   <Tooltip>
@@ -940,8 +940,9 @@ export const AgentsPage: React.FC = () => {
                   {t("settings.agents.page.field.topPRange")}
                 </span>
               </div>
-              <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
+              <div className="flex flex-wrap items-center gap-2 w-full @2xl/agent-editor:w-fit">
                 <NumberInput
+                  aria-label={t("settings.agents.page.field.topP")}
                   value={topP}
                   fallbackValue={0.9}
                   onValueChange={setTopP}

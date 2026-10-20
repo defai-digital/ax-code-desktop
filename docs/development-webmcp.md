@@ -51,3 +51,15 @@ Ctrl+C in the lab terminal (or quit its app) removes the temporary profile and s
 startup leaves these UI tools off, and packaged applications always disable them. Developers can explicitly set
 `AX_CODE_DESKTOP_UI_WEBMCP=1` for their own unpackaged launch; that uses the launch's actual profile/runtime, so the isolated
 lab is the default development command. Do not point browser tools at an unrelated running Desktop instance.
+
+The nested configuration journey is available after build:
+
+```sh
+node desktop/packages/electron/scripts/e2e/config-editors-webmcp.mjs --artifacts /tmp/ax-config-editors
+```
+
+It uses the isolated profile to exercise scope labels, command selectors, required-template validation, agent numeric
+steps/editing/clamping/clearing, and narrow control bounds. It does not submit a valid configuration save. For blur-based
+validation, the journey brings its own window to the front and verifies `document.hasFocus()`: in an inactive Electron
+window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
+field's validation failed.
