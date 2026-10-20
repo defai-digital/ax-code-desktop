@@ -1,0 +1,93 @@
+import type { RefObject } from "react"
+import { Icon } from "@/components/icon/Icon"
+import { useI18n } from "@/lib/i18n"
+import { matchesMissionStatus, type MissionStatusFilter } from "@/lib/supervision/missionControl"
+import type { SupervisionState } from "@/lib/supervision/sessionState"
+import { cn } from "@/lib/utils"
+
+interface Props {
+  searchRef: RefObject<HTMLInputElement | null>
+  query: string
+  onQueryChange: (query: string) => void
+  status: MissionStatusFilter
+  onStatusChange: (status: MissionStatusFilter) => void
+  rows: readonly { state: SupervisionState }[]
+  shown: number
+  total: number
+  hiddenNeedsYou: number
+  onShowNeedsYou: () => void
+  onReset: () => void
+}
+
+const statuses = [
+  ["all", "supervision.missionControl.filter.all"],
+  ["attention", "supervision.missionControl.filter.attention"],
+  ["running", "supervision.missionControl.state.running"],
+  ["review", "supervision.state.review"],
+] as const
+
+export function MissionControlFilters(props: Props) {
+  const { t } = useI18n()
+  return (
+    <div className="shrink-0 space-y-2 border-b border-border/50 px-4 py-3" data-mission-filters>
+      <div className="flex min-w-0 flex-wrap items-center gap-3">
+        <div className="flex min-w-0 flex-[1_1_16rem] items-center gap-2 rounded-md border border-border bg-background px-3 focus-within:ring-2 focus-within:ring-ring">
+          <Icon name="search" className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <input
+            ref={props.searchRef}
+            type="search"
+            value={props.query}
+            onChange={(event) => props.onQueryChange(event.target.value)}
+            placeholder={t("supervision.missionControl.search")}
+            aria-label={t("supervision.missionControl.search")}
+            className="h-9 min-w-0 flex-1 bg-transparent typography-meta outline-none"
+          />
+        </div>
+        <div role="group" aria-label={t("supervision.missionControl.filter.status")} className="flex flex-wrap gap-1">
+          {statuses.map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-label={`${t(label)} (${props.rows.filter((row) => matchesMissionStatus(row.state, value)).length})`}
+              aria-pressed={props.status === value}
+              data-mission-status={value}
+              onClick={() => props.onStatusChange(value)}
+              className={cn(
+                "inline-flex min-h-9 items-center gap-2 rounded-md border px-3 py-1 typography-meta focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                props.status === value
+                  ? "border-primary/40 bg-interactive-selection text-primary"
+                  : "border-border/50 text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
+              )}
+            >
+              {t(label)}
+              <span className="tabular-nums">
+                {props.rows.filter((row) => matchesMissionStatus(row.state, value)).length}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 typography-micro text-muted-foreground">
+        <span role="status">{t("supervision.missionControl.results", { shown: props.shown, total: props.total })}</span>
+        {props.query || props.status !== "all" ? (
+          <button
+            type="button"
+            onClick={props.onReset}
+            className="min-h-7 rounded px-1 text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("supervision.missionControl.resetFilters")}
+          </button>
+        ) : null}
+        {props.hiddenNeedsYou > 0 ? (
+          <button
+            type="button"
+            onClick={props.onShowNeedsYou}
+            className="min-h-7 rounded px-1 text-[var(--status-warning)] hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t("supervision.missionControl.hiddenNeedsYou", { count: props.hiddenNeedsYou })}
+          </button>
+        ) : null}
+      </div>
+    </div>
+  )
+}

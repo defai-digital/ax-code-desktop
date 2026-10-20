@@ -18,6 +18,7 @@ export interface MissionControlRowProps {
   expanded: boolean
   activeWorkingSetId: string | null
   primaryLabel: string
+  onToggleDetails: (sessionId: string) => void
   onSelect: (sessionId: string) => void
   onOpen: (row: SupervisionRowData) => void
   onPrimary: (row: SupervisionRowData) => void
@@ -33,6 +34,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   expanded,
   activeWorkingSetId,
   primaryLabel,
+  onToggleDetails,
   onSelect,
   onOpen,
   onPrimary,
@@ -41,6 +43,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   children,
 }) => {
   const { t } = useI18n()
+  const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -121,6 +124,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           {groupSlug && onCompare ? (
             <button
               type="button"
+              aria-label={`${t("supervision.missionControl.action.compare")} — ${actionContext}`}
               onClick={handleCompareClick}
               onDoubleClick={handleActionDoubleClick}
               className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
@@ -133,14 +137,30 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
             onClick={handlePrimaryClick}
             onDoubleClick={handleActionDoubleClick}
-            aria-label={`${primaryLabel} \u2014 ${row.title}`}
+            aria-label={`${primaryLabel} — ${actionContext}`}
           >
             {primaryLabel}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
+            aria-label={`${t("supervision.missionControl.action.details")} — ${actionContext}`}
+            aria-expanded={expanded}
+            aria-controls={expanded ? `mission-details-${row.sessionId}` : undefined}
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleDetails(row.sessionId)
+            }}
+            onDoubleClick={handleActionDoubleClick}
+          >
+            <Icon name={expanded ? "arrow-up-s" : "arrow-down-s"} className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("supervision.missionControl.action.details")}
           </Button>
           {activeWorkingSetId ? (
             <button
               type="button"
-              aria-label={t("supervision.missionControl.action.removeFromSet")}
+              aria-label={`${t("supervision.missionControl.action.removeFromSet")} — ${actionContext}`}
               title={t("supervision.missionControl.action.removeFromSet")}
               onClick={handleRemoveClick}
               onDoubleClick={handleActionDoubleClick}
@@ -151,7 +171,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           ) : null}
         </span>
       </div>
-      {expanded ? children : null}
+      {expanded ? <div id={`mission-details-${row.sessionId}`}>{children}</div> : null}
     </div>
   )
 }

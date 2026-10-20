@@ -30,7 +30,8 @@ describe("Mission Control row interaction", () => {
   const onSelect = vi.fn(),
     onOpen = vi.fn(),
     onPrimary = vi.fn(),
-    onRemove = vi.fn()
+    onRemove = vi.fn(),
+    onToggleDetails = vi.fn()
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     vi.clearAllMocks()
@@ -52,6 +53,7 @@ describe("Mission Control row interaction", () => {
             expanded={false}
             activeWorkingSetId="w1"
             primaryLabel="Review changes"
+            onToggleDetails={onToggleDetails}
             onSelect={onSelect}
             onOpen={onOpen}
             onPrimary={onPrimary}
@@ -67,7 +69,7 @@ describe("Mission Control row interaction", () => {
     act(() => buttons[0].click())
     expect(onPrimary).toHaveBeenCalledWith(row)
     expect(onSelect).not.toHaveBeenCalled()
-    act(() => buttons[1].click())
+    act(() => buttons[2].click())
     expect(onRemove).toHaveBeenCalledWith("w1", "s1")
     expect(onSelect).not.toHaveBeenCalled()
     act(() => container.querySelector<HTMLElement>('[role="row"]')!.click())
@@ -75,6 +77,18 @@ describe("Mission Control row interaction", () => {
     expect(document.activeElement).toBe(container.querySelector('[role="grid"]'))
     expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(6)
     expect(container.textContent).toContain(row.projectLabel)
+  })
+  test("details is a separate discoverable action with project context", () => {
+    render()
+    const details = container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!
+    expect(details.getAttribute("aria-label")).toContain("Long project name")
+    act(() => details.click())
+    expect(onToggleDetails).toHaveBeenCalledWith("s1")
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+    for (const button of container.querySelectorAll("button")) {
+      expect(button.getAttribute("aria-label")).toContain("Long project name")
+    }
   })
   test("double-clicking row actions does not open the session", () => {
     render()

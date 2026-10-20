@@ -1,0 +1,64 @@
+The scoped search, facet counts, global WIP summary, mounted chat, pane-width diff layout, explicit side-by-side preference, and project-first action names match the decisions you listed. Three bugs are in the patch itself.
+
+### 1. `/` cannot be typed into search
+
+`handleKeyDown` sees keys from the search field: the new Escape branch compares `event.target` with `searchRef`. An unshifted `/` always hits `preventDefault()` and moves focus to search unless the target is a `button`, `a[href]`, or `summary`. The search input, the density `<select>`, and the new-set field are none of those, so the character is dropped. Directory queries cannot contain `/` on a US keyboard.
+
+That handler returns on `shiftKey` before the `/` check. On layouts where `/` is produced with Shift, `event.key` is still `"/"` and the shortcut never runs.
+
+Escape is the only key with an editable exception. Space, Enter, `j`, and `k` still fall through into the shortcut body while the caret is in the field, unless a later guard exists outside this diff. The button guard also changed from that four-key allowlist to every key, so anything this function handles further down no longer runs while a row action is focused.
+
+```tsx
+const target = event.target as HTMLElement
+const isTyping = !!target.closest("input, textarea, select, [contenteditable='true']")
+if (isTyping) {
+  if (target === searchRef.current && event.key === "Escape") {
+    event.preventDefault()
+    if (query) setQuery("")
+    else boardRef.current?.focus({ preventScroll: true })
+  }
+  return
+}
+if (!event.altKey && !event.ctrlKey && !event.metaKey && event.key === "/") {
+  event.preventDefault()
+  searchRef.current?.focus()
+  return
+}
+const key = event.key.toLowerCase()
+const isBoardShortcut =
+  event.key === " " || event.key === "Enter" || key === "j" || key === "k"
+if (target.closest("button, a[href], summary") !== null && isBoardShortcut) return
+```
+
+Tests: focus search and type `/tmp/proj` plus `j` and `k`; the value is that string and the selected row is unchanged. Focus the density `<select>` and press `/`; focus stays there. Focus the board and press `/`, including Shift on a layout where `/` is shifted; focus moves to search and the query is unchanged.
+
+### 2. Measured width can stay 0, and 0 means “narrow”
+
+`useElementWidth` subscribes in a layout effect with `[]` and returns when `ref.current` is null. Nothing retries. The ref is attached only on `DiffView`’s main return, about 800 lines below the hook. If the first committed render returns earlier, `paneWidth` stays 0 for that instance.
+
+`0 <= 768` forces mobile layout, `0 >= 1024` hides the file sidebar, and `0 < SIDE_BY_SIDE_MIN_WIDTH` forces inline auto layout. The early explicit side-by-side return still wins. A passing jsdom suite can miss this because `getBoundingClientRect()` is 0 there unless stubbed.
+
+Subscribe from a callback ref:
+
+```tsx
+const [node, setNode] = useState<T | null>(null)
+const ref = useCallback((element: T | null) => setNode(element), [])
+useLayoutEffect(() => {
+  if (!node) return
+  const measure = () => setWidth(node.getBoundingClientRect().width)
+  measure()
+  const observer = new ResizeObserver(measure)
+  observer.observe(node)
+  return () => observer.disconnect()
+}, [node])
+```
+
+Tests, with `ResizeObserver` and border-box width stubbed: render null, then the pane at 1200px — sidebar visible and auto layout may be side-by-side. Repeat at 700px — sidebar hidden and auto layout inline. Change the measured width from 1200 to 700 without a window resize — sidebar hides. Keep width at 0 and treat that case as unmeasured.
+
+### 3. `display: none` on chat drops focus
+
+Under a workspace container at most 56rem with the diff tab active, the new rule sets `[data-split-chat]` and `[data-split-resize]` to `display: none`. The nodes stay mounted, but a focused composer in a `display: none` subtree is no longer a rendered control. Focus leaves it. Later keystrokes do not reach the composer, and growing the workspace does not put the caret back.
+
+After layout, if that rule is active and `document.activeElement` is inside `[data-split-chat]` or `[data-split-resize]`, move focus to the first focusable element in `[data-split-inspector]`.
+
+Test: focus the composer, activate the workspace container query at 40rem with the diff tab open, and assert the active element is inside `[data-split-inspector]`. Grow the container past 56rem and assert the same composer node is shown again and still holds its draft.

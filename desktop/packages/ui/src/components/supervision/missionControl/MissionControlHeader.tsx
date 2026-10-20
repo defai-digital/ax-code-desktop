@@ -94,19 +94,52 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   }
 
   return (
-    <div className="flex min-h-12 shrink-0 flex-wrap items-center gap-3 border-b border-border px-4 py-2">
-      <span className="shrink-0 typography-ui-label font-semibold text-foreground">
-        {t("supervision.missionControl.title")}
-      </span>
-      <span className="shrink-0 typography-micro text-muted-foreground">
-        {t("supervision.missionControl.wipSummary", { needsYou: wip.needsYou, running: wip.running })}
-      </span>
-      {wip.overSoftLimit ? (
-        <span className="shrink-0 rounded-full border border-[var(--status-warning)]/40 px-2 py-0.5 typography-micro text-[var(--status-warning)]">
-          {t("supervision.missionControl.overLimit", { limit: HIGH_TOUCH_SOFT_LIMIT })}
+    <header className="shrink-0 border-b border-border bg-sidebar/30">
+      <div className="flex min-h-16 flex-wrap items-center gap-3 px-4 py-3">
+        <h1 className="shrink-0 text-base font-semibold text-foreground">{t("supervision.missionControl.title")}</h1>
+        <span className="shrink-0 typography-micro text-muted-foreground">
+          {t("supervision.missionControl.wipSummary", { needsYou: wip.needsYou, running: wip.running })}
         </span>
-      ) : null}
-      <div className="ml-auto flex min-w-0 max-w-full flex-wrap items-center gap-2">
+        {wip.overSoftLimit ? (
+          <span className="shrink-0 rounded-full border border-[var(--status-warning)]/40 px-2 py-0.5 typography-micro text-[var(--status-warning)]">
+            {t("supervision.missionControl.overLimit", { limit: HIGH_TOUCH_SOFT_LIMIT })}
+          </span>
+        ) : null}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {onDispatch ? (
+            <Button size="sm" onClick={onDispatch}>
+              {t("supervision.dispatch.title")}
+            </Button>
+          ) : null}
+          {onPopOut ? (
+            <button
+              type="button"
+              aria-label={t("supervision.missionControl.popOut")}
+              title={t("supervision.missionControl.popOut")}
+              onClick={onPopOut}
+              data-mission-control-popout=""
+              className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+            >
+              <Icon name="window" className="h-4 w-4" aria-hidden="true" />
+            </button>
+          ) : null}
+          {onClose ? (
+            <>
+              <span className="hidden shrink-0 typography-micro text-muted-foreground lg:inline">{shortcutHint}</span>
+              <button
+                type="button"
+                aria-label={t("supervision.missionControl.closeAria")}
+                title={`${t("supervision.missionControl.closeAria")} (${shortcutHint})`}
+                onClick={onClose}
+                className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
+              >
+                <Icon name="close" className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+      <div className="flex min-w-0 flex-wrap items-center gap-3 border-t border-border/40 px-4 py-2">
         <label className="flex min-w-0 max-w-full flex-wrap items-center gap-2 typography-meta">
           <span>{t("supervision.missionControl.density")}</span>
           <select
@@ -118,11 +151,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
             <option value="compact">{t("supervision.missionControl.compact")}</option>
           </select>
         </label>
-        {onDispatch ? (
-          <Button size="sm" onClick={onDispatch}>
-            {t("supervision.dispatch.title")}
-          </Button>
-        ) : null}
+
         <div
           className="flex min-w-0 items-center gap-0.5 overflow-x-auto rounded-md border border-border p-0.5"
           role="group"
@@ -239,33 +268,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
             </Button>
           </span>
         ) : null}
-        {onPopOut ? (
-          <button
-            type="button"
-            aria-label={t("supervision.missionControl.popOut")}
-            title={t("supervision.missionControl.popOut")}
-            onClick={onPopOut}
-            data-mission-control-popout=""
-            className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-          >
-            <Icon name="window" className="h-4 w-4" aria-hidden="true" />
-          </button>
-        ) : null}
-        {onClose ? (
-          <>
-            <span className="hidden shrink-0 typography-micro text-muted-foreground lg:inline">{shortcutHint}</span>
-            <button
-              type="button"
-              aria-label={t("supervision.missionControl.closeAria")}
-              title={`${t("supervision.missionControl.closeAria")} (${shortcutHint})`}
-              onClick={onClose}
-              className="shrink-0 rounded p-1.5 text-muted-foreground hover:text-foreground"
-            >
-              <Icon name="close" className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </>
-        ) : null}
       </div>
-    </div>
+    </header>
   )
 }

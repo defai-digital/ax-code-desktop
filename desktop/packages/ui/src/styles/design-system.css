@@ -509,8 +509,8 @@
     padding-left: 9rem;
   }
   .mission-control-row {
-    grid-template-columns: minmax(9rem, auto) minmax(0, 1fr) minmax(0, 1fr) auto;
-    grid-template-areas: "state title title actions" "state project evidence age";
+    grid-template-columns: minmax(9rem, auto) minmax(0, 1fr) auto;
+    grid-template-areas: "state title actions" ". project project" ". evidence age";
   }
   .mission-actions {
     justify-content: flex-end;
@@ -533,5 +533,16 @@
     z-index: 10;
     width: min(12rem, 80%);
     box-shadow: var(--elevation-popover);
+  }
+}
+
+/* Keep chat mounted while a narrow workspace gives the review its full width. */
+@container workspace (max-width: 56rem) {
+  [data-split-review="true"] > [data-split-chat],
+  [data-split-review="true"] > [data-split-resize] {
+    display: none;
+  }
+  [data-split-review="true"] > [data-split-inspector] {
+    width: 100% !important;
   }
 }

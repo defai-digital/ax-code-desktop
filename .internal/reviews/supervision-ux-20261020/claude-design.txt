@@ -1,0 +1,107 @@
+## Verdict
+
+The direction is right, but the proposal bundles three independent problems: Mission Control (MC) header density, repository identity, and narrow-width diff. It also leaves one thing undefined: how search, scope (Live/Recent/Working sets) and status chips combine. I'd ship in that order of risk: invariants first, then the MC toolbar, then responsive layout.
+
+## Challenges to the proposal
+
+1. **Scope and status are different dimensions.** Live/Recent/Working sets define *which sessions exist in this view*. Needs you/Running/Ready are *facets* of that view. Don't present them as one flat filter row.
+2. **A filter must not hide urgency.** If "Running" is active, a permission request elsewhere becomes invisible. This is the biggest design risk.
+3. **Two sets of counts will disagree.** The header's WIP counts and the chip counts will show different numbers once anything is filtered, and that erodes trust.
+4. **"Stable return paths" risks hidden state.** Keep it to a minimal derived origin (MC or Workspace), in memory only. If current behavior already returns correctly, don't add it.
+5. **Responsive collapse is a data-loss hazard.** Switching layout by conditionally rendering components would unmount the Files editor and diff comment drafts. That would bypass the unsaved guard.
+
+## Proposed coherent design
+
+**Filter model:** `visible = scope ∩ search ∩ status`.
+- Chip counts are computed over `scope ∩ search`, ignoring the status chip itself (facet counts). Each number then means "what you get if you click this."
+- The status chip is single-select and toggles off on a second click. Multi-select adds state for little gain.
+- The summary row shows one global "N need you" badge, unaffected by filters. When the scoped Needs-you count is lower than the global one, the badge reads "N need you (M outside this view)" and clicking it resets scope, search and status. Urgent items can never be silently filtered away.
+- Search is trimmed, case-insensitive substring over title, goal text, project label and full path. No fuzzy matching. Because it matches the full path, duplicate project labels become searchable too.
+
+**MC header:**
+- Row 1: title, one-line summary, Quick dispatch (primary action), popout, close.
+- Row 2 toolbar: search (flexible, min about 200px), then the scope segmented control, then status chips.
+- Density moves into a small "View" menu, since it's the lowest-priority control.
+- Wrap by group, not by item. Use container queries rather than viewport queries, because MC lives in an overlay and a popout. Below about 560px, scope and density collapse into a "Filters" menu.
+- Chips use `aria-pressed`, show a count as text, and don't rely on color alone.
+
+**Keyboard and focus:**
+- `/` focuses search. j/k/Space/Enter are ignored while focus is in an input.
+- Escape ladder: clear a non-empty query, then blur to the list, then close MC.
+- The selection is tracked by session ID, not index. After a filter change or live reorder, keep the selected row if it's still visible. Otherwise select the first visible row. Never leave the selection on a hidden row, because Enter would fire an invisible permission or primary action.
+- Live reordering must not move a row out from under the cursor mid-interaction. Hold the order while a row has focus, or at minimum keep selection pinned by ID.
+- After filtering, focus stays where the user put it. The result count goes in an `aria-live="polite"` region ("5 sessions").
+
+**Empty states (three distinct):**
+- No sessions at all: "No sessions yet", with a Start session action.
+- No match: "No sessions match 'foo' in Live · Needs you." Offer Clear search / Clear status / Show all scopes. Add "3 matches in Recent" when other scopes have hits, which the counts make cheap and honest.
+- Empty but healthy: "Nothing needs you" is a positive state, not an error.
+
+**Workspace/Review identity:**
+- A single context strip, reused by both: repository name, plus the full path in a tooltip and inline when labels are duplicated (reuse the existing disambiguation). Show branch only if it's already available. Don't add a backend call.
+- Review has an explicit "Back to chat" control. Escape returns when focus isn't in a comment box.
+- Draft sessions show the effective directory.
+
+**Split pane responsiveness** (measure the pane with ResizeObserver, not the window):
+- Wide (about 1200px or more): chat and diff side by side, chat minimum about 420px, diff minimum about 480px. Not a rigid 50/50. Diff gets the surplus.
+- Medium (about 900–1200px): Chat | Review tabs in a single pane, with Review preferred when opened from a Review action.
+- Narrow (under about 900px): single pane with the same tab switch.
+- Inside the diff: below about 720px, side-by-side falls back to unified, and the toggle indicates "narrow" without overwriting the user's stored preference. Below about 600px, the file list becomes a dropdown. Long paths truncate in the middle with a full-path title. Code scrolls horizontally inside its container. Hunk actions are never hover-only.
+- Layout changes via CSS and visibility only. Editor and diff components stay mounted, so scroll position, comments and Files edits survive a resize.
+
+## Priorities
+
+**Critical (this iteration):**
+- Selection never rests on a hidden row.
+- Typing in search is isolated from list hotkeys.
+- Scoped facet counts, plus the "needs you outside this view" escape hatch.
+- Three honest empty states.
+- Two-row MC header.
+- Repo identity on Workspace/Review.
+- Unsaved Files guard preserved on every exit path: tab switch, session switch, MC open, close, popout.
+- Diff unified fallback, file selector collapse and chat minimum width.
+
+**Optional polish:**
+- Density into the View menu (cheap, so do it if the toolbar is crowded).
+- Draggable divider.
+- Match highlighting.
+- Branch display.
+- Persisted filters or query.
+- Multi-select chips.
+- Count transitions.
+
+**Out of scope:** saved views, bulk actions, new stores, fuzzy search, any backend or budget concept.
+
+## Tests
+
+- **Unit:**
+  - A table test of scope × status × query combinations.
+  - A property check that the status counts sum to `|scope ∩ search|`.
+  - Search matches path, title and goal case-insensitively, and handles whitespace.
+  - Selection invariants after filter and reorder.
+- **Component:**
+  - Pressing "j" in search doesn't move selection.
+  - The Escape ladder works.
+  - `/` focuses search.
+  - Enter on a filtered-out row is a no-op.
+  - The "outside this view" badge appears and resets correctly.
+  - All three empty states render with correct actions.
+  - Chip `aria-pressed` and the live region.
+  - The primary-action label keeps its project name when truncated.
+- **Layout:**
+  - Container widths 1400/1000/700/500 map to the right tier.
+  - Side-by-side falls back to unified, and the stored preference is unchanged.
+  - The editor and comment draft keep the same DOM node across resize.
+  - Popout width works.
+- **Guard:** an unsaved Files edit blocks each exit path. Review is enabled for a draft session with an effective directory.
+- **Visual:** snapshots in dark and light themes, including visible focus rings.
+
+## Risks
+
+- Count semantics confuse users. Mitigate with the single global badge and the facet rule.
+- Hotkey collisions with text inputs and diff comment boxes.
+- Live reorder stealing selection or focus.
+- Unmounting on responsive switches silently losing drafts.
+- Scope drift through branch info or return-state persistence.
+- Container-query behavior differing in the popout window.
+- Project-identity labels truncating away the very text they exist to show.

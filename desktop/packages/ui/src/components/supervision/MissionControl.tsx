@@ -5,7 +5,14 @@ import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
-import { filterRows, moveSelection, primaryActionFor } from "@/lib/supervision/missionControl"
+import {
+  filterRows,
+  moveSelection,
+  primaryActionFor,
+  matchesMissionStatus,
+  searchMissionRows,
+  type MissionStatusFilter,
+} from "@/lib/supervision/missionControl"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import {
@@ -15,11 +22,12 @@ import {
   openSupervisionPopout,
 } from "@/lib/supervision/popout"
 import { requestsForSessionTree } from "@/lib/supervision/requests"
-import { summarizeWorkInProgress, type SupervisionState } from "@/lib/supervision/sessionState"
+import { needsHuman, summarizeWorkInProgress, type SupervisionState } from "@/lib/supervision/sessionState"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useAllPendingRequests } from "@/sync/sync-context"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { MissionControlFilters } from "./missionControl/MissionControlFilters"
 import { MissionControlHeader } from "./missionControl/MissionControlHeader"
 import { MissionControlPeek } from "./missionControl/MissionControlPeek"
 import { MissionControlRow } from "./missionControl/MissionControlRow"
@@ -73,8 +81,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const [peekNewSetFor, setPeekNewSetFor] = React.useState<string | null>(null)
   const [peekNewSetName, setPeekNewSetName] = React.useState("")
   const boardRef = React.useRef<HTMLDivElement>(null)
+  const searchRef = React.useRef<HTMLInputElement>(null)
+  const [query, setQuery] = React.useState("")
+  const [statusFilter, setStatusFilter] = React.useState<MissionStatusFilter>("all")
 
-  const filtered = React.useMemo(
+  const scoped = React.useMemo(
     () =>
       filterRows(
         rows,
@@ -84,6 +95,18 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       ),
     [rows, activeWorkingSetId, mode, workingSets],
   )
+  const searched = React.useMemo(() => searchMissionRows(scoped, query), [scoped, query])
+  const filtered = React.useMemo(
+    () => searched.filter((row) => matchesMissionStatus(row.state, statusFilter)),
+    [searched, statusFilter],
+  )
+  const hiddenNeedsYou = rows.filter(
+    (row) => needsHuman(row.state) && !filtered.some((visible) => visible.sessionId === row.sessionId),
+  ).length
+  const resetFilters = () => {
+    setQuery("")
+    setStatusFilter("all")
+  }
   const wip = React.useMemo(() => summarizeWorkInProgress(rows), [rows])
   const activeSet = workingSets.find((s) => s.id === activeWorkingSetId) ?? null
   const shortcutHint = formatShortcutForDisplay(getEffectiveShortcutCombo("open_mission_control", shortcutOverrides))
@@ -104,7 +127,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     if (filtered.length && !filtered.some((r) => r.sessionId === selectedId)) {
       updateSelectedId(filtered[0].sessionId)
     }
-  }, [filtered, selectedId])
+    if (peekId && !filtered.some((r) => r.sessionId === peekId)) setPeekId(null)
+  }, [filtered, selectedId, peekId])
 
   React.useEffect(() => {
     if (effectiveSelectedId) {
@@ -157,31 +181,43 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.nativeEvent.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.shiftKey && event.key !== "/") return
     const target = event.target as HTMLElement
 
+    if (target === searchRef.current && event.key === "Escape") {
+      event.preventDefault()
+      if (query) setQuery("")
+      else boardRef.current?.focus({ preventScroll: true })
+      return
+    }
     if (event.key === "Escape") {
-      const isInEditable = target.closest("input, textarea, select") !== null
+      const isInEditable = target.closest("input, textarea, select, [contenteditable='true']") !== null
       if (isInEditable) {
         return
       }
       event.preventDefault()
       if (peekId) {
         setPeekId(null)
+        boardRef.current?.focus({ preventScroll: true })
       } else if (!isPopout) {
         setMissionControlOpen(false)
       }
       return
     }
 
-    const isInEditable = target.closest("input, textarea, select") !== null
+    const isInEditable = target.closest("input, textarea, select, [contenteditable='true']") !== null
     if (isInEditable) {
       return
     }
 
-    const lowerKeyEarly = event.key.toLowerCase()
-    const isBoardShortcut = event.key === " " || event.key === "Enter" || lowerKeyEarly === "j" || lowerKeyEarly === "k"
     const isOnInteractiveControl = target.closest("button, a[href], summary") !== null
-    if (isOnInteractiveControl && isBoardShortcut) {
+    if (event.key === "/" && !isOnInteractiveControl) {
+      event.preventDefault()
+      searchRef.current?.focus()
+      return
+    }
+    if (isOnInteractiveControl) {
       return
     }
 
@@ -354,17 +390,39 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         onPopOut={!isPopout && canOpenSupervisionPopout() ? () => void openSupervisionPopout() : undefined}
       />
 
+      <MissionControlFilters
+        searchRef={searchRef}
+        query={query}
+        onQueryChange={setQuery}
+        status={statusFilter}
+        onStatusChange={(next) => setStatusFilter((current) => (current === next ? "all" : next))}
+        rows={searched}
+        shown={filtered.length}
+        total={scoped.length}
+        hiddenNeedsYou={hiddenNeedsYou}
+        onShowNeedsYou={() => {
+          resetFilters()
+          handleSelectMode("live")
+        }}
+        onReset={resetFilters}
+      />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
             <p className="typography-ui-label text-muted-foreground">
-              {activeWorkingSetId
-                ? t("supervision.missionControl.empty.workingSet")
-                : mode === "recent"
-                  ? t("supervision.missionControl.empty.recent")
-                  : t("supervision.missionControl.empty.live")}
+              {query.trim() || statusFilter !== "all"
+                ? t("supervision.missionControl.empty.filtered")
+                : activeWorkingSetId
+                  ? t("supervision.missionControl.empty.workingSet")
+                  : mode === "recent"
+                    ? t("supervision.missionControl.empty.recent")
+                    : t("supervision.missionControl.empty.live")}
             </p>
-            {!activeWorkingSetId && mode === "live" ? (
+            {query.trim() || statusFilter !== "all" ? (
+              <Button size="sm" variant="outline" onClick={resetFilters}>
+                {t("supervision.missionControl.resetFilters")}
+              </Button>
+            ) : !activeWorkingSetId && mode === "live" ? (
               <Button size="sm" onClick={handleNewSession}>
                 {t("sessions.sidebar.header.actions.newSession")}
               </Button>
@@ -383,6 +441,10 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
                 expanded={expanded}
                 activeWorkingSetId={activeWorkingSetId}
                 primaryLabel={primaryLabel(row.state)}
+                onToggleDetails={(sessionId) => {
+                  setSelectedId(sessionId)
+                  setPeekId((current) => (current === sessionId ? null : sessionId))
+                }}
                 onSelect={setSelectedId}
                 onOpen={openRow}
                 onPrimary={handlePrimary}

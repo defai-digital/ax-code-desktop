@@ -86,7 +86,7 @@ describe("Mission Control pop-out variant", () => {
 
   test("opens a session through the main-window hand-off instead of the in-window navigation", async () => {
     render(<MissionControl variant="popout" />)
-    click(buttonByLabel("supervision.missionControl.action.open — Task one"))
+    click(buttonByLabel("supervision.missionControl.action.open — Project · Task one"))
     await flush()
     expect(desktop.invokeDesktop).toHaveBeenCalledWith("desktop_focus_main_window", {
       sessionId: "s1",
@@ -130,7 +130,7 @@ describe("Mission Control pop-out variant", () => {
 
   test("the embedded board opens sessions in place", () => {
     render(<MissionControl />)
-    click(buttonByLabel("supervision.missionControl.action.open — Task one"))
+    click(buttonByLabel("supervision.missionControl.action.open — Project · Task one"))
     expect(openSupervisedSession).toHaveBeenCalledWith({ sessionId: "s1", projectId: "p", directory: "/repo" })
     expect(desktop.invokeDesktop).not.toHaveBeenCalled()
   })

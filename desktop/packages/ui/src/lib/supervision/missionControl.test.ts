@@ -1,11 +1,44 @@
 import { describe, expect, test } from "vitest"
 
-import { filterRows, moveSelection, primaryActionFor } from "./missionControl"
+import { filterRows, moveSelection, primaryActionFor, searchMissionRows, matchesMissionStatus } from "./missionControl"
 import type { SupervisionState } from "./sessionState"
 
 const NOW = 1_700_000_000_000
 const row = (sessionId: string, state: SupervisionState, updatedAt = NOW) => ({ sessionId, state, updatedAt })
 const sets = [{ id: "ws1", name: "Focus", sessionIds: ["a", "c"] }]
+
+describe("search and status facets", () => {
+  const rows = [
+    {
+      ...row("a", "goal"),
+      title: "Same title",
+      projectLabel: "Shared",
+      directory: "/repo/alpha",
+      goal: { objective: "Ship migration" },
+    },
+    { ...row("b", "running"), title: "Same title", projectLabel: "Shared", directory: "/repo/beta" },
+    { ...row("c", "review"), title: "Patch", projectLabel: "Other", directory: "/repo/gamma" },
+  ]
+  test("searches title, project, directory and objective without changing urgency order", () => {
+    expect(searchMissionRows(rows, " SAME ").map((r) => r.sessionId)).toEqual(["a", "b"])
+    expect(searchMissionRows(rows, "SHARED").map((r) => r.sessionId)).toEqual(["a", "b"])
+    expect(searchMissionRows(rows, "/repo/beta").map((r) => r.sessionId)).toEqual(["b"])
+    expect(searchMissionRows(rows, "migration").map((r) => r.sessionId)).toEqual(["a"])
+    expect(searchMissionRows(rows, "  ")).toEqual(rows)
+  })
+  test("scope and query constrain status counts, and categories do not overlap", () => {
+    const scoped = filterRows(rows, { kind: "workingSet", workingSetId: "ws1" }, sets, NOW)
+    const searched = searchMissionRows(scoped, "repo")
+    expect(searched.map((r) => r.sessionId)).toEqual(["a", "c"])
+    const counts = ["attention", "running", "review"].map(
+      (status) =>
+        searched.filter((r) => matchesMissionStatus(r.state, status as "attention" | "running" | "review")).length,
+    )
+    expect(counts).toEqual([1, 0, 1])
+    expect(counts.reduce((a, b) => a + b)).toBe(searched.length)
+    expect(searched.filter((r) => matchesMissionStatus(r.state, "review")).map((r) => r.sessionId)).toEqual(["c"])
+  })
+})
 
 describe("filterRows", () => {
   const rows = [

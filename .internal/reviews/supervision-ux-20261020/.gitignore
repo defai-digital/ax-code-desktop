@@ -1,0 +1,10 @@
+*
+!.gitignore
+!plan.md
+!report.md
+!grok-design.txt
+!claude-design.txt
+!grok-patch.txt
+!claude-patch.txt
+!muse-plan.txt
+!deepseek-plan.txt

@@ -4,13 +4,13 @@ import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideCha
 import { cn } from "@/lib/utils"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 
 export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
   const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
-  const sessionId = useSessionUIStore((s) => s.currentSessionId)
+  const directory = useEffectiveDirectory()
   const leaveBoard = () => useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
   const items = [
     {
@@ -34,7 +34,7 @@ export function WorkspaceNavigation() {
       label: t("supervision.missionControl.action.reviewChanges"),
       icon: "file-check" as const,
       active: !board && review,
-      disabled: !sessionId,
+      disabled: !directory,
       run: () => {
         if (openBesideChat("diff")) leaveBoard()
       },
@@ -64,6 +64,15 @@ export function WorkspaceNavigation() {
           <span>{item.label}</span>
         </button>
       ))}
+      {!board && !review && directory ? (
+        <span
+          data-workspace-directory
+          className="basis-full min-w-0 px-3 pb-1 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+          title={directory}
+        >
+          {directory}
+        </span>
+      ) : null}
     </nav>
   )
 }

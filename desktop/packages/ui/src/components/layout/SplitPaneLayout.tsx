@@ -33,6 +33,33 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
   const startXRef = React.useRef(0)
   const startRatioRef = React.useRef(splitRatio)
 
+  React.useLayoutEffect(() => {
+    const container = containerRef.current
+    if (!splitEnabled || !container) return
+    let lastFocused = document.activeElement
+    const rememberFocus = (event: FocusEvent) => {
+      lastFocused = event.target as Element | null
+    }
+    const keepFocusVisible = () => {
+      const active = document.activeElement
+      const candidate = active === document.body ? lastFocused : active
+      if (!(candidate instanceof HTMLElement) || !container.contains(candidate)) return
+      const hiddenPane = candidate.closest<HTMLElement>("[data-split-chat], [data-split-resize]")
+      if (!hiddenPane || getComputedStyle(hiddenPane).display !== "none") return
+      container
+        .querySelector<HTMLElement>('[data-split-inspector] button[aria-pressed="true"]')
+        ?.focus({ preventScroll: true })
+    }
+    document.addEventListener("focusin", rememberFocus)
+    const observer = new ResizeObserver(keepFocusVisible)
+    observer.observe(container)
+    keepFocusVisible()
+    return () => {
+      observer.disconnect()
+      document.removeEventListener("focusin", rememberFocus)
+    }
+  }, [splitEnabled, splitRightTab])
+
   const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
     e.preventDefault()
     ;(e.target as HTMLElement).setPointerCapture(e.pointerId)
@@ -99,13 +126,17 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
   const rightPercent = `${(1 - splitRatio) * 100}%`
 
   return (
-    <div ref={containerRef} className="flex h-full w-full overflow-hidden">
+    <div ref={containerRef} data-split-review={splitRightTab === "diff"} className="flex h-full w-full overflow-hidden">
       {/* Left pane. Must be a flex column: `children` is a `flex flex-1` element
           that only fills its height when its parent is a flex container (the
           non-split path renders it into MainLayout's `flex flex-col` wrapper).
           Without `flex flex-col` here the chat pane collapses to content height
           and crams into the top-left. */}
-      <div className="relative flex flex-col h-full min-w-0 overflow-hidden" style={{ width: leftPercent }}>
+      <div
+        data-split-chat
+        className="relative flex flex-col h-full min-w-0 overflow-hidden"
+        style={{ width: leftPercent }}
+      >
         {children}
       </div>
 
@@ -124,6 +155,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
         onKeyDown={handleResizeKeyDown}
+        data-split-resize
         role="separator"
         aria-orientation="vertical"
         aria-valuemin={20}
@@ -133,13 +165,14 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       />
 
       {/* Right pane */}
-      <div className="relative h-full min-w-0 overflow-hidden" style={{ width: rightPercent }}>
+      <div data-split-inspector className="relative h-full min-w-0 overflow-hidden" style={{ width: rightPercent }}>
         {/* Tab bar for right pane */}
         <div className="flex h-8 items-center gap-0.5 overflow-x-auto border-b border-border/40 bg-[var(--surface-background)] px-1">
           {SPLIT_TAB_OPTIONS.map((tab) => (
             <button
               key={tab.value}
               type="button"
+              aria-pressed={splitRightTab === tab.value}
               onClick={() => selectSplitPaneTab(tab.value)}
               className={cn(
                 "inline-flex h-6 shrink-0 items-center gap-1 rounded px-2 typography-micro transition-colors",

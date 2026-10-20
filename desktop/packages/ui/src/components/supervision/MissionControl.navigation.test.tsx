@@ -13,11 +13,13 @@ vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn()
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn() } }))
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { MissionControl } from "./MissionControl"
+import { openSupervisedSession } from "@/lib/supervision/openSession"
 
 describe("board keyboard and density interaction", () => {
   let container: HTMLDivElement
   let root: Root
   beforeEach(() => {
+    vi.mocked(openSupervisedSession).mockClear()
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     Element.prototype.scrollIntoView = vi.fn()
     useSupervisionStore.setState({
@@ -50,6 +52,85 @@ describe("board keyboard and density interaction", () => {
   })
   const key = (element: Element, key: string) =>
     act(() => element.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true })))
+  const search = (value: string) => {
+    const input = container.querySelector<HTMLInputElement>('input[type="search"]')!
+    act(() => {
+      input.focus()
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    return input
+  }
+  test("search preserves input focus, isolates shortcuts and cannot activate a hidden row", () => {
+    const board = container.querySelector('[role="grid"]')!
+    key(board, "/")
+    expect(document.activeElement).toBe(container.querySelector('input[type="search"]'))
+    const input = search("Task b")
+    expect(container.querySelectorAll('[role="row"]')).toHaveLength(1)
+    expect(board.getAttribute("aria-activedescendant")).toBe("mission-row-b")
+    key(input, "j")
+    key(input, "Enter")
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+    expect(document.activeElement).toBe(input)
+    search("no matching sessions")
+    key(board, "Enter")
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+    expect(board.hasAttribute("aria-activedescendant")).toBe(false)
+    expect(container.textContent).toContain("supervision.missionControl.empty.filtered")
+    key(input, "Escape")
+    expect(input.value).toBe("")
+    expect(document.activeElement).toBe(input)
+    key(input, "Escape")
+    expect(document.activeElement).toBe(board)
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
+  })
+  test("hidden attention can clear every filter and return from a working set to Live", () => {
+    act(() =>
+      useSupervisionStore.setState({
+        rows: useSupervisionStore
+          .getState()
+          .rows.map((row) => (row.sessionId === "b" ? { ...row, state: "goal" } : row)),
+        workingSets: [{ id: "set-a", name: "Alpha", sessionIds: ["a"] }],
+        activeWorkingSetId: "set-a",
+      }),
+    )
+    search("Task a")
+    const showHidden = Array.from(container.querySelectorAll("button")).find(
+      (button) => button.textContent === "supervision.missionControl.hiddenNeedsYou",
+    )!
+    act(() => showHidden.click())
+    expect(useSupervisionStore.getState().activeWorkingSetId).toBeNull()
+    expect(container.querySelectorAll('[role="row"]')).toHaveLength(2)
+    expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe("")
+  })
+  test("filtering out expanded details removes its Escape step", () => {
+    act(() => container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!.click())
+    search("Task b")
+    const board = container.querySelector('[role="grid"]')!
+    key(board, "Escape")
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
+  })
+  test("path typing and composition stay native; shifted slash can focus search", () => {
+    const board = container.querySelector('[role="grid"]')!
+    const shortcut = new KeyboardEvent("keydown", { key: "/", shiftKey: true, bubbles: true, cancelable: true })
+    act(() => board.dispatchEvent(shortcut))
+    expect(shortcut.defaultPrevented).toBe(true)
+    const input = search("/repo")
+    for (const value of ["/", "j", "k", " "]) {
+      const event = new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true })
+      act(() => input.dispatchEvent(event))
+      expect(event.defaultPrevented).toBe(false)
+    }
+    const composition = new KeyboardEvent("keydown", {
+      key: "Escape",
+      isComposing: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    act(() => input.dispatchEvent(composition))
+    expect(composition.defaultPrevented).toBe(false)
+    expect(input.value).toBe("/repo")
+  })
   test("changing density preserves the selected row DOM node and keyboard navigation", () => {
     const board = container.querySelector('[role="grid"]')!
     key(board, "ArrowDown")
@@ -81,6 +162,28 @@ describe("board keyboard and density interaction", () => {
     expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
     key(container.querySelector('[role="grid"]')!, "Escape")
     expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
+  })
+
+  test("details opens by button and Escape restores focus from its content", () => {
+    const button = container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!
+    act(() => button.click())
+    expect(button.getAttribute("aria-expanded")).toBe("true")
+    const details = document.getElementById(button.getAttribute("aria-controls")!)!
+    const action = details.querySelector<HTMLButtonElement>("button")!
+    act(() => action.focus())
+    key(action, "Escape")
+    expect(container.querySelector(".mission-control-peek")).toBeNull()
+    expect(document.activeElement).toBe(container.querySelector('[role="grid"]'))
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
+  })
+  test("modified keys and arrows on action buttons do not move selection", () => {
+    const board = container.querySelector('[role="grid"]')!
+    const original = board.getAttribute("aria-activedescendant")
+    const event = new KeyboardEvent("keydown", { key: "j", ctrlKey: true, bubbles: true, cancelable: true })
+    act(() => board.dispatchEvent(event))
+    expect(event.defaultPrevented).toBe(false)
+    key(container.querySelector("button")!, "ArrowDown")
+    expect(board.getAttribute("aria-activedescendant")).toBe(original)
   })
 
   const renameInput = () =>
@@ -129,9 +232,7 @@ describe("board keyboard and density interaction", () => {
   test("creating a working set cancels an open rename", () => {
     setWorkingSets()
     startRename()
-    act(() =>
-      container.querySelector<HTMLElement>('[aria-label="supervision.missionControl.newWorkingSet"]')!.click(),
-    )
+    act(() => container.querySelector<HTMLElement>('[aria-label="supervision.missionControl.newWorkingSet"]')!.click())
     const nameInput = container.querySelector<HTMLInputElement>(
       'input[aria-label="supervision.missionControl.workingSetNamePlaceholder"]',
     )!

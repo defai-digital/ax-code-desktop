@@ -52,3 +52,30 @@ export function moveSelection(index: number, delta: number, length: number): num
   if (index < 0) return delta < 0 ? length - 1 : 0
   return Math.min(length - 1, Math.max(0, index + delta))
 }
+
+export type MissionStatusFilter = "all" | "attention" | "running" | "review"
+
+export function matchesMissionStatus(state: SupervisionState, status: MissionStatusFilter): boolean {
+  if (status === "all") return true
+  if (status === "attention")
+    return state === "permission" || state === "question" || state === "error" || state === "goal"
+  return state === status
+}
+
+export function searchMissionRows<
+  T extends {
+    title: string
+    projectLabel: string | null
+    directory: string | null
+    goal?: { objective: string } | null
+  },
+>(rows: readonly T[], query: string): T[] {
+  const search = query.trim().toLocaleLowerCase()
+  return rows.filter(
+    (row) =>
+      !search ||
+      [row.title, row.projectLabel, row.directory, row.goal?.objective].some((value) =>
+        value?.toLocaleLowerCase().includes(search),
+      ),
+  )
+}

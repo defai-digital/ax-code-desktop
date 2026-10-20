@@ -1,0 +1,55 @@
+Mission Control should stay an urgency board with one filter pipeline, not a second navigation chrome. Split the header, but keep counts, search, and keyboard on a single rule so the list you see is explainable.
+
+## Layout
+
+**Row 1, never mixed with filters.** Title, a summary that reads “12 sessions · 3 need you” from the current Live, Recent, or working-set scope, then density, quick dispatch, popout, and close. Summary text is not a second set of buttons.
+
+**Row 2, one toolbar.** Exclusive scope control: Live, Recent, or the current working set, with today’s behavior left as it is. Then a clearable search field: “Filter title, project, or path.” Then status chips only for predicates you can already derive on the client: Needs you, Running, Ready for review. If a label is not a view over existing session fields, omit that chip. No new status, budget, or backend.
+
+The board stays urgency-ranked. Search does not re-rank. Show a short project name. Show the full path only when two visible rows share a name. Primary actions stay short (“Approve”, “Answer”). Add the project name only when the board shows more than one project, or the action targets a different one. Keep the visible Details disclosure.
+
+Workspace and Review share one repo line from the effective project directory: short name, full path in a tooltip. If there is no directory, say “No repository” and keep Review disabled with that reason. Drafts that already have an effective directory stay enabled.
+
+Review remains a split of the mounted chat, not a new route. “Back to chat” collapses the diff and focuses the composer. Closing Mission Control returns to the same Workspace or Review mode, with the composer text intact.
+
+## Filter conjunctions
+
+Apply filters in this order:
+
+1. Scope is exclusive: Live, Recent, or one working set.
+2. Status chips: none selected means all statuses. Several selected means OR among those statuses.
+3. Query is a case-insensitive substring on title, project label, and path. Empty query matches everything. Query AND scope AND status.
+4. Urgency sort runs on what remains.
+
+Chip counts use scope only. They ignore the query and ignore which chips are pressed, so they do not fall to zero while typing. The list header says “Showing 4 of 12” whenever the query or chips hide rows. Clear on the search field clears text only. A separate “Clear filters” clears the query and chips and leaves the scope alone.
+
+## Keyboard and empty states
+
+Opening Mission Control focuses the list, so j/k, arrows, Enter, and Space keep working. `/` focuses search. While search or a toolbar control is focused, those list keys do nothing. Escape in a non-empty search clears the query. The next Escape closes the overlay. Close returns focus to the control that opened the board.
+
+Selection is by session id. If a filter removes the selected row, select the nearest survivor and do not activate it. If the scope itself is empty, say so: “No live sessions,” “Recent is empty,” or “This working set is empty.” If the scope has sessions but query and chips remove them, say “No sessions match,” show the active tokens, and offer Clear filters.
+
+## Split pane
+
+Drop the fixed half-and-half split. When the diff pane is at least about 720px, open near 42% chat and 58% diff. Remember the dragged ratio in memory only if a preference already exists. Below about 640px of diff width, force unified diff, turn the file list into a compact selector, and disable side-by-side with “Widen the review pane for side-by-side.” Hunk actions stay on the hunk. Comment threads stay collapsed behind a count until opened. Under about 960px of window width, Review uses the full content width and chat is hidden with “Show chat.” Hiding is visibility only. The Files unsaved guard runs on that path exactly as it does today. Cancel leaves the buffer open.
+
+## This iteration
+
+**Critical.** Two-row header. The pipeline and the “Showing 4 of 12” line. Client search, clear, and both empty states. Chips limited to existing fields. List-first keyboard focus, `/`, inert keys while typing, selection survival, and the two-step Escape. Shared effective-repo label. Responsive unified and full-width review. No bypass of the unsaved-files guard.
+
+**Optional.** Match highlighting, tooltip paths, compact file-selector styling, in-memory split ratio. Skip match-relevance sorting, bulk dispatch, sidebar changes, sticky project groups, new working-set management, and animation.
+
+## Tests
+
+- At 1280, 1024, and 800px, in light and dark, the toolbar may wrap, but dispatch, popout, and close never sit inside the chips.
+- Chip counts change when scope changes and stay put while typing. Needs you OR Running, AND a query, yields the intersection. The summary matches the visible rows.
+- Query `zzzz` shows a clearable no-match and does not change the working set. An empty Recent shows the scope empty state.
+- j/k moves from list focus. `/`, then typing `j`, does not move the selection. Escape clears, then closes, and focus returns. A filter that drops the selected row selects a neighbor and does not fire its action.
+- Duplicate names show a path. Unique names do not. Action labels gain a project only on a multi-project board.
+- A draft with an effective directory can open Review and shows that repo. A draft without one stays disabled and says why.
+- A narrow diff pane forces unified diff. Widening restores the last layout choice. A narrow window hides chat. “Show chat” brings it back. A dirty Files buffer prompts the existing guard, and cancel keeps it open.
+- Composer text survives Mission Control and a Review round-trip.
+
+## Risks
+
+Facet counts look wrong unless “Showing 4 of 12” is always visible. An unclear pressed state on OR chips makes the list feel arbitrary. Escape must clear before close. Selection by index breaks if rows unmount. Full-width Review must not remount chat or skip the unsaved guard. A width threshold must not overwrite an explicit side-by-side choice. Path search that prints every path puts the header’s noise back on the rows. Many working sets can make row 2 tall. Keep the existing working-set control.

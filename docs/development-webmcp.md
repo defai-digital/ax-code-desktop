@@ -209,3 +209,15 @@ node desktop/packages/electron/scripts/e2e/agent-permissions-webmcp.mjs --artifa
 This journey adds, edits and resets unsaved rule overrides, restores the draft's global default, verifies clean state and
 checks custom-rule control bounds at 800px. It uses the isolated profile and never saves an agent configuration or changes
 runtime permission policy.
+
+For Mission Control, Workspace and repository review:
+
+```sh
+node desktop/packages/electron/scripts/e2e/supervision-workspace-webmcp.mjs --artifacts /tmp/ax-supervision-workspace
+```
+
+This isolated two-project journey creates disposable Git repositories with distinct changes. Native WebMCP exercises
+path search, status filters, hidden-attention recovery, Details disclosures, draft review and project/session navigation.
+It checks the rendered diff and effective directory, then captures populated light/dark layouts from 600 to 2800 CSS
+pixels. The narrow Review layout preserves the mounted chat while giving the inspector the full workspace. No model
+prompt is submitted and no user's repository is modified; fixture commits and files are removed with the harness profile.

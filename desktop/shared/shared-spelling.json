@@ -325,7 +325,8 @@
     "githubBoard.tab.issues",
     "githubBoard.filter.labelPlaceholder",
     "settings.page.hooks.title",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "supervision.missionControl.action.details"
   ],
   "id": [
     "agentManager.detail.header.modelCountSingle",

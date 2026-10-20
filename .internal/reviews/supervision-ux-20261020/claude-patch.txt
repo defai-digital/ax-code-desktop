@@ -1,0 +1,115 @@
+Findings are ordered by impact. I haven't seen the surrounding handler or locale files, so items marked "verify" depend on code outside the patch.
+
+## 1. `/` and other keys are hijacked inside editable fields (`MissionControl.tsx` `handleKeyDown`)
+
+The new `/` branch only checks `!isOnInteractiveControl` (`button, a[href], summary`). Focus in the search input or the peek "new set" input is not an interactive control, so typing `/` calls `preventDefault()` and re-focuses search. Search matches `directory`, so typing `src/foo` fails. The only editable guard in the shown hunk covers Escape.
+
+Two related regressions in the same hunk:
+- `if (isOnInteractiveControl) return` replaces the narrow `isBoardShortcut` check. If arrow keys are handled below, they now stop working after a status chip or row button is clicked. Verify against the unshown body.
+- The blanket `shiftKey` bail-out breaks `/` on layouts where it needs Shift, such as German.
+
+Fix:
+```ts
+if (event.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+const target = event.target as HTMLElement
+// ...existing search-Escape and Escape branches...
+const isEditable = target.closest("input, textarea, select, [contenteditable='true']") !== null
+if (isEditable) return
+const isOnInteractiveControl = target.closest("button, a[href], summary") !== null
+if (event.key === "/" && !isOnInteractiveControl) { event.preventDefault(); searchRef.current?.focus(); return }
+const k = event.key.toLowerCase()
+if (isOnInteractiveControl && (event.key === " " || event.key === "Enter" || k === "j" || k === "k")) return
+```
+Tests:
+- Type `src/a b jk` in search. The value is intact and the selection is unchanged.
+- Focus a row button, press ArrowDown. Selection still moves, if that is existing behavior.
+- With a layout where `/` needs Shift, press `/` from the board. Search focuses.
+- Press Escape mid-IME composition. The query is not cleared.
+
+## 2. `useElementWidth` never observes an element that mounts late
+
+The hook uses `useRef` with `[]` deps and `if (!element) return`. `DiffView`'s measured `<div>` is the final return, and the context before it (`}` then `return (`) suggests earlier branches such as loading or not-a-repo. If `DiffView` mounts through one of those, `ref.current` is null once, the effect never re-runs, and `width` stays 0 permanently. That gives `isMobileLayout === true`, forced inline layout and no sidebar. The "hidden-to-visible" claim in the comment doesn't cover this case.
+
+Width 0 is also indistinguishable from "unmeasured". Passive effects from the first render run before the layout-effect re-render, so anything keyed on layout sees mobile or inline values once.
+
+Fix: use a callback ref and treat null as unmeasured.
+```ts
+export function useElementWidth<T extends HTMLElement>() {
+  const [element, ref] = useState<T | null>(null)
+  const [width, setWidth] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (!element) return
+    const measure = () => setWidth(Math.round(element.getBoundingClientRect().width))
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [element])
+  return { ref, width }
+}
+```
+In `DiffView`:
+```ts
+const { ref: paneRef, width: measured } = useElementWidth<HTMLDivElement>()
+const paneWidth = measured ?? 0
+const isMeasured = measured !== null
+const isMobileLayout = isMobile || (isMeasured && paneWidth <= 768)
+const showFileSidebar = !hideStackedFileSidebar && !isMobileLayout && isMeasured && paneWidth >= 1024
+// resolveLayout: const isNarrow = isMeasured && paneWidth < SIDE_BY_SIDE_MIN_WIDTH
+```
+`Math.round` also stops a re-render of the large `DiffView` on every fractional pixel of a split drag.
+
+Tests:
+- Mount `DiffView` in a loading state, then resolve to content at 1200px. The sidebar and side-by-side layout appear.
+- Before the first measurement, the layout is not persisted as mobile or inline.
+- Drag the split across 768 and 1024. There is one re-render per integer width and no flicker.
+
+## 3. Selection and peek can point at rows the filter hides
+
+`selectedId` and `peekId` are not reconciled when `filtered` changes. If the existing code doesn't already derive them from `filtered`, the consequences are:
+- Escape closes an invisible peek instead of the board.
+- Enter or primary action may target an off-screen row.
+- `onToggleDetails` leaves stale state after a reset.
+
+Fix:
+```ts
+React.useEffect(() => {
+  const visible = new Set(filtered.map((r) => r.sessionId))
+  setSelectedId((c) => (c && visible.has(c) ? c : (filtered[0]?.sessionId ?? null)))
+  setPeekId((c) => (c && visible.has(c) ? c : null))
+}, [filtered])
+```
+Tests:
+- Select a row, then filter it out. Selection moves to a visible row, or to none when the list is empty.
+- Open a peek, then search for something else. The next Escape closes Mission Control, not a phantom peek.
+- Enter with zero results does nothing.
+
+## 4. The responsive CSS depends on an undeclared container
+
+`@container workspace (...)` only matches if an ancestor has `container-name: workspace` and `container-type: inline-size`. The patch doesn't declare one. If it doesn't exist elsewhere, the rule is dead and the chat is never hidden. Declare it on the workspace wrapper, not on the `SplitPaneLayout` root. A container query can't style its own container, and while `data-split-review` is on the root, the rules target its children.
+
+Hiding the chat with `display:none` while the composer has focus drops focus to `body`. Move focus to the inspector's active tab on collapse.
+
+Tests (browser or Playwright):
+- At 800px workspace width with the diff tab, the chat and separator have `display:none`, the inspector is at 100%, and the chat node is still in the DOM with its draft preserved.
+- At 1000px both panes show.
+- Switching away from the diff tab restores the split.
+
+## 5. Smaller issues
+
+- `row.projectLabel ?? row.directory` doesn't fall back on `""`. Use `||` so an empty label doesn't drop the project from action names.
+- The patch shows no locale additions. Verify these keys exist in every locale, otherwise raw keys render: `empty.filtered`, `resetFilters`, `search`, `results`, `hiddenNeedsYou`, `filter.status`, `filter.attention`, `action.details`.
+- In review mode the same directory renders twice, in `data-workspace-directory` and in `data-review-directory`. Keep one, since duplicated path text adds noise for accessibility observers.
+- `MissionControlFilters` computes each facet count twice, once for the `aria-label` and once for the text. Compute `counts` once with `useMemo`. The `aria-label` duplicating the visible count is harmless.
+- `hiddenNeedsYou` uses `needsHuman`, while the attention facet is `permission|question|error|goal`. Add a test that the two never disagree about which states count, since any drift shows up as the "N need you" link and the Attention chip disagreeing.
+
+## Behavioral tests for the chosen model
+
+- Counts: with scope=live, query="api", and 2 running / 1 review / 1 permission matches, the chips read All 4, Attention 1, Running 2, Review 1. Selecting Running leaves the other counts unchanged.
+- Attention excludes review: a `review` row increments only Review, never Attention.
+- Standing-by rows appear only under All and in no other facet.
+- WIP summary: changing the query or facet never changes the header `needsYou` and `running` values.
+- `hiddenNeedsYou`: with an active working set that excludes a permission row, the link shows 1. Clicking it resets query, status and scope to live, and the row is visible.
+- Tab order is search, then chips, then board. The `role="status"` results text updates once per query change, not per keystroke echo.
+
+Native verification is still pending and should cover items 1, 2 and 4 first. They are the ones most likely to pass unit tests with mocked `ResizeObserver` and `matchMedia` and still fail in the real app.

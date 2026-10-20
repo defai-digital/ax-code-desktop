@@ -1,0 +1,5 @@
+!  model "deepseek" is served as "defai-01-ax-trust-com/deepseek-flash"
+
+> Debugger · deepseek-flash · ses_-e5ea6967129ffesU9Dc2yw5s3
+
+Error: run timed out after 180 s

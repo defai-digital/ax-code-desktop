@@ -32,6 +32,7 @@ import { useDiffHunkRevert } from "./useDiffHunkRevert"
 import { useDiffHunkStage } from "./useDiffHunkStage"
 import { buildInlineCommentSessionKey } from "@/stores/useInlineCommentDraftStore"
 import { useDeviceInfo } from "@/lib/device"
+import { useElementWidth } from "@/hooks/useElementWidth"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
 import { Icon } from "@/components/icon/Icon"
 import { getContextFileOpenFailureMessage, validateContextFileOpen } from "@/lib/contextFileOpenGuard"
@@ -196,9 +197,9 @@ const FileSelector = React.memo<FileSelectorProps>(
     return (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button className="flex h-7 items-center gap-2 rounded-lg border border-input bg-transparent px-2 typography-ui-label text-foreground outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+          <button className="flex h-7 min-w-0 max-w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2 typography-ui-label text-foreground outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
             {selectedFileEntry ? (
-              <div className="flex min-w-0 items-center gap-3">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
                 <FileTypeIcon filePath={selectedFileEntry.path} className="h-3.5 w-3.5 flex-shrink-0" />
                 <span className="min-w-0 flex-1 truncate typography-meta">{getLabel(selectedFileEntry.path)}</span>
                 {formatDiffTotals(selectedFileEntry.insertions, selectedFileEntry.deletions)}
@@ -254,7 +255,7 @@ const DiffViewModeSelector = React.memo<DiffViewModeSelectorProps>(({ mode, onMo
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button className="flex h-7 items-center gap-2 rounded-lg border border-input bg-transparent px-2 typography-ui-label text-foreground outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        <button className="flex h-7 min-w-0 max-w-full items-center gap-2 rounded-lg border border-input bg-transparent px-2 typography-ui-label text-foreground outline-none hover:bg-interactive-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
           <span className="min-w-0 truncate typography-meta">{t(currentOption.labelKey)}</span>
           <Icon name="arrow-down-s" className="size-4 opacity-50" />
         </button>
@@ -945,7 +946,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
   const { t } = useI18n()
   const { git, files } = useRuntimeAPIs()
   const effectiveDirectory = useEffectiveDirectory()
-  const { screenWidth, isMobile } = useDeviceInfo()
+  const { isMobile } = useDeviceInfo()
+  const { ref: paneRef, width: paneWidth } = useElementWidth<HTMLDivElement>()
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const inlineCommentSessionKey = React.useMemo(
     () => buildInlineCommentSessionKey({ sessionId: currentSessionId, draftDirectory: effectiveDirectory ?? null }),
@@ -995,8 +997,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
   const activeDiffStaged = forcedStaged ?? selectedFileStaged
 
   const isStackedView = diffViewMode === "stacked"
-  const isMobileLayout = isMobile || screenWidth <= 768
-  const showFileSidebar = !hideStackedFileSidebar && !isMobileLayout && screenWidth >= 1024
+  const isMobileLayout = isMobile || paneWidth <= 768
+  const showFileSidebar = !hideStackedFileSidebar && !isMobileLayout && paneWidth >= 1024
   const diffScrollRef = React.useRef<HTMLElement | null>(null)
   const fileSectionRefs = React.useRef(new Map<string, HTMLDivElement | null>())
   const pendingScrollTargetRef = React.useRef<string | null>(null)
@@ -1143,14 +1145,14 @@ export const DiffView: React.FC<DiffViewProps> = ({
         return "side-by-side"
       }
 
-      const isNarrow = screenWidth < SIDE_BY_SIDE_MIN_WIDTH
+      const isNarrow = paneWidth < SIDE_BY_SIDE_MIN_WIDTH
       if (file.isNew || isNarrow) {
         return "inline"
       }
 
       return "side-by-side"
     },
-    [diffFileLayout, diffLayoutPreference, effectiveDirectory, screenWidth],
+    [diffFileLayout, diffLayoutPreference, effectiveDirectory, paneWidth],
   )
 
   const currentLayoutForSelectedFile = React.useMemo<"inline" | "side-by-side" | null>(() => {
@@ -1814,8 +1816,13 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-background">
-      <div className="flex items-center gap-3 px-3 py-2 bg-background">
+    <div ref={paneRef} className="flex h-full flex-col overflow-hidden bg-background" data-review-changes data-review-width={Math.round(paneWidth)}>
+      {effectiveDirectory ? (
+        <div data-review-directory className="shrink-0 border-b border-border/50 px-3 py-2 typography-meta text-muted-foreground [overflow-wrap:anywhere]">
+          {effectiveDirectory}
+        </div>
+      ) : null}
+      <div className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-2 bg-background">
         {!isMobile && (
           <div className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground shrink-0">
             <Icon name="git-commit" className="h-4 w-4" />

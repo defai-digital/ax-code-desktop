@@ -1,6 +1,10 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+vi.mock("@/hooks/useEffectiveDirectory", () => ({
+  useEffectiveDirectory: () => useDirectoryStore((s) => s.currentDirectory),
+}))
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 import { useUIStore } from "@/stores/useUIStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
@@ -12,6 +16,7 @@ describe("workspace navigation", () => {
   let root: Root
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    useDirectoryStore.setState({ currentDirectory: "/repo/project" })
     useUIStore.setState({
       isMobile: false,
       activeMainTab: "chat",
@@ -61,8 +66,17 @@ describe("workspace navigation", () => {
     expect(useUIStore.getState().splitPaneRightTab).toBe("files")
     expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
   })
-  test("review is disabled without a session", () => {
+  test("a draft can review its project without creating a session", () => {
     act(() => useSessionUIStore.setState({ currentSessionId: null }))
+    click("action.reviewChanges")
+    expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+    expect(container.querySelector("[data-workspace-directory]")).toBeNull()
+    click("navigation.workspace")
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
+    expect(container.querySelector("[data-workspace-directory]")?.textContent).toBe("/repo/project")
+  })
+  test("review is disabled without a directory", () => {
+    act(() => useDirectoryStore.setState({ currentDirectory: undefined }))
     expect(
       Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("action.reviewChanges"))
         ?.disabled,
