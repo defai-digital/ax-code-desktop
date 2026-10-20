@@ -82,6 +82,7 @@ const pending = scenario && scenario.approveRequest ? [scenario.approveRequest] 
 let currentGoal = null;
 let foreignGoalEmitted = false;
 let scheduledFixture = [];
+let scheduledWrites = [];
 const eventClients = new Set();
 const sendEvent = (res, directory, payload) => {
   try {
@@ -131,7 +132,41 @@ const server = http.createServer((req, res) => {
     if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'POST') {
       readBody(req, (body) => {
         scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];
+        scheduledWrites = [];
         json(res, { count: scheduledFixture.length });
+      });
+      return;
+    }
+    if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'GET') {
+      json(res, { tasks: scheduledFixture, writes: scheduledWrites });
+      return;
+    }
+    const scheduledScope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+    const updateMatch = pathname.match(/^\\/scheduled-task\\/([^/]+)\\/update$/);
+    if ((pathname === '/scheduled-task' || updateMatch) && req.method === 'POST') {
+      if (scheduledScope !== directory) {
+        res.statusCode = 404;
+        json(res, { message: 'Fixture project not found' });
+        return;
+      }
+      readBody(req, (body) => {
+        const existing = updateMatch ? scheduledFixture.find(entry => entry.task.id === updateMatch[1]) : null;
+        if (updateMatch && !existing) {
+          res.statusCode = 404;
+          json(res, { message: 'Fixture task not found' });
+          return;
+        }
+        const fields = {};
+        for (const key of ['title', 'prompt', 'schedule', 'status', 'model', 'agent', 'catchUpPolicy']) {
+          if (Object.prototype.hasOwnProperty.call(body, key)) fields[key] = body[key];
+        }
+        const task = existing ? Object.assign(existing.task, fields) : {
+          ...fields, id: 'st_created_' + scheduledFixture.length, directory,
+          projectID: scenario.project.id, status: 'active', time: { created: Date.now() },
+        };
+        if (!existing) scheduledFixture.push({ task, history: [] });
+        scheduledWrites.push({ operation: updateMatch ? 'update' : 'create', directory, taskID: task.id, fields });
+        json(res, task);
       });
       return;
     }

@@ -1546,7 +1546,7 @@ export function ScheduledTaskEditorDialog(props: {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {TIMEZONE_OPTIONS.map((timezone) => (
+                {timezoneOptions.map((timezone) => (
                   <SelectItem key={timezone} value={timezone}>
                     {timezone}
                   </SelectItem>

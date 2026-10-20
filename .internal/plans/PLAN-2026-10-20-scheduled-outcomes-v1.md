@@ -69,3 +69,12 @@ UI responsiveness, API fan-out, refresh convergence and correct task/run/project
 cancel or late update for one run cannot corrupt another. Separate deterministic Desktop fixture evidence from real
 pinned-runtime execution, and never infer runtime parallelism from simultaneous UI spinners. Use controlled local
 provider/test workloads for runtime qualification where supported, without activating user jobs or paid model requests.
+
+## Repair evidence
+
+- [History projection](../reports/SCHEDULED-TASKS-2026-10-20-history-repair.md): no timestamp-based false success,
+  stale error cleanup, visible unavailable state, concurrent consumer tests and native WebMCP verification.
+- [Recurring timezone](../reports/SCHEDULED-TASKS-2026-10-20-timezone-repair.md): native UTC-option reproduction,
+  daily/weekly repair and two-slot save/reopen receipt. Includes the startup reload race found during retesting.
+- [Runtime dispatch](../reports/PARALLEL-PROJECTS-2026-10-20-runtime-dispatch.md): six scheduled tasks across three
+  real project instances with a controlled prompt boundary. Provider/MCP and packaged execution remain unqualified.

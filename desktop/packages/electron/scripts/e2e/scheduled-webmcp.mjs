@@ -19,6 +19,7 @@ async function journeyScheduledHistory({ session, e2e }) {
       directory,
       title: `History ${status}`,
       prompt: "Controlled fixture only",
+      model: { providerID: "fixture", modelID: "fixture-model" },
       schedule: { type: "daily", time: "09:00", timezone: "UTC" },
       status: "active",
       catchUpPolicy: "run_once",
@@ -62,13 +63,38 @@ async function journeyScheduledHistory({ session, e2e }) {
   if (!running?.includes("Running") || running.includes("Couldn't load")) throw new Error("Running row was corrupted")
   await audit.click("Edit History unavailable")
   await audit.wait('document.querySelector("#sched-name")?.value === "History unavailable"', "correct task editor")
+  await audit.click("UTC")
+  await audit.click("UTC", { role: "option" })
+  await audit.click("Daily")
+  await audit.click("Weekly", { role: "option" })
+  await audit.click("UTC")
+  await audit.click("UTC", { role: "option" })
+  await audit.click("Weekly")
+  await audit.click("Daily", { role: "option" })
+  await audit.click("Add time")
+  await audit.wait("document.querySelectorAll('input[aria-label=\"Hours\"]').length === 2", "two schedule times")
+  await audit.click("Save")
+  await audit.wait('!document.querySelector("#sched-name")', "schedule saved")
+  const persisted = await (await fetch(`${origin}/__e2e__/scheduled-tasks`)).json()
+  const members = persisted.tasks.filter(({ task }) => task.title.startsWith("History unavailable"))
+  if (
+    members.length !== 2 ||
+    members.some(({ task }) => task.schedule.type !== "daily" || task.schedule.timezone !== "UTC")
+  )
+    throw new Error("Saved family did not retain two daily UTC slots")
+  if (new Set(members.map(({ task }) => task.schedule.time)).size !== 2)
+    throw new Error("Saved family duplicated its time slot")
+  if (persisted.writes.length !== 2 || persisted.writes.some((write) => write.directory !== directory))
+    throw new Error("Unexpected scheduled writes or project scope")
+  await audit.click("Edit History unavailable")
+  await audit.wait("document.querySelectorAll('input[aria-label=\"Hours\"]').length === 2", "saved family reopened")
   await audit.click("Cancel")
   await audit.wait('!document.querySelector("#sched-name")', "editor closed")
   if (args.artifacts) {
     await fs.mkdir(args.artifacts, { recursive: true })
     await fs.writeFile(
       path.join(args.artifacts, "scheduled-history-receipt.json"),
-      JSON.stringify({ rows, actions: audit.calls }, null, 2),
+      JSON.stringify({ rows, actions: audit.calls, writes: persisted.writes }, null, 2),
     )
     const { data } = await session.send("Page.captureScreenshot", { format: "png" })
     await fs.writeFile(path.join(args.artifacts, "scheduled-history.png"), Buffer.from(data, "base64"))
@@ -99,7 +125,7 @@ async function journeyScheduledHistory({ session, e2e }) {
   return {
     name: "scheduled-history-webmcp",
     ok: true,
-    detail: "Three fixture histories; readable unavailable disclosure; native edit/cancel; foreign scope empty",
+    detail: "History disclosure; daily/weekly UTC; two-slot save/reopen; native edit/cancel; foreign scope empty",
   }
 }
 

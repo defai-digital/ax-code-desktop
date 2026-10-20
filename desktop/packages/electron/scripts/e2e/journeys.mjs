@@ -79,8 +79,8 @@ const readinessStage = async (stage, run) => {
 
 /**
  * Barrier before the scenario journeys: the stub origin file exists, the app
- * reports the runtime healthy through its own server, the main page reloads
- * once against that live runtime, and the seeded session is known to the
+ * reports the runtime healthy through its own server, initial navigation
+ * completes before the main page reloads against that live runtime, and the seeded session is known to the
  * renderer. A timeout names the stage that never completed.
  */
 export const waitForRuntimeReadiness = async ({
@@ -106,6 +106,15 @@ export const waitForRuntimeReadiness = async ({
     waitForCondition(() => session.evaluate(RUNTIME_HEALTH_EXPRESSION), {
       timeoutMs,
       label: "runtime health through the app server",
+    }),
+  )
+  // A health fetch can succeed before Electron's initial loadURL resolves.
+  // Reloading at that point aborts startup navigation (ERR_ABORTED), and main
+  // tears down the app instead of allowing the scenario to start.
+  await readinessStage("document-load", () =>
+    waitForCondition(() => session.evaluate('document.readyState === "complete"'), {
+      timeoutMs,
+      label: "initial document load completed",
     }),
   )
   await readinessStage("runtime-reload", async () => {

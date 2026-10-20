@@ -98,7 +98,7 @@ describe("isolated profile language seed", () => {
 
 describe("runtime readiness barrier", () => {
   const scenario = { session: { id: "ses_e2e_scripted", title: "E2E scripted session" } }
-  const fakeSession = ({ health = [], seeded = [] } = {}) => {
+  const fakeSession = ({ health = [], loaded = [], seeded = [] } = {}) => {
     const events = []
     return {
       events,
@@ -106,6 +106,10 @@ describe("runtime readiness barrier", () => {
         if (expression.includes("/api/global/health")) {
           events.push("health")
           return health.length ? health.shift() : true
+        }
+        if (expression.includes("document.readyState")) {
+          events.push("loaded")
+          return loaded.length ? loaded.shift() : true
         }
         events.push("seeded")
         return seeded.length ? seeded.shift() : true
@@ -117,8 +121,8 @@ describe("runtime readiness barrier", () => {
     }
   }
 
-  test("waits origin, health, one reload, then the seeded session, in that order", async () => {
-    const session = fakeSession({ health: [false, true], seeded: [false, true] })
+  test("waits for the initial navigation to complete before reloading a healthy runtime", async () => {
+    const session = fakeSession({ health: [false, true], loaded: [false, true], seeded: [false, true] })
     await expect(
       waitForRuntimeReadiness({
         session,
@@ -128,7 +132,7 @@ describe("runtime readiness barrier", () => {
         readFile: async () => "http://127.0.0.1:4321",
       }),
     ).resolves.toBe(true)
-    expect(session.events).toEqual(["health", "health", "Page.reload", "seeded", "seeded"])
+    expect(session.events).toEqual(["health", "health", "loaded", "loaded", "Page.reload", "seeded", "seeded"])
   })
 
   test("names the stage that timed out", async () => {
