@@ -1,0 +1,178 @@
+{
+  "baseline": "bdc1a4bd",
+  "execution": "isolated unpackaged Electron; stub runtime; unsaved draft",
+  "observations": [
+    {
+      "label": "foreground immediately before numeric edit",
+      "documentFocused": true,
+      "focused": true,
+      "active": "New Agent",
+      "topP": "",
+      "temperature": ""
+    },
+    {
+      "label": "foreground out-of-range draft",
+      "documentFocused": true,
+      "focused": true,
+      "active": "Top P",
+      "topP": "2",
+      "temperature": ""
+    },
+    {
+      "label": "foreground clamp after blur",
+      "documentFocused": true,
+      "focused": true,
+      "active": "Temperature",
+      "topP": "1",
+      "temperature": ""
+    },
+    {
+      "label": "before background numeric actions",
+      "documentFocused": false,
+      "focused": false,
+      "active": null,
+      "topP": "",
+      "temperature": ""
+    },
+    {
+      "label": "after background fill",
+      "documentFocused": false,
+      "focused": false,
+      "active": "Top P",
+      "topP": "2",
+      "temperature": ""
+    },
+    {
+      "label": "after background focus change",
+      "documentFocused": false,
+      "focused": false,
+      "active": "Temperature",
+      "topP": "2",
+      "temperature": ""
+    },
+    {
+      "label": "foreground restored and blur delivered",
+      "documentFocused": true,
+      "focused": true,
+      "active": "Temperature",
+      "topP": "1",
+      "temperature": ""
+    },
+    {
+      "label": "clean diagnostic draft",
+      "documentFocused": true,
+      "focused": true,
+      "active": null,
+      "topP": "",
+      "temperature": ""
+    }
+  ],
+  "backgroundEvents": [
+    {
+      "phase": "background",
+      "type": "input",
+      "field": "Top P",
+      "focused": false,
+      "active": "Top P",
+      "value": "2",
+      "trusted": false
+    },
+    {
+      "phase": "background",
+      "type": "change",
+      "field": "Top P",
+      "focused": false,
+      "active": "Top P",
+      "value": "2",
+      "trusted": false
+    },
+    {
+      "phase": "background",
+      "type": "focus",
+      "field": "Temperature",
+      "focused": true,
+      "active": "Temperature",
+      "value": "",
+      "trusted": true
+    },
+    {
+      "phase": "background",
+      "type": "focusin",
+      "field": "Temperature",
+      "focused": true,
+      "active": "Temperature",
+      "value": "",
+      "trusted": true
+    }
+  ],
+  "foregroundTopPFocusout": [
+    {
+      "phase": "foreground",
+      "type": "focusout",
+      "field": "Top P",
+      "focused": true,
+      "active": null,
+      "related": "Temperature",
+      "value": "2",
+      "trusted": true
+    },
+    {
+      "phase": "refocused",
+      "type": "focusout",
+      "field": "Top P",
+      "focused": true,
+      "active": null,
+      "related": "Temperature",
+      "value": "2",
+      "trusted": true
+    }
+  ],
+  "actions": [
+    {
+      "action": "click",
+      "name": "Settings"
+    },
+    {
+      "action": "click",
+      "name": "Agents"
+    },
+    {
+      "action": "click",
+      "name": "New Agent"
+    },
+    {
+      "action": "fill",
+      "name": "Top P",
+      "value": "2"
+    },
+    {
+      "action": "click",
+      "name": "Temperature"
+    },
+    {
+      "action": "click",
+      "name": "Clear top p override"
+    },
+    {
+      "action": "fill",
+      "name": "Top P",
+      "value": "2"
+    },
+    {
+      "action": "click",
+      "name": "Temperature"
+    },
+    {
+      "action": "click",
+      "name": "Top P"
+    },
+    {
+      "action": "click",
+      "name": "Temperature"
+    },
+    {
+      "action": "click",
+      "name": "Clear top p override"
+    }
+  ]
+}

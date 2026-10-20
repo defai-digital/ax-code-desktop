@@ -6,7 +6,8 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
-Development testing: [Desktop UI WebMCP v2](SPEC-2026-10-20-desktop-ui-webmcp-v2.md) extends
+Development testing: [Desktop UI WebMCP v3](SPEC-2026-10-20-desktop-ui-webmcp-v3.md) adds document focus observation to
+[v2](SPEC-2026-10-20-desktop-ui-webmcp-v2.md), which extends
 [v1](SPEC-2026-10-19-desktop-ui-webmcp-v1.md) with paginated discovery, ARIA options/menus, normal focus and a Settings audit.
 The surface remains native, opt-in and unavailable in packaged builds.
 

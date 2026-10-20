@@ -15,9 +15,12 @@ const outcome = await runHarness({
     const focusChecks = []
     const focusForNumericBlur = async (label) => {
       const before = await session.evaluate("document.hasFocus()")
-      await session.send("Page.bringToFront")
+      const activation = await session.evaluate('window.__AX_CODE_DESKTOP__.invoke("desktop_focus_main_window", {})')
+      if (!activation?.focused) throw new Error("Could not activate the isolated numeric test window")
       await audit.wait("document.hasFocus()", label)
-      focusChecks.push({ label, focusedBefore: before, focusedAfter: true })
+      const state = await audit.all()
+      if (!state.documentFocused) throw new Error("Native UI snapshot reports inactive numeric test document")
+      focusChecks.push({ label, focusedBefore: before, focusedAfter: true, documentFocused: state.documentFocused })
       if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "numeric-focus.json"), JSON.stringify(focusChecks, null, 2))
     }
     // An inactive Electron window can change activeElement without delivering blur events.

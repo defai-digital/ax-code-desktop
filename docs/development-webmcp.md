@@ -108,6 +108,19 @@ validation, the journey brings its own window to the front and verifies `documen
 window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
 field's validation failed.
 
+Snapshots include `documentFocused`; check it before qualifying focus/blur behavior and observe the actual result
+after the action. An inactive document can change activeElement without dispatching blur/focusout. Page.bringToFront
+alone may not activate a different Electron native window. The isolated comparison below uses the existing native
+main-window focus command for setup/restoration; that command is not exposed by the WebMCP UI tools:
+
+```sh
+node desktop/packages/electron/scripts/e2e/numeric-focus-webmcp.mjs --artifacts /tmp/ax-numeric-focus
+```
+
+It compares foreground/background event delivery with numeric read-back, independently checks documentFocused against
+the DOM, restores the unsaved draft and never submits a valid save. Historical failures without focus/event telemetry
+remain insufficient to attribute a numeric validation bug.
+
 For populated Hooks and same-name Settings project targets:
 
 ```sh

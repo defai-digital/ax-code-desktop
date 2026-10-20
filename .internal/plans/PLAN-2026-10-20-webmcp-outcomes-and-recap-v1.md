@@ -109,6 +109,14 @@ Phase A is the earlier authorized repair/test/commit slice. Phase B is diagnosis
 for the relevant records/contracts, while document and evidence work proceeds. A plan, code scaffold, passing stub or
 reviewer response cannot alone complete a phase. Keep implementation, local validation, commit, push and release distinct.
 
+### Numeric focus qualification follow-up
+
+[Plan](PLAN-2026-10-20-numeric-focus-qualification.md) and
+[controlled evidence/report](../reports/WEBMCP-2026-10-20-numeric-focus-qualification.md) distinguish background
+activeElement changes from delivered focusout, preserve the strict maximum check and expose documentFocused in the
+[v3 development contract](../spec/SPEC-2026-10-20-desktop-ui-webmcp-v3.md). No numeric validation logic or native-window
+activation authority was added to the provider. Historical failures without telemetry remain unproven.
+
 ### Command editor save isolation follow-up
 
 [Plan](PLAN-2026-10-20-command-save-isolation.md) and

@@ -108,6 +108,7 @@ export function createDesktopUiTools(doc: Document) {
     return {
       title: compact(doc.title),
       ready: Boolean(doc.querySelector("#root > :not(#initial-loading)")),
+      documentFocused: doc.hasFocus(),
       settingsOpen: Boolean(doc.querySelector("[data-settings-view]")),
       headings: Array.from(doc.querySelectorAll<HTMLElement>('h1,h2,h3,[role="heading"]'))
         .filter(visible)
@@ -139,7 +140,7 @@ export function createDesktopUiTools(doc: Document) {
     {
       name: "ax_desktop_get_ui_state",
       description:
-        "Inspect the rendered AX Code Desktop development UI. Returns headings and up to 100 controls per page, without input values or chat content. Pass nextOffset as offset to read further controls. Refs expire after another snapshot or action. Poll to verify asynchronous UI changes.",
+        "Inspect the rendered AX Code Desktop development UI. Reports document focus, headings and up to 100 controls per page, without input values or chat content. Pass nextOffset as offset to read further controls. Refs expire after another snapshot or action. Poll to verify asynchronous UI changes.",
       inputSchema: {
         type: "object",
         properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } },

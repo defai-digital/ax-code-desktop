@@ -22,6 +22,24 @@ const stateOf = (tools: UiTool[]) =>
   }
 
 describe("Desktop UI WebMCP", () => {
+  test("reports document focus on reads and action responses without exposing input values", () => {
+    document.body.innerHTML = '<input aria-label="Top P" value="private-draft"><button>Next</button>'
+    const focus = vi.spyOn(document, "hasFocus").mockReturnValue(false)
+    const { tools, dispose } = createDesktopUiTools(document)
+    try {
+      const read = tools[0].execute({}) as { documentFocused: boolean; controls: { ref: string }[] }
+      expect(read.documentFocused).toBe(false)
+      expect(JSON.stringify(read)).not.toContain("private-draft")
+      const filled = tools[2].execute({ ref: read.controls[0].ref, value: "2" }) as { ui: { documentFocused: boolean; controls: { ref: string }[] } }
+      expect(filled.ui.documentFocused).toBe(false)
+      expect(JSON.stringify(filled)).not.toContain("private-draft")
+      focus.mockReturnValue(true)
+      const clicked = tools[1].execute({ ref: filled.ui.controls[1].ref }) as { ui: { documentFocused: boolean } }
+      expect(clicked.ui.documentFocused).toBe(true)
+      expect((tools[0].execute({}) as { documentFocused: boolean }).documentFocused).toBe(true)
+    } finally { dispose() }
+  })
+
   test("clicks the real rendered handler and rejects stale or replaced controls", () => {
     document.body.innerHTML = '<button aria-label="Settings">Open</button>'
     const button = document.querySelector("button")!
