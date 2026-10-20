@@ -1,7 +1,7 @@
 /**
  * Contract guard for the published @defai-digital/ax-code-sdk package.
  *
- * Keep these checks aligned with the exact JSR package exports and generated
+ * Keep these checks aligned with the exact published SDK package exports and generated
  * declaration output.
  */
 import { readFileSync } from "node:fs"

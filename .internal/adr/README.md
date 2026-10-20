@@ -7,7 +7,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-001: JSR SDK](ADR-001-ax-code-jsr-sdk-consumption.md) | Exact published SDK consumption boundary stands; registry decisions D1 and D3 superseded by ADR-022 |
 | [ADR-002: Product/source boundary](ADR-002-product-and-source-boundary.md) | Active; source-removal ordering amended by ADR-008; naming interpreted through ADR-015 |
 | [ADR-003: History-preserving extraction](ADR-003-history-preserving-desktop-extraction.md) | Completed extraction decision; history/provenance remain protected |
-| [ADR-004: Producer-first release order](ADR-004-sdk-runtime-and-release-order.md) | Active SDK/runtime and qualification order |
+| [ADR-004: Producer-first release order](ADR-004-sdk-runtime-and-release-order.md) | Active SDK/runtime and qualification order; JSR publication and `jsr:` pin mechanics superseded by ADR-022 |
 | [ADR-005: Portfolio service](ADR-005-persistent-portfolio-service.md) | Deferred; renderer projections do not constitute service delivery |
 | [ADR-006: Identity and release ownership](ADR-006-application-identity-and-release-ownership.md) | Active identity/continuity requirements; ordering partially superseded by ADR-008 |
 | [ADR-007: AX Agent integration](ADR-007-defer-ax-agent-manager-integration.md) | Deferred pending the released canonical contract |

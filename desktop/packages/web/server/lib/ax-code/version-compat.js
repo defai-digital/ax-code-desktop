@@ -1,7 +1,7 @@
 /**
  * Compatibility gate between this app and the installed ax-code runtime.
  *
- * The desktop consumes an exact JSR SDK version, but the ax-code CLI on the
+ * The desktop consumes an exact published SDK version, but the ax-code CLI on the
  * user's machine can update independently. This module defines the oldest
  * runtime the app is known to work with and evaluates the version reported by
  * the runtime's /global/health endpoint against it.
