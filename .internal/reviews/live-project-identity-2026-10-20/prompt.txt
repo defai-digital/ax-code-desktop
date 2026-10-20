@@ -1,0 +1,155 @@
+Review this AX Code Desktop UI repair for concrete correctness or usability defects. Read-only review; do not run tools, delegate, change files, or suggest runtime ownership changes. Two projects have identical labels and session titles. Needs You already disambiguates duplicate labels with home-relative paths. This change shares that logic with the supervision publisher used by Live/Mission Control; cross-project sidebar rows show wrapping project context in default and minimal modes. Project-group rows remain compact. Native regression reproduces missing context; tests cover publisher rename updates and exact session/project navigation. Return at most three actionable findings grounded in the code, or no findings. Distinguish a defect from a broader untested scenario.
+
+diff --git a/desktop/packages/ui/src/components/projects/NeedsYouQueue.tsx b/desktop/packages/ui/src/components/projects/NeedsYouQueue.tsx
+index 7e667951..64f5bb48 100644
+--- a/desktop/packages/ui/src/components/projects/NeedsYouQueue.tsx
++++ b/desktop/packages/ui/src/components/projects/NeedsYouQueue.tsx
+@@ -4,7 +4,8 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
+ import { useI18n } from "@/lib/i18n"
+ import { Icon } from "@/components/icon/Icon"
+ import type { IconName } from "@/components/icon/icons"
+-import { cn, formatPathForDisplay } from "@/lib/utils"
++import { cn } from "@/lib/utils"
++import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
+ import {
+   NEEDS_YOU_VISIBLE_ROWS,
+   listNeedsYouSessions,
+@@ -58,16 +59,8 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
+   const queue = React.useMemo(() => rankNeedsYouEntries(listNeedsYouSessions(inputs)), [inputs])
+ 
+   const projectLabel = React.useCallback(
+-    (projectId: string | null, directory: string | null) => {
+-      const project = projectId ? projects.find((entry) => entry.id === projectId) : undefined
+-      const label = project?.label?.trim()
+-      const path = project?.path ?? directory
+-      if (label) {
+-        const duplicate = projects.some((entry) => entry.id !== projectId && entry.label?.trim() === label)
+-        return duplicate && path ? `${label} · ${formatPathForDisplay(path, homeDirectory)}` : label
+-      }
+-      return path ? formatPathForDisplay(path, homeDirectory) : null
+-    },
++    (projectId: string | null, directory: string | null) =>
++      supervisionProjectLabel(projects, projectId, directory, homeDirectory),
+     [homeDirectory, projects],
+   )
+ 
+diff --git a/desktop/packages/ui/src/components/session/sidebar/SessionNodeItem.tsx b/desktop/packages/ui/src/components/session/sidebar/SessionNodeItem.tsx
+index 97486ba5..74620405 100644
+--- a/desktop/packages/ui/src/components/session/sidebar/SessionNodeItem.tsx
++++ b/desktop/packages/ui/src/components/session/sidebar/SessionNodeItem.tsx
+@@ -322,6 +322,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+   } = props
+   const hasSecondaryProjectLabel = Boolean(secondaryMeta?.projectLabel)
+   const hasSecondaryBranchLabel = Boolean(secondaryMeta?.branchLabel)
++  const showActivityProjectContext = renderContext === "recent" && hasSecondaryProjectLabel
++  const activityProjectContext = showActivityProjectContext ? (
++    <span className="w-full break-all typography-micro text-muted-foreground" data-session-project-context>
++      {secondaryMeta?.projectLabel}
++    </span>
++  ) : null
+ 
+   const displayMode = useSessionDisplayStore((state) => state.displayMode)
+   const isMinimalMode = displayMode === "minimal"
+@@ -659,7 +665,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+                     <span className="text-status-error/65">/-{sessionDiffStats.deletions}</span>
+                   </span>
+                 ) : null}
+-                {hasSecondaryProjectLabel ? <span className="truncate">{secondaryMeta?.projectLabel}</span> : null}
++                {hasSecondaryProjectLabel && !showActivityProjectContext ? <span className="truncate">{secondaryMeta?.projectLabel}</span> : null}
+                 {hasSecondaryBranchLabel ? (
+                   <span className="inline-flex min-w-0 items-center gap-0.5">
+                     <Icon name="git-branch" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
+@@ -669,6 +675,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+               </div>
+             </div>
+           ) : null}
++          {activityProjectContext}
+         </div>
+       </div>
+     )
+@@ -1093,6 +1100,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+           data-session-row={session.id}
+           data-session-scope={sessionDirectory ?? ""}
+           data-session-archived={archivedBucket ? "1" : "0"}
++          data-session-display-mode={displayMode}
+           className={cn(
+             "group relative my-0.5 flex items-center rounded-sm px-1.5 py-1",
+             isMissingDirectory ? "opacity-75" : "",
+@@ -1162,6 +1170,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+                         </span>
+                       ) : null}
+                     </div>
++                    {activityProjectContext}
+                   </button>
+                 </TooltipTrigger>
+                 <TooltipContent side="right" sideOffset={8} className="max-w-xs text-left">
+@@ -1258,7 +1267,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+                           <span className="text-status-error/65">-{sessionDiffStats.deletions}</span>
+                         </span>
+                       ) : null}
+-                      {hasSecondaryProjectLabel ? (
++                      {hasSecondaryProjectLabel && !showActivityProjectContext ? (
+                         <span className="truncate">{secondaryMeta?.projectLabel}</span>
+                       ) : null}
+                       {hasSecondaryBranchLabel ? (
+@@ -1270,6 +1279,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
+                     </div>
+                   </div>
+                 ) : null}
++                {activityProjectContext}
+               </button>
+             )}
+           </div>
+diff --git a/desktop/packages/ui/src/hooks/useSupervisionRows.ts b/desktop/packages/ui/src/hooks/useSupervisionRows.ts
+index 3e5b4bf5..20e9313c 100644
+--- a/desktop/packages/ui/src/hooks/useSupervisionRows.ts
++++ b/desktop/packages/ui/src/hooks/useSupervisionRows.ts
+@@ -1,6 +1,6 @@
+ import React from "react"
+ 
+-import { formatPathForDisplay } from "@/lib/utils"
++import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
+ import {
+   deriveSupervisionState,
+   rankSupervisionRows,
+@@ -69,7 +69,6 @@ function useComputedSupervisionRows(): SupervisionRow[] {
+ 
+   return React.useMemo(() => {
+     const sessionById = new Map(sessions.map((session) => [session.id, session]))
+-    const projectById = new Map(projects.map((project) => [project.id, project]))
+     const inputIds = new Set(inputs.map((input) => input.id))
+     const ownStates = inputs.map((input) => {
+       const parentId = (sessionById.get(input.id) as { parentID?: string | null } | undefined)?.parentID ?? null
+@@ -94,9 +93,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
+       const rolled = rootStates.get(input.id)
+       if (!rolled) continue
+       const session = sessionById.get(input.id)
+-      const project = input.projectId ? projectById.get(input.projectId) : undefined
+-      const path = project?.path ?? input.directory
+-      const projectLabel = project?.label?.trim() || (path ? formatPathForDisplay(path, homeDirectory) : null)
++      const projectLabel = supervisionProjectLabel(projects, input.projectId, input.directory ?? null, homeDirectory)
+       const treeSessionIds = rolled.sessionIds
+       const errorMessage =
+         latestUnseenSessionErrorMessage(notifications, input.id) ??
+
+Shared helper:
+import { formatPathForDisplay } from "@/lib/utils"
+
+type ProjectContext = { id: string; path: string; label?: string | null }
+
+/** Visible context for sessions shown outside their project group. */
+export function supervisionProjectLabel(
+  projects: readonly ProjectContext[],
+  projectId: string | null,
+  directory: string | null,
+  homeDirectory: string,
+): string | null {
+  const project = projectId ? projects.find(entry => entry.id === projectId) : undefined
+  const label = project?.label?.trim()
+  const path = project?.path ?? directory
+  if (label) {
+    const duplicate = projects.some(entry => entry.id !== projectId && entry.label?.trim() === label)
+    return duplicate && path ? `${label} · ${formatPathForDisplay(path, homeDirectory)}` : label
+  }
+  return path ? formatPathForDisplay(path, homeDirectory) : null
+}

@@ -1,6 +1,6 @@
 import React from "react"
 
-import { formatPathForDisplay } from "@/lib/utils"
+import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
 import {
   deriveSupervisionState,
   rankSupervisionRows,
@@ -69,7 +69,6 @@ function useComputedSupervisionRows(): SupervisionRow[] {
 
   return React.useMemo(() => {
     const sessionById = new Map(sessions.map((session) => [session.id, session]))
-    const projectById = new Map(projects.map((project) => [project.id, project]))
     const inputIds = new Set(inputs.map((input) => input.id))
     const ownStates = inputs.map((input) => {
       const parentId = (sessionById.get(input.id) as { parentID?: string | null } | undefined)?.parentID ?? null
@@ -94,9 +93,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
       const rolled = rootStates.get(input.id)
       if (!rolled) continue
       const session = sessionById.get(input.id)
-      const project = input.projectId ? projectById.get(input.projectId) : undefined
-      const path = project?.path ?? input.directory
-      const projectLabel = project?.label?.trim() || (path ? formatPathForDisplay(path, homeDirectory) : null)
+      const projectLabel = supervisionProjectLabel(projects, input.projectId, input.directory ?? null, homeDirectory)
       const treeSessionIds = rolled.sessionIds
       const errorMessage =
         latestUnseenSessionErrorMessage(notifications, input.id) ??

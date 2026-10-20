@@ -165,3 +165,10 @@ inspection with online primary research. They prioritize identity, readable save
 [report](../reports/SUPERVISION-2026-10-20-needs-you-project-identity.md) record duplicate-label ambiguity and hidden
 project context at narrow widths. Mounted regressions and a two-project native WebMCP journey verify visible paths,
 correct conversation navigation, light/dark rendering and the unchanged default harness.
+
+### Live identity and actionable controls
+
+[Plan](PLAN-2026-10-20-live-project-identity.md) and
+[report](../reports/SUPERVISION-2026-10-20-live-project-identity.md) cover the same-name Live rows, minimal-mode context,
+and duplicate inert WebMCP actions inherited from a pointer drag wrapper. Mounted and native regressions verify both
+projects in default/minimal modes; screenshots record the narrow-layout limits as well as the repaired sidebars.

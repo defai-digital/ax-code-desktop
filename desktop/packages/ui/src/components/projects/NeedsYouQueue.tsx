@@ -4,7 +4,8 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
-import { cn, formatPathForDisplay } from "@/lib/utils"
+import { cn } from "@/lib/utils"
+import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
 import {
   NEEDS_YOU_VISIBLE_ROWS,
   listNeedsYouSessions,
@@ -58,16 +59,8 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
   const queue = React.useMemo(() => rankNeedsYouEntries(listNeedsYouSessions(inputs)), [inputs])
 
   const projectLabel = React.useCallback(
-    (projectId: string | null, directory: string | null) => {
-      const project = projectId ? projects.find((entry) => entry.id === projectId) : undefined
-      const label = project?.label?.trim()
-      const path = project?.path ?? directory
-      if (label) {
-        const duplicate = projects.some((entry) => entry.id !== projectId && entry.label?.trim() === label)
-        return duplicate && path ? `${label} · ${formatPathForDisplay(path, homeDirectory)}` : label
-      }
-      return path ? formatPathForDisplay(path, homeDirectory) : null
-    },
+    (projectId: string | null, directory: string | null) =>
+      supervisionProjectLabel(projects, projectId, directory, homeDirectory),
     [homeDirectory, projects],
   )
 

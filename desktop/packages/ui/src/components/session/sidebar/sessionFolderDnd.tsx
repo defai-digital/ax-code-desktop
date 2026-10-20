@@ -18,7 +18,7 @@ export const DraggableSessionRow: React.FC<{
   sessionTitle: string
   children: React.ReactNode
 }> = ({ sessionId, sessionDirectory, sessionTitle, children }) => {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { listeners, setNodeRef, isDragging } = useDraggable({
     id: `session-drag:${sessionId}`,
     data: { type: "session", sessionId, sessionDirectory, sessionTitle },
   })
@@ -33,10 +33,11 @@ export const DraggableSessionRow: React.FC<{
     [listeners],
   )
 
+  // This wrapper is a pointer drag target. Child controls own keyboard
+  // interaction; an additional button role would expose an inert action.
   return (
     <div
       ref={setNodeRef}
-      {...attributes}
       onPointerDown={handlePointerDown}
       className={isDragging ? "opacity-30" : undefined}
     >

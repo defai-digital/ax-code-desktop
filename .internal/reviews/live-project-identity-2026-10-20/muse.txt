@@ -1,0 +1,8 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+No findings.
+
+The shared `supervisionProjectLabel` preserves Needs You’s behavior and adds the duplicate-label suffix using the current project’s home-relative path. In `SessionNodeItem`, wrapping context is gated to `renderContext === "recent"`, replaces the truncated inline label in both minimal and default branches, and leaves project-group rows unchanged.
+
+A broader untested scenario—not a defect in this change—would be two projects whose displayed paths also resolve identically, such as duplicate directory registrations; the current data shown could not distinguish those either.

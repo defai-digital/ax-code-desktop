@@ -21,6 +21,7 @@ vi.mock("@/hooks/useNeedsYouSessions", () => ({
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionRows, useSupervisionRowsPublisher } from "./useSupervisionRows"
 
 const input = (id: string) => ({
@@ -75,6 +76,7 @@ describe("useSupervisionRows goal wiring", () => {
     mocks.inputs = []
     useSessionGoalStore.getState().clear()
     useSupervisionStore.setState({ rows: [] })
+    useProjectsStore.setState({ projects: [] })
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -85,6 +87,26 @@ describe("useSupervisionRows goal wiring", () => {
     container.remove()
     useSessionGoalStore.getState().clear()
     useSupervisionStore.setState({ rows: [] })
+    useProjectsStore.setState({ projects: [] })
+  })
+
+  test("same-label projects publish distinct directory context and update after a rename", () => {
+    const projects = [
+      { id: "a", label: "Shared", path: "/work/team-a/shared", addedAt: 1 },
+      { id: "b", label: "Shared", path: "/work/team-b/shared", addedAt: 1 },
+    ]
+    useProjectsStore.setState({ projects })
+    mocks.sessions = [session("a"), session("b")]
+    mocks.inputs = projects.map(project => ({ ...input(project.id), projectId: project.id, directory: project.path }))
+    render()
+    expect(latest.find(row => row.sessionId === "a")?.projectLabel).toContain("/team-a/shared")
+    expect(latest.find(row => row.sessionId === "b")?.projectLabel).toContain("/team-b/shared")
+    expect(latest.map(row => row.projectId)).toEqual(expect.arrayContaining(["a", "b"]))
+    act(() => useProjectsStore.setState({ projects: projects.map(project => ({
+      ...project, label: project.id === "b" ? "Other" : project.label,
+    })) }))
+    expect(latest.find(row => row.sessionId === "a")?.projectLabel).toBe("Shared")
+    expect(latest.find(row => row.sessionId === "b")?.projectLabel).toBe("Other")
   })
 
   test("a blocked root goal becomes the row state and is shown on the row", () => {

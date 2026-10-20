@@ -47,8 +47,10 @@ node desktop/packages/electron/scripts/e2e/portfolio-identity-webmcp.mjs --artif
 ```
 
 This seeds two temporary projects with identical labels and session titles. Native WebMCP discovers distinct Needs You
-actions and opens each project's fixture conversation. DOM and screenshot checks verify readable directory context at
-800 and 600 CSS pixels, including a light-theme check. The narrower emulated viewport is a rendering stress case, not a
+actions and opens each project's fixture conversation. It also selects both conversations through the Live sidebar in
+default and minimal display modes, checking that a session exposes one working action. DOM and screenshot checks verify
+readable directory context at 800 and 600 CSS pixels, explicitly opening the responsive sidebar for its checks and
+including a light-theme check. The narrower emulated viewport is a rendering stress case, not a
 new native minimum-window-size promise. This is fixture-backed navigation verification, not concurrent provider execution.
 
 The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,

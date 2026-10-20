@@ -322,6 +322,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   } = props
   const hasSecondaryProjectLabel = Boolean(secondaryMeta?.projectLabel)
   const hasSecondaryBranchLabel = Boolean(secondaryMeta?.branchLabel)
+  const showActivityProjectContext = renderContext === "recent" && hasSecondaryProjectLabel
+  const activityProjectContext = showActivityProjectContext ? (
+    <span className="w-full break-all typography-micro text-muted-foreground" data-session-project-context>
+      {secondaryMeta?.projectLabel}
+    </span>
+  ) : null
 
   const displayMode = useSessionDisplayStore((state) => state.displayMode)
   const isMinimalMode = displayMode === "minimal"
@@ -659,7 +665,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                     <span className="text-status-error/65">/-{sessionDiffStats.deletions}</span>
                   </span>
                 ) : null}
-                {hasSecondaryProjectLabel ? <span className="truncate">{secondaryMeta?.projectLabel}</span> : null}
+                {hasSecondaryProjectLabel && !showActivityProjectContext ? <span className="truncate">{secondaryMeta?.projectLabel}</span> : null}
                 {hasSecondaryBranchLabel ? (
                   <span className="inline-flex min-w-0 items-center gap-0.5">
                     <Icon name="git-branch" className="h-3 w-3 flex-shrink-0 text-muted-foreground" />
@@ -669,6 +675,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
               </div>
             </div>
           ) : null}
+          {activityProjectContext}
         </div>
       </div>
     )
@@ -1093,6 +1100,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
           data-session-row={session.id}
           data-session-scope={sessionDirectory ?? ""}
           data-session-archived={archivedBucket ? "1" : "0"}
+          data-session-display-mode={displayMode}
           className={cn(
             "group relative my-0.5 flex items-center rounded-sm px-1.5 py-1",
             isMissingDirectory ? "opacity-75" : "",
@@ -1162,6 +1170,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                         </span>
                       ) : null}
                     </div>
+                    {activityProjectContext}
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="right" sideOffset={8} className="max-w-xs text-left">
@@ -1258,7 +1267,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                           <span className="text-status-error/65">-{sessionDiffStats.deletions}</span>
                         </span>
                       ) : null}
-                      {hasSecondaryProjectLabel ? (
+                      {hasSecondaryProjectLabel && !showActivityProjectContext ? (
                         <span className="truncate">{secondaryMeta?.projectLabel}</span>
                       ) : null}
                       {hasSecondaryBranchLabel ? (
@@ -1270,6 +1279,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                     </div>
                   </div>
                 ) : null}
+                {activityProjectContext}
               </button>
             )}
           </div>
