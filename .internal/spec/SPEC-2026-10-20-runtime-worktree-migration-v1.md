@@ -57,3 +57,18 @@ Mapping table for the three create modes, operation ID sent, upstream set after 
 through the SDK, bootstrap status from ready and failed events, and create/remove calling no `git worktree add`, `git worktree remove` or
 `git branch -D` (asserted by recording the git invocations, not by reading source). The source-text ratchet must not
 grow.
+
+## 7. Implementation notes (2026-10-20, `da761404`)
+
+- **Keeping a branch on remove.** The runtime deletes every branch it created when it removes the worktree. When the user
+  does not ask to delete the branch, Desktop first writes the ADR-260 borrowed mark
+  (`branch.<name>.axCodeBorrowed = <name>`, a user-initiated version-control step under ADR-020), so unmerged work
+  survives. A runtime `keepBranch` remove option would make this explicit; until then the mark is the contract.
+- **Preview** returns the name and branch with an empty `path`; the runtime chooses the location. The UI uses `path`
+  only when present.
+- **Upstream** is set right after create returns instead of inside a background bootstrap; a failure is a warning, as
+  before.
+- **Conflict checks** at create time are the runtime's (its error message is returned); `validateWorktreeCreate` keeps
+  the Desktop-side pre-checks for the dialog.
+- Worktrees created by older Desktop builds live under the same data root, still list through `git worktree list`, and
+  are removed by the runtime; their `openchamber/<name>` branches are not runtime-owned, so they are kept and reported.
