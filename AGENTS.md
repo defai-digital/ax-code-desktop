@@ -49,7 +49,7 @@ end-to-end harness, structure and supervision work). Settled decisions and their
 - Node.js 26 or newer.
 - pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
 - Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
-- The SDK comes from GitHub Packages (`@defai-digital:registry` in `.npmrc`). Installing needs a user-level
+- The SDK comes from GitHub Packages (`@defai-digital:registry` in `.npmrc`; package page: <https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk>). Installing needs a user-level
   `//npm.pkg.github.com/:_authToken=<token with read:packages>` line; never commit a token (ADR-022).
 
 | Task                          | Command                                                            |

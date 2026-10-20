@@ -47,7 +47,7 @@ ships the native gRPC server, or earlier only if measurements from
 
 Two version axes move independently:
 
-- **SDK** (`@defai-digital/ax-code-sdk`): consumed as the exact GitHub Packages dependency declared in the UI and web package
+- **SDK** (`@defai-digital/ax-code-sdk`): consumed as the exact GitHub Packages dependency (<https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk>) declared in the UI and web package
   manifests. See `docs/AX_CODE_REVENDOR_CHECKLIST.md` for the published SDK contract checklist.
 - **Runtime/CLI** (`ax-code`): packaged releases bundle the artifact selected by
   `config/ax-code-runtime.json` (`packages/electron/resources/ax-code`). Staging checks the pinned size and

@@ -50,7 +50,7 @@ The signed runtime pin, SDK/runtime compatibility checks and producer-first orde
 
 Producer first. The consumer lockfile is generated from the published package and never edited by hand, and a manifest
 is never pointed at a version that does not exist on the registry. The producer keeps the package named
-`@defai-digital/ax-code-sdk` (no separate internal name). GitHub's npm registry requires authentication to install even
+`@defai-digital/ax-code-sdk` (no separate internal name); its canonical page is <https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk>. GitHub's npm registry requires authentication to install even
 a public package; if the package is not public, the producer must also grant this repository's Actions read access
 before CI can install.
 
