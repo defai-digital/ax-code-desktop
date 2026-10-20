@@ -2,6 +2,9 @@
 
 Status: Proposed, with cross-repository implementation authorized by the user on 2026-10-20.
 [PRD](../prd/PRD-2026-10-20-parallel-project-outcomes-v1.md).
+UX requirements: [Parallel project supervision UX v1](../prd/PRD-2026-10-20-parallel-project-ux-v1.md).
+Include UX-01 through UX-07 and all eight UX acceptance journeys in the qualification report; do not substitute
+passing execution tests for context preservation, readable identity or return-to-work usability.
 
 ## 1. Establish producer and consumer contracts
 

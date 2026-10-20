@@ -1,0 +1,48 @@
+{
+  "source_commit": "e158c5e5",
+  "prompt_sha256": "ea4fc66a3de2dde65cb7a02d6aa8052ce131b1b43778da821414b1dcaf8b704c",
+  "source_packet_characters": 53851,
+  "reviews": [
+    {
+      "reviewer": "grok",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 124.4
+    },
+    {
+      "reviewer": "muse",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 33.7
+    },
+    {
+      "reviewer": "claude",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 52.8
+    }
+  ],
+  "discussion": {
+    "prompt_sha256": "03c11f9fd0593e7df5e2c19a8aa70f4d50e4e4cea815933915d9247129870b6a",
+    "reviews": [
+      {
+        "reviewer": "grok",
+        "status": "completed",
+        "exit": 0,
+        "seconds": 47.8
+      },
+      {
+        "reviewer": "muse",
+        "status": "completed",
+        "exit": 0,
+        "seconds": 10.4
+      },
+      {
+        "reviewer": "claude",
+        "status": "completed",
+        "exit": 0,
+        "seconds": 12.3
+      }
+    ]
+  }
+}

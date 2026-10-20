@@ -4,6 +4,9 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 
 ## Active and deferred requirements
 
+Parallel-project UX proposal: [Supervision UX v1](PRD-2026-10-20-parallel-project-ux-v1.md) records source-backed
+problems, review hypotheses, information architecture, priorities and native multi-project acceptance journeys.
+
 Parallel-project addendum: [Parallel project outcomes v1](PRD-2026-10-20-parallel-project-outcomes-v1.md), with
 [cross-repository implementation plan](../plans/PLAN-2026-10-20-parallel-project-outcomes-v1.md).
 The user authorized coordinated AX Code runtime, SDK and MCP changes. Multi-project execution, scheduled bursts,
