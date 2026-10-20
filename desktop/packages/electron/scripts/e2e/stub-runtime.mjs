@@ -213,7 +213,11 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/permission' && req.method === 'GET') {
-      json(res, pending.slice());
+      // The real runtime keeps pending permissions per directory instance. An answer that ignores the requested
+      // directory hands the scripted request to every project the app bootstraps, so a reply is then sent with the
+      // wrong project's directory.
+      const requestedPermissionDirectory = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+      json(res, requestedPermissionDirectory && requestedPermissionDirectory !== directory ? [] : pending.slice());
       return;
     }
     const replyMatch = pathname.match(/^\\/permission\\/([^/]+)\\/reply$/);

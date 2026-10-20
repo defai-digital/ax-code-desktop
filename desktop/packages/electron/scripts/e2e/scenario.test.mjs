@@ -219,6 +219,13 @@ describe("stub runtime with a scenario", () => {
     expect(await (await fetch(`${stub.base}/permission?directory=/tmp/e2e-project`)).json()).toEqual([
       scenario.approveRequest,
     ])
+    // Pending permissions are scoped to a directory: another project the app bootstraps must not receive the request.
+    expect(await (await fetch(`${stub.base}/permission?directory=/somewhere/else`)).json()).toEqual([])
+    expect(
+      await (
+        await fetch(`${stub.base}/permission`, { headers: { "x-ax-code-directory": "/somewhere/else" } })
+      ).json(),
+    ).toEqual([])
     expect(await (await fetch(`${stub.base}/session/${scenario.session.id}/goal`)).json()).toBeNull()
   }, 20_000)
 

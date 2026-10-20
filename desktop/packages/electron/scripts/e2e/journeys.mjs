@@ -629,8 +629,14 @@ export const journeyGoalRow = async ({ session, debuggingPort, consoleMessages, 
 }
 
 // Security and exception checks run after interactions, including reload.
-export const JOURNEYS = [journeyBoot, journeyPreloadBridge, journeySettings, journeySupervisionPopout, journeyReload]
-// Opt-in (`--scripted`): they need the scripted stub session and a runtime-readiness barrier. They are not part of the
-// default run until they pass reliably (see .internal/reports/E2E-2026-10-19-scripted-journeys.md).
-export const SCRIPTED_JOURNEYS = [journeyNeedsYouApprove, journeyNeedsYouDeny, journeyGoalRow]
+export const JOURNEYS = [
+  journeyBoot,
+  journeyPreloadBridge,
+  journeySettings,
+  journeySupervisionPopout,
+  journeyReload,
+  journeyNeedsYouApprove,
+  journeyNeedsYouDeny,
+  journeyGoalRow,
+]
 export const FINAL_CHECKS = [journeyCspClean, journeyRendererErrors]

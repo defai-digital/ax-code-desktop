@@ -55,8 +55,9 @@ Pure scenario building and the stub's reply recording run without Electron. The 
 
 ## Amendment 2026-10-19: implementation notes
 
-- The three journeys are opt-in (`pnpm run e2e:desktop -- --scripted`) and are not part of the default run until they pass
-  reliably; see `.internal/reports/E2E-2026-10-19-scripted-journeys.md` for the observed reliability and the open question.
+- The three journeys are part of the default run. They were briefly opt-in while a stub defect (a permission list that ignored
+  the requested directory) made them fail; see `.internal/reports/E2E-2026-10-19-scripted-journeys.md`.
+- The stub scopes `GET /permission` to the requested directory, as the real runtime does.
 - The launcher seeds the project under a real path, an explicit English interface language and a profile whose only project is
   the seeded one; the stub logs every reply attempt (accepted or rejected) with the directory the renderer actually sent.
 - A runtime-readiness barrier (stub origin file, app-reported runtime health, one reload, seeded session known to the renderer)

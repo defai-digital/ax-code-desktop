@@ -5,7 +5,6 @@ import {
   CSP_RECORDER_SCRIPT,
   FINAL_CHECKS,
   JOURNEYS,
-  SCRIPTED_JOURNEYS,
   findForbiddenScriptSources,
   isCspConsoleMessage,
   isSupervisionPageTarget,
@@ -232,14 +231,10 @@ describe("harness plumbing", () => {
     expect(result.ok).toBe(false)
     expect(result.detail).toContain("broken settings")
     expect(FINAL_CHECKS).toEqual([journeyCspClean, journeyRendererErrors])
-    expect(JOURNEYS.at(-1).name).toBe("journeyReload")
-    // The scripted journeys are opt-in and run in this order after the default ones.
-    expect(SCRIPTED_JOURNEYS.map((journey) => journey.name)).toEqual([
-      "journeyNeedsYouApprove",
-      "journeyNeedsYouDeny",
-      "journeyGoalRow",
-    ])
-    expect(JOURNEYS.map((journey) => journey.name)).not.toContain("journeyNeedsYouApprove")
+    const names = JOURNEYS.map((journey) => journey.name)
+    expect(names.indexOf("journeyNeedsYouApprove")).toBe(names.indexOf("journeyReload") + 1)
+    expect(names.indexOf("journeyNeedsYouDeny")).toBe(names.indexOf("journeyNeedsYouApprove") + 1)
+    expect(JOURNEYS.at(-1).name).toBe("journeyGoalRow")
   })
 
   test("forwards CSP failures to the host so a document reload cannot erase them", () => {
@@ -283,9 +278,7 @@ describe("harness plumbing", () => {
       app: "/A.app",
       artifacts: "/out",
       timeoutMs: 5000,
-      scripted: false,
     })
-    expect(parseArgs(["--scripted"]).scripted).toBe(true)
     expect(parseArgs(["--timeout-ms", "nope"]).timeoutMs).toBe(60_000)
     expect(summarize([{ name: "boot", ok: true, detail: "x" }]).ok).toBe(true)
     expect(summarize([]).ok).toBe(false)
