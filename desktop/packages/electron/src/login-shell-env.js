@@ -130,6 +130,38 @@ function resolveForwardedLoginShellEnv(raw, platform = process.platform) {
   return encodeLoginShellEnv(raw)
 }
 
+// Main supervises the runtime separately from the web server. Inherit only
+// model-download settings; never copy a shell's full environment into main.
+function modelDownloadRuntimeEnv(env, raw) {
+  const result = { ...env }
+  if (typeof raw !== "string" || Buffer.byteLength(raw) > MAX_STDOUT_BYTES) return result
+  const allowed = new Set([
+    "HF_TOKEN",
+    "HUGGING_FACE_HUB_TOKEN",
+    "HF_TOKEN_PATH",
+    "HF_HOME",
+    "HF_HUB_CACHE",
+    "HF_ENDPOINT",
+    "HF_HUB_OFFLINE",
+    "HF_HUB_DISABLE_IMPLICIT_TOKEN",
+    "HF_HUB_DISABLE_XET",
+    "AX_ENGINE_PYTHON",
+    "AX_ENGINE_HF_MAX_WORKERS",
+  ])
+  // env -0 terminates every entry; never forward an incomplete final value.
+  for (const entry of raw.split("\0").slice(0, -1)) {
+    const split = entry.indexOf("=")
+    if (split < 1) continue
+    const name = entry.slice(0, split)
+    const value = entry.slice(split + 1)
+    if (!value.trim() || /[\r\n\x00-\x1f\x7f]/.test(value)) continue
+    if (name === "AX_ENGINE_HF_MAX_WORKERS" && (!/^\d+$/.test(value) || Number(value) < 1 || Number(value) > 32))
+      continue
+    if (allowed.has(name) && result[name] === undefined) result[name] = value
+  }
+  return result
+}
+
 module.exports = {
   LOGIN_SHELL_ENV_UNAVAILABLE,
   LOGIN_SHELL_ENV_VAR,
@@ -137,4 +169,5 @@ module.exports = {
   encodeLoginShellEnv,
   resolveForwardedLoginShellEnv,
   startLoginShellEnvCapture,
+  modelDownloadRuntimeEnv,
 }

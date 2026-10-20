@@ -45,7 +45,12 @@ const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
 const { verifyBundledAxCodeIntegrityAsync } = require("./bundled-ax-code-integrity")
-const { LOGIN_SHELL_ENV_VAR, resolveForwardedLoginShellEnv, startLoginShellEnvCapture } = require("./login-shell-env")
+const {
+  LOGIN_SHELL_ENV_VAR,
+  resolveForwardedLoginShellEnv,
+  startLoginShellEnvCapture,
+  modelDownloadRuntimeEnv,
+} = require("./login-shell-env")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
 
@@ -3707,10 +3712,17 @@ app.whenReady().then(async () => {
     // exhaustion dialog (showRuntimeRecoveryFailure), not the
     // startup-failure path — only a prepare() failure (no usable binary, a
     // configuration error) still fails startup here.
+    const loginShellEnv = await loginShellEnvCapture.promise
+    if (isQuitting) return
+    loginShellEnvEncoded = resolveForwardedLoginShellEnv(loginShellEnv)
+    recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
     if (isMainSupervisedRuntimeEnabled()) {
       recordStartupEvent("runtime.supervision.start", {}, { once: false })
       runtimeSupervision = createAxCodeRuntimeSupervision({
-        env: desktopBrowserRuntimeEnv(applyBundledAxCodeEnv(process.env, bundledAxCodeEnv), DESKTOP_BROWSER_TOKEN),
+        env: desktopBrowserRuntimeEnv(
+          applyBundledAxCodeEnv(modelDownloadRuntimeEnv(process.env, loginShellEnv), bundledAxCodeEnv),
+          DESKTOP_BROWSER_TOKEN,
+        ),
         settingsReader: readSettingsRoot,
         logger: console,
         onOriginChange: (origin, context = {}) => {
@@ -3772,8 +3784,6 @@ app.whenReady().then(async () => {
         })
       })
     }
-    loginShellEnvEncoded = resolveForwardedLoginShellEnv(await loginShellEnvCapture.promise)
-    recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
     if (isQuitting) {
       await stopBackgroundServices()
       return

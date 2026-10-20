@@ -53,3 +53,5 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 | [Electron 45 Candidate v1](SPEC-2026-10-11-electron-45-candidate-v1.md)                       | Qualification experiment (`d8b11c78`); the shipping pin is Electron 44.9.0. A new spec governs the next Electron upgrade |
 | [Analysis App Handoff v1](SPEC-2026-10-18-analysis-app-handoff-v1.md)                         | Executable contract superseded by analysis routing v2                                                                    |
 | [Mermaid Capabilities v1](SPEC-2026-10-18-mermaid-capabilities-v1.md)                         | Preserved accepted inventory; v2 is current                                                                              |
+
+- [Reliable model downloads](SPEC-2026-10-19-reliable-model-downloads.md): Accepted; scoped login-shell environment forwarding for the supervised runtime.

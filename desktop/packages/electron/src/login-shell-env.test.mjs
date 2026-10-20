@@ -9,6 +9,7 @@ const {
   encodeLoginShellEnv,
   resolveForwardedLoginShellEnv,
   startLoginShellEnvCapture,
+  modelDownloadRuntimeEnv,
 } = require("./login-shell-env.js")
 
 function fakeExecFile(outputs) {
@@ -129,4 +130,47 @@ describe("login shell env capture", () => {
     // Windows has no login shell to capture; the server keeps its own path.
     expect(resolveForwardedLoginShellEnv(null, "win32")).toBeNull()
   })
+})
+
+describe("model download runtime environment", () => {
+  test("forwards captured model settings without importing unrelated secrets or shell injection", async () => {
+    const { execFile } = fakeExecFile([
+      "HF_TOKEN=synthetic-hf-credential\0HF_HOME=/custom/hf\0AX_ENGINE_PYTHON=/custom/python\0OPENAI_API_KEY=unrelated-secret\0NODE_OPTIONS=--inspect\0PATH=/shell/path\0",
+    ])
+    const capture = startLoginShellEnvCapture({ platform: "darwin", env: {}, execFile, isExecutable: () => true })
+    const base = { PATH: "/runtime/path" }
+    const env = modelDownloadRuntimeEnv(base, await capture.promise)
+    expect(env).toEqual({
+      PATH: "/runtime/path",
+      HF_TOKEN: "synthetic-hf-credential",
+      HF_HOME: "/custom/hf",
+      AX_ENGINE_PYTHON: "/custom/python",
+    })
+    expect(base).toEqual({ PATH: "/runtime/path" })
+  })
+
+  test("explicit launcher values, including empty overrides, take precedence", () => {
+    const base = { HF_TOKEN: "launcher-credential", HF_ENDPOINT: "", HF_HOME: "/launcher/hf" }
+    expect(
+      modelDownloadRuntimeEnv(
+        base,
+        "HF_TOKEN=shell-credential\0HF_ENDPOINT=https://mirror.example\0HF_HOME=/shell/hf\0",
+      ),
+    ).toEqual(base)
+  })
+
+  test("malformed, missing and oversized shell captures do not change the launch environment", () => {
+    const base = { PATH: "/runtime/path" }
+    for (const raw of [null, "not-an-env-entry\0=bad\0", "X=" + "x".repeat(10 * 1024 * 1024)]) {
+      expect(modelDownloadRuntimeEnv(base, raw)).toEqual(base)
+    }
+  })
+})
+
+test("model env drops incomplete entries, invalid workers and control-bearing values", () => {
+  expect(modelDownloadRuntimeEnv({}, "HF_HOME=/cache\0HF_TOKEN=partial")).toEqual({ HF_HOME: "/cache" })
+  expect(modelDownloadRuntimeEnv({}, "AX_ENGINE_PYTHON=\0AX_ENGINE_HF_MAX_WORKERS=0\0HF_TOKEN=line1\nline2\0")).toEqual(
+    {},
+  )
+  expect(modelDownloadRuntimeEnv({}, "AX_ENGINE_HF_MAX_WORKERS=4\0")).toEqual({ AX_ENGINE_HF_MAX_WORKERS: "4" })
 })

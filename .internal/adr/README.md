@@ -40,3 +40,5 @@ are renderer projections over runtime state and do not satisfy it; their state o
 quality PRD (Phase 2).
 
 The duplicate ADR-009 numbers are historical. Use full filenames or the qualified labels above; accepted records were not renumbered. See the [lifecycle review](../reports/GOVERNANCE-2026-10-18-document-lifecycle.md) for evidence and preservation receipts.
+
+- [ADR-021](ADR-021-reliable-model-downloads.md): Accepted; account-optional model download diagnostics and credential boundaries.
