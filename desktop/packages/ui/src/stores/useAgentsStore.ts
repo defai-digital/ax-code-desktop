@@ -36,6 +36,12 @@ const AGENTS_LOAD_CACHE_TTL_MS = 5000
 // result if it is the current one when it finally arrives.
 const AGENTS_LOAD_TIMEOUT_MS = 15_000
 const agentsLastLoadedAt = new Map<string, number>()
+
+// A mutation must not be followed by a TTL cache hit that republishes the list
+// from before the write.
+const invalidateAgentsCache = (directory: string | null) => {
+  agentsLastLoadedAt.delete(getDirectoryCacheKey(directory))
+}
 /** The cache key the agents currently in the store were loaded for. */
 let agentsLoadedCacheKey: string | null = null
 const agentsLoadInFlight = createSingleFlight<boolean>()
@@ -125,7 +131,7 @@ interface AgentsStore {
   loadAgents: (options?: { directory?: string | null }) => Promise<boolean>
   createAgent: (config: AgentConfig) => Promise<boolean>
   updateAgent: (name: string, config: Partial<AgentConfig>) => Promise<boolean>
-  deleteAgent: (name: string, target?: { scope?: AgentScope | null }) => Promise<boolean>
+  deleteAgent: (name: string, target?: { scope?: AgentScope | null; directory?: string | null }) => Promise<boolean>
   getAgentByName: (name: string) => Agent | undefined
   // Returns only visible agents (excludes hidden internal agents)
   getVisibleAgents: () => Agent[]
@@ -317,6 +323,7 @@ export const useAgentsStore = create<AgentsStore>()(
               throw new Error(message)
             }
 
+            invalidateAgentsCache(configDirectory)
             const needsReload = payload?.requiresReload ?? true
             if (needsReload) {
               requiresReload = true
@@ -388,6 +395,7 @@ export const useAgentsStore = create<AgentsStore>()(
               throw new Error(message)
             }
 
+            invalidateAgentsCache(configDirectory)
             const needsReload = payload?.requiresReload ?? true
             if (needsReload) {
               requiresReload = true
@@ -417,11 +425,16 @@ export const useAgentsStore = create<AgentsStore>()(
           }
         },
 
-        deleteAgent: async (name: string, target?: { scope?: AgentScope | null }) => {
+        deleteAgent: async (name: string, target?: { scope?: AgentScope | null; directory?: string | null }) => {
           startConfigUpdate("Deleting agent configuration…")
           let requiresReload = false
           try {
-            const configDirectory = getActiveConfigDirectory("AgentsStore")
+            const activeDirectory = getActiveConfigDirectory("AgentsStore")
+            if (target?.directory !== undefined && target.directory !== activeDirectory) {
+              return false
+            }
+            const configDirectory = target?.directory ?? activeDirectory
+            const originalAgent = get().getAgentByName(name)
             // The name alone matched every scope server-side, so deleting a
             // project override also removed the user-level agent of that name.
             const params = new URLSearchParams()
@@ -445,6 +458,7 @@ export const useAgentsStore = create<AgentsStore>()(
               throw new Error(message)
             }
 
+            invalidateAgentsCache(configDirectory)
             const needsReload = payload?.requiresReload ?? true
             if (needsReload) {
               requiresReload = true
@@ -462,14 +476,18 @@ export const useAgentsStore = create<AgentsStore>()(
               emitConfigChange("agents", { source: CONFIG_EVENT_SOURCE })
             }
 
-            if (get().selectedAgentName === name) {
-              set({ selectedAgentName: null })
-            }
-            // The write landed even if the runtime reload did not: a failed
-            // refresh must not report the mutation itself as failed. Drop the
-            // row locally so the list matches what is on disk.
-            if (!loaded && payload?.reloadFailed) {
-              set({ agents: get().agents.filter((agent) => agent.name !== name) })
+            // A completion that outlived a project switch must not clear or
+            // edit the new project's same-name selection and inventory.
+            if (getActiveConfigDirectory("AgentsStore") === configDirectory) {
+              if (get().selectedAgentName === name) {
+                set({ selectedAgentName: null })
+              }
+              // The write landed even if the runtime reload did not: a failed
+              // refresh must not report the mutation itself as failed. Drop the
+              // row locally so the list matches what is on disk.
+              if (!loaded && payload?.reloadFailed && originalAgent) {
+                set({ agents: get().agents.filter((agent) => agent !== originalAgent) })
+              }
             }
             return loaded || payload?.reloadFailed === true
           } catch {

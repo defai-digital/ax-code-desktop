@@ -26,11 +26,22 @@ const runtime = { getStatusForDirectory: () => status, getDiagnosticForDirectory
   refresh: fixtures.refresh, connect: vi.fn(), disconnect: vi.fn(), startAuth: fixtures.startAuth, completeAuth: vi.fn(),
   clearAuth: vi.fn(), testConnection: vi.fn() }
 const status = {}
-vi.mock("@/stores/useMcpConfigStore", () => ({
-  useMcpConfigStore: (selector: Parameters<typeof configs>[0]) => configs(selector),
-  envRecordToArray: (value?: Record<string, string>) => Object.entries(value ?? {}).map(([key, value]) => ({ key, value })),
+vi.mock("@/stores/useMcpConfigStore", () => {
+  const useMcpConfigStore = Object.assign(
+    (selector: Parameters<typeof configs>[0]) => configs(selector),
+    { getState: () => configs.getState() },
+  )
+  return {
+    useMcpConfigStore,
+    envRecordToArray: (value?: Record<string, string>) => Object.entries(value ?? {}).map(([key, value]) => ({ key, value })),
+  }
+})
+vi.mock("@/stores/useDirectoryStore", () => ({
+  useDirectoryStore: Object.assign(
+    (selector: Parameters<typeof directory>[0]) => directory(selector),
+    { getState: () => directory.getState() },
+  ),
 }))
-vi.mock("@/stores/useDirectoryStore", () => ({ useDirectoryStore: (selector: Parameters<typeof directory>[0]) => directory(selector) }))
 vi.mock("@/stores/useMcpStore", () => ({ useMcpStore: Object.assign(
   (selector: (value: typeof runtime) => unknown) => selector(runtime), { getState: () => runtime },
 ) }))

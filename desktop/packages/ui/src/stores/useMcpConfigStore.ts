@@ -129,6 +129,17 @@ const invalidateMcpCache = (directory: string | null) => {
   mcpCacheByKey.delete(cacheKey)
 }
 
+// User-scope servers appear in every project's merged inventory, so changing one
+// must not leave another project's cached list showing the old entry.
+const invalidateMcpCaches = (directory: string | null, affectsAllDirectories: boolean) => {
+  if (affectsAllDirectories) {
+    mcpLastLoadedAt.clear()
+    mcpCacheByKey.clear()
+    return
+  }
+  invalidateMcpCache(directory)
+}
+
 export const useMcpConfigStore = create<McpConfigStore>()(
   devtools(
     persist(
@@ -230,7 +241,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               throw new Error(payload?.error || "Failed to create MCP server")
             }
 
-            invalidateMcpCache(configDirectory)
+            invalidateMcpCaches(configDirectory, config.scope === "user")
 
             if (payload?.requiresReload) {
               requiresReload = true
@@ -239,19 +250,19 @@ export const useMcpConfigStore = create<McpConfigStore>()(
                 delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
                 scopes: ["all"],
               })
-              await get().loadMcpConfigs({ force: true })
+              const refreshed = await get().loadMcpConfigs({ force: true })
               return {
                 ok: true,
-                reloadFailed: payload?.reloadFailed === true,
+                reloadFailed: payload?.reloadFailed === true || !refreshed,
                 message: payload?.message,
                 warning: payload?.warning,
               }
             }
 
-            await get().loadMcpConfigs({ force: true })
+            const refreshed = await get().loadMcpConfigs({ force: true })
             return {
               ok: true,
-              reloadFailed: payload?.reloadFailed === true,
+              reloadFailed: payload?.reloadFailed === true || !refreshed,
               message: payload?.message,
               warning: payload?.warning,
             }
@@ -292,7 +303,10 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               throw new Error(payload?.error || "Failed to update MCP server")
             }
 
-            invalidateMcpCache(configDirectory)
+            invalidateMcpCaches(
+              configDirectory,
+              (config.scope ?? get().getMcpByName(name)?.scope) !== "project",
+            )
 
             if (payload?.requiresReload) {
               requiresReload = true
@@ -301,19 +315,19 @@ export const useMcpConfigStore = create<McpConfigStore>()(
                 delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
                 scopes: ["all"],
               })
-              await get().loadMcpConfigs({ force: true })
+              const refreshed = await get().loadMcpConfigs({ force: true })
               return {
                 ok: true,
-                reloadFailed: payload?.reloadFailed === true,
+                reloadFailed: payload?.reloadFailed === true || !refreshed,
                 message: payload?.message,
                 warning: payload?.warning,
               }
             }
 
-            await get().loadMcpConfigs({ force: true })
+            const refreshed = await get().loadMcpConfigs({ force: true })
             return {
               ok: true,
-              reloadFailed: payload?.reloadFailed === true,
+              reloadFailed: payload?.reloadFailed === true || !refreshed,
               message: payload?.message,
               warning: payload?.warning,
             }
@@ -351,7 +365,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               throw new Error(payload?.error || "Failed to delete MCP server")
             }
 
-            invalidateMcpCache(configDirectory)
+            invalidateMcpCaches(configDirectory, originalServer?.scope !== "project")
 
             if (payload?.requiresReload) {
               requiresReload = true
@@ -363,12 +377,21 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             }
 
             const refreshed = await get().loadMcpConfigs({ force: true })
+            // A successful delete whose refresh failed would otherwise leave the deleted row visible until the
+            // next successful load. Drop only the exact record this request deleted, so a concurrent
+            // replacement or a changed inventory is preserved.
+            if (!refreshed && getConfigDirectory() === configDirectory && get().loadedDirectory === configDirectory) {
+              set(state => ({
+                mcpServers: state.mcpServers.filter(server => server !== originalServer),
+              }))
+            }
             const state = get()
+            const currentSelection = state.getMcpByName(name)
             // A name may now identify another project's server, a replacement record or a new draft.
             // Reconcile against the current scoped inventory rather than clearing before its refresh.
             if (getConfigDirectory() === configDirectory && state.loadedDirectory === configDirectory &&
                 state.selectedMcpName === name && state.mcpDraft?.name !== name &&
-                (refreshed ? !state.getMcpByName(name) : state.getMcpByName(name) === originalServer)) {
+                (refreshed ? !currentSelection : !currentSelection || currentSelection === originalServer)) {
               set({ selectedMcpName: null })
             }
             return {

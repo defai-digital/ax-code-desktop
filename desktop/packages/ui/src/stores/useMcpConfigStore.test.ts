@@ -181,6 +181,64 @@ describe("useMcpConfigStore", () => {
     expect(fetchCalls).toHaveLength(2)
   })
 
+  test("creation reports a failed inventory refresh instead of claiming a complete success", async () => {
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
+
+    const result = await useMcpConfigStore.getState().createMcp({
+      name: "review",
+      scope: "project",
+      type: "remote",
+      command: [],
+      url: "https://review.invalid",
+      environment: [],
+      headers: [],
+      oauthEnabled: false,
+      oauthClientId: "",
+      oauthClientSecret: "",
+      oauthScope: "",
+      oauthRedirectUri: "",
+      timeout: "",
+      enabled: false,
+    })
+
+    expect(result).toMatchObject({ ok: true, reloadFailed: true })
+  })
+
+  test("a user-scope mutation invalidates every project's cached inventory", async () => {
+    const userServer: McpServerWithScope = {
+      name: "shared",
+      type: "remote",
+      url: "https://shared.invalid",
+      enabled: false,
+      scope: "user",
+    }
+
+    activeProjectPath = "/workspace/one"
+    queueFetchResponses([jsonResponse([])])
+    await useMcpConfigStore.getState().loadMcpConfigs({ force: true })
+
+    activeProjectPath = "/workspace/two"
+    queueFetchResponses([jsonResponse([userServer])])
+    await useMcpConfigStore.getState().loadMcpConfigs({ force: true })
+    expect(useMcpConfigStore.getState().mcpServers).toEqual([userServer])
+
+    useMcpConfigStore.setState({ selectedMcpName: "shared", loadedDirectory: "/workspace/two" })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse([])])
+    await useMcpConfigStore.getState().deleteMcp("shared", "/workspace/two")
+
+    activeProjectPath = "/workspace/one"
+    queueFetchResponses([jsonResponse([])])
+    await useMcpConfigStore.getState().loadMcpConfigs()
+
+    expect(fetchCalls.map((call) => call.input)).toEqual([
+      "/api/config/mcp?directory=%2Fworkspace%2Fone",
+      "/api/config/mcp?directory=%2Fworkspace%2Ftwo",
+      "/api/config/mcp/shared?directory=%2Fworkspace%2Ftwo",
+      "/api/config/mcp?directory=%2Fworkspace%2Ftwo",
+      "/api/config/mcp?directory=%2Fworkspace%2Fone",
+    ])
+  })
+
   test("an origin delete cannot clear a same-name selection in a different project", async () => {
     const deletion = createDeferred<Response>()
     useMcpConfigStore.setState({ selectedMcpName: "review" })
@@ -234,6 +292,22 @@ describe("useMcpConfigStore", () => {
     useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath })
     queueFetchResponses([jsonResponse({ ok: true }), jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
     expect(await useMcpConfigStore.getState().deleteMcp("review")).toEqual(expect.objectContaining({ ok: true }))
+    expect(useMcpConfigStore.getState().selectedMcpName).toBeNull()
+  })
+
+  test("failed post-delete refresh removes the deleted record from the same-context list", async () => {
+    const original: McpServerWithScope = { name: "review", type: "remote", url: "https://original.invalid", enabled: false }
+    const untouched: McpServerWithScope = { name: "other", type: "local", command: ["node", "other.js"], enabled: true }
+    useMcpConfigStore.setState({
+      selectedMcpName: "review",
+      mcpServers: [original, untouched],
+      loadedDirectory: activeProjectPath,
+    })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
+    expect(await useMcpConfigStore.getState().deleteMcp("review")).toEqual(
+      expect.objectContaining({ ok: true }),
+    )
+    expect(useMcpConfigStore.getState().mcpServers).toEqual([untouched])
     expect(useMcpConfigStore.getState().selectedMcpName).toBeNull()
   })
 

@@ -92,6 +92,7 @@ interface SkillDraft {
 export interface SkillDeleteTarget {
   scope?: SkillScope | null
   source?: SkillSource | null
+  directory?: string | null
 }
 
 export interface SkillDetail {
@@ -134,6 +135,16 @@ const invalidateSkillsCache = (directory: string | null) => {
   const cacheKey = getDirectoryCacheKey(directory)
   skillsLastLoadedAt.delete(cacheKey)
   skillsCacheByKey.delete(cacheKey)
+}
+
+// User-scope skills appear in every project's merged catalog.
+const invalidateSkillsCaches = (directory: string | null, affectsAllDirectories: boolean) => {
+  if (affectsAllDirectories) {
+    skillsLastLoadedAt.clear()
+    skillsCacheByKey.clear()
+    return
+  }
+  invalidateSkillsCache(directory)
 }
 
 export const useSkillsStore = create<SkillsStore>()(
@@ -271,7 +282,7 @@ export const useSkillsStore = create<SkillsStore>()(
               throw new Error(message)
             }
 
-            invalidateSkillsCache(currentDirectory)
+            invalidateSkillsCaches(currentDirectory, config.scope !== "project")
 
             const needsReload = payload?.requiresReload ?? false
             if (needsReload) {
@@ -325,7 +336,10 @@ export const useSkillsStore = create<SkillsStore>()(
               throw new Error(message)
             }
 
-            invalidateSkillsCache(currentDirectory)
+            invalidateSkillsCaches(
+              currentDirectory,
+              (config.scope ?? get().getSkillByName(name)?.scope) !== "project",
+            )
 
             const needsReload = payload?.requiresReload ?? false
             if (needsReload) {
@@ -357,7 +371,12 @@ export const useSkillsStore = create<SkillsStore>()(
           startConfigUpdate("Deleting skill...")
           let requiresReload = false
           try {
-            const currentDirectory = getAxCodeCurrentDirectory()
+            const activeDirectory = getAxCodeCurrentDirectory()
+            if (target?.directory !== undefined && target.directory !== activeDirectory) {
+              return false
+            }
+            const currentDirectory = target?.directory ?? activeDirectory
+            const originalSkill = get().getSkillByName(name)
             // Name alone is not unique across scopes: the server would delete the
             // same-named project and user copies together. Send the entry's own
             // scope and source so only the copy the user acted on goes away.
@@ -377,7 +396,7 @@ export const useSkillsStore = create<SkillsStore>()(
               throw new Error(message)
             }
 
-            invalidateSkillsCache(currentDirectory)
+            invalidateSkillsCaches(currentDirectory, target?.scope !== "project")
 
             const needsReload = payload?.requiresReload ?? false
             if (needsReload) {
@@ -394,15 +413,19 @@ export const useSkillsStore = create<SkillsStore>()(
               emitConfigChange("skills", { source: CONFIG_EVENT_SOURCE })
             }
 
-            if (get().selectedSkillName === name) {
-              set({ selectedSkillName: null })
-            }
+            // A completion that outlived a project switch must not clear or
+            // edit the new project's same-name selection and inventory.
+            if (getAxCodeCurrentDirectory() === currentDirectory) {
+              if (get().selectedSkillName === name) {
+                set({ selectedSkillName: null })
+              }
 
-            // The write landed even if the runtime reload did not: a failed
-            // refresh must not report the mutation itself as failed. Drop the
-            // row locally so the list matches what is on disk.
-            if (!loaded && payload?.reloadFailed) {
-              set({ skills: get().skills.filter((skill) => skill.name !== name) })
+              // The write landed even if the runtime reload did not: a failed
+              // refresh must not report the mutation itself as failed. Drop the
+              // row locally so the list matches what is on disk.
+              if (!loaded && payload?.reloadFailed && originalSkill) {
+                set({ skills: get().skills.filter((skill) => skill !== originalSkill) })
+              }
             }
             return loaded || payload?.reloadFailed === true
           } catch {

@@ -559,7 +559,6 @@ export const McpPage: React.FC = () => {
     loadedDirectory,
     mcpDraft,
     isLoading,
-    setMcpDraft,
     setSelectedMcp,
     refreshSelectedMcp,
     getMcpByName,
@@ -575,7 +574,6 @@ export const McpPage: React.FC = () => {
       loadedDirectory: s.loadedDirectory,
       mcpDraft: s.mcpDraft,
       isLoading: s.isLoading,
-      setMcpDraft: s.setMcpDraft,
       setSelectedMcp: s.setSelectedMcp,
       refreshSelectedMcp: s.refreshSelectedMcp,
       getMcpByName: s.getMcpByName,
@@ -652,6 +650,9 @@ export const McpPage: React.FC = () => {
   const [isAuthPolling, setIsAuthPolling] = React.useState(false)
   const authPollAttemptsRef = React.useRef(0)
   const authPollStartsFromNeedsAuthRef = React.useRef(false)
+  // Set synchronously before the first await so a second click during the
+  // pending-context lookup cannot exchange the same authorization code twice.
+  const completingAuthRef = React.useRef(false)
   const [isAdvancedRemoteOptionsOpen, setIsAdvancedRemoteOptionsOpen] = React.useState(false)
   const [showImportDialog, setShowImportDialog] = React.useState(false)
   const [importJsonText, setImportJsonText] = React.useState("")
@@ -951,6 +952,7 @@ export const McpPage: React.FC = () => {
       enabled,
     }
     const submittedGeneration = formGenerationRef.current
+    const submittedDirectory = currentDirectory ?? null
     setIsSaving(true)
     try {
       const result = isNewServer ? await createMcp(draft) : await updateMcp(name, draft)
@@ -978,8 +980,18 @@ export const McpPage: React.FC = () => {
             // Keep current editable values across the draft-to-record transition.
             loadedMcpNameRef.current = JSON.stringify([name, currentDirectory ?? "", selectionRevision])
             loadedDraftRef.current = null
-            setMcpDraft(null)
-            setSelectedMcp(name)
+          }
+        }
+        if (isNewServer) {
+          // Finish the draft handoff even if the form unmounted or the project
+          // changed while the request ran: identity prevents clearing a newer
+          // draft, and the selection only moves in the directory that submitted.
+          const store = useMcpConfigStore.getState()
+          if (store.mcpDraft === mcpDraft) {
+            store.setMcpDraft(null)
+            if ((useDirectoryStore.getState().currentDirectory ?? null) === submittedDirectory) {
+              store.setSelectedMcp(name)
+            }
           }
         }
         await refreshStatus({ directory: currentDirectory, silent: true })
@@ -1057,15 +1069,17 @@ export const McpPage: React.FC = () => {
 
   const handleToggleConnect = async () => {
     if (!selectedMcpName) return
+    const actionKey = runtimeActionKey
     setIsConnecting(true)
     try {
       const isConnected = mcpStatus[selectedMcpName]?.status === "connected"
       if (isConnected) {
         await disconnectMcp(selectedMcpName, currentDirectory)
-        toast.success(t("settings.mcp.page.toast.disconnected"))
+        if (runtimeActionKeyRef.current === actionKey) toast.success(t("settings.mcp.page.toast.disconnected"))
       } else {
         await connectMcp(selectedMcpName, currentDirectory)
         await refreshStatus({ directory: currentDirectory, silent: true })
+        if (runtimeActionKeyRef.current !== actionKey) return
         const nextStatus = useMcpStore.getState().getStatusForDirectory(currentDirectory ?? null)[selectedMcpName]
         if (nextStatus?.status === "connected") {
           toast.success(t("settings.mcp.page.toast.connected"))
@@ -1082,9 +1096,11 @@ export const McpPage: React.FC = () => {
       }
       await refreshStatus({ directory: currentDirectory, silent: true })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.connectionFailed"))
+      if (runtimeActionKeyRef.current === actionKey) {
+        toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.connectionFailed"))
+      }
     } finally {
-      setIsConnecting(false)
+      if (runtimeActionKeyRef.current === actionKey) setIsConnecting(false)
     }
   }
 
@@ -1275,30 +1291,32 @@ export const McpPage: React.FC = () => {
       return
     }
 
-    // A failed context lookup must not reject before this handler can report anything: the callback already
-    // carries what the completion needs, and the state key is only a fallback for the name and directory.
-    let pendingContext: { name: string; directory: string | null } | null = null
-    if (response.stateKey) {
-      try {
-        pendingContext = await getPendingMcpAuthContext(response.stateKey)
-      } catch {
-        pendingContext = null
-      }
-    }
-    const resolvedContext = response.context ?? pendingContext
-    const targetName = resolvedContext?.name ?? selectedMcpName
-    const targetDirectory = resolvedContext?.directory ?? currentDirectory
-
-    if (!targetName) {
-      toast.error(t("settings.mcp.page.toast.missingServerDetails"))
-      return
-    }
-
-    if (!resolvedContext && !requireSavedConfig()) return
-
-    setIsCompletingAuth(true)
+    if (completingAuthRef.current) return
+    completingAuthRef.current = true
     const actionKey = runtimeActionKey
     try {
+      // A failed context lookup must not reject before this handler can report anything: the callback already
+      // carries what the completion needs, and the state key is only a fallback for the name and directory.
+      let pendingContext: { name: string; directory: string | null } | null = null
+      if (response.stateKey) {
+        try {
+          pendingContext = await getPendingMcpAuthContext(response.stateKey)
+        } catch {
+          pendingContext = null
+        }
+      }
+      const resolvedContext = response.context ?? pendingContext
+      const targetName = resolvedContext?.name ?? selectedMcpName
+      const targetDirectory = resolvedContext?.directory ?? currentDirectory
+
+      if (!targetName) {
+        toast.error(t("settings.mcp.page.toast.missingServerDetails"))
+        return
+      }
+
+      if (!resolvedContext && !requireSavedConfig()) return
+
+      if (runtimeActionKeyRef.current === actionKey) setIsCompletingAuth(true)
       await completeAuthMcp(targetName, response.code, targetDirectory)
       await clearPendingMcpAuthContext(response.stateKey ?? authStateKey)
 
@@ -1323,6 +1341,7 @@ export const McpPage: React.FC = () => {
         )
       }
     } finally {
+      completingAuthRef.current = false
       if (runtimeActionKeyRef.current === actionKey) {
         setIsCompletingAuth(false)
       }
@@ -1346,9 +1365,11 @@ export const McpPage: React.FC = () => {
       return
     }
 
+    const actionKey = runtimeActionKey
     setIsTestingConnection(true)
     try {
       const result = await testConnectionMcp(selectedMcpName, currentDirectory)
+      if (runtimeActionKeyRef.current !== actionKey) return
       const nextStatus = result.status?.status
 
       if (result.warning) {
@@ -1367,11 +1388,13 @@ export const McpPage: React.FC = () => {
         toast.message(t("settings.mcp.page.toast.connectionTestFinished"))
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.connectionTestFailed"))
+      if (runtimeActionKeyRef.current === actionKey) {
+        toast.error(err instanceof Error ? err.message : t("settings.mcp.page.toast.connectionTestFailed"))
+      }
     } finally {
-      setIsTestingConnection(false)
+      if (runtimeActionKeyRef.current === actionKey) setIsTestingConnection(false)
     }
-  }, [currentDirectory, enabled, requireSavedConfig, selectedMcpName, t, testConnectionMcp])
+  }, [currentDirectory, enabled, requireSavedConfig, runtimeActionKey, selectedMcpName, t, testConnectionMcp])
 
   React.useEffect(() => {
     if (!isAuthPolling || !selectedMcpName) {

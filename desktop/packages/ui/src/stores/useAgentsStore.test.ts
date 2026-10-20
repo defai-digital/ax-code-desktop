@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
+import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 
 let activeProjectPath = "/workspace/project"
 
@@ -211,6 +212,61 @@ describe("useAgentsStore", () => {
       },
     ])
     expect(useAgentsStore.getState().isLoading).toBe(false)
+  })
+
+  test("a delete completion cannot clear the new project's same-name selection", async () => {
+    const deletion = createDeferred<Response>()
+    useAgentsStore.setState({
+      selectedAgentName: "review",
+      agents: [{ name: "review" } as Agent],
+    })
+    fetchMock.mockImplementationOnce(async () => deletion.promise)
+
+    const pending = useAgentsStore
+      .getState()
+      .deleteAgent("review", { scope: "project", directory: "/workspace/project" })
+
+    activeProjectPath = "/workspace/other"
+    useAgentsStore.setState({ selectedAgentName: "review" })
+    const otherAgents = createDeferred<unknown[]>()
+    otherAgents.resolve([{ name: "review" }])
+    agentLists.push(otherAgents)
+    deletion.resolve(jsonResponse({ requiresReload: false, reloadFailed: true }))
+
+    await pending
+
+    expect(useAgentsStore.getState().selectedAgentName).toBe("review")
+    expect(useAgentsStore.getState().agents[0]?.name).toBe("review")
+  })
+
+  test("a stale delete request cannot target the new project", async () => {
+    activeProjectPath = "/workspace/other"
+
+    const result = await useAgentsStore
+      .getState()
+      .deleteAgent("review", { scope: "project", directory: "/workspace/project" })
+
+    expect(result).toBe(false)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test("a mutation invalidates the TTL cache before reloading", async () => {
+    const initial = createDeferred<unknown[]>()
+    initial.resolve([])
+    agentLists.push(initial)
+    await useAgentsStore.getState().loadAgents()
+
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ requiresReload: false }))
+    const reloaded = createDeferred<unknown[]>()
+    agentLists.push(reloaded)
+    const pending = useAgentsStore.getState().createAgent({ name: "cached-agent", scope: "project" })
+    await Promise.resolve()
+    reloaded.resolve([{ name: "cached-agent" }])
+    await pending
+
+    // Without invalidating the per-directory timestamp, this load hit the 5s
+    // cache and never asked the runtime for the new list.
+    expect(withDirectories).toHaveLength(2)
   })
 
   test("releases the in-flight slot when a load never settles", async () => {

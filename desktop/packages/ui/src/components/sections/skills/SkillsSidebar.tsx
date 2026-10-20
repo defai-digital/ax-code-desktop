@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useSkillsStore, type DiscoveredSkill } from "@/stores/useSkillsStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useShallow } from "zustand/react/shallow"
 import { cn } from "@/lib/utils"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
@@ -38,6 +39,20 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
   const [deleteDialogSkill, setDeleteDialogSkill] = React.useState<DiscoveredSkill | null>(null)
   const [isDeletePending, setIsDeletePending] = React.useState(false)
   const [openMenuSkill, setOpenMenuSkill] = React.useState<string | null>(null)
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const deleteDirectoryRef = React.useRef<string | null>(null)
+  const contextGenerationRef = React.useRef(0)
+  // A confirm/rename dialog belongs to the project it was opened in. Leaving the
+  // project must not leave a pending delete pointed at the new one, and an older
+  // completion must not close a dialog opened for the new project.
+  React.useLayoutEffect(() => {
+    contextGenerationRef.current += 1
+    setDeleteDialogSkill(null)
+    setRenameDialogSkill(null)
+    setOpenMenuSkill(null)
+    setIsDeletePending(false)
+    return () => { contextGenerationRef.current += 1 }
+  }, [currentDirectory])
 
   const {
     selectedSkillName,
@@ -83,6 +98,7 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
 
   const handleDeleteSkill = async (skill: DiscoveredSkill) => {
     if (isBuiltInSkill(skill)) return
+    deleteDirectoryRef.current = currentDirectory || null
     setDeleteDialogSkill(skill)
   }
 
@@ -98,10 +114,15 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
     const skillName = deleteDialogSkill.name
     const skillScope = deleteDialogSkill.scope
     const skillSource = deleteDialogSkill.source
+    const generation = contextGenerationRef.current
     setIsDeletePending(true)
     try {
       const outcome = await runSettingsDeleteMutation(() =>
-        deleteSkill(skillName, { scope: skillScope, source: skillSource }),
+        deleteSkill(skillName, {
+          scope: skillScope,
+          source: skillSource,
+          directory: deleteDirectoryRef.current,
+        }),
       )
       if (outcome.status === "unexpected-error") {
         console.error("Failed to delete skill:", outcome.error)
@@ -111,18 +132,19 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
 
       if (outcome.result) {
         toast.success(t("settings.skills.sidebar.toast.skillDeleted", { name: skillName }))
-        setDeleteDialogSkill(null)
+        if (contextGenerationRef.current === generation) setDeleteDialogSkill(null)
       } else {
         toast.error(t("settings.skills.sidebar.toast.deleteSkillFailed"))
       }
     } finally {
-      setIsDeletePending(false)
+      if (contextGenerationRef.current === generation) setIsDeletePending(false)
     }
   }
 
   const handleDuplicateSkill = async (skill: DiscoveredSkill) => {
     if (isBuiltInSkill(skill)) return
 
+    const duplicateDirectory = currentDirectory || null
     const baseName = skill.name
     let copyNumber = 1
     let newName = `${baseName}-copy`
@@ -151,6 +173,10 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
       )
     ).filter((file): file is { path: string; content: string } => file !== null)
 
+    // Reading the source may outlive a project switch; the draft belongs to the
+    // project whose skill was duplicated.
+    if ((useDirectoryStore.getState().currentDirectory || null) !== duplicateDirectory) return
+
     setSkillDraft({
       name: newName,
       scope: skill.scope || "user",
@@ -175,6 +201,8 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
       return
     }
 
+    const generation = contextGenerationRef.current
+    const renameDirectory = currentDirectory || null
     const sanitizedName = renameNewName.trim().replace(/\s+/g, "-").toLowerCase()
 
     if (!sanitizedName) {
@@ -213,6 +241,10 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
       )
     ).filter((file): file is { path: string; content: string } => file !== null)
 
+    // The source reads may outlive a project switch; never create the renamed
+    // copy in a different project.
+    if ((useDirectoryStore.getState().currentDirectory || null) !== renameDirectory) return
+
     // Create new skill with new name, preserving the original content.
     const success = await createSkill({
       name: sanitizedName,
@@ -228,10 +260,11 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
       const deleteSuccess = await deleteSkill(renameDialogSkill.name, {
         scope: renameDialogSkill.scope,
         source: renameDialogSkill.source,
+        directory: renameDirectory,
       })
       if (deleteSuccess) {
         toast.success(t("settings.skills.sidebar.toast.renamed", { name: sanitizedName }))
-        setSelectedSkill(sanitizedName)
+        if (contextGenerationRef.current === generation) setSelectedSkill(sanitizedName)
       } else {
         toast.error(t("settings.skills.sidebar.toast.removeOldAfterRenameFailed"))
       }
@@ -239,7 +272,7 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
       toast.error(t("settings.skills.sidebar.toast.renameFailed"))
     }
 
-    setRenameDialogSkill(null)
+    if (contextGenerationRef.current === generation) setRenameDialogSkill(null)
   }
 
   // Separate project and user skills

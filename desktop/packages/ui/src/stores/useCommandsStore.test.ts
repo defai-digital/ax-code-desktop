@@ -101,6 +101,81 @@ describe("useCommandsStore", () => {
     expect(useCommandsStore.getState().commands[0]?.name).toBe("analysis-output")
   })
 
+  test("a delete completion cannot clear the new project's same-name selection", async () => {
+    const deletion = createDeferred<Response>()
+    useCommandsStore.setState({
+      selectedCommandName: "review",
+      commands: [{ name: "review", scope: "project" }],
+    })
+    fetchMock.mockImplementationOnce(async () => deletion.promise)
+
+    const pending = useCommandsStore
+      .getState()
+      .deleteCommand("review", { scope: "project", directory: "/workspace/project" })
+
+    activeProjectPath = "/workspace/other"
+    useCommandsStore.setState({ selectedCommandName: "review" })
+    const otherCommands = createDeferred<unknown[]>()
+    otherCommands.resolve([{ name: "review", source: "project" }])
+    commandLists.push(otherCommands)
+    deletion.resolve(jsonResponse({ requiresReload: false, reloadFailed: true }))
+
+    await pending
+
+    expect(useCommandsStore.getState().selectedCommandName).toBe("review")
+    expect(useCommandsStore.getState().commands[0]?.name).toBe("review")
+  })
+
+  test("a stale delete request cannot target the new project", async () => {
+    activeProjectPath = "/workspace/other"
+
+    const result = await useCommandsStore
+      .getState()
+      .deleteCommand("review", { scope: "project", directory: "/workspace/project" })
+
+    expect(result).toBe(false)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test("a user-scope mutation invalidates every project's cached catalog", async () => {
+    activeProjectPath = "/workspace/one"
+    const first = createDeferred<unknown[]>()
+    first.resolve([])
+    commandLists.push(first)
+    await useCommandsStore.getState().loadCommands()
+
+    activeProjectPath = "/workspace/two"
+    const second = createDeferred<unknown[]>()
+    second.resolve([{ name: "shared", source: "user" }])
+    commandLists.push(second)
+    await useCommandsStore.getState().loadCommands()
+
+    fetchMock.mockImplementationOnce(async () => jsonResponse({ requiresReload: false, reloadFailed: true }))
+    const afterDelete = createDeferred<unknown[]>()
+    afterDelete.resolve([])
+    commandLists.push(afterDelete)
+    useCommandsStore.setState({ selectedCommandName: "shared" })
+    await useCommandsStore.getState().deleteCommand("shared", { scope: "user", directory: "/workspace/two" })
+
+    activeProjectPath = "/workspace/one"
+    const third = createDeferred<unknown[]>()
+    third.resolve([])
+    commandLists.push(third)
+    const reload = useCommandsStore.getState().loadCommands()
+    await Promise.resolve()
+    third.resolve([])
+    await reload
+
+    // Without clearing every directory's cache this last load reused the
+    // pre-delete catalog from /workspace/one.
+    expect(withDirectories).toEqual([
+      "/workspace/one",
+      "/workspace/two",
+      "/workspace/two",
+      "/workspace/one",
+    ])
+  })
+
   test("keeps the newest command list after switching project directories", async () => {
     const staleCommands = createDeferred<unknown[]>()
     const latestCommands = createDeferred<unknown[]>()

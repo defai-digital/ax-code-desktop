@@ -131,6 +131,76 @@ describe("useSkillsStore", () => {
     expect(useSkillsStore.getState().isLoading).toBe(false)
   })
 
+  test("a delete completion cannot clear the new project's same-name selection", async () => {
+    const deletion = createDeferred<Response>()
+    useSkillsStore.setState({
+      selectedSkillName: "review",
+      skills: [{ name: "review", path: "/workspace/project/skills/review/SKILL.md", scope: "project", source: "ax-code" }],
+    })
+    queuedResponses = [
+      deletion.promise,
+      jsonResponse({
+        skills: [{ name: "review", path: "/workspace/other/skills/review/SKILL.md", scope: "project", source: "ax-code" }],
+      }),
+    ]
+
+    const pending = useSkillsStore
+      .getState()
+      .deleteSkill("review", { scope: "project", source: "ax-code", directory: "/workspace/project" })
+
+    currentDirectory = "/workspace/other"
+    useSkillsStore.setState({ selectedSkillName: "review" })
+    deletion.resolve(jsonResponse({ requiresReload: false, reloadFailed: true }))
+
+    await pending
+
+    expect(useSkillsStore.getState().selectedSkillName).toBe("review")
+    expect(useSkillsStore.getState().skills[0]?.name).toBe("review")
+  })
+
+  test("a stale delete request cannot target the new project", async () => {
+    currentDirectory = "/workspace/other"
+
+    const result = await useSkillsStore
+      .getState()
+      .deleteSkill("review", { scope: "project", source: "ax-code", directory: "/workspace/project" })
+
+    expect(result).toBe(false)
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test("a user-scope mutation invalidates every project's cached catalog", async () => {
+    currentDirectory = "/workspace/one"
+    queuedResponses = [jsonResponse({ skills: [] })]
+    await useSkillsStore.getState().loadSkills()
+
+    currentDirectory = "/workspace/two"
+    queuedResponses = [
+      jsonResponse({
+        skills: [{ name: "shared", path: "/workspace/two/skills/shared/SKILL.md", scope: "user", source: "ax-code" }],
+      }),
+    ]
+    await useSkillsStore.getState().loadSkills()
+
+    queuedResponses = [jsonResponse({ requiresReload: false, reloadFailed: true }), jsonResponse({ skills: [] })]
+    useSkillsStore.setState({ selectedSkillName: "shared" })
+    await useSkillsStore.getState().deleteSkill("shared", { scope: "user", directory: "/workspace/two" })
+
+    currentDirectory = "/workspace/one"
+    queuedResponses = [jsonResponse({ skills: [] })]
+    await useSkillsStore.getState().loadSkills()
+
+    // Without clearing every directory's cache this last load reused the
+    // pre-delete catalog from /workspace/one.
+    expect(fetchCalls.map(String)).toEqual([
+      "/api/config/skills?directory=%2Fworkspace%2Fone",
+      "/api/config/skills?directory=%2Fworkspace%2Ftwo",
+      "/api/config/skills/shared?directory=%2Fworkspace%2Ftwo&scope=user",
+      "/api/config/skills?directory=%2Fworkspace%2Ftwo",
+      "/api/config/skills?directory=%2Fworkspace%2Fone",
+    ])
+  })
+
   test("reads a supporting file with a directory query, not an appended path fragment", async () => {
     // Regression: `&directory=` on a URL with no query string made the server read
     // the file name as "…notes.md&directory=…", so every supporting file came back

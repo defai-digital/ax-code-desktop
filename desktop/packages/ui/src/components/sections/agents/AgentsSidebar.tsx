@@ -19,6 +19,7 @@ import {
   type AgentScope,
   type AgentDraft,
 } from "@/stores/useAgentsStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useShallow } from "zustand/react/shallow"
 import { cn } from "@/lib/utils"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
@@ -73,6 +74,21 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
   const [confirmActionType, setConfirmActionType] = React.useState<"delete" | null>(null)
   const [isConfirmActionPending, setIsConfirmActionPending] = React.useState(false)
   const [openMenuAgent, setOpenMenuAgent] = React.useState<string | null>(null)
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const confirmActionDirectoryRef = React.useRef<string | null>(null)
+  const contextGenerationRef = React.useRef(0)
+  // A confirm/rename dialog belongs to the project it was opened in. Leaving the
+  // project must not leave a pending delete pointed at the new one, and an older
+  // completion must not close a dialog opened for the new project.
+  React.useLayoutEffect(() => {
+    contextGenerationRef.current += 1
+    setConfirmActionAgent(null)
+    setConfirmActionType(null)
+    setRenameDialogAgent(null)
+    setOpenMenuAgent(null)
+    setIsConfirmActionPending(false)
+    return () => { contextGenerationRef.current += 1 }
+  }, [currentDirectory])
 
   const { selectedAgentName, agents, setSelectedAgent, setAgentDraft, createAgent, deleteAgent, loadAgents } =
     useAgentsStore(
@@ -117,6 +133,7 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
 
     setConfirmActionAgent(agent)
     setConfirmActionType("delete")
+    confirmActionDirectoryRef.current = currentDirectory || null
   }
 
   const closeConfirmActionDialog = () => {
@@ -129,19 +146,21 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
       return
     }
 
+    const generation = contextGenerationRef.current
     setIsConfirmActionPending(true)
     const success = await deleteAgent(confirmActionAgent.name, {
       scope: (confirmActionAgent as Agent & { scope?: AgentScope }).scope,
+      directory: confirmActionDirectoryRef.current,
     })
 
     if (success) {
       toast.success(t("settings.agents.sidebar.toast.agentDeleted", { name: confirmActionAgent.name }))
-      closeConfirmActionDialog()
+      if (contextGenerationRef.current === generation) closeConfirmActionDialog()
     } else {
       toast.error(t("settings.agents.sidebar.toast.deleteFailed"))
     }
 
-    setIsConfirmActionPending(false)
+    if (contextGenerationRef.current === generation) setIsConfirmActionPending(false)
   }
 
   const handleDuplicateAgent = (agent: Agent) => {
@@ -185,6 +204,8 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
   const handleRenameAgent = async () => {
     if (!renameDialogAgent) return
 
+    const generation = contextGenerationRef.current
+    const renameDirectory = currentDirectory || null
     const sanitizedName = renameNewName.trim().replace(/\s+/g, "-")
 
     if (!sanitizedName) {
@@ -225,10 +246,11 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
       // Delete old agent
       const deleteSuccess = await deleteAgent(renameDialogAgent.name, {
         scope: (renameDialogAgent as Agent & { scope?: AgentScope }).scope,
+        directory: renameDirectory,
       })
       if (deleteSuccess) {
         toast.success(t("settings.agents.sidebar.toast.renamed", { name: sanitizedName }))
-        setSelectedAgent(sanitizedName)
+        if (contextGenerationRef.current === generation) setSelectedAgent(sanitizedName)
       } else {
         toast.error(t("settings.agents.sidebar.toast.removeOldAfterRenameFailed"))
       }
@@ -236,7 +258,7 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
       toast.error(t("settings.agents.sidebar.toast.renameFailed"))
     }
 
-    setRenameDialogAgent(null)
+    if (contextGenerationRef.current === generation) setRenameDialogAgent(null)
   }
 
   const getAgentModeIcon = (mode?: string) => {

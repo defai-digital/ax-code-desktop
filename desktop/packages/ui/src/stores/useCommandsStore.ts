@@ -50,6 +50,16 @@ const invalidateCommandsCache = (directory: string | null) => {
   commandsCacheByKey.delete(cacheKey)
 }
 
+// User-scope commands appear in every project's merged catalog.
+const invalidateCommandsCaches = (directory: string | null, affectsAllDirectories: boolean) => {
+  if (affectsAllDirectories) {
+    commandsLastLoadedAt.clear()
+    commandsCacheByKey.clear()
+    return
+  }
+  invalidateCommandsCache(directory)
+}
+
 const buildCommandsSignature = (commands: Command[]): string =>
   buildRecordSignature(commands, (command) => [
     command.name,
@@ -84,7 +94,7 @@ interface CommandsStore {
   loadCommands: () => Promise<boolean>
   createCommand: (config: CommandConfig) => Promise<boolean>
   updateCommand: (name: string, config: Partial<CommandConfig>) => Promise<boolean>
-  deleteCommand: (name: string, target?: { scope?: CommandScope | null }) => Promise<boolean>
+  deleteCommand: (name: string, target?: { scope?: CommandScope | null; directory?: string | null }) => Promise<boolean>
   getCommandByName: (name: string) => Command | undefined
 }
 
@@ -264,7 +274,7 @@ export const useCommandsStore = create<CommandsStore>()(
               throw new Error(message)
             }
 
-            invalidateCommandsCache(directory)
+            invalidateCommandsCaches(directory, config.scope !== "project")
 
             if (streamDebugEnabled()) {
               console.log("[CommandsStore] Command created successfully")
@@ -340,7 +350,10 @@ export const useCommandsStore = create<CommandsStore>()(
               throw new Error(message)
             }
 
-            invalidateCommandsCache(directory)
+            invalidateCommandsCaches(
+              directory,
+              (config.scope ?? get().getCommandByName(name)?.scope) !== "project",
+            )
 
             if (streamDebugEnabled()) {
               console.log("[CommandsStore] Command updated successfully")
@@ -373,11 +386,16 @@ export const useCommandsStore = create<CommandsStore>()(
           }
         },
 
-        deleteCommand: async (name: string, target?: { scope?: CommandScope | null }) => {
+        deleteCommand: async (name: string, target?: { scope?: CommandScope | null; directory?: string | null }) => {
           startConfigUpdate("Deleting command configuration…")
           let requiresReload = false
           try {
-            const directory = getActiveConfigDirectory("CommandsStore")
+            const activeDirectory = getActiveConfigDirectory("CommandsStore")
+            if (target?.directory !== undefined && target.directory !== activeDirectory) {
+              return false
+            }
+            const directory = target?.directory ?? activeDirectory
+            const originalCommand = get().getCommandByName(name)
             // Deleting by name alone removed the project and user copies
             // together; the entry's scope scopes the delete to what was shown.
             const params = new URLSearchParams()
@@ -401,7 +419,7 @@ export const useCommandsStore = create<CommandsStore>()(
               throw new Error(message)
             }
 
-            invalidateCommandsCache(directory)
+            invalidateCommandsCaches(directory, target?.scope !== "project")
 
             if (streamDebugEnabled()) {
               console.log("[CommandsStore] Command deleted successfully")
@@ -422,15 +440,19 @@ export const useCommandsStore = create<CommandsStore>()(
               emitConfigChange("commands", { source: CONFIG_EVENT_SOURCE })
             }
 
-            if (get().selectedCommandName === name) {
-              set({ selectedCommandName: null })
-            }
+            // A completion that outlived a project switch must not clear or
+            // edit the new project's same-name selection and inventory.
+            if (getActiveConfigDirectory("CommandsStore") === directory) {
+              if (get().selectedCommandName === name) {
+                set({ selectedCommandName: null })
+              }
 
-            // The write landed even if the runtime reload did not: a failed
-            // refresh must not report the mutation itself as failed. Drop the
-            // row locally so the list matches what is on disk.
-            if (!loaded && payload?.reloadFailed) {
-              set({ commands: get().commands.filter((command) => command.name !== name) })
+              // The write landed even if the runtime reload did not: a failed
+              // refresh must not report the mutation itself as failed. Drop the
+              // row locally so the list matches what is on disk.
+              if (!loaded && payload?.reloadFailed && originalCommand) {
+                set({ commands: get().commands.filter((command) => command !== originalCommand) })
+              }
             }
             return loaded || payload?.reloadFailed === true
           } catch (error) {

@@ -14,6 +14,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useCommandsStore, isCommandBuiltIn, type Command } from "@/stores/useCommandsStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useShallow } from "zustand/react/shallow"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { cn } from "@/lib/utils"
@@ -33,6 +34,21 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
   const [confirmActionType, setConfirmActionType] = React.useState<"delete" | "reset" | null>(null)
   const [isConfirmActionPending, setIsConfirmActionPending] = React.useState(false)
   const [openMenuCommand, setOpenMenuCommand] = React.useState<string | null>(null)
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const confirmActionDirectoryRef = React.useRef<string | null>(null)
+  const contextGenerationRef = React.useRef(0)
+  // A confirm/rename dialog belongs to the project it was opened in. Leaving the
+  // project must not leave a pending delete pointed at the new one, and an older
+  // completion must not close a dialog opened for the new project.
+  React.useLayoutEffect(() => {
+    contextGenerationRef.current += 1
+    setConfirmActionCommand(null)
+    setConfirmActionType(null)
+    setRenameDialogCommand(null)
+    setOpenMenuCommand(null)
+    setIsConfirmActionPending(false)
+    return () => { contextGenerationRef.current += 1 }
+  }, [currentDirectory])
 
   const {
     selectedCommandName,
@@ -106,6 +122,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
 
     setConfirmActionCommand(command)
     setConfirmActionType("delete")
+    confirmActionDirectoryRef.current = currentDirectory || null
   }
 
   const handleResetCommand = async (command: Command) => {
@@ -115,6 +132,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
 
     setConfirmActionCommand(command)
     setConfirmActionType("reset")
+    confirmActionDirectoryRef.current = currentDirectory || null
   }
 
   const closeConfirmActionDialog = () => {
@@ -127,8 +145,12 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       return
     }
 
+    const generation = contextGenerationRef.current
     setIsConfirmActionPending(true)
-    const success = await deleteCommand(confirmActionCommand.name, { scope: confirmActionCommand.scope })
+    const success = await deleteCommand(confirmActionCommand.name, {
+      scope: confirmActionCommand.scope,
+      directory: confirmActionDirectoryRef.current,
+    })
 
     if (success) {
       if (confirmActionType === "delete") {
@@ -136,14 +158,14 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       } else {
         toast.success(t("settings.commands.sidebar.toast.commandReset", { name: confirmActionCommand.name }))
       }
-      closeConfirmActionDialog()
+      if (contextGenerationRef.current === generation) closeConfirmActionDialog()
     } else if (confirmActionType === "delete") {
       toast.error(t("settings.commands.sidebar.toast.deleteFailed"))
     } else {
       toast.error(t("settings.commands.sidebar.toast.resetFailed"))
     }
 
-    setIsConfirmActionPending(false)
+    if (contextGenerationRef.current === generation) setIsConfirmActionPending(false)
   }
 
   const handleDuplicateCommand = (command: Command) => {
@@ -179,6 +201,8 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
   const handleRenameCommand = async () => {
     if (!renameDialogCommand) return
 
+    const generation = contextGenerationRef.current
+    const renameDirectory = currentDirectory || null
     const sanitizedName = renameNewName.trim().replace(/\s+/g, "-")
 
     if (!sanitizedName) {
@@ -208,10 +232,13 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
 
     if (success) {
       // Delete old command
-      const deleteSuccess = await deleteCommand(renameDialogCommand.name, { scope: renameDialogCommand.scope })
+      const deleteSuccess = await deleteCommand(renameDialogCommand.name, {
+        scope: renameDialogCommand.scope,
+        directory: renameDirectory,
+      })
       if (deleteSuccess) {
         toast.success(t("settings.commands.sidebar.toast.renamed", { name: sanitizedName }))
-        setSelectedCommand(sanitizedName)
+        if (contextGenerationRef.current === generation) setSelectedCommand(sanitizedName)
       } else {
         toast.error(t("settings.commands.sidebar.toast.removeOldAfterRenameFailed"))
       }
@@ -219,7 +246,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       toast.error(t("settings.commands.sidebar.toast.renameFailed"))
     }
 
-    setRenameDialogCommand(null)
+    if (contextGenerationRef.current === generation) setRenameDialogCommand(null)
   }
 
   const builtInCommands = commandOnlyItems.filter(isCommandBuiltIn)
