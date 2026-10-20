@@ -12,7 +12,8 @@ import { useMcpConfigStore, envRecordToArray, type McpDraft, type McpScope } fro
 import { useShallow } from "zustand/react/shallow"
 import { parseImportedMcpSnippet, applyImportedMcpToDraft } from "./mcpImport"
 import { useMcpStore } from "@/stores/useMcpStore"
-import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useActiveConfigDirectory } from "@/hooks/useActiveConfigDirectory"
+import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { cn } from "@/lib/utils"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import {
@@ -584,7 +585,7 @@ export const McpPage: React.FC = () => {
     })),
   )
 
-  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const currentDirectory = useActiveConfigDirectory()
   const mcpStatus = useMcpStore((state) => state.getStatusForDirectory(currentDirectory ?? null))
   const mcpDiagnostics = useMcpStore((state) => state.getDiagnosticForDirectory(currentDirectory ?? null))
   const refreshStatus = useMcpStore((state) => state.refresh)
@@ -989,7 +990,7 @@ export const McpPage: React.FC = () => {
           const store = useMcpConfigStore.getState()
           if (store.mcpDraft === mcpDraft) {
             store.setMcpDraft(null)
-            if ((useDirectoryStore.getState().currentDirectory ?? null) === submittedDirectory) {
+            if (getActiveConfigDirectory("McpPage") === submittedDirectory) {
               store.setSelectedMcp(name)
             }
           }
@@ -2024,6 +2025,7 @@ export const McpPage: React.FC = () => {
                           data-1p-ignore="true"
                         />
                         <Input
+                          type="password"
                           value={oauthClientSecret}
                           onChange={(e) => setOauthClientSecret(e.target.value)}
                           placeholder={t("settings.mcp.page.advanced.oauthClientSecretPlaceholder")}

@@ -635,12 +635,12 @@ export const AgentsPage: React.FC = () => {
       const permissionConfig = buildPermissionConfigWithGlobal(globalPermission, permissionRules)
       const config: AgentConfig = {
         name: agentName,
-        description: description.trim() || undefined,
+        description: description.trim(),
         mode,
         model: trimmedModel === "" ? null : trimmedModel,
         temperature,
         top_p: topP,
-        prompt: prompt.trim() || undefined,
+        prompt: prompt.trim(),
         permission: permissionConfig,
         scope: isNewAgent ? draftScope : undefined,
       }

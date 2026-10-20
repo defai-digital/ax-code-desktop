@@ -11,7 +11,7 @@ import {
 import { useMcpConfigStore, type McpDraft, type McpServerConfig } from "@/stores/useMcpConfigStore"
 import { useShallow } from "zustand/react/shallow"
 import { useMcpStore } from "@/stores/useMcpStore"
-import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useActiveConfigDirectory } from "@/hooks/useActiveConfigDirectory"
 import { isMobileDeviceViaCSS } from "@/lib/device"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui"
@@ -78,7 +78,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
     })),
   )
 
-  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const currentDirectory = useActiveConfigDirectory()
   const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
   const mcpStatus = useMcpStore((state) => state.getStatusForDirectory(currentDirectory ?? null))
   const refreshStatus = useMcpStore((state) => state.refresh)
@@ -119,7 +119,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
 
   React.useEffect(() => {
     void loadMcpConfigs()
-  }, [loadMcpConfigs])
+  }, [loadMcpConfigs, currentDirectory])
 
   const handleRefresh = React.useCallback(() => {
     if (isRefreshingStatus) return

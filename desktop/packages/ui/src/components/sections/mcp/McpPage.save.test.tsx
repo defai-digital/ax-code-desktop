@@ -12,7 +12,12 @@ const fixtures = vi.hoisted(() => ({
   remove: vi.fn<(...args: unknown[]) => Promise<Result>>(),
   refreshSelected: vi.fn<(name: string, directory: string | null, revision?: number) => boolean>(),
 }))
-const directory = create(() => ({ currentDirectory: "/alpha" }))
+const directory = create(() => ({ currentDirectory: "/alpha", projectPath: null as string | null }))
+type ProjectState = { getActiveProject: () => { path: string } }
+vi.mock("@/stores/useProjectsStore", () => ({ useProjectsStore: Object.assign(
+  (selector: (state: ProjectState) => unknown) => directory(state => selector({ getActiveProject: () => ({ path: state.projectPath ?? state.currentDirectory }) })),
+  { getState: () => ({ getActiveProject: () => ({ path: directory.getState().projectPath ?? directory.getState().currentDirectory }) }) },
+) }))
 const server = (url: string): Extract<McpServerWithScope, { type: "remote" }> => ({ name: "review", type: "remote", url, enabled: false, oauth: false, scope: "project" })
 const configs = create(() => ({
   selectedMcpName: "review" as string | null, mcpServers: [server("https://alpha.invalid")], mcpDraft: null as McpDraft | null,
@@ -63,7 +68,7 @@ beforeEach(async () => {
   vi.clearAllMocks()
   fixtures.save.mockImplementation(() => new Promise(resolve => { resolveSave = resolve }))
   fixtures.remove.mockImplementation(() => new Promise(resolve => { resolveDelete = resolve }))
-  directory.setState({ currentDirectory: "/alpha" })
+  directory.setState({ currentDirectory: "/alpha", projectPath: null })
   configs.setState({ selectedMcpName: "review", mcpServers: [server("https://alpha.invalid")], mcpDraft: null, loadedDirectory: "/alpha", selectionRevision: 0 })
   fixtures.refreshSelected.mockImplementation((name, path, revision) => {
     const state = configs.getState()
@@ -403,4 +408,20 @@ test.each(["environment", "headers"] as const)("revealed %s rows are masked agai
   await reveal("fixture-c")
   await act(async () => configs.setState({ selectionRevision: 1, mcpServers: [record("other", "fixture-d", "user")] }))
   await showRow("fixture-d")
+})
+
+test("a worktree session edits the active project's MCP inventory", async () => {
+  await act(async () => directory.setState({ currentDirectory: "/alpha/worktrees/lane", projectPath: "/alpha" }))
+  expect(url()?.value).toBe("https://alpha.invalid")
+  await edit("https://saved.invalid")
+  await act(async () => save().click())
+  expect(fixtures.save).toHaveBeenCalledWith("review", expect.objectContaining({ url: "https://saved.invalid" }))
+  await act(async () => resolveSave({ ok: true }))
+})
+
+test("OAuth client secrets are masked in the settings form", async () => {
+  const advanced = Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("settings.mcp.page.advanced.configure"))!
+  await act(async () => advanced.click())
+  const secret = container.querySelector<HTMLInputElement>('input[placeholder="settings.mcp.page.advanced.oauthClientSecretPlaceholder"]')!
+  expect(secret.type).toBe("password")
 })

@@ -5,8 +5,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 const t = (key: string) => key
 
 let skillsState: Record<string, unknown>
+let currentDirectory = "/project"
 
-const getSkillByName = vi.fn(() => null)
+const getSkillByName = vi.fn<() => { name: string; path: string } | null>(() => null)
 const getSkillDetail = vi.fn()
 const createSkill = vi.fn()
 const updateSkill = vi.fn()
@@ -32,7 +33,7 @@ vi.doMock("@/components/chat/MarkdownRenderer", () => ({ SimpleMarkdownRenderer:
 vi.doMock("./catalog/SkillsCatalogPage", () => ({ SkillsCatalogPage: () => null }))
 vi.doMock("@/stores/useDirectoryStore", () => ({
   useDirectoryStore: (selector: (state: { currentDirectory: string }) => unknown) =>
-    selector({ currentDirectory: "/project" }),
+    selector({ currentDirectory }),
 }))
 vi.doMock("@/stores/useSkillsStore", () => ({
   useSkillsStore: (selector: (state: Record<string, unknown>) => unknown) => selector(skillsState),
@@ -71,6 +72,9 @@ describe("SkillsPage new-skill draft", () => {
   }
 
   beforeEach(() => {
+    vi.clearAllMocks()
+    getSkillByName.mockReturnValue(null)
+    currentDirectory = "/project"
     skillsState = {
       selectedSkillName: "new-skill",
       getSkillByName,
@@ -115,4 +119,64 @@ describe("SkillsPage new-skill draft", () => {
     expect(nameInput()?.value).toBe("my-skill")
     expect(descriptionInput()?.value).toBe("my description")
   })
+  test("a completed create cannot clear another project's new skill draft", async () => {
+    let finish!: (value: boolean) => void
+    createSkill.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    render()
+    await settle()
+    await act(async () => typeInto(descriptionInput()!, "Alpha description"))
+    const saveButton = () => Array.from(container.querySelectorAll("button")).find(button =>
+      ["settings.skills.page.actions.createSkill", "settings.common.actions.saveChanges", "settings.common.actions.saving"].includes(button.textContent ?? ""))!
+    await act(async () => saveButton().click())
+    expect(createSkill).toHaveBeenCalledTimes(1)
+    currentDirectory = "/other"
+    skillsState.skillDraft = { name: "new-skill", scope: "user", source: "ax-code", description: "Beta description" }
+    render()
+    await settle()
+    await act(async () => finish(true))
+    expect(descriptionInput()?.value).toBe("Beta description")
+    expect(setSkillDraft).not.toHaveBeenCalled()
+    expect(setSelectedSkill).not.toHaveBeenCalled()
+  })
+
+  test("clearing persisted skill instructions sends an explicit empty value", async () => {
+    skillsState.selectedSkillName = "review"
+    skillsState.skillDraft = null
+    getSkillByName.mockReturnValue({ name: "review", path: "/project/review/SKILL.md" })
+    getSkillDetail.mockResolvedValue({ sources: { md: { description: "Description", instructions: "Alpha" } } })
+    updateSkill.mockResolvedValue(true)
+    render()
+    await settle()
+    const editor = container.querySelector<HTMLTextAreaElement>("textarea:not([placeholder])")!
+    await act(async () => typeInto(editor, "---\ndescription: Description\n---\n"))
+    const save = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "settings.common.actions.saveChanges")!
+    await act(async () => save.click())
+    expect(updateSkill).toHaveBeenCalledWith("review", expect.objectContaining({ instructions: "", targetPath: "/project/review/SKILL.md" }))
+  })
+
+  test("an old update cannot overwrite the new project's skill baseline", async () => {
+    let finish!: (value: boolean) => void
+    skillsState.selectedSkillName = "review"
+    skillsState.skillDraft = null
+    getSkillByName.mockReturnValue({ name: "review", path: "/project/review/SKILL.md" })
+    getSkillDetail.mockResolvedValue({ sources: { md: { description: "Description", instructions: "Alpha" } } })
+    updateSkill.mockImplementation(() => new Promise(resolve => { finish = resolve }))
+    render()
+    await settle()
+    const editor = () => container.querySelector<HTMLTextAreaElement>("textarea:not([placeholder])")!
+    const save = () => Array.from(container.querySelectorAll("button")).find(button =>
+      ["settings.common.actions.saveChanges", "settings.common.actions.saving"].includes(button.textContent ?? ""))!
+    await act(async () => typeInto(editor(), "---\ndescription: Description\n---\nAlpha saved"))
+    await act(async () => save().click())
+    expect(updateSkill).toHaveBeenCalledTimes(1)
+    currentDirectory = "/other"
+    getSkillByName.mockReturnValue({ name: "review", path: "/other/review/SKILL.md" })
+    getSkillDetail.mockResolvedValue({ sources: { md: { description: "Description", instructions: "Beta" } } })
+    render()
+    await settle()
+    await act(async () => finish(true))
+    expect(editor().value).toContain("Beta")
+    expect(save().disabled).toBe(true)
+  })
+
 })

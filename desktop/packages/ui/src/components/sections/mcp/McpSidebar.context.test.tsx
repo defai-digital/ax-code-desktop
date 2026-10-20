@@ -5,7 +5,12 @@ import { create } from "zustand"
 import type { McpDraft, McpServerWithScope } from "@/stores/useMcpConfigStore"
 
 const fixtures = vi.hoisted(() => ({ remove: vi.fn<(...args: unknown[]) => Promise<{ ok: boolean }>>(), select: vi.fn(), refreshSelected: vi.fn(() => false), draft: vi.fn(), load: vi.fn(async () => true) }))
-const directory = create(() => ({ currentDirectory: "/alpha" }))
+const directory = create(() => ({ currentDirectory: "/alpha", projectPath: null as string | null }))
+type ProjectState = { getActiveProject: () => { path: string } }
+vi.mock("@/stores/useProjectsStore", () => ({ useProjectsStore: Object.assign(
+  (selector: (state: ProjectState) => unknown) => directory(state => selector({ getActiveProject: () => ({ path: state.projectPath ?? state.currentDirectory }) })),
+  { getState: () => ({ getActiveProject: () => ({ path: directory.getState().projectPath ?? directory.getState().currentDirectory }) }) },
+) }))
 const server = (url: string): McpServerWithScope => ({ name: "review", type: "remote", url, enabled: false, scope: "project" })
 const configs = create(() => ({
   mcpServers: [server("https://alpha.invalid")], loadedDirectory: "/alpha", isLoading: false, selectedMcpName: "review",
@@ -35,7 +40,7 @@ beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.clearAllMocks()
   fixtures.remove.mockImplementation(() => new Promise(resolve => { finishDelete = resolve }))
-  directory.setState({ currentDirectory: "/alpha" })
+  directory.setState({ currentDirectory: "/alpha", projectPath: null })
   configs.setState({ mcpServers: [server("https://alpha.invalid")], loadedDirectory: "/alpha", isLoading: false })
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -122,4 +127,13 @@ test("an old sidebar completion cannot end the new project's pending deletion", 
   expect(confirm().disabled).toBe(true)
   await act(async () => finishDelete({ ok: true }))
   expect(confirm()).toBeUndefined()
+})
+
+test("a worktree session deletes against the active project's inventory", async () => {
+  await act(async () => directory.setState({ currentDirectory: "/alpha/worktrees/lane", projectPath: "/alpha" }))
+  expect(container.querySelector<HTMLButtonElement>('[aria-label="settings.mcp.sidebar.actions.addServerTitle"]')!.disabled).toBe(false)
+  await openDelete()
+  await act(async () => confirm().click())
+  expect(fixtures.remove).toHaveBeenCalledWith("review", "/alpha", 0)
+  await act(async () => finishDelete({ ok: true }))
 })

@@ -223,6 +223,12 @@ const SkillsInstalledPage: React.FC = () => {
   )
 
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
+  const formGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    formGenerationRef.current += 1
+    setIsSaving(false)
+    return () => { formGenerationRef.current += 1 }
+  }, [currentDirectory, selectedSkillName, skillDraft])
 
   React.useEffect(() => {
     const loadSkillDetails = async () => {
@@ -349,13 +355,14 @@ const SkillsInstalledPage: React.FC = () => {
       return
     }
 
+    const submittedGeneration = formGenerationRef.current
     setIsSaving(true)
 
     try {
       const config: SkillConfig = {
         name: skillName,
         description: description.trim(),
-        instructions: instructions.trim() || undefined,
+        instructions: instructions.trim(),
         scope: isNewSkill ? draftScope : undefined,
         source: isNewSkill ? draftSource : undefined,
         targetPath: !isNewSkill ? selectedSkill?.path : undefined,
@@ -365,14 +372,14 @@ const SkillsInstalledPage: React.FC = () => {
       let success: boolean
       if (isNewSkill) {
         success = await createSkill(config)
-        if (success) {
+        if (success && formGenerationRef.current === submittedGeneration) {
           setSkillDraft(null)
           setPendingFiles([])
           setSelectedSkill(skillName)
         }
       } else {
         success = await updateSkill(skillName, config)
-        if (success) {
+        if (success && formGenerationRef.current === submittedGeneration) {
           setOriginalDescription(description.trim())
           setOriginalInstructions(instructions.trim())
         }
@@ -393,7 +400,7 @@ const SkillsInstalledPage: React.FC = () => {
       console.error("Error saving skill:", error)
       toast.error(t("settings.skills.page.toast.saveUnexpectedError"))
     } finally {
-      setIsSaving(false)
+      if (formGenerationRef.current === submittedGeneration) setIsSaving(false)
     }
   }
 

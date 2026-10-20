@@ -125,3 +125,19 @@ test.each(["user", "project"] as const)("draft scope %s displays its translated 
   const scopeControl = container.querySelector('[role="combobox"]')
   expect(scopeControl?.textContent).toBe(`settings.common.scope.${scope === "user" ? "global" : "project"}`)
 })
+
+test("clearing a command description sends an explicit empty value", async () => {
+  await act(async () => {
+    directory.setState({ currentDirectory: "/described" })
+    commands.setState({ commands: [{ name: "review", template: "Alpha", description: "Before" }] })
+  })
+  const field = container.querySelector<HTMLTextAreaElement>('textarea[rows="2"]')!
+  expect(field.value).toBe("Before")
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(field, "")
+    field.dispatchEvent(new Event("input", { bubbles: true }))
+  })
+  await act(async () => save().click())
+  expect(fixtures.save).toHaveBeenCalledWith("review", expect.objectContaining({ description: "" }))
+  await act(async () => resolveSave(true))
+})

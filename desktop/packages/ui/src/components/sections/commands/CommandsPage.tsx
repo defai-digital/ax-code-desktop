@@ -190,7 +190,7 @@ export const CommandsPage: React.FC = () => {
       const trimmedTemplate = template.trim()
       const config: CommandConfig = {
         name: commandName,
-        description: description.trim() || undefined,
+        description: description.trim(),
         agent: trimmedAgent === "" ? null : trimmedAgent,
         model: trimmedModel === "" ? null : trimmedModel,
         template: trimmedTemplate,

@@ -197,3 +197,10 @@ test("custom pattern choices exclude action-only permissions but retain pattern-
   expect(options).toContain("settings.agents.page.permissions.defaultLabel")
   expect(options).not.toContain("WebFetch")
 })
+
+test("clearing the agent prompt sends an explicit empty value", async () => {
+  await edit("")
+  await act(async () => save().click())
+  expect(fixtures.save).toHaveBeenCalledWith("review", expect.objectContaining({ prompt: "", description: "" }))
+  await act(async () => resolveSave(true))
+})
