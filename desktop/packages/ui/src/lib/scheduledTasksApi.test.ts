@@ -91,7 +91,7 @@ describe("scheduledTasksApi", () => {
   test("fetchScheduledTasks scopes by directory and enriches with the latest run", async () => {
     scheduledTask.list.mockResolvedValue({ data: [runtimeTask()] })
     scheduledTask.listRuns.mockResolvedValue({
-      data: [{ status: "failed", error: "model exploded", time: { created: 5 } }],
+      data: [{ id: "run_1", status: "failed", error: "model exploded", time: { created: 5 } }],
     })
 
     const tasks = await fetchScheduledTasks("/work/alpha")
@@ -128,10 +128,30 @@ describe("scheduledTasksApi", () => {
     expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("unknown")
   })
 
+  test.each([
+    null,
+    { status: "completed", time: { created: 5 } },
+    { id: "run_1", taskID: "foreign_task", status: "completed", time: { created: 5 } },
+    { id: "run_1", status: "completed", time: { created: Number.NaN } },
+    { id: "run_1", status: "completed", time: { created: Number.MAX_VALUE } },
+  ])("keeps malformed or foreign latest outcomes unknown: %j", async (run) => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ error: "stale error" })] })
+    scheduledTask.listRuns.mockResolvedValue({ data: [run] })
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task.lastRunStatus).toBe("unknown")
+    expect(task.lastError).toBeUndefined()
+  })
+
+  test("keeps genuinely empty history idle for a task with no prior run", async () => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask()] })
+    scheduledTask.listRuns.mockResolvedValue({ data: [] })
+    expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("idle")
+  })
+
   test("confirmed new outcomes replace stale task errors", async () => {
     scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42, error: "old failure" })] })
     scheduledTask.listRuns.mockResolvedValue({
-      data: [{ status: "completed", time: { created: 42 } }],
+      data: [{ id: "run_1", status: "completed", time: { created: 42 } }],
     })
     const [task] = await fetchScheduledTasks("/work/alpha")
     expect(task.lastRunStatus).toBe("success")
@@ -156,8 +176,10 @@ describe("scheduledTasksApi", () => {
     const loads = directories.map((directory) => fetchScheduledTasks(directory))
     await vi.waitFor(() => expect(pending.size).toBe(3))
     pending.get("/work/gamma")!({ error: { message: "offline" } })
-    pending.get("/work/beta")!({ data: [{ status: "failed", error: "beta failure", time: { created: 42 } }] })
-    pending.get("/work/alpha")!({ data: [{ status: "running", time: { created: 42 } }] })
+    pending.get("/work/beta")!({
+      data: [{ id: "run_beta", status: "failed", error: "beta failure", time: { created: 42 } }],
+    })
+    pending.get("/work/alpha")!({ data: [{ id: "run_alpha", status: "running", time: { created: 42 } }] })
     const results = await Promise.all(loads)
     expect(results.map(([task]) => [task.directory, task.id, task.lastRunStatus, task.lastError])).toEqual([
       ["/work/alpha", "st_1", "running", undefined],

@@ -29,7 +29,16 @@ async function journeyScheduledHistory({ session, e2e }) {
     },
     history:
       status === "unavailable"
-        ? {}
+        ? process.argv.includes("--foreign-history")
+          ? [
+              {
+                id: "run_foreign",
+                taskID: "another_task",
+                status: "completed",
+                time: { created: now - 1000 },
+              },
+            ]
+          : {}
         : [
             {
               id: `run_fixture_${index}`,
@@ -69,7 +78,8 @@ async function journeyScheduledHistory({ session, e2e }) {
     `(() => {
       const button = document.querySelector('button[aria-label="More actions for History unavailable"]');
       return button && button.getClientRects().length > 0 && !button.closest('[hidden], [inert], [aria-hidden="true"]');
-    })()`, "row actions exposed on returned focus",
+    })()`,
+    "row actions exposed on returned focus",
   )
   await audit.click("More actions for History unavailable")
   await audit.click("Run history", { role: "menuitem" })

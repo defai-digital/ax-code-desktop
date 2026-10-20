@@ -172,10 +172,9 @@ const withLatestRun = async (directory: string, task: ScheduledTask): Promise<Sc
   try {
     const response = await clientFor(directory).scheduledTask.listRuns({ scheduledTaskID: task.id, limit: 1 })
     if (response.error || !Array.isArray(response.data)) return unavailable()
-    const runs = response.data as RuntimeRunInfo[]
-    const latest = runs[0]
-    if (!latest) return task.lastRunStatus === "idle" ? task : unavailable()
-    if (!isRunStatus(latest.status)) return unavailable()
+    if (response.data.length === 0) return task.lastRunStatus === "idle" ? task : unavailable()
+    const latest = toScheduledTaskRun(response.data[0], task.id)
+    if (!latest) return unavailable()
     return {
       ...task,
       lastRunStatus: runDisplayStatus(latest),

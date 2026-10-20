@@ -87,3 +87,5 @@ provider/test workloads for runtime qualification where supported, without activ
   disclose confirmed versus uncertain creation and prevent direct resubmission; producer idempotency remains open.
 - [History dialog integrity](../reports/SCHEDULED-TASKS-2026-10-20-history-dialog-repair.md): reject malformed
   history instead of reporting empty/partial success, and verify native error-to-retry recovery.
+- [Latest-run identity](../reports/SCHEDULED-TASKS-2026-10-20-latest-run-validation.md): sidebar and history dialog
+  share record validation; foreign/malformed outcomes cannot be adopted as the selected task's result.
