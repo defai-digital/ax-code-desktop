@@ -1,0 +1,12 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+No findings.
+
+The supplied repair satisfies the stated requirements:
+
+- Duplicate titles are detected using whitespace-collapsed keys, and ambiguous projects receive `title · pathLabel` context.
+- Unique projects retain their concise title.
+- Pin, new-session, and attention controls append the same contextual name.
+- The active card exposes `aria-current="true"`.
+- Canonical project IDs and existing navigation handlers are preserved.

@@ -122,6 +122,21 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
   const listRef = React.useRef<HTMLDivElement | null>(null)
 
   const ordered = React.useMemo(() => sortProjectsForDisplay(projects), [projects])
+  const projectLabels = React.useMemo(() => {
+    const labels = ordered.map(project => {
+      const pathLabel = formatPathForDisplay(project.path, homeDirectory)
+      const title = project.label?.trim() || (pathLabel === "~" ? t("sessions.sidebar.project.home") : pathLabel)
+      return { id: project.id, title, pathLabel }
+    })
+    // Displayed text and native control names collapse whitespace.
+    const titleKey = (title: string) => title.replace(/\s+/g, " ").trim()
+    const counts = new Map<string, number>()
+    for (const label of labels) counts.set(titleKey(label.title), (counts.get(titleKey(label.title)) ?? 0) + 1)
+    return new Map(labels.map(label => {
+      const ambiguous = (counts.get(titleKey(label.title)) ?? 0) > 1
+      return [label.id, { ...label, ambiguous, contextName: ambiguous ? `${label.title} · ${label.pathLabel}` : label.title }]
+    }))
+  }, [ordered, homeDirectory, t])
   const needsYouInputs = useNeedsYouSessionInputs()
   const activity = useProjectActivity(ordered, needsYouInputs)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
@@ -337,9 +352,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
           const iconName = project.icon ? PROJECT_ICON_MAP[project.icon] : null
           const color = project.color ? (PROJECT_COLOR_MAP[project.color] ?? null) : null
           const lastUsed = formatProjectLastUsed(project.lastOpenedAt, t)
-          const pathLabel = formatPathForDisplay(project.path, homeDirectory)
-          const isHomeProject = pathLabel === "~" && !project.label?.trim()
-          const title = project.label?.trim() || (isHomeProject ? t("sessions.sidebar.project.home") : pathLabel)
+          const { title, pathLabel, ambiguous, contextName } = projectLabels.get(project.id)!
           const projectActivity = activity.get(project.id) ?? IDLE
           const attentionTarget =
             projectActivity.tone === "attention" ? attentionSessionForProject(project.id, needsYouInputs) : null
@@ -356,8 +369,10 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             <div
               key={project.id}
               role="button"
-              aria-label={title}
-              data-project-row
+              aria-label={contextName}
+              aria-current={isActive ? "true" : undefined}
+              data-project-row={project.id}
+              data-project-directory={project.path}
               tabIndex={index === Math.min(focusIndex, ordered.length - 1) ? 0 : -1}
               onFocus={(event) => {
                 if (event.target === event.currentTarget) setFocusIndex(index)
@@ -414,7 +429,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                     <Icon name="pushpin-2-fill" className="h-3 w-3 shrink-0 text-primary" aria-hidden />
                   ) : null}
                 </span>
-                <span className="block truncate font-mono typography-micro text-muted-foreground">{pathLabel}</span>
+                <span className={cn("block font-mono typography-micro text-muted-foreground", ambiguous ? "break-all" : "truncate")}>{pathLabel}</span>
               </span>
 
               <span className="flex shrink-0 items-center gap-2">
@@ -423,6 +438,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                     type="button"
                     className="inline-flex items-center gap-1.5 typography-micro text-muted-foreground"
                     title={statusLabel}
+                    aria-label={`${statusLabel} · ${contextName}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       openNeedsYouSession(attentionTarget)
@@ -450,7 +466,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                     type="button"
                     onClick={(event) => handleTogglePin(project, event)}
                     className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-                    aria-label={project.pinned ? t("projects.home.actions.unpin") : t("projects.home.actions.pin")}
+                    aria-label={`${project.pinned ? t("projects.home.actions.unpin") : t("projects.home.actions.pin")} · ${contextName}`}
                     title={project.pinned ? t("projects.home.actions.unpin") : t("projects.home.actions.pin")}
                   >
                     <Icon name={project.pinned ? "pushpin-2-fill" : "pushpin-2"} className="h-3.5 w-3.5" />
@@ -460,7 +476,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                       type="button"
                       onClick={(event) => handleNewSession(project, event)}
                       className="inline-flex h-6 w-6 items-center justify-center rounded-md text-muted-foreground hover:bg-background hover:text-foreground"
-                      aria-label={t("projects.home.actions.newSession")}
+                      aria-label={`${t("projects.home.actions.newSession")} · ${contextName}`}
                       title={t("projects.home.actions.newSession")}
                     >
                       <Icon name="chat-new" className="h-3.5 w-3.5" />

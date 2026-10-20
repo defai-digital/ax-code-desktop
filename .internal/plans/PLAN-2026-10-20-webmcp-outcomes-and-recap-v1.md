@@ -179,3 +179,9 @@ projects in default/minimal modes; screenshots record the narrow-layout limits a
 [report](../reports/SUPERVISION-2026-10-20-project-and-schedule-targets.md) cover collisions after sidebar name formatting,
 same-title cross-project task actions, exact pause destinations, real editor/picker selection and the screenshot-discovered
 Projects Home toolbar overlap. Scheduled definitions remain unchanged during native verification.
+
+### Projects Home cards and child actions
+
+[Plan](PLAN-2026-10-20-project-home-targets.md) and
+[report](../reports/SUPERVISION-2026-10-20-project-home-targets.md) cover ambiguous card/child names, visible duplicate-title
+paths, whitespace and label/path collisions, exact compact attention destinations, and native pin persistence/reload.

@@ -148,6 +148,7 @@ export const runHarness = async ({
               scenario: launch.scenario,
               repliesPath: launch.repliesPath,
               stubOriginPath: launch.stubOriginPath,
+              settingsPath: path.join(launch.tmpDir, "data", "settings.json"),
             },
           }),
         )

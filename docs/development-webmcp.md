@@ -64,6 +64,16 @@ opens each editor against a distinct fixture prompt, checks the new-task project
 rendering. Editors are cancelled and the final receipt checks that no scheduled definitions were written. Runtime project
 IDs and Desktop registry IDs are separate; the journey joins their observed controls by directory.
 
+For Projects Home cards and child actions, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/project-home-webmcp.mjs --artifacts /tmp/ax-project-home
+```
+
+This discovers same-name cards, checks project/draft selection and opens each project's attention conversation. It also
+pins one project, reads the isolated settings file, reloads to check persistence and unpins it. Screenshots include
+populated narrow/light/dark views. No prompt is submitted; profile changes stay within the harness's temporary directory.
+
 The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,
 restores it, verifies the DOM and checks CSP and renderer errors. The Settings audit inventories all 15 tabs and paged
 controls, exercises select options, numeric editing/reset, reversible local preferences, shortcut search/focus and Hooks
