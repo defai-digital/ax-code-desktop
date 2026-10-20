@@ -1,12 +1,12 @@
 # ADR-022: Consume the AX Code SDK from GitHub Packages
 
-| Field          | Value                                                                                                   |
-| -------------- | ------------------------------------------------------------------------------------------------------- |
-| Status         | Accepted by explicit maintainer instruction, 2026-10-20                                                 |
-| Implementation | Prepared; the lockfile cutover waits for the producer to publish (see Cutover order)                    |
-| Date           | 2026-10-20                                                                                              |
-| Supersedes     | ADR-001 decisions D1 and D3 and ADR-004's JSR publication and `jsr:` pin mechanics (registry only)    |
-| Related        | AX Code ADR-265; AX Code PRD and SPEC 2026-10-20 GitHub Packages distribution; ADR-004; ADR-012        |
+| Field          | Value                                                                                              |
+| -------------- | -------------------------------------------------------------------------------------------------- |
+| Status         | Accepted by explicit maintainer instruction, 2026-10-20                                            |
+| Implementation | Prepared; the lockfile cutover waits for the producer to publish (see Cutover order)               |
+| Date           | 2026-10-20                                                                                         |
+| Supersedes     | ADR-001 decisions D1 and D3 and ADR-004's JSR publication and `jsr:` pin mechanics (registry only) |
+| Related        | AX Code ADR-265; AX Code PRD and SPEC 2026-10-20 GitHub Packages distribution; ADR-004; ADR-012    |
 
 ## Context
 

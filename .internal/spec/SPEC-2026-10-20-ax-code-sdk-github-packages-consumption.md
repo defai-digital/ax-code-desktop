@@ -1,11 +1,11 @@
 # SPEC: AX Code SDK GitHub Packages Consumption
 
-| Field      | Value                                                                              |
-| ---------- | ---------------------------------------------------------------------------------- |
-| Status     | Accepted; implementation prepared, lockfile cutover pending producer publication   |
-| Created    | 2026-10-20                                                                         |
-| Supersedes | SPEC-2026-09-02-ax-code-jsr-sdk-consumption (dependency declaration and registry)  |
-| Related    | ADR-022; AX Code ADR-265                                                           |
+| Field      | Value                                                                             |
+| ---------- | --------------------------------------------------------------------------------- |
+| Status     | Accepted; implementation prepared, lockfile cutover pending producer publication  |
+| Created    | 2026-10-20                                                                        |
+| Supersedes | SPEC-2026-09-02-ax-code-jsr-sdk-consumption (dependency declaration and registry) |
+| Related    | ADR-022; AX Code ADR-265                                                          |
 
 Canonical package page: <https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk>.
 
