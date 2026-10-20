@@ -40,6 +40,11 @@ is proposed, based on local OpenChamber, Orca, Herdr and OpenCode references plu
 [Comparison evidence](../reports/DESIGN-2026-10-20-reference-comparison.md) and
 [plan](../plans/PLAN-2026-10-20-reference-informed-supervision-v1.md) distinguish existing capabilities, gaps and qualification.
 
+Online follow-up: [Outcome journeys v1](PRD-2026-10-20-online-outcome-journeys-v1.md) is a proposed addendum covering
+build-specific WebMCP support, independent outcome checks, overlapping/missed schedule occurrences and saved recap return.
+See the [official-source research](../reports/RESEARCH-2026-10-20-online-outcome-journeys.md) and
+[execution plan](../plans/PLAN-2026-10-20-online-outcome-journeys-v1.md). Documentation research does not qualify implementation.
+
 ## Completed and historical records
 
 | PRD | Disposition |
