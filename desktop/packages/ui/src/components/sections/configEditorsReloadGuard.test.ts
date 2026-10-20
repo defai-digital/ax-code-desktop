@@ -65,8 +65,7 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // The live rules are left alone: the setters would put the submitted list back over an edit made meanwhile.
     expect(agents).not.toContain("const savedPermissionState = applyPermissionState(permissionRules)")
 
-    const commands = await readPage("commands/CommandsPage.tsx")
-    expect(commands).toContain("selectedCommandNameRef.current === selectedCommandName")
+    // Command save isolation is exercised by CommandsPage.save.test.tsx.
   })
 
   test("the agents editor refreshes its permission baseline on save", async () => {

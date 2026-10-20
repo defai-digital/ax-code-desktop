@@ -108,3 +108,9 @@ a product acceptance criterion. Reviewer output does not authorize changes to ru
 Phase A is the earlier authorized repair/test/commit slice. Phase B is diagnosis. New recap/workflow implementation waits
 for the relevant records/contracts, while document and evidence work proceeds. A plan, code scaffold, passing stub or
 reviewer response cannot alone complete a phase. Keep implementation, local validation, commit, push and release distinct.
+
+### Command editor save isolation follow-up
+
+[Plan](PLAN-2026-10-20-command-save-isolation.md) and
+[verification report](../reports/COMMANDS-2026-10-20-save-isolation.md) record same-name cross-project save completion,
+stale creation selection, and unchanged-save dirty-state repairs with mounted behavioral regressions.

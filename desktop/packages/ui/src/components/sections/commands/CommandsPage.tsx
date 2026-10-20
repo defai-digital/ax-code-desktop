@@ -80,10 +80,13 @@ export const CommandsPage: React.FC = () => {
   // Which command's config the form holds, so a background reload of `commands` does not re-populate over
   // unsaved edits — the guard the MCP page uses. Saving moves the dirty baseline directly.
   const loadedCommandKeyRef = React.useRef<string | null>(null)
-  // The command the form belongs to, readable after an await: `handleSave` must not write the values it captured at
-  // submit time into a form that has moved to another command since.
-  const selectedCommandNameRef = React.useRef<string | undefined>(selectedCommandName)
-  selectedCommandNameRef.current = selectedCommandName
+  // A name can exist in multiple projects. A generation also distinguishes returning
+  // to a form from the earlier visit whose save is still in flight.
+  const formGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    formGenerationRef.current += 1
+    return () => { formGenerationRef.current += 1 }
+  }, [currentDirectory, selectedCommandName, commandDraft])
 
   React.useEffect(() => {
     const populateKey = isNewCommand ? `draft:${commandDraft?.name ?? ""}` : `command:${selectedCommandName ?? ""}`
@@ -141,7 +144,8 @@ export const CommandsPage: React.FC = () => {
     }
   }, [selectedCommand, isNewCommand, selectedCommandName, commands, commandDraft, currentDirectory])
 
-  const isDirty = React.useMemo(() => {
+  // The baseline changes after save without necessarily changing any field value.
+  const isDirty = (() => {
     const initial = initialStateRef.current
     if (!initial) {
       return false
@@ -157,7 +161,7 @@ export const CommandsPage: React.FC = () => {
     if (model !== initial.model) return true
     if (template !== initial.template) return true
     return false
-  }, [agent, description, draftName, draftScope, isNewCommand, model, template])
+  })()
 
   const handleSave = async () => {
     const commandName = isNewCommand ? draftName.trim().replace(/\s+/g, "-") : selectedCommandName?.trim()
@@ -177,6 +181,7 @@ export const CommandsPage: React.FC = () => {
       return
     }
 
+    const submittedGeneration = formGenerationRef.current
     setIsSaving(true)
 
     try {
@@ -195,7 +200,7 @@ export const CommandsPage: React.FC = () => {
       let success: boolean
       if (isNewCommand) {
         success = await createCommand(config)
-        if (success) {
+        if (success && formGenerationRef.current === submittedGeneration) {
           // Select the actually-created command so the editor stays bound to it;
           // otherwise it renders a dead editor and a second save PATCHes the stale
           // default name and 404s.
@@ -206,7 +211,7 @@ export const CommandsPage: React.FC = () => {
         success = await updateCommand(commandName, config)
       }
 
-      if (success && !isNewCommand && selectedCommandNameRef.current === selectedCommandName) {
+      if (success && !isNewCommand && formGenerationRef.current === submittedGeneration) {
         // The save awaits, and the fields stay live while it does: a value goes back into its field only when that
         // field still holds what was submitted, so text typed during the save is not replaced by the stale value.
         setDescription((current) => (current === description ? description.trim() : current))
