@@ -172,3 +172,10 @@ correct conversation navigation, light/dark rendering and the unchanged default 
 [report](../reports/SUPERVISION-2026-10-20-live-project-identity.md) cover the same-name Live rows, minimal-mode context,
 and duplicate inert WebMCP actions inherited from a pointer drag wrapper. Mounted and native regressions verify both
 projects in default/minimal modes; screenshots record the narrow-layout limits as well as the repaired sidebars.
+
+### Project headers and scheduled targets
+
+[Plan](PLAN-2026-10-20-project-and-schedule-targets.md) and
+[report](../reports/SUPERVISION-2026-10-20-project-and-schedule-targets.md) cover collisions after sidebar name formatting,
+same-title cross-project task actions, exact pause destinations, real editor/picker selection and the screenshot-discovered
+Projects Home toolbar overlap. Scheduled definitions remain unchanged during native verification.

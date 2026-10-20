@@ -17,10 +17,10 @@ import { useUIStore } from "@/stores/useUIStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useI18n } from "@/lib/i18n"
-import { cn, formatDirectoryName } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import type { ProjectEntry } from "@/lib/api/types"
 import { buildProjectGroups } from "../scheduledTaskGroups"
-import { formatProjectLabel } from "./utils"
+import { sidebarProjectLabels } from "./projectLabels"
 import { formatFamilySchedule, formatRelativeTime, formatRunMoment } from "../scheduledTaskFormat"
 import {
   buildPendingEntries,
@@ -92,17 +92,18 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   const headingId = `${sectionId}-heading`
 
   const projectGroups = React.useMemo<ProjectGroup[]>(
-    () =>
-      buildProjectGroups(projects).map(({ directory, project }) => ({
+    () => {
+      const groups = buildProjectGroups(projects)
+      const labels = sidebarProjectLabels(groups.map(({ directory, project }) => ({ ...project, path: directory })),
+        homeDirectory, t("sessions.sidebar.project.home"))
+      return groups.map(({ directory, project }) => ({
         directory,
         project,
         tasks: [],
-        // Same name as the project's header in the list below.
-        label: formatProjectLabel(
-          project.label?.trim() || formatDirectoryName(project.path, homeDirectory || undefined) || directory,
-        ),
-      })),
-    [projects, homeDirectory],
+        label: labels.get(project.id)!.contextLabel,
+      }))
+    },
+    [projects, homeDirectory, t],
   )
 
   const localTimezone = React.useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
@@ -205,7 +206,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               onClick={() => actions.openNewTask(group.directory, group.label)}
             >
               <ProjectGlyph project={group.project} />
-              <span className="truncate">{group.label}</span>
+              <span className="min-w-0 break-all">{group.label}</span>
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
@@ -215,6 +216,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   const renderRow = (entry: PendingScheduleEntry) => {
     const { family, directory, project } = entry
     const projectLabel = labelByDirectory.get(directory) ?? directory
+    const sameTitleElsewhere = entries.some(other => other.directory !== directory && other.family.title === family.title)
+    const taskName = sameTitleElsewhere ? `${family.title} · ${projectLabel}` : family.title
     const busy = actions.busyKeys.has(entry.key)
     const running = family.lastRunStatus === "running"
     const failing = family.lastRunStatus === "error"
@@ -265,7 +268,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           className="min-w-0 flex-1 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
           onClick={() => actions.openEditTask(family, directory, projectLabel)}
           disabled={busy}
-          aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName: family.title })}
+          aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName })}
         >
           <span className="flex min-w-0 items-center gap-1.5">
             <span className={cn("truncate typography-ui-label", paused ? "text-muted-foreground" : "text-foreground")}>
@@ -281,14 +284,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             ) : null}
             <span className="sr-only">{statusText}</span>
           </span>
+          {showProjectLabels ? (
+            <span className="flex min-w-0 items-start gap-1 typography-micro leading-tight text-muted-foreground">
+              <ProjectGlyph project={project} />
+              <span className="min-w-0 break-all">{projectLabel}</span>
+            </span>
+          ) : null}
           <span className="flex min-w-0 items-center gap-1 typography-micro leading-tight text-muted-foreground">
-            {showProjectLabels ? (
-              <>
-                <ProjectGlyph project={project} />
-                <span className="max-w-[45%] shrink-0 truncate">{projectLabel}</span>
-                <span aria-hidden="true">·</span>
-              </>
-            ) : null}
             {unknown ? (
               <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
                 {t("sessions.sidebar.scheduled.history.loadFailed")}
@@ -326,7 +328,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               <>
                 <RowIconButton
                   icon="play"
-                  label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName: family.title })}
+                  label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName })}
                   disabled={busy || running}
                   onClick={() => void actions.runNow(family, directory)}
                 />
@@ -334,8 +336,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                   icon={paused ? "play-circle" : "pause"}
                   label={
                     paused
-                      ? t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName: family.title })
-                      : t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName: family.title })
+                      ? t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName })
+                      : t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName })
                   }
                   disabled={busy}
                   onClick={() => void actions.toggleEnabled(family, directory, paused)}
@@ -350,7 +352,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                 <button
                   type="button"
                   className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
-                  aria-label={t("sessions.sidebar.scheduled.actions.moreAria", { taskName: family.title })}
+                  aria-label={t("sessions.sidebar.scheduled.actions.moreAria", { taskName })}
                   disabled={busy}
                 >
                   <Icon name="more-2" className="h-3.5 w-3.5" />
@@ -359,6 +361,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               <DropdownMenuContent align="end" className="min-w-[180px] max-w-[300px]">
                 <DropdownMenuLabel className="space-y-0.5 font-normal">
                   <span className="block truncate typography-ui-label text-foreground">{family.title}</span>
+                  {showProjectLabels ? <span className="block break-all typography-micro text-muted-foreground">{projectLabel}</span> : null}
                   <span className="block typography-micro text-muted-foreground">{schedule}</span>
                   {family.nextRunAt && !paused ? (
                     <span className="block typography-micro text-muted-foreground">

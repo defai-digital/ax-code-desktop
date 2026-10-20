@@ -17,6 +17,7 @@ interface SidebarSortableProjectItemProps {
   /** Draw a hairline top divider + margin to separate this project from the one above. */
   showTopDivider?: boolean
   projectDescription: string
+  showProjectDescription?: boolean
   projectLastUsedLabel?: string | null
   projectIcon?: string
   projectColor?: string
@@ -55,6 +56,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
   isHomeProject,
   showTopDivider,
   projectDescription,
+  showProjectDescription = false,
   projectLastUsedLabel,
   projectIcon,
   projectColor,
@@ -83,12 +85,14 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
 }) => {
   const { t } = useI18n()
   const { currentTheme } = useThemeSystem()
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
 
   const [imageFailed, setImageFailed] = React.useState(false)
   const suppressNextToggleRef = React.useRef(false)
   const menuInstanceKey = `project:${id}`
   const isMenuOpen = openSidebarMenuKey === menuInstanceKey
+  const projectContext = showProjectDescription ? `${projectLabel} · ${projectDescription}` : projectLabel
+  const actionLabel = (action: string) => showProjectDescription ? `${action} · ${projectContext}` : action
 
   React.useEffect(() => {
     setImageFailed(false)
@@ -160,14 +164,19 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
             className={cn("w-full text-left group/project select-none")}
             style={{ backgroundColor: isDesktopShell && isStuck ? "transparent" : undefined }}
           >
-            <div className="relative flex items-center gap-1 px-0.5 py-0.5" {...attributes}>
+            <div className="relative flex items-center gap-1 px-0.5 py-0.5">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
                     type="button"
+                    ref={setActivatorNodeRef}
                     onMouseDown={handleToggleMouseDown}
                     onClick={handleToggleClick}
+                    {...attributes}
                     {...listeners}
+                    aria-label={projectContext}
+                    aria-expanded={!isCollapsed}
+                    data-project-header={id}
                     className={cn(
                       "flex-1 min-w-0 flex items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-md cursor-grab active:cursor-grabbing transition-[padding]",
                       isRepo && !hideDirectoryControls
@@ -236,13 +245,18 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                         />
                       )}
                     </span>
-                    <span
-                      className={cn(
-                        "typography-ui-label font-normal truncate",
-                        isActiveProject ? "text-foreground" : "text-foreground group-hover/project:text-foreground",
-                      )}
-                    >
-                      {projectLabel}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span
+                        className={cn(
+                          "typography-ui-label font-normal truncate",
+                          isActiveProject ? "text-foreground" : "text-foreground group-hover/project:text-foreground",
+                        )}
+                      >
+                        {projectLabel}
+                      </span>
+                      {showProjectDescription ? (
+                        <span className="break-all typography-micro text-muted-foreground">{projectDescription}</span>
+                      ) : null}
                     </span>
                     {isPinned ? (
                       <Icon name="pushpin-2-fill" className="h-3 w-3 shrink-0 text-primary/80" aria-hidden />
@@ -280,7 +294,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                             ? "opacity-100"
                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
                         )}
-                        aria-label={t("sessions.sidebar.project.actions.newWorktree")}
+                        aria-label={actionLabel(t("sessions.sidebar.project.actions.newWorktree"))}
                       >
                         <Icon name="node-tree" className="h-4 w-4" />
                       </button>
@@ -303,7 +317,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                             ? "opacity-100"
                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
                       )}
-                      aria-label={t("sessions.sidebar.project.actions.projectMenu")}
+                      aria-label={actionLabel(t("sessions.sidebar.project.actions.projectMenu"))}
                       onPointerDown={handleMenuTriggerPointerDown}
                       onMouseDown={handleMenuTriggerMouseDown}
                       onClick={handleMenuTriggerClick}
@@ -355,9 +369,9 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
                         )}
                         aria-label={
-                          isRepo
+                          actionLabel(isRepo
                             ? t("sessions.sidebar.project.actions.newDraftSession")
-                            : t("sessions.sidebar.project.actions.newSession")
+                            : t("sessions.sidebar.project.actions.newSession"))
                         }
                       >
                         <Icon name="add" className="h-4 w-4" />

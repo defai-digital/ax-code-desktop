@@ -204,13 +204,15 @@ const server = http.createServer((req, res) => {
     }
     if (pathname === '/scheduled-task' && req.method === 'GET') {
       const scope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
-      json(res, scope === directory ? scheduledFixture.map(entry => entry.task) : []);
+      json(res, projects.some(project => project.worktree === scope) ? scheduledFixture
+        .filter(entry => entry.task.directory === scope).map(entry => entry.task) : []);
       return;
     }
     const historyMatch = pathname.match(/^\\/scheduled-task\\/([^/]+)\\/runs$/);
     if (historyMatch && req.method === 'GET') {
       const scope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
-      const entry = scope === directory ? scheduledFixture.find(entry => entry.task.id === historyMatch[1]) : null;
+      const entry = projects.some(project => project.worktree === scope) ? scheduledFixture
+        .find(entry => entry.task.directory === scope && entry.task.id === historyMatch[1]) : null;
       json(res, entry ? entry.history : []);
       return;
     }

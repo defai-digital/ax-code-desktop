@@ -53,6 +53,17 @@ readable directory context at 800 and 600 CSS pixels, explicitly opening the res
 including a light-theme check. The narrower emulated viewport is a rendering stress case, not a
 new native minimum-window-size promise. This is fixture-backed navigation verification, not concurrent provider execution.
 
+For same-name project headers and scheduled definitions, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/project-schedule-targets-webmcp.mjs --artifacts /tmp/ax-project-schedule-targets
+```
+
+This uses two projects with the same label and tasks with the same title/ID. It verifies project collapse isolation,
+opens each editor against a distinct fixture prompt, checks the new-task project picker, and records narrow/light/dark
+rendering. Editors are cancelled and the final receipt checks that no scheduled definitions were written. Runtime project
+IDs and Desktop registry IDs are separate; the journey joins their observed controls by directory.
+
 The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,
 restores it, verifies the DOM and checks CSP and renderer errors. The Settings audit inventories all 15 tabs and paged
 controls, exercises select options, numeric editing/reset, reversible local preferences, shortcut search/focus and Hooks

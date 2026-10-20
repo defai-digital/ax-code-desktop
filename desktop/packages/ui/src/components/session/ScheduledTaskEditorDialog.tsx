@@ -1255,9 +1255,9 @@ export function ScheduledTaskEditorDialog(props: {
   const title = task ? t("sessions.scheduledTasks.editor.title.edit") : t("sessions.scheduledTasks.editor.title.new")
   const description = t("sessions.scheduledTasks.editor.description")
   const projectLine = projectLabel ? (
-    <p className="typography-micro mt-0.5 inline-flex min-w-0 items-center gap-1 text-muted-foreground">
+    <p className="typography-micro mt-0.5 inline-flex min-w-0 max-w-full items-start gap-1 text-muted-foreground" data-scheduled-project-context>
       <Icon name="folder" className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
+      <span className="min-w-0 break-all">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
     </p>
   ) : null
   const irregularScheduleNote =

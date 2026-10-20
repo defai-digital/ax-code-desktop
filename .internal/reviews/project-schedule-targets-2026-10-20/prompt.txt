@@ -1,0 +1,334 @@
+Review this AX Code Desktop GUI repair for up to three concrete correctness defects. Do not use tools, delegate, edit files, or access the network yourself; review only the supplied code. Answer in English. The app supervises multiple projects. Same rendered project labels and same scheduled-task titles must remain distinct. Sortable attributes were moved from an inert outer wrapper to the actual header button, alongside the existing listeners and activator ref. Scheduler actions retain canonical directory/task IDs. Cross-project duplicate task titles receive project context in action names. Mounted tests cover exact toggle/pause destinations; native tests open/cancel editors and compare distinct prompts. Report only source-grounded defects, or no findings. Do not treat missing screenshot or concurrency evidence as a discovered defect.
+
+diff --git a/desktop/packages/ui/src/components/session/ScheduledTaskEditorDialog.tsx b/desktop/packages/ui/src/components/session/ScheduledTaskEditorDialog.tsx
+index e10c9981..0029ab81 100644
+--- a/desktop/packages/ui/src/components/session/ScheduledTaskEditorDialog.tsx
++++ b/desktop/packages/ui/src/components/session/ScheduledTaskEditorDialog.tsx
+@@ -1255,9 +1255,9 @@ export function ScheduledTaskEditorDialog(props: {
+   const title = task ? t("sessions.scheduledTasks.editor.title.edit") : t("sessions.scheduledTasks.editor.title.new")
+   const description = t("sessions.scheduledTasks.editor.description")
+   const projectLine = projectLabel ? (
+-    <p className="typography-micro mt-0.5 inline-flex min-w-0 items-center gap-1 text-muted-foreground">
++    <p className="typography-micro mt-0.5 inline-flex min-w-0 max-w-full items-start gap-1 text-muted-foreground" data-scheduled-project-context>
+       <Icon name="folder" className="h-3.5 w-3.5 shrink-0" />
+-      <span className="truncate">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
++      <span className="min-w-0 break-all">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
+     </p>
+   ) : null
+   const irregularScheduleNote =
+diff --git a/desktop/packages/ui/src/components/session/sidebar/SidebarProjectsList.tsx b/desktop/packages/ui/src/components/session/sidebar/SidebarProjectsList.tsx
+index a5f6ab8b..a68372b2 100644
+--- a/desktop/packages/ui/src/components/session/sidebar/SidebarProjectsList.tsx
++++ b/desktop/packages/ui/src/components/session/sidebar/SidebarProjectsList.tsx
+@@ -10,11 +10,11 @@ import {
+ } from "@dnd-kit/core"
+ import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
+ import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
+-import { formatDirectoryName, formatPathForDisplay } from "@/lib/utils"
+ import type { ProjectSection, SessionGroup } from "./types"
+ import type { SortableDragHandleProps } from "./sortableItems"
+ import { SortableGroupItem, SortableProjectItem } from "./sortableItems"
+-import { formatProjectLabel, normalizePath } from "./utils"
++import { normalizePath } from "./utils"
++import { sidebarProjectLabels } from "./projectLabels"
+ import { useI18n } from "@/lib/i18n"
+ import { formatProjectLastUsed } from "@/lib/projectLastUsed"
+ import type { MainTab } from "@/stores/useUIStore"
+@@ -68,6 +68,9 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
+     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+   )
+   const groupSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
++  const projectLabels = sidebarProjectLabels(props.projectSections.map(({ project }) => ({
++    ...project, path: project.normalizedPath,
++  })), props.homeDirectory, t("sessions.sidebar.project.home"))
+
+   if (props.projectSections.length === 0) {
+     return (
+@@ -172,13 +175,7 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
+                 const projectKey = project.id
+                 const isHomeProject =
+                   Boolean(props.homeDirectory) && project.normalizedPath === normalizePath(props.homeDirectory)
+-                const projectLabel = formatProjectLabel(
+-                  project.label?.trim() ||
+-                    (isHomeProject ? t("sessions.sidebar.project.home") : "") ||
+-                    formatDirectoryName(project.normalizedPath, props.homeDirectory) ||
+-                    project.normalizedPath,
+-                )
+-                const projectDescription = formatPathForDisplay(project.normalizedPath, props.homeDirectory)
++                const { label: projectLabel, description: projectDescription, ambiguous } = projectLabels.get(projectKey)!
+                 const projectLastUsedLabel = formatProjectLastUsed(project.lastOpenedAt, t)
+                 const isCollapsed = props.collapsedProjects.has(projectKey)
+                 const isActiveProject = projectKey === props.activeProjectId
+@@ -197,6 +194,7 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
+                     isHomeProject={isHomeProject}
+                     showTopDivider={index > 0}
+                     projectDescription={projectDescription}
++                    showProjectDescription={ambiguous}
+                     projectLastUsedLabel={projectLastUsedLabel}
+                     projectIcon={project.icon}
+                     projectColor={project.color}
+diff --git a/desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.tsx b/desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.tsx
+index d51e03c9..4cf24b30 100644
+--- a/desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.tsx
++++ b/desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.tsx
+@@ -17,10 +17,10 @@ import { useUIStore } from "@/stores/useUIStore"
+ import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
+ import { useThemeSystem } from "@/contexts/useThemeSystem"
+ import { useI18n } from "@/lib/i18n"
+-import { cn, formatDirectoryName } from "@/lib/utils"
++import { cn } from "@/lib/utils"
+ import type { ProjectEntry } from "@/lib/api/types"
+ import { buildProjectGroups } from "../scheduledTaskGroups"
+-import { formatProjectLabel } from "./utils"
++import { sidebarProjectLabels } from "./projectLabels"
+ import { formatFamilySchedule, formatRelativeTime, formatRunMoment } from "../scheduledTaskFormat"
+ import {
+   buildPendingEntries,
+@@ -92,17 +92,18 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+   const headingId = `${sectionId}-heading`
+
+   const projectGroups = React.useMemo<ProjectGroup[]>(
+-    () =>
+-      buildProjectGroups(projects).map(({ directory, project }) => ({
++    () => {
++      const groups = buildProjectGroups(projects)
++      const labels = sidebarProjectLabels(groups.map(({ directory, project }) => ({ ...project, path: directory })),
++        homeDirectory, t("sessions.sidebar.project.home"))
++      return groups.map(({ directory, project }) => ({
+         directory,
+         project,
+         tasks: [],
+-        // Same name as the project's header in the list below.
+-        label: formatProjectLabel(
+-          project.label?.trim() || formatDirectoryName(project.path, homeDirectory || undefined) || directory,
+-        ),
+-      })),
+-    [projects, homeDirectory],
++        label: labels.get(project.id)!.contextLabel,
++      }))
++    },
++    [projects, homeDirectory, t],
+   )
+
+   const localTimezone = React.useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+@@ -205,7 +206,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+               onClick={() => actions.openNewTask(group.directory, group.label)}
+             >
+               <ProjectGlyph project={group.project} />
+-              <span className="truncate">{group.label}</span>
++              <span className="min-w-0 break-all">{group.label}</span>
+             </DropdownMenuItem>
+           ))}
+         </DropdownMenuContent>
+@@ -215,6 +216,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+   const renderRow = (entry: PendingScheduleEntry) => {
+     const { family, directory, project } = entry
+     const projectLabel = labelByDirectory.get(directory) ?? directory
++    const sameTitleElsewhere = entries.some(other => other.directory !== directory && other.family.title === family.title)
++    const taskName = sameTitleElsewhere ? `${family.title} · ${projectLabel}` : family.title
+     const busy = actions.busyKeys.has(entry.key)
+     const running = family.lastRunStatus === "running"
+     const failing = family.lastRunStatus === "error"
+@@ -265,7 +268,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+           className="min-w-0 flex-1 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+           onClick={() => actions.openEditTask(family, directory, projectLabel)}
+           disabled={busy}
+-          aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName: family.title })}
++          aria-label={t("sessions.scheduledTasks.dialog.actions.editAria", { taskName })}
+         >
+           <span className="flex min-w-0 items-center gap-1.5">
+             <span className={cn("truncate typography-ui-label", paused ? "text-muted-foreground" : "text-foreground")}>
+@@ -281,14 +284,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+             ) : null}
+             <span className="sr-only">{statusText}</span>
+           </span>
++          {showProjectLabels ? (
++            <span className="flex min-w-0 items-start gap-1 typography-micro leading-tight text-muted-foreground">
++              <ProjectGlyph project={project} />
++              <span className="min-w-0 break-all">{projectLabel}</span>
++            </span>
++          ) : null}
+           <span className="flex min-w-0 items-center gap-1 typography-micro leading-tight text-muted-foreground">
+-            {showProjectLabels ? (
+-              <>
+-                <ProjectGlyph project={project} />
+-                <span className="max-w-[45%] shrink-0 truncate">{projectLabel}</span>
+-                <span aria-hidden="true">·</span>
+-              </>
+-            ) : null}
+             {unknown ? (
+               <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
+                 {t("sessions.sidebar.scheduled.history.loadFailed")}
+@@ -326,7 +328,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+               <>
+                 <RowIconButton
+                   icon="play"
+-                  label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName: family.title })}
++                  label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName })}
+                   disabled={busy || running}
+                   onClick={() => void actions.runNow(family, directory)}
+                 />
+@@ -334,8 +336,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+                   icon={paused ? "play-circle" : "pause"}
+                   label={
+                     paused
+-                      ? t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName: family.title })
+-                      : t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName: family.title })
++                      ? t("sessions.scheduledTasks.dialog.taskToggle.enableAria", { taskName })
++                      : t("sessions.scheduledTasks.dialog.taskToggle.pauseAria", { taskName })
+                   }
+                   disabled={busy}
+                   onClick={() => void actions.toggleEnabled(family, directory, paused)}
+@@ -350,7 +352,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+                 <button
+                   type="button"
+                   className="inline-flex h-5 w-5 items-center justify-center rounded text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+-                  aria-label={t("sessions.sidebar.scheduled.actions.moreAria", { taskName: family.title })}
++                  aria-label={t("sessions.sidebar.scheduled.actions.moreAria", { taskName })}
+                   disabled={busy}
+                 >
+                   <Icon name="more-2" className="h-3.5 w-3.5" />
+@@ -359,6 +361,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode
+               <DropdownMenuContent align="end" className="min-w-[180px] max-w-[300px]">
+                 <DropdownMenuLabel className="space-y-0.5 font-normal">
+                   <span className="block truncate typography-ui-label text-foreground">{family.title}</span>
++                  {showProjectLabels ? <span className="block break-all typography-micro text-muted-foreground">{projectLabel}</span> : null}
+                   <span className="block typography-micro text-muted-foreground">{schedule}</span>
+                   {family.nextRunAt && !paused ? (
+                     <span className="block typography-micro text-muted-foreground">
+diff --git a/desktop/packages/ui/src/components/session/sidebar/sortableItems.tsx b/desktop/packages/ui/src/components/session/sidebar/sortableItems.tsx
+index 29029233..dfe84b16 100644
+--- a/desktop/packages/ui/src/components/session/sidebar/sortableItems.tsx
++++ b/desktop/packages/ui/src/components/session/sidebar/sortableItems.tsx
+@@ -17,6 +17,7 @@ interface SidebarSortableProjectItemProps {
+   /** Draw a hairline top divider + margin to separate this project from the one above. */
+   showTopDivider?: boolean
+   projectDescription: string
++  showProjectDescription?: boolean
+   projectLastUsedLabel?: string | null
+   projectIcon?: string
+   projectColor?: string
+@@ -55,6 +56,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+   isHomeProject,
+   showTopDivider,
+   projectDescription,
++  showProjectDescription = false,
+   projectLastUsedLabel,
+   projectIcon,
+   projectColor,
+@@ -83,12 +85,14 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+ }) => {
+   const { t } = useI18n()
+   const { currentTheme } = useThemeSystem()
+-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
++  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id })
+
+   const [imageFailed, setImageFailed] = React.useState(false)
+   const suppressNextToggleRef = React.useRef(false)
+   const menuInstanceKey = `project:${id}`
+   const isMenuOpen = openSidebarMenuKey === menuInstanceKey
++  const projectContext = showProjectDescription ? `${projectLabel} · ${projectDescription}` : projectLabel
++  const actionLabel = (action: string) => showProjectDescription ? `${action} · ${projectContext}` : action
+
+   React.useEffect(() => {
+     setImageFailed(false)
+@@ -160,14 +164,19 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+             className={cn("w-full text-left group/project select-none")}
+             style={{ backgroundColor: isDesktopShell && isStuck ? "transparent" : undefined }}
+           >
+-            <div className="relative flex items-center gap-1 px-0.5 py-0.5" {...attributes}>
++            <div className="relative flex items-center gap-1 px-0.5 py-0.5">
+               <Tooltip>
+                 <TooltipTrigger asChild>
+                   <button
+                     type="button"
++                    ref={setActivatorNodeRef}
+                     onMouseDown={handleToggleMouseDown}
+                     onClick={handleToggleClick}
++                    {...attributes}
+                     {...listeners}
++                    aria-label={projectContext}
++                    aria-expanded={!isCollapsed}
++                    data-project-header={id}
+                     className={cn(
+                       "flex-1 min-w-0 flex items-center gap-1.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-md cursor-grab active:cursor-grabbing transition-[padding]",
+                       isRepo && !hideDirectoryControls
+@@ -236,13 +245,18 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+                         />
+                       )}
+                     </span>
+-                    <span
+-                      className={cn(
+-                        "typography-ui-label font-normal truncate",
+-                        isActiveProject ? "text-foreground" : "text-foreground group-hover/project:text-foreground",
+-                      )}
+-                    >
+-                      {projectLabel}
++                    <span className="flex min-w-0 flex-1 flex-col">
++                      <span
++                        className={cn(
++                          "typography-ui-label font-normal truncate",
++                          isActiveProject ? "text-foreground" : "text-foreground group-hover/project:text-foreground",
++                        )}
++                      >
++                        {projectLabel}
++                      </span>
++                      {showProjectDescription ? (
++                        <span className="break-all typography-micro text-muted-foreground">{projectDescription}</span>
++                      ) : null}
+                     </span>
+                     {isPinned ? (
+                       <Icon name="pushpin-2-fill" className="h-3 w-3 shrink-0 text-primary/80" aria-hidden />
+@@ -280,7 +294,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+                             ? "opacity-100"
+                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
+                         )}
+-                        aria-label={t("sessions.sidebar.project.actions.newWorktree")}
++                        aria-label={actionLabel(t("sessions.sidebar.project.actions.newWorktree"))}
+                       >
+                         <Icon name="node-tree" className="h-4 w-4" />
+                       </button>
+@@ -303,7 +317,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+                             ? "opacity-100"
+                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
+                       )}
+-                      aria-label={t("sessions.sidebar.project.actions.projectMenu")}
++                      aria-label={actionLabel(t("sessions.sidebar.project.actions.projectMenu"))}
+                       onPointerDown={handleMenuTriggerPointerDown}
+                       onMouseDown={handleMenuTriggerMouseDown}
+                       onClick={handleMenuTriggerClick}
+@@ -355,9 +369,9 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
+                             : "opacity-0 pointer-events-none group-hover/project:opacity-100 group-hover/project:pointer-events-auto group-focus-within/project:opacity-100 group-focus-within/project:pointer-events-auto",
+                         )}
+                         aria-label={
+-                          isRepo
++                          actionLabel(isRepo
+                             ? t("sessions.sidebar.project.actions.newDraftSession")
+-                            : t("sessions.sidebar.project.actions.newSession")
++                            : t("sessions.sidebar.project.actions.newSession"))
+                         }
+                       >
+                         <Icon name="add" className="h-4 w-4" />
+
+Label helper:
+import { formatDirectoryName, formatPathForDisplay } from "@/lib/utils"
+import { formatProjectLabel, normalizePath } from "./utils"
+
+type ProjectLabelInput = { id: string; path: string; label?: string | null }
+
+/** Compare displayed labels, since formatting can make different names collide. */
+export function sidebarProjectLabels(projects: readonly ProjectLabelInput[], home: string | null, homeLabel: string) {
+  const labels = projects.map(project => ({
+    id: project.id,
+    label: formatProjectLabel(project.label?.trim() ||
+      (home && normalizePath(project.path) === normalizePath(home) ? homeLabel : "") ||
+      formatDirectoryName(project.path, home || undefined) || project.path),
+    description: formatPathForDisplay(project.path, home),
+  }))
+  const counts = new Map<string, number>()
+  for (const entry of labels) counts.set(entry.label, (counts.get(entry.label) ?? 0) + 1)
+  return new Map(labels.map(entry => {
+    const ambiguous = (counts.get(entry.label) ?? 0) > 1
+    return [entry.id, { ...entry, ambiguous, contextLabel: ambiguous ? `${entry.label} · ${entry.description}` : entry.label }]
+  }))
+}

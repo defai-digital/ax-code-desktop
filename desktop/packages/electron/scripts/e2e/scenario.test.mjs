@@ -107,6 +107,25 @@ spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their 
   expect(await (await read(`/session/${other.session.id}/goal`, other.session.directory)).json()).toBeNull()
 })
 
+spawnTest("portfolio scheduled reads isolate duplicate task IDs and histories by directory", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/portfolio/project", portfolio: true })
+  const handle = await startStub({ scenario })
+  const tasks = [scenario.projectDirectory, scenario.portfolio[0].project.worktree].map((directory, index) => ({
+    task: { id: "same-id", directory, title: "Nightly", prompt: `Project ${index}` },
+    history: [{ id: `run-${index}`, taskID: "same-id", status: "completed", time: { created: 1 } }],
+  }))
+  await fetch(`${handle.base}/__e2e__/scheduled-tasks`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ tasks }),
+  })
+  for (const entry of tasks) {
+    const query = `?directory=${encodeURIComponent(entry.task.directory)}`
+    expect(await (await fetch(`${handle.base}/scheduled-task${query}`)).json()).toEqual([entry.task])
+    expect(await (await fetch(`${handle.base}/scheduled-task/same-id/runs${query}`)).json()).toEqual(entry.history)
+  }
+  expect(await (await fetch(`${handle.base}/scheduled-task?directory=/unknown`)).json()).toEqual([])
+  expect(await (await fetch(`${handle.base}/scheduled-task/same-id/runs?directory=/unknown`)).json()).toEqual([])
+})
+
 describe("buildE2eScenario", () => {
   test("describes one session, two distinct requests and a blocked budget goal", () => {
     const scenario = buildE2eScenario({ directory: "/tmp/e2e-project", now: 1_700_000_000_000 })

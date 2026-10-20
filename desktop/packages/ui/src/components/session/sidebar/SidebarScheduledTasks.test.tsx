@@ -167,6 +167,33 @@ describe("SidebarScheduledTasks", () => {
     expect(editorProps.current?.projectLabel).toBe("Beta")
   })
 
+  test("same-title tasks in same-label projects retain distinct action names and exact pause destinations", async () => {
+    useProjectsStore.setState({ projects: [
+      { id: "p-alpha", path: "/work/alpha", label: "shared-project" },
+      { id: "p-beta", path: "/work/beta", label: "shared_project" },
+    ] })
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [task({ id: "same-id", directory, title: "Nightly" })])
+    setScheduledTasksEnabled.mockResolvedValue(undefined)
+    await render()
+    const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-scheduled-task-row]"))
+    expect(rows).toHaveLength(2)
+    for (const directory of ["/work/alpha", "/work/beta"]) {
+      const row = rows.find(row => row.textContent?.includes(directory))
+      expect(row).toBeDefined()
+      const edit = row!.querySelector<HTMLButtonElement>("button")!
+      expect(edit.getAttribute("aria-label")).toContain(directory)
+      await act(async () => edit.click())
+      expect(editorProps.current?.task?.id).toBe("same-id")
+      expect(editorProps.current?.projectLabel).toContain(directory)
+      const pause = Array.from(row!.querySelectorAll<HTMLButtonElement>("button")).find(button =>
+        button.getAttribute("aria-label")?.startsWith("Pause Nightly"))!
+      expect(pause.getAttribute("aria-label")).toContain(directory)
+      await act(async () => pause.click())
+      await flush()
+      expect(setScheduledTasksEnabled).toHaveBeenLastCalledWith(directory, ["same-id"], false)
+    }
+  })
+
   test("an unavailable history stays visible without corrupting another project's running row", async () => {
     fetchScheduledTasks.mockImplementation(async (directory: string) => [
       task({

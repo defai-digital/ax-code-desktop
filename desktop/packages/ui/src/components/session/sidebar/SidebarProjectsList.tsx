@@ -10,11 +10,11 @@ import {
 } from "@dnd-kit/core"
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
-import { formatDirectoryName, formatPathForDisplay } from "@/lib/utils"
 import type { ProjectSection, SessionGroup } from "./types"
 import type { SortableDragHandleProps } from "./sortableItems"
 import { SortableGroupItem, SortableProjectItem } from "./sortableItems"
-import { formatProjectLabel, normalizePath } from "./utils"
+import { normalizePath } from "./utils"
+import { sidebarProjectLabels } from "./projectLabels"
 import { useI18n } from "@/lib/i18n"
 import { formatProjectLastUsed } from "@/lib/projectLastUsed"
 import type { MainTab } from "@/stores/useUIStore"
@@ -68,6 +68,9 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
   const groupSensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const projectLabels = sidebarProjectLabels(props.projectSections.map(({ project }) => ({
+    ...project, path: project.normalizedPath,
+  })), props.homeDirectory, t("sessions.sidebar.project.home"))
 
   if (props.projectSections.length === 0) {
     return (
@@ -172,13 +175,7 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                 const projectKey = project.id
                 const isHomeProject =
                   Boolean(props.homeDirectory) && project.normalizedPath === normalizePath(props.homeDirectory)
-                const projectLabel = formatProjectLabel(
-                  project.label?.trim() ||
-                    (isHomeProject ? t("sessions.sidebar.project.home") : "") ||
-                    formatDirectoryName(project.normalizedPath, props.homeDirectory) ||
-                    project.normalizedPath,
-                )
-                const projectDescription = formatPathForDisplay(project.normalizedPath, props.homeDirectory)
+                const { label: projectLabel, description: projectDescription, ambiguous } = projectLabels.get(projectKey)!
                 const projectLastUsedLabel = formatProjectLastUsed(project.lastOpenedAt, t)
                 const isCollapsed = props.collapsedProjects.has(projectKey)
                 const isActiveProject = projectKey === props.activeProjectId
@@ -197,6 +194,7 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                     isHomeProject={isHomeProject}
                     showTopDivider={index > 0}
                     projectDescription={projectDescription}
+                    showProjectDescription={ambiguous}
                     projectLastUsedLabel={projectLastUsedLabel}
                     projectIcon={project.icon}
                     projectColor={project.color}

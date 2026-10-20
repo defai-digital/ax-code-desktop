@@ -266,7 +266,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
     <div className={cn("flex w-full flex-col", compact ? "gap-2" : "gap-3", className)}>
       {/* Sessions waiting on a person lead the home, as their own section above Projects. */}
       {variant === "home" && !compact ? <NeedsYouQueue className="mb-2" /> : null}
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2" data-projects-home-header>
         <div className="min-w-0">
           <h2 className={cn("font-medium text-foreground", compact ? "typography-ui-label" : "typography-ui-header")}>
             {t("projects.home.title")}
@@ -275,7 +275,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             <p className="typography-meta mt-0.5 text-muted-foreground">{t("projects.home.subtitle")}</p>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+        <div className="flex min-w-0 flex-wrap items-center gap-1" data-projects-home-actions>
           {!compact ? (
             <>
               <Button
@@ -284,6 +284,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                 variant="ghost"
                 onClick={handleClone}
                 className="h-7 gap-1 px-2 text-muted-foreground"
+                aria-label={t("projects.home.actions.clone")}
               >
                 <Icon name="git-repository" className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{t("projects.home.actions.clone")}</span>
@@ -295,6 +296,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                 onClick={handleBrowsePath}
                 className="h-7 gap-1 px-2 text-muted-foreground"
                 title={t("projects.home.actions.browsePath")}
+                aria-label={t("projects.home.actions.browsePath")}
               >
                 <Icon name="folder-6" className="h-3.5 w-3.5" />
                 <span className="hidden md:inline">{t("projects.home.actions.browsePath")}</span>
@@ -306,6 +308,7 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
                 onClick={() => setImportOpen(true)}
                 className="h-7 gap-1 px-2 text-muted-foreground"
                 title={t("projects.home.actions.import")}
+                aria-label={t("projects.home.actions.import")}
               >
                 <Icon name="download-cloud" className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">{t("projects.home.actions.import")}</span>
