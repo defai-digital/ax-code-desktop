@@ -1,7 +1,17 @@
 import { describe, expect, test } from "vitest"
 import { isAppPageTarget } from "./cdp.mjs"
 import { parseCspDirectiveSources } from "./csp.mjs"
-import { JOURNEYS, findForbiddenScriptSources, isCspConsoleMessage, isSupervisionPageTarget } from "./journeys.mjs"
+import {
+  CSP_RECORDER_SCRIPT,
+  FINAL_CHECKS,
+  JOURNEYS,
+  findForbiddenScriptSources,
+  isCspConsoleMessage,
+  isSupervisionPageTarget,
+  journeyRendererErrors,
+  journeyCspClean,
+} from "./journeys.mjs"
+import { runInNewContext } from "node:vm"
 import { buildLaunchSpec } from "./launch.mjs"
 import { parseArgs, summarize } from "./run.mjs"
 import { STUB_LIST_ROUTES, buildStubRuntimeScript } from "./stub-runtime.mjs"
@@ -81,6 +91,45 @@ describe("CSP helpers", () => {
 })
 
 describe("harness plumbing", () => {
+  test("late uncaught renderer errors fail the run, while ordinary logs stay diagnostic", async () => {
+    expect((await journeyRendererErrors({ consoleMessages: [{ source: "console", text: "ready" }] })).ok).toBe(true)
+    const result = await journeyRendererErrors({
+      consoleMessages: [{ source: "exception", text: "TypeError: broken settings" }],
+    })
+    expect(result.ok).toBe(false)
+    expect(result.detail).toContain("broken settings")
+    expect(FINAL_CHECKS).toEqual([journeyCspClean, journeyRendererErrors])
+    expect(JOURNEYS.at(-1).name).toBe("journeyReload")
+  })
+
+  test("forwards CSP failures to the host so a document reload cannot erase them", () => {
+    const host = []
+    const load = () => {
+      let listener
+      const window = { __axE2eReportCsp: (payload) => host.push(payload) }
+      runInNewContext(CSP_RECORDER_SCRIPT, {
+        window,
+        document: {
+          addEventListener: (_, callback) => {
+            listener = callback
+          },
+        },
+      })
+      return { window, violate: (event) => listener(event) }
+    }
+    const first = load()
+    first.violate({
+      effectiveDirective: "script-src",
+      blockedURI: "eval",
+      sample: "",
+      sourceFile: "app://ax-code/",
+      lineNumber: 1,
+    })
+    const reloaded = load()
+    expect(reloaded.window.__axE2eCspViolations).toEqual([])
+    expect(host).toHaveLength(1)
+    expect(JSON.parse(host[0])).toMatchObject({ directive: "script-src", blockedURI: "eval" })
+  })
   test("selects only the app's own renderer page", () => {
     expect(isAppPageTarget({ type: "page", url: "app://ax-code/" })).toBe(true)
     expect(isAppPageTarget({ type: "page", url: "http://127.0.0.1:5000/" })).toBe(true)

@@ -10,4 +10,6 @@ Engineering investigations and proposed implementation plans live here. A report
 
 Existing standalone reports and historical evidence packages remain in their original locations.
 
+- [Testing and CI/CD reference review](TESTING-CICD-2026-10-19-reference-review.md): Orca, OpenCode and Hermes Agent snapshot comparison, paired local implementation and validation receipts.
+
 - [Analysis routing and Streamlit retirement](ANALYSIS-ROUTING-2026-10-18-retirement.md): implemented, source-qualified, paired runtime/BI commits recorded.

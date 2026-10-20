@@ -62,6 +62,7 @@ end-to-end harness, structure and supervision work). Settled decisions and their
 | Development app               | `pnpm run dev`                                                     |
 | Release readiness (read-only)  | `pnpm run release:preflight`                                       |
 | End-to-end journeys (after build) | `pnpm run e2e:desktop` (`-- --app <path>.app` for packaged)     |
+| Harness failure-detection self-test (after build) | `pnpm run e2e:desktop:self-test` (also accepts `-- --app <path>.app`) |
 | Source-text test ratchet       | `pnpm run check:source-text-tests` (part of `check:boundaries`)    |
 | Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 

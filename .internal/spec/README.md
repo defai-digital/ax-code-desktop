@@ -6,6 +6,8 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
+Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-harness-v2.md), accepted for the 2026-10-19 testing/CI improvement. Extends v1 with reload, retained CSP history, exception detection, failure injection and explicit CI result aggregation; preserves advisory qualification.
+
 | Spec                                                                                        | Current interpretation                                                            | Related                                  |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- |
 | [AX Code JSR SDK Consumption](SPEC-2026-09-02-ax-code-jsr-sdk-consumption.md)               | Implemented and verified                                                          | ADR-001                                  |

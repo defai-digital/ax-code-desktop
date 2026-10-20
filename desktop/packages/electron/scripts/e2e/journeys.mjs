@@ -13,6 +13,8 @@ export const CSP_RECORDER_SCRIPT = `(() => {
       sample: event.sample,
       source: event.sourceFile ? event.sourceFile + ":" + event.lineNumber : "",
     })
+    // The host retains this across reloads, so navigation cannot erase a failure.
+    window.__axE2eReportCsp?.(JSON.stringify(violations[violations.length - 1]))
   })
 })()`
 
@@ -69,6 +71,13 @@ export const journeyCspClean = async ({ session, documentCsp, consoleMessages, p
 }
 
 export const journeySettings = async ({ session, platform = process.platform }) => {
+  // A pop-out can own focus after the preceding journey. Keyboard delivery
+  // requires the tested document to be active, as it would be for a user.
+  await session.send("Page.bringToFront")
+  await waitForCondition(() => session.evaluate("document.hasFocus()"), {
+    timeoutMs: 10_000,
+    label: "main window focus",
+  })
   // CDP modifier bits: Alt=1, Ctrl=2, Meta=4, Shift=8. `mod` is Meta on macOS.
   const modifiers = platform === "darwin" ? 4 : 2
   for (const type of ["rawKeyDown", "keyUp"]) {
@@ -96,11 +105,20 @@ export const SUPERVISION_BOARD_EXPRESSION = `document.querySelector('[data-missi
 
 // SPEC-2026-10-19-supervision-popout-v1: the command opens one pop-out whose
 // page renders the Mission Control board; asking again focuses that window.
-export const journeySupervisionPopout = async ({ session, debuggingPort }) => {
+export const journeySupervisionPopout = async ({ session, debuggingPort, consoleMessages = [] }) => {
   await session.evaluate(OPEN_SUPERVISION_WINDOW_EXPRESSION)
   const target = await waitForTarget(debuggingPort, isSupervisionPageTarget, { timeoutMs: 20_000 })
   const popout = await CdpSession.connect(target.webSocketDebuggerUrl)
   try {
+    popout.on("Runtime.exceptionThrown", ({ exceptionDetails = {} }) => {
+      consoleMessages.push({
+        source: "exception",
+        level: "error",
+        page: target.url,
+        text: exceptionDetails.exception?.description || exceptionDetails.text,
+      })
+    })
+    await popout.send("Runtime.enable")
     await waitForCondition(() => popout.evaluate(SUPERVISION_BOARD_EXPRESSION), {
       timeoutMs: 30_000,
       label: "supervision board",
@@ -117,4 +135,30 @@ export const journeySupervisionPopout = async ({ session, debuggingPort }) => {
   }
 }
 
-export const JOURNEYS = [journeyBoot, journeyPreloadBridge, journeyCspClean, journeySettings, journeySupervisionPopout]
+export const journeyRendererErrors = async ({ consoleMessages }) => {
+  const errors = consoleMessages.filter((message) => message.source === "exception")
+  return {
+    name: "renderer-errors",
+    ok: errors.length === 0,
+    detail: errors.length ? errors.map((message) => message.text).join("; ") : "no uncaught renderer exceptions",
+  }
+}
+
+// A successful initial mount does not prove that a persisted profile can boot
+// again. Verify a new document and the sandbox bridge after user interaction.
+export const journeyReload = async ({ session }) => {
+  const before = await session.evaluate("performance.timeOrigin")
+  await session.send("Page.reload", { ignoreCache: true })
+  await waitForCondition(
+    () => session.evaluate(`performance.timeOrigin !== ${Number(before)} && (${SHELL_READY_EXPRESSION})`),
+    { timeoutMs: 45_000, label: "shell after reload" },
+  )
+  const bridge = await journeyPreloadBridge({ session })
+  if (!bridge.ok) throw new Error(`Preload bridge lost after reload: ${bridge.detail}`)
+  await journeySettings({ session })
+  return { name: "reload", ok: true, detail: "new document rendered, sandbox bridge survived, settings reopened" }
+}
+
+// Security and exception checks run after interactions, including reload.
+export const JOURNEYS = [journeyBoot, journeyPreloadBridge, journeySettings, journeySupervisionPopout, journeyReload]
+export const FINAL_CHECKS = [journeyCspClean, journeyRendererErrors]

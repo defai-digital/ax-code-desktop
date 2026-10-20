@@ -208,6 +208,11 @@ jobs:
           pnpm run e2e:desktop -- --app "desktop/packages/electron/dist/mac-arm64/AX Code.app"
           --artifacts "$RUNNER_TEMP/desktop-e2e/packaged"
 
+      - name: Prove renderer failure detection across reload
+        id: e2e-self-test
+        continue-on-error: true
+        run: pnpm run e2e:desktop:self-test -- --artifacts "$RUNNER_TEMP/desktop-e2e/self-test"
+
       - name: Upload smoke diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7
@@ -218,10 +223,49 @@ jobs:
           retention-days: 3
 
       - name: Upload end-to-end artifacts
-        if: always() && (steps.e2e-unpackaged.outcome == 'failure' || steps.e2e-packaged.outcome == 'failure')
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: desktop-ci-macos-e2e-${{ github.run_id }}
           path: ${{ runner.temp }}/desktop-e2e
           if-no-files-found: ignore
           retention-days: 3
+
+      - name: Summarize advisory renderer journeys
+        if: always()
+        shell: bash
+        env:
+          UNPACKAGED: ${{ steps.e2e-unpackaged.outcome }}
+          PACKAGED: ${{ steps.e2e-packaged.outcome }}
+          SELF_TEST: ${{ steps.e2e-self-test.outcome }}
+        run: |
+          {
+            echo "### Renderer E2E (advisory during qualification)"
+            echo "Unpackaged: ${UNPACKAGED:-not run}; packaged: ${PACKAGED:-not run}"
+            echo "Failure-detection self-test: ${SELF_TEST:-not run}"
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$UNPACKAGED" = failure ] || [ "$PACKAGED" = failure ] || [ "$SELF_TEST" = failure ]; then
+            echo "::warning::Renderer E2E failed; inspect the retained journey results and screenshots."
+          fi
+
+  required-checks:
+    name: Desktop required checks
+    if: always()
+    needs: [changes, verify, electron-native-compatibility, packaged-macos-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "26"
+      - name: Require every selected check to succeed
+        env:
+          CI_CHANGES: ${{ needs.changes.result }}
+          CI_VERIFY_REQUIRED: ${{ needs.changes.outputs.verify }}
+          CI_VERIFY: ${{ needs.verify.result }}
+          CI_NATIVE_REQUIRED: ${{ needs.changes.outputs.native }}
+          CI_NATIVE: ${{ needs.electron-native-compatibility.result }}
+          CI_PACKAGED_REQUIRED: ${{ needs.changes.outputs.packaged }}
+          CI_PACKAGED: ${{ needs.packaged-macos-smoke.result }}
+        run: node script/ci-required-checks.mjs

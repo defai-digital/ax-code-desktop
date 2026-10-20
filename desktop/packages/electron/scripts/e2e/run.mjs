@@ -6,7 +6,7 @@ import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { CdpSession, isAppPageTarget, waitForCondition, waitForTarget } from "./cdp.mjs"
-import { CSP_RECORDER_SCRIPT, JOURNEYS, SHELL_READY_EXPRESSION } from "./journeys.mjs"
+import { CSP_RECORDER_SCRIPT, FINAL_CHECKS, JOURNEYS, SHELL_READY_EXPRESSION } from "./journeys.mjs"
 import { launchDesktop } from "./launch.mjs"
 
 export const parseArgs = (argv) => {
@@ -55,7 +55,7 @@ const writeArtifacts = async ({ dir, launch, consoleMessages, session, results }
   }
 }
 
-export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000 } = {}) => {
+export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000, journeys = JOURNEYS } = {}) => {
   const launch = await launchDesktop({ app })
   const consoleMessages = []
   const results = []
@@ -93,6 +93,11 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000 
       session.send("Network.enable"),
       session.send("Page.enable"),
     ])
+    const cspViolations = []
+    session.on("Runtime.bindingCalled", (params) => {
+      if (params.name === "__axE2eReportCsp") cspViolations.push(params.payload)
+    })
+    await session.send("Runtime.addBinding", { name: "__axE2eReportCsp" })
     await session.send("Page.addScriptToEvaluateOnNewDocument", { source: CSP_RECORDER_SCRIPT })
     // Let main finish its own first load (interrupting it is a startup failure),
     // then reload so the violation recorder and network capture see a whole load.
@@ -102,7 +107,8 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000 
       () => {},
     )
     const packaged = documentUrl.startsWith("app://") || target.url.startsWith("app://")
-    for (const journey of JOURNEYS) {
+    for (const journey of [...journeys, ...FINAL_CHECKS]) {
+      const started = performance.now()
       try {
         results.push(
           await journey({ session, documentCsp, consoleMessages, packaged, debuggingPort: launch.debuggingPort }),
@@ -110,7 +116,19 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000 
       } catch (error) {
         results.push({ name: journey.name.replace(/^journey/, "").toLowerCase(), ok: false, detail: error.message })
       }
+      results.at(-1).durationMs = Math.round(performance.now() - started)
+      if (artifacts) {
+        // Capture each journey before later navigation changes the evidence.
+        await writeArtifacts({
+          dir: path.join(artifacts, results.at(-1).name),
+          launch,
+          consoleMessages,
+          session,
+          results: [results.at(-1)],
+        }).catch(() => {})
+      }
     }
+    if (cspViolations.length) results.push({ name: "csp-history", ok: false, detail: cspViolations.join("; ") })
     return { ...summarize(results), results, consoleMessages }
   } catch (error) {
     results.push({ name: "harness", ok: false, detail: error.message })
