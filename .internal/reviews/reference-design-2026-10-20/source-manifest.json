@@ -1,0 +1,146 @@
+[
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/docs/content/docs/sessions-in-work.mdx",
+    "sha256": "e37493c4f02a7e7db05e8306e537c16fceff34e08be47aec01441f80a7d69a72"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/ui/src/lib/sessionAssistMetadata.ts",
+    "sha256": "91d6dda3239fbfb1826e877e819f0de17ec36f5e2e373c38ceb8eef136aa9b84"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/ui/src/hooks/useSessionAssist.ts",
+    "sha256": "8fe157b7333b0a0ee906488b7eb91fee586a23cb8e0960f627dd6aea713049fe"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/ui/src/components/chat/SessionRecapSpacer.tsx",
+    "sha256": "8ba581ec57529934845b7f4eec086054fc054c5ccd29df180e322c84f98a75b7"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/ui/src/components/session/sidebar/sessions/SessionNodeItem.tsx",
+    "sha256": "4c67d88bad48f280235c9d1ef34476030dac12c1803ad94f3676ec30adba7f25"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "packages/ui/src/components/views/SpacesView.tsx",
+    "sha256": "7a514b8dd31f5bb11021d067fc689c5ee6ce9ae8ed60a6001afe7d188c42a4af"
+  },
+  {
+    "repository": "openchamber",
+    "commit": "ad73d11a6e7cafa0880e238f92ba7cf5cf2cb1fd",
+    "path": "docs/references/desktop_light.png",
+    "sha256": "9f78127815f0ade5e4b1537876834335a10a25e002d0af8d86094bd306722804"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "docs/site/content/docs/recipes/parallel-agents.mdx",
+    "sha256": "2cd85a03ff8a91fea865e8fde53a72dbe8e26fa0f1bd399728977b2511530b61"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "docs/site/content/docs/notifications.mdx",
+    "sha256": "4149cd47dc746622f2ba8d680547e02a80f0c02f9b1635a8de104e769c8b7b84"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "docs/site/content/docs/cli/automations.mdx",
+    "sha256": "3c5f1bd22c5513178861e1274793d11ad8ad2bedd9151745a11a92344fd159f6"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "docs/site/content/docs/cli/overview.mdx",
+    "sha256": "cd117eee0038e06ec790fb432f38d63311441ffadb8c45f9debc3b0b17792bd7"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "src/renderer/src/components/settings/SettingsFormControls.tsx",
+    "sha256": "e135126d24871e72008b0858b98ce9bbf3411717eef011b83edf5118873725c4"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "src/renderer/src/components/settings/ShortcutFilterRail.tsx",
+    "sha256": "30fd9b45847cb63ce8c8c3354059d48112ba6b019ba31d5fbfe5651b79dd7783"
+  },
+  {
+    "repository": "orca",
+    "commit": "bd7633f6eb5e468c5220be77909071cddc466af4",
+    "path": "docs/site/public/docs/ways-to-run-local-sidebar.png",
+    "sha256": "e29f0273b7cbeacc0bb1a3ffc3f9048091a04b30fe851adcd92ffd75cc148231"
+  },
+  {
+    "repository": "herdr",
+    "commit": "143bf5fd4781d164260c63fe28e7dc08054ad32f",
+    "path": "README.md",
+    "sha256": "9b3943664e3c4cf928c1e317f1de632d9a051e59c4b8b6b0e93f1decc43dbb3d"
+  },
+  {
+    "repository": "herdr",
+    "commit": "143bf5fd4781d164260c63fe28e7dc08054ad32f",
+    "path": "src/workspace/aggregate.rs",
+    "sha256": "8a7979e35a6d21e807e74338708d25be92b630c7a805563eecbaa64f019f5471"
+  },
+  {
+    "repository": "herdr",
+    "commit": "143bf5fd4781d164260c63fe28e7dc08054ad32f",
+    "path": "docs/preview/website/src/content/docs/agents.mdx",
+    "sha256": "c119ece87db6dc2520204583723f6b655b13810bbea4a179c1a803a0b87b0f3c"
+  },
+  {
+    "repository": "herdr",
+    "commit": "143bf5fd4781d164260c63fe28e7dc08054ad32f",
+    "path": "assets/screenshot.png",
+    "sha256": "fb762101ab5128fcf1faf70a1360c067e7f2d904c9590da191062f61e4688d27"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/app/src/new-session/workspace/controller.ts",
+    "sha256": "aa0ab19ade3499ac7e3659682f59d058068c1b82f4ab6d87ed0590d43d917d85"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/app/src/new-session/workspace/controller.test.ts",
+    "sha256": "1d82de768e396a32ff6aa67cf1509b1d057395250355f5990da053a383b6aa31"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/app/src/home/projects/controller.tsx",
+    "sha256": "28b6d1311e620bb8f1b10a5d465e3474cf46c4dbbd950a83210f7f17ce4f9353"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/app/src/session/requests/session-permission-dock.tsx",
+    "sha256": "99168640990f26b8c00bc61ad3b77cd94e92a7f70bea7e7644bc97580d7a8159"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/app/src/shell/notifications/coordinator.ts",
+    "sha256": "636a40ed15892bf49794f9deaa00334f21b154fb806fab27309d0913acb27c10"
+  },
+  {
+    "repository": "opencode",
+    "commit": "31dc762147190f1803dd52bb0909c5163e6cc467",
+    "path": "packages/web/src/assets/web/web-homepage-active-session.png",
+    "sha256": "7dc78994b679d039d7bd1a1bed70484e13abb620d693032398644a348e7912e9"
+  }
+]

@@ -1,0 +1,16 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+**Top finding: the direction is sound, but two P0s assume producer contracts the evidence does not establish.** Do not approve as implementation-ready until these are gated.
+
+**1. RS-07 invents schedule-occurrence visibility before proving the contract exists.** Existing six-task evidence uses a mocked prompt boundary; it does not prove a stable occurrence identity, pre-session queued state, or producer-reported terminal states.
+
+Acceptance: trace one schedule end-to-end on the pinned SDK/runtime and document occurrence ID, state enum, error, timing and result link. Scenario 1 passes for 3 projects × 2 schedules, including duplicate task names and one occurrence queued before any session exists. Scenario 3 passes by producer read-back: cancel affects only that run, pause affects only future occurrences, and a transport timeout stays `Uncertain` until reconciled. If any field is absent, RS-07 is marked blocked — no Desktop-minted ID presented as producer state.
+
+**2. The “saved hint first” recap increment can still violate RS-02.** `lastRecap` has text/time/scope and no revision binding; freshness semantics are explicitly unresolved pending ADR-148. Showing it “immediately” beside a resume action invites users to read prose as a verified, current outcome.
+
+Acceptance: until producer semantics are documented, label it exactly as a saved, unverified summary; show time and scope only; emit no current/stale/verified badge and never parse prose into one. Tests: offline return renders it with zero provider calls; a late response for project A cannot populate project C; truncated text has a keyboard-accessible full-text path; `no recap / loading / failed / unavailable` are visually distinct.
+
+**3. Qualification levels are blurred, so fixture success could be sold as live capability.** Mocked dispatch is not provider/MCP isolation, Chrome WebMCP docs do not prove support in the pinned Electron build, packaged apps disable the developer adapter, and the current timezone fix is explicitly not full DST proof.
+
+Acceptance: label every scenario `fixture`, `packaged-build`, or `live-authorized`, and forbid external claims from lower tiers. RS-09 passes on the exact packaged target or is marked unsupported there. DST gap and repeated-hour cases pass against the canonical scheduler, not only the renderer preview. The five-user pilot reports baselines and individual results only; “zero false success” is claimed solely for the scoped fixtures actually run.

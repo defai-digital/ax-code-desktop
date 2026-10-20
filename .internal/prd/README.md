@@ -35,6 +35,11 @@ the earlier authorized Settings/WebMCP repair slice remains in progress. Accepte
 | [Supervision v3](PRD-2026-10-19-supervision-v3.md) | Accepted; pop-out window and multi-run identity |
 | [Trusted supervision v1](PRD-2026-10-19-trusted-supervision-v1.md) | Accepted; Phase A (runtime goal on supervision rows, web-document script hashes, trust scorecard) authorized; Phases B and C are requirements only |
 
+Design comparison follow-up: [Reference-informed supervision and verified outcomes v1](PRD-2026-10-20-reference-informed-supervision-v1.md)
+is proposed, based on local OpenChamber, Orca, Herdr and OpenCode references plus online primary sources.
+[Comparison evidence](../reports/DESIGN-2026-10-20-reference-comparison.md) and
+[plan](../plans/PLAN-2026-10-20-reference-informed-supervision-v1.md) distinguish existing capabilities, gaps and qualification.
+
 ## Completed and historical records
 
 | PRD | Disposition |

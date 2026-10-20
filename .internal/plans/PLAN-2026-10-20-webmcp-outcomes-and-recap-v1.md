@@ -151,3 +151,10 @@ loss on unrelated edits, repaired visibility/serialization, JSON key preservatio
 [Plan](PLAN-2026-10-20-permission-pattern-capabilities.md) and
 [report](../reports/CONFIG-EDITORS-2026-10-20-permission-pattern-capabilities.md) record the action-only SDK fields
 incorrectly offered for custom patterns, the typed capability filter, and mounted/native regression evidence.
+
+### Four-reference design review
+
+[Comparison](../reports/DESIGN-2026-10-20-reference-comparison.md),
+[proposed requirements](../prd/PRD-2026-10-20-reference-informed-supervision-v1.md) and
+[plan](PLAN-2026-10-20-reference-informed-supervision-v1.md) combine pinned local OpenChamber, Orca, Herdr and OpenCode
+inspection with online primary research. They prioritize identity, readable saved recap and observable schedule outcomes.
