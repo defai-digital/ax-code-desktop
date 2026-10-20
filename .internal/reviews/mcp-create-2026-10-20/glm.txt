@@ -1,0 +1,2 @@
+{"type":"step_start","timestamp":1792489754658,"sessionID":"ses_-e5ea749427cffe91C6g4cGOLP","part":{"id":"prt_z1a158b710200027ua5eJk6oSC","messageID":"msg_z1a158b6cdd1001EjkDeDWLjrm","sessionID":"ses_-e5ea749427cffe91C6g4cGOLP","snapshot":"4b825dc642cb6eb9a060e54bf8d69288fbee4904","type":"step-start"}}
+{"type":"result","timestamp":1792489823118,"sessionID":"ses_-e5ea749427cffe91C6g4cGOLP","status":"timeout","text":"","permissionDenials":0,"usage":{"input":0,"output":0,"reasoning":0,"cacheRead":0,"cacheWrite":0}}

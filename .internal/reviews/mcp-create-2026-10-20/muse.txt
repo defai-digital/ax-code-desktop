@@ -1,0 +1,22 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp/ax-mcp-create-review-20261020/muse (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+**Verdict:** The repair addresses the reported race, but the excerpts leave several correctness and UX risks. No conclusion about actual MCP/OAuth server behavior is supported without integration tests.
+
+### Concrete defects and risks
+
+- **Baseline may alias live data.** `initialRef.current` stores `envEntries` and `headerEntries` directly. If entry editors mutate those arrays, the submitted baseline changes too, breaking dirty detection and reversion. It also omits name/scope, so their dirty semantics need explicit verification.
+- **Submitted-baseline capture is fragile.** Using render-scope values such as `url` correctly represents submission only if the save handler closure was created from exactly the submitted render. A memoized or stale handler could record older values as the baseline, hiding real edits.
+- **Generation changes can invalidate legitimate completion.** `formGenerationRef` changes when `mcpDraft` object identity changes. If editing, renaming, or a parent state update recreates the draft during save, the layout effect also calls `setIsSaving(false)`, potentially allowing duplicate submission, and the success guard may skip handoff or leave the draft active for a duplicate retry.
+- **Draft identity caching can still discard local edits.** Any new draft object with the same load key repopulates every field. Unless all edits are synchronously mirrored into that object, an unrelated draft recreation can overwrite locally edited URL, headers, environment, or OAuth values.
+- **`isNewServer` is under-specified.** Matching only `mcpDraft.name` against the selected key does not establish directory or scope identity. A same-named server in another directory/scope could potentially be treated as the draft, or vice versa.
+- **Hand-off key consistency is unverified.** `loadedMcpNameRef` uses `` `${name}|${currentDirectory ?? ""}` ``. If `selectedMcpLoadKey` uses another encoding or normalization, the next population pass can overwrite preserved edits. Delimiters inside names or paths could also create collisions.
+- **Async failure handling is not shown.** If `createMcp`, `updateMcp`, or `clearPendingMcpAuthContext` throws rather than returning `!ok`, `isSaving` may remain true unless a `finally` exists. The pending-auth clear also occurs before the generation check; a late operation could clear context belonging to a newer attempt using the same key.
+
+### Missing causal tests
+
+Tests should mutate or recreate the draft mid-edit, rename A→B→A, switch directory with the same server name, throw from create/auth-clearing, submit twice, unmount during save, edit OAuth and structured entries during save, and verify that preserved edits subsequently issue an **update**, not another create. Mounted tests should also assert the actual submitted payload and later persistence, rather than only local state.
+
+### Visual/UX implications
+
+Allowing edits during save while locking only name/scope is defensible, but after creation those edits are merely dirty local changes. Without a persistent “Created — unsaved changes remain” state and an obvious Save action, users can reasonably believe the last URL edit was included. Focus loss or reduced contrast on newly disabled focused name/scope controls, saving-state flicker from generation effects, and a server appearing in inventory while still displayed as a draft may further confuse state.

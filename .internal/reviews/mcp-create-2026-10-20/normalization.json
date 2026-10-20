@@ -1,0 +1,4 @@
+{
+  "normalization": "Archive text strips trailing whitespace and terminal blank lines only. Raw JSON events retained; separate Markdown extracts contain completed result text.",
+  "originalPromptSha256": "e14d49fb13989cd95400c880ac3a695cbf4d6eb5a4d70354316c2ff45a086b60"
+}

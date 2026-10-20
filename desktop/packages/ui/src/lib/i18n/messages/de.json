@@ -1296,6 +1296,7 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "Verbindungsversuch abgeschlossen. Aktualisiere den Status f\u00fcr Details.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Erstelle den Server, bevor du Live-Aktionen ausf\u00fchrst",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Speichere die \u00c4nderungen, bevor du Live-Aktionen ausf\u00fchrst",
+  "settings.mcp.page.status.unsavedChanges": "Ungespeicherte Änderungen",
   "settings.mcp.page.inventory.unavailable": "MCP-Einstellungen für dieses Projekt konnten nicht geladen werden.",
   "settings.mcp.page.inventory.retry": "Erneut versuchen",
   "settings.mcp.page.toast.refreshStatusFailed": "MCP-Status konnte nicht aktualisiert werden",

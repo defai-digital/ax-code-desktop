@@ -1,0 +1,461 @@
+{
+  "schema": "ax-code-desktop.mcp-create-edit-evidence.v1",
+  "baseline": "f411d50e",
+  "date": "2026-10-20",
+  "runs": [
+    {
+      "name": "negative2",
+      "artifacts": "/tmp/ax-mcp-create-native-negative2-20261020",
+      "logSha256": "cac69f8e65b8e18a7b2d0e2d04ae94a3602fb869cc552892028ba704519edeab",
+      "requestsSha256": "0358970f99f9ddb6bf9bffdf612a997608ce8a38d99077819209754b1b905234",
+      "nativeActions": 15,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "failed: submitted URL replaced newer edit",
+      "visualQualification": "functional result only; see separate visual qualification"
+    },
+    {
+      "name": "fixed1",
+      "artifacts": "/tmp/ax-mcp-create-native-fixed1-20261020",
+      "logSha256": "14c370b5c76ca25d8a326a5f1589f3636c2212055a7057a70b206d12c0dd8e8c",
+      "requestsSha256": "641dceb4d4d2b4f44343949a5a607c47359135589c72ba0f32a7f8f51d0b1216",
+      "nativeActions": 49,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed functional checks",
+      "visualQualification": "functional result only; see separate visual qualification"
+    },
+    {
+      "name": "fixed2",
+      "artifacts": "/tmp/ax-mcp-create-native-fixed2-20261020",
+      "logSha256": "14c370b5c76ca25d8a326a5f1589f3636c2212055a7057a70b206d12c0dd8e8c",
+      "requestsSha256": "71bf854e489999b9c674c93eef6aa0fa097729c8512fb9fe0f9b1ec55bae1a5a",
+      "nativeActions": 49,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed functional checks",
+      "visualQualification": "functional result only; see separate visual qualification"
+    },
+    {
+      "name": "visual",
+      "artifacts": "/tmp/ax-mcp-create-native-visual-20261020",
+      "logSha256": "14c370b5c76ca25d8a326a5f1589f3636c2212055a7057a70b206d12c0dd8e8c",
+      "requestsSha256": "1238f5cb277e288fb0d253732d95ece4d1ba9dc6855c8e83b3a761abff3c0978",
+      "nativeActions": 53,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed functional checks",
+      "visualQualification": "not accepted: pending global overlay obscures controls"
+    },
+    {
+      "name": "visual-verified",
+      "artifacts": "/tmp/ax-mcp-create-native-visual-verified-20261020",
+      "logSha256": "14c370b5c76ca25d8a326a5f1589f3636c2212055a7057a70b206d12c0dd8e8c",
+      "requestsSha256": "c04c3f6565a470d4fdd10f27d879587766572125c739908f21b33406475c76dd",
+      "nativeActions": 53,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/new-mcp-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "POST",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/unchanged-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp/renamed-server",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed functional checks",
+      "visualQualification": "wide and unobscured narrow dark/light inspected; hit-test required"
+    }
+  ],
+  "checks": {
+    "focusedMountedAndStore": "21 passed",
+    "fullUi": "568 files, 3809 passed; maxWorkers=4, assertions and timeouts unchanged",
+    "build": "passed",
+    "uiTypecheck": "passed",
+    "focusedEslint": "passed",
+    "boundariesAndReleaseIdentity": "passed",
+    "locales": "14 locales, 4940 keys, 64220 translated entries",
+    "regressions": [
+      {
+        "name": "save",
+        "exit": 0,
+        "seconds": 24.1
+      },
+      {
+        "name": "settings",
+        "exit": 0,
+        "seconds": 43.6
+      },
+      {
+        "name": "default",
+        "exit": 0,
+        "seconds": 14.1
+      }
+    ]
+  },
+  "limits": [
+    "All configuration HTTP methods intercepted before opening MCP; no actual configuration writer, MCP process or OAuth exchange",
+    "Pending global configuration overlay does not make fields inert; native tools invoke handlers behind it. In-flight edits qualify handler/state continuity, not physical-pointer access through the overlay",
+    "Narrow screenshots qualify unobscured pre-submit state, independently hit-tested and visually inspected; delivered wheel input is supplemental viewport setup",
+    "Sidebar deletion under a stale inventory is an unconfirmed source lead; no deletion qualified here",
+    "Grok and GLM timed out; Muse, DeepSeek and MiniMax are advisory leads, not approval",
+    "No push, package, release or physical-mobile qualification"
+  ]
+}

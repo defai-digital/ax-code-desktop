@@ -120,6 +120,20 @@ completion. It also checks successful unchanged saves, project return values and
 The configuration writer receives no fixture mutation. This qualifies Desktop form handling, not actual disk writes,
 MCP execution, OAuth or durable runtime concurrency. Never disable interception while fixture writes remain pending.
 
+For edits made while creating an MCP server:
+
+```sh
+node desktop/packages/electron/scripts/e2e/mcp-create-webmcp.mjs --artifacts /tmp/ax-mcp-create
+```
+
+This fixture intercepts every MCP configuration HTTP method before opening Settings. It checks default/renamed creates,
+newer URL edits surviving inventory refresh and draft handoff, exact follow-up update targets, unchanged clean creation,
+and the translated unsaved notice. Name and scope stay fixed while creation is pending. Narrow light/dark captures
+include the unobscured unsaved action row before submission; delivered wheel input sets up that viewport. The pending
+configuration overlay is not accepted as visual proof of the controls behind it. Disabled remote `.invalid` fixture
+servers never reach the real configuration writer, MCP execution or OAuth; the last values reside only in the harness's
+in-memory inventory.
+
 Snapshots include `documentFocused`; check it before qualifying focus/blur behavior and observe the actual result
 after the action. An inactive document can change activeElement without dispatching blur/focusout. Page.bringToFront
 alone may not activate a different Electron native window. The isolated comparison below uses the existing native

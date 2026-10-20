@@ -160,6 +160,81 @@ test("same-form create can complete after its inventory refresh", async () => {
   expect(fixtures.select).toHaveBeenCalledWith("review")
 })
 
+test.each(["review", "created-name"])("creation preserves newer fields through inventory and selection: %s", async name => {
+  await act(async () => configs.setState({ mcpServers: [], mcpDraft: draft("https://alpha.invalid") }))
+  if (name !== "review") {
+    const field = container.querySelector<HTMLInputElement>('input[placeholder="settings.mcp.page.server.namePlaceholder"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(field, name)
+      field.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+  await edit("https://submitted.invalid")
+  await act(async () => save().click())
+  await edit("https://new-unsaved.invalid")
+  // The real create store refreshes inventory before resolving its mutation result.
+  await act(async () => configs.setState({ mcpServers: [{ ...server("https://submitted.invalid"), name }] }))
+  expect(url().value).toBe("https://new-unsaved.invalid")
+  await act(async () => resolveSave({ ok: true }))
+  expect(fixtures.draft).toHaveBeenCalledWith(null)
+  expect(fixtures.select).toHaveBeenCalledWith(name)
+  // Apply the resulting store transitions without mocking the form itself.
+  await act(async () => configs.setState({ mcpDraft: null, selectedMcpName: name }))
+  expect(url().value).toBe("https://new-unsaved.invalid")
+  expect(save().disabled).toBe(false)
+  expect(container.textContent).toContain("settings.mcp.page.status.unsavedChanges")
+  await edit("https://submitted.invalid")
+  expect(save().disabled).toBe(true)
+  expect(container.textContent).not.toContain("settings.mcp.page.status.unsavedChanges")
+})
+
+test("failed creation retains newer fields and permits retry", async () => {
+  await act(async () => configs.setState({ mcpServers: [], mcpDraft: draft("https://alpha.invalid") }))
+  await edit("https://submitted.invalid")
+  await act(async () => save().click())
+  expect(container.querySelector<HTMLInputElement>('input[placeholder="settings.mcp.page.server.namePlaceholder"]')!.disabled).toBe(true)
+  expect(container.querySelector('[role="combobox"]')?.hasAttribute("disabled")).toBe(true)
+  await edit("https://new-unsaved.invalid")
+  await act(async () => resolveSave({ ok: false, message: "Fixture rejected creation" }))
+  expect(url().value).toBe("https://new-unsaved.invalid")
+  expect(save().disabled).toBe(false)
+  expect(fixtures.draft).not.toHaveBeenCalled()
+  expect(container.querySelector<HTMLInputElement>('input[placeholder="settings.mcp.page.server.namePlaceholder"]')!.disabled).toBe(false)
+  await act(async () => save().click())
+  expect(fixtures.save).toHaveBeenLastCalledWith(expect.objectContaining({ url: "https://new-unsaved.invalid" }))
+  await act(async () => resolveSave({ ok: false }))
+})
+
+test("background inventory changes do not reset an edited creation draft", async () => {
+  await act(async () => configs.setState({ mcpServers: [], mcpDraft: draft("https://alpha.invalid") }))
+  await edit("https://unsaved.invalid")
+  await act(async () => configs.setState({ mcpServers: [{ ...server("https://unrelated.invalid"), name: "other" }] }))
+  expect(url().value).toBe("https://unsaved.invalid")
+})
+
+test("a same-name inventory arrival keeps the draft and rejects duplicate creation", async () => {
+  await act(async () => configs.setState({ mcpServers: [], mcpDraft: draft("https://alpha.invalid") }))
+  await edit("https://unsaved.invalid")
+  await act(async () => configs.setState({ mcpServers: [server("https://external.invalid")] }))
+  expect(url().value).toBe("https://unsaved.invalid")
+  expect(save().textContent).toBe("settings.common.actions.create")
+  await act(async () => save().click())
+  expect(fixtures.save).not.toHaveBeenCalled()
+  expect(fixtures.error).toHaveBeenCalledWith("settings.mcp.page.toast.serverNameExists")
+})
+
+test("unchanged creation becomes clean after its real draft handoff", async () => {
+  await act(async () => configs.setState({ mcpServers: [], mcpDraft: draft("https://alpha.invalid") }))
+  await edit("https://submitted.invalid")
+  await act(async () => save().click())
+  await act(async () => configs.setState({ mcpServers: [server("https://submitted.invalid")] }))
+  await act(async () => resolveSave({ ok: true }))
+  await act(async () => configs.setState({ mcpDraft: null, selectedMcpName: "review" }))
+  expect(url().value).toBe("https://submitted.invalid")
+  expect(save().disabled).toBe(true)
+  expect(container.textContent).not.toContain("settings.mcp.page.status.unsavedChanges")
+})
+
 test("old completion cannot unlock a newer project's pending save", async () => {
   await edit("https://alpha-saved.invalid")
   await act(async () => save().click())

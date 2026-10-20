@@ -1,0 +1,92 @@
+Read-only advisory code review. Do not run tools, edit, browse or delegate. Reply in English with at most 450 words. AX Code Desktop MCP creation bug was reproduced by deferred mounted tests: URL edits made after Create are lost when inventory publishes the created server or when renamed draft transitions to the existing record. Current repair keeps a draft as new until explicit handoff even if inventory already contains its server; caches populated draft by draft object identity + name/directory load key so background inventory cannot reset fields; on acknowledged success in the unchanged form generation, records the submitted baseline, marks the existing name/directory already loaded, clears draft, selects created name. Current editable fields survive the handoff and remain dirty against submitted data. Name and scope controls are disabled only while saving; other fields remain editable. Existing generation keyed directory/selection/draft prevents late results from touching another form. Inventory provenance guards stay in place. Tests cover default and renamed drafts, URL edited while saving, pre-completion inventory refresh, handoff, baseline reversion, failure/retry, background refresh, same-form updates, navigation and overlapping project saves. Assess concrete defects, missing causal tests and visual/UX implications of this implementation. Do not assume actual MCP/OAuth behavior was tested. Avoid speculative architecture changes. Source excerpts:
+  // The draft remains the editing context until its successful handoff, even if
+  // create's inventory refresh has already published the new server.
+  const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey)
+  const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
+
+
+  // Returning to the same server is a new form, even when its name and directory match.
+  // Inventory refreshes during create do not replace the draft's editing context.
+  const formGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    formGenerationRef.current += 1
+    setIsSaving(false)
+    return () => { formGenerationRef.current += 1 }
+  }, [currentDirectory, selectedMcpName, mcpDraft])
+
+
+  const loadedMcpNameRef = React.useRef<string | null>(null)
+  const loadedDraftRef = React.useRef<{ draft: McpDraft; loadKey: string } | null>(null)
+
+
+  // Populate form when selection changes
+  React.useEffect(() => {
+    if (!inventoryMatchesDirectory) return
+    if (isNewServer && mcpDraft) {
+      if (loadedDraftRef.current?.draft === mcpDraft && loadedDraftRef.current.loadKey === selectedMcpLoadKey) return
+      loadedDraftRef.current = { draft: mcpDraft, loadKey: selectedMcpLoadKey }
+      loadedMcpNameRef.current = null
+      setDraftName(mcpDraft.name)
+      setDraftScope(mcpDraft.scope || "user")
+      setMcpType(mcpDraft.type)
+      setCommand(mcpDraft.command)
+      setUrl(mcpDraft.url)
+      setEnvEntries(mcpDraft.environment)
+      setHeaderEntries(mcpDraft.headers)
+      setOauthEnabled(mcpDraft.oauthEnabled)
+      setOauthClientId(mcpDraft.oauthClientId)
+      setOauthClientSecret(mcpDraft.oauthClientSecret)
+      setOauthScope(mcpDraft.oauthScope)
+      setOauthRedirectUri(mcpDraft.oauthRedirectUri)
+      setTimeoutValue(mcpDraft.timeout)
+      setEnabled(mcpDraft.enabled)
+      setIsAdvancedRemoteOptionsOpen(false)
+      initialRef.current = {
+        mcpType: mcpDraft.type,
+        command: mcpDraft.command,
+        url: mcpDraft.url,
+        envEntries: mcpDraft.environment,
+        headerEntries: mcpDraft.headers,
+        oauthEnabled: mcpDraft.oauthEnabled,
+        oauthClientId: mcpDraft.oauthClientId,
+        oauthClientSecret: mcpDraft.oauthClientSecret,
+        oauthScope: mcpDraft.oauthScope,
+        oauthRedirectUri: mcpDraft.oauthRedirectUri,
+        timeout: mcpDraft.timeout,
+        enabled: mcpDraft.enabled,
+      }
+      return
+    }
+
+    const submittedGeneration = formGenerationRef.current
+    setIsSaving(true)
+    try {
+      const result = isNewServer ? await createMcp(draft) : await updateMcp(name, draft)
+      if (result.ok) {
+        await clearPendingMcpAuthContext(authStateKey)
+        if (formGenerationRef.current === submittedGeneration) {
+          resetTransientAuthState()
+          // Acknowledgement advances the submitted baseline, while the form can
+          // already contain newer unsaved values, including during creation.
+          initialRef.current = {
+            mcpType,
+            command,
+            url,
+            envEntries,
+            headerEntries,
+            oauthEnabled,
+            oauthClientId,
+            oauthClientSecret,
+            oauthScope,
+            oauthRedirectUri,
+            timeout,
+            enabled,
+          }
+          if (isNewServer) {
+            // Keep current editable values across the draft-to-record transition.
+            loadedMcpNameRef.current = `${name}|${currentDirectory ?? ""}`
+            loadedDraftRef.current = null
+            setMcpDraft(null)
+            setSelectedMcp(name)
+          }
+        }

@@ -209,3 +209,11 @@ of keyboard behavior.
 busy-state ownership, immediate clean baselines and a native two-stage directory/inventory race. Two native passes
 use intercepted HTTP configuration fixtures; no real MCP process, OAuth or configuration writer is qualified.
 Remaining create-edit and concurrent-auth leads are explicitly unconfirmed, and the broader audit stays active.
+
+### MCP creation edit continuity
+
+[Plan](PLAN-2026-10-20-mcp-create-edit-continuity.md) and
+[report](../reports/SETTINGS-2026-10-20-mcp-create-edit-continuity.md) confirm and repair the subsequent create-edit
+lead: inventory refresh and successful handoff preserve newer fields and use the submitted baseline. The added unsaved
+status is verified unobscured at narrow dark/light sizes. Earlier pending-overlay screenshots are explicitly rejected
+as visibility evidence. Global config-update feedback/occlusion and stale sidebar mutation targeting remain follow-ups.

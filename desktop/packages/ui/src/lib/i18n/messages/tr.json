@@ -1296,6 +1296,7 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "Ba\u011flant\u0131 denemesi tamamland\u0131. Ayr\u0131nt\u0131lar i\u00e7in durumu yenileyin.",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Canl\u0131 i\u015flemleri \u00e7al\u0131\u015ft\u0131rmadan \u00f6nce sunucuyu olu\u015fturun",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Canl\u0131 i\u015flemleri \u00e7al\u0131\u015ft\u0131rmadan \u00f6nce de\u011fi\u015fiklikleri kaydedin",
+  "settings.mcp.page.status.unsavedChanges": "Kaydedilmemiş değişiklikler",
   "settings.mcp.page.inventory.unavailable": "Bu projenin MCP ayarları yüklenemedi.",
   "settings.mcp.page.inventory.retry": "Yeniden dene",
   "settings.mcp.page.toast.refreshStatusFailed": "MCP durumu yenilenemedi",

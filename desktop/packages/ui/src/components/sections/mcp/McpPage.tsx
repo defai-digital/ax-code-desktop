@@ -599,7 +599,9 @@ export const McpPage: React.FC = () => {
   // change with the active project or the previous project's values stay on screen (and a
   // save writes them into the new project).
   const selectedMcpLoadKey = `${selectedMcpNameKey}|${currentDirectory ?? ""}`
-  const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey && !selectedServer)
+  // The draft remains the editing context until its successful handoff, even if
+  // create's inventory refresh has already published the new server.
+  const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey)
   const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
 
   // Same stale persisted selection as the other config pages.
@@ -682,6 +684,7 @@ export const McpPage: React.FC = () => {
   // background reload of `mcpServers` (deleting another server, opening the
   // header Services menu, saving) doesn't re-populate over unsaved edits.
   const loadedMcpNameRef = React.useRef<string | null>(null)
+  const loadedDraftRef = React.useRef<{ draft: McpDraft; loadKey: string } | null>(null)
 
   const resetTransientAuthState = React.useCallback(() => {
     setAuthUrl(null)
@@ -780,6 +783,8 @@ export const McpPage: React.FC = () => {
   React.useEffect(() => {
     if (!inventoryMatchesDirectory) return
     if (isNewServer && mcpDraft) {
+      if (loadedDraftRef.current?.draft === mcpDraft && loadedDraftRef.current.loadKey === selectedMcpLoadKey) return
+      loadedDraftRef.current = { draft: mcpDraft, loadKey: selectedMcpLoadKey }
       loadedMcpNameRef.current = null
       setDraftName(mcpDraft.name)
       setDraftScope(mcpDraft.scope || "user")
@@ -945,26 +950,28 @@ export const McpPage: React.FC = () => {
         await clearPendingMcpAuthContext(authStateKey)
         if (formGenerationRef.current === submittedGeneration) {
           resetTransientAuthState()
+          // Acknowledgement advances the submitted baseline, while the form can
+          // already contain newer unsaved values, including during creation.
+          initialRef.current = {
+            mcpType,
+            command,
+            url,
+            envEntries,
+            headerEntries,
+            oauthEnabled,
+            oauthClientId,
+            oauthClientSecret,
+            oauthScope,
+            oauthRedirectUri,
+            timeout,
+            enabled,
+          }
           if (isNewServer) {
+            // Keep current editable values across the draft-to-record transition.
+            loadedMcpNameRef.current = `${name}|${currentDirectory ?? ""}`
+            loadedDraftRef.current = null
             setMcpDraft(null)
             setSelectedMcp(name)
-          } else {
-            // The post-save list reload no longer re-populates the form (see the
-            // loaded-name guard above), so the dirty-check baseline must move here.
-            initialRef.current = {
-              mcpType,
-              command,
-              url,
-              envEntries,
-              headerEntries,
-              oauthEnabled,
-              oauthClientId,
-              oauthClientSecret,
-              oauthScope,
-              oauthRedirectUri,
-              timeout,
-              enabled,
-            }
           }
         }
         await refreshStatus({ directory: currentDirectory, silent: true })
@@ -1717,12 +1724,13 @@ export const McpPage: React.FC = () => {
                 <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
                   <Input
                     value={draftName}
+                    disabled={isSaving}
                     onChange={(e) => setDraftName(normalizeMcpServerName(e.target.value))}
                     placeholder={t("settings.mcp.page.server.namePlaceholder")}
                     className="h-7 w-48 font-mono px-2"
                     autoFocus
                   />
-                  <Select value={draftScope} onValueChange={(value) => setDraftScope(value as McpScope)}>
+                  <Select value={draftScope} disabled={isSaving} onValueChange={(value) => setDraftScope(value as McpScope)}>
                     <SelectTrigger
                       className="!h-7 !w-7 !min-w-0 !px-0 !py-0 justify-center [&>svg:last-child]:hidden"
                       title={
@@ -2075,7 +2083,7 @@ export const McpPage: React.FC = () => {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 px-2 py-1">
+        <div className="flex flex-wrap items-center gap-2 px-2 py-1">
           <Button
             onClick={handleSave}
             disabled={isSaving || (!isDirty && !isNewServer)}
@@ -2092,6 +2100,11 @@ export const McpPage: React.FC = () => {
             <Button variant="destructive" size="xs" className="!font-normal" onClick={() => setShowDeleteConfirm(true)}>
               {t("settings.common.actions.delete")}
             </Button>
+          )}
+          {!isNewServer && isDirty && (
+            <p role="status" className="typography-meta text-muted-foreground">
+              {t("settings.mcp.page.status.unsavedChanges")}
+            </p>
           )}
         </div>
       </div>

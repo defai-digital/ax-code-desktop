@@ -1296,6 +1296,7 @@
   "settings.mcp.page.toast.connectionAttemptFinished": "\u8fde\u63a5\u5c1d\u8bd5\u5df2\u7ed3\u675f\u3002\u8bf7\u5237\u65b0\u72b6\u6001\u4ee5\u67e5\u770b\u8be6\u60c5\u3002",
   "settings.mcp.page.toast.createServerBeforeLiveActions": "\u8bf7\u5148\u521b\u5efa\u670d\u52a1\u5668\uff0c\u518d\u6267\u884c\u5b9e\u65f6\u64cd\u4f5c",
   "settings.mcp.page.toast.saveBeforeLiveActions": "\u8bf7\u5148\u4fdd\u5b58\u66f4\u6539\uff0c\u518d\u6267\u884c\u5b9e\u65f6\u64cd\u4f5c",
+  "settings.mcp.page.status.unsavedChanges": "未保存的更改",
   "settings.mcp.page.inventory.unavailable": "无法加载此项目的 MCP 设置。",
   "settings.mcp.page.inventory.retry": "重试",
   "settings.mcp.page.toast.refreshStatusFailed": "\u5237\u65b0 MCP \u72b6\u6001\u5931\u8d25",
