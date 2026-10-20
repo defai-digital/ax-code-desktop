@@ -19,7 +19,7 @@ describe("Desktop release contract", () => {
       producerTag: "sdk-v2.6.39",
       producerCommit: "cc0f084bfc537d4cce9ffb33a7f698b28be2dea6",
     })
-    expect(contract.runtime).toMatchObject({ version: "7.27.6", releaseTag: "v7.27.6" })
+    expect(contract.runtime).toMatchObject({ version: "7.27.7", releaseTag: "v7.27.7" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)
   })
 
@@ -161,7 +161,7 @@ describe("Desktop release contract", () => {
     )
     const contract = verifyDesktopReleaseContract(repositoryRoot, withOverrides(overrides))
     expect(contract.manifests.root.version).toBe("7.24.99")
-    expect(contract.runtime.version).toBe("7.27.6")
+    expect(contract.runtime.version).toBe("7.27.7")
   })
 
   it("rejects a release tag prefix the updater would never see", () => {
