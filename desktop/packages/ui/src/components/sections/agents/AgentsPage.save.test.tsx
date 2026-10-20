@@ -4,7 +4,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { create } from "zustand"
 import type { AgentConfig } from "@/stores/useAgentsStore"
 
-const fixtures = vi.hoisted(() => ({ save: vi.fn<() => Promise<boolean>>(), select: vi.fn(), draft: vi.fn() }))
+const fixtures = vi.hoisted(() => ({ save: vi.fn<(...args: unknown[]) => Promise<boolean>>(), select: vi.fn(), draft: vi.fn() }))
 const directory = create(() => ({ currentDirectory: "/alpha" }))
 const agents = create(() => ({
   selectedAgentName: "review",
@@ -140,4 +140,50 @@ test.each(["user", "project"] as const)("draft scope %s displays its translated 
   }))
   const scopeControl = container.querySelector('[role="combobox"]')
   expect(scopeControl?.textContent).toBe(`settings.common.scope.${scope === "user" ? "global" : "project"}`)
+})
+
+
+async function globalPatternDraft(pattern: string) {
+  await act(async () => agents.setState({
+    agents: [], agentDraft: {
+      name: "review", scope: "project", prompt: "Draft",
+      permission: { "*": Object.fromEntries([["*", "deny"], [pattern, "allow"]]) },
+    },
+  }))
+}
+
+test("shows existing wildcard-permission patterns in the advanced editor", async () => {
+  await globalPatternDraft("src/public/**")
+  const advanced = Array.from(container.querySelectorAll("button")).find((button) =>
+    button.textContent === "settings.agents.page.permissions.advancedEditor")!
+  await act(async () => advanced.click())
+  expect(container.textContent).toContain("src/public/**")
+})
+
+test.each(["src/public/**", "__proto__"])("preserves wildcard permission pattern %s on an unrelated edit", async (pattern) => {
+  await globalPatternDraft(pattern)
+  await edit("Updated prompt")
+  await act(async () => save().click())
+  expect(fixtures.save).toHaveBeenCalledTimes(1)
+  const payload = JSON.parse(JSON.stringify(fixtures.save.mock.calls[0][0]))
+  expect(payload).toEqual(expect.objectContaining({
+    permission: { "*": Object.fromEntries([["*", "deny"], [pattern, "allow"]]) },
+  }))
+  expect(Object.keys(payload.permission["*"])).toEqual(["*", pattern])
+  await act(async () => resolveSave(true))
+})
+
+
+test("retains named-tool patterns alongside wildcard patterns in the JSON payload", async () => {
+  const permission = {
+    "*": { "*": "deny" as const, "src/public/**": "allow" as const },
+    bash: Object.fromEntries([["*", "ask"], ["__proto__", "deny"]] as const),
+  }
+  await act(async () => agents.setState({
+    agents: [], agentDraft: { name: "review", scope: "project", prompt: "Draft", permission },
+  }))
+  await edit("Updated prompt")
+  await act(async () => save().click())
+  expect(JSON.parse(JSON.stringify(fixtures.save.mock.calls[0][0])).permission).toEqual(permission)
+  await act(async () => resolveSave(true))
 })

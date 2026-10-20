@@ -130,15 +130,19 @@ const buildPermissionConfigWithGlobal = (
   ruleset: PermissionRule[],
 ): AgentConfig["permission"] => {
   const normalized = normalizeRuleset(ruleset)
-  const grouped: Record<string, Record<string, PermissionAction>> = {}
+  // Tool and pattern names are data, including prototype-looking keys.
+  const grouped: Record<string, Record<string, PermissionAction>> = Object.create(null)
 
   for (const rule of normalized) {
-    ;(grouped[rule.permission] ||= {})[rule.pattern] = rule.action
+    ;(grouped[rule.permission] ||= Object.create(null))[rule.pattern] = rule.action
   }
 
-  const result: Record<string, PermissionConfigValue> = {
-    "*": globalAction,
-  }
+  const result: Record<string, PermissionConfigValue> = Object.create(null)
+  const globalPatterns = Object.entries(grouped["*"] ?? {}).filter(([pattern]) => pattern !== "*")
+  // Runtime rule order matters: fallback precedes the specific pattern overrides.
+  result["*"] = globalPatterns.length
+    ? Object.fromEntries([["*", globalAction], ...globalPatterns])
+    : globalAction
 
   for (const [permissionName, patterns] of Object.entries(grouped)) {
     if (permissionName === "*") {
@@ -1086,7 +1090,7 @@ export const AgentsPage: React.FC = () => {
 
               <div className="space-y-4">
                 {summaryPermissionNames
-                  .filter((name) => name !== "*")
+                  .filter((name) => name !== "*" || getPatternRules("*").length > 0)
                   .map((permissionName) => {
                     const label = formatPermissionLabel(permissionName)
                     const { defaultAction, patternRulesCount } = getPermissionSummary(permissionName)
@@ -1112,54 +1116,56 @@ export const AgentsPage: React.FC = () => {
                         </div>
 
                         <div className="space-y-1 pl-2 mt-1">
-                          <div className="flex flex-wrap items-center justify-between gap-2 py-0.5">
-                            <div className="flex items-center gap-2">
-                              <span className="typography-micro text-muted-foreground">
-                                {t("settings.agents.page.permissions.pattern")}
-                              </span>
-                              <span className="typography-micro font-mono text-foreground bg-[var(--surface-muted)] px-1 rounded">
-                                *
-                              </span>
-                              {wildcardOverride && (
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  aria-label={`${t("settings.common.actions.reset")}: ${label} · *`}
-                                  onClick={() => revertRule(permissionName, "*")}
-                                  className="px-1.5 py-0 h-5"
-                                >
-                                  <Icon
-                                    name="subtract"
-                                    className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
-                                  />
-                                </Button>
-                              )}
+                          {permissionName !== "*" && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 py-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="typography-micro text-muted-foreground">
+                                  {t("settings.agents.page.permissions.pattern")}
+                                </span>
+                                <span className="typography-micro font-mono text-foreground bg-[var(--surface-muted)] px-1 rounded">
+                                  *
+                                </span>
+                                {wildcardOverride && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    aria-label={`${t("settings.common.actions.reset")}: ${label} · *`}
+                                    onClick={() => revertRule(permissionName, "*")}
+                                    className="px-1.5 py-0 h-5"
+                                  >
+                                    <Icon
+                                      name="subtract"
+                                      className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground"
+                                    />
+                                  </Button>
+                                )}
+                              </div>
+                              <Select
+                                value={wildcardValue}
+                                onValueChange={(value) => {
+                                  if (value === "global") {
+                                    removeRule(permissionName, "*")
+                                    return
+                                  }
+                                  upsertRule(permissionName, "*", value as PermissionAction)
+                                }}
+                              >
+                                <SelectTrigger aria-label={`${label} · *: ${permissionScopeLabel(wildcardValue as PermissionAction | "global")}`} className="w-[90px]">
+                                  <SelectValue>
+                                    {permissionScopeLabel(wildcardValue as PermissionAction | "global")}
+                                  </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="global">{t("settings.common.scope.global")}</SelectItem>
+                                  {wildcardOptions.map((action) => (
+                                    <SelectItem key={action} value={action} className="capitalize">
+                                      {permissionActionLabel(action)}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
                             </div>
-                            <Select
-                              value={wildcardValue}
-                              onValueChange={(value) => {
-                                if (value === "global") {
-                                  removeRule(permissionName, "*")
-                                  return
-                                }
-                                upsertRule(permissionName, "*", value as PermissionAction)
-                              }}
-                            >
-                              <SelectTrigger aria-label={`${label} · *: ${permissionScopeLabel(wildcardValue as PermissionAction | "global")}`} className="w-[90px]">
-                                <SelectValue>
-                                  {permissionScopeLabel(wildcardValue as PermissionAction | "global")}
-                                </SelectValue>
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="global">{t("settings.common.scope.global")}</SelectItem>
-                                {wildcardOptions.map((action) => (
-                                  <SelectItem key={action} value={action} className="capitalize">
-                                    {permissionActionLabel(action)}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
+                          )}
 
                           {patternRules.map((rule) => {
                             const ruleKey = buildRuleKey(rule.permission, rule.pattern)

@@ -139,3 +139,9 @@ container-based Agent layout, native step/edit/clamp/clear checks, and a foregro
 [Plan](PLAN-2026-10-20-agent-permission-editor.md) and
 [report](../reports/CONFIG-EDITORS-2026-10-20-agent-permissions.md) cover contextual selector/reset names, native unsaved
 rule edit/restoration checks and the clipped custom-pattern/action row at narrow editor widths.
+
+### Wildcard permission pattern preservation
+
+[Plan](PLAN-2026-10-20-global-permission-patterns.md) and
+[report](../reports/CONFIG-EDITORS-2026-10-20-global-permission-patterns.md) record hidden Default patterns and payload
+loss on unrelated edits, repaired visibility/serialization, JSON key preservation, full UI tests and native edit/reset proof.
