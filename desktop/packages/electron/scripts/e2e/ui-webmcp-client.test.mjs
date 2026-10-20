@@ -5,7 +5,7 @@ import { UiWebMcpClient, UI_TOOL_NAMES } from "./ui-webmcp-client.mjs"
 const require = createRequire(import.meta.url)
 const { isDesktopUiWebMcpEnabled } = require("../../src/webview-policy.js")
 
-const fakeSession = ({ status = "Completed", early = false } = {}) => {
+const fakeSession = ({ status = "Completed", early = false, output = { rendered: true } } = {}) => {
   const listeners = new Map()
   const emit = (name, params) => listeners.get(name)?.(params)
   const calls = []
@@ -27,7 +27,7 @@ const fakeSession = ({ status = "Completed", early = false } = {}) => {
       }
       if (method === "WebMCP.invokeTool") {
         const respond = () =>
-          emit("WebMCP.toolResponded", { invocationId: "invoke-1", status, output: { rendered: true } })
+          emit("WebMCP.toolResponded", { invocationId: "invoke-1", status, output })
         if (early) respond()
         else setTimeout(respond, 0)
         return { invocationId: "invoke-1" }
@@ -70,4 +70,25 @@ describe("native UI WebMCP driver", () => {
     expect(client.tools.size).toBe(0)
     await expect(client.call("ax_desktop_click")).rejects.toThrow(/Unknown/)
   })
+})
+
+
+test("decodes native JSON text snapshots without changing object results", async () => {
+  const snapshot = { controls: [{ ref: "current", name: "Bash · *: Global" }], nextOffset: null }
+  const client = new UiWebMcpClient(fakeSession({ output: JSON.stringify(snapshot) }))
+  await client.enable()
+  await expect(client.call("ax_desktop_get_ui_state")).resolves.toEqual(snapshot)
+})
+
+test("rejects malformed native JSON text with a bounded diagnostic", async () => {
+  const client = new UiWebMcpClient(fakeSession({ output: "not-json-private-content" }))
+  await client.enable()
+  await expect(client.call("ax_desktop_get_ui_state")).rejects.toThrow("Invalid JSON response from WebMCP ax_desktop_get_ui_state")
+})
+
+
+test.each(["null", "1", "[]"])("rejects non-object native JSON: %s", async (output) => {
+  const client = new UiWebMcpClient(fakeSession({ output }))
+  await client.enable()
+  await expect(client.call("ax_desktop_get_ui_state")).rejects.toThrow("Invalid object response from WebMCP ax_desktop_get_ui_state")
 })

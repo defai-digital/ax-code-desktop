@@ -1073,7 +1073,7 @@ export const AgentsPage: React.FC = () => {
                   value={globalPermission}
                   onValueChange={(value) => setGlobalPermissionAndPrune(value as PermissionAction)}
                 >
-                  <SelectTrigger className="w-[100px]">
+                  <SelectTrigger aria-label={`${t("settings.agents.page.permissions.globalDefault")}: ${permissionActionLabel(globalPermission)}`} className="w-[100px]">
                     <SelectValue>{permissionActionLabel(globalPermission)}</SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -1124,6 +1124,7 @@ export const AgentsPage: React.FC = () => {
                                 <Button
                                   size="sm"
                                   variant="ghost"
+                                  aria-label={`${t("settings.common.actions.reset")}: ${label} · *`}
                                   onClick={() => revertRule(permissionName, "*")}
                                   className="px-1.5 py-0 h-5"
                                 >
@@ -1144,7 +1145,7 @@ export const AgentsPage: React.FC = () => {
                                 upsertRule(permissionName, "*", value as PermissionAction)
                               }}
                             >
-                              <SelectTrigger className="w-[90px]">
+                              <SelectTrigger aria-label={`${label} · *: ${permissionScopeLabel(wildcardValue as PermissionAction | "global")}`} className="w-[90px]">
                                 <SelectValue>
                                   {permissionScopeLabel(wildcardValue as PermissionAction | "global")}
                                 </SelectValue>
@@ -1192,6 +1193,7 @@ export const AgentsPage: React.FC = () => {
                                     <Button
                                       size="sm"
                                       variant="ghost"
+                                      aria-label={`${t("settings.common.actions.reset")}: ${label} · ${rule.pattern}`}
                                       onClick={() =>
                                         isAdded
                                           ? removeRule(rule.permission, rule.pattern)
@@ -1212,7 +1214,7 @@ export const AgentsPage: React.FC = () => {
                                     setRuleAction(rule.permission, rule.pattern, value as PermissionAction)
                                   }
                                 >
-                                  <SelectTrigger className="w-[90px]">
+                                  <SelectTrigger aria-label={`${label} · ${rule.pattern}: ${permissionActionLabel(rule.action)}`} className="w-[90px]">
                                     <SelectValue>{permissionActionLabel(rule.action)}</SelectValue>
                                   </SelectTrigger>
                                   <SelectContent>
@@ -1234,9 +1236,9 @@ export const AgentsPage: React.FC = () => {
                 <h4 className="typography-ui-label text-foreground mb-2">
                   {t("settings.agents.page.permissions.addCustomRule")}
                 </h4>
-                <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
+                <div className="flex flex-col items-stretch gap-2 @2xl/agent-editor:flex-row @2xl/agent-editor:items-center">
                   <Select value={pendingRuleName} onValueChange={setPendingRuleName}>
-                    <SelectTrigger className="w-full sm:w-[160px]">
+                    <SelectTrigger className="w-full @2xl/agent-editor:w-[160px]">
                       {pendingRuleName ? (
                         <span className="truncate">{formatPermissionLabel(pendingRuleName)}</span>
                       ) : (

@@ -69,7 +69,19 @@ export class UiWebMcpClient {
       )
       if (response.status !== "Completed")
         throw new Error(`WebMCP ${name}: ${response.status}; ${JSON.stringify(response.output ?? "")}`)
-      return response.output
+      let output = response.output
+      // Native completion can carry either a structured object or JSON text.
+      if (typeof output === "string") {
+        try {
+          output = JSON.parse(output)
+        } catch {
+          throw new Error(`Invalid JSON response from WebMCP ${name}`)
+        }
+      }
+      if (!output || typeof output !== "object" || Array.isArray(output)) {
+        throw new Error(`Invalid object response from WebMCP ${name}`)
+      }
+      return output
     } catch (error) {
       if (active.id) await this.#session.send("WebMCP.cancelInvocation", { invocationId: active.id }).catch(() => {})
       throw error

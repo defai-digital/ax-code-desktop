@@ -60,7 +60,11 @@ export class SettingsWebMcpAudit {
   async click(name, options) {
     const control = await this.find(name, options)
     if (!control) return false
-    await this.client.call("ax_desktop_click", { ref: control.ref })
+    try {
+      await this.client.call("ax_desktop_click", { ref: control.ref })
+    } catch (error) {
+      throw new Error(`Failed to click ${JSON.stringify(name)}: ${error.message}`, { cause: error })
+    }
     this.calls.push({ action: "click", name })
     return true
   }

@@ -63,3 +63,13 @@ steps/editing/clamping/clearing, and narrow control bounds. It does not submit a
 validation, the journey brings its own window to the front and verifies `document.hasFocus()`: in an inactive Electron
 window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
 field's validation failed.
+
+For the nested agent permission editor:
+
+```sh
+node desktop/packages/electron/scripts/e2e/agent-permissions-webmcp.mjs --artifacts /tmp/agent-permissions
+```
+
+This journey adds, edits and resets unsaved rule overrides, restores the draft's global default, verifies clean state and
+checks custom-rule control bounds at 800px. It uses the isolated profile and never saves an agent configuration or changes
+runtime permission policy.

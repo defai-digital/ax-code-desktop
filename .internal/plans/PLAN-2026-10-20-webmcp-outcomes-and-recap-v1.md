@@ -133,3 +133,9 @@ Agents, native switching in both forms, clean-state restoration, and screenshot 
 [Plan](PLAN-2026-10-20-agent-parameter-controls.md) and
 [report](../reports/CONFIG-EDITORS-2026-10-20-agent-parameters.md) record field-specific numeric control names,
 container-based Agent layout, native step/edit/clamp/clear checks, and a foreground-window prerequisite for blur validation.
+
+### Agent permission editor follow-up
+
+[Plan](PLAN-2026-10-20-agent-permission-editor.md) and
+[report](../reports/CONFIG-EDITORS-2026-10-20-agent-permissions.md) cover contextual selector/reset names, native unsaved
+rule edit/restoration checks and the clipped custom-pattern/action row at narrow editor widths.
