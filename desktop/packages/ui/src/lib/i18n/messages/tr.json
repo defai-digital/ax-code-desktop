@@ -1297,6 +1297,7 @@
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Canl\u0131 i\u015flemleri \u00e7al\u0131\u015ft\u0131rmadan \u00f6nce sunucuyu olu\u015fturun",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Canl\u0131 i\u015flemleri \u00e7al\u0131\u015ft\u0131rmadan \u00f6nce de\u011fi\u015fiklikleri kaydedin",
   "settings.mcp.page.status.unsavedChanges": "Kaydedilmemiş değişiklikler",
+  "settings.mcp.toast.projectChanged": "Proje veya sunucu değişti. Silmeden önce sunucuyu yeniden seçin.",
   "settings.mcp.page.inventory.unavailable": "Bu projenin MCP ayarları yüklenemedi.",
   "settings.mcp.page.inventory.retry": "Yeniden dene",
   "settings.mcp.page.toast.refreshStatusFailed": "MCP durumu yenilenemedi",

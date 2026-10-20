@@ -13,6 +13,7 @@ export type McpScope = "user" | "project"
 
 type McpMutationResult = {
   ok: boolean
+  contextChanged?: boolean
   reloadFailed?: boolean
   message?: string
   warning?: string
@@ -99,16 +100,27 @@ interface McpConfigStore {
   mcpServers: McpServerWithScope[]
   loadedDirectory: string | null | undefined
   selectedMcpName: string | null
+  selectionRevision: number
   isLoading: boolean
   mcpDraft: McpDraft | null
 
   setSelectedMcp: (name: string | null) => void
+  refreshSelectedMcp: (name: string, directory: string | null, expectedRevision?: number) => boolean
   setMcpDraft: (draft: McpDraft | null) => void
   loadMcpConfigs: (options?: { force?: boolean }) => Promise<boolean>
   createMcp: (config: McpDraft) => Promise<McpMutationResult>
   updateMcp: (name: string, config: Partial<McpDraft>) => Promise<McpMutationResult>
-  deleteMcp: (name: string) => Promise<McpMutationResult>
+  deleteMcp: (name: string, expectedDirectory?: string | null, expectedRevision?: number) => Promise<McpMutationResult>
   getMcpByName: (name: string) => McpServerWithScope | undefined
+}
+
+const acceptedMcpInventory = (state: McpConfigStore, servers: McpServerWithScope[], directory: string | null) => {
+  const previous = state.loadedDirectory === directory ? state.mcpServers.find(server => server.name === state.selectedMcpName) : undefined
+  const next = servers.find(server => server.name === state.selectedMcpName)
+  const scopeChanged = previous && next && state.mcpDraft?.name !== state.selectedMcpName &&
+    (previous.scope === "project") !== (next.scope === "project")
+  return { mcpServers: servers, loadedDirectory: directory, isLoading: false,
+    selectionRevision: state.selectionRevision + (scopeChanged ? 1 : 0) }
 }
 
 const invalidateMcpCache = (directory: string | null) => {
@@ -124,10 +136,21 @@ export const useMcpConfigStore = create<McpConfigStore>()(
         mcpServers: [],
         loadedDirectory: undefined,
         selectedMcpName: null,
+        selectionRevision: 0,
         isLoading: false,
         mcpDraft: null,
 
         setSelectedMcp: (name) => set({ selectedMcpName: name }),
+
+        refreshSelectedMcp: (name, directory, expectedRevision) => {
+          const state = get()
+          if (getConfigDirectory() !== directory || state.loadedDirectory !== directory ||
+              state.selectedMcpName !== name || state.mcpDraft?.name === name || !state.getMcpByName(name) ||
+              (expectedRevision !== undefined && expectedRevision !== state.selectionRevision)) return false
+          // UI projection handoff only; this is not a runtime or per-record revision.
+          set({ selectionRevision: state.selectionRevision + 1 })
+          return true
+        },
 
         setMcpDraft: (draft) => set({ mcpDraft: draft }),
 
@@ -143,7 +166,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             // so an older in-flight load for another directory cannot write its
             // result over this list when it settles.
             mcpLoadSequence += 1
-            set({ mcpServers: cachedConfigs, loadedDirectory: configDirectory, isLoading: false })
+            set(state => acceptedMcpInventory(state, cachedConfigs, configDirectory))
             return true
           }
 
@@ -167,7 +190,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               }
               const data: McpServerWithScope[] = await response.json()
               if (!isCurrentLoad()) return true
-              set({ mcpServers: data, loadedDirectory: configDirectory, isLoading: false })
+              set(state => acceptedMcpInventory(state, data, configDirectory))
               setConfigCacheEntry(mcpCacheByKey, cacheKey, data)
               mcpLastLoadedAt.set(cacheKey, Date.now())
               return true
@@ -302,11 +325,16 @@ export const useMcpConfigStore = create<McpConfigStore>()(
           }
         },
 
-        deleteMcp: async (name: string) => {
+        deleteMcp: async (name: string, expectedDirectory?: string | null, expectedRevision?: number) => {
+          const configDirectory = getConfigDirectory()
+          if ((expectedDirectory !== undefined && expectedDirectory !== configDirectory) ||
+              (expectedRevision !== undefined && expectedRevision !== get().selectionRevision)) {
+            return { ok: false, contextChanged: true }
+          }
+          const originalServer = get().getMcpByName(name)
           startConfigUpdate("Deleting MCP server configuration…")
           let requiresReload = false
           try {
-            const configDirectory = getConfigDirectory()
             const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""
             const response = await fetch(
               `${replacePathParams(API_ENDPOINTS.config.mcpItem, {
@@ -334,10 +362,15 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               })
             }
 
-            if (get().selectedMcpName === name) {
+            const refreshed = await get().loadMcpConfigs({ force: true })
+            const state = get()
+            // A name may now identify another project's server, a replacement record or a new draft.
+            // Reconcile against the current scoped inventory rather than clearing before its refresh.
+            if (getConfigDirectory() === configDirectory && state.loadedDirectory === configDirectory &&
+                state.selectedMcpName === name && state.mcpDraft?.name !== name &&
+                (refreshed ? !state.getMcpByName(name) : state.getMcpByName(name) === originalServer)) {
               set({ selectedMcpName: null })
             }
-            await get().loadMcpConfigs({ force: true })
             return {
               ok: true,
               reloadFailed: payload?.reloadFailed === true,

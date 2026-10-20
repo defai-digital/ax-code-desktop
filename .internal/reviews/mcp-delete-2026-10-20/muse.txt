@@ -1,0 +1,23 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp/ax-mcp-delete-review-20261020/muse (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+**Verdict: Guards are directionally sound, but three late-effect races remain outside the stated protection and should be tested or explicitly accepted.**
+
+**Guard review**
+
+- Store gate in [proposed `deleteMcp`](/private/tmp/ax-mcp-delete-review-20261020/muse) correctly returns `contextChanged` before `startConfigUpdate` or `fetch` when `expectedDirectory` differs from `getConfigDirectory()`. However, this is a check-then-act race: a directory change after the comparison but before `fetch` still deletes the captured origin directory. Reconciliation prevents clearing Beta’s selection, but the Alpha DELETE proceeds. This should be documented as intended in-flight semantics, not as absolute prevention of cross-context deletion.
+- `expectedDirectory === undefined` retains the old unguarded path. That is acceptable only if all callers truly pass it; the two shown UI callers do. Canonicalization is not visible in the excerpt: raw equality between UI `currentDirectory` and store `getConfigDirectory()` could cause false rejections or misses if trailing-slash, symlink, or case normalization differs.
+- Selection reconciliation is substantially improved. It refreshes before clearing, requires matching origin/current directory and `loadedDirectory`, preserves same-name drafts, and, on refresh failure, only applies legacy cleanup when the original object still remains. One residual race: `state` is a snapshot, then `set({ selectedMcpName: null })` is unconditional. A draft or selection created between snapshot and `set` in the same directory can still be disturbed, though the draft itself is not deleted.
+- Sidebar and detail `finally`/dialog guards look correct for busy and confirmation state. Toasts are not generation-guarded, so a late Alpha success/failure toast can appear in Beta. Detail also awaits `clearPendingMcpAuthContext` before its generation check; if that key is name-only or otherwise collides with a same-name Beta draft, late auth cleanup could cross contexts. Store-level `finishConfigUpdate()` is also global and could clear a newer Beta busy indicator.
+
+**Meaningful missing tests**
+
+- Stale Alpha items are absent from the DOM while Beta inventory is held, not merely pointer-disabled: no focus, keyboard activation, menu, dialog, or Create path; Browser Tools remains selectable.
+- Directory flips during DELETE and during refresh: Beta selection, same-name draft, dialog, menu, and busy state remain untouched; define whether the Alpha toast and auth cleanup are allowed.
+- Store mismatch cases: `null`, `undefined`, canonical-equivalent paths, mismatch before busy/fetch, and swap immediately after the gate check.
+- Refresh outcomes: replacement same-name record preserved; same-name draft preserved; failed refresh with original object clears; failed refresh with replacement object does not.
+- Forced retry after loading failure recovers inventory without briefly rendering stale servers.
+
+**Visual implications**
+
+Expect an intentional empty/loading sidebar during directory switches, with Browser Tools as the stable anchor. Use a reserved-height skeleton or stable empty state to avoid layout jump, keep failure/retry visible without exposing stale rows, and ensure hidden items are removed from tab order.

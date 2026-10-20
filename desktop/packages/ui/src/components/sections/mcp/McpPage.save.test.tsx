@@ -4,19 +4,22 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { create } from "zustand"
 import type { McpDraft, McpServerWithScope } from "@/stores/useMcpConfigStore"
 
-type Result = { ok: boolean; message?: string; reloadFailed?: boolean; warning?: string }
+type Result = { ok: boolean; message?: string; reloadFailed?: boolean; warning?: string; contextChanged?: boolean }
 const fixtures = vi.hoisted(() => ({
   save: vi.fn<(...args: unknown[]) => Promise<Result>>(), select: vi.fn(), draft: vi.fn(),
   refresh: vi.fn(async () => undefined), success: vi.fn(), error: vi.fn(), warning: vi.fn(),
   startAuth: vi.fn(async () => "https://auth.invalid/?state=fixture-alpha"),
+  remove: vi.fn<(...args: unknown[]) => Promise<Result>>(),
+  refreshSelected: vi.fn<(name: string, directory: string | null, revision?: number) => boolean>(),
 }))
 const directory = create(() => ({ currentDirectory: "/alpha" }))
 const server = (url: string): Extract<McpServerWithScope, { type: "remote" }> => ({ name: "review", type: "remote", url, enabled: false, oauth: false, scope: "project" })
 const configs = create(() => ({
-  selectedMcpName: "review", mcpServers: [server("https://alpha.invalid")], mcpDraft: null as McpDraft | null,
+  selectedMcpName: "review" as string | null, mcpServers: [server("https://alpha.invalid")], mcpDraft: null as McpDraft | null,
   isLoading: false, getMcpByName: (name: string) => configs.getState().mcpServers.find(item => item.name === name),
   loadedDirectory: "/alpha", loadMcpConfigs: vi.fn(),
-  createMcp: fixtures.save, updateMcp: fixtures.save, deleteMcp: vi.fn(),
+  selectionRevision: 0, refreshSelectedMcp: fixtures.refreshSelected,
+  createMcp: fixtures.save, updateMcp: fixtures.save, deleteMcp: fixtures.remove,
   setSelectedMcp: fixtures.select, setMcpDraft: fixtures.draft,
 }))
 const runtime = { getStatusForDirectory: () => status, getDiagnosticForDirectory: () => status,
@@ -43,12 +46,20 @@ import { McpPage } from "./McpPage"
 let root: Root
 let container: HTMLDivElement
 let resolveSave: (value: Result) => void
+let resolveDelete: (value: Result) => void
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.clearAllMocks()
   fixtures.save.mockImplementation(() => new Promise(resolve => { resolveSave = resolve }))
+  fixtures.remove.mockImplementation(() => new Promise(resolve => { resolveDelete = resolve }))
   directory.setState({ currentDirectory: "/alpha" })
-  configs.setState({ selectedMcpName: "review", mcpServers: [server("https://alpha.invalid")], mcpDraft: null, loadedDirectory: "/alpha" })
+  configs.setState({ selectedMcpName: "review", mcpServers: [server("https://alpha.invalid")], mcpDraft: null, loadedDirectory: "/alpha", selectionRevision: 0 })
+  fixtures.refreshSelected.mockImplementation((name, path, revision) => {
+    const state = configs.getState()
+    if (directory.getState().currentDirectory !== path || state.selectedMcpName !== name || state.mcpDraft?.name === name || !state.getMcpByName(name) || (revision !== undefined && revision !== state.selectionRevision)) return false
+    configs.setState({ selectionRevision: state.selectionRevision + 1 })
+    return true
+  })
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -105,6 +116,15 @@ test("an unmatched inventory offers a forced retry without showing editable old 
   const retry = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "settings.mcp.page.inventory.retry")!
   await act(async () => retry.click())
   expect(configs.getState().loadMcpConfigs).toHaveBeenCalledWith({ force: true })
+})
+
+test("an unresolved inventory does not advertise an unavailable Add action when nothing is selected", async () => {
+  await act(async () => {
+    configs.setState({ selectedMcpName: null })
+    directory.setState({ currentDirectory: "/beta" })
+  })
+  expect(container.textContent).toContain("settings.mcp.page.inventory.retry")
+  expect(container.textContent).not.toContain("settings.mcp.page.empty.addNewOne")
 })
 
 test("leaving and returning invalidates the previous form completion", async () => {
@@ -284,3 +304,92 @@ test.each([{ ok: false, message: "Rejected by fixture" }, { ok: true, reloadFail
     expect(result.ok ? fixtures.warning : fixtures.error).toHaveBeenCalledWith(result.message, ...(result.ok ? [{ description: "Retry" }] : []))
   },
 )
+
+const confirmDelete = () => Array.from(document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')).find(button => ["settings.common.actions.delete", "settings.mcp.page.actions.deleting"].includes(button.textContent ?? ""))!
+async function openDelete() {
+  const control = Array.from(container.querySelectorAll("button")).find(button => button.textContent === "settings.common.actions.delete")!
+  await act(async () => control.click())
+  expect(confirmDelete()).toBeDefined()
+}
+
+test("project switching closes the previous detail delete confirmation", async () => {
+  await openDelete()
+  await switchProject("/beta", "https://beta.invalid")
+  expect(confirmDelete()).toBeUndefined()
+})
+
+test("an old detail deletion cannot close or unlock a newer confirmation", async () => {
+  await openDelete()
+  await act(async () => confirmDelete().click())
+  expect(fixtures.remove).toHaveBeenCalledWith("review", "/alpha", 0)
+  await switchProject("/beta", "https://beta.invalid")
+  await openDelete()
+  await act(async () => resolveDelete({ ok: true }))
+  expect(confirmDelete()).toBeDefined()
+  expect(confirmDelete().disabled).toBe(false)
+})
+
+test("a rejected stale detail action reports context change and permits retry", async () => {
+  await openDelete()
+  await act(async () => confirmDelete().click())
+  await act(async () => resolveDelete({ ok: false, contextChanged: true }))
+  expect(fixtures.error).toHaveBeenCalledWith("settings.mcp.toast.projectChanged")
+  expect(confirmDelete().disabled).toBe(false)
+})
+
+test("an old detail completion cannot end a new project's pending delete", async () => {
+  await openDelete()
+  await act(async () => confirmDelete().click())
+  const finishAlpha = resolveDelete
+  await switchProject("/beta", "https://beta.invalid")
+  await openDelete()
+  await act(async () => confirmDelete().click())
+  expect(fixtures.remove).toHaveBeenCalledTimes(2)
+  await act(async () => finishAlpha({ ok: true }))
+  expect(confirmDelete().disabled).toBe(true)
+  await act(async () => resolveDelete({ ok: true }))
+  expect(confirmDelete()).toBeUndefined()
+})
+
+test("a same-name fallback after deletion reloads the detail form and clean baseline", async () => {
+  await openDelete()
+  await act(async () => confirmDelete().click())
+  await act(async () => configs.setState({ mcpServers: [{ ...server("https://global.invalid"), scope: "user" }] }))
+  await act(async () => resolveDelete({ ok: true }))
+  expect(url().value).toBe("https://global.invalid")
+  expect(save().disabled).toBe(true)
+  await edit("https://temporary.invalid")
+  await edit("https://global.invalid")
+  expect(save().disabled).toBe(true)
+})
+
+test.each(["environment", "headers"] as const)("revealed %s rows are masked again across project, server and scope handoff", async kind => {
+  const record = (name: string, value: string, scope: "project" | "user" = "project") => ({
+    ...server("https://fixture.invalid"), name, scope, [kind]: { FIXTURE: value },
+  })
+  const input = (value: string) => Array.from(container.querySelectorAll<HTMLInputElement>("input")).find(element => element.value === value)
+  const showRow = async (value: string) => {
+    if (!input(value)) {
+      const advanced = Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("settings.mcp.page.advanced.configure"))!
+      await act(async () => advanced.click())
+    }
+    expect(input(value)?.type).toBe("password")
+  }
+  const reveal = async (value: string) => {
+    await showRow(value)
+    const toggle = input(value)!.parentElement!.querySelector<HTMLButtonElement>("button")!
+    await act(async () => toggle.click())
+    expect(input(value)?.type).toBe("text")
+  }
+  await act(async () => configs.setState({ selectedMcpName: "secrets", mcpServers: [record("secrets", "fixture-a")] }))
+  await reveal("fixture-a")
+  await act(async () => {
+    directory.setState({ currentDirectory: "/beta" })
+    configs.setState({ loadedDirectory: "/beta", mcpServers: [record("secrets", "fixture-b")] })
+  })
+  await reveal("fixture-b")
+  await act(async () => configs.setState({ selectedMcpName: "other", mcpServers: [record("other", "fixture-c")] }))
+  await reveal("fixture-c")
+  await act(async () => configs.setState({ selectionRevision: 1, mcpServers: [record("other", "fixture-d", "user")] }))
+  await showRow("fixture-d")
+})

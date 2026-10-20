@@ -1297,6 +1297,7 @@
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Crea il server prima di eseguire azioni in tempo reale",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Salva le modifiche prima di eseguire azioni in tempo reale",
   "settings.mcp.page.status.unsavedChanges": "Modifiche non salvate",
+  "settings.mcp.toast.projectChanged": "Il progetto o il server è cambiato. Seleziona di nuovo il server prima di eliminarlo.",
   "settings.mcp.page.inventory.unavailable": "Impossibile caricare le impostazioni MCP per questo progetto.",
   "settings.mcp.page.inventory.retry": "Riprova",
   "settings.mcp.page.toast.refreshStatusFailed": "Aggiornamento dello stato MCP non riuscito",

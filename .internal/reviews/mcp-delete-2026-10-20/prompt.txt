@@ -1,0 +1,222 @@
+Read-only advisory review. No tools, edits, browsing or delegation. Reply in English, <=450 words. Native WebMCP reproduced Alpha's old sidebar items still actionable while Beta inventory GET was held; clicking Delete sent DELETE to Beta. Intercepted/rejected, no real write. Deferred tests also show late delete clearing another same-name selection or draft. Proposed repair: sidebar only renders items/create when inventory.loadedDirectory equals currentDirectory; browser tools retained; loading/failure/forced retry UI; layout generation resets menu/dialog/busy on directory changes; late finally/close guards. Detail page uses existing form generation to guard delete effects/reset confirmations. Both UI callers pass expectedDirectory to deleteMcp; store rejects canonical active project mismatch before fetch/busy start. Store refreshes before reconciling selected name, checks origin directory/current inventory provenance, skips current same-name drafts and observed replacements. Failed refresh preserves legacy same-context cleanup only if the original object remains; full inventory error UX is outside this repair. No SDK/runtime changes or per-record identity/idempotency claims. Review guards, meaningful missing tests and visual implications using these excerpts. Existing semantic handlers are not trusted pointer qualification.
+        deleteMcp: async (name: string, expectedDirectory?: string | null) => {
+          const configDirectory = getConfigDirectory()
+          if (expectedDirectory !== undefined && expectedDirectory !== configDirectory) {
+            return { ok: false, contextChanged: true }
+          }
+          const originalServer = get().getMcpByName(name)
+          startConfigUpdate("Deleting MCP server configuration…")
+          let requiresReload = false
+          try {
+            const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""
+            const response = await fetch(
+              `${replacePathParams(API_ENDPOINTS.config.mcpItem, {
+                name,
+              })}${queryParams}`,
+              {
+                method: "DELETE",
+                headers: configDirectory ? { "x-ax-code-directory": configDirectory } : undefined,
+              },
+            )
+
+            const payload = await response.json().catch(() => null)
+            if (!response.ok) {
+              throw new Error(payload?.error || "Failed to delete MCP server")
+            }
+
+            invalidateMcpCache(configDirectory)
+
+            if (payload?.requiresReload) {
+              requiresReload = true
+              await refreshAfterAxCodeRestart({
+                message: payload.message,
+                delayMs: payload.reloadDelayMs ?? CLIENT_RELOAD_DELAY_MS,
+                scopes: ["all"],
+              })
+            }
+
+            const refreshed = await get().loadMcpConfigs({ force: true })
+            const state = get()
+            // A name may now identify another project's server, a replacement record or a new draft.
+            // Reconcile against the current scoped inventory rather than clearing before its refresh.
+            if (getConfigDirectory() === configDirectory && state.loadedDirectory === configDirectory &&
+                state.selectedMcpName === name && state.mcpDraft?.name !== name &&
+                (refreshed ? !state.getMcpByName(name) : state.getMcpByName(name) === originalServer)) {
+              set({ selectedMcpName: null })
+            }
+            return {
+              ok: true,
+              reloadFailed: payload?.reloadFailed === true,
+              message: payload?.message,
+              warning: payload?.warning,
+            }
+          } catch (error) {
+            console.error("[McpConfigStore] Failed to delete MCP:", error)
+            return {
+              ok: false,
+              ...(error instanceof Error && error.message ? { message: error.message } : {}),
+            }
+          } finally {
+            if (!requiresReload) finishConfigUpdate()
+          }
+        },
+
+
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
+  const mcpStatus = useMcpStore((state) => state.getStatusForDirectory(currentDirectory ?? null))
+  const refreshStatus = useMcpStore((state) => state.refresh)
+  const getErrorForDirectory = useMcpStore((state) => state.getErrorForDirectory)
+
+  const webMcpSummary = useWebMcpSummary()
+  const settingsCardSelected = useWebMcpBrowserStore((state) => state.settingsCardSelected)
+  const setSettingsCardSelected = useWebMcpBrowserStore((state) => state.setSettingsCardSelected)
+  // Leaving the MCP page (or closing Settings) returns the selection to its default.
+  React.useEffect(() => () => setSettingsCardSelected(false), [setSettingsCardSelected])
+  const selectBrowserTools = React.useCallback(() => {
+    setSelectedMcp(null)
+    setMcpDraft(null)
+    setSettingsCardSelected(true)
+    onItemSelect?.()
+  }, [onItemSelect, setMcpDraft, setSelectedMcp, setSettingsCardSelected])
+  const [deleteTarget, setDeleteTarget] = React.useState<McpServerConfig | null>(null)
+  const [isDeleting, setIsDeleting] = React.useState(false)
+  const [openMenuMcp, setOpenMenuMcp] = React.useState<string | null>(null)
+  const [isRefreshingStatus, setIsRefreshingStatus] = React.useState(false)
+  const contextGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    contextGenerationRef.current += 1
+    setDeleteTarget(null)
+    setOpenMenuMcp(null)
+    setIsDeleting(false)
+    setIsRefreshingStatus(false)
+    return () => { contextGenerationRef.current += 1 }
+  }, [currentDirectory])
+
+  const projectServers = React.useMemo(() => mcpServers.filter((server) => server.scope === "project"), [mcpServers])
+  const userServers = React.useMemo(() => mcpServers.filter((server) => server.scope !== "project"), [mcpServers])
+
+  React.useEffect(() => {
+    void loadMcpConfigs()
+  }, [loadMcpConfigs])
+
+  const handleRefresh = React.useCallback(() => {
+    if (isRefreshingStatus) return
+
+    const generation = contextGenerationRef.current
+    setIsRefreshingStatus(true)
+    const minSpinPromise = new Promise((resolve) => setTimeout(resolve, 500))
+
+    Promise.all([refreshStatus({ directory: currentDirectory, silent: true }), minSpinPromise])
+      .then(() => {
+        const error = getErrorForDirectory(currentDirectory)
+        if (error) {
+          toast.error(error)
+        }
+      })
+      .finally(() => {
+        if (contextGenerationRef.current === generation) setIsRefreshingStatus(false)
+      })
+  }, [currentDirectory, getErrorForDirectory, isRefreshingStatus, refreshStatus])
+
+  const handleCreateNew = () => {
+    if (!inventoryMatchesDirectory) return
+    setSettingsCardSelected(false)
+    const baseName = "new-mcp-server"
+    let newName = baseName
+    let counter = 1
+    while (mcpServers.some((s) => s.name === newName)) {
+      newName = `${baseName}-${counter}`
+      counter++
+    }
+
+    const draft: McpDraft = {
+      name: newName,
+      scope: "user",
+      type: "local",
+      command: [],
+      url: "",
+      environment: [],
+      headers: [],
+      oauthEnabled: true,
+      oauthClientId: "",
+      oauthClientSecret: "",
+      oauthScope: "",
+      oauthRedirectUri: "",
+      timeout: "",
+      enabled: true,
+    }
+    setMcpDraft(draft)
+    setSelectedMcp(newName)
+    onItemSelect?.()
+  }
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !inventoryMatchesDirectory) return
+    const generation = contextGenerationRef.current
+    setIsDeleting(true)
+    try {
+      const outcome = await runSettingsDeleteMutation(() => deleteMcp(deleteTarget.name, currentDirectory ?? null))
+      if (outcome.status === "unexpected-error") {
+        console.error("Failed to delete MCP server:", outcome.error)
+        toast.error(t("settings.mcp.sidebar.toast.deleteFailed"))
+        return
+      }
+
+      const result = outcome.result
+      if (result.ok) {
+        if (result.reloadFailed) {
+          toast.warning(result.message || `MCP server "${deleteTarget.name}" deleted, but ax-code reload failed`, {
+            description: result.warning || t("settings.mcp.sidebar.toast.refreshListIfStale"),
+          })
+        } else {
+          toast.success(result.message || t("settings.mcp.sidebar.toast.serverDeleted", { name: deleteTarget.name }))
+        }
+      } else {
+        toast.error(result.contextChanged ? t("settings.mcp.toast.projectChanged") : result.message || t("settings.mcp.sidebar.toast.deleteFailed"))
+      }
+      if (contextGenerationRef.current === generation) setDeleteTarget(null)
+    } finally {
+      if (contextGenerationRef.current === generation) setIsDeleting(false)
+    }
+  }
+
+
+  const handleDelete = async () => {
+    if (!selectedMcpName || !inventoryMatchesDirectory) return
+    const generation = formGenerationRef.current
+    setIsDeleting(true)
+    try {
+      const outcome = await runSettingsDeleteMutation(() => deleteMcp(selectedMcpName, currentDirectory ?? null))
+      if (outcome.status === "unexpected-error") {
+        console.error("Failed to delete MCP server:", outcome.error)
+        toast.error(t("settings.mcp.page.toast.deleteFailed"))
+        return
+      }
+
+      const result = outcome.result
+      if (result.ok) {
+        try {
+          await clearPendingMcpAuthContext(authStateKey)
+          if (formGenerationRef.current === generation) resetTransientAuthState()
+        } catch (error) {
+          console.warn("Deleted MCP server, but failed to clear pending auth state:", error)
+        }
+        if (result.reloadFailed) {
+          toast.warning(
+            result.message || t("settings.mcp.page.toast.serverDeletedReloadFailed", { name: selectedMcpName }),
+            {
+              description: result.warning || t("settings.mcp.page.toast.refreshListIfStale"),
+            },
+          )
+        } else {
+          toast.success(result.message || t("settings.mcp.page.toast.serverDeleted", { name: selectedMcpName }))
+        }
+        if (formGenerationRef.current === generation) setShowDeleteConfirm(false)
+      } else {
+        toast.error(result.contextChanged ? t("settings.mcp.toast.projectChanged") : result.message || t("settings.mcp.page.toast.deleteFailed"))
+      }
+    } finally {
+      if (formGenerationRef.current === generation) setIsDeleting(false)
+    }
+  }

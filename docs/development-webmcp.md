@@ -134,6 +134,20 @@ configuration overlay is not accepted as visual proof of the controls behind it.
 servers never reach the real configuration writer, MCP execution or OAuth; the last values reside only in the harness's
 in-memory inventory.
 
+For delayed MCP inventories and deletion across two projects:
+
+```sh
+node desktop/packages/electron/scripts/e2e/mcp-delete-webmcp.mjs --artifacts /tmp/ax-mcp-delete
+```
+
+This fixture holds the second project's inventory, verifies stale server actions and Add are unavailable, then checks
+failed-load retry and one exact deletion while preserving the first project. `--unselected` also starts without a selected
+server; `--replacement` reveals a same-name user-scope fallback and checks its detail fields and clean Save baseline.
+It captures populated narrow light/dark views. Every MCP configuration HTTP method is intercepted before opening
+Settings; disabled remote `.invalid` fixtures remain in memory. Browser tools are checked for discoverability only.
+These checks qualify rendered controls and semantic handlers, not real configuration writes, MCP/OAuth, physical
+pointer/keyboard access or runtime record identity.
+
 To verify configuration feedback and overlay observation:
 
 ```sh

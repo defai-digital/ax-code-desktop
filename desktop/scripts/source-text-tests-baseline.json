@@ -20,7 +20,6 @@
   "packages/ui/src/components/layout/project-edit-dialog-source.test.ts",
   "packages/ui/src/components/layout/sidebar-files-tree-source.test.ts",
   "packages/ui/src/components/multirun/MultiRunLauncher.setupCommands.test.ts",
-  "packages/ui/src/components/sections/mcp/envRowReveal.test.ts",
   "packages/ui/src/components/session/DirectoryExplorerDialog-browse.test.ts",
   "packages/ui/src/components/session/GitHubIntegrationDialog.loadMoreReset.test.ts",
   "packages/ui/src/components/session/ProjectNotesTodoPanel.todoSend.test.ts",

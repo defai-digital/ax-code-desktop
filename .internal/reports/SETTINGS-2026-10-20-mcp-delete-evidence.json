@@ -1,0 +1,526 @@
+{
+  "schema": "ax-code-desktop.mcp-delete-context-evidence.v1",
+  "date": "2026-10-20",
+  "negativeBaseline": "af3a3947",
+  "verificationWorkspaceHead": "e087ce76297d5b2fb06237d6e2d85af0d6b0bf00",
+  "scope": "Current cycle completed at user request; remaining leads recorded, no next audit cycle",
+  "nativeDeletionRuns": [
+    {
+      "name": "baseline-negative",
+      "artifacts": "/tmp/ax-mcp-delete-native-negative-20261020",
+      "result": "failed: stale Alpha action issued Beta DELETE; fixture rejected 409",
+      "logSha256": "4aff5310e8256b02757d321126076de372d3a7370c6752a6ae1e725d4d9132aa",
+      "fixtureSha256": "5cc2f5879a68e4066cdce8dc3cea9d16a4cb76f1aee637a3a199468b40581421",
+      "startUnselected": null,
+      "revealReplacement": null,
+      "recordedAuditActions": 9,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": false
+        },
+        {
+          "method": "DELETE",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "captures": [
+        {
+          "name": "mcp-beta-awaiting-inventory",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-stale-inventory-deletion-rejected",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        }
+      ]
+    },
+    {
+      "name": "intermediate-replacement-negative",
+      "artifacts": "/tmp/ax-mcp-delete-replacement-negative-20261020",
+      "result": "failed: uncommitted candidate retained old detail URL after replacement",
+      "logSha256": "5ec50a7f2868ae4f585410a151b07230f8039d186e2463deb1e03ddee356b91e",
+      "fixtureSha256": "4ab80341c2640191dd8b6247fa75a3fd830929aa99271bae4f585db878914a3b",
+      "startUnselected": false,
+      "revealReplacement": true,
+      "recordedAuditActions": 12,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "DELETE",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "captures": [
+        {
+          "name": "mcp-beta-awaiting-inventory",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-beta-inventory-failure",
+          "overflow": false,
+          "alertCount": 2,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        }
+      ]
+    },
+    {
+      "name": "selected",
+      "artifacts": "/tmp/ax-mcp-delete-verified-selected-20261020",
+      "result": "passed",
+      "logSha256": "5a529f29d4732ab7ac141cc0a58da4bdbd5618b31852116b338f15b0e5d79cbd",
+      "fixtureSha256": "5267758804f6b51b711d93361e97e3280335771a7b57125ce5289d2e5e777fce",
+      "startUnselected": false,
+      "revealReplacement": false,
+      "recordedAuditActions": 16,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "DELETE",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "captures": [
+        {
+          "name": "mcp-beta-awaiting-inventory",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-beta-deletion-complete",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-beta-inventory-failure",
+          "overflow": false,
+          "alertCount": 2,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-deletion-narrow-dark",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-deletion-narrow-light",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        }
+      ]
+    },
+    {
+      "name": "unselected",
+      "artifacts": "/tmp/ax-mcp-delete-verified-unselected-20261020",
+      "result": "passed",
+      "logSha256": "07bfe9dec8cf279129fc19e63632d54c83b3b950324e491b3008c343ed844c70",
+      "fixtureSha256": "cc5efe61a8e453c9bdcd0c84803f6d4728f40e7c21ed0262ee89b49386865b9d",
+      "startUnselected": true,
+      "revealReplacement": false,
+      "recordedAuditActions": 15,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "DELETE",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "captures": [
+        {
+          "name": "mcp-beta-awaiting-inventory",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-beta-deletion-complete",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-beta-inventory-failure",
+          "overflow": false,
+          "alertCount": 2,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-deletion-narrow-dark",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        },
+        {
+          "name": "mcp-deletion-narrow-light",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": false
+        }
+      ]
+    },
+    {
+      "name": "replacement",
+      "artifacts": "/tmp/ax-mcp-delete-verified-replacement-20261020",
+      "result": "passed",
+      "logSha256": "07bfe9dec8cf279129fc19e63632d54c83b3b950324e491b3008c343ed844c70",
+      "fixtureSha256": "87f5ee941e425231e5f1d408dfe5d4438b055177fe73eacbedf37ba72859e104",
+      "startUnselected": false,
+      "revealReplacement": true,
+      "recordedAuditActions": 16,
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_A",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        },
+        {
+          "method": "DELETE",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp/review",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT_B",
+          "pathname": "/api/config/mcp",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "captures": [
+        {
+          "name": "mcp-beta-awaiting-inventory",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": true
+        },
+        {
+          "name": "mcp-beta-deletion-complete",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": true
+        },
+        {
+          "name": "mcp-beta-inventory-failure",
+          "overflow": false,
+          "alertCount": 2,
+          "configurationOverlayVisible": false,
+          "documentFocused": true
+        },
+        {
+          "name": "mcp-deletion-narrow-dark",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": true
+        },
+        {
+          "name": "mcp-deletion-narrow-light",
+          "overflow": false,
+          "alertCount": 0,
+          "configurationOverlayVisible": false,
+          "documentFocused": true
+        }
+      ]
+    }
+  ],
+  "checks": {
+    "focused": {
+      "result": "4 files, 52 tests passed",
+      "log": "/tmp/ax-mcp-delete-focused-privacy-20261020.log",
+      "sha256": "466222adc1f65aad8e13d6b6fed38985f0b5b4a37588d9f33790d40b762f0331"
+    },
+    "fullUi": {
+      "result": "570 files, 3840 tests passed; maxWorkers=4",
+      "log": "/tmp/ax-mcp-delete-full-ui-verified-20261020.log",
+      "sha256": "cb1f9aa354b20ab8880a35ba3f1e5f7fb895bf3cc724908e7e5046d134093f53"
+    },
+    "build": {
+      "result": "3 tasks passed; fresh build",
+      "log": "/tmp/ax-mcp-delete-build-verified-20261020.log",
+      "sha256": "a52053d4852374755721bb1083dea00135574b7860a3aadbbdcd9254e9b69171"
+    },
+    "uiTypecheck": {
+      "result": "passed",
+      "log": "/tmp/ax-mcp-delete-typecheck-final2-20261020.log",
+      "sha256": "a8b651da72fe527ce3d3c97ddeceb8fbccfc9477d1e81ccc8b482eaecd6e5d8f"
+    },
+    "focusedEslint": {
+      "result": "passed",
+      "log": "/tmp/ax-mcp-delete-lint-verified-20261020.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "boundaries": {
+      "result": "passed, including source-text ratchet and release identity",
+      "log": "/tmp/ax-mcp-delete-boundaries-verified-20261020.log",
+      "sha256": "0f2f8a4eb70ebaa624163492c02d205f26c189120e720fc6aec9da9d4fc0a086"
+    },
+    "locales": {
+      "result": "14 locales, 4943 keys, 64259 entries",
+      "log": "/tmp/ax-mcp-delete-locales-verified-20261020.log",
+      "sha256": "761e09b95b898457d55d23cc45d7c26dc32ea9169d48d18d0ee7882a97eca0ac"
+    }
+  },
+  "nativeRegressions": [
+    {
+      "name": "selected",
+      "exit": 0,
+      "seconds": 19.5,
+      "log": "/tmp/ax-mcp-delete-verified-selected-20261020.log",
+      "logSha256": "5a529f29d4732ab7ac141cc0a58da4bdbd5618b31852116b338f15b0e5d79cbd"
+    },
+    {
+      "name": "unselected",
+      "exit": 0,
+      "seconds": 19.0,
+      "log": "/tmp/ax-mcp-delete-verified-unselected-20261020.log",
+      "logSha256": "07bfe9dec8cf279129fc19e63632d54c83b3b950324e491b3008c343ed844c70"
+    },
+    {
+      "name": "replacement",
+      "exit": 0,
+      "seconds": 19.1,
+      "log": "/tmp/ax-mcp-delete-verified-replacement-20261020.log",
+      "logSha256": "07bfe9dec8cf279129fc19e63632d54c83b3b950324e491b3008c343ed844c70"
+    },
+    {
+      "name": "save",
+      "exit": 0,
+      "seconds": 22.5,
+      "log": "/tmp/ax-mcp-delete-verified-save-20261020.log",
+      "logSha256": "3766743eae099696c006a471fff6da8a941d40c3aad39ae26df9e8d7f2e56985"
+    },
+    {
+      "name": "create",
+      "exit": 0,
+      "seconds": 40.6,
+      "log": "/tmp/ax-mcp-delete-verified-create-20261020.log",
+      "logSha256": "14c370b5c76ca25d8a326a5f1589f3636c2212055a7057a70b206d12c0dd8e8c"
+    },
+    {
+      "name": "config-update",
+      "exit": 0,
+      "seconds": 21.1,
+      "log": "/tmp/ax-mcp-delete-verified-config-update-20261020.log",
+      "logSha256": "7d0dcfe862285e1b053fa1934cf71ec617fa26c575dba2f95d438c0c522c929f"
+    },
+    {
+      "name": "settings",
+      "exit": 0,
+      "seconds": 43.4,
+      "log": "/tmp/ax-mcp-delete-verified-settings-20261020.log",
+      "logSha256": "f8b1efe05efb21fc9f04319b5032f94c0f243a745686f5946d0fcdb58d52a3e6"
+    },
+    {
+      "name": "default",
+      "exit": 0,
+      "seconds": 13.3,
+      "log": "/tmp/ax-mcp-delete-verified-default-20261020.log",
+      "logSha256": "967329fa480a4e6676b5d623d0cdb5c760ee6791c7972d0b41fc57ccc5c0e1d7"
+    }
+  ],
+  "reviewers": {
+    "grok": {
+      "reviewer": "grok",
+      "status": "timeout",
+      "exit": 143,
+      "seconds": 90.7
+    },
+    "muse": {
+      "reviewer": "muse",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 23.3
+    }
+  },
+  "inspectedFinalImages": [
+    {
+      "path": "/tmp/ax-mcp-delete-verified-selected-20261020/pages/mcp-beta-awaiting-inventory.png",
+      "sha256": "c3b63682e61493f6ea1a819ca560ee8f7be663dcda849326d9c2bced3ef1152b"
+    },
+    {
+      "path": "/tmp/ax-mcp-delete-verified-unselected-20261020/pages/mcp-beta-inventory-failure.png",
+      "sha256": "115a1b35be3c764b5c79cdc5747be8e694485173ce3c25f5707ea5bb076b625e"
+    },
+    {
+      "path": "/tmp/ax-mcp-delete-verified-replacement-20261020/pages/mcp-beta-deletion-complete.png",
+      "sha256": "51165c48ff80cbd11ef4b7db698a552763d512c9e30dbd82cfa7069573dd8c1e"
+    },
+    {
+      "path": "/tmp/ax-mcp-delete-verified-selected-20261020/pages/mcp-deletion-narrow-dark.png",
+      "sha256": "288234b72bb13c89807fb08f67dabdb13f56df9ab7be2effe9e6792583514d79"
+    },
+    {
+      "path": "/tmp/ax-mcp-delete-verified-selected-20261020/pages/mcp-deletion-narrow-light.png",
+      "sha256": "108078594764dff4c65faa03cc180f78a9d9fd4ddd5da34c9d1d0ad2b10c8fea"
+    }
+  ],
+  "sourceSha256": {
+    "desktop/packages/ui/src/stores/useMcpConfigStore.ts": "66dcdf8a65ef67041a4110c036b53c7657f9fe354f5e9cb9545b28ff190465a5",
+    "desktop/packages/ui/src/components/sections/mcp/McpPage.tsx": "6fbb72fdba7ea058e222b262909cb575768dd75eb4c23d7c4fb740d70f3bf979",
+    "desktop/packages/ui/src/components/sections/mcp/McpSidebar.tsx": "93d0fb2171cebefe2bb18942055656942f85a0469faccfacd533d4b188dfca4d",
+    "desktop/packages/electron/scripts/e2e/mcp-delete-webmcp.mjs": "55ce8a48661a60dbd17851b9665bfde0d866a3a5e2086ac6817682193c0ead12"
+  },
+  "limits": [
+    "All config HTTP intercepted before Settings; no real disk writer, MCP process, live OAuth or worker recovery qualified",
+    "Semantic handlers and DOM/readback do not qualify physical pointer/keyboard, screen readers or access through overlays",
+    "Selection revision is ephemeral UI projection, not persisted runtime identity or per-record compare-and-swap",
+    "Failed same-directory post-delete inventory reads can leave stale list contents; follow-up retained",
+    "Late feedback project identity, overlay keyboard containment, concurrent OAuth and path aliases remain leads",
+    "Grok timeout is not approval; later projection/empty-state extensions were not in Muse prompt",
+    "Concurrent SDK migration commits and unrelated dirty runtime/release files preserved outside this patch",
+    "No push, package or release; audit ends after this cycle at user request"
+  ]
+}

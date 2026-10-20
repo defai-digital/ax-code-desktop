@@ -62,11 +62,16 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   const { t } = useI18n()
   const bgClass = "bg-background"
 
-  const { mcpServers, selectedMcpName, setSelectedMcp, setMcpDraft, loadMcpConfigs, deleteMcp } = useMcpConfigStore(
+  const { mcpServers, loadedDirectory, isLoading, selectedMcpName, selectionRevision, mcpDraft, setSelectedMcp, refreshSelectedMcp, setMcpDraft, loadMcpConfigs, deleteMcp } = useMcpConfigStore(
     useShallow((s) => ({
       mcpServers: s.mcpServers,
+      loadedDirectory: s.loadedDirectory,
+      isLoading: s.isLoading,
       selectedMcpName: s.selectedMcpName,
+      selectionRevision: s.selectionRevision,
+      mcpDraft: s.mcpDraft,
       setSelectedMcp: s.setSelectedMcp,
+      refreshSelectedMcp: s.refreshSelectedMcp,
       setMcpDraft: s.setMcpDraft,
       loadMcpConfigs: s.loadMcpConfigs,
       deleteMcp: s.deleteMcp,
@@ -74,6 +79,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   )
 
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const inventoryMatchesDirectory = loadedDirectory === (currentDirectory ?? null)
   const mcpStatus = useMcpStore((state) => state.getStatusForDirectory(currentDirectory ?? null))
   const refreshStatus = useMcpStore((state) => state.refresh)
   const getErrorForDirectory = useMcpStore((state) => state.getErrorForDirectory)
@@ -93,6 +99,20 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   const [isDeleting, setIsDeleting] = React.useState(false)
   const [openMenuMcp, setOpenMenuMcp] = React.useState<string | null>(null)
   const [isRefreshingStatus, setIsRefreshingStatus] = React.useState(false)
+  const contextGenerationRef = React.useRef(0)
+  const refreshGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    contextGenerationRef.current += 1
+    setDeleteTarget(null)
+    setOpenMenuMcp(null)
+    setIsDeleting(false)
+    return () => { contextGenerationRef.current += 1 }
+  }, [currentDirectory, selectedMcpName, mcpDraft, selectionRevision])
+  React.useLayoutEffect(() => {
+    refreshGenerationRef.current += 1
+    setIsRefreshingStatus(false)
+    return () => { refreshGenerationRef.current += 1 }
+  }, [currentDirectory])
 
   const projectServers = React.useMemo(() => mcpServers.filter((server) => server.scope === "project"), [mcpServers])
   const userServers = React.useMemo(() => mcpServers.filter((server) => server.scope !== "project"), [mcpServers])
@@ -104,6 +124,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   const handleRefresh = React.useCallback(() => {
     if (isRefreshingStatus) return
 
+    const generation = refreshGenerationRef.current
     setIsRefreshingStatus(true)
     const minSpinPromise = new Promise((resolve) => setTimeout(resolve, 500))
 
@@ -115,11 +136,12 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
         }
       })
       .finally(() => {
-        setIsRefreshingStatus(false)
+        if (refreshGenerationRef.current === generation) setIsRefreshingStatus(false)
       })
   }, [currentDirectory, getErrorForDirectory, isRefreshingStatus, refreshStatus])
 
   const handleCreateNew = () => {
+    if (!inventoryMatchesDirectory) return
     setSettingsCardSelected(false)
     const baseName = "new-mcp-server"
     let newName = baseName
@@ -151,10 +173,11 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   }
 
   const handleDelete = async () => {
-    if (!deleteTarget) return
+    if (!deleteTarget || !inventoryMatchesDirectory) return
+    const generation = contextGenerationRef.current
     setIsDeleting(true)
     try {
-      const outcome = await runSettingsDeleteMutation(() => deleteMcp(deleteTarget.name))
+      const outcome = await runSettingsDeleteMutation(() => deleteMcp(deleteTarget.name, currentDirectory ?? null, selectionRevision))
       if (outcome.status === "unexpected-error") {
         console.error("Failed to delete MCP server:", outcome.error)
         toast.error(t("settings.mcp.sidebar.toast.deleteFailed"))
@@ -163,6 +186,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
 
       const result = outcome.result
       if (result.ok) {
+        if (contextGenerationRef.current === generation) refreshSelectedMcp(deleteTarget.name, currentDirectory ?? null, selectionRevision)
         if (result.reloadFailed) {
           toast.warning(result.message || `MCP server "${deleteTarget.name}" deleted, but ax-code reload failed`, {
             description: result.warning || t("settings.mcp.sidebar.toast.refreshListIfStale"),
@@ -171,11 +195,11 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
           toast.success(result.message || t("settings.mcp.sidebar.toast.serverDeleted", { name: deleteTarget.name }))
         }
       } else {
-        toast.error(t("settings.mcp.sidebar.toast.deleteFailed"))
+        toast.error(result.contextChanged ? t("settings.mcp.toast.projectChanged") : result.message || t("settings.mcp.sidebar.toast.deleteFailed"))
       }
-      setDeleteTarget(null)
+      if (contextGenerationRef.current === generation) setDeleteTarget(null)
     } finally {
-      setIsDeleting(false)
+      if (contextGenerationRef.current === generation) setIsDeleting(false)
     }
   }
 
@@ -198,13 +222,14 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
         <SettingsProjectSelector className="mb-3" />
         <div className="flex items-center justify-between gap-2">
           <span className="typography-meta text-muted-foreground">
-            {t("settings.mcp.sidebar.total", { count: mcpServers.length })}
+            {inventoryMatchesDirectory ? t("settings.mcp.sidebar.total", { count: mcpServers.length }) : t(isLoading ? "common.loading" : "common.unavailable")}
           </span>
           <Button
             size="sm"
             variant="ghost"
             className="h-7 w-7 px-0 -my-1 text-muted-foreground"
             onClick={handleCreateNew}
+            disabled={!inventoryMatchesDirectory}
             title={t("settings.mcp.sidebar.actions.addServerTitle")}
             aria-label={t("settings.mcp.sidebar.actions.addServerTitle")}
           >
@@ -235,7 +260,12 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
             {webMcpSummary.detail}
           </div>
         </button>
-        {mcpServers.length === 0 ? (
+        {!inventoryMatchesDirectory ? (
+          <div className="space-y-2 px-2 py-4 text-muted-foreground typography-meta" role={isLoading ? "status" : "alert"} aria-busy={isLoading}>
+            <p>{t(isLoading ? "common.loading" : "settings.mcp.page.inventory.unavailable")}</p>
+            {!isLoading && <Button variant="outline" size="xs" onClick={() => void loadMcpConfigs({ force: true })}>{t("settings.mcp.page.inventory.retry")}</Button>}
+          </div>
+        ) : mcpServers.length === 0 ? (
           <div className="py-12 px-4 text-center text-muted-foreground">
             <Icon name="plug" className="mx-auto mb-3 h-10 w-10 opacity-50" />
             <p className="typography-ui-label font-medium">{t("settings.mcp.sidebar.empty.title")}</p>

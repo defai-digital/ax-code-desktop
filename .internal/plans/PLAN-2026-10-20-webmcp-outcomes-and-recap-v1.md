@@ -225,3 +225,12 @@ as visibility evidence. Global config-update feedback/occlusion and stale sideba
 pending ownership. Neutral copy, presentation-only dismissal and an additive native overlay flag repair those bounds.
 Final card/mark contrast has rendered evidence. v4 preserves semantic actions without claiming physical pointer access;
 keyboard containment, real restart/recovery and stale sidebar mutation targeting remain separate follow-ups.
+
+### MCP deletion context and replacement handoff
+
+[Plan](PLAN-2026-10-20-mcp-delete-context.md) and
+[report](../reports/SETTINGS-2026-10-20-mcp-delete-context.md) record a native-confirmed wrong-project DELETE from a
+stale sidebar, scoped action gates, dialog/completion ownership and preserved same-name drafts/replacements. A further
+intermediate-candidate stale detail form was repaired with a bounded UI projection handoff and mounted privacy tests.
+Final native selected/unselected/replacement cases supplement save/create, feedback, Settings and ordinary regressions.
+The user requested finishing after this cycle; remaining leads stay in the report without starting another audit round.

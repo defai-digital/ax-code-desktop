@@ -1396,6 +1396,7 @@ export const settingsDict = {
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Create the server before running live actions",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Save changes before running live actions",
   "settings.mcp.page.status.unsavedChanges": "Unsaved changes",
+  "settings.mcp.toast.projectChanged": "The project or server changed. Select the server again before deleting it.",
   "settings.mcp.page.inventory.unavailable": "Could not load MCP settings for this project.",
   "settings.mcp.page.inventory.retry": "Retry",
   "settings.mcp.page.toast.refreshStatusFailed": "Failed to refresh MCP status",

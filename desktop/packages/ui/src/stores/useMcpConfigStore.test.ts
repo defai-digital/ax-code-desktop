@@ -180,4 +180,113 @@ describe("useMcpConfigStore", () => {
     expect(useMcpConfigStore.getState().loadedDirectory).toBe("/workspace/project")
     expect(fetchCalls).toHaveLength(2)
   })
+
+  test("an origin delete cannot clear a same-name selection in a different project", async () => {
+    const deletion = createDeferred<Response>()
+    useMcpConfigStore.setState({ selectedMcpName: "review" })
+    queueFetchResponses([deletion.promise])
+    const result = useMcpConfigStore.getState().deleteMcp("review")
+    activeProjectPath = "/workspace/other"
+    const other: McpServerWithScope = { name: "review", type: "remote", url: "https://other.invalid", enabled: false, scope: "project" }
+    useMcpConfigStore.setState({ mcpServers: [other], loadedDirectory: activeProjectPath })
+    queueFetchResponses([jsonResponse([other])])
+    deletion.resolve(jsonResponse({ ok: true }))
+    expect(await result).toEqual(expect.objectContaining({ ok: true }))
+    expect(fetchCalls[0]?.input).toBe("/api/config/mcp/review?directory=%2Fworkspace%2Fproject")
+    expect(useMcpConfigStore.getState().selectedMcpName).toBe("review")
+  })
+
+  test("delete acknowledgement preserves a replacement with the same name in the refreshed inventory", async () => {
+    const replacement: McpServerWithScope = { name: "review", type: "remote", url: "https://replacement.invalid", enabled: false }
+    useMcpConfigStore.setState({ selectedMcpName: "review" })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse([replacement])])
+    await useMcpConfigStore.getState().deleteMcp("review")
+    expect(useMcpConfigStore.getState().selectedMcpName).toBe("review")
+    expect(useMcpConfigStore.getState().mcpServers).toEqual([replacement])
+  })
+
+  test("current-context deletion clears a missing record after refresh", async () => {
+    useMcpConfigStore.setState({ selectedMcpName: "review" })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse([])])
+    await useMcpConfigStore.getState().deleteMcp("review")
+    expect(useMcpConfigStore.getState().selectedMcpName).toBeNull()
+  })
+
+  test("delete acknowledgement cannot clear a new same-name draft", async () => {
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpDraft: {
+      name: "review", scope: "project", type: "remote", url: "https://new.invalid", command: [], environment: [], headers: [],
+      oauthEnabled: false, oauthClientId: "", oauthClientSecret: "", oauthScope: "", oauthRedirectUri: "", timeout: "", enabled: false,
+    } })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse([])])
+    await useMcpConfigStore.getState().deleteMcp("review")
+    expect(useMcpConfigStore.getState().selectedMcpName).toBe("review")
+  })
+
+  test("a stale caller cannot retarget deletion to the new active directory", async () => {
+    activeProjectPath = "/workspace/other"
+    const result = await useMcpConfigStore.getState().deleteMcp("review", "/workspace/project")
+    expect(result).toEqual(expect.objectContaining({ ok: false, contextChanged: true }))
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test("failed post-delete refresh keeps the existing same-context selection cleanup", async () => {
+    const original: McpServerWithScope = { name: "review", type: "remote", url: "https://original.invalid", enabled: false }
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath })
+    queueFetchResponses([jsonResponse({ ok: true }), jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
+    expect(await useMcpConfigStore.getState().deleteMcp("review")).toEqual(expect.objectContaining({ ok: true }))
+    expect(useMcpConfigStore.getState().selectedMcpName).toBeNull()
+  })
+
+  test("failed refresh cannot erase an observed replacement selection", async () => {
+    const deletion = createDeferred<Response>()
+    const original: McpServerWithScope = { name: "review", type: "remote", url: "https://original.invalid", enabled: false }
+    const replacement = { ...original, url: "https://replacement.invalid" }
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath })
+    queueFetchResponses([deletion.promise])
+    const pending = useMcpConfigStore.getState().deleteMcp("review")
+    useMcpConfigStore.setState({ mcpServers: [replacement] })
+    queueFetchResponses([jsonResponse({ error: "Fixture unavailable" }, { status: 503 })])
+    deletion.resolve(jsonResponse({ ok: true }))
+    await pending
+    expect(useMcpConfigStore.getState().selectedMcpName).toBe("review")
+    expect(useMcpConfigStore.getState().mcpServers).toEqual([replacement])
+  })
+
+  test("selected form refresh is scoped and cannot retarget another directory", () => {
+    const replacement: McpServerWithScope = { name: "review", type: "remote", url: "https://replacement.invalid", enabled: false }
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [replacement], loadedDirectory: activeProjectPath })
+    expect(useMcpConfigStore.getState().refreshSelectedMcp("review", "/workspace/other")).toBe(false)
+    expect(useMcpConfigStore.getState().selectionRevision).toBe(0)
+    expect(useMcpConfigStore.getState().refreshSelectedMcp("review", activeProjectPath)).toBe(true)
+    expect(useMcpConfigStore.getState().selectionRevision).toBe(1)
+  })
+
+  test("an outdated form projection cannot delete a newly revealed same-name server", async () => {
+    useMcpConfigStore.setState({ selectionRevision: 1 })
+    const result = await useMcpConfigStore.getState().deleteMcp("review", activeProjectPath, 0)
+    expect(result).toEqual(expect.objectContaining({ ok: false, contextChanged: true }))
+    expect(fetchCalls).toHaveLength(0)
+  })
+
+  test("accepted inventory advances form context when a project override reveals user scope", async () => {
+    const original: McpServerWithScope = { name: "review", type: "remote", url: "https://project.invalid", scope: "project", enabled: false }
+    const fallback = { ...original, scope: "user" as const, url: "https://global.invalid" }
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath })
+    queueFetchResponses([jsonResponse([fallback])])
+    await useMcpConfigStore.getState().loadMcpConfigs({ force: true })
+    expect(useMcpConfigStore.getState().selectionRevision).toBe(1)
+    expect(useMcpConfigStore.getState().refreshSelectedMcp("review", activeProjectPath, 0)).toBe(false)
+    expect(useMcpConfigStore.getState().selectionRevision).toBe(1)
+  })
+
+  test("an accepted scope transition preserves explicit new-draft intent", async () => {
+    const original: McpServerWithScope = { name: "review", type: "remote", url: "https://project.invalid", scope: "project", enabled: false }
+    useMcpConfigStore.setState({ selectedMcpName: "review", mcpServers: [original], loadedDirectory: activeProjectPath,
+      mcpDraft: { name: "review", scope: "project", type: "remote", url: "https://draft.invalid", command: [], environment: [], headers: [],
+        oauthEnabled: false, oauthClientId: "", oauthClientSecret: "", oauthScope: "", oauthRedirectUri: "", timeout: "", enabled: false } })
+    queueFetchResponses([jsonResponse([{ ...original, scope: "user", url: "https://global.invalid" }])])
+    await useMcpConfigStore.getState().loadMcpConfigs({ force: true })
+    expect(useMcpConfigStore.getState().selectionRevision).toBe(0)
+    expect(useMcpConfigStore.getState().mcpDraft?.url).toBe("https://draft.invalid")
+  })
 })

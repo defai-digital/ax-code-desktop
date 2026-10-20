@@ -554,12 +554,14 @@ export const McpPage: React.FC = () => {
   )
   const {
     selectedMcpName,
+    selectionRevision,
     mcpServers,
     loadedDirectory,
     mcpDraft,
     isLoading,
     setMcpDraft,
     setSelectedMcp,
+    refreshSelectedMcp,
     getMcpByName,
     createMcp,
     updateMcp,
@@ -568,12 +570,14 @@ export const McpPage: React.FC = () => {
   } = useMcpConfigStore(
     useShallow((s) => ({
       selectedMcpName: s.selectedMcpName,
+      selectionRevision: s.selectionRevision,
       mcpServers: s.mcpServers,
       loadedDirectory: s.loadedDirectory,
       mcpDraft: s.mcpDraft,
       isLoading: s.isLoading,
       setMcpDraft: s.setMcpDraft,
       setSelectedMcp: s.setSelectedMcp,
+      refreshSelectedMcp: s.refreshSelectedMcp,
       getMcpByName: s.getMcpByName,
       createMcp: s.createMcp,
       updateMcp: s.updateMcp,
@@ -598,7 +602,7 @@ export const McpPage: React.FC = () => {
   // A project-scoped server with the same name exists in every project: the form key must
   // change with the active project or the previous project's values stay on screen (and a
   // save writes them into the new project).
-  const selectedMcpLoadKey = `${selectedMcpNameKey}|${currentDirectory ?? ""}`
+  const selectedMcpLoadKey = JSON.stringify([selectedMcpNameKey, currentDirectory ?? "", selectionRevision])
   // The draft remains the editing context until its successful handoff, even if
   // create's inventory refresh has already published the new server.
   const isNewServer = Boolean(mcpDraft && mcpDraft.name === selectedMcpNameKey)
@@ -653,8 +657,8 @@ export const McpPage: React.FC = () => {
   const [importJsonText, setImportJsonText] = React.useState("")
   const [importError, setImportError] = React.useState<string | null>(null)
   const runtimeActionKey = React.useMemo(
-    () => buildMcpRuntimeActionKey(selectedMcpNameKey, currentDirectory),
-    [currentDirectory, selectedMcpNameKey],
+    () => JSON.stringify([buildMcpRuntimeActionKey(selectedMcpNameKey, currentDirectory), selectionRevision]),
+    [currentDirectory, selectedMcpNameKey, selectionRevision],
   )
   const runtimeActionKeyRef = React.useRef(runtimeActionKey)
   // Returning to the same server is a new form, even when its name and directory match.
@@ -663,8 +667,10 @@ export const McpPage: React.FC = () => {
   React.useLayoutEffect(() => {
     formGenerationRef.current += 1
     setIsSaving(false)
+    setIsDeleting(false)
+    setShowDeleteConfirm(false)
     return () => { formGenerationRef.current += 1 }
-  }, [currentDirectory, selectedMcpName, mcpDraft])
+  }, [currentDirectory, selectedMcpName, mcpDraft, selectionRevision])
 
   const initialRef = React.useRef<{
     mcpType: "local" | "remote"
@@ -908,6 +914,8 @@ export const McpPage: React.FC = () => {
 
   const handleSave = async () => {
     if (!inventoryMatchesDirectory) return
+    if (isNewServer ? loadedDraftRef.current?.draft !== mcpDraft || loadedDraftRef.current.loadKey !== selectedMcpLoadKey
+      : loadedMcpNameRef.current !== selectedMcpLoadKey) return
     const name = isNewServer ? draftName.trim() : selectedMcpNameKey
     if (!name) {
       toast.error(t("settings.mcp.page.toast.nameRequired"))
@@ -968,7 +976,7 @@ export const McpPage: React.FC = () => {
           }
           if (isNewServer) {
             // Keep current editable values across the draft-to-record transition.
-            loadedMcpNameRef.current = `${name}|${currentDirectory ?? ""}`
+            loadedMcpNameRef.current = JSON.stringify([name, currentDirectory ?? "", selectionRevision])
             loadedDraftRef.current = null
             setMcpDraft(null)
             setSelectedMcp(name)
@@ -1006,10 +1014,11 @@ export const McpPage: React.FC = () => {
   }
 
   const handleDelete = async () => {
-    if (!selectedMcpName) return
+    if (!selectedMcpName || !inventoryMatchesDirectory) return
+    const generation = formGenerationRef.current
     setIsDeleting(true)
     try {
-      const outcome = await runSettingsDeleteMutation(() => deleteMcp(selectedMcpName))
+      const outcome = await runSettingsDeleteMutation(() => deleteMcp(selectedMcpName, currentDirectory ?? null, selectionRevision))
       if (outcome.status === "unexpected-error") {
         console.error("Failed to delete MCP server:", outcome.error)
         toast.error(t("settings.mcp.page.toast.deleteFailed"))
@@ -1020,7 +1029,10 @@ export const McpPage: React.FC = () => {
       if (result.ok) {
         try {
           await clearPendingMcpAuthContext(authStateKey)
-          resetTransientAuthState()
+          if (formGenerationRef.current === generation) {
+            resetTransientAuthState()
+            refreshSelectedMcp(selectedMcpName, currentDirectory ?? null, selectionRevision)
+          }
         } catch (error) {
           console.warn("Deleted MCP server, but failed to clear pending auth state:", error)
         }
@@ -1034,12 +1046,12 @@ export const McpPage: React.FC = () => {
         } else {
           toast.success(result.message || t("settings.mcp.page.toast.serverDeleted", { name: selectedMcpName }))
         }
-        setShowDeleteConfirm(false)
+        if (formGenerationRef.current === generation) setShowDeleteConfirm(false)
       } else {
-        toast.error(t("settings.mcp.page.toast.deleteFailed"))
+        toast.error(result.contextChanged ? t("settings.mcp.toast.projectChanged") : result.message || t("settings.mcp.page.toast.deleteFailed"))
       }
     } finally {
-      setIsDeleting(false)
+      if (formGenerationRef.current === generation) setIsDeleting(false)
     }
   }
 
@@ -1103,7 +1115,7 @@ export const McpPage: React.FC = () => {
 
   React.useEffect(() => {
     void handleRefreshRuntimeStatus(true)
-  }, [handleRefreshRuntimeStatus])
+  }, [handleRefreshRuntimeStatus, selectionRevision])
 
   React.useEffect(() => {
     runtimeActionKeyRef.current = runtimeActionKey
@@ -1423,19 +1435,6 @@ export const McpPage: React.FC = () => {
     return <WebMcpToolsCard />
   }
 
-  // ── Empty state ──
-  if (!selectedMcpName) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="text-center text-muted-foreground">
-          <Icon name="plug" className="mx-auto mb-3 h-12 w-12 opacity-50" />
-          <p className="typography-markdown">{t("settings.mcp.page.empty.selectServer")}</p>
-          <p className="typography-meta mt-1 opacity-75">{t("settings.mcp.page.empty.addNewOne")}</p>
-        </div>
-      </div>
-    )
-  }
-
   // A directory can change one render before its inventory begins loading. Never expose
   // the previous project's editable values under the new project's controls.
   if (!inventoryMatchesDirectory) {
@@ -1444,6 +1443,19 @@ export const McpPage: React.FC = () => {
         <div className="text-center text-muted-foreground space-y-2">
           <p>{t(isLoading ? "common.loading" : "settings.mcp.page.inventory.unavailable")}</p>
           {!isLoading && <Button variant="outline" size="xs" onClick={() => void loadMcpConfigs({ force: true })}>{t("settings.mcp.page.inventory.retry")}</Button>}
+        </div>
+      </div>
+    )
+  }
+
+  // ── Empty state ──
+  if (!selectedMcpName) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="text-center text-muted-foreground">
+          <Icon name="plug" className="mx-auto mb-3 h-12 w-12 opacity-50" />
+          <p className="typography-markdown">{t("settings.mcp.page.empty.selectServer")}</p>
+          <p className="typography-meta mt-1 opacity-75">{t("settings.mcp.page.empty.addNewOne")}</p>
         </div>
       </div>
     )

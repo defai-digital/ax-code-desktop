@@ -1297,6 +1297,7 @@
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Buat server sebelum menjalankan tindakan langsung",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Simpan perubahan sebelum menjalankan tindakan langsung",
   "settings.mcp.page.status.unsavedChanges": "Perubahan belum disimpan",
+  "settings.mcp.toast.projectChanged": "Proyek atau server telah berubah. Pilih kembali server sebelum menghapusnya.",
   "settings.mcp.page.inventory.unavailable": "Pengaturan MCP untuk proyek ini tidak dapat dimuat.",
   "settings.mcp.page.inventory.retry": "Coba lagi",
   "settings.mcp.page.toast.refreshStatusFailed": "Gagal menyegarkan status MCP",

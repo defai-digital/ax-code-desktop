@@ -1297,6 +1297,7 @@
   "settings.mcp.page.toast.createServerBeforeLiveActions": "H\u00e3y t\u1ea1o m\u00e1y ch\u1ee7 tr\u01b0\u1edbc khi ch\u1ea1y thao t\u00e1c tr\u1ef1c ti\u1ebfp",
   "settings.mcp.page.toast.saveBeforeLiveActions": "H\u00e3y l\u01b0u thay \u0111\u1ed5i tr\u01b0\u1edbc khi ch\u1ea1y thao t\u00e1c tr\u1ef1c ti\u1ebfp",
   "settings.mcp.page.status.unsavedChanges": "Thay đổi chưa lưu",
+  "settings.mcp.toast.projectChanged": "Dự án hoặc máy chủ đã thay đổi. Hãy chọn lại máy chủ trước khi xóa.",
   "settings.mcp.page.inventory.unavailable": "Không thể tải cài đặt MCP cho dự án này.",
   "settings.mcp.page.inventory.retry": "Thử lại",
   "settings.mcp.page.toast.refreshStatusFailed": "Kh\u00f4ng l\u00e0m m\u1edbi \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i MCP",

@@ -1297,6 +1297,7 @@
   "settings.mcp.page.toast.createServerBeforeLiveActions": "Crie o servidor antes de executar a\u00e7\u00f5es ao vivo",
   "settings.mcp.page.toast.saveBeforeLiveActions": "Salve as altera\u00e7\u00f5es antes de executar a\u00e7\u00f5es ao vivo",
   "settings.mcp.page.status.unsavedChanges": "Alterações não salvas",
+  "settings.mcp.toast.projectChanged": "O projeto ou o servidor mudou. Selecione o servidor novamente antes de excluí-lo.",
   "settings.mcp.page.inventory.unavailable": "Não foi possível carregar as configurações MCP deste projeto.",
   "settings.mcp.page.inventory.retry": "Tentar novamente",
   "settings.mcp.page.toast.refreshStatusFailed": "Falha ao atualizar status do MCP",
