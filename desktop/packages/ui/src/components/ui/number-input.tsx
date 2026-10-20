@@ -66,6 +66,12 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
     ref,
   ) => {
     const { t } = useI18n()
+    const decreaseLabel = props["aria-label"]
+      ? `${t("numberInput.actions.decreaseAria")}: ${props["aria-label"]}`
+      : t("numberInput.actions.decreaseAria")
+    const increaseLabel = props["aria-label"]
+      ? `${t("numberInput.actions.increaseAria")}: ${props["aria-label"]}`
+      : t("numberInput.actions.increaseAria")
     const [draft, setDraft] = React.useState(() => (value === undefined ? "" : String(value)))
     const { isMobile } = useDeviceInfo()
     const ignoreNextClickRef = React.useRef(false)
@@ -228,7 +234,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
         >
           <button
             type="button"
-            aria-label={t("numberInput.actions.decreaseAria")}
+            aria-label={decreaseLabel}
             disabled={decrementDisabled}
             onTouchStart={handleMobileTouchActivate(handleMobileDecrement)}
             onClick={handleMobileClickActivate(handleMobileDecrement)}
@@ -255,7 +261,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
 
           <button
             type="button"
-            aria-label={t("numberInput.actions.increaseAria")}
+            aria-label={increaseLabel}
             disabled={incrementDisabled}
             onTouchStart={handleMobileTouchActivate(handleMobileIncrement)}
             onClick={handleMobileClickActivate(handleMobileIncrement)}
@@ -282,7 +288,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
       >
         <button
           type="button"
-          aria-label={t("numberInput.actions.decreaseAria")}
+          aria-label={decreaseLabel}
           disabled={decrementDisabled}
           onClick={() => commitValue(baseValue - step)}
           className={cn(
@@ -316,7 +322,7 @@ const NumberInput = React.forwardRef<HTMLInputElement, NumberInputProps>(
         />
         <button
           type="button"
-          aria-label={t("numberInput.actions.increaseAria")}
+          aria-label={increaseLabel}
           disabled={incrementDisabled}
           onClick={() => commitValue(baseValue + step)}
           className={cn(

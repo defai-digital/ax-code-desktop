@@ -2,6 +2,10 @@
 
 const DESKTOP_BROWSER_WEBVIEW_PARTITION = "persist:openchamber-browser"
 
+function isDesktopUiWebMcpEnabled(isPackaged, env) {
+  return isPackaged === false && env?.AX_CODE_DESKTOP_UI_WEBMCP === "1"
+}
+
 function createDesktopRendererWebPreferences(preload, options = {}) {
   const additionalArguments = Array.isArray(options.additionalArguments)
     ? options.additionalArguments.filter((value) => typeof value === "string" && value.length > 0)
@@ -75,6 +79,7 @@ function attachDesktopBrowserWebviewPolicy(contents) {
 }
 
 module.exports = {
+  isDesktopUiWebMcpEnabled,
   DESKTOP_BROWSER_WEBVIEW_PARTITION,
   applyDesktopBrowserWebviewPolicy,
   attachDesktopBrowserWebviewPolicy,

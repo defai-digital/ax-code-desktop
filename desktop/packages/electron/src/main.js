@@ -82,6 +82,9 @@ const wikiViewer = createWikiViewer({
 
 // Native WebMCP is supplied by the bundled engine; agent access is separately enrolled.
 app.commandLine.appendSwitch("enable-features", "WebMCP")
+// UI inspection is an explicit developer opt-in, never enabled in a packaged app.
+process.env.AX_CODE_DESKTOP_UI_WEBMCP =
+  require("./webview-policy").isDesktopUiWebMcpEnabled(app.isPackaged, process.env) ? "1" : "0"
 const {
   createAxCodeRuntimeSupervision,
   defaultIsExecutable,

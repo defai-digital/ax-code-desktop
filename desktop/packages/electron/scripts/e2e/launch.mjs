@@ -52,6 +52,7 @@ export const buildLaunchSpec = ({
   serverPort,
   scenarioPath = "",
   repliesPath = "",
+  uiWebMcp = false,
   platform = process.platform,
   baseEnv = process.env,
 }) => {
@@ -74,6 +75,7 @@ export const buildLaunchSpec = ({
     AX_CODE_DESKTOP_AX_CODE_HEALTH_TIMEOUT_MS: "1500",
     AX_CODE_DESKTOP_AX_CODE_HEALTH_INTERVAL_MS: "0",
     AX_CODE_DESKTOP_DISABLE_AUTO_UPDATE: "1",
+    AX_CODE_DESKTOP_UI_WEBMCP: uiWebMcp ? "1" : "0",
     // The scripted-session scenario reaches the stub runtime through the
     // supervised runtime child's environment (SPEC-2026-10-19-desktop-e2e-journeys-v1).
     ...(scenarioPath ? { [STUB_SCENARIO_ENV]: scenarioPath } : {}),
@@ -130,7 +132,8 @@ const killStubProcesses = async (stubRuntime) => {
  * Launches the built app (unpackaged by default, or a packaged macOS .app) in
  * an isolated profile. Teardown stops only processes this launch started.
  */
-export const launchDesktop = async ({ app = "" } = {}) => {
+export const launchDesktop = async ({ app = "", uiWebMcp = false } = {}) => {
+  if (app && uiWebMcp) throw new Error("UI WebMCP is available only in unpackaged development builds")
   // The app resolves directories to their real path before it talks to the runtime (macOS /var is a link to /private/var),
   // so the seeded project, the scenario and every path under it must already be real or the stub never matches a request.
   const tmpDir = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "ax-code-desktop-e2e-")))
@@ -202,6 +205,7 @@ export const launchDesktop = async ({ app = "" } = {}) => {
       serverPort,
       scenarioPath,
       repliesPath,
+      uiWebMcp,
     })
     // The app adds its working directory as a project and sometimes selects it. Running from the seeded project keeps the
     // profile's only project the active one, so a run never depends on where the harness was started.

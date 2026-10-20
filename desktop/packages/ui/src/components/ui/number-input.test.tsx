@@ -27,7 +27,7 @@ describe("NumberInput typing", () => {
     vi.restoreAllMocks()
   })
 
-  const render = (props: { initial: number; min: number; max: number; step: number }) => {
+  const render = (props: { initial: number; min: number; max: number; step: number; label?: string }) => {
     const container = document.createElement("div")
     document.body.appendChild(container)
     const root = createRoot(container)
@@ -39,6 +39,7 @@ describe("NumberInput typing", () => {
       return (
         <I18nProvider>
           <NumberInput
+            aria-label={props.label}
             value={value}
             min={props.min}
             max={props.max}
@@ -71,6 +72,15 @@ describe("NumberInput typing", () => {
     act(() => type(input, "75"))
     expect(changes.at(-1)).toBe(75)
     expect(input.value).toBe("75")
+  })
+
+  test("identifies both stepper actions by their field name", () => {
+    const { container } = render({ initial: 13, min: 9, max: 52, step: 1, label: "Terminal Font Size" })
+    const buttons = container.querySelectorAll("button")
+    expect(buttons[0].getAttribute("aria-label")).toBe("Decrease value: Terminal Font Size")
+    expect(buttons[1].getAttribute("aria-label")).toBe("Increase value: Terminal Font Size")
+    act(() => buttons[1].click())
+    expect(container.querySelector("input")!.value).toBe("14")
   })
 
   test("commits a typed value that is already in range and on step", () => {

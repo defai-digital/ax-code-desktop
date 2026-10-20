@@ -45,4 +45,17 @@ describe("fetchHookWorkspace", () => {
 
     await expect(fetchHookWorkspace("/repo/app")).rejects.toThrow(/empty hooks response/i)
   })
+
+  it.each([
+    {},
+    { ...workspace, file: null },
+    { ...workspace, hooks: [{}] },
+    { ...workspace, file: { ...workspace.file, path: 123 } },
+    { ...workspace, packs: [{ name: "bad", enabled: true, description: 42 }] },
+    { ...workspace, hooks: [{ event: "PreToolUse", source: "project", command: "echo ok", matcher: 42 }] },
+  ])("rejects malformed runtime data before it reaches the renderer: %j", async (data) => {
+    hooksGet.mockResolvedValue({ data })
+    vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ hooks: { get: hooksGet } } as never)
+    await expect(fetchHookWorkspace("/repo/app")).rejects.toThrow("Invalid hooks response")
+  })
 })

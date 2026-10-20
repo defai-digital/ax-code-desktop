@@ -325,6 +325,7 @@ const IdentityRow: React.FC<IdentityRowProps> = ({
             variant="ghost"
             className="h-6 w-6 shrink-0 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
             onClick={(e) => e.stopPropagation()}
+            aria-label={t("settings.snippets.sidebar.actions.more", { name: profile.name })}
           >
             <Icon name="more-2" className="h-3.5 w-3.5" />
           </Button>

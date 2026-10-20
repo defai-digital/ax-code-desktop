@@ -6,7 +6,13 @@ import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { CdpSession, isAppPageTarget, waitForCondition, waitForTarget } from "./cdp.mjs"
-import { CSP_RECORDER_SCRIPT, FINAL_CHECKS, JOURNEYS, SHELL_READY_EXPRESSION, waitForRuntimeReadiness } from "./journeys.mjs"
+import {
+  CSP_RECORDER_SCRIPT,
+  FINAL_CHECKS,
+  JOURNEYS,
+  SHELL_READY_EXPRESSION,
+  waitForRuntimeReadiness,
+} from "./journeys.mjs"
 import { launchDesktop } from "./launch.mjs"
 
 export const parseArgs = (argv) => {
@@ -55,8 +61,14 @@ const writeArtifacts = async ({ dir, launch, consoleMessages, session, results }
   }
 }
 
-export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000, journeys = JOURNEYS } = {}) => {
-  const launch = await launchDesktop({ app })
+export const runHarness = async ({
+  app = "",
+  artifacts = "",
+  timeoutMs = 60_000,
+  journeys = JOURNEYS,
+  uiWebMcp = false,
+} = {}) => {
+  const launch = await launchDesktop({ app, uiWebMcp })
   const consoleMessages = []
   const results = []
   let session = null

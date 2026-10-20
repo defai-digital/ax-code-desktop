@@ -22,7 +22,9 @@ export const CSP_RECORDER_SCRIPT = `(() => {
 
 export const SHELL_READY_EXPRESSION = `(() => {
   const root = document.getElementById("root")
-  if (!root) return false
+  // The provider tree mounts before initialization and keyboard effects finish.
+  // Splash removal is the app's visible readiness gate, including after reload.
+  if (!root || document.getElementById("initial-loading")) return false
   return Array.from(root.children).some((child) => child.id !== "initial-loading")
 })()`
 
@@ -186,19 +188,23 @@ export const journeySettings = async ({ session, platform = process.platform }) 
   })
   // CDP modifier bits: Alt=1, Ctrl=2, Meta=4, Shift=8. `mod` is Meta on macOS.
   const modifiers = platform === "darwin" ? 4 : 2
-  for (const type of ["rawKeyDown", "keyUp"]) {
-    await session.send("Input.dispatchKeyEvent", {
-      type,
-      modifiers,
-      key: ",",
-      code: "Comma",
-      windowsVirtualKeyCode: 188,
+  // Native-menu and renderer delivery can overlap; repeating Open must stay open.
+  for (let invocation = 0; invocation < 2; invocation += 1) {
+    for (const type of ["rawKeyDown", "keyUp"]) {
+      await session.send("Input.dispatchKeyEvent", {
+        type,
+        modifiers,
+        key: ",",
+        code: "Comma",
+        windowsVirtualKeyCode: 188,
+      })
+    }
+    await session.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+    await waitForCondition(() => session.evaluate('document.querySelector("[data-settings-view]") !== null'), {
+      timeoutMs: 10_000,
+      label: "settings view",
     })
   }
-  await waitForCondition(() => session.evaluate('document.querySelector("[data-settings-view]") !== null'), {
-    timeoutMs: 10_000,
-    label: "settings view",
-  })
   return { name: "settings", ok: true, detail: "settings view opened with the keyboard shortcut" }
 }
 

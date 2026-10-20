@@ -72,7 +72,10 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
       return
     }
 
-    if (skillNames.has(selectedCommandName) || commands.some((command) => command.name === selectedCommandName && command.source === "skill")) {
+    if (
+      skillNames.has(selectedCommandName) ||
+      commands.some((command) => command.name === selectedCommandName && command.source === "skill")
+    ) {
       setSelectedCommand(null)
     }
   }, [selectedCommandName, setSelectedCommand, skillNames, commands])
@@ -237,6 +240,7 @@ export const CommandsSidebar: React.FC<CommandsSidebarProps> = ({ onItemSelect }
             variant="ghost"
             className="h-7 w-7 px-0 -my-1 text-muted-foreground"
             onClick={handleCreateNew}
+            aria-label={t("settings.commands.page.title.new")}
           >
             <Icon name="add" className="h-3.5 w-3.5" />
           </Button>
@@ -440,6 +444,7 @@ const CommandListItem: React.FC<CommandListItemProps> = ({
               size="sm"
               variant="ghost"
               className="h-6 w-6 px-0 flex-shrink-0 -mr-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+              aria-label={t("settings.snippets.sidebar.actions.more", { name: command.name })}
             >
               <Icon name="more-2" className="h-3.5 w-3.5" />
             </Button>

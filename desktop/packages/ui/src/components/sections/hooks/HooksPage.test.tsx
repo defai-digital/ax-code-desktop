@@ -84,6 +84,20 @@ afterEach(() => {
 })
 
 describe("HooksPage", () => {
+  test("keeps malformed responses inside the retryable load error and recovers", async () => {
+    hooksGet.mockResolvedValueOnce({ data: {} })
+    await renderPage()
+    expect(text()).toContain("Invalid hooks response")
+    expect(text()).toContain("Could not load hooks.")
+    expect(text()).not.toContain("Something went wrong")
+    hooksGet.mockResolvedValue({ data: trustedWorkspace })
+    await act(async () => {
+      button("Retry")?.click()
+    })
+    await flush()
+    expect(text()).toContain("PreToolUse")
+    expect(text()).not.toContain("Invalid hooks response")
+  })
   test("warns that an untrusted hooks file is ignored", async () => {
     const openContextFile = vi.fn()
     useUIStore.setState({ openContextFile })

@@ -291,6 +291,7 @@ export const AgentsSidebar: React.FC<AgentsSidebarProps> = ({ onItemSelect }) =>
             variant="ghost"
             className="h-7 w-7 px-0 -my-1 text-muted-foreground"
             onClick={handleCreateNew}
+            aria-label={t("settings.agents.page.title.new")}
           >
             <Icon name="add" className="h-3.5 w-3.5" />
           </Button>
@@ -511,6 +512,7 @@ const AgentListItem: React.FC<AgentListItemProps> = ({
               size="sm"
               variant="ghost"
               className="h-6 w-6 px-0 flex-shrink-0 -mr-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+              aria-label={t("settings.snippets.sidebar.actions.more", { name: agent.name })}
             >
               <Icon name="more-2" className="h-3.5 w-3.5" />
             </Button>
@@ -537,7 +539,6 @@ const AgentListItem: React.FC<AgentListItemProps> = ({
               <Icon name="file-copy" className="h-4 w-4 mr-px" />
               {t("settings.common.actions.duplicate")}
             </DropdownMenuItem>
-
 
             {onDelete && (
               <DropdownMenuItem

@@ -783,6 +783,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                   <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                     <NumberInput
                       value={terminalFontSize}
+                      aria-label={t("settings.openchamber.visual.field.terminalFontSize")}
                       onValueChange={setTerminalFontSize}
                       min={9}
                       max={52}
@@ -815,6 +816,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                   <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                     <NumberInput
                       value={padding}
+                      aria-label={t("settings.openchamber.visual.field.spacingDensity")}
                       onValueChange={setPadding}
                       min={50}
                       max={200}
@@ -857,6 +859,7 @@ export const AXCodeVisualSettings: React.FC<AXCodeVisualSettingsProps> = ({ visi
                   <div className={cn("flex items-center gap-2", isMobile ? "w-full" : "w-fit")}>
                     <NumberInput
                       value={inputBarOffset}
+                      aria-label={t("settings.openchamber.visual.field.inputBarOffset")}
                       onValueChange={setInputBarOffset}
                       min={0}
                       max={100}

@@ -225,8 +225,9 @@ export const useKeyboardShortcuts = () => {
 
       if (eventMatchesShortcut(e, combo("open_settings"))) {
         e.preventDefault()
-        const { isSettingsDialogOpen } = useUIStore.getState()
-        setSettingsDialogOpen(!isSettingsDialogOpen)
+        // Electron's native menu can dispatch the same shortcut first. Match its
+        // open action so duplicate delivery cannot immediately close Settings.
+        setSettingsDialogOpen(true)
         return
       }
 

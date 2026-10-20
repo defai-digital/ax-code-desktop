@@ -62,11 +62,18 @@ end-to-end harness, structure and supervision work). Settled decisions and their
 | Development app               | `pnpm run dev`                                                     |
 | Release readiness (read-only)  | `pnpm run release:preflight`                                       |
 | End-to-end journeys (after build) | `pnpm run e2e:desktop` (`-- --app <path>.app` for packaged)     |
+| Interactive UI WebMCP lab (after build) | `pnpm run dev:webmcp` (isolated profile and stub runtime) |
+| Native UI WebMCP verification (after build) | `pnpm run e2e:desktop:webmcp` |
+| Settings UI WebMCP audit (after build) | `pnpm run e2e:desktop:settings-webmcp -- --artifacts <dir>` |
 | Harness failure-detection self-test (after build) | `pnpm run e2e:desktop:self-test` (also accepts `-- --app <path>.app`) |
 | Source-text test ratchet       | `pnpm run check:source-text-tests` (part of `check:boundaries`)    |
 | Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
 
 Public distribution commands require signed exact-inventory qualification; user publication approval is recorded under ADR-012.
+
+For agent-driven UI development checks, see `docs/development-webmcp.md`. This opt-in development surface exposes Desktop's
+own rendered controls through native WebMCP; it is separate from the project browser consuming website tools. Packaged apps
+disable it. Verify asynchronous UI changes with fresh state reads and DOM/screenshot evidence, not action acknowledgements.
 
 ## Analysis outputs and diagrams
 

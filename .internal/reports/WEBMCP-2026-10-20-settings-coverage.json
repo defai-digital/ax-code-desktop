@@ -1,0 +1,445 @@
+{
+  "schema": "ax-code.desktop-settings-webmcp-coverage.v1",
+  "date": "2026-10-20",
+  "environment": "unpackaged Electron; isolated profile/project; stub runtime",
+  "meaning": "Counts include repeated navigation controls and are not unique control counts or complete button execution coverage.",
+  "pages": [
+    {
+      "page": "Local Models",
+      "observedControls": 19,
+      "roles": {
+        "button": 18,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Appearance",
+      "observedControls": 56,
+      "roles": {
+        "button": 41,
+        "input": 6,
+        "combobox": 8,
+        "checkbox": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Chat",
+      "observedControls": 64,
+      "roles": {
+        "button": 40,
+        "input": 1,
+        "radio": 11,
+        "checkbox": 12
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Notifications",
+      "observedControls": 20,
+      "roles": {
+        "button": 18,
+        "input": 1,
+        "checkbox": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Sessions",
+      "observedControls": 41,
+      "roles": {
+        "button": 32,
+        "input": 3,
+        "combobox": 1,
+        "checkbox": 5
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Shortcuts",
+      "observedControls": 119,
+      "roles": {
+        "button": 84,
+        "input": 35
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Git",
+      "observedControls": 30,
+      "roles": {
+        "button": 25,
+        "input": 1,
+        "radio": 2,
+        "checkbox": 2
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Projects",
+      "observedControls": 57,
+      "roles": {
+        "button": 55,
+        "input": 2
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Agents",
+      "observedControls": 20,
+      "roles": {
+        "button": 19,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Behavior",
+      "observedControls": 23,
+      "roles": {
+        "button": 18,
+        "input": 1,
+        "textarea": 2,
+        "checkbox": 1,
+        "combobox": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Commands",
+      "observedControls": 20,
+      "roles": {
+        "button": 19,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "MCP",
+      "observedControls": 24,
+      "roles": {
+        "button": 23,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Hooks",
+      "observedControls": 21,
+      "roles": {
+        "button": 20,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Providers",
+      "observedControls": 20,
+      "roles": {
+        "button": 19,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    },
+    {
+      "page": "Skills",
+      "observedControls": 80,
+      "roles": {
+        "button": 79,
+        "input": 1
+      },
+      "unnamedControls": 0,
+      "horizontalOverflow": false
+    }
+  ],
+  "actions": [
+    {
+      "action": "click",
+      "name": "Settings"
+    },
+    {
+      "action": "click",
+      "name": "Local Models"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Chat"
+    },
+    {
+      "action": "click",
+      "name": "Notifications"
+    },
+    {
+      "action": "click",
+      "name": "Sessions"
+    },
+    {
+      "action": "click",
+      "name": "Shortcuts"
+    },
+    {
+      "action": "click",
+      "name": "Git"
+    },
+    {
+      "action": "click",
+      "name": "Projects"
+    },
+    {
+      "action": "click",
+      "name": "Agents"
+    },
+    {
+      "action": "click",
+      "name": "Behavior"
+    },
+    {
+      "action": "click",
+      "name": "Commands"
+    },
+    {
+      "action": "click",
+      "name": "MCP"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    },
+    {
+      "action": "click",
+      "name": "Providers"
+    },
+    {
+      "action": "click",
+      "name": "Skills"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Conversation language"
+    },
+    {
+      "action": "click",
+      "name": "English"
+    },
+    {
+      "action": "fill",
+      "name": "Terminal Font Size",
+      "value": "15"
+    },
+    {
+      "action": "click",
+      "name": "Increase value: Terminal Font Size"
+    },
+    {
+      "action": "click",
+      "name": "Reset terminal font size"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Terminal quick keys"
+    },
+    {
+      "action": "click",
+      "name": "Terminal quick keys"
+    },
+    {
+      "action": "click",
+      "name": "Chat"
+    },
+    {
+      "action": "click",
+      "name": "Show expanded bash tools"
+    },
+    {
+      "action": "click",
+      "name": "Show expanded bash tools"
+    },
+    {
+      "action": "click",
+      "name": "Show expanded edit tools"
+    },
+    {
+      "action": "click",
+      "name": "Show expanded edit tools"
+    },
+    {
+      "action": "click",
+      "name": "Show reasoning traces"
+    },
+    {
+      "action": "click",
+      "name": "Show reasoning traces"
+    },
+    {
+      "action": "click",
+      "name": "Sticky user header"
+    },
+    {
+      "action": "click",
+      "name": "Sticky user header"
+    },
+    {
+      "action": "click",
+      "name": "Wide chat layout"
+    },
+    {
+      "action": "click",
+      "name": "Wide chat layout"
+    },
+    {
+      "action": "click",
+      "name": "Show changed files on completed turns"
+    },
+    {
+      "action": "click",
+      "name": "Show changed files on completed turns"
+    },
+    {
+      "action": "click",
+      "name": "Inline assistant actions"
+    },
+    {
+      "action": "click",
+      "name": "Inline assistant actions"
+    },
+    {
+      "action": "click",
+      "name": "Show tool file icons"
+    },
+    {
+      "action": "click",
+      "name": "Show tool file icons"
+    },
+    {
+      "action": "click",
+      "name": "Show dotfiles"
+    },
+    {
+      "action": "click",
+      "name": "Show dotfiles"
+    },
+    {
+      "action": "click",
+      "name": "Queue messages by default"
+    },
+    {
+      "action": "click",
+      "name": "Queue messages by default"
+    },
+    {
+      "action": "click",
+      "name": "Persist draft messages"
+    },
+    {
+      "action": "click",
+      "name": "Persist draft messages"
+    },
+    {
+      "action": "click",
+      "name": "Enable spellcheck in text inputs"
+    },
+    {
+      "action": "click",
+      "name": "Enable spellcheck in text inputs"
+    },
+    {
+      "action": "click",
+      "name": "Shortcuts"
+    },
+    {
+      "action": "click",
+      "name": "Open command palette (alternate)"
+    },
+    {
+      "action": "fill",
+      "name": "Search Keyboard Shortcuts",
+      "value": "terminal"
+    },
+    {
+      "action": "fill",
+      "name": "Search Keyboard Shortcuts",
+      "value": "zzzznomatch"
+    },
+    {
+      "action": "click",
+      "name": "Clear search"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Light"
+    },
+    {
+      "action": "click",
+      "name": "Shortcuts"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "Dark"
+    },
+    {
+      "action": "click",
+      "name": "Shortcuts"
+    },
+    {
+      "action": "click",
+      "name": "Appearance"
+    },
+    {
+      "action": "click",
+      "name": "System"
+    },
+    {
+      "action": "click",
+      "name": "Hooks"
+    },
+    {
+      "action": "click",
+      "name": "Retry"
+    }
+  ],
+  "unexecuted": [
+    "external login/OAuth",
+    "downloads",
+    "native file dialogs",
+    "notification authorization",
+    "global shortcut registration",
+    "destructive changes to host assets",
+    "every nested editor create/edit/save/cancel combination"
+  ],
+  "recap": "Source diagnosis only; live generation, persistence and ready-to-read return recap remain unqualified."
+}

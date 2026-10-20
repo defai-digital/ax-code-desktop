@@ -1,5 +1,5 @@
 import React from "react"
-import { cn, getModifierLabel } from "@/lib/utils"
+import { cn } from "@/lib/utils"
 import { useUIStore } from "@/stores/useUIStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -550,7 +550,6 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     : showBackButton
       ? t("settings.view.actions.backToSettings")
       : t("settings.view.actions.closeSettings")
-  const shortcutKey = getModifierLabel()
 
   const pushMobileSplitDetailHistory = React.useCallback((slug: SettingsPageSlug) => {
     if (typeof window === "undefined") {
@@ -827,7 +826,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
               type="button"
               onClick={onClose}
               aria-label={t("settings.view.actions.closeSettings")}
-              title={t("settings.view.actions.closeSettingsWithShortcut", { shortcut: shortcutKey })}
+              title={t("settings.view.actions.closeSettings")}
               className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg p-2 text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Icon name="close" className="h-5 w-5" />
@@ -855,7 +854,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
                 type="button"
                 onClick={onClose}
                 aria-label={t("settings.view.actions.closeSettings")}
-                title={t("settings.view.actions.closeSettingsWithShortcut", { shortcut: shortcutKey })}
+                title={t("settings.view.actions.closeSettings")}
                 className="inline-flex h-7 w-7 items-center justify-center rounded-md p-0.5 text-muted-foreground hover:text-foreground hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
                 <Icon name="close" className="h-5 w-5" />

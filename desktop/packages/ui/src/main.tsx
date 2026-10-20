@@ -80,6 +80,19 @@ if (!rootElement) {
   throw new Error("Root element not found")
 }
 
+// The main-process opt-in is separate from the browser's ability to consume website tools.
+const developerBridge = window as unknown as {
+  __AX_CODE_DESKTOP_ELECTRON__?: { uiWebMcpEnabled?: boolean }
+}
+if (developerBridge.__AX_CODE_DESKTOP_ELECTRON__?.uiWebMcpEnabled === true) {
+  void import("./lib/desktopUiWebMcp")
+    .then(async ({ installDesktopUiWebMcp }) => {
+      const dispose = await installDesktopUiWebMcp(document)
+      import.meta.hot?.dispose(dispose)
+    })
+    .catch((error) => console.error("[WebMCP] UI tool registration failed", error))
+}
+
 void localeReady.then(() =>
   createRoot(rootElement).render(
     <StrictMode>

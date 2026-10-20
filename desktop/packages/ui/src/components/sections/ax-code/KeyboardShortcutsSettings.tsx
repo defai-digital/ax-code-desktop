@@ -65,6 +65,7 @@ export const KeyboardShortcutsSettings: React.FC = () => {
   )
 
   const [capturingActionId, setCapturingActionId] = React.useState<string | null>(null)
+  const [query, setQuery] = React.useState("")
   const [draftByAction, setDraftByAction] = React.useState<Record<string, ShortcutCombo>>({})
   const [errorText, setErrorText] = React.useState<string>("")
   const [warningText, setWarningText] = React.useState<string>("")
@@ -73,6 +74,17 @@ export const KeyboardShortcutsSettings: React.FC = () => {
     combo: ShortcutCombo
     conflictActionId: string
   } | null>(null)
+
+  const visibleActions = actions.filter((action) => {
+    const combo = draftByAction[action.id] ?? getEffectiveShortcutCombo(action.id, shortcutOverrides)
+    const text = `${actionLabel(action.id, action.label)} ${action.id} ${formatShortcutForDisplay(combo)}`.toLowerCase()
+    return query
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .every((word) => text.includes(word))
+  })
+  const searchLabel = `${t("commandPalette.searchMode.badge")} ${t("settings.openchamber.keyboardShortcuts.title")}`
 
   const findConflict = React.useCallback(
     (actionId: string, combo: ShortcutCombo): string | null => {
@@ -172,7 +184,7 @@ export const KeyboardShortcutsSettings: React.FC = () => {
   )
 
   return (
-    <div className="mb-8">
+    <div className="@container/shortcuts mb-8">
       <div className="mb-1 px-1">
         <div className="flex items-center gap-2">
           <h3 className="typography-ui-header font-medium text-foreground">
@@ -243,8 +255,48 @@ export const KeyboardShortcutsSettings: React.FC = () => {
         </div>
       )}
 
+      <div className="flex items-center gap-2 px-2 pb-3">
+        <div className="relative min-w-0 flex-1">
+          <Icon
+            name="search"
+            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+          />
+          <Input
+            aria-label={searchLabel}
+            placeholder={searchLabel}
+            value={query}
+            maxLength={200}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setCapturingActionId(null)
+            }}
+            className="h-8 pl-8"
+          />
+        </div>
+        <span
+          role="status"
+          aria-label={t("settings.openchamber.keyboardShortcuts.title")}
+          className="typography-meta shrink-0 tabular-nums text-muted-foreground"
+        >
+          {visibleActions.length} / {actions.length}
+        </span>
+        {query && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={() => setQuery("")}
+            aria-label={t("sidebarFilesTree.search.clearAria")}
+          >
+            {t("settings.common.actions.clear")}
+          </Button>
+        )}
+      </div>
       <section className="px-2 pb-2 pt-0 space-y-0.5">
-        {actions.map((action, index) => {
+        {visibleActions.length === 0 && (
+          <p className="py-6 text-center typography-meta text-muted-foreground">{t("search.noResults")}</p>
+        )}
+        {visibleActions.map((action, index) => {
           const effective = getEffectiveShortcutCombo(action.id, shortcutOverrides)
           const draft = draftByAction[action.id]
           const displayCombo = draft ?? effective
@@ -254,16 +306,17 @@ export const KeyboardShortcutsSettings: React.FC = () => {
             <div
               key={action.id}
               className={cn(
-                "flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8",
+                "flex flex-col gap-2 py-1.5 @2xl/shortcuts:flex-row @2xl/shortcuts:items-center @2xl/shortcuts:gap-8",
                 index > 0 && "border-t border-[var(--surface-subtle)]",
               )}
             >
-              <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+              <div className="flex min-w-0 flex-col @2xl/shortcuts:w-56 shrink-0">
                 <span className="typography-ui-label text-foreground">{actionLabel(action.id, action.label)}</span>
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/shortcuts:w-fit @2xl/shortcuts:flex-initial">
                 <Input
                   readOnly
+                  aria-label={actionLabel(action.id, action.label)}
                   value={
                     capturingActionId === action.id
                       ? t("settings.openchamber.keyboardShortcuts.field.pressKeys")
@@ -300,7 +353,7 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                     setPendingOverwrite(null)
                     setErrorText("")
                   }}
-                  className="h-7 w-40 min-w-0 typography-ui-label text-center"
+                  className="h-7 w-40 min-w-0 shrink-0 typography-ui-label text-center"
                 />
                 <Button
                   type="button"
@@ -316,6 +369,7 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                     saveCombo(action.id, next)
                   }}
                   disabled={!hasDraft}
+                  aria-label={`${t("settings.common.actions.saveChanges")}: ${actionLabel(action.id, action.label)}`}
                 >
                   {t("settings.common.actions.saveChanges")}
                 </Button>
@@ -325,6 +379,8 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                   className="!font-normal"
                   variant="ghost"
                   onClick={() => resetOne(action.id)}
+                  disabled={!hasDraft && shortcutOverrides[action.id] === undefined}
+                  aria-label={`${t("settings.common.actions.reset")}: ${actionLabel(action.id, action.label)}`}
                 >
                   {t("settings.common.actions.reset")}
                 </Button>

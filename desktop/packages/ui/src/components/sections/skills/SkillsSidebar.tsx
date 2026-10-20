@@ -286,6 +286,7 @@ export const SkillsSidebar: React.FC<SkillsSidebarProps> = ({ onItemSelect, onOp
             variant="ghost"
             className="h-7 w-7 px-0 -my-1 text-muted-foreground"
             onClick={handleCreateNew}
+            aria-label={t("settings.skills.page.actions.createSkill")}
           >
             <Icon name="add" className="h-3.5 w-3.5" />
           </Button>
@@ -547,6 +548,7 @@ const SkillListItem: React.FC<SkillListItemProps> = ({
                 size="sm"
                 variant="ghost"
                 className="h-6 w-6 px-0 flex-shrink-0 -mr-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                aria-label={t("settings.snippets.sidebar.actions.more", { name: skill.name })}
               >
                 <Icon name="more-2" className="h-3.5 w-3.5" />
               </Button>

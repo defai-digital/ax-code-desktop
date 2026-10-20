@@ -5,6 +5,7 @@ import {
   CSP_RECORDER_SCRIPT,
   FINAL_CHECKS,
   JOURNEYS,
+  SHELL_READY_EXPRESSION,
   findForbiddenScriptSources,
   isCspConsoleMessage,
   isSupervisionPageTarget,
@@ -28,7 +29,22 @@ const isolated = {
   serverPort: 9556,
 }
 
+test("shell readiness waits for the app to dismiss its startup splash", () => {
+  let splash = {}
+  const document = {
+    getElementById: (id) => id === "root" ? { children: [{ id: "app" }] } : splash,
+  }
+  expect(runInNewContext(SHELL_READY_EXPRESSION, { document })).toBe(false)
+  splash = null
+  expect(runInNewContext(SHELL_READY_EXPRESSION, { document })).toBe(true)
+})
+
 describe("buildLaunchSpec", () => {
+  test("UI WebMCP is opt-in and cannot leak from the caller environment", () => {
+    const baseEnv = { AX_CODE_DESKTOP_UI_WEBMCP: "1" }
+    expect(buildLaunchSpec({ ...isolated, baseEnv }).env.AX_CODE_DESKTOP_UI_WEBMCP).toBe("0")
+    expect(buildLaunchSpec({ ...isolated, baseEnv, uiWebMcp: true }).env.AX_CODE_DESKTOP_UI_WEBMCP).toBe("1")
+  })
   test("isolates profile, data dir, runtime and updater, and binds debugging to loopback", () => {
     const spec = buildLaunchSpec({ ...isolated, platform: "darwin", baseEnv: { PATH: "/bin" } })
     expect(spec.command).toBe("/electron")

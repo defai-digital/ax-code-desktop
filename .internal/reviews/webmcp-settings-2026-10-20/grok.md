@@ -1,0 +1,7 @@
+Three checks can go green while the rendered control or saved setting is wrong.
+
+1. **Opaque ref across 100-control pages.** A click or fill counts only when that ref still resolves to the same rendered control: role (including `option` and `menuitem`), accessible name, and value. The audit has to walk every page and show each control once in the combined set. An “ok” action, or a count from the first page, can pass when the action hit another node or a later page was dropped.
+
+2. **Focus before click or fill, including readonly shortcut fields.** After focus and the action, read the control again. The field that held focus must be the one whose value changed. A readonly shortcut field must show focus and the same binding it had before. Focus alone, or a missing exception, can pass when the fill missed the field or a readonly field stored a new shortcut.
+
+3. **Settings write-back, Hooks retry, and the Orca comparison.** Across all 15 tabs, each of the 33 shortcut fields and each numeric setter, stepper, and reset needs a read-back: the shortcut string, the number after the step, and the value after reset. A malformed Hooks payload needs a visible error, and the retry needs a settings read afterward. A matching Orca local-settings tree needs the same keys, types, and values. Visiting a tab, a retry return, or a shape-only match can pass when the displayed or stored value never changed.

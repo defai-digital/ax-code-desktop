@@ -206,6 +206,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
             className="h-7 w-7 px-0 -my-1 text-muted-foreground"
             onClick={handleCreateNew}
             title={t("settings.mcp.sidebar.actions.addServerTitle")}
+            aria-label={t("settings.mcp.sidebar.actions.addServerTitle")}
           >
             <Icon name="add" className="h-3.5 w-3.5" />
           </Button>
@@ -313,6 +314,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                             size="xs"
                             variant="ghost"
                             className="flex-shrink-0 -mr-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            aria-label={t("settings.snippets.sidebar.actions.more", { name: server.name })}
                           >
                             <Icon name="more-2" className="h-3.5 w-3.5" />
                           </Button>
@@ -407,6 +409,7 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                             size="xs"
                             variant="ghost"
                             className="flex-shrink-0 -mr-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            aria-label={t("settings.snippets.sidebar.actions.more", { name: server.name })}
                           >
                             <Icon name="more-2" className="h-3.5 w-3.5" />
                           </Button>

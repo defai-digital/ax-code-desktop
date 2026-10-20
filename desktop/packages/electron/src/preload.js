@@ -69,6 +69,7 @@ const openDesktopDialog = (options) => ipcRenderer.invoke("desktop_dialog_open",
 
 contextBridge.exposeInMainWorld("__AX_CODE_DESKTOP_ELECTRON__", {
   runtime: "electron",
+  uiWebMcpEnabled: process.env.AX_CODE_DESKTOP_UI_WEBMCP === "1",
   recordStartupEvent: (name, details) =>
     ipcRenderer.invoke("desktop_record_startup_event", { name, details: details ?? {} }),
 })
