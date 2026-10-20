@@ -88,6 +88,7 @@ export function createDesktopUiTools(doc: Document) {
     targets.clear()
     generation += 1
     const elements = Array.from(doc.querySelectorAll<HTMLElement>(CONTROL_SELECTOR)).filter(visible)
+    const configurationOverlay = doc.querySelector<HTMLElement>("[data-config-update-overlay]")
     const controls = elements.slice(offset, offset + MAX_CONTROLS).map((element, index) => {
       const ref = `${epoch}:${generation}:${index}`
       const name = nameOf(element)
@@ -109,6 +110,7 @@ export function createDesktopUiTools(doc: Document) {
       title: compact(doc.title),
       ready: Boolean(doc.querySelector("#root > :not(#initial-loading)")),
       documentFocused: doc.hasFocus(),
+      configurationOverlayVisible: Boolean(configurationOverlay && visible(configurationOverlay)),
       settingsOpen: Boolean(doc.querySelector("[data-settings-view]")),
       headings: Array.from(doc.querySelectorAll<HTMLElement>('h1,h2,h3,[role="heading"]'))
         .filter(visible)
@@ -140,7 +142,7 @@ export function createDesktopUiTools(doc: Document) {
     {
       name: "ax_desktop_get_ui_state",
       description:
-        "Inspect the rendered AX Code Desktop development UI. Reports document focus, headings and up to 100 controls per page, without input values or chat content. Pass nextOffset as offset to read further controls. Refs expire after another snapshot or action. Poll to verify asynchronous UI changes.",
+        "Inspect the rendered AX Code Desktop development UI. Reports document focus, configuration overlay visibility, headings and up to 100 controls per page, without input values or chat content. Pass nextOffset as offset to read further controls. Refs expire after another snapshot or action. Semantic actions do not prove pointer access through an overlay. Poll to verify asynchronous UI changes.",
       inputSchema: {
         type: "object",
         properties: { offset: { type: "integer", minimum: 0, maximum: 100000 } },

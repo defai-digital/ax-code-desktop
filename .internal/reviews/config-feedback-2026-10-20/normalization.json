@@ -1,0 +1,4 @@
+{
+  "normalization": "Archive text strips trailing whitespace and terminal blank lines only.",
+  "originalPromptSha256": "e15f6c8ded7e4851d60e321d52a0d27aa3067981db6551cdb6e71d98826c1f8d"
+}

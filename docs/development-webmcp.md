@@ -134,6 +134,24 @@ configuration overlay is not accepted as visual proof of the controls behind it.
 servers never reach the real configuration writer, MCP execution or OAuth; the last values reside only in the harness's
 in-memory inventory.
 
+To verify configuration feedback and overlay observation:
+
+```sh
+node desktop/packages/electron/scripts/e2e/config-update-webmcp.mjs --artifacts /tmp/ax-config-update
+```
+
+Every UI snapshot includes `configurationOverlayVisible`. It observes the rendered configuration notice, including
+paging and action responses. A dismissed notice reports false while the underlying operation may still be pending.
+The flag does not certify a restart, completed write, cancellation, policy decision or visibility through every overlay.
+Semantic handlers remain available under the existing tool contract; they do not qualify physical pointer access
+through a full-screen notice. Check the flag and independently inspect DOM/hit testing or actual screenshots before
+claiming visible interaction.
+
+This fixture compares native observations with DOM/center-hit testing during delayed accepted/rejected/retried saves,
+checks action response metadata, and captures wide/narrow light/dark feedback. Configuration HTTP writes remain in
+memory; it does not restart a real worker. Timeout dismissal and overlapping-operation ownership use mounted fake-timer
+tests rather than a native timeout claim. Dismiss hides the current presentation cohort and does not complete its work.
+
 Snapshots include `documentFocused`; check it before qualifying focus/blur behavior and observe the actual result
 after the action. An inactive document can change activeElement without dispatching blur/focusout. Page.bringToFront
 alone may not activate a different Electron native window. The isolated comparison below uses the existing native

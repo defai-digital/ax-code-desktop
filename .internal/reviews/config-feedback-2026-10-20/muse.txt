@@ -1,0 +1,21 @@
+muse: local session messaging disabled: session logging is required
+muse: workspace root: /private/tmp/ax-config-feedback-review-20261020/muse (cwd default)
+muse: Agent delegation: auto unavailable: workspace is untrusted.
+**Top finding:** cohort timing and dismissal live only in the overlay component, not with the cohort. If `ConfigUpdateOverlay` remounts during the same `batchId`, a dismissed overlay reappears and receives a fresh 120-second deadline. A mid-cohort first mount likewise extends the deadline. Monotonic `batchId` alone cannot preserve either behavior across remounts.
+
+Other defects:
+
+- Nested message lifetime is incorrect. `startConfigUpdate("A")`, then `startConfigUpdate("B")`, followed by B finishing leaves `pendingCount === 1` without notification. The overlay continues showing B’s message while only A remains. The generic title mitigates, but the message can still imply the wrong operation or phase.
+- After timeout, `Reload` invokes `window.location.reload()` while `pendingCount` may still be positive. That can interrupt client-owned work. The supplied code provides no evidence that reloading is safe or that the underlying operation is server-owned and resumable.
+- The overlay visually and pointer-wise blocks the application for up to 120 seconds, but provides no early dismissal, focus containment, or focus transfer. Keyboard focus can remain behind the full-screen overlay. When the timeout buttons appear, focus is not moved to them.
+- `updateConfigUpdateMessage()` mutates `currentMessage` while idle without notifying. Existing listeners and `getConfigUpdateSnapshot()` can therefore disagree until the next update starts.
+- No WebMCP code is present in the two supplied files, so the claim that `configurationOverlayVisible` derives only from visible owned markup cannot be verified from this source.
+
+Missing lifecycle/visual tests:
+
+- Render-level batched sequence: finish cohort A and start cohort B inside one React batch; assert B is visible, shows B’s message, and does not time out until 120 seconds after B starts.
+- Start A, advance 119 seconds, update only its message, advance one second, and assert the timer was not extended.
+- Time out and dismiss A, finish A, start B; assert B is immediately visible and not timed out.
+- Nested operations: two starts, one finish, assert visibility and that the remaining message is not the finished operation’s message.
+- Unmount and remount the same cohort; assert the intended dismissal and deadline semantics explicitly.
+- Fake-timer unmount test proving cleanup, plus accessibility/viewport tests for focus behavior, underlying tab reachability, overlay coverage, and appearance of timeout controls.

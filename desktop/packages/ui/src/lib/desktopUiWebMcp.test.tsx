@@ -22,6 +22,33 @@ const stateOf = (tools: UiTool[]) =>
   }
 
 describe("Desktop UI WebMCP", () => {
+  test("observes the configuration overlay on reads, pagination and actions without echoing its text", () => {
+    document.body.innerHTML = '<div data-config-update-overlay>Private operation detail</div><input aria-label="Draft">' + "<button>Next</button>".repeat(101)
+    const { tools, dispose } = createDesktopUiTools(document)
+    type Snapshot = { configurationOverlayVisible: boolean; nextOffset: number; controls: { ref: string }[] }
+    try {
+      const first = tools[0].execute({}) as Snapshot
+      expect(first.configurationOverlayVisible).toBe(true)
+      expect(JSON.stringify(first)).not.toContain("Private operation detail")
+      const filled = tools[2].execute({ ref: first.controls[0].ref, value: "private-draft" }) as { ui: Snapshot }
+      expect(filled.ui.configurationOverlayVisible).toBe(true)
+      expect(JSON.stringify(filled)).not.toContain("private-draft")
+      const next = tools[0].execute({ offset: first.nextOffset }) as Snapshot
+      expect(next.configurationOverlayVisible).toBe(true)
+      document.querySelector('[data-config-update-overlay]')!.remove()
+      const clicked = tools[1].execute({ ref: next.controls[0].ref }) as { ui: Snapshot }
+      expect(clicked.ui.configurationOverlayVisible).toBe(false)
+      expect((tools[0].execute({}) as Snapshot).configurationOverlayVisible).toBe(false)
+    } finally { dispose() }
+  })
+
+  test("a hidden configuration overlay is not reported as visible", () => {
+    document.body.innerHTML = '<div data-config-update-overlay hidden>Hidden</div>'
+    const { tools, dispose } = createDesktopUiTools(document)
+    try { expect((tools[0].execute({}) as { configurationOverlayVisible: boolean }).configurationOverlayVisible).toBe(false) }
+    finally { dispose() }
+  })
+
   test("reports document focus on reads and action responses without exposing input values", () => {
     document.body.innerHTML = '<input aria-label="Top P" value="private-draft"><button>Next</button>'
     const focus = vi.spyOn(document, "hasFocus").mockReturnValue(false)

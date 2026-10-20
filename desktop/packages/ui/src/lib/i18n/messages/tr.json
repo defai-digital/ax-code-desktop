@@ -1735,6 +1735,8 @@
   "common.confirm": "Onayla",
   "common.cancel": "\u0130ptal",
   "common.confirmDialog.title": "L\u00fctfen onaylay\u0131n",
+  "configUpdate.updating": "Yapılandırma güncelleniyor",
+  "configUpdate.pendingHint": "Geçerli yapılandırma işleminin tamamlanmasını bekleyin.",
   "configUpdate.restarting": "AX Code yeniden ba\u015flat\u0131l\u0131yor",
   "configUpdate.timeoutHint": "AX Code beklenenden uzun s\u00fcr\u00fcyor. Uygulamay\u0131 yeniden y\u00fckleyin veya bu iletiyi kapat\u0131p yeniden deneyin.",
   "configUpdate.waitHint": "Bu i\u015flem birka\u00e7 dakika s\u00fcrebilir. AX Code otomatik olarak devam eder.",

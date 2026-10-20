@@ -1729,6 +1729,8 @@
   "common.confirm": "\u78ba\u8a8d",
   "common.cancel": "\u53d6\u6d88",
   "common.confirmDialog.title": "\u8acb\u78ba\u8a8d",
+  "configUpdate.updating": "正在更新設定",
+  "configUpdate.pendingHint": "請等待目前的設定操作完成。",
   "configUpdate.restarting": "AX Code \u6b63\u5728\u91cd\u65b0\u555f\u52d5",
   "configUpdate.timeoutHint": "AX Code \u82b1\u8cbb\u7684\u6642\u9593\u8d85\u51fa\u9810\u671f\u3002\u8acb\u91cd\u65b0\u8f09\u5165\u61c9\u7528\u7a0b\u5f0f\uff0c\u6216\u95dc\u9589\u6b64\u8a0a\u606f\u5f8c\u91cd\u8a66\u3002",
   "configUpdate.waitHint": "\u9019\u53ef\u80fd\u9700\u8981\u5e7e\u5206\u9418\u3002AX Code \u6703\u81ea\u52d5\u6062\u5fa9\u3002",

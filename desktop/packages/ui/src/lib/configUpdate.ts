@@ -1,8 +1,10 @@
 const DEFAULT_MESSAGE = "Updating AX Code configuration..."
 
-type ConfigUpdateListener = (state: { isUpdating: boolean; message: string }) => void
+type ConfigUpdateListener = (state: { isUpdating: boolean; message: string; batchId: number }) => void
 
 let pendingCount = 0
+// Presentation identity only: a dismissed notice must not consume an operation's completion.
+let batchId = 0
 let currentMessage = DEFAULT_MESSAGE
 const listeners = new Set<ConfigUpdateListener>()
 
@@ -10,11 +12,13 @@ function notify() {
   const snapshot = {
     isUpdating: pendingCount > 0,
     message: currentMessage,
+    batchId,
   }
   listeners.forEach((listener) => listener(snapshot))
 }
 
 export function startConfigUpdate(message?: string) {
+  if (pendingCount === 0) batchId += 1
   pendingCount += 1
   if (pendingCount === 1) {
     currentMessage = message || DEFAULT_MESSAGE
@@ -52,6 +56,7 @@ export function subscribeConfigUpdate(listener: ConfigUpdateListener) {
   listener({
     isUpdating: pendingCount > 0,
     message: currentMessage,
+    batchId,
   })
   return () => {
     listeners.delete(listener)
@@ -62,5 +67,6 @@ export function getConfigUpdateSnapshot() {
   return {
     isUpdating: pendingCount > 0,
     message: currentMessage,
+    batchId,
   }
 }

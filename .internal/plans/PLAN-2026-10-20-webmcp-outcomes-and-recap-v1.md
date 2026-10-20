@@ -217,3 +217,11 @@ Remaining create-edit and concurrent-auth leads are explicitly unconfirmed, and 
 lead: inventory refresh and successful handoff preserve newer fields and use the submitted baseline. The added unsaved
 status is verified unobscured at narrow dark/light sizes. Earlier pending-overlay screenshots are explicitly rejected
 as visibility evidence. Global config-update feedback/occlusion and stale sidebar mutation targeting remain follow-ups.
+
+### Configuration feedback and overlay observation
+
+[Plan](PLAN-2026-10-20-config-update-observation.md) and
+[report](../reports/SETTINGS-2026-10-20-config-update-observation.md) confirm false restart feedback and Dismiss consuming
+pending ownership. Neutral copy, presentation-only dismissal and an additive native overlay flag repair those bounds.
+Final card/mark contrast has rendered evidence. v4 preserves semantic actions without claiming physical pointer access;
+keyboard containment, real restart/recovery and stale sidebar mutation targeting remain separate follow-ups.

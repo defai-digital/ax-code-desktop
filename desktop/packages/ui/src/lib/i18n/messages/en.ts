@@ -66,6 +66,8 @@ export const dict = {
   "common.confirm": "Confirm",
   "common.cancel": "Cancel",
   "common.confirmDialog.title": "Please confirm",
+  "configUpdate.updating": "Updating configuration",
+  "configUpdate.pendingHint": "Wait for the current configuration operation to finish.",
   "configUpdate.restarting": "AX Code is restarting",
   "configUpdate.timeoutHint":
     "AX Code is taking longer than expected. Reload the app or dismiss this message and retry.",

@@ -1735,6 +1735,8 @@
   "common.confirm": "Best\u00e4tigen",
   "common.cancel": "Abbrechen",
   "common.confirmDialog.title": "Bitte best\u00e4tigen",
+  "configUpdate.updating": "Konfiguration wird aktualisiert",
+  "configUpdate.pendingHint": "Warten Sie, bis der aktuelle Konfigurationsvorgang abgeschlossen ist.",
   "configUpdate.restarting": "AX Code wird neu gestartet",
   "configUpdate.timeoutHint": "AX Code dauert l\u00e4nger als erwartet. Laden Sie die App neu oder schlie\u00dfen Sie diese Meldung und versuchen Sie es erneut.",
   "configUpdate.waitHint": "Das kann einige Minuten dauern. AX Code wird automatisch fortgesetzt.",

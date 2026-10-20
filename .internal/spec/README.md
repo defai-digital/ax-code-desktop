@@ -6,6 +6,9 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
+Current additive development observation: [Desktop UI WebMCP v4](SPEC-2026-10-20-desktop-ui-webmcp-v4.md) reports
+configuration-overlay visibility without claiming runtime state or physical pointer access. It preserves v1-v3.
+
 Development testing: [Desktop UI WebMCP v3](SPEC-2026-10-20-desktop-ui-webmcp-v3.md) adds document focus observation to
 [v2](SPEC-2026-10-20-desktop-ui-webmcp-v2.md), which extends
 [v1](SPEC-2026-10-19-desktop-ui-webmcp-v1.md) with paginated discovery, ARIA options/menus, normal focus and a Settings audit.

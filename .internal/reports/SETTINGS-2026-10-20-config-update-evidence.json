@@ -1,0 +1,586 @@
+{
+  "schema": "ax-code-desktop.config-update-observation-evidence.v1",
+  "baseline": "ca1a598b",
+  "date": "2026-10-20",
+  "nativeRuns": [
+    {
+      "name": "negative2",
+      "artifacts": "/tmp/ax-config-feedback-native-negative2-20261020",
+      "logSha256": "b56ab5f0d9246e5ad3dfb52f602fa2b49e350807bc627e4907df427f7da24975",
+      "observationsSha256": "12d7464ba7cd7492658a104bd4df652c75ea25dfe3ae606ced0aa9713802c1f3",
+      "recordedAuditActions": 7,
+      "additionalDirectNativeFills": 0,
+      "observations": [
+        {
+          "label": "pending 0",
+          "configurationOverlayVisible": null,
+          "dom": {
+            "visible": true,
+            "marked": false,
+            "title": "AX Code is restartingUpdating MCP server configuration\u2026This can take a few minutes. AX Code will resume automatically.",
+            "coversCenter": true
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": false
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "failed: false restart feedback; new observation absent",
+      "visualQualification": "intermediate candidate; final contrast repair supersedes these captures"
+    },
+    {
+      "name": "fixed1",
+      "artifacts": "/tmp/ax-config-feedback-native-fixed1-20261020",
+      "logSha256": "93f0ca11f6354a42b2326922b68706f43543ef6457fb80a6806f565799186b33",
+      "observationsSha256": "8ee23fb3a49e9fe26474a7459a01c65bb49c78324319a233aa2fdff41d012277",
+      "recordedAuditActions": 15,
+      "additionalDirectNativeFills": 1,
+      "observations": [
+        {
+          "label": "pending 0",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 0",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 1",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 1",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 2",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "semantic edit behind overlay",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 2",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "visualQualification": "intermediate candidate; final contrast repair supersedes these captures"
+    },
+    {
+      "name": "fixed2",
+      "artifacts": "/tmp/ax-config-feedback-native-fixed2-20261020",
+      "logSha256": "93f0ca11f6354a42b2326922b68706f43543ef6457fb80a6806f565799186b33",
+      "observationsSha256": "b6eee5c57321db3e00b4fe0976a539b2a21796f9f2d422fbb973339ff5b91e97",
+      "recordedAuditActions": 15,
+      "additionalDirectNativeFills": 1,
+      "observations": [
+        {
+          "label": "pending 0",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 0",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 1",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 1",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 2",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "semantic edit behind overlay",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 2",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "visualQualification": "intermediate candidate; final contrast repair supersedes these captures"
+    },
+    {
+      "name": "final1",
+      "artifacts": "/tmp/ax-config-feedback-native-final1-20261020",
+      "logSha256": "93f0ca11f6354a42b2326922b68706f43543ef6457fb80a6806f565799186b33",
+      "observationsSha256": "e1171892a6c34016d762957cb9f8aa62a5d6a008ba31b9ee6ed6107964f633cb",
+      "recordedAuditActions": 15,
+      "additionalDirectNativeFills": 1,
+      "observations": [
+        {
+          "label": "pending 0",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 0",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 1",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 1",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 2",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "semantic edit behind overlay",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 2",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$INITIAL_DIRECTORY",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "visualQualification": "Final card/mark candidate; collective inspected image paths recorded below"
+    },
+    {
+      "name": "final2",
+      "artifacts": "/tmp/ax-config-feedback-native-final2-20261020",
+      "logSha256": "508b0509da2b5aa987ff743edb2cd46e3a006fd677096e7e17cd74988713c06d",
+      "observationsSha256": "ae06ab7dff71850480950a1c67663ea2a10ba003a79243a7853f0d9bcfe12087",
+      "recordedAuditActions": 15,
+      "additionalDirectNativeFills": 1,
+      "observations": [
+        {
+          "label": "pending 0",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 0",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 1",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 1",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        },
+        {
+          "label": "pending 2",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "semantic edit behind overlay",
+          "configurationOverlayVisible": true,
+          "dom": {
+            "visible": true,
+            "marked": true,
+            "title": "Updating configurationUpdating MCP server configuration\u2026Wait for the current configuration operation to finish.",
+            "coversCenter": true
+          }
+        },
+        {
+          "label": "completed 2",
+          "configurationOverlayVisible": false,
+          "dom": {
+            "visible": false,
+            "marked": false,
+            "title": "",
+            "coversCenter": false
+          }
+        }
+      ],
+      "requests": [
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "PATCH",
+          "directory": "$PROJECT",
+          "completed": true
+        },
+        {
+          "method": "GET",
+          "directory": "$PROJECT",
+          "completed": true
+        }
+      ],
+      "fixtureErrors": [],
+      "result": "passed",
+      "visualQualification": "Final card/mark candidate; collective inspected image paths recorded below"
+    }
+  ],
+  "checks": {
+    "focusedMountedAndProvider": "21 passed",
+    "finalFullUi": "569 files, 3815 passed; maxWorkers=4; no timeout/assertion changes",
+    "finalBuild": "passed",
+    "finalUiTypecheck": "passed",
+    "focusedEslint": "passed",
+    "boundariesAndReleaseIdentity": "passed",
+    "locales": "14 locales, 4942 keys, 64246 entries",
+    "nativeRegressions": [
+      {
+        "name": "native-final2",
+        "exit": 0,
+        "seconds": 20.1
+      },
+      {
+        "name": "provider",
+        "exit": 0,
+        "seconds": 9.2
+      },
+      {
+        "name": "create",
+        "exit": 0,
+        "seconds": 38.8
+      },
+      {
+        "name": "settings",
+        "exit": 0,
+        "seconds": 43.0
+      },
+      {
+        "name": "default",
+        "exit": 0,
+        "seconds": 13.2
+      }
+    ]
+  },
+  "reviewers": {
+    "grok": {
+      "reviewer": "grok",
+      "status": "timeout",
+      "exit": 143,
+      "seconds": 90.3
+    },
+    "muse": {
+      "reviewer": "muse",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 38.9
+    }
+  },
+  "limits": [
+    "All config HTTP intercepted before opening MCP; no real writer/worker/MCP/OAuth qualified",
+    "Timeout dismissal and overlapping owner counts use actual component/helper with fake timers, not native 120-second timeout",
+    "Overlay metadata is presentation observation, not runtime restart/cancellation or general occlusion; semantic handlers remain allowed",
+    "Cohort id and dismissal/deadline are presentation/component-lifetime state, not durable history",
+    "Reload behavior, keyboard containment, inert background and physical mobile/screen reader are not qualified",
+    "Prior DeepSeek/GLM/MiniMax reviews retain create-edit scope; not approval of this patch",
+    "No push, package or release"
+  ],
+  "inspectedFinalImages": [
+    "/tmp/ax-config-feedback-native-final1-20261020/pages/configuration-pending-wide-dark.png",
+    "/tmp/ax-config-feedback-native-final1-20261020/pages/configuration-pending-narrow-light.png",
+    "/tmp/ax-config-feedback-native-final2-20261020/pages/configuration-pending-narrow-dark.png"
+  ]
+}

@@ -1729,6 +1729,8 @@
   "common.confirm": "Confirmer",
   "common.cancel": "Annuler",
   "common.confirmDialog.title": "Veuillez confirmer",
+  "configUpdate.updating": "Mise à jour de la configuration",
+  "configUpdate.pendingHint": "Attendez la fin de l’opération de configuration en cours.",
   "configUpdate.restarting": "AX Code red\u00e9marre",
   "configUpdate.timeoutHint": "AX Code prend plus de temps que pr\u00e9vu. Rechargez l\u2019app ou ignorez ce message et r\u00e9essayez.",
   "configUpdate.waitHint": "Cela peut prendre quelques minutes. AX Code reprendra automatiquement.",

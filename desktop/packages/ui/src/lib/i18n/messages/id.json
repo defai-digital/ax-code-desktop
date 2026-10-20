@@ -1729,6 +1729,8 @@
   "common.confirm": "Konfirmasi",
   "common.cancel": "Batal",
   "common.confirmDialog.title": "Mohon konfirmasi",
+  "configUpdate.updating": "Memperbarui konfigurasi",
+  "configUpdate.pendingHint": "Tunggu hingga operasi konfigurasi saat ini selesai.",
   "configUpdate.restarting": "AX Code sedang memulai ulang",
   "configUpdate.timeoutHint": "AX Code memakan waktu lebih lama dari yang diharapkan. Muat ulang aplikasi atau tutup pesan ini lalu coba lagi.",
   "configUpdate.waitHint": "Ini dapat memakan waktu beberapa menit. AX Code akan berlanjut otomatis.",

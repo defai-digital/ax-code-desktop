@@ -1735,6 +1735,8 @@
   "common.confirm": "X\u00e1c nh\u1eadn",
   "common.cancel": "H\u1ee7y",
   "common.confirmDialog.title": "Vui l\u00f2ng x\u00e1c nh\u1eadn",
+  "configUpdate.updating": "Đang cập nhật cấu hình",
+  "configUpdate.pendingHint": "Vui lòng đợi thao tác cấu hình hiện tại hoàn tất.",
   "configUpdate.restarting": "AX Code \u0111ang kh\u1edfi \u0111\u1ed9ng l\u1ea1i",
   "configUpdate.timeoutHint": "AX Code m\u1ea5t nhi\u1ec1u th\u1eddi gian h\u01a1n d\u1ef1 ki\u1ebfn. T\u1ea3i l\u1ea1i \u1ee9ng d\u1ee5ng ho\u1eb7c \u0111\u00f3ng th\u00f4ng b\u00e1o n\u00e0y r\u1ed3i th\u1eed l\u1ea1i.",
   "configUpdate.waitHint": "Vi\u1ec7c n\u00e0y c\u00f3 th\u1ec3 m\u1ea5t v\u00e0i ph\u00fat. AX Code s\u1ebd t\u1ef1 ti\u1ebfp t\u1ee5c.",
