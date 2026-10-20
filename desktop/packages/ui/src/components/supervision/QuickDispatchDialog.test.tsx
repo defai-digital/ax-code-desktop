@@ -56,6 +56,7 @@ describe("QuickDispatchDialog recent sessions", () => {
         directory: "/repo",
         updatedAt: Date.now(),
         evidence: null,
+        goal: null,
       },
     ]
     send = vi.spyOn(axCodeClient, "sendMessage").mockResolvedValue("message")

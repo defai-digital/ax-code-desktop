@@ -10,6 +10,7 @@ export function SupervisionStateBadge({ state }: { state: SupervisionState }) {
   return (
     <span
       data-supervision-state={state}
+      aria-label={t(meta.label)}
       className={cn(
         "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 typography-meta",
         meta.tone,

@@ -9,6 +9,12 @@ import {
 } from "./response-headers.js"
 import { createMockResponse } from "../../test-helpers/route-harness.js"
 
+const scriptSrcOf = (csp) =>
+  String(csp)
+    .split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith("script-src ")) || ""
+
 describe("response security headers", () => {
   it("sets X-Frame-Options for ordinary routes", () => {
     const res = createMockResponse()
@@ -44,12 +50,24 @@ describe("response security headers", () => {
     expect(res.getHeader("Content-Security-Policy")).toContain("img-src 'self' data: blob: https://models.dev")
   })
 
-  it("serves the app document without JavaScript eval", () => {
+  it("serves the app document without JavaScript eval or unhashed inline scripts", () => {
     const res = createMockResponse()
     applySecurityHeaders({ path: "/" }, res)
     const csp = res.getHeader("Content-Security-Policy")
-    expect(csp).toContain("script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval';")
-    expect(csp).not.toContain("'unsafe-eval'")
+    expect(scriptSrcOf(csp)).toContain("'wasm-unsafe-eval'")
+    expect(scriptSrcOf(csp)).not.toContain("'unsafe-inline'")
+    expect(scriptSrcOf(csp)).not.toContain("'unsafe-eval'")
+  })
+
+  it("lists the served document script hashes in the app document policy", () => {
+    const csp = buildWebServerCsp({ path: "/" }, () => ["'sha256-abc='"])
+    expect(scriptSrcOf(csp)).toBe("script-src 'self' 'wasm-unsafe-eval' 'sha256-abc='")
+    expect(csp).toContain("connect-src 'self' ws: wss: http: https:;")
+  })
+
+  it("drops malformed hash sources instead of widening the app document policy", () => {
+    const csp = buildWebServerCsp({ path: "/" }, () => ["'unsafe-inline'", "* 'unsafe-eval'", "'sha256-ok='"])
+    expect(scriptSrcOf(csp)).toBe("script-src 'self' 'wasm-unsafe-eval' 'sha256-ok='")
   })
 
   it("keeps the previous script allowance for proxied preview and dashboard pages", () => {

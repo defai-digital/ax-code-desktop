@@ -19,6 +19,7 @@ import { useAllPendingRequests, type PendingRequestEntry } from "@/sync/sync-con
 import type { SupervisionRow } from "@/hooks/useSupervisionRows"
 
 import { RequestActionCard } from "./RequestActionCard"
+import { SupervisionGoalLine } from "./SupervisionGoalLine"
 
 type NeedsYouPopoverProps = {
   onClose: () => void
@@ -141,7 +142,11 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground">{row.title}</span>
                       <span className="shrink-0 typography-micro text-[var(--status-warning)]">
-                        {row.state === "error" ? t("projects.home.needsYou.error") : t("supervision.state.review")}
+                        {row.state === "error"
+                          ? t("projects.home.needsYou.error")
+                          : row.state === "goal"
+                            ? t("supervision.state.goal")
+                            : t("supervision.state.review")}
                       </span>
                     </span>
                     {row.state === "error" && row.errorMessage ? (
@@ -149,6 +154,7 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                         {row.errorMessage}
                       </span>
                     ) : null}
+                    <SupervisionGoalLine goal={row.goal} className="typography-micro text-muted-foreground" />
                     {row.projectLabel || line ? (
                       <span className="flex min-w-0 items-center gap-2 typography-micro text-muted-foreground">
                         {row.projectLabel ? <span className="min-w-0 truncate">{row.projectLabel}</span> : null}

@@ -57,6 +57,7 @@ export const getSessionIdFromPayload = (event: Event): string | null => {
     event.type === "session.status" ||
     event.type === "session.idle" ||
     event.type === "session.error" ||
+    event.type === "session.goal" ||
     event.type === "todo.updated" ||
     event.type === "permission.asked" ||
     event.type === "permission.replied" ||

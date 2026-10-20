@@ -4,6 +4,7 @@ import { useSessionVisitTracking, useSupervisionShortcuts } from "@/hooks/useSup
 import { useQueuedMessageAutoSend } from "@/hooks/useQueuedMessageAutoSend"
 import { useRunTransitionNotifications } from "@/hooks/useRunTransitionNotifications"
 import { useSupervisionRowsPublisher } from "@/hooks/useSupervisionRows"
+import { useSessionGoalsLoader } from "@/hooks/useSessionGoalsLoader"
 import { useTraySync } from "@/hooks/useTraySync"
 import { useSessionAutoCleanup } from "@/hooks/useSessionAutoCleanup"
 import { useWindowControlsOverlayLayout } from "@/hooks/useWindowControlsOverlayLayout"
@@ -75,6 +76,7 @@ export function SyncRuntimeEffects({
   // badge in step. No-op outside the desktop shell.
   useTraySync(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
   useSupervisionRowsPublisher()
+  useSessionGoalsLoader()
   useRunTransitionNotifications(embeddedBackgroundWorkEnabled)
 
   return <SyncOptimisticBridge />

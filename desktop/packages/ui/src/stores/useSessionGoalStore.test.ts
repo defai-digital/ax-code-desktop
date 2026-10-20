@@ -40,6 +40,14 @@ describe("useSessionGoalStore", () => {
     expect(state().goals.ses_1?.status).toBe("blocked")
   })
 
+  test("an ignored older event does not invalidate a newer route read in flight", () => {
+    state().applyEvent("ses_1", goal({ status: "blocked", updatedAt: 100 }))
+    const token = state().beginRead("ses_1")
+    state().applyEvent("ses_1", goal({ status: "active", updatedAt: 50 }))
+    expect(state().applyRead("ses_1", goal({ status: "paused", updatedAt: 200 }), token)).toBe(true)
+    expect(state().goals.ses_1?.status).toBe("paused")
+  })
+
   test("an equal revision replaces the goal", () => {
     state().applyEvent("ses_1", goal({ status: "active", updatedAt: 300 }))
     state().applyEvent("ses_1", goal({ status: "paused", updatedAt: 300 }))

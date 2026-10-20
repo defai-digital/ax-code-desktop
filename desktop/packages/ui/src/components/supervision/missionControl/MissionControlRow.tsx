@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { SupervisionGoalLine } from "../SupervisionGoalLine"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { cn } from "@/lib/utils"
 import { EvidenceText } from "../EvidenceText"
@@ -99,6 +100,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               {row.errorMessage}
             </span>
           ) : null}
+          <SupervisionGoalLine goal={row.goal} className="typography-meta text-muted-foreground" />
         </span>
         <span
           role="gridcell"

@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import {
   shouldShowSinceYouLeft,
+  sinceYouLeftActivityAt,
   sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
   sinceYouLeftStateLabel,
@@ -33,11 +34,12 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   const hookCounters = useDirectoryHookCounters(row?.directory)
   if (!row) return null
   if (dismissedFor === sessionId) return null
-  if (!shouldShowSinceYouLeft({ snapshot, updatedAt: row.updatedAt, state: row.state })) return null
+  const activityAt = sinceYouLeftActivityAt(row.updatedAt, row.goal)
+  if (!shouldShowSinceYouLeft({ snapshot, updatedAt: activityAt, state: row.state })) return null
   const label = sinceYouLeftStateLabel(row.state)
   if (!label) return null
 
-  const parts = sinceYouLeftRelativeParts(row.updatedAt, Date.now())
+  const parts = sinceYouLeftRelativeParts(activityAt, Date.now())
   const hookBlocks = sinceYouLeftHookBlocks(hookCounters.blocked)
 
   const handleDismiss = () => {

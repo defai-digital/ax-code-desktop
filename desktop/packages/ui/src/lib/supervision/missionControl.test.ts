@@ -17,6 +17,10 @@ describe("filterRows", () => {
   test("live keeps non-idle only", () => {
     expect(filterRows(rows, { kind: "live" }, sets, NOW).map((r) => r.sessionId)).toEqual(["a", "d"])
   })
+  test("live includes a goal that needs a person", () => {
+    const withGoal = [...rows, row("g", "goal")]
+    expect(filterRows(withGoal, { kind: "live" }, sets, NOW).map((r) => r.sessionId)).toEqual(["a", "d", "g"])
+  })
   test("recent keeps last 24h regardless of state", () => {
     expect(filterRows(rows, { kind: "recent" }, sets, NOW).map((r) => r.sessionId)).toEqual(["a", "b", "c"])
   })
@@ -37,6 +41,7 @@ describe("primaryActionFor", () => {
     expect(primaryActionFor("review")).toBe("review-changes")
     expect(primaryActionFor("running")).toBe("open")
     expect(primaryActionFor("idle")).toBe("open")
+    expect(primaryActionFor("goal")).toBe("open")
   })
 })
 

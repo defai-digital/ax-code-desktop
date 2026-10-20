@@ -36,6 +36,7 @@ describe("board keyboard and density interaction", () => {
         directory: "/repo",
         updatedAt: Date.now(),
         evidence: null,
+        goal: null,
       })),
     })
     container = document.createElement("div")

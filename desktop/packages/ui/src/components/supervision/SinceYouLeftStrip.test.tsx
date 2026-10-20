@@ -28,6 +28,7 @@ const row: SupervisionRow = {
   directory: "/repo",
   updatedAt: LEFT_AT + 60_000,
   evidence: null,
+  goal: null,
 }
 
 const blockedRun: HookCompleted = {
@@ -74,6 +75,31 @@ describe("SinceYouLeftStrip hook blocks chip", () => {
     render()
 
     expect(chip()?.textContent).toBe("supervision.sinceYouLeft.hookBlocks:2")
+  })
+
+  test("shows for a goal-only change after the last visit", () => {
+    useSupervisionStore.setState({
+      rows: [
+        {
+          ...row,
+          state: "goal",
+          updatedAt: 1000,
+          goal: {
+            sessionId: "ses_1",
+            objective: "Ship the migration",
+            status: "blocked",
+            tokensUsed: 10,
+            timeUsedSeconds: 5,
+            createdAt: 500,
+            updatedAt: 20000,
+          },
+        },
+      ],
+      lastViewedAt: { ses_1: 10000 },
+    })
+    render()
+    expect(container.querySelector("[data-since-you-left]")).not.toBeNull()
+    expect(container.textContent).toContain("supervision.sinceYouLeft.state.goal")
   })
 
   test("hides the chip when nothing was blocked", () => {

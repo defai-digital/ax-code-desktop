@@ -120,6 +120,59 @@ describe("reduceRunTransitions", () => {
     expect(failedDue.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "error" }])
   })
 
+  test("running to goal schedules a failure, never a finish", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 100)
+    expect(goal.notify).toEqual([])
+    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "failed", from: "running", to: "goal" })
+    const due = settle(goal.pending, [row("a", "goal")], 100 + RUN_TRANSITION_SETTLE_MS)
+    expect(due.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "goal" }])
+  })
+
+  test("goal to idle keeps the failure and its deadline instead of labelling it finished", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 1_000)
+    const idle = settle(goal.pending, [row("a", "idle")], 2_000)
+    expect(idle.notify).toEqual([])
+    expect(idle.pending.get("a")?.scheduled).toMatchObject({
+      kind: "failed",
+      to: "idle",
+      dueAt: 1_000 + RUN_TRANSITION_SETTLE_MS,
+    })
+    const due = settle(idle.pending, [row("a", "idle")], 1_000 + RUN_TRANSITION_SETTLE_MS)
+    expect(due.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "idle" }])
+    // The same episode does not announce a finish afterwards.
+    const later = settle(due.pending, [row("a", "review")], 9_000)
+    expect(later.notify).toEqual([])
+    const laterDue = settle(later.pending, [row("a", "review")], 9_000 + RUN_TRANSITION_SETTLE_MS)
+    expect(laterDue.notify).toEqual([])
+  })
+
+  test("goal to running cancels the pending failure and re-arms the next run", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 100)
+    expect(goal.pending.get("a")?.scheduled?.kind).toBe("failed")
+    const resumed = settle(goal.pending, [row("a", "running")], 400)
+    expect(resumed.notify).toEqual([])
+    expect(resumed.pending.get("a")?.scheduled).toBeNull()
+    const atOldDue = settle(resumed.pending, [row("a", "running")], 100 + RUN_TRANSITION_SETTLE_MS)
+    expect(atOldDue.notify).toEqual([])
+    const finished = settle(atOldDue.pending, [row("a", "idle")], 5_000)
+    const announced = settle(finished.pending, [row("a", "idle")], 5_000 + RUN_TRANSITION_SETTLE_MS)
+    expect(announced.notify).toEqual([{ sessionId: "a", kind: "finished", from: "running", to: "idle" }])
+  })
+
+  test("entering goal converts a pending finish into a failure instead of cancelling it", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const idle = settle(running.pending, [row("a", "idle")], 1_000)
+    expect(idle.pending.get("a")?.scheduled?.kind).toBe("finished")
+    const goal = settle(idle.pending, [row("a", "goal")], 1_500)
+    expect(goal.notify).toEqual([])
+    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "failed", to: "goal" })
+    const due = settle(goal.pending, [row("a", "goal")], 1_500 + RUN_TRANSITION_SETTLE_MS)
+    expect(due.notify.map((transition) => transition.kind)).toEqual(["failed"])
+  })
+
   test("a root that stays running is not treated as finished", () => {
     const started = settle(new Map(), [row("root", "running")], 0)
     const still = settle(started.pending, [row("root", "running")], 5_000)

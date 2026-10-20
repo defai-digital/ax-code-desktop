@@ -113,6 +113,12 @@ describe("getSessionIdFromPayload", () => {
     expect(getSessionIdFromPayload(createEvent("server.connected", { sessionID: "s6" }))).toBeNull()
     expect(getSessionIdFromPayload(createEvent("session.status"))).toBeNull()
   })
+
+  test("extracts session.goal from properties.sessionID", () => {
+    expect(getSessionIdFromPayload(createEvent("session.goal", { sessionID: "s-goal", goal: null }))).toBe("s-goal")
+    expect(getSessionIdFromPayload(createEvent("session.goal", { goal: { sessionID: "s-goal" } }))).toBeNull()
+    expect(getSessionIdFromPayload(createEvent("session.goal", { sessionID: "" }))).toBeNull()
+  })
 })
 
 describe("getMessageIdFromPayload", () => {
@@ -230,6 +236,20 @@ describe("resolveDirectoryFromRoutingIndex", () => {
     )
     expect(resolved).toBe("/repo")
     expect(index.sessionDirectoryById.get("s1")).toBe("/repo")
+  })
+
+  test("routes a global session.goal event to the indexed directory store", () => {
+    // Without a session id, resolveDirectoryFromRoutingIndex returns "global" and handleEvent
+    // returns before the event tap. session.goal has to resolve like session.idle.
+    const manager = createManagerWithStore("/repo", { session: [createSession("s-goal")] })
+    const index = createEventRoutingIndex()
+    setIndexedSessionDirectory(index, "s-goal", "/repo")
+    const event = createEvent("session.goal", { sessionID: "s-goal", goal: null })
+
+    expect(resolveDirectoryFromRoutingIndex(index, "global", event, manager)).toBe("/repo")
+
+    const unindexed = createEventRoutingIndex()
+    expect(resolveDirectoryFromRoutingIndex(unindexed, "global", event, manager)).toBe("/repo")
   })
 
   test("falls back to the routing index when the event directory is empty", () => {

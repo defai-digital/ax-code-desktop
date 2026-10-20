@@ -23,6 +23,12 @@ export const SUPERVISION_PRESENTATION: Record<SupervisionState, StatePresentatio
     tone: "text-[var(--status-error)] border-[var(--status-error)]/40 bg-[var(--status-error)]/10",
     dot: "bg-[var(--status-error)]",
   },
+  goal: {
+    label: "supervision.state.goal",
+    icon: "record-circle",
+    tone: "text-[var(--status-warning)] border-[var(--status-warning)]/40 bg-[var(--status-warning)]/10",
+    dot: "bg-[var(--status-warning)]",
+  },
   review: {
     label: "supervision.state.review",
     icon: "file-check",

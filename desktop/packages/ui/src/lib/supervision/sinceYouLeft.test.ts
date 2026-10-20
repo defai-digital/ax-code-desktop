@@ -3,6 +3,7 @@ import { describe, expect, test } from "vitest"
 import {
   SINCE_YOU_LEFT_GRACE_MS,
   shouldShowSinceYouLeft,
+  sinceYouLeftActivityAt,
   sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
   sinceYouLeftStateLabel,
@@ -35,6 +36,26 @@ describe("shouldShowSinceYouLeft", () => {
 
   test("hides when nothing changed after leaving", () => {
     expect(shouldShowSinceYouLeft({ ...base, updatedAt: base.snapshot - 1000 })).toBe(false)
+  })
+})
+
+describe("sinceYouLeftActivityAt", () => {
+  test("folds a later goal revision into the activity time", () => {
+    const goal = { createdAt: 500, updatedAt: 20000 }
+    expect(sinceYouLeftActivityAt(1000, goal)).toBe(20000)
+    // Session updated 1000, last visit 10000, goal updated 20000: a
+    // goal-only change after leaving counts as activity.
+    expect(shouldShowSinceYouLeft({ snapshot: 10000, updatedAt: sinceYouLeftActivityAt(1000, goal), state: "goal" })).toBe(
+      true,
+    )
+    expect(shouldShowSinceYouLeft({ snapshot: 10000, updatedAt: 1000, state: "goal" })).toBe(false)
+  })
+
+  test("falls back to creation time and keeps a later session time", () => {
+    expect(sinceYouLeftActivityAt(1000, { createdAt: 3000 })).toBe(3000)
+    expect(sinceYouLeftActivityAt(9000, { createdAt: 3000, updatedAt: 4000 })).toBe(9000)
+    expect(sinceYouLeftActivityAt(1000, null)).toBe(1000)
+    expect(sinceYouLeftActivityAt(1000, undefined)).toBe(1000)
   })
 })
 

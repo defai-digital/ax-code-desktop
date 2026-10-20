@@ -1,3 +1,5 @@
+import type { SessionGoalSnapshot } from "@/lib/supervision/goal"
+
 /**
  * Sessions that need a human. The project activity tone consumes these same
  * reasons through needsAttentionSessionIds, so question waits, errors, and
@@ -7,7 +9,7 @@
 /** Rows a needs-you list shows before "Show all": enough to act on, not enough to bury the page. */
 export const NEEDS_YOU_VISIBLE_ROWS = 3
 
-export type NeedsYouReason = "permission" | "question" | "uncommitted" | "error"
+export type NeedsYouReason = "permission" | "question" | "uncommitted" | "error" | "goal"
 
 export interface NeedsYouSessionInput {
   id: string
@@ -16,6 +18,12 @@ export interface NeedsYouSessionInput {
   questionCount: number
   hasError: boolean
   finishedWithUncommitted: boolean
+  /** The runtime goal cannot progress without a person (blocked or budget-limited). */
+  goalNeedsPerson?: boolean
+  /** The runtime goal snapshot, carried through so a needs-you entry can show its objective line. */
+  goal?: SessionGoalSnapshot | null
+  /** The runtime status type for the session: "busy", "retry" or "idle", when the caller knows it. */
+  statusType?: string | null
   updatedAt?: number
   directory?: string | null
   title?: string
@@ -27,14 +35,22 @@ export interface NeedsYouEntry {
   reason: NeedsYouReason
   directory: string | null
   title: string
+  goal: SessionGoalSnapshot | null
 }
 
 export function needsYouReason(
-  session: Pick<NeedsYouSessionInput, "permissionCount" | "questionCount" | "hasError" | "finishedWithUncommitted">,
+  session: Pick<
+    NeedsYouSessionInput,
+    "permissionCount" | "questionCount" | "hasError" | "finishedWithUncommitted" | "goalNeedsPerson" | "statusType"
+  >,
 ): NeedsYouReason | null {
   if (session.permissionCount > 0) return "permission"
   if (session.questionCount > 0) return "question"
   if (session.hasError) return "error"
+  // A session that is working again does not need a person for its blocked
+  // goal, matching deriveSupervisionState where running outranks goal.
+  const running = session.statusType === "busy" || session.statusType === "retry"
+  if (session.goalNeedsPerson && !running) return "goal"
   if (session.finishedWithUncommitted) return "uncommitted"
   return null
 }
@@ -50,6 +66,7 @@ export function listNeedsYouSessions(sessions: readonly NeedsYouSessionInput[]):
       reason,
       directory: session.directory ?? null,
       title: session.title?.trim() || session.id,
+      goal: session.goal ?? null,
     })
   }
   return entries
@@ -59,12 +76,13 @@ const NEEDS_YOU_URGENCY: Record<NeedsYouReason, number> = {
   permission: 0,
   question: 0,
   error: 1,
-  uncommitted: 2,
+  goal: 2,
+  uncommitted: 3,
 }
 
 /**
- * Most urgent first: a session blocked on a permission or a question, then an error, then finished
- * work that is not committed. Order inside each tier is preserved.
+ * Most urgent first: a session blocked on a permission or a question, then an error, then a goal
+ * that needs a person, then finished work that is not committed. Order inside each tier is preserved.
  */
 export function rankNeedsYouEntries(entries: readonly NeedsYouEntry[]): NeedsYouEntry[] {
   return entries

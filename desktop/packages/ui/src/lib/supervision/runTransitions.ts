@@ -55,14 +55,19 @@ const isInProgress = (state: SupervisionState): state is InProgressSupervisionSt
 
 const terminalKind = (state: SupervisionState): RunTransitionKind | null => {
   if (state === "review" || state === "idle") return "finished"
-  if (state === "error") return "failed"
+  // A blocked goal ends the run without completing it, so it is announced
+  // like an error and never as a finish.
+  if (state === "error" || state === "goal") return "failed"
   return null
 }
 
 /**
  * Fold one supervision snapshot into the pending finish and failure decisions.
  *
- * Review, idle, and error are announced only after they stay settled for `settleMs`.
+ * Review, idle, error, and a blocked goal are announced only after they stay settled for `settleMs`.
+ * A blocked goal is a failure: it is never announced as a finish, and a later
+ * idle or review in the same episode keeps the pending failure instead of
+ * replacing it with a finish.
  * The announcement is dropped when the root returns to an in-progress state before that
  * deadline. Permission and question are in-progress sources, so a root that passes through
  * them between snapshots still announces the later finish or failure.
@@ -104,14 +109,20 @@ export function reduceRunTransitions(
     } else if (isInProgress(row.state)) {
       scheduled = null
     } else if (kind !== null && scheduled && scheduled.kind !== kind && !notifiedKinds.includes(kind)) {
-      scheduled = { kind, from: scheduled.from, to: row.state, dueAt: now + settleMs }
+      if (scheduled.kind === "failed" && kind === "finished") {
+        // Never downgrade a failure to a finish: keep its deadline and
+        // only follow the settling state.
+        scheduled = { ...scheduled, to: row.state }
+      } else {
+        scheduled = { kind, from: scheduled.from, to: row.state, dueAt: now + settleMs }
+      }
     } else if (kind !== null && scheduled?.kind === kind) {
       if (scheduled.to !== row.state) scheduled = { ...scheduled, to: row.state }
     } else if (kind === null) {
       scheduled = null
     }
 
-    if (scheduled && kind === scheduled.kind && now >= scheduled.dueAt) {
+    if (scheduled && kind !== null && now >= scheduled.dueAt) {
       notify.push({ sessionId: row.sessionId, kind: scheduled.kind, from: scheduled.from, to: row.state })
       notifiedKinds = [...notifiedKinds, scheduled.kind]
       scheduled = null

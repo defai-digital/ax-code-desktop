@@ -19,11 +19,13 @@ import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { supervisionRequestContext } from "@/lib/supervision/needsYouSurface"
 import { useAllPendingRequests } from "@/sync/sync-context"
 import { RequestActionCard } from "@/components/supervision/RequestActionCard"
+import { SupervisionGoalLine } from "@/components/supervision/SupervisionGoalLine"
 
 const REASON_ICON: Record<NeedsYouReason, IconName> = {
   permission: "shield-warning",
   question: "question",
   error: "error-warning",
+  goal: "record-circle",
   uncommitted: "git-commit",
 }
 
@@ -125,7 +127,10 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
               onClick={() => open(entry.sessionId)}
             >
               <Icon name={REASON_ICON[entry.reason]} className="h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]" />
-              <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground">{entry.title}</span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate typography-ui-label text-foreground">{entry.title}</span>
+                <SupervisionGoalLine goal={entry.goal} className="typography-micro text-muted-foreground" />
+              </span>
               {project ? (
                 <span className="hidden min-w-0 max-w-[40%] truncate typography-micro text-muted-foreground sm:inline">
                   {project}

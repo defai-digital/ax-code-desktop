@@ -65,6 +65,7 @@ describe("Mission Control pop-out variant", () => {
           directory: "/repo",
           updatedAt: Date.now(),
           evidence: { additions: 3, deletions: 1, files: 2 },
+          goal: null,
         },
       ],
     })

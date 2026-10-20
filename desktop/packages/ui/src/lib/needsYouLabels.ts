@@ -11,5 +11,7 @@ export function needsYouReasonLabel(reason: NeedsYouReason, t: I18nContextValue[
       return t("projects.home.needsYou.uncommitted")
     case "error":
       return t("projects.home.needsYou.error")
+    case "goal":
+      return t("projects.home.needsYou.goal")
   }
 }

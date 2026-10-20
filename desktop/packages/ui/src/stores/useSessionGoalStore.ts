@@ -42,14 +42,12 @@ export const useSessionGoalStore = defineStore(
     eventSeq: {},
     applyEvent: (sessionId, goal) => {
       const state = get()
+      const current = state.goals[sessionId]
+      // An older replay of the same goal changes nothing, so it must not invalidate a newer route read in flight.
+      if (goal && current && goalRevision(goal) < goalRevision(current)) return
       const seq = { ...state.eventSeq, [sessionId]: (state.eventSeq[sessionId] ?? 0) + 1 }
       if (!goal) {
         set({ goals: without(state.goals, sessionId), known: { ...state.known, [sessionId]: true }, eventSeq: seq })
-        return
-      }
-      const current = state.goals[sessionId]
-      if (current && goalRevision(goal) < goalRevision(current)) {
-        set({ eventSeq: seq })
         return
       }
       set({ goals: { ...state.goals, [sessionId]: goal }, known: { ...state.known, [sessionId]: true }, eventSeq: seq })

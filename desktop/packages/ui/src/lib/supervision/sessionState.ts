@@ -4,7 +4,7 @@ import { needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
  * One supervision state per session, shared by the titlebar, the sidebar Live section, Mission Control
  * and the peek. Every input comes from what the runtime reports; nothing here is estimated.
  */
-export type SupervisionState = "permission" | "question" | "error" | "review" | "running" | "idle"
+export type SupervisionState = "permission" | "question" | "error" | "goal" | "review" | "running" | "idle"
 
 export interface SupervisionStateInput extends NeedsYouSessionInput {
   /** The runtime status type for the session: "busy", "retry" or "idle". */
@@ -21,6 +21,7 @@ export function deriveSupervisionState(input: SupervisionStateInput): Supervisio
   const running = input.statusType === "busy" || input.statusType === "retry"
   if (running) return "running"
   if (reason === "error") return "error"
+  if (reason === "goal") return "goal"
   if (reason === "uncommitted") return "review"
   return "idle"
 }
@@ -29,9 +30,10 @@ const URGENCY: Record<SupervisionState, number> = {
   permission: 0,
   question: 0,
   error: 1,
-  review: 2,
-  running: 3,
-  idle: 4,
+  goal: 2,
+  review: 3,
+  running: 4,
+  idle: 5,
 }
 
 export function supervisionUrgency(state: SupervisionState): number {
@@ -47,8 +49,9 @@ const TREE_PRECEDENCE: Record<SupervisionState, number> = {
   question: 0,
   running: 1,
   error: 2,
-  review: 3,
-  idle: 4,
+  goal: 3,
+  review: 4,
+  idle: 5,
 }
 
 export function treeStatePrecedence(state: SupervisionState): number {
@@ -57,7 +60,7 @@ export function treeStatePrecedence(state: SupervisionState): number {
 
 /** States that ask a person to do something. */
 export function needsHuman(state: SupervisionState): boolean {
-  return state === "permission" || state === "question" || state === "error" || state === "review"
+  return state === "permission" || state === "question" || state === "error" || state === "goal" || state === "review"
 }
 
 /** States that belong in a live view: anything that needs a person or is still working. */

@@ -8,6 +8,7 @@ const sourcePath = (relativePath: string) =>
 
 import {
   attentionSessionForProject,
+  needsYouReason,
   rankNeedsYouEntries,
   listNeedsYouSessions,
   orderSwitcherSessionIds,
@@ -15,6 +16,17 @@ import {
   selectNeedsYouSession,
   type NeedsYouSessionInput,
 } from "./needsYou"
+import type { SessionGoalSnapshot } from "./supervision/goal"
+
+const goalSnapshot = (overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnapshot => ({
+  sessionId: "goal-session",
+  objective: "Ship the migration",
+  status: "blocked",
+  tokensUsed: 10,
+  timeUsedSeconds: 5,
+  createdAt: 1000,
+  ...overrides,
+})
 
 const session = (overrides: Partial<NeedsYouSessionInput> & Pick<NeedsYouSessionInput, "id">): NeedsYouSessionInput => ({
   projectId: "app",
@@ -96,12 +108,13 @@ describe("needs-you queue", () => {
   })
 
   test("ranks blocked sessions before errors before uncommitted work, keeping order within a tier", () => {
-    const entry = (sessionId: string, reason: "permission" | "question" | "uncommitted" | "error") => ({
+    const entry = (sessionId: string, reason: "permission" | "question" | "uncommitted" | "error" | "goal") => ({
       sessionId,
       projectId: null,
       reason,
       directory: null,
       title: sessionId,
+      goal: null,
     })
     const ranked = rankNeedsYouEntries([
       entry("a", "uncommitted"),
@@ -111,6 +124,59 @@ describe("needs-you queue", () => {
       entry("e", "permission"),
     ])
     expect(ranked.map((item) => item.sessionId)).toEqual(["c", "e", "b", "a", "d"])
+  })
+
+  test("a goal that needs a person ranks after an error and before uncommitted work", () => {
+    expect(
+      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: true, goalNeedsPerson: true }),
+    ).toBe("goal")
+    expect(
+      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: true, finishedWithUncommitted: true, goalNeedsPerson: true }),
+    ).toBe("error")
+    expect(
+      needsYouReason({ permissionCount: 1, questionCount: 0, hasError: true, finishedWithUncommitted: true, goalNeedsPerson: true }),
+    ).toBe("permission")
+    const ranked = rankNeedsYouEntries([
+      { sessionId: "dirty", projectId: null, reason: "uncommitted", directory: null, title: "dirty", goal: null },
+      { sessionId: "goal", projectId: null, reason: "goal", directory: null, title: "goal", goal: null },
+      { sessionId: "err", projectId: null, reason: "error", directory: null, title: "err", goal: null },
+    ])
+    expect(ranked.map((entry) => entry.sessionId)).toEqual(["err", "goal", "dirty"])
+  })
+
+  test("a busy or retry session does not need a person for its blocked goal", () => {
+    const base = { permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false, goalNeedsPerson: true }
+    expect(needsYouReason({ ...base, statusType: "busy" })).toBeNull()
+    expect(needsYouReason({ ...base, statusType: "retry" })).toBeNull()
+    expect(needsYouReason({ ...base, statusType: "idle" })).toBe("goal")
+    expect(needsYouReason({ ...base, statusType: "busy", finishedWithUncommitted: true })).toBe("uncommitted")
+    expect(
+      listNeedsYouSessions([
+        session({ id: "busy-goal", goalNeedsPerson: true, statusType: "busy", goal: goalSnapshot() }),
+        session({ id: "idle-goal", goalNeedsPerson: true, statusType: "idle", goal: goalSnapshot() }),
+      ]).map((entry) => entry.sessionId),
+    ).toEqual(["idle-goal"])
+  })
+
+  test("callers that do not pass goalNeedsPerson behave as before", () => {
+    expect(needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: true })).toBe(
+      "uncommitted",
+    )
+    expect(needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false })).toBeNull()
+    expect(
+      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false, goalNeedsPerson: false }),
+    ).toBeNull()
+  })
+
+  test("lists a goal session with its snapshot for the objective line", () => {
+    const goal = goalSnapshot()
+    const queue = listNeedsYouSessions([
+      session({ id: "goal-session", goalNeedsPerson: true, goal, title: "Blocked goal" }),
+      session({ id: "paused-session", goalNeedsPerson: false, goal: goalSnapshot({ status: "paused" }), title: "Paused" }),
+    ])
+    expect(queue).toHaveLength(1)
+    expect(queue[0]?.reason).toBe("goal")
+    expect(queue[0]?.goal).toEqual(goal)
   })
 
   test("marks every ancestor of a blocked subagent, whatever order the sessions are in", () => {

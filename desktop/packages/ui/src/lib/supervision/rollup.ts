@@ -40,12 +40,15 @@ export function rollUpChildStates(rows: readonly RollupInput[]): Map<string, Rol
   const result = new Map<string, RolledUpState>()
   for (const row of rows) {
     const root = rootOf(row)
+    // A blocked goal only raises the state of its own root session; a
+    // child's goal never makes its root look blocked for a goal it lacks.
+    const contributes = row.sessionId !== root && row.state === "goal" ? "idle" : row.state
     const existing = result.get(root)
     if (!existing) {
-      result.set(root, { state: row.state, sessionIds: [row.sessionId] })
+      result.set(root, { state: contributes, sessionIds: [row.sessionId] })
       continue
     }
-    if (treeStatePrecedence(row.state) < treeStatePrecedence(existing.state)) existing.state = row.state
+    if (treeStatePrecedence(contributes) < treeStatePrecedence(existing.state)) existing.state = contributes
     if (row.sessionId === root) existing.sessionIds.unshift(row.sessionId)
     else existing.sessionIds.push(row.sessionId)
   }

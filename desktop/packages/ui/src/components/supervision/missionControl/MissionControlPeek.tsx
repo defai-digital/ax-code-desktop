@@ -8,6 +8,7 @@ import type { WorkingSet } from "@/stores/useSupervisionStore"
 import type { PendingRequestEntry } from "@/sync/sync-context"
 import { EvidenceText } from "../EvidenceText"
 import { RequestActionCard } from "../RequestActionCard"
+import { SupervisionGoalLine } from "../SupervisionGoalLine"
 
 export interface MissionControlPeekProps {
   row: SupervisionRow
@@ -92,6 +93,14 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             {t("supervision.missionControl.peek.noPendingRequests")}
           </p>
         )}
+        {row.goal ? (
+          <div className="flex min-w-0 flex-col gap-0.5">
+            {row.state === "goal" ? (
+              <span className="typography-micro text-[var(--status-warning)]">{t("supervision.state.goal")}</span>
+            ) : null}
+            <SupervisionGoalLine goal={row.goal} className="typography-micro text-muted-foreground" />
+          </div>
+        ) : null}
         <EvidenceText evidence={row.evidence} className="typography-micro text-muted-foreground" />
         {recentRuns.length ? (
           <div className="flex flex-col gap-1">

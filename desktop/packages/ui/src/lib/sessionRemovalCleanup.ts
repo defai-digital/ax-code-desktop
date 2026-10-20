@@ -10,9 +10,17 @@
 import { useMessageQueueStore } from "@/stores/messageQueueStore"
 import { usePermissionStore } from "@/stores/permissionStore"
 import { useInlineCommentDraftStore } from "@/stores/useInlineCommentDraftStore"
+import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSessionMultiSelectStore } from "@/stores/useSessionMultiSelectStore"
 import { useSessionRollbackStore } from "@/stores/useSessionRollbackStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+
+let dropSessionGoalReadClaims: ((ids: ReadonlySet<string>) => void) | null = null
+
+/** The goal loader registers this so a confirmed delete drops an in-flight route read. */
+export function registerSessionGoalReadClaimDrop(drop: ((ids: ReadonlySet<string>) => void) | null): void {
+  dropSessionGoalReadClaims = drop
+}
 
 export function cleanupRemovedSessions(ids: Iterable<string>): void {
   const idSet = ids instanceof Set ? ids : new Set(ids)
@@ -34,6 +42,10 @@ export function cleanupRemovedSessions(ids: Iterable<string>): void {
   // Keep an active multi-select consistent so the selection count cannot
   // include sessions that no longer exist.
   useSessionMultiSelectStore.getState().removeMany([...idSet])
+  // The goal map is memory only. Drop the in-flight read first: its completion checks the claim, and a
+  // read that started at eventSeq 0 would otherwise write the session back after remove().
+  dropSessionGoalReadClaims?.(idSet)
+  for (const id of idSet) useSessionGoalStore.getState().remove(id)
   // Abort flags, plan-availability and dismissed change bars are never removed by their own
   // actions; the worktree attachment would keep routing to a dead session's worktree.
   useSessionUIStore.getState().clearRemovedSessionState(idSet)

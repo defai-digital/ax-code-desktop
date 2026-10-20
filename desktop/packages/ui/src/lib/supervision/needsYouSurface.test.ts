@@ -88,6 +88,15 @@ describe("supervisionStatusRows", () => {
     ]
     expect(supervisionStatusRows(rows, new Set(["claimed"])).map((row) => row.sessionId)).toEqual(["err", "review"])
   })
+
+  test("keeps goal rows that have no request", () => {
+    const rows = [
+      { sessionId: "goal", state: "goal" as const },
+      { sessionId: "idle", state: "idle" as const },
+      { sessionId: "claimed-goal", state: "goal" as const },
+    ]
+    expect(supervisionStatusRows(rows, new Set(["claimed-goal"])).map((row) => row.sessionId)).toEqual(["goal"])
+  })
 })
 
 describe("supervision request presentation", () => {

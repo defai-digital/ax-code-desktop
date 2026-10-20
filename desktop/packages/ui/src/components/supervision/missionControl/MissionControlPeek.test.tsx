@@ -10,6 +10,7 @@ vi.doMock("@/lib/i18n", () => ({
     t: (key: string, params?: Record<string, string | number>) =>
       params ? `${key}:${Object.values(params).join("|")}` : key,
     relativeTime: (value: number, unit: string) => `${value} ${unit}`,
+    number: (value: number) => String(value),
   }),
 }))
 
@@ -25,6 +26,7 @@ const row: SupervisionRow = {
   directory: "/repo",
   updatedAt: 1,
   evidence: null,
+  goal: null,
 }
 
 const completed = (overrides: Partial<HookCompleted> = {}): HookCompleted => ({
@@ -45,11 +47,11 @@ describe("MissionControlPeek hook runs", () => {
   let container: HTMLDivElement
   let root: Root
 
-  const render = () => {
+  const render = (rowOverrides: Partial<SupervisionRow> = {}) => {
     act(() =>
       root.render(
         <MissionControlPeek
-          row={row}
+          row={{ ...row, ...rowOverrides }}
           requests={[]}
           workingSets={[]}
           isCreatingSetForRow={false}
@@ -101,5 +103,47 @@ describe("MissionControlPeek hook runs", () => {
     render()
     expect(hookRunLines()).toHaveLength(0)
     expect(container.textContent).not.toContain("hookRunsTitle")
+  })
+
+  test("shows the goal reason label and the goal line for a blocked goal", () => {
+    render({
+      state: "goal",
+      goal: {
+        sessionId: "ses_1",
+        objective: "Ship the migration",
+        status: "budget_limited",
+        tokensUsed: 5000,
+        timeUsedSeconds: 90,
+        remainingTimeSeconds: 600,
+        createdAt: 1000,
+      },
+    })
+    expect(container.textContent).toContain("supervision.state.goal")
+    const line = container.querySelector("[data-goal-line]")
+    expect(line?.textContent).toContain("supervision.goal.status.budget_limited")
+    expect(line?.textContent).toContain("Ship the migration")
+    expect(line?.textContent).toContain("supervision.goal.remainingTimeMinutes:10")
+    expect(line?.querySelector("[title]")?.getAttribute("title")).toBe("Ship the migration")
+  })
+
+  test("shows a paused goal line without the goal reason label", () => {
+    render({
+      state: "idle",
+      goal: {
+        sessionId: "ses_1",
+        objective: "Ship the migration",
+        status: "paused",
+        tokensUsed: 0,
+        timeUsedSeconds: 0,
+        createdAt: 1000,
+      },
+    })
+    expect(container.querySelector("[data-goal-line]")?.textContent).toContain("supervision.goal.status.paused")
+    expect(container.textContent).not.toContain("supervision.state.goal")
+  })
+
+  test("shows no goal line when there is no goal", () => {
+    render()
+    expect(container.querySelector("[data-goal-line]")).toBeNull()
   })
 })

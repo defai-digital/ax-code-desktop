@@ -1,4 +1,5 @@
 import type { MultiRunIdentity } from "@/lib/multirun/identity"
+import type { SessionGoalSnapshot } from "./goal"
 import type { SupervisionEvidence, SupervisionState } from "./sessionState"
 
 export interface SupervisionRow {
@@ -12,6 +13,8 @@ export interface SupervisionRow {
   directory: string | null
   updatedAt: number
   evidence: SupervisionEvidence | null
+  /** The root session's runtime goal, or null when it has none. Child goals never stand in for it. */
+  goal: SessionGoalSnapshot | null
   errorMessage?: string
   /** Validated `metadata.multiRun` of the session; absent for sessions without it. */
   multiRun?: MultiRunIdentity

@@ -1,15 +1,21 @@
+/**
+ * The directory static files are served from: the staged dist named by
+ * AX_CODE_DESKTOP_DIST_DIR, or the dist next to the server. Shared with
+ * the CSP document hashes so hashed bytes and served bytes always come
+ * from the same directory.
+ */
+export const resolveServedDistPath = ({ env, __dirname, path }) => {
+  const configured = typeof env?.AX_CODE_DESKTOP_DIST_DIR === "string" ? env.AX_CODE_DESKTOP_DIST_DIR.trim() : ""
+  if (configured) {
+    return path.resolve(configured)
+  }
+  return path.join(__dirname, "..", "dist")
+}
+
 export const createStaticRoutesRuntime = (dependencies) => {
   const { fs, path, process, __dirname, express } = dependencies
 
-  const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
-
-  const resolveDistPath = () => {
-    const env = asTrimmedString(process.env.AX_CODE_DESKTOP_DIST_DIR)
-    if (env) {
-      return path.resolve(env)
-    }
-    return path.join(__dirname, "..", "dist")
-  }
+  const resolveDistPath = () => resolveServedDistPath({ env: process.env, __dirname, path })
 
   const registerStaticRoutes = (app) => {
     const distPath = resolveDistPath()

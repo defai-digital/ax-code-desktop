@@ -3,7 +3,13 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
-vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock("@/lib/i18n", () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string | number>) =>
+      params ? `${key}:${Object.values(params).join("|")}` : key,
+    number: (value: number) => String(value),
+  }),
+}))
 import { MissionControlRow } from "./MissionControlRow"
 
 const row: SupervisionRow = {
@@ -16,6 +22,7 @@ const row: SupervisionRow = {
   directory: "/repo",
   updatedAt: Date.now(),
   evidence: { files: 3, additions: 20, deletions: 1 },
+  goal: null,
 }
 describe("Mission Control row interaction", () => {
   let container: HTMLDivElement
@@ -35,12 +42,12 @@ describe("Mission Control row interaction", () => {
     act(() => root.unmount())
     container.remove()
   })
-  const render = (state: SupervisionState = "review") =>
+  const render = (state: SupervisionState = "review", overrides: Partial<SupervisionRow> = {}) =>
     act(() =>
       root.render(
         <div role="grid" tabIndex={0}>
           <MissionControlRow
-            row={{ ...row, state }}
+            row={{ ...row, state, ...overrides }}
             selected
             expanded={false}
             activeWorkingSetId="w1"
@@ -84,4 +91,46 @@ describe("Mission Control row interaction", () => {
       expect(container.querySelector("[data-supervision-state]")?.textContent).toContain(`supervision.state.${state}`)
     },
   )
+  test("goal state keeps a textual status and stable row identity", () => {
+    render("goal")
+    expect(container.querySelector("[data-supervision-state]")?.textContent).toContain("supervision.state.goal")
+    expect(container.querySelector("[data-supervision-state]")?.getAttribute("aria-label")).toBe("supervision.state.goal")
+  })
+  test("shows the goal line under the title with status, objective, used and remaining tokens", () => {
+    render("goal", {
+      goal: {
+        sessionId: "s1",
+        objective: "Ship the migration",
+        status: "blocked",
+        tokensUsed: 1200,
+        timeUsedSeconds: 90,
+        remainingTokens: 3800,
+        createdAt: 1000,
+      },
+    })
+    const line = container.querySelector("[data-goal-line]")
+    expect(line?.textContent).toContain("supervision.goal.status.blocked")
+    expect(line?.textContent).toContain("Ship the migration")
+    expect(line?.textContent).toContain("supervision.goal.usedTokens:1200|5000")
+    expect(line?.textContent).toContain("supervision.goal.remainingTokens:3800")
+    expect(line?.querySelector("[title]")?.getAttribute("title")).toBe("Ship the migration")
+  })
+  test("shows a paused goal without changing the state badge", () => {
+    render("idle", {
+      goal: {
+        sessionId: "s1",
+        objective: "Ship the migration",
+        status: "paused",
+        tokensUsed: 0,
+        timeUsedSeconds: 0,
+        createdAt: 1000,
+      },
+    })
+    expect(container.querySelector("[data-supervision-state]")?.textContent).toContain("supervision.state.idle")
+    expect(container.querySelector("[data-goal-line]")?.textContent).toContain("supervision.goal.status.paused")
+  })
+  test("shows no goal line when there is no goal", () => {
+    render()
+    expect(container.querySelector("[data-goal-line]")).toBeNull()
+  })
 })

@@ -1,3 +1,4 @@
+import { goalRevision, type SessionGoalSnapshot } from "./goal"
 import type { SupervisionState } from "./sessionState"
 
 /** Grace period after leaving so brief tab switches do not trigger the strip. */
@@ -10,6 +11,18 @@ export interface SinceYouLeftInput {
   state: SupervisionState
 }
 
+/**
+ * The activity time the strip compares with the last visit: the session's
+ * own update time, or its goal's revision when that is later. Callers pass
+ * the root session's goal, so a child's goal never moves the root's time.
+ */
+export function sinceYouLeftActivityAt(
+  updatedAt: number,
+  goal: Pick<SessionGoalSnapshot, "createdAt" | "updatedAt"> | null | undefined,
+): number {
+  return goal ? Math.max(updatedAt, goalRevision(goal)) : updatedAt
+}
+
 export function shouldShowSinceYouLeft(input: SinceYouLeftInput): boolean {
   if (input.snapshot === null) return false
   if (input.state === "running") return false
@@ -17,7 +30,7 @@ export function shouldShowSinceYouLeft(input: SinceYouLeftInput): boolean {
 }
 
 /** i18n key suffix for the state label, without the `supervision.sinceYouLeft.state.` prefix. */
-export type SinceYouLeftStateLabel = "review" | "error" | "permission" | "question" | "idle"
+export type SinceYouLeftStateLabel = "review" | "error" | "permission" | "question" | "idle" | "goal"
 
 export function sinceYouLeftStateLabel(state: SupervisionState): SinceYouLeftStateLabel | null {
   switch (state) {
@@ -31,6 +44,8 @@ export function sinceYouLeftStateLabel(state: SupervisionState): SinceYouLeftSta
       return "question"
     case "idle":
       return "idle"
+    case "goal":
+      return "goal"
     case "running":
       return null
   }

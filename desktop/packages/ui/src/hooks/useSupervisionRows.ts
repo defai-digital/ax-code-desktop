@@ -19,6 +19,8 @@ import {
   latestUnseenSessionErrorMessage,
   latestUnseenTreeSessionErrorMessage,
 } from "@/lib/supervision/sessionErrorMessage"
+import { goalNeedsPerson, goalRevision } from "@/lib/supervision/goal"
+import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
 
 export type { SupervisionRow } from "@/lib/supervision/rows"
@@ -55,6 +57,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
   const projects = useProjectsStore((state) => state.projects)
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const notifications = useSyncNotificationStore((state) => state.list)
+  const goals = useSessionGoalStore((state) => state.goals)
 
   // "Ready to review" comes from git status, so warm it for every session directory.
   const directories = React.useMemo(() => {
@@ -67,11 +70,24 @@ function useComputedSupervisionRows(): SupervisionRow[] {
   return React.useMemo(() => {
     const sessionById = new Map(sessions.map((session) => [session.id, session]))
     const projectById = new Map(projects.map((project) => [project.id, project]))
-    const ownStates = inputs.map((input) => ({
-      sessionId: input.id,
-      parentId: (sessionById.get(input.id) as { parentID?: string | null } | undefined)?.parentID ?? null,
-      state: deriveSupervisionState({ ...input, statusType: statuses[input.id]?.type ?? null }),
-    }))
+    const inputIds = new Set(inputs.map((input) => input.id))
+    const ownStates = inputs.map((input) => {
+      const parentId = (sessionById.get(input.id) as { parentID?: string | null } | undefined)?.parentID ?? null
+      const statusType = statuses[input.id]?.type ?? null
+      const running = statusType === "busy" || statusType === "retry"
+      const isChild = typeof parentId === "string" && parentId.length > 0 && inputIds.has(parentId)
+      return {
+        sessionId: input.id,
+        parentId,
+        state: deriveSupervisionState({
+          ...input,
+          // Only the root of a tree raises its blocked goal, and never
+          // while it is running; child goals stay off the root state.
+          goalNeedsPerson: running || isChild ? false : (input.goalNeedsPerson ?? goalNeedsPerson(goals[input.id])),
+          statusType,
+        }),
+      }
+    })
     const rootStates = rollUpChildStates(ownStates)
     const rows: SupervisionRow[] = []
     for (const input of inputs) {
@@ -86,6 +102,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         latestUnseenSessionErrorMessage(notifications, input.id) ??
         latestUnseenTreeSessionErrorMessage(notifications, treeSessionIds)
       const multiRun = readMultiRunIdentity(session)
+      const goal = goals[input.id] ?? null
       rows.push({
         sessionId: input.id,
         title: input.title?.trim() || input.id,
@@ -94,12 +111,15 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         projectId: input.projectId,
         projectLabel,
         directory: input.directory ?? null,
-        updatedAt: input.updatedAt ?? 0,
+        // Only this root row's own goal moves its activity time, so a
+        // goal-only change still reads as activity since the last visit.
+        updatedAt: goal ? Math.max(input.updatedAt ?? 0, goalRevision(goal)) : (input.updatedAt ?? 0),
         evidence: resolveSupervisionEvidence(session?.summary as SessionSummaryLike | undefined),
+        goal,
         ...(errorMessage ? { errorMessage } : {}),
         ...(multiRun ? { multiRun } : {}),
       })
     }
     return rankSupervisionRows(rows)
-  }, [homeDirectory, inputs, notifications, projects, sessions, statuses])
+  }, [goals, homeDirectory, inputs, notifications, projects, sessions, statuses])
 }

@@ -31,6 +31,7 @@ import {
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { mergeSessionListPage } from "./session-list-merge"
 import { noteServerSessionStatus } from "./session-status-events"
+import { ingestSessionGoalEvent, noteSessionGoalRecovery } from "./session-goal-ingress"
 
 // A rebuilt directory store holds root sessions only; when a child session record is missing at
 // the moment it goes idle, the global lifecycle index still knows its parent.
@@ -1030,7 +1031,8 @@ export function recoverSessionSnapshotsAfterGap(
   }
 }
 
-function handleEvent(
+/** One pipeline event. Exported so tests can drive a frame that has no directory store. */
+export function handleEvent(
   rawDirectory: string,
   payload: Event,
   childStores: ChildStoreManager,
@@ -1052,6 +1054,12 @@ function handleEvent(
   // is loaded. A session that goes away takes its pending toasts with it on either path.
   clearPendingToastsForGoneSession(payload)
 
+  // `session.goal` is keyed by session id and needs no directory store. Both returns below drop the event:
+  // a global frame, and a directory whose child store is not loaded. Ingest once, before either return.
+  if (payload.type === "session.goal") {
+    ingestSessionGoalEvent(payload)
+  }
+
   // Global events
   if (directory === "global" || !directory) {
     const recent = isRecentBoot()
@@ -1069,6 +1077,7 @@ function handleEvent(
       // global session index up over HTTP; preserveNewerSessions keeps
       // newer event-fed entries (S4.4).
       if (requiresResync) {
+        noteSessionGoalRecovery()
         void useGlobalSessionsStore.getState().loadSessions()
         reloadCommandsAfterGap()
         // ...and the per-session snapshots: the index reload and the directory
@@ -1128,6 +1137,7 @@ function handleEvent(
       useGlobalSyncStore.setState({ reload: "pending" })
       // Same replay-gap catch-up as the global branch above (S4.4).
       if (payload.type === "server.resync_required") {
+        noteSessionGoalRecovery()
         void useGlobalSessionsStore.getState().loadSessions()
         reloadCommandsAfterGap()
       }

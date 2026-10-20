@@ -1,6 +1,8 @@
 # Supervision goal state v1
 
 Status: Accepted for implementation under PRD-2026-10-19-trusted-supervision-v1 (Phase A, item 1).
+Revised the same day after three independent reviews (event ingress before the directory lookup, reads for idle rows,
+root-only state, running suppression); the changes are marked below.
 Depends on: SDK 2.6.37 (`config/ax-code-sdk.json`): `GET /session/{sessionID}/goal` (`session.goal`) and the
 `session.goal` event. No runtime change and no new SDK pin.
 
@@ -26,13 +28,16 @@ per-session `eventSeq`. It is memory only and is not persisted.
 
 ## Ingress
 
-1. **Event.** The sync layer's event tap (`sync/sync-context-impl.tsx`, beside the notification dispatch that the reducer
-   does not handle) routes `session.goal` events to `useSessionGoalStore.applyEvent` after `normalizeSessionGoal`. The
-   reducer, `State`, `prepareEventDraft` and the event-pipeline coalescing are not changed. If the event is dropped before
-   the tap by routing or normalisation, the change must route it without altering other event types.
-2. **Read.** A hook mounted once with the supervision publisher (`hooks/useSessionGoalsLoader.ts`) reads the goal for
-   each row session that is not idle or is displayed, once per session, and again after a reconnect or
-   `server.resync_required` recovery. At most 4 reads are in flight. Failures leave the session unknown and are retried
+1. **Event.** The sync layer's event handler (`sync/sync-context-impl.tsx`) routes `session.goal` events to
+   `useSessionGoalStore.applyEvent` after `normalizeSessionGoal`, once per event, before the global and missing-directory-store
+   returns: the store is keyed by session id and needs no directory. The reducer, `State`, `prepareEventDraft` and the
+   event-pipeline coalescing are not changed. `getSessionIdFromPayload` reads `properties.sessionID` for this event.
+2. **Read.** A hook mounted once with the supervision publisher (`hooks/useSessionGoalsLoader.ts`) reads the goal of every
+   root row whose goal is not yet known, whatever its state, once per recovery epoch: a session that finished with a blocked
+   goal looks idle until its goal is read. Order: the open session, then rows that are not idle, then the rest by most
+   recent update. It reads again after a reconnect or `server.resync_required` recovery. At most 4 reads are in flight,
+   counting reads from earlier recovery generations until they settle; a read completes only while its claim is live, so a
+   deleted session is never written back. Failures leave the session unknown and are retried
    at most once per recovery. It uses the published SDK client through the existing runtime proxy; no new endpoint.
 3. **Cleanup.** `remove` runs when a session is deleted or leaves every directory store, so the map cannot grow without bound.
 
@@ -45,13 +50,17 @@ per-session `eventSeq`. It is memory only and is not persisted.
 - `NeedsYouSessionInput` gains optional `goalNeedsPerson`; `needsYouReason` returns `goal` after `error` and before
   `uncommitted`. `NEEDS_YOU_URGENCY` follows the same order. Callers that do not pass the field are unchanged.
 - `deriveSupervisionState` keeps its rule that a running session outranks an unseen error; the same applies to `goal`.
-- `SupervisionRow` gains `goal: SessionGoalSnapshot | null`, taken from the root session of the tree.
+- `SupervisionRow` gains `goal: SessionGoalSnapshot | null`, taken from the root session of the tree. Only a root
+  session's goal can raise `goal`; a child session's goal never changes the root's state. A `busy` or `retry` session never
+  raises `goal` on any surface (rows, the home Needs You queue, project attention). The row's activity time is the later of
+  the session update and the goal revision, so a goal-only change counts for "since you left".
+- A run that ends in `goal` is treated like a failed run for completion notifications (never labelled completed).
 - A `paused` or `complete` goal is shown on the row but does not change state or raise attention.
 
 ## Display
 
 - Mission Control row: under the title, one line with the status label, the objective (single line, truncated with the
-  full text in `title`) and, when the runtime reports a budget, remaining tokens or time. No line when there is no goal.
+  full text in `title`) and, when the runtime reports a budget, tokens or time used of the budget and what remains. No line when there is no goal.
 - Needs You entry and peek: the `goal` reason label, plus the same objective line.
 - The badge for `goal` has its own label and an accessible name; the status is never conveyed by colour alone.
 - Strings exist in all 14 shipped locales. Budget numbers use the existing number and duration formatters.
@@ -61,9 +70,11 @@ per-session `eventSeq`. It is memory only and is not persisted.
 
 `collectInlineScriptHashes` moves to `desktop/shared/inline-script-hashes.mjs` and is imported by
 `desktop-renderer-protocol.js` with identical behaviour and unchanged tests. The web server computes the hashes of every
-inline `<script>` in the HTML documents it serves for the app (`index.html`, `mini-chat.html`, `supervision.html`) and
+inline `<script>` in the HTML documents it serves for the app (`/index.html`, `/mini-chat.html`, `/supervision.html`
+exactly; every other path, including nested ones, falls back to `index.html` like the static routes do) and
 `buildWebServerCsp` emits `script-src 'self' 'wasm-unsafe-eval' <hashes>` for them, with no `'unsafe-inline'`. Hashes are
-computed from the served bytes and cached by file modification time. Preview and dashboard proxy responses keep the
+computed from the served bytes and cached by modification time, size, change time and inode, from the same directory the
+static routes serve. Preview and dashboard proxy responses keep the
 previous policy. `connect-src` is unchanged.
 
 ## Tests

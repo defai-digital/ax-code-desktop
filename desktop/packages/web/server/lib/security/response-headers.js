@@ -1,3 +1,5 @@
+import { getAppDocumentScriptHashes } from "./document-script-hashes.js"
+
 const PREVIEW_PROXY_PREFIX = "/api/preview/proxy"
 const DASHBOARD_PROXY_PREFIXES = ["/dre-graph", "/run-report", "/graph"]
 export const PACKAGED_RENDERER_ORIGIN = "app://ax-code"
@@ -50,13 +52,20 @@ const CSP_COMMON_TAIL =
 
 // The app document runs without JavaScript eval, matching the packaged app://
 // policy; 'wasm-unsafe-eval' keeps the terminal's WebAssembly renderer
-// (ADR-018). Preview and dashboard proxy responses render pages Desktop does
-// not author (a user's dev server, runtime reports), so they keep the previous
-// allowance; the preview proxy separately rewrites upstream policies.
-export const buildWebServerCsp = (req) => {
+// (ADR-018). Its inline scripts are allowed only by the SHA-256 hashes of the
+// document being served, so it needs no 'unsafe-inline'. Preview and dashboard
+// proxy responses render pages Desktop does not author (a user's dev server,
+// runtime reports), so they keep the previous allowance; the preview proxy
+// separately rewrites upstream policies.
+export const buildWebServerCsp = (req, resolveScriptHashes = getAppDocumentScriptHashes) => {
   const proxied = isPreviewProxyRequest(req) || isDashboardProxyRequest(req)
-  const scriptSrc = proxied
-    ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
-    : "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
+  if (proxied) {
+    return `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; ${CSP_COMMON_TAIL}`
+  }
+  const resolved = typeof resolveScriptHashes === "function" ? resolveScriptHashes(getRequestPathname(req)) : []
+  const hashes = (Array.isArray(resolved) ? resolved : []).filter(
+    (value) => typeof value === "string" && /^'sha256-[A-Za-z0-9+/=]+'$/.test(value),
+  )
+  const scriptSrc = ["script-src 'self' 'wasm-unsafe-eval'", ...hashes].join(" ")
   return `default-src 'self'; ${scriptSrc}; ${CSP_COMMON_TAIL}`
 }
