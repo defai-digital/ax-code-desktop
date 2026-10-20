@@ -23,7 +23,7 @@ describe("smoke-packaged-app args", () => {
   })
 
   test("expects the independently pinned runtime rather than the Desktop release version", async () => {
-    expect(await readExpectedBundledAxCodeVersion({})).toBe("7.27.7")
+    expect(await readExpectedBundledAxCodeVersion({})).toBe("7.28.0")
     expect(await readExpectedBundledAxCodeVersion({ AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION: "v7.24.3" })).toBe(
       "7.24.3",
     )

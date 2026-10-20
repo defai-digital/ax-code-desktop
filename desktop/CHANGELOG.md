@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bundle the signed AX Code runtime 7.27.7 and SDK 2.6.39 from GitHub Packages.
+- Bundle the signed AX Code runtime 7.28.0 and SDK 2.6.41 from GitHub Packages.
 - Create and remove worktrees through the AX Code runtime. Desktop no longer runs `git worktree add` itself; a branch
   you keep on removal stays, and an explicit request to delete the local branch still deletes it.
 - Pin the renderer sandbox, allow only hashed inline scripts in the packaged app, and drop `unsafe-eval` for app pages.
