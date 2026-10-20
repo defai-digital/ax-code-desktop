@@ -196,15 +196,33 @@ export type AxEngineConnectionView = {
 
 const jsonHeaders = { "Content-Type": "application/json", Accept: "application/json" }
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value)
+
+/**
+ * Navigation and the settings window read `eligibility.supported` unconditionally, so a response without it (a runtime that
+ * predates the route, a proxy answering with `{}`) must surface as a load error rather than crash the settings window.
+ */
+export const assertAxEngineModelsResponse = (value: unknown): AxEngineModelsResponse => {
+  if (!isRecord(value) || !isRecord(value.eligibility) || typeof value.eligibility.supported !== "boolean") {
+    throw new Error("AX Engine status response is incomplete")
+  }
+  return value as unknown as AxEngineModelsResponse
+}
+
 export const fetchAxEngineModels = async (
   directory: string | null,
   signal?: AbortSignal,
 ): Promise<AxEngineModelsResponse> => {
-  return fetchProviderJsonWithRetry(buildDirectoryUrl(API_ENDPOINTS.provider.axEngineModels, directory), {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    signal,
-  }) as Promise<AxEngineModelsResponse>
+  const response = await fetchProviderJsonWithRetry(
+    buildDirectoryUrl(API_ENDPOINTS.provider.axEngineModels, directory),
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal,
+    },
+  )
+  return assertAxEngineModelsResponse(response)
 }
 
 export const startAxEngineModelDownload = async (
