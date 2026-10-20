@@ -4,6 +4,10 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 
 ## Active and deferred requirements
 
+Product-direction proposal: [WebMCP outcomes and project recap v1](PRD-2026-10-20-webmcp-outcomes-and-recap-v1.md), with
+[a phased plan](../plans/PLAN-2026-10-20-webmcp-outcomes-and-recap-v1.md). New recap/workflow requirements are proposed;
+the earlier authorized Settings/WebMCP repair slice remains in progress. Accepted records below are not superseded.
+
 | PRD | Current interpretation |
 | --- | --- |
 | [Product and Desktop extraction](PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md) | Accepted umbrella; source extraction and local cutover complete; broader portfolio and qualification requirements remain independently tracked |

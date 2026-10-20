@@ -1,0 +1,110 @@
+# WebMCP outcomes and recap implementation plan v1
+
+Status: Planning baseline requested on 2026-10-20 before further product coding.
+Product direction: [PRD v1](../prd/PRD-2026-10-20-webmcp-outcomes-and-recap-v1.md).
+New product requirements remain proposed; accepted ownership, technical behavior and release decisions are unchanged.
+
+## Planning checkpoint
+
+- Native Desktop UI WebMCP and Settings repairs were already underway under the user's earlier implementation request.
+  They remain uncommitted. New recap/product implementation has not started.
+- Preserve the separate runtime-pin/test changes and the `.internal/reference` symlink that predate this task. No sibling
+  edits, reference imports, dependency migration, version bump, push or release is part of the task commit.
+- Native exploration visited all 15 Settings pages. Confirmed defects: missing ARIA options/menus, control truncation,
+  missing focus behavior, unnamed fields/icon actions and Hooks crashing on an incomplete payload. Repairs and local
+  shortcut search exist in source; final native retest of the latest candidate is pending.
+- The latest full UI run passed **558 files / 3,703 tests**. The build subsequently failed on a test mock typing error:
+  `updateDesktopSettings` resolves `void`, but the new test mocks `{}`. Correct it and rerun before claiming build success.
+- Earlier ordinary E2E runs intermittently failed in pop-out/reload/permission journeys. The narrower WebMCP pass does
+  not make that suite green. Keep those failures visible and investigate before candidate qualification.
+
+## Phase A: Finish the authorized Settings/WebMCP repair slice
+
+1. Freeze an initial bug table with reproduction, expected/observed result, cause, regression and retest evidence.
+   Distinguish app defects, adapter limits, fixture limits and external-service absence.
+2. Correct the test mock type, then finish confirmed Settings defects. Do not expand the adapter into arbitrary JS/IPC,
+   a permission engine or a second browser runtime. Add a versioned spec for paging, supported roles and focus/field handling;
+   preserve the original v1 record and update current developer documentation.
+3. Run the built app through `e2e:desktop:settings-webmcp`: every navigation entry, every control page, useful names/state,
+   actual actions and independent observations. Record a control-level coverage matrix, not only a page count.
+4. Exercise nested states: select/menu items, theme controls, numeric bounds and invalid drafts, steppers/reset, toggles,
+   shortcut capture/search/empty/clear/reset, create/edit/cancel forms and error/retry. Verify saved state where applicable.
+5. Use temporary fixture resources for mutations. Inventory external login, download, native-dialog and destructive
+   buttons, but record unexecuted actions explicitly. Never delete or rewrite real user skills/accounts during a UI audit.
+6. Compare field identity, hierarchy, density, focus, dirty/default state and feedback with the scoped Orca observations.
+   Inspect real screenshots in light/dark modes and a narrow window. Fix concrete usability gaps within the current design.
+7. Run focused regressions, full UI tests, typecheck, lint, build, locale and boundary/release-identity checks. Run native
+   WebMCP and ordinary E2E. Resolve or clearly disposition failures without weakening assertions to make the run green.
+8. Repeat scoped exploration after fixes. Close after two clean passes and no unresolved confirmed reviewer finding;
+   retain limitations instead of claiming the entire app is bug-free.
+9. Commit only task implementation, regressions, docs and evidence. Verify the commit and remaining dirty paths. Keep
+   the user's unrelated runtime-pin/reference changes out of the commit; do not push or publish.
+
+## Phase B: Establish the recap failure
+
+1. Trace `/summary`, `/catch-up`, the Catch me up starter, their prompts, SDK requests, error recovery and output location.
+   Keep narrative recap separate from diff statistics and context compaction.
+2. Reproduce empty project, new draft, existing session, unavailable model, rejected request, project switch during
+   generation, restart and returning after other work. Use native WebMCP for UI actions wherever the surface supports them.
+3. Classify the complaint: discovery, failed generation, wrong scope/context, weak content, stale result, missing evidence,
+   persistence, absence of ready-to-read content, or missing cross-project orientation. Retain exact evidence and regressions.
+4. Resolve the pending project/session versus cross-project preference. Meanwhile diagnose the shared project/session path;
+   do not infer a daily schedule or autonomous spending policy.
+5. Establish what the pinned SDK/runtime actually supports for narrative summaries, goals and evidence. Record absent
+   contracts without inventing endpoint names or silently putting canonical generation/history in Desktop.
+
+Deliverable: recap gap report and a bounded technical implementation spec. Confirmed bugs in existing request paths can be
+fixed within accepted boundaries; a new durable recap product follows Phase C prerequisites.
+
+## Phase C: Evidence-linked recap vertical slice
+
+Prerequisite: accepted scope; when the producer contract or ownership changes, accepted PRDs/ADRs in all affected repos
+and the technical spec required by AGENTS.md. This is an explicit repository requirement, not an inferred approval step.
+
+1. Specify recap identity, goal, progress, verified/unverified outcomes, blockers, decisions, next actions, evidence links
+   and freshness. Cover unavailable, loading, ready, stale, partial, error, cancellation and late async results.
+2. Keep generation, durable execution facts, tool receipts, policy and spend runtime-owned. Desktop provides a discoverable
+   entrypoint and bounded projection. Reading existing content must not silently generate another model request.
+3. Implement one user journey: return → understand recap → open evidence → resume the correct session or rerun a check.
+   Test wrong-session responses, context changes, mixed outcomes and restart continuity.
+4. Use deterministic fixtures for state coverage and separate configured live-runtime qualification for generation and
+   persistence. A stub cannot qualify real model output, approvals or canonical durable history.
+5. Make refresh cost/cancellation explicit under current runtime policy. Do not add recurring generation or larger budgets.
+
+## Phase D: Enlarge WebMCP's user value
+
+1. Choose concrete web-app jobs: search/filter, create/edit/save a record, validate a form and reproduce a reported failure.
+   Define the expected domain/UI result before generating tools or code.
+2. Add app-owned semantic tools and lifecycle tests through the runtime coding workflow. Desktop displays available tools,
+   scope, activity and results rather than owning a parallel code-generation/workflow executor.
+3. Evaluate tool discovery, schema use, execution failures and independent outcome verification. Save bounded redacted
+   semantic steps, app/version identity and evidence references. Expiring DOM refs are never durable replay identifiers.
+4. Link workflow results into recap. Preserve the difference between site-supplied output, observed UI state, test results
+   and runtime-owned completion authority. Recheck scope on navigation and never blindly retry uncertain effects.
+5. Compare task completion, attention/correction/review time and recovery with the current app and applicable Orca flows.
+   Extend to cross-project orientation after the project/session journey is demonstrably useful.
+
+## Phase E: Validate value with users
+
+Use matched, explicit-acceptance tasks with representative developers and supervisors. Establish baseline orientation
+time, accepted verified outcomes, human attention, correction cost and reopened bugs. Segment tasks and experience;
+report uncertainty. Prioritize the next gap from observed results. More models, more tools, generated lines, a static
+competitor score or an impressive demo do not by themselves establish value.
+
+## Reviewer inputs and disposition
+
+All requested reviewers were used in bounded read-only runs: Grok CLI, Muse CLI and AX Code CLI with DeepSeek, GLM and
+MiniMax. Muse/DeepSeek/MiniMax completed source reviews; GLM and Grok completed smaller retries after their first requests
+timed out. Completed prose is advisory, not proof of a working feature or visual review of screenshots.
+
+Useful leads being verified: read-only shortcut focus, preserving the current control page after actions, contradictory
+disabled/fillable metadata and normal focus/blur behavior. Claims that this app's Settings steppers use shadow-root custom
+elements were unsupported. Driver-side clamping would hide application validation defects and is rejected. Nullable Hooks
+fields require checking the actual producer contract before changing admission. Matching Orca's keys/types/values is not
+a product acceptance criterion. Reviewer output does not authorize changes to runtime or security ownership.
+
+## Completion rule
+
+Phase A is the earlier authorized repair/test/commit slice. Phase B is diagnosis. New recap/workflow implementation waits
+for the relevant records/contracts, while document and evidence work proceeds. A plan, code scaffold, passing stub or
+reviewer response cannot alone complete a phase. Keep implementation, local validation, commit, push and release distinct.
