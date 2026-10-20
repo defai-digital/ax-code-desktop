@@ -25,7 +25,7 @@ import { Icon } from "@/components/icon/Icon"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useUIStore } from "@/stores/useUIStore"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
-import { stripFanOutSuffix, type ScheduledTaskDraftInput } from "@/lib/scheduledTaskTransform"
+import { stripFanOutSuffix, zonedTimeToEpochMs, type ScheduledTaskDraftInput } from "@/lib/scheduledTaskTransform"
 import { useI18n } from "@/lib/i18n"
 import { describeFamilySchedule, type ScheduledTaskFamily } from "./scheduledTaskFamilies"
 import { normalizeScheduledTaskTimes } from "./scheduledTaskTime"
@@ -304,6 +304,7 @@ interface TimePillProps {
   periodAriaLabel: string
   amLabel: string
   pmLabel: string
+  errorId?: string
 }
 
 const FieldLabel: React.FC<{
@@ -328,6 +329,7 @@ const TimePill: React.FC<TimePillProps> = ({
   periodAriaLabel,
   amLabel,
   pmLabel,
+  errorId,
 }) => {
   const parts = React.useMemo(() => parse24hTime(value), [value])
   const hourRef = React.useRef<HTMLInputElement>(null)
@@ -470,6 +472,8 @@ const TimePill: React.FC<TimePillProps> = ({
         onBlur={commitHour}
         maxLength={2}
         aria-label={hourAriaLabel}
+        aria-invalid={errorId ? true : undefined}
+        aria-describedby={errorId}
         className="h-7 w-7 shrink-0 rounded-sm bg-transparent text-center font-mono typography-ui-label tabular-nums text-foreground outline-none caret-transparent focus:bg-interactive-hover"
       />
       <span className="font-mono typography-ui-label text-muted-foreground">:</span>
@@ -483,12 +487,16 @@ const TimePill: React.FC<TimePillProps> = ({
         onBlur={commitMinute}
         maxLength={2}
         aria-label={minuteAriaLabel}
+        aria-invalid={errorId ? true : undefined}
+        aria-describedby={errorId}
         className="h-7 w-7 shrink-0 rounded-sm bg-transparent text-center font-mono typography-ui-label tabular-nums text-foreground outline-none caret-transparent focus:bg-interactive-hover"
       />
       {!use24Hour ? (
         <Select value={parts.meridiem} onValueChange={(next) => setPeriod(next as "AM" | "PM")}>
           <SelectTrigger
             aria-label={periodAriaLabel}
+            aria-invalid={errorId ? true : undefined}
+            aria-describedby={errorId}
             className="ml-1 h-7 w-fit border-0 bg-transparent pl-2 pr-1 shadow-none hover:bg-interactive-hover focus:ring-0"
           >
             <SelectValue />
@@ -684,6 +692,18 @@ export const toDraft = (
   }
 }
 
+const onceScheduleError = (
+  schedule: ScheduledTaskDraft["schedule"],
+  t: ReturnType<typeof useI18n>["t"],
+): string | null => {
+  if (schedule.kind !== "once" || !schedule.onceDate || !schedule.onceTime || !schedule.timezone.trim()) {
+    return null
+  }
+  return zonedTimeToEpochMs(schedule.onceDate, schedule.onceTime, schedule.timezone.trim()) === null
+    ? t("sessions.scheduledTasks.editor.validation.invalidWallClock", { timezone: schedule.timezone.trim() })
+    : null
+}
+
 const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>["t"]): string | null => {
   if (!draft.name.trim()) {
     return t("sessions.scheduledTasks.editor.validation.taskNameRequired")
@@ -717,7 +737,7 @@ const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>[
     return t("sessions.scheduledTasks.editor.validation.timezoneRequired")
   }
 
-  return null
+  return onceScheduleError(draft.schedule, t)
 }
 
 export type ScheduledTaskEditorSubmit = {
@@ -795,6 +815,8 @@ export function ScheduledTaskEditorDialog(props: {
     () => buildTimezoneOptions(draft.schedule.timezone),
     [draft.schedule.timezone],
   )
+  const scheduleErrorId = React.useId()
+  const scheduleError = React.useMemo(() => onceScheduleError(draft.schedule, t), [draft.schedule, t])
   const localeUse24Hour = React.useMemo(() => getUses24Hour(formatLocale), [formatLocale])
   const localeWeekStartsOn = React.useMemo(() => getWeekStartsOn(formatLocale), [formatLocale])
   const use24Hour = React.useMemo(() => {
@@ -1167,7 +1189,8 @@ export function ScheduledTaskEditorDialog(props: {
   const handleSubmit = React.useCallback(async () => {
     const validationError = validateDraft(draft, t)
     if (validationError) {
-      toast.error(validationError)
+      // The persistent field alert already explains this error without covering the footer.
+      if (validationError !== scheduleError) toast.error(validationError)
       return
     }
 
@@ -1222,7 +1245,7 @@ export function ScheduledTaskEditorDialog(props: {
     } finally {
       setSaving(false)
     }
-  }, [draft, onOpenChange, onSave, t, task])
+  }, [draft, onOpenChange, onSave, scheduleError, t, task])
 
   const descriptionId = React.useId()
   const hasOpenFloatingMenu = React.useCallback(() => {
@@ -1301,7 +1324,13 @@ export function ScheduledTaskEditorDialog(props: {
       ) : null}
 
       {draft.schedule.kind === "once" ? (
-        <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+        <div
+          className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2"
+          role="group"
+          aria-label={t("sessions.scheduledTasks.editor.scheduleType.once")}
+          aria-invalid={scheduleError ? true : undefined}
+          aria-describedby={scheduleError ? scheduleErrorId : undefined}
+        >
           <div className="flex flex-col gap-1" ref={datePickerRef}>
             <FieldLabel>{t("sessions.scheduledTasks.editor.date.label")}</FieldLabel>
             <div className="relative">
@@ -1309,6 +1338,8 @@ export function ScheduledTaskEditorDialog(props: {
                 type="button"
                 className="inline-flex h-9 w-fit max-w-full items-center justify-between gap-2 rounded-md border border-border bg-background px-3 text-left hover:bg-interactive-hover"
                 onClick={() => setIsDatePickerOpen((prev) => !prev)}
+                aria-invalid={scheduleError ? true : undefined}
+                aria-describedby={scheduleError ? scheduleErrorId : undefined}
               >
                 <span className="inline-flex items-center gap-2">
                   <Icon name="calendar" className="h-4 w-4 text-muted-foreground" />
@@ -1422,6 +1453,7 @@ export function ScheduledTaskEditorDialog(props: {
             <FieldLabel>{t("sessions.scheduledTasks.editor.time.label")}</FieldLabel>
             <TimePill
               value={draft.schedule.onceTime}
+              errorId={scheduleError ? scheduleErrorId : undefined}
               use24Hour={use24Hour}
               hourAriaLabel={t("sessions.scheduledTasks.editor.time.hourAria")}
               minuteAriaLabel={t("sessions.scheduledTasks.editor.time.minuteAria")}
@@ -1447,7 +1479,11 @@ export function ScheduledTaskEditorDialog(props: {
                   }))
                 }}
               >
-                <SelectTrigger className="w-fit max-w-full">
+                <SelectTrigger
+                  className="w-fit max-w-full"
+                  aria-invalid={scheduleError ? true : undefined}
+                  aria-describedby={scheduleError ? scheduleErrorId : undefined}
+                >
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -1460,6 +1496,11 @@ export function ScheduledTaskEditorDialog(props: {
               </Select>
             </div>
           </div>
+          {scheduleError ? (
+            <p id={scheduleErrorId} role="alert" className="col-span-full typography-micro text-status-error">
+              {scheduleError}
+            </p>
+          ) : null}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">

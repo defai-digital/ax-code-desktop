@@ -1844,6 +1844,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Ajoutez au moins une heure valide",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "S\u00e9lectionnez au moins un jour de semaine",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Le fuseau horaire est requis",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Cette date et cette heure n\u2019existent pas dans le fuseau {timezone}. Choisissez une autre date ou heure, ou changez de fuseau horaire.",
   "multirun.launcher.title": "Nouvelle ex\u00e9cution multiple",
   "multirun.launcher.actions.closeEsc": "Fermer (\u00c9chap)",
   "multirun.launcher.actions.cancel": "Annuler",

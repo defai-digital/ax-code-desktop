@@ -1850,6 +1850,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "En az bir ge\u00e7erli saat ekleyin",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "En az bir hafta g\u00fcn\u00fc se\u00e7in",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Saat dilimi gerekli",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Bu tarih ve saat {timezone} saat diliminde mevcut de\u011fil. Ba\u015fka bir tarih veya saat se\u00e7in ya da saat dilimini de\u011fi\u015ftirin.",
   "multirun.launcher.title": "Yeni \u00c7oklu \u00c7al\u0131\u015ft\u0131rma",
   "multirun.launcher.actions.closeEsc": "Kapat (Esc)",
   "multirun.launcher.actions.cancel": "\u0130ptal",

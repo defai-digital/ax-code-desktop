@@ -81,3 +81,5 @@ provider/test workloads for runtime qualification where supported, without activ
 
 - [DST gaps and startup timezone](../reports/SCHEDULED-TASKS-2026-10-20-dst-gap-repair.md): reject nonexistent
   one-time wall clocks in the editor and migration; capture the default system timezone once per renderer lifetime.
+- [Invalid-time guidance](../reports/SCHEDULED-TASKS-2026-10-20-time-guidance.md): actionable inline date/time
+  feedback, field accessibility, narrow-dialog visibility, correction recovery and native save receipts.

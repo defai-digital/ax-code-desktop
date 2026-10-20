@@ -1844,6 +1844,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "A\u00f1ade al menos una hora v\u00e1lida",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Selecciona al menos un d\u00eda de la semana",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "La zona horaria es obligatoria",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Esta fecha y hora no existen en {timezone}. Elige otra fecha u hora, o cambia la zona horaria.",
   "multirun.launcher.title": "Nueva ejecuci\u00f3n m\u00faltiple",
   "multirun.launcher.actions.closeEsc": "Cerrar (Esc)",
   "multirun.launcher.actions.cancel": "Cancelar",

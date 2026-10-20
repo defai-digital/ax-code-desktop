@@ -21,6 +21,24 @@ vi.mock("@/stores/useProjectsStore", () => ({
   },
 }))
 
+// These cases stop at repository validation. Keep unrelated store hydration,
+// provider initialization and worktree execution out of the module import.
+vi.mock("@/sync/session-ui-store", () => ({ useSessionUIStore: { getState: vi.fn() } }))
+vi.mock("@/stores/useConfigStore", () => ({ useConfigStore: { getState: vi.fn() } }))
+vi.mock("@/stores/useAgentsStore", () => ({ useAgentsStore: { getState: vi.fn() } }))
+vi.mock("@/sync/selection-store", () => ({ useSelectionStore: { getState: vi.fn() } }))
+vi.mock("@/stores/useDirectoryStore", () => ({ useDirectoryStore: { getState: vi.fn() } }))
+vi.mock("@/lib/git/branchNameGenerator", () => ({ generateBranchName: vi.fn() }))
+vi.mock("@/lib/worktrees/worktreeStatus", () => ({ getRootBranch: vi.fn() }))
+vi.mock("@/lib/openchamberConfig", () => ({ getWorktreeSetupCommands: vi.fn() }))
+vi.mock("@/lib/worktrees/worktreeManager", () => ({ removeProjectWorktree: vi.fn() }))
+vi.mock("@/lib/worktrees/worktreeCreate", () => ({ createWorktreeWithDefaults: vi.fn() }))
+vi.mock("@/lib/worktrees/pendingDraftWorktree", () => ({
+  createPendingDraftWorktreeRequest: vi.fn(),
+  rejectPendingDraftWorktreeRequest: vi.fn(),
+  resolvePendingDraftWorktreeRequest: vi.fn(),
+}))
+
 afterEach(() => {
   vi.resetModules()
   checkIsGitRepositoryMock.mockReset()

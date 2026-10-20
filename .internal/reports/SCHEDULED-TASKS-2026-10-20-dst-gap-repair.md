@@ -66,3 +66,8 @@ claimed by this UI/transform qualification.
 The existing editor uses its generic update-failed feedback for invalid transformed schedules. More specific inline
 date/time guidance remains an improvement item; this patch prevents silent time changes and preserves the editable draft.
 Recurring DST policy, host catch-up/recovery, and the broader parallel-project matrix remain open.
+
+## Follow-up
+
+[Time guidance repair](SCHEDULED-TASKS-2026-10-20-time-guidance.md) addresses the generic-error UX item above
+with inline feedback and field associations. Its own report records the later candidate and verification scope.

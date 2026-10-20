@@ -1850,6 +1850,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "F\u00fcge mindestens eine g\u00fcltige Uhrzeit hinzu",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "W\u00e4hle mindestens einen Wochentag aus",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Zeitzone ist erforderlich",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Dieses Datum und diese Uhrzeit existieren in {timezone} nicht. W\u00e4hlen Sie ein anderes Datum oder eine andere Uhrzeit, oder \u00e4ndern Sie die Zeitzone.",
   "multirun.launcher.title": "Neuer Multi-Run",
   "multirun.launcher.actions.closeEsc": "Schlie\u00dfen (Esc)",
   "multirun.launcher.actions.cancel": "Abbrechen",

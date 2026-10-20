@@ -1850,6 +1850,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Th\u00eam \u00edt nh\u1ea5t m\u1ed9t gi\u1edd h\u1ee3p l\u1ec7",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Ch\u1ecdn \u00edt nh\u1ea5t m\u1ed9t ng\u00e0y trong tu\u1ea7n",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "C\u1ea7n c\u00f3 m\u00fai gi\u1edd",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Ng\u00e0y v\u00e0 gi\u1edd n\u00e0y kh\u00f4ng t\u1ed3n t\u1ea1i trong m\u00fai gi\u1edd {timezone}. H\u00e3y ch\u1ecdn ng\u00e0y ho\u1eb7c gi\u1edd kh\u00e1c, ho\u1eb7c thay \u0111\u1ed5i m\u00fai gi\u1edd.",
   "multirun.launcher.title": "Multi-run m\u1edbi",
   "multirun.launcher.actions.closeEsc": "\u0110\u00f3ng (Esc)",
   "multirun.launcher.actions.cancel": "H\u1ee7y",

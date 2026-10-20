@@ -1844,6 +1844,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Tambahkan setidaknya satu waktu yang valid",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Pilih setidaknya satu hari dalam minggu",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Zona waktu wajib diisi",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Tanggal dan waktu ini tidak ada di {timezone}. Pilih tanggal atau waktu lain, atau ubah zona waktu.",
   "multirun.launcher.title": "Multi-Run Baru",
   "multirun.launcher.actions.closeEsc": "Tutup (Esc)",
   "multirun.launcher.actions.cancel": "Batal",

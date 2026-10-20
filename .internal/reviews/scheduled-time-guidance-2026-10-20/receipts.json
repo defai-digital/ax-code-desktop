@@ -1,0 +1,19 @@
+{
+  "source_commit": "1ccff656",
+  "prompt_sha256": "2a9c9cd324a7e80c56686883b8899d79c560629f43e9de39904e2b9016942b13",
+  "review_scope": "Initial inline guidance diff, before field-level ARIA, toast suppression and stronger visibility assertions",
+  "reviews": [
+    {
+      "reviewer": "grok",
+      "status": "timeout",
+      "exit": 143,
+      "seconds": 210.3
+    },
+    {
+      "reviewer": "muse",
+      "status": "completed",
+      "exit": 0,
+      "seconds": 42.7
+    }
+  ]
+}

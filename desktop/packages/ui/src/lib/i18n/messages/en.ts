@@ -200,6 +200,8 @@ export const dict = {
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Add at least one valid time",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Select at least one weekday",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Timezone is required",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock":
+    "This date and time does not exist in {timezone}. Choose another date or time, or change the timezone.",
   "sessions.scheduledTasks.editor.schedule.irregularNote":
     "This task currently runs on {schedules}. Changing the schedule below replaces it with every selected weekday at every selected time; leaving it unchanged keeps the current schedules.",
   "multirun.launcher.title": "New Multi-Run",

@@ -1850,6 +1850,7 @@
   "sessions.scheduledTasks.editor.validation.atLeastOneTime": "Aggiungi almeno un orario valido",
   "sessions.scheduledTasks.editor.validation.atLeastOneWeekday": "Seleziona almeno un giorno della settimana",
   "sessions.scheduledTasks.editor.validation.timezoneRequired": "Il fuso orario \u00e8 obbligatorio",
+  "sessions.scheduledTasks.editor.validation.invalidWallClock": "Questa data e ora non esistono nel fuso orario {timezone}. Scegli un\u2019altra data o ora oppure cambia il fuso orario.",
   "multirun.launcher.title": "Nuova esecuzione multipla",
   "multirun.launcher.actions.closeEsc": "Chiudi (Esc)",
   "multirun.launcher.actions.cancel": "Annulla",

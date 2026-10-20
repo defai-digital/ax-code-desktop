@@ -179,7 +179,8 @@ async function journeyScheduledDstGap({ session, e2e }) {
     await audit.fill("Minutes", "30")
     await audit.click("Save")
     await audit.wait(
-      `!document.querySelector("#sched-name") || document.body.innerText.includes("Failed to update task")`,
+      `!document.querySelector("#sched-name") || document.body.innerText.includes("Failed to update task")
+        || document.body.innerText.includes("Choose another date or time")`,
       "gap save response",
     )
     const rejected = await (await fetch(`${origin}/__e2e__/scheduled-tasks`)).json()
@@ -193,11 +194,68 @@ async function journeyScheduledDstGap({ session, e2e }) {
     if (rejected.writes.length || !(await session.evaluate('Boolean(document.querySelector("#sched-name"))')))
       throw new Error("Nonexistent 02:30 was silently accepted instead of retaining the invalid draft")
     await audit.wait('Boolean(document.querySelector("#sched-name"))', "invalid draft retained")
+    await audit.wait(
+      `Array.from(document.querySelectorAll('[role="dialog"] [role="alert"]')).some(e =>
+        e.textContent.includes("America/New_York") && e.textContent.includes("Choose another date or time")
+        && e.clientWidth > 0 && e.scrollWidth <= e.clientWidth + 1)`,
+      "visible inline timezone guidance",
+    )
+    await audit.wait(
+      `["Hours", "Minutes"].every(name => {
+        const input = document.querySelector('input[aria-label="' + name + '"]');
+        const error = document.getElementById(input?.getAttribute("aria-describedby") || "");
+        return input?.getAttribute("aria-invalid") === "true"
+          && error?.textContent.includes("Choose another date or time");
+      })`,
+      "time inputs reference the invalid-time guidance",
+    )
     if (args.artifacts) {
       const { data } = await session.send("Page.captureScreenshot", { format: "png" })
       await fs.writeFile(path.join(args.artifacts, "dst-invalid-draft.png"), Buffer.from(data, "base64"))
     }
+    try {
+      await session.send("Emulation.setDeviceMetricsOverride", {
+        width: 800,
+        height: 700,
+        deviceScaleFactor: 1,
+        mobile: false,
+      })
+      await audit.wait(
+        `Array.from(document.querySelectorAll('[role="dialog"] [role="alert"]')).some(e => {
+          const rect = e.getBoundingClientRect();
+          return e.textContent.includes("Choose another date or time")
+            && e.clientWidth > 0 && e.scrollWidth <= e.clientWidth + 1 && e.scrollHeight <= e.clientHeight + 1
+            && rect.top >= 0 && rect.bottom <= window.innerHeight && rect.left >= 0 && rect.right <= window.innerWidth
+            && e.contains(document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2));
+        })`,
+        "inline timezone guidance fits narrow viewport",
+      )
+      await audit.wait(
+        `(() => {
+          const save = Array.from(document.querySelectorAll('[role="dialog"] button')).find(e => e.textContent === "Save");
+          if (!save) return false;
+          const rect = save.getBoundingClientRect();
+          return document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2)?.closest("button") === save
+            && !Array.from(document.querySelectorAll("[data-sonner-toast]")).some(e =>
+              e.textContent.includes("Choose another date or time"));
+        })()`,
+        "inline error does not cover save controls or duplicate a toast",
+      )
+      if (args.artifacts) {
+        const { data } = await session.send("Page.captureScreenshot", { format: "png" })
+        await fs.writeFile(path.join(args.artifacts, "dst-invalid-draft-narrow.png"), Buffer.from(data, "base64"))
+      }
+    } finally {
+      await session.send("Emulation.clearDeviceMetricsOverride")
+    }
     await audit.fill("Hours", "03")
+    await audit.click("Minutes")
+    await audit.wait('!document.querySelector(\'[role="dialog"] [role="alert"]\')', "corrected time clears guidance")
+    await audit.wait(
+      `["Hours", "Minutes"].every(name =>
+        document.querySelector('input[aria-label="' + name + '"]')?.getAttribute("aria-invalid") !== "true")`,
+      "corrected time clears field invalid state",
+    )
     await audit.click("Save")
     await audit.wait('!document.querySelector("#sched-name")', "valid after-gap time saved")
     const corrected = await (await fetch(`${origin}/__e2e__/scheduled-tasks`)).json()
