@@ -53,7 +53,11 @@ function listMcpConfigs(workingDirectory) {
  */
 function getMcpConfig(name, workingDirectory) {
   const layers = readConfigLayers(workingDirectory)
-  const entry = layers?.mergedConfig?.mcp?.[name]
+  const mcp = layers?.mergedConfig?.mcp
+  if (!mcp || !Object.prototype.hasOwnProperty.call(mcp, name)) {
+    return null
+  }
+  const entry = mcp[name]
 
   if (!entry) {
     return null
@@ -108,6 +112,7 @@ function createMcpConfig(name, mcpConfig, workingDirectory, scope) {
  * Update an existing MCP server config entry
  */
 function updateMcpConfig(name, updates, workingDirectory) {
+  validateMcpName(name)
   const layers = readConfigLayers(workingDirectory)
   const source = getJsonEntrySource(layers, "mcp", name)
 
@@ -118,8 +123,8 @@ function updateMcpConfig(name, updates, workingDirectory) {
   const targetPath = source.path || CONFIG_FILE
   const config = source.config || (fs.existsSync(targetPath) ? readConfigFile(targetPath) : {})
 
-  if (!config.mcp || typeof config.mcp !== "object" || Array.isArray(config.mcp)) {
-    config.mcp = {}
+  if (!config.mcp || !Object.prototype.hasOwnProperty.call(config.mcp, name)) {
+    throw new Error(`MCP server "${name}" not found`)
   }
 
   const existing = config.mcp[name]
@@ -135,12 +140,14 @@ function updateMcpConfig(name, updates, workingDirectory) {
  * Delete an MCP server config entry
  */
 function deleteMcpConfig(name, workingDirectory) {
+  validateMcpName(name)
   const layers = readConfigLayers(workingDirectory)
   const source = getJsonEntrySource(layers, "mcp", name)
   const targetPath = source.path || CONFIG_FILE
   const config = source.config || (fs.existsSync(targetPath) ? readConfigFile(targetPath) : {})
 
-  if (!config.mcp || typeof config.mcp !== "object" || config.mcp[name] === undefined) {
+  if (!config.mcp || typeof config.mcp !== "object" ||
+      !Object.prototype.hasOwnProperty.call(config.mcp, name)) {
     throw new Error(`MCP server "${name}" not found`)
   }
 

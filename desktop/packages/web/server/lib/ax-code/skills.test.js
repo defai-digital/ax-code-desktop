@@ -237,6 +237,16 @@ describe("skill name safety", () => {
       const siblingDir = path.join(projectRoot, ".ax-code", "skills", "oc-test-sibling-skill-9f8e7d")
       await fsPromises.mkdir(targetDir, { recursive: true })
       await fsPromises.mkdir(siblingDir, { recursive: true })
+      for (const [dir, name] of [
+        [targetDir, "oc-test-target-skill-9f8e7d"],
+        [siblingDir, "oc-test-sibling-skill-9f8e7d"],
+      ]) {
+        await fsPromises.writeFile(
+          path.join(dir, "SKILL.md"),
+          ["---", `name: ${name}`, "description: Test", "---", "", "Body.", ""].join("\n"),
+          "utf8",
+        )
+      }
 
       deleteSkill("oc-test-target-skill-9f8e7d", projectRoot)
 
@@ -313,6 +323,36 @@ describe("skill name safety", () => {
       expect(() => deleteSkill("oc-test-root-skill-2a8c4f", projectRoot)).toThrow(/not found/)
       expect(await fsPromises.stat(siblingDir)).toBeTruthy()
       expect(await fsPromises.stat(path.join(skillsRoot, "SKILL.md"))).toBeTruthy()
+    } finally {
+      await fsPromises.rm(projectRoot, { recursive: true, force: true })
+    }
+  })
+
+  it("keeps a same-named group directory when deleting a grouped skill", async () => {
+    const projectRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-project-"))
+    const skillsRoot = path.join(projectRoot, ".claude", "skills")
+    const skillName = "oc-test-group-skill-5e2a9b"
+    const groupDir = path.join(skillsRoot, skillName)
+    const groupedDir = path.join(skillsRoot, "testing", skillName)
+    try {
+      // `skills/<group>/` and `skills/testing/<group>/` share the skill's name.
+      await fsPromises.mkdir(path.join(groupDir, "sibling"), { recursive: true })
+      await fsPromises.writeFile(
+        path.join(groupDir, "sibling", "SKILL.md"),
+        ["---", "name: oc-test-group-sibling-8b1c4d", "description: Sibling", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+      await fsPromises.mkdir(groupedDir, { recursive: true })
+      await fsPromises.writeFile(
+        path.join(groupedDir, "SKILL.md"),
+        ["---", `name: ${skillName}`, "description: Grouped", "---", "", "Body.", ""].join("\n"),
+        "utf8",
+      )
+
+      deleteSkill(skillName, projectRoot, { scope: "project", source: "claude" })
+
+      await expect(fsPromises.stat(groupedDir)).rejects.toThrow()
+      expect(await fsPromises.stat(path.join(groupDir, "sibling", "SKILL.md"))).toBeTruthy()
     } finally {
       await fsPromises.rm(projectRoot, { recursive: true, force: true })
     }

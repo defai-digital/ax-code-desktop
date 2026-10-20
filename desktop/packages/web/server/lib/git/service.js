@@ -606,6 +606,12 @@ const resolveGitFileContext = async (directoryPath, git, filePath, repoRootOverr
     }
 
     const repoPath = toGitPath(path.relative(repoRoot, absolutePath))
+    // The repository root is not a file. An empty pathspec (`:(literal)`) makes
+    // restore/clean match every file, so a revert of "." would discard the
+    // entire worktree.
+    if (!repoPath) {
+      continue
+    }
     const existsInWorktree = await fsp
       .stat(absolutePath)
       .then((stat) => stat.isFile())
@@ -3283,7 +3289,12 @@ export async function commit(directory, message, options = {}) {
         }
       }
 
-      const commitArgs = !commitFromIndexOnly && !options.addAll && filesToCommit.length > 0 ? filesToCommit : undefined
+      // `--` stops a file name such as `--amend` from being parsed as a commit
+      // option; literal pathspecs keep glob characters from matching siblings.
+      const commitArgs =
+        !commitFromIndexOnly && !options.addAll && filesToCommit.length > 0
+          ? ["--", ...filesToCommit.map(literalPathspec)]
+          : undefined
 
       let result
       try {
@@ -4039,8 +4050,9 @@ export async function removeWorktree(directory, input = {}) {
     // this project's own worktree root — otherwise a caller could pass an
     // arbitrary path (e.g. via the HTTP API) and have it recursively deleted.
     const worktreeRootCanonical = await canonicalPath(context.worktreeRoot)
-    const isInsideWorktreeRoot =
-      targetCanonical === worktreeRootCanonical || targetCanonical.startsWith(worktreeRootCanonical + path.sep)
+    // The root itself is not a worktree: recursively removing it would delete
+    // every linked worktree under it.
+    const isInsideWorktreeRoot = targetCanonical.startsWith(worktreeRootCanonical + path.sep)
     if (!isInsideWorktreeRoot) {
       throw new Error("Refusing to remove a directory outside the worktree root")
     }

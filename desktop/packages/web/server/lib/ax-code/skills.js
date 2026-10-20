@@ -603,7 +603,12 @@ function deleteSkill(skillName, workingDirectory, target = {}) {
   const directories = new Map()
   for (const { root, scope, source } of roots) {
     if (!isTarget(scope, source)) continue
-    directories.set(path.join(root, skillName), { scope, source })
+    const candidate = path.join(root, skillName)
+    // A directory with the same name may be a group holding other skills
+    // (skills/<group>/<name>/SKILL.md). Only delete it when it is itself a
+    // skill; grouped skills are resolved through discovery below.
+    if (!fs.existsSync(path.join(candidate, "SKILL.md"))) continue
+    directories.set(candidate, { scope, source })
   }
 
   for (const skill of discoverSkills(workingDirectory)) {

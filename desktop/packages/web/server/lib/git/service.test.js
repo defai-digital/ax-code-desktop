@@ -248,6 +248,16 @@ describe("revertFile", () => {
     expect((await git.status()).deleted).toContain("file.txt")
   })
 
+  it("rejects the repository root instead of reverting every file", async () => {
+    const { tmpDir } = await repoWithFile()
+    await fs.promises.writeFile(path.join(tmpDir, "file.txt"), "changed\n", "utf8")
+
+    await expect(revertFile(tmpDir, ".", { scope: "all" })).rejects.toThrow(/Invalid file path/)
+
+    // An empty pathspec used to match the whole repository.
+    expect(await fs.promises.readFile(path.join(tmpDir, "file.txt"), "utf8")).toBe("changed\n")
+  })
+
   it("keeps a staged addition's index entry when only the worktree is reverted", async () => {
     const { tmpDir, git } = await repoWithFile()
     await fs.promises.writeFile(path.join(tmpDir, "new.txt"), "staged\n", "utf8")
@@ -1025,6 +1035,37 @@ describe("removeWorktree", () => {
     expect(fs.existsSync(target)).toBe(false)
   })
 
+  it("refuses to remove the worktree root itself", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    const previousXdgDataHome = process.env.XDG_DATA_HOME
+    process.env.XDG_DATA_HOME = createTempDir()
+    try {
+      const created = await createWorktree(repo, {
+        mode: "new",
+        branchName: "feature/root-guard",
+        worktreeName: "root-guard",
+      })
+      const worktreeRoot = path.dirname(created.path)
+
+      await removeWorktree(repo, { directory: created.path })
+
+      await expect(removeWorktree(repo, { directory: worktreeRoot })).rejects.toThrow(/worktree root/)
+      expect(fs.existsSync(worktreeRoot)).toBe(true)
+    } finally {
+      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
+      else process.env.XDG_DATA_HOME = previousXdgDataHome
+    }
+  })
+
   it("deletes the branch when it is only checked out in the removed worktree", async () => {
     if (!canRunGit()) return
 
@@ -1311,6 +1352,28 @@ describe("commit with selected files", () => {
     // there is no entry to read — so the deletion came back unstaged and the next commit lost it.
     expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("D  a.txt")
     expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
+  })
+
+  it("commits a file whose name looks like a git option", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "--amend"), "one\n")
+    runGit(repo, ["add", "--", "--amend"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    fs.writeFileSync(path.join(repo, "--amend"), "two\n")
+
+    const result = await commit(repo, "Only the option-like file", { files: ["--amend"] })
+
+    expect(result.success).toBe(true)
+    // Without `--`, git parsed the path as --amend and rewrote the initial commit.
+    expect(runGit(repo, ["rev-list", "--count", "HEAD"]).trim()).toBe("2")
+    expect(runGit(repo, ["log", "-1", "--format=%s"]).trim()).toBe("Only the option-like file")
+    expect(runGit(repo, ["show", "HEAD:--amend"]).trim()).toBe("two")
   })
 
   it("keeps a staged addition staged when another file is committed", async () => {
