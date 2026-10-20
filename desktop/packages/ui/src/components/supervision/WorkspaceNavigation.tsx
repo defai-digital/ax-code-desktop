@@ -5,12 +5,22 @@ import { cn } from "@/lib/utils"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { resolveProjectForDirectory } from "@/lib/projectResolution"
+import { formatPathForDisplay } from "@/lib/utils"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useGitBranchLabel } from "@/stores/useGitStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 
 export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
   const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
   const directory = useEffectiveDirectory()
+  const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
+  const branch = useGitBranchLabel(directory ?? null)
+  const projectLabel = useProjectsStore(
+    (s) => resolveProjectForDirectory(s.projects, directory ?? null)?.label?.trim() || null,
+  )
   const leaveBoard = () => useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
   const items = [
     {
@@ -43,7 +53,7 @@ export function WorkspaceNavigation() {
   return (
     <nav
       aria-label={t("header.navigation.mainAria")}
-      className="flex shrink-0 flex-wrap gap-1 border-b border-border/50 p-1"
+      className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/50 p-1"
       data-workspace-navigation
     >
       {items.map((item) => (
@@ -66,11 +76,21 @@ export function WorkspaceNavigation() {
       ))}
       {!board && !review && directory ? (
         <span
-          data-workspace-directory
-          className="basis-full min-w-0 px-3 pb-1 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+          data-workspace-directory={directory}
+          className="ml-auto flex min-w-0 max-w-full items-center gap-1.5 px-3 typography-meta text-muted-foreground"
           title={directory}
         >
-          {directory}
+          {projectLabel ? <span className="min-w-0 max-w-[40%] truncate font-medium text-foreground">{projectLabel}</span> : null}
+          {projectLabel ? <Icon name="arrow-right-s" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" /> : null}
+          <span className="min-w-0 truncate" style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}>
+            {formatPathForDisplay(directory, homeDirectory)}
+          </span>
+          {branch ? (
+            <span className="inline-flex min-w-0 shrink items-center gap-0.5">
+              <Icon name="git-branch" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{branch}</span>
+            </span>
+          ) : null}
         </span>
       ) : null}
     </nav>

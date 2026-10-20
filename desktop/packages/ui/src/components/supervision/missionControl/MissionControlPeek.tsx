@@ -2,6 +2,8 @@ import React from "react"
 
 import { Button } from "@/components/ui/button"
 import type { SupervisionRow } from "@/hooks/useSupervisionRows"
+import { formatPathForDisplay } from "@/lib/utils"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
 import { recentHookRuns, useSessionHookRuns } from "@/stores/useHookActivityStore"
 import type { WorkingSet } from "@/stores/useSupervisionStore"
@@ -41,6 +43,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   onCancelCreateSet,
 }) => {
   const { t } = useI18n()
+  const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const recentRuns = recentHookRuns(useSessionHookRuns(row.sessionId))
 
   const handleOpenClick = () => {
@@ -101,7 +104,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             <SupervisionGoalLine goal={row.goal} className="typography-micro text-muted-foreground" />
           </div>
         ) : null}
-        <EvidenceText evidence={row.evidence} className="typography-micro text-muted-foreground" />
+        <EvidenceText fallback="none" evidence={row.evidence} className="typography-micro text-muted-foreground" />
         {recentRuns.length ? (
           <div className="flex flex-col gap-1">
             <p className="typography-micro text-muted-foreground">
@@ -120,13 +123,13 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
         ) : null}
         {row.directory ? (
           <p className="truncate typography-micro text-muted-foreground" title={row.directory}>
-            {row.directory}
+            {formatPathForDisplay(row.directory, homeDirectory)}
           </p>
         ) : null}
         <div className="flex flex-wrap items-center gap-1.5">
           <Button
             size="sm"
-            className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+            className="normal-case h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
             onClick={handleOpenClick}
           >
             {t("supervision.missionControl.action.openSession")}
@@ -135,7 +138,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             <Button
               size="sm"
               variant="outline"
-              className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+              className="normal-case h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
               onClick={handleReviewChangesClick}
             >
               {t("supervision.missionControl.action.reviewChanges")}
@@ -168,7 +171,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
               />
               <Button
                 size="sm"
-                className="h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+                className="normal-case h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
                 onClick={handleCreateSetClick}
               >
                 {t("supervision.missionControl.createWorkingSet")}

@@ -15,7 +15,11 @@ export function useFormatEvidence(): (evidence: SupervisionEvidence | null | und
       if (!evidence) return null
       const { additions, deletions, files } = evidence
       if (additions === 0 && deletions === 0 && files === 0) return null
-      return t("supervision.evidence.summary", { additions, deletions, files })
+      return t(files === 1 ? "supervision.evidence.summarySingle" : "supervision.evidence.summary", {
+        additions,
+        deletions,
+        files,
+      })
     },
     [t],
   )

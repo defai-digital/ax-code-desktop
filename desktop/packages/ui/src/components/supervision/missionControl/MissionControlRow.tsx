@@ -9,11 +9,15 @@ import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 import { SupervisionGoalLine } from "../SupervisionGoalLine"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
-import { cn } from "@/lib/utils"
-import { EvidenceText } from "../EvidenceText"
+import { cn, formatPathForDisplay } from "@/lib/utils"
+import { needsHuman } from "@/lib/supervision/sessionState"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useGitBranchLabel } from "@/stores/useGitStore"
+import { useFormatEvidence } from "../EvidenceText"
 
 export interface MissionControlRowProps {
   row: SupervisionRowData
+  grouped?: boolean
   selected: boolean
   expanded: boolean
   activeWorkingSetId: string | null
@@ -30,6 +34,7 @@ export interface MissionControlRowProps {
 
 export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   row,
+  grouped = false,
   selected,
   expanded,
   activeWorkingSetId,
@@ -43,6 +48,10 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   children,
 }) => {
   const { t } = useI18n()
+  const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
+  const branch = useGitBranchLabel(row.directory)
+  const formatEvidence = useFormatEvidence()
+  const evidenceLabel = formatEvidence(row.evidence)
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
 
@@ -81,7 +90,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   }
 
   return (
-    <div className="border-b border-border/50">
+    // Presentational wrapper: the grid owns rows directly, and the details disclosure is its own row.
+    <div role="presentation" className="border-b border-border/50">
       <div
         id={`mission-row-${row.sessionId}`}
         role="row"
@@ -89,36 +99,66 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
         aria-expanded={expanded}
         onClick={handleSelectClick}
         onDoubleClick={handleDoubleClick}
-        className={cn("mission-control-row cursor-pointer", selected && "bg-interactive-hover/50")}
+        className={cn(
+          "mission-control-row cursor-pointer border-l-2",
+          row.state === "error"
+            ? "border-l-[var(--status-error)]"
+            : needsHuman(row.state)
+              ? "border-l-[var(--status-warning)]"
+              : "border-l-transparent",
+          selected && "bg-interactive-hover/50",
+        )}
       >
         <span role="gridcell" className="mission-state">
           <SupervisionStateBadge state={row.state} />
         </span>
         <span role="gridcell" className="mission-title min-w-0">
-          <span className="block typography-ui-label text-foreground [overflow-wrap:anywhere]" title={row.title}>
+          <span className="block truncate typography-ui-label text-foreground" title={row.title}>
             {row.title}
           </span>
-          {row.state === "error" && row.errorMessage ? (
-            <span className="block typography-meta text-muted-foreground [overflow-wrap:anywhere]">
-              {row.errorMessage}
+        </span>
+        {row.goal || (row.state === "error" && row.errorMessage) ? (
+          <span
+            role="gridcell"
+            className="mission-description min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+          >
+            {row.state === "error" && row.errorMessage ? <span className="block">{row.errorMessage}</span> : null}
+            <SupervisionGoalLine goal={row.goal} className="typography-meta text-muted-foreground" />
+          </span>
+        ) : null}
+        <span
+          role="gridcell"
+          className="mission-meta flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 typography-meta text-muted-foreground"
+        >
+          {!grouped && (row.projectLabel || row.directory) ? (
+            <span className="mission-project min-w-0 truncate" title={row.directory ?? undefined}>
+              {row.projectLabel}
+              {row.projectLabel && row.directory ? " · " : ""}
+              {formatPathForDisplay(row.directory, homeDirectory)}
             </span>
           ) : null}
-          <SupervisionGoalLine goal={row.goal} className="typography-meta text-muted-foreground" />
-        </span>
-        <span
-          role="gridcell"
-          className="mission-project min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
-        >
-          {row.projectLabel ?? "\u2014"}
-        </span>
-        <span
-          role="gridcell"
-          className="mission-evidence min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
-        >
-          <EvidenceText evidence={row.evidence} />
-        </span>
-        <span role="gridcell" className="mission-age typography-meta text-muted-foreground">
-          {row.updatedAt ? formatRelativeAge(Date.now() - row.updatedAt, t) : "\u2014"}
+          {branch ? (
+            <span className="mission-branch inline-flex min-w-0 items-center gap-1" title={branch}>
+              <Icon name="git-branch" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span className="truncate">{branch}</span>
+            </span>
+          ) : null}
+          {evidenceLabel && row.evidence ? (
+            <span className="mission-evidence min-w-0">
+              <span className="text-[var(--status-success)]">+{row.evidence.additions}</span>{" "}
+              <span className="text-[var(--status-error)]">−{row.evidence.deletions}</span>
+              {" · "}
+              {t(
+                row.evidence.files === 1
+                  ? "supervision.missionControl.filesSingle"
+                  : "supervision.missionControl.filesPlural",
+                { count: row.evidence.files },
+              )}
+            </span>
+          ) : null}
+          {row.updatedAt ? (
+            <span className="mission-age">{formatRelativeAge(Date.now() - row.updatedAt, t)}</span>
+          ) : null}
         </span>
         <span role="gridcell" className="mission-actions flex min-w-0 flex-wrap items-center gap-2">
           {groupSlug && onCompare ? (
@@ -127,14 +167,14 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               aria-label={`${t("supervision.missionControl.action.compare")} — ${actionContext}`}
               onClick={handleCompareClick}
               onDoubleClick={handleActionDoubleClick}
-              className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
+              className="normal-case min-w-0 max-w-full break-words typography-micro text-[var(--status-info)] hover:underline"
             >
               {t("supervision.missionControl.action.compare")}
             </button>
           ) : null}
           <Button
             size="sm"
-            className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
+            className="normal-case min-w-0 max-w-full min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
             onClick={handlePrimaryClick}
             onDoubleClick={handleActionDoubleClick}
             aria-label={`${primaryLabel} — ${actionContext}`}
@@ -143,9 +183,10 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           </Button>
           <Button
             size="sm"
-            variant="outline"
-            className="min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
+            variant="ghost"
+            className="normal-case h-8 w-8 shrink-0 p-0"
             aria-label={`${t("supervision.missionControl.action.details")} — ${actionContext}`}
+            title={t("supervision.missionControl.action.details")}
             aria-expanded={expanded}
             aria-controls={expanded ? `mission-details-${row.sessionId}` : undefined}
             onClick={(event) => {
@@ -155,7 +196,6 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             onDoubleClick={handleActionDoubleClick}
           >
             <Icon name={expanded ? "arrow-up-s" : "arrow-down-s"} className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("supervision.missionControl.action.details")}
           </Button>
           {activeWorkingSetId ? (
             <button
@@ -164,14 +204,18 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               title={t("supervision.missionControl.action.removeFromSet")}
               onClick={handleRemoveClick}
               onDoubleClick={handleActionDoubleClick}
-              className="shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
+              className="normal-case shrink-0 rounded p-1 text-muted-foreground hover:text-destructive"
             >
               <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
           ) : null}
         </span>
       </div>
-      {expanded ? <div id={`mission-details-${row.sessionId}`}>{children}</div> : null}
+      {expanded ? (
+        <div id={`mission-details-${row.sessionId}`} role="row">
+          <div role="gridcell">{children}</div>
+        </div>
+      ) : null}
     </div>
   )
 }

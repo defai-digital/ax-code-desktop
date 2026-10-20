@@ -5,6 +5,7 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
   useEffectiveDirectory: () => useDirectoryStore((s) => s.currentDirectory),
 }))
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 import { useUIStore } from "@/stores/useUIStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
@@ -16,7 +17,8 @@ describe("workspace navigation", () => {
   let root: Root
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
-    useDirectoryStore.setState({ currentDirectory: "/repo/project" })
+    useDirectoryStore.setState({ currentDirectory: "/repo/project", homeDirectory: "" })
+    useProjectsStore.setState({ projects: [] } as never)
     useUIStore.setState({
       isMobile: false,
       activeMainTab: "chat",
@@ -73,7 +75,27 @@ describe("workspace navigation", () => {
     expect(container.querySelector("[data-workspace-directory]")).toBeNull()
     click("navigation.workspace")
     expect(useUIStore.getState().splitPaneEnabled).toBe(false)
-    expect(container.querySelector("[data-workspace-directory]")?.textContent).toBe("/repo/project")
+    const context = container.querySelector("[data-workspace-directory]")
+    expect(context?.getAttribute("data-workspace-directory")).toBe("/repo/project")
+    expect(context?.getAttribute("title")).toBe("/repo/project")
+  })
+  test("names the workspace by project, short path and branch", () => {
+    act(() => {
+      useDirectoryStore.setState({ currentDirectory: "/home/me/code/app/packages/web", homeDirectory: "/home/me" })
+      useProjectsStore.setState({
+        projects: [
+          { id: "outer", path: "/home/me/code", label: "Code", addedAt: 0, lastOpenedAt: 0 },
+          { id: "app", path: "/home/me/code/app", label: "App", addedAt: 0, lastOpenedAt: 0 },
+        ],
+      } as never)
+    })
+    const context = container.querySelector("[data-workspace-directory]")!
+    expect(context.textContent).toContain("App")
+    expect(context.textContent).not.toContain("Code")
+    expect(context.textContent).toContain("~/code/app/packages/web")
+    expect(context.textContent).not.toContain("/home/me")
+    act(() => useDirectoryStore.setState({ currentDirectory: "/home/me/code/app2" }))
+    expect(container.querySelector("[data-workspace-directory]")!.textContent).not.toContain("App")
   })
   test("review is disabled without a directory", () => {
     act(() => useDirectoryStore.setState({ currentDirectory: undefined }))

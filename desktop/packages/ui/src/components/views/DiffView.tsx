@@ -4,7 +4,9 @@ import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from "@/stores/useGitStore"
-import { cn } from "@/lib/utils"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { adjacentReviewFile, reviewFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
+import { cn, formatPathForDisplay } from "@/lib/utils"
 import type { GitStatus } from "@/lib/api/types"
 import { combinedDiffStatsForPath, diffStatsForPath } from "@/lib/git/diffStats"
 import {
@@ -27,6 +29,7 @@ import { DiffViewToggle } from "@/components/chat/message/DiffViewToggle"
 import type { DiffViewMode } from "@/components/chat/message/types"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
+import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { useDiffHunkRevert } from "./useDiffHunkRevert"
 import { useDiffHunkStage } from "./useDiffHunkStage"
@@ -45,6 +48,7 @@ import { toViewAbsolutePath, viewPathsEqual } from "./viewPathUtils"
 
 // Minimum width for side-by-side diff view (px)
 const SIDE_BY_SIDE_MIN_WIDTH = 1100
+const REVIEW_FILE_RAIL_MIN_WIDTH = 640
 const LARGE_DIFF_CHANGED_LINES = 500
 
 // Perf: limit concurrent expanded diffs in stacked view.
@@ -270,61 +274,6 @@ const DiffViewModeSelector = React.memo<DiffViewModeSelectorProps>(({ mode, onMo
         </DropdownMenuRadioGroup>
       </DropdownMenuContent>
     </DropdownMenu>
-  )
-})
-
-interface FileListProps {
-  changedFiles: FileEntry[]
-  selectedFile: string | null
-  onSelectFile: (path: string) => void
-}
-
-const FileList = React.memo<FileListProps>(({ changedFiles, selectedFile, onSelectFile }) => {
-  const { t } = useI18n()
-  if (changedFiles.length === 0) return null
-
-  return (
-    <ScrollableOverlay outerClassName="flex-1 min-h-0" className="px-2 py-2">
-      <ul className="flex flex-col gap-1">
-        {changedFiles.map((file) => {
-          const descriptor = describeGitChange(file)
-          const isActive = selectedFile === file.path
-
-          return (
-            <li key={file.path}>
-              <button
-                type="button"
-                onClick={() => onSelectFile(file.path)}
-                className={cn(
-                  "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors",
-                  isActive
-                    ? "bg-interactive-selection text-interactive-selection-foreground"
-                    : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
-                )}
-              >
-                <FileTypeIcon filePath={file.path} className="h-3.5 w-3.5 flex-shrink-0" />
-                <span
-                  className="typography-micro font-semibold w-4 text-center uppercase"
-                  style={{ color: descriptor.color }}
-                  title={t(descriptor.descriptionKey)}
-                  aria-label={t(descriptor.descriptionKey)}
-                >
-                  {descriptor.code}
-                </span>
-                <span
-                  className="min-w-0 flex-1 truncate typography-meta"
-                  style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}
-                  title={file.path}
-                >
-                  {file.path}
-                </span>
-                {formatDiffTotals(file.insertions, file.deletions)}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-    </ScrollableOverlay>
   )
 })
 
@@ -940,12 +889,18 @@ export const DiffView: React.FC<DiffViewProps> = ({
   hideFileSelector = false,
   pinSelectedFileHeaderToTopOnNavigate = false,
   showOpenInEditorAction = false,
-  diffScope = "all",
+  diffScope: diffScopeProp,
   targetFilePath = null,
 }) => {
   const { t } = useI18n()
+  // A caller that pins a scope (the context panel) keeps it; the review pane lets the user choose,
+  // like the Unstaged/Staged scopes of other review tools.
+  const [chosenScope, setChosenScope] = React.useState<DiffScope>("all")
+  const scopeSelectable = diffScopeProp === undefined
+  const diffScope: DiffScope = diffScopeProp ?? chosenScope
   const { git, files } = useRuntimeAPIs()
   const effectiveDirectory = useEffectiveDirectory()
+  const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const { isMobile } = useDeviceInfo()
   const { ref: paneRef, width: paneWidth } = useElementWidth<HTMLDivElement>()
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
@@ -998,7 +953,6 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const isStackedView = diffViewMode === "stacked"
   const isMobileLayout = isMobile || paneWidth <= 768
-  const showFileSidebar = !hideStackedFileSidebar && !isMobileLayout && paneWidth >= 1024
   const diffScrollRef = React.useRef<HTMLElement | null>(null)
   const fileSectionRefs = React.useRef(new Map<string, HTMLDivElement | null>())
   const pendingScrollTargetRef = React.useRef<string | null>(null)
@@ -1459,6 +1413,20 @@ export const DiffView: React.FC<DiffViewProps> = ({
     [isStackedView, scrollToFile],
   )
 
+  const reviewKeyFiles = React.useMemo(
+    () => changedFiles.map((file) => ({ path: file.path, signature: reviewFileSignature(file) })),
+    [changedFiles],
+  )
+
+  useReviewPaneFileKeys({
+    paneRef,
+    directory: effectiveDirectory,
+    scope: diffScope,
+    files: reviewKeyFiles,
+    selectedFile,
+    onSelectFile: handleSelectFileAndScroll,
+  })
+
   const handleDiffViewModeChange = React.useCallback(
     (mode: DiffTabViewMode) => {
       setDiffViewMode(mode)
@@ -1485,7 +1453,15 @@ export const DiffView: React.FC<DiffViewProps> = ({
   )
 
   const renderSideBySide = (currentLayoutForSelectedFile ?? "side-by-side") === "side-by-side"
-  const showFileSelector = !hideFileSelector && (!isStackedView || !showFileSidebar)
+  const showFileRail =
+    !hideStackedFileSidebar &&
+    !isMobile &&
+    paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH &&
+    isGitRepo !== false &&
+    changedFiles.length > 0
+  const showFileSelector = !hideFileSelector && !showFileRail
+  const previousFilePath = adjacentReviewFile(changedFiles, selectedFile, -1)
+  const nextFilePath = adjacentReviewFile(changedFiles, selectedFile, 1)
 
   const selectedCachedDiff = useGitStore(
     React.useCallback(
@@ -1690,19 +1666,6 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
     return (
       <div className="flex flex-1 min-h-0 h-full gap-3 px-3 pb-3 pt-2">
-        {showFileSidebar && (
-          <section className="hidden lg:flex w-72 flex-col rounded-xl border border-border/60 bg-background/70 overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-border/40">
-              <span className="typography-ui-header font-semibold text-foreground">{t("diffView.section.files")}</span>
-              <span className="typography-meta text-muted-foreground">{changedFiles.length}</span>
-            </div>
-            <FileList
-              changedFiles={changedFiles}
-              selectedFile={selectedFile}
-              onSelectFile={handleSelectFileAndScroll}
-            />
-          </section>
-        )}
         <ScrollableOverlay
           ref={diffScrollRef}
           outerClassName="flex-1 min-h-0 h-full"
@@ -1816,10 +1779,28 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }
 
   return (
-    <div ref={paneRef} className="flex h-full flex-col overflow-hidden bg-background" data-review-changes data-review-width={Math.round(paneWidth)}>
+    <div
+      ref={paneRef}
+      tabIndex={-1}
+      onPointerDown={(event) => {
+        // Clicking diff text leaves focus on the body, where the review shortcuts cannot hear keys.
+        const target = event.target as HTMLElement
+        if (!target.closest("button, a[href], input, textarea, select, [contenteditable='true'], [tabindex]")) {
+          paneRef.current?.focus({ preventScroll: true })
+        }
+      }}
+      className="flex h-full flex-col overflow-hidden bg-background outline-none"
+      data-review-changes
+      data-review-width={Math.round(paneWidth)}
+    >
       {effectiveDirectory ? (
-        <div data-review-directory className="shrink-0 border-b border-border/50 px-3 py-2 typography-meta text-muted-foreground [overflow-wrap:anywhere]">
-          {effectiveDirectory}
+        <div
+          data-review-directory={effectiveDirectory}
+          title={effectiveDirectory}
+          className="min-w-0 shrink-0 truncate border-b border-border/50 px-3 py-2 typography-meta text-muted-foreground"
+          style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}
+        >
+          {formatPathForDisplay(effectiveDirectory, homeDirectory)}
         </div>
       ) : null}
       <div className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-2 bg-background">
@@ -1835,7 +1816,72 @@ export const DiffView: React.FC<DiffViewProps> = ({
             </span>
           </div>
         )}
-        {!isMobileLayout && <DiffViewModeSelector mode={diffViewMode} onModeChange={handleDiffViewModeChange} />}
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 normal-case"
+            aria-label={t("diffView.nav.previousFile")}
+            title={t("diffView.nav.previousFileTitle")}
+            disabled={previousFilePath === null}
+            onClick={() => {
+              if (previousFilePath) handleSelectFileAndScroll(previousFilePath)
+            }}
+          >
+            <Icon name="arrow-left-s" className="size-4" aria-hidden="true" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 normal-case"
+            aria-label={t("diffView.nav.nextFile")}
+            title={t("diffView.nav.nextFileTitle")}
+            disabled={nextFilePath === null}
+            onClick={() => {
+              if (nextFilePath) handleSelectFileAndScroll(nextFilePath)
+            }}
+          >
+            <Icon name="arrow-right-s" className="size-4" aria-hidden="true" />
+          </Button>
+        </div>
+        {!showFileRail && effectiveDirectory ? (
+          <ReviewProgressCompact
+            directory={effectiveDirectory}
+            scope={diffScope}
+            files={changedFiles}
+            selectedFile={selectedFile}
+          />
+        ) : null}
+        {scopeSelectable && effectiveDirectory && isGitRepo !== false ? (
+          <div
+            role="radiogroup"
+            aria-label={t("diffView.scope.label")}
+            className="flex shrink-0 items-center rounded-md border border-border p-0.5"
+            data-review-scope
+          >
+            {(["all", "working", "staged"] as const).map((scope) => (
+              <button
+                key={scope}
+                type="button"
+                role="radio"
+                aria-checked={diffScope === scope}
+                onClick={() => setChosenScope(scope)}
+                className={cn(
+                  "rounded px-2 py-0.5 typography-micro",
+                  diffScope === scope ? "bg-interactive-hover text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {t(scope === "all" ? "diffView.scope.all" : scope === "working" ? "diffView.scope.working" : "diffView.scope.staged")}
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {/* The rail replaces the file selector that carries the mode picker in narrow panes. */}
+        {(!isMobileLayout || showFileRail) && (
+          <DiffViewModeSelector mode={diffViewMode} onModeChange={handleDiffViewModeChange} />
+        )}
         {showFileSelector && (
           <FileSelector
             changedFiles={changedFiles}
@@ -1889,8 +1935,22 @@ export const DiffView: React.FC<DiffViewProps> = ({
         )}
       </div>
 
-      {renderContent()}
-      <DiffCommentSummaryBar sessionKey={inlineCommentSessionKey} />
+      <div className="flex min-h-0 flex-1">
+        {showFileRail && effectiveDirectory ? (
+          <ReviewFileRail
+            directory={effectiveDirectory}
+            scope={diffScope}
+            files={changedFiles}
+            selectedFile={selectedFile}
+            onSelectFile={handleSelectFileAndScroll}
+          />
+        ) : null}
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{renderContent()}</div>
+      </div>
+      <DiffCommentSummaryBar
+        sessionKey={inlineCommentSessionKey}
+        showHint={Boolean(effectiveDirectory) && changedFiles.length > 0}
+      />
     </div>
   )
 }

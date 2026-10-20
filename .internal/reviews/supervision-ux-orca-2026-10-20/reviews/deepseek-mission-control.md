@@ -1,0 +1,40 @@
+## Code review — Mission Control grouped board (correctness)
+
+Read-only: I could not run `pnpm`/vitest in this sandbox, so everything below is static analysis of the final files, not executed test evidence.
+
+### HIGH
+
+**1. Collapse state is keyed by `group.key`, so an unregistered project can be silently hidden and re-expanded under a different project.** `MissionControl.tsx:493-509` looks the set up with `collapsedGroups.has(group.key)` and only toggles on header clicks. `missionGroups.ts:22` builds `key = row.projectId ?? row.directory ?? "__none__"`. Rows arrive async from the publisher (`useSupervisionRows`); while rows have no `projectId` yet (runtime still loading), a user can collapse `"/home/me/alpha"`. When the row later gains `projectId: "alpha"`, the key becomes `"alpha"`, the group renders **expanded** and the stale `"/home/me/alpha"` entry lingers; a collapse then re-appears when a project loses its `projectId`. Selection is also not re-derived on that key change (see #2). This is the "collapse + filter + selection" interaction the spec asked about.
+
+**2. `collapsedGroups` is never pruned, so the Set grows without bound and unused keys re-hide future groups.** Same lines as above — only `add`/`delete` on the *currently visible* group happen; nothing removes keys for groups that left the filter. A "No project" (`"__none__"`) collapse survives group removal and reappears if rows temporarily lose both fields (`missionGroups.ts:22`). Low blast radius but it is the same defect class as #1.
+
+**3. Group header renders `role="row"`/`role="gridcell"` inside `role="rowgroup"`, but `MissionControlGroupHeader` does not carry the aria-expanded state of its rows and is not skipped by the collapse logic of the selection effect.** Concretely: after collapsing, the effect at `MissionControl.tsx:139-146` calls `updateSelectedId(visibleRows[0].sessionId)`. That writes the *fallback* session into `useSupervisionStore.boardFocusSessionId`, which is exactly what the comment says must not happen ("That fallback must not replace the session Mod+Shift+H returns to"). `updateSelectedId` is the raw setter (`:75`), so the remembered session the previous code deliberately preserved via the store getter path (`:81`) is overwritten whenever the selected row is in a collapsed group. The navigation test at `MissionControl.grouped.test.tsx:102` passes only because it never sets a remembered session distinct from `visibleRows[0]`.  **Fix:** capture the previous `boardFocusSessionId` before the fallback or make the effect use a local-only setter.
+
+**4. e2e fixture harness passes removed required props — build/typecheck break for `.internal/reports/*/harness/renderer.tsx`.** `MissionControlHeader` now requires `boardGroupBy` and `onGroupByChange` (`MissionControlHeader.tsx:9-16`, destructured at `:45-46`), but `.internal/reports/uiux-2026-10-18/harness/renderer.tsx:70-96` and `.internal/reports/supervision-streamlit-2026-10-18/harness/renderer.tsx:73` still render `<MissionControlHeader density={...} onDensityChange={...} …>` with no group props. If those harnesses are in any tsconfig include path they now fail type-check; if they are built ad-hoc they will throw at runtime. The spec said preserve variant behaviour; the harnesses are also the source of the screenshots being compared.
+
+### MEDIUM
+
+**5. Keyboard order and visual order diverge for `ArrowUp`/`k` when a row above is inside a collapsed group but its *group header* is not skipped.** `MissionControl.tsx:245-256` navigates `visibleRows` (correct), but `moveSelection` clamps at boundaries (`missionControl.ts:50-54`), so `k` from the first visible row of the *second* group after its first group collapsed jumps within that group and never reaches the header, which is not focusable via the grid. That matches spec ("collapsed rows leave keyboard navigation") but the collapse/expand button is keyboard-unreachable from the grid because `handleKeyDown:230` bails on `isOnInteractiveControl` and the grid has no roving tab stop — a regression vs. the old single-row flow where the density `<select>` was reachable. Observe: with all groups collapsed, `aria-activedescendant` is unset (`:415`) and no key can restore it except mouse.
+
+**6. `MissionControlRow` now calls `useGitBranchLabel` for every row, subscribing each row to the whole git store selector.** `MissionControlRow.tsx:52` + `useGitStore.ts:1041-1046` runs a selector inside the component closure on every store change (zustand runs the selector on each store notification). With N rows and frequent git status writes this is N selector executions per update; more important, `groupMissionRows` memo at `MissionControl.tsx:110` depends on `homeDirectory` but rows passed to it are `filtered` from `searched` which is recreated on every `query` change only (`:105`) — fine — yet `visibleRows` (`:111-117`) depends on `collapsedGroups` which is a `Set` recreated on every toggle, so every toggle remounts all rows in expanded groups only when keys change. Not a loop, but the per-row store subscription is a measurable re-render source. Verify with a render counter before merging.
+
+**7. Evidence label uses `t("supervision.evidence.summary")` for the aria-label but renders `supervision.missionControl.files` for the visible count in English plural, breaking the “N files” contract for 1 file.** `MissionControlRow.tsx:150` and `groupMissionControlHeader:43` use `wipSummary` which hardcodes "need you" plural (`en.ts:3124`); with `needsYou: 1` the header reads "1 need you · 1 running" — grammatically acceptable but inconsistent with `files` pluralization that is *not* handled (`en.ts:3088` "`{count} files`" gives "1 files"). This is user-visible and covered by the author's own grouped test expectation `"1 need you · 1 running"`, so the test encodes the bug.
+
+### LOW
+
+**8. Persisted migration is correct for the `boardGroupBy` field** (`useSupervisionStore.ts:110`, `EMPTY:73-81`) — legacy blobs without the field default to `"project"`, invalid values fall back; the grouped test's `readPersistedSupervision({getItem})` cases pass on inspection. No regression from `EMPTY` being returned by reference (`:89`, `:91`, `:118`) because it is never mutated.
+
+**9. `boardGroupBy` changes are not rolled into the same `update()` path as navigation** — `setBoardGroupBy` persists correctly (`:180`), but `collapsedGroups` is component state, so the board loses user collapses across pop-out/embed remounts while `density` survives. Not a bug per spec (spec says "local component state"), noted for completeness.
+
+**10. Stale closure check:** `renderRow` (`MissionControl.tsx:368`) closes over `effectiveSelectedId`, `peekId`, `allPending`, `workingSets`, `activeWorkingSetId` — all re-read per render because it is not `useCallback`. No stale closure. `handleKeyDown` reads `selectedIndex` from render scope which is derived from `visibleRows`; consistent.
+
+### Mutation probe
+Deleted guard: the `visibleRows` dependency in the selection-fallback effect (`MissionControl.tsx:146`, reverting to `[filtered]`). Test expected to fail: `MissionControl.grouped.test.tsx` "collapsed rows leave navigation and selection fallback" — `selected()` would remain `mission-row-a1` after collapsing Alpha. I could **not** execute this (no shell in this read-only sandbox); treat it as the probe to run.
+
+### Verified non-findings (checked, no defect)
+- `.mission-control-row` count preserved: header uses `mission-group-header` (`GroupHeader.tsx:19`), rows keep the class (`Row.tsx:101-102`).
+- `Open — {context}` / `Details — {context}` aria names unchanged (`Row.tsx:174,182`); `actionContext` untouched (`:55`).
+- `mission-row-<id>` / `mission-details-<id>` ids preserved (`Row.tsx:95,208`).
+- `" + "` split matches `formatShortcutForDisplay` join (`shortcuts.ts:545`).
+
+**Unverified:** every runtime claim above; no tests, type-check, or e2e were executed.

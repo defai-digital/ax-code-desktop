@@ -75,7 +75,7 @@ describe("Mission Control row interaction", () => {
     act(() => container.querySelector<HTMLElement>('[role="row"]')!.click())
     expect(onSelect).toHaveBeenCalledWith("s1")
     expect(document.activeElement).toBe(container.querySelector('[role="grid"]'))
-    expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(6)
+    expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(4)
     expect(container.textContent).toContain(row.projectLabel)
   })
   test("details is a separate discoverable action with project context", () => {
@@ -108,7 +108,9 @@ describe("Mission Control row interaction", () => {
   test("goal state keeps a textual status and stable row identity", () => {
     render("goal")
     expect(container.querySelector("[data-supervision-state]")?.textContent).toContain("supervision.state.goal")
-    expect(container.querySelector("[data-supervision-state]")?.getAttribute("aria-label")).toBe("supervision.state.goal")
+    expect(container.querySelector("[data-supervision-state]")?.getAttribute("aria-label")).toBe(
+      "supervision.state.goal",
+    )
   })
   test("shows the goal line under the title with status, objective, used and remaining tokens", () => {
     render("goal", {
@@ -146,5 +148,23 @@ describe("Mission Control row interaction", () => {
   test("shows no goal line when there is no goal", () => {
     render()
     expect(container.querySelector("[data-goal-line]")).toBeNull()
+  })
+  test.each([
+    ["permission", "border-l-[var(--status-warning)]"],
+    ["question", "border-l-[var(--status-warning)]"],
+    ["goal", "border-l-[var(--status-warning)]"],
+    ["review", "border-l-[var(--status-warning)]"],
+    ["error", "border-l-[var(--status-error)]"],
+    ["running", "border-l-transparent"],
+    ["idle", "border-l-transparent"],
+  ] as const)("%s uses the attention border", (state, border) => {
+    render(state)
+    expect(container.querySelector(".mission-control-row")?.classList.contains(border)).toBe(true)
+  })
+  test("missing evidence and age do not render placeholder cells", () => {
+    render("running", { evidence: null, updatedAt: 0 })
+    expect(container.querySelector(".mission-evidence")).toBeNull()
+    expect(container.querySelector(".mission-age")).toBeNull()
+    expect(container.textContent).not.toContain("—")
   })
 })

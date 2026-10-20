@@ -329,6 +329,8 @@
     "supervision.missionControl.action.details"
   ],
   "id": [
+    "supervision.evidence.summarySingle",
+    "supervision.missionControl.filesSingle",
     "agentManager.detail.header.modelCountSingle",
     "agentManager.empty.prompt.label",
     "agentManager.sidebar.item.modelCountSingle",
@@ -504,6 +506,8 @@
     "settings.hooks.list.badge.protocol"
   ],
   "it": [
+    "supervision.evidence.summarySingle",
+    "supervision.missionControl.filesSingle",
     "agentManager.empty.prompt.label",
     "agentManager.sidebar.relativeTime.hours",
     "agentManager.sidebar.relativeTime.minutes",

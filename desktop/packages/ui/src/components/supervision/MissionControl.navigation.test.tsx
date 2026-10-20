@@ -25,6 +25,7 @@ describe("board keyboard and density interaction", () => {
     useSupervisionStore.setState({
       missionControlOpen: true,
       density: "comfortable",
+      boardGroupBy: "project",
       workingSets: [],
       activeWorkingSetId: null,
       boardFocusSessionId: null,
@@ -66,7 +67,7 @@ describe("board keyboard and density interaction", () => {
     key(board, "/")
     expect(document.activeElement).toBe(container.querySelector('input[type="search"]'))
     const input = search("Task b")
-    expect(container.querySelectorAll('[role="row"]')).toHaveLength(1)
+    expect(container.querySelectorAll(".mission-control-row")).toHaveLength(1)
     expect(board.getAttribute("aria-activedescendant")).toBe("mission-row-b")
     key(input, "j")
     key(input, "Enter")
@@ -100,7 +101,7 @@ describe("board keyboard and density interaction", () => {
     )!
     act(() => showHidden.click())
     expect(useSupervisionStore.getState().activeWorkingSetId).toBeNull()
-    expect(container.querySelectorAll('[role="row"]')).toHaveLength(2)
+    expect(container.querySelectorAll(".mission-control-row")).toHaveLength(2)
     expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe("")
   })
   test("filtering out expanded details removes its Escape step", () => {
@@ -136,11 +137,9 @@ describe("board keyboard and density interaction", () => {
     key(board, "ArrowDown")
     expect(board.getAttribute("aria-activedescendant")).toBe("mission-row-b")
     const selected = container.querySelector("#mission-row-b")
-    const select = container.querySelector("select")!
-    act(() => {
-      select.value = "compact"
-      select.dispatchEvent(new Event("change", { bubbles: true }))
-    })
+    act(() =>
+      container.querySelector<HTMLButtonElement>('button[aria-label="supervision.missionControl.compact"]')!.click(),
+    )
     expect(useSupervisionStore.getState().density).toBe("compact")
     expect(container.querySelector("#mission-row-b")).toBe(selected)
     expect(board.getAttribute("aria-activedescendant")).toBe("mission-row-b")
@@ -152,15 +151,15 @@ describe("board keyboard and density interaction", () => {
     const selected = board.getAttribute("aria-activedescendant")
     for (const value of [" ", "Enter", "j", "k", "ArrowDown", "ArrowUp"]) {
       const event = new KeyboardEvent("keydown", { key: value, bubbles: true, cancelable: true })
-      act(() => container.querySelector("select")!.dispatchEvent(event))
+      act(() =>
+        container.querySelector('button[aria-label="supervision.missionControl.compact"]')!.dispatchEvent(event),
+      )
       expect(event.defaultPrevented).toBe(false)
       expect(board.getAttribute("aria-activedescendant")).toBe(selected)
     }
   })
-  test("Escape in density selection does not close the board, while Escape on the board does", () => {
-    key(container.querySelector("select")!, "Escape")
-    expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
-    key(container.querySelector('[role="grid"]')!, "Escape")
+  test("Escape on a density button closes the board like other non-editable controls", () => {
+    key(container.querySelector('button[aria-label="supervision.missionControl.compact"]')!, "Escape")
     expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
   })
 

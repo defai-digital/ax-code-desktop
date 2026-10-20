@@ -13,6 +13,9 @@ import {
   searchMissionRows,
   type MissionStatusFilter,
 } from "@/lib/supervision/missionControl"
+import { groupMissionRows } from "@/lib/supervision/missionGroups"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { MissionControlGroupHeader } from "./missionControl/MissionControlGroupHeader"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import {
@@ -45,6 +48,10 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const { t } = useI18n()
   const isPopout = variant === "popout"
   const rows = useSupervisionRows()
+  const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
+  const boardGroupBy = useSupervisionStore((s) => s.boardGroupBy)
+  const setBoardGroupBy = useSupervisionStore((s) => s.setBoardGroupBy)
+  const [collapsedGroups, setCollapsedGroups] = React.useState<Set<string>>(() => new Set())
   const density = useSupervisionStore((s) => s.density)
   const setDensity = useSupervisionStore((s) => s.setDensity)
   const allPending = useAllPendingRequests()
@@ -100,6 +107,14 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     () => searched.filter((row) => matchesMissionStatus(row.state, statusFilter)),
     [searched, statusFilter],
   )
+  const groups = React.useMemo(() => groupMissionRows(filtered, homeDirectory), [filtered, homeDirectory])
+  const visibleRows = React.useMemo(
+    () =>
+      boardGroupBy === "project"
+        ? groups.flatMap((group) => (collapsedGroups.has(group.key) ? [] : group.rows))
+        : filtered,
+    [boardGroupBy, groups, collapsedGroups, filtered],
+  )
   const hiddenNeedsYou = rows.filter(
     (row) => needsHuman(row.state) && !filtered.some((visible) => visible.sessionId === row.sessionId),
   ).length
@@ -113,9 +128,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
 
   const selectedIndex = Math.max(
     0,
-    filtered.findIndex((r) => r.sessionId === selectedId),
+    visibleRows.findIndex((r) => r.sessionId === selectedId),
   )
-  const effectiveSelectedId = filtered[selectedIndex]?.sessionId ?? null
+  const effectiveSelectedId = visibleRows[selectedIndex]?.sessionId ?? null
 
   React.useEffect(() => {
     boardRef.current?.focus()
@@ -124,11 +139,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   React.useEffect(() => {
     // A filter that does not contain the remembered row may show another row.
     // That fallback must not replace the session Mod+Shift+H returns to.
-    if (filtered.length && !filtered.some((r) => r.sessionId === selectedId)) {
-      updateSelectedId(filtered[0].sessionId)
+    if (visibleRows.length && !visibleRows.some((r) => r.sessionId === selectedId)) {
+      updateSelectedId(visibleRows[0].sessionId)
     }
-    if (peekId && !filtered.some((r) => r.sessionId === peekId)) setPeekId(null)
-  }, [filtered, selectedId, peekId])
+    if (peekId && !visibleRows.some((r) => r.sessionId === peekId)) setPeekId(null)
+  }, [visibleRows, selectedId, peekId])
 
   React.useEffect(() => {
     if (effectiveSelectedId) {
@@ -181,7 +196,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.nativeEvent.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return
+    if (event.nativeEvent.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey)
+      return
     if (event.shiftKey && event.key !== "/") return
     const target = event.target as HTMLElement
 
@@ -221,26 +237,26 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       return
     }
 
-    if (!filtered.length) {
+    if (!visibleRows.length) {
       return
     }
 
     const lowerKey = event.key.toLowerCase()
     if (lowerKey === "j" || event.key === "ArrowDown") {
       event.preventDefault()
-      const nextIndex = moveSelection(selectedIndex, 1, filtered.length)
-      setSelectedId(filtered[nextIndex]?.sessionId ?? null)
+      const nextIndex = moveSelection(selectedIndex, 1, visibleRows.length)
+      setSelectedId(visibleRows[nextIndex]?.sessionId ?? null)
       return
     }
     if (lowerKey === "k" || event.key === "ArrowUp") {
       event.preventDefault()
-      const nextIndex = moveSelection(selectedIndex, -1, filtered.length)
-      setSelectedId(filtered[nextIndex]?.sessionId ?? null)
+      const nextIndex = moveSelection(selectedIndex, -1, visibleRows.length)
+      setSelectedId(visibleRows[nextIndex]?.sessionId ?? null)
       return
     }
     if (event.key === "Enter") {
       event.preventDefault()
-      const row = filtered[selectedIndex]
+      const row = visibleRows[selectedIndex]
       if (row) {
         handlePrimary(row)
       }
@@ -248,7 +264,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     }
     if (event.key === " ") {
       event.preventDefault()
-      const row = filtered[selectedIndex]
+      const row = visibleRows[selectedIndex]
       if (row) {
         setPeekId((current) => (current === row.sessionId ? null : row.sessionId))
       }
@@ -349,6 +365,47 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     setPeekNewSetFor(null)
   }
 
+  const renderRow = (row: SupervisionRow) => {
+    const selected = row.sessionId === effectiveSelectedId
+    const expanded = peekId === row.sessionId
+    const peekRequests = expanded ? requestsForSessionTree(allPending, new Set(row.treeSessionIds)) : []
+    return (
+      <MissionControlRow
+        key={row.sessionId}
+        row={row}
+        grouped={boardGroupBy === "project"}
+        selected={selected}
+        expanded={expanded}
+        activeWorkingSetId={activeWorkingSetId}
+        primaryLabel={primaryLabel(row.state)}
+        onToggleDetails={(sessionId) => {
+          setSelectedId(sessionId)
+          setPeekId((current) => (current === sessionId ? null : sessionId))
+        }}
+        onSelect={setSelectedId}
+        onOpen={openRow}
+        onPrimary={handlePrimary}
+        onCompare={isPopout ? undefined : setCompareRunGroupKey}
+        onRemoveFromSet={removeFromWorkingSet}
+      >
+        <MissionControlPeek
+          row={row}
+          requests={peekRequests}
+          workingSets={workingSets}
+          isCreatingSetForRow={peekNewSetFor === row.sessionId}
+          newSetName={peekNewSetName}
+          onNewSetNameChange={setPeekNewSetName}
+          onOpen={openRow}
+          onReviewChanges={isPopout ? undefined : reviewChangesForRow}
+          onAddToWorkingSet={addToWorkingSet}
+          onStartCreateSet={handleStartPeekCreateSet}
+          onSubmitCreateSet={handleSubmitPeekCreateSet}
+          onCancelCreateSet={handleCancelPeekCreateSet}
+        />
+      </MissionControlRow>
+    )
+  }
+
   return (
     <div
       ref={boardRef}
@@ -362,6 +419,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       data-mission-control={variant}
     >
       <MissionControlHeader
+        boardGroupBy={boardGroupBy}
+        onGroupByChange={setBoardGroupBy}
         density={density}
         onDensityChange={setDensity}
         wip={wip}
@@ -419,55 +478,40 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
                     : t("supervision.missionControl.empty.live")}
             </p>
             {query.trim() || statusFilter !== "all" ? (
-              <Button size="sm" variant="outline" onClick={resetFilters}>
+              <Button size="sm" variant="outline" className="normal-case" onClick={resetFilters}>
                 {t("supervision.missionControl.resetFilters")}
               </Button>
             ) : !activeWorkingSetId && mode === "live" ? (
-              <Button size="sm" onClick={handleNewSession}>
+              <Button size="sm" className="normal-case" onClick={handleNewSession}>
                 {t("sessions.sidebar.header.actions.newSession")}
               </Button>
             ) : null}
           </div>
-        ) : (
-          filtered.map((row) => {
-            const selected = row.sessionId === effectiveSelectedId
-            const expanded = peekId === row.sessionId
-            const peekRequests = expanded ? requestsForSessionTree(allPending, new Set(row.treeSessionIds)) : []
+        ) : boardGroupBy === "project" ? (
+          groups.map((group) => {
+            const label = group.label ?? t("supervision.missionControl.noProject")
+            const collapsed = collapsedGroups.has(group.key)
             return (
-              <MissionControlRow
-                key={row.sessionId}
-                row={row}
-                selected={selected}
-                expanded={expanded}
-                activeWorkingSetId={activeWorkingSetId}
-                primaryLabel={primaryLabel(row.state)}
-                onToggleDetails={(sessionId) => {
-                  setSelectedId(sessionId)
-                  setPeekId((current) => (current === sessionId ? null : sessionId))
-                }}
-                onSelect={setSelectedId}
-                onOpen={openRow}
-                onPrimary={handlePrimary}
-                onCompare={isPopout ? undefined : setCompareRunGroupKey}
-                onRemoveFromSet={removeFromWorkingSet}
-              >
-                <MissionControlPeek
-                  row={row}
-                  requests={peekRequests}
-                  workingSets={workingSets}
-                  isCreatingSetForRow={peekNewSetFor === row.sessionId}
-                  newSetName={peekNewSetName}
-                  onNewSetNameChange={setPeekNewSetName}
-                  onOpen={openRow}
-                  onReviewChanges={isPopout ? undefined : reviewChangesForRow}
-                  onAddToWorkingSet={addToWorkingSet}
-                  onStartCreateSet={handleStartPeekCreateSet}
-                  onSubmitCreateSet={handleSubmitPeekCreateSet}
-                  onCancelCreateSet={handleCancelPeekCreateSet}
+              <div key={group.key} role="rowgroup" aria-label={label}>
+                <MissionControlGroupHeader
+                  group={group}
+                  label={label}
+                  collapsed={collapsed}
+                  onToggle={() => {
+                    setCollapsedGroups((current) => {
+                      const next = new Set(current)
+                      if (next.has(group.key)) next.delete(group.key)
+                      else next.add(group.key)
+                      return next
+                    })
+                  }}
                 />
-              </MissionControlRow>
+                {!collapsed ? group.rows.map(renderRow) : null}
+              </div>
             )
           })
+        ) : (
+          visibleRows.map(renderRow)
         )}
       </div>
       {confirmDialog}

@@ -6,15 +6,18 @@ import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { formatInlineCommentDrafts } from "@/lib/messages/inlineComments"
+import { reviewKeyboardEventInEditableField } from "@/stores/useReviewProgressStore"
 import { toast } from "@/components/ui"
 
 interface DiffCommentSummaryBarProps {
   sessionKey: string | null
+  /** Whether to explain inline comments while there are none; off when there is nothing to comment on. */
+  showHint?: boolean
 }
 
 const EMPTY_DRAFTS: InlineCommentDraft[] = []
 
-export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(({ sessionKey }) => {
+export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(({ sessionKey, showHint = true }) => {
   const { t } = useI18n()
   const drafts = useInlineCommentDraftStore(
     React.useCallback((s) => (sessionKey ? (s.drafts[sessionKey] ?? EMPTY_DRAFTS) : EMPTY_DRAFTS), [sessionKey]),
@@ -23,10 +26,9 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const draftCount = drafts.length
   const sendingRef = React.useRef(false)
+  const rootRef = React.useRef<HTMLDivElement>(null)
 
-  if (draftCount === 0) return null
-
-  const handleSendToAgent = async () => {
+  const handleSendToAgent = React.useCallback(async () => {
     if (!currentSessionId || !sessionKey) {
       toast.error(t("diffView.comments.noSession"))
       return
@@ -58,25 +60,54 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
     } finally {
       sendingRef.current = false
     }
-  }
+  }, [clearDrafts, currentSessionId, sessionKey, t])
 
-  const handleDiscard = () => {
+  const handleDiscard = React.useCallback(() => {
     if (!sessionKey) return
     clearDrafts(sessionKey)
+  }, [clearDrafts, sessionKey])
+
+  React.useEffect(() => {
+    if (draftCount === 0) return
+    const pane = rootRef.current?.closest("[data-review-changes]")
+    if (!(pane instanceof HTMLElement)) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Enter" || event.repeat || event.isComposing) return
+      if (!(event.metaKey || event.ctrlKey) || event.altKey || event.shiftKey) return
+      if (reviewKeyboardEventInEditableField(event)) return
+      event.preventDefault()
+      void handleSendToAgent()
+    }
+
+    pane.addEventListener("keydown", onKeyDown)
+    return () => pane.removeEventListener("keydown", onKeyDown)
+  }, [draftCount, handleSendToAgent])
+
+  if (draftCount === 0) {
+    if (!showHint) return null
+    return (
+      <div ref={rootRef} className="shrink-0 border-t border-border/40 px-3 py-1">
+        <p className="truncate typography-meta text-muted-foreground">{t("diffView.comments.emptyHint")}</p>
+      </div>
+    )
   }
 
   return (
-    <div className="sticky bottom-0 z-20 flex items-center gap-3 px-3 py-2 border-t border-border/60 bg-[var(--surface-elevated)] shadow-[0_-2px_8px_rgba(0,0,0,0.08)]">
+    <div
+      ref={rootRef}
+      className="sticky bottom-0 z-20 flex items-center gap-3 px-3 py-2 border-t border-border/60 bg-[var(--surface-elevated)] shadow-[0_-2px_8px_rgba(0,0,0,0.08)]"
+    >
       <Icon name="chat-1" className="h-4 w-4 text-[var(--status-info)] flex-shrink-0" aria-hidden="true" />
       <span className="typography-ui-label font-medium text-foreground flex-shrink-0">
         {t("diffView.comments.summaryTitle", { count: draftCount })}
       </span>
       <div className="flex-1" />
-      <Button type="button" variant="default" size="xs" onClick={handleSendToAgent}>
+      <Button type="button" variant="default" size="xs" className="normal-case" onClick={handleSendToAgent}>
         <Icon name="send-plane" className="h-3 w-3 mr-1" aria-hidden="true" />
         {t("diffView.comments.send")}
       </Button>
-      <Button type="button" variant="ghost" size="xs" onClick={handleDiscard}>
+      <Button type="button" variant="ghost" size="xs" className="normal-case" onClick={handleDiscard}>
         {t("diffView.comments.discard")}
       </Button>
     </div>

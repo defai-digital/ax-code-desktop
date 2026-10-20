@@ -16,10 +16,13 @@ export type WorkingSet = {
   sessionIds: string[]
 }
 
+export type BoardGroupBy = "project" | "none"
+
 export type SupervisionDensity = "comfortable" | "compact"
 
 type PersistedSupervision = {
   density: SupervisionDensity
+  boardGroupBy: BoardGroupBy
   inspectorLabels: boolean
   recentSessionIds: string[]
   lastViewedAt: Record<string, number>
@@ -30,6 +33,7 @@ type PersistedSupervision = {
 export type SupervisionStore = PersistedSupervision & {
   /** Ranked root-session rows, published once per window by useSupervisionRowsPublisher. */
   setDensity: (density: SupervisionDensity) => void
+  setBoardGroupBy: (boardGroupBy: BoardGroupBy) => void
   setInspectorLabels: (visible: boolean) => void
   rows: SupervisionRow[]
   setRows: (rows: SupervisionRow[]) => void
@@ -68,6 +72,7 @@ export type SupervisionStore = PersistedSupervision & {
 
 const EMPTY: PersistedSupervision = {
   density: "comfortable",
+  boardGroupBy: "project",
   inspectorLabels: false,
   recentSessionIds: [],
   lastViewedAt: {},
@@ -102,6 +107,7 @@ export const readPersistedSupervision = (storage: Storage): PersistedSupervision
         : null
     return {
       density: parsed.density === "compact" ? "compact" : "comfortable",
+      boardGroupBy: parsed.boardGroupBy === "none" ? "none" : "project",
       inspectorLabels: parsed.inspectorLabels === true,
       recentSessionIds: isStringArray(parsed.recentSessionIds) ? parsed.recentSessionIds.slice(0, RECENT_LIMIT) : [],
       lastViewedAt,
@@ -119,6 +125,7 @@ const persist = (storage: Storage, state: PersistedSupervision): void => {
       STORAGE_KEY,
       JSON.stringify({
         density: state.density,
+        boardGroupBy: state.boardGroupBy,
         inspectorLabels: state.inspectorLabels,
         recentSessionIds: state.recentSessionIds,
         lastViewedAt: state.lastViewedAt,
@@ -148,9 +155,18 @@ export const useSupervisionStore = defineStore(
   create<SupervisionStore>((set, get) => {
     const update = (patch: Partial<PersistedSupervision>) => {
       set(patch)
-      const { density, inspectorLabels, recentSessionIds, lastViewedAt, workingSets, activeWorkingSetId } = get()
+      const {
+        density,
+        boardGroupBy,
+        inspectorLabels,
+        recentSessionIds,
+        lastViewedAt,
+        workingSets,
+        activeWorkingSetId,
+      } = get()
       persist(safeStorage, {
         density,
+        boardGroupBy,
         inspectorLabels,
         recentSessionIds,
         lastViewedAt,
@@ -161,6 +177,7 @@ export const useSupervisionStore = defineStore(
     return {
       ...readPersistedSupervision(safeStorage),
       setDensity: (density) => update({ density }),
+      setBoardGroupBy: (boardGroupBy) => update({ boardGroupBy }),
       setInspectorLabels: (inspectorLabels) => update({ inspectorLabels }),
       rows: [],
       setRows: (rows) => set({ rows }),

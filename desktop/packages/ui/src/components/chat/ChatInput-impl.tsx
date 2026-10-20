@@ -1,4 +1,5 @@
 import React from "react"
+import { useComposerToastClearance } from "@/hooks/useComposerToastClearance"
 import { Textarea } from "@/components/ui/textarea"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -887,6 +888,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     setBrowsingHistory(null)
   }, [])
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
+  const composerFormRef = React.useRef<HTMLFormElement>(null)
   const cursorPosRef = React.useRef(0)
   const previousMessageLengthRef = React.useRef(message.length)
   const dropZoneRef = React.useRef<HTMLDivElement>(null)
@@ -4198,12 +4200,19 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }
   }, [])
 
+  // The draft home places the composer mid-page, where bottom toasts cannot cover it.
+  useComposerToastClearance(
+    composerFormRef,
+    !isMobile && !isMiniChatSurface && !isDesktopExpanded && !newSessionDraftOpen,
+  )
+
   const safeLinkedIssueUrl = linkedIssue ? getSafeExternalUrl(linkedIssue.url) : null
   const safeLinkedPrUrl = linkedPr ? getSafeExternalUrl(linkedPr.url) : null
 
   return (
     <>
       <form
+        ref={composerFormRef}
         onSubmit={(e) => {
           e.preventDefault()
           handlePrimaryAction()

@@ -3,6 +3,7 @@
 import * as React from "react"
 import { Toaster as Sonner } from "sonner"
 import type { ToasterProps } from "sonner"
+import { COMPOSER_TOAST_CLEARANCE_VAR } from "@/hooks/useComposerToastClearance"
 
 // The popover elevation token (design-system.css); it follows the theme.
 const TOAST_SHADOW = "var(--elevation-popover)"
@@ -68,6 +69,11 @@ function usePinnedToastStyles(shadow: string) {
   }, [shadow])
 }
 
+// Bottom toasts clear the composer (see useComposerToastClearance), but never climb past mid-window.
+const TOAST_OFFSET = {
+  bottom: `max(24px, min(50vh, calc(var(${COMPOSER_TOAST_CLEARANCE_VAR}, 0px) + 12px)))`,
+}
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const isDark = useIsDarkTheme()
   usePinnedToastStyles(TOAST_SHADOW)
@@ -77,6 +83,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       theme={isDark ? "dark" : "light"}
       className="toaster group"
       closeButton={false}
+      offset={TOAST_OFFSET}
       toastOptions={{
         classNames: {
           toast: "group/toast toast !rounded-[var(--radius-xl)] !border-0 !px-3.5 !py-3 !gap-2.5 !text-foreground",
