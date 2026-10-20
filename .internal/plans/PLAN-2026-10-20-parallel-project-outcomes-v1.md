@@ -55,3 +55,11 @@ Commit scoped producer and consumer changes separately with cross-repository SHA
 records remain local under its repository policy; do not force-add them. Preserve unrelated user changes.
 This plan expands the earlier scheduling plan's scope to permit necessary SDK/runtime/MCP implementation;
 it does not authorize automatic recurring jobs, push or publication.
+
+## Qualification progress
+
+- [Scheduled history projection repair](../reports/SCHEDULED-TASKS-2026-10-20-history-repair.md):
+  unavailable-state repair, concurrent consumer regressions and native fixture UI verification.
+- [Six-task runtime dispatch](../reports/PARALLEL-PROJECTS-2026-10-20-runtime-dispatch.md):
+  real scheduler/queue/session integration across three projects with a controlled prompt boundary.
+  Source-level dispatch and outcome isolation passed; provider/MCP and packaged multi-project qualification remain open.
