@@ -17,6 +17,7 @@ function createDesktopWebMcpBrowser({
   clientFactory,
   providerToken = DESKTOP_BROWSER_TOKEN,
   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
+  attachTimeoutMs = 2000,
 }) {
   const views = new Map()
   // Partitions whose guest session already has the hardened handlers attached.
@@ -389,9 +390,17 @@ function createDesktopWebMcpBrowser({
       return status(entry)
     }
     if (args.action === "enable") {
-      if (!entry.attached || !entry.owner.isVisible() || entry.owner.isMinimized()) {
-        throw new Error("The project browser must be visible before enabling agent access")
+      // The view attaches on its first non-empty bounds, a frame or two after the pane reports ready,
+      // and a transient dialog sends empty bounds. An enable click in that window used to fail outright
+      // and read as a runtime refusal, so wait briefly for the pane to be shown before giving up.
+      const shown = () => !entry.closed && entry.attached && entry.owner.isVisible() && !entry.owner.isMinimized()
+      // A disconnect or runtime change while waiting revokes this request; it must not re-enable access.
+      const requested = entry.revision
+      for (const deadline = Date.now() + attachTimeoutMs; !shown() && Date.now() < deadline; ) {
+        await new Promise((resolve) => setTimeout(resolve, 50))
+        if (entry.revision !== requested) throw new Error("Browser access changed during enrollment")
       }
+      if (!shown()) throw new Error("The project browser must be visible before enabling agent access")
       const disconnection = disconnect(entry)
       const revision = entry.revision
       await disconnection

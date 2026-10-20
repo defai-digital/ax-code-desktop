@@ -7,7 +7,12 @@ afterEach(async () => {
   await Promise.all(controllers.splice(0).map((controller) => controller.closeAll()))
 })
 
-function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", holdRevocation = false } = {}) {
+function fixture({
+  capability = "desktop.webmcp.v1",
+  browserMode = "embedded",
+  holdRevocation = false,
+  attachTimeoutMs = 200,
+} = {}) {
   const owners = new Map()
   const guests = []
   const revocations = []
@@ -81,6 +86,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     WebContentsView: View,
     // Short deadline so the hang tests stay fast.
     loadTimeoutMs: 20,
+    attachTimeoutMs,
     session: {
       fromPartition: () =>
         Object.assign(new EventEmitter(), {
@@ -109,7 +115,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
     }),
   })
   controllers.push(controller)
-  const create = async () => {
+  const create = async ({ attach = true } = {}) => {
     const sender = Object.assign(new EventEmitter(), { id: owners.size + 1, getZoomFactor: () => 1 })
     const owner = Object.assign(new EventEmitter(), {
       isDestroyed: () => false,
@@ -125,7 +131,7 @@ function fixture({ capability = "desktop.webmcp.v1", browserMode = "embedded", h
       sessionID: "ses_fixture",
       url: "https://example.com/",
     })
-    await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
+    if (attach) await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
     return { sender, status }
   }
   return {
@@ -311,6 +317,34 @@ describe("native project browser integration", () => {
     await expect(f.controller.command(second.sender, { action: "status", id: first.status.id })).rejects.toThrow(
       "another window",
     )
+  })
+
+  it("waits for the pane to attach when enable arrives before the first bounds", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create({ attach: false })
+    const enabling = f.controller.command(sender, { action: "enable", id: status.id })
+    await new Promise((resolve) => setTimeout(resolve, 60))
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
+    expect((await enabling).enabled).toBe(true)
+  })
+
+  it("a disconnect while waiting for the pane cancels the pending enable", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create({ attach: false })
+    const enabling = f.controller.command(sender, { action: "enable", id: status.id })
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    await f.controller.command(sender, { action: "disconnect", id: status.id })
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
+    await expect(enabling).rejects.toThrow("changed during enrollment")
+    expect((await f.controller.command(sender, { action: "status", id: status.id })).enabled).toBe(false)
+    expect(f.requests.some((request) => request.method === "POST")).toBe(false)
+  })
+
+  it("still refuses to enable a pane that never becomes visible", async () => {
+    const f = fixture({ attachTimeoutMs: 80 })
+    const { sender, status } = await f.create({ attach: false })
+    await expect(f.controller.command(sender, { action: "enable", id: status.id })).rejects.toThrow("must be visible")
+    expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
 
   it("keeps agent access disabled when the signed runtime lacks the capability", async () => {
