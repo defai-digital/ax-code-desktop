@@ -6,6 +6,9 @@ Related: PRD-2026-10-19-competitive-quality-v1; PRD-2026-10-19-supervision-v3; A
 Specifications: SPEC-2026-10-19-supervision-goal-v1 (Phase A item 1). Item 2 is covered by
 SPEC-2026-10-19-renderer-security-baseline-v1.
 Evidence: `../reviews/orca-gap-2026-10-19/DISCUSSION.md`.
+Revision 2026-10-19 (user decision): the long-session item is a 10-minute accelerated script, not an 8-hour run. An 8-hour run
+is slow, noisy on a shared host and unjustified without evidence of a leak; the short script drives events at a high rate
+and compares growth, which is enough to catch a regression.
 
 ## Problem
 
@@ -64,7 +67,7 @@ category and need no runtime change.
 | --- | ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------- |
 | 5   | End-to-end journeys for approving, denying and a refused worktree creation (extends harness v2)              | Amend the e2e harness spec; coordinate with its owner |
 | 6   | Fill `params` on every IPC command that still passes through, then split `main.js`                           | IPC contract spec v2                                 |
-| 7   | Fixed 8-hour session script that records resident-set growth and listener counts; advisory in CI first        | Spec for the soak script                             |
+| 7   | Fixed 10-minute accelerated session script that records resident-set, heap, listener and store-size growth; advisory in CI first | Spec for the soak script                             |
 | 8   | Automated accessible-name check for Mission Control and Needs You actions                                    | none                                                 |
 | 9   | Move worktree creation to the runtime (competitive quality v1, item 8)                                       | AX Code ADR, then Desktop ADR                        |
 | 10  | Narrow the web `connect-src` after an origin audit                                                           | Amend the renderer security baseline                 |
@@ -92,7 +95,7 @@ Not before Phase A and items 5 to 9, because it adds reach but no trust.
 | Inline-script allowances in the web-served app document                 | `'unsafe-inline'`                                  | none             |
 | Public releases with signed install, upgrade and rollback receipts      | 7.27.3 has them                                    | every release    |
 | Shipped locales with zero missing keys                                  | 14                                                 | 14               |
-| Resident-set growth over the fixed 8-hour script                        | not measured                                       | measured, budget |
+| Resident-set and listener growth over the fixed 10-minute script                    | not measured                                       | measured, budget |
 
 ## Acceptance for Phase A
 

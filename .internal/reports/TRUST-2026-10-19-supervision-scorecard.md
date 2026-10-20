@@ -16,7 +16,7 @@ readings of the 2026-10-19 reference clone (`.internal/reference/orca`), not run
 | 5 | Wildcard `connect-src` in the web document | `connect-src` allowing any http(s)/ws(s) origin | `desktop/packages/web/server/lib/security/response-headers.js` | Still `'self' ws: wss: http: https:`; tightening needs an origin audit (PRD Phase B item 10) | Not measured |
 | 6 | Releases with install, upgrade and rollback receipts | Evidence directories with native receipts that include rollback | `.internal/releases/v7.26.0-evidence` to `v7.27.3-evidence`: each has four platform receipts (`native/shadow-native-darwin-arm64`, `linux-arm64`, `linux-x64`, `win32-x64`) that mention rollback; only 7.27.3 is confirmed as passing, in `.internal/reports/RELEASE-2026-10-19-v7.27.3-publication.md` | 7.27.3 confirmed; the four earlier directories contain rollback records that were not re-verified here | No per-version receipt inventory found in the clone (not proof that none exists upstream) |
 | 7 | Shipped locales with zero missing keys | Output of the locale check | `pnpm run check:locales` | 14 locales, 4,930 keys, 0 missing (after this change; 4,912 before) | 6 built-in locales (`src/renderer/src/i18n/locales`) |
-| 8 | Long-session resident-set growth | RSS and listener growth over a fixed 8-hour scripted session | Does not exist yet (PRD Phase B item 7) | Not measured | 46 retention audits under `docs/audits/` record measured leaks and their fixes; no single published number |
+| 8 | Session resident-set growth | RSS and listener growth over a fixed 10-minute accelerated session (high event rate) | Does not exist yet (PRD Phase B item 7) | Not measured | 46 retention audits under `docs/audits/` record measured leaks and their fixes; no single published number |
 | 9 | Documented hot-path behaviour | p95 frame gap under streaming | `.internal/reports/PERFORMANCE-2026-10-19-open-paragraph-trace.md` | p95 at the 120 Hz floor for a 40-message session, one machine | Not measured |
 
 ## Live check (one run)
@@ -44,5 +44,5 @@ loaded in headless Chrome over CDP.
 
 ## Follow-ups tracked in the PRD
 
-Narrow the web `connect-src` after an origin audit; add the 8-hour session script; re-verify rollback receipts for the
+Narrow the web `connect-src` after an origin audit; add the 10-minute session script; re-verify rollback receipts for the
 four earlier releases; audit credential handling by code path.
