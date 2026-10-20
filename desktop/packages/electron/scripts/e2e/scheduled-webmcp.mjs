@@ -61,6 +61,73 @@ async function journeyScheduledHistory({ session, e2e }) {
   if (!unknown?.includes("Couldn't load the run history")) throw new Error("Unavailable history was not disclosed")
   const running = rows.find((text) => text.includes("History running"))
   if (!running?.includes("Running") || running.includes("Couldn't load")) throw new Error("Running row was corrupted")
+  // Closing the editor returns keyboard focus to its row, exposing focus-within actions.
+  await audit.click("Edit History unavailable")
+  await audit.wait('Boolean(document.querySelector("#sched-name"))', "row editor opened")
+  await audit.click("Cancel")
+  await audit.wait(
+    `(() => {
+      const button = document.querySelector('button[aria-label="More actions for History unavailable"]');
+      return button && button.getClientRects().length > 0 && !button.closest('[hidden], [inert], [aria-hidden="true"]');
+    })()`, "row actions exposed on returned focus",
+  )
+  await audit.click("More actions for History unavailable")
+  await audit.click("Run history", { role: "menuitem" })
+  await audit.wait(
+    `document.querySelector('[role="dialog"] [role="alert"]')?.textContent.includes("Failed to load run history")`,
+    "malformed history shown as unavailable instead of empty",
+  )
+  if (args.artifacts) {
+    await fs.mkdir(args.artifacts, { recursive: true })
+    const { data } = await session.send("Page.captureScreenshot", { format: "png" })
+    await fs.writeFile(path.join(args.artifacts, "history-unavailable.png"), Buffer.from(data, "base64"))
+  }
+  const recoveredTasks = tasks.map((entry, index) =>
+    index === 2
+      ? {
+          ...entry,
+          history: [
+            {
+              id: "run_recovered",
+              taskID: entry.task.id,
+              status: "failed",
+              triggerType: "manual",
+              coalescedCount: 0,
+              error: "Controlled history recovery",
+              time: { created: now - 1000 },
+            },
+          ],
+        }
+      : entry,
+  )
+  await fetch(`${origin}/__e2e__/scheduled-tasks`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tasks: recoveredTasks }),
+  })
+  await audit.click("Retry")
+  await audit.wait(
+    `document.querySelector('[role="dialog"]')?.textContent.includes("Controlled history recovery")
+      && !document.querySelector('[role="dialog"] [role="alert"]')`,
+    "history retry recovers actual run",
+  )
+  if (args.artifacts) {
+    const { data } = await session.send("Page.captureScreenshot", { format: "png" })
+    await fs.writeFile(path.join(args.artifacts, "history-recovered.png"), Buffer.from(data, "base64"))
+  }
+  await audit.click("Close")
+  await audit.wait(
+    `(() => {
+      const button = document.querySelector('button[aria-label="Edit History unavailable"]');
+      return button && !button.closest('[hidden], [inert], [aria-hidden="true"]');
+    })()`,
+    "history dialog closed",
+  )
+  await fetch(`${origin}/__e2e__/scheduled-tasks`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ tasks }),
+  })
   await audit.click("Edit History unavailable")
   await audit.wait('document.querySelector("#sched-name")?.value === "History unavailable"', "correct task editor")
   await audit.click("UTC")

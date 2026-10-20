@@ -24,6 +24,7 @@ import {
   deleteScheduledTasks,
   expandPromptSnippets,
   fetchScheduledTasks,
+  fetchScheduledTaskRuns,
   reconcileScheduledTaskFamily,
   runScheduledTaskNow,
   setScheduledTaskEnabled,
@@ -51,6 +52,40 @@ describe("scheduledTasksApi", () => {
   beforeEach(() => {
     vi.resetAllMocks()
     getScopedApiClient.mockReturnValue({ scheduledTask })
+  })
+
+  test.each([
+    undefined,
+    null,
+    {},
+    [null],
+    [{ id: "run_1", status: "future_status", time: { created: 1 } }],
+    [{ id: "", status: "completed", time: { created: 1 } }],
+    [{ id: "run_1", status: "completed", time: { created: Number.NaN } }],
+    [{ id: "run_1", taskID: "other_task", status: "completed", time: { created: 1 } }],
+  ])("rejects unusable history instead of claiming the task has never run: %j", async (data) => {
+    scheduledTask.listRuns.mockResolvedValue({ data })
+    await expect(fetchScheduledTaskRuns("/work/alpha", ["st_1"], 20)).rejects.toThrow("Failed to load run history")
+  })
+
+  test("does not silently drop an invalid member from otherwise valid family history", async () => {
+    scheduledTask.listRuns
+      .mockResolvedValueOnce({ data: [{ id: "run_1", status: "completed", time: { created: 1 } }] })
+      .mockResolvedValueOnce({ data: [{ id: "run_2", status: "unexpected", time: { created: 2 } }] })
+    await expect(fetchScheduledTaskRuns("/work/alpha", ["st_1", "st_2"], 20)).rejects.toThrow(
+      "Failed to load run history",
+    )
+  })
+
+  test("preserves real empty history and recovers when the next response is valid", async () => {
+    scheduledTask.listRuns.mockResolvedValueOnce({ data: [] })
+    expect(await fetchScheduledTaskRuns("/work/alpha", ["st_1"], 20)).toEqual([])
+    scheduledTask.listRuns.mockResolvedValueOnce({
+      data: [{ id: "run_1", status: "completed", time: { created: 1 } }],
+    })
+    expect(await fetchScheduledTaskRuns("/work/alpha", ["st_1"], 20)).toMatchObject([
+      { id: "run_1", taskID: "st_1", status: "completed" },
+    ])
   })
 
   test("fetchScheduledTasks scopes by directory and enriches with the latest run", async () => {

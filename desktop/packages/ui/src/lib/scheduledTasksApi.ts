@@ -244,7 +244,16 @@ const toScheduledTaskRun = (value: unknown, taskID: string): ScheduledTaskRun | 
   if (!value || typeof value !== "object") return null
   const record = value as Record<string, unknown>
   const time = record.time as { created?: unknown; updated?: unknown } | undefined
-  if (typeof record.id !== "string" || !isRunStatus(record.status) || typeof time?.created !== "number") return null
+  if (
+    typeof record.id !== "string" ||
+    !record.id.trim() ||
+    !isRunStatus(record.status) ||
+    typeof time?.created !== "number" ||
+    !Number.isFinite(time.created) ||
+    !Number.isFinite(new Date(time.created).getTime()) ||
+    (record.taskID !== undefined && record.taskID !== taskID)
+  )
+    return null
   const optionalNumber = (field: unknown) => (typeof field === "number" && Number.isFinite(field) ? field : undefined)
   const occurrenceAt = optionalNumber(record.occurrenceAt)
   const timeStarted = optionalNumber(record.timeStarted)
@@ -277,11 +286,16 @@ export const fetchScheduledTaskRuns = async (
   const client = clientFor(directory)
   const perTask = await mapWithConcurrency([...taskIDs], RUN_FETCH_CONCURRENCY, async (taskID) => {
     const response = await client.scheduledTask.listRuns({ scheduledTaskID: taskID, limit })
-    if (response.error) {
+    if (response.error || !Array.isArray(response.data)) {
       throw new Error(formatSdkError(response.error, "Failed to load run history"))
     }
-    const runs = Array.isArray(response.data) ? response.data : []
-    return runs.map((run) => toScheduledTaskRun(run, taskID)).filter((run): run is ScheduledTaskRun => run !== null)
+    return response.data.map((run) => {
+      const parsed = toScheduledTaskRun(run, taskID)
+      // Dropping an invalid record would turn incomplete evidence into an empty
+      // history or an apparently complete success summary.
+      if (!parsed) throw new Error("Failed to load run history")
+      return parsed
+    })
   })
   return perTask.flat()
 }
