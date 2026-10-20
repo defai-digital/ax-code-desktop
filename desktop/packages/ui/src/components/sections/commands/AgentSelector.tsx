@@ -12,13 +12,14 @@ import { useAxCodeReadiness } from "@/hooks/useAxCodeReadiness"
 import { agentLabel } from "@/lib/agents"
 
 interface CommandAgentSelectorProps {
+  ariaLabel?: string
   agentName: string
   onChange: (agentName: string) => void
   className?: string
   filter?: (agent: Agent) => boolean
 }
 
-export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, onChange, className, filter }) => {
+export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ ariaLabel, agentName, onChange, className, filter }) => {
   const { t } = useI18n()
   const { isReady, isUnavailable } = useAxCodeReadiness()
   // Agents are single-home in useAgentsStore (S4.6).
@@ -110,6 +111,7 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
       {isActuallyMobile ? (
         <button
           type="button"
+          aria-label={ariaLabel ? `${ariaLabel}: ${agentName || t("settings.commands.agentSelector.notSelected")}` : undefined}
           onClick={isReady ? () => setIsMobilePanelOpen(true) : undefined}
           disabled={!isReady}
           className={cn(
@@ -154,6 +156,7 @@ export const AgentSelector: React.FC<CommandAgentSelectorProps> = ({ agentName, 
           <DropdownMenuTrigger asChild>
             <button
               type="button"
+              aria-label={ariaLabel ? `${ariaLabel}: ${agentName || t("settings.commands.agentSelector.notSelected")}` : undefined}
               className={cn(
                 "flex items-center gap-2 px-2 rounded-lg bg-interactive-selection/20 border border-border/20 cursor-pointer hover:bg-interactive-hover/30 h-6 w-fit",
                 className,

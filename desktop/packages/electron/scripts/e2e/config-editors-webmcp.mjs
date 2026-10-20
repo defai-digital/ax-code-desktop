@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+// Exercise nested configuration controls through native WebMCP in the isolated harness.
+import fs from "node:fs/promises"
+import path from "node:path"
+import { journeyBoot, journeyPreloadBridge } from "./journeys.mjs"
+import { parseArgs, runHarness } from "./run.mjs"
+import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+
+const args = parseArgs(process.argv.slice(2))
+const outcome = await runHarness({
+  ...args,
+  uiWebMcp: true,
+  journeys: [journeyBoot, journeyPreloadBridge, async function journeyConfigEditors({ session }) {
+    const audit = new SettingsWebMcpAudit(session, args.artifacts ? path.join(args.artifacts, "pages") : "")
+    await audit.client.enable()
+    await audit.click("Settings")
+    await audit.page("Commands")
+    await audit.click("New Command")
+    await audit.wait('Boolean(document.querySelector("textarea"))', "new command form")
+    const controls = (await audit.all()).controls
+    const agent = controls.filter((control) => control.name === "Override Agent: Not selected")
+    const model = controls.filter((control) => control.name === "Override Model: Not selected")
+    if (agent.length !== 1 || model.length !== 1) throw new Error("Execution selectors need distinct field names")
+    await audit.click(agent[0].name)
+    await audit.click("Not selected", { role: "menuitem" })
+    await audit.wait('!document.querySelector("[role=menu]")', "agent menu closed")
+    await audit.click(model[0].name)
+    await audit.click("Not selected", { role: "button" })
+    await audit.wait('!document.querySelector("[role=menu]")', "model picker closed")
+    await audit.fill("What does this command do?", "Controlled draft validation")
+    await audit.click("Save Changes")
+    await audit.wait('document.body.textContent.includes("Command template is required")', "required template validation")
+    const template = (await audit.all()).controls.find((control) => control.role === "textarea" && control.name.startsWith("Your command template"))
+    if (!template) throw new Error("Command template field missing")
+    await audit.fill(template.name, "Summarize $ARGUMENTS")
+    await audit.wait('Array.from(document.querySelectorAll("textarea")).find(e => e.rows === 12)?.value === "Summarize $ARGUMENTS"', "template fill readback")
+    await audit.fill(template.name, "")
+    await audit.fill("What does this command do?", "")
+    if (!(await audit.find("Save Changes")).disabled) throw new Error("Reverted draft must be clean")
+    await audit.click("command-name", { role: "input" })
+    await audit.capture("Command editor")
+    try {
+      await session.send("Emulation.setDeviceMetricsOverride", { width: 800, height: 700, deviceScaleFactor: 1, mobile: false })
+      await audit.wait(`(() => {
+        const root = document.querySelector('[data-settings-view]')?.getBoundingClientRect()
+        const controls = ['input[placeholder="command-name"]', '[aria-label="Override Agent: Not selected"]', '[aria-label="Override Model: Not selected"]']
+        return root && controls.every(selector => {
+          const element = document.querySelector(selector)
+          const rect = element?.getBoundingClientRect()
+          return rect && rect.width >= 40 && rect.left >= root.left && rect.right <= root.right
+        })
+      })()`, "narrow editor controls remain inside Settings")
+      await audit.capture("Command editor narrow")
+    } finally {
+      await session.send("Emulation.clearDeviceMetricsOverride")
+    }
+    if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "config-editor-calls.json"), `${JSON.stringify(audit.calls, null, 2)}\n`)
+    return { name: "config-editors-webmcp", ok: true, detail: "Distinct command selectors, picker actions, required-template validation, field readback, clean-state restoration and narrow layout passed; no valid save submitted" }
+  }],
+})
+outcome.lines.forEach((line) => console.log(line))
+process.exitCode = outcome.ok ? 0 : 1

@@ -234,12 +234,13 @@ export const AgentsPage: React.FC = () => {
   // creating another one, a config-change event) does not re-populate over unsaved edits — the same guard the
   // MCP page uses. Saving moves the dirty baseline directly, so skipping loses nothing.
   const loadedAgentKeyRef = React.useRef<string | null>(null)
-  // The agent the form belongs to, readable after an await: `handleSave` must not write the values it captured at
-  // submit time into a form that has moved to another agent since.
-  const selectedAgentNameRef = React.useRef<string | undefined>(selectedAgentName)
-  selectedAgentNameRef.current = selectedAgentName
-
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory ?? null)
+  // Names can repeat across projects; returning to a form is a new editing context.
+  const formGenerationRef = React.useRef(0)
+  React.useLayoutEffect(() => {
+    formGenerationRef.current += 1
+    return () => { formGenerationRef.current += 1 }
+  }, [currentDirectory, selectedAgentName, agentDraft])
   const [toolIds, setToolIds] = React.useState<string[]>([])
 
   const permissionsBySession = useDirectorySync((state) => state.permission)
@@ -623,6 +624,7 @@ export const AgentsPage: React.FC = () => {
       return
     }
 
+    const submittedGeneration = formGenerationRef.current
     setIsSaving(true)
 
     try {
@@ -643,7 +645,7 @@ export const AgentsPage: React.FC = () => {
       let success: boolean
       if (isNewAgent) {
         success = await createAgent(config)
-        if (success) {
+        if (success && formGenerationRef.current === submittedGeneration) {
           // Select the actually-created agent so the editor stays bound to it;
           // otherwise it renders a stale header with no backing record and a
           // second save PATCHes the nonexistent default name and 404s.
@@ -654,7 +656,7 @@ export const AgentsPage: React.FC = () => {
         success = await updateAgent(agentName, config)
       }
 
-      if (success && !isNewAgent && selectedAgentNameRef.current === selectedAgentName) {
+      if (success && !isNewAgent && formGenerationRef.current === submittedGeneration) {
         // The save awaits, and the fields stay live while it does: a value goes back into its field only when that
         // field still holds what was submitted, so text typed during the save is not replaced by the stale value.
         setDescription((current) => (current === description ? description.trim() : current))

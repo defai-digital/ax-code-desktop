@@ -260,8 +260,8 @@ export const CommandsPage: React.FC = () => {
   }
 
   return (
-    <ScrollableOverlay outerClassName="h-full" className="w-full">
-      <div className="mx-auto w-full max-w-3xl p-3 sm:p-6 sm:pt-8">
+    <ScrollableOverlay outerClassName="h-full" className="w-full @container/command-editor">
+      <div className="mx-auto w-full max-w-3xl p-3 @2xl/command-editor:p-6 @2xl/command-editor:pt-8">
         {/* Header */}
         <div className="mb-4 flex items-center justify-between gap-4">
           <div className="min-w-0">
@@ -284,13 +284,13 @@ export const CommandsPage: React.FC = () => {
 
           <section className="px-2 pb-2 pt-0 space-y-0">
             {isNewCommand && (
-              <div className="flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8">
-                <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+              <div className="flex flex-col gap-2 py-1.5 @2xl/command-editor:flex-row @2xl/command-editor:items-center @2xl/command-editor:gap-8">
+                <div className="flex min-w-0 flex-col @2xl/command-editor:w-56 shrink-0">
                   <span className="typography-ui-label text-foreground">
                     {t("settings.commands.page.field.commandName")}
                   </span>
                 </div>
-                <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/command-editor:w-fit @2xl/command-editor:flex-initial">
                   <div className="flex items-center">
                     <span className="typography-ui-label text-muted-foreground mr-1">/</span>
                     <Input
@@ -347,25 +347,26 @@ export const CommandsPage: React.FC = () => {
           </div>
 
           <section className="px-2 pb-2 pt-0 space-y-0">
-            <div className="flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8">
-              <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+            <div className="flex flex-col gap-2 py-1.5 @2xl/command-editor:flex-row @2xl/command-editor:items-center @2xl/command-editor:gap-8">
+              <div className="flex min-w-0 flex-col @2xl/command-editor:w-56 shrink-0">
                 <span className="typography-ui-label text-foreground">
                   {t("settings.commands.page.field.overrideAgent")}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
-                <AgentSelector agentName={agent} onChange={(agentName: string) => setAgent(agentName)} />
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/command-editor:w-fit @2xl/command-editor:flex-initial">
+                <AgentSelector ariaLabel={t("settings.commands.page.field.overrideAgent")} agentName={agent} onChange={(agentName: string) => setAgent(agentName)} />
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 py-1.5 sm:flex-row sm:items-center sm:gap-8">
-              <div className="flex min-w-0 flex-col sm:w-56 shrink-0">
+            <div className="flex flex-col gap-2 py-1.5 @2xl/command-editor:flex-row @2xl/command-editor:items-center @2xl/command-editor:gap-8">
+              <div className="flex min-w-0 flex-col @2xl/command-editor:w-56 shrink-0">
                 <span className="typography-ui-label text-foreground">
                   {t("settings.agents.page.field.overrideModel")}
                 </span>
               </div>
-              <div className="flex min-w-0 flex-1 items-center gap-2 sm:w-fit sm:flex-initial">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 @2xl/command-editor:w-fit @2xl/command-editor:flex-initial">
                 <ModelSelector
+                  ariaLabel={t("settings.agents.page.field.overrideModel")}
                   providerId={parseModelIdentifier(model)?.providerId ?? ""}
                   modelId={parseModelIdentifier(model)?.modelId ?? ""}
                   onChange={(providerId: string, modelId: string) => {

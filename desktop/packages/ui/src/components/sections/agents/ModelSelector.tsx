@@ -17,6 +17,7 @@ import {
 } from "@/components/model-picker/ModelPickerList"
 
 interface ModelSelectorProps {
+  ariaLabel?: string
   providerId: string
   modelId: string
   onChange: (providerId: string, modelId: string) => void
@@ -28,6 +29,7 @@ interface ModelSelectorProps {
 }
 
 export const ModelSelector: React.FC<ModelSelectorProps> = ({
+  ariaLabel,
   providerId,
   modelId,
   onChange,
@@ -127,6 +129,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <>
         <button
           type="button"
+          aria-label={ariaLabel ? `${ariaLabel}: ${triggerLabel}` : undefined}
           onClick={isReady ? () => setIsMobilePanelOpen(true) : undefined}
           disabled={!isReady}
           className={cn(
@@ -170,6 +173,7 @@ export const ModelSelector: React.FC<ModelSelectorProps> = ({
       <DropdownMenuTrigger asChild>
         <button
           type="button"
+          aria-label={ariaLabel ? `${ariaLabel}: ${triggerLabel}` : undefined}
           disabled={!isReady}
           className={cn(
             "border-input data-[placeholder]:text-muted-foreground flex min-w-0 items-center justify-between gap-2 rounded-lg border bg-transparent px-2 py-2 typography-ui-label whitespace-nowrap shadow-none outline-none hover:bg-interactive-hover data-[popup-open]:bg-interactive-active h-6 w-fit",

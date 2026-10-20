@@ -61,7 +61,7 @@ describe("config editors keep unsaved edits across a list reload", () => {
     // A value only goes back into a field that still holds what was submitted, and only while the form still holds
     // the agent (command) the save was for.
     const agents = await readPage("agents/AgentsPage.tsx")
-    expect(agents).toContain("selectedAgentNameRef.current === selectedAgentName")
+    // Agent completion isolation is exercised by AgentsPage.save.test.tsx.
     // The live rules are left alone: the setters would put the submitted list back over an edit made meanwhile.
     expect(agents).not.toContain("const savedPermissionState = applyPermissionState(permissionRules)")
 

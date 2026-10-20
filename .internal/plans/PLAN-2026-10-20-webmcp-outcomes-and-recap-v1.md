@@ -114,3 +114,10 @@ reviewer response cannot alone complete a phase. Keep implementation, local vali
 [Plan](PLAN-2026-10-20-command-save-isolation.md) and
 [verification report](../reports/COMMANDS-2026-10-20-save-isolation.md) record same-name cross-project save completion,
 stale creation selection, and unchanged-save dirty-state repairs with mounted behavioral regressions.
+
+### Nested editor follow-up
+
+[Agent isolation and nested editor plan](PLAN-2026-10-20-agent-save-isolation.md) and
+[verification report](../reports/CONFIG-EDITORS-2026-10-20-isolation-and-narrow-layout.md) record mounted save-race
+regressions, native selector naming, and a screenshot-discovered narrow Commands layout defect. The native harness now
+checks affected control bounds rather than accepting root overflow checks alone.
