@@ -43,6 +43,8 @@ board after a reload acknowledgement, then report zero targets during navigation
 `/tmp/ax-settings-groups-default-20261020/`; it is not reported as passing. The separately scoped
 [repair plan](../plans/PLAN-2026-10-20-supervision-reload-barrier.md) requires a fresh document and mounted board before
 the existing exact-one-window assertion. Its regression and final ordinary E2E results are recorded separately.
+The [final reload-readiness report](E2E-2026-10-20-reload-readiness.md) records the subsequent main-window finding,
+shared helper and two consecutive complete E2E passes plus failure-detection self-test.
 
 Muse completed an advisory diff review; its duplicate-grouping lead was addressed by deriving metadata from the same
 model. Other future-state leads are guarded by route/icon coverage or contradicted by mutually exclusive layout branches.

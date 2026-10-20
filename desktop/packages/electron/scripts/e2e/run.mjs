@@ -5,7 +5,7 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
-import { CdpSession, isAppPageTarget, waitForCondition, waitForTarget } from "./cdp.mjs"
+import { CdpSession, isAppPageTarget, reloadAndWaitForReady, waitForCondition, waitForTarget } from "./cdp.mjs"
 import {
   CSP_RECORDER_SCRIPT,
   FINAL_CHECKS,
@@ -127,7 +127,7 @@ export const runHarness = async ({
     // Let main finish its own first load (interrupting it is a startup failure),
     // then reload so the violation recorder and network capture see a whole load.
     await waitForCondition(() => session.evaluate(SHELL_READY_EXPRESSION), { timeoutMs, label: "first load" })
-    await session.send("Page.reload", { ignoreCache: true })
+    await reloadAndWaitForReady(session, SHELL_READY_EXPRESSION, { timeoutMs, label: "fresh main document shell" })
     await waitForCondition(() => documentCsp || documentUrl, { timeoutMs, label: "main document response" }).catch(
       () => {},
     )

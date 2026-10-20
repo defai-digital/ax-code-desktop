@@ -1,6 +1,6 @@
 import fs from "node:fs/promises"
 import { parseCspDirectiveSources } from "./csp.mjs"
-import { CdpSession, listTargets, waitForCondition, waitForTarget } from "./cdp.mjs"
+import { CdpSession, listTargets, reloadAndWaitForReady, waitForCondition, waitForTarget } from "./cdp.mjs"
 import { E2E_STEP_ROUTE, findReplyAttemptProblems, parseReplyLog } from "./scenario.mjs"
 
 // Installed before every document load: records CSP violations from the very
@@ -235,7 +235,7 @@ const documentHeaderValue = (headers, name) => {
  * retained in the caller's arrays, so closing the pop-out (or its document
  * reloading) cannot erase them before the final checks.
  */
-const instrumentSupervisionPopout = async (popout, { target, consoleMessages, cspViolations, popoutDocumentCsps }) => {
+export const instrumentSupervisionPopout = async (popout, { target, consoleMessages, cspViolations, popoutDocumentCsps }) => {
   if (consoleMessages) {
     popout.on("Runtime.consoleAPICalled", (params) => {
       const text = (params.args || []).map((arg) => arg.value ?? arg.description ?? "").join(" ")
@@ -275,7 +275,9 @@ const instrumentSupervisionPopout = async (popout, { target, consoleMessages, cs
   await popout.send("Runtime.addBinding", { name: "__axE2eReportCsp" })
   await popout.send("Page.addScriptToEvaluateOnNewDocument", { source: CSP_RECORDER_SCRIPT })
   // Reload so the recorder sees the pop-out document from its first script.
-  await popout.send("Page.reload", { ignoreCache: true })
+  await reloadAndWaitForReady(popout, SUPERVISION_BOARD_EXPRESSION, {
+    label: "supervision board in the new instrumented document",
+  })
 }
 
 const openSupervisionBoard = async ({ session, debuggingPort, consoleMessages, cspViolations, popoutDocumentCsps }) => {

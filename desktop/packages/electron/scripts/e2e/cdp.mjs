@@ -147,3 +147,12 @@ export const waitForCondition = async (check, { timeoutMs = 20_000, intervalMs =
   const detail = last instanceof Error ? `: ${last.message}` : ""
   throw new Error(`Timed out waiting for ${label}${detail}`)
 }
+
+/** A reload acknowledgement may precede unloading the previous ready document. */
+export const reloadAndWaitForReady = async (session, readyExpression, options = {}) => {
+  const previousTimeOrigin = await session.evaluate("performance.timeOrigin")
+  await session.send("Page.reload", { ignoreCache: true })
+  await waitForCondition(() => session.evaluate(
+    `performance.timeOrigin !== ${Number(previousTimeOrigin)} && (${readyExpression})`,
+  ), { timeoutMs: 30_000, label: "new document ready after reload", ...options })
+}

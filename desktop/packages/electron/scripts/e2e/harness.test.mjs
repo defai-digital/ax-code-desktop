@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { isAppPageTarget } from "./cdp.mjs"
+import { isAppPageTarget, reloadAndWaitForReady } from "./cdp.mjs"
 import { parseCspDirectiveSources } from "./csp.mjs"
 import {
   CSP_RECORDER_SCRIPT,
@@ -9,6 +9,7 @@ import {
   findForbiddenScriptSources,
   isCspConsoleMessage,
   isSupervisionPageTarget,
+  instrumentSupervisionPopout,
   journeyRendererErrors,
   journeyCspClean,
   waitForRuntimeReadiness,
@@ -37,6 +38,28 @@ test("shell readiness waits for the app to dismiss its startup splash", () => {
   expect(runInNewContext(SHELL_READY_EXPRESSION, { document })).toBe(false)
   splash = null
   expect(runInNewContext(SHELL_READY_EXPRESSION, { document })).toBe(true)
+})
+
+test("main reload cannot accept the previous shell or the new shell's splash", async () => {
+  let reloaded = false
+  const frames = [{ time: 1, ready: true }, { time: 2, ready: false }, { time: 2, ready: true }]
+  const observations = []
+  const session = {
+    send: async (method) => { expect(method).toBe("Page.reload"); reloaded = true },
+    evaluate: async (expression) => {
+      const frame = reloaded ? frames.shift() : { time: 1, ready: true }
+      if (!frame) throw new Error("Unexpected extra poll")
+      const value = runInNewContext(expression, {
+        performance: { timeOrigin: frame.time },
+        document: { getElementById: (id) => id === "root" ? { children: [{ id: "app" }] } : frame.ready ? null : {} },
+      })
+      if (reloaded) observations.push(value)
+      return value
+    },
+  }
+  await reloadAndWaitForReady(session, SHELL_READY_EXPRESSION, { intervalMs: 1 })
+  expect(frames).toHaveLength(0)
+  expect(observations).toEqual([false, false, true])
 })
 
 describe("buildLaunchSpec", () => {
@@ -314,6 +337,29 @@ describe("harness plumbing", () => {
 })
 
 describe("supervision pop-out journey", () => {
+  test("instrumentation waits past the old mounted board and the new document's loading state", async () => {
+    let reloaded = false
+    const frames = [{ time: 1, board: true }, { time: 2, board: false }, { time: 2, board: true }]
+    const observations = []
+    const popout = {
+      send: async (method) => { if (method === "Page.reload") reloaded = true; return {} },
+      evaluate: async (expression) => {
+        const frame = reloaded ? frames.shift() : { time: 1, board: true }
+        if (!frame) throw new Error("Unexpected extra poll")
+        const value = runInNewContext(expression, {
+          performance: { timeOrigin: frame.time },
+          document: { querySelector: () => frame.board ? {} : null },
+        })
+        if (reloaded) observations.push(value)
+        return value
+      },
+    }
+    await instrumentSupervisionPopout(popout, { target: {} })
+    expect(reloaded).toBe(true)
+    expect(frames).toHaveLength(0)
+    expect(observations).toEqual([false, false, true])
+  })
+
   test("matches only the supervision window's page target", () => {
     expect(isSupervisionPageTarget({ type: "page", url: "http://127.0.0.1:9556/supervision.html" })).toBe(true)
     expect(isSupervisionPageTarget({ type: "page", url: "app://ax-code/supervision.html" })).toBe(true)
