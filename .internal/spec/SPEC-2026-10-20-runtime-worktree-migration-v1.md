@@ -72,3 +72,7 @@ grow.
   the Desktop-side pre-checks for the dialog.
 - Worktrees created by older Desktop builds live under the same data root, still list through `git worktree list`, and
   are removed by the runtime; their `openchamber/<name>` branches are not runtime-owned, so they are kept and reported.
+- **Release review fixes (7.27.4).** A failed `git worktree list` stops the removal ("nothing was removed") instead of
+  letting the runtime delete a branch the user meant to keep. When the user explicitly asks to delete the local branch
+  and the runtime kept it (borrowed, or kept earlier), Desktop deletes it with `git branch -D -- <name>`, a
+  user-initiated step under ADR-020, restoring the pre-migration behavior.

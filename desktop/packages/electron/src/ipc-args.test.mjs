@@ -59,6 +59,9 @@ describe("contract declarations", () => {
     expect(() => assertValidParamsDeclaration(entry({ a: { type: "date" } }))).toThrow(/unknown type/)
     expect(() => assertValidParamsDeclaration(entry({ a: { type: "number", enum: [1] } }))).toThrow(/enum/)
     expect(() => assertValidParamsDeclaration(entry({ a: { type: "string", maxLength: -1 } }))).toThrow(/maxLength/)
+    expect(() => assertValidParamsDeclaration(entry({ a: { type: "number", maxLength: 8 } }))).toThrow(
+      /only to strings and arrays/,
+    )
   })
 
   test("the shipped contract is well formed", () => {

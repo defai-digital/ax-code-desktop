@@ -2180,9 +2180,50 @@ describe("removeWorktree through the runtime", () => {
 
     const result = await removeWorktree(repo, { directory: created.path, deleteLocalBranch: true }, runtime)
 
-    expect(result).toMatchObject({ removed: true, branchDeleted: false })
-    expect(String(result.warning)).toContain("users-branch")
-    expect(runGit(repo, ["branch", "--list", "users-branch"])).toContain("users-branch")
+    // The runtime keeps a borrowed branch; the user's explicit request deletes it.
+    expect(result).toBe(true)
+    expect(runGit(repo, ["branch", "--list", "users-branch"]).trim()).toBe("")
+  })
+
+  it("deletes a branch kept earlier when the user now asks to delete it", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const first = await createWorktree(repo, { mode: "new", worktreeName: "kept-once" }, runtime)
+    await removeWorktree(repo, { directory: first.path }, runtime)
+    const again = await createWorktree(
+      repo,
+      { mode: "existing", existingBranch: first.branch, worktreeName: "kept-again" },
+      runtime,
+    )
+
+    expect(await removeWorktree(repo, { directory: again.path, deleteLocalBranch: true }, runtime)).toBe(true)
+    expect(runGit(repo, ["branch", "--list", first.branch]).trim()).toBe("")
+  })
+
+  it("removes nothing when the worktree list cannot be read", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "list-fails" }, runtime)
+    const realGit = resolveRealGit()
+    const binDir = createTempDir()
+    const wrapper = path.join(binDir, "git")
+    fs.writeFileSync(
+      wrapper,
+      `#!/bin/sh\nif [ "$1" = "worktree" ] && [ "$2" = "list" ]; then echo "fatal: simulated" >&2; exit 128; fi\nexec ${JSON.stringify(realGit)} "$@"\n`,
+    )
+    fs.chmodSync(wrapper, 0o755)
+    const previousPath = process.env.PATH
+    process.env.PATH = `${binDir}${path.delimiter}${previousPath}`
+    try {
+      await expect(removeWorktree(repo, { directory: created.path }, runtime)).rejects.toThrow(/nothing was removed/)
+    } finally {
+      process.env.PATH = previousPath
+    }
+    expect(runtime.calls.remove).toEqual([])
+    expect(fs.existsSync(created.path)).toBe(true)
+    expect(runGit(repo, ["branch", "--list", created.branch])).toContain(created.branch)
   })
 
   it("keeps a runtime-created branch when the user did not ask to delete it", async () => {
@@ -2230,7 +2271,7 @@ describe("removeWorktree through the runtime", () => {
     expect(runtime.calls.remove).toEqual([])
   })
 
-  it("runs no git worktree remove or branch -D itself", async () => {
+  it("never runs git worktree remove, and deletes only a kept branch the user asked to delete", async () => {
     if (!canRunGit() || process.platform === "win32") return
     const repo = initWorktreeRepo()
     runGit(repo, ["branch", "users-branch"])
@@ -2249,7 +2290,9 @@ describe("removeWorktree through the runtime", () => {
 
     expect(invocations.length).toBeGreaterThan(0)
     expect(invocations.filter((line) => line.startsWith("worktree remove"))).toEqual([])
-    expect(invocations.filter((line) => /^branch (-D|-d|--delete)\b/.test(line))).toEqual([])
+    // The runtime deleted the branch it owned; Desktop deletes only the borrowed
+    // branch the user explicitly asked to delete.
+    expect(invocations.filter((line) => /^branch (-D|-d|--delete)\b/.test(line))).toEqual(["branch -D -- users-branch"])
     expect(runtime.calls.remove).toHaveLength(2)
   })
 })

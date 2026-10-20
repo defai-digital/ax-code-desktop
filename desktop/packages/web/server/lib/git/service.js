@@ -3785,8 +3785,17 @@ export async function removeWorktree(directory, input = {}, deps = {}) {
     throw new Error("Cannot remove the primary workspace")
   }
 
-  // Read-only: the branch the worktree has checked out, to report whether the runtime kept it.
-  const entries = await listWorktreeEntries(context.primaryWorktree).catch(() => [])
+  // Read-only: the branch the worktree has checked out. Keeping or deleting
+  // that branch depends on knowing it, so a failed listing stops the removal
+  // instead of letting the runtime delete a branch the user meant to keep.
+  let entries
+  try {
+    entries = await listWorktreeEntries(context.primaryWorktree)
+  } catch (error) {
+    throw new Error(
+      `Could not read the worktree list, so nothing was removed: ${error instanceof Error ? error.message : String(error)}`,
+    )
+  }
   let matchedEntry = null
   for (const entry of entries) {
     if (entry?.worktree && (await canonicalPath(entry.worktree)) === targetCanonical) {
@@ -3822,6 +3831,9 @@ export async function removeWorktree(directory, input = {}, deps = {}) {
     clearWorktreeBootstrapState(matchedEntry.worktree)
   }
 
+  // The runtime keeps branches it does not own (a borrowed existing branch, or
+  // one the user kept earlier). An explicit request to delete the local branch
+  // is a user-initiated version-control step (ADR-020), so Desktop performs it.
   if (deleteLocalBranch && branchName) {
     const stillExists = await runGitCommand(context.primaryWorktree, [
       "show-ref",
@@ -3830,8 +3842,11 @@ export async function removeWorktree(directory, input = {}, deps = {}) {
       `refs/heads/${branchName}`,
     ])
     if (stillExists.success) {
-      const warning = `Kept the local branch ${branchName}: AX Code deletes only the branches it created`
-      return { removed: true, branchDeleted: false, warning }
+      await runGitCommandOrThrow(
+        context.primaryWorktree,
+        ["branch", "-D", "--", branchName],
+        `Removed the worktree but could not delete the local branch ${branchName}`,
+      )
     }
   }
 

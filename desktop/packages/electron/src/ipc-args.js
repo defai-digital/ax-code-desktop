@@ -49,6 +49,9 @@ const assertValidParamsDeclaration = (entry) => {
     if (schema.maxLength !== undefined && !(Number.isInteger(schema.maxLength) && schema.maxLength >= 0)) {
       throw new Error(`${entry.command}.${name}: maxLength must be a non-negative integer`)
     }
+    if (schema.maxLength !== undefined && !["string", "array", "string[]"].includes(schema.type)) {
+      throw new Error(`${entry.command}.${name}: maxLength applies only to strings and arrays`)
+    }
   }
 }
 

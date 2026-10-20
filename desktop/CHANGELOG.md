@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.27.4] - 2026-10-20
+
+### Changed
+
+- Bundle the signed AX Code runtime 7.27.7 and SDK 2.6.39 from GitHub Packages.
+- Create and remove worktrees through the AX Code runtime. Desktop no longer runs `git worktree add` itself; a branch
+  you keep on removal stays, and an explicit request to delete the local branch still deletes it.
+- Pin the renderer sandbox, allow only hashed inline scripts in the packaged app, and drop `unsafe-eval` for app pages.
+- Validate desktop command arguments from a typed contract.
+
+### Added
+
+- Open Mission Control in its own window from its header or the command palette.
+- Group multi-run lanes by runtime session metadata, so renamed lanes stay together.
+- Set the document direction from the active locale; code, diffs, terminals and paths stay left to right.
+
+### Fixed
+
+- Stop loading terminal fonts from a CDN that the content security policy always blocked.
+
 ## [7.27.0] - 2026-10-17
 
 ### Changed
