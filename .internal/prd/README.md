@@ -4,6 +4,11 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 
 ## Active and deferred requirements
 
+Parallel-project addendum: [Parallel project outcomes v1](PRD-2026-10-20-parallel-project-outcomes-v1.md), with
+[cross-repository implementation plan](../plans/PLAN-2026-10-20-parallel-project-outcomes-v1.md).
+The user authorized coordinated AX Code runtime, SDK and MCP changes. Multi-project execution, scheduled bursts,
+isolation and responsiveness require separate UI and actual-runtime qualification; support quality is not yet established.
+
 Scheduling addendum proposal: [Scheduled outcomes v1](PRD-2026-10-20-scheduled-outcomes-v1.md), with
 [a focused review](../reports/SCHEDULED-TASKS-2026-10-20-review.md) and
 [implementation plan](../plans/PLAN-2026-10-20-scheduled-outcomes-v1.md). This adds recurring outcomes to the WebMCP/recap

@@ -60,3 +60,12 @@ Run focused lifecycle/API/timezone/history/store tests, full UI tests for projec
 locale/boundary checks, native fixture and runtime qualification where available. Preserve failed receipts and list unrun
 host/live-provider cases. Commit scheduling changes separately from Settings repairs, without unrelated runtime pins,
 reference edits, SDK migration, automatic job activation, push or publication.
+
+## Concurrent-run qualification (user follow-up, 2026-10-20)
+
+Prioritize simultaneous scheduled tasks in one project and across projects. Inspect the pinned runtime's concurrency,
+overlap and queue contracts, then test bursts with running/queued/blocked/completed/failed/cancelled outcomes. Measure
+UI responsiveness, API fan-out, refresh convergence and correct task/run/project attribution. Verify a failure, pause,
+cancel or late update for one run cannot corrupt another. Separate deterministic Desktop fixture evidence from real
+pinned-runtime execution, and never infer runtime parallelism from simultaneous UI spinners. Use controlled local
+provider/test workloads for runtime qualification where supported, without activating user jobs or paid model requests.
