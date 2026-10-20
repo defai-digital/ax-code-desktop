@@ -121,3 +121,9 @@ stale creation selection, and unchanged-save dirty-state repairs with mounted be
 [verification report](../reports/CONFIG-EDITORS-2026-10-20-isolation-and-narrow-layout.md) record mounted save-race
 regressions, native selector naming, and a screenshot-discovered narrow Commands layout defect. The native harness now
 checks affected control bounds rather than accepting root overflow checks alone.
+
+### Editor scope display follow-up
+
+[Plan](PLAN-2026-10-20-editor-scope-labels.md) and
+[report](../reports/CONFIG-EDITORS-2026-10-20-scope-labels.md) cover translated Global/Project labels in Commands and
+Agents, native switching in both forms, clean-state restoration, and screenshot verification.

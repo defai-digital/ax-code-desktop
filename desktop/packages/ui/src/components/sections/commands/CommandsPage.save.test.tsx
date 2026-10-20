@@ -116,3 +116,12 @@ test("a successful save immediately marks unchanged submitted fields clean", asy
   await act(async () => resolveSave(true))
   expect(save().disabled).toBe(true)
 })
+
+
+test.each(["user", "project"] as const)("draft scope %s displays its translated option label", async (scope) => {
+  await act(async () => commands.setState({
+    commands: [], commandDraft: { name: "review", scope, template: "Draft" },
+  }))
+  const scopeControl = container.querySelector('[role="combobox"]')
+  expect(scopeControl?.textContent).toBe(`settings.common.scope.${scope === "user" ? "global" : "project"}`)
+})

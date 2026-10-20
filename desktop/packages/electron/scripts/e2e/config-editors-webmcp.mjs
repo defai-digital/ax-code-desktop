@@ -17,6 +17,13 @@ const outcome = await runHarness({
     await audit.page("Commands")
     await audit.click("New Command")
     await audit.wait('Boolean(document.querySelector("textarea"))', "new command form")
+    await audit.find("Global", { role: "combobox" })
+    await audit.click("Global", { role: "combobox" })
+    await audit.click("Project", { role: "option" })
+    await audit.wait('document.querySelector("[data-settings-view] [data-slot=select-trigger]")?.textContent.trim() === "Project"', "project scope display")
+    await audit.click("Project", { role: "combobox" })
+    await audit.click("Global", { role: "option" })
+    await audit.wait('document.querySelector("[data-settings-view] [data-slot=select-trigger]")?.textContent.trim() === "Global"', "global scope display")
     const controls = (await audit.all()).controls
     const agent = controls.filter((control) => control.name === "Override Agent: Not selected")
     const model = controls.filter((control) => control.name === "Override Model: Not selected")
@@ -54,8 +61,19 @@ const outcome = await runHarness({
     } finally {
       await session.send("Emulation.clearDeviceMetricsOverride")
     }
+    await audit.page("Agents")
+    await audit.click("New Agent")
+    await audit.find("Global", { role: "combobox" })
+    await audit.click("Global", { role: "combobox" })
+    await audit.click("Project", { role: "option" })
+    await audit.wait('document.querySelector("[data-settings-view] [data-slot=select-trigger]")?.textContent.trim() === "Project"', "agent project scope display")
+    await audit.click("Project", { role: "combobox" })
+    await audit.click("Global", { role: "option" })
+    await audit.wait('document.querySelector("[data-settings-view] [data-slot=select-trigger]")?.textContent.trim() === "Global"', "agent global scope display")
+    if (!(await audit.find("Save Changes")).disabled) throw new Error("Restoring agent scope must leave its draft clean")
+    await audit.capture("Agent editor scope")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "config-editor-calls.json"), `${JSON.stringify(audit.calls, null, 2)}\n`)
-    return { name: "config-editors-webmcp", ok: true, detail: "Distinct command selectors, picker actions, required-template validation, field readback, clean-state restoration and narrow layout passed; no valid save submitted" }
+    return { name: "config-editors-webmcp", ok: true, detail: "Command and agent scope labels, distinct command selectors, picker actions, required-template validation, field readback, clean-state restoration and narrow layout passed; no valid save submitted" }
   }],
 })
 outcome.lines.forEach((line) => console.log(line))

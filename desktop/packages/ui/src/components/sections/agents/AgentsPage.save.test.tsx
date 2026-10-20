@@ -132,3 +132,12 @@ test("a same-form create still selects its agent after the store refreshes the l
   expect(fixtures.draft).toHaveBeenCalledWith(null)
   expect(fixtures.select).toHaveBeenCalledWith("review")
 })
+
+
+test.each(["user", "project"] as const)("draft scope %s displays its translated option label", async (scope) => {
+  await act(async () => agents.setState({
+    agents: [], agentDraft: { name: "review", scope, prompt: "Draft" },
+  }))
+  const scopeControl = container.querySelector('[role="combobox"]')
+  expect(scopeControl?.textContent).toBe(`settings.common.scope.${scope === "user" ? "global" : "project"}`)
+})
