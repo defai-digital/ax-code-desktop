@@ -18,7 +18,8 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 
 | Spec                                                                                        | Current interpretation                                                            | Related                                  |
 | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ---------------------------------------- |
-| [AX Code JSR SDK Consumption](SPEC-2026-09-02-ax-code-jsr-sdk-consumption.md)               | Implemented and verified                                                          | ADR-001                                  |
+| [AX Code JSR SDK Consumption](SPEC-2026-09-02-ax-code-jsr-sdk-consumption.md)               | Superseded for registry and declaration by SPEC-2026-10-20; import migration stands| ADR-001                                  |
+| [AX Code SDK GitHub Packages Consumption](SPEC-2026-10-20-ax-code-sdk-github-packages-consumption.md) | Accepted; implementation prepared, lockfile cutover pending producer publication | ADR-022; AX Code ADR-265 |
 | [Desktop Source Extraction and Provenance](SPEC-2026-09-02-desktop-source-extraction.md)    | Implemented and verified                                                          | ADR-002; ADR-003                         |
 | [Independent Desktop Workspace](SPEC-2026-09-02-independent-desktop-workspace.md)           | Implemented and verified                                                          | ADR-001; ADR-003; ADR-004                |
 | [AX Code Worker Contract](SPEC-2026-09-02-ax-code-worker-contract.md)                       | Accepted; consumed through the pinned SDK in every release since extraction       | ADR-001; ADR-004                         |

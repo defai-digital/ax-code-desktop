@@ -29,7 +29,7 @@ Canonical boundaries:
 ## Current phase
 
 Extraction phases 1 to 3 are complete. The reviewed Desktop source and its filtered history live under `desktop/`, and
-the independent workspace consumes the published JSR SDK with a frozen lockfile and a pinned signed AX Code runtime.
+the independent workspace consumes the published SDK from GitHub Packages (ADR-022) with a frozen lockfile and a pinned signed AX Code runtime.
 Independent CI, CodeQL and the signed shadow workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
 tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Code Desktop is the sole current GUI source owner.
 
@@ -49,6 +49,8 @@ end-to-end harness, structure and supervision work). Settled decisions and their
 - Node.js 26 or newer.
 - pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
 - Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
+- The SDK comes from GitHub Packages (`@defai-digital:registry` in `.npmrc`). Installing needs a user-level
+  `//npm.pkg.github.com/:_authToken=<token with read:packages>` line; never commit a token (ADR-022).
 
 | Task                          | Command                                                            |
 | ----------------------------- | ------------------------------------------------------------------ |
@@ -113,7 +115,7 @@ Product-boundary or source-ownership work requires, in order:
 ## Hard rules
 
 - Never fork or duplicate the AX Code or AX Agent canonical runtime.
-- Consume the public AX Code SDK as an exact `@defai-digital/ax-code-sdk` JSR version and the worker as a pinned signed
+- Consume the public AX Code SDK as an exact `@defai-digital/ax-code-sdk` GitHub Packages version and the worker as a pinned signed
   runtime artifact. Local workspace links are development-only and must not enter CI or release manifests.
 - Keep AX Code Desktop's portfolio desired state separate from AX Code execution state and AX Agent run history.
 - Never store raw credentials in project records, prompts, events, logs, metrics, or artifacts.

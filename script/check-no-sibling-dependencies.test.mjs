@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest"
 
 const repositoryRoot = path.resolve(import.meta.dirname, "..")
 const scriptSource = path.join(repositoryRoot, "script/check-no-sibling-dependencies.mjs")
-const sdkSpecifier = "jsr:@defai-digital/ax-code-sdk@1.0.0"
+const sdkSpecifier = "1.0.0"
 const temporaryRoots = []
 
 function createRoot() {

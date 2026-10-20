@@ -8,6 +8,7 @@ import { verifyRuntimePin } from "./runtime-pin.mjs"
 export { repositoryRoot }
 export const DESKTOP_IDENTITY_PATH = "config/desktop-identity.json"
 export const SDK_PIN_PATH = "config/ax-code-sdk.json"
+export const SDK_REGISTRY = "https://npm.pkg.github.com"
 
 function assert(condition, message) {
   if (!condition) throw new Error(`Invalid Desktop release contract: ${message}`)
@@ -132,11 +133,27 @@ export function verifyDesktopReleaseContract(root = repositoryRoot, fileSystem =
   const policy = readReleasePolicy(root, fileSystem)
   const runtime = verifyRuntimePin(root, fileSystem)
   const sdk = readJson(root, SDK_PIN_PATH, fileSystem)
-  assert(sdk?.schema === "ax-coder.ax-code-sdk.v1", "unsupported SDK pin schema")
+  assert(sdk?.schema === "ax-coder.ax-code-sdk.v2", "unsupported SDK pin schema")
   assert(sdk.name === "@defai-digital/ax-code-sdk", "SDK package name changed")
-  assert(sdk.specifier === `jsr:${sdk.name}@${sdk.version}`, "SDK specifier is not exact")
+  assert(/^\d+\.\d+\.\d+$/.test(sdk.version ?? "") && sdk.specifier === sdk.version, "SDK specifier is not exact")
+  assert(sdk.registry === SDK_REGISTRY, "SDK registry must be GitHub Packages")
   assert(sdk.producerRepository === "defai-digital/ax-code", "SDK producer repository changed")
+  assert(sdk.producerTag === `sdk-v${sdk.version}`, "SDK producer tag does not match the pinned version")
   assert(/^[a-f0-9]{40}$/.test(sdk.producerCommit ?? ""), "SDK producer commit is invalid")
+
+  const npmrc = fileSystem.readFileSync(path.join(root, ".npmrc"), "utf8")
+  const npmrcLines = npmrc
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#") && !line.startsWith(";"))
+  assert(
+    npmrcLines.includes(`@defai-digital:registry=${SDK_REGISTRY}`),
+    "the @defai-digital scope must resolve through GitHub Packages in .npmrc",
+  )
+  assert(
+    !npmrcLines.some((line) => /_(?:auth(?:Token)?|password)\s*=/i.test(line) && !/=\s*\$\{[A-Z_]+\}$/.test(line)),
+    ".npmrc must not hold a registry credential",
+  )
 
   const manifests = {
     root: readJson(root, "package.json", fileSystem),

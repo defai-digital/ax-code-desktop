@@ -1,8 +1,10 @@
 {
-  "schema": "ax-coder.ax-code-sdk.v1",
+  "schema": "ax-coder.ax-code-sdk.v2",
   "name": "@defai-digital/ax-code-sdk",
-  "version": "2.6.37",
-  "specifier": "jsr:@defai-digital/ax-code-sdk@2.6.37",
+  "version": "2.6.39",
+  "specifier": "2.6.39",
+  "registry": "https://npm.pkg.github.com",
   "producerRepository": "defai-digital/ax-code",
-  "producerCommit": "7e0ba70303efa993021a4887e958e91cc51b1cc3"
+  "producerTag": "sdk-v2.6.39",
+  "producerCommit": "cc0f084bfc537d4cce9ffb33a7f698b28be2dea6"
 }

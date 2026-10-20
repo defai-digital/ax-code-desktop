@@ -1,6 +1,6 @@
 # AX Code Published SDK Contract Checklist
 
-The desktop app consumes an exact `@defai-digital/ax-code-sdk` version from JSR. Producer and consumer changes
+The desktop app consumes an exact `@defai-digital/ax-code-sdk` version from GitHub Packages (ADR-022). Producer and consumer changes
 cannot land atomically, so publish additive SDK contracts before updating AX Code Desktop. A few SDK internals are still
 mirrored or patched in Desktop code. Re-verify those assumptions whenever a Desktop change depends on new SDK
 behavior.
@@ -10,7 +10,7 @@ contracts change:
 
 1. **Keep the contract test meaningful.**
    `packages/web/server/lib/ax-code/sdk-contract.test.js` must load the
-   installed JSR package, verify the public entrypoints Desktop imports, and
+   installed SDK package, verify the public entrypoints Desktop imports, and
    check the headless lifecycle declaration shape.
 
 2. **Re-verify the loopback guard mirror.** `isSdkLoopbackHostname` in

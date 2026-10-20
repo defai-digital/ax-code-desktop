@@ -4,7 +4,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 
 | ADR | Standing and supersession scope |
 | --- | --- |
-| [ADR-001: JSR SDK](ADR-001-ax-code-jsr-sdk-consumption.md) | Active exact published SDK consumption boundary; historical version is not the current pin |
+| [ADR-001: JSR SDK](ADR-001-ax-code-jsr-sdk-consumption.md) | Exact published SDK consumption boundary stands; registry decisions D1 and D3 superseded by ADR-022 |
 | [ADR-002: Product/source boundary](ADR-002-product-and-source-boundary.md) | Active; source-removal ordering amended by ADR-008; naming interpreted through ADR-015 |
 | [ADR-003: History-preserving extraction](ADR-003-history-preserving-desktop-extraction.md) | Completed extraction decision; history/provenance remain protected |
 | [ADR-004: Producer-first release order](ADR-004-sdk-runtime-and-release-order.md) | Active SDK/runtime and qualification order |
@@ -25,6 +25,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-018: Renderer security baseline](ADR-018-renderer-security-baseline.md) | Active; explicit renderer sandbox, hashed inline scripts, no `'unsafe-eval'` for app documents |
 | [ADR-019: Typed desktop IPC contract](ADR-019-typed-desktop-ipc-contract.md) | Active; contract-declared argument schemas, central validation, generated renderer types; migration incremental |
 | [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; worktree execution moves to the runtime after the paired AX Code API ships |
+| [ADR-022: SDK from GitHub Packages](ADR-022-ax-code-sdk-from-github-packages.md) | Active; supersedes ADR-001 D1 and D3; exact SDK from `npm.pkg.github.com`, no credential in the repository, producer-first cutover |
 
 ## Open producer proposals
 

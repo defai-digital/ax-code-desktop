@@ -24,5 +24,9 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version: ${{ inputs.node-version }}
+        # Writes the scope mapping and an auth line that reads NODE_AUTH_TOKEN. The token is passed only
+        # to the install step, never exported for the whole job.
+        registry-url: https://npm.pkg.github.com
+        scope: "@defai-digital"
         cache: pnpm
         cache-dependency-path: pnpm-lock.yaml

@@ -24,6 +24,7 @@ concurrency:
 permissions:
   actions: read
   contents: read
+  packages: read
 
 env:
   AX_CODE_DISABLE_SHARE: "true"
@@ -78,6 +79,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Resolve release inputs
         id: release-inputs
@@ -141,6 +144,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and pack web compatibility package
         env:
@@ -191,6 +196,7 @@ jobs:
     permissions:
       actions: read
       contents: write
+      packages: read
     needs: preflight
     runs-on: macos-15
     timeout-minutes: 120
@@ -202,6 +208,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Minisign
         run: brew install minisign
@@ -399,6 +407,7 @@ jobs:
     permissions:
       actions: read
       contents: write
+      packages: read
     needs: preflight
     timeout-minutes: 120
     strategy:
@@ -419,6 +428,8 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Minisign
         shell: pwsh
@@ -545,6 +556,7 @@ jobs:
     permissions:
       actions: read
       contents: write
+      packages: read
     needs: preflight
     timeout-minutes: 120
     strategy:
@@ -566,6 +578,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Linux packaging dependencies
         run: |
@@ -646,6 +660,8 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile --ignore-scripts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Download staged shadow artifacts
         uses: actions/download-artifact@v8

@@ -14,8 +14,10 @@ describe("Desktop release contract", () => {
     })
     expect(contract.sdk).toMatchObject({
       name: "@defai-digital/ax-code-sdk",
-      version: "2.6.37",
-      producerCommit: "7e0ba70303efa993021a4887e958e91cc51b1cc3",
+      version: "2.6.39",
+      registry: "https://npm.pkg.github.com",
+      producerTag: "sdk-v2.6.39",
+      producerCommit: "cc0f084bfc537d4cce9ffb33a7f698b28be2dea6",
     })
     expect(contract.runtime).toMatchObject({ version: "7.27.6", releaseTag: "v7.27.6" })
     expect(contract.lockfile.sha256).toMatch(/^[a-f0-9]{64}$/)
@@ -94,6 +96,48 @@ describe("Desktop release contract", () => {
         }),
       ),
     ).toThrow("Desktop consumers must use the exact SDK pin")
+  })
+
+  it("rejects an SDK pin that does not come from GitHub Packages", () => {
+    const pin = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "config/ax-code-sdk.json"), "utf8"))
+    for (const override of [
+      { registry: "https://registry.npmjs.org" },
+      { specifier: `jsr:${pin.name}@${pin.version}` },
+      { producerTag: "sdk-v0.0.0" },
+      { schema: "ax-coder.ax-code-sdk.v1" },
+    ]) {
+      expect(() =>
+        verifyDesktopReleaseContract(
+          repositoryRoot,
+          withTextOverride("config/ax-code-sdk.json", JSON.stringify({ ...pin, ...override })),
+        ),
+      ).toThrow(/SDK/)
+    }
+  })
+
+  it("requires the scope mapping and refuses a committed registry credential", () => {
+    expect(() =>
+      verifyDesktopReleaseContract(repositoryRoot, withTextOverride(".npmrc", "# no scope mapping\n")),
+    ).toThrow("GitHub Packages in .npmrc")
+    const scope = "@defai-digital:registry=https://npm.pkg.github.com\n"
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withTextOverride(".npmrc", `# //npm.pkg.github.com/:_authToken=ghp_example\n${scope}`),
+      ),
+    ).not.toThrow()
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withTextOverride(".npmrc", `${scope}//npm.pkg.github.com/:_authToken=ghp_example\n`),
+      ),
+    ).toThrow("must not hold a registry credential")
+    expect(() =>
+      verifyDesktopReleaseContract(
+        repositoryRoot,
+        withTextOverride(".npmrc", `${scope}//npm.pkg.github.com/:_authToken=\${NODE_AUTH_TOKEN}\n`),
+      ),
+    ).not.toThrow()
   })
 
   it("rejects floating Electron dependencies", () => {
