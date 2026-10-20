@@ -19,10 +19,9 @@ app
     const { applyPackagedRendererCorsHeaders } = await import(
       pathToFileURL(path.resolve(__dirname, "../../web/server/lib/security/response-headers.js"))
     )
-    const sdkPath = require.resolve("@defai-digital/ax-code-sdk/v2/client", {
-      paths: [path.resolve(__dirname, "../../ui")],
-    })
-    const { createAxCodeClient } = await import(pathToFileURL(sdkPath))
+    // The SDK publishes ESM only (an "import" export condition, no "require"), so it is loaded with a dynamic
+    // import by package name; require.resolve cannot see an import-only export.
+    const { createAxCodeClient } = await import("@defai-digital/ax-code-sdk/v2/client")
     let broken = true,
       posts = 0
     server = http.createServer((req, res) => {
