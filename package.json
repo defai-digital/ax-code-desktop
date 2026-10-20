@@ -36,6 +36,7 @@
     "check:boundaries": "pnpm run check:desktop-boundaries && pnpm run check:desktop-store-boundaries && pnpm run check:desktop-electron-runtime && pnpm run check:desktop-endpoint-contracts && pnpm run check:desktop-ipc-contracts && pnpm run check:desktop-package-tests && pnpm run check:source-text-tests && pnpm run check:no-sibling-dependencies && pnpm run check:source-ownership && pnpm run check:runtime-pin && pnpm run check:release-policy && pnpm run check:release-contract",
     "e2e:desktop": "node desktop/packages/electron/scripts/e2e/run.mjs",
     "e2e:desktop:self-test": "node desktop/packages/electron/scripts/e2e/self-test.mjs",
+    "soak:desktop": "node desktop/scripts/renderer-soak.mjs",
     "smoke:packaged": "node desktop/packages/electron/scripts/smoke-packaged-app.mjs",
     "smoke:packaged-asar-cli": "node desktop/packages/electron/scripts/smoke-packaged-asar-cli.mjs",
     "smoke:native-webmcp": "node desktop/packages/electron/scripts/smoke-native-webmcp.mjs",
