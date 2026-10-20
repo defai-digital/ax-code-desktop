@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.28.0] - 2026-10-20
+
+### Changed
+
+- Ship the integrated Desktop supervision, settings, renderer security and runtime-owned worktree improvements with
+  signed AX Code runtime 7.28.0 and exact GitHub Packages SDK 2.6.41.
+
+### Fixed
+
+- Report a failed MCP inventory refresh after deletion as partial success, so the settings sidebar warns that its
+  current list could not be refreshed instead of presenting an unconditional success.
+- Keep MCP settings, runtime actions and deletion guards on the active project's configuration directory when a
+  worktree session is selected.
+- Persist explicitly cleared agent prompts and descriptions, command descriptions, and skill instructions.
+- Prevent a completed skill save from clearing another project's draft or replacing its editing baseline.
+- Mask OAuth client secrets in the MCP settings form.
+
 ## [7.27.4] - 2026-10-20
 
 ### Changed
