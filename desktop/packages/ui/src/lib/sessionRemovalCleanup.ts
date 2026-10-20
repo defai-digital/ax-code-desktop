@@ -46,6 +46,13 @@ export function cleanupRemovedSessions(ids: Iterable<string>): void {
   // read that started at eventSeq 0 would otherwise write the session back after remove().
   dropSessionGoalReadClaims?.(idSet)
   for (const id of idSet) useSessionGoalStore.getState().remove(id)
+  // A session deleted through another window or the retention run must not stay
+  // on screen: the unavailable state requires a null selection, and every send
+  // would otherwise resolve against the wrong directory.
+  const sessionUI = useSessionUIStore.getState()
+  if (sessionUI.currentSessionId && idSet.has(sessionUI.currentSessionId)) {
+    sessionUI.setCurrentSession(null)
+  }
   // Abort flags, plan-availability and dismissed change bars are never removed by their own
   // actions; the worktree attachment would keep routing to a dead session's worktree.
   useSessionUIStore.getState().clearRemovedSessionState(idSet)

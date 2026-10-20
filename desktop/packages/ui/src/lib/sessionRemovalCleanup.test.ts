@@ -6,6 +6,7 @@ const MOCKED_STORES = [
   "@/stores/useSessionRollbackStore",
   "@/stores/useInlineCommentDraftStore",
   "@/stores/useSessionMultiSelectStore",
+  "@/sync/session-ui-store",
 ] as const
 
 const importHelper = async () => {
@@ -17,7 +18,10 @@ const importHelper = async () => {
     rollbackClearSessions: vi.fn(),
     clearDrafts: vi.fn(),
     removeMany: vi.fn(),
+    setCurrentSession: vi.fn(),
+    clearRemovedSessionState: vi.fn(),
   }
+  const sessionUI = { currentSessionId: null as string | null }
 
   vi.doMock("@/stores/messageQueueStore", () => ({
     useMessageQueueStore: { getState: () => ({ clearSessions: spies.queueClearSessions }) },
@@ -34,9 +38,18 @@ const importHelper = async () => {
   vi.doMock("@/stores/useSessionMultiSelectStore", () => ({
     useSessionMultiSelectStore: { getState: () => ({ removeMany: spies.removeMany }) },
   }))
+  vi.doMock("@/sync/session-ui-store", () => ({
+    useSessionUIStore: {
+      getState: () => ({
+        currentSessionId: sessionUI.currentSessionId,
+        setCurrentSession: spies.setCurrentSession,
+        clearRemovedSessionState: spies.clearRemovedSessionState,
+      }),
+    },
+  }))
 
   const helper = await import("./sessionRemovalCleanup")
-  return { helper, spies }
+  return { helper, spies, sessionUI }
 }
 
 describe("cleanupRemovedSessions", () => {
@@ -100,6 +113,19 @@ describe("cleanupRemovedSessions", () => {
     } finally {
       helper.registerSessionGoalReadClaimDrop(null)
     }
+  })
+
+  test("clears the selection only when the current session was removed", async () => {
+    const removed = await importHelper()
+    removed.sessionUI.currentSessionId = "ses_a"
+    removed.helper.cleanupRemovedSessions(["ses_a"])
+    expect(removed.spies.setCurrentSession).toHaveBeenCalledWith(null)
+
+    vi.resetModules()
+    const kept = await importHelper()
+    kept.sessionUI.currentSessionId = "ses_b"
+    kept.helper.cleanupRemovedSessions(["ses_a"])
+    expect(kept.spies.setCurrentSession).not.toHaveBeenCalled()
   })
 
   test("no-ops on an empty id set without touching any store", async () => {

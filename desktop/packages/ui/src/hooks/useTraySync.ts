@@ -7,6 +7,7 @@ import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from "@/stores/
 import { useQuotaStore } from "@/stores/useQuotaStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
 import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
+import { aggregateLiveSessionStatuses } from "@/sync/live-aggregate"
 import { getPermissionAlwaysPatterns } from "@/lib/permissions/permissionPayload"
 import { canAlwaysAllow, requestRiskRank } from "@/lib/supervision/requestRisk"
 
@@ -140,10 +141,13 @@ export const buildTraySnapshotFromStores = (): TraySnapshot => {
   const errorBySession: Record<string, boolean | undefined> = {}
   try {
     const stores = getSyncChildStores()
-    for (const store of stores.children.values()) {
-      for (const [sessionId, status] of Object.entries(store.getState().session_status ?? {})) {
-        statusBySession[sessionId] = status?.type
-      }
+    // Several child stores can hold one session after a project move; the last
+    // entry must not overwrite a newer busy status with a stale idle one.
+    const statuses = aggregateLiveSessionStatuses(
+      Array.from(stores.children.values(), (store) => store.getState()),
+    )
+    for (const [sessionId, status] of Object.entries(statuses)) {
+      statusBySession[sessionId] = status?.type
     }
   } catch {
     // Sync not mounted yet — the snapshot is simply empty until it is.

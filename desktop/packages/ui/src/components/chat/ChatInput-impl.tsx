@@ -2914,8 +2914,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     clearAbortPrompt()
     startAbortIndicator()
 
-    void abortCurrentOperation(currentSessionId || undefined)
-  }, [abortCurrentOperation, clearAbortPrompt, currentSessionId, startAbortIndicator])
+    const abortedSessionId = currentSessionId
+    void abortCurrentOperation(abortedSessionId || undefined).finally(() => {
+      // The prompt was cleared above, so the effect that normally acknowledges
+      // the flag can never see it again. Without this, the unacknowledged flag
+      // suppresses the working indicator for the next turn.
+      if (abortedSessionId) acknowledgeSessionAbort(abortedSessionId)
+    })
+  }, [abortCurrentOperation, acknowledgeSessionAbort, clearAbortPrompt, currentSessionId, startAbortIndicator])
 
   const handleCycleAgent = React.useCallback(
     (direction: 1 | -1 = 1) => {

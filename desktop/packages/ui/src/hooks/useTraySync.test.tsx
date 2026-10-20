@@ -19,6 +19,7 @@ const defaultPermissions = () => [
   { id: "perm-1", sessionID: "root-1", permission: "Bash", patterns: ["rm -rf x"], always: [] as string[] },
 ]
 let trayPermissions: Array<Record<string, unknown>> = defaultPermissions()
+let extraChildState: (() => Record<string, unknown>) | null = null
 
 vi.doMock("@/sync/sync-refs", () => ({
   getAllSyncSessions: () => syncSessions,
@@ -28,12 +29,14 @@ vi.doMock("@/sync/sync-refs", () => ({
         "/repo",
         {
           getState: () => ({
+            session: syncSessions,
             session_status: { "root-1": { type: "busy" } },
             permission: { "root-1": trayPermissions },
             question: {},
           }),
         },
       ],
+      ...(extraChildState ? [["/extra", { getState: extraChildState }] as const] : []),
     ]),
   }),
 }))
@@ -71,6 +74,7 @@ describe("useTraySync", () => {
     })
     useGitStore.setState({ directories: new Map() })
     trayPermissions = defaultPermissions()
+    extraChildState = null
   })
 
   afterEach(() => {
@@ -105,6 +109,21 @@ describe("useTraySync", () => {
     expect(snapshot.approvals).toHaveLength(1)
 
     expect(invokeCalls().some((call) => call[0] === "desktop_set_badge_count")).toBe(true)
+  })
+
+  test("keeps a busy status when another store holds a stale idle copy", async () => {
+    extraChildState = () => ({
+      session: syncSessions,
+      session_status: { "root-1": { type: "idle" } },
+      permission: {},
+      question: {},
+    })
+
+    await render()
+
+    const trayCall = invokeCalls().find((call) => call[0] === "desktop_tray_update")
+    const snapshot = trayCall?.[1] as { sessions: Array<{ id: string; status: string }> }
+    expect(snapshot.sessions[0]).toMatchObject({ id: "root-1", status: "busy" })
   })
 
   test("lists a must-decide approval first and never offers allow-always for it", async () => {
