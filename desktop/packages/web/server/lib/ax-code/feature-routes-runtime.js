@@ -3,8 +3,7 @@ import { createCoreFileAdapter } from "../fs/core-file-adapter.js"
 import { registerQuotaRoutes } from "../quota/routes.js"
 import { registerGitHubRoutes } from "../github/routes.js"
 import { registerGitRoutes } from "../git/routes.js"
-import { disposeRuntimeInstance } from "../git/dispose-runtime-instance.js"
-import { readRuntimeProjectStartCommand } from "../git/project-start-command.js"
+import { createWorktreeRuntimeClientFactory } from "../git/worktree-runtime-client.js"
 import { readRuntimeAgentNames } from "./runtime-agent-list.js"
 import { registerMagicPromptRoutes } from "../magic-prompts/routes.js"
 import { registerSessionFoldersRoutes } from "../session-folders/routes.js"
@@ -64,6 +63,7 @@ export const createFeatureRoutesRuntime = (dependencies) => {
       buildAxCodeUrl,
       getAxCodeAuthHeaders,
       getAxCodePort,
+      globalEventHub,
       buildAugmentedPath,
     } = routeDependencies
 
@@ -308,10 +308,8 @@ export const createFeatureRoutesRuntime = (dependencies) => {
     registerQuotaRoutes(app, { getQuotaProviders })
     registerGitHubRoutes(app)
     registerGitRoutes(app, {
-      disposeInstance: (worktreeDirectory) =>
-        disposeRuntimeInstance({ directory: worktreeDirectory, buildAxCodeUrl, getAxCodeAuthHeaders }),
-      readProjectStartCommand: (projectID) =>
-        readRuntimeProjectStartCommand({ projectID, buildAxCodeUrl, getAxCodeAuthHeaders }),
+      getWorktreeClient: createWorktreeRuntimeClientFactory({ buildAxCodeUrl, getAxCodeAuthHeaders }),
+      globalEventHub,
     })
     registerMagicPromptRoutes(app, {
       fsPromises,

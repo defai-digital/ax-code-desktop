@@ -1428,6 +1428,7 @@ async function main(options = {}) {
   uiAuthController = bootstrapResult.uiAuthController
 
   await featureRoutesRuntime.registerRoutes(app, {
+    globalEventHub: globalMessageStreamHub,
     crypto,
     fs,
     os,

@@ -12,6 +12,8 @@ This module provides Git repository operations for the web server runtime, inclu
   - `service.js`: Core Git operations (repository, branch, worktree, commit, merge/rebase, status/diff, log).
   - `credentials.js`: Git credentials management.
   - `identity-storage.js`: Git identity (user.name, user.email) storage.
+  - `worktree-runtime-client.js`: The AX Code SDK client factory for runtime-owned worktree operations, and the
+    subscription that feeds `worktree.ready` / `worktree.failed` runtime events to the service.
 
 ## Public API
 
@@ -51,8 +53,17 @@ The following functions are exported and used by the web server:
 
 - `getWorktrees(directory)`: List all git worktrees for a repository.
 - `validateWorktreeCreate(directory, input)`: Validate worktree creation parameters (mode, branchName, startRef, upstream config).
-- `createWorktree(directory, input)`: Create a new worktree (supports 'new' and 'existing' modes, upstream setup).
-- `removeWorktree(directory, input)`: Remove a worktree (optionally delete local branch).
+- `previewWorktreeCreate(directory, input)`: Report the name and branch a create will ask for. The path is empty: the
+  runtime chooses it.
+- `createWorktree(directory, input, deps)`: Create a worktree through the runtime (`deps.getWorktreeClient(directory)`
+  returns the SDK client; ADR-020). Desktop only adds or updates a fork remote, fetches the remote ref and sets the
+  upstream; the runtime runs `git worktree add`, records the sandbox and runs the start scripts.
+- `getWorktreeBootstrapStatus(directory)`: `pending` from the create until the runtime's `worktree.ready` or
+  `worktree.failed` event; `ready` for a directory this server did not create.
+- `recordWorktreeRuntimeEvent({ directory, payload })`: Project a runtime worktree event onto the bootstrap status.
+- `removeWorktree(directory, input, deps)`: Remove a worktree through the runtime. The runtime deletes only the
+  branches it owns; with `deleteLocalBranch` a kept branch is reported as `{ removed: true, branchDeleted: false,
+  warning }`.
 - `isLinkedWorktree(directory)`: Check if directory is a linked worktree (not primary).
 
 ### Commit and Remote Operations
@@ -101,7 +112,6 @@ The following functions are internal helpers used by exported functions:
 - `cleanBranchName(branch)`: Remove refs/heads/ or refs/ prefixes.
 - `parseWorktreePorcelain(raw)`: Parse `git worktree list --porcelain` output.
 - `resolveWorktreeProjectContext(directory)`: Resolve project context (projectID, primaryWorktree, worktreeRoot).
-- `resolveCandidateDirectory(...)`: Generate unique worktree directory candidates.
 - `resolveBranchForExistingMode(...)`: Resolve branch for existing-mode worktree creation.
 - `applyUpstreamConfiguration(...)`: Set upstream tracking for new branches.
 - And various other internal helpers for Git command execution and parsing.
@@ -161,9 +171,10 @@ The following functions are internal helpers used by exported functions:
 
 ### Worktree Naming
 
-- Worktree names are slugified via `slugWorktreeName`.
-- Random names use adjectives/nouns from `AX_CODE_ADJECTIVES` and `AX_CODE_NOUNS` lists.
-- Branches created for new worktrees use `openchamber/<worktree-name>` pattern.
+- The runtime chooses worktree names, locations and default branches (`ax-code/<worktree-name>`).
+  `slugWorktreeName` mirrors its name slug for the preview only.
+- Worktrees an older Desktop created (branch `openchamber/<worktree-name>`) are removed by the runtime like any other
+  linked worktree; their branches are not runtime-owned and are kept.
 
 ### Cross-Platform Considerations
 

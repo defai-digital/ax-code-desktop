@@ -17,6 +17,8 @@ const gitLibraries = {
   deleteBranch: vi.fn(),
   renameBranch: vi.fn(),
   createWorktree: vi.fn(),
+  removeWorktree: vi.fn(),
+  recordWorktreeRuntimeEvent: vi.fn(),
   stashApply: vi.fn(),
   stashPop: vi.fn(),
   stashDrop: vi.fn(),
@@ -39,6 +41,8 @@ vi.doMock("./index.js", () => ({
   deleteBranch: gitLibraries.deleteBranch,
   renameBranch: gitLibraries.renameBranch,
   createWorktree: gitLibraries.createWorktree,
+  removeWorktree: gitLibraries.removeWorktree,
+  recordWorktreeRuntimeEvent: gitLibraries.recordWorktreeRuntimeEvent,
   stashApply: gitLibraries.stashApply,
   stashPop: gitLibraries.stashPop,
   stashDrop: gitLibraries.stashDrop,
@@ -387,21 +391,64 @@ describe("git repository hints route", () => {
 })
 
 describe("git worktree routes", () => {
-  it("hands worktree creation the runtime-backed project start command reader", async () => {
-    // The project's start command lives in the runtime, which only the route layer can reach.
+  beforeEach(() => {
+    gitLibraries.createWorktree.mockReset()
+    gitLibraries.removeWorktree.mockReset()
+    gitLibraries.recordWorktreeRuntimeEvent.mockReset()
+  })
+
+  it("hands worktree creation the runtime client factory", async () => {
+    // ADR-020: the runtime creates worktrees, and only the route layer can reach it.
     const { app, getRoute } = createRouteRegistry()
-    const readProjectStartCommand = vi.fn(async () => "pnpm install")
-    registerGitRoutes(app, { readProjectStartCommand })
+    const getWorktreeClient = vi.fn()
+    registerGitRoutes(app, { getWorktreeClient })
     const response = createMockResponse()
-    gitLibraries.createWorktree.mockResolvedValue({ directory: "/repo/.worktrees/feat" })
+    gitLibraries.createWorktree.mockResolvedValue({ head: "", name: "feat", branch: "feat", path: "/data/feat" })
 
-    await getRoute("POST", "/api/git/worktrees")({ query: { directory: "/repo" }, body: { branch: "feat" } }, response)
+    await getRoute("POST", "/api/git/worktrees")({ query: { directory: "/repo" }, body: { branchName: "feat" } }, response)
 
-    expect(gitLibraries.createWorktree).toHaveBeenCalledWith("/repo", {
-      branch: "feat",
-      readProjectStartCommand,
-    })
+    expect(gitLibraries.createWorktree).toHaveBeenCalledWith("/repo", { branchName: "feat" }, { getWorktreeClient })
     expect(response.statusCode).toBe(200)
+    expect(response.body).toEqual({ head: "", name: "feat", branch: "feat", path: "/data/feat" })
+  })
+
+  it("answers removal with the branch the runtime kept", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const getWorktreeClient = vi.fn()
+    registerGitRoutes(app, { getWorktreeClient })
+    const response = createMockResponse()
+    gitLibraries.removeWorktree.mockResolvedValue({ removed: true, branchDeleted: false, warning: "Kept feat" })
+
+    await getRoute("DELETE", "/api/git/worktrees")(
+      { query: { directory: "/repo" }, body: { directory: "/data/feat", deleteLocalBranch: true } },
+      response,
+    )
+
+    expect(gitLibraries.removeWorktree).toHaveBeenCalledWith(
+      "/repo",
+      { directory: "/data/feat", deleteLocalBranch: true },
+      { getWorktreeClient },
+    )
+    expect(response.body).toEqual({ success: true, warning: "Kept feat" })
+  })
+
+  it("feeds the runtime's worktree bootstrap events to the git service", async () => {
+    const { app } = createRouteRegistry()
+    let subscriber = null
+    const globalEventHub = { subscribeEvent: vi.fn((fn) => (subscriber = fn)) }
+    registerGitRoutes(app, { globalEventHub })
+
+    await subscriber({
+      directory: "/data/feat",
+      payload: { type: "worktree.failed", properties: { message: "install failed" } },
+    })
+    await subscriber({ directory: "/repo", payload: { type: "session.status", properties: {} } })
+
+    expect(gitLibraries.recordWorktreeRuntimeEvent).toHaveBeenCalledTimes(1)
+    expect(gitLibraries.recordWorktreeRuntimeEvent).toHaveBeenCalledWith({
+      directory: "/data/feat",
+      payload: { type: "worktree.failed", properties: { message: "install failed" } },
+    })
   })
 })
 

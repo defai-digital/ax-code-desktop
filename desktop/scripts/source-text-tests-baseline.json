@@ -40,6 +40,5 @@
   "packages/ui/src/lib/turnNextStep.test.ts",
   "packages/ui/src/sync/pendingToastWiring.source.test.ts",
   "packages/web/server/lib/desktop-owned-routes.test.js",
-  "packages/web/server/lib/git/service.test.js",
   "packages/web/server/lib/security/request-security-mounts.test.js"
 ]

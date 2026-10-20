@@ -1,5 +1,4 @@
 import { execFileSync } from "node:child_process"
-import { readFile } from "node:fs/promises"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -22,6 +21,8 @@ import {
   getStatus,
   getWorktreeBootstrapStatus,
   getWorktrees,
+  previewWorktreeCreate,
+  recordWorktreeRuntimeEvent,
   isGitRepository,
   isRefusedRepositoryRoot,
   leavesRepositoryRoot,
@@ -949,145 +950,6 @@ describe("checkoutBranch", () => {
 })
 
 // ---------------------------------------------------------------------------
-// removeWorktree
-// ---------------------------------------------------------------------------
-
-describe("removeWorktree", () => {
-  it("removes the worktree and reports a branch it could not delete", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-    runGit(repo, ["branch", "feat"])
-
-    // Two worktrees on the same branch: git refuses to delete a branch that another
-    // worktree still has checked out, which is what makes `branch -D` fail after the
-    // first worktree is removed.
-    const target = path.join(repo, ".worktrees", "target")
-    const other = path.join(repo, ".worktrees", "other")
-    runGit(repo, ["worktree", "add", "--force", target, "feat"])
-    runGit(repo, ["worktree", "add", "--force", other, "feat"])
-
-    const result = await removeWorktree(repo, { directory: target, deleteLocalBranch: true })
-
-    // The worktree is gone, so the call reports success and says why the branch stayed.
-    expect(result).toMatchObject({ removed: true, branchDeleted: false })
-    expect(String(result.warning)).toContain("feat")
-    expect(fs.existsSync(target)).toBe(false)
-    expect(runGit(repo, ["branch", "--list", "feat"])).toContain("feat")
-  })
-
-  it("asks the runtime to release the worktree's instance before removing it", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-
-    const target = path.join(repo, ".worktrees", "disposed")
-    runGit(repo, ["worktree", "add", "-b", "disposed", target])
-
-    const disposed = []
-    const result = await removeWorktree(repo, {
-      directory: target,
-      disposeInstance: async (directory) => {
-        // The directory has to still exist when the runtime is asked to release it.
-        disposed.push({ directory, existed: fs.existsSync(directory) })
-      },
-    })
-
-    expect(result).toBe(true)
-    expect(disposed).toEqual([{ directory: target, existed: true }])
-    expect(fs.existsSync(target)).toBe(false)
-  })
-
-  it("removes the worktree even when releasing its instance fails", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-
-    const target = path.join(repo, ".worktrees", "stubborn")
-    runGit(repo, ["worktree", "add", "-b", "stubborn", target])
-
-    const result = await removeWorktree(repo, {
-      directory: target,
-      disposeInstance: async () => {
-        throw new Error("runtime is not running")
-      },
-    })
-
-    expect(result).toBe(true)
-    expect(fs.existsSync(target)).toBe(false)
-  })
-
-  it("refuses to remove the worktree root itself", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-
-    const previousXdgDataHome = process.env.XDG_DATA_HOME
-    process.env.XDG_DATA_HOME = createTempDir()
-    try {
-      const created = await createWorktree(repo, {
-        mode: "new",
-        branchName: "feature/root-guard",
-        worktreeName: "root-guard",
-      })
-      const worktreeRoot = path.dirname(created.path)
-
-      await removeWorktree(repo, { directory: created.path })
-
-      await expect(removeWorktree(repo, { directory: worktreeRoot })).rejects.toThrow(/worktree root/)
-      expect(fs.existsSync(worktreeRoot)).toBe(true)
-    } finally {
-      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
-      else process.env.XDG_DATA_HOME = previousXdgDataHome
-    }
-  })
-
-  it("deletes the branch when it is only checked out in the removed worktree", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-
-    const target = path.join(repo, ".worktrees", "solo")
-    runGit(repo, ["worktree", "add", "-b", "solo", target])
-
-    const result = await removeWorktree(repo, { directory: target, deleteLocalBranch: true })
-
-    expect(result).toBe(true)
-    expect(runGit(repo, ["branch", "--list", "solo"]).trim()).toBe("")
-  })
-})
-
-// ---------------------------------------------------------------------------
 // getFileDiff
 // ---------------------------------------------------------------------------
 
@@ -1246,53 +1108,6 @@ describe("getStatus diff stats", () => {
 })
 
 // ---------------------------------------------------------------------------
-// createWorktree start scripts
-// ---------------------------------------------------------------------------
-
-describe("createWorktree start scripts", () => {
-  it("runs the project start command the runtime keeps, in the new worktree", async () => {
-    if (!canRunGit()) return
-
-    const repo = createTempDir()
-    runGit(repo, ["init", "-b", "main"])
-    runGit(repo, ["config", "user.email", "test@example.com"])
-    runGit(repo, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
-    runGit(repo, ["add", "README.md"])
-    runGit(repo, ["commit", "-m", "Initial commit"])
-
-    const previousXdgDataHome = process.env.XDG_DATA_HOME
-    process.env.XDG_DATA_HOME = createTempDir()
-    const markerScript = path.join(createTempDir(), "project-start.cjs")
-    fs.writeFileSync(markerScript, "require('node:fs').writeFileSync('START_RAN', process.cwd());\n")
-    const askedFor = []
-
-    try {
-      const created = await createWorktree(repo, {
-        mode: "new",
-        branchName: "feature/project-start",
-        worktreeName: "project-start",
-        // The project's start command lives in the runtime; the route layer hands this reader in.
-        readProjectStartCommand: async (projectID) => {
-          askedFor.push(projectID)
-          return `${JSON.stringify(process.execPath)} ${JSON.stringify(markerScript)}`
-        },
-      })
-
-      await expect
-        .poll(async () => (await getWorktreeBootstrapStatus(created.path)).status, { timeout: 15000 })
-        .toBe("ready")
-
-      expect(fs.readFileSync(path.join(created.path, "START_RAN"), "utf8")).toBe(fs.realpathSync(created.path))
-      expect(askedFor).toEqual([expect.any(String)])
-    } finally {
-      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
-      else process.env.XDG_DATA_HOME = previousXdgDataHome
-    }
-  })
-})
-
-// ---------------------------------------------------------------------------
 // commit with a selection
 // ---------------------------------------------------------------------------
 
@@ -1400,34 +1215,6 @@ describe("commit with selected files", () => {
     // removed, and the logged failure silently left the addition untracked.
     expect(runGit(repo, ["status", "--porcelain"]).trim()).toContain("A  new.txt")
     expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
-  })
-})
-
-// ---------------------------------------------------------------------------
-// createWorktree bootstrap ownership
-// ---------------------------------------------------------------------------
-
-describe("createWorktree bootstrap ownership", () => {
-  it("checks the run's ownership after every suspension that can precede a side effect", async () => {
-    // The run's awaits are the points where its worktree can be removed and re-created under the same
-    // name. Each side effect (git reset, the upstream configuration, the project's start scripts, the
-    // recorded state) has to be preceded by the ownership check; the upstream fetch is a network round
-    // trip, so a check before it alone left the start scripts unguarded.
-    const source = await readFile(path.resolve(__dirname, "service.js"), "utf8")
-    const queue = source.slice(source.indexOf("const queueWorktreeBootstrap = (args) => {"))
-    const run = queue.slice(0, queue.indexOf("const ensureRemoteWithUrl"))
-
-    const check = (before, after) => expect(run.indexOf(before)).toBeLessThan(run.indexOf(after, run.indexOf(before)))
-
-    check("if (!isCurrentBootstrap())", 'runGitCommandOrThrow(directory, ["reset", "--hard"]')
-    check("if (!isCurrentBootstrap())", "applyUpstreamConfiguration({")
-    // The upstream step awaits a network fetch; the guard has to follow it, not only precede it.
-    const upstreamIdx = run.indexOf("applyUpstreamConfiguration({")
-    const guardAfterUpstream = run.indexOf("if (!isCurrentBootstrap())", upstreamIdx)
-    const startScriptsIdx = run.indexOf("runWorktreeStartScripts(directory, projectID")
-    expect(guardAfterUpstream).toBeGreaterThan(-1)
-    expect(guardAfterUpstream).toBeLessThan(startScriptsIdx)
-    check("if (!isCurrentBootstrap())", "setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)")
   })
 })
 
@@ -1633,55 +1420,6 @@ describe("continueRebase on a step that resolved to nothing", () => {
     expect(fs.existsSync(path.join(repo, ".git", "rebase-apply"))).toBe(false)
     expect(fs.existsSync(path.join(repo, ".git", "rebase-merge"))).toBe(false)
     expect(runGit(repo, ["status", "--porcelain"]).trim()).toBe("")
-  })
-})
-
-describe("createWorktree from a bare repository", () => {
-  it("creates a worktree instead of refusing to resolve a top level", async () => {
-    if (!canRunGit()) return
-
-    const source = createTempDir()
-    runGit(source, ["init", "-b", "main"])
-    runGit(source, ["config", "user.email", "test@example.com"])
-    runGit(source, ["config", "user.name", "Test User"])
-    fs.writeFileSync(path.join(source, "README.md"), "# Test\n")
-    runGit(source, ["add", "README.md"])
-    runGit(source, ["commit", "-m", "Initial commit"])
-
-    // A bare checkout answers `rev-parse --show-toplevel` with "fatal: this operation must be run in a
-    // work tree", which the worktree context read as "not a repository" and refused every worktree
-    // operation on it.
-    const bare = createTempDir()
-    runGit(bare, ["init", "--bare", "-b", "main"])
-    runGit(source, ["remote", "add", "origin", bare])
-    runGit(source, ["push", "-q", "origin", "main"])
-
-    const previousXdgDataHome = process.env.XDG_DATA_HOME
-    process.env.XDG_DATA_HOME = createTempDir()
-    try {
-      const created = await createWorktree(bare, {
-        mode: "new",
-        branchName: "feature/bare",
-        worktreeName: "bare-wt",
-      })
-
-      // The checkout itself is the bootstrap's job.
-      await expect
-        .poll(async () => (await getWorktreeBootstrapStatus(created.path)).status, { timeout: 15000 })
-        .toBe("ready")
-
-      expect(fs.existsSync(path.join(created.path, "README.md"))).toBe(true)
-      expect(runGit(created.path, ["rev-parse", "--abbrev-ref", "HEAD"]).trim()).toBe("feature/bare")
-
-      // Listing ran from the bare repository, which lists itself as a worktree: it has none to check out
-      // and must not be offered as one, while the worktree just created must be.
-      const listed = (await getWorktrees(bare)).map((entry) => fs.realpathSync(entry.path))
-      expect(listed).toContain(fs.realpathSync(created.path))
-      expect(listed).not.toContain(fs.realpathSync(bare))
-    } finally {
-      if (previousXdgDataHome === undefined) delete process.env.XDG_DATA_HOME
-      else process.env.XDG_DATA_HOME = previousXdgDataHome
-    }
   })
 })
 
@@ -2070,5 +1808,448 @@ describe("push publish path", () => {
 
     const attempts = fs.existsSync(attemptFile) ? fs.readFileSync(attemptFile, "utf8").trim().split("\n") : []
     expect(attempts).toHaveLength(1)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Runtime-owned worktrees (ADR-020, runtime worktree migration v1)
+// ---------------------------------------------------------------------------
+
+const resolveRealGit = () => {
+  if (process.platform === "win32") return "git"
+  return execFileSync("sh", ["-c", "command -v git"], { encoding: "utf8" }).trim()
+}
+
+const initWorktreeRepo = () => {
+  const repo = createTempDir()
+  runGit(repo, ["init", "-b", "main"])
+  runGit(repo, ["config", "user.email", "test@example.com"])
+  runGit(repo, ["config", "user.name", "Test User"])
+  fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+  runGit(repo, ["add", "README.md"])
+  runGit(repo, ["commit", "-m", "Initial commit"])
+  return repo
+}
+
+/**
+ * A stand-in for the runtime's `worktree` SDK namespace. It records every call and performs the git
+ * work the runtime would, through the absolute git binary, so the recording git wrapper on PATH sees
+ * only what the Desktop service itself runs.
+ */
+const createStubRuntime = (options = {}) => {
+  const realGit = resolveRealGit()
+  const dataRoot = createTempDir()
+  const calls = { create: [], remove: [], directories: [] }
+  const ownedBranches = new Set()
+  const client = {
+    worktree: {
+      async create(params) {
+        calls.create.push(params)
+        if (options.createResult) return options.createResult(params)
+        const input = params.worktreeCreateInput
+        const name = String(input.name || "stub")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+        const directory = path.join(dataRoot, name)
+        const branch = input.existingBranch || input.branch || `ax-code/${name}`
+        const args = input.existingBranch
+          ? ["worktree", "add", directory, input.existingBranch]
+          : ["worktree", "add", "-b", branch, directory, ...(input.startRef ? [input.startRef] : [])]
+        execFileSync(realGit, args, { cwd: params.directory, stdio: "ignore" })
+        if (!input.existingBranch) ownedBranches.add(branch)
+        options.beforeCreateAnswers?.(directory)
+        return { data: { name, branch, directory } }
+      },
+      async remove(params) {
+        calls.remove.push(params)
+        if (options.removeResult) return options.removeResult(params)
+        const target = params.worktreeRemoveInput.directory
+        const branch = execFileSync(realGit, ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: target, encoding: "utf8" }).trim()
+        execFileSync(realGit, ["worktree", "remove", "--force", target], { cwd: params.directory, stdio: "ignore" })
+        // Like the runtime (ADR-260): a branch marked borrowed is never deleted.
+        let borrowed = ""
+        try {
+          borrowed = execFileSync(realGit, ["config", "--get", `branch.${branch}.axCodeBorrowed`], {
+            cwd: params.directory,
+            encoding: "utf8",
+          }).trim()
+        } catch {}
+        if (ownedBranches.has(branch) && borrowed !== branch) {
+          execFileSync(realGit, ["branch", "-D", branch], { cwd: params.directory, stdio: "ignore" })
+        }
+        return { data: true }
+      },
+    },
+  }
+  return {
+    calls,
+    dataRoot,
+    getWorktreeClient: (directory) => {
+      calls.directories.push(directory)
+      return client
+    },
+  }
+}
+
+/** Run `fn` with a `git` on PATH that logs each invocation's arguments, and return those lines. */
+const recordGitInvocations = async (fn) => {
+  const realGit = resolveRealGit()
+  const binDir = createTempDir()
+  const logFile = path.join(createTempDir(), "git.log")
+  fs.writeFileSync(logFile, "")
+  const wrapper = path.join(binDir, "git")
+  fs.writeFileSync(wrapper, `#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(logFile)}\nexec ${JSON.stringify(realGit)} "$@"\n`)
+  fs.chmodSync(wrapper, 0o755)
+  const previousPath = process.env.PATH
+  process.env.PATH = `${binDir}${path.delimiter}${previousPath}`
+  try {
+    const result = await fn()
+    return { result, invocations: fs.readFileSync(logFile, "utf8").split("\n").filter(Boolean) }
+  } finally {
+    process.env.PATH = previousPath
+  }
+}
+
+describe("createWorktree through the runtime", () => {
+  it("maps a new worktree to a runtime create with its branch and start ref", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    runGit(repo, ["branch", "base"])
+    const runtime = createStubRuntime()
+
+    const created = await createWorktree(
+      repo,
+      { mode: "new", worktreeName: "Feature One", branchName: "feature/one", startRef: "base", startCommand: " pnpm i " },
+      runtime,
+    )
+
+    expect(runtime.calls.create).toEqual([
+      {
+        directory: fs.realpathSync(repo),
+        worktreeCreateInput: {
+          name: "Feature One",
+          branch: "feature/one",
+          startRef: "base",
+          startCommand: "pnpm i",
+          operationId: expect.any(String),
+        },
+      },
+    ])
+    expect(created).toEqual({
+      head: runGit(repo, ["rev-parse", "base"]).trim(),
+      name: "feature-one",
+      branch: "feature/one",
+      path: path.join(runtime.dataRoot, "feature-one"),
+    })
+  })
+
+  it("leaves the branch and start ref to the runtime when none is asked for", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "plain", startRef: "HEAD" }, runtime)
+
+    expect(runtime.calls.create[0].worktreeCreateInput).toEqual({ name: "plain", operationId: expect.any(String) })
+    expect(created.branch).toBe("ax-code/plain")
+  })
+
+  it("borrows an existing local branch", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    runGit(repo, ["branch", "topic"])
+    const runtime = createStubRuntime()
+
+    const created = await createWorktree(repo, { mode: "existing", existingBranch: "topic", worktreeName: "t" }, runtime)
+
+    expect(runtime.calls.create[0].worktreeCreateInput).toEqual({
+      name: "t",
+      existingBranch: "topic",
+      operationId: expect.any(String),
+    })
+    expect(created.branch).toBe("topic")
+  })
+
+  it("starts a new local branch from a remote branch and sets its upstream after the create", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const remote = createTempDir()
+    runGit(remote, ["init", "--bare", "-b", "main"])
+    runGit(repo, ["remote", "add", "origin", remote])
+    runGit(repo, ["branch", "remote-only"])
+    runGit(repo, ["push", "-q", "origin", "remote-only"])
+    runGit(repo, ["branch", "-D", "remote-only"])
+    const runtime = createStubRuntime()
+
+    const created = await createWorktree(
+      repo,
+      { mode: "existing", existingBranch: "origin/remote-only", worktreeName: "r", setUpstream: true },
+      runtime,
+    )
+
+    expect(runtime.calls.create[0].worktreeCreateInput).toEqual({
+      name: "r",
+      branch: "remote-only",
+      startRef: "origin/remote-only",
+      operationId: expect.any(String),
+    })
+    expect(runGit(created.path, ["rev-parse", "--abbrev-ref", "remote-only@{upstream}"]).trim()).toBe(
+      "origin/remote-only",
+    )
+  })
+
+  it("sends a fresh operation ID with every create", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+
+    await createWorktree(repo, { mode: "new", worktreeName: "first" }, runtime)
+    await createWorktree(repo, { mode: "new", worktreeName: "second" }, runtime)
+
+    const [first, second] = runtime.calls.create.map((call) => call.worktreeCreateInput.operationId)
+    expect(first.length).toBeGreaterThan(0)
+    expect(first.length).toBeLessThanOrEqual(128)
+    expect(second).not.toBe(first)
+  })
+
+  it.each([
+    [{ name: "WorktreeCreateFailedError", message: "Branch feat already exists", status: 400 }],
+    [{ name: "WorktreeCreateFailedError", data: { message: "Branch feat already exists" } }],
+  ])("surfaces the runtime's refusal (%o)", async (error) => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime({ createResult: () => ({ error, response: { status: 400 } }) })
+
+    await expect(createWorktree(repo, { mode: "new", branchName: "feat" }, runtime)).rejects.toThrow(
+      "Branch feat already exists",
+    )
+  })
+
+  it("refuses to create a worktree without a runtime client", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+
+    await expect(createWorktree(repo, { mode: "new" })).rejects.toThrow(/runtime is not available/)
+  })
+
+  it("creates from a bare repository, which the runtime is asked about directly", async () => {
+    if (!canRunGit()) return
+    const source = initWorktreeRepo()
+    // A bare checkout answers `rev-parse --show-toplevel` with "fatal: this operation must be run in a
+    // work tree", which the worktree context used to read as "not a repository".
+    const bare = createTempDir()
+    runGit(bare, ["init", "--bare", "-b", "main"])
+    runGit(source, ["remote", "add", "origin", bare])
+    runGit(source, ["push", "-q", "origin", "main"])
+    const runtime = createStubRuntime()
+
+    const created = await createWorktree(bare, { mode: "new", branchName: "feature/bare", worktreeName: "bare-wt" }, runtime)
+
+    expect(fs.realpathSync(runtime.calls.create[0].directory)).toBe(fs.realpathSync(bare))
+    // Listing ran from the bare repository, which lists itself as a worktree: it has none to check out
+    // and must not be offered as one, while the worktree just created must be.
+    const listed = (await getWorktrees(bare)).map((entry) => fs.realpathSync(entry.path))
+    expect(listed).toContain(fs.realpathSync(created.path))
+    expect(listed).not.toContain(fs.realpathSync(bare))
+  })
+
+  it("runs no git worktree add itself", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+    const repo = initWorktreeRepo()
+    runGit(repo, ["branch", "topic"])
+    const runtime = createStubRuntime()
+
+    const { invocations } = await recordGitInvocations(async () => {
+      await createWorktree(repo, { mode: "new", worktreeName: "a", branchName: "feature/a" }, runtime)
+      await createWorktree(repo, { mode: "existing", existingBranch: "topic", worktreeName: "b" }, runtime)
+    })
+
+    expect(invocations.length).toBeGreaterThan(0)
+    expect(invocations.filter((line) => line.startsWith("worktree add"))).toEqual([])
+    expect(runtime.calls.create).toHaveLength(2)
+  })
+
+  it("previews the name and branch without guessing the runtime's path", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+
+    expect(await previewWorktreeCreate(repo, { mode: "new", worktreeName: "My Change" })).toEqual({
+      name: "my-change",
+      branch: "ax-code/my-change",
+      path: "",
+    })
+    expect(await previewWorktreeCreate(repo, { mode: "new", worktreeName: "x", branchName: "feat/x" })).toEqual({
+      name: "x",
+      branch: "feat/x",
+      path: "",
+    })
+  })
+})
+
+describe("worktree bootstrap status from runtime events", () => {
+  it("is pending after the create and ready on worktree.ready", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "ready-wt" }, runtime)
+
+    expect((await getWorktreeBootstrapStatus(created.path)).status).toBe("pending")
+
+    // Another directory's event changes nothing.
+    recordWorktreeRuntimeEvent({ directory: repo, payload: { type: "worktree.ready", properties: {} } })
+    expect((await getWorktreeBootstrapStatus(created.path)).status).toBe("pending")
+
+    expect(
+      recordWorktreeRuntimeEvent({
+        directory: created.path,
+        payload: { type: "worktree.ready", properties: { name: created.name, branch: created.branch } },
+      }),
+    ).toBe(true)
+    expect(await getWorktreeBootstrapStatus(created.path)).toMatchObject({ status: "ready", error: null })
+  })
+
+  it("is failed with the runtime's message on worktree.failed", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "failed-wt" }, runtime)
+
+    recordWorktreeRuntimeEvent({
+      directory: created.path,
+      payload: { type: "worktree.failed", properties: { message: "Worktree start command failed" } },
+    })
+
+    expect(await getWorktreeBootstrapStatus(created.path)).toMatchObject({
+      status: "failed",
+      error: "Worktree start command failed",
+    })
+  })
+
+  it("keeps an event that arrived before the create answered", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime({
+      beforeCreateAnswers: (directory) =>
+        recordWorktreeRuntimeEvent({
+          directory,
+          payload: { type: "worktree.failed", properties: { message: "Failed to populate worktree" } },
+        }),
+    })
+
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "early-wt" }, runtime)
+
+    expect(await getWorktreeBootstrapStatus(created.path)).toMatchObject({
+      status: "failed",
+      error: "Failed to populate worktree",
+    })
+  })
+
+  it("answers ready for a directory it never created", async () => {
+    expect((await getWorktreeBootstrapStatus(path.join(os.tmpdir(), "never-created-worktree"))).status).toBe("ready")
+  })
+})
+
+describe("removeWorktree through the runtime", () => {
+  it("asks the runtime to remove the worktree for the primary checkout", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "gone" }, runtime)
+
+    const result = await removeWorktree(repo, { directory: created.path }, runtime)
+
+    expect(result).toBe(true)
+    expect(runtime.calls.remove).toEqual([
+      { directory: fs.realpathSync(repo), worktreeRemoveInput: { directory: created.path } },
+    ])
+    expect(fs.existsSync(created.path)).toBe(false)
+    // A re-created worktree at this path starts from a fresh status.
+    expect((await getWorktreeBootstrapStatus(created.path)).status).toBe("ready")
+  })
+
+  it("reports the branch the runtime kept when the local branch was to be deleted", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    runGit(repo, ["branch", "users-branch"])
+    const runtime = createStubRuntime()
+    const created = await createWorktree(
+      repo,
+      { mode: "existing", existingBranch: "users-branch", worktreeName: "borrowed" },
+      runtime,
+    )
+
+    const result = await removeWorktree(repo, { directory: created.path, deleteLocalBranch: true }, runtime)
+
+    expect(result).toMatchObject({ removed: true, branchDeleted: false })
+    expect(String(result.warning)).toContain("users-branch")
+    expect(runGit(repo, ["branch", "--list", "users-branch"])).toContain("users-branch")
+  })
+
+  it("keeps a runtime-created branch when the user did not ask to delete it", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "keep-me" }, runtime)
+    runGit(created.path, ["commit", "--allow-empty", "-m", "unmerged work"])
+    const tip = runGit(created.path, ["rev-parse", "HEAD"]).trim()
+
+    expect(await removeWorktree(repo, { directory: created.path }, runtime)).toBe(true)
+
+    expect(runGit(repo, ["rev-parse", created.branch]).trim()).toBe(tip)
+    expect(runGit(repo, ["config", "--get", `branch.${created.branch}.axCodeBorrowed`]).trim()).toBe(created.branch)
+  })
+
+  it("answers plainly when the runtime deleted the branch it owned", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const created = await createWorktree(repo, { mode: "new", worktreeName: "owned" }, runtime)
+
+    expect(await removeWorktree(repo, { directory: created.path, deleteLocalBranch: true }, runtime)).toBe(true)
+    expect(runGit(repo, ["branch", "--list", created.branch]).trim()).toBe("")
+  })
+
+  it("surfaces the runtime's refusal", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime({
+      removeResult: () => ({ error: { name: "WorktreeRemoveFailedError", message: "Worktree not found" } }),
+    })
+
+    await expect(
+      removeWorktree(repo, { directory: path.join(createTempDir(), "elsewhere") }, runtime),
+    ).rejects.toThrow("Worktree not found")
+  })
+
+  it("refuses to remove the primary workspace without asking the runtime", async () => {
+    if (!canRunGit()) return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+
+    await expect(removeWorktree(repo, { directory: repo }, runtime)).rejects.toThrow(/primary workspace/)
+    expect(runtime.calls.remove).toEqual([])
+  })
+
+  it("runs no git worktree remove or branch -D itself", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+    const repo = initWorktreeRepo()
+    runGit(repo, ["branch", "users-branch"])
+    const runtime = createStubRuntime()
+    const owned = await createWorktree(repo, { mode: "new", worktreeName: "owned" }, runtime)
+    const borrowed = await createWorktree(
+      repo,
+      { mode: "existing", existingBranch: "users-branch", worktreeName: "borrowed" },
+      runtime,
+    )
+
+    const { invocations } = await recordGitInvocations(async () => {
+      await removeWorktree(repo, { directory: owned.path, deleteLocalBranch: true }, runtime)
+      await removeWorktree(repo, { directory: borrowed.path, deleteLocalBranch: true }, runtime)
+    })
+
+    expect(invocations.length).toBeGreaterThan(0)
+    expect(invocations.filter((line) => line.startsWith("worktree remove"))).toEqual([])
+    expect(invocations.filter((line) => /^branch (-D|-d|--delete)\b/.test(line))).toEqual([])
+    expect(runtime.calls.remove).toHaveLength(2)
   })
 })

@@ -2,6 +2,7 @@ import fsPromises from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { inspectGitRepositories } from "./repository-scan.js"
+import { subscribeWorktreeRuntimeEvents } from "./worktree-runtime-client.js"
 
 // Revisions reach git as bare argv entries, and git parses a leading "-" as an option rather than a
 // revision — `to=--output=<path>` makes `git log` overwrite that file and report an empty history.
@@ -33,6 +34,16 @@ export function registerGitRoutes(app, options = {}) {
     }
     return gitLibraries
   }
+
+  // Worktrees are created and removed by the runtime (ADR-020): `getWorktreeClient(directory)` is
+  // its SDK client, and its `worktree.ready` / `worktree.failed` events drive the bootstrap status.
+  const worktreeDeps = { getWorktreeClient: options.getWorktreeClient }
+  subscribeWorktreeRuntimeEvents(options.globalEventHub, async (event) => {
+    const { recordWorktreeRuntimeEvent } = await getGitLibraries()
+    if (typeof recordWorktreeRuntimeEvent === "function") {
+      recordWorktreeRuntimeEvent(event)
+    }
+  })
 
   const parsePathPayload = (body) => {
     const { path, paths } = body || {}
@@ -1056,11 +1067,7 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: "directory parameter is required" })
       }
 
-      const created = await createWorktree(directory, {
-        ...(req.body || {}),
-        // The project's start command lives in the runtime, which the route layer can reach.
-        readProjectStartCommand: options.readProjectStartCommand,
-      })
+      const created = await createWorktree(directory, req.body || {}, worktreeDeps)
       res.json(created)
     } catch (error) {
       console.error("Failed to create worktree:", error)
@@ -1125,14 +1132,16 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: "worktree directory is required" })
       }
 
-      const result = await removeWorktree(directory, {
-        directory: worktreeDirectory,
-        deleteLocalBranch: req.body?.deleteLocalBranch === true,
-        // Best-effort: the runtime releases the instance that served this worktree.
-        disposeInstance: options.disposeInstance,
-      })
-      // The worktree is gone even when its local branch could not be deleted, so the
-      // call still succeeds and carries why the branch stayed behind.
+      const result = await removeWorktree(
+        directory,
+        {
+          directory: worktreeDirectory,
+          deleteLocalBranch: req.body?.deleteLocalBranch === true,
+        },
+        worktreeDeps,
+      )
+      // The worktree is gone even when its local branch was kept, so the call still
+      // succeeds and carries why the branch stayed behind.
       const warning = result && typeof result === "object" ? result.warning : undefined
       res.json({ success: Boolean(result), ...(warning ? { warning: String(warning) } : {}) })
     } catch (error) {

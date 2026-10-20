@@ -4,7 +4,7 @@ import path from "path"
 import os from "os"
 import { execFile, spawn } from "child_process"
 import { promisify } from "util"
-import { createWorktreeBootstrapGenerations } from "./worktree-bootstrap-generation.js"
+import { randomUUID } from "crypto"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 // The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
@@ -48,12 +48,6 @@ const toBootstrapStateKey = (directory) => {
   return path.resolve(normalized)
 }
 
-// Which bootstrap run owns a worktree directory: a bootstrap is queued behind a timer and then awaits
-// git and the project's start scripts, and the directory can be removed and re-created under the same
-// name before it finishes (the name is preferred), so an earlier run used to reset the new worktree's
-// checkout and report on a worktree it no longer owned.
-const worktreeBootstrapGenerations = createWorktreeBootstrapGenerations()
-
 const setWorktreeBootstrapState = (directory, status, error = null) => {
   const key = toBootstrapStateKey(directory)
   if (!key) {
@@ -66,15 +60,79 @@ const setWorktreeBootstrapState = (directory, status, error = null) => {
   })
 }
 
+// Runtime bootstrap events (`worktree.ready` / `worktree.failed`) for directories this server has no
+// state for yet. The runtime bootstraps right after `worktree.create` answers, so a fast failure can
+// reach the event stream before the create response is handled here; the create applies such an event
+// instead of overwriting it with "pending". Bounded, because agents create worktrees too.
+const RECENT_WORKTREE_RUNTIME_EVENT_LIMIT = 64
+const recentWorktreeRuntimeEvents = new Map()
+
+const rememberRecentWorktreeRuntimeEvent = (key, entry) => {
+  recentWorktreeRuntimeEvents.delete(key)
+  recentWorktreeRuntimeEvents.set(key, entry)
+  while (recentWorktreeRuntimeEvents.size > RECENT_WORKTREE_RUNTIME_EVENT_LIMIT) {
+    const oldestKey = recentWorktreeRuntimeEvents.keys().next().value
+    if (oldestKey === undefined) break
+    recentWorktreeRuntimeEvents.delete(oldestKey)
+  }
+}
+
 const clearWorktreeBootstrapState = (directory) => {
   const key = toBootstrapStateKey(directory)
   if (!key) {
     return
   }
   worktreeBootstrapState.delete(key)
-  // A bootstrap queued for this directory must not keep working on it: the worktree is going away,
-  // and its name is preferred when the next one is created, so the path is often reused.
-  worktreeBootstrapGenerations.invalidate(key)
+  recentWorktreeRuntimeEvents.delete(key)
+}
+
+/**
+ * Project a runtime global event onto the bootstrap status of the worktree it names.
+ *
+ * `event` is `{ directory, payload }`: the directory from the global event envelope and the
+ * `{ type, properties }` payload. Only `worktree.ready` and `worktree.failed` are read; the answer says
+ * whether a worktree created through this server was updated.
+ */
+export function recordWorktreeRuntimeEvent(event) {
+  const payload = event?.payload
+  const type = typeof payload?.type === "string" ? payload.type : ""
+  const status =
+    type === "worktree.ready" ? WORKTREE_BOOTSTRAP_READY : type === "worktree.failed" ? WORKTREE_BOOTSTRAP_FAILED : ""
+  if (!status) {
+    return false
+  }
+  const directory = typeof event?.directory === "string" ? event.directory.trim() : ""
+  if (!directory || directory === "global") {
+    return false
+  }
+  const key = toBootstrapStateKey(directory)
+  if (!key) {
+    return false
+  }
+  const message = typeof payload?.properties?.message === "string" ? payload.properties.message.trim() : ""
+  const error = status === WORKTREE_BOOTSTRAP_FAILED ? message || "Worktree bootstrap failed" : null
+  if (worktreeBootstrapState.has(key)) {
+    setWorktreeBootstrapState(key, status, error)
+    return true
+  }
+  rememberRecentWorktreeRuntimeEvent(key, { status, error, receivedAt: Date.now() })
+  return false
+}
+
+// Called when a create answers: "pending" until the runtime reports, unless it already did after the
+// create was sent.
+const startWorktreeBootstrapState = (directory, requestedAt) => {
+  const key = toBootstrapStateKey(directory)
+  if (!key) {
+    return
+  }
+  const early = recentWorktreeRuntimeEvents.get(key)
+  recentWorktreeRuntimeEvents.delete(key)
+  if (early && early.receivedAt >= requestedAt) {
+    setWorktreeBootstrapState(key, early.status, early.error)
+    return
+  }
+  setWorktreeBootstrapState(key, WORKTREE_BOOTSTRAP_PENDING)
 }
 
 const isExecutableFile = (candidate) => {
@@ -653,97 +711,19 @@ const cleanBranchName = (branch) => {
   return branch
 }
 
-const AX_CODE_ADJECTIVES = [
-  "brave",
-  "calm",
-  "clever",
-  "cosmic",
-  "crisp",
-  "curious",
-  "eager",
-  "gentle",
-  "glowing",
-  "happy",
-  "hidden",
-  "jolly",
-  "kind",
-  "lucky",
-  "mighty",
-  "misty",
-  "neon",
-  "nimble",
-  "playful",
-  "proud",
-  "quick",
-  "quiet",
-  "shiny",
-  "silent",
-  "stellar",
-  "sunny",
-  "swift",
-  "tidy",
-  "witty",
-]
-
-const AX_CODE_NOUNS = [
-  "cabin",
-  "cactus",
-  "canyon",
-  "circuit",
-  "comet",
-  "eagle",
-  "engine",
-  "falcon",
-  "forest",
-  "garden",
-  "harbor",
-  "island",
-  "knight",
-  "lagoon",
-  "meadow",
-  "moon",
-  "mountain",
-  "nebula",
-  "orchid",
-  "otter",
-  "panda",
-  "pixel",
-  "planet",
-  "river",
-  "rocket",
-  "sailor",
-  "squid",
-  "star",
-  "tiger",
-  "wizard",
-  "wolf",
-]
-
-const AX_CODE_WORKTREE_ATTEMPTS = 26
-
 const getAxCodeDataPath = () => {
   const xdgDataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share")
   return path.join(xdgDataHome, "ax-code")
 }
 
-const pickRandom = (values) => values[Math.floor(Math.random() * values.length)]
-
-const generateAxCodeRandomName = () => `${pickRandom(AX_CODE_ADJECTIVES)}-${pickRandom(AX_CODE_NOUNS)}`
-
+// The name the runtime derives from a requested worktree name (AX Code `Worktree.slug`).
 const slugWorktreeName = (value) => {
   return String(value || "")
     .trim()
-    .replace(/^refs\/heads\//, "")
-    .replace(/^heads\//, "")
-    .replace(/\s+/g, "-")
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .join("-")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+/, "")
     .replace(/-+$/, "")
-    .slice(0, 80)
 }
 
 const parseWorktreePorcelain = (raw) => {
@@ -805,15 +785,6 @@ const canonicalPath = async (input) => {
   const realPath = await fsp.realpath(absolutePath).catch(() => absolutePath)
   const normalized = path.normalize(realPath)
   return process.platform === "win32" ? normalized.toLowerCase() : normalized
-}
-
-const checkPathExists = async (targetPath) => {
-  try {
-    await fsp.stat(targetPath)
-    return true
-  } catch {
-    return false
-  }
 }
 
 const normalizeStartRef = (value) => {
@@ -1220,45 +1191,6 @@ const listWorktreeEntries = async (directory) => {
   return parseWorktreePorcelain(rawResult.stdout)
 }
 
-const resolveWorktreeNameCandidates = (baseName) => {
-  const normalizedBase = slugWorktreeName(baseName || "")
-  if (!normalizedBase) {
-    return Array.from({ length: AX_CODE_WORKTREE_ATTEMPTS }, () => generateAxCodeRandomName())
-  }
-  return Array.from({ length: AX_CODE_WORKTREE_ATTEMPTS }, (_, index) => {
-    if (index === 0) {
-      return normalizedBase
-    }
-    return `${normalizedBase}-${generateAxCodeRandomName()}`
-  })
-}
-
-const resolveCandidateDirectory = async (worktreeRoot, preferredName, explicitBranchName, primaryWorktree) => {
-  const candidates = resolveWorktreeNameCandidates(preferredName)
-
-  for (const name of candidates) {
-    const directory = path.join(worktreeRoot, name)
-    if (await checkPathExists(directory)) {
-      continue
-    }
-
-    if (explicitBranchName) {
-      return { name, directory, branch: explicitBranchName }
-    }
-
-    const branch = `openchamber/${name}`
-    const branchRef = `refs/heads/${branch}`
-    const branchExists = await runGitCommand(primaryWorktree, ["show-ref", "--verify", "--quiet", branchRef])
-    if (branchExists.success) {
-      continue
-    }
-
-    return { name, directory, branch }
-  }
-
-  throw new Error("Failed to generate a unique worktree name")
-}
-
 const resolveBranchForExistingMode = async (primaryWorktree, existingBranch, preferredBranchName) => {
   const requested = String(existingBranch || "").trim()
   if (!requested) {
@@ -1329,209 +1261,49 @@ const findBranchInUse = async (primaryWorktree, localBranchName) => {
   )
 }
 
-const runWorktreeStartCommand = async (directory, command) => {
-  const text = String(command || "").trim()
-  if (!text) {
-    return { success: true }
-  }
+// ADR-020: the runtime creates and removes worktrees; this server reaches it through the SDK client
+// the route layer hands in (`getWorktreeClient(directory)`), so tests can stub it.
+const WORKTREE_RUNTIME_UNAVAILABLE = "The AX Code runtime is not available to manage worktrees"
 
-  if (process.platform === "win32") {
-    const result = await execFileAsync("cmd", ["/c", text], {
-      cwd: directory,
-      env: await buildGitEnv(),
-      windowsHide: true,
-      maxBuffer: 20 * 1024 * 1024,
-    })
-      .then(({ stdout, stderr }) => ({ success: true, stdout, stderr }))
-      .catch((error) => ({
-        success: false,
-        stdout: error?.stdout,
-        stderr: error?.stderr,
-        message: parseGitErrorText(error),
-      }))
-    return result
+const resolveWorktreeRuntimeClient = (deps, directory) => {
+  const getWorktreeClient = deps?.getWorktreeClient
+  if (typeof getWorktreeClient !== "function") {
+    throw new Error(WORKTREE_RUNTIME_UNAVAILABLE)
   }
-
-  const result = await execFileAsync("bash", ["-lc", text], {
-    cwd: directory,
-    env: await buildGitEnv(),
-    maxBuffer: 20 * 1024 * 1024,
-  })
-    .then(({ stdout, stderr }) => ({ success: true, stdout, stderr }))
-    .catch((error) => ({
-      success: false,
-      stdout: error?.stdout,
-      stderr: error?.stderr,
-      message: parseGitErrorText(error),
-    }))
-  return result
+  const client = getWorktreeClient(directory)
+  if (!client?.worktree) {
+    throw new Error(WORKTREE_RUNTIME_UNAVAILABLE)
+  }
+  return client
 }
 
-const getProjectStoragePath = (projectID) => {
-  return path.join(getAxCodeDataPath(), "storage", "project", `${projectID}.json`)
-}
-
-const updateProjectSandboxes = async (projectID, primaryWorktree, updater) => {
-  const storagePath = getProjectStoragePath(projectID)
-  await fsp.mkdir(path.dirname(storagePath), { recursive: true })
-
-  const now = Date.now()
-  const base = {
-    id: projectID,
-    worktree: primaryWorktree,
-    vcs: "git",
-    sandboxes: [],
-    time: {
-      created: now,
-      updated: now,
-    },
+const runtimeErrorMessage = (error) => {
+  if (typeof error === "string") {
+    return error.trim()
   }
-
-  const parsed = await fsp
-    .readFile(storagePath, "utf8")
-    .then((raw) => JSON.parse(raw))
-    .catch(() => null)
-  const current = parsed && typeof parsed === "object" ? { ...base, ...parsed } : base
-  current.id = String(current.id || projectID)
-  current.worktree = String(current.worktree || primaryWorktree)
-  current.vcs = current.vcs || "git"
-  current.sandboxes = Array.isArray(current.sandboxes)
-    ? current.sandboxes.map((entry) => String(entry || "").trim()).filter(Boolean)
-    : []
-  const createdAt = Number(current?.time?.created)
-  current.time = {
-    created: Number.isFinite(createdAt) && createdAt > 0 ? createdAt : now,
-    updated: now,
+  if (!error || typeof error !== "object") {
+    return ""
   }
-
-  updater(current)
-
-  current.sandboxes = [
-    ...new Set(
-      (Array.isArray(current.sandboxes) ? current.sandboxes : [])
-        .map((entry) => String(entry || "").trim())
-        .filter(Boolean),
-    ),
-  ]
-
-  await fsp.writeFile(storagePath, `${JSON.stringify(current, null, 2)}\n`, "utf8")
-}
-
-const syncProjectSandboxAdd = async (projectID, primaryWorktree, sandboxPath) => {
-  const sandbox = String(sandboxPath || "").trim()
-  if (!sandbox) {
-    return
-  }
-  await updateProjectSandboxes(projectID, primaryWorktree, (project) => {
-    if (!project.sandboxes.includes(sandbox)) {
-      project.sandboxes.push(sandbox)
-    }
-  })
-}
-
-const syncProjectSandboxRemove = async (projectID, primaryWorktree, sandboxPath) => {
-  const sandbox = String(sandboxPath || "").trim()
-  if (!sandbox) {
-    return
-  }
-  await updateProjectSandboxes(projectID, primaryWorktree, (project) => {
-    project.sandboxes = project.sandboxes.filter((entry) => entry !== sandbox)
-  })
-}
-
-const runWorktreeStartScripts = async (directory, projectID, startCommand, readProjectStartCommand) => {
-  const projectStart = typeof readProjectStartCommand === "function" ? await readProjectStartCommand(projectID) : ""
-  if (projectStart) {
-    const projectResult = await runWorktreeStartCommand(directory, projectStart)
-    if (!projectResult.success) {
-      console.warn(
-        "Worktree project start command failed:",
-        projectResult.message || projectResult.stderr || projectResult.stdout,
-      )
-      return
+  const candidates = [error.message, error.data?.message, error.error?.message, error.error]
+  for (const candidate of candidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      return candidate.trim()
     }
   }
-
-  const extraCommand = String(startCommand || "").trim()
-  if (!extraCommand) {
-    return
-  }
-  const extraResult = await runWorktreeStartCommand(directory, extraCommand)
-  if (!extraResult.success) {
-    console.warn("Worktree start command failed:", extraResult.message || extraResult.stderr || extraResult.stdout)
-  }
+  return ""
 }
 
-const queueWorktreeBootstrap = (args) => {
-  const {
-    directory,
-    projectID,
-    primaryWorktree,
-    localBranch,
-    setUpstream,
-    upstreamRemote,
-    upstreamBranch,
-    ensureRemoteName,
-    ensureRemoteUrl,
-    startCommand,
-    readProjectStartCommand,
-  } = args
-  const bootstrapKey = toBootstrapStateKey(directory)
-  const generation = bootstrapKey ? worktreeBootstrapGenerations.start(bootstrapKey) : 0
-  const isCurrentBootstrap = () => !bootstrapKey || worktreeBootstrapGenerations.isCurrent(bootstrapKey, generation)
-  setTimeout(() => {
-    if (!isCurrentBootstrap()) {
-      return
-    }
-    const run = async () => {
-      await runGitCommandOrThrow(directory, ["reset", "--hard"], "Failed to populate worktree")
-      if (!isCurrentBootstrap()) {
-        return
-      }
-      if (setUpstream) {
-        await applyUpstreamConfiguration({
-          primaryWorktree,
-          worktreeDirectory: directory,
-          localBranch,
-          setUpstream,
-          upstreamRemote,
-          upstreamBranch,
-          ensureRemoteName,
-          ensureRemoteUrl,
-        }).catch((error) => {
-          console.warn(
-            "Worktree upstream configuration failed:",
-            error instanceof Error ? error.message : String(error),
-          )
-        })
-      }
-      // Checked again here because the upstream step above awaits a network fetch (the longest
-      // suspension in this run): the worktree can be removed and re-created under the same name while it
-      // is in flight, and the start scripts are the side effect that must not run for the stale owner.
-      if (!isCurrentBootstrap()) {
-        return
-      }
-      await runWorktreeStartScripts(directory, projectID, startCommand, readProjectStartCommand).catch((error) => {
-        console.warn("Worktree start script task failed:", error instanceof Error ? error.message : String(error))
-      })
-      if (!isCurrentBootstrap()) {
-        return
-      }
-      setWorktreeBootstrapState(directory, WORKTREE_BOOTSTRAP_READY)
-    }
-
-    void run().catch((error) => {
-      if (!isCurrentBootstrap()) {
-        return
-      }
-      setWorktreeBootstrapState(
-        directory,
-        WORKTREE_BOOTSTRAP_FAILED,
-        error instanceof Error ? error.message : String(error),
-      )
-      console.warn("Worktree bootstrap task failed:", error instanceof Error ? error.message : String(error))
-    })
-  }, 0)
+// SDK calls answer `{ data }` or `{ error, response }` instead of throwing; an error result is the
+// runtime's refusal, and its message is what the user needs to see.
+const unwrapRuntimeResult = (result, fallbackMessage) => {
+  if (result?.error !== undefined && result?.error !== null) {
+    throw new Error(runtimeErrorMessage(result.error) || fallbackMessage)
+  }
+  if (result?.data === undefined || result?.data === null) {
+    const status = result?.response?.status
+    throw new Error(status ? `${fallbackMessage}: the runtime answered ${status}` : fallbackMessage)
+  }
+  return result.data
 }
 
 const ensureRemoteWithUrl = async (primaryWorktree, remoteName, remoteUrl) => {
@@ -3813,31 +3585,37 @@ export async function validateWorktreeCreate(directory, input = {}) {
   }
 }
 
+// The runtime chooses the worktree's location, so a preview reports the name and branch it will ask
+// for and no path: the path is known once `worktree.create` answers.
 export async function previewWorktreeCreate(directory, input = {}) {
   const mode = input?.mode === "existing" ? "existing" : "new"
-  const context = await resolveWorktreeProjectContext(directory)
-  await fsp.mkdir(context.worktreeRoot, { recursive: true })
+  await resolveWorktreeProjectContext(directory)
 
-  const preferredName = String(input?.worktreeName || input?.name || "").trim()
+  const name = slugWorktreeName(String(input?.worktreeName || input?.name || "").trim())
   const preferredBranchName = cleanBranchName(String(input?.branchName || "").trim())
-  const candidate = await resolveCandidateDirectory(
-    context.worktreeRoot,
-    preferredName,
-    mode === "new" && preferredBranchName ? preferredBranchName : "",
-    context.primaryWorktree,
-  )
+  const branch = preferredBranchName || (mode === "new" && name ? `ax-code/${name}` : "")
 
   return {
-    name: candidate.name,
-    branch: mode === "new" ? candidate.branch : preferredBranchName,
-    path: candidate.directory,
+    name,
+    branch,
+    path: "",
   }
 }
 
-export async function createWorktree(directory, input = {}) {
+/**
+ * Create a worktree through the runtime (ADR-020, runtime worktree migration v1).
+ *
+ * Desktop keeps the interactive version-control steps in the primary checkout — adding or updating a
+ * fork remote, fetching the remote ref the worktree starts from, and setting the new branch's
+ * upstream — and asks the runtime for everything else: the location, `git worktree add`, sandbox
+ * registration and the start scripts. Bootstrap progress arrives as `worktree.ready` /
+ * `worktree.failed` runtime events (`recordWorktreeRuntimeEvent`).
+ *
+ * `deps.getWorktreeClient(directory)` returns the SDK client.
+ */
+export async function createWorktree(directory, input = {}, deps = {}) {
   const mode = input?.mode === "existing" ? "existing" : "new"
   const context = await resolveWorktreeProjectContext(directory)
-  await fsp.mkdir(context.worktreeRoot, { recursive: true })
 
   const preferredName = String(input?.worktreeName || input?.name || "").trim()
   const preferredBranchName = cleanBranchName(String(input?.branchName || "").trim())
@@ -3845,16 +3623,14 @@ export async function createWorktree(directory, input = {}) {
   const ensureRemoteName = String(input?.ensureRemoteName || "").trim()
   const ensureRemoteUrl = String(input?.ensureRemoteUrl || "").trim()
 
-  const candidate = await resolveCandidateDirectory(
-    context.worktreeRoot,
-    preferredName,
-    mode === "new" && preferredBranchName ? preferredBranchName : "",
-    context.primaryWorktree,
-  )
+  const worktreeCreateInput = {}
+  if (preferredName) {
+    worktreeCreateInput.name = preferredName
+  }
 
   let localBranch = ""
   let inferredUpstream = null
-  const worktreeAddArgs = ["worktree", "add", "--no-checkout"]
+  let parsedRemoteStartRef = null
 
   if (mode === "existing") {
     const requestedExistingBranch = rejectOptionLikeValue(input?.existingBranch, "branch name")
@@ -3876,15 +3652,14 @@ export async function createWorktree(directory, input = {}) {
     )
     localBranch = resolved.localBranch
 
-    const inUse = await findBranchInUse(context.primaryWorktree, localBranch)
-    if (inUse) {
-      throw new Error(`Branch is already checked out in ${inUse.worktree}`)
-    }
-
     if (resolved.createLocalBranch) {
-      worktreeAddArgs.push("-b", localBranch)
+      // A remote branch becomes a new local branch the runtime owns, started from the remote ref.
+      worktreeCreateInput.branch = localBranch
+      worktreeCreateInput.startRef = resolved.checkoutRef
+    } else {
+      // The user's own branch is borrowed: the runtime never deletes or resets it.
+      worktreeCreateInput.existingBranch = localBranch
     }
-    worktreeAddArgs.push(candidate.directory, resolved.checkoutRef)
 
     if (resolved.remoteRef) {
       inferredUpstream = {
@@ -3893,32 +3668,15 @@ export async function createWorktree(directory, input = {}) {
       }
     }
   } else {
-    localBranch = candidate.branch
-    if (!localBranch) {
-      throw new Error("Failed to resolve branch name for new worktree")
+    if (preferredBranchName) {
+      worktreeCreateInput.branch = preferredBranchName
+      localBranch = preferredBranchName
     }
-
-    const branchExists = await runGitCommand(context.primaryWorktree, [
-      "show-ref",
-      "--verify",
-      "--quiet",
-      `refs/heads/${localBranch}`,
-    ])
-    if (branchExists.success) {
-      throw new Error(`Branch already exists: ${localBranch}`)
-    }
-
-    const inUse = await findBranchInUse(context.primaryWorktree, localBranch)
-    if (inUse) {
-      throw new Error(`Branch is already checked out in ${inUse.worktree}`)
-    }
-
-    worktreeAddArgs.push("-b", localBranch, candidate.directory)
     if (startRef && startRef !== "HEAD") {
-      worktreeAddArgs.push(startRef)
+      worktreeCreateInput.startRef = startRef
     }
 
-    const parsedRemoteStartRef = await resolveRemoteBranchRef(context.primaryWorktree, startRef)
+    parsedRemoteStartRef = await resolveRemoteBranchRef(context.primaryWorktree, startRef)
     if (parsedRemoteStartRef) {
       inferredUpstream = {
         remote: parsedRemoteStartRef.remote,
@@ -3931,52 +3689,61 @@ export async function createWorktree(directory, input = {}) {
     await ensureRemoteWithUrl(context.primaryWorktree, ensureRemoteName, ensureRemoteUrl)
   }
 
-  if (mode === "new") {
-    const parsedRemoteStartRef = await resolveRemoteBranchRef(context.primaryWorktree, startRef)
-    if (parsedRemoteStartRef) {
-      await fetchRemoteBranchRef(context.primaryWorktree, parsedRemoteStartRef.remote, parsedRemoteStartRef.branch)
-    }
+  if (parsedRemoteStartRef) {
+    await fetchRemoteBranchRef(context.primaryWorktree, parsedRemoteStartRef.remote, parsedRemoteStartRef.branch)
   }
 
-  await runGitCommandOrThrow(context.primaryWorktree, worktreeAddArgs, "Failed to create git worktree")
-
-  try {
-    await syncProjectSandboxAdd(context.projectID, context.primaryWorktree, candidate.directory)
-  } catch (error) {
-    console.warn(
-      "Failed to sync AX Code sandbox metadata (add):",
-      error instanceof Error ? error.message : String(error),
-    )
+  const startCommand = typeof input?.startCommand === "string" ? input.startCommand.trim() : ""
+  if (startCommand) {
+    worktreeCreateInput.startCommand = startCommand
   }
+  // One ID per request: a transport retry of this call joins the first create instead of making a
+  // second worktree.
+  worktreeCreateInput.operationId = randomUUID()
+
+  const client = resolveWorktreeRuntimeClient(deps, context.primaryWorktree)
+  const requestedAt = Date.now()
+  const created = unwrapRuntimeResult(
+    await client.worktree.create({ directory: context.primaryWorktree, worktreeCreateInput }),
+    "Failed to create git worktree",
+  )
+
+  const worktreePath = typeof created?.directory === "string" ? created.directory.trim() : ""
+  if (!worktreePath) {
+    throw new Error("The runtime did not report the new worktree's directory")
+  }
+  const branch = typeof created?.branch === "string" && created.branch.trim() ? created.branch.trim() : localBranch
+  const name = typeof created?.name === "string" && created.name.trim() ? created.name.trim() : path.basename(worktreePath)
+
+  startWorktreeBootstrapState(worktreePath, requestedAt)
 
   const shouldSetUpstream = Boolean(input?.setUpstream)
-  const upstreamRemote = String(input?.upstreamRemote || inferredUpstream?.remote || "").trim()
-  const upstreamBranch = String(input?.upstreamBranch || inferredUpstream?.branch || "").trim()
+  if (shouldSetUpstream) {
+    const upstreamRemote = String(input?.upstreamRemote || inferredUpstream?.remote || "").trim()
+    const upstreamBranch = String(input?.upstreamBranch || inferredUpstream?.branch || "").trim()
+    await applyUpstreamConfiguration({
+      primaryWorktree: context.primaryWorktree,
+      worktreeDirectory: worktreePath,
+      localBranch: branch,
+      setUpstream: shouldSetUpstream,
+      upstreamRemote,
+      upstreamBranch,
+      ensureRemoteName,
+      ensureRemoteUrl,
+    }).catch((error) => {
+      console.warn("Worktree upstream configuration failed:", error instanceof Error ? error.message : String(error))
+    })
+  }
 
-  setWorktreeBootstrapState(candidate.directory, WORKTREE_BOOTSTRAP_PENDING)
-
-  queueWorktreeBootstrap({
-    directory: candidate.directory,
-    projectID: context.projectID,
-    primaryWorktree: context.primaryWorktree,
-    localBranch,
-    setUpstream: shouldSetUpstream,
-    upstreamRemote,
-    upstreamBranch,
-    ensureRemoteName,
-    ensureRemoteUrl,
-    startCommand: input?.startCommand,
-    readProjectStartCommand: input?.readProjectStartCommand,
-  })
-
-  const headResult = await runGitCommand(candidate.directory, ["rev-parse", "HEAD"])
-  const head = String(headResult.stdout || "").trim()
+  // The runtime populates the checkout after it answers; HEAD can still be unreadable here.
+  const headResult = await runGitCommand(worktreePath, ["rev-parse", "HEAD"])
+  const head = headResult.success ? String(headResult.stdout || "").trim() : ""
 
   return {
     head,
-    name: candidate.name,
-    branch: localBranch,
-    path: candidate.directory,
+    name,
+    branch,
+    path: worktreePath,
   }
 }
 
@@ -3998,7 +3765,12 @@ export async function getWorktreeBootstrapStatus(directory) {
   }
 }
 
-export async function removeWorktree(directory, input = {}) {
+/**
+ * Remove a worktree through the runtime. The runtime deletes the worktree's branch only when it owns
+ * it (AX Code ADR-260); a branch it keeps — the user's own, or one an older Desktop created — is
+ * reported back when the caller asked for the local branch to be deleted.
+ */
+export async function removeWorktree(directory, input = {}, deps = {}) {
   const targetDirectory = normalizeDirectoryPath(input?.directory)
   if (!targetDirectory) {
     throw new Error("Worktree directory is required")
@@ -4013,109 +3785,57 @@ export async function removeWorktree(directory, input = {}) {
     throw new Error("Cannot remove the primary workspace")
   }
 
-  const entries = await listWorktreeEntries(context.primaryWorktree)
-  const matchedEntry = await (async () => {
-    for (const entry of entries) {
-      if (!entry?.worktree) {
-        continue
-      }
-      const entryCanonical = await canonicalPath(entry.worktree)
-      if (entryCanonical === targetCanonical) {
-        return entry
-      }
-    }
-    return null
-  })()
-
-  // Release the runtime instance that served this worktree while its directory still exists: the
-  // runtime keeps one per directory, and nothing released it when the directory went away. Only
-  // after the target is confirmed to belong to this project — disposing first released another
-  // project's runtime instance when a stale request named a foreign directory.
-  const disposeInstance = typeof input?.disposeInstance === "function" ? input.disposeInstance : null
-  const disposeTargetInstance = async (target) => {
-    if (!disposeInstance) return
-    try {
-      await disposeInstance(target)
-    } catch (error) {
-      console.warn(
-        "Failed to dispose the worktree's runtime instance:",
-        error instanceof Error ? error.message : String(error),
-      )
+  // Read-only: the branch the worktree has checked out, to report whether the runtime kept it.
+  const entries = await listWorktreeEntries(context.primaryWorktree).catch(() => [])
+  let matchedEntry = null
+  for (const entry of entries) {
+    if (entry?.worktree && (await canonicalPath(entry.worktree)) === targetCanonical) {
+      matchedEntry = entry
+      break
     }
   }
+  const branchName = cleanBranchName(String(matchedEntry?.branchRef || matchedEntry?.branch || "").trim())
 
-  if (!matchedEntry?.worktree) {
-    // Not (or no longer) a registered `git worktree` entry. Only allow the
-    // filesystem cleanup fallback below when the target is actually inside
-    // this project's own worktree root — otherwise a caller could pass an
-    // arbitrary path (e.g. via the HTTP API) and have it recursively deleted.
-    const worktreeRootCanonical = await canonicalPath(context.worktreeRoot)
-    // The root itself is not a worktree: recursively removing it would delete
-    // every linked worktree under it.
-    const isInsideWorktreeRoot = targetCanonical.startsWith(worktreeRootCanonical + path.sep)
-    if (!isInsideWorktreeRoot) {
-      throw new Error("Refusing to remove a directory outside the worktree root")
-    }
-
-    const targetExists = await checkPathExists(targetDirectory)
-    if (targetExists) {
-      await disposeTargetInstance(targetDirectory)
-      await fsp.rm(targetDirectory, { recursive: true, force: true })
-    }
-
-    try {
-      await syncProjectSandboxRemove(context.projectID, context.primaryWorktree, targetDirectory)
-    } catch (error) {
-      console.warn(
-        "Failed to sync AX Code sandbox metadata (remove):",
-        error instanceof Error ? error.message : String(error),
-      )
-    }
-
-    clearWorktreeBootstrapState(targetDirectory)
-
-    return true
-  }
-
-  await disposeTargetInstance(targetDirectory)
-  await runGitCommandOrThrow(
-    context.primaryWorktree,
-    ["worktree", "remove", "--force", matchedEntry.worktree],
-    "Failed to remove git worktree",
-  )
-
-  let branchDeleteWarning = null
-  if (deleteLocalBranch) {
-    const branchName = cleanBranchName(String(matchedEntry.branchRef || matchedEntry.branch || "").trim())
-    if (branchName) {
-      try {
-        await runGitCommandOrThrow(
-          context.primaryWorktree,
-          ["branch", "-D", branchName],
-          `Failed to delete local branch ${branchName}`,
-        )
-      } catch (error) {
-        // The worktree directory is already gone. Failing the call here would skip
-        // the sandbox and bootstrap bookkeeping below and hand the UI a 500 for an
-        // operation that did happen, so report the branch left behind instead.
-        branchDeleteWarning = error instanceof Error ? error.message : String(error)
-        console.warn(`[git] worktree removed but its local branch was kept: ${branchDeleteWarning}`)
-      }
-    }
-  }
-
-  try {
-    await syncProjectSandboxRemove(context.projectID, context.primaryWorktree, matchedEntry.worktree)
-  } catch (error) {
-    console.warn(
-      "Failed to sync AX Code sandbox metadata (remove):",
-      error instanceof Error ? error.message : String(error),
+  // The runtime deletes every branch it created when it removes the worktree.
+  // When the user asks to keep the branch, claim it for them first with the
+  // AX Code borrowed mark (ADR-260: a borrowed branch is never deleted or
+  // reset), so unmerged work survives the removal.
+  if (!deleteLocalBranch && branchName) {
+    await runGitCommandOrThrow(
+      context.primaryWorktree,
+      ["config", `branch.${branchName}.axCodeBorrowed`, branchName],
+      "Failed to keep the worktree branch",
     )
   }
 
-  clearWorktreeBootstrapState(matchedEntry.worktree)
+  const client = resolveWorktreeRuntimeClient(deps, context.primaryWorktree)
+  unwrapRuntimeResult(
+    await client.worktree.remove({
+      directory: context.primaryWorktree,
+      worktreeRemoveInput: { directory: targetDirectory },
+    }),
+    "Failed to remove git worktree",
+  )
 
-  return branchDeleteWarning ? { removed: true, branchDeleted: false, warning: branchDeleteWarning } : true
+  clearWorktreeBootstrapState(targetDirectory)
+  if (matchedEntry?.worktree) {
+    clearWorktreeBootstrapState(matchedEntry.worktree)
+  }
+
+  if (deleteLocalBranch && branchName) {
+    const stillExists = await runGitCommand(context.primaryWorktree, [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/heads/${branchName}`,
+    ])
+    if (stillExists.success) {
+      const warning = `Kept the local branch ${branchName}: AX Code deletes only the branches it created`
+      return { removed: true, branchDeleted: false, warning }
+    }
+  }
+
+  return true
 }
 
 export async function deleteBranch(directory, branch, options = {}) {
