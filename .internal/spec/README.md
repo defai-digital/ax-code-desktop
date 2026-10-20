@@ -34,6 +34,7 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 | [Desktop IPC Contract v2](SPEC-2026-10-19-desktop-ipc-contract-v2.md)                       | Accepted 2026-10-19; validator, generator and first batch implemented             | ADR-019                                  |
 | [Supervision Pop-out v1](SPEC-2026-10-19-supervision-popout-v1.md)                          | Accepted 2026-10-19; amends the process model with one window type                | PRD supervision v3                       |
 | [Multi-run Identity v1](SPEC-2026-10-19-multirun-identity-v1.md)                            | Accepted 2026-10-19                                                               | PRD supervision v3                       |
+| [Supervision goal state v1](SPEC-2026-10-19-supervision-goal-v1.md)                         | Accepted 2026-10-19; runtime goal on supervision rows and web-document script hashes; amends security baseline section 3 | PRD trusted supervision v1 |
 | [Desktop Localization v2](SPEC-2026-10-19-desktop-localization-v2.md)                       | Accepted 2026-10-19; direction support without a new locale                       | PRD competitive quality                  |
 
 ## Deferred

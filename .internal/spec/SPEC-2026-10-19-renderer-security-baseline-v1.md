@@ -50,3 +50,12 @@ The end-to-end harness (SPEC-2026-10-19-desktop-e2e-harness-v1) launches the bui
 ## 5. Rollback
 
 Each change is local to one function. Reverting the commit restores the previous policy without data or identity effects.
+
+## Amendment 2026-10-19: web-server app routes
+
+Section 3 described app routes as keeping `'unsafe-inline'` scripts "until browser mode serves hashed HTML". That condition is
+met by PRD-2026-10-19-trusted-supervision-v1 (Phase A item 2). App routes now use
+`script-src 'self' 'wasm-unsafe-eval'` plus the SHA-256 of every inline script in the served document, with no
+`'unsafe-inline'` and no `'unsafe-eval'`; the rules for which document is hashed and how the hashes are cached are in
+SPEC-2026-10-19-supervision-goal-v1 ("Web document script hashes"). Preview-proxy and dashboard-proxy routes and
+`connect-src` are unchanged. The original text above is kept as the record of the v1 decision.
