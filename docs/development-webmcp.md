@@ -74,6 +74,16 @@ This discovers same-name cards, checks project/draft selection and opens each pr
 pins one project, reads the isolated settings file, reloads to check persistence and unpins it. Screenshots include
 populated narrow/light/dark views. No prompt is submitted; profile changes stay within the harness's temporary directory.
 
+For shortcut capture and keyboard navigation, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/shortcut-capture-webmcp.mjs --artifacts /tmp/ax-shortcut-capture
+```
+
+WebMCP discovers/focuses the recorder and invokes save/reset/overwrite. CDP delivers keyboard events to the foreground
+test window. The journey checks Escape/Tab navigation, draft preservation, explicit Tab capture, conflict overwrite,
+saved-profile reload and restoration of both affected bindings. It does not add a keypress tool to the developer adapter.
+
 The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,
 restores it, verifies the DOM and checks CSP and renderer errors. The Settings audit inventories all 15 tabs and paged
 controls, exercises select options, numeric editing/reset, reversible local preferences, shortcut search/focus and Hooks

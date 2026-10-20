@@ -326,12 +326,29 @@ export const KeyboardShortcutsSettings: React.FC = () => {
                     setCapturingActionId(action.id)
                     setErrorText("")
                   }}
+                  onClick={() => {
+                    setCapturingActionId(action.id)
+                    setErrorText("")
+                  }}
                   onBlur={() => {
                     if (capturingActionId === action.id) {
                       setCapturingActionId(null)
                     }
                   }}
                   onKeyDown={(event) => {
+                    if (event.nativeEvent.isComposing || event.keyCode === 229) return
+
+                    if (capturingActionId !== action.id) {
+                      // Recording has ended. Keep app shortcuts out of the
+                      // field, but let Tab navigate to Save or the next row.
+                      event.stopPropagation()
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault()
+                        setCapturingActionId(action.id)
+                        setErrorText("")
+                      }
+                      return
+                    }
                     event.preventDefault()
                     event.stopPropagation()
 

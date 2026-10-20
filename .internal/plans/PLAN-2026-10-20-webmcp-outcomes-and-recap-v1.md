@@ -185,3 +185,11 @@ Projects Home toolbar overlap. Scheduled definitions remain unchanged during nat
 [Plan](PLAN-2026-10-20-project-home-targets.md) and
 [report](../reports/SUPERVISION-2026-10-20-project-home-targets.md) cover ambiguous card/child names, visible duplicate-title
 paths, whitespace and label/path collisions, exact compact attention destinations, and native pin persistence/reload.
+
+### Shortcut capture exit and keyboard navigation
+
+[Plan](PLAN-2026-10-20-shortcut-capture-exit.md) and
+[report](../reports/SETTINGS-2026-10-20-shortcut-capture-exit.md) cover capture state after Escape/chord completion,
+Tab navigation and explicit Tab capture, composition events, global binding containment, and native save/reload/reset.
+The refreshed full Settings audit is supplemented with delivered key events instead of treating field focus as proof
+of keyboard behavior.

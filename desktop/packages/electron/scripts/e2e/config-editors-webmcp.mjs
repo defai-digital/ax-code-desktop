@@ -12,6 +12,14 @@ const outcome = await runHarness({
   uiWebMcp: true,
   journeys: [journeyBoot, journeyPreloadBridge, async function journeyConfigEditors({ session }) {
     const audit = new SettingsWebMcpAudit(session, args.artifacts ? path.join(args.artifacts, "pages") : "")
+    const focusChecks = []
+    const focusForNumericBlur = async (label) => {
+      const before = await session.evaluate("document.hasFocus()")
+      await session.send("Page.bringToFront")
+      await audit.wait("document.hasFocus()", label)
+      focusChecks.push({ label, focusedBefore: before, focusedAfter: true })
+      if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "numeric-focus.json"), JSON.stringify(focusChecks, null, 2))
+    }
     // An inactive Electron window can change activeElement without delivering blur events.
     await session.send("Page.bringToFront")
     await audit.wait("document.hasFocus()", "native window focus for blur validation")
@@ -78,12 +86,21 @@ const outcome = await runHarness({
     await audit.wait(`document.querySelector('[aria-label="Temperature"]')?.value === "0.8"`, "temperature increment")
     await audit.click("Decrease value: Top P")
     await audit.wait(`document.querySelector('[aria-label="Top P"]')?.value === "0.8"`, "top p decrement")
+    await focusForNumericBlur("foreground for temperature blur")
     await audit.fill("Temperature", "1.2")
     await audit.click("Top P", { role: "input" })
     await audit.wait(`document.querySelector('[aria-label="Temperature"]')?.value === "1.2"`, "temperature fill commit")
+    await focusForNumericBlur("foreground for Top P blur")
     await audit.fill("Top P", "2")
     await audit.click("Temperature", { role: "input" })
-    await audit.wait(`document.querySelector('[aria-label="Top P"]')?.value === "1"`, "top p maximum clamp")
+    try {
+      await audit.wait(`document.querySelector('[aria-label="Top P"]')?.value === "1"`, "top p maximum clamp")
+    } catch (error) {
+      const state = await session.evaluate(`({focused: document.hasFocus(), active: document.activeElement?.getAttribute('aria-label'),
+        topP: document.querySelector('[aria-label="Top P"]')?.value, temperature: document.querySelector('[aria-label="Temperature"]')?.value})`)
+      if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "numeric-clamp-failure.json"), JSON.stringify(state, null, 2))
+      throw new Error(`${error.message}; numeric state: ${JSON.stringify(state)}`, { cause: error })
+    }
     if (!(await audit.find("Increase value: Top P")).disabled) throw new Error("Top P increment must be disabled at its maximum")
     await audit.click("Clear temperature override")
     await audit.click("Clear top p override")

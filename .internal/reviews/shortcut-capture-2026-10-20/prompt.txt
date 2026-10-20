@@ -1,0 +1,125 @@
+Review this AX Code Desktop shortcut recorder repair for concrete defects. English, source-only; do not use tools, delegate, edit files or access other resources. Return at most three findings or no findings. The existing recorder supported Tab as an explicit binding, but ignored capture state after Escape/chord completion, trapping Tab navigation and overwriting drafts. The repair gates capture, keeps native Tab default behavior after capture, stops event propagation to app bindings, supports focused click/Enter/Space rearming and ignores composition. Existing navigation/shortcut dispatch ownership is unchanged. Mounted tests verify cancellation, draft preservation, Tab capture, rearming, IME and global binding containment; native tests use WebMCP control actions plus CDP key delivery, save/reload/reset and conflict overwrite. Focus on regressions grounded in the code; missing broader test coverage alone is not a defect.
+
+diff --git a/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.test.tsx b/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.test.tsx
+index 2bd9fadb..abbf25df 100644
+--- a/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.test.tsx
++++ b/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.test.tsx
+@@ -9,6 +9,7 @@ import { KeyboardShortcutsSettings } from "./KeyboardShortcutsSettings"
+ let host: HTMLDivElement
+ let root: Root
+ beforeEach(async () => {
++  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+   vi.spyOn(persistence, "updateDesktopSettings").mockResolvedValue(undefined)
+   useUIStore.setState({ shortcutOverrides: {} })
+   host = document.createElement("div")
+@@ -58,8 +59,8 @@ test("names row actions and only enables reset after a shortcut is changed", asy
+   const reset = () => host.querySelector<HTMLButtonElement>(`button[aria-label="Reset: ${label}"]`)!
+   expect(save().disabled).toBe(true)
+   expect(reset().disabled).toBe(true)
++  await act(async () => field.focus())
+   await act(async () => {
+-    field.focus()
+     field.dispatchEvent(new KeyboardEvent("keydown", { key: "y", ctrlKey: true, shiftKey: true, bubbles: true }))
+   })
+   expect(save().disabled).toBe(false)
+@@ -70,3 +71,67 @@ test("names row actions and only enables reset after a shortcut is changed", asy
+   expect(reset().disabled).toBe(true)
+   expect(useUIStore.getState().shortcutOverrides).toEqual({})
+ })
++
++const chordField = () => host.querySelector<HTMLInputElement>('input[aria-label="Open command palette"]')!
++const key = async (key: string, options: KeyboardEventInit = {}) => {
++  const event = new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true, ...options })
++  await act(async () => chordField().dispatchEvent(event))
++  return event
++}
++
++test("Escape ends capture so Tab navigates without creating a shortcut draft", async () => {
++  await act(async () => chordField().focus())
++  await key("Escape")
++  const before = chordField().value
++  const event = await key("Tab")
++  expect(event.defaultPrevented).toBe(false)
++  expect(chordField().value).toBe(before)
++  expect(host.querySelector<HTMLButtonElement>('button[aria-label="Save changes: Open command palette"]')?.disabled).toBe(true)
++  expect(persistence.updateDesktopSettings).not.toHaveBeenCalled()
++})
++
++test("a captured chord survives Tab and Shift+Tab after recording completes", async () => {
++  await act(async () => chordField().focus())
++  await key("y", { ctrlKey: true, shiftKey: true })
++  const captured = chordField().value
++  expect((await key("Tab")).defaultPrevented).toBe(false)
++  expect(chordField().value).toBe(captured)
++  expect((await key("Tab", { shiftKey: true })).defaultPrevented).toBe(false)
++  expect(chordField().value).toBe(captured)
++})
++
++test("pointer and Enter rearm the focused recorder while explicit Tab capture remains supported", async () => {
++  await act(async () => chordField().focus())
++  await key("Escape")
++  await act(async () => chordField().click())
++  expect(chordField().value).toBe("Press keys...")
++  expect((await key("Tab")).defaultPrevented).toBe(true)
++  expect(chordField().value).toBe("Tab")
++  await key("Enter")
++  expect(chordField().value).toBe("Press keys...")
++  await key("y", { ctrlKey: true, shiftKey: true })
++  expect(chordField().value).not.toBe("Tab")
++  expect(persistence.updateDesktopSettings).not.toHaveBeenCalled()
++})
++
++test("composition keys do not become a shortcut or end capture", async () => {
++  await act(async () => chordField().focus())
++  expect((await key("Process", { isComposing: true, keyCode: 229 })).defaultPrevented).toBe(false)
++  expect(chordField().value).toBe("Press keys...")
++  expect(host.querySelector<HTMLButtonElement>('button[aria-label="Save changes: Open command palette"]')?.disabled).toBe(true)
++})
++
++test("released Tab keeps native navigation without reaching a global Tab binding", async () => {
++  const globalBinding = vi.fn((event: KeyboardEvent) => {
++    if (event.key === "Tab") event.preventDefault()
++  })
++  document.addEventListener("keydown", globalBinding)
++  try {
++    await act(async () => chordField().focus())
++    await key("Escape")
++    expect((await key("Tab")).defaultPrevented).toBe(false)
++    expect(globalBinding).not.toHaveBeenCalled()
++  } finally {
++    document.removeEventListener("keydown", globalBinding)
++  }
++})
+diff --git a/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.tsx b/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.tsx
+index e7569037..e23007e0 100644
+--- a/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.tsx
++++ b/desktop/packages/ui/src/components/sections/ax-code/KeyboardShortcutsSettings.tsx
+@@ -326,12 +326,29 @@ export const KeyboardShortcutsSettings: React.FC = () => {
+                     setCapturingActionId(action.id)
+                     setErrorText("")
+                   }}
++                  onClick={() => {
++                    setCapturingActionId(action.id)
++                    setErrorText("")
++                  }}
+                   onBlur={() => {
+                     if (capturingActionId === action.id) {
+                       setCapturingActionId(null)
+                     }
+                   }}
+                   onKeyDown={(event) => {
++                    if (event.nativeEvent.isComposing || event.keyCode === 229) return
++
++                    if (capturingActionId !== action.id) {
++                      // Recording has ended. Keep app shortcuts out of the
++                      // field, but let Tab navigate to Save or the next row.
++                      event.stopPropagation()
++                      if (event.key === "Enter" || event.key === " ") {
++                        event.preventDefault()
++                        setCapturingActionId(action.id)
++                        setErrorText("")
++                      }
++                      return
++                    }
+                     event.preventDefault()
+                     event.stopPropagation()
