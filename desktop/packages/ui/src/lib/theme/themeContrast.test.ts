@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
 import type { Theme } from "@/types/theme"
 import { checkGeneratedThemeContrast, checkThemeContrast } from "./themeContrast"
+import { contrastRatio } from "./oklch"
 import { generateTheme } from "./generateTheme"
 import { getThemeById, themes } from "./themes"
 
@@ -141,5 +142,34 @@ describe("checkThemeContrast", () => {
   test("returns no hard failures for the bundled default dark theme", () => {
     const theme = getThemeById("automatosx-dark")!
     expect(hardFailures(theme)).toEqual([])
+  })
+})
+
+describe("default AutomatosX dark theme legibility", () => {
+  // Users reported unreadable secondary text, line numbers and doc comments in the default dark theme.
+  test("secondary text, line numbers, comments and links read at 4.5:1 on every surface", () => {
+    const theme = getThemeById("automatosx-dark")!
+    const { surface, syntax, markdown, status, chat, tools } = theme.colors
+    const text = {
+      mutedForeground: surface.mutedForeground,
+      lineNumber: syntax.highlights?.lineNumber,
+      comment: syntax.base.comment,
+      commentDoc: syntax.tokens?.commentDoc,
+      punctuation: syntax.tokens?.punctuation,
+      linkHover: markdown?.linkHover,
+      blockquote: markdown?.blockquote,
+      timestamp: chat?.timestamp,
+      toolDescription: tools?.description,
+      error: status.error,
+    }
+    const surfaces = [surface.background, surface.muted, surface.elevated, surface.subtle, syntax.base.background]
+    const failures = Object.entries(text).flatMap(([name, color]) =>
+      color
+        ? surfaces
+            .map((background) => ({ name, color, background, ratio: contrastRatio(color, background, surface.background) }))
+            .filter((pair) => pair.ratio < 4.5)
+        : [],
+    )
+    expect(failures, JSON.stringify(failures)).toEqual([])
   })
 })
