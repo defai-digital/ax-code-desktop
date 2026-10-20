@@ -24,13 +24,14 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-017: Analysis routing](ADR-017-analysis-routing-without-streamlit-runtime.md) | Active; supersedes ADR-016 for execution; paired AX Code ADR-257 |
 | [ADR-018: Renderer security baseline](ADR-018-renderer-security-baseline.md) | Active; explicit renderer sandbox, hashed inline scripts, no `'unsafe-eval'` for app documents |
 | [ADR-019: Typed desktop IPC contract](ADR-019-typed-desktop-ipc-contract.md) | Active; contract-declared argument schemas, central validation, generated renderer types; migration incremental |
-| [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; worktree execution moves to the runtime after the paired AX Code API ships |
+| [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; the paired AX Code ADR-260 shipped in 7.27.7 and the migration spec is accepted |
 | [ADR-022: SDK from GitHub Packages](ADR-022-ax-code-sdk-from-github-packages.md) | Active; supersedes ADR-001 D1 and D3; exact SDK from `npm.pkg.github.com`, no credential in the repository, producer-first cutover |
 
 ## Open producer proposals
 
-[Stable worktree API](proposals/AX-CODE-ADR-PROPOSAL-2026-10-19-stable-worktree-api.md): requested by ADR-020; awaiting an
-AX Code decision.
+[Stable worktree API](proposals/AX-CODE-ADR-PROPOSAL-2026-10-19-stable-worktree-api.md): requested by ADR-020;
+accepted as AX Code ADR-260 (route kept at `/experimental/worktree`), shipped in runtime 7.27.7 and SDK 2.6.38+. Desktop
+migration: SPEC-2026-10-20-runtime-worktree-migration-v1.
 
 ## Archived proposals
 
