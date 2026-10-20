@@ -52,3 +52,14 @@ or release gate under this specification.
 
 Pure scenario building and the stub's reply recording run without Electron. The journeys run through
 `pnpm run e2e:desktop` and appear in its results and artifacts like the existing ones.
+
+## Amendment 2026-10-19: implementation notes
+
+- The three journeys are opt-in (`pnpm run e2e:desktop -- --scripted`) and are not part of the default run until they pass
+  reliably; see `.internal/reports/E2E-2026-10-19-scripted-journeys.md` for the observed reliability and the open question.
+- The launcher seeds the project under a real path, an explicit English interface language and a profile whose only project is
+  the seeded one; the stub logs every reply attempt (accepted or rejected) with the directory the renderer actually sent.
+- A runtime-readiness barrier (stub origin file, app-reported runtime health, one reload, seeded session known to the renderer)
+  runs before the scripted journeys only, and names the stage that timed out.
+- Each scripted journey resets the stub and arms only what it needs. The goal journey ends with a later revision of the target
+  goal, because the event stream is ordered.

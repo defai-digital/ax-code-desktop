@@ -5,14 +5,17 @@ import {
   CSP_RECORDER_SCRIPT,
   FINAL_CHECKS,
   JOURNEYS,
+  SCRIPTED_JOURNEYS,
   findForbiddenScriptSources,
   isCspConsoleMessage,
   isSupervisionPageTarget,
   journeyRendererErrors,
   journeyCspClean,
+  waitForRuntimeReadiness,
 } from "./journeys.mjs"
 import { runInNewContext } from "node:vm"
-import { buildLaunchSpec } from "./launch.mjs"
+import { normalizePreferences, resolvePreferences } from "../../../../shared/localization.mjs"
+import { buildE2eLanguagePreferences, buildLaunchSpec } from "./launch.mjs"
 import { parseArgs, summarize } from "./run.mjs"
 import { STUB_LIST_ROUTES, buildStubRuntimeScript } from "./stub-runtime.mjs"
 
@@ -68,6 +71,88 @@ describe("buildLaunchSpec", () => {
   })
 })
 
+describe("isolated profile language seed", () => {
+  test("pins an explicit English interface that localization resolves on any host language", () => {
+    const preferences = buildE2eLanguagePreferences()
+    expect(preferences).toEqual({ schema: 1, interface: "en", conversation: "auto", revision: 0 })
+    expect(normalizePreferences(preferences)).toEqual(preferences)
+    expect(resolvePreferences(preferences, ["ja-JP"]).locale).toBe("en")
+    expect(resolvePreferences({ ...preferences, interface: "system" }, ["ja-JP"]).locale).toBe("ja")
+  })
+})
+
+describe("runtime readiness barrier", () => {
+  const scenario = { session: { id: "ses_e2e_scripted", title: "E2E scripted session" } }
+  const fakeSession = ({ health = [], seeded = [] } = {}) => {
+    const events = []
+    return {
+      events,
+      evaluate: async (expression) => {
+        if (expression.includes("/api/global/health")) {
+          events.push("health")
+          return health.length ? health.shift() : true
+        }
+        events.push("seeded")
+        return seeded.length ? seeded.shift() : true
+      },
+      send: async (method) => {
+        events.push(method)
+        return {}
+      },
+    }
+  }
+
+  test("waits origin, health, one reload, then the seeded session, in that order", async () => {
+    const session = fakeSession({ health: [false, true], seeded: [false, true] })
+    await expect(
+      waitForRuntimeReadiness({
+        session,
+        stubOriginPath: "/tmp/e2e/origin.txt",
+        scenario,
+        timeoutMs: 2000,
+        readFile: async () => "http://127.0.0.1:4321",
+      }),
+    ).resolves.toBe(true)
+    expect(session.events).toEqual(["health", "health", "Page.reload", "seeded", "seeded"])
+  })
+
+  test("names the stage that timed out", async () => {
+    const unhealthy = fakeSession({ health: Array.from({ length: 100 }, () => false) })
+    await expect(
+      waitForRuntimeReadiness({
+        session: unhealthy,
+        stubOriginPath: "/tmp/e2e/origin.txt",
+        scenario,
+        timeoutMs: 250,
+        readFile: async () => "http://127.0.0.1:4321",
+      }),
+    ).rejects.toThrow(/stage "runtime-health"/)
+    const noOrigin = fakeSession()
+    await expect(
+      waitForRuntimeReadiness({
+        session: noOrigin,
+        stubOriginPath: "/tmp/e2e/origin.txt",
+        scenario,
+        timeoutMs: 250,
+        readFile: async () => {
+          throw new Error("missing")
+        },
+      }),
+    ).rejects.toThrow(/stage "stub-origin"/)
+    expect(noOrigin.events).toEqual([])
+    const unknown = fakeSession({ seeded: Array.from({ length: 100 }, () => false) })
+    await expect(
+      waitForRuntimeReadiness({
+        session: unknown,
+        stubOriginPath: "/tmp/e2e/origin.txt",
+        scenario,
+        timeoutMs: 250,
+        readFile: async () => "http://127.0.0.1:4321",
+      }),
+    ).rejects.toThrow(/stage "seeded-session"/)
+  })
+})
+
 describe("CSP helpers", () => {
   test("collects directive sources across combined policies", () => {
     const csp = "default-src 'self'; script-src 'self' 'sha256-a='; style-src 'self', script-src 'self' 'unsafe-inline'"
@@ -88,6 +173,54 @@ describe("CSP helpers", () => {
     ).toBe(true)
     expect(isCspConsoleMessage("Failed to fetch")).toBe(false)
   })
+
+  test("csp-clean covers the supervision pop-out policy, retained violations and console errors", async () => {
+    const session = { evaluate: async () => [] }
+    const clean = await journeyCspClean({
+      session,
+      documentCsp: "script-src 'self'",
+      consoleMessages: [],
+      packaged: false,
+      cspViolations: [],
+      popoutDocumentCsps: ["script-src 'self'"],
+    })
+    expect(clean.ok).toBe(true)
+    const forbidden = await journeyCspClean({
+      session,
+      documentCsp: "script-src 'self'",
+      consoleMessages: [],
+      packaged: false,
+      popoutDocumentCsps: ["script-src 'self' 'unsafe-eval'"],
+    })
+    expect(forbidden.ok).toBe(false)
+    expect(forbidden.detail).toContain("supervision pop-out script-src allows 'unsafe-eval'")
+    const missing = await journeyCspClean({
+      session,
+      documentCsp: "script-src 'self'",
+      consoleMessages: [],
+      packaged: false,
+      popoutDocumentCsps: [""],
+    })
+    expect(missing.ok).toBe(false)
+    expect(missing.detail).toContain("supervision pop-out document has no Content-Security-Policy")
+    const retained = await journeyCspClean({
+      session,
+      documentCsp: "script-src 'self'",
+      consoleMessages: [
+        {
+          source: "log",
+          page: "http://127.0.0.1:1/supervision.html",
+          text: "Refused to load the script because it violates the Content Security Policy",
+        },
+      ],
+      packaged: false,
+      cspViolations: ['{"directive":"script-src","blockedURI":"eval"}'],
+      popoutDocumentCsps: ["script-src 'self'"],
+    })
+    expect(retained.ok).toBe(false)
+    expect(retained.detail).toContain("blockedURI")
+    expect(retained.detail).toContain("Content Security Policy")
+  })
 })
 
 describe("harness plumbing", () => {
@@ -100,6 +233,13 @@ describe("harness plumbing", () => {
     expect(result.detail).toContain("broken settings")
     expect(FINAL_CHECKS).toEqual([journeyCspClean, journeyRendererErrors])
     expect(JOURNEYS.at(-1).name).toBe("journeyReload")
+    // The scripted journeys are opt-in and run in this order after the default ones.
+    expect(SCRIPTED_JOURNEYS.map((journey) => journey.name)).toEqual([
+      "journeyNeedsYouApprove",
+      "journeyNeedsYouDeny",
+      "journeyGoalRow",
+    ])
+    expect(JOURNEYS.map((journey) => journey.name)).not.toContain("journeyNeedsYouApprove")
   })
 
   test("forwards CSP failures to the host so a document reload cannot erase them", () => {
@@ -143,7 +283,9 @@ describe("harness plumbing", () => {
       app: "/A.app",
       artifacts: "/out",
       timeoutMs: 5000,
+      scripted: false,
     })
+    expect(parseArgs(["--scripted"]).scripted).toBe(true)
     expect(parseArgs(["--timeout-ms", "nope"]).timeoutMs).toBe(60_000)
     expect(summarize([{ name: "boot", ok: true, detail: "x" }]).ok).toBe(true)
     expect(summarize([]).ok).toBe(false)

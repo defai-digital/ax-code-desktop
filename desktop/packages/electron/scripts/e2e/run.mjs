@@ -6,11 +6,18 @@ import path from "node:path"
 import { realpathSync } from "node:fs"
 import { fileURLToPath } from "node:url"
 import { CdpSession, isAppPageTarget, waitForCondition, waitForTarget } from "./cdp.mjs"
-import { CSP_RECORDER_SCRIPT, FINAL_CHECKS, JOURNEYS, SHELL_READY_EXPRESSION } from "./journeys.mjs"
+import {
+  CSP_RECORDER_SCRIPT,
+  FINAL_CHECKS,
+  JOURNEYS,
+  SCRIPTED_JOURNEYS,
+  SHELL_READY_EXPRESSION,
+  waitForRuntimeReadiness,
+} from "./journeys.mjs"
 import { launchDesktop } from "./launch.mjs"
 
 export const parseArgs = (argv) => {
-  const result = { app: "", artifacts: "", timeoutMs: 60_000 }
+  const result = { app: "", artifacts: "", timeoutMs: 60_000, scripted: false }
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]
     const next = argv[index + 1]
@@ -20,6 +27,8 @@ export const parseArgs = (argv) => {
     } else if (arg === "--artifacts" && next) {
       result.artifacts = next
       index += 1
+    } else if (arg === "--scripted") {
+      result.scripted = true
     } else if (arg === "--timeout-ms" && next) {
       const parsed = Number(next)
       if (Number.isFinite(parsed) && parsed > 0) result.timeoutMs = parsed
@@ -55,7 +64,13 @@ const writeArtifacts = async ({ dir, launch, consoleMessages, session, results }
   }
 }
 
-export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000, journeys = JOURNEYS } = {}) => {
+export const runHarness = async ({
+  app = "",
+  artifacts = "",
+  timeoutMs = 60_000,
+  scripted = false,
+  journeys = scripted ? [...JOURNEYS, ...SCRIPTED_JOURNEYS] : JOURNEYS,
+} = {}) => {
   const launch = await launchDesktop({ app })
   const consoleMessages = []
   const results = []
@@ -99,6 +114,20 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000,
     })
     await session.send("Runtime.addBinding", { name: "__axE2eReportCsp" })
     await session.send("Page.addScriptToEvaluateOnNewDocument", { source: CSP_RECORDER_SCRIPT })
+    const popoutDocumentCsps = []
+    // Runtime-readiness barrier: under load the app bootstrap can exhaust its
+    // own attempts before the stub runtime is reachable. Wait for the stub
+    // origin file and for the app to report the runtime healthy through its
+    // own server, reload once against the live runtime, and only then let
+    // the first-load wait and the journeys run.
+    if (scripted) {
+      await waitForRuntimeReadiness({
+        session,
+        stubOriginPath: launch.stubOriginPath,
+        scenario: launch.scenario,
+        timeoutMs,
+      })
+    }
     // Let main finish its own first load (interrupting it is a startup failure),
     // then reload so the violation recorder and network capture see a whole load.
     await waitForCondition(() => session.evaluate(SHELL_READY_EXPRESSION), { timeoutMs, label: "first load" })
@@ -111,7 +140,20 @@ export const runHarness = async ({ app = "", artifacts = "", timeoutMs = 60_000,
       const started = performance.now()
       try {
         results.push(
-          await journey({ session, documentCsp, consoleMessages, packaged, debuggingPort: launch.debuggingPort }),
+          await journey({
+            session,
+            documentCsp,
+            consoleMessages,
+            packaged,
+            cspViolations,
+            popoutDocumentCsps,
+            debuggingPort: launch.debuggingPort,
+            e2e: {
+              scenario: launch.scenario,
+              repliesPath: launch.repliesPath,
+              stubOriginPath: launch.stubOriginPath,
+            },
+          }),
         )
       } catch (error) {
         results.push({ name: journey.name.replace(/^journey/, "").toLowerCase(), ok: false, detail: error.message })
