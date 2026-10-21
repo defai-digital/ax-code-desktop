@@ -5,6 +5,21 @@ const page = require("./webmcp-page")
 
 const CAPABILITY = "desktop.webmcp.v1"
 const MAX_RESULT_BYTES = 65536
+const STOP_ACK_MS = 500
+const boundedStop = async (acknowledged, requestID) => {
+  let timer
+  try {
+    const stopped = await Promise.race([
+      acknowledged.then(() => true),
+      new Promise((resolve) => {
+        timer = setTimeout(() => resolve(false), STOP_ACK_MS)
+      }),
+    ])
+    return { requestID, state: stopped ? "stopped" : "still-finishing" }
+  } finally {
+    clearTimeout(timer)
+  }
+}
 // Fixed metadata only: page exceptions and debugger errors may contain credentials.
 const invocationError = (outcome, reason, message = "Native completion is unconfirmed; do not retry automatically") =>
   Object.assign(new Error(message), { outcome, reason })
@@ -94,10 +109,11 @@ class NativeWebMcp {
     // The read whose element references the page may still act on; cleared with every document.
     this.readId = null
     this.interacting = false
-    // The page operation currently running (only one at a time) and the ids the runtime
-    // canceled while it ran. executeJavaScript cannot be aborted, so cancellation is
-    // observed at the checkpoints around the destructive act and before a reply is built.
+    // Keep the operation occupied until the page settles, including after a stop acknowledgement timeout.
     this.activePageRequestId = null
+    // Enrollment revocation changes generation without replacing the executing document.
+    this.documentId = randomUUID()
+    this.executingPageScript = null
     this.canceledPageRequests = new Set()
     this.message = (_event, method, params) => this.onMessage(method, params)
     this.navigation = (_event, _url, inPlace, mainFrame) => {
@@ -134,21 +150,27 @@ class NativeWebMcp {
     }
   }
   invalidate() {
+    this.documentId = randomUUID()
     this.tools.clear()
     this.toolKinds.clear()
     this.catalogRejection = null
-    this.revoke()
+    // Navigation can discard an invocation without a response. Retire only these old-document
+    // entries after the bounded stop; a withdrawal on the same document must keep its busy guard.
+    const retiring = [...this.pending.entries()]
+    void this.revoke().then(() => {
+      for (const [id, entry] of retiring) if (this.pending.get(id) === entry) entry.reject()
+    })
   }
   revoke({ cancelPageRequest = false } = {}) {
     this.generation = randomUUID()
     this.readId = null
-    // Withdrawing access (pause, disconnect) also stops a read/act/wait that is already running: it cannot be aborted
-    // mid-script, so marking it canceled stops it at the next checkpoint and an act still queued never clicks or types.
-    // A navigation the act itself caused revokes too, but must not cancel that act.
-    if (cancelPageRequest && this.activePageRequestId) this.canceledPageRequests.add(this.activePageRequestId)
-    for (const id of [...this.pending.keys()]) this.cancel(id, "uncertain", "provider-gone")
+    const ids = [...this.pending.keys()]
+    if (cancelPageRequest && this.activePageRequestId) ids.push(this.activePageRequestId)
+    const stopped = Promise.all(ids.map((id) => this.cancel(id, "uncertain", "provider-gone")))
     this.changed()
+    return stopped
   }
+
   onMessage(method, params) {
     if (this.closed) return
     if (method === "Page.frameNavigated" && !params.frame.parentId) {
@@ -308,6 +330,11 @@ class NativeWebMcp {
       const finish = (result) => {
         clearTimeout(timer)
         this.pending.delete(request.requestID)
+        entry.acknowledge()
+        if (entry.stopping) {
+          reject(invocationError(entry.stopOutcome, entry.stopReason))
+          return
+        }
         const current = this.snapshot()
         if (
           this.closed ||
@@ -342,13 +369,20 @@ class NativeWebMcp {
         () => this.cancel(request.requestID, "timeout", "timeout"),
         Math.min(30000, request.deadline - Date.now()),
       )
+      let acknowledge
+      const acknowledged = new Promise((resolve) => {
+        acknowledge = resolve
+      })
       const entry = {
+        acknowledged,
+        acknowledge,
+        clearDeadline: () => clearTimeout(timer),
         invocationId: null,
         early: null,
         finish,
-        reject: (outcome = "uncertain", reason = "provider-gone") => {
+        reject: (outcome = "uncertain", reason = "provider-gone", retain = false) => {
           clearTimeout(timer)
-          this.pending.delete(request.requestID)
+          if (!retain) this.pending.delete(request.requestID)
           reject(invocationError(outcome, reason))
         },
       }
@@ -361,8 +395,8 @@ class NativeWebMcp {
         })
         .then(({ invocationId }) => {
           entry.invocationId = invocationId
-          if (!this.pending.has(request.requestID)) {
-            return this.contents.debugger.sendCommand("WebMCP.cancelInvocation", { invocationId }).catch(() => {})
+          if (entry.stopping || !this.pending.has(request.requestID)) {
+            void this.contents.debugger.sendCommand("WebMCP.cancelInvocation", { invocationId }).catch(() => {})
           }
           if (entry.early?.invocationId === invocationId) finish(entry.early)
         })
@@ -379,6 +413,11 @@ class NativeWebMcp {
     const args = page.validate(request)
     this.interacting = true
     this.activePageRequestId = typeof request.requestID === "string" ? request.requestID : null
+    let acknowledge
+    this.pageAcknowledged = new Promise((resolve) => {
+      acknowledge = resolve
+    })
+    this.pageStop = null
     const assertActive = () => {
       if (request.requestID && this.canceledPageRequests.has(request.requestID)) {
         throw new Error("The browser request was canceled")
@@ -386,10 +425,16 @@ class NativeWebMcp {
     }
     try {
       const run = async (payload) => {
-        // Electron resolves with the script's own value, not a list of results.
-        const result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
-          { code: page.program(payload) },
-        ])
+        this.executingPageScript = { requestID: request.requestID, documentId: this.documentId }
+        let result
+        try {
+          // Electron resolves with the script's own value, not a list of results.
+          result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
+            { code: page.program(payload) },
+          ])
+        } finally {
+          this.executingPageScript = null
+        }
         if (this.closed || Date.now() >= request.deadline) throw new Error("The browser request lifetime changed")
         return result
       }
@@ -422,27 +467,49 @@ class NativeWebMcp {
       if (result?.error) throw new Error(`The page refused the action: ${result.error}`)
       // Let a navigation the action started surface, so the reply carries the document it landed on.
       await new Promise((resolve) => setTimeout(resolve, 300))
+      assertActive()
       return done({ done: true, how: args.how, navigated: this.generation !== request.generation })
     } finally {
+      acknowledge()
       this.interacting = false
       if (this.activePageRequestId === request.requestID) this.activePageRequestId = null
       if (request.requestID) this.canceledPageRequests.delete(request.requestID)
     }
   }
   cancel(requestID, outcome = "cancelled", reason = "cancelled") {
-    // A page operation has no invocation id and cannot be aborted mid-script; record the
-    // cancellation so the checkpoints above stop it and the reply is suppressed.
     if (typeof requestID === "string" && this.activePageRequestId === requestID) {
       this.canceledPageRequests.add(requestID)
-      return
+      if (!this.pageStop) {
+        // The interrupt targets the isolate, so never send it during the post-script delay
+        // or after navigation has replaced the document that owns the executing script.
+        if (
+          this.executingPageScript?.requestID === requestID &&
+          this.executingPageScript.documentId === this.documentId
+        ) {
+          void this.contents.debugger.sendCommand("Runtime.terminateExecution").catch(() => {})
+        }
+        this.pageStop = boundedStop(this.pageAcknowledged, requestID)
+      }
+      return this.pageStop
     }
     const pending = this.pending.get(requestID)
-    if (!pending) return
+    if (!pending) return Promise.resolve({ requestID, state: "stopped" })
+    if (pending.stopping) return pending.stopping
+    pending.clearDeadline()
+    pending.stopOutcome = outcome
+    pending.stopReason = reason
+    pending.stopping = boundedStop(pending.acknowledged, requestID).then((result) => {
+      // Keep the entry until its real response: a timeout must not admit overlapping page work.
+      if (result.state === "still-finishing") {
+        pending.reject(outcome === "timeout" ? "timeout" : "uncertain", reason, true)
+      }
+      return result
+    })
     if (pending.invocationId)
-      this.contents.debugger
+      void this.contents.debugger
         .sendCommand("WebMCP.cancelInvocation", { invocationId: pending.invocationId })
         .catch(() => {})
-    pending.reject(outcome, reason)
+    return pending.stopping
   }
   close() {
     if (this.closed) return

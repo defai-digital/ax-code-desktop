@@ -1,4 +1,5 @@
 import React from "react"
+import { WebMcpCancellationStatus, type WebMcpCancellation } from "./WebMcpCancellationStatus"
 import { useI18n } from "@/lib/i18n"
 import { getDesktopBridge } from "@/lib/desktopBridge"
 import { pageAccess, showWebMcpPage, useWebMcpPages } from "@/hooks/useWebMcpPages"
@@ -13,6 +14,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
   const pages = useWebMcpPages()
   const capacity = useWebMcpBrowserStore((state) => state.capacity)
   const [pending, setPending] = React.useState<string | null>(null)
+  const [cancellations, setCancellations] = React.useState<Record<string, WebMcpCancellation[]>>({})
   const [failed, setFailed] = React.useState(false)
   const disclosure = React.useRef<HTMLDetailsElement>(null)
   const otherWindows = capacity?.otherWindows ?? []
@@ -24,15 +26,18 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
     const focusTarget = focused?.closest("li")?.querySelector<HTMLButtonElement>("button")
     setPending(key)
     setFailed(false)
+    setCancellations((previous) => ({ ...previous, [key]: [] }))
     try {
       const invoke = getDesktopBridge()?.invoke
       if (!invoke) throw new Error("Browser unavailable")
-      await invoke(
+      const result = await invoke<{ cancellations?: WebMcpCancellation[] }>(
         "desktop_webmcp_browser",
         action === "revokeSession"
           ? { action, directory: page.directory, sessionID: page.sessionID }
           : { action, id: page.browserId },
       )
+      if (action === "revokeSession")
+        setCancellations((previous) => ({ ...previous, [key]: result?.cancellations ?? [] }))
       const store = useWebMcpBrowserStore.getState()
       if (store.views[key]?.browserId === page.browserId) {
         if (action === "close") store.resetView(key)
@@ -136,6 +141,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
                     {t("webmcp.pages.close")}
                   </button>
                 )}
+                <WebMcpCancellationStatus calls={cancellations[page.key] ?? []} />
               </li>
             )
           })}

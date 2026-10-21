@@ -298,13 +298,11 @@ test("full pool in another window offers owner focus and keeps announcements out
 
 test("equal session titles still have distinct accessible action names", () => {
   const secondKey = viewKeyFor("/project-a", "ses_duplicate")
-  useWebMcpBrowserStore
-    .getState()
-    .updateView(secondKey, {
-      ...useWebMcpBrowserStore.getState().views[a],
-      browserId: "duplicate",
-      sessionID: "ses_duplicate",
-    })
+  useWebMcpBrowserStore.getState().updateView(secondKey, {
+    ...useWebMcpBrowserStore.getState().views[a],
+    browserId: "duplicate",
+    sessionID: "ses_duplicate",
+  })
   useSupervisionStore.setState({
     rows: [row("/project-a", "Task A"), { ...row("/project-a", "Task A"), sessionId: "ses_duplicate" }],
   })
@@ -351,4 +349,36 @@ test("waiting session counts deduplicate null-directory runtime rows without mer
       [{ key: a, sessionID: "ses_same" }],
     ),
   ).toBe(2)
+})
+
+test("revoke reports each acknowledged or still-finishing call on its own page", async () => {
+  let finish!: (result: unknown) => void
+  invoke.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        finish = resolve
+      }),
+  )
+  const { container } = render(<WebMcpPageSwitcher selectedKey={b} onRetry={vi.fn()} />)
+  fireEvent.click(container.querySelector("summary")!)
+  fireEvent.click(
+    within(container).getByRole("button", {
+      name: "Revoke agent access: Task A · https://a.test · /project-a · ses_same",
+    }),
+  )
+  expect(container.textContent).not.toContain("stop requested, still finishing")
+  await act(async () =>
+    finish({
+      cancellations: [
+        { requestID: "call-a", state: "stopped" },
+        { requestID: "call-b", state: "still-finishing" },
+      ],
+    }),
+  )
+  const row = Array.from(container.querySelectorAll("[data-webmcp-page]")).find(
+    (element) => element.getAttribute("data-webmcp-page") === a,
+  )!
+  expect(row.textContent).toContain("Call call-a: stopped. Changes already made on the page stay.")
+  expect(row.textContent).toContain("Call call-b: stop requested, still finishing.")
+  expect(useWebMcpBrowserStore.getState().views[b].enabled).toBe(true)
 })
