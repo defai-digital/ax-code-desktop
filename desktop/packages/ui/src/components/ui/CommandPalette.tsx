@@ -2,6 +2,7 @@ import { useMissionControlPullRequests } from "@/hooks/useMissionControlPullRequ
 import { axCodeClient } from "@/lib/ax-code/client"
 import { missionProjectKey } from "@/lib/supervision/missionControl"
 import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
+import { resolveGridSession } from "@/lib/supervision/sessionGrid"
 import React from "react"
 import {
   Command,
@@ -674,7 +675,7 @@ export const CommandPalette: React.FC = () => {
   }, [settingsEntries, liveTrimmed, hasQuery])
 
   const sessionSearch = liveTrimmed.startsWith("#") || Boolean(scope)
-  const scoredSessions = React.useMemo(() => {
+  const sessionCandidates = React.useMemo(() => {
     const candidates = sortedActiveSessions.filter((session) => {
       if (!scope || scope === "host") return true
       const row = rowBySession.get(session.id)
@@ -689,13 +690,12 @@ export const CommandPalette: React.FC = () => {
       return candidates
         .filter((session) => {
           const pr = rowBySession.get(session.id)?.pullRequest
-          if (!pr || pr.stale) return false
+          if (!pr) return false
           return expression
             .split(/\s+/)
             .filter(Boolean)
             .every((term) => (/^#?\d+$/.test(term) ? pr.number === Number(term.replace(/^#/, "")) : pr.state === term))
         })
-        .slice(0, 50)
         .map((item) => ({ item, score: 0 }))
     }
     if (!hasQuery) return candidates.slice(0, 8).map((item) => ({ item, score: 0 }))
@@ -706,6 +706,14 @@ export const CommandPalette: React.FC = () => {
       { limit: 7, threshold: 0.2 },
     )
   }, [sortedActiveSessions, liveTrimmed, hasQuery, rowBySession, scope])
+
+  const scoredSessions = React.useMemo(
+    () =>
+      liveTrimmed.startsWith("#")
+        ? sessionCandidates.filter(({ item }) => !rowBySession.get(item.id)?.pullRequest?.stale).slice(0, 50)
+        : sessionCandidates,
+    [sessionCandidates, liveTrimmed, rowBySession],
+  )
 
   const scoredFiles = React.useMemo(() => {
     if (!hasQuery || fileResults.length === 0) return []
@@ -724,12 +732,13 @@ export const CommandPalette: React.FC = () => {
   const visibleFiles = hasQuery && !sessionSearch ? scoredFiles.map((x) => x.item) : []
 
   React.useEffect(() => {
+    // Demand known PR matches before hiding stale data. The shared cache limits refresh concurrency to two.
     setPrVisibleRows(
       isCommandPaletteOpen
-        ? supervisionRows.filter((row) => scoredSessions.some(({ item }) => item.id === row.sessionId))
+        ? supervisionRows.filter((row) => sessionCandidates.some(({ item }) => item.id === row.sessionId))
         : [],
     )
-  }, [isCommandPaletteOpen, supervisionRows, scoredSessions, setPrVisibleRows])
+  }, [isCommandPaletteOpen, supervisionRows, sessionCandidates, setPrVisibleRows])
 
   const groupOrder = React.useMemo<("supervision" | "commands" | "settings" | "sessions" | "files")[]>(() => {
     // Like a jump palette: when a session waits on the user, the ranked sessions come first.
@@ -759,16 +768,20 @@ export const CommandPalette: React.FC = () => {
     const current = activeSessions.find((item) => item.id === currentSessionId)
     const currentDir =
       (current && resolveGlobalSessionDirectory(current)) ||
-      rowBySession.get(currentSessionId ?? "")?.directory ||
-      currentDirectory
-    if (!currentSessionId || !currentDir || !chosenDirectory || session.id === currentSessionId) {
+      rowBySession.get(currentSessionId ?? "")?.directory
+    const currentSlot = currentSessionId && currentDir ? { sessionId: currentSessionId, directory: currentDir } : null
+    const chosenSlot = chosenDirectory ? { sessionId: session.id, directory: chosenDirectory } : null
+    if (
+      !currentSlot ||
+      !chosenSlot ||
+      session.id === currentSessionId ||
+      !resolveGridSession(currentSlot, sourceRows) ||
+      !resolveGridSession(chosenSlot, sourceRows)
+    ) {
       handleOpenSession(session)
       return
     }
-    openSessionGrid([
-      { sessionId: currentSessionId, directory: currentDir },
-      { sessionId: session.id, directory: chosenDirectory },
-    ])
+    openSessionGrid([currentSlot, chosenSlot])
     close()
   }
 
