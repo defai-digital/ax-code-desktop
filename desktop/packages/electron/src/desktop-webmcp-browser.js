@@ -1426,9 +1426,10 @@ function createDesktopWebMcpBrowser({
     closeAll: async () => {
       ++poolRevision
       for (const record of unloaded.values()) forget(record)
-      const closing = [...views.values()].map(close)
+      // Never pass map indexes: close() reads a second argument as confirmation to discard unsaved work.
+      const closing = [...views.values()].map((entry) => close(entry))
       await poolOperations.catch(() => {})
-      await Promise.allSettled([...closing, ...[...views.values()].map(close)])
+      await Promise.allSettled([...closing, ...[...views.values()].map((entry) => close(entry))])
       for (const record of unloaded.values()) forget(record)
     },
     runtimeChanged: () => {

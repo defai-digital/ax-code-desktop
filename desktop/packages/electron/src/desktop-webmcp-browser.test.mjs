@@ -2265,6 +2265,20 @@ describe("Round 14a LRU unload", () => {
     expect(f.owners.get(sender).eventNames()).toEqual([])
   })
 
+  test("closeAll asks every page to honor beforeunload, not only the first", async () => {
+    const f = fixture()
+    const { sender } = await f.create()
+    await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/other",
+      sessionID: "ses_other",
+      url: "https://other.test/",
+    })
+    expect(f.guests).toHaveLength(2)
+    await f.controller.closeAll()
+    for (const guest of f.guests) expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
+  })
+
   test("LRU honors recent shows, never unloads a held call, and rejects a full busy pool", async () => {
     const f = fixture({ maxLiveViews: 2 })
     const { sender, status: first } = await f.create()

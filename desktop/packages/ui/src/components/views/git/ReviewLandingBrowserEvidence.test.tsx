@@ -147,7 +147,7 @@ describe("browser evidence beside landing", () => {
     useUIStore.getState().setPendingMessageNavigation(null)
   })
 
-  test("a long turn says how many steps are shown, and Copy recap writes the steps to the clipboard", async () => {
+  test("a long turn says how many steps are shown on screen, and Copy recap writes every step of the turn", async () => {
     sync.messages = [{ id: "u1", role: "user" }, { id: "a1", role: "assistant" }]
     useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [] })
     sync.parts = new Map([["a1", Array.from({ length: 60 }, (_, index) => call(`c${index}`, "completed"))]])
@@ -159,10 +159,10 @@ describe("browser evidence beside landing", () => {
       fireEvent.click(container.querySelector<HTMLButtonElement>("[data-recap-copy]")!)
     })
     const text = writeText.mock.calls[0][0]
-    expect(text.split("\n")).toHaveLength(53)
+    expect(text.split("\n")).toHaveLength(62)
     expect(text).toContain("diffView.landing.browserEvidence:60")
-    expect(text).toContain("diffView.landing.browserRecap.capped:50|60")
-    expect(text).toContain("11. checkout")
+    expect(text).not.toContain("diffView.landing.browserRecap.capped")
+    expect(text).toContain("1. checkout")
     expect(text).toContain("60. checkout")
     expect(container.querySelector("ol")?.start).toBe(11)
   })

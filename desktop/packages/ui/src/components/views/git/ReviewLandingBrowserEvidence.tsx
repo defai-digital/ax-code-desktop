@@ -92,12 +92,14 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const steps = calls.slice(0, RECAP_LIMIT).reverse()
   // The definition each tool has now, to show when a call ran against an earlier one.
   const currentDigest = new Map((pageTools ?? []).flatMap((tool) => (tool.definitionDigest ? [[tool.name, tool.definitionDigest]] : [])))
+  // The copied recap is the whole turn; only the on-screen list is capped.
   const recapText = () =>
-    steps
+    [...calls]
+      .reverse()
       .map((call, index) => {
         const operation = call.operation?.toLowerCase() ?? ""
         const kind = t(`diffView.landing.browserRecap.kind.${RECAP_KINDS.has(operation) ? operation : "other"}` as I18nKey)
-        const parts = [`${calls.length - steps.length + index + 1}. ${call.title}`, kind, t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)]
+        const parts = [`${index + 1}. ${call.title}`, kind, t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)]
         if (call.durationMs !== null) parts.push(formatWebMcpDuration(call.durationMs))
         if (call.outcome === "failed" && call.failureReason)
           parts.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
@@ -112,7 +114,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       .join("\n")
   const copyRecap = async () => {
     try {
-      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), ...(calls.length > RECAP_LIMIT ? [t("diffView.landing.browserRecap.capped", { shown: RECAP_LIMIT, total: calls.length })] : []), recapText(), ...(notCalled.length ? [t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })] : [])].join("\n"))
+      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), recapText(), ...(notCalled.length ? [t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })] : [])].join("\n"))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
