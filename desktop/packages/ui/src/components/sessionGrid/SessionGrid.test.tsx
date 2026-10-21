@@ -12,10 +12,23 @@ import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { SessionGrid } from "./SessionGrid"
+import { MiniChatGridReturn } from "@/apps/MiniChatGridReturn"
+import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { trackGridWindows, useGridWindowOwners } from "@/lib/supervision/sessionGridPopout"
 const live = vi.hoisted(() => ({
   rows: [] as SupervisionRow[],
   canWindow: false,
   openWindow: vi.fn(async () => true),
+  windows: [] as Array<{ sessionId: string; directory: string }>,
+  closeWindow: vi.fn(async () => null),
+  inventory: vi.fn(),
+}))
+vi.mock("@/lib/desktop", async (original) => ({
+  ...await original<typeof import("@/lib/desktop")>(),
+  invokeDesktop: (command: string) => command === "desktop_list_session_mini_chat_windows"
+    ? live.inventory()
+    : live.closeWindow(),
 }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => live.rows }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
@@ -31,7 +44,7 @@ vi.mock("@/lib/i18n", () => ({
     t: (key: string, params?: Record<string, string | number>) => {
       if (!params) return key
       if (Object.keys(params).length === 1 && Object.hasOwn(params, "count")) return `${key} ${params.count}`
-      if (params.title) return `${key} ${params.title}`
+      if (params.title) return `${key} ${params.title}${params.count ? ` ${params.count}` : ""}`
       return key
     },
   }),
@@ -59,7 +72,14 @@ beforeEach(() => {
   )
   live.canWindow = false
   live.openWindow.mockReset()
-  live.openWindow.mockResolvedValue(true)
+  live.windows = []
+  live.inventory.mockReset().mockImplementation(async () => live.windows.slice())
+  live.closeWindow.mockReset().mockResolvedValue(null)
+  useGridWindowOwners.setState({ owners: new Set() })
+  live.openWindow.mockImplementation(async () => {
+    live.windows = [{ sessionId: "a", directory: "C:/repo-a" }]
+    return true
+  })
   live.rows = [row("a"), row("b"), row("c"), row("d"), row("e")]
   getSafeStorage().removeItem(SESSION_GRID_RATIOS_KEY)
   useWebMcpBrowserStore.setState({ views: {} })
@@ -68,6 +88,9 @@ beforeEach(() => {
 })
 afterEach(() => {
   cleanup()
+  trackGridWindows()()
+  GridChannel.instances.clear()
+  vi.restoreAllMocks()
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.clearAllMocks()
@@ -290,65 +313,198 @@ class GridChannel {
   }
 }
 
-test("pop out unmounts the session page until the window reports it closed", async () => {
+const oneSession = () => {
   live.canWindow = true
-  let resolveOpen: (value: boolean) => void = () => {}
-  live.openWindow.mockImplementation(() => new Promise((resolve) => {
-    resolveOpen = resolve
-  }))
+  vi.stubGlobal("BroadcastChannel", GridChannel)
+  useSessionUIStore.setState({ currentSessionId: null })
+  useDirectoryStore.setState({ currentDirectory: "" })
   useUIStore.getState().setSessionGrid(
     restoreSessionGrid({ layout: 1, slots: [{ sessionId: "a", directory: "C:/repo-a" }] }),
   )
+}
+const flush = async () => { await act(async () => { await Promise.resolve() }) }
+const pop = async () => {
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popOut Task a" }))
+  await flush()
+}
+const closeNativeWindow = async () => {
+  live.windows = []
+  await act(async () => {
+    window.dispatchEvent(new Event("openchamber:session-windows-changed"))
+  })
+}
+
+test("return receiver retains ownership through pending, rejected and vetoed closure until native release", async () => {
+  oneSession()
   const stored = useUIStore.getState().sessionGrid.slots[0]!
   useWebMcpBrowserStore.getState().updateView(viewKeyFor(stored.directory, stored.sessionId), {
-    browserId: "page-a",
-    directory: stored.directory,
-    sessionID: stored.sessionId,
-    origin: "https://a.test",
+    browserId: "page-a", directory: stored.directory, sessionID: stored.sessionId, origin: "https://a.test",
   })
-  vi.stubGlobal("BroadcastChannel", GridChannel)
-  const { container } = render(<SessionGrid />)
+  const { container } = render(<><SessionGrid /><MiniChatGridReturn config={stored} /></>)
+  await flush()
   act(() => vi.runAllTimers())
   expect(container.querySelector("iframe")).not.toBeNull()
-  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
-  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popOut Task a" }))
+  await pop()
   expect(container.querySelector("iframe")).toBeNull()
   expect(container.querySelector("[data-webmcp-session-page]")).toBeNull()
-  expect(screen.getByRole("status").textContent).toBe("sessionGrid.poppedOut")
-  await act(async () => {
-    resolveOpen(false)
-  })
-  act(() => vi.runAllTimers())
-  expect(container.querySelector("iframe")).not.toBeNull()
-  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
-
-  live.openWindow.mockResolvedValue(true)
-  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popOut Task a" }))
-  await act(async () => {
-    await Promise.resolve()
-  })
+  let rejectClose!: (error: Error) => void
+  live.closeWindow.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectClose = reject }))
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popIn Task a" }))
+  await flush()
+  expect(live.closeWindow).toHaveBeenCalledOnce()
+  expect(container.querySelector("iframe")).toBeNull()
+  await act(async () => { rejectClose(new Error("close rejected")) })
+  expect(container.querySelector("iframe")).toBeNull()
+  // Visibility false, including beforeunload, is not proof that close succeeded.
+  act(() => new GridChannel("presence").postMessage({ type: "mini-chat-session-presence", ...stored, viewed: false }))
   expect(container.querySelector("iframe")).toBeNull()
   fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popIn Task a" }))
+  await flush()
+  expect(live.closeWindow).toHaveBeenCalledTimes(2)
   expect(container.querySelector("iframe")).toBeNull()
-  expect(container.querySelector("[data-webmcp-session-page]")).toBeNull()
-  act(() => {
-    new GridChannel("openchamber:mini-chat-presence").postMessage({
-      type: "mini-chat-session-presence",
-      sessionId: "other",
-      directory: stored.directory,
-      viewed: false,
-    })
-  })
-  expect(container.querySelector("iframe")).toBeNull()
-  act(() => {
-    new GridChannel("openchamber:mini-chat-presence").postMessage({
-      type: "mini-chat-session-presence",
-      sessionId: stored.sessionId,
-      directory: stored.directory,
-      viewed: false,
-    })
-  })
+  await closeNativeWindow()
   act(() => vi.runAllTimers())
   expect(container.querySelector("iframe")).not.toBeNull()
   expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
+})
+
+test("failed return messaging and inventory keep the live window exclusive", async () => {
+  oneSession()
+  const { container } = render(<SessionGrid />)
+  await flush()
+  await pop()
+  vi.stubGlobal("BroadcastChannel", undefined)
+  live.inventory.mockRejectedValueOnce(new Error("inventory unavailable"))
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popIn Task a" }))
+  await flush()
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).toBeNull()
+  expect(useUIStore.getState().sessionGrid.slots[0]?.poppedOut).toBe(true)
+})
+
+test("replacing, removing and readding a popped session cannot acquire a second owner", async () => {
+  oneSession()
+  const { container } = render(<SessionGrid />)
+  await flush()
+  await pop()
+  const selectA = (name: string) => fireEvent.change(screen.getByRole("combobox", { name }), {
+    target: { value: "a\u0000C:/repo-a" },
+  })
+  selectA("sessionGrid.replace")
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).toBeNull()
+  expect(screen.queryByRole("button", { name: "sessionGrid.popOut Task a" })).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.close" }))
+  selectA("sessionGrid.add")
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).toBeNull()
+  expect(screen.queryByRole("button", { name: "sessionGrid.popOut Task a" })).toBeNull()
+  expect(live.openWindow).toHaveBeenCalledOnce()
+  await closeNativeWindow()
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).not.toBeNull()
+})
+
+test("native closure while the grid is unmounted releases its slot and remount reconciles missed events", async () => {
+  oneSession()
+  const view = render(<SessionGrid />)
+  await flush()
+  await pop()
+  view.rerender(<div>Workspace</div>)
+  await closeNativeWindow()
+  expect(useUIStore.getState().sessionGrid.slots[0]?.poppedOut).not.toBe(true)
+  view.rerender(<SessionGrid />)
+  await flush()
+  act(() => vi.runAllTimers())
+  expect(view.container.querySelector("iframe")).not.toBeNull()
+  await pop()
+  view.rerender(<div>Workspace</div>)
+  live.windows = [] // Missed native event, such as a renderer reload.
+  view.rerender(<SessionGrid />)
+  await flush()
+  act(() => vi.runAllTimers())
+  expect(view.container.querySelector("iframe")).not.toBeNull()
+})
+
+test("failed opens restore the embedded page only after inventory confirms no window", async () => {
+  oneSession()
+  live.openWindow.mockResolvedValue(false)
+  const { container } = render(<SessionGrid />)
+  await flush()
+  await pop()
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).not.toBeNull()
+  expect(useUIStore.getState().sessionGrid.slots[0]?.poppedOut).not.toBe(true)
+})
+
+for (const edge of ["center", "right"]) test(`pointer cancellation clears the ${edge} preview without persisting a drop`, () => {
+  measureGrid()
+  const { container } = render(<SessionGrid />)
+  const original = useUIStore.getState().sessionGrid
+  const handle = slot(container, 0).querySelector("[data-session-grid-handle]")!
+  const target = slot(container, 1)
+  const x = Number.parseFloat(target.style.left) + Number.parseFloat(target.style.width) * (edge === "center" ? 0.5 : 0.99)
+  pointer(handle, "pointerdown", 20, 20)
+  pointer(handle, "pointermove", x, 200)
+  expect(container.querySelector("[data-grid-drop-edge]")?.getAttribute("data-grid-drop-edge")).toBe(edge)
+  pointer(handle, "pointercancel", x, 200)
+  expect(container.querySelector("[data-grid-drop-edge]")).toBeNull()
+  expect(useUIStore.getState().sessionGrid).toBe(original)
+  pointer(handle, "pointerup", x, 200)
+  expect(useUIStore.getState().sessionGrid).toBe(original)
+})
+
+const leaf = (slot: number) => ({ kind: "leaf" as const, slot })
+test("nested columns retain recursive minimum widths after the outer splitter moves", () => {
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(492)
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400)
+  useUIStore.getState().setSessionGrid(restoreSessionGrid({
+    layout: 3, slots: live.rows.slice(0, 3),
+    tree: { kind: "split", id: "s1", axis: "column", ratio: 0.5, first: leaf(0),
+      second: { kind: "split", id: "s2", axis: "column", ratio: 0.5, first: leaf(1), second: leaf(2) } },
+  }))
+  const { container } = render(<SessionGrid />)
+  const assertWidths = () => {
+    for (let i = 0; i < 3; i++) expect(Number.parseFloat(slot(container, i).style.width)).toBeGreaterThanOrEqual(160 - 1e-6)
+  }
+  assertWidths()
+  const outer = screen.getAllByRole("separator")[1]
+  for (let i = 0; i < 30; i++) fireEvent.keyDown(outer, { key: "ArrowRight" })
+  assertWidths()
+})
+
+test("resized custom columns move to the neighbor shown by the rendered geometry", () => {
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1000)
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(400)
+  useUIStore.getState().setSessionGrid(restoreSessionGrid({
+    layout: 4, slots: live.rows.slice(0, 4),
+    tree: { kind: "split", id: "s1", axis: "column", ratio: 0.5,
+      first: { kind: "split", id: "s2", axis: "row", ratio: 0.7, first: leaf(0), second: leaf(2) },
+      second: { kind: "split", id: "s3", axis: "row", ratio: 0.3, first: leaf(1), second: leaf(3) } },
+  }))
+  const { container } = render(<SessionGrid />)
+  fireEvent.click(within(slot(container, 0)).getByRole("button", { name: "sessionGrid.moveRight" }))
+  expect(slot(container, 1).dataset.sessionGridSession).toBe("a")
+  expect(slot(container, 3).dataset.sessionGridSession).toBe("d")
+})
+
+test("successive arrow moves follow the session focus and announce each destination", () => {
+  measureGrid()
+  useUIStore.getState().setSessionGrid(restoreSessionGrid({
+    layout: 3, slots: live.rows.slice(0, 3),
+    tree: { kind: "split", id: "s1", axis: "column", ratio: 0.33, first: leaf(0),
+      second: { kind: "split", id: "s2", axis: "column", ratio: 0.5, first: leaf(1), second: leaf(2) } },
+  }))
+  const { container } = render(<SessionGrid />)
+  const handle = slot(container, 0).querySelector<HTMLElement>("[data-session-grid-handle]")!
+  expect(handle.getAttribute("aria-label")).toBe("sessionGrid.moveSession Task a")
+  handle.focus()
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" })
+  expect(document.activeElement?.closest("[data-session-grid-slot]")?.getAttribute("data-session-grid-session")).toBe("a")
+  expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("sessionGrid.moved Task a 2")
+  fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" })
+  expect(slot(container, 2).dataset.sessionGridSession).toBe("a")
+  expect(document.activeElement).toBe(slot(container, 2).querySelector("[data-session-grid-handle]"))
+  expect(document.activeElement?.getAttribute("aria-label")).toBe("sessionGrid.moveSession Task a")
+  expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("sessionGrid.moved Task a 3")
 })

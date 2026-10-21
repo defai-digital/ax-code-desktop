@@ -1,3 +1,4 @@
+import { placeholderWebMcpSecrets } from "./toolHelpers"
 import { diagnosisFields, diagnosisOpaqueRequired, toolInputWarnings, type ToolField } from "./webMcpToolForm"
 
 /**
@@ -124,9 +125,11 @@ export function webMcpRegressionExport(entry: {
   outcome: string
 }): { snippet: string; runArgument: string } | null {
   if (!entry.tool || entry.tool.length > 256) return null
+  if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) return null
   let encoded: string
   try {
-    encoded = JSON.stringify(entry.input)
+    // Secret-named fields become a placeholder: a copied test never carries the value that was typed.
+    encoded = JSON.stringify(placeholderWebMcpSecrets(entry.input))
     if (!encoded || encoded === "null" || encoded[0] !== "{") return null
   } catch {
     return null

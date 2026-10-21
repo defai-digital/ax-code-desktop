@@ -18,11 +18,9 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { SyncProvider, useSessions } from "@/sync/sync-context"
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { SyncRuntimeEffects } from "./AppEffects"
-import { invokeDesktop } from "@/lib/desktop"
+import { MiniChatGridReturn } from "./MiniChatGridReturn"
 import {
-  isMiniChatReturnMessage,
   MINI_CHAT_PRESENCE_CHANNEL,
-  miniChatReturnMatches,
   type MiniChatPresenceMessage,
 } from "./miniChatPresence"
 import { useAppFontEffects } from "./useAppFontEffects"
@@ -245,36 +243,6 @@ const MiniChatPresencePublisher: React.FC = () => {
       channel.close()
     }
   }, [currentDirectory, currentSessionId])
-
-  return null
-}
-
-/** Close this window when the grid asks for its session back, and release the browser page first. */
-const MiniChatGridReturn: React.FC<{ config: MiniChatConfig }> = ({ config }) => {
-  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
-  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
-  const sessionId = currentSessionId || config.sessionId
-  const directory = currentDirectory || config.directory
-
-  React.useEffect(() => {
-    if (!sessionId || !directory || typeof BroadcastChannel === "undefined") return
-    const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL)
-    document.documentElement.dataset.miniChatGridReturn = "true"
-    channel.onmessage = (event) => {
-      if (!isMiniChatReturnMessage(event.data) || !miniChatReturnMatches(event.data, sessionId, directory)) return
-      channel.postMessage({
-        type: "mini-chat-session-presence",
-        sessionId: event.data.sessionId,
-        directory: event.data.directory,
-        viewed: false,
-      })
-      void invokeDesktop("desktop_close_current_window").catch(() => {})
-    }
-    return () => {
-      delete document.documentElement.dataset.miniChatGridReturn
-      channel.close()
-    }
-  }, [directory, sessionId])
 
   return null
 }

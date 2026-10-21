@@ -14,6 +14,7 @@ import {
   filterRows,
   moveSelection,
   primaryActionFor,
+  missionPrFacetCounts,
   filterMissionFacets,
   updatedSinceViewed,
   type MissionStatusFilter,
@@ -110,8 +111,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const [selectedProjects, setSelectedProjects] = React.useState<{ key: string; label: string }[]>([])
   const projectFilters = React.useMemo(() => selectedProjects.map((project) => project.key), [selectedProjects])
   const [hasChanges, setHasChanges] = React.useState(false)
-  const [checksFailing, setChecksFailing] = React.useState(false)
-  const [prFilter, setPrFilter] = React.useState<MissionPrFilter>("all")
+  const [prFilter, setPrFilter] = React.useState<MissionPrFilter>({ states: [], checks: [] })
   const [updatedOnly, setUpdatedOnly] = React.useState(false)
   const lastViewedAt = useSupervisionStore((s) => s.lastViewedAt)
   const hasFilters =
@@ -119,8 +119,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     statusFilter !== "all" ||
     projectFilters.length > 0 ||
     hasChanges ||
-    checksFailing ||
-    prFilter !== "all" ||
+    prFilter.states.length > 0 ||
+    prFilter.checks.length > 0 ||
     updatedOnly
 
   const scopedSource = React.useMemo(
@@ -144,14 +144,13 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       status: statusFilter,
       projectKeys: [],
       hasChanges,
-      checksFailing,
       pr: prFilter,
       updatedOnly,
       lastViewedAt,
     })
     for (const group of groupMissionRows(base, homeDirectory)) counts.set(group.key, group.rows.length)
     return counts
-  }, [scoped, query, statusFilter, hasChanges, checksFailing, prFilter, updatedOnly, lastViewedAt, homeDirectory])
+  }, [scoped, query, statusFilter, hasChanges, prFilter, updatedOnly, lastViewedAt, homeDirectory])
   // Keep counts responsive to every other facet, without constraining the available project options.
   const searched = React.useMemo(
     () =>
@@ -160,12 +159,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         status: "all",
         projectKeys: projectFilters,
         hasChanges,
-        checksFailing,
         pr: prFilter,
         updatedOnly,
         lastViewedAt,
       }),
-    [scoped, query, projectFilters, hasChanges, checksFailing, prFilter, updatedOnly, lastViewedAt],
+    [scoped, query, projectFilters, hasChanges, prFilter, updatedOnly, lastViewedAt],
   )
   const filtered = React.useMemo(
     () => filterMissionFacets(searched, { query: "", status: statusFilter, projectKeys: [], hasChanges: false }),
@@ -214,8 +212,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     setStatusFilter("all")
     setSelectedProjects([])
     setHasChanges(false)
-    setChecksFailing(false)
-    setPrFilter("all")
+    setPrFilter({ states: [], checks: [] })
     setUpdatedOnly(false)
   }
   const wip = React.useMemo(() => summarizeWorkInProgress(rows), [rows])
@@ -715,8 +712,15 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         onHasChangesChange={setHasChanges}
         pr={prFilter}
         onPrChange={setPrFilter}
-        checksFailing={checksFailing}
-        onChecksFailingChange={setChecksFailing}
+        prCounts={missionPrFacetCounts(scoped, {
+          query,
+          status: statusFilter,
+          projectKeys: projectFilters,
+          hasChanges,
+          pr: prFilter,
+          updatedOnly,
+          lastViewedAt,
+        })}
         updatedOnly={updatedOnly}
         onUpdatedOnlyChange={setUpdatedOnly}
         updatedCount={scoped.filter((row) => updatedSinceViewed(row, lastViewedAt)).length}

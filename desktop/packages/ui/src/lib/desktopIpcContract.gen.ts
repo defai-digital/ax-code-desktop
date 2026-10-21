@@ -28,6 +28,7 @@ export type DesktopCommandArgs = {
   desktop_is_window_fullscreen: Record<string, unknown>
   desktop_language_get: Record<string, never>
   desktop_language_set: Record<string, unknown>
+  desktop_list_session_mini_chat_windows: Record<string, unknown>
   desktop_minimize_current_window: Record<string, unknown>
   desktop_new_window: Record<string, unknown>
   desktop_new_window_at_url: {

@@ -86,7 +86,30 @@ export function missionProjectKey(row: Pick<SupervisionRow, "projectId" | "direc
   return row.projectId ?? row.directory ?? "__none__"
 }
 
-export type MissionPrFilter = "all" | "open" | "failing"
+export const MISSION_PR_STATES = ["open", "draft", "merged", "closed"] as const
+export const MISSION_CHECK_STATES = ["passed", "failed", "pending", "none"] as const
+export type MissionPrState = (typeof MISSION_PR_STATES)[number]
+export type MissionCheckState = (typeof MISSION_CHECK_STATES)[number]
+export interface MissionPrFilter {
+  states: readonly MissionPrState[]
+  checks: readonly MissionCheckState[]
+}
+
+/** Stale/absent PR data is unknown. Completed PRs cannot have actionable failing checks. */
+export function missionPrChecks(pr: SupervisionRow["pullRequest"]): MissionCheckState | null {
+  if (!pr || pr.stale) return null
+  if ((pr.state === "merged" || pr.state === "closed") && pr.checks === "failed") return null
+  return pr.checks ?? "none"
+}
+
+export function matchesMissionPr(row: Pick<SupervisionRow, "pullRequest">, filter?: MissionPrFilter): boolean {
+  const pr = row.pullRequest
+  return (
+    (!filter?.states.length || Boolean(pr && !pr.stale && filter.states.includes(pr.state))) &&
+    (!filter?.checks.length ||
+      Boolean(pr && missionPrChecks(pr) !== null && filter.checks.includes(missionPrChecks(pr)!)))
+  )
+}
 
 export interface MissionFacets {
   query: string
@@ -133,13 +156,25 @@ export function filterMissionFacets<
       (projects.size === 0 || projects.has(missionProjectKey(row))) &&
       (!facets.hasChanges || row.evidence != null) &&
       (!facets.checksFailing || (row.checks?.state === "failed" && !row.checks.stale)) &&
-      (!facets.pr ||
-        facets.pr === "all" ||
-        (row.pullRequest != null &&
-          !row.pullRequest.stale &&
-          (facets.pr === "open"
-            ? ["open", "draft"].includes(row.pullRequest.state)
-            : ["open", "draft"].includes(row.pullRequest.state) && row.pullRequest.checks === "failed"))) &&
+      matchesMissionPr(row, facets.pr) &&
       (!facets.updatedOnly || updatedSinceViewed(row, facets.lastViewedAt)),
   )
+}
+
+/** Disjunctive counts: retain every other facet, including the other PR/CI group. */
+export function missionPrFacetCounts(rows: readonly SupervisionRow[], facets: MissionFacets) {
+  return {
+    states: Object.fromEntries(
+      MISSION_PR_STATES.map((state) => [
+        state,
+        filterMissionFacets(rows, { ...facets, pr: { states: [state], checks: facets.pr?.checks ?? [] } }).length,
+      ]),
+    ) as Record<MissionPrState, number>,
+    checks: Object.fromEntries(
+      MISSION_CHECK_STATES.map((state) => [
+        state,
+        filterMissionFacets(rows, { ...facets, pr: { states: facets.pr?.states ?? [], checks: [state] } }).length,
+      ]),
+    ) as Record<MissionCheckState, number>,
+  }
 }

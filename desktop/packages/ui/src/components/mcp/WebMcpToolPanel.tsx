@@ -17,7 +17,7 @@ import {
 } from "@/lib/webMcpDiagnosis"
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
 import { draftFromRecordedInput, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
-import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview } from "@/lib/toolHelpers"
+import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview, isWebMcpSensitiveName, redactWebMcpInput } from "@/lib/toolHelpers"
 import {
   useWebMcpBrowserStore,
   type WebMcpCatalogRejectionReason,
@@ -115,7 +115,8 @@ function formatDuration(ms: number): string {
 
 function inputText(input: Record<string, unknown>): string {
   try {
-    return JSON.stringify(input, null, 2)
+    // Shown on screen next to the agent's call: secrets are redacted the same way the transcript redacts them.
+    return JSON.stringify(redactWebMcpInput(input), null, 2)
   } catch {
     return "{}"
   }
@@ -395,6 +396,9 @@ function FieldInput({
       id={id}
       aria-describedby={describedBy}
       className={className}
+      // A secret-named field is masked while typed, like any password field.
+      type={field.kind === "string" && isWebMcpSensitiveName(field.name) ? "password" : undefined}
+      autoComplete={field.kind === "string" && isWebMcpSensitiveName(field.name) ? "off" : undefined}
       inputMode={field.kind === "string" ? undefined : "decimal"}
       value={value}
       onChange={(event) => onChange(event.target.value)}

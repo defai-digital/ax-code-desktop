@@ -11,7 +11,7 @@ import {
 } from "@/lib/supervision/embeddedSession"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { canOpenSessionWindow } from "@/lib/supervision/openSessionWindow"
-import { popOutGridSlot, returnGridSlot } from "@/lib/supervision/sessionGridPopout"
+import { gridWindowOwns, useGridWindowOwners, trackGridWindows, reconcileGridWindows, popOutGridSlot, returnGridSlot } from "@/lib/supervision/sessionGridPopout"
 import { ratiosForLayout } from "@/lib/supervision/sessionGridPreferences"
 import {
   applyGridDrop,
@@ -24,7 +24,6 @@ import {
   sessionGridGeometry,
   splitGridPane,
   updateSplitRatio,
-  markSlotPopped,
   type GridDropTarget,
   type GridEdge,
   type PlacedPane,
@@ -34,7 +33,6 @@ import {
 } from "@/lib/supervision/sessionGrid"
 import { useUIStore } from "@/stores/useUIStore"
 import { SupervisionStateBadge } from "@/components/supervision/SupervisionStateBadge"
-import { isMiniChatPresenceMessage, MINI_CHAT_PRESENCE_CHANNEL } from "@/apps/miniChatPresence"
 import { GridSplitter } from "./GridSplitter"
 
 const MOVE_CONTROLS: Array<{
@@ -82,6 +80,14 @@ function EmbeddedGridSession({ slot, title, index }: { slot: SessionGridSlot; ti
 export function SessionGrid() {
   const { t } = useI18n()
   const grid = useUIStore((s) => s.sessionGrid)
+  const owners = useGridWindowOwners((s) => s.owners)
+  const [announcement, setAnnouncement] = React.useState("")
+  const focusDestination = React.useRef<number | null>(null)
+  React.useLayoutEffect(() => {
+    if (focusDestination.current === null) return
+    container.current?.querySelector<HTMLElement>(`[data-session-grid-slot="${focusDestination.current}"] [data-session-grid-handle]`)?.focus()
+    focusDestination.current = null
+  }, [grid])
   const setGrid = useUIStore((s) => s.setSessionGrid)
   const rows = useSupervisionRows()
   const container = React.useRef<HTMLDivElement>(null)
@@ -105,19 +111,10 @@ export function SessionGrid() {
     observer.observe(node)
     return () => observer.disconnect()
   }, [])
-  // The other window releases the browser page by announcing that it is no longer viewing the session.
   React.useEffect(() => {
-    if (typeof BroadcastChannel === "undefined") return
-    const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL)
-    channel.onmessage = (event) => {
-      const data = event.data
-      if (!isMiniChatPresenceMessage(data) || data.viewed !== false) return
-      const current = useUIStore.getState().sessionGrid
-      const slots = markSlotPopped(current.slots, data.sessionId, data.directory, false)
-      if (slots !== current.slots) setGrid({ ...current, slots })
-    }
-    return () => channel.close()
-  }, [setGrid])
+    trackGridWindows()
+    void reconcileGridWindows()
+  }, [])
   React.useEffect(() => {
     const localPoint = (event: PointerEvent) => {
       const bounds = canvasRef.current?.getBoundingClientRect()
@@ -153,13 +150,18 @@ export function SessionGrid() {
       const current = useUIStore.getState().sessionGrid
       setGrid(applyGridDrop(current, drag.from, target.target, target.edge))
     }
+    const cancel = (event: PointerEvent) => {
+      if (dragRef.current?.pointerId !== event.pointerId) return
+      dragRef.current = null
+      setDrop(null)
+    }
     window.addEventListener("pointermove", move)
     window.addEventListener("pointerup", end)
-    window.addEventListener("pointercancel", end)
+    window.addEventListener("pointercancel", cancel)
     return () => {
       window.removeEventListener("pointermove", move)
       window.removeEventListener("pointerup", end)
-      window.removeEventListener("pointercancel", end)
+      window.removeEventListener("pointercancel", cancel)
     }
   }, [setGrid])
   const tree = grid.tree ?? null
@@ -170,9 +172,18 @@ export function SessionGrid() {
   const commit = (update: (current: SessionGridState) => SessionGridState) => setGrid(update(useUIStore.getState().sessionGrid))
   const replace = (index: number, slot: SessionGridSlot | null) =>
     commit((current) => ({ ...current, slots: current.slots.map((old, i) => (i === index ? slot : old)) }))
-  const move = (index: number, direction: GridEdge) => commit((current) => moveGridSlot(current, index, direction))
+  const move = (index: number, direction: GridEdge) => {
+    const target = gridNeighbor(panes, index, direction)
+    if (target === null) return
+    const current = useUIStore.getState().sessionGrid
+    const title = resolveGridSession(current.slots[index], rows)?.title ?? t("sessionGrid.empty")
+    focusDestination.current = target
+    setAnnouncement(t("sessionGrid.moved", { title, count: target + 1 }))
+    setGrid(moveGridSlot(current, index, direction, panes))
+  }
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label={t("sessionGrid.title")} data-session-grid>
+      <div aria-live="polite" aria-atomic="true" className="sr-only">{announcement}</div>
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border p-2">
         <h2 className="typography-ui-label">{t("sessionGrid.title")}</h2>
         <label className="typography-meta">
@@ -217,7 +228,7 @@ export function SessionGrid() {
                 normalizeProjectPath(candidate.directory) &&
                 !grid.slots.some((other, i) => i !== index && resolveGridSession(other, [candidate])),
             )
-            const popped = Boolean(slot?.poppedOut)
+            const popped = Boolean(slot && (slot.poppedOut || gridWindowOwns(slot, owners)))
             const atLimit = grid.slots.length >= 4
             return (
               <section
@@ -235,7 +246,7 @@ export function SessionGrid() {
                     role="group"
                     tabIndex={0}
                     aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown"
-                    aria-label={t("sessionGrid.drag")}
+                    aria-label={t("sessionGrid.moveSession", { title: row?.title ?? t("sessionGrid.empty") })}
                     className="min-w-16 flex-1 cursor-grab touch-none"
                     onKeyDown={(event) => {
                       if (event.target !== event.currentTarget) return
@@ -443,7 +454,8 @@ export function SessionGrid() {
             <GridSplitter
               key={splitter.id}
               axis={splitter.axis === "column" ? "columns" : "rows"}
-              minimum={160}
+              minimum={splitter.minimumFirst}
+              minimumSecond={splitter.minimumSecond}
               label={t(splitter.axis === "column" ? "sessionGrid.resizeColumns" : "sessionGrid.resizeRows")}
               ratio={splitter.ratio}
               extent={splitter.extent}

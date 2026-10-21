@@ -45,6 +45,8 @@ export interface PlacedSplitter {
   width: number
   height: number
   extent: number
+  minimumFirst: number
+  minimumSecond: number
 }
 export const GRID_MIN_WIDTH = 320
 export const GRID_GAP = 6
@@ -251,7 +253,10 @@ export function layoutGridTree(tree: GridNode, width: number, height: number) {
       return
     }
     const extent = node.axis === "column" ? nodeWidth : nodeHeight
-    const splitRatio = clampGridRatio(node.ratio, extent, 160)
+    const minimumFirst = minimumExtent(node.first, node.axis)
+    const minimumSecond = minimumExtent(node.second, node.axis)
+    const available = extent - GRID_GAP
+    const splitRatio = Math.max(minimumFirst / available, Math.min(1 - minimumSecond / available, ratio(node.ratio)))
     const firstSize = (extent - GRID_GAP) * splitRatio
     const secondSize = extent - GRID_GAP - firstSize
     if (node.axis === "column") {
@@ -266,6 +271,8 @@ export function layoutGridTree(tree: GridNode, width: number, height: number) {
         width: GRID_GAP,
         height: nodeHeight,
         extent: nodeWidth,
+        minimumFirst,
+        minimumSecond,
       })
       return
     }
@@ -280,6 +287,8 @@ export function layoutGridTree(tree: GridNode, width: number, height: number) {
       width: nodeWidth,
       height: GRID_GAP,
       extent: nodeHeight,
+      minimumFirst,
+      minimumSecond,
     })
   }
   visit(tree, 0, 0, w, h)
@@ -406,8 +415,8 @@ export function placedPanes(state: SessionGridState, width = 1000, height = 800)
 }
 
 /** Keyboard move: trade places with the pane in that direction. */
-export function moveGridSlot(state: SessionGridState, index: number, direction: GridEdge): SessionGridState {
-  const target = gridNeighbor(placedPanes(state), index, direction)
+export function moveGridSlot(state: SessionGridState, index: number, direction: GridEdge, panes: readonly PlacedPane[] = placedPanes(state)): SessionGridState {
+  const target = gridNeighbor(panes, index, direction)
   if (target === null) return state
   return { ...state, slots: reorderGridSlots(state.slots, index, target) }
 }

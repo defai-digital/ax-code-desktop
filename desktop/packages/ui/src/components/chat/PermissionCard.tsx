@@ -18,6 +18,7 @@ import {
   normalizePermissionName,
 } from "@/lib/permissions/permissionPayload"
 import { describeWebMcpCall, webMcpEffect } from "@/lib/toolHelpers"
+import { WebMcpApprovalToolInfo } from "./WebMcpApprovalToolInfo"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
 import { withTimeout } from "@/lib/asyncTimeout"
 import { RequestRiskBadge } from "./RequestRiskBadge"
@@ -383,9 +384,17 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       const effect = webMcpEffect(call, origin)
       return (
         <>
-          <p className="mb-2 typography-ui-label text-foreground" data-webmcp-effect={effect.key}>
+          {/* Tool and element names come from the page: isolated so bidirectional text cannot reorder the sentence. */}
+          <p
+            className="mb-2 typography-ui-label text-foreground"
+            style={{ unicodeBidi: "isolate" }}
+            data-webmcp-effect={effect.key}
+          >
             {t(`chat.permissionCard.webmcp.effect.${effect.key}`, effect.params)}
           </p>
+          {fromDesktopBrowser && webTool && origin ? (
+            <WebMcpApprovalToolInfo sessionID={permission.sessionID} origin={origin} toolName={webTool} />
+          ) : null}
           <div className="mb-2">
             <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.webmcp.origin")}</div>
             <code className="typography-meta px-2 py-1 bg-muted/30 rounded block break-all font-medium text-foreground">
@@ -496,7 +505,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   }
 
   return (
-    <div className="group w-full pt-0 pb-2">
+    <div className="group w-full pt-0 pb-2" data-permission-id={permission.id} data-permission-call-id={permission.tool?.callID}>
       <div className="chat-column">
         <div className="-mt-1 border border-border/30 rounded-xl bg-muted/10">
           {}
