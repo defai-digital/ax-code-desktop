@@ -5341,5 +5341,16 @@
   "webmcp.tools.export.copyTest": "Testi kopyala",
   "webmcp.tools.export.copyRun": "--run arg\u00fcman\u0131n\u0131 kopyala",
   "webmcp.tools.export.copied": "Kopyaland\u0131",
-  "webmcp.tools.export.unavailable": "Bu \u00e7a\u011fr\u0131n\u0131n d\u0131\u015fa aktar\u0131lacak JSON nesnesi girdisi yok."
+  "webmcp.tools.export.unavailable": "Bu \u00e7a\u011fr\u0131n\u0131n d\u0131\u015fa aktar\u0131lacak JSON nesnesi girdisi yok.",
+  "diffView.landing.browserRecap.definition": "Tan\u0131mlama {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(ara\u00e7 o zamandan beri de\u011fi\u015fti)",
+  "diffView.landing.browserRecap.capped": "{total} ad\u0131m\u0131n son {shown} tanesi g\u00f6steriliyor.",
+  "diffView.landing.browserRecap.copy": "\u00d6zeti kopyala",
+  "diffView.landing.browserRecap.copied": "Kopyaland\u0131",
+  "chat.permissionCard.webmcp.hintConsequential": "Sayfa, bu arac\u0131 de\u011fi\u015fiklik yapan olarak i\u015faretliyor.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Sayfa, bu arac\u0131n sadece okudu\u011funu belirtiyor.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Sonu\u00e7lar\u0131, g\u00fcvenilmez kaynaklardan gelen metinler i\u00e7erebilir.",
+  "chat.permissionCard.webmcp.inputs": "Girdiler (zorunlu olanlar * ile i\u015faretlenmi\u015ftir): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Sayfa bunu \u015fu \u015fekilde tan\u0131ml\u0131yor: {description}",
+  "webmcp.calls.awaitingApproval": "Onay\u0131n\u0131z bekleniyor. \u0130nceleyin"
 }

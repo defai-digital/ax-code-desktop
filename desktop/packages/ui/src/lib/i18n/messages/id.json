@@ -5341,5 +5341,16 @@
   "webmcp.tools.export.copyTest": "Salin tes",
   "webmcp.tools.export.copyRun": "Salin argumen --run",
   "webmcp.tools.export.copied": "Tersalin",
-  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor."
+  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor.",
+  "diffView.landing.browserRecap.definition": "Definisi {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(alat telah berubah sejak itu)",
+  "diffView.landing.browserRecap.capped": "Menampilkan {shown} dari {total} langkah terbaru.",
+  "diffView.landing.browserRecap.copy": "Salin ringkasan",
+  "diffView.landing.browserRecap.copied": "Disalin",
+  "chat.permissionCard.webmcp.hintConsequential": "Halaman menandai alat ini sebagai alat yang membuat perubahan.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Halaman mengatakan alat ini hanya membaca.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Hasilnya mungkin berisi teks dari sumber yang tidak terpercaya.",
+  "chat.permissionCard.webmcp.inputs": "Input (wajib ditandai *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Halaman mendeskripsikannya sebagai: {description}",
+  "webmcp.calls.awaitingApproval": "Menunggu persetujuan Anda. Tinjau"
 }

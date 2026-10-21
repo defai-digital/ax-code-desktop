@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render } from "@/test/dom"
 
-const sync = vi.hoisted(() => ({ messages: [] as unknown[], parts: new Map<string, unknown[]>() }))
+const sync = vi.hoisted(() => ({
+  messages: [] as unknown[],
+  parts: new Map<string, unknown[]>(),
+  permissions: [] as Array<{ id: string; tool?: { messageID: string; callID: string } }>,
+}))
 vi.mock("@/sync/sync-context", () => ({
   useSessionMessages: () => sync.messages,
+  useSessionPermissions: () => sync.permissions,
   useDirectorySync: (selector: (state: { part: Map<string, unknown[]> }) => unknown) => selector({ part: sync.parts }),
 }))
 vi.mock("@/lib/i18n", () => ({
@@ -52,7 +57,7 @@ describe("WebMCP call strip", () => {
     expect(rows[0].querySelector("[data-webmcp-call-earlier]")).toBeNull()
     expect(rows[1].querySelector("[data-webmcp-call-earlier]")).not.toBeNull()
     fireEvent.click(rows[1].querySelector("button")!)
-    expect(useUIStore.getState().pendingMessageNavigation).toEqual({ sessionId: "s1", messageId: "m1" })
+    expect(useUIStore.getState().pendingMessageNavigation).toEqual({ sessionId: "s1", messageId: "m1", partId: "old" })
   })
 
   test("another session's page generation never marks this session's calls", () => {
@@ -103,4 +108,35 @@ test("call generation follows the requested pooled project/session even when ano
     cleanup()
     useWebMcpBrowserStore.setState(initial, true)
   }
+})
+
+describe("WebMCP call strip approvals", () => {
+  test("a running call with a pending approval links to that approval card and focuses its first answer", () => {
+    sync.messages = [{ id: "m1" }]
+    sync.parts = new Map([
+      ["m1", [{ ...call("live", "gen-1"), callID: "call-7", state: { status: "running", input: { action: "invoke", toolName: "add_task" }, metadata: { operation: "invoke", toolName: "add_task" } } }]],
+    ])
+    sync.permissions = [{ id: "per_9", tool: { messageID: "m1", callID: "call-7" } }]
+    const card = document.createElement("div")
+    card.setAttribute("data-permission-id", "per_9")
+    const answer = document.createElement("button")
+    card.append(answer)
+    card.scrollIntoView = vi.fn()
+    document.body.append(card)
+    const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+    fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-call-approval]")!)
+    expect(card.scrollIntoView).toHaveBeenCalled()
+    expect(document.activeElement).toBe(answer)
+    card.remove()
+    sync.permissions = []
+  })
+
+  test("a call without a pending approval offers no approval link", () => {
+    sync.messages = [{ id: "m1" }]
+    sync.parts = new Map([["m1", [call("done", "gen-1")]]])
+    sync.permissions = [{ id: "per_9", tool: { messageID: "m1", callID: "other" } }]
+    const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+    expect(container.querySelector("[data-webmcp-call-approval]")).toBeNull()
+    sync.permissions = []
+  })
 })

@@ -126,3 +126,19 @@ describe("webMcpRegressionExport", () => {
     expect(webMcpRegressionExport({ tool: "add_task", input: [] as never, outcome: "completed" })).toBeNull()
   })
 })
+
+describe("secrets in exports", () => {
+  test("a copied test and --run argument never carry a secret-named value", () => {
+    const exported = webMcpRegressionExport({
+      tool: "sign_in",
+      input: { user: "ada", password: "hunter22", profile: { apiKey: "sk-live-abc" } },
+      outcome: "completed",
+    })!
+    for (const text of [exported.snippet, exported.runArgument]) {
+      expect(text).not.toContain("hunter22")
+      expect(text).not.toContain("sk-live-abc")
+      expect(text).toContain("<fill in>")
+      expect(text).toContain("ada")
+    }
+  })
+})

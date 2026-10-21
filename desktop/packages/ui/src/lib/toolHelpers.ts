@@ -310,6 +310,29 @@ function redactActText(value: string, element: WebMcpElementDetails | null): Web
   return redactDisplayedText(value)
 }
 
+/** True for a field or key whose value is never shown (password, token, card number and the like). */
+export function isWebMcpSensitiveName(name: string): boolean {
+  return WEBMCP_SENSITIVE_NAME.test(name)
+}
+
+/** A copy of a tool input safe to show: secret-named fields and credential-shaped text become "[redacted]". */
+export function redactWebMcpInput(value: unknown): unknown {
+  return redactJsonValue(value)
+}
+
+/** A copy for export: secret-named fields become a placeholder to fill in, so a copied test never carries the secret. */
+export function placeholderWebMcpSecrets(value: Record<string, unknown>): Record<string, unknown> {
+  const next: Record<string, unknown> = {}
+  for (const [key, entry] of Object.entries(value))
+    next[key] =
+      WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
+        ? "<fill in>"
+        : entry && typeof entry === "object" && !Array.isArray(entry)
+          ? placeholderWebMcpSecrets(entry as Record<string, unknown>)
+          : entry
+  return next
+}
+
 function redactJsonValue(value: unknown): unknown {
   if (typeof value === "string") {
     const displayed = redactDisplayedText(value)
