@@ -5341,5 +5341,16 @@
   "webmcp.tools.export.copyTest": "Copia test",
   "webmcp.tools.export.copyRun": "Copia argomento --run",
   "webmcp.tools.export.copied": "Copiato",
-  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare."
+  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare.",
+  "diffView.landing.browserRecap.definition": "Definizione {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(lo strumento \u00e8 cambiato da allora)",
+  "diffView.landing.browserRecap.capped": "Mostra gli ultimi {shown} di {total} passaggi.",
+  "diffView.landing.browserRecap.copy": "Copia il riepilogo",
+  "diffView.landing.browserRecap.copied": "Copiato",
+  "chat.permissionCard.webmcp.hintConsequential": "La pagina contrassegna questo strumento come modificante.",
+  "chat.permissionCard.webmcp.hintReadOnly": "La pagina afferma che questo strumento \u00e8 solo in lettura.",
+  "chat.permissionCard.webmcp.hintUntrusted": "I risultati potrebbero contenere testo da fonti non attendibili.",
+  "chat.permissionCard.webmcp.inputs": "Input (obbligatori contrassegnati con *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "La pagina lo descrive come: {description}",
+  "webmcp.calls.awaitingApproval": "In attesa della tua approvazione. Controllala"
 }

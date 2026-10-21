@@ -5341,5 +5341,16 @@
   "webmcp.tools.export.copyTest": "Copier le test",
   "webmcp.tools.export.copyRun": "Copier l'argument --run",
   "webmcp.tools.export.copied": "Copi\u00e9",
-  "webmcp.tools.export.unavailable": "Cet appel n'a pas d'entr\u00e9e d'objet JSON \u00e0 exporter."
+  "webmcp.tools.export.unavailable": "Cet appel n'a pas d'entr\u00e9e d'objet JSON \u00e0 exporter.",
+  "diffView.landing.browserRecap.definition": "D\u00e9finition {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(l'outil a chang\u00e9 depuis)",
+  "diffView.landing.browserRecap.capped": "Affichage des {shown} derni\u00e8res \u00e9tapes sur {total}.",
+  "diffView.landing.browserRecap.copy": "Copier le r\u00e9capitulatif",
+  "diffView.landing.browserRecap.copied": "Copi\u00e9",
+  "chat.permissionCard.webmcp.hintConsequential": "La page indique que cet outil apporte des modifications.",
+  "chat.permissionCard.webmcp.hintReadOnly": "La page indique que cet outil ne fait que lire.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Ses r\u00e9sultats peuvent contenir du texte provenant de sources non fiables.",
+  "chat.permissionCard.webmcp.inputs": "Entr\u00e9es (obligatoires marqu\u00e9es *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "La page le d\u00e9crit comme : {description}",
+  "webmcp.calls.awaitingApproval": "En attente de votre approbation. V\u00e9rifiez-la"
 }

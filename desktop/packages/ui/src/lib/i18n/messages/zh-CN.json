@@ -5341,5 +5341,16 @@
   "webmcp.tools.export.copyTest": "\u590d\u5236\u6d4b\u8bd5",
   "webmcp.tools.export.copyRun": "\u590d\u5236 --run \u53c2\u6570",
   "webmcp.tools.export.copied": "\u5df2\u590d\u5236",
-  "webmcp.tools.export.unavailable": "\u6b64\u8c03\u7528\u6ca1\u6709\u53ef\u5bfc\u51fa\u7684 JSON \u5bf9\u8c61\u8f93\u5165\u3002"
+  "webmcp.tools.export.unavailable": "\u6b64\u8c03\u7528\u6ca1\u6709\u53ef\u5bfc\u51fa\u7684 JSON \u5bf9\u8c61\u8f93\u5165\u3002",
+  "diffView.landing.browserRecap.definition": "\u5b9a\u4e49 {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(\u8be5\u5de5\u5177\u81ea\u90a3\u65f6\u5df2\u66f4\u6539)",
+  "diffView.landing.browserRecap.capped": "\u663e\u793a\u6700\u65b0\u7684 {shown} / {total} \u6b65\u9aa4\u3002",
+  "diffView.landing.browserRecap.copy": "\u590d\u5236\u6458\u8981",
+  "diffView.landing.browserRecap.copied": "\u5df2\u590d\u5236",
+  "chat.permissionCard.webmcp.hintConsequential": "\u9875\u9762\u5c06\u6b64\u5de5\u5177\u6807\u8bb0\u4e3a\u4f1a\u8fdb\u884c\u66f4\u6539\u3002",
+  "chat.permissionCard.webmcp.hintReadOnly": "\u9875\u9762\u8868\u793a\u6b64\u5de5\u5177\u4ec5\u8bfb\u53d6\u3002",
+  "chat.permissionCard.webmcp.hintUntrusted": "\u5176\u7ed3\u679c\u53ef\u80fd\u5305\u542b\u6765\u81ea\u4e0d\u53ef\u4fe1\u6765\u6e90\u7684\u6587\u672c\u3002",
+  "chat.permissionCard.webmcp.inputs": "\u8f93\u5165\uff08\u5fc5\u9700\u9879\u7528 * \u6807\u8bb0\uff09\uff1a{names}",
+  "chat.permissionCard.webmcp.pageSays": "\u9875\u9762\u5c06\u5176\u63cf\u8ff0\u4e3a\uff1a{description}",
+  "webmcp.calls.awaitingApproval": "\u7b49\u5f85\u60a8\u7684\u6279\u51c6\u3002\u8bf7\u67e5\u770b"
 }

@@ -24,6 +24,10 @@ export interface WebMcpCall {
   at: number | null
   /** The transcript message holding the call, so a row can open it. */
   messageId: string
+  /** The tool part's own id, so a row can open the exact call; null when the part has none. */
+  partId: string | null
+  /** The runtime's call id, which a pending approval names (`permission.tool.callID`). */
+  callId: string | null
   /** Milliseconds from start to end, when both are known. */
   durationMs: number | null
   /** A short, credential-filtered preview of what a completed call returned. */
@@ -61,6 +65,7 @@ type PartLike = {
   id?: unknown
   type?: unknown
   tool?: unknown
+  callID?: unknown
   state?: {
     status?: unknown
     input?: unknown
@@ -127,6 +132,8 @@ export function collectWebMcpCalls(
         failureReason: call.failureReason,
         at: typeof state.time?.start === "number" ? state.time.start : null,
         messageId,
+        partId: typeof part.id === "string" ? part.id : null,
+        callId: typeof part.callID === "string" ? part.callID : null,
         durationMs:
           typeof state.time?.start === "number" && typeof state.time?.end === "number"
             ? Math.max(0, state.time.end - state.time.start)
@@ -141,4 +148,11 @@ export function collectWebMcpCalls(
     }
   }
   return calls
+}
+
+/** "320 ms", "1.4 s", "2 min": enough to see a slow call at a glance. */
+export function formatWebMcpDuration(ms: number): string {
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`
+  return `${Math.round(ms / 60_000)} min`
 }

@@ -258,3 +258,14 @@ test("a structured error object, as the builder guide recommends, is an applicat
   for (const harmless of [{ error: null }, { error: {} }, { found: false }])
     expect(desktopWebMcpResultOutcome({ status: "completed", output: JSON.stringify(harmless) })).toBe("completed")
 })
+
+test("shown inputs redact secret-named fields and credential-shaped text", async () => {
+  const { redactWebMcpInput, isWebMcpSensitiveName } = await import("@/lib/toolHelpers")
+  expect(redactWebMcpInput({ user: "ada", password: "hunter22", note: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" })).toEqual({
+    user: "ada",
+    password: "[redacted]",
+    note: "[redacted]",
+  })
+  expect(isWebMcpSensitiveName("accessToken")).toBe(true)
+  expect(isWebMcpSensitiveName("title")).toBe(false)
+})

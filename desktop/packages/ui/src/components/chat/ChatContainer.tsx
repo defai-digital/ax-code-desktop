@@ -1,4 +1,5 @@
 import React from "react"
+import { revealToolPart } from "@/lib/revealToolPart"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
@@ -704,9 +705,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     if (pendingMessageNavigation.sessionId !== currentSessionId) return
     const loaded = sessionMessages.some((entry) => entry.info.id === pendingMessageNavigation.messageId)
     if (!loaded) return
-    const { messageId } = pendingMessageNavigation
+    const { messageId, partId } = pendingMessageNavigation
     setPendingMessageNavigation(null)
-    void timelineController.scrollToMessage(messageId)
+    void timelineController.scrollToMessage(messageId).then(() => {
+      if (partId) revealToolPart(partId)
+    })
   }, [currentSessionId, pendingMessageNavigation, sessionMessages, setPendingMessageNavigation, timelineController])
 
   React.useEffect(() => {
