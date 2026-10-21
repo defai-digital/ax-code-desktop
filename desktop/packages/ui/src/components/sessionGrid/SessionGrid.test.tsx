@@ -3,19 +3,38 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@/test/dom"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import { restoreSessionGrid } from "@/lib/supervision/sessionGrid"
+import { SESSION_GRID_RATIOS_KEY } from "@/lib/supervision/sessionGridPreferences"
 import { useUIStore } from "@/stores/useUIStore"
+import { getSafeStorage } from "@/stores/utils/safeStorage"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { SessionGrid } from "./SessionGrid"
-const live = vi.hoisted(() => ({ rows: [] as SupervisionRow[] }))
+const live = vi.hoisted(() => ({
+  rows: [] as SupervisionRow[],
+  canWindow: false,
+  openWindow: vi.fn(async () => true),
+}))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => live.rows }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
+vi.mock("@/lib/supervision/openSessionWindow", () => ({
+  canOpenSessionWindow: () => live.canWindow,
+  openSessionWindow: () => live.openWindow(),
+}))
 vi.mock("@/contexts/useThemeSystem", () => ({
   useThemeSystem: () => ({ themeMode: "dark", lightThemeId: "light", darkThemeId: "dark", currentTheme: null }),
 }))
 vi.mock("@/lib/i18n", () => ({
-  useI18n: () => ({ t: (key: string, params?: { count: number }) => (params ? `${key} ${params.count}` : key) }),
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string | number>) => {
+      if (!params) return key
+      if (Object.keys(params).length === 1 && Object.hasOwn(params, "count")) return `${key} ${params.count}`
+      if (params.title) return `${key} ${params.title}`
+      return key
+    },
+  }),
 }))
 const row = (id: string): SupervisionRow => ({
   sessionId: id,
@@ -38,7 +57,12 @@ beforeEach(() => {
       disconnect() {}
     },
   )
+  live.canWindow = false
+  live.openWindow.mockReset()
+  live.openWindow.mockResolvedValue(true)
   live.rows = [row("a"), row("b"), row("c"), row("d"), row("e")]
+  getSafeStorage().removeItem(SESSION_GRID_RATIOS_KEY)
+  useWebMcpBrowserStore.setState({ views: {} })
   useUIStore.setState({ mainTabGuard: null, activeMainTab: "chat" })
   openSessionGrid(live.rows)
 })
@@ -108,4 +132,223 @@ test("replacing a pane offers sessions outside other panes", () => {
     "Project a — Task a",
     "Project e — Task e",
   ])
+})
+
+const measureGrid = () => {
+  vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(1006)
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(806)
+}
+
+const pointer = (target: Element, type: string, clientX: number, clientY: number) => {
+  act(() => {
+    target.dispatchEvent(
+      new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1, button: 0, clientX, clientY }),
+    )
+  })
+}
+
+const slot = (container: HTMLElement, index: number) =>
+  container.querySelector(`[data-session-grid-slot="${index}"]`) as HTMLElement
+
+test("dragging a header onto another pane center swaps the sessions", () => {
+  measureGrid()
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({
+      layout: 2,
+      slots: [
+        { sessionId: "a", directory: "C:/repo-a" },
+        { sessionId: "b", directory: "C:/repo-b" },
+      ],
+      ratios: { columns: 0.5, rows: 0.5 },
+    }),
+  )
+  const { container } = render(<SessionGrid />)
+  const handle = slot(container, 0).querySelector("[data-session-grid-handle]")!
+  const target = slot(container, 1)
+  pointer(handle, "pointerdown", 20, 20)
+  pointer(handle, "pointermove", Number.parseFloat(target.style.left) + Number.parseFloat(target.style.width) / 2, 400)
+  pointer(handle, "pointerup", Number.parseFloat(target.style.left) + Number.parseFloat(target.style.width) / 2, 400)
+  expect(slot(container, 0).dataset.sessionGridSession).toBe("b")
+  expect(slot(container, 1).dataset.sessionGridSession).toBe("a")
+  expect(useUIStore.getState().sessionGrid.tree ?? null).toBeNull()
+})
+
+test("dropping on a pane edge docks the dragged pane on that side", () => {
+  measureGrid()
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({
+      layout: 2,
+      slots: [
+        { sessionId: "a", directory: "C:/repo-a" },
+        { sessionId: "b", directory: "C:/repo-b" },
+      ],
+      ratios: { columns: 0.5, rows: 0.5 },
+    }),
+  )
+  const { container } = render(<SessionGrid />)
+  const handle = slot(container, 0).querySelector("[data-session-grid-handle]")!
+  const target = slot(container, 1)
+  const x = Number.parseFloat(target.style.left) + Number.parseFloat(target.style.width) - 8
+  pointer(handle, "pointerdown", 20, 20)
+  pointer(handle, "pointermove", x, 400)
+  pointer(handle, "pointerup", x, 400)
+  expect(slot(container, 0).dataset.sessionGridSession).toBe("a")
+  expect(Number.parseFloat(slot(container, 0).style.left)).toBeGreaterThan(
+    Number.parseFloat(slot(container, 1).style.left) + Number.parseFloat(slot(container, 1).style.width),
+  )
+  expect(useUIStore.getState().sessionGrid.tree).not.toBeNull()
+})
+
+test("arrow keys and move buttons trade a pane with its neighbor", () => {
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({
+      layout: 2,
+      slots: [
+        { sessionId: "a", directory: "C:/repo-a" },
+        { sessionId: "b", directory: "C:/repo-b" },
+      ],
+    }),
+  )
+  const { container } = render(<SessionGrid />)
+  const pane = slot(container, 0)
+  expect((within(pane).getByRole("button", { name: "sessionGrid.moveLeft" }) as HTMLButtonElement).disabled).toBe(true)
+  expect((within(pane).getByRole("button", { name: "sessionGrid.moveUp" }) as HTMLButtonElement).disabled).toBe(true)
+  expect((within(pane).getByRole("button", { name: "sessionGrid.moveRight" }) as HTMLButtonElement).disabled).toBe(false)
+  const handle = pane.querySelector("[data-session-grid-handle]") as HTMLElement
+  handle.focus()
+  fireEvent.keyDown(handle, { key: "ArrowRight" })
+  expect(slot(container, 0).dataset.sessionGridSession).toBe("b")
+  fireEvent.click(within(slot(container, 0)).getByRole("button", { name: "sessionGrid.moveRight" }))
+  expect(slot(container, 0).dataset.sessionGridSession).toBe("a")
+})
+
+test("the split menu adds an empty pane and a full grid cannot grow", () => {
+  render(<SessionGrid />)
+  for (const select of screen.getAllByRole("combobox", { name: "sessionGrid.split" })) {
+    expect((select as HTMLSelectElement).disabled).toBe(true)
+    expect(select.getAttribute("title")).toBe("sessionGrid.splitLimit")
+  }
+  cleanup()
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({
+      layout: 2,
+      slots: [
+        { sessionId: "a", directory: "C:/repo-a" },
+        { sessionId: "b", directory: "C:/repo-b" },
+      ],
+    }),
+  )
+  const next = render(<SessionGrid />)
+  fireEvent.change(within(slot(next.container, 0)).getByRole("combobox", { name: "sessionGrid.split" }), {
+    target: { value: "bottom" },
+  })
+  expect(next.container.querySelectorAll("[data-session-grid-slot]")).toHaveLength(3)
+  expect(screen.getByRole("status").textContent).toBe("sessionGrid.empty")
+  expect(useUIStore.getState().sessionGrid.slots).toHaveLength(3)
+  expect(useUIStore.getState().sessionGrid.tree).not.toBeNull()
+})
+
+test("preset split sizes are remembered separately for each layout", () => {
+  measureGrid()
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({
+      layout: 2,
+      slots: [
+        { sessionId: "a", directory: "C:/repo-a" },
+        { sessionId: "b", directory: "C:/repo-b" },
+      ],
+      ratios: { columns: 0.5, rows: 0.5 },
+    }),
+  )
+  render(<SessionGrid />)
+  const columns = () => screen.getByRole("separator", { name: "sessionGrid.resizeColumns" })
+  expect(columns().getAttribute("aria-valuenow")).toBe("50")
+  fireEvent.keyDown(columns(), { key: "ArrowLeft" })
+  expect(columns().getAttribute("aria-valuenow")).toBe("48")
+  fireEvent.change(screen.getByRole("combobox", { name: "sessionGrid.layout" }), { target: { value: "4" } })
+  expect(columns().getAttribute("aria-valuenow")).toBe("50")
+  fireEvent.keyDown(columns(), { key: "ArrowRight" })
+  expect(columns().getAttribute("aria-valuenow")).toBe("52")
+  fireEvent.change(screen.getByRole("combobox", { name: "sessionGrid.layout" }), { target: { value: "2" } })
+  expect(columns().getAttribute("aria-valuenow")).toBe("48")
+})
+
+class GridChannel {
+  static instances = new Set<GridChannel>()
+  onmessage: ((event: { data: unknown }) => void) | null = null
+  constructor(name: string) {
+    void name
+    GridChannel.instances.add(this)
+  }
+  postMessage(data: unknown) {
+    for (const instance of GridChannel.instances) {
+      if (instance !== this) instance.onmessage?.({ data })
+    }
+  }
+  close() {
+    GridChannel.instances.delete(this)
+  }
+}
+
+test("pop out unmounts the session page until the window reports it closed", async () => {
+  live.canWindow = true
+  let resolveOpen: (value: boolean) => void = () => {}
+  live.openWindow.mockImplementation(() => new Promise((resolve) => {
+    resolveOpen = resolve
+  }))
+  useUIStore.getState().setSessionGrid(
+    restoreSessionGrid({ layout: 1, slots: [{ sessionId: "a", directory: "C:/repo-a" }] }),
+  )
+  const stored = useUIStore.getState().sessionGrid.slots[0]!
+  useWebMcpBrowserStore.getState().updateView(viewKeyFor(stored.directory, stored.sessionId), {
+    browserId: "page-a",
+    directory: stored.directory,
+    sessionID: stored.sessionId,
+    origin: "https://a.test",
+  })
+  vi.stubGlobal("BroadcastChannel", GridChannel)
+  const { container } = render(<SessionGrid />)
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popOut Task a" }))
+  expect(container.querySelector("iframe")).toBeNull()
+  expect(container.querySelector("[data-webmcp-session-page]")).toBeNull()
+  expect(screen.getByRole("status").textContent).toBe("sessionGrid.poppedOut")
+  await act(async () => {
+    resolveOpen(false)
+  })
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
+
+  live.openWindow.mockResolvedValue(true)
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popOut Task a" }))
+  await act(async () => {
+    await Promise.resolve()
+  })
+  expect(container.querySelector("iframe")).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popIn Task a" }))
+  expect(container.querySelector("iframe")).toBeNull()
+  expect(container.querySelector("[data-webmcp-session-page]")).toBeNull()
+  act(() => {
+    new GridChannel("openchamber:mini-chat-presence").postMessage({
+      type: "mini-chat-session-presence",
+      sessionId: "other",
+      directory: stored.directory,
+      viewed: false,
+    })
+  })
+  expect(container.querySelector("iframe")).toBeNull()
+  act(() => {
+    new GridChannel("openchamber:mini-chat-presence").postMessage({
+      type: "mini-chat-session-presence",
+      sessionId: stored.sessionId,
+      directory: stored.directory,
+      viewed: false,
+    })
+  })
+  act(() => vi.runAllTimers())
+  expect(container.querySelector("iframe")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
 })

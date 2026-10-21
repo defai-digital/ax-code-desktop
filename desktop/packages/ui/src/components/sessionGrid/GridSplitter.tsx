@@ -8,11 +8,13 @@ interface Props {
   label: string
   style: React.CSSProperties
   onChange: (ratio: number) => void
+  /** Preset columns keep 320px. A nested custom split passes 160 so both sides can fit. */
+  minimum?: number
 }
-export function GridSplitter({ axis, ratio, extent, label, style, onChange }: Props) {
+export function GridSplitter({ axis, ratio, extent, label, style, onChange, minimum }: Props) {
   const drag = React.useRef<{ pointer: number; start: number; ratio: number } | null>(null)
-  const minimum = axis === "columns" ? 320 : 160
-  const change = (value: number) => onChange(clampGridRatio(value, extent, minimum))
+  const floor = minimum ?? (axis === "columns" ? 320 : 160)
+  const change = (value: number) => onChange(clampGridRatio(value, extent, floor))
   const end = (event: React.PointerEvent<HTMLDivElement>) => {
     drag.current = null
     if (event.currentTarget.hasPointerCapture(event.pointerId))
@@ -24,8 +26,8 @@ export function GridSplitter({ axis, ratio, extent, label, style, onChange }: Pr
       tabIndex={0}
       aria-label={label}
       aria-orientation={axis === "columns" ? "vertical" : "horizontal"}
-      aria-valuemin={Math.round(clampGridRatio(0, extent, minimum) * 100)}
-      aria-valuemax={Math.round(clampGridRatio(1, extent, minimum) * 100)}
+      aria-valuemin={Math.round(clampGridRatio(0, extent, floor) * 100)}
+      aria-valuemax={Math.round(clampGridRatio(1, extent, floor) * 100)}
       aria-valuenow={Math.round(ratio * 100)}
       className="absolute z-10 bg-border hover:bg-primary focus-visible:bg-primary focus-visible:outline-none"
       style={{ ...style, touchAction: "none", cursor: axis === "columns" ? "col-resize" : "row-resize" }}

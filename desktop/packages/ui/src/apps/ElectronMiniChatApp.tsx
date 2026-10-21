@@ -18,7 +18,13 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { SyncProvider, useSessions } from "@/sync/sync-context"
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { SyncRuntimeEffects } from "./AppEffects"
-import { MINI_CHAT_PRESENCE_CHANNEL, type MiniChatPresenceMessage } from "./miniChatPresence"
+import { invokeDesktop } from "@/lib/desktop"
+import {
+  isMiniChatReturnMessage,
+  MINI_CHAT_PRESENCE_CHANNEL,
+  miniChatReturnMatches,
+  type MiniChatPresenceMessage,
+} from "./miniChatPresence"
 import { useAppFontEffects } from "./useAppFontEffects"
 import { useMiniChatSessionUnavailable } from "./useMiniChatSessionUnavailable"
 import { useMiniChatKeyboardShortcuts } from "@/hooks/useMiniChatKeyboardShortcuts"
@@ -243,6 +249,36 @@ const MiniChatPresencePublisher: React.FC = () => {
   return null
 }
 
+/** Close this window when the grid asks for its session back, and release the browser page first. */
+const MiniChatGridReturn: React.FC<{ config: MiniChatConfig }> = ({ config }) => {
+  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const sessionId = currentSessionId || config.sessionId
+  const directory = currentDirectory || config.directory
+
+  React.useEffect(() => {
+    if (!sessionId || !directory || typeof BroadcastChannel === "undefined") return
+    const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL)
+    document.documentElement.dataset.miniChatGridReturn = "true"
+    channel.onmessage = (event) => {
+      if (!isMiniChatReturnMessage(event.data) || !miniChatReturnMatches(event.data, sessionId, directory)) return
+      channel.postMessage({
+        type: "mini-chat-session-presence",
+        sessionId: event.data.sessionId,
+        directory: event.data.directory,
+        viewed: false,
+      })
+      void invokeDesktop("desktop_close_current_window").catch(() => {})
+    }
+    return () => {
+      delete document.documentElement.dataset.miniChatGridReturn
+      channel.close()
+    }
+  }, [directory, sessionId])
+
+  return null
+}
+
 export function ElectronMiniChatApp({ apis }: ElectronMiniChatAppProps) {
   const config = React.useMemo(() => readMiniChatConfig(), [])
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
@@ -283,6 +319,7 @@ const ElectronMiniChatContent: React.FC<{ config: MiniChatConfig }> = ({ config 
     <>
       <MiniChatBootstrap config={config} />
       <MiniChatPresencePublisher />
+      <MiniChatGridReturn config={config} />
       <SyncRuntimeEffects embeddedBackgroundWorkEnabled={true} globalHousekeepingEnabled={false} />
       <MiniChatLayout mode={config.mode} autoOpenDraft={config.mode === "draft"} unavailable={sessionUnavailable} />
     </>

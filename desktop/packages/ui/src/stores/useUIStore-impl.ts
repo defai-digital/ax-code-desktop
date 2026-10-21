@@ -1,4 +1,5 @@
 import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
+import { ratiosForLayout, rememberLayoutRatios } from "@/lib/supervision/sessionGridPreferences"
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
@@ -22,7 +23,10 @@ export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | 
 const SESSION_GRID_KEY = "openchamber.session-grid.v1"
 const readSessionGrid = (): SessionGridState => {
   try {
-    return restoreSessionGrid(JSON.parse(getSafeSessionStorage().getItem(SESSION_GRID_KEY) ?? "null"))
+    const sessionGrid = restoreSessionGrid(JSON.parse(getSafeSessionStorage().getItem(SESSION_GRID_KEY) ?? "null"))
+    if (sessionGrid.tree) return sessionGrid
+    const ratios = ratiosForLayout(sessionGrid.layout)
+    return ratios ? { ...sessionGrid, ratios } : sessionGrid
   } catch {
     return emptySessionGrid()
   }
@@ -871,7 +875,12 @@ export const useUIStore = create<UIStore>()(
         sessionGrid: readSessionGrid(),
         setSessionGrid: (grid) => {
           const sessionGrid = restoreSessionGrid(grid)
-          getSafeSessionStorage().setItem(SESSION_GRID_KEY, JSON.stringify(sessionGrid))
+          try {
+            getSafeSessionStorage().setItem(SESSION_GRID_KEY, JSON.stringify(sessionGrid))
+          } catch {
+            // The grid still updates in memory when this window cannot persist it.
+          }
+          if (!sessionGrid.tree) rememberLayoutRatios(sessionGrid.layout, sessionGrid.ratios)
           set({ sessionGrid })
         },
         mainTabGuard: null,
