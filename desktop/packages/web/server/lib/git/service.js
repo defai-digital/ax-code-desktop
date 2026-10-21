@@ -4,7 +4,7 @@ import path from "path"
 import os from "os"
 import { execFile, spawn } from "child_process"
 import { promisify } from "util"
-import { randomUUID } from "crypto"
+import { createHash, randomUUID } from "crypto"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 // The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
@@ -1090,6 +1090,20 @@ const runGitCommandWithInput = async (cwd, args, input, options = {}) => {
 
     let stdout = ""
     let stderr = ""
+    let settled = false
+    let timer = null
+    const finish = (result) => {
+      if (settled) return
+      settled = true
+      if (timer) clearTimeout(timer)
+      resolve(result)
+    }
+    if (options.timeout) {
+      timer = setTimeout(() => {
+        child.kill("SIGKILL")
+      }, options.timeout)
+      if (typeof timer.unref === "function") timer.unref()
+    }
     child.stdout.on("data", (chunk) => {
       stdout += String(chunk)
     })
@@ -1101,11 +1115,11 @@ const runGitCommandWithInput = async (cwd, args, input, options = {}) => {
     child.stdin.end(input)
 
     child.on("error", (error) => {
-      resolve({ success: false, exitCode: 1, stdout, stderr, message: parseGitErrorText(error) })
+      finish({ success: false, exitCode: 1, stdout, stderr, message: parseGitErrorText(error) })
     })
     child.on("close", (code) => {
       const exitCode = typeof code === "number" ? code : 1
-      resolve({
+      finish({
         success: exitCode === 0,
         exitCode,
         stdout,
@@ -1564,6 +1578,196 @@ export async function setLocalIdentity(directory, profile) {
   }
 }
 
+// Content identities are blob ids, never file bytes. The file cap and the byte cap match the
+// existing new-file stat budget so one status cannot hash an unbounded working tree.
+export const GIT_STATUS_CONTENT_ID_MAX_FILES = 200
+export const GIT_STATUS_CONTENT_ID_MAX_BYTES = 1024 * 1024
+export const GIT_STATUS_CONTENT_ID_TIMEOUT_MS = 10_000
+const GIT_BLOB_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
+
+const boundedIdentityOption = (value, fallback) => {
+  const number = Number(value)
+  return Number.isInteger(number) && number >= 0 ? number : fallback
+}
+
+const gitStatusColumn = (value) => String(value ?? "").trim()
+
+const isSafeGitStatusPath = (repoPath) => {
+  if (typeof repoPath !== "string" || repoPath.length === 0 || repoPath.includes("\0")) return false
+  if (repoPath === ".." || repoPath.startsWith("../") || repoPath.startsWith("..\\")) return false
+  return !leavesRepositoryRoot(repoPath)
+}
+
+const normalizeGitBlobId = (value) => {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim().toLowerCase()
+  return GIT_BLOB_ID_PATTERN.test(trimmed) ? trimmed : null
+}
+
+const worktreeFileRemoved = (file) => {
+  const working = gitStatusColumn(file?.working_dir)
+  const index = gitStatusColumn(file?.index)
+  return working === "D" || (index === "D" && working === "")
+}
+
+const parseGitStageRecords = (raw) => {
+  const entries = new Map()
+  for (const record of String(raw || "").split("\0")) {
+    if (!record) continue
+    const tabIndex = record.indexOf("\t")
+    if (tabIndex < 0) continue
+    const [mode, objectId, stage] = record.slice(0, tabIndex).split(" ")
+    const recordPath = record.slice(tabIndex + 1)
+    if (stage !== "0" || !mode || !normalizeGitBlobId(objectId) || !recordPath) continue
+    entries.set(recordPath, normalizeGitBlobId(objectId))
+  }
+  return entries
+}
+
+const parseGitTreeRecords = (raw) => {
+  const entries = new Map()
+  for (const record of String(raw || "").split("\0")) {
+    if (!record) continue
+    const tabIndex = record.indexOf("\t")
+    if (tabIndex < 0) continue
+    const meta = record.slice(0, tabIndex).split(" ")
+    const objectId = meta[2]
+    const recordPath = record.slice(tabIndex + 1)
+    if (!normalizeGitBlobId(objectId) || !recordPath) continue
+    entries.set(recordPath, normalizeGitBlobId(objectId))
+  }
+  return entries
+}
+
+const readIndexBlobIds = async (repoRoot, repoPaths, timeout) => {
+  if (repoPaths.length === 0) return new Map()
+  const result = await runGitCommand(
+    repoRoot,
+    ["ls-files", "-s", "-z", "--end-of-options", "--", ...repoPaths.map(literalPathspec)],
+    { timeout },
+  )
+  if (!result.success) return new Map()
+  return parseGitStageRecords(result.stdout)
+}
+
+const readTreeBlobIds = async (repoRoot, treeish, repoPaths, timeout) => {
+  if (repoPaths.length === 0) return new Map()
+  if (!normalizeGitBlobId(treeish) && treeish !== "HEAD") return new Map()
+  const result = await runGitCommand(
+    repoRoot,
+    ["ls-tree", "-z", "--end-of-options", treeish, "--", ...repoPaths.map(literalPathspec)],
+    { timeout },
+  )
+  if (!result.success) return new Map()
+  return parseGitTreeRecords(result.stdout)
+}
+
+const readHeadBlobIds = async (repoRoot, repoPaths, timeout) => readTreeBlobIds(repoRoot, "HEAD", repoPaths, timeout)
+
+// Git's blob id for these exact bytes (what `git hash-object --no-filters` prints).
+const gitBlobId = (bytes) =>
+  createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex")
+
+/**
+ * Worktree blob ids computed in-process. Each file is opened once without following a final symlink and
+ * hashed from that handle, so nothing can swap it between the checks and the read. A symlink is hashed by its
+ * link text, which is the blob git stores for it; its target is never read. Paths whose parent directories
+ * resolve outside the repository are skipped. git hash-object --stdin-paths is not used: it decodes quoted
+ * C-style escapes in a path, which let a crafted filename name a file outside the repository.
+ */
+const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout) => {
+  const ids = new Map()
+  const deadline = Date.now() + timeout
+  const rootReal = await fsp.realpath(repoRoot).catch(() => null)
+  if (!rootReal) return ids
+  const noFollow = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0)
+  for (const file of files) {
+    if (Date.now() > deadline) break
+    if (worktreeFileRemoved(file) || !isSafeGitStatusPath(file.path)) continue
+    let absolute
+    try {
+      absolute = resolveRepositoryFilePath(repoRoot, file.path)
+    } catch {
+      continue
+    }
+    const parentReal = await fsp.realpath(path.dirname(absolute)).catch(() => null)
+    if (!parentReal || !isInsideOrSameDirectory(rootReal, parentReal)) continue
+    const entry = await fsp.lstat(absolute).catch(() => null)
+    if (!entry) continue
+    if (entry.isSymbolicLink()) {
+      const linkText = await fsp.readlink(absolute, { encoding: "buffer" }).catch(() => null)
+      if (linkText && linkText.length <= maxBytes) ids.set(file.path, gitBlobId(linkText))
+      continue
+    }
+    if (!entry.isFile() || entry.size > maxBytes) continue
+    let handle
+    try {
+      handle = await fsp.open(absolute, noFollow)
+      const stat = await handle.stat()
+      if (!stat.isFile() || stat.size > maxBytes) continue
+      // Read one byte past the cap: a file that grew past it after the stat is skipped, not truncated.
+      const buffer = Buffer.alloc(Math.min(stat.size, maxBytes) + 1)
+      let length = 0
+      while (length < buffer.length) {
+        const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length)
+        if (bytesRead === 0) break
+        length += bytesRead
+      }
+      if (length > maxBytes) continue
+      ids.set(file.path, gitBlobId(buffer.subarray(0, length)))
+    } catch {
+      continue
+    } finally {
+      await handle?.close().catch(() => {})
+    }
+  }
+  return ids
+}
+
+/**
+ * Blob ids for changed files. Paths come from git status only. Deleted files and files over the
+ * size cap have no worktree id. Files past the count cap are left without identity fields so the
+ * client can fall back to the count signature. The payload never includes file bytes.
+ */
+const collectContentIdentities = async (repoRoot, files, options) => {
+  const maxFiles = boundedIdentityOption(options.contentIdentityMaxFiles, GIT_STATUS_CONTENT_ID_MAX_FILES)
+  const maxBytes = boundedIdentityOption(options.contentIdentityMaxBytes, GIT_STATUS_CONTENT_ID_MAX_BYTES)
+  const timeout = GIT_STATUS_CONTENT_ID_TIMEOUT_MS
+  const limited = files.slice(0, maxFiles).filter((file) => isSafeGitStatusPath(file?.path))
+  const safe = []
+  for (const file of limited) {
+    try {
+      resolveRepositoryFilePath(repoRoot, file.path)
+    } catch {
+      continue
+    }
+    safe.push(file)
+  }
+  const indexPaths = safe.map((file) => file.path)
+  const headPaths = []
+  for (const file of safe) {
+    const index = gitStatusColumn(file.index)
+    const headPath = (index === "R" || index === "C") && isSafeGitStatusPath(file.from) ? file.from : file.path
+    headPaths.push(headPath)
+  }
+  const [indexIds, headIds, worktreeIds] = await Promise.all([
+    readIndexBlobIds(repoRoot, indexPaths, timeout),
+    readHeadBlobIds(repoRoot, [...new Set(headPaths)], timeout),
+    hashWorktreeBlobs(repoRoot, safe, maxBytes, timeout),
+  ])
+  const identities = new Map()
+  for (const file of safe) {
+    const index = gitStatusColumn(file.index)
+    const headPath = (index === "R" || index === "C") && isSafeGitStatusPath(file.from) ? file.from : file.path
+    identities.set(file.path, {
+      headBlobId: headIds.get(headPath) ?? null,
+      indexBlobId: indexIds.get(file.path) ?? null,
+      worktreeBlobId: worktreeIds.get(file.path) ?? null,
+    })
+  }
+  return { identities, maxFiles }
+}
+
 export async function getStatus(directory, options = {}) {
   const lightMode = options.mode === "light"
 
@@ -1818,17 +2022,34 @@ export async function getStatus(directory, options = {}) {
       // ignore
     }
 
+    let contentIdentities = { identities: new Map(), maxFiles: 0 }
+    try {
+      contentIdentities = await collectContentIdentities(repoRoot, status.files, options)
+    } catch (identityError) {
+      console.warn("Failed to read git content identities:", identityError?.message || identityError)
+    }
+
     return {
       current: status.current,
       tracking,
       ahead,
       behind,
       upstreamComparison,
-      files: status.files.map((f) => ({
-        path: f.path,
-        index: f.index,
-        working_dir: f.working_dir,
-      })),
+      files: status.files.map((file, index) => {
+        const row = {
+          path: file.path,
+          index: file.index,
+          working_dir: file.working_dir,
+        }
+        // Past the cap the fields are omitted, which is the client's signal to fall back.
+        if (index >= contentIdentities.maxFiles) return row
+        const identity = contentIdentities.identities.get(file.path) ?? {
+          headBlobId: null,
+          indexBlobId: null,
+          worktreeBlobId: null,
+        }
+        return { ...row, ...identity }
+      }),
       isClean: status.isClean(),
       diffStats: lightMode ? undefined : diffStats,
       mergeInProgress,
@@ -2480,6 +2701,17 @@ export async function getGitBranchDiff(directory, { base, maxTotalBytes = BRANCH
   const truncated = entries.length > BRANCH_DIFF_MAX_FILES
   const kept = truncated ? entries.slice(0, BRANCH_DIFF_MAX_FILES) : entries
 
+  const beforePaths = []
+  for (const entry of kept) {
+    if (entry.status === "added" || entry.status === "untracked") continue
+    const source = entry.previousFile || entry.file
+    if (!isSafeGitStatusPath(source)) continue
+    beforePaths.push(source)
+  }
+  const beforeBlobIds = await readTreeBlobIds(repoRoot, mergeBase, [...new Set(beforePaths)], BRANCH_DIFF_GIT_TIMEOUT_MS).catch(
+    () => new Map(),
+  )
+
   let contentBytes = 0
   const files = await mapBranchDiffEntries(kept, async (entry) => {
     const stat = numstat.get(entry.file)
@@ -2516,6 +2748,10 @@ export async function getGitBranchDiff(directory, { base, maxTotalBytes = BRANCH
       deletions = 0
     }
 
+    const beforeSource = entry.previousFile || entry.file
+    const beforeBlobId =
+      entry.status === "added" || entry.status === "untracked" ? null : beforeBlobIds.get(beforeSource) ?? null
+
     return {
       file: entry.file,
       before,
@@ -2526,6 +2762,7 @@ export async function getGitBranchDiff(directory, { base, maxTotalBytes = BRANCH
       binary,
       tooLarge,
       previousFile: entry.previousFile,
+      beforeBlobId,
     }
   })
 

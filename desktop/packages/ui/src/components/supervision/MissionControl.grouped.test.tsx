@@ -26,11 +26,13 @@ vi.mock("@/sync/session-actions", () => ({
 }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
 vi.mock("@/lib/supervision/openBesideChat", () => ({ openBesideChat: vi.fn() }))
+vi.mock("@/lib/supervision/openSessionBeside", () => ({ openSessionBeside: vi.fn(() => true) }))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn() } }))
 
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { readPersistedSupervision, useSupervisionStore } from "@/stores/useSupervisionStore"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
+import { openSessionBeside } from "@/lib/supervision/openSessionBeside"
 import { MissionControl } from "./MissionControl"
 
 const row = (sessionId: string, projectId: string, state: SupervisionRow["state"]): SupervisionRow => ({
@@ -207,5 +209,28 @@ describe("Mission Control grouped board", () => {
     expect(
       readPersistedSupervision({ getItem: () => '{"boardGroupBy":"none"}' } as unknown as Storage).boardGroupBy,
     ).toBe("none")
+  })
+
+  test("Cmd/Ctrl+click, Cmd/Ctrl+Enter and Details open a session beside the current chat without switching it", () => {
+    render(<MissionControl />)
+    const row = document.getElementById("mission-row-b1")!
+    act(() => {
+      row.dispatchEvent(new MouseEvent("click", { bubbles: true, metaKey: true }))
+    })
+    expect(openSessionBeside).toHaveBeenCalledWith({ sessionId: "b1", directory: "/home/me/beta", title: "Task b1" })
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
+
+    vi.mocked(openSessionBeside).mockClear()
+    act(() => useSupervisionStore.setState({ missionControlOpen: true }))
+    key("j")
+    fireEvent.keyDown(screen.getByRole("grid"), { key: "Enter", ctrlKey: true })
+    expect(openSessionBeside).toHaveBeenCalledTimes(1)
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+
+    vi.mocked(openSessionBeside).mockClear()
+    key(" ")
+    fireEvent.click(screen.getByRole("button", { name: "Open beside current chat" }))
+    expect(openSessionBeside).toHaveBeenCalledTimes(1)
   })
 })

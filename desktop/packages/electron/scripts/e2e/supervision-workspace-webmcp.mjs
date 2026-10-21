@@ -457,8 +457,34 @@ const outcome = await runHarness({
       // Mission Control overlays the mounted chat; its opening does not clear the composer variable.
       await openBoard()
     }
+    await viewport(1400)
+    // Two sessions in one window: open project A's conversation, then Cmd+click project B's row on the board.
+    // B must appear in the split pane as an embedded chat while A stays the main conversation.
+    await audit.click("Workspace", { role: "button" }).catch(() => {})
+    await openBoard()
+    await rowAction("Open —", targets[0])
+    await audit.wait('document.body.innerText.includes("Fixture conversation for project A")', "main conversation is project A")
+    await openBoard()
+    const besideRect = await session.evaluate(`(() => {
+      const r = document.getElementById(${JSON.stringify(`mission-row-${targets[1].id}`)})?.getBoundingClientRect()
+      return r ? { x: r.left + Math.min(40, r.width / 2), y: r.top + r.height / 2 } : null
+    })()`)
+    if (!besideRect) throw new Error("Project B row not found for open-beside")
+    for (const type of ["mousePressed", "mouseReleased"]) {
+      await session.send("Input.dispatchMouseEvent", { type, x: besideRect.x, y: besideRect.y, button: "left", clickCount: 1, modifiers: 4 })
+    }
+    // Visible, not merely mounted: a hidden frame once passed this check while another view covered it.
+    await audit.wait(`Array.from(document.querySelectorAll('iframe')).some(f => {
+      const src = f.getAttribute('src') || ''
+      const r = f.getBoundingClientRect()
+      return src.includes('ocPanel=session-chat') && src.includes(${JSON.stringify(encodeURIComponent(targets[1].id))}) &&
+        f.checkVisibility() && r.width > 200 && r.height > 200 &&
+        (f.contentDocument?.body?.innerText || '').includes('Fixture conversation for project B')
+    })`, "project B's conversation renders beside the chat")
+    await audit.wait('!document.querySelector("[data-mission-control]") && document.body.innerText.includes("Fixture conversation for project A")', "project A stays the main conversation")
+    await capture("open-beside")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, pane resizing and dark/light layouts" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

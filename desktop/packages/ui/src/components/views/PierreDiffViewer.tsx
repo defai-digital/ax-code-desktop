@@ -26,6 +26,7 @@ import { getDefaultTheme } from "@/lib/theme/themes"
 
 import { useDeviceInfo } from "@/lib/device"
 import { cn } from "@/lib/utils"
+import { RegisterReviewThreadContentContext } from "@/components/comments/ReviewThreadAnchorContext"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -202,6 +203,10 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   wrapLines,
   layout = "fill",
 }) => {
+  const registerThreadContent = React.useContext(RegisterReviewThreadContentContext)
+  useEffect(() => {
+    if (fileName) return registerThreadContent?.(fileName, { original, modified })
+  }, [fileName, original, modified, registerThreadContent])
   const themeContext = useOptionalThemeSystem()
 
   const isDark = themeContext?.currentTheme.metadata.variant === "dark"

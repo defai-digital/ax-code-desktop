@@ -167,6 +167,7 @@ function SessionHarness({ scope, paneWidth }: { scope: "session" | "turn"; paneW
   }, [])
   return (
     <I18nProvider>
+      <RuntimeAPIContext.Provider value={{ git: gitApi, files: {} } as unknown as RuntimeAPIs}>
       <div ref={paneRef} tabIndex={0} data-review-changes>
         <SessionChangesView
           directory={DIRECTORY}
@@ -181,6 +182,7 @@ function SessionHarness({ scope, paneWidth }: { scope: "session" | "turn"; paneW
           onModelChange={onModelChange}
         />
       </div>
+      </RuntimeAPIContext.Provider>
     </I18nProvider>
   )
 }

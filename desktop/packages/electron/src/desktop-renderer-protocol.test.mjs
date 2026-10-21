@@ -46,6 +46,11 @@ describe("packaged renderer protocol policy", () => {
     expect(buildPackagedRendererCsp({ proxiedContent: true })).not.toContain("[")
   })
 
+  test("lets only the app frame its own document, and leaves proxied content without frame-ancestors", () => {
+    expect(parseCspDirective(buildPackagedRendererCsp(), "frame-ancestors")).toEqual(["'self'"])
+    expect(buildPackagedRendererCsp({ proxiedContent: true })).not.toContain("frame-ancestors")
+  })
+
   test("CSP img-src allows models.dev provider logos", () => {
     const imgSrc = parseCspDirective(buildPackagedRendererCsp(), "img-src")
     expect(imgSrc).toContain("https://models.dev")

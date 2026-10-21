@@ -1,0 +1,14 @@
+**Verdict: APPROVE** (2 LOW findings, non-blocking). Verification: UI type-check passed (`ef4de4fc16550131`); all four focused suites passed — reanchorThread, useReviewThreadStore, ReviewThreadAnchorProvider, DiffCommentSummaryBar (`b6878add1c82cbb9`).
+
+**Requirements check — all pass**
+1. **Threads on success only**: `recordSent` runs after the awaited send resolves (DiffCommentSummaryBar.tsx:126-128); failure keeps drafts and writes no thread; drafts edited/added in-flight survive via reference-check removal (:130-133). Tested.
+2. **Persistence**: per-directory, 200 cap, oldest-resolved evicted first then oldest open (useReviewThreadStore.ts:16-22); restore path validates/rejects malformed records and re-bounds (:24-46). Round-trip and bounds tested.
+3. **Re-anchor**: exact first, then whitespace-insensitive, duplicates/deleted→outdated, no proximity guessing (reanchorThread.ts:10-29). Whitespace pass correctly maps back to original offsets; exact-duplicate short-circuits to outdated. All six cases unit-tested, including line-wrap and exact-over-fuzzy preference.
+4. **UI list**: "Threads (N open)" toggle with `aria-expanded`/`aria-controls`, per-item file:line (re-anchored or "original location"), text, recipient, status, Resolve/Reopen/Jump; Jump wires to real `selectNavFile` (DiffView.tsx:1613,2255). Resend reuses the same target picker, `resolveSessionSendConfig`, and only open threads; anchored lines are re-sent, outdated ones carry an explicit English warning. Resolved threads are filtered out before send and never re-sent; failed resend mutates nothing. Tested.
+5. **Stale-data safety**: content registry is scoped to `[directory, diffScope, session]` and cleared on unmount/scope change (ReviewThreadAnchorProvider.tsx:9-24); target choice resets on directory/session change; viewer `fileName` equals draft `fileLabel` (PierreDiffViewer.tsx:208,222). Threads for files not currently shown display "Location not checked" instead of a guessed line — honest and tested.
+
+**Findings (ranked)**
+1. **LOW — unmemoized re-anchoring per render** (ReviewThreadList.tsx:24-26): anchors recompute for every thread on every render while the list is open; the whitespace fallback is O(content) per thread, so ~200 threads on a 500KB file ≈ 300M char-ops per render. Fix: `useMemo(() => …, [threads, contents])`.
+2. **LOW — unbounded persisted record growth** (useReviewThreadStore.ts:24-28): per-directory cap only; directory keys never pruned and `code` snippets unbounded, so one localStorage record can approach quota across many repos. Suggest an LRU directory cap or snippet truncation.
+
+**UX notes (no action required)**: recipient shown as raw session id; "Threads (0 open)" always visible once a directory exists. Both acceptable.

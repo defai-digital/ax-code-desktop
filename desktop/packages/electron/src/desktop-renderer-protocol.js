@@ -129,6 +129,9 @@ const buildPackagedRendererCsp = ({ inlineScriptHashes = [], proxiedContent = fa
     "frame-src 'self' http://127.0.0.1:* http://localhost:*",
     "object-src 'none'",
     "base-uri 'none'",
+    // The app may frame itself (session chat beside the main chat), nothing else may frame it. Proxied
+    // content is excluded: sandboxed external previews have an opaque origin that 'self' never matches.
+    ...(proxiedContent ? [] : ["frame-ancestors 'self'"]),
   ].join("; ")
 }
 

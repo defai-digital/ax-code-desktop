@@ -100,3 +100,15 @@ describe("supervision display preferences", () => {
     useSupervisionStore.getState().deleteWorkingSet(id)
   })
 })
+
+describe("markSessionUnread", () => {
+  test("forgets the last view so the session reads as updated, and ignores unknown sessions", () => {
+    useSupervisionStore.getState().markSessionViewed("ses_1", 500)
+    expect(useSupervisionStore.getState().lastViewedAt.ses_1).toBe(500)
+    useSupervisionStore.getState().markSessionUnread("ses_1")
+    expect("ses_1" in useSupervisionStore.getState().lastViewedAt).toBe(false)
+    const before = useSupervisionStore.getState().lastViewedAt
+    useSupervisionStore.getState().markSessionUnread("missing")
+    expect(useSupervisionStore.getState().lastViewedAt).toBe(before)
+  })
+})

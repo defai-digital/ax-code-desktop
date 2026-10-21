@@ -8,7 +8,7 @@ import { useI18n } from "@/lib/i18n"
 import type { I18nKey } from "@/lib/i18n/store"
 import { getLanguageFromExtension } from "@/lib/toolHelpers"
 import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
-import { reviewContentSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
+import { reviewBranchFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
 
@@ -54,6 +54,7 @@ type Snapshot = {
   displayKey: string
   phase: "ready" | "error"
   base: string
+  mergeBase: string
   truncated: boolean
   files: BranchFileDiff[]
   error: string | null
@@ -105,18 +106,27 @@ function normalizeBranchFiles(entries: readonly unknown[]): BranchFileDiff[] {
       binary: row.binary === true,
       tooLarge: row.tooLarge === true,
       previousFile: typeof row.previousFile === "string" ? row.previousFile : null,
+      beforeBlobId: typeof row.beforeBlobId === "string" ? row.beforeBlobId : row.beforeBlobId === null ? null : undefined,
     })
   }
   files.sort((left, right) => left.file.localeCompare(right.file))
   return files
 }
 
-function contentSignature(file: BranchFileDiff): string {
-  const after =
-    file.binary || file.tooLarge
-      ? `\0${file.additions}:${file.deletions}:${file.binary ? "b" : ""}:${file.tooLarge ? "l" : ""}`
-      : file.after
-  return reviewContentSignature(after, file.status)
+function contentSignature(file: BranchFileDiff, mergeBase: string): { signature: string; fallback: boolean } {
+  return reviewBranchFileSignature(
+    {
+      path: file.file,
+      status: file.status,
+      after: file.after,
+      additions: file.additions,
+      deletions: file.deletions,
+      binary: file.binary,
+      tooLarge: file.tooLarge,
+      beforeBlobId: file.beforeBlobId,
+    },
+    mergeBase,
+  )
 }
 
 function branchDiffLayout(
@@ -172,6 +182,7 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
           displayKey,
           phase: "ready",
           base: typeof diff.base === "string" ? diff.base : choice,
+          mergeBase: typeof diff.mergeBase === "string" ? diff.mergeBase : "",
           truncated: diff.truncated === true,
           files: normalizeBranchFiles(Array.isArray(diff.files) ? diff.files : []),
           error: null,
@@ -185,6 +196,7 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
           displayKey,
           phase: "error",
           base: choice,
+          mergeBase: "",
           truncated: false,
           files: [],
           error: message,
@@ -201,6 +213,7 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   const phase = visible?.phase ?? "loading"
   const loadedFiles = visible?.phase === "ready" ? visible.files : EMPTY_FILES
   const resolvedBase = visible?.base || baseChoice
+  const mergeBase = visible?.mergeBase ?? ""
   const selected = loadedFiles.find((file) => file.file === selectedFile) ?? null
   const layoutPreference = useUIStore((state) => state.diffLayoutPreference)
   const layoutOverride = useUIStore((state) =>
@@ -211,14 +224,18 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
 
   const railFiles = React.useMemo<ReviewRailFile[]>(
     () =>
-      loadedFiles.map((file) => ({
-        path: file.file,
-        insertions: file.additions,
-        deletions: file.deletions,
-        signature: contentSignature(file),
-        status: STATUS_PRESENTATION[file.status],
-      })),
-    [loadedFiles],
+      loadedFiles.map((file) => {
+        const signed = contentSignature(file, mergeBase)
+        return {
+          path: file.file,
+          insertions: file.additions,
+          deletions: file.deletions,
+          signature: signed.signature,
+          signatureFallback: signed.fallback,
+          status: STATUS_PRESENTATION[file.status],
+        }
+      }),
+    [loadedFiles, mergeBase],
   )
 
   const reviewKeyFiles = React.useMemo(

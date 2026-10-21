@@ -91,17 +91,32 @@ export interface MissionFacets {
   status: MissionStatusFilter
   projectKeys: readonly string[]
   hasChanges: boolean
+  /** Only sessions updated after the user last viewed them (never-viewed sessions count as updated). */
+  updatedOnly?: boolean
+  lastViewedAt?: Readonly<Record<string, number>>
+}
+
+/** Whether a session changed after the user last looked at it. */
+export function updatedSinceViewed(
+  row: { sessionId: string; updatedAt: number },
+  lastViewedAt: Readonly<Record<string, number>> | undefined,
+): boolean {
+  return row.updatedAt > (lastViewedAt?.[row.sessionId] ?? 0)
 }
 
 /** AND across facets; OR within the selected projects. Preserve the incoming urgency order. */
 export function filterMissionFacets<
-  T extends Pick<SupervisionRow, "title" | "projectLabel" | "directory" | "projectId" | "state" | "evidence" | "goal">,
+  T extends Pick<
+    SupervisionRow,
+    "sessionId" | "updatedAt" | "title" | "projectLabel" | "directory" | "projectId" | "state" | "evidence" | "goal"
+  >,
 >(rows: readonly T[], facets: MissionFacets): T[] {
   const projects = new Set(facets.projectKeys)
   return searchMissionRows(rows, facets.query).filter(
     (row) =>
       matchesMissionStatus(row.state, facets.status) &&
       (projects.size === 0 || projects.has(missionProjectKey(row))) &&
-      (!facets.hasChanges || row.evidence != null),
+      (!facets.hasChanges || row.evidence != null) &&
+      (!facets.updatedOnly || updatedSinceViewed(row, facets.lastViewedAt)),
   )
 }

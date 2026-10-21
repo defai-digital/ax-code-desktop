@@ -1,6 +1,10 @@
 import React from "react"
 
 import { Button } from "@/components/ui/button"
+import { toast } from "@/components/ui"
+import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
+import { getContextFileOpenFailureMessage, validateContextFileOpen } from "@/lib/contextFileOpenGuard"
+import { toViewAbsolutePath } from "./viewPathUtils"
 import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { useI18n } from "@/lib/i18n"
@@ -55,6 +59,17 @@ type Snapshot = {
 }
 
 const EMPTY_SESSION_FILES: SessionFileDiff[] = []
+
+/** First line of `after` that differs from `before` (1-based), so the editor opens at the change. */
+function firstChangedLine(before: string, after: string): number {
+  const left = before.split("\n")
+  const right = after.split("\n")
+  const length = Math.max(left.length, right.length)
+  for (let index = 0; index < length; index += 1) {
+    if (left[index] !== right[index]) return Math.min(index + 1, Math.max(1, right.length))
+  }
+  return 1
+}
 
 const STATUS_PRESENTATION: Record<"added" | "deleted" | "modified", ReviewRailStatus> = {
   added: { code: "A", color: "var(--status-success)", descriptionKey: "diffView.change.new" },
@@ -226,6 +241,20 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
   const phase = visible?.phase ?? "loading"
   const loadedFiles = visible?.phase === "ready" ? visible.files : EMPTY_SESSION_FILES
   const selected = loadedFiles.find((file) => file.file === selectedFile) ?? null
+  const { files: filesApi } = useRuntimeAPIs()
+  const openContextFileAtLine = useUIStore((state) => state.openContextFileAtLine)
+  // Same guard as the git rail: files the agent deleted or that left the project are refused with a message.
+  const openInEditor = async (path: string) => {
+    const file = loadedFiles.find((entry) => entry.file === path)
+    const absolutePath = toViewAbsolutePath(directory, path)
+    const validation = await validateContextFileOpen(filesApi, absolutePath)
+    if (!validation.ok) {
+      toast.error(getContextFileOpenFailureMessage(validation.reason))
+      return
+    }
+    const line = file ? firstChangedLine(file.before, file.after) : 1
+    openContextFileAtLine(directory, absolutePath, line, 1)
+  }
   const layoutPreference = useUIStore((state) => state.diffLayoutPreference)
   const layoutOverride = useUIStore((state) =>
     selectedFile ? state.diffFileLayout[diffLayoutKey(directory, selectedFile)] : undefined,
@@ -329,6 +358,7 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
           files={railFiles}
           selectedFile={selectedFile}
           onSelectFile={onSelectFile}
+          onOpenFile={(path) => void openInEditor(path)}
         />
       ) : null}
       <div className="session-changes__body">{body}</div>

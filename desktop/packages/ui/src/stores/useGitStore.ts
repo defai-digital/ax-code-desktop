@@ -218,6 +218,15 @@ const haveRemoteComparisonChanged = (
   )
 }
 
+const contentIdentityStamp = (file: {
+  headBlobId?: string | null
+  indexBlobId?: string | null
+  worktreeBlobId?: string | null
+}): string | null => {
+  if (file.headBlobId === undefined && file.indexBlobId === undefined && file.worktreeBlobId === undefined) return null
+  return `${file.headBlobId ?? ""}\0${file.indexBlobId ?? ""}\0${file.worktreeBlobId ?? ""}`
+}
+
 const hasStatusChanged = (oldStatus: GitStatus | null, newStatus: GitStatus | null): boolean => {
   if (!oldStatus && !newStatus) return false
   if (!oldStatus || !newStatus) return true
@@ -239,8 +248,13 @@ const hasStatusChanged = (oldStatus: GitStatus | null, newStatus: GitStatus | nu
   }
 
   const oldPaths = new Set(oldFiles.map((f) => `${f.path}:${f.index}:${f.working_dir}`))
+  const oldByPath = new Map(oldFiles.map((file) => [file.path, file] as const))
   for (const file of newFiles) {
     if (!oldPaths.has(`${file.path}:${file.index}:${file.working_dir}`)) {
+      return true
+    }
+    const nextIdentity = contentIdentityStamp(file)
+    if (nextIdentity !== null && contentIdentityStamp(oldByPath.get(file.path) ?? file) !== nextIdentity) {
       return true
     }
   }
@@ -277,6 +291,12 @@ const getChangedFilePaths = (oldStatus: GitStatus | null, newStatus: GitStatus |
       changed.add(filePath)
       continue
     }
+
+    // A same-count rewrite keeps the status columns and numstat, but the blob id changes.
+    const nextIdentity = contentIdentityStamp(newFile)
+    if (nextIdentity !== null && contentIdentityStamp(oldFile) !== nextIdentity) {
+      changed.add(filePath)
+    }
   }
 
   // Only compare diffStats when light mode provides them (non-undefined)
@@ -298,8 +318,12 @@ const hasIndexStatusChanged = (oldStatus: GitStatus | null, newStatus: GitStatus
     return trimmed === "?" ? "" : trimmed
   }
 
-  const oldIndexByPath = new Map(oldFiles.map((file) => [file.path, normalizeIndexStatus(file.index)] as const))
-  const newIndexByPath = new Map(newFiles.map((file) => [file.path, normalizeIndexStatus(file.index)] as const))
+  // The index blob id is part of the key: restaging different content can keep the same status letter, and the
+  // staged diff on screen must still reload so "viewed" is never set against the old content.
+  const indexKey = (file: (typeof oldFiles)[number]): string =>
+    `${normalizeIndexStatus(file.index)}:${file.indexBlobId ?? ""}`
+  const oldIndexByPath = new Map(oldFiles.map((file) => [file.path, indexKey(file)] as const))
+  const newIndexByPath = new Map(newFiles.map((file) => [file.path, indexKey(file)] as const))
   const paths = new Set<string>([...oldIndexByPath.keys(), ...newIndexByPath.keys()])
 
   for (const path of paths) {

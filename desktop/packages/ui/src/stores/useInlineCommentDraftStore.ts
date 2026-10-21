@@ -2,21 +2,10 @@ import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 
-export type InlineCommentSource = "diff" | "plan" | "file" | "preview-console" | "preview-annotation"
+import type { InlineCommentDraft, InlineCommentSource } from "@/lib/messages/inlineCommentDraft"
 
-export interface InlineCommentDraft {
-  id: string
-  sessionKey: string // sessionId or scoped draft key for new sessions
-  source: InlineCommentSource
-  fileLabel: string // filename or 'plan'
-  startLine: number
-  endLine: number
-  side?: "original" | "modified" // diff only
-  code: string
-  language: string
-  text: string
-  createdAt: number
-}
+// The draft types live in lib/ so other stores can use them without importing this store (store boundary R1).
+export type { InlineCommentDraft, InlineCommentSource } from "@/lib/messages/inlineCommentDraft"
 
 interface InlineCommentDraftState {
   drafts: Record<string, InlineCommentDraft[]> // sessionKey -> drafts

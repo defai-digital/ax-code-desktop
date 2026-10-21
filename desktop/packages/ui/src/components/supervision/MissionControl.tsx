@@ -11,6 +11,7 @@ import {
   moveSelection,
   primaryActionFor,
   filterMissionFacets,
+  updatedSinceViewed,
   type MissionStatusFilter,
 } from "@/lib/supervision/missionControl"
 import { groupMissionRows } from "@/lib/supervision/missionGroups"
@@ -18,6 +19,7 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { MissionControlGroupHeader } from "./missionControl/MissionControlGroupHeader"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
+import { openSessionBeside } from "@/lib/supervision/openSessionBeside"
 import {
   canOpenSupervisionPopout,
   openDraftInMainWindow,
@@ -100,7 +102,10 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const [selectedProjects, setSelectedProjects] = React.useState<{ key: string; label: string }[]>([])
   const projectFilters = React.useMemo(() => selectedProjects.map((project) => project.key), [selectedProjects])
   const [hasChanges, setHasChanges] = React.useState(false)
-  const hasFilters = Boolean(query.trim()) || statusFilter !== "all" || projectFilters.length > 0 || hasChanges
+  const [updatedOnly, setUpdatedOnly] = React.useState(false)
+  const lastViewedAt = useSupervisionStore((s) => s.lastViewedAt)
+  const hasFilters =
+    Boolean(query.trim()) || statusFilter !== "all" || projectFilters.length > 0 || hasChanges || updatedOnly
 
   const scoped = React.useMemo(
     () =>
@@ -116,14 +121,29 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   // Each facet counts what selecting it would show: every other active filter applies, the project facet itself does not.
   const projectCounts = React.useMemo(() => {
     const counts = new Map<string, number>()
-    const base = filterMissionFacets(scoped, { query, status: statusFilter, projectKeys: [], hasChanges })
+    const base = filterMissionFacets(scoped, {
+      query,
+      status: statusFilter,
+      projectKeys: [],
+      hasChanges,
+      updatedOnly,
+      lastViewedAt,
+    })
     for (const group of groupMissionRows(base, homeDirectory)) counts.set(group.key, group.rows.length)
     return counts
-  }, [scoped, query, statusFilter, hasChanges, homeDirectory])
+  }, [scoped, query, statusFilter, hasChanges, updatedOnly, lastViewedAt, homeDirectory])
   // Keep counts responsive to every other facet, without constraining the available project options.
   const searched = React.useMemo(
-    () => filterMissionFacets(scoped, { query, status: "all", projectKeys: projectFilters, hasChanges }),
-    [scoped, query, projectFilters, hasChanges],
+    () =>
+      filterMissionFacets(scoped, {
+        query,
+        status: "all",
+        projectKeys: projectFilters,
+        hasChanges,
+        updatedOnly,
+        lastViewedAt,
+      }),
+    [scoped, query, projectFilters, hasChanges, updatedOnly, lastViewedAt],
   )
   const filtered = React.useMemo(
     () => filterMissionFacets(searched, { query: "", status: statusFilter, projectKeys: [], hasChanges: false }),
@@ -170,6 +190,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     setStatusFilter("all")
     setSelectedProjects([])
     setHasChanges(false)
+    setUpdatedOnly(false)
   }
   const wip = React.useMemo(() => summarizeWorkInProgress(rows), [rows])
   const activeSet = workingSets.find((s) => s.id === activeWorkingSetId) ?? null
@@ -213,6 +234,12 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     [isPopout],
   )
 
+  // Cmd/Ctrl+click (or Cmd/Ctrl+Enter) keeps the current chat and shows the row's session beside it.
+  const openRowBeside = React.useCallback((row: SupervisionRow) => {
+    if (openSessionBeside({ sessionId: row.sessionId, directory: row.directory, title: row.title })) {
+      useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
+    }
+  }, [])
   const reviewChangesForRow = React.useCallback(
     (row: SupervisionRow) => {
       openRow(row)
@@ -245,6 +272,22 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   }
 
   const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (
+      !isPopout &&
+      event.key === "Enter" &&
+      (event.metaKey || event.ctrlKey) &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.nativeEvent.isComposing &&
+      !(event.target as HTMLElement).closest("input, textarea, select, button, [contenteditable='true']")
+    ) {
+      const row = visibleRows.find((item) => item.sessionId === effectiveSelectedId)
+      if (row) {
+        event.preventDefault()
+        openRowBeside(row)
+      }
+      return
+    }
     if (event.nativeEvent.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey)
       return
     if (event.shiftKey && event.key !== "/" && event.key.toLowerCase() !== "x") return
@@ -503,6 +546,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         }}
         onSelect={setSelectedId}
         onOpen={openRow}
+        onOpenBeside={isPopout ? undefined : openRowBeside}
         onPrimary={handlePrimary}
         onCompare={isPopout ? undefined : setCompareRunGroupKey}
         onRemoveFromSet={removeFromWorkingSet}
@@ -516,6 +560,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
           onNewSetNameChange={setPeekNewSetName}
           onOpen={openRow}
           onReviewChanges={isPopout ? undefined : reviewChangesForRow}
+          onOpenBeside={isPopout ? undefined : openRowBeside}
           onAddToWorkingSet={addToWorkingSet}
           onStartCreateSet={handleStartPeekCreateSet}
           onSubmitCreateSet={handleSubmitPeekCreateSet}
@@ -616,6 +661,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         }
         hasChanges={hasChanges}
         onHasChangesChange={setHasChanges}
+        updatedOnly={updatedOnly}
+        onUpdatedOnlyChange={setUpdatedOnly}
+        updatedCount={scoped.filter((row) => updatedSinceViewed(row, lastViewedAt)).length}
         rows={searched}
         shown={filtered.length}
         total={scoped.length}

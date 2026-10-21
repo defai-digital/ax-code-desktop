@@ -103,6 +103,18 @@ export interface GitStatusFile {
   path: string
   index: string
   working_dir: string
+  /**
+   * Blob id of this path in HEAD. Null when that side has no blob. Omitted when content
+   * identities were not computed for the row (the file-count cap).
+   */
+  headBlobId?: string | null
+  /** Blob id of the index entry. Null when the path is not in the index. */
+  indexBlobId?: string | null
+  /**
+   * Working-tree blob id from `git hash-object --no-filters`. Null when the file is
+   * deleted, over the size cap, or otherwise not hashed. Never file content.
+   */
+  worktreeBlobId?: string | null
 }
 
 export interface GitMergeInProgress {
@@ -184,6 +196,8 @@ export interface GitBranchFileDiff {
   binary?: boolean
   tooLarge?: boolean
   previousFile?: string | null
+  /** Blob id of the before side at the merge base. Null for added and untracked files. */
+  beforeBlobId?: string | null
 }
 
 export interface GitBranchDiffResponse {

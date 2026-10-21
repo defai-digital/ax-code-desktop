@@ -55,6 +55,8 @@ export type SupervisionStore = PersistedSupervision & {
   recordSessionVisit: (sessionId: string) => void
   /** Record when the user last looked at a session, for the "since you left" strip. */
   markSessionViewed: (sessionId: string, at?: number) => void
+  /** Forget when the session was last viewed, so it reads as updated again (like "mark as unread"). */
+  markSessionUnread: (sessionId: string) => void
   /** Push a viewed session onto the back/forward history; a no-op when it is the current entry. */
   pushNavHistory: (sessionId: string) => void
   /**
@@ -204,6 +206,13 @@ export const useSupervisionStore = defineStore(
       markSessionViewed: (sessionId, at = Date.now()) => {
         if (!sessionId) return
         update({ lastViewedAt: pruneLastViewed({ ...get().lastViewedAt, [sessionId]: at }) })
+      },
+      markSessionUnread: (sessionId) => {
+        const current = get().lastViewedAt
+        if (!sessionId || !(sessionId in current)) return
+        const lastViewedAt = { ...current }
+        delete lastViewedAt[sessionId]
+        update({ lastViewedAt })
       },
       pushNavHistory: (sessionId) => {
         if (!sessionId) return

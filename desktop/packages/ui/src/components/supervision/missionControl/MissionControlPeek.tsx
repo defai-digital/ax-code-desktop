@@ -5,6 +5,8 @@ import type { SupervisionRow } from "@/hooks/useSupervisionRows"
 import { formatPathForDisplay } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
+import { updatedSinceViewed } from "@/lib/supervision/missionControl"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { recentHookRuns, useSessionHookRuns } from "@/stores/useHookActivityStore"
 import type { WorkingSet } from "@/stores/useSupervisionStore"
 import type { PendingRequestEntry } from "@/sync/sync-context"
@@ -24,6 +26,8 @@ export interface MissionControlPeekProps {
   onOpen: (row: SupervisionRow) => void
   /** Opens the changes beside the chat; omitted where there is no chat (the pop-out window). */
   onReviewChanges?: (row: SupervisionRow) => void
+  /** Shows this session beside the current chat in the same window; omitted in the pop-out window. */
+  onOpenBeside?: (row: SupervisionRow) => void
   onAddToWorkingSet: (workingSetId: string, sessionId: string) => void
   onStartCreateSet: (sessionId: string) => void
   onSubmitCreateSet: (row: SupervisionRow) => void
@@ -39,12 +43,14 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   onNewSetNameChange,
   onOpen,
   onReviewChanges,
+  onOpenBeside,
   onAddToWorkingSet,
   onStartCreateSet,
   onSubmitCreateSet,
   onCancelCreateSet,
 }) => {
   const { t } = useI18n()
+  const updated = useSupervisionStore((state) => updatedSinceViewed(row, state.lastViewedAt))
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const recentRuns = recentHookRuns(useSessionHookRuns(row.sessionId))
 
@@ -156,6 +162,27 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
           >
             {t("supervision.missionControl.action.openSession")}
           </Button>
+          {updated ? null : (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="normal-case h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+              onClick={() => useSupervisionStore.getState().markSessionUnread(row.sessionId)}
+            >
+              {t("supervision.missionControl.action.markUnread")}
+            </Button>
+          )}
+          {onOpenBeside ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="normal-case h-auto min-h-6 max-w-full whitespace-normal px-2 py-1 typography-micro"
+              title={t("supervision.missionControl.action.openBesideHint")}
+              onClick={() => onOpenBeside(row)}
+            >
+              {t("supervision.missionControl.action.openBeside")}
+            </Button>
+          ) : null}
           {row.evidence && onReviewChanges ? (
             <Button
               size="sm"

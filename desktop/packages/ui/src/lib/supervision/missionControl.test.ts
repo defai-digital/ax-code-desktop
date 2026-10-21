@@ -8,6 +8,7 @@ import {
   primaryActionFor,
   searchMissionRows,
   matchesMissionStatus,
+  updatedSinceViewed,
 } from "./missionControl"
 import type { SupervisionState } from "./sessionState"
 
@@ -177,5 +178,40 @@ describe("compound mission facets", () => {
     expect(filterMissionFacets(rows, { ...facets, projectKeys: ["alpha"] }).map((r) => r.sessionId)).toEqual(["a"])
     expect(missionProjectKey({ projectId: null, directory: "/local" })).toBe("/local")
     expect(missionProjectKey({ projectId: null, directory: null })).toBe("__none__")
+  })
+})
+
+describe("updated since last visit", () => {
+  const row = (sessionId: string, updatedAt: number) => ({
+    sessionId,
+    updatedAt,
+    title: sessionId,
+    projectLabel: null,
+    directory: null,
+    projectId: null,
+    state: "running" as const,
+    evidence: null,
+    goal: null,
+  })
+
+  test("a session counts as updated after its last view, and never-viewed sessions count too", () => {
+    const viewed = { seen: 100, stale: 50 }
+    expect(updatedSinceViewed(row("seen", 100), viewed)).toBe(false)
+    expect(updatedSinceViewed(row("stale", 80), viewed)).toBe(true)
+    expect(updatedSinceViewed(row("never", 1), viewed)).toBe(true)
+  })
+
+  test("the facet keeps only updated sessions and combines with the others", () => {
+    const rows = [row("seen", 100), row("stale", 80), row("never", 1)]
+    const lastViewedAt = { seen: 100, stale: 50 }
+    const facets = { query: "", status: "all" as const, projectKeys: [], hasChanges: false, lastViewedAt }
+    expect(filterMissionFacets(rows, { ...facets, updatedOnly: true }).map((item) => item.sessionId)).toEqual([
+      "stale",
+      "never",
+    ])
+    expect(filterMissionFacets(rows, { ...facets, updatedOnly: true, query: "never" }).map((item) => item.sessionId)).toEqual(
+      ["never"],
+    )
+    expect(filterMissionFacets(rows, { ...facets, updatedOnly: false })).toHaveLength(3)
   })
 })

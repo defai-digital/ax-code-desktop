@@ -355,6 +355,43 @@ describe("git routes index mutations", () => {
     expect(response.statusCode).toBe(200)
     expect(response.body).toMatchObject({ isGitRepository: false, current: "", isClean: true, files: [] })
   })
+
+  it("returns per-file content identities from git status without file content", async () => {
+    const headBlobId = "a".repeat(40)
+    const indexBlobId = "b".repeat(40)
+    const worktreeBlobId = "c".repeat(40)
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+    gitLibraries.isGitRepository.mockResolvedValueOnce(true)
+    gitLibraries.getStatus.mockResolvedValueOnce({
+      current: "main",
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+      files: [
+        {
+          path: "src/a.ts",
+          index: " ",
+          working_dir: "M",
+          headBlobId,
+          indexBlobId,
+          worktreeBlobId,
+        },
+      ],
+      isClean: false,
+    })
+
+    await getRoute("GET", "/api/git/status")({ query: { directory: "/repo" } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(gitLibraries.getStatus).toHaveBeenCalledWith("/repo", { mode: undefined })
+    expect(response.body.files).toEqual([
+      { path: "src/a.ts", index: " ", working_dir: "M", headBlobId, indexBlobId, worktreeBlobId },
+    ])
+    expect(response.body.files[0].content).toBeUndefined()
+    expect(JSON.stringify(response.body)).not.toContain("const value")
+  })
 })
 
 describe("git repository hints route", () => {

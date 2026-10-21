@@ -20,7 +20,9 @@ describe("response security headers", () => {
     const res = createMockResponse()
     applySecurityHeaders({ path: "/" }, res)
 
-    expect(res.getHeader("X-Frame-Options")).toBe("DENY")
+    // Same-origin framing is needed for the embedded session chat; other origins stay blocked.
+    expect(res.getHeader("X-Frame-Options")).toBe("SAMEORIGIN")
+    expect(res.getHeader("Content-Security-Policy")).toContain("frame-ancestors 'self'")
     expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
   })
 
@@ -29,6 +31,8 @@ describe("response security headers", () => {
     applySecurityHeaders({ path: "/api/preview/proxy/abc123/" }, res)
 
     expect(res.getHeader("X-Frame-Options")).toBeUndefined()
+    // Proxied pages keep their own framing; only the app document restricts its ancestors.
+    expect(res.getHeader("Content-Security-Policy")).not.toContain("frame-ancestors")
     expect(res.getHeader("X-Content-Type-Options")).toBe("nosniff")
   })
 

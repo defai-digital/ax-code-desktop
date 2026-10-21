@@ -24,6 +24,10 @@ interface Props {
   onProjectsChange: (keys: string[]) => void
   hasChanges: boolean
   onHasChangesChange: (value: boolean) => void
+  updatedOnly: boolean
+  onUpdatedOnlyChange: (value: boolean) => void
+  /** Sessions in scope updated since the user last viewed them. */
+  updatedCount: number
   rows: readonly { state: SupervisionState }[]
   shown: number
   total: number
@@ -106,6 +110,20 @@ export function MissionControlFilters(props: Props) {
         >
           {t("supervision.missionControl.filter.hasChanges")}
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
+            "normal-case min-h-9 gap-2",
+            props.updatedOnly && "border-primary/40 bg-interactive-selection text-primary",
+          )}
+          aria-pressed={props.updatedOnly}
+          aria-label={`${t("supervision.missionControl.filter.updated")} (${props.updatedCount})`}
+          onClick={() => props.onUpdatedOnlyChange(!props.updatedOnly)}
+        >
+          {t("supervision.missionControl.filter.updated")}
+          <span className="tabular-nums">{props.updatedCount}</span>
+        </Button>
         <div role="group" aria-label={t("supervision.missionControl.filter.status")} className="flex flex-wrap gap-1">
           {statuses.map(([value, label]) => (
             <button
@@ -164,7 +182,7 @@ export function MissionControlFilters(props: Props) {
             </Button>
           )
         })}
-        {props.query || props.status !== "all" || projectKeys.length > 0 || props.hasChanges ? (
+        {props.query || props.status !== "all" || projectKeys.length > 0 || props.hasChanges || props.updatedOnly ? (
           <Button
             variant="ghost"
             size="sm"

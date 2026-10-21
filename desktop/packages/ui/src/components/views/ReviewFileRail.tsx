@@ -4,7 +4,7 @@ import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import type { I18nKey } from "@/lib/i18n/store"
 import {
-  reviewFileSignature,
+  reviewFileSignatureDetail,
   reviewProgressKey,
   useReviewProgressStore,
   type ReviewProgressFile,
@@ -18,14 +18,17 @@ export interface ReviewRailStatus {
 }
 
 /**
- * Git rows keep index and working_dir and use the line-count signature.
- * Session rows pass a content signature and a status letter and omit the git columns.
+ * Git rows keep index and working_dir. Their signature uses blob ids for the scope, and falls
+ * back to line counts when those ids are missing (`data-review-signature-fallback`).
+ * Session and branch rows pass a signature and a status letter and omit the git columns.
  */
 export type ReviewRailFile = {
   path: string
   insertions: number
   deletions: number
   signature?: string
+  /** Set when the signature fell back to line counts because blob ids were missing. */
+  signatureFallback?: boolean
   status?: ReviewRailStatus
   index?: string
   working_dir?: string
@@ -41,9 +44,10 @@ interface ReviewFileRailProps {
   onOpenFile?: (path: string) => void
 }
 
-function railSignature(file: ReviewRailFile): string {
-  if (file.signature !== undefined) return file.signature
-  return reviewFileSignature(file as ReviewProgressFile)
+function railSignature(file: ReviewRailFile, scope: string): { signature: string; fallback: boolean } {
+  if (file.signature !== undefined) return { signature: file.signature, fallback: file.signatureFallback === true }
+  const detail = reviewFileSignatureDetail(file as ReviewProgressFile, scope)
+  return { signature: detail.signature, fallback: detail.fallback }
 }
 
 function railStatus(file: ReviewRailFile): ReviewRailStatus {
@@ -74,15 +78,16 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
     const rows = React.useMemo(
       () =>
         files.map((file) => {
-          const signature = railSignature(file)
+          const signed = railSignature(file, scope)
           const parts = splitReviewPath(file.path)
           return {
             file,
-            signature,
+            signature: signed.signature,
+            fallback: signed.fallback,
             name: parts.name,
             parent: parts.parent,
             descriptor: railStatus(file),
-            viewed: marks[reviewProgressKey(directory, scope, file.path)] === signature,
+            viewed: marks[reviewProgressKey(directory, scope, file.path)] === signed.signature,
           }
         }),
       [directory, files, marks, scope],
@@ -139,6 +144,7 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
                 key={row.file.path}
                 role="listitem"
                 data-review-file={row.file.path}
+                data-review-signature-fallback={row.fallback ? "true" : undefined}
                 aria-current={selected ? "true" : undefined}
                 className="review-file-rail__row"
               >
@@ -222,11 +228,12 @@ export const ReviewProgressCompact = React.memo<ReviewProgressCompactProps>(
     const toggleViewed = useReviewProgressStore((state) => state.toggleViewed)
     if (files.length === 0) return null
     const viewedCount = files.reduce(
-      (count, file) => count + (marks[reviewProgressKey(directory, scope, file.path)] === railSignature(file) ? 1 : 0),
+      (count, file) =>
+        count + (marks[reviewProgressKey(directory, scope, file.path)] === railSignature(file, scope).signature ? 1 : 0),
       0,
     )
     const selected = selectedFile ? files.find((file) => file.path === selectedFile) : undefined
-    const selectedSignature = selected ? railSignature(selected) : null
+    const selectedSignature = selected ? railSignature(selected, scope).signature : null
     const selectedViewed =
       selected !== undefined && marks[reviewProgressKey(directory, scope, selected.path)] === selectedSignature
     const name = selected ? splitReviewPath(selected.path).name : ""

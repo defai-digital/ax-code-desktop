@@ -29,6 +29,7 @@ import { DiffViewToggle } from "@/components/chat/message/DiffViewToggle"
 import type { DiffViewMode } from "@/components/chat/message/types"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
+import { ReviewThreadAnchorProvider } from "@/components/comments/ReviewThreadAnchorProvider"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
 import { SessionChangesView, type SessionChangesModel } from "./SessionChangesView"
 import { BranchChangesView, type BranchChangesModel } from "./BranchChangesView"
@@ -1552,8 +1553,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
   )
 
   const reviewKeyFiles = React.useMemo(
-    () => changedFiles.map((file) => ({ path: file.path, signature: reviewFileSignature(file) })),
-    [changedFiles],
+    () => changedFiles.map((file) => ({ path: file.path, signature: reviewFileSignature(file, diffScope) })),
+    [changedFiles, diffScope],
   )
 
   useReviewPaneFileKeys({
@@ -1993,6 +1994,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
       data-review-changes
       data-review-width={Math.round(paneWidth)}
     >
+      <ReviewThreadAnchorProvider scope={JSON.stringify([effectiveDirectory, diffScope, currentSessionId])}>
       {effectiveDirectory ? (
         <div
           data-review-directory={effectiveDirectory}
@@ -2250,8 +2252,10 @@ export const DiffView: React.FC<DiffViewProps> = ({
       </div>
       <DiffCommentSummaryBar
         sessionKey={inlineCommentSessionKey}
+        onSelectFile={selectNavFile}
         showHint={Boolean(effectiveDirectory) && changedFiles.length > 0}
       />
+      </ReviewThreadAnchorProvider>
     </div>
   )
 }

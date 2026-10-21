@@ -1,17 +1,31 @@
 import { useEffect, type RefObject } from "react"
 import { create } from "zustand"
+import { createJSONStorage, persist } from "zustand/middleware"
 
 import type { GitStatus } from "@/lib/api/types"
 import { describeGitChange } from "@/components/views/git/changeDescriptors"
+import { getSafeStorage } from "./utils/safeStorage"
 
 /**
- * In-memory review progress. A mark matches only while the file's signature
- * is unchanged, so an agent edit clears "viewed" without a separate sweep.
+ * Review progress persisted per repository directory and scope. A mark matches only while the
+ * file's signature is unchanged, so a rewrite clears "viewed" after a reload too.
  */
 export type ReviewProgressFile = GitStatus["files"][number] & {
   insertions: number
   deletions: number
 }
+
+export type ReviewGitScope = "working" | "staged" | "all"
+
+export type ReviewFileSignature = {
+  signature: string
+  /** True when blob ids were missing and the count-based signature was used. */
+  fallback: boolean
+}
+
+/** Versioned storage key. Bump the suffix when the persisted mark shape changes. */
+export const REVIEW_PROGRESS_STORAGE_KEY = "ax-code-review-progress-v1"
+export const REVIEW_PROGRESS_STORAGE_VERSION = 1
 
 export type ReviewKeyFile = {
   path: string
@@ -24,10 +38,114 @@ export function reviewProgressKey(directory: string, scope: string, path: string
   return `${directory}\u0000${scope}\u0000${path}`
 }
 
-export function reviewFileSignature(file: ReviewProgressFile): string {
+const BLOB_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
+
+function countSignature(file: ReviewProgressFile): string {
   // Both status columns: moving a change between the index and the working tree is a new state to review,
   // even when the combined line counts and the displayed letter stay the same.
   return `${file.insertions}:${file.deletions}:${describeGitChange(file).code}:${file.index}${file.working_dir}`
+}
+
+function normalizeBlobId(value: string | null | undefined): string | null {
+  if (typeof value !== "string") return null
+  const trimmed = value.trim().toLowerCase()
+  return BLOB_ID_PATTERN.test(trimmed) ? trimmed : null
+}
+
+function statusColumn(value: string | undefined): string {
+  return (value ?? "").trim()
+}
+
+function sideExpectations(file: ReviewProgressFile): { head: boolean; index: boolean; worktree: boolean } {
+  const index = statusColumn(file.index)
+  const working = statusColumn(file.working_dir)
+  const untracked = index === "?" || working === "?"
+  const worktreeDeleted = working === "D" || (index === "D" && working === "")
+  return {
+    head: !untracked && index !== "A" && index !== "R" && index !== "C",
+    index: !untracked && index !== "D",
+    worktree: !worktreeDeleted,
+  }
+}
+
+type SignatureSide = { missing: true } | { missing: false; token: string }
+
+function signatureSide(value: string | null | undefined, expected: boolean): SignatureSide {
+  const id = normalizeBlobId(value)
+  if (id) return { missing: false, token: id }
+  if (!expected && (value === undefined || value === null || value === "")) return { missing: false, token: "-" }
+  return { missing: true }
+}
+
+function gitScopeOf(scope: string | undefined): ReviewGitScope | null {
+  if (scope === "working" || scope === "staged" || scope === "all") return scope
+  if (scope === undefined) return "all"
+  return null
+}
+
+/**
+ * Git scopes sign the path, the status columns, and the blob ids of the sides that scope reviews.
+ * Working is the index id plus the worktree id, staged is the HEAD id plus the index id, and all
+ * is all three. A null id is a real absence (deleted, untracked, new). A missing id — omitted,
+ * or null on a side that should have one — falls back to the count signature and sets `fallback`.
+ */
+export function reviewFileSignatureDetail(file: ReviewProgressFile, scope?: string): ReviewFileSignature {
+  const counts = countSignature(file)
+  const gitScope = gitScopeOf(scope)
+  if (!gitScope) return { signature: counts, fallback: true }
+
+  const expected = sideExpectations(file)
+  const head = signatureSide(file.headBlobId, expected.head)
+  const index = signatureSide(file.indexBlobId, expected.index)
+  const worktree = signatureSide(file.worktreeBlobId, expected.worktree)
+  const sides: SignatureSide[] =
+    gitScope === "working" ? [index, worktree] : gitScope === "staged" ? [head, index] : [head, index, worktree]
+  if (sides.some((side) => side.missing)) return { signature: counts, fallback: true }
+
+  const tokens = sides.map((side) => (side.missing ? "-" : side.token))
+  return {
+    signature: `id:${gitScope}:${file.path}\0${describeGitChange(file).code}:${file.index}${file.working_dir}\0${tokens.join(":")}`,
+    fallback: false,
+  }
+}
+
+export function reviewFileSignature(file: ReviewProgressFile, scope?: string): string {
+  return reviewFileSignatureDetail(file, scope).signature
+}
+
+const BRANCH_BEFORE_BLOB_STATUSES = new Set(["modified", "deleted", "renamed", "copied"])
+
+/**
+ * Branch marks sign the merge-base, the before blob id, and a content hash of the after text.
+ * Added and untracked files have no before blob. Missing ids fall back to the after-content hash.
+ */
+export function reviewBranchFileSignature(
+  file: {
+    path: string
+    status: string
+    after: string
+    additions: number
+    deletions: number
+    binary?: boolean
+    tooLarge?: boolean
+    beforeBlobId?: string | null
+  },
+  mergeBase: string | null | undefined,
+): ReviewFileSignature {
+  const after =
+    file.binary || file.tooLarge
+      ? `\0${file.additions}:${file.deletions}:${file.binary ? "b" : ""}:${file.tooLarge ? "l" : ""}`
+      : file.after
+  const content = reviewContentSignature(after, file.status)
+  const base = normalizeBlobId(mergeBase)
+  const before = normalizeBlobId(file.beforeBlobId)
+  const beforeExpected = BRANCH_BEFORE_BLOB_STATUSES.has(file.status)
+  // Binary or oversized rows carry counts and flags instead of content, so they cannot prove a same-count rewrite.
+  if (!base || (beforeExpected && !before) || file.binary || file.tooLarge) return { signature: content, fallback: true }
+  return {
+    signature: `branch:${base}:${before ?? "-"}:${content}:${file.status}:${file.path}`,
+    fallback: false,
+  }
 }
 
 /**
@@ -106,43 +224,76 @@ type ReviewProgressState = {
   clearDirectory: (directory: string) => void
 }
 
-export const useReviewProgressStore = create<ReviewProgressState>((set, get) => ({
-  marks: {},
-  isViewed: (directory, scope, path, signature) => get().marks[reviewProgressKey(directory, scope, path)] === signature,
-  toggleViewed: (directory, scope, path, signature) => {
-    const key = reviewProgressKey(directory, scope, path)
-    set((state) => {
-      if (state.marks[key] !== signature) return { marks: withMark(state.marks, key, signature) }
-      const marks = { ...state.marks }
-      delete marks[key]
-      return { marks }
-    })
-  },
-  setViewed: (directory, scope, path, signature, viewed) => {
-    const key = reviewProgressKey(directory, scope, path)
-    set((state) => {
-      if (viewed) return { marks: withMark(state.marks, key, signature) }
-      const marks = { ...state.marks }
-      delete marks[key]
-      return { marks }
-    })
-  },
-  clearDirectory: (directory) => {
-    const prefix = `${directory}\u0000`
-    set((state) => {
-      let changed = false
-      const marks: Record<string, string> = {}
-      for (const [key, value] of Object.entries(state.marks)) {
-        if (key.startsWith(prefix)) {
-          changed = true
-          continue
-        }
-        marks[key] = value
-      }
-      return changed ? { marks } : state
-    })
-  },
-}))
+function trimMarks(marks: Record<string, string>): Record<string, string> {
+  const keys = Object.keys(marks)
+  if (keys.length <= REVIEW_PROGRESS_MAX_MARKS) return marks
+  const next: Record<string, string> = {}
+  for (const key of keys.slice(keys.length - REVIEW_PROGRESS_MAX_MARKS)) next[key] = marks[key]
+  return next
+}
+
+function readPersistedMarks(persisted: unknown): Record<string, string> | null {
+  if (!persisted || typeof persisted !== "object") return null
+  const marks = (persisted as { marks?: unknown }).marks
+  if (!marks || typeof marks !== "object" || Array.isArray(marks)) return {}
+  const next: Record<string, string> = {}
+  for (const [key, value] of Object.entries(marks)) {
+    if (typeof value === "string") next[key] = value
+  }
+  return trimMarks(next)
+}
+
+export const useReviewProgressStore = create<ReviewProgressState>()(
+  persist(
+    (set, get) => ({
+      marks: {},
+      isViewed: (directory, scope, path, signature) => get().marks[reviewProgressKey(directory, scope, path)] === signature,
+      toggleViewed: (directory, scope, path, signature) => {
+        const key = reviewProgressKey(directory, scope, path)
+        set((state) => {
+          if (state.marks[key] !== signature) return { marks: withMark(state.marks, key, signature) }
+          const marks = { ...state.marks }
+          delete marks[key]
+          return { marks }
+        })
+      },
+      setViewed: (directory, scope, path, signature, viewed) => {
+        const key = reviewProgressKey(directory, scope, path)
+        set((state) => {
+          if (viewed) return { marks: withMark(state.marks, key, signature) }
+          const marks = { ...state.marks }
+          delete marks[key]
+          return { marks }
+        })
+      },
+      clearDirectory: (directory) => {
+        const prefix = `${directory}\u0000`
+        set((state) => {
+          let changed = false
+          const marks: Record<string, string> = {}
+          for (const [key, value] of Object.entries(state.marks)) {
+            if (key.startsWith(prefix)) {
+              changed = true
+              continue
+            }
+            marks[key] = value
+          }
+          return changed ? { marks } : state
+        })
+      },
+    }),
+    {
+      name: REVIEW_PROGRESS_STORAGE_KEY,
+      version: REVIEW_PROGRESS_STORAGE_VERSION,
+      storage: createJSONStorage(() => getSafeStorage()),
+      partialize: (state) => ({ marks: state.marks }),
+      merge: (persisted, current) => {
+        const marks = readPersistedMarks(persisted)
+        return marks === null ? current : { ...current, marks }
+      },
+    },
+  ),
+)
 
 export function useReviewPaneFileKeys(options: {
   paneRef: RefObject<HTMLElement | null>

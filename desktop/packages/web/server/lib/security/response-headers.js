@@ -38,7 +38,9 @@ export const applyPackagedRendererCorsHeaders = (req, res) => {
 export const applySecurityHeaders = (req, res) => {
   res.setHeader("X-Content-Type-Options", "nosniff")
   if (!isPreviewProxyRequest(req) && !isDashboardProxyRequest(req)) {
-    res.setHeader("X-Frame-Options", "DENY")
+    // The app frames its own session chat beside the main chat (context panel), so same-origin framing is
+    // allowed; any other site still cannot frame it. frame-ancestors in the CSP below says the same.
+    res.setHeader("X-Frame-Options", "SAMEORIGIN")
   }
   res.setHeader("Referrer-Policy", "no-referrer")
   res.setHeader("X-XSS-Protection", "0")
@@ -67,5 +69,5 @@ export const buildWebServerCsp = (req, resolveScriptHashes = getAppDocumentScrip
     (value) => typeof value === "string" && /^'sha256-[A-Za-z0-9+/=]+'$/.test(value),
   )
   const scriptSrc = ["script-src 'self' 'wasm-unsafe-eval'", ...hashes].join(" ")
-  return `default-src 'self'; ${scriptSrc}; ${CSP_COMMON_TAIL}`
+  return `default-src 'self'; ${scriptSrc}; ${CSP_COMMON_TAIL} frame-ancestors 'self';`
 }

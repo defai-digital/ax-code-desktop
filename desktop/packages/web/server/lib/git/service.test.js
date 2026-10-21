@@ -1,3 +1,4 @@
+import { createHash } from "crypto"
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
@@ -20,6 +21,8 @@ import {
   getFileDiff,
   getGitBranchDiff,
   getStatus,
+  GIT_STATUS_CONTENT_ID_MAX_BYTES,
+  GIT_STATUS_CONTENT_ID_MAX_FILES,
   getWorktreeBootstrapStatus,
   getWorktrees,
   previewWorktreeCreate,
@@ -1105,6 +1108,156 @@ describe("getStatus diff stats", () => {
     expect(status.diffStats.working["untracked.txt"]).toEqual({ insertions: 2, deletions: 0 })
     expect(status.diffStats.staged["staged.txt"]).toEqual({ insertions: 3, deletions: 0 })
     expect(status.diffStats.working["staged.txt"]).toBeUndefined()
+  })
+})
+
+describe("getStatus content identities", () => {
+  const initRepo = () => {
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    return repo
+  }
+
+  it("changes the worktree id on a same-count rewrite and the index id when that rewrite is staged", async () => {
+    if (!canRunGit()) return
+
+    const repo = initRepo()
+    const file = "src/a.ts"
+    fs.mkdirSync(path.join(repo, "src"))
+    fs.writeFileSync(path.join(repo, file), "one\n")
+    runGit(repo, ["add", file])
+    runGit(repo, ["commit", "-m", "base"])
+
+    fs.writeFileSync(path.join(repo, file), "two\n")
+    const rewritten = await getStatus(repo)
+    const row = rewritten.files.find((entry) => entry.path === file)
+    const head = runGit(repo, ["rev-parse", `HEAD:${file}`]).trim()
+    const worktree = runGit(repo, ["hash-object", "--no-filters", "--", file]).trim()
+
+    expect(row).toMatchObject({
+      headBlobId: head,
+      indexBlobId: head,
+      worktreeBlobId: worktree,
+    })
+    expect(row.worktreeBlobId).not.toBe(row.indexBlobId)
+    expect(JSON.stringify(rewritten)).not.toContain("two\n")
+    expect(row.content).toBeUndefined()
+
+    fs.writeFileSync(path.join(repo, file), "six\n")
+    const again = await getStatus(repo)
+    const againRow = again.files.find((entry) => entry.path === file)
+    expect(againRow.worktreeBlobId).not.toBe(worktree)
+    expect(againRow.indexBlobId).toBe(head)
+    expect(againRow.insertions).toBeUndefined()
+
+    runGit(repo, ["add", file])
+    const staged = await getStatus(repo)
+    const stagedRow = staged.files.find((entry) => entry.path === file)
+    const stagedBlob = runGit(repo, ["rev-parse", `:${file}`]).trim()
+    expect(stagedRow.indexBlobId).toBe(stagedBlob)
+    expect(stagedRow.indexBlobId).not.toBe(head)
+    expect(stagedRow.worktreeBlobId).toBe(stagedBlob)
+  })
+
+  it("gives a deleted file no worktree id", async () => {
+    if (!canRunGit()) return
+
+    const repo = initRepo()
+    fs.writeFileSync(path.join(repo, "gone.txt"), "gone\n")
+    runGit(repo, ["add", "gone.txt"])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.rmSync(path.join(repo, "gone.txt"))
+
+    const status = await getStatus(repo)
+    const row = status.files.find((entry) => entry.path === "gone.txt")
+    expect(row.working_dir.trim()).toBe("D")
+    expect(row.worktreeBlobId).toBeNull()
+    expect(row.indexBlobId).toMatch(/^[0-9a-f]{40}$/)
+    expect(row.headBlobId).toBe(row.indexBlobId)
+    expect(JSON.stringify(status)).not.toContain("gone\n")
+  })
+
+  it("skips worktree ids past the size cap and omits identities past the file cap", async () => {
+    if (!canRunGit()) return
+
+    expect(GIT_STATUS_CONTENT_ID_MAX_BYTES).toBe(1024 * 1024)
+    expect(GIT_STATUS_CONTENT_ID_MAX_FILES).toBe(200)
+
+    const repo = initRepo()
+    fs.writeFileSync(path.join(repo, "small.txt"), "a\n")
+    fs.writeFileSync(path.join(repo, "big.txt"), Buffer.alloc(GIT_STATUS_CONTENT_ID_MAX_BYTES + 8, 97))
+    const sized = await getStatus(repo)
+    const small = sized.files.find((entry) => entry.path === "small.txt")
+    const big = sized.files.find((entry) => entry.path === "big.txt")
+    expect(small.worktreeBlobId).toMatch(/^[0-9a-f]{40}$/)
+    expect(big.worktreeBlobId).toBeNull()
+    expect(big.headBlobId).toBeNull()
+    expect(big.indexBlobId).toBeNull()
+    expect(JSON.stringify(sized)).not.toContain("a".repeat(32))
+
+    const capped = createTempDir()
+    runGit(capped, ["init", "-b", "main"])
+    for (let index = 0; index < GIT_STATUS_CONTENT_ID_MAX_FILES + 1; index += 1) {
+      fs.writeFileSync(path.join(capped, `f${String(index).padStart(4, "0")}.txt`), "a\n")
+    }
+    const status = await getStatus(capped)
+    const identified = status.files.filter((entry) => typeof entry.worktreeBlobId === "string")
+    const omitted = status.files.filter((entry) => entry.worktreeBlobId === undefined && entry.headBlobId === undefined)
+    expect(status.files).toHaveLength(GIT_STATUS_CONTENT_ID_MAX_FILES + 1)
+    expect(identified).toHaveLength(GIT_STATUS_CONTENT_ID_MAX_FILES)
+    expect(omitted).toHaveLength(1)
+    expect(identified.every((entry) => entry.content === undefined)).toBe(true)
+  })
+
+  const gitBlob = (bytes) =>
+    createHash("sha1").update(`blob ${Buffer.byteLength(bytes)}\0`).update(bytes).digest("hex")
+
+  it("hashes a symlink that points outside the repository by its link text, never by the target", async () => {
+    if (!canRunGit()) return
+
+    const repo = initRepo()
+    const outside = createTempDir()
+    const target = path.join(outside, "secret.txt")
+    fs.writeFileSync(target, "secret-content\n")
+    fs.symlinkSync(target, path.join(repo, "link.txt"))
+
+    const status = await getStatus(repo)
+    const link = status.files.find((entry) => entry.path === "link.txt")
+    expect(link).toBeTruthy()
+    // Git stores a symlink as a blob of its link text; that is the identity, and the target is not read.
+    expect(link.worktreeBlobId).toBe(gitBlob(target))
+    expect(link.worktreeBlobId).not.toBe(gitBlob("secret-content\n"))
+    expect(JSON.stringify(status)).not.toContain("secret-content")
+  })
+
+  it("matches git's own blob id for a regular file", async () => {
+    if (!canRunGit()) return
+
+    const repo = initRepo()
+    fs.writeFileSync(path.join(repo, "plain.txt"), "line one\nline two\n")
+    const expected = execFileSync("git", ["-C", repo, "hash-object", "--no-filters", "--", "plain.txt"]).toString().trim()
+
+    const status = await getStatus(repo)
+    expect(status.files.find((entry) => entry.path === "plain.txt")?.worktreeBlobId).toBe(expected)
+  })
+
+  it("never resolves a quoted, escaped file name to a file outside the repository", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+
+    const repo = initRepo()
+    const outside = createTempDir()
+    const secret = path.join(outside, "target")
+    fs.writeFileSync(secret, "outside-content\n")
+    // A literal file name that git --stdin-paths would decode as an absolute path to the outside file.
+    const crafted = `"${secret.split("/").join("\\057")}"`
+    fs.writeFileSync(path.join(repo, crafted), "inside-content\n")
+
+    const status = await getStatus(repo)
+    const ids = status.files.map((entry) => entry.worktreeBlobId).filter(Boolean)
+    expect(ids).not.toContain(gitBlob("outside-content\n"))
+    expect(ids).toContain(gitBlob("inside-content\n"))
   })
 })
 
@@ -2352,12 +2505,14 @@ describe("getGitBranchDiff", () => {
       status: "modified",
       before: "base\n",
       after: "committed\nworktree\n",
+      beforeBlobId: runGit(tmpDir, ["rev-parse", `${result.mergeBase}:file.txt`]).trim(),
     })
     expect(byFile["file.txt"].additions).toBeGreaterThan(0)
     expect(byFile["added.txt"]).toMatchObject({
       status: "added",
       before: "",
       after: "added\n",
+      beforeBlobId: null,
     })
     // only-base.txt changed on main after the branch point, so it is not a change on this branch.
     expect(byFile["only-base.txt"]).toBeUndefined()
@@ -2399,6 +2554,7 @@ describe("getGitBranchDiff", () => {
         before: "gone\n",
         after: "",
         deletions: 1,
+        beforeBlobId: runGit(tmpDir, ["rev-parse", `${result.mergeBase}:gone.txt`]).trim(),
       }),
     ])
   })
@@ -2420,6 +2576,7 @@ describe("getGitBranchDiff", () => {
         after: "hello\n",
         additions: 1,
         deletions: 0,
+        beforeBlobId: null,
       }),
     ])
   })

@@ -2440,19 +2440,20 @@ export const ContextPanel: React.FC = () => {
         continue
       }
 
-      const directThemeSync = (
-        frameWindow as unknown as {
-          __openchamberApplyThemeSync?: (themePayload: typeof payload) => void
-        }
-      ).__openchamberApplyThemeSync
-
-      if (typeof directThemeSync === "function") {
-        try {
+      // Reading a property of a frame that is mid-navigation (or not yet same-origin) throws a
+      // SecurityError, so the direct path is attempted only inside the guard; postMessage is the fallback.
+      try {
+        const directThemeSync = (
+          frameWindow as unknown as {
+            __openchamberApplyThemeSync?: (themePayload: typeof payload) => void
+          }
+        ).__openchamberApplyThemeSync
+        if (typeof directThemeSync === "function") {
           directThemeSync(payload)
           continue
-        } catch {
-          // fallback to postMessage below
         }
+      } catch {
+        // fallback to postMessage below
       }
 
       frameWindow.postMessage(
@@ -2477,19 +2478,19 @@ export const ContextPanel: React.FC = () => {
       }
 
       const payload = { visible: activeChatTabID === tabID }
-      const directVisibilitySync = (
-        frameWindow as unknown as {
-          __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void
-        }
-      ).__openchamberSetEmbeddedVisibility
-
-      if (typeof directVisibilitySync === "function") {
-        try {
+      // Same guard as the theme sync: a frame that is not same-origin yet throws on property reads.
+      try {
+        const directVisibilitySync = (
+          frameWindow as unknown as {
+            __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void
+          }
+        ).__openchamberSetEmbeddedVisibility
+        if (typeof directVisibilitySync === "function") {
           directVisibilitySync(payload)
           continue
-        } catch {
-          // fallback to postMessage below
         }
+      } catch {
+        // fallback to postMessage below
       }
 
       frameWindow.postMessage(
@@ -2722,7 +2723,8 @@ export const ContextPanel: React.FC = () => {
             return null
           }
 
-          const src = buildEmbeddedSessionChatURL(sessionID, directoryKey || null, tab.readOnly)
+          // A session opened beside another project's chat carries its own directory in targetPath.
+          const src = buildEmbeddedSessionChatURL(sessionID, tab.targetPath || directoryKey || null, tab.readOnly)
           if (!src) {
             return null
           }

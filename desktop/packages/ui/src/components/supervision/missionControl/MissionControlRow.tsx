@@ -15,6 +15,8 @@ import { needsHuman } from "@/lib/supervision/sessionState"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useGitBranchLabel } from "@/stores/useGitStore"
 import { useFormatEvidence } from "../EvidenceText"
+import { updatedSinceViewed } from "@/lib/supervision/missionControl"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
 
 export interface MissionControlRowProps {
   row: SupervisionRowData
@@ -28,6 +30,8 @@ export interface MissionControlRowProps {
   onToggleDetails: (sessionId: string) => void
   onSelect: (sessionId: string) => void
   onOpen: (row: SupervisionRowData) => void
+  /** Cmd/Ctrl+click shows the session beside the current chat; omitted where there is no chat. */
+  onOpenBeside?: (row: SupervisionRowData) => void
   onPrimary: (row: SupervisionRowData) => void
   /** Opens multi-run compare; omitted where compare cannot open (the pop-out window). */
   onCompare?: (groupKey: string) => void
@@ -47,6 +51,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   onToggleDetails,
   onSelect,
   onOpen,
+  onOpenBeside,
   onPrimary,
   onCompare,
   onRemoveFromSet,
@@ -60,12 +65,17 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   // What the agent is doing is the point of scanning the board, so it shows in every density and next to a goal or
   // error line (which stay first) rather than being the first thing dropped.
   const activity = row.activity ?? null
+  const updated = useSupervisionStore((state) => updatedSinceViewed(row, state.lastViewedAt))
   const showsGoalOrError = Boolean(row.goal) || (row.state === "error" && Boolean(row.errorMessage))
   const activityText = activity ? activityLine(activity, t) : null
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if ((event.metaKey || event.ctrlKey) && onOpenBeside) {
+      onOpenBeside(row)
+      return
+    }
     onSelect(row.sessionId)
     // The board (role="grid") owns keyboard navigation via aria-activedescendant;
     // move DOM focus there so j/k and arrow keys continue from this row.
@@ -134,8 +144,19 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           <SupervisionStateBadge state={row.state} />
         </span>
         <span role="gridcell" className="mission-title min-w-0">
-          <span className="block truncate typography-ui-label text-foreground" title={row.title}>
-            {row.title}
+          <span className="flex min-w-0 items-center gap-1.5">
+            {updated ? (
+              <span
+                className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--status-info)]"
+                role="img"
+                aria-label={t("supervision.missionControl.updatedMarker")}
+                title={t("supervision.missionControl.updatedMarker")}
+                data-updated-marker
+              />
+            ) : null}
+            <span className="block truncate typography-ui-label text-foreground" title={row.title}>
+              {row.title}
+            </span>
           </span>
           {activity && activityText ? (
             <span

@@ -279,4 +279,17 @@ describe("useGitStore", () => {
 
     expect(useGitStore.getState().getDirectoryState("/repo")?.status).toBe(initialStatus)
   })
+
+  test("restaging different content with the same status letter reloads the staged diff", async () => {
+    const file = { path: "src/index.ts", index: "M", working_dir: " ", indexBlobId: "a".repeat(40) }
+    setDirectoryStatus(createStatus(undefined, [file]))
+    const before = useGitStore.getState().getDirectoryState("/repo")?.indexRevision ?? 0
+    const git = createGitApi(async () => createStatus(undefined, [{ ...file, indexBlobId: "b".repeat(40) }]))
+    await useGitStore.getState().fetchStatus("/repo", git, { silent: true })
+    expect(useGitStore.getState().getDirectoryState("/repo")?.indexRevision).toBe(before + 1)
+
+    // Same index content again: no reload.
+    await useGitStore.getState().fetchStatus("/repo", git, { silent: true })
+    expect(useGitStore.getState().getDirectoryState("/repo")?.indexRevision).toBe(before + 1)
+  })
 })
