@@ -497,7 +497,15 @@ function ToolItem({
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
   const [json, setJson] = React.useState(() => storedDraft(identity, digest, viewKey).json)
   const [jsonRevealed, setJsonRevealed] = React.useState(false)
-  const jsonSensitive = webMcpSchemaLooksSensitive(executionSchema) || webMcpTextLooksSensitive(json)
+  const jsonSensitive = React.useMemo(() => {
+    if (webMcpSchemaLooksSensitive(executionSchema) || webMcpTextLooksSensitive(json)) return true
+    try {
+      const parsed: unknown = JSON.parse(json)
+      return JSON.stringify(redactWebMcpReport(parsed)) !== JSON.stringify(parsed)
+    } catch {
+      return false
+    }
+  }, [executionSchema, json])
   React.useEffect(() => setJsonRevealed(false), [tool.inputSchema, replay, jsonMode, viewKey])
   const [running, setRunning] = React.useState(false)
   const [result, setResult] = React.useState<{ outcome: string; text: string; stale: boolean } | null>(() =>

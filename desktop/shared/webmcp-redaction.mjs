@@ -67,8 +67,9 @@ export function webMcpTextLooksSensitive(value) {
   }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
-  // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
-  const assignments = /(?:["'`]([^"'`]+)["'`]|(?<![^\s"'`{}\[\],:=])([^"'`{}\[\],:=]+))\s*[:=]/g
+  // Scan each unquoted delimiter-bounded span once, including compound names with spaces.
+  // Whitespace is not a restart boundary and belongs to that span, avoiding overlapping scans.
+  const assignments = /(?:["'`]([^"'`]+)["'`]\s*|(?<![^"'`{}\[\],:=])([^"'`{}\[\],:=]+))[:=]/g
   for (const match of text.matchAll(assignments)) {
     if (!sensitiveParameterName(match[1] ?? match[2])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
@@ -84,16 +85,20 @@ const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "
 const FIELD_PATH_KEYS = new Set(["path", "instancePath", "pointer"])
 const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
 
-/** Paths identify the final field, not a sensitive ancestor. JSON Pointer escapes belong to that final name. */
+/** Every path segment carries sensitivity through descendants, including numeric indexes. */
 function sensitiveFieldName(value, key) {
-  const last = Array.isArray(value) ? value.at(-1) : value
-  if (typeof last !== "string") return false
-  // Ordinary names retain the full sensitive-name vocabulary, including compound names such as api.key.
-  if (!FIELD_PATH_KEYS.has(key) && sensitiveParameterName(last)) return true
-  // A slash-delimited pointer can itself contain dots in its final property name.
-  const segment = last.includes("/") ? last.split("/").at(-1) : last.split(/[.[\]\\]/).filter(Boolean).at(-1)
-  const name = (segment ?? "").replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
-  return sensitiveParameterName(name.replaceAll("/", "_"))
+  const parts = Array.isArray(value) ? value : [value]
+  return parts.some((part) => {
+    if (typeof part !== "string") return false
+    // Literal names and array components retain compound names such as api.key.
+    if ((!FIELD_PATH_KEYS.has(key) || Array.isArray(value)) && sensitiveParameterName(part)) return true
+    // JSON Pointer components may contain literal dots; decode their escapes after splitting.
+    const segments = part.includes("/") ? part.split("/") : part.split(/[.[\]\\]/)
+    return segments.some((segment) => {
+      const name = segment.replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
+      return sensitiveParameterName(name.replaceAll("/", "_"))
+    })
+  })
 }
 
 /** Preserve report structure while filtering the same keys and credential shapes as the UI.

@@ -100,6 +100,9 @@ export const fieldContextCases = [
 ].flatMap((fieldKey) => [
   "password", "account.password", "/account/password", "#/account/password", "/account/api~1key", "/account/api.key", "/account/sig",
   ["account", "password"],
+  "recoveryCodes[0]", "/recoveryCodes/0", ["recoveryCodes", 0], "a.b.password.0",
+  "/credentials/title", "account.password.title", ["password", "title"],
+  "fields['password'][0]", "#/recoveryCodes/0", ["account", "recoveryCodes", 0, 1],
 ].flatMap((fieldName) => [
   "value", "got", "actual", "received", "input", "given", "provided", "data",
 ].map((valueKey) => ({

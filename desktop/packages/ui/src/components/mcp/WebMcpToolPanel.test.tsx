@@ -1114,6 +1114,26 @@ test.each([true, false])("JSON masks nested sensitive schemas and sensitive draf
   expect(restored.style.getPropertyValue("-webkit-text-security")).toBe("disc")
 })
 
+test.each([
+  { fields: [{ name: "password", value: "canary-ordinary-value" }] },
+  { fields: [["password", "canary-ordinary-value"]] },
+])("JSON masks structured credential associations when typed and restored: %j", async (draft) => {
+  const schema = { type: "object", properties: { fields: { type: "array" } } }
+  const view = openTool(schema)
+  const editor = view.container.querySelector("textarea")!
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("")
+  fireEvent.change(editor, { target: { value: JSON.stringify(draft) } })
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.showJson" }))
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("")
+  await runTool()
+  expect(view.reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, draft, expect.anything())
+  cleanup()
+  const restored = openTool(schema).container.querySelector("textarea")!
+  expect(restored.value).toBe(JSON.stringify(draft))
+  expect(restored.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+})
+
 
 test("Use JSON on a primitive schema masks credential-shaped draft text", () => {
   const { container } = openTool({ type: "object", properties: { text: { type: "string" } } })
@@ -1514,9 +1534,15 @@ test("a bounded receipt reports preview truncation and cannot export an incomple
   expect(container.querySelector("[data-webmcp-compare-agent]")?.textContent).toContain("webmcp.tools.export.unavailable")
 })
 
-test("Try it filters the documented sensitive validation error from the result and retained journal", async () => {
+test.each([
+  { field: "password" },
+  { path: ["recoveryCodes", 0] },
+  { instancePath: "/recoveryCodes/0" },
+  { path: "recoveryCodes[0]" },
+  { path: "a.b.password.0" },
+])("Try it filters sensitive validation paths from the result and retained journal: %j", async (field) => {
   const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: true, output: {
-    error: { field: "password", constraint: "minLength", got: "REJECTED_PRIVATE_VALUE" },
+    error: { ...field, constraint: "minLength", got: "REJECTED_PRIVATE_VALUE" },
   } })))
   await runTool()
   expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
