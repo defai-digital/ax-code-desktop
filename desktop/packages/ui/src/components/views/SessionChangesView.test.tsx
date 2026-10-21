@@ -34,6 +34,7 @@ const harness = vi.hoisted(() => ({
   sessionDiff: undefined as unknown[] | undefined,
   diff: vi.fn(),
   message: vi.fn(),
+  messagesPage: vi.fn(),
 }))
 
 // Browser evidence reads the session transcript from sync state; it has its own tests.
@@ -206,8 +207,10 @@ describe("session and last-turn review scopes", () => {
     harness.diff.mockResolvedValue({ data: [] })
     harness.message.mockReset()
     harness.message.mockResolvedValue(turnResult([]))
+    harness.messagesPage.mockReset()
+    harness.messagesPage.mockResolvedValue({ data: [] })
     vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({
-      session: { diff: harness.diff, message: harness.message },
+      session: { diff: harness.diff, message: harness.message, messages: harness.messagesPage },
     } as never)
     useSessionUIStore.setState({ currentSessionId: null })
     useReviewProgressStore.setState({ marks: {} })
@@ -364,6 +367,27 @@ describe("session and last-turn review scopes", () => {
       expect(harness.diff).not.toHaveBeenCalled()
     },
   )
+
+  test("last turn asks the runtime for the latest user message when synced messages never resolve", async () => {
+    // Windows: the session's messages can be synced under another spelling of its directory, so this pane never sees them
+    // resolve. The turn must still load instead of showing "Loading changes" forever.
+    harness.messagesResolved = false
+    harness.messagesPage.mockResolvedValue({
+      data: [{ info: { id: "msg_old", role: "user" } }, { info: { id: "msg_rt", role: "user" } }, { info: { id: "a", role: "assistant" } }],
+    })
+    harness.message.mockResolvedValue(turnResult([changedFile]))
+    render(<SessionHarness scope="turn" paneWidth={1200} />)
+    await flush()
+    expect(harness.messagesPage).not.toHaveBeenCalled()
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1600))
+    })
+    await flush()
+    expect(harness.messagesPage).toHaveBeenCalledExactlyOnceWith({ sessionID: SESSION, directory: DIRECTORY, limit: 50 })
+    expect(harness.message).toHaveBeenCalledExactlyOnceWith({ sessionID: SESSION, messageID: "msg_rt", directory: DIRECTORY })
+    expect(screen.getByTestId("session-diff").getAttribute("data-modified")).toBe(changedFile.after)
+    expect(document.querySelector("[data-session-scope]")?.getAttribute("data-session-scope")).toBe("turn:msg_rt")
+  })
 
   test.each([false, true])(
     "last turn stays loading until messages resolve (synced user present: %s)",
