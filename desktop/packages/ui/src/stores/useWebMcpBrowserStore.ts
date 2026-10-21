@@ -104,9 +104,9 @@ export interface WebMcpBrowserSnapshot {
 export interface WebMcpViewSnapshot extends WebMcpBrowserSnapshot {
   /** Latest registration changes for the current page. In memory only, capped. */
   registration: readonly WebMcpRegistrationEvent[]
-  /** Form drafts keyed by tool name. Kept across a same-definition reload; not written to disk. */
+  /** Form drafts keyed by opaque ID and native definition digest. Kept across a same-definition reload; not written to disk. */
   toolDrafts: Record<string, WebMcpToolDraft>
-  /** Manual results keyed by tool name. A changed definition is marked stale. */
+  /** Manual results keyed by opaque ID and native definition digest. A changed definition is marked stale. */
   toolRuns: Record<string, WebMcpToolRun>
   /** The last 32 Try it runs on this page view, newest first. In memory only. */
   toolJournal: readonly WebMcpJournalEntry[]

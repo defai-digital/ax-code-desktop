@@ -1,3 +1,4 @@
+import { webMcpKnownDefinitions, webMcpToolIdentity } from "@/lib/webMcpCatalog"
 import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import { redactWebMcpText } from "../../../../../../shared/webmcp-redaction.mjs"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
@@ -21,6 +22,7 @@ type RecapCall = Pick<
   | "id"
   | "title"
   | "toolName"
+  | "invocationID"
   | "operation"
   | "outcome"
   | "failureReason"
@@ -44,11 +46,13 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const messages = useSessionMessages(sessionId, directory)
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
   // Tools of the page this session's browser shows; another session's page must never be read as "not called" here.
-  const pageTools = useWebMcpBrowserStore(
+  const pageView = useWebMcpBrowserStore(
     (state) =>
-      state.views[viewKeyFor(directory, sessionId)]?.catalog ??
-      (state.order.length === 0 && state.sessionID === sessionId ? state.catalog : null),
+      state.views[viewKeyFor(directory, sessionId)] ??
+      (state.order.length === 0 && state.sessionID === sessionId ? state : null),
   )
+  const pageTools = pageView?.catalog
+  const definitions = React.useMemo(() => webMcpKnownDefinitions(pageView), [pageView])
   // A string selector: streamed tokens re-render nothing unless the latest turn's calls change.
   const serialized = useDirectorySync(
     React.useCallback(
@@ -58,14 +62,16 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
           (id) => state.part.get(id) as never,
           Infinity,
           Infinity,
+          definitions,
         )
         const recap: RecapCall[] = calls.map(
-          ({ id, title, toolName, operation, outcome, failureReason, messageId, partId, durationMs, resultPreview, definitionDigest }) => ({
+          ({ id, title, toolName, operation, outcome, failureReason, messageId, partId, durationMs, resultPreview, definitionDigest, invocationID }) => ({
           messageId,
           partId,
           durationMs,
           resultPreview,
           definitionDigest,
+          invocationID,
           id,
           title,
           toolName,
@@ -76,7 +82,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
         )
         return JSON.stringify(recap)
       },
-      [messages],
+      [messages, definitions],
     ) as never,
     directory,
   ) as unknown as string
@@ -85,14 +91,17 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const [copied, setCopied] = React.useState(false)
   if (calls.length === 0) return null
   const failed = calls.filter((call) => call.outcome === "failed").length
-  const called = new Set(calls.map((call) => call.toolName).filter(Boolean))
+  // A known earlier version was still called; its digest change is reported separately below.
+  const called = new Set(calls.filter((call) => call.operation?.toLowerCase() === "invoke" &&
+    webMcpToolIdentity({ invocationID: call.invocationID, definitionDigest: call.definitionDigest ?? undefined }))
+    .map((call) => call.invocationID))
   const notCalled = calls.some((call) => call.operation?.toLowerCase() === "invoke")
-    ? [...new Set((pageTools ?? []).map((tool) => tool.name))].filter((name) => !called.has(name))
+    ? (pageTools ?? []).filter((tool) => !tool.invocationID || !called.has(tool.invocationID)).map((tool) => tool.name)
     : []
   // Oldest first reads as the order the agent worked in.
   const steps = calls.slice(0, RECAP_LIMIT).reverse()
   // The definition each tool has now, to show when a call ran against an earlier one.
-  const currentDigest = new Map((pageTools ?? []).flatMap((tool) => (tool.definitionDigest ? [[tool.name, tool.definitionDigest]] : [])))
+  const currentDigest = new Map((pageTools ?? []).flatMap((tool) => (tool.definitionDigest ? [[tool.invocationID, tool.definitionDigest]] : [])))
   // The copied recap is the whole turn; only the on-screen list is capped.
   const recapText = () =>
     [...calls]
@@ -106,7 +115,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
           parts.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
         if (call.definitionDigest) {
           parts.push(t("diffView.landing.browserRecap.definition", { digest: shortDigest(call.definitionDigest) }))
-          if (call.toolName && currentDigest.has(call.toolName) && currentDigest.get(call.toolName) !== call.definitionDigest)
+          if (call.invocationID && currentDigest.has(call.invocationID) && currentDigest.get(call.invocationID) !== call.definitionDigest)
             parts.push(t("diffView.landing.browserRecap.definitionChanged"))
         }
         if (call.resultPreview) parts.push(call.resultPreview)
@@ -176,9 +185,9 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
                   <span title={call.definitionDigest} data-recap-definition>
                     {" · "}
                     {t("diffView.landing.browserRecap.definition", { digest: shortDigest(call.definitionDigest) })}
-                    {call.toolName &&
-                    currentDigest.has(call.toolName) &&
-                    currentDigest.get(call.toolName) !== call.definitionDigest ? (
+                    {call.invocationID &&
+                    currentDigest.has(call.invocationID) &&
+                    currentDigest.get(call.invocationID) !== call.definitionDigest ? (
                       <span className="text-[var(--status-warning)]" data-recap-definition-changed>
                         {" "}
                         {t("diffView.landing.browserRecap.definitionChanged")}

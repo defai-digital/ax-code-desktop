@@ -58,6 +58,7 @@ export interface WebMcpCatalogRejection {
 }
 
 export interface WebMcpRegistrationEvent {
+  invocationID: string
   kind: "added" | "removed" | "changed"
   name: string
   digest: string
@@ -266,67 +267,68 @@ export function readWebMcpCatalog(
   }
 }
 
-const lastForName = (events: readonly WebMcpRegistrationEvent[], name: string) => {
-  for (let index = events.length - 1; index >= 0; index--) if (events[index].name === name) return index
-  return -1
+/** Main-issued bindings, including retained versions, for runtime digest resolution. */
+export function webMcpKnownDefinitions(view: {
+  catalog: readonly WebMcpToolDefinition[]
+  registration: readonly WebMcpRegistrationEvent[]
+} | null | undefined): WebMcpToolDefinition[] {
+  return view ? [...view.catalog, ...view.registration.flatMap((event) =>
+    [event.definition, event.previousDefinition].filter((tool): tool is WebMcpToolDefinition => Boolean(tool)))] : []
 }
 
-/**
- * Registration changes for the current page. A tool that disappears and returns with the same digest
- * is a reload, not a change. A different digest becomes one changed row.
- */
+/** A native digest contains the real name. Resolve only main-issued, unambiguous bindings. */
+export function webMcpDefinitionForDigest(
+  definitions: readonly WebMcpToolDefinition[],
+  digest: string | null | undefined,
+): WebMcpToolDefinition | null {
+  if (!digest) return null
+  const matches = definitions.filter((tool) => tool.definitionDigest === digest && webMcpToolIdentity(tool))
+  return matches.length && matches.every((tool) => tool.invocationID === matches[0].invocationID) ? matches[0] : null
+}
+
+/** Registration continuity uses the opaque tool ID; each event retains both exact definition versions. */
 export function diffWebMcpRegistration(
   previous: readonly WebMcpToolDefinition[],
   next: readonly WebMcpToolDefinition[],
   events: readonly WebMcpRegistrationEvent[],
 ): readonly WebMcpRegistrationEvent[] {
-  const prev = new Map(previous.map((tool) => [tool.name, tool.digest ?? ""]))
-  const nxt = new Map(next.map((tool) => [tool.name, tool.digest ?? ""]))
-  let timeline: WebMcpRegistrationEvent[] = events as WebMcpRegistrationEvent[]
-  let copied = false
-  const edit = () => {
-    if (copied) return
-    timeline = [...events]
-    copied = true
-  }
+  const byID = (tools: readonly WebMcpToolDefinition[]) =>
+    new Map(tools.filter((tool) => webMcpToolIdentity(tool)).map((tool) => [tool.invocationID!, tool]))
+  const prev = byID(previous)
+  const nxt = byID(next)
+  let timeline = events
   const push = (event: WebMcpRegistrationEvent) => {
-    event.definition = next.find((tool) => tool.name === event.name)
-    event.previousDefinition = previous.find((tool) => tool.name === event.name)
-
     if (event.kind === "added") {
-      const index = lastForName(timeline, event.name)
-      const prior = index >= 0 ? timeline[index] : undefined
+      const index = timeline.findLastIndex((prior) => prior.invocationID === event.invocationID)
+      const prior = timeline[index]
       if (prior?.kind === "removed") {
-        edit()
-        const currentIndex = lastForName(timeline, event.name)
-        const current = timeline[currentIndex]
-        if (current && current.digest === event.digest && current.previousDefinition?.definitionDigest === event.definition?.definitionDigest) {
-          timeline = timeline.filter((_, item) => item !== currentIndex)
-          return
-        }
-        if (current) {
-          timeline[currentIndex] = {
-            kind: "changed",
-            name: event.name,
-            digest: event.digest,
-            previousDigest: current.digest,
-            definition: event.definition,
-            previousDefinition: current.previousDefinition ?? current.definition,
-          }
+        if (webMcpEvidenceMatchesTool(prior.previousDefinition ?? {}, event.definition!)) {
+          timeline = timeline.filter((_, item) => item !== index)
+        } else {
+          timeline = timeline.map((item, i) => i === index ? {
+            ...event, kind: "changed", previousDigest: prior.digest,
+            previousDefinition: prior.previousDefinition,
+          } : item)
         }
         return
       }
     }
-    edit()
     timeline = [...timeline, event].slice(-WEBMCP_REGISTRATION_LIMIT)
   }
-  for (const [name, digest] of prev) {
-    const current = nxt.get(name)
-    if (current === undefined) push({ kind: "removed", name, digest })
-    else if (current !== digest || previous.find((tool) => tool.name === name)?.definitionDigest !== next.find((tool) => tool.name === name)?.definitionDigest) push({ kind: "changed", name, digest: current, previousDigest: digest })
+  for (const [invocationID, before] of prev) {
+    const after = nxt.get(invocationID)
+    if (!after || !webMcpEvidenceMatchesTool(before, after)) push({
+      invocationID, kind: after ? "changed" : "removed", name: (after ?? before).name,
+      digest: (after ?? before).digest ?? "",
+      ...(after ? { previousDigest: before.digest } : {}),
+      definition: after, previousDefinition: before,
+    })
   }
-  for (const [name, digest] of nxt) if (!prev.has(name)) push({ kind: "added", name, digest })
-  return copied ? timeline.slice(-WEBMCP_REGISTRATION_LIMIT) : events
+  for (const [invocationID, after] of nxt) if (!prev.has(invocationID)) push({
+    invocationID, kind: "added", name: after.name, digest: after.digest ?? "",
+    definition: after, previousDefinition: undefined,
+  })
+  return timeline
 }
 
 export function markWebMcpRunsStale<T extends { digest: string; stale: boolean }>(

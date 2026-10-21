@@ -1,3 +1,4 @@
+import { useWebMcpApprovalDefinition } from "@/hooks/useWebMcpApprovalDefinition"
 import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText, redactWebMcpReport } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
@@ -72,6 +73,11 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   const isWebMcp = isWebMcpPermission(permission.permission)
   const displayText = (text: string) => isWebMcp ? redactWebMcpText(text) : text
   const [isResponding, setIsResponding] = React.useState(false)
+  const webMcpDefinition = useWebMcpApprovalDefinition(
+    permission.sessionID,
+    typeof permission.metadata.origin === "string" ? permission.metadata.origin : getPermissionPatterns(permission)[0] ?? "",
+    isWebMcp && permission.metadata.desktopProvider === true ? readWebMcpDefinitionDigest(permission.metadata) : null,
+  )
   const [hasResponded, setHasResponded] = React.useState(false)
   const respondToPermission = sessionActions.respondToPermission
   const sessions = useSessions()
@@ -203,6 +209,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   // capability), so its "Always allow on this site" stays.
   const isDesktopWebMcp =
     isWebMcp && (/(?:^|\.)desktop[._]webmcp(?:\.|$)/.test(tool) || permission.metadata.desktopProvider === true)
+  const displayMetadata = webMcpDefinition ? { ...permission.metadata, toolName: webMcpDefinition.name } : permission.metadata
   const webMcpNamedAlways = !isDesktopWebMcp || alwaysPatterns.length > 0
   const canSaveWebMcpApproval =
     normalizePermissionName(permission.permission) === "webmcp" &&
@@ -222,7 +229,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     const val = permission.metadata[key]
     return Boolean(val)
   }
-  const displayToolName = getPermissionToolPresentation(toolName, permission.metadata).displayName
+  const displayToolName = getPermissionToolPresentation(toolName, displayMetadata).displayName
 
   const renderToolContent = () => {
     if (tool === "bash" || tool === "shell" || tool === "shell_command") {
@@ -382,9 +389,9 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     if (isWebMcp) {
       const origin = getMeta("origin") || patterns[0] || ""
       const operation = getMeta("operation")
-      const webTool = getMeta("toolName")
+      const webTool = webMcpDefinition?.name ?? getMeta("toolName")
       const fromDesktopBrowser = permission.metadata.desktopProvider === true
-      const call = describeWebMcpCall(undefined, permission.metadata)
+      const call = describeWebMcpCall(undefined, displayMetadata)
       const elementLabel = call.element
         ? [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
         : ""
@@ -403,7 +410,6 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             <WebMcpApprovalToolInfo
               sessionID={permission.sessionID}
               origin={origin}
-              toolName={webTool}
               definitionDigest={readWebMcpDefinitionDigest(permission.metadata)}
             />
           ) : null}

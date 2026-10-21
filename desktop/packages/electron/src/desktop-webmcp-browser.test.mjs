@@ -1219,14 +1219,14 @@ describe("page tools for the user", () => {
     expect(listed.enabled).toBe(false)
     expect(listed.catalog).toEqual([
       {
-        name: name === "add_numbers" ? name : "[redacted]",
+        name: name === "add_numbers" ? name : "[redacted tool 1]",
         description: tool.description,
         inputSchema: tool.inputSchema,
         executionSchema: tool.inputSchema,
         kind: "script",
         digest: catalogDigest(tool),
         definitionDigest: definitionDigest(tool),
-        invocationID: definitionDigest(tool),
+        invocationID: expect.stringMatching(/^[a-f0-9]{64}$/),
       },
     ])
     expect(listed.catalogTotal).toBe(1)
@@ -1248,6 +1248,12 @@ describe("page tools for the user", () => {
       return method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } }
           : method === "Runtime.evaluate" ? { result: { value: false, objectId: "window" } }
           : method === "DOMDebugger.getEventListeners" ? { listeners: [] } : {}
+    }
+    for (const unsafeID of [name, listed.catalog[0].name, listed.catalog[0].definitionDigest]) {
+      expect(await f.controller.command(sender, {
+        action: "tryTool", id: status.id, origin: listed.origin, generation: listed.generation,
+        definitionDigest: listed.catalog[0].definitionDigest, toolName: unsafeID, input: {},
+      })).toMatchObject({ ok: false, outcome: "stale-form" })
     }
     const tried = await f.controller.command(sender, {
       action: "tryTool",
@@ -1285,7 +1291,7 @@ describe("page tools for the user", () => {
       description: form.description,
       annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: true },
       kind: "form",
-      invocationID: definitionDigest({ name: form.name, description: form.description, frameId: "top", annotations: form.annotations }),
+      invocationID: expect.stringMatching(/^[a-f0-9]{64}$/),
       definitionDigest: definitionDigest({ name: form.name, description: form.description, frameId: "top", annotations: form.annotations }),
       digest: catalogDigest({
         name: form.name,
@@ -1428,7 +1434,7 @@ describe("manual invocation native outcomes", () => {
       definitionDigest: displayed.catalog[0].definitionDigest,
       action: "tryTool",
       id: status.id,
-      toolName: "echo",
+      toolName: displayed.catalog[0].invocationID,
       input: { text: "  exact  ", zero: 0, off: false, empty: "" },
     })
     expect(result).toMatchObject({ ok: outcome === "completed", outcome, ...(reason ? { reason } : {}) })
@@ -2365,7 +2371,7 @@ test("LRU does not unload a hidden manual invocation", async () => {
   )
   const displayed = await f.controller.command(sender, { action: "status", id: status.id })
   const invocation = f.controller.command(sender, {
-    action: "tryTool", id: status.id, toolName: "held", input: {},
+    action: "tryTool", id: status.id, toolName: displayed.catalog[0].invocationID, input: {},
     origin: displayed.origin, generation: displayed.generation, definitionDigest: displayed.catalog[0].definitionDigest,
   })
   await vi.waitFor(async () =>
@@ -2634,7 +2640,7 @@ test.each(["origin", "generation", "definition", "missing"])("rejects a stale ma
   const execute = vi.spyOn(NativeWebMcp.prototype, "execute").mockResolvedValue({ output: "sent" })
   try {
     expect(await f.controller.command(sender, {
-      action: "tryTool", id: status.id, toolName: "submit", input: { password: "AUDIT_FAKE_PASSWORD" },
+      action: "tryTool", id: status.id, toolName: displayed.catalog[0].invocationID, input: { password: "AUDIT_FAKE_PASSWORD" },
       ...(change === "missing" ? {} : binding),
     })).toMatchObject({ ok: false, outcome: "stale-form" })
     expect(execute).not.toHaveBeenCalled()
@@ -2792,7 +2798,7 @@ test.each(["manual", "invoke", "act"])("a completed %s action keeps its possible
     if (operation === "manual") {
       const displayed = await f.controller.command(sender, { action: "status", id: status.id })
       await f.controller.command(sender, {
-        action: "tryTool", id: status.id, toolName: "edit", input: {},
+        action: "tryTool", id: status.id, toolName: displayed.catalog[0].invocationID, input: {},
         origin: displayed.origin, generation: displayed.generation, definitionDigest: displayed.catalog[0].definitionDigest,
       })
     } else {
@@ -2915,7 +2921,7 @@ test("main status and catalog project bounded redacted page text", async () => {
   f.guests[0].url = "https://example.com/" + "x".repeat(5000)
   expect((await f.controller.command(sender, { action: "status", id: status.id })).url.length).toBe(4000)
   const projection = projectToolCatalog([{ name: "token=NAME_SECRET", description: "x".repeat(5000), inputSchema: { type: "object", description: "token=SCHEMA_SECRET", properties: { password: { type: "string" } } } }])
-  expect(projection.catalog[0].name).toBe("[redacted]")
+  expect(projection.catalog[0].name).toBe("[redacted tool 1]")
   expect(projection.catalog[0].description.length).toBe(4096)
   expect(projection.catalog[0].inputSchema.description).toBe("[redacted]")
   expect(projection.catalog[0].executionSchema.description).toBe("token=SCHEMA_SECRET")
@@ -3058,11 +3064,11 @@ test("credential-shaped tool names retain distinct native identities in the rend
   const inputSchema = { type: "object", properties: { item: { type: "string" } } }
   const tools = ["token=alpha", "token=beta"].map((name) => ({ name, description: "Echo", frameId: "top", inputSchema }))
   const { catalog } = projectToolCatalog(tools)
-  expect(catalog.map((tool) => tool.name)).toEqual(["[redacted]", "[redacted]"])
+  expect(catalog.map((tool) => tool.name)).toEqual(["[redacted tool 1]", "[redacted tool 2]"])
   expect(catalog[0].invocationID).not.toBe(catalog[1].invocationID)
   expect(catalog[0].definitionDigest).not.toBe(catalog[1].definitionDigest)
   for (const [index, tool] of tools.entries()) {
-    expect(catalog[index].invocationID).toBe(definitionDigest(tool))
+    expect(catalog[index].invocationID).toMatch(/^[a-f0-9]{64}$/)
     expect(catalog[index].definitionDigest).toBe(definitionDigest(tool))
   }
   expect(JSON.stringify(catalog)).not.toMatch(/token=alpha|token=beta/)

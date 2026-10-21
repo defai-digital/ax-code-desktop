@@ -1,9 +1,7 @@
 import { webMcpDisplayText as redactWebMcpText, webMcpDisplayDescription } from "../../../../../shared/webmcp-redaction.mjs"
-import React from "react"
 
 import { useI18n } from "@/lib/i18n"
-import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { useWebMcpApprovalDefinition } from "@/hooks/useWebMcpApprovalDefinition"
 
 /** Input property names from a tool's schema, required ones first. */
 function schemaInputs(schema: unknown): { name: string; required: boolean }[] {
@@ -27,28 +25,14 @@ function schemaInputs(schema: unknown): { name: string; required: boolean }[] {
 export function WebMcpApprovalToolInfo({
   sessionID,
   origin,
-  toolName,
   definitionDigest,
 }: {
   sessionID: string
   origin: string
-  toolName: string
   definitionDigest: string | null
 }) {
   const { t } = useI18n()
-  const tool = useWebMcpBrowserStore(
-    React.useCallback(
-      (state) => {
-        for (const view of Object.values(state.views)) {
-          if (view.sessionID !== sessionID || view.origin !== origin) continue
-          const match = view.catalog.find((candidate: WebMcpToolDefinition) => candidate.definitionDigest === definitionDigest || candidate.name === toolName)
-          if (match) return match
-        }
-        return null
-      },
-      [origin, sessionID, toolName, definitionDigest],
-    ),
-  )
+  const tool = useWebMcpApprovalDefinition(sessionID, origin, definitionDigest)
   if (!tool || !definitionDigest || tool.definitionDigest !== definitionDigest)
     return (
       <p className="mb-2 typography-micro text-muted-foreground" data-webmcp-approval-definition-unknown>

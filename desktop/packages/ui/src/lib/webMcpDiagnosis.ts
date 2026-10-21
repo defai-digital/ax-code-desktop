@@ -134,7 +134,7 @@ export function webMcpRegressionExport(entry: {
 }): { snippet: string; runArgument: string } | null {
   // Admission, deadline and cancellation outcomes require adapter context that this snippet cannot reproduce.
   if (!["completed", "application-error"].includes(entry.outcome)) return null
-  if (!entry.tool || entry.tool.length > 256 || entry.tool.includes("[redacted]") || webMcpTextLooksSensitive(entry.tool)) return null
+  if (!entry.tool || entry.tool.length > 256 || /\[redacted(?: tool \d+)?\]/.test(entry.tool) || webMcpTextLooksSensitive(entry.tool)) return null
   if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) return null
   let encoded: string
   try {

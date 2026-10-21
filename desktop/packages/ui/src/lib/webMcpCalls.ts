@@ -1,3 +1,5 @@
+import { webMcpDisplayText } from "../../../../shared/webmcp-redaction.mjs"
+import { webMcpDefinitionForDigest, type WebMcpToolDefinition } from "./webMcpCatalog"
 import {
   describeWebMcpCall,
   desktopWebMcpResultFailed,
@@ -17,6 +19,8 @@ export interface WebMcpCall {
   title: string
   /** The page tool's name for an invoke; null for other operations. */
   toolName: string | null
+  /** Opaque main-issued identity; missing bindings never match by display label. */
+  invocationID?: string
   operation: string | null
   argumentsText: string | null
   outcome: "running" | "ok" | "failed" | "checkpointed" | "cancelled"
@@ -106,6 +110,7 @@ export function collectWebMcpCalls(
   partsOf: (messageId: string) => readonly PartLike[] | undefined,
   limit = 20,
   scanMessages = WEBMCP_CALL_SCAN_MESSAGES,
+  definitions: readonly WebMcpToolDefinition[] = [],
 ): WebMcpCall[] {
   const calls: WebMcpCall[] = []
   const floor = Math.max(0, messages.length - scanMessages)
@@ -119,14 +124,21 @@ export function collectWebMcpCalls(
       const state = part.state ?? {}
       const input = record(state.input)
       const metadata = record(state.metadata)
-      const call = describeWebMcpCall(input, metadata)
+      const definitionDigest = readWebMcpDefinitionDigest(metadata)
+      const definition = webMcpDefinitionForDigest(definitions, definitionDigest)
+      // Runtime names are never used for joins or retained in the UI call projection.
+      const safeName = (value: unknown) => typeof value === "string" ? webMcpDisplayText(value) : value
+      const safeInput = input ? { ...input, toolName: definition?.name ?? safeName(input.toolName), tool: safeName(input.tool) } : input
+      const safeMetadata = metadata ? { ...metadata, toolName: definition?.name ?? safeName(metadata.toolName) } : metadata
+      const call = describeWebMcpCall(safeInput, safeMetadata)
       const invoke = call.operation?.toLowerCase() === "invoke" ? readWebMcpInvokeInput(metadata) : null
       const status = typeof state.status === "string" ? state.status : ""
       const failed = desktopWebMcpResultFailed({ status, output: state.output })
       calls.push({
         id: typeof part.id === "string" ? part.id : `${messageId}:${p}`,
-        title: desktopWebMcpRowTitle(input, metadata) ?? part.tool,
+        title: desktopWebMcpRowTitle(safeInput, safeMetadata) ?? part.tool,
         toolName: call.toolName,
+        invocationID: definition?.invocationID,
         operation: call.operation,
         argumentsText: call.argumentsText,
         outcome: status === "checkpointed"
@@ -148,7 +160,7 @@ export function collectWebMcpCalls(
         resultPreview: status === "completed" ? resultLine(state.output) : null,
         generation: typeof metadata?.generation === "string" ? metadata.generation : null,
         argumentsMissing: call.argumentsMissing,
-        definitionDigest: readWebMcpDefinitionDigest(metadata),
+        definitionDigest,
         inputKind: invoke?.kind ?? "missing",
         input: invoke?.input ?? null,
       })

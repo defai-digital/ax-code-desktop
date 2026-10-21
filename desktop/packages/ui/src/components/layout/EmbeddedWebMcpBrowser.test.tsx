@@ -166,7 +166,7 @@ describe("agent browser enable request", () => {
 
   test("Try it sends the displayed page binding and renders stale-form before a status poll", async () => {
     const displayed = { ...browserStatus(false), generation: "page-A", catalog: [{
-      name: "submit", description: "Submit", digest: "a".repeat(64), definitionDigest: "b".repeat(64),
+      name: "submit", description: "Submit", digest: "a".repeat(64), definitionDigest: "b".repeat(64), invocationID: "c".repeat(64),
       inputSchema: { type: "object", properties: { password: { type: "string" } } },
     }] }
     invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
@@ -181,7 +181,7 @@ describe("agent browser enable request", () => {
     fireEvent.change(container.querySelector<HTMLInputElement>("input[type=password]")!, { target: { value: "AUDIT_FAKE_PASSWORD" } })
     fireEvent.click(within(container).getByRole("button", { name: "webmcp.tools.try" }))
     await flush()
-    expect(callsFor("tryTool")[0][1]).toEqual({ action: "tryTool", id: "browser-1", toolName: "submit",
+    expect(callsFor("tryTool")[0][1]).toEqual({ action: "tryTool", id: "browser-1", toolName: "c".repeat(64),
       input: { password: "AUDIT_FAKE_PASSWORD" }, origin: displayed.origin, generation: "page-A", definitionDigest: "b".repeat(64) })
     expect(container.querySelector("[data-webmcp-tool-result='stale-form']")?.textContent).toContain("webmcp.tools.staleForm")
   })

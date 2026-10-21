@@ -108,7 +108,7 @@ test("keeps drafts for the same definition in memory and drops them with the pag
   const store = useWebMcpBrowserStore.getState()
   store.resetSnapshot()
   const setItem = vi.spyOn(Storage.prototype, "setItem")
-  const tool = { name: "echo", description: "Echo" }
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo" })
   store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
   const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
   store.saveToolDraft("echo", { digest, values: { title: "Ship" }, sendEmpty: {}, json: "{}", jsonMode: false })
