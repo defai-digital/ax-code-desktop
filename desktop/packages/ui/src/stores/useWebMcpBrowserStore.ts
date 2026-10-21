@@ -6,9 +6,11 @@ import {
   markWebMcpRunsStale,
   readWebMcpCatalog,
   WEBMCP_DRAFT_LIMIT,
+  WEBMCP_JOURNAL_LIMIT,
   WEBMCP_RUN_LIMIT,
   type WebMcpCatalogLimit,
   type WebMcpCatalogRejection,
+  type WebMcpJournalEntry,
   type WebMcpRegistrationEvent,
   type WebMcpToolDefinition,
   type WebMcpToolDraft,
@@ -22,6 +24,7 @@ export type {
   WebMcpRegistrationEvent,
   WebMcpToolAnnotations,
   WebMcpToolDefinition,
+  WebMcpJournalEntry,
   WebMcpToolDraft,
   WebMcpToolKind,
   WebMcpToolRun,
@@ -98,6 +101,8 @@ export interface WebMcpViewSnapshot extends WebMcpBrowserSnapshot {
   toolDrafts: Record<string, WebMcpToolDraft>
   /** Manual results keyed by tool name. A changed definition is marked stale. */
   toolRuns: Record<string, WebMcpToolRun>
+  /** The last 32 Try it runs on this page view, newest first. In memory only. */
+  toolJournal: readonly WebMcpJournalEntry[]
   /** Monotonic counter for an explicit request to open this session's pane. */
   agentModeRequests: number
   agentModeConsumed: number
@@ -120,6 +125,7 @@ interface WebMcpBrowserState extends WebMcpViewSnapshot {
   saveToolDraft: (name: string, draft: WebMcpToolDraft, key?: string) => void
   recordToolRun: (name: string, run: WebMcpToolRun, key?: string) => void
   clearToolRun: (name: string, key?: string) => void
+  recordToolJournal: (entry: WebMcpJournalEntry, key?: string) => void
   resetSnapshot: () => void
   requestAgentMode: (options?: { enable?: boolean }, key?: string) => void
   consumeAgentModeRequest: (key?: string) => boolean
@@ -157,7 +163,7 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
 }
 
 const requestCounters = { agentModeRequests: 0, agentModeConsumed: 0, enableRequests: 0, enableConsumed: 0 }
-const initialCatalogState = { registration: [], toolDrafts: {}, toolRuns: {} }
+const initialCatalogState = { registration: [], toolDrafts: {}, toolRuns: {}, toolJournal: [] }
 export const emptyWebMcpView: WebMcpViewSnapshot = { ...initialSnapshot, ...initialCatalogState, ...requestCounters }
 
 const snapshotOf = (state: WebMcpViewSnapshot): WebMcpViewSnapshot =>
@@ -338,6 +344,33 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
         delete next[name]
         return { toolRuns: next }
       }),
+    recordToolJournal: (entry, key = get().activeKey ?? undefined) =>
+      editTools(key ?? null, (state) => {
+        const input = boundJournalInput(entry.input)
+        if (
+          !entry.tool ||
+          entry.tool.length > 256 ||
+          entry.digest.length > 64 ||
+          entry.id.length > 64 ||
+          !Number.isFinite(entry.durationMs) ||
+          !input
+        )
+          return {}
+        const next = [
+          {
+            id: entry.id,
+            tool: entry.tool,
+            input,
+            outcome: entry.outcome.slice(0, 64),
+            text: entry.text.slice(0, 4000),
+            durationMs: Math.min(86_400_000, Math.max(0, Math.round(entry.durationMs))),
+            digest: entry.digest,
+            at: Number.isFinite(entry.at) ? entry.at : Date.now(),
+          },
+          ...state.toolJournal.filter((item) => item.id !== entry.id),
+        ].slice(0, WEBMCP_JOURNAL_LIMIT)
+        return { toolJournal: next }
+      }),
     resetSnapshot: () => {
       const state = get()
       const partial = { ...initialSnapshot, ...initialCatalogState, runtimeCompatible: state.runtimeCompatible }
@@ -456,7 +489,7 @@ const boundFlags = (value: Record<string, boolean>) => {
 }
 
 /**
- * Page identity for drafts, results and the registration timeline. An origin change drops them.
+ * Page identity for drafts, results, the manual journal and the registration timeline. An origin change drops them.
  * Catalog updates diff the definitions already on the page. Nothing here is written to disk.
  */
 function observeCatalog(
@@ -466,19 +499,22 @@ function observeCatalog(
     registration: readonly WebMcpRegistrationEvent[]
     toolDrafts: Record<string, WebMcpToolDraft>
     toolRuns: Record<string, WebMcpToolRun>
+    toolJournal: readonly WebMcpJournalEntry[]
   },
   partial: WebMcpSnapshotUpdate,
-): Partial<WebMcpBrowserSnapshot> & Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns">> {
+): Partial<WebMcpBrowserSnapshot> &
+  Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns" | "toolJournal">> {
   const originChanged = partial.origin !== undefined && partial.origin !== state.origin
   if (!("catalog" in partial) && !originChanged && !("catalogRejection" in partial) && !("catalogLimit" in partial)) {
     return {}
   }
   const next: Partial<WebMcpBrowserSnapshot> &
-    Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns">> = {}
+    Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns" | "toolJournal">> = {}
   // Keep the same array when the catalog is unchanged so a status poll does not rebuild the timeline.
   let registration = originChanged ? [] : state.registration
   const toolDrafts = originChanged ? {} : state.toolDrafts
   let toolRuns = originChanged ? {} : state.toolRuns
+  const toolJournal = originChanged ? [] : state.toolJournal
   const previous = originChanged ? [] : state.catalog
   if ("catalog" in partial || "catalogLimit" in partial || "catalogRejection" in partial) {
     const read = readWebMcpCatalog("catalog" in partial ? partial.catalog : previous, {
@@ -498,6 +534,20 @@ function observeCatalog(
     next.registration = registration
     next.toolDrafts = toolDrafts
     next.toolRuns = toolRuns
+    if (originChanged) next.toolJournal = toolJournal
   }
   return next
+}
+
+function boundJournalInput(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null
+  try {
+    const text = JSON.stringify(value)
+    if (!text || text.length > 65536 || text[0] !== "{") return null
+    const parsed: unknown = JSON.parse(text)
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
 }

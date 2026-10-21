@@ -55,7 +55,31 @@ catalog over 128 tools or 256 KiB are named. Tools already accepted stay listed.
 
 **Registration** lists tools added, removed, or changed on this page, each with a short digest of the definition. A result
 from before a definition change is marked stale. Text you typed is kept when the same definition is registered again,
-including a reload. Drafts, the registration list, and results stay in memory for the current page only.
+including a reload. Drafts, the registration list, results, and the manual journal stay in memory for this page view.
+Opening another origin clears them. They are not written to disk.
+
+**Manual journal.** Each **Try it** that is actually sent is kept for this page view, newest first, up to 32 runs. A row
+records the tool, the input, the outcome, how long it took, and the definition digest it ran against. Choose **Replay**
+on a row to fill the form with that input. You can edit the input and choose **Try it** again. Replay does not run the
+tool by itself, and it does not discard the result already shown.
+
+**Compare with the agent.** Open a tool to see your latest manual run beside the agent's most recent call to that tool
+in the transcript. The agent's side shows the redacted arguments the transcript already shows. When both runs record a
+definition digest and those digests differ, the panel says the runs used different definitions. A missing digest is not
+treated as a difference.
+
+**Schema check.** For your manual run and for the agent's call, the panel checks the input against the tool's current
+schema. It names the failing property, the rule (`required`, `type`, `enum`, `minimum`, `maximum`, `minLength`, or
+`maxLength`), and the kind of value (`absent`, `null`, `string`, `number`, `integer`, `boolean`, `array`, or `object`).
+The check is advisory and never blocks **Try it**. It shows the definition digest the call ran against when that digest
+is known, and it says when that definition is not the one registered now. When the runtime did not send an arguments
+object and did not send an input preview, the panel says that the runtime did not provide arguments and does not guess
+an input.
+
+**Regression export.** From a journal run, or from the agent's call when its input is a JSON object, **Copy test** copies
+a snippet that loads the tool with `document.modelContext.getTools()` and calls it through
+`document.modelContext.executeTool` with `JSON.stringify(...)`, then asserts the recorded outcome. **Copy --run
+argument** copies the same input for `pnpm run webmcp:check`.
 
 - Run `add_task` with a title and watch the list update.
 - Run it with a title of only spaces. The form sends it exactly as typed, the page's own check rejects it, and the panel shows
@@ -71,8 +95,24 @@ including a reload. Drafts, the registration list, and results stay in memory fo
    the conversation records each one. Beside **Stage, Commit and Push**, a recap lists what the agent did in the browser during
    its latest turn, including page tools it never called.
 
-**Disconnect agent** turns access off. Agent access also pauses while the project browser cannot be seen: when it is closed,
-covered by a dialog, or the window is minimized or hidden. Choose **Resume agent access** to continue.
+**Pause agent** stops the agent's calls and leaves you in control of the same page. The page and its document stay; nothing
+is rolled back. The browser says "You have control of the page. The agent's calls wait until you resume." If a call was
+stopped, it also says that the changes already made on the page stay. Choose **Resume agent** to let waiting calls
+continue. Pausing one coding session does not pause another.
+
+**Disconnect agent** turns access off. That is separate from **Pause agent**.
+
+Agent access also pauses while the project browser cannot be seen: when it is closed, covered by a dialog, or the window
+is minimized or hidden. Choose **Resume agent access** to continue. That control is the visibility pause. It is not
+**Resume agent**.
+
+### Several sessions
+
+The project browser keeps one live page for each coding session, and at most four live pages at once. Sessions of one
+project share that project's sign-in. Another project has its own. The agent acts only on the page you are showing. A
+call for a hidden page waits, and the browser says "Agent call waiting for this page to be visible." Switching sessions
+hides a page instead of closing it. A further page is refused while four are open. The app does not show a separate
+label for that refusal.
 
 ## 5. Write tools the agent gets right
 
@@ -121,6 +161,9 @@ engine in AX Code Desktop does not, so the example does not fall back to it.)
   const result = JSON.parse(await document.modelContext.executeTool(tool, JSON.stringify({ title: "Ship the beta" })))
   ```
 
+  The page tools panel copies this shape from a journal run or from the agent's call, and it copies the matching
+  `--run '<tool>={"..."}'` argument used by the command below.
+
 ### In CI
 
 `pnpm run webmcp:check` (in this repository) loads a page in the browser engine AX Code Desktop bundles, lists the page tools
@@ -162,7 +205,8 @@ through the page's model context, which is not the path an agent's call takes; c
 | Agent access stopped by itself | the browser was closed, covered by a dialog, or the window was minimized or hidden | show it again and choose **Resume agent access** |
 | A tool is missing after an action | it was unregistered by its `AbortSignal`, or the panel is showing 64 of N | check **Registration**; a cap leaves later tools off the list and says how many were registered |
 | The panel names a rejected registration | two tools share a name in one update, or a name, description, or schema is outside the limits above | the message names the tool; fix that registration. Tools already accepted stay, and the project browser stays connected |
-| A previous **Try it** result is marked stale | the page registered a different definition for that tool | run it again if you still want a result for the new definition |
+| A previous **Try it** result is marked stale | the page registered a different definition for that tool | run it again if you still want a result for the new definition. The journal row still names the digest it ran against, and the schema check says the definition changed |
+| The schema check says the runtime did not provide arguments | the runtime sent no arguments object and no input preview | nothing is guessed. Compare the text the transcript shows. A newer runtime can send an input preview |
 | Typed input disappeared | the tool's definition changed, or you opened another page | the same definition keeps what you typed, including across a reload of that page |
 | **Try it** shows an error result | your `execute` returned an error, or threw | prefer returning `{ error: { field, constraint, got } }`; it tells the agent what to fix |
 | The agent picks the wrong tool, or never calls one | overlapping tools or vague descriptions | merge or rename tools; state inputs and results in the description; the landing recap lists tools never called |

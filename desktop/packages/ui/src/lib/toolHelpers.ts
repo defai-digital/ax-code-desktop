@@ -391,6 +391,68 @@ function readWebMcpArguments(metadata: Record<string, unknown> | null | undefine
   return null
 }
 
+const DEFINITION_DIGEST = /^[a-f0-9]{8,64}$/
+
+/** The definition digest a runtime attached to a call, when it sent one. Never invented. */
+export function readWebMcpDefinitionDigest(metadata: Record<string, unknown> | null | undefined): string | null {
+  if (!metadata) return null
+  for (const key of ["definitionDigest", "schemaDigest", "digest"]) {
+    const value = metadata[key]
+    if (typeof value === "string" && DEFINITION_DIGEST.test(value)) return value
+  }
+  return null
+}
+
+export type WebMcpInvokeInputKind = "object" | "preview" | "unparsed" | "redacted" | "missing"
+
+/**
+ * The invoke input a diagnosis may check. Arguments come only from `metadata.arguments`, `metadata.input`, or the
+ * ADR-266 `inputPreview`. The model payload under `input.input` is not a receipt and is never guessed from.
+ * Sensitive values are redacted; other strings are kept whole so a length check sees the real size.
+ */
+export function readWebMcpInvokeInput(metadata: Record<string, unknown> | null | undefined): {
+  kind: WebMcpInvokeInputKind
+  input: Record<string, unknown> | null
+} {
+  const args = readWebMcpArguments(metadata)
+  if (args) return { kind: "object", input: redactInvokeRecord(args) }
+  const preview = readWebMcpString(metadata, "inputPreview")
+  if (!preview) return { kind: "missing", input: null }
+  if (webMcpTextLooksSensitive(preview)) return { kind: "redacted", input: null }
+  try {
+    const parsed: unknown = JSON.parse(preview)
+    if (isPlainRecord(parsed)) return { kind: "preview", input: redactInvokeRecord(parsed) }
+  } catch {
+    /* A truncated or non-JSON preview is not a property bag. */
+  }
+  return { kind: "unparsed", input: null }
+}
+
+function redactInvokeRecord(value: Record<string, unknown>): Record<string, unknown> {
+  const budget = { left: 256 }
+  const redacted = redactInvokeValue(value, budget, 0)
+  return isPlainRecord(redacted) ? redacted : {}
+}
+
+function redactInvokeValue(value: unknown, budget: { left: number }, depth: number): unknown {
+  if (budget.left <= 0 || depth > 8) return "…"
+  budget.left -= 1
+  if (typeof value === "string") return webMcpTextLooksSensitive(value) ? "[redacted]" : value
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return value
+  if (Array.isArray(value)) return value.slice(0, 64).map((entry) => redactInvokeValue(entry, budget, depth + 1))
+  if (isPlainRecord(value)) {
+    const next: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value).slice(0, 128)) {
+      next[key] =
+        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
+          ? "[redacted]"
+          : redactInvokeValue(entry, budget, depth + 1)
+    }
+    return next
+  }
+  return null
+}
+
 /**
  * Fields the runtime already attaches to a WebMCP call. Invoke arguments come only from
  * `metadata.arguments` or `metadata.input`. The model payload under `input.input` is not a receipt.

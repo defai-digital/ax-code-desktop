@@ -3,8 +3,11 @@ import {
   desktopWebMcpResultFailed,
   desktopWebMcpRowTitle,
   isWebMcpToolName,
+  readWebMcpDefinitionDigest,
+  readWebMcpInvokeInput,
   webMcpResultPreview,
   type WebMcpFailureReason,
+  type WebMcpInvokeInputKind,
 } from "./toolHelpers"
 import { truncateToCodeUnits } from "./textTruncate"
 
@@ -27,6 +30,14 @@ export interface WebMcpCall {
   resultPreview: string | null
   /** The page document generation the call ran on (from the runtime metadata), to mark calls on an earlier page. */
   generation: string | null
+  /** True when an invoke carried neither an arguments object nor an ADR-266 input preview. */
+  argumentsMissing: boolean
+  /** Definition digest the runtime says this call ran against. Null when the runtime did not send one. */
+  definitionDigest: string | null
+  /** Where the structured input came from. `missing` means the runtime gave no arguments to check. */
+  inputKind: WebMcpInvokeInputKind
+  /** Redacted arguments when they form a JSON object. Never taken from the model's own payload. */
+  input: Record<string, unknown> | null
 }
 
 /** The result a page tool returned, without the runtime's untrusted envelope, as a short filtered line. */
@@ -103,6 +114,7 @@ export function collectWebMcpCalls(
       const input = record(state.input)
       const metadata = record(state.metadata)
       const call = describeWebMcpCall(input, metadata)
+      const invoke = call.operation?.toLowerCase() === "invoke" ? readWebMcpInvokeInput(metadata) : null
       const status = typeof state.status === "string" ? state.status : ""
       const failed = desktopWebMcpResultFailed({ status, output: state.output })
       calls.push({
@@ -121,6 +133,10 @@ export function collectWebMcpCalls(
             : null,
         resultPreview: status === "completed" && !failed ? resultLine(state.output) : null,
         generation: typeof metadata?.generation === "string" ? metadata.generation : null,
+        argumentsMissing: call.argumentsMissing,
+        definitionDigest: readWebMcpDefinitionDigest(metadata),
+        inputKind: invoke?.kind ?? "missing",
+        input: invoke?.input ?? null,
       })
     }
   }

@@ -2,13 +2,12 @@ import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
 import { useI18n, type I18nKey } from "@/lib/i18n"
-import { collectWebMcpCalls } from "@/lib/webMcpCalls"
+import { useWebMcpTranscriptCalls } from "@/hooks/useWebMcpTranscriptCalls"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { cn } from "@/lib/utils"
 import { useUIStore } from "@/stores/useUIStore"
 import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
-import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
 
 /**
  * What the agent did on the page: its recent page-tool calls with redacted arguments and outcome, from the session's
@@ -16,18 +15,9 @@ import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
  */
 export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; directory: string }) {
   const { t } = useI18n()
-  const messages = useSessionMessages(sessionID, directory)
-  // The parts map changes on every streamed token. The selector returns a string, so the strip only re-renders when the
-  // recent WebMCP calls actually change, and it scans only the newest messages.
-  const signature = useDirectorySync(
-    React.useCallback(
-      (state: { part: Map<string, unknown[]> }) =>
-        JSON.stringify(collectWebMcpCalls(messages as never, (id) => state.part.get(id) as never)),
-      [messages],
-    ) as never,
-    directory,
-  ) as unknown as string
-  const calls = React.useMemo(() => JSON.parse(signature) as ReturnType<typeof collectWebMcpCalls>, [signature])
+  // The parts map changes on every streamed token. The hook returns a stable list, so the strip only re-renders when
+  // the recent WebMCP calls actually change, and it scans only the newest messages.
+  const calls = useWebMcpTranscriptCalls(sessionID, directory)
   const [open, setOpen] = React.useState(true)
   const generation = useWebMcpBrowserValue(
     (state) => (state.sessionID === sessionID ? state.generation : null),

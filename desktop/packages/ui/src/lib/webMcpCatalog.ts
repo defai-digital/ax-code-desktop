@@ -5,6 +5,8 @@ export const WEBMCP_CATALOG_BYTE_CAP = 262144
 export const WEBMCP_REGISTRATION_LIMIT = 32
 export const WEBMCP_DRAFT_LIMIT = 64
 export const WEBMCP_RUN_LIMIT = 64
+/** Manual Try it runs kept per page view. In memory only. */
+export const WEBMCP_JOURNAL_LIMIT = 32
 
 export type WebMcpToolKind = "form" | "script"
 
@@ -69,6 +71,25 @@ export interface WebMcpToolRun {
   outcome: string
   text: string
   stale: boolean
+}
+
+/** One Try it run. The digest is the definition it ran against, not the definition currently registered. */
+export interface WebMcpJournalEntry {
+  id: string
+  tool: string
+  input: Record<string, unknown>
+  outcome: string
+  text: string
+  durationMs: number
+  digest: string
+  at: number
+}
+
+let journalSerial = 0
+
+export function createWebMcpJournalId(now = Date.now()): string {
+  journalSerial = (journalSerial + 1) % 46656
+  return `j${now.toString(36)}${journalSerial.toString(36)}`
 }
 
 export interface WebMcpCatalogReadMeta {

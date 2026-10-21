@@ -2773,6 +2773,41 @@ export const dict = {
   "webmcp.tools.registration.removed": "{name} removed ({digest})",
   "webmcp.tools.registration.changed": "{name} changed ({previous} -> {digest})",
   "webmcp.tools.resultStale": "This result is from an earlier definition of the tool.",
+  "webmcp.tools.journal.title": "Manual journal",
+  "webmcp.tools.journal.empty": "No Try it runs yet on this page.",
+  "webmcp.tools.journal.memory":
+    "The last 32 runs stay in memory for this page view. They are not saved to disk.",
+  "webmcp.tools.journal.replay": "Replay {tool} ({outcome}, {duration})",
+  "webmcp.tools.journal.digest": "Definition {digest}",
+  "webmcp.tools.compare.title": "Compare with the agent",
+  "webmcp.tools.compare.manual": "Your run",
+  "webmcp.tools.compare.agent": "Agent's latest call",
+  "webmcp.tools.compare.noManual": "You have not run this tool on this page.",
+  "webmcp.tools.compare.noAgent": "The agent has not called this tool in the recent transcript.",
+  "webmcp.tools.compare.differentDefinitions":
+    "Your run and the agent's call used different definitions ({manual} and {agent}).",
+  "webmcp.tools.compare.input": "Input",
+  "webmcp.tools.diagnosis.title": "Schema check",
+  "webmcp.tools.diagnosis.advisory":
+    "This check is advisory. It never blocks Try it. The page decides which input is valid.",
+  "webmcp.tools.diagnosis.finding": "{property} failed {rule}. The value is {kind}.",
+  "webmcp.tools.diagnosis.none": "The input matches the checks this panel can make.",
+  "webmcp.tools.diagnosis.noArguments":
+    "The runtime did not provide arguments for this call (no input preview). Nothing is guessed.",
+  "webmcp.tools.diagnosis.unparsed":
+    "The runtime sent an input preview that is not a JSON object, so individual properties are not checked.",
+  "webmcp.tools.diagnosis.redacted":
+    "The runtime marked this input as sensitive, so it is not checked property by property.",
+  "webmcp.tools.diagnosis.digest": "Ran against definition {digest}.",
+  "webmcp.tools.diagnosis.digestUnknown": "The definition this call ran against was not recorded.",
+  "webmcp.tools.diagnosis.changed": "The definition changed since this run ({digest} then, {current} now).",
+  "webmcp.tools.diagnosis.noSchema": "This tool does not publish an input schema, so the input is not checked.",
+  "webmcp.tools.diagnosis.unsupported":
+    "This schema is not a plain object of simple properties, so the input is not checked property by property.",
+  "webmcp.tools.export.copyTest": "Copy test",
+  "webmcp.tools.export.copyRun": "Copy --run argument",
+  "webmcp.tools.export.copied": "Copied",
+  "webmcp.tools.export.unavailable": "This call has no JSON object input to export.",
   "webmcp.tools.unavailable": "The page no longer offers this tool.",
   "webmcp.tools.failed": "The tool did not complete. The page may have changed or the tool returned an error.",
   "webmcp.title": "Project browser (WebMCP)",

@@ -305,3 +305,43 @@ test("catalog metadata, registration, drafts and results belong to their view ac
   store().resetSnapshot()
   expect(store().views[second]).toMatchObject({ generation: null, registration: [], toolDrafts: {}, toolRuns: {} })
 })
+
+test("the manual journal keeps the last 32 runs per view in memory and drops them when the origin changes", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  const { WEBMCP_JOURNAL_LIMIT } = await import("@/lib/webMcpCatalog")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null, toolJournal: [] })
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const entry = (id: string) => ({
+    id,
+    tool: "echo",
+    input: { title: id },
+    outcome: "completed",
+    text: id,
+    durationMs: 12.4,
+    digest: "ab".repeat(8),
+    at: 1,
+  })
+  store().selectView("/repo", "ses_first")
+  store().updateSnapshot({ origin: "https://same.test", catalog: [{ name: "echo", description: "Echo" }] })
+  for (let index = 0; index < WEBMCP_JOURNAL_LIMIT + 3; index += 1) store().recordToolJournal(entry(`j${index}`))
+  expect(store().toolJournal).toHaveLength(WEBMCP_JOURNAL_LIMIT)
+  expect(store().toolJournal[0]).toMatchObject({ id: `j${WEBMCP_JOURNAL_LIMIT + 2}`, durationMs: 12, input: { title: `j${WEBMCP_JOURNAL_LIMIT + 2}` } })
+  expect(store().toolJournal.some((item) => item.id === "j0")).toBe(false)
+  const kept = store().toolJournal
+  store().updateSnapshot({ catalog: [{ name: "echo", description: "Echo" }] })
+  expect(store().toolJournal).toBe(kept)
+  store().selectView("/repo", "ses_second")
+  store().updateSnapshot({ origin: "https://same.test", catalog: [{ name: "echo", description: "Echo" }] })
+  store().recordToolJournal(entry("other"))
+  expect(store().toolJournal.map((item) => item.id)).toEqual(["other"])
+  expect(store().views[first].toolJournal).toHaveLength(WEBMCP_JOURNAL_LIMIT)
+  store().recordToolJournal({ ...entry("bad"), input: ["no"] as never })
+  store().recordToolJournal({ ...entry("wide"), digest: "f".repeat(65) })
+  expect(store().toolJournal.map((item) => item.id)).toEqual(["other"])
+  store().updateSnapshot({ origin: "https://other.test" })
+  expect(store().toolJournal).toEqual([])
+  expect(store().views[first].toolJournal).toHaveLength(WEBMCP_JOURNAL_LIMIT)
+  expect(localStorage.length).toBe(0)
+  expect(JSON.stringify(localStorage)).not.toContain("j34")
+})

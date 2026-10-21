@@ -16,7 +16,7 @@ import {
   rememberWebMcpAddress,
   restoreWebMcpAddress,
 } from "@/stores/useWebMcpBrowserStore"
-import { WebMcpToolPanel } from "@/components/mcp/WebMcpToolPanel"
+import { WebMcpToolPanelConnected } from "@/components/mcp/WebMcpToolPanelConnected"
 import { WebMcpCallStrip } from "@/components/mcp/WebMcpCallStrip"
 import { WebMcpBuilderHint } from "@/components/mcp/WebMcpBuilderHint"
 import { describeWebMcpError, webMcpErrorAction } from "@/lib/webMcpSummary"
@@ -545,9 +545,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
 
       {sessionID ? <WebMcpCallStrip sessionID={sessionID} directory={directory} /> : null}
       {browserId ? (
-        <WebMcpToolPanel
+        <WebMcpToolPanelConnected
           key={key}
           viewKey={key}
+          sessionID={sessionID}
+          directory={directory}
           tryTool={(toolName, input) =>
             invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
               action: "tryTool",

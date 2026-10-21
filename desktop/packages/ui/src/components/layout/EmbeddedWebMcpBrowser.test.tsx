@@ -50,6 +50,20 @@ vi.doMock("@/hooks/useWebMcpBrowser", async (importOriginal) => {
 vi.doMock("@/components/mcp/WebMcpBrowserTools", () => ({ WebMcpStatusDot: () => null }))
 // The call strip reads the session transcript from sync state; it has its own tests.
 vi.doMock("@/components/mcp/WebMcpCallStrip", () => ({ WebMcpCallStrip: () => null }))
+// The connected panel reads the transcript through sync. Render the plain panel so this journey stays provider-free.
+vi.doMock("@/components/mcp/WebMcpToolPanelConnected", async () => {
+  const React = await import("react")
+  const panel = await import("@/components/mcp/WebMcpToolPanel")
+  return {
+    WebMcpToolPanelConnected: (props: {
+      tryTool: (
+        toolName: string,
+        input: Record<string, unknown>,
+      ) => Promise<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>
+      viewKey?: string
+    }) => React.createElement(panel.WebMcpToolPanel, { tryTool: props.tryTool, viewKey: props.viewKey }),
+  }
+})
 vi.doMock("@/components/mcp/WebMcpBuilderHint", () => ({ WebMcpBuilderHint: () => null }))
 
 const { EmbeddedBrowserChoice } = await import("./EmbeddedWebMcpBrowser")
@@ -126,6 +140,7 @@ describe("agent browser enable request", () => {
       agentModeConsumed: 0,
       enableRequests: 0,
       enableConsumed: 0,
+      toolJournal: [],
     })
     useSessionUIStore.setState({ currentSessionId: "ses_one" })
 
