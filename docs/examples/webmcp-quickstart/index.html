@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>WebMCP quickstart: task list</title>
+    <style>
+      body { font: 15px/1.5 system-ui, sans-serif; margin: 2rem auto; max-width: 40rem; padding: 0 1rem; }
+      li.done { text-decoration: line-through; color: #666; }
+      form { display: flex; gap: 0.5rem; margin: 1rem 0; }
+      #status { min-height: 1.5em; color: #555; }
+    </style>
+  </head>
+  <body>
+    <h1>Tasks</h1>
+    <p id="status" role="status"></p>
+    <ul id="tasks"></ul>
+
+    <!-- A declarative tool: the form itself is the tool. The browser fills it visibly when the agent calls it. -->
+    <form id="search" toolname="search_tasks" tooldescription="Find tasks whose title contains the given text.">
+      <input name="query" required placeholder="Search" toolparamdescription="Text to look for in task titles." />
+      <button>Search</button>
+    </form>
+
+    <script type="module">
+      // The page is the authority: everything below runs as the signed-in person, in this tab.
+      const tasks = [
+        { id: "t1", title: "Write release notes", priority: "high", done: false },
+        { id: "t2", title: "Review the login page", priority: "normal", done: false },
+      ]
+      const list = document.getElementById("tasks")
+      const status = document.getElementById("status")
+
+      // Update the visible page after every action, so a person (and the agent reading the page) sees the effect.
+      function render(message = "") {
+        list.replaceChildren(
+          ...tasks.map((task) => {
+            const item = document.createElement("li")
+            item.textContent = `${task.title} (${task.priority})`
+            item.className = task.done ? "done" : ""
+            return item
+          }),
+        )
+        status.textContent = message
+      }
+
+      // Errors the model can act on: which field, which rule, what it sent.
+      const invalid = (field, constraint, got) => ({ error: { field, constraint, got } })
+
+      const context = document.modelContext
+      if (!context) {
+        render("This browser does not expose WebMCP. Open the page in the AX Code Desktop project browser.")
+      } else {
+        await context.registerTool({
+          name: "list_tasks",
+          title: "List tasks",
+          description: "List every task with its id, title, priority and whether it is done.",
+          inputSchema: { type: "object", properties: {} },
+          annotations: { readOnlyHint: true },
+          execute: async () => ({ tasks }),
+        })
+
+        await context.registerTool({
+          name: "add_task",
+          title: "Add a task",
+          description: "Add a task to the list. Returns the new task with its id.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              title: { type: "string", description: "Task title, 1 to 120 characters.", minLength: 1, maxLength: 120 },
+              priority: { type: "string", enum: ["low", "normal", "high"], description: "How urgent the task is." },
+            },
+            required: ["title"],
+          },
+          execute: async ({ title, priority = "normal" }) => {
+            // Validate in code too: the schema is a description, not a guarantee.
+            if (typeof title !== "string" || title.trim().length === 0) return invalid("title", "minLength: 1", title)
+            if (title.length > 120) return invalid("title", "maxLength: 120", title)
+            const task = { id: `t${tasks.length + 1}`, title, priority, done: false }
+            tasks.push(task)
+            render(`Added "${title}".`)
+            return { task }
+          },
+        })
+
+        // Register a tool only while it makes sense, and unregister it with the AbortSignal when it no longer does.
+        let completeRegistration = null
+        async function syncCompleteTool() {
+          const open = tasks.some((task) => !task.done)
+          if (open && !completeRegistration) {
+            completeRegistration = new AbortController()
+            await context.registerTool(
+              {
+                name: "complete_task",
+                title: "Complete a task",
+                description: "Mark one open task as done by its id (from list_tasks).",
+                inputSchema: {
+                  type: "object",
+                  properties: { id: { type: "string", description: "The task id, for example t1." } },
+                  required: ["id"],
+                },
+                execute: async ({ id }) => {
+                  const task = tasks.find((candidate) => candidate.id === id)
+                  if (!task) return invalid("id", "an id returned by list_tasks", id)
+                  if (task.done) return invalid("id", "an open task", id)
+                  task.done = true
+                  render(`Completed "${task.title}".`)
+                  await syncCompleteTool()
+                  return { task }
+                },
+              },
+              { signal: completeRegistration.signal },
+            )
+          } else if (!open && completeRegistration) {
+            completeRegistration.abort()
+            completeRegistration = null
+          }
+        }
+        await syncCompleteTool()
+        render()
+      }
+
+      document.getElementById("search").addEventListener("submit", (event) => {
+        event.preventDefault()
+        const query = new FormData(event.target).get("query")?.toString() ?? ""
+        const matches = tasks.filter((task) => task.title.toLowerCase().includes(query.toLowerCase()))
+        render(`${matches.length} task(s) match "${query}".`)
+        // When the agent submitted the form, answer it with structured data.
+        if (event.agentInvoked && event.respondWith) event.respondWith(Promise.resolve({ matches }))
+      })
+    </script>
+  </body>
+</html>

@@ -388,6 +388,37 @@ export function describeWebMcpCall(
   }
 }
 
+export type WebMcpEffectKey =
+  | "invoke"
+  | "click"
+  | "clickSubmit"
+  | "type"
+  | "select"
+  | "navigate"
+  | "other"
+
+/**
+ * One plain sentence for an approval, built only from what the runtime sent about the call (operation, element, submit
+ * flag, origin). A page's own tool description is never used: the site could word it to look harmless.
+ */
+export function webMcpEffect(
+  call: Pick<WebMcpCallDescription, "operation" | "toolName" | "how" | "element">,
+  origin: string,
+): { key: WebMcpEffectKey; params: { tool: string; target: string; origin: string } } {
+  const operation = call.operation?.toLowerCase() ?? ""
+  // The element's name comes from the page, so it is capped; the sentence's structure never comes from the page.
+  const target = call.element ? truncateToCodeUnits(call.element.name || call.element.ref || call.element.kind, 80) : ""
+  const params = { tool: call.toolName ?? "", target, origin: origin || "—" }
+  if (operation === "invoke" && call.toolName) return { key: "invoke", params }
+  if (operation === "navigate") return { key: "navigate", params }
+  if (operation === "act" && target) {
+    if (call.how === "type") return { key: "type", params }
+    if (call.how === "select") return { key: "select", params }
+    if (call.how === "click") return { key: call.element?.submit ? "clickSubmit" : "click", params }
+  }
+  return { key: "other", params }
+}
+
 /** Page tool name when the runtime sent one, otherwise the operation. Null when neither is present. */
 export function desktopWebMcpRowTitle(
   input?: Record<string, unknown> | null,

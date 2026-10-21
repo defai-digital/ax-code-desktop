@@ -26,6 +26,7 @@ vi.doMock("@/hooks/useWebMcpBrowser", async (importOriginal) => {
 vi.doMock("@/components/mcp/WebMcpBrowserTools", () => ({ WebMcpStatusDot: () => null }))
 // The call strip reads the session transcript from sync state; it has its own tests.
 vi.doMock("@/components/mcp/WebMcpCallStrip", () => ({ WebMcpCallStrip: () => null }))
+vi.doMock("@/components/mcp/WebMcpBuilderHint", () => ({ WebMcpBuilderHint: () => null }))
 
 const { EmbeddedBrowserChoice } = await import("./EmbeddedWebMcpBrowser")
 const { useWebMcpBrowserStore } = await import("@/stores/useWebMcpBrowserStore")
@@ -371,6 +372,29 @@ describe("agent browser enable request", () => {
       await vi.advanceTimersByTimeAsync(200)
     })
     expect(callsFor("enable")).toHaveLength(0)
+  })
+
+  test("arrow, Home and End keys move focus with the selected browser mode, and the page area is a named region", async () => {
+    render()
+    await flush()
+    const preview = container.querySelector<HTMLButtonElement>("#webmcp-mode-tab-preview")!
+    const agent = container.querySelector<HTMLButtonElement>("#webmcp-mode-tab-agent")!
+    const press = (key: string) =>
+      act(() => {
+        ;(document.activeElement ?? preview).dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }))
+      })
+    act(() => preview.focus())
+    press("ArrowRight")
+    expect(agent.getAttribute("aria-selected")).toBe("true")
+    expect(document.activeElement).toBe(agent)
+    press("Home")
+    expect(document.activeElement).toBe(preview)
+    expect(preview.getAttribute("aria-selected")).toBe("true")
+    press("End")
+    expect(document.activeElement).toBe(agent)
+    await flush()
+    act(() => useWebMcpBrowserStore.setState({ origin: "https://shop.test" }))
+    expect(within(container).getByRole("region", { name: "webmcp.browser.pageRegion" })).toBeTruthy()
   })
 
   test("offers exactly one next action for an empty page or an error", async () => {

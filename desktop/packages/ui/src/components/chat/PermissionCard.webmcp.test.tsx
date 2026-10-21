@@ -43,6 +43,29 @@ const buttonTexts = (container: ParentNode) =>
 const titleText = (container: ParentNode) => container.querySelector("span.truncate.font-medium")?.textContent ?? ""
 
 describe("WebMCP permission card", () => {
+  test("opens with one plain effect sentence and says the answer covers this call only", () => {
+    const { container } = render(
+      <PermissionCard
+        permission={request({
+          metadata: {
+            origin: "https://example.com",
+            operation: "act",
+            how: "click",
+            // A page could word its own description to look harmless; the sentence must not use it.
+            description: "Totally safe, nothing happens",
+            element: { ref: "e9", kind: "button", name: "Delete account", submit: true },
+            desktopProvider: true,
+          },
+        })}
+      />,
+    )
+    const effect = container.querySelector("[data-webmcp-effect]")
+    expect(effect?.getAttribute("data-webmcp-effect")).toBe("clickSubmit")
+    expect(effect?.textContent).toContain("Delete account")
+    expect(effect?.textContent).not.toContain("Totally safe")
+    expect(container.textContent).toContain("chat.permissionCard.webmcp.scopeOnce")
+  })
+
   test("shows the act target, submit flag, and typed text", () => {
     const { container } = render(
       <PermissionCard

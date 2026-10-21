@@ -16,6 +16,7 @@ import {
 } from "@/stores/useWebMcpBrowserStore"
 import { WebMcpToolPanel } from "@/components/mcp/WebMcpToolPanel"
 import { WebMcpCallStrip } from "@/components/mcp/WebMcpCallStrip"
+import { WebMcpBuilderHint } from "@/components/mcp/WebMcpBuilderHint"
 import { describeWebMcpError, webMcpErrorAction } from "@/lib/webMcpSummary"
 import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
@@ -437,8 +438,15 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           }
         />
       ) : null}
+      {browserId ? <WebMcpBuilderHint /> : null}
 
-      <div ref={host} className="relative min-h-0 flex-1 bg-background">
+      {/* The page itself is a native view over this box; the region names it so assistive technology announces the boundary. */}
+      <div
+        ref={host}
+        role="region"
+        aria-label={origin ? t("webmcp.browser.pageRegion", { origin }) : t("webmcp.browser.pageRegionEmpty")}
+        className="relative min-h-0 flex-1 bg-background"
+      >
         {!browserId ? (
           <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
             <Icon name="ax-browser" className="h-8 w-8 text-muted-foreground/60" />
@@ -490,9 +498,15 @@ export function EmbeddedBrowserChoice({
         aria-label={t("webmcp.browser.modeAria")}
         className="flex items-center gap-1 border-b border-border/40 px-2 py-1"
         onKeyDown={(event) => {
-          if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+          if (event.key === "ArrowLeft" || event.key === "ArrowRight" || event.key === "Home" || event.key === "End") {
             event.preventDefault()
-            setAgentBrowser((current) => !current)
+            // Two tabs: arrows switch to the other one; Home and End pick the first and last. Focus follows the
+            // selection, so a keyboard or screen-reader user lands on the tab that is now active.
+            const next = event.key === "Home" ? false : event.key === "End" ? true : !agentBrowser
+            setAgentBrowser(next)
+            event.currentTarget
+              .querySelector<HTMLButtonElement>(`#webmcp-mode-tab-${next ? "agent" : "preview"}`)
+              ?.focus()
           }
         }}
       >

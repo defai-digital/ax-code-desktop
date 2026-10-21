@@ -13,6 +13,9 @@ Revision 2026-10-21 (user direction, round 8 method): before WebMCP requirements
 several LLMs and sources on what WebMCP development experience is high value to users, organized by four operations:
 plus (add high-value capability), minus (remove what is not good), multiply (decompose what is tangled into logical parts) and
 divide (group scattered things to simplify). Section 4's round-8 candidates are inputs to that discussion, not its result.
+Revision 2026-10-21 (user direction after round 10): the target moved from beating Orca to an excellent WebMCP experience.
+PRD-2026-10-21-webmcp-excellence-v1 replaces section 3 (definition of done) for later rounds. Rounds 3 to 11 and the other
+sections of this record stand; round 11 (S10, F10, R10) completes the work already in progress under this record.
 
 ## 1. Problem
 
@@ -70,7 +73,8 @@ Until D1 to D3 hold, reports say "not yet better than Orca" with the latest numb
 | CS-10 to CS-13 | 7 | Change navigation, session grid, runtime verification evidence, batch permission decisions | `4dc7d52a` |
 | CS-25 to CS-32 | 8 | WebMCP: honest browser lifecycle, truthful failures, informative approvals, page tools with "Try it", named transcript rows, supervision integration, entry flow, naming | `845db2cf` |
 | CS-14 and round 9 items | 9 | Branch-scope landing, content-bound commit preflight, checks beside landing, titlebar Activity, stale previews | `44880357` |
-| CS-15, CS-21 and round 10 items | 10 | Runtime WebMCP failure reasons and previews, live call strip in the browser pane, browser evidence beside landing, PR and checks on rows, actionable badge | round 10 commit |
+| CS-15, CS-21 and round 10 items | 10 | Runtime WebMCP failure reasons and previews, live call strip in the browser pane, browser evidence beside landing, PR and checks on rows, actionable badge | `acc31cad` |
+| CS-14 (session scopes) and round 11 items | 11 | Landing from This session and Last turn bound to the reviewed change and file mode; Retry and last-read age for stale previews | round 11 commit |
 
 ### Round 7 (authorized)
 

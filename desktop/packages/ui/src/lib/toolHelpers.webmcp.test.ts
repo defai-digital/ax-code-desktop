@@ -8,6 +8,7 @@ import {
   formatToolInput,
   getToolMetadata,
   redactDisplayedText,
+  webMcpEffect,
 } from "@/lib/toolHelpers"
 
 describe("WebMCP display text", () => {
@@ -150,5 +151,43 @@ describe("desktop_webmcp row title and failure", () => {
     expect(older.argumentsMissing).toBe(true)
     expect(older.failureReason).toBeNull()
     expect(dict["chat.toolPart.webmcp.reason.invalid-input"]).toBeTruthy()
+  })
+})
+
+describe("WebMCP approval effect", () => {
+  const element = (submit: boolean) => ({ ref: "e4", kind: "button", name: "Pay now", submit })
+  test("states what the call does from call data only", () => {
+    const origin = "https://shop.test"
+    expect(webMcpEffect({ operation: "invoke", toolName: "add_task", how: null, element: null }, origin)).toEqual({
+      key: "invoke",
+      params: { tool: "add_task", target: "", origin },
+    })
+    expect(webMcpEffect({ operation: "act", toolName: null, how: "click", element: element(true) }, origin).key).toBe(
+      "clickSubmit",
+    )
+    expect(webMcpEffect({ operation: "act", toolName: null, how: "click", element: element(false) }, origin).key).toBe(
+      "click",
+    )
+    expect(webMcpEffect({ operation: "act", toolName: null, how: "type", element: element(false) }, origin)).toMatchObject({
+      key: "type",
+      params: { target: "Pay now" },
+    })
+    expect(webMcpEffect({ operation: "navigate", toolName: null, how: null, element: null }, origin).key).toBe("navigate")
+  })
+
+  test("never claims a specific effect it cannot see", () => {
+    // An act without a target, an invoke without a tool name, and an unknown operation all fall back to the generic line.
+    expect(webMcpEffect({ operation: "act", toolName: null, how: "click", element: null }, "https://a.test").key).toBe("other")
+    expect(webMcpEffect({ operation: "invoke", toolName: null, how: null, element: null }, "https://a.test").key).toBe("other")
+    expect(webMcpEffect({ operation: "mystery", toolName: "x", how: null, element: null }, "").params.origin).toBe("—")
+    const long = { ref: "e1", kind: "button", name: "x".repeat(500), submit: false }
+    expect(
+      webMcpEffect({ operation: "act", toolName: null, how: "click", element: long }, "https://a.test").params.target.length,
+    ).toBeLessThanOrEqual(80)
+  })
+
+  test("every effect key has English text", () => {
+    for (const key of ["invoke", "click", "clickSubmit", "type", "select", "navigate", "other"])
+      expect(dict[`chat.permissionCard.webmcp.effect.${key}` as keyof typeof dict]).toBeTruthy()
   })
 })

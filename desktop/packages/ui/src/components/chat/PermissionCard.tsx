@@ -17,7 +17,7 @@ import {
   getPermissionPatterns,
   normalizePermissionName,
 } from "@/lib/permissions/permissionPayload"
-import { describeWebMcpCall } from "@/lib/toolHelpers"
+import { describeWebMcpCall, webMcpEffect } from "@/lib/toolHelpers"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
 import { withTimeout } from "@/lib/asyncTimeout"
 import { RequestRiskBadge } from "./RequestRiskBadge"
@@ -380,8 +380,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       const elementLabel = call.element
         ? [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
         : ""
+      const effect = webMcpEffect(call, origin)
       return (
         <>
+          <p className="mb-2 typography-ui-label text-foreground" data-webmcp-effect={effect.key}>
+            {t(`chat.permissionCard.webmcp.effect.${effect.key}`, effect.params)}
+          </p>
           <div className="mb-2">
             <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.webmcp.origin")}</div>
             <code className="typography-meta px-2 py-1 bg-muted/30 rounded block break-all font-medium text-foreground">
@@ -453,6 +457,8 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             {fromDesktopBrowser
               ? t("chat.permissionCard.webmcp.fromProjectBrowser")
               : t("chat.permissionCard.webmcp.fromBridge")}
+            {/* The scope this answer covers: the project browser has no standing grant, so it is this call only. */}
+            {isDesktopWebMcp && !webMcpNamedAlways ? ` ${t("chat.permissionCard.webmcp.scopeOnce")}` : null}
           </div>
         </>
       )

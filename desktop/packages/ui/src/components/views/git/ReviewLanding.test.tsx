@@ -484,6 +484,10 @@ describe("landing from a session or turn scope", () => {
       </I18nProvider>
     )
   }
+  // Content ids are hashed asynchronously; under load that takes more than one tick.
+  const untilReviewed = async () => {
+    for (let attempt = 0; attempt < 50 && !screen.queryByRole("button", { name: "Stage all reviewed" }); attempt += 1) await flush()
+  }
   const markAll = (scope: string, diff: ReviewLandingSessionDiff) => {
     for (const entry of diff.files) useReviewProgressStore.getState().setViewed(directory, scope, entry.path, entry.signature, true)
   }
@@ -530,7 +534,7 @@ describe("landing from a session or turn scope", () => {
     })
     markAll("turn:m1", { files: diff.files.filter((entry) => entry.path !== "unmarked.ts") })
     const { container } = render(<SessionHarness diff={diff} scope="turn:m1" />)
-    await flush()
+    await untilReviewed()
     expect(Array.from(container.querySelectorAll("li"), (li) => li.textContent)).toEqual([
       "kept.ts",
       "removed.ts",
@@ -546,7 +550,7 @@ describe("landing from a session or turn scope", () => {
     setStatus({ files: [live("kept.ts", "agent text\n")] })
     markAll("session", diff)
     render(<SessionHarness diff={diff} />)
-    await flush()
+    await untilReviewed()
     git.getGitStatus.mockImplementation(async () => ({ ...status, files: [live("kept.ts", "rewritten\n")] }))
     fireEvent.click(button("Stage all reviewed"))
     await flush()

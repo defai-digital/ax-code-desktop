@@ -4,9 +4,14 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status b
 
 ## Active and deferred requirements
 
+Controlling record from 2026-10-21 (after round 11): [WebMCP excellence v1](PRD-2026-10-21-webmcp-excellence-v1.md), with
+[plan and round tracking](../plans/PLAN-2026-10-21-webmcp-excellence-v1.md). The target is an excellent WebMCP experience for
+supervisors and for developers building agent-usable pages, measured by a rubric, a task suite and a fresh audit; it replaces the
+competitive record's definition of done.
+
 Controlling record for the Orca/opencode comparison rounds: [Competitive supervision UX v1](PRD-2026-10-21-competitive-supervision-ux-v1.md)
 (accepted 2026-10-21), with [plan and round tracking](../plans/PLAN-2026-10-21-competitive-supervision-ux-v1.md). It defines
-the definition of done (judges, persona task suite, three-platform receipts), round 7 scope and the WebMCP focus from round 8.
+the rounds 3 to 11 record, round 7 scope and the WebMCP focus from round 8; its definition of done is replaced by WebMCP excellence v1.
 
 Parallel-project UX proposal: [Supervision UX v1](PRD-2026-10-20-parallel-project-ux-v1.md) records source-backed
 problems, review hypotheses, information architecture, priorities and native multi-project acceptance journeys.

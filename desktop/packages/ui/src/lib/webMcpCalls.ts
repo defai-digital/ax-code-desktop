@@ -10,6 +10,8 @@ import {
 export interface WebMcpCall {
   id: string
   title: string
+  /** The page tool's name for an invoke; null for other operations. */
+  toolName: string | null
   operation: string | null
   argumentsText: string | null
   outcome: "running" | "ok" | "failed"
@@ -73,6 +75,7 @@ export function collectWebMcpCalls(
       calls.push({
         id: typeof part.id === "string" ? part.id : `${messageId}:${p}`,
         title: desktopWebMcpRowTitle(input, metadata) ?? part.tool,
+        toolName: call.toolName,
         operation: call.operation,
         argumentsText: call.argumentsText,
         outcome: failed ? "failed" : status === "completed" ? "ok" : "running",
