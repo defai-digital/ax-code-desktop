@@ -113,8 +113,9 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
     let changed = false
     try {
       if (Array.isArray(entry)) {
-        const safe = entry.map((child) => {
-          const result = visit(child, depth + 1)
+        const sensitivePair = entry.length === 2 && typeof entry[0] === "string" && sensitiveParameterName(entry[0])
+        const safe = entry.map((child, index) => {
+          const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1)
           changed ||= result.changed
           return result.value
         })
@@ -122,7 +123,8 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
       }
       const safe = Object.fromEntries(Object.entries(entry).map(([key, child]) => {
         const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
-        const result = WEBMCP_SENSITIVE_NAME.test(key) && child !== null && child !== ""
+        const namedValue = key === "value" && [entry.name, entry.key].some((name) => typeof name === "string" && sensitiveParameterName(name))
+        const result = (namedValue || WEBMCP_SENSITIVE_NAME.test(key)) && child !== null && child !== ""
           ? replaced()
           : visit(child, depth + 1)
         changed ||= safeKey !== key || result.changed

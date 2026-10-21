@@ -3773,6 +3773,9 @@ export const dict = {
   "wiki.graph.noSummary": "No summary recorded",
   "supervision.dispatch.createdFailed": "{title} was created, but dispatch could not finish.",
   "supervision.dispatch.openCreated": "Open",
+  "webmcp.tools.diagnosis.definitionUnavailable": "Definition no longer available; the current schema was not used.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Runtime rejection: {reason}",
+  "webmcp.tools.draftLimit": "Draft retention limit reached (128 fields, 65,536 characters per value or JSON input). Only the bounded draft can be restored.",
 } as const
 
 export type I18nKey = keyof typeof dict

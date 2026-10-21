@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Vista previa truncada; los argumentos completos no est\u00e1n disponibles para el diagn\u00f3stico.",
   "chat.permissionCard.webmcp.unanswered": "No se registr\u00f3 ninguna respuesta; la solicitud de aprobaci\u00f3n ya no est\u00e1 disponible.",
   "diffView.landing.browserRecap.unknownAssociation": "Algunas llamadas grabadas no se pueden asociar con las definiciones de herramientas retenidas. Se desconoce qu\u00e9 herramientas actuales no se llamaron.",
-  "webmcp.tools.compare.unknownAgent": "Algunas llamadas grabadas tienen asociaciones de herramientas desconocidas. Una llamada a esta herramienta puede estar entre ellas."
+  "webmcp.tools.compare.unknownAgent": "Algunas llamadas grabadas tienen asociaciones de herramientas desconocidas. Una llamada a esta herramienta puede estar entre ellas.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "La definición ya no está disponible; no se utilizó el esquema actual.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Rechazo del entorno de ejecución: {reason}",
+  "webmcp.tools.draftLimit": "Se alcanzó el límite de retención del borrador (128 campos, 65.536 caracteres por valor o entrada JSON). Solo se puede restaurar el borrador dentro del límite."
 }

@@ -321,3 +321,15 @@ test("manual exports require both native identities and resolve the name from th
     expect(webMcpRegressionExport({ tool: name, input: entry.input, outcome: entry.outcome })).toBeNull()
   }
 })
+
+import { webMcpRuntimeRejections } from "./webMcpDiagnosis"
+test("runtime and page validation failures map property paths to shared rules", () => {
+  expect(webMcpRuntimeRejections({ validationErrors: [{ instancePath: "/count", keyword: "minimum", message: "must be >= 1" }] })).toEqual([
+    { property: "/count", rule: "minimum", text: "must be >= 1" },
+  ])
+  expect(webMcpRuntimeRejections(JSON.stringify({ untrusted: true, result: { error: { path: ["items", 0, "name"], rule: "required", message: "missing" } } }))).toEqual([
+    { property: "items.0.name", rule: "required", text: "missing" },
+  ])
+  expect(webMcpRuntimeRejections({ error: { field: "title", message: "password=PRIVATE" } })).toEqual([{ property: "title", text: "[redacted]" }])
+  expect(webMcpRuntimeRejections("Opaque runtime rejection")).toEqual([{ text: "Opaque runtime rejection" }])
+})

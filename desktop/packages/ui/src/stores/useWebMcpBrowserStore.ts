@@ -322,6 +322,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
           sendEmpty: boundFlags(draft.sendEmpty),
           json: draft.json.slice(0, 65536),
           jsonMode: draft.jsonMode === true,
+          truncated: webMcpDraftTruncated(draft),
         }
         const names = Object.keys(next)
         while (names.length > WEBMCP_DRAFT_LIMIT) {
@@ -377,6 +378,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
             tool: redactWebMcpText(entry.tool),
             invocationID: entry.invocationID,
             input,
+            rejections: entry.rejections ? redactWebMcpReport(entry.rejections.slice(0, 16)) as WebMcpJournalEntry["rejections"] : undefined,
             outcome: redactWebMcpText(entry.outcome).slice(0, 64),
             text: redactWebMcpText(entry.text).slice(0, 4000),
             durationMs: Math.min(86_400_000, Math.max(0, Math.round(entry.durationMs))),
@@ -499,18 +501,18 @@ export function rememberWebMcpAddress(directory: string, sessionID: string | nul
 }
 
 const boundRecord = (value: Record<string, string>) => {
-  const next: Record<string, string> = {}
+  const next: Record<string, string> = Object.create(null)
   for (const [key, entry] of Object.entries(value).slice(0, 128)) {
-    if (typeof key !== "string" || typeof entry !== "string" || key.length > 256) continue
+    if (typeof key !== "string" || typeof entry !== "string") continue
     next[key] = entry.slice(0, 65536)
   }
   return next
 }
 
 const boundFlags = (value: Record<string, boolean>) => {
-  const next: Record<string, boolean> = {}
+  const next: Record<string, boolean> = Object.create(null)
   for (const [key, entry] of Object.entries(value).slice(0, 128)) {
-    if (typeof key !== "string" || key.length > 256) continue
+    if (typeof key !== "string") continue
     next[key] = entry === true
   }
   return next
@@ -578,4 +580,10 @@ function boundJournalInput(value: unknown): Record<string, unknown> | null {
   } catch {
     return null
   }
+}
+
+/** Draft limits are visible; property names themselves are never shortened or discarded. */
+export function webMcpDraftTruncated(draft: WebMcpToolDraft): boolean {
+  return draft.truncated === true || draft.json.length > 65536 || Object.keys(draft.values).length > 128 ||
+    Object.keys(draft.sendEmpty).length > 128 || Object.values(draft.values).some((value) => value.length > 65536)
 }

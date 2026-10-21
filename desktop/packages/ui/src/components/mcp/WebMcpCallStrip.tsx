@@ -105,10 +105,13 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
                     ) : null}
                   </span>
                   {call.argumentsText ? (
-                    <span className="block truncate font-mono typography-micro text-muted-foreground">
+                    <span data-webmcp-call-arguments className="block truncate font-mono typography-micro text-muted-foreground">
                       {call.argumentsText.length > 140 ? `${call.argumentsText.slice(0, 140)}…` : call.argumentsText}
                     </span>
                   ) : null}
+                  {call.definitionDigest ? <span data-webmcp-call-definition title={call.definitionDigest} className="block typography-micro text-muted-foreground">
+                    {t("webmcp.tools.diagnosis.digest", { digest: call.definitionDigest.slice(0, 8) })}
+                  </span> : null}
                   {call.resultPreview ? (
                     <span
                       className="block truncate font-mono typography-micro text-muted-foreground"

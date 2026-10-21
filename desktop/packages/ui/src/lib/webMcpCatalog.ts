@@ -68,6 +68,7 @@ export interface WebMcpRegistrationEvent {
 }
 
 export interface WebMcpToolDraft {
+  truncated?: boolean
   digest: string
   values: Record<string, string>
   sendEmpty: Record<string, boolean>
@@ -84,6 +85,7 @@ export interface WebMcpToolRun {
 
 /** One Try it run, with the catalog and native invocation identities captured at dispatch. */
 export interface WebMcpJournalEntry {
+  rejections?: import("./webMcpDiagnosis").WebMcpRuntimeRejection[]
   id: string
   /** Display label only. Manual evidence is bound by invocationID and definitionDigest. */
   tool: string

@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Pratinjau terpotong; argumen lengkap tidak tersedia untuk diagnosis.",
   "chat.permissionCard.webmcp.unanswered": "Tidak ada jawaban yang tercatat; permintaan persetujuan tidak lagi tersedia.",
   "diffView.landing.browserRecap.unknownAssociation": "Beberapa panggilan yang direkam tidak dapat dikaitkan dengan definisi alat yang dipertahankan. Alat saat ini mana yang tidak dipanggil tidak diketahui.",
-  "webmcp.tools.compare.unknownAgent": "Beberapa panggilan yang direkam memiliki asosiasi alat yang tidak diketahui. Panggilan ke alat ini mungkin salah satunya."
+  "webmcp.tools.compare.unknownAgent": "Beberapa panggilan yang direkam memiliki asosiasi alat yang tidak diketahui. Panggilan ke alat ini mungkin salah satunya.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "Definisi tidak lagi tersedia; skema saat ini tidak digunakan.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Penolakan runtime: {reason}",
+  "webmcp.tools.draftLimit": "Batas penyimpanan draf tercapai (128 bidang, 65.536 karakter per nilai atau masukan JSON). Hanya draf dalam batas tersebut yang dapat dipulihkan."
 }

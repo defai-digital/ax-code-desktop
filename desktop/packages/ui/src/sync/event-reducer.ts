@@ -1,4 +1,4 @@
-import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
+import { recordWebMcpApprovalReceipt, recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import type {
   Event,
   Message,
@@ -821,6 +821,7 @@ export function applyDirectoryEvent(
 
     case "permission.asked": {
       const permission = event.properties as PermissionRequest
+      recordWebMcpApprovalReceipt(permission.sessionID, permission)
       // Stamped before the dedupe, in module state: the resync paths compare this around their snapshot
       // request, and an event that leaves the list looking the same still makes an older answer stale.
       if (permission.tool?.callID) recordWebMcpApproval(permission.sessionID, permission.tool.callID, "pending")

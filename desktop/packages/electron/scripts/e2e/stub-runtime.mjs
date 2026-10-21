@@ -213,6 +213,11 @@ const server = http.createServer((req, res) => {
           broadcast(directory, { type: 'message.part.updated', properties: { part } });
         };
         const finish = (output) => {
+          // Signed v7.28.2 receipts live only on permission metadata, not completed parts.
+          if (body.approval) {
+            const { definitionDigest: _digest, arguments: _arguments, ...completedMetadata } = part.state.metadata;
+            part.state.metadata = completedMetadata;
+          }
           // Native script tools return JSON strings; keep one JSON layer in the transcript.
           if (typeof output === 'string') { try { output = JSON.parse(output); } catch {} }
           part.state = { ...part.state, status: 'completed', output: JSON.stringify(output),
@@ -230,7 +235,7 @@ const server = http.createServer((req, res) => {
         publish();
         if (body.approval) {
           const request = { id: 'perm_' + id, sessionID: body.sessionID, permission: 'webmcp',
-            patterns: [provider.state.origin], always: [], metadata,
+            patterns: [provider.state.origin], always: [], metadata: { ...metadata, arguments: undefined, inputPreview: JSON.stringify(body.input || {}) },
             tool: { messageID, callID: id } };
           request.enqueue = enqueue;
           pending.push(request);

@@ -88,3 +88,13 @@ test("compound labels share sensitivity across object and schema boundaries", ()
     assert.equal(webMcpSchemaLooksSensitive({ properties: { [key]: { type: "string" } } }), true, key)
   }
 })
+
+test("entry pairs carry sensitive names to their values across encoded and nested reports", () => {
+  for (const entry of [["x-api-key", secret], { name: "Authorization", value: secret }, { key: "session-token", value: secret }]) {
+    for (const value of [entry, { headers: [entry] }, JSON.stringify({ headers: [entry] })]) {
+      assert.ok(!JSON.stringify(redactWebMcpReport(value)).includes(secret))
+      assert.ok(!JSON.stringify(redactWebMcpReport(value, "<fill in>")).includes(secret))
+    }
+  }
+  assert.deepEqual(redactWebMcpReport([["Accept", "application/json"]]), [["Accept", "application/json"]])
+})

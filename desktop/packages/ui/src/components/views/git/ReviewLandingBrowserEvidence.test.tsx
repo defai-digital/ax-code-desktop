@@ -83,7 +83,11 @@ describe("browser evidence beside landing", () => {
       ],
     })
     const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
-    const steps = Array.from(container.querySelectorAll("[data-recap-outcome]"), (step) => step.textContent)
+    const steps = Array.from(container.querySelectorAll("[data-recap-outcome]"), (step) => {
+      const copy = step.cloneNode(true) as HTMLElement
+      copy.querySelectorAll("[data-webmcp-diagnosis], [data-webmcp-runtime-rejections]").forEach((node) => node.remove())
+      return copy.textContent
+    })
     expect(steps).toEqual([
       "read · diffView.landing.browserRecap.kind.read · webmcp.calls.outcome.ok",
       `checkout · diffView.landing.browserRecap.kind.invoke · webmcp.calls.outcome.ok · diffView.landing.browserRecap.definition:${nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} }).definitionDigest!.slice(0, 8)}`,
@@ -275,4 +279,23 @@ test("evicted successful invocation stays successful and makes displayed and cop
   await act(async () => fireEvent.click(container.querySelector('[data-recap-copy]')!))
   expect(writeText).toHaveBeenCalledWith(expect.stringContaining("diffView.landing.browserRecap.unknownAssociation"))
   expect(writeText.mock.calls.flat().join(" ")).not.toContain("browserRecap.notCalled")
+})
+
+import { recordWebMcpApprovalReceipt, useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
+test("recap resolves approval-only receipts and shows structured runtime rejection details", () => {
+  const definition = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { count: { type: "integer" } } } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", catalog: [definition] })
+  recordWebMcpApprovalReceipt("s1", { permission: "webmcp", tool: { callID: "receipt" }, metadata: {
+    definitionDigest: definition.definitionDigest, inputPreview: '{"count":"wrong"}',
+  } })
+  sync.messages = [{ id: "m1", role: "assistant" }]
+  sync.parts = new Map([["m1", [{ type: "tool", tool: "desktop_webmcp", callID: "receipt", state: {
+    status: "completed", input: { action: "invoke", toolName: "echo" }, metadata: { operation: "invoke" },
+    output: JSON.stringify({ untrusted: true, result: { error: { field: "count", rule: "type", message: "must be integer" } } }),
+  } }]]])
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  expect(container.querySelector('[data-webmcp-diagnosis-property="count"]')?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
+  expect(container.querySelector('[data-webmcp-rejection-property="count"]')?.textContent).toContain("must be integer")
+  expect(container.querySelector('[data-recap-definition]')?.getAttribute("title")).toBe(definition.definitionDigest)
+  useWebMcpApprovalReceipts.setState({ receipts: new Map() })
 })

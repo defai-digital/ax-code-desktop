@@ -34,7 +34,7 @@ const registration = (changed = false) => `document.modelContext.registerTool({
   name: 'builder_echo', description: 'Echo builder input for a regression test.',
   annotations: { consequentialHint: true },
   inputSchema: { type: 'object', properties: { text: { type: 'string' }${changed ? ", revision: { type: 'integer' }" : ""} }, required: ['text'] },
-  execute: async input => input.text === 'fail' ? { error: 'W6 controlled page failure' } : input
+  execute: async input => input.text === 'fail' ? { error: { field: 'text', keyword: 'minLength', message: 'W6 controlled page failure' } } : input
 })`
 const fixture = (await fs.readFile(path.join(root, "docs/examples/webmcp-quickstart/index.html"), "utf8"))
   .replace("</body>", `<script type="module">
@@ -178,7 +178,7 @@ try {
         await capture("W4", { phase: "approval" })
         await act("W4", () => audit.click("Allow once", { role: "button" }))
         await completed("w4-approved")
-        await wait(`Array.from(document.querySelectorAll('[data-webmcp-call="ok"]')).some(row => row.textContent.includes('approved once'))`, "approved native call completed")
+        await wait(`Array.from(document.querySelectorAll('[data-webmcp-call="ok"]')).some(row => row.querySelector('[data-webmcp-call-arguments]')?.textContent.includes('approved once') && Boolean(row.querySelector('[data-webmcp-call-definition]')))`, "approved native call completed")
         await run("w4-expired", "never executed", { approval: true, expireMs: 2500 })
         await wait(`Boolean(document.querySelector('[data-webmcp-effect]'))`, "second approval unanswered")
         await wait(`document.body.textContent.includes('Scripted approval expired without an answer')`, "explicit scripted expiry")
@@ -199,6 +199,9 @@ try {
         await wait(`Boolean(document.querySelector('[data-review-scope]'))`, "review scopes")
         await act("W6", () => audit.click("This session", { role: "radio" }))
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 3 && document.querySelector('[data-landing-browser-recap]')?.textContent.includes('W6 controlled page failure') && document.querySelector('[data-recap-not-called]')?.textContent.includes('complete_task')`, "three-call landing recap with failure and unused tool")
+        await click("W6", "[data-landing-browser-recap] summary")
+        await wait(`Boolean(document.querySelector('[data-recap-outcome="failed"] [data-webmcp-rejection-property="text"][data-webmcp-rejection-rule="minLength"]'))`, "runtime property rejection in recap")
+        await act("W6", () => session.evaluate(`document.querySelector('[data-recap-outcome="failed"] [data-webmcp-runtime-rejections]').scrollIntoView({ block: 'center' })`))
         await capture("W6")
         // Identity regression, separate from the W3/W4/W6/W8 action budgets above.
         // Fixture preparation uses real native registrations; the agent call still goes through the runtime bridge.

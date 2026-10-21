@@ -239,7 +239,7 @@ test("manual previews filter parsed JSON credentials, cycles and deeply nested o
   expect(webMcpResultPreview('{"password":"hunter2","nested":{"apiKey":"x1"}}')).not.toContain("x1")
   const cycle: Record<string, unknown> = { text: "normal" }
   cycle.self = cycle
-  expect(webMcpResultPreview(cycle)).toContain("…")
+  expect(webMcpResultPreview(cycle)).toContain("[redacted]")
   let deep: unknown = "tail"
   for (let index = 0; index < 30; index++) deep = { deep }
   expect(webMcpResultPreview(deep)).not.toContain("tail")
@@ -313,4 +313,12 @@ test("runtime truncation receipts survive fail-closed credential filtering", () 
 test("a marker quoted inside complete JSON remains an ordinary input value", () => {
   const input = { title: "… (4096 bytes, 2048 not shown)" }
   expect(readWebMcpInvokeInput({ inputPreview: JSON.stringify(input) })).toEqual({ kind: "preview", input })
+})
+
+test("entry-pair credentials are filtered in result, argument and export projections", () => {
+  const input = { headers: [["x-api-key", "PAIR_SECRET"]], fields: [{ name: "password", value: "ENTRY_SECRET" }] }
+  for (const output of [webMcpResultPreview(input), redactWebMcpInput(input), placeholderWebMcpSecrets(input), readWebMcpInvokeInput({ arguments: input })]) {
+    expect(JSON.stringify(output)).not.toMatch(/PAIR_SECRET|ENTRY_SECRET/)
+    expect(JSON.stringify(output)).toMatch(/redacted|fill in/)
+  }
 })

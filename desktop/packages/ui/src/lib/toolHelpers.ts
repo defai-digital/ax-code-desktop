@@ -301,7 +301,7 @@ export function isWebMcpSensitiveName(name: string): boolean {
 
 /** A copy of a tool input safe to show: secret-named fields and credential-shaped text become "[redacted]". */
 export function redactWebMcpInput(value: unknown): unknown {
-  return redactJsonValue(value)
+  return redactJsonValue(redactWebMcpReport(value))
 }
 
 /** A copy for export: secret-named fields become a placeholder to fill in, so a copied test never carries the secret. */
@@ -318,7 +318,7 @@ function redactJsonValue(value: unknown): unknown {
   if (typeof value === "number" || typeof value === "boolean" || value === null) return value
   if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry))
   if (isPlainRecord(value)) {
-    const next: Record<string, unknown> = {}
+    const next: Record<string, unknown> = Object.create(null)
     for (const [key, entry] of Object.entries(value))
       next[webMcpTextLooksSensitive(key) ? "[redacted]" : key] =
         WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
@@ -363,7 +363,7 @@ export function webMcpResultPreview(output: unknown, fieldName?: string): string
         /* Plain text is also supported. */
       }
     }
-    const safe = visit(value, 0)
+    const safe = visit(redactWebMcpReport(value), 0)
     return truncateToCodeUnits(typeof safe === "string" ? safe : (JSON.stringify(safe, null, 2) ?? ""), 4000)
   } catch {
     return ""
@@ -428,7 +428,7 @@ export function readWebMcpInvokeInput(metadata: Record<string, unknown> | null |
 
 function redactInvokeRecord(value: Record<string, unknown>): Record<string, unknown> {
   const budget = { left: 256 }
-  const redacted = redactInvokeValue(value, budget, 0)
+  const redacted = redactInvokeValue(redactWebMcpReport(value), budget, 0)
   return isPlainRecord(redacted) ? redacted : {}
 }
 
@@ -439,7 +439,7 @@ function redactInvokeValue(value: unknown, budget: { left: number }, depth: numb
   if (typeof value === "number" || typeof value === "boolean" || value === null) return value
   if (Array.isArray(value)) return value.slice(0, 64).map((entry) => redactInvokeValue(entry, budget, depth + 1))
   if (isPlainRecord(value)) {
-    const next: Record<string, unknown> = {}
+    const next: Record<string, unknown> = Object.create(null)
     for (const [key, entry] of Object.entries(value).slice(0, 128)) {
       next[redactWebMcpText(key)] =
         WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
