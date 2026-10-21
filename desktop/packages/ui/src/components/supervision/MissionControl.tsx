@@ -10,8 +10,7 @@ import {
   filterRows,
   moveSelection,
   primaryActionFor,
-  matchesMissionStatus,
-  searchMissionRows,
+  filterMissionFacets,
   type MissionStatusFilter,
 } from "@/lib/supervision/missionControl"
 import { groupMissionRows } from "@/lib/supervision/missionGroups"
@@ -98,6 +97,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const [query, setQuery] = React.useState("")
   const [statusFilter, setStatusFilter] = React.useState<MissionStatusFilter>("all")
 
+  const [selectedProjects, setSelectedProjects] = React.useState<{ key: string; label: string }[]>([])
+  const projectFilters = React.useMemo(() => selectedProjects.map((project) => project.key), [selectedProjects])
+  const [hasChanges, setHasChanges] = React.useState(false)
+  const hasFilters = Boolean(query.trim()) || statusFilter !== "all" || projectFilters.length > 0 || hasChanges
+
   const scoped = React.useMemo(
     () =>
       filterRows(
@@ -108,9 +112,21 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       ),
     [rows, activeWorkingSetId, mode, workingSets],
   )
-  const searched = React.useMemo(() => searchMissionRows(scoped, query), [scoped, query])
+  const projectOptions = React.useMemo(() => groupMissionRows(scoped, homeDirectory), [scoped, homeDirectory])
+  // Each facet counts what selecting it would show: every other active filter applies, the project facet itself does not.
+  const projectCounts = React.useMemo(() => {
+    const counts = new Map<string, number>()
+    const base = filterMissionFacets(scoped, { query, status: statusFilter, projectKeys: [], hasChanges })
+    for (const group of groupMissionRows(base, homeDirectory)) counts.set(group.key, group.rows.length)
+    return counts
+  }, [scoped, query, statusFilter, hasChanges, homeDirectory])
+  // Keep counts responsive to every other facet, without constraining the available project options.
+  const searched = React.useMemo(
+    () => filterMissionFacets(scoped, { query, status: "all", projectKeys: projectFilters, hasChanges }),
+    [scoped, query, projectFilters, hasChanges],
+  )
   const filtered = React.useMemo(
-    () => searched.filter((row) => matchesMissionStatus(row.state, statusFilter)),
+    () => filterMissionFacets(searched, { query: "", status: statusFilter, projectKeys: [], hasChanges: false }),
     [searched, statusFilter],
   )
   const groups = React.useMemo(() => groupMissionRows(filtered, homeDirectory), [filtered, homeDirectory])
@@ -127,7 +143,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     const visibleIds = new Set(visibleRows.map((row) => row.sessionId))
     setSelectedSessionIds((current) => {
       // Membership, not size: an equal-sized set can still hold ids that left the view.
-      return [...current].every((id) => visibleIds.has(id)) ? current : new Set([...current].filter((id) => visibleIds.has(id)))
+      return [...current].every((id) => visibleIds.has(id))
+        ? current
+        : new Set([...current].filter((id) => visibleIds.has(id)))
     })
   }, [visibleRows])
 
@@ -150,6 +168,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const resetFilters = () => {
     setQuery("")
     setStatusFilter("all")
+    setSelectedProjects([])
+    setHasChanges(false)
   }
   const wip = React.useMemo(() => summarizeWorkInProgress(rows), [rows])
   const activeSet = workingSets.find((s) => s.id === activeWorkingSetId) ?? null
@@ -229,6 +249,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       return
     if (event.shiftKey && event.key !== "/" && event.key.toLowerCase() !== "x") return
     const target = event.target as HTMLElement
+    if (target.closest("[data-mission-project-filter]")) return
 
     if (target === searchRef.current && event.key === "Escape") {
       event.preventDefault()
@@ -253,7 +274,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
 
     // A selection checkbox is a row control, not a text field: board keys keep working from it (Space still toggles it).
     const onSelectionCheckbox = target instanceof HTMLInputElement && target.type === "checkbox"
-    const isInEditable = !onSelectionCheckbox && target.closest("input, textarea, select, [contenteditable='true']") !== null
+    const isInEditable =
+      !onSelectionCheckbox && target.closest("input, textarea, select, [contenteditable='true']") !== null
     if (isInEditable) {
       return
     }
@@ -515,8 +537,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         if (
           event.key === "Escape" &&
           selectedSessionIds.size > 0 &&
+          !(event.target as HTMLElement).closest("[data-mission-project-filter]") &&
           // Escape in a field (search, a new working-set name) belongs to that field.
-          !(event.target as HTMLElement).closest("input:not([type='checkbox']), textarea, select, [contenteditable='true']") &&
+          !(event.target as HTMLElement).closest(
+            "input:not([type='checkbox']), textarea, select, [contenteditable='true']",
+          ) &&
           !event.nativeEvent.isComposing &&
           !event.altKey &&
           !event.ctrlKey &&
@@ -572,6 +597,25 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         onQueryChange={setQuery}
         status={statusFilter}
         onStatusChange={(next) => setStatusFilter((current) => (current === next ? "all" : next))}
+        projects={projectOptions.map((project) => ({
+          key: project.key,
+          label: project.label ?? t("supervision.missionControl.noProject"),
+          count: projectCounts.get(project.key) ?? 0,
+        }))}
+        selectedProjects={selectedProjects}
+        onProjectsChange={(keys) =>
+          setSelectedProjects(
+            keys.map((key) => ({
+              key,
+              label:
+                projectOptions.find((project) => project.key === key)?.label ??
+                selectedProjects.find((project) => project.key === key)?.label ??
+                t("supervision.missionControl.noProject"),
+            })),
+          )
+        }
+        hasChanges={hasChanges}
+        onHasChangesChange={setHasChanges}
         rows={searched}
         shown={filtered.length}
         total={scoped.length}
@@ -586,7 +630,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         {filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 px-4 py-16 text-center">
             <p className="typography-ui-label text-muted-foreground">
-              {query.trim() || statusFilter !== "all"
+              {hasFilters
                 ? t("supervision.missionControl.empty.filtered")
                 : activeWorkingSetId
                   ? t("supervision.missionControl.empty.workingSet")
@@ -594,7 +638,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
                     ? t("supervision.missionControl.empty.recent")
                     : t("supervision.missionControl.empty.live")}
             </p>
-            {query.trim() || statusFilter !== "all" ? (
+            {hasFilters ? (
               <Button size="sm" variant="outline" className="normal-case" onClick={resetFilters}>
                 {t("supervision.missionControl.resetFilters")}
               </Button>

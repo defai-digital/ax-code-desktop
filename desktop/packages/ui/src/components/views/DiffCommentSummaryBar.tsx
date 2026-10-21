@@ -8,6 +8,11 @@ import { Button } from "@/components/ui/button"
 import { formatInlineCommentDrafts } from "@/lib/messages/inlineComments"
 import { reviewKeyboardEventInEditableField } from "@/stores/useReviewProgressStore"
 import { toast } from "@/components/ui"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { useSupervisionRows } from "@/hooks/useSupervisionRows"
+import { resolveSessionSendConfig } from "@/hooks/useQueuedMessageAutoSend"
+import { resolveProjectForDirectory } from "@/lib/projectResolution"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 
 interface DiffCommentSummaryBarProps {
   sessionKey: string | null
@@ -24,12 +29,39 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
   )
   const clearDrafts = useInlineCommentDraftStore((s) => s.clearDrafts)
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
+  const directory = useEffectiveDirectory()
+  const rows = useSupervisionRows()
+  // Comments can go to any live session working in this project (another agent may own the fix), like a
+  // "send notes to" picker; the current session stays the default.
+  const projects = useProjectsStore((s) => s.projects)
+  const candidates = React.useMemo(() => {
+    // Sessions of the same project, worktrees included: compare owning projects rather than raw directories.
+    const project = resolveProjectForDirectory(projects, directory ?? null)
+    return rows
+      .filter(
+        (row) =>
+          row.sessionId === currentSessionId ||
+          (project ? row.projectId === project.id : Boolean(directory) && row.directory === directory),
+      )
+      .map((row) => ({ id: row.sessionId, title: row.title }))
+  }, [currentSessionId, directory, projects, rows])
+  const [chosenTarget, setChosenTarget] = React.useState<string | null>(null)
+  // A choice belongs to the drafts it was made for; another review's drafts start from the current session again.
+  const [chosenFor, setChosenFor] = React.useState(sessionKey)
+  if (chosenFor !== sessionKey) {
+    setChosenFor(sessionKey)
+    setChosenTarget(null)
+  }
+  const targetSessionId =
+    chosenTarget && candidates.some((candidate) => candidate.id === chosenTarget)
+      ? chosenTarget
+      : (currentSessionId ?? candidates[0]?.id ?? null)
   const draftCount = drafts.length
   const sendingRef = React.useRef(false)
   const rootRef = React.useRef<HTMLDivElement>(null)
 
   const handleSendToAgent = React.useCallback(async () => {
-    if (!currentSessionId || !sessionKey) {
+    if (!targetSessionId || !sessionKey) {
       toast.error(t("diffView.comments.noSession"))
       return
     }
@@ -42,16 +74,21 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
     if (pending.length === 0) return
 
     const formatted = formatInlineCommentDrafts(pending)
+    // Another session keeps its own agent and model; the current one uses what the composer has selected.
     const config = useConfigStore.getState()
-    const providerId = config.currentProviderId ?? ""
-    const modelId = config.currentModelId ?? ""
+    const target =
+      targetSessionId === currentSessionId
+        ? { providerID: config.currentProviderId, modelID: config.currentModelId, agent: undefined, variant: undefined }
+        : resolveSessionSendConfig(targetSessionId)
+    const providerId = target.providerID ?? ""
+    const modelId = target.modelID ?? ""
 
     sendingRef.current = true
     try {
       await useSessionUIStore
         .getState()
-        .sendMessage(formatted, providerId, modelId, undefined, undefined, undefined, undefined, undefined, "normal", {
-          sessionId: currentSessionId,
+        .sendMessage(formatted, providerId, modelId, target.agent, undefined, undefined, undefined, target.variant, "normal", {
+          sessionId: targetSessionId,
         })
       clearDrafts(sessionKey)
       toast.success(t("diffView.comments.sent"))
@@ -60,7 +97,7 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
     } finally {
       sendingRef.current = false
     }
-  }, [clearDrafts, currentSessionId, sessionKey, t])
+  }, [clearDrafts, currentSessionId, targetSessionId, sessionKey, t])
 
   const handleDiscard = React.useCallback(() => {
     if (!sessionKey) return
@@ -103,6 +140,21 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
         {t("diffView.comments.summaryTitle", { count: draftCount })}
       </span>
       <div className="flex-1" />
+      {candidates.length > 1 && targetSessionId ? (
+        <select
+          aria-label={t("diffView.comments.target")}
+          value={targetSessionId}
+          onChange={(event) => setChosenTarget(event.target.value)}
+          className="h-6 min-w-0 max-w-[14rem] truncate rounded border border-border bg-background px-1.5 typography-micro text-foreground"
+          data-comment-target
+        >
+          {candidates.map((candidate) => (
+            <option key={candidate.id} value={candidate.id}>
+              {candidate.title || candidate.id}
+            </option>
+          ))}
+        </select>
+      ) : null}
       <Button type="button" variant="default" size="xs" className="normal-case" onClick={handleSendToAgent}>
         <Icon name="send-plane" className="h-3 w-3 mr-1" aria-hidden="true" />
         {t("diffView.comments.send")}

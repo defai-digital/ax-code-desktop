@@ -23,6 +23,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { areSliceDepsEqual } from "@/sync/live-selector-memo"
 import { useAllLiveSessions, useAllSessionStatuses, useChildStoreManager } from "@/sync/sync-context"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
+import { childSessionSummaries } from "@/lib/supervision/childSessions"
 import { rollUpChildStates } from "@/lib/supervision/rollup"
 import {
   latestUnseenSessionErrorMessage,
@@ -97,6 +98,22 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         }),
       }
     })
+    // Details use the child's own goal state without changing the established root rollup.
+    const childById = new Map(
+      inputs.map((input) => [
+        input.id,
+        {
+          sessionId: input.id,
+          title: input.title ?? input.id,
+          state: deriveSupervisionState({
+            ...input,
+            goalNeedsPerson: input.goalNeedsPerson ?? goalNeedsPerson(goals[input.id]),
+            statusType: statuses[input.id]?.type ?? null,
+          }),
+          updatedAt: input.updatedAt ?? 0,
+        },
+      ]),
+    )
     const rootStates = rollUpChildStates(ownStates)
     const rows: SupervisionRow[] = []
     for (const input of inputs) {
@@ -115,6 +132,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         title: input.title?.trim() || input.id,
         state: rolled.state,
         treeSessionIds,
+        childSessions: childSessionSummaries(input.id, treeSessionIds, childById),
         projectId: input.projectId,
         projectLabel,
         directory: input.directory ?? null,

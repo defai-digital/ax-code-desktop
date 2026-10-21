@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "Agen belum mengubah berkas apa pun dalam sesi ini",
   "diffView.sessionChanges.emptyTurn": "Agen belum mengubah berkas apa pun pada giliran terakhirnya",
   "diffView.rail.openFile": "Buka {file} di editor",
-  "supervision.missionControl.preview.workingOn": "Sedang mengerjakan: {content}"
+  "supervision.missionControl.preview.workingOn": "Sedang mengerjakan: {content}",
+  "supervision.navigation.openInWindow": "Buka sesi ini di jendela terpisah",
+  "diffView.comments.target": "Kirim komentar ke",
+  "supervision.missionControl.filter.projects": "Proyek",
+  "supervision.missionControl.filter.hasChanges": "Ada perubahan",
+  "supervision.missionControl.filter.remove": "Hapus filter {name}",
+  "supervision.missionControl.filter.clearAll": "Hapus semua",
+  "supervision.missionControl.child.title": "Agen anak",
+  "supervision.missionControl.child.countSingle": "+{count} agen",
+  "supervision.missionControl.child.countPlural": "+{count} agen",
+  "supervision.navigation.openInWindowFailed": "Tidak dapat membuka jendela sesi",
+  "diffView.scope.branch": "Cabang",
+  "diffView.branch.base": "Basis perbandingan",
+  "diffView.branch.empty": "Tidak ada perubahan dibandingkan dengan {base}",
+  "diffView.branch.truncated": "Menampilkan {count} file pertama",
+  "diffView.branch.tooLarge": "File ini terlalu besar untuk dipratinjau"
 }

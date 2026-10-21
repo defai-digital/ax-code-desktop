@@ -31,6 +31,7 @@ import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
 import { SessionChangesView, type SessionChangesModel } from "./SessionChangesView"
+import { BranchChangesView, type BranchChangesModel } from "./BranchChangesView"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { useDiffHunkRevert } from "./useDiffHunkRevert"
 import { useDiffHunkStage } from "./useDiffHunkStage"
@@ -68,12 +69,13 @@ type FileEntry = GitStatus["files"][number] & {
 }
 
 type DiffData = { original: string; modified: string; isBinary?: boolean }
-type DiffScope = "all" | "staged" | "working" | "session" | "turn"
+type DiffScope = "all" | "staged" | "working" | "session" | "turn" | "branch"
 
 const REVIEW_SCOPE_OPTIONS: Array<{ scope: DiffScope; labelKey: I18nKey }> = [
   { scope: "all", labelKey: "diffView.scope.all" },
   { scope: "working", labelKey: "diffView.scope.working" },
   { scope: "staged", labelKey: "diffView.scope.staged" },
+  { scope: "branch", labelKey: "diffView.scope.branch" },
 ]
 
 const SESSION_SCOPE_OPTIONS: Array<{ scope: DiffScope; labelKey: I18nKey }> = [
@@ -89,6 +91,17 @@ const EMPTY_SESSION_MODEL: SessionChangesModel = {
 }
 
 const isSessionReviewScope = (scope: DiffScope): scope is "session" | "turn" => scope === "session" || scope === "turn"
+
+const EMPTY_BRANCH_MODEL: BranchChangesModel = {
+  phase: "loading",
+  progressScope: "branch",
+  files: [],
+  selectedLayout: null,
+  selectedDiff: null,
+  base: "",
+  branches: [],
+  truncated: false,
+}
 
 function sessionModelsEqual(left: SessionChangesModel, right: SessionChangesModel): boolean {
   if (
@@ -109,6 +122,38 @@ function sessionModelsEqual(left: SessionChangesModel, right: SessionChangesMode
       file.status?.code === other.status?.code
     )
   })
+}
+
+function branchModelsEqual(left: BranchChangesModel, right: BranchChangesModel): boolean {
+  const leftDiff = left.selectedDiff
+  const rightDiff = right.selectedDiff
+  if (
+    left.phase !== right.phase ||
+    left.progressScope !== right.progressScope ||
+    left.selectedLayout !== right.selectedLayout ||
+    left.base !== right.base ||
+    left.truncated !== right.truncated ||
+    left.files.length !== right.files.length ||
+    left.branches.length !== right.branches.length ||
+    leftDiff?.path !== rightDiff?.path ||
+    leftDiff?.before !== rightDiff?.before ||
+    leftDiff?.after !== rightDiff?.after
+  ) {
+    return false
+  }
+  return (
+    left.branches.every((name, index) => name === right.branches[index]) &&
+    left.files.every((file, index) => {
+      const other = right.files[index]
+      return (
+        file.path === other.path &&
+        file.signature === other.signature &&
+        file.insertions === other.insertions &&
+        file.deletions === other.deletions &&
+        file.status?.code === other.status?.code
+      )
+    })
+  )
 }
 
 const BinaryDiffPlaceholder = React.memo(() => {
@@ -982,6 +1027,27 @@ export const DiffView: React.FC<DiffViewProps> = ({
   )
 
   const isGitRepo = useIsGitRepo(effectiveDirectory ?? null)
+  const branchReview = diffScope === "branch" && isGitRepo !== false
+  const embeddedReview = sessionReview || branchReview
+  const [branchModel, setBranchModel] = React.useState<BranchChangesModel>(EMPTY_BRANCH_MODEL)
+  const [branchSelected, setBranchSelected] = React.useState<string | null>(null)
+  const branchTrackKey = `${diffScope}:${effectiveDirectory ?? ""}`
+  const [branchTrack, setBranchTrack] = React.useState(branchTrackKey)
+  if (branchTrack !== branchTrackKey) {
+    setBranchTrack(branchTrackKey)
+    setBranchModel(EMPTY_BRANCH_MODEL)
+    setBranchSelected(null)
+  }
+  const handleBranchModel = React.useCallback((model: BranchChangesModel) => {
+    setBranchModel((current) => (branchModelsEqual(current, model) ? current : model))
+  }, [])
+  React.useEffect(() => {
+    if (!branchReview) return
+    setBranchSelected((current) => {
+      if (current && branchModel.files.some((file) => file.path === current)) return current
+      return branchModel.files[0]?.path ?? null
+    })
+  }, [branchModel.files, branchReview])
   const status = useGitStatus(effectiveDirectory ?? null)
   const isLoadingStatus = useGitLoadingStatus(effectiveDirectory ?? null)
   const setActiveDirectory = useGitStore((state) => state.setActiveDirectory)
@@ -1494,9 +1560,10 @@ export const DiffView: React.FC<DiffViewProps> = ({
     paneRef,
     directory: effectiveDirectory,
     scope: diffScope,
-    // SessionChangesView listens on the same pane. An empty list lets its handler own [, ], and v.
-    files: sessionReview ? [] : reviewKeyFiles,
-    selectedFile: sessionReview ? null : selectedFile,
+    // SessionChangesView and BranchChangesView listen on the same pane. An empty list lets that
+    // handler own [, ], and v.
+    files: embeddedReview ? [] : reviewKeyFiles,
+    selectedFile: embeddedReview ? null : selectedFile,
     onSelectFile: handleSelectFileAndScroll,
   })
 
@@ -1527,7 +1594,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const renderSideBySide = (currentLayoutForSelectedFile ?? "side-by-side") === "side-by-side"
   const showFileRail =
-    !sessionReview &&
+    !embeddedReview &&
     !hideStackedFileSidebar &&
     !isMobile &&
     paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH &&
@@ -1535,17 +1602,33 @@ export const DiffView: React.FC<DiffViewProps> = ({
     changedFiles.length > 0
   const showSessionRail =
     sessionReview && !isMobile && paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH && sessionModel.files.length > 0
-  const showFileSelector = !sessionReview && !hideFileSelector && !showFileRail
-  const navFiles = sessionReview ? sessionModel.files : changedFiles
-  const navSelected = sessionReview ? sessionSelected : selectedFile
+  const showBranchRail =
+    branchReview && !isMobile && paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH && branchModel.files.length > 0
+  const showFileSelector = !embeddedReview && !hideFileSelector && !showFileRail
+  const navFiles = sessionReview ? sessionModel.files : branchReview ? branchModel.files : changedFiles
+  const navSelected = sessionReview ? sessionSelected : branchReview ? branchSelected : selectedFile
   const previousFilePath = adjacentReviewFile(navFiles, navSelected, -1)
   const nextFilePath = adjacentReviewFile(navFiles, navSelected, 1)
-  const selectNavFile = sessionReview ? setSessionSelected : handleSelectFileAndScroll
+  const selectNavFile = sessionReview
+    ? setSessionSelected
+    : branchReview
+      ? setBranchSelected
+      : handleSelectFileAndScroll
   const summaryLoading = sessionReview
     ? sessionModel.phase === "loading" && sessionModel.files.length === 0
-    : isLoadingStatus && !status
-  const summaryCount = sessionReview ? sessionModel.files.length : changedFiles.length
-  const showWrapControl = sessionReview ? Boolean(sessionSelected) && sessionModel.phase === "ready" : Boolean(selectedFileEntry)
+    : branchReview
+      ? branchModel.phase === "loading" && branchModel.files.length === 0
+      : isLoadingStatus && !status
+  const summaryCount = sessionReview
+    ? sessionModel.files.length
+    : branchReview
+      ? branchModel.files.length
+      : changedFiles.length
+  const showWrapControl = sessionReview
+    ? Boolean(sessionSelected) && sessionModel.phase === "ready"
+    : branchReview
+      ? Boolean(branchSelected) && branchModel.phase === "ready"
+      : Boolean(selectedFileEntry)
 
   const selectedCachedDiff = useGitStore(
     React.useCallback(
@@ -1646,13 +1729,45 @@ export const DiffView: React.FC<DiffViewProps> = ({
     await openFileInEditorAtChange(selectedFile, selectedDiffData)
   }, [openFileInEditorAtChange, selectedDiffData, selectedFile])
 
+  // Branch review already has both sides from the merge-base diff. Asking git for the index
+  // diff would navigate a deleted or renamed worktree file against the wrong baseline.
+  const openBranchFileInEditor = React.useCallback(
+    async (file: { path: string; before: string; after: string }) => {
+      if (!effectiveDirectory || !file.path) {
+        return
+      }
+
+      setOpeningEditorFilePath(file.path)
+      try {
+        const targetLine = isImageFile(file.path) ? 1 : getFirstChangedModifiedLine(file.before, file.after)
+        const absolutePath = toViewAbsolutePath(effectiveDirectory, file.path)
+        const openValidation = await validateContextFileOpen(files, absolutePath)
+        if (!openValidation.ok) {
+          toast.error(getContextFileOpenFailureMessage(openValidation.reason))
+          return
+        }
+
+        openContextFileAtLine(effectiveDirectory, absolutePath, targetLine, 1)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        toast.error(getContextFileOpenFailureMessage("unreadable"), { description: message })
+      } finally {
+        setOpeningEditorFilePath((current) => (current === file.path ? null : current))
+      }
+    },
+    [effectiveDirectory, files, openContextFileAtLine],
+  )
+
   const isOpeningSelectedInEditor = Boolean(selectedFile && openingEditorFilePath === selectedFile)
+  const isOpeningBranchInEditor = Boolean(
+    branchModel.selectedDiff && openingEditorFilePath === branchModel.selectedDiff.path,
+  )
 
   const hasCurrentDiff = activeDiffStaged ? !!selectedStagedDiffData : !!selectedCachedDiff
   const isCurrentFileLoading = !isStackedView && !!selectedFile && !hasCurrentDiff
 
   React.useEffect(() => {
-    if (sessionReview || isStackedView) {
+    if (embeddedReview || isStackedView) {
       return
     }
 
@@ -1710,8 +1825,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
     activeDiffStaged,
     effectiveDirectory,
     indexRevision,
+    embeddedReview,
     isStackedView,
-    sessionReview,
     selectedFile,
     selectedCachedDiff,
     selectedStagedDiffData,
@@ -1938,7 +2053,14 @@ export const DiffView: React.FC<DiffViewProps> = ({
             files={sessionModel.files}
             selectedFile={sessionSelected}
           />
-        ) : !sessionReview && !showFileRail && effectiveDirectory ? (
+        ) : branchReview && !showBranchRail && effectiveDirectory ? (
+          <ReviewProgressCompact
+            directory={effectiveDirectory}
+            scope={branchModel.progressScope}
+            files={branchModel.files}
+            selectedFile={branchSelected}
+          />
+        ) : !embeddedReview && !showFileRail && effectiveDirectory ? (
           <ReviewProgressCompact
             directory={effectiveDirectory}
             scope={diffScope}
@@ -1993,7 +2115,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
           </div>
         ) : null}
         {/* The rail replaces the file selector that carries the mode picker in narrow panes. */}
-        {!sessionReview && (!isMobileLayout || showFileRail) && (
+        {!embeddedReview && (!isMobileLayout || showFileRail) && (
           <DiffViewModeSelector mode={diffViewMode} onModeChange={handleDiffViewModeChange} />
         )}
         {showFileSelector && (
@@ -2023,7 +2145,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
             <Icon name="text-wrap" className="size-4" />
           </Button>
         )}
-        {showOpenInEditorAction && selectedFileEntry && !isStackedView && !sessionReview && (
+        {showOpenInEditorAction && selectedFileEntry && !isStackedView && !embeddedReview && (
           <Button
             variant="ghost"
             size="sm"
@@ -2041,18 +2163,41 @@ export const DiffView: React.FC<DiffViewProps> = ({
             )}
           </Button>
         )}
+        {showOpenInEditorAction && branchReview && branchModel.selectedDiff ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-5 w-5 p-0 normal-case opacity-70 hover:opacity-100"
+            onClick={() => {
+              const selected = branchModel.selectedDiff
+              if (selected) void openBranchFileInEditor(selected)
+            }}
+            disabled={isOpeningBranchInEditor}
+            title={t("diffView.actions.openFileAtFirstChangedLine")}
+          >
+            {isOpeningBranchInEditor ? (
+              <Icon name="loader-4" className="size-3.5 animate-spin" />
+            ) : (
+              <Icon name="edit" className="size-3.5" />
+            )}
+          </Button>
+        ) : null}
         {sessionReview && sessionModel.selectedLayout ? (
           <DiffViewToggle
             mode={sessionModel.selectedLayout === "side-by-side" ? "side-by-side" : "unified"}
             onModeChange={handleHeaderLayoutChange}
           />
-        ) : null}
-        {!sessionReview && selectedFileEntry && currentLayoutForSelectedFile && (
+        ) : branchReview && branchModel.selectedLayout ? (
+          <DiffViewToggle
+            mode={branchModel.selectedLayout === "side-by-side" ? "side-by-side" : "unified"}
+            onModeChange={handleHeaderLayoutChange}
+          />
+        ) : !embeddedReview && selectedFileEntry && currentLayoutForSelectedFile ? (
           <DiffViewToggle
             mode={currentLayoutForSelectedFile === "side-by-side" ? "side-by-side" : "unified"}
             onModeChange={handleHeaderLayoutChange}
           />
-        )}
+        ) : null}
       </div>
 
       <div className="flex min-h-0 flex-1">
@@ -2068,6 +2213,18 @@ export const DiffView: React.FC<DiffViewProps> = ({
             onSelectFile={setSessionSelected}
             wrapLines={diffWrapLines}
             onModelChange={handleSessionModel}
+          />
+        ) : branchReview && effectiveDirectory ? (
+          <BranchChangesView
+            directory={effectiveDirectory}
+            paneRef={paneRef}
+            paneWidth={paneWidth}
+            allowRail={!isMobile && !hideStackedFileSidebar}
+            selectedFile={branchSelected}
+            onSelectFile={setBranchSelected}
+            wrapLines={diffWrapLines}
+            onOpenFile={showOpenInEditorAction ? (file) => void openBranchFileInEditor(file) : undefined}
+            onModelChange={handleBranchModel}
           />
         ) : (
           <>

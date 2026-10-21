@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "\u4ee3\u7406\u5728\u6b64\u5de5\u4f5c\u968e\u6bb5\u4e2d\u672a\u8b8a\u66f4\u4efb\u4f55\u6a94\u6848",
   "diffView.sessionChanges.emptyTurn": "\u4ee3\u7406\u5728\u4e0a\u4e00\u8f2a\u4e2d\u672a\u8b8a\u66f4\u4efb\u4f55\u6a94\u6848",
   "diffView.rail.openFile": "\u5728\u7de8\u8f2f\u5668\u4e2d\u958b\u555f {file}",
-  "supervision.missionControl.preview.workingOn": "\u6b63\u5728\u9032\u884c\uff1a{content}"
+  "supervision.missionControl.preview.workingOn": "\u6b63\u5728\u9032\u884c\uff1a{content}",
+  "supervision.navigation.openInWindow": "\u5728\u7368\u7acb\u8996\u7a97\u4e2d\u958b\u555f\u6b64\u5de5\u4f5c\u968e\u6bb5",
+  "diffView.comments.target": "\u5c07\u8a55\u8ad6\u50b3\u9001\u81f3",
+  "supervision.missionControl.filter.projects": "\u5c08\u6848",
+  "supervision.missionControl.filter.hasChanges": "\u6709\u8b8a\u66f4",
+  "supervision.missionControl.filter.remove": "\u79fb\u9664\u7be9\u9078\u5668 {name}",
+  "supervision.missionControl.filter.clearAll": "\u5168\u90e8\u6e05\u9664",
+  "supervision.missionControl.child.title": "\u5b50\u4ee3\u7406",
+  "supervision.missionControl.child.countSingle": "+{count} \u500b\u5b50\u4ee3\u7406",
+  "supervision.missionControl.child.countPlural": "+{count} \u500b\u5b50\u4ee3\u7406",
+  "supervision.navigation.openInWindowFailed": "\u7121\u6cd5\u958b\u555f\u5de5\u4f5c\u968e\u6bb5\u8996\u7a97",
+  "diffView.scope.branch": "\u5206\u652f",
+  "diffView.branch.base": "\u6bd4\u8f03\u57fa\u6e96",
+  "diffView.branch.empty": "\u8207 {base} \u76f8\u6bd4\u6c92\u6709\u8b8a\u66f4",
+  "diffView.branch.truncated": "\u6b63\u5728\u986f\u793a\u524d {count} \u500b\u6a94\u6848",
+  "diffView.branch.tooLarge": "\u6b64\u6a94\u6848\u904e\u5927\uff0c\u7121\u6cd5\u9810\u89bd"
 }

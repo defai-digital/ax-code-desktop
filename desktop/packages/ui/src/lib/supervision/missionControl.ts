@@ -1,3 +1,4 @@
+import type { SupervisionRow } from "./rows"
 import { isLiveState, type SupervisionState } from "./sessionState"
 
 export interface MissionControlRowLike {
@@ -77,5 +78,30 @@ export function searchMissionRows<
       [row.title, row.projectLabel, row.directory, row.goal?.objective].some((value) =>
         value?.toLocaleLowerCase().includes(search),
       ),
+  )
+}
+
+/** Match the same project identity used by board grouping, including unregistered directories. */
+export function missionProjectKey(row: Pick<SupervisionRow, "projectId" | "directory">): string {
+  return row.projectId ?? row.directory ?? "__none__"
+}
+
+export interface MissionFacets {
+  query: string
+  status: MissionStatusFilter
+  projectKeys: readonly string[]
+  hasChanges: boolean
+}
+
+/** AND across facets; OR within the selected projects. Preserve the incoming urgency order. */
+export function filterMissionFacets<
+  T extends Pick<SupervisionRow, "title" | "projectLabel" | "directory" | "projectId" | "state" | "evidence" | "goal">,
+>(rows: readonly T[], facets: MissionFacets): T[] {
+  const projects = new Set(facets.projectKeys)
+  return searchMissionRows(rows, facets.query).filter(
+    (row) =>
+      matchesMissionStatus(row.state, facets.status) &&
+      (projects.size === 0 || projects.has(missionProjectKey(row))) &&
+      (!facets.hasChanges || row.evidence != null),
   )
 }

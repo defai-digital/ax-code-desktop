@@ -1,3 +1,4 @@
+import type { ChildSessionSummary } from "./childSessions"
 import type { MultiRunIdentity } from "@/lib/multirun/identity"
 import type { ActivityPreview } from "./activityPreview"
 import type { SessionGoalSnapshot } from "./goal"
@@ -9,6 +10,8 @@ export interface SupervisionRow {
   state: SupervisionState
   /** This root session and its loaded subagent sessions, for finding their pending requests. */
   treeSessionIds: string[]
+  /** Loaded descendants with their own state, for the board details disclosure. */
+  childSessions?: ChildSessionSummary[]
   projectId: string | null
   projectLabel: string | null
   directory: string | null

@@ -100,8 +100,14 @@ export const fireEvent = {
     }),
   change: (element: Element, { target }: { target: { value: string } }) =>
     act(() => {
-      const prototype = element instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+      const prototype =
+        element instanceof HTMLTextAreaElement
+          ? HTMLTextAreaElement.prototype
+          : element instanceof HTMLSelectElement
+            ? HTMLSelectElement.prototype
+            : HTMLInputElement.prototype
       Object.getOwnPropertyDescriptor(prototype, "value")!.set!.call(element, target.value)
-      element.dispatchEvent(new Event("input", { bubbles: true }))
+      // React's <select onChange> listens for `change`. Inputs and textareas listen for `input`.
+      element.dispatchEvent(new Event(element instanceof HTMLSelectElement ? "change" : "input", { bubbles: true }))
     }),
 }

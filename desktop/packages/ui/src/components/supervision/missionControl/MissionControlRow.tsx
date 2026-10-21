@@ -167,6 +167,16 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               {formatPathForDisplay(row.directory, homeDirectory)}
             </span>
           ) : null}
+          {row.treeSessionIds.length > 1 ? (
+            <span className="mission-child-count rounded border border-border/60 px-1.5 py-0.5 typography-micro">
+              {t(
+                row.treeSessionIds.length - 1 === 1
+                  ? "supervision.missionControl.child.countSingle"
+                  : "supervision.missionControl.child.countPlural",
+                { count: row.treeSessionIds.length - 1 },
+              )}
+            </span>
+          ) : null}
           {branch ? (
             <span className="mission-branch inline-flex min-w-0 items-center gap-1" title={branch}>
               <Icon name="git-branch" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

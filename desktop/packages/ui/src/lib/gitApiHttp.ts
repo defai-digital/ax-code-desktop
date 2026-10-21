@@ -4,6 +4,8 @@ import type {
   GetGitDiffOptions,
   GitFileDiffResponse,
   GetGitFileDiffOptions,
+  GitBranchDiffResponse,
+  GetGitBranchDiffOptions,
   GitBranch,
   GitDeleteBranchPayload,
   GitDeleteRemoteBranchPayload,
@@ -287,6 +289,24 @@ export async function getGitFileDiff(directory: string, options: GetGitFileDiffO
 
   if (!response.ok) {
     throw new Error(`Failed to get git file diff: ${response.statusText}`)
+  }
+
+  return response.json()
+}
+
+export async function getGitBranchDiff(
+  directory: string,
+  options: GetGitBranchDiffOptions = {},
+): Promise<GitBranchDiffResponse> {
+  const response = await gitRequest(
+    buildUrl(`${API_BASE}/branch-diff`, directory, {
+      base: options.base || undefined,
+    }),
+  )
+
+  if (!response.ok) {
+    const message = await response.json().catch(() => ({ error: response.statusText }))
+    throw new Error(message.error || "Failed to get branch diff")
   }
 
   return response.json()

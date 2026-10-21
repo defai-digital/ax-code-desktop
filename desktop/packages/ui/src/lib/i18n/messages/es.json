@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "El agente no ha cambiado archivos en esta sesi\u00f3n",
   "diffView.sessionChanges.emptyTurn": "El agente no ha cambiado archivos en su \u00faltimo turno",
   "diffView.rail.openFile": "Abrir {file} en el editor",
-  "supervision.missionControl.preview.workingOn": "Trabajando en: {content}"
+  "supervision.missionControl.preview.workingOn": "Trabajando en: {content}",
+  "supervision.navigation.openInWindow": "Abrir esta sesi\u00f3n en una ventana aparte",
+  "diffView.comments.target": "Enviar comentarios a",
+  "supervision.missionControl.filter.projects": "Proyectos",
+  "supervision.missionControl.filter.hasChanges": "Con cambios",
+  "supervision.missionControl.filter.remove": "Eliminar filtro {name}",
+  "supervision.missionControl.filter.clearAll": "Borrar todo",
+  "supervision.missionControl.child.title": "Agentes secundarios",
+  "supervision.missionControl.child.countSingle": "+{count} agente",
+  "supervision.missionControl.child.countPlural": "+{count} agentes",
+  "supervision.navigation.openInWindowFailed": "No se pudo abrir la ventana de sesi\u00f3n",
+  "diffView.scope.branch": "Rama",
+  "diffView.branch.base": "Base de comparaci\u00f3n",
+  "diffView.branch.empty": "Sin cambios respecto a {base}",
+  "diffView.branch.truncated": "Mostrando los primeros {count} archivos",
+  "diffView.branch.tooLarge": "Este archivo es demasiado grande para mostrar una vista previa"
 }

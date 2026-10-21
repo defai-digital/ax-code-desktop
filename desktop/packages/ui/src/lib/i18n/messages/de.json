@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "Der Agent hat in dieser Sitzung keine Dateien ge\u00e4ndert",
   "diffView.sessionChanges.emptyTurn": "Der Agent hat in seinem letzten Durchlauf keine Dateien ge\u00e4ndert",
   "diffView.rail.openFile": "{file} im Editor \u00f6ffnen",
-  "supervision.missionControl.preview.workingOn": "Arbeitet an: {content}"
+  "supervision.missionControl.preview.workingOn": "Arbeitet an: {content}",
+  "supervision.navigation.openInWindow": "Diese Sitzung in einem eigenen Fenster \u00f6ffnen",
+  "diffView.comments.target": "Kommentare senden an",
+  "supervision.missionControl.filter.projects": "Projekte",
+  "supervision.missionControl.filter.hasChanges": "Mit \u00c4nderungen",
+  "supervision.missionControl.filter.remove": "Filter {name} entfernen",
+  "supervision.missionControl.filter.clearAll": "Alle entfernen",
+  "supervision.missionControl.child.title": "Untergeordnete Agents",
+  "supervision.missionControl.child.countSingle": "+{count} Agent",
+  "supervision.missionControl.child.countPlural": "+{count} Agenten",
+  "supervision.navigation.openInWindowFailed": "Das Sitzungsfenster konnte nicht ge\u00f6ffnet werden",
+  "diffView.scope.branch": "Branch",
+  "diffView.branch.base": "Vergleichsbasis",
+  "diffView.branch.empty": "Keine \u00c4nderungen gegen\u00fcber {base}",
+  "diffView.branch.truncated": "Die ersten {count} Dateien werden angezeigt",
+  "diffView.branch.tooLarge": "Diese Datei ist zu gro\u00df f\u00fcr eine Vorschau"
 }

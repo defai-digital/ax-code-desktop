@@ -1015,6 +1015,7 @@ const runGitCommand = async (cwd, args, options = {}) => {
       env: { ...(await buildGitEnv()), ...(options.env || {}) },
       windowsHide: true,
       maxBuffer: 20 * 1024 * 1024,
+      ...(options.timeout ? { timeout: options.timeout } : {}),
     })
     return {
       success: true,
@@ -1059,8 +1060,8 @@ const resolveGitCommitFilePath = async (repoRoot, hash, candidates) => {
  */
 const runSequencerStep = (cwd, args) => runGitCommand(cwd, args, { env: { GIT_EDITOR: "true" } })
 
-const runGitCommandOrThrow = async (cwd, args, fallbackMessage) => {
-  const result = await runGitCommand(cwd, args)
+const runGitCommandOrThrow = async (cwd, args, fallbackMessage, options = {}) => {
+  const result = await runGitCommand(cwd, args, options)
   if (!result.success) {
     throw new Error(result.message || fallbackMessage || "Git command failed")
   }
@@ -2216,6 +2217,323 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
     modified: typeof modified === "string" ? modified.replace(/\r\n/g, "\n") : modified,
     path: filePath,
     isBinary: false,
+  }
+}
+
+// A branch review compares the working tree with the merge-base of the chosen branch and HEAD, so
+// committed and uncommitted changes on this branch are both included. The cap keeps one response
+// from reading an unbounded tree into the desktop process.
+const BRANCH_DIFF_MAX_FILES = 300
+const BRANCH_DIFF_MAX_BYTES = 1024 * 1024
+const BRANCH_DIFF_READ_CONCURRENCY = 8
+// Whole-response content budget and per-command time limit: a large branch must not hold the desktop
+// process on one request or return hundreds of megabytes of text.
+const BRANCH_DIFF_MAX_TOTAL_BYTES = 16 * 1024 * 1024
+const BRANCH_DIFF_GIT_TIMEOUT_MS = 30_000
+const BRANCH_DIFF_STATUS = {
+  A: "added",
+  M: "modified",
+  D: "deleted",
+  R: "renamed",
+  C: "copied",
+  T: "modified",
+  U: "modified",
+}
+
+export class GitBranchDiffError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message)
+    this.name = "GitBranchDiffError"
+    this.statusCode = statusCode
+  }
+}
+
+const listBranchDiffNames = async (repoRoot, prefix) => {
+  const result = await runGitCommandOrThrow(
+    repoRoot,
+    ["for-each-ref", "--format=%(symref)\t%(refname:short)", prefix],
+    "Failed to list branches",
+  )
+  const names = new Set()
+  for (const line of String(result.stdout || "").split("\n")) {
+    if (!line) continue
+    const tab = line.indexOf("\t")
+    if (tab < 0) continue
+    const symref = line.slice(0, tab)
+    const name = line.slice(tab + 1)
+    // Symbolic refs such as origin/HEAD are pointers, not branch names.
+    if (!name || symref) continue
+    names.add(name)
+  }
+  return names
+}
+
+const resolveDefaultBranchBase = async (repoRoot, localNames, remoteNames) => {
+  const originHead = await runGitCommand(repoRoot, [
+    "symbolic-ref",
+    "-q",
+    "--end-of-options",
+    "refs/remotes/origin/HEAD",
+  ])
+  if (originHead.success) {
+    const ref = String(originHead.stdout || "").trim()
+    const remotePrefix = "refs/remotes/"
+    if (ref.startsWith(remotePrefix)) {
+      const short = ref.slice(remotePrefix.length)
+      const slash = short.indexOf("/")
+      const leaf = slash >= 0 ? short.slice(slash + 1) : short
+      if (leaf && localNames.has(leaf)) return leaf
+      if (short && remoteNames.has(short)) return short
+    }
+  }
+  if (localNames.has("main")) return "main"
+  if (localNames.has("master")) return "master"
+  throw new GitBranchDiffError("No default branch")
+}
+
+// `git diff` keeps only the last format, so --numstat and --name-status cannot share one invocation.
+// A rename's numstat record is `added\tdeleted\t\0old\0new\0`; the destination is the working-tree path.
+const parseBranchNumstatZ = (raw) => {
+  const stats = new Map()
+  const records = String(raw || "").split("\0")
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index]
+    if (!record) continue
+    const parts = record.split("\t")
+    if (parts.length < 3) continue
+    const [added, deleted, ...pathParts] = parts
+    let filePath = pathParts.join("\t")
+    if (!filePath) {
+      filePath = records[index + 2] || ""
+      index += 2
+    }
+    if (!filePath) continue
+    const binary = added === "-" || deleted === "-"
+    stats.set(filePath, {
+      additions: binary ? 0 : Number.parseInt(added, 10) || 0,
+      deletions: binary ? 0 : Number.parseInt(deleted, 10) || 0,
+      binary,
+    })
+  }
+  return stats
+}
+
+const countBranchDiffLines = (text) => {
+  if (!text) return 0
+  let count = 1
+  for (let index = 0; index < text.length; index += 1) {
+    if (text.charCodeAt(index) === 10) count += 1
+  }
+  if (text.endsWith("\n")) count -= 1
+  return count
+}
+
+const readBranchWorkingSide = async (repoRoot, repoPath) => {
+  let absolute
+  try {
+    absolute = resolveRepositoryFilePath(repoRoot, repoPath)
+  } catch {
+    return { text: "", tooLarge: true }
+  }
+
+  let entry
+  try {
+    entry = await fsp.lstat(absolute)
+  } catch (error) {
+    if (error?.code === "ENOENT") return { text: "", missing: true }
+    throw error
+  }
+
+  let readPath = absolute
+  let size = entry.size
+  if (entry.isSymbolicLink()) {
+    const [rootReal, target] = await Promise.all([
+      fsp.realpath(repoRoot).catch(() => repoRoot),
+      fsp.realpath(absolute).catch(() => null),
+    ])
+    if (!target || !isInsideOrSameDirectory(rootReal, target)) {
+      return { text: "", tooLarge: true }
+    }
+    const targetStat = await fsp.stat(target).catch(() => null)
+    if (!targetStat?.isFile()) return { text: "", missing: true }
+    readPath = target
+    size = targetStat.size
+  } else if (!entry.isFile()) {
+    return { text: "", missing: true }
+  }
+
+  if (size > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
+  if (await looksBinaryBySniff(readPath)) return { text: "", binary: true }
+  const text = await fsp.readFile(readPath, "utf8")
+  if (Buffer.byteLength(text) > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
+  return { text: text.replace(/\r\n/g, "\n") }
+}
+
+const readBranchBaseSide = async (repoRoot, mergeBase, repoPath) => {
+  const spec = `${mergeBase}:${repoPath}`
+  const sizeResult = await runGitCommand(repoRoot, ["cat-file", "-s", "--end-of-options", spec])
+  if (!sizeResult.success) return { text: "", missing: true }
+  const size = Number.parseInt(String(sizeResult.stdout || "").trim(), 10)
+  if (!Number.isFinite(size)) return { text: "", missing: true }
+  if (size > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
+  if (size === 0) return { text: "" }
+
+  const shown = await runGitCommand(repoRoot, ["show", "--end-of-options", spec])
+  if (!shown.success) return { text: "", missing: true }
+  const text = String(shown.stdout || "")
+  if (text.includes("\0")) return { text: "", binary: true }
+  if (Buffer.byteLength(text) > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
+  return { text: text.replace(/\r\n/g, "\n") }
+}
+
+const mapBranchDiffEntries = async (entries, mapper) => {
+  const results = new Array(entries.length)
+  let next = 0
+  const workers = Array.from({ length: Math.min(BRANCH_DIFF_READ_CONCURRENCY, entries.length) }, async () => {
+    while (next < entries.length) {
+      const current = next
+      next += 1
+      results[current] = await mapper(entries[current])
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+/**
+ * Files changed on this branch relative to `base`: committed changes since the merge-base plus
+ * everything in the working tree. `base` must be an existing local or remote-tracking branch.
+ * Omit it to use origin/HEAD's target, then `main`, then `master`.
+ */
+export async function getGitBranchDiff(directory, { base, maxTotalBytes = BRANCH_DIFF_MAX_TOTAL_BYTES } = {}) {
+  if (!directory || typeof directory !== "string") {
+    throw new GitBranchDiffError("directory is required")
+  }
+
+  let repoRoot
+  try {
+    ;({ repoRoot } = await createRepositoryGitContext(directory))
+  } catch (error) {
+    if (isNotGitRepositoryError(error)) throw new GitBranchDiffError("Not a git repository")
+    throw error
+  }
+
+  const [localNames, remoteNames] = await Promise.all([
+    listBranchDiffNames(repoRoot, "refs/heads"),
+    listBranchDiffNames(repoRoot, "refs/remotes"),
+  ])
+  const allowed = new Set([...localNames, ...remoteNames])
+  const requested = typeof base === "string" ? base : ""
+  let resolvedBase = requested
+  if (!resolvedBase) {
+    resolvedBase = await resolveDefaultBranchBase(repoRoot, localNames, remoteNames)
+  }
+  // The name is taken from for-each-ref and then passed as one argv entry after --end-of-options.
+  // Anything else (options, SHAs, shell metacharacters, unknown refs) is rejected before git sees it.
+  if (!allowed.has(resolvedBase) || resolvedBase.startsWith("-") || resolvedBase.includes("\0")) {
+    throw new GitBranchDiffError("Unknown branch")
+  }
+
+  const mergeBaseResult = await runGitCommand(repoRoot, ["merge-base", "--end-of-options", resolvedBase, "HEAD"])
+  if (!mergeBaseResult.success) throw new GitBranchDiffError("No merge base")
+  const mergeBase = String(mergeBaseResult.stdout || "").trim()
+  if (!/^[0-9a-f]{40}$/i.test(mergeBase)) throw new GitBranchDiffError("No merge base")
+
+  const [nameStatusResult, numstatResult, untrackedResult] = await Promise.all([
+    runGitCommandOrThrow(
+      repoRoot,
+      ["diff", "--name-status", "-z", "-M", "--end-of-options", mergeBase],
+      "Failed to list branch changes",
+      { timeout: BRANCH_DIFF_GIT_TIMEOUT_MS },
+    ),
+    runGitCommandOrThrow(
+      repoRoot,
+      ["diff", "--numstat", "-z", "-M", "--end-of-options", mergeBase],
+      "Failed to count branch changes",
+      { timeout: BRANCH_DIFF_GIT_TIMEOUT_MS },
+    ),
+    runGitCommandOrThrow(
+      repoRoot,
+      ["ls-files", "--others", "--exclude-standard", "-z", "--end-of-options"],
+      "Failed to list untracked files",
+      { timeout: BRANCH_DIFF_GIT_TIMEOUT_MS },
+    ),
+  ])
+
+  const numstat = parseBranchNumstatZ(numstatResult.stdout)
+  const entries = []
+  const seen = new Set()
+  for (const change of parseGitNameStatusZ(nameStatusResult.stdout)) {
+    const status = BRANCH_DIFF_STATUS[change.status] || "modified"
+    const previousFile = change.source || null
+    entries.push({ file: change.path, status, previousFile })
+    seen.add(change.path)
+  }
+
+  const untracked = String(untrackedResult.stdout || "").split("\0").filter(Boolean)
+  for (const file of untracked) {
+    if (seen.has(file) || leavesRepositoryRoot(file)) continue
+    entries.push({ file, status: "untracked", previousFile: null })
+  }
+
+  entries.sort((left, right) => left.file.localeCompare(right.file))
+  const truncated = entries.length > BRANCH_DIFF_MAX_FILES
+  const kept = truncated ? entries.slice(0, BRANCH_DIFF_MAX_FILES) : entries
+
+  let contentBytes = 0
+  const files = await mapBranchDiffEntries(kept, async (entry) => {
+    const stat = numstat.get(entry.file)
+    const needsBefore = entry.status === "deleted" || entry.status === "modified" || entry.status === "renamed" || entry.status === "copied"
+    const needsAfter = entry.status !== "deleted"
+    let binary = Boolean(stat?.binary)
+    let tooLarge = false
+    let before = ""
+    let after = ""
+
+    if (!binary) {
+      const [beforeSide, afterSide] = await Promise.all([
+        needsBefore ? readBranchBaseSide(repoRoot, mergeBase, entry.previousFile || entry.file) : Promise.resolve({ text: "" }),
+        needsAfter ? readBranchWorkingSide(repoRoot, entry.file) : Promise.resolve({ text: "" }),
+      ])
+      binary = Boolean(beforeSide.binary || afterSide.binary)
+      tooLarge = Boolean(beforeSide.tooLarge || afterSide.tooLarge)
+      if (!binary && !tooLarge) {
+        const size = Buffer.byteLength(beforeSide.text || "") + Buffer.byteLength(afterSide.text || "")
+        if (contentBytes + size > maxTotalBytes) {
+          tooLarge = true
+        } else {
+          contentBytes += size
+          before = beforeSide.text || ""
+          after = afterSide.text || ""
+        }
+      }
+    }
+
+    let additions = stat?.additions ?? 0
+    let deletions = stat?.deletions ?? 0
+    if (entry.status === "untracked" && !binary && !tooLarge) {
+      additions = countBranchDiffLines(after)
+      deletions = 0
+    }
+
+    return {
+      file: entry.file,
+      before,
+      after,
+      additions,
+      deletions,
+      status: entry.status,
+      binary,
+      tooLarge,
+      previousFile: entry.previousFile,
+    }
+  })
+
+  return {
+    base: resolvedBase,
+    mergeBase,
+    truncated,
+    files,
   }
 }
 

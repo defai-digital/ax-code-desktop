@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "L'agent n'a modifi\u00e9 aucun fichier dans cette session",
   "diffView.sessionChanges.emptyTurn": "L'agent n'a modifi\u00e9 aucun fichier lors de son dernier tour",
   "diffView.rail.openFile": "Ouvrir {file} dans l'\u00e9diteur",
-  "supervision.missionControl.preview.workingOn": "Travaille sur : {content}"
+  "supervision.missionControl.preview.workingOn": "Travaille sur : {content}",
+  "supervision.navigation.openInWindow": "Ouvrir cette session dans une fen\u00eatre s\u00e9par\u00e9e",
+  "diffView.comments.target": "Envoyer les commentaires \u00e0",
+  "supervision.missionControl.filter.projects": "Projets",
+  "supervision.missionControl.filter.hasChanges": "Avec modifications",
+  "supervision.missionControl.filter.remove": "Supprimer le filtre {name}",
+  "supervision.missionControl.filter.clearAll": "Tout effacer",
+  "supervision.missionControl.child.title": "Agents enfants",
+  "supervision.missionControl.child.countSingle": "+{count} agent",
+  "supervision.missionControl.child.countPlural": "+{count} agents",
+  "supervision.navigation.openInWindowFailed": "Impossible d'ouvrir la fen\u00eatre de session",
+  "diffView.scope.branch": "Branche",
+  "diffView.branch.base": "Base de comparaison",
+  "diffView.branch.empty": "Aucune modification par rapport \u00e0 {base}",
+  "diffView.branch.truncated": "Affichage des {count} premiers fichiers",
+  "diffView.branch.tooLarge": "Ce fichier est trop volumineux pour \u00eatre affich\u00e9 en aper\u00e7u"
 }

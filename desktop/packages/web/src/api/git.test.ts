@@ -5,6 +5,7 @@ vi.mock("@openchamber/ui/api/gitApiHttp", () => ({
   getGitStatus: vi.fn(),
   getGitDiff: vi.fn(),
   getGitFileDiff: vi.fn(),
+  getGitBranchDiff: vi.fn(),
   revertGitFile: vi.fn(),
   stageGitFile: vi.fn(),
   stageGitFiles: vi.fn(),
@@ -78,5 +79,13 @@ describe("createWebGitAPI", () => {
 
     expect(typeof api.stageGitHunk).toBe("function")
     expect(typeof api.unstageGitHunk).toBe("function")
+  })
+
+  it("forwards getGitBranchDiff to the HTTP client", async () => {
+    const http = await import("@openchamber/ui/api/gitApiHttp")
+    const { createWebGitAPI } = await import("./git")
+    const api = createWebGitAPI()
+
+    expect(api.getGitBranchDiff).toBe(http.getGitBranchDiff)
   })
 })

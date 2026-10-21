@@ -7,6 +7,11 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+const sessionWindow = vi.hoisted(() => ({ available: false, open: vi.fn(async () => true) }))
+vi.mock("@/lib/supervision/openSessionWindow", () => ({
+  canOpenSessionWindow: () => sessionWindow.available,
+  openSessionWindow: sessionWindow.open,
+}))
 import { useUIStore } from "@/stores/useUIStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
@@ -103,5 +108,21 @@ describe("workspace navigation", () => {
       Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("action.reviewChanges"))
         ?.disabled,
     ).toBe(true)
+  })
+
+  test("offers to open the current session in its own window only where windows exist", () => {
+    expect(container.querySelector("[data-open-session-window]")).toBeNull()
+    act(() => root.unmount())
+    sessionWindow.available = true
+    root = createRoot(container)
+    act(() => root.render(<WorkspaceNavigation />))
+    const button = container.querySelector<HTMLButtonElement>("[data-open-session-window]")!
+    expect(button.getAttribute("aria-label")).toBe("supervision.navigation.openInWindow")
+    act(() => button.click())
+    expect(sessionWindow.open).toHaveBeenCalledWith(
+      { sessionId: "ses_1", directory: "/repo/project" },
+      "supervision.navigation.openInWindowFailed",
+    )
+    sessionWindow.available = false
   })
 })

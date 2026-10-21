@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "Ajan bu oturumda dosya de\u011fi\u015ftirmedi",
   "diffView.sessionChanges.emptyTurn": "Ajan son turunda dosya de\u011fi\u015ftirmedi",
   "diffView.rail.openFile": "Edit\u00f6rde {file} dosyas\u0131n\u0131 a\u00e7",
-  "supervision.missionControl.preview.workingOn": "\u00dczerinde \u00e7al\u0131\u015f\u0131l\u0131yor: {content}"
+  "supervision.missionControl.preview.workingOn": "\u00dczerinde \u00e7al\u0131\u015f\u0131l\u0131yor: {content}",
+  "supervision.navigation.openInWindow": "Bu oturumu ayr\u0131 bir pencerede a\u00e7",
+  "diffView.comments.target": "Yorum g\u00f6nderilecek hedef",
+  "supervision.missionControl.filter.projects": "Projeler",
+  "supervision.missionControl.filter.hasChanges": "De\u011fi\u015fiklik var",
+  "supervision.missionControl.filter.remove": "{name} filtresini kald\u0131r",
+  "supervision.missionControl.filter.clearAll": "T\u00fcm\u00fcn\u00fc temizle",
+  "supervision.missionControl.child.title": "Alt ajanlar",
+  "supervision.missionControl.child.countSingle": "+{count} ajan",
+  "supervision.missionControl.child.countPlural": "+{count} ajan",
+  "supervision.navigation.openInWindowFailed": "Oturum penceresi a\u00e7\u0131lamad\u0131",
+  "diffView.scope.branch": "Dal",
+  "diffView.branch.base": "Kar\u015f\u0131la\u015ft\u0131rma temeli",
+  "diffView.branch.empty": "{base} ile kar\u015f\u0131la\u015ft\u0131r\u0131ld\u0131\u011f\u0131nda de\u011fi\u015fiklik yok",
+  "diffView.branch.truncated": "\u0130lk {count} dosya g\u00f6steriliyor",
+  "diffView.branch.tooLarge": "Bu dosya \u00f6nizleme i\u00e7in \u00e7ok b\u00fcy\u00fck"
 }

@@ -26,6 +26,7 @@ const gitLibraries = {
   countStashFiles: vi.fn(),
   createBranch: vi.fn(),
   deleteRemoteBranch: vi.fn(),
+  getGitBranchDiff: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -50,6 +51,7 @@ vi.doMock("./index.js", () => ({
   countStashFiles: gitLibraries.countStashFiles,
   createBranch: gitLibraries.createBranch,
   deleteRemoteBranch: gitLibraries.deleteRemoteBranch,
+  getGitBranchDiff: gitLibraries.getGitBranchDiff,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -528,5 +530,60 @@ describe("git routes stash references", () => {
     )
 
     expect(response.statusCode).toBe(400)
+  })
+})
+
+describe("git branch diff route", () => {
+  beforeEach(() => {
+    gitLibraries.getGitBranchDiff.mockReset()
+  })
+
+  it("passes the directory and base through to the service", async () => {
+    gitLibraries.getGitBranchDiff.mockResolvedValue({ base: "main", mergeBase: "a".repeat(40), truncated: false, files: [] })
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("GET", "/api/git/branch-diff")({ query: { directory: "/repo", base: "main" } }, response)
+
+    expect(response.statusCode).toBe(200)
+    expect(gitLibraries.getGitBranchDiff).toHaveBeenCalledWith("/repo", { base: "main" })
+    expect(response.body.base).toBe("main")
+  })
+
+  it("omits an empty base so the service can choose the default", async () => {
+    gitLibraries.getGitBranchDiff.mockResolvedValue({ base: "main", files: [] })
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("GET", "/api/git/branch-diff")({ query: { directory: "/repo", base: "" } }, response)
+
+    expect(gitLibraries.getGitBranchDiff).toHaveBeenCalledWith("/repo", { base: undefined })
+  })
+
+  it("rejects a missing directory before asking git", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("GET", "/api/git/branch-diff")({ query: {} }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(gitLibraries.getGitBranchDiff).not.toHaveBeenCalled()
+  })
+
+  it("returns the service's status when the base is rejected", async () => {
+    const error = new Error("Unknown branch")
+    error.statusCode = 400
+    gitLibraries.getGitBranchDiff.mockRejectedValue(error)
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("GET", "/api/git/branch-diff")({ query: { directory: "/repo", base: "--upload-pack=evil" } }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(response.body).toEqual({ error: "Unknown branch" })
   })
 })

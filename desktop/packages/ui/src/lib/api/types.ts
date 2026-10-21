@@ -174,6 +174,29 @@ export interface GetGitFileDiffOptions {
   staged?: boolean
 }
 
+export interface GitBranchFileDiff {
+  file: string
+  before: string
+  after: string
+  additions: number
+  deletions: number
+  status: "added" | "deleted" | "modified" | "renamed" | "copied" | "untracked"
+  binary?: boolean
+  tooLarge?: boolean
+  previousFile?: string | null
+}
+
+export interface GitBranchDiffResponse {
+  base: string
+  mergeBase: string
+  truncated: boolean
+  files: GitBranchFileDiff[]
+}
+
+export interface GetGitBranchDiffOptions {
+  base?: string
+}
+
 export interface GitBranchDetails {
   current: boolean
   name: string
@@ -479,6 +502,7 @@ export interface GitAPI {
   getGitStatus(directory: string, options?: { mode?: "light" }): Promise<GitStatus>
   getGitDiff(directory: string, options: GetGitDiffOptions): Promise<GitDiffResponse>
   getGitFileDiff(directory: string, options: GetGitFileDiffOptions): Promise<GitFileDiffResponse>
+  getGitBranchDiff(directory: string, options?: GetGitBranchDiffOptions): Promise<GitBranchDiffResponse>
   revertGitFile(directory: string, filePath: string, options?: { scope?: "all" | "working" }): Promise<void>
   stageGitFile(directory: string, filePath: string): Promise<void>
   stageGitFiles?(directory: string, filePaths: string[]): Promise<void>

@@ -93,7 +93,8 @@ export const sendQueuedAutoSendPayload = (
   )
 }
 
-const resolveSessionSendConfig = (sessionId: string) => {
+/** The agent, model and variant a message to this session should use: its own selection before the global default. */
+export const resolveSessionSendConfig = (sessionId: string) => {
   const config = useConfigStore.getState()
   const selection = useSelectionStore.getState()
 

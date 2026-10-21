@@ -91,6 +91,8 @@
     "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
+    "supervision.missionControl.child.countPlural",
+    "supervision.missionControl.child.countSingle",
     "aboutDialog.versionLabel",
     "agentManager.empty.agent.label",
     "branchPickerDialog.badge.worktree",
@@ -222,6 +224,7 @@
     "settings.hooks.list.source.pack"
   ],
   "de": [
+    "diffView.scope.branch",
     "aboutDialog.versionLabel",
     "agentManager.empty.agent.label",
     "agentManager.empty.prompt.label",
@@ -425,6 +428,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "pt-BR": [
+    "diffView.scope.branch",
     "agentManager.empty.prompt.label",
     "agentManager.sidebar.relativeTime.days",
     "agentManager.sidebar.relativeTime.hours",
@@ -506,6 +510,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "it": [
+    "diffView.scope.branch",
     "supervision.evidence.summarySingle",
     "supervision.missionControl.filesSingle",
     "agentManager.empty.prompt.label",

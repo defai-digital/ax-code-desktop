@@ -18,6 +18,7 @@ import {
   getCommitFiles,
   getCommitPatch,
   getFileDiff,
+  getGitBranchDiff,
   getStatus,
   getWorktreeBootstrapStatus,
   getWorktrees,
@@ -2294,5 +2295,200 @@ describe("removeWorktree through the runtime", () => {
     // branch the user explicitly asked to delete.
     expect(invocations.filter((line) => /^branch (-D|-d|--delete)\b/.test(line))).toEqual(["branch -D -- users-branch"])
     expect(runtime.calls.remove).toHaveLength(2)
+  })
+})
+
+describe("getGitBranchDiff", () => {
+  const write = (dir, relative, content) => {
+    const absolute = path.join(dir, relative)
+    fs.mkdirSync(path.dirname(absolute), { recursive: true })
+    fs.writeFileSync(absolute, content)
+  }
+
+  const commitAll = async (git, message) => {
+    await git.add("-A")
+    await git.commit(message)
+  }
+
+  it("stops reading file content once the response budget is spent", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "base.txt", "base\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    for (const name of ["a.txt", "b.txt", "c.txt"]) write(tmpDir, name, "x".repeat(400) + "\n")
+
+    // Each file is about 400 bytes; a 900-byte budget fits two and marks the rest too large.
+    const result = await getGitBranchDiff(tmpDir, { base: "main", maxTotalBytes: 900 })
+
+    const withContent = result.files.filter((file) => file.after.length > 0)
+    const overBudget = result.files.filter((file) => file.tooLarge)
+    expect(withContent).toHaveLength(2)
+    expect(overBudget).toHaveLength(1)
+    expect(overBudget[0]).toMatchObject({ before: "", after: "" })
+  })
+
+  it("diffs the working tree against the merge-base, including committed and unstaged changes", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "file.txt", "base\n")
+    write(tmpDir, "only-base.txt", "base only\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    write(tmpDir, "file.txt", "committed\n")
+    write(tmpDir, "added.txt", "added\n")
+    await commitAll(git, "feature")
+    await git.raw(["checkout", "main"])
+    write(tmpDir, "only-base.txt", "main moved\n")
+    await commitAll(git, "main moves")
+    await git.raw(["checkout", "feature"])
+    write(tmpDir, "file.txt", "committed\nworktree\n")
+
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+
+    expect(result.base).toBe("main")
+    expect(result.mergeBase).toMatch(/^[0-9a-f]{40}$/)
+    expect(result.truncated).toBe(false)
+    const byFile = Object.fromEntries(result.files.map((file) => [file.file, file]))
+    expect(byFile["file.txt"]).toMatchObject({
+      status: "modified",
+      before: "base\n",
+      after: "committed\nworktree\n",
+    })
+    expect(byFile["file.txt"].additions).toBeGreaterThan(0)
+    expect(byFile["added.txt"]).toMatchObject({
+      status: "added",
+      before: "",
+      after: "added\n",
+    })
+    // only-base.txt changed on main after the branch point, so it is not a change on this branch.
+    expect(byFile["only-base.txt"]).toBeUndefined()
+  })
+
+  it("reports a rename from the merge-base path", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "src/a.ts", "alpha\nbeta\ngamma\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    await git.mv("src/a.ts", "src/b.ts")
+    write(tmpDir, "src/b.ts", "alpha\nbeta\ngamma\nextra\n")
+
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+    const renamed = result.files.find((file) => file.file === "src/b.ts")
+
+    expect(renamed).toMatchObject({
+      status: "renamed",
+      previousFile: "src/a.ts",
+      before: "alpha\nbeta\ngamma\n",
+      after: "alpha\nbeta\ngamma\nextra\n",
+    })
+    expect(result.files.find((file) => file.file === "src/a.ts")).toBeUndefined()
+  })
+
+  it("reports a deletion against the merge-base blob", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "gone.txt", "gone\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    fs.rmSync(path.join(tmpDir, "gone.txt"))
+
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        file: "gone.txt",
+        status: "deleted",
+        before: "gone\n",
+        after: "",
+        deletions: 1,
+      }),
+    ])
+  })
+
+  it("reports an untracked working-tree file", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "tracked.txt", "tracked\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    write(tmpDir, "notes.txt", "hello\n")
+
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+
+    expect(result.files).toEqual([
+      expect.objectContaining({
+        file: "notes.txt",
+        status: "untracked",
+        before: "",
+        after: "hello\n",
+        additions: 1,
+        deletions: 0,
+      }),
+    ])
+  })
+
+  it("rejects a base that is not a local or remote branch", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "file.txt", "base\n")
+    await commitAll(git, "base")
+
+    await expect(getGitBranchDiff(tmpDir, { base: "not-a-branch" })).rejects.toThrow("Unknown branch")
+    await expect(getGitBranchDiff(tmpDir, { base: "--upload-pack=evil" })).rejects.toThrow("Unknown branch")
+    await expect(getGitBranchDiff(tmpDir, { base: "main;touch /tmp/ax-branch-diff-pwned" })).rejects.toThrow(
+      "Unknown branch",
+    )
+    await expect(getGitBranchDiff(tmpDir, { base: "HEAD" })).rejects.toThrow("Unknown branch")
+    expect(runGit(tmpDir, ["status", "--porcelain"])).toBe("")
+    await expect(getGitBranchDiff(tmpDir, { base: "main" })).resolves.toMatchObject({ base: "main", files: [] })
+  })
+
+  it("defaults to the origin/HEAD target, then main, then master", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "file.txt", "base\n")
+    await commitAll(git, "base")
+    await git.raw(["branch", "master"])
+    await git.raw(["checkout", "-b", "develop"])
+    const origin = createTempDir()
+    runGit(origin, ["init", "--bare", "-b", "develop"])
+    await git.addRemote("origin", origin)
+    await git.raw(["push", "-u", "origin", "develop"])
+    runGit(tmpDir, ["remote", "set-head", "origin", "develop"])
+    await git.raw(["checkout", "-b", "feature"])
+    write(tmpDir, "file.txt", "feature\n")
+
+    const fromOrigin = await getGitBranchDiff(tmpDir, {})
+    expect(fromOrigin.base).toBe("develop")
+    expect(fromOrigin.files.map((file) => file.file)).toEqual(["file.txt"])
+
+    const fromRemote = await getGitBranchDiff(tmpDir, { base: "origin/develop" })
+    expect(fromRemote.base).toBe("origin/develop")
+    expect(fromRemote.mergeBase).toBe(fromOrigin.mergeBase)
+
+    await git.raw(["remote", "remove", "origin"])
+    const fromMain = await getGitBranchDiff(tmpDir, {})
+    expect(fromMain.base).toBe("main")
+
+    await git.raw(["branch", "-D", "main"])
+    const fromMaster = await getGitBranchDiff(tmpDir, {})
+    expect(fromMaster.base).toBe("master")
+  })
+
+  it("marks binary and oversized files and caps the file list", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "file.txt", "base\n")
+    await commitAll(git, "base")
+    await git.raw(["checkout", "-b", "feature"])
+    write(tmpDir, "bin.dat", Buffer.from([0, 1, 2, 3, 4]))
+    write(tmpDir, "big.txt", Buffer.alloc(1024 * 1024 + 8, 97))
+    for (let index = 0; index < 305; index += 1) {
+      write(tmpDir, `n${String(index).padStart(4, "0")}.txt`, "x\n")
+    }
+
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+
+    expect(result.truncated).toBe(true)
+    expect(result.files).toHaveLength(300)
+    expect(result.files.some((file) => file.file === "n0304.txt")).toBe(false)
+    const binary = result.files.find((file) => file.file === "bin.dat")
+    const oversized = result.files.find((file) => file.file === "big.txt")
+    expect(binary).toMatchObject({ binary: true, before: "", after: "" })
+    expect(oversized).toMatchObject({ tooLarge: true, before: "", after: "" })
   })
 })

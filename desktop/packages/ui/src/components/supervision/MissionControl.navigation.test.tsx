@@ -105,7 +105,7 @@ describe("board keyboard and density interaction", () => {
     expect(container.querySelector<HTMLInputElement>('input[type="search"]')?.value).toBe("")
   })
   test("filtering out expanded details removes its Escape step", () => {
-    act(() => container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!.click())
+    act(() => container.querySelector<HTMLButtonElement>('.mission-control-row button[aria-expanded="false"]')!.click())
     search("Task b")
     const board = container.querySelector('[role="grid"]')!
     key(board, "Escape")
@@ -164,7 +164,7 @@ describe("board keyboard and density interaction", () => {
   })
 
   test("details opens by button and Escape restores focus from its content", () => {
-    const button = container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!
+    const button = container.querySelector<HTMLButtonElement>('.mission-control-row button[aria-expanded="false"]')!
     act(() => button.click())
     expect(button.getAttribute("aria-expanded")).toBe("true")
     const details = document.getElementById(button.getAttribute("aria-controls")!)!

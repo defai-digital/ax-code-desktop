@@ -4986,5 +4986,20 @@
   "diffView.sessionChanges.emptySession": "O agente n\u00e3o alterou arquivos nesta sess\u00e3o",
   "diffView.sessionChanges.emptyTurn": "O agente n\u00e3o alterou arquivos no seu \u00faltimo turno",
   "diffView.rail.openFile": "Abrir {file} no editor",
-  "supervision.missionControl.preview.workingOn": "Trabalhando em: {content}"
+  "supervision.missionControl.preview.workingOn": "Trabalhando em: {content}",
+  "supervision.navigation.openInWindow": "Abrir esta sess\u00e3o em uma janela separada",
+  "diffView.comments.target": "Enviar coment\u00e1rios para",
+  "supervision.missionControl.filter.projects": "Projetos",
+  "supervision.missionControl.filter.hasChanges": "Com altera\u00e7\u00f5es",
+  "supervision.missionControl.filter.remove": "Remover filtro {name}",
+  "supervision.missionControl.filter.clearAll": "Limpar tudo",
+  "supervision.missionControl.child.title": "Agentes filhos",
+  "supervision.missionControl.child.countSingle": "+{count} agente",
+  "supervision.missionControl.child.countPlural": "+{count} agentes",
+  "supervision.navigation.openInWindowFailed": "N\u00e3o foi poss\u00edvel abrir a janela da sess\u00e3o",
+  "diffView.scope.branch": "Branch",
+  "diffView.branch.base": "Base de compara\u00e7\u00e3o",
+  "diffView.branch.empty": "Nenhuma altera\u00e7\u00e3o em compara\u00e7\u00e3o com {base}",
+  "diffView.branch.truncated": "Exibindo os primeiros {count} arquivos",
+  "diffView.branch.tooLarge": "Este arquivo \u00e9 muito grande para ser visualizado"
 }

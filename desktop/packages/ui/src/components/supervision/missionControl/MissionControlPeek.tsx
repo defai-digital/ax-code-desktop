@@ -8,6 +8,8 @@ import { useI18n } from "@/lib/i18n"
 import { recentHookRuns, useSessionHookRuns } from "@/stores/useHookActivityStore"
 import type { WorkingSet } from "@/stores/useSupervisionStore"
 import type { PendingRequestEntry } from "@/sync/sync-context"
+import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { EvidenceText } from "../EvidenceText"
 import { RequestActionCard } from "../RequestActionCard"
 import { SupervisionGoalLine } from "../SupervisionGoalLine"
@@ -96,6 +98,26 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             {t("supervision.missionControl.peek.noPendingRequests")}
           </p>
         )}
+        {row.childSessions?.length ? (
+          <ul aria-label={t("supervision.missionControl.child.title")} className="mission-child-list space-y-1">
+            {row.childSessions.map((child) => (
+              <li
+                key={child.sessionId}
+                className="flex min-w-0 flex-wrap items-center gap-2 rounded bg-muted/30 px-2 py-1"
+              >
+                <span className="min-w-0 flex-1 truncate typography-meta" title={child.title}>
+                  {child.title}
+                </span>
+                <SupervisionStateBadge state={child.state} />
+                {child.updatedAt ? (
+                  <span className="typography-micro text-muted-foreground">
+                    {formatRelativeAge(Date.now() - child.updatedAt, t)}
+                  </span>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {row.goal ? (
           <div className="flex min-w-0 flex-col gap-0.5">
             {row.state === "goal" ? (

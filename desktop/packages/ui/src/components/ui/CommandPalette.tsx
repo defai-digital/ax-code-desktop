@@ -42,6 +42,7 @@ import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { SupervisionStateBadge } from "@/components/supervision/SupervisionStateBadge"
 import { paletteHasNeedsYou, rankPaletteSessions } from "@/lib/supervision/paletteRanking"
+import { canOpenSessionWindow, openSessionWindow } from "@/lib/supervision/openSessionWindow"
 import { nextNeedsHumanSession } from "@/lib/supervision/sessionState"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
@@ -195,6 +196,23 @@ export const CommandPalette: React.FC = () => {
         searchText: `${t("supervision.commandPalette.quickDispatch")} supervision quick dispatch`,
         onSelect: run(() => setQuickDispatchOpen(true)),
       },
+      ...(currentSessionId && canOpenSessionWindow()
+        ? [
+            {
+              id: "supervision:open-in-window",
+              title: t("supervision.navigation.openInWindow"),
+              icon: <Icon name="window" className="mr-2 h-4 w-4" />,
+              searchText: `${t("supervision.navigation.openInWindow")} session window side by side`,
+              onSelect: run(() => {
+                const row = supervisionRows.find((item) => item.sessionId === currentSessionId)
+                void openSessionWindow(
+                  { sessionId: currentSessionId, directory: row?.directory ?? null },
+                  t("supervision.navigation.openInWindowFailed"),
+                )
+              }),
+            },
+          ]
+        : []),
       {
         id: "supervision:review-changes",
         title: t("supervision.commandPalette.reviewChanges"),

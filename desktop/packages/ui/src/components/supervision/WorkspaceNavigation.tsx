@@ -5,6 +5,8 @@ import { cn } from "@/lib/utils"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { canOpenSessionWindow, openSessionWindow } from "@/lib/supervision/openSessionWindow"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 import { resolveProjectForDirectory } from "@/lib/projectResolution"
 import { formatPathForDisplay } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -18,6 +20,7 @@ export function WorkspaceNavigation() {
   const directory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const branch = useGitBranchLabel(directory ?? null)
+  const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const projectLabel = useProjectsStore(
     (s) => resolveProjectForDirectory(s.projects, directory ?? null)?.label?.trim() || null,
   )
@@ -74,6 +77,18 @@ export function WorkspaceNavigation() {
           <span>{item.label}</span>
         </button>
       ))}
+      {currentSessionId && canOpenSessionWindow() ? (
+        <button
+          type="button"
+          aria-label={t("supervision.navigation.openInWindow")}
+          title={t("supervision.navigation.openInWindow")}
+          onClick={() => void openSessionWindow({ sessionId: currentSessionId, directory: directory ?? null }, t("supervision.navigation.openInWindowFailed"))}
+          className="inline-flex min-h-9 items-center rounded-md px-2 text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-open-session-window
+        >
+          <Icon name="window" className="h-4 w-4" aria-hidden="true" />
+        </button>
+      ) : null}
       {!board && !review && directory ? (
         <span
           data-workspace-directory={directory}

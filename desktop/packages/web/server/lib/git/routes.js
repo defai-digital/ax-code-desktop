@@ -363,6 +363,30 @@ export function registerGitRoutes(app, options = {}) {
     }
   })
 
+  app.get("/api/git/branch-diff", async (req, res) => {
+    const { getGitBranchDiff } = await getGitLibraries()
+    try {
+      const directory = req.query.directory
+      if (!directory || typeof directory !== "string") {
+        return res.status(400).json({ error: "directory parameter is required" })
+      }
+      if (Array.isArray(req.query.base)) {
+        return res.status(400).json({ error: "base parameter is invalid" })
+      }
+
+      const base = typeof req.query.base === "string" && req.query.base.length > 0 ? req.query.base : undefined
+      const result = await getGitBranchDiff(directory, { base })
+      res.json(result)
+    } catch (error) {
+      const statusCode =
+        Number.isInteger(error?.statusCode) && error.statusCode >= 400 && error.statusCode < 600 ? error.statusCode : 500
+      if (statusCode >= 500) {
+        console.error("Failed to get git branch diff:", error)
+      }
+      res.status(statusCode).json({ error: error?.message || "Failed to get git branch diff" })
+    }
+  })
+
   app.post("/api/git/revert", async (req, res) => {
     const { revertFile } = await getGitLibraries()
     try {
