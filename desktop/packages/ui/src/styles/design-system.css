@@ -1016,3 +1016,11 @@
   outline: 2px solid var(--ring);
   outline-offset: -2px;
 }
+
+/* A tool call opened from the browser's call list: a short focus ring so the eye finds it. */
+[data-tool-part-id][data-attention] {
+  border-radius: 0.75rem;
+  box-shadow: 0 0 0 2px var(--interactive-focus-ring);
+  transition: box-shadow 0.3s ease;
+}
+

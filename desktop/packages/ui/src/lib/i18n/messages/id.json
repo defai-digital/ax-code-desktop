@@ -5346,5 +5346,16 @@
   "webmcp.actions.fix.focusOwner": "Fokuskan jendela tersebut",
   "webmcp.browser.callStopped": "Panggilan {call}: dihentikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
   "webmcp.browser.callStillFinishing": "Panggilan {call}: penghentian diminta, masih menyelesaikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
-  "webmcp.browser.stillFinishing": "Penghentian diminta untuk {count} panggilan, masih menyelesaikan. Perubahan yang sudah dilakukan di halaman tetap ada."
+  "webmcp.browser.stillFinishing": "Penghentian diminta untuk {count} panggilan, masih menyelesaikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
+  "diffView.landing.browserRecap.definition": "Definisi {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(alat telah berubah sejak itu)",
+  "diffView.landing.browserRecap.capped": "Menampilkan {shown} dari {total} langkah terbaru.",
+  "diffView.landing.browserRecap.copy": "Salin ringkasan",
+  "diffView.landing.browserRecap.copied": "Disalin",
+  "chat.permissionCard.webmcp.hintConsequential": "Halaman menandai alat ini sebagai alat yang membuat perubahan.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Halaman mengatakan alat ini hanya membaca.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Hasilnya mungkin berisi teks dari sumber yang tidak terpercaya.",
+  "chat.permissionCard.webmcp.inputs": "Input (wajib ditandai *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Halaman mendeskripsikannya sebagai: {description}",
+  "webmcp.calls.awaitingApproval": "Menunggu persetujuan Anda. Tinjau"
 }

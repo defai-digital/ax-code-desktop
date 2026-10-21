@@ -8,6 +8,9 @@ import { cn } from "@/lib/utils"
 import { useUIStore } from "@/stores/useUIStore"
 import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
+import { formatWebMcpDuration } from "@/lib/webMcpCalls"
+import { revealPermission } from "@/lib/revealToolPart"
+import { useSessionPermissions } from "@/sync/sync-context"
 
 /**
  * What the agent did on the page: its recent page-tool calls with redacted arguments and outcome, from the session's
@@ -24,6 +27,12 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
     viewKeyFor(directory, sessionID),
   )
   const openInTranscript = useUIStore((state) => state.setPendingMessageNavigation)
+  // A running call whose approval is still pending names that approval, so the person can answer it from here.
+  const permissions = useSessionPermissions(sessionID, directory)
+  const pendingByCall = React.useMemo(
+    () => new Map(permissions.flatMap((permission) => (permission.tool?.callID ? [[permission.tool.callID, permission.id]] : []))),
+    [permissions],
+  )
   if (calls.length === 0) return null
   const failed = calls.filter((call) => call.outcome === "failed").length
   return (
@@ -50,7 +59,9 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
             <li key={call.id} data-webmcp-call={call.outcome}>
               <button
                 type="button"
-                onClick={() => openInTranscript({ sessionId: sessionID, messageId: call.messageId })}
+                onClick={() =>
+                  openInTranscript({ sessionId: sessionID, messageId: call.messageId, partId: call.partId ?? undefined })
+                }
                 aria-label={t("webmcp.calls.open", { title: truncateToCodeUnits(call.title, 80) })}
                 className="flex w-full min-w-0 items-start gap-2 rounded border border-border/50 px-2 py-1 text-left hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
               >
@@ -77,7 +88,7 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
                     </span>
                     <span className="shrink-0 typography-micro text-muted-foreground">
                       {t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)}
-                      {call.durationMs !== null ? ` · ${formatDuration(call.durationMs)}` : null}
+                      {call.durationMs !== null ? ` · ${formatWebMcpDuration(call.durationMs)}` : null}
                     </span>
                     {/* The page generation changes on a reload and when agent access pauses or reconnects, so this marks calls
                       made against an earlier page state, whose results may not match what is shown now. */}
@@ -107,17 +118,20 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
                   ) : null}
                 </span>
               </button>
+              {call.outcome === "running" && call.callId && pendingByCall.has(call.callId) ? (
+                <button
+                  type="button"
+                  className="mt-0.5 typography-micro text-[var(--status-warning)] hover:underline"
+                  onClick={() => revealPermission(pendingByCall.get(call.callId!)!)}
+                  data-webmcp-call-approval
+                >
+                  {t("webmcp.calls.awaitingApproval")}
+                </button>
+              ) : null}
             </li>
           ))}
         </ol>
       ) : null}
     </section>
   )
-}
-
-/** "320 ms", "1.4 s", "2 min": enough to see a slow call at a glance. */
-function formatDuration(ms: number): string {
-  if (ms < 1000) return `${Math.round(ms)} ms`
-  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`
-  return `${Math.round(ms / 60_000)} min`
 }

@@ -90,6 +90,8 @@ type PendingFileNavigation = {
 export type PendingMessageNavigation = {
   sessionId: string
   messageId: string
+  /** A tool call inside the message to bring into view and focus, when the caller knows it. */
+  partId?: string
 }
 
 type MainTabGuard = (nextTab: MainTab) => boolean

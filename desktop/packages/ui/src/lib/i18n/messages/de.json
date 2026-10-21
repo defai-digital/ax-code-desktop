@@ -5346,5 +5346,16 @@
   "webmcp.actions.fix.focusOwner": "Fokus auf dieses Fenster",
   "webmcp.browser.callStopped": "Aufruf {call}: angehalten. \u00c4nderungen auf der Seite bleiben bestehen.",
   "webmcp.browser.callStillFinishing": "Aufruf {call}: Stopp angefordert, wird noch abgeschlossen. \u00c4nderungen auf der Seite bleiben bestehen.",
-  "webmcp.browser.stillFinishing": "Stopp f\u00fcr {count} Aufruf(e) angefordert, wird noch abgeschlossen. \u00c4nderungen auf der Seite bleiben bestehen."
+  "webmcp.browser.stillFinishing": "Stopp f\u00fcr {count} Aufruf(e) angefordert, wird noch abgeschlossen. \u00c4nderungen auf der Seite bleiben bestehen.",
+  "diffView.landing.browserRecap.definition": "Definition {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(das Tool hat sich seitdem ge\u00e4ndert)",
+  "diffView.landing.browserRecap.capped": "Zeige die letzten {shown} von {total} Schritten.",
+  "diffView.landing.browserRecap.copy": "Zusammenfassung kopieren",
+  "diffView.landing.browserRecap.copied": "Kopiert",
+  "chat.permissionCard.webmcp.hintConsequential": "Die Seite markiert dieses Seiten-Tool als \u00e4ndernd.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Die Seite sagt, dass dieses Seiten-Tool nur liest.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Die Ergebnisse k\u00f6nnen Text aus nicht vertrauensw\u00fcrdigen Quellen enthalten.",
+  "chat.permissionCard.webmcp.inputs": "Eingaben (erforderlich mit * markiert): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Die Seite beschreibt es als: {description}",
+  "webmcp.calls.awaitingApproval": "Warten auf Ihre Genehmigung. \u00dcberpr\u00fcfen Sie diese"
 }
