@@ -5,3 +5,4 @@ export function redactWebMcpText(value: string): string
 export function webMcpDisplayText(value: string): string
 export function webMcpDisplayReport(value: unknown): unknown
 export function webMcpDisplaySchema(value: unknown): unknown
+export function webMcpSchemaLooksSensitive(schema: unknown): boolean

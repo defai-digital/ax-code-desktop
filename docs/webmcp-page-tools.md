@@ -41,7 +41,7 @@ The open tool also shows:
 - **Form** or **Script**. A form is a declarative tool on the page. A script is a function the page registered.
 - Hint badges for `readOnlyHint`, `untrustedContentHint` and `consequentialHint` (the browser's shorter annotation names
   count too). Hints never approve a call and never grant the agent access. A tool with no hints is not an approval either.
-- **Input schema**, collapsed until you open it. It is the raw schema as read-only text. The panel does not treat that text
+- **Input schema**, collapsed until you open it. It is a redacted, bounded schema display as read-only text. The panel does not treat that text
   as HTML.
 - Authoring notes: a long name or description, a missing description, an opaque value, or the schema keywords `pattern` and
   `patternProperties`. These notes are advice. **Try it** still runs. The page and the AX Code runtime decide what is valid.
@@ -269,3 +269,24 @@ Manual Try it inputs with sensitive names are masked and disable autocomplete,
 including integer PINs and numeric CVVs. Submitted values retain their schema
 number type. Copy recap includes the full-turn count and, when capped, the
 truncation notice; displayed and copied steps retain their original numbers.
+
+
+### Credential display and executable input
+
+Credential assignments are filtered case-insensitively, including labels with spaces or hyphens
+such as `API key`, `private key`, `access token`, and `x-api-key`, with `:` or `=` and optional quotes.
+Filtering occurs before display truncation and before checker reports are written.
+
+The catalog retains an untouched executable schema within its existing size budget. Property keys,
+constants, defaults, and enum values retain their exact registered values. Display labels are separately
+redacted and bounded; enum controls submit the original value selected by index, including long values
+and values whose displayed prefixes collide. The read-only schema block is a display projection only.
+
+JSON input is masked by default when any nested schema property is sensitive or the draft contains
+credential-shaped text. Show JSON input / Hide JSON input explicitly controls visibility; autocomplete
+and spellcheck are disabled. Restored drafts start masked again. Revealing input never changes the
+submitted JSON.
+
+If a checker run times out without confirmed termination, every remaining requested run is recorded
+as not run (contaminated). The check fails and no later tool is invoked in that page, preventing a
+still-running mutation from contaminating subsequent checks.

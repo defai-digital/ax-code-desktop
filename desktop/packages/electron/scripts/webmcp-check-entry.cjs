@@ -114,9 +114,10 @@ async function check() {
     inputSchema: tool.inputSchema ?? null,
   }))
   save()
+  let contaminated = false
   for (const [index, run] of (config.runs ?? []).entries()) {
     // The engine bundled with AX Code Desktop takes the input as a JSON string and answers with one.
-    const result = await Promise.race([
+    const result = contaminated ? { error: "not run: contaminated by an unconfirmed timeout", notRun: true } : await Promise.race([
       contents
         .executeJavaScript(
           `(async () => {
@@ -134,8 +135,9 @@ async function check() {
         .catch((error) => ({
           error: `the page could not run the tool (${error instanceof Error ? error.message : error})`,
         })),
-      delay(config.timeoutMs).then(() => ({ error: `the tool did not answer in ${config.timeoutMs} ms` })),
+      delay(config.timeoutMs).then(() => ({ error: `the tool did not answer in ${config.timeoutMs} ms`, timedOut: true })),
     ])
+    if (result.timedOut) contaminated = true
     report.runs.push({
       name: run.name,
       input: run.input,

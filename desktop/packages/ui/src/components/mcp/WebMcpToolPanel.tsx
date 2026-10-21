@@ -1,4 +1,9 @@
-import { redactWebMcpReport, webMcpDisplayText as redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import {
+  webMcpSchemaLooksSensitive,
+  webMcpTextLooksSensitive,
+  redactWebMcpReport,
+  webMcpDisplayText as redactWebMcpText,
+} from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
@@ -387,9 +392,7 @@ function FieldInput({
     const options = (field.kind === "enum" ? (field.options ?? []) : ["true", "false"]).filter(
       (option) => option !== "",
     )
-    const maskOptions =
-      isWebMcpSensitiveName(field.name) || options.some((option) => redactWebMcpText(option) !== option)
-    const optionValue = (option: string, index: number) => (maskOptions ? `redacted-option-${index}` : option)
+    const optionValue = (_option: string, index: number) => `option-${index}`
     return (
       <select
         id={id}
@@ -552,6 +555,9 @@ function ToolItem({
   const [warnings, setWarnings] = React.useState<{ field: string; constraint: string }[]>([])
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
   const [json, setJson] = React.useState(() => storedDraft(tool.name, digest, viewKey).json)
+  const [jsonRevealed, setJsonRevealed] = React.useState(false)
+  const jsonSensitive = webMcpSchemaLooksSensitive(tool.inputSchema) || webMcpTextLooksSensitive(json)
+  React.useEffect(() => setJsonRevealed(false), [tool.inputSchema, replay, jsonMode, viewKey])
   const [running, setRunning] = React.useState(false)
   const [result, setResult] = React.useState<{ outcome: string; text: string; stale: boolean } | null>(() =>
     storedRun(tool.name, digest, viewKey),
@@ -840,10 +846,17 @@ function ToolItem({
               <p id={`${baseId}-json-limit`} className="typography-micro text-muted-foreground">
                 {t("webmcp.tools.inputLimit")}
               </p>
+              {jsonSensitive ? (
+                <Button type="button" size="xs" variant="ghost" onClick={() => setJsonRevealed((shown) => !shown)}>
+                  {t(jsonRevealed ? "webmcp.tools.hideJson" : "webmcp.tools.showJson")}
+                </Button>
+              ) : null}
               <textarea
                 id={`${baseId}-json`}
                 aria-describedby={`${baseId}-json-limit${form.kind === "json" ? ` ${baseId}-json-fallback` : ""}`}
                 className="h-20 w-full rounded border border-border bg-background p-2 font-mono typography-micro"
+                style={jsonSensitive && !jsonRevealed ? { WebkitTextSecurity: "disc" } as React.CSSProperties : undefined}
+                autoComplete="off"
                 value={json}
                 onChange={(event) => {
                   setJson(event.target.value)

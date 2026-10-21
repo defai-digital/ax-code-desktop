@@ -2897,6 +2897,14 @@ test("main status and catalog project bounded redacted page text", async () => {
   const projection = projectToolCatalog([{ name: "token=NAME_SECRET", description: "x".repeat(5000), inputSchema: { type: "object", description: "token=SCHEMA_SECRET", properties: { password: { type: "string" } } } }])
   expect(projection.catalog[0].name).toBe("[redacted]")
   expect(projection.catalog[0].description.length).toBe(4000)
-  expect(projection.catalog[0].inputSchema.description).toBe("[redacted]")
+  expect(projection.catalog[0].inputSchema.description).toBe("token=SCHEMA_SECRET")
   expect(projection.catalog[0].inputSchema.properties.password).toEqual({ type: "string" })
+})
+
+test("catalog preserves executable schema keys, defaults, constants and colliding long enums", () => {
+  const key = "k".repeat(4100)
+  const schema = { type: "object", properties: { [key]: { type: "string", enum: ["a".repeat(4100), "a".repeat(4000) + "b".repeat(100)], const: "token=original", default: "API key: original" } } }
+  const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0].inputSchema
+  expect(projected).toEqual(schema)
+  expect(projected).not.toBe(schema)
 })

@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "Mostrando {shown} de {total} entradas; {required} entradas adicionales obligatorias no se muestran.",
   "webmcp.browser.waitingForSignIn": "El agente est\u00e1 esperando a que finalices el inicio de sesi\u00f3n y cierres las ventanas de inicio de sesi\u00f3n.",
   "webmcp.browser.signOut": "Cerrar sesi\u00f3n en el navegador del proyecto",
-  "webmcp.browser.confirmClose": "Estas p\u00e1ginas pueden contener cambios no guardados. \u00bfCerrarlas y descartar los cambios no guardados? {pages}"
+  "webmcp.browser.confirmClose": "Estas p\u00e1ginas pueden contener cambios no guardados. \u00bfCerrarlas y descartar los cambios no guardados? {pages}",
+  "webmcp.tools.showJson": "Mostrar entrada JSON",
+  "webmcp.tools.hideJson": "Ocultar entrada JSON"
 }

@@ -18,6 +18,8 @@ export const dict = {
   "webmcp.pages.draft": "Session draft",
   "webmcp.pages.blank": "No supported origin",
   "webmcp.pages.showNamed": "Show page: {page}",
+  "webmcp.tools.showJson": "Show JSON input",
+  "webmcp.tools.hideJson": "Hide JSON input",
   "webmcp.pages.show": "Show page",
   "webmcp.pages.access.on": "Access on",
   "webmcp.pages.access.paused": "Access paused",
