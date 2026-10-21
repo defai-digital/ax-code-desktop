@@ -61,6 +61,26 @@ describe("collectWebMcpCalls", () => {
     expect(failed.durationMs).toBeNull()
   })
 
+  test("records a runtime definition digest and does not guess arguments from the model payload", () => {
+    const parts = new Map<string, unknown[]>([
+      [
+        "m1",
+        [
+          tool("p1", "completed", {
+            input: { action: "invoke", toolName: "add_numbers", input: { a: 9 } },
+            metadata: { operation: "invoke", toolName: "add_numbers", definitionDigest: "ab".repeat(8) },
+          }),
+        ],
+      ],
+    ])
+    const [call] = collectWebMcpCalls([{ id: "m1" }], (id) => parts.get(id) as never)
+    expect(call.definitionDigest).toBe("ab".repeat(8))
+    expect(call.argumentsMissing).toBe(true)
+    expect(call.inputKind).toBe("missing")
+    expect(call.input).toBeNull()
+    expect(JSON.stringify(call)).not.toContain('"a":9')
+  })
+
   test("unwraps only the runtime envelope, so a tool's own result field is kept", () => {
     const parts = new Map<string, unknown[]>([["m1", [tool("own", "completed", { output: JSON.stringify({ result: { id: 7 }, extra: 1 }) })]]])
     const [call] = collectWebMcpCalls([{ id: "m1" }], (id) => parts.get(id) as never)

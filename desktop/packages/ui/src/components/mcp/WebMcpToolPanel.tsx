@@ -3,17 +3,29 @@ import React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
+import { copyTextToClipboard } from "@/lib/clipboard"
 import { useI18n } from "@/lib/i18n"
 import type { I18nKey, I18nParams } from "@/lib/i18n/store"
+import type { WebMcpCall } from "@/lib/webMcpCalls"
+import {
+  diagnoseWebMcpInput,
+  webMcpDefinitionChanged,
+  webMcpDefinitionsDiffer,
+  webMcpRegressionExport,
+  type WebMcpDiagnosis,
+  type WebMcpDiagnosisFinding,
+} from "@/lib/webMcpDiagnosis"
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
-import { toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
+import { draftFromRecordedInput, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
 import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview } from "@/lib/toolHelpers"
 import {
   useWebMcpBrowserStore,
   type WebMcpCatalogRejectionReason,
+  type WebMcpJournalEntry,
   type WebMcpRegistrationEvent,
   type WebMcpToolDefinition,
 } from "@/stores/useWebMcpBrowserStore"
+import { createWebMcpJournalId } from "@/lib/webMcpCatalog"
 
 export type TryResult = { ok: boolean; outcome?: string; output?: unknown; reason?: string }
 
@@ -92,6 +104,255 @@ function lintText(t: Translate, finding: WebMcpLintFinding) {
 
 function shortDigest(value: string) {
   return value.slice(0, 12)
+}
+
+function formatDuration(ms: number): string {
+  if (!Number.isFinite(ms) || ms < 0) return "0 ms"
+  if (ms < 1000) return `${Math.round(ms)} ms`
+  if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`
+  return `${Math.round(ms / 60_000)} min`
+}
+
+function inputText(input: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(input, null, 2)
+  } catch {
+    return "{}"
+  }
+}
+
+function CopyExport({
+  tool,
+  input,
+  outcome,
+  copyId,
+}: {
+  tool: string
+  input: Record<string, unknown> | null
+  outcome: string
+  copyId: string
+}) {
+  const { t } = useI18n()
+  const [copied, setCopied] = React.useState<"test" | "run" | null>(null)
+  const exported = input ? webMcpRegressionExport({ tool, input, outcome }) : null
+  const copy = async (kind: "test" | "run", text: string) => {
+    const result = await copyTextToClipboard(text)
+    if (!result.ok) return
+    setCopied(kind)
+    window.setTimeout(() => setCopied((current) => (current === kind ? null : current)), 1500)
+  }
+  if (!exported) {
+    return <p className="typography-micro text-muted-foreground">{t("webmcp.tools.export.unavailable")}</p>
+  }
+  return (
+    <div className="space-y-1" data-webmcp-export={copyId}>
+      <pre
+        data-webmcp-export-snippet=""
+        className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
+      >
+        {exported.snippet}
+      </pre>
+      <code data-webmcp-export-run="" className="block break-all font-mono typography-micro">
+        {exported.runArgument}
+      </code>
+      <div className="flex flex-wrap gap-1">
+        <Button type="button" size="xs" variant="ghost" onClick={() => void copy("test", exported.snippet)}>
+          {copied === "test" ? t("webmcp.tools.export.copied") : t("webmcp.tools.export.copyTest")}
+        </Button>
+        <Button type="button" size="xs" variant="ghost" onClick={() => void copy("run", exported.runArgument)}>
+          {copied === "run" ? t("webmcp.tools.export.copied") : t("webmcp.tools.export.copyRun")}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function DiagnosisList({
+  diagnosis,
+  digest,
+  currentDigest,
+  source,
+}: {
+  diagnosis: WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" }
+  digest: string | null
+  currentDigest: string
+  source: "manual" | "agent"
+}) {
+  const { t } = useI18n()
+  const changed = webMcpDefinitionChanged(digest, currentDigest)
+  const findingText = (finding: WebMcpDiagnosisFinding) =>
+    t("webmcp.tools.diagnosis.finding", {
+      property: finding.property,
+      rule: finding.expected ? `${finding.rule}:${finding.expected}` : finding.rule,
+      kind: finding.valueKind,
+    })
+  return (
+    <div className="space-y-1" data-webmcp-diagnosis={source}>
+      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.title")}</p>
+      {diagnosis.status === "unavailable" ? (
+        <p className="typography-micro" data-webmcp-diagnosis-gap={diagnosis.reason}>
+          {t(
+            diagnosis.reason === "no-arguments"
+              ? "webmcp.tools.diagnosis.noArguments"
+              : diagnosis.reason === "redacted"
+                ? "webmcp.tools.diagnosis.redacted"
+                : "webmcp.tools.diagnosis.unparsed",
+          )}
+        </p>
+      ) : diagnosis.status === "unchecked" ? (
+        <p className="typography-micro text-muted-foreground">
+          {t(
+            diagnosis.reason === "no-schema"
+              ? "webmcp.tools.diagnosis.noSchema"
+              : "webmcp.tools.diagnosis.unsupported",
+          )}
+        </p>
+      ) : diagnosis.findings.length === 0 ? (
+        <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.none")}</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {diagnosis.findings.map((finding) => (
+            <li
+              key={`${finding.property}:${finding.rule}:${finding.valueKind}`}
+              data-webmcp-diagnosis-property={finding.property}
+              data-webmcp-diagnosis-rule={finding.rule}
+              data-webmcp-diagnosis-kind={finding.valueKind}
+              className="typography-micro"
+            >
+              {findingText(finding)}
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className="typography-micro text-muted-foreground">
+        {digest
+          ? t("webmcp.tools.diagnosis.digest", { digest: shortDigest(digest) })
+          : t("webmcp.tools.diagnosis.digestUnknown")}
+      </p>
+      {changed && digest ? (
+        <p className="typography-micro" data-webmcp-definition-changed={source}>
+          {t("webmcp.tools.diagnosis.changed", {
+            digest: shortDigest(digest),
+            current: shortDigest(currentDigest),
+          })}
+        </p>
+      ) : null}
+      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.advisory")}</p>
+    </div>
+  )
+}
+
+function agentDiagnosis(
+  call: WebMcpCall,
+  schema: unknown,
+): WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" } {
+  if (call.inputKind === "redacted") return { status: "unavailable", reason: "redacted" }
+  if (call.inputKind === "unparsed") return { status: "unavailable", reason: "unparsed" }
+  if (call.inputKind === "missing" || !call.input) return { status: "unavailable", reason: "no-arguments" }
+  return diagnoseWebMcpInput(schema, call.input)
+}
+
+/** The page outcome a regression snippet should assert for one transcript call. */
+function recordedPageOutcome(call: WebMcpCall): string {
+  if (call.outcome === "ok") return "completed"
+  if (
+    call.failureReason === "timeout" ||
+    call.failureReason === "cancelled" ||
+    call.failureReason === "application-error"
+  ) {
+    return call.failureReason
+  }
+  return call.outcome === "failed" ? "failed" : "running"
+}
+
+function ToolCompare({
+  tool,
+  journalEntry,
+  agentCall,
+}: {
+  tool: WebMcpToolDefinition
+  journalEntry: WebMcpJournalEntry | null
+  agentCall: WebMcpCall | null
+}) {
+  const { t } = useI18n()
+  const digest = tool.digest ?? ""
+  const differ = webMcpDefinitionsDiffer(journalEntry?.digest, agentCall?.definitionDigest)
+  if (!journalEntry && !agentCall) return null
+  return (
+    <div className="space-y-2" data-webmcp-compare="">
+      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.title")}</p>
+      <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(12rem, 1fr))" }}>
+        <div data-webmcp-compare-manual="" className="min-w-0 space-y-1">
+          <p className="typography-micro">{t("webmcp.tools.compare.manual")}</p>
+          {journalEntry ? (
+            <>
+              <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.input")}</p>
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro">
+                {inputText(journalEntry.input)}
+              </pre>
+              <pre
+                data-webmcp-compare-result={journalEntry.outcome}
+                className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
+              >
+                {journalEntry.text}
+              </pre>
+              <DiagnosisList
+                diagnosis={diagnoseWebMcpInput(tool.inputSchema, journalEntry.input)}
+                digest={journalEntry.digest || null}
+                currentDigest={digest}
+                source="manual"
+              />
+              <CopyExport
+                tool={journalEntry.tool}
+                input={journalEntry.input}
+                outcome={journalEntry.outcome}
+                copyId="manual"
+              />
+            </>
+          ) : (
+            <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.noManual")}</p>
+          )}
+        </div>
+        <div data-webmcp-compare-agent="" className="min-w-0 space-y-1">
+          <p className="typography-micro">{t("webmcp.tools.compare.agent")}</p>
+          {agentCall ? (
+            <>
+              <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.input")}</p>
+              <pre
+                data-webmcp-compare-agent-arguments=""
+                className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
+              >
+                {agentCall.argumentsText ??
+                  (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
+              </pre>
+              <DiagnosisList
+                diagnosis={agentDiagnosis(agentCall, tool.inputSchema)}
+                digest={agentCall.definitionDigest}
+                currentDigest={digest}
+                source="agent"
+              />
+              <CopyExport
+                tool={agentCall.toolName ?? tool.name}
+                input={agentCall.input}
+                outcome={recordedPageOutcome(agentCall)}
+                copyId="agent"
+              />
+            </>
+          ) : (
+            <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.noAgent")}</p>
+          )}
+        </div>
+      </div>
+      {differ && journalEntry && agentCall?.definitionDigest ? (
+        <p className="typography-micro" data-webmcp-definition-diff="">
+          {t("webmcp.tools.compare.differentDefinitions", {
+            manual: shortDigest(journalEntry.digest),
+            agent: shortDigest(agentCall.definitionDigest),
+          })}
+        </p>
+      ) : null}
+    </div>
+  )
 }
 
 function FieldInput({
@@ -232,10 +493,25 @@ function SchemaBlock({ schema }: { schema: unknown }) {
   )
 }
 
-function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryTool: TryTool; viewKey?: string }) {
+function ToolItem({
+  tool,
+  tryTool,
+  viewKey,
+  journalEntry,
+  replay,
+  agentCall,
+}: {
+  tool: WebMcpToolDefinition
+  tryTool: TryTool
+  viewKey?: string
+  journalEntry: WebMcpJournalEntry | null
+  replay: { id: string; input: Record<string, unknown>; nonce: number } | null
+  agentCall: WebMcpCall | null
+}) {
   const { t } = useI18n()
   const saveToolDraft = useWebMcpBrowserStore((state) => state.saveToolDraft)
   const recordToolRun = useWebMcpBrowserStore((state) => state.recordToolRun)
+  const recordToolJournal = useWebMcpBrowserStore((state) => state.recordToolJournal)
   const clearToolRun = useWebMcpBrowserStore((state) => state.clearToolRun)
   const digest = tool.digest ?? ""
   const form = React.useMemo(() => toolForm(tool.inputSchema), [tool.inputSchema])
@@ -255,10 +531,38 @@ function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryT
     storedRun(tool.name, digest, viewKey),
   )
   const baseId = React.useId()
+  const appliedReplay = React.useRef<number | null>(null)
 
   React.useEffect(() => {
     saveToolDraft(tool.name, { digest, values, sendEmpty, json, jsonMode }, viewKey)
   }, [digest, json, jsonMode, saveToolDraft, sendEmpty, tool.name, values, viewKey])
+
+  React.useEffect(() => {
+    if (!replay) {
+      if (appliedReplay.current !== null) {
+        appliedReplay.current = null
+        const draft = storedDraft(tool.name, digest, viewKey)
+        setValues(draft.values)
+        setSendEmpty(draft.sendEmpty)
+        setJson(draft.json)
+        setJsonMode(draft.jsonMode)
+        setWarnings([])
+        setInputIssue(null)
+      }
+      return
+    }
+    // A second click of the same row gets a new nonce and reloads the recorded input. Schema identity changes do not.
+    if (appliedReplay.current === replay.nonce) return
+    appliedReplay.current = replay.nonce
+    const loaded = draftFromRecordedInput(tool.inputSchema, replay.input)
+    setOpen(true)
+    setValues(loaded.values)
+    setSendEmpty(loaded.sendEmpty)
+    setJson(loaded.json)
+    setJsonMode(loaded.jsonMode)
+    setWarnings([])
+    setInputIssue(null)
+  }, [digest, replay, tool.inputSchema, tool.name, viewKey])
 
   const constraintText = (field: ToolField, constraint: string) =>
     t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
@@ -314,6 +618,23 @@ function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryT
     setInputIssue(null)
     setRunning(true)
     showResult(null)
+    const started = performance.now()
+    const remember = (next: { outcome: string; text: string }) => {
+      showResult(next)
+      recordToolJournal(
+        {
+          id: createWebMcpJournalId(),
+          tool: tool.name,
+          input,
+          outcome: next.outcome,
+          text: next.text,
+          durationMs: performance.now() - started,
+          digest,
+          at: Date.now(),
+        },
+        viewKey,
+      )
+    }
     try {
       const reply = await tryTool(tool.name, input)
       const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
@@ -329,10 +650,10 @@ function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryT
           : outcome === "uncertain"
             ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)}`
             : t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)
-      showResult({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
+      remember({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
     } catch {
       // IPC can disappear after the invocation was sent. Never infer failure or offer an automatic retry.
-      showResult({
+      remember({
         outcome: "uncertain",
         text: `${t("webmcp.tools.uncertain")} ${t("chat.toolPart.webmcp.reason.provider-gone")}`,
       })
@@ -533,20 +854,29 @@ function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryT
               <p className="typography-micro">{t("webmcp.tools.inspectPage")}</p>
             ) : null}
           </div>
+          <ToolCompare tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
         </div>
       ) : null}
     </li>
   )
 }
 
-type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<TryResult>
+export type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<TryResult>
 
 /**
  * The tools the current page registers, visible before the agent is granted anything. "Try it" runs a tool on the page as
  * the user, the same as using the page; it creates no agent grant and adds nothing to the conversation.
  * Hint badges and authoring notes never approve a call. A rejected registration is named here and does not hide the page.
  */
-export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKey?: string }) {
+export function WebMcpToolPanel({
+  tryTool,
+  viewKey,
+  agentCalls = [],
+}: {
+  tryTool: TryTool
+  viewKey?: string
+  agentCalls?: readonly WebMcpCall[]
+}) {
   const { t } = useI18n()
   const currentKey = useCurrentWebMcpViewKey()
   const pooled = useWebMcpBrowserStore((state) => state.activeKey !== null || state.order.length > 0)
@@ -556,7 +886,18 @@ export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKe
   const catalogLimit = useWebMcpBrowserValue((state) => state.catalogLimit, viewKey)
   const catalogRejection = useWebMcpBrowserValue((state) => state.catalogRejection, viewKey)
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
+  const journal = useWebMcpBrowserValue((state) => state.toolJournal, viewKey)
+  const [replay, setReplay] = React.useState<{
+    id: string
+    tool: string
+    input: Record<string, unknown>
+    nonce: number
+  } | null>(null)
+  const replayNonce = React.useRef(0)
   const [open, setOpen] = React.useState(false)
+  React.useEffect(() => {
+    if (replay && !journal.some((entry) => entry.id === replay.id)) setReplay(null)
+  }, [journal, replay])
   if (!origin || (catalog.length === 0 && !catalogRejection && registration.length === 0)) return null
   const truncated = catalogLimit.truncation !== null || catalogLimit.shown < catalogLimit.total
   const timeline = [...registration].reverse()
@@ -616,6 +957,52 @@ export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKe
               </ol>
             </div>
           ) : null}
+          <div className="space-y-1" data-webmcp-journal="" data-webmcp-journal-count={journal.length}>
+            <p className="typography-micro text-muted-foreground">{t("webmcp.tools.journal.title")}</p>
+            <p className="typography-micro text-muted-foreground">{t("webmcp.tools.journal.memory")}</p>
+            {journal.length === 0 ? (
+              <p className="typography-micro text-muted-foreground">{t("webmcp.tools.journal.empty")}</p>
+            ) : (
+              <ol className="space-y-0.5">
+                {journal.map((entry) => (
+                  <li
+                    key={entry.id}
+                    data-webmcp-journal-entry={entry.id}
+                    data-webmcp-journal-tool={entry.tool}
+                    data-webmcp-journal-outcome={entry.outcome}
+                    data-webmcp-journal-digest={entry.digest}
+                    data-webmcp-journal-duration={entry.durationMs}
+                    className="flex flex-wrap items-center gap-1"
+                  >
+                    <Button
+                      type="button"
+                      size="xs"
+                      variant="ghost"
+                      data-webmcp-replay={entry.id}
+                      onClick={() => {
+                        replayNonce.current += 1
+                        setReplay({
+                          id: entry.id,
+                          tool: entry.tool,
+                          input: entry.input,
+                          nonce: replayNonce.current,
+                        })
+                      }}
+                    >
+                      {t("webmcp.tools.journal.replay", {
+                        tool: entry.tool,
+                        outcome: entry.outcome,
+                        duration: formatDuration(entry.durationMs),
+                      })}
+                    </Button>
+                    <span className="font-mono typography-micro text-muted-foreground">
+                      {t("webmcp.tools.journal.digest", { digest: shortDigest(entry.digest) })}
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
           <ul className="max-h-72 space-y-1.5 overflow-auto">
             {catalog.map((tool) => (
               <ToolItem
@@ -623,6 +1010,13 @@ export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKe
                 tool={tool}
                 tryTool={tryTool}
                 viewKey={toolViewKey}
+                journalEntry={journal.find((entry) => entry.tool === tool.name) ?? null}
+                replay={replay?.tool === tool.name ? replay : null}
+                agentCall={
+                  agentCalls.find(
+                    (call) => call.operation?.toLowerCase() === "invoke" && call.toolName === tool.name,
+                  ) ?? null
+                }
               />
             ))}
           </ul>

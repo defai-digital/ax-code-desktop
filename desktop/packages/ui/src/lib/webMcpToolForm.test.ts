@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { toolForm, toolInput, toolInputWarnings } from "./webMcpToolForm"
+import { draftFromRecordedInput, toolForm, toolInput, toolInputWarnings } from "./webMcpToolForm"
 
 const fields = (properties: Record<string, unknown>, required: string[] = []) => {
   const form = toolForm({ type: "object", properties, required })
@@ -86,5 +86,23 @@ describe("WebMCP tool form", () => {
     const all = fields(JSON.parse('{"__proto__":{"type":"string"}}'))
     const built = toolInput(all, JSON.parse('{"__proto__":"data"}'))
     expect(built).toEqual({ ok: true, input: JSON.parse('{"__proto__":"data"}') })
+  })
+
+  test("a recorded object reloads into fields, and a value the fields cannot show stays JSON", () => {
+    const schema = {
+      type: "object",
+      properties: { title: { type: "string" }, n: { type: "integer" }, ok: { type: "boolean" } },
+      required: ["title"],
+    }
+    const input = { title: "", n: 2, ok: false }
+    expect(draftFromRecordedInput(schema, input)).toEqual({
+      values: { title: "", n: "2", ok: "false" },
+      sendEmpty: { title: true },
+      json: JSON.stringify(input, null, 2),
+      jsonMode: false,
+    })
+    expect(draftFromRecordedInput(schema, { title: "a", extra: 1 }).jsonMode).toBe(true)
+    expect(draftFromRecordedInput(schema, { n: 1.5 }).jsonMode).toBe(true)
+    expect(draftFromRecordedInput({ type: "object", properties: { labels: { type: "array" } } }, {}).jsonMode).toBe(true)
   })
 })

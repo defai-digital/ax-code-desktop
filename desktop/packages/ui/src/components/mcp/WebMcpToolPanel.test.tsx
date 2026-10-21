@@ -16,8 +16,9 @@ vi.mock("@/lib/i18n", async () => {
     }),
   }
 })
+import type { WebMcpCall } from "@/lib/webMcpCalls"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
-import { WebMcpToolPanel } from "./WebMcpToolPanel"
+import { WebMcpToolPanel, type TryTool } from "./WebMcpToolPanel"
 
 afterEach(() => {
   cleanup()
@@ -658,4 +659,151 @@ test("selected tool forms restore per-view drafts and late manual results stay w
     cleanup()
     useWebMcpBrowserStore.setState(initial, true)
   }
+})
+
+function pageCall(overrides: Partial<WebMcpCall>): WebMcpCall {
+  return {
+    id: "call-1",
+    title: "add_numbers",
+    toolName: "add_numbers",
+    operation: "invoke",
+    argumentsText: null,
+    outcome: "failed",
+    failureReason: "invalid-input",
+    at: 1,
+    messageId: "m1",
+    durationMs: 8,
+    resultPreview: null,
+    generation: null,
+    argumentsMissing: false,
+    definitionDigest: "bbbbbbbbbbbbbbbb",
+    inputKind: "object",
+    input: { a: 1, b: "nope" },
+    ...overrides,
+  }
+}
+
+const openAdd = (tryTool: TryTool, agentCalls?: readonly WebMcpCall[]) => {
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog })
+  const view = render(<WebMcpToolPanel tryTool={tryTool} agentCalls={agentCalls} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+  return view
+}
+
+test("a manual journal keeps the sent run and replays it into editable fields without running", async () => {
+  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const view = openAdd(tryTool)
+  expect(view.container.querySelector("[data-webmcp-journal-count]")?.getAttribute("data-webmcp-journal-count")).toBe("0")
+  await runTool()
+  expect(tryTool).not.toHaveBeenCalled()
+  expect(view.container.querySelector("[data-webmcp-journal-entry]")).toBeNull()
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  await runTool()
+  const entry = view.container.querySelector("[data-webmcp-journal-entry]")
+  expect(entry?.getAttribute("data-webmcp-journal-tool")).toBe("add_numbers")
+  expect(entry?.getAttribute("data-webmcp-journal-outcome")).toBe("completed")
+  expect(entry?.getAttribute("data-webmcp-journal-digest")?.length).toBeGreaterThan(0)
+  expect(view.container.querySelector("[data-webmcp-tool-result='completed']")).not.toBeNull()
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-replay]")!)
+  expect(view.container.querySelector("[data-webmcp-tool-result='completed']")).not.toBeNull()
+  expect(tryTool).toHaveBeenCalledTimes(1)
+  const [nextA, nextB] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  expect([nextA.value, nextB.value]).toEqual(["2", "3"])
+  fireEvent.change(nextA, { target: { value: "9" } })
+  await runTool()
+  expect(tryTool).toHaveBeenLastCalledWith("add_numbers", { a: 9, b: 3 })
+  expect(view.container.querySelectorAll("[data-webmcp-journal-entry]")).toHaveLength(2)
+  expect(JSON.stringify(localStorage)).not.toContain('"a": 9')
+})
+
+test("compare shows the transcript arguments beside the manual run and flags different definitions", async () => {
+  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const transcript = "CITY [redacted]"
+  const view = openAdd(tryTool, [
+    pageCall({ argumentsText: transcript, input: { a: 1, b: "nope" }, inputKind: "object" }),
+  ])
+  expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe(transcript)
+  const finding = view.container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property='b']")
+  expect(finding?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
+  expect(finding?.getAttribute("data-webmcp-diagnosis-kind")).toBe("string")
+  expect(view.container.querySelector("[data-webmcp-definition-diff]")).toBeNull()
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  const tryButton = screen.getByRole("button", { name: "webmcp.tools.try" })
+  expect(tryButton.getAttribute("aria-disabled")).not.toBe("true")
+  await runTool()
+  expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+  expect(view.container.querySelector("[data-webmcp-compare-manual]")?.textContent).toContain('"a": 2')
+  expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe(transcript)
+  // Mutation probe: this attribute is present only when the two known digests differ.
+  expect(view.container.querySelector("[data-webmcp-definition-diff]")).not.toBeNull()
+  const snippet = view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-snippet]")
+  expect(snippet?.textContent).toContain("document.modelContext.executeTool")
+  expect(snippet?.textContent).toContain("JSON.stringify(")
+  expect(view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-run]")?.textContent).toContain(
+    "--run ",
+  )
+  expect(view.container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-snippet]")?.textContent).toContain(
+    "document.modelContext.executeTool",
+  )
+})
+
+test("the same definition digest is not flagged, and a missing runtime input is not guessed", async () => {
+  const digest = "cdcdcdcdcdcdcdcd"
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [{ ...catalog[0], digest }],
+  })
+  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const view = render(
+    <WebMcpToolPanel
+      tryTool={tryTool}
+      agentCalls={[
+        pageCall({
+          definitionDigest: digest,
+          argumentsMissing: true,
+          argumentsText: null,
+          input: null,
+          inputKind: "missing",
+        }),
+      ]}
+    />,
+  )
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  await runTool()
+  expect(view.container.querySelector("[data-webmcp-definition-diff]")).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis='agent']")?.getAttribute("data-webmcp-diagnosis")).toBe(
+    "agent",
+  )
+  expect(view.container.querySelector("[data-webmcp-diagnosis-gap='no-arguments']")).not.toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property]")).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-compare-agent]")?.textContent).toContain(
+    "webmcp.tools.export.unavailable",
+  )
+  expect(tryTool).toHaveBeenCalledTimes(1)
+})
+
+test("a changed definition is named for the manual run that used the earlier digest", async () => {
+  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const view = openAdd(tryTool)
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  await runTool()
+  act(() => {
+    useWebMcpBrowserStore.getState().updateSnapshot({
+      catalog: [{ ...catalog[0], description: "A different definition" }],
+    })
+  })
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+  expect(view.container.querySelector("[data-webmcp-definition-changed='manual']")).not.toBeNull()
+  expect(view.container.querySelector("[data-webmcp-journal-entry]")).not.toBeNull()
 })

@@ -5,6 +5,8 @@ import {
   WEBMCP_FAILURE_REASONS,
   webMcpResultPreview,
   describeWebMcpCall,
+  readWebMcpDefinitionDigest,
+  readWebMcpInvokeInput,
   desktopWebMcpResultFailed,
   desktopWebMcpResultOutcome,
   desktopWebMcpRowTitle,
@@ -68,6 +70,27 @@ describe("WebMCP invoke arguments", () => {
     expect(call.argumentsText).toContain("Toronto")
     expect(call.argumentsText).not.toContain("supersecretvalue")
     expect(call.argumentsText).toContain("[redacted]")
+  })
+
+  test("keeps a long argument for diagnosis and reads only a real definition digest", () => {
+    const title = "x".repeat(200)
+    expect(readWebMcpInvokeInput({ arguments: { title } })).toEqual({ kind: "object", input: { title } })
+    expect(readWebMcpInvokeInput({ inputPreview: '{"title":"Ship"}' })).toEqual({
+      kind: "preview",
+      input: { title: "Ship" },
+    })
+    expect(readWebMcpInvokeInput({ inputPreview: "not json" })).toEqual({ kind: "unparsed", input: null })
+    expect(readWebMcpInvokeInput({ inputPreview: "password=supersecretvalue" })).toEqual({
+      kind: "redacted",
+      input: null,
+    })
+    // metadata.input is a receipt. An empty metadata bag is not, and the model payload is not read here.
+    expect(readWebMcpInvokeInput({})).toEqual({ kind: "missing", input: null })
+    expect(readWebMcpInvokeInput(undefined)).toEqual({ kind: "missing", input: null })
+    expect(readWebMcpDefinitionDigest({ definitionDigest: "abcdabcd" })).toBe("abcdabcd")
+    expect(readWebMcpDefinitionDigest({ schemaDigest: "ab".repeat(16) })).toBe("ab".repeat(16))
+    expect(readWebMcpDefinitionDigest({ digest: "zz" })).toBeNull()
+    expect(readWebMcpDefinitionDigest({ digest: "not-a-digest" })).toBeNull()
   })
 
   test("catalog English matches the runtime placeholder", () => {

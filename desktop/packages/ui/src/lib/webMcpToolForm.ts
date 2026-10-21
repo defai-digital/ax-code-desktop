@@ -13,6 +13,38 @@ export type ToolForm = { kind: "fields"; fields: ToolField[] } | { kind: "json";
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === "object" && !Array.isArray(value)
 const constraintNames = ["minimum", "maximum", "minLength", "maxLength", "enum", "format", "default"] as const
+const compositionKeys = ["oneOf", "anyOf", "allOf", "$ref", "if", "not"] as const
+
+/** One primitive property. Null when the property is nested or composed, so the caller can decide what to do. */
+function readToolField(name: string, property: unknown, required: boolean): ToolField | null {
+  if (!isRecord(property)) return null
+  if (compositionKeys.some((key) => key in property)) return null
+  const description = typeof property.description === "string" ? property.description.slice(0, 300) : undefined
+  const constraints = Object.fromEntries(
+    constraintNames.filter((key) => key in property).map((key) => [key, property[key]]),
+  )
+  const common = {
+    name,
+    required,
+    description,
+    ...(Object.keys(constraints).length ? { constraints } : {}),
+  }
+  if (
+    Array.isArray(property.enum) &&
+    property.enum.every((option) => typeof option === "string") &&
+    (property.type === undefined || property.type === "string")
+  ) {
+    return { ...common, kind: "enum", options: property.enum as string[] }
+  }
+  if (property.type === "string" || property.type === "number" || property.type === "integer" || property.type === "boolean") {
+    return { ...common, kind: property.type }
+  }
+  return null
+}
+
+function requiredNames(schema: Record<string, unknown>): Set<string> {
+  return new Set(Array.isArray(schema.required) ? schema.required.filter((key) => typeof key === "string") : [])
+}
 
 export function toolForm(schema: unknown): ToolForm {
   if (schema === undefined) return { kind: "fields", fields: [] }
@@ -22,38 +54,39 @@ export function toolForm(schema: unknown): ToolForm {
   const properties = Object.entries(schemaProperties)
   if (properties.length > 128) return { kind: "json", reason: "large" }
   // Composition can change the meaning of otherwise simple properties. Keep the whole input editable.
-  if (["oneOf", "anyOf", "allOf", "$ref", "if", "not"].some((key) => key in schema))
-    return { kind: "json", reason: "complex" }
-  const required = new Set(
-    Array.isArray(schema.required) ? schema.required.filter((key) => typeof key === "string") : [],
-  )
+  if (compositionKeys.some((key) => key in schema)) return { kind: "json", reason: "complex" }
+  const required = requiredNames(schema)
   if ([...required].some((key) => !Object.hasOwn(schemaProperties, key))) return { kind: "json", reason: "complex" }
   const fields: ToolField[] = []
   for (const [name, property] of properties) {
-    if (!isRecord(property)) return { kind: "json", reason: "complex" }
-    if (["oneOf", "anyOf", "allOf", "$ref", "if", "not"].some((key) => key in property))
-      return { kind: "json", reason: "complex" }
-    const description = typeof property.description === "string" ? property.description.slice(0, 300) : undefined
-    const constraints = Object.fromEntries(
-      constraintNames.filter((key) => key in property).map((key) => [key, property[key]]),
-    )
-    const common = {
-      name,
-      required: required.has(name),
-      description,
-      ...(Object.keys(constraints).length ? { constraints } : {}),
-    }
-    if (
-      Array.isArray(property.enum) &&
-      property.enum.every((option) => typeof option === "string") &&
-      (property.type === undefined || property.type === "string")
-    ) {
-      fields.push({ ...common, kind: "enum", options: property.enum as string[] })
-    } else if (["string", "number", "integer", "boolean"].includes(property.type as string)) {
-      fields.push({ ...common, kind: property.type as ToolField["kind"] })
-    } else return { kind: "json", reason: "complex" }
+    const field = readToolField(name, property, required.has(name))
+    if (!field) return { kind: "json", reason: "complex" }
+    fields.push(field)
   }
   return { kind: "fields", fields }
+}
+
+/**
+ * Primitive properties an advisory diagnosis can name. One nested property does not hide the others, and root
+ * composition does not hide a simple sibling. At most 128 properties, matching the field form.
+ */
+export function diagnosisFields(schema: unknown): ToolField[] {
+  if (!isRecord(schema) || schema.type !== "object" || !isRecord(schema.properties)) return []
+  const required = requiredNames(schema)
+  const fields: ToolField[] = []
+  for (const [name, property] of Object.entries(schema.properties).slice(0, 128)) {
+    const field = readToolField(name, property, required.has(name))
+    if (field) fields.push(field)
+  }
+  return fields
+}
+
+/** Required names whose schema is not a primitive field, so a missing value can still be named. */
+export function diagnosisOpaqueRequired(schema: unknown, fields: readonly ToolField[]): string[] {
+  if (!isRecord(schema) || !isRecord(schema.properties)) return []
+  const covered = new Set(fields.map((field) => field.name))
+  const properties = schema.properties
+  return [...requiredNames(schema)].filter((name) => Object.hasOwn(properties, name) && !covered.has(name))
 }
 
 /** Empty text omits a field unless the person explicitly chooses to send an empty string. */
@@ -105,4 +138,32 @@ export function toolInputWarnings(fields: readonly ToolField[], input: Record<st
     }
   }
   return warnings
+}
+
+/** Load a recorded object back into the field form. A value the fields cannot show stays in the JSON editor. */
+export function draftFromRecordedInput(
+  schema: unknown,
+  input: Record<string, unknown>,
+): { values: Record<string, string>; sendEmpty: Record<string, boolean>; json: string; jsonMode: boolean } {
+  const json = JSON.stringify(input, null, 2)
+  const form = toolForm(schema)
+  const empty = { values: {} as Record<string, string>, sendEmpty: {} as Record<string, boolean>, json, jsonMode: true }
+  if (form.kind !== "fields") return empty
+  const values: Record<string, string> = {}
+  const sendEmpty: Record<string, boolean> = {}
+  for (const [key, value] of Object.entries(input)) {
+    const field = form.fields.find((item) => item.name === key)
+    if (!field) return empty
+    if (field.kind === "string" || field.kind === "enum") {
+      if (typeof value !== "string") return empty
+      values[key] = value
+      if (value === "") sendEmpty[key] = true
+    } else if (field.kind === "boolean") {
+      if (typeof value !== "boolean") return empty
+      values[key] = value ? "true" : "false"
+    } else if (typeof value === "number" && Number.isFinite(value) && (field.kind === "number" || Number.isInteger(value))) {
+      values[key] = String(value)
+    } else return empty
+  }
+  return { values, sendEmpty, json, jsonMode: false }
 }
