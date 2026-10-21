@@ -1,6 +1,11 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { redactWebMcpText, redactWebMcpReport, webMcpTextLooksSensitive } from "./webmcp-redaction.mjs"
+import {
+  redactWebMcpText,
+  redactWebMcpReport,
+  webMcpTextLooksSensitive,
+  webMcpDisplayDescription,
+} from "./webmcp-redaction.mjs"
 import { credentialTextCases, credentialUrlShapes, secret } from "./testing/webmcp-redaction-cases.mjs"
 
 test("embedded credential assignments are filtered across every generated shape", () => {
@@ -15,7 +20,21 @@ test("embedded credential assignments are filtered across every generated shape"
 })
 
 test("ordinary diagnostics and credential labels without values remain readable", () => {
-  for (const text of ["code=5", "code=true", "state=ready", "?code=5", "https://example.test/code=5", '{"code":5,"state":true}', "Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
+  for (const text of [
+    "code=5",
+    "code=true",
+    "state=ready",
+    "?code=5",
+    "https://example.test/code=5",
+    '{"code":5,"state":true}',
+    "Password",
+    "https://example.test/?%73ort=name#%66ilter=active",
+    "/route;%70age=2",
+    'Validation failed: {"title":"short"}',
+    "count=3",
+    "a".repeat(65536),
+    '```json\n{"value":true}\n```',
+  ]) {
     assert.equal(webMcpTextLooksSensitive(text), false)
     assert.equal(redactWebMcpReport(text), text)
   }
@@ -29,9 +48,9 @@ test("repeated filtering preserves redacted diagnostic structure but never place
     'password="[redacted]"secret',
     'password="[redacted]", token="secret"',
     'password="<fill in>"; token=secret',
-  ]) assert.equal(redactWebMcpReport(unsafe), "[redacted]")
+  ])
+    assert.equal(redactWebMcpReport(unsafe), "[redacted]")
 })
-
 
 test("deep percent encodings fail closed without unbounded name decoding", () => {
   assert.equal(webMcpTextLooksSensitive(`https://example.test/#%${"25".repeat(100)}74oken=value`), true)
@@ -52,4 +71,10 @@ test("short credential keys are filtered in structured reports", () => {
       assert.deepEqual(redactWebMcpReport({ [key]: value }), { [key]: "[redacted]" })
     }
   }
+})
+
+test("display projections preserve the native 4096-character description limit", () => {
+  const description = "x".repeat(4046) + " final builder instructions".padEnd(50, ".")
+  assert.equal(description.length, 4096)
+  assert.equal(webMcpDisplayDescription(description), description)
 })

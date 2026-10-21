@@ -3,6 +3,7 @@ import {
   webMcpTextLooksSensitive,
   redactWebMcpReport,
   webMcpDisplayText as redactWebMcpText,
+  webMcpDisplayDescription,
 } from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
@@ -732,9 +733,9 @@ function ToolItem({
           {tool.description ? (
             <span
               className="block truncate typography-micro text-muted-foreground"
-              title={redactWebMcpText(tool.description)}
+              title={webMcpDisplayDescription(tool.description)}
             >
-              {redactWebMcpText(tool.description)}
+              {webMcpDisplayDescription(tool.description)}
             </span>
           ) : null}
         </span>
@@ -747,7 +748,7 @@ function ToolItem({
               data-webmcp-description=""
               className="whitespace-pre-wrap break-words typography-micro text-muted-foreground"
             >
-              {redactWebMcpText(tool.description)}
+              {webMcpDisplayDescription(tool.description)}
             </p>
           ) : null}
           <LintNotes tool={tool} />
@@ -762,7 +763,7 @@ function ToolItem({
                     <span className="typography-micro text-muted-foreground">
                       <span className="font-mono">{redactWebMcpText(field.name)}</span>
                       {field.required ? " *" : ""} · {field.kind}
-                      {field.description ? ` — ${redactWebMcpText(field.description)}` : ""}
+                      {field.description ? ` — ${webMcpDisplayDescription(field.description)}` : ""}
                     </span>
                   </label>
                   {field.constraints ? (

@@ -35,10 +35,7 @@ const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./fo
 const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
-const {
-  collectNativeSearchResults,
-  resolveSearchableNativeRoot,
-} = require("./desktop-file-search")
+const { collectNativeSearchResults, resolveSearchableNativeRoot } = require("./desktop-file-search")
 const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
@@ -52,6 +49,7 @@ const {
   modelDownloadRuntimeEnv,
 } = require("./login-shell-env")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
+const { requireBrowserClosure, restartDesktop } = require("./browser-shutdown")
 const { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN } = require("./desktop-webmcp-browser")
 
 const wikiViewer = createWikiViewer({
@@ -83,8 +81,12 @@ const wikiViewer = createWikiViewer({
 // Native WebMCP is supplied by the bundled engine; agent access is separately enrolled.
 app.commandLine.appendSwitch("enable-features", "WebMCP")
 // UI inspection is an explicit developer opt-in, never enabled in a packaged app.
-process.env.AX_CODE_DESKTOP_UI_WEBMCP =
-  require("./webview-policy").isDesktopUiWebMcpEnabled(app.isPackaged, process.env) ? "1" : "0"
+process.env.AX_CODE_DESKTOP_UI_WEBMCP = require("./webview-policy").isDesktopUiWebMcpEnabled(
+  app.isPackaged,
+  process.env,
+)
+  ? "1"
+  : "0"
 const {
   createAxCodeRuntimeSupervision,
   defaultIsExecutable,
@@ -338,6 +340,20 @@ let loginShellEnvEncoded = null
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
 const desktopWebMcpBrowser = createDesktopWebMcpBrowser({
+  confirmClose: async (owner, pages) => {
+    const result = await localizedDialog.showMessageBox(owner, {
+      type: "warning",
+      title: "Please confirm",
+      message: nativeT("These pages may contain unsaved work. Close them and discard unsaved changes? {pages}", {
+        pages: pages.map((page) => `${page.sessionID ?? page.id} · ${page.title} · ${page.id}`).join("\n"),
+      }),
+      buttons: ["Cancel", "Confirm"],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    })
+    return result.response === 1
+  },
   BrowserWindow,
   WebContentsView,
   session,
@@ -872,7 +888,9 @@ function createMainWindowShell() {
         } else {
           // app.exit() skips 'before-quit', so shut the server (and its
           // ax-code child) down first to avoid orphaning them.
-          shutdownForExit().finally(() => app.exit(1))
+          shutdownForExit()
+            .then(() => app.exit(1))
+            .catch(console.error)
         }
       })
       .catch((dialogError) => console.error("[electron] failed to show renderer crash dialog:", dialogError))
@@ -1139,10 +1157,11 @@ handleCommand("desktop_download_and_install_update", async () => {
 // Shutdown order (S2.5): the web server first (it may still be proxying to
 // the runtime), then the main-supervised runtime.
 const stopBackgroundServices = async () => {
+  await requireBrowserClosure(desktopWebMcpBrowser)
   loginShellEnvCapture.cancel()
   // Revoke browser access while the runtime can still acknowledge enrollment
   // teardown. This also covers restart/update paths that bypass normal quit.
-  await Promise.allSettled([desktopWebMcpBrowser.closeAll(), wikiViewer.closeAll(), stopServer()])
+  await Promise.allSettled([wikiViewer.closeAll(), stopServer()])
   if (runtimeSupervision) {
     await runtimeSupervision.stop().catch((error) => {
       console.error("[electron] failed to stop runtime supervision:", error)
@@ -1153,6 +1172,9 @@ const stopBackgroundServices = async () => {
 const quitCoordinator = createQuitCoordinator({
   onStarting: () => {
     isQuitting = true
+  },
+  onCancelled: () => {
+    isQuitting = false
   },
   playEnding: () => launchAnimations?.playEnding(),
   stopServices: stopBackgroundServices,
@@ -1169,8 +1191,6 @@ let shutdownCleanupPromise = null
 
 async function shutdownForExit() {
   isQuitting = true
-  releaseQuickDispatchGlobalShortcut()
-  launchAnimations?.dispose()
   // before-quit treats `isQuitting && coordinator idle` as "cleanup already
   // finished", so a second quit landing during this await used to exit before
   // the runtime child was stopped. Track the in-flight cleanup so the guard
@@ -1182,12 +1202,21 @@ async function shutdownForExit() {
     () => {
       if (shutdownCleanupPromise === tracked) shutdownCleanupPromise = null
     },
-    () => {
+    (error) => {
       if (shutdownCleanupPromise === tracked) shutdownCleanupPromise = null
+      throw error
     },
   )
+  void tracked.catch(() => {})
   shutdownCleanupPromise = tracked
-  await cleanup
+  try {
+    await cleanup
+    releaseQuickDispatchGlobalShortcut()
+    launchAnimations?.dispose()
+  } catch (error) {
+    isQuitting = false
+    throw error
+  }
 }
 
 // Only a real quit may stop services. A downloaded installer can still be
@@ -1199,14 +1228,12 @@ handleCommand(
     nativeUpdater: nativeAutoUpdater,
     gate: updateInstallGate,
     isQuitting: () => isQuitting,
+    beforeInstall: () => requireBrowserClosure(desktopWebMcpBrowser),
   }),
 )
 
-
 handleCommand("desktop_restart", async () => {
-  await shutdownForExit()
-  app.relaunch()
-  app.exit(0)
+  await restartDesktop(app, shutdownForExit)
 })
 
 // State push from the renderer (see the UI's useTraySync): the tray controller
@@ -1348,7 +1375,10 @@ function flushPendingFocusOpen() {
     } else if (pending.event) {
       emitToWindow(mainWindow, pending.event, pending.detail)
     } else if (pending.sessionId) {
-      emitToWindow(mainWindow, "openchamber:open-session", { sessionId: pending.sessionId, directory: pending.directory })
+      emitToWindow(mainWindow, "openchamber:open-session", {
+        sessionId: pending.sessionId,
+        directory: pending.directory,
+      })
     } else if (pending.mode === "draft") {
       emitToWindow(mainWindow, "openchamber:open-draft-session", {
         directory: pending.directory,
@@ -2516,9 +2546,7 @@ const reloadMenuTargetWindow = () => {
 }
 
 const relaunchFromMenu = async () => {
-  await shutdownForExit()
-  app.relaunch()
-  app.exit(0)
+  await restartDesktop(app, shutdownForExit)
 }
 
 const DISCORD_INVITE_URL = "https://discord.gg/gf9UyPxaN2"
@@ -2903,11 +2931,7 @@ const applyWindowTheme = (browserWindow, args) => {
   if (!browserWindow || browserWindow.isDestroyed()) return
   const backgroundColor =
     normalizeHexColor(args?.backgroundColor) ??
-    (variant === "light"
-      ? DEFAULT_BACKGROUND_LIGHT
-      : variant === "dark"
-        ? DEFAULT_BACKGROUND_DARK
-        : null)
+    (variant === "light" ? DEFAULT_BACKGROUND_LIGHT : variant === "dark" ? DEFAULT_BACKGROUND_DARK : null)
   if (backgroundColor) browserWindow.setBackgroundColor(backgroundColor)
 }
 
@@ -3300,10 +3324,12 @@ handleCommand("desktop_set_vibrancy", async (args) => {
     root.desktopVibrancy = enabled
   })
   setImmediate(() => {
-    shutdownForExit().finally(() => {
-      app.relaunch()
-      app.exit(0)
-    })
+    shutdownForExit()
+      .then(() => {
+        app.relaunch()
+        app.exit(0)
+      })
+      .catch(console.error)
   })
   return { enabled, requiresRestart: true }
 })
@@ -3617,9 +3643,7 @@ app.whenReady().then(async () => {
       // serves external pages with a `sandbox` directive that keeps them off the app
       // origin. CSP policies combine (the most restrictive wins per directive), so append
       // instead of replacing.
-      const existingKey = Object.keys(responseHeaders).find(
-        (key) => key.toLowerCase() === "content-security-policy",
-      )
+      const existingKey = Object.keys(responseHeaders).find((key) => key.toLowerCase() === "content-security-policy")
       const existing = existingKey ? responseHeaders[existingKey] : []
       const existingValues = (Array.isArray(existing) ? existing : [existing]).filter(
         (value) => typeof value === "string" && value.length > 0,
@@ -3878,7 +3902,7 @@ app.on("before-quit", (event) => {
       // shutdownForExit is still stopping the background services (the runtime
       // child among them): exiting now would strand it. Re-quit once it settles.
       event.preventDefault()
-      void cleanup.then(() => app.quit())
+      void cleanup.then(() => app.quit()).catch(() => {})
       return
     }
     return

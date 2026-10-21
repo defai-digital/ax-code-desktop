@@ -37,7 +37,7 @@ instead. **Try it** runs the tool on the page as you; the agent is not involved 
 
 The open tool also shows:
 
-- The full description, including line breaks. The collapsed row stays short.
+- The full accepted description (up to 4096 characters), including line breaks. The collapsed row stays short.
 - **Form** or **Script**. A form is a declarative tool on the page. A script is a function the page registered.
 - Hint badges for `readOnlyHint`, `untrustedContentHint` and `consequentialHint` (the browser's shorter annotation names
   count too). Hints never approve a call and never grant the agent access. A tool with no hints is not an approval either.
@@ -129,6 +129,12 @@ manual/agent actions are conservatively retained. An inconclusive probe also ret
 `beforeunload`, including a handler installed after the probe. A safely unloaded page keeps its address in memory and
 reopens with agent access off. If no page can be unloaded, the existing pool-full state lists the retained pages so you can
 return to the named page, save your work, and decide which page to close.
+
+Quit, restart (including menu and appearance restarts), and update installation first ask the project-browser pages to
+close. A refusal cancels shutdown before background services stop or the process exits, and brings the retained page and
+its window to the front. Save your work or close the page explicitly, then retry. Inconclusive probes retain their bounded
+deadline and use the same unsaved-work confirmation as explicit page closure; cancelling keeps the app running. Confirmation
+is bound to the current documents, so navigation while a prompt is open cannot authorize discarding a replacement document.
 
 ## 5. Write tools the agent gets right
 

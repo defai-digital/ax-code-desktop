@@ -22,6 +22,7 @@ function fixture({
   pollTimeoutMs,
   pollRetryMs,
   nextPoll,
+  confirmClose,
   capabilityResponse,
 } = {}) {
   const owners = new Map()
@@ -142,6 +143,7 @@ function fixture({
         return partitions.get(partition)
       },
     },
+    confirmClose,
     getRuntime: () => "http://127.0.0.1:31418",
     getAuthorization: () => "Basic fixture",
     providerToken: "fixture-only-token",
@@ -627,8 +629,7 @@ describe("native project browser integration", () => {
       await f.controller.command(sender, { action: "enable", id: status.id })
     }
     const closing = f.controller.closeAll()
-    await Promise.resolve()
-    expect(f.guests.every((contents) => contents.destroyed)).toBe(true)
+    await vi.waitFor(() => expect(f.guests.every((contents) => contents.destroyed)).toBe(true))
     await vi.waitFor(() => expect(f.revocations).toHaveLength(2))
     f.revocations.forEach((resolve) => resolve({}))
     await closing
@@ -2910,7 +2911,7 @@ test("main status and catalog project bounded redacted page text", async () => {
   expect((await f.controller.command(sender, { action: "status", id: status.id })).url.length).toBe(4000)
   const projection = projectToolCatalog([{ name: "token=NAME_SECRET", description: "x".repeat(5000), inputSchema: { type: "object", description: "token=SCHEMA_SECRET", properties: { password: { type: "string" } } } }])
   expect(projection.catalog[0].name).toBe("[redacted]")
-  expect(projection.catalog[0].description.length).toBe(4000)
+  expect(projection.catalog[0].description.length).toBe(4096)
   expect(projection.catalog[0].inputSchema.description).toBe("token=SCHEMA_SECRET")
   expect(projection.catalog[0].inputSchema.properties.password).toEqual({ type: "string" })
 })
@@ -2921,4 +2922,70 @@ test("catalog preserves executable schema keys, defaults, constants and collidin
   const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0].inputSchema
   expect(projected).toEqual(schema)
   expect(projected).not.toBe(schema)
+})
+
+describe("shutdown honors project browser refusal", () => {
+  test.each(["restart", "quit", "clean quit"])("%s gates process exit and service teardown", async (action) => {
+    const { requireBrowserClosure, restartDesktop } = createRequire(import.meta.url)("./browser-shutdown.js")
+    const { createQuitCoordinator } = createRequire(import.meta.url)("./quit-coordinator.js")
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    guest.focus = vi.fn()
+    if (action !== "clean quit") guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    const app = { relaunch: vi.fn(), exit: vi.fn(), quit: vi.fn() }
+    const teardown = vi.fn()
+    const shutdown = async () => {
+      await requireBrowserClosure(f.controller)
+      teardown()
+    }
+    const cancelled = vi.fn()
+    if (action === "restart") {
+      await expect(restartDesktop(app, shutdown)).rejects.toMatchObject({
+        code: "BROWSER_CLOSURE_REFUSED",
+        pages: [status.id],
+      })
+    } else {
+      const coordinator = createQuitCoordinator({
+        onStarting: () => {},
+        onCancelled: cancelled,
+        playEnding: () => {},
+        stopServices: shutdown,
+        quit: app.quit,
+        logger: { warn: vi.fn() },
+      })
+      await coordinator.handle({ preventDefault: vi.fn() })
+      expect(coordinator.state).toBe(action === "clean quit" ? "ready" : "idle")
+    }
+    expect(app.relaunch).not.toHaveBeenCalled()
+    expect(app.exit).not.toHaveBeenCalled()
+    expect(teardown).toHaveBeenCalledTimes(action === "clean quit" ? 1 : 0)
+    expect(app.quit).toHaveBeenCalledTimes(action === "clean quit" ? 1 : 0)
+    if (action !== "clean quit") {
+      expect(guest.isDestroyed()).toBe(false)
+      expect(guest.focus).toHaveBeenCalled()
+      expect(f.owners.get(sender).focus).toHaveBeenCalled()
+      guest.close.mockImplementation(() => {
+        guest.destroyed = true
+        guest.emit("destroyed")
+      })
+    }
+  })
+
+  test("a hung probe asks for close confirmation and retains the page on cancellation", async () => {
+    const confirmClose = vi.fn(async () => false)
+    const f = fixture({ confirmClose })
+    const { status } = await f.create()
+    f.guests[0].debugger.sendCommand = () => new Promise(() => {})
+    expect(await f.controller.closeAll()).toEqual([status.id])
+    expect(confirmClose).toHaveBeenCalledOnce()
+    expect(f.guests[0].close).not.toHaveBeenCalled()
+    f.guests[0].debugger.sendCommand = async () => ({ result: { value: false, objectId: "window" }, listeners: [] })
+  })
+})
+
+
+test("catalog preserves accepted descriptions including their final instructions", () => {
+  const description = "x".repeat(4046) + " final builder instructions".padEnd(50, ".")
+  expect(projectToolCatalog([{ name: "inspect", description }]).catalog[0].description).toBe(description)
 })

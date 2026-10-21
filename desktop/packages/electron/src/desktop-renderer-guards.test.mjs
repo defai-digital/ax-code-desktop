@@ -242,6 +242,7 @@ describe("createUpdateInstaller", () => {
       const { install, updater, stopServices } = setup(() => {})
       const first = install()
       expect(install()).toBe(first)
+      await vi.advanceTimersByTimeAsync(0)
       expect(updater.quitAndInstall).toHaveBeenCalledOnce()
       await vi.advanceTimersByTimeAsync(1_000)
       await expect(first).resolves.toEqual({ installed: false, reason: "install-not-started" })
@@ -252,4 +253,13 @@ describe("createUpdateInstaller", () => {
       vi.useRealTimers()
     }
   })
+})
+
+
+test("update installation never starts after browser closure refusal", async () => {
+  const updater = { quitAndInstall: vi.fn() }
+  const install = createUpdateInstaller({ updater, gate: { canInstall: () => true, version: () => "test" },
+    beforeInstall: async () => { throw Object.assign(new Error("refused"), { code: "BROWSER_CLOSURE_REFUSED" }) } })
+  await expect(install()).rejects.toMatchObject({ code: "BROWSER_CLOSURE_REFUSED" })
+  expect(updater.quitAndInstall).not.toHaveBeenCalled()
 })

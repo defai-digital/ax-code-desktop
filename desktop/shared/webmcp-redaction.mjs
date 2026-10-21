@@ -151,6 +151,11 @@ export function webMcpDisplayText(value) {
   return redactWebMcpText(value).slice(0, 4000)
 }
 
+/** Match the native registration limit for descriptions in every display projection. */
+export function webMcpDisplayDescription(value) {
+  return redactWebMcpText(value).slice(0, 4096)
+}
+
 /** Preserve structure while bounding every string in a page-authored display projection. */
 export function webMcpDisplaySchema(value) {
   let remaining = 100000
