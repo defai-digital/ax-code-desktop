@@ -1613,7 +1613,7 @@ describe("WX-15 visible-to-act gate", () => {
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
     await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
-    f.pushStreamRequest(request({ requestID: "held-canceled" }))
+    f.pushStreamRequest(request(f, { requestID: "held-canceled" }))
     await vi.waitFor(async () =>
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
     )
