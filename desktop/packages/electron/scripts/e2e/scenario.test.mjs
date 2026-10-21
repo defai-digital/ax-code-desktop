@@ -584,3 +584,57 @@ spawnTest("project browser stub enrolls a real session and retires only the disc
   await call(`/provider/${connection.providerID}`, "DELETE")
   expect((await call(`/provider/${connection.providerID}/next`)).status).toBe(404)
 })
+
+test("scripted page-tool tasks gate native calls on one-use approval and expire unanswered asks", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/browser-task-fixture", portfolio: true })
+  let routeRequest
+  runInNewContext(buildStubRuntimeScript(), {
+    URL, Buffer, setTimeout, clearTimeout,
+    process: { argv: ["node", "stub", "serve"], env: { [STUB_SCENARIO_ENV]: "/tmp/browser-task/scenario.json" }, on() {} },
+    require: name => {
+      if (name === "node:path") return path
+      if (name === "node:fs") return { readFileSync: () => JSON.stringify(scenario) }
+      if (name === "node:http") return { createServer: callback => { routeRequest = callback; return { listen() {} } } }
+      throw new Error(`Unexpected stub dependency: ${name}`)
+    },
+  })
+  const request = (route, method = "GET", body) => new Promise(resolve => {
+    const req = Object.assign(new EventEmitter(), {
+      url: `${route}?directory=${encodeURIComponent(scenario.projectDirectory)}`, method, headers: {},
+    })
+    const res = Object.assign(new EventEmitter(), { statusCode: 200, setHeader() {},
+      end: data => resolve({ status: res.statusCode, value: JSON.parse(data) }),
+    })
+    routeRequest(req, res)
+    if (body) req.emit("data", Buffer.from(JSON.stringify(body)))
+    req.emit("end")
+  })
+  const sessionID = scenario.session.id
+  const { value: connection } = await request("/desktop/browser/provider", "POST", {
+    sessionID, snapshot: { origin: "http://127.0.0.1", generation: "page-1", frameId: "top" },
+  })
+  const provider = `/desktop/browser/provider/${connection.providerID}`
+  await request("/__e2e__/browser-task", "POST", {
+    sessionID, requestID: "approved", toolName: "edit", digest: "definition", input: { text: "exact" }, approval: true,
+  })
+  expect((await request(`${provider}/next`)).value.request).toBeUndefined()
+  const permissions = (await request("/permission")).value
+  expect(permissions[0]).toMatchObject({ id: "perm_approved", metadata: { origin: "http://127.0.0.1", definitionDigest: "definition" } })
+  expect((await request("/permission/perm_approved/reply", "POST", { reply: "once" })).status).toBe(200)
+  expect((await request(`${provider}/next`)).value.request).toMatchObject({ operation: "invoke", toolName: "edit", digest: "definition", input: { text: "exact" } })
+  expect((await request("/permission/perm_approved/reply", "POST", { reply: "once" })).status).toBe(404)
+  await request(`${provider}/reply`, "POST", { requestID: "approved", status: "Completed", output: JSON.stringify({ text: "exact" }) })
+  const approvedMessages = (await request(`/session/${sessionID}/message`)).value
+  expect(JSON.parse(approvedMessages.at(-1).parts[0].state.output)).toEqual({ text: "exact" })
+  await request("/__e2e__/browser-task", "POST", {
+    sessionID, requestID: "expired", toolName: "edit", digest: "definition", approval: true, expireMs: 20, newTurn: true,
+  })
+  await sleep(50)
+  expect((await request("/permission")).value).toEqual([])
+  expect((await request(`${provider}/next`)).value.request).toBeUndefined()
+  const messages = (await request(`/session/${sessionID}/message`)).value
+  expect(messages.at(-1).parts[0].state.output).toContain("Scripted approval expired without an answer")
+  expect(messages.at(-2).info.role).toBe("user")
+  expect(messages.map(message => message.info.id)).toEqual(messages.map(message => message.info.id).sort())
+  expect((await request("/permission/perm_expired/reply", "POST", { reply: "once" })).status).toBe(404)
+})

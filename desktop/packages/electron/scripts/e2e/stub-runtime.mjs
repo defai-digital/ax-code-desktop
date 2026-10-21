@@ -137,6 +137,8 @@ const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').repl
 const browserProviders = new Map();
 const browserReplies = [];
 let browserProviderSequence = 0;
+let browserTaskSequence = 0;
+const nextTaskMessageID = () => 'msg_zz_task_' + String(++browserTaskSequence).padStart(8, '0');
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
   const pathname = url.pathname.replace(/\\/+$/, '') || '/';
@@ -181,6 +183,70 @@ const server = http.createServer((req, res) => {
       });
       return;
     }
+    // Scripted page-tool tasks: approval gates the real native provider request.
+    if (pathname === '/__e2e__/browser-task' && req.method === 'POST') {
+      readBody(req, body => {
+        const provider = [...browserProviders.values()].find(item => item.sessionID === body.sessionID);
+        if (!provider || !scenario.portfolioMessages) { res.statusCode = 404; json(res, { error: 'No scripted provider' }); return; }
+        if (body.newTurn) {
+          const user = { info: { ...scenario.portfolioMessages[body.sessionID][0].info,
+            id: nextTaskMessageID(), time: { created: Date.now() } }, parts: [] };
+          scenario.portfolioMessages[body.sessionID].push(user);
+          broadcast(directory, { type: 'message.updated', properties: { info: user.info } });
+        }
+        const id = body.requestID;
+        const messageID = nextTaskMessageID();
+        const metadata = { desktopProvider: true, operation: 'invoke', origin: provider.state.origin,
+          toolName: body.toolName, definitionDigest: body.digest, generation: provider.state.generation,
+          arguments: body.input || {} };
+        const part = { id: 'part_' + id, sessionID: body.sessionID, messageID, type: 'tool',
+          tool: 'desktop_webmcp', callID: id, state: { status: 'running',
+            input: { action: 'invoke', toolName: body.toolName }, metadata, time: { start: Date.now() } } };
+        const message = { info: { id: messageID, sessionID: body.sessionID, role: 'assistant',
+          parentID: scenario.portfolioMessages[body.sessionID].findLast(item => item.info.role === 'user').info.id,
+          time: { created: Date.now() }, modelID: 'fixture', providerID: 'fixture', mode: 'build', agent: 'build',
+          path: { cwd: directory, root: directory }, cost: 0,
+          tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } } }, parts: [part] };
+        scenario.portfolioMessages[body.sessionID].push(message);
+        const publish = () => {
+          broadcast(directory, { type: 'message.updated', properties: { info: message.info } });
+          broadcast(directory, { type: 'message.part.updated', properties: { part } });
+        };
+        const finish = (output) => {
+          // Native script tools return JSON strings; keep one JSON layer in the transcript.
+          if (typeof output === 'string') { try { output = JSON.parse(output); } catch {} }
+          part.state = { ...part.state, status: 'completed', output: JSON.stringify(output),
+            title: body.toolName, time: { ...part.state.time, end: Date.now() } };
+          message.info.time.completed = Date.now();
+          publish();
+          broadcast(directory, { type: 'session.idle', properties: { sessionID: body.sessionID } });
+        };
+        const enqueue = () => provider.queue.push({ providerID: provider.providerID, epoch: provider.epoch,
+          projectID: provider.projectID, sessionID: body.sessionID, requestID: id, operation: 'invoke',
+          generation: provider.state.generation, origin: provider.state.origin, frameId: provider.state.frameId,
+          toolName: body.toolName, digest: body.digest, input: body.input || {}, deadline: Date.now() + 15000 });
+        provider.tasks ||= new Map();
+        provider.tasks.set(id, finish);
+        publish();
+        if (body.approval) {
+          const request = { id: 'perm_' + id, sessionID: body.sessionID, permission: 'webmcp',
+            patterns: [provider.state.origin], always: [], metadata,
+            tool: { messageID, callID: id } };
+          request.enqueue = enqueue;
+          pending.push(request);
+          broadcast(directory, { type: 'permission.asked', properties: request });
+          if (body.expireMs) setTimeout(() => {
+            const index = pending.indexOf(request);
+            if (index < 0) return;
+            pending.splice(index, 1);
+            broadcast(directory, { type: 'permission.replied', properties: { sessionID: body.sessionID, requestID: request.id, reply: '' } });
+            finish({ status: 'timeout', reason: 'timeout', error: 'Scripted approval expired without an answer' });
+          }, body.expireMs);
+        } else enqueue();
+        json(res, { queued: true, partID: part.id });
+      });
+      return;
+    }
     if (pathname === '/__e2e__/browser-test') {
       if (req.method === 'POST') readBody(req, body => {
         const provider = [...browserProviders.values()].find(item => item.sessionID === body.sessionID);
@@ -202,7 +268,7 @@ const server = http.createServer((req, res) => {
       const provider = browserProviders.get(providerID);
       if (req.method === 'DELETE') browserProviders.delete(providerID);
       if (operation === 'state') { readBody(req, body => { provider.state = body; json(res, {}); }); return; }
-      if (operation === 'reply') { readBody(req, body => { browserReplies.push({ sessionID: provider.sessionID, ...body }); json(res, {}); }); return; }
+      if (operation === 'reply') { readBody(req, body => { browserReplies.push({ sessionID: provider.sessionID, ...body }); provider.tasks?.get(body.requestID)?.(body.output ?? body); provider.tasks?.delete(body.requestID); json(res, {}); }); return; }
       if (operation === 'next') {
         const timer = setTimeout(() => json(res, { canceled: [], request: provider.queue.shift() }), 250);
         res.on('close', () => clearTimeout(timer));
@@ -507,6 +573,7 @@ const server = http.createServer((req, res) => {
         }
         const request = pending[index];
         pending.splice(index, 1);
+        if (record.reply === 'once') request.enqueue?.();
         broadcast(directory, {
           type: 'permission.replied',
           properties: { sessionID: request.sessionID, requestID: requestID, reply: record.reply },
