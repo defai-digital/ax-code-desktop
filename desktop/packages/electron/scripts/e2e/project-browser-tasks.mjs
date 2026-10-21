@@ -4,11 +4,13 @@ import fs from "node:fs/promises"
 import http from "node:http"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { spawn } from "node:child_process"
+import { execFile, spawn } from "node:child_process"
+import { promisify } from "node:util"
 import { CdpSession, listTargets, waitForCondition } from "./cdp.mjs"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { assertPathInsideDirectory } from "./scenario.mjs"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..")
 const args = parseArgs(process.argv.slice(2))
@@ -63,12 +65,20 @@ try {
       const audit = new SettingsWebMcpAudit(session)
       await audit.client.enable()
       const owner = e2e.scenario.session
+      // Review landing requires a repository; the shared harness deliberately seeds git-less projects.
+      assertPathInsideDirectory(owner.directory, path.dirname(e2e.stubOriginPath), "Fixture repository")
+      await promisify(execFile)("git", ["init", "--quiet", owner.directory])
       await audit.wait(`Boolean(document.querySelector('[data-session-row="${owner.id}"]'))`, "session row")
       await session.evaluate(`Array.from(document.querySelector('[data-session-row="${owner.id}"]').querySelectorAll('button')).find(b => b.textContent.trim().startsWith(${JSON.stringify(owner.title)})).click()`)
       await audit.wait(`Boolean(document.querySelector('[aria-label="Copy session ID ${owner.id}"]'))`, "selected session")
       const ipc = (body) => session.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_webmcp_browser', ${JSON.stringify(body)})`)
       const view = async () => (await ipc({ action: "list" })).views.find((item) => item.sessionID === owner.id)
       const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
+      const reviewArmed = await fetch(`${origin}/__e2e__/step`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ step: "review-scopes" }),
+      })
+      if (!reviewArmed.ok) throw new Error("Could not arm session review fixture")
       const runtime = async (body) => {
         const response = await fetch(`${origin}/__e2e__/browser-task`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionID: owner.id, ...body }) })
         if (!response.ok) throw new Error(`Task fixture failed: ${response.status}`)
@@ -155,6 +165,8 @@ try {
         await wait(`Boolean(document.querySelector('[data-webmcp-catalog-rejection-tool="invalid_builder"]')) && Boolean(document.querySelector('[data-webmcp-tool-panel]')) && Boolean(document.querySelector('${tool}'))`, "named rejection preserves panel")
         await capture("W3", { phase: "rejected" })
 
+        // The inspector covers the native guest. Restore the visible page before enrollment.
+        await act("W4", () => audit.click("Page tools (5)", { role: "button" }))
         await act("W4", () => audit.click("Enable agent access", { role: "button" }))
         await waitForCondition(async () => (await view())?.enabled, { label: "provider enrolled" })
         const run = async (id, text, options = {}) => {
@@ -184,6 +196,8 @@ try {
         await click("W6", '[data-webmcp-call="failed"] button')
         await wait(`Boolean(document.querySelector('[data-tool-part-id="part_w6-failure"][data-attention]'))`, "strip opens exact transcript tool part")
         await act("W6", () => audit.click("Review changes", { role: "button" }))
+        await wait(`Boolean(document.querySelector('[data-review-scope]'))`, "review scopes")
+        await act("W6", () => audit.click("This session", { role: "radio" }))
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 3 && document.querySelector('[data-landing-browser-recap]')?.textContent.includes('W6 controlled page failure') && document.querySelector('[data-recap-not-called]')?.textContent.includes('complete_task')`, "three-call landing recap with failure and unused tool")
         await capture("W6")
         return { name: "project-browser-tasks", ok: true, detail: `${Object.keys(counts).map(task => `${task} ${counts[task]}/${budgets[task]} actions`).join('; ')}; W4 expiry driven by scripted stub, signed runtime timer not qualified` }
