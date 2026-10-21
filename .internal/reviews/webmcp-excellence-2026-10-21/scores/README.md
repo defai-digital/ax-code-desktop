@@ -64,3 +64,11 @@ Means: supervisor 5.75 / 6.0 / 6.5 (baseline about 5.5); builder 5.0 / 5.4 / 6.0
 A6, A5. Not moved: A8 (one view per window), A7 (no dedicated pause or take-over), A3 (no duration, result or page binding in the
 strip), B1 and B3 (no raw schema, annotations, registration history). Round 13 targets exactly these: WX-15, WX-10, WX-07, WX-02,
 WX-04. The definition of done (every step 9, none below 8) is not met.
+
+## Round 13 evidence so far (2026-10-21)
+
+- CI run 39579636501 (`95708569`): supervision-workspace and project-browser journeys pass on macOS-15, Windows-2022 and
+  Ubuntu-24.04. This confirms the Windows Last turn fix (`ab00be7d`): the scope no longer waits forever on synced messages.
+- Merged: WX-07 call strip (`56abfb59`), W2 journey and structured-error fix (`e09d0209`), WX-17 builder CLI (`313a7c70`),
+  WX-02/WX-04 inspectable tools and registration truth (`2df77ae8`). WX-15 is being merged with main in its worktree.
+- Rubric rule (PRD section 3, revised by the user): a step passes with 8 or more from two of the three judges.
