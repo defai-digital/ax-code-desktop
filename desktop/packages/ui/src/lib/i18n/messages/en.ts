@@ -133,6 +133,7 @@ export const dict = {
   "common.unavailable": "Unavailable",
   "common.confirm": "Confirm",
   "common.cancel": "Cancel",
+  "webmcp.browser.confirmClose": "These pages may contain unsaved work. Close them and discard unsaved changes? {pages}",
   "common.confirmDialog.title": "Please confirm",
   "configUpdate.updating": "Updating configuration",
   "configUpdate.pendingHint": "Wait for the current configuration operation to finish.",

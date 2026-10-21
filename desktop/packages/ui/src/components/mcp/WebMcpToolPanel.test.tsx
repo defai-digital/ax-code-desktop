@@ -1055,3 +1055,15 @@ test("a sent manual call survives registration retirement during execution", asy
   expect(useWebMcpBrowserStore.getState().toolJournal[0]).toMatchObject({ outcome: "completed", definitionChanged: true, text: expect.stringContaining("done") })
   expect(view.container.querySelector("[data-webmcp-journal-definition-changed='true']")).not.toBeNull()
 })
+
+test.each([['pin', 'integer', '1234', 1234], ['cvv', 'number', '123.5', 123.5]])(
+  'masks numeric credential %s and sends its schema value type', async (name, type, typed, expected) => {
+    const { container, reply } = openTool({ type: 'object', properties: { [name]: { type } }, required: [name] })
+    const input = container.querySelector('input')!
+    expect(input.type).toBe('password')
+    expect(input.autocomplete).toBe('off')
+    fireEvent.change(input, { target: { value: typed } })
+    await runTool()
+    expect(reply).toHaveBeenCalledWith("echo", { [name]: expected }, expect.any(Object))
+  },
+)

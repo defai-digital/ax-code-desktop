@@ -253,3 +253,19 @@ opener also closes its sign-in windows. Pages with an open sign-in window are no
 
 **Sign out of project browser** closes the project's pages and sign-in windows and clears
 that project's browser storage. Closing a page alone keeps its sign-in for other project pages.
+
+### Closing pages with unsaved work
+
+Sign out checks every live project page, including hidden sessions and sign-in
+popups, using the same sticky interaction flag and bounded document probe as
+pool eviction. Close checks the affected page and its popups. If any page may
+contain unsaved work, the Desktop confirmation dialog identifies all affected
+sessions and pages. Cancel preserves the pages and project storage. Approval is
+one-use and bound to the window, action, page inventory and document generation;
+a changed document requires a fresh confirmation. Disconnect and revoke stop
+agent access while preserving browser pages and sign-in popups.
+
+Manual Try it inputs with sensitive names are masked and disable autocomplete,
+including integer PINs and numeric CVVs. Submitted values retain their schema
+number type. Copy recap includes the full-turn count and, when capped, the
+truncation notice; displayed and copied steps retain their original numbers.
