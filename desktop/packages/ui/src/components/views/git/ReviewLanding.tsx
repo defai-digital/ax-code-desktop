@@ -20,11 +20,20 @@ import { CommitInput } from "./CommitInput"
 import { commitChanges, pushChanges } from "./landingActions"
 import { isConflictedStatusFile } from "../useDiffHunkStage"
 
+/**
+ * A session or turn diff. Its marks sign this content, and a file counts as reviewed only while staging it would apply
+ * exactly that change: the index still holds `before`, the worktree holds `after`, and the file mode is unchanged.
+ */
+export interface ReviewLandingSessionDiff {
+  files: readonly { path: string; before: string; after: string; status?: string; signature: string }[]
+}
+
 interface ReviewLandingProps {
   directory: string
-  scope: ReviewGitScope | `branch:${string}`
+  scope: ReviewGitScope | `branch:${string}` | "session" | `turn:${string}`
   files: readonly ReviewProgressFile[]
   branchDiff?: GitBranchDiffResponse
+  sessionDiff?: ReviewLandingSessionDiff
   sessionId?: string | null
   onRefreshBranch?: () => void
   onStaged?: () => void
@@ -36,6 +45,7 @@ export function ReviewLanding({
   scope,
   files,
   branchDiff,
+  sessionDiff,
   sessionId,
   onStaged,
   onRefreshBranch,
@@ -60,8 +70,27 @@ export function ReviewLanding({
       reviewBranchFileSignature({ ...file, path: file.file }, branchDiff.mergeBase),
     ]),
   )
-  // Branch membership comes from the displayed diff; stageability comes only from live Git status.
-  const candidates = branchDiff
+  const sessionSignatures = new Map(sessionDiff?.files.map((file) => [file.path, file.signature]))
+  const expectedWorktree = useSessionWorktreeIds(sessionDiff)
+  // A session file is reviewed only while staging it would apply exactly the change the mark signed. Earlier changes in
+  // the same file (another turn, a person) would otherwise be staged with it, and equal bytes can hide a type or mode change.
+  const holdsReviewedContent = (file: ReviewProgressFile) => {
+    const expected = expectedWorktree?.get(file.path)
+    if (expected === undefined) return false
+    const indexHoldsBefore =
+      expected.before === null
+        ? file.index === "?"
+        : file.indexBlobId === expected.before && REGULAR_MODES.has(file.indexMode ?? "")
+    if (!indexHoldsBefore) return false
+    if (expected.after === null) return file.working_dir === "D"
+    const mode = file.worktreeMode ?? ""
+    return (
+      file.worktreeBlobId === expected.after &&
+      (expected.before === null ? mode === "100644" : mode === file.indexMode)
+    )
+  }
+  // Branch and session membership come from the displayed diff; stageability comes only from live Git status.
+  const candidates = branchDiff || sessionDiff
     ? files.flatMap((file) => {
         const current = status?.files.find((entry) => entry.path === file.path)
         return current ? [{ ...file, ...current }] : []
@@ -73,6 +102,14 @@ export function ReviewLanding({
   const unstaged = candidates.filter((file) => scope !== "staged" && (file.working_dir.trim() || file.index === "?"))
   // A mark resting on line counts cannot prove the content is what was reviewed, so it never counts as reviewed here.
   const reviewed = unstaged.filter((file) => {
+    if (sessionDiff) {
+      const signature = sessionSignatures.get(file.path)
+      return (
+        signature !== undefined &&
+        marks[reviewProgressKey(directory, scope, file.path)] === signature &&
+        holdsReviewedContent(file)
+      )
+    }
     const detail = branchSignatures.get(file.path) ?? reviewFileSignatureDetail(file, scope)
     return !detail.fallback && marks[reviewProgressKey(directory, scope, file.path)] === detail.signature
   })
@@ -87,7 +124,7 @@ export function ReviewLanding({
         unstaged.map((file) => [
           file.path,
           reviewFileSignature(file, "all"),
-          branchSignatures.get(file.path)?.signature,
+          branchSignatures.get(file.path)?.signature ?? sessionSignatures.get(file.path),
         ]),
       ])
   const confirmingAll = stageAllKey !== null && confirmAllKey === stageAllKey
@@ -201,8 +238,8 @@ export function ReviewLanding({
           if (current === undefined) return false
           const comparable: ReviewProgressFile = { ...file, ...current }
           return (
-            reviewFileSignature(comparable, branchDiff ? "all" : scope) ===
-            reviewFileSignature(file, branchDiff ? "all" : scope)
+            reviewFileSignature(comparable, branchDiff || sessionDiff ? "all" : scope) ===
+            reviewFileSignature(file, branchDiff || sessionDiff ? "all" : scope)
           )
         })
         if (!unchanged) throw new Error(t("diffView.landing.changedSinceReview"))
@@ -283,6 +320,7 @@ export function ReviewLanding({
   return (
     <section
       aria-label={t("diffView.landing.title")}
+      data-review-landing
       aria-busy={pending !== null}
       className="shrink-0 border-b border-border/50 px-3 py-2 space-y-2"
     >
@@ -355,4 +393,54 @@ export function ReviewLanding({
       )}
     </section>
   )
+}
+
+const REGULAR_MODES = new Set(["100644", "100755"])
+
+/**
+ * Git blob ids of each session file's `before` text (null for an addition) and `after` text (null for a deletion), the
+ * same raw-bytes ids the status reports. Undefined while hashing, or when the runtime cannot hash, so nothing counts as reviewed without proof.
+ */
+type ExpectedIds = { before: string | null; after: string | null }
+
+function useSessionWorktreeIds(sessionDiff: ReviewLandingSessionDiff | undefined) {
+  const [ids, setIds] = React.useState<{ source: ReviewLandingSessionDiff; ids: Map<string, ExpectedIds> } | null>(
+    null,
+  )
+  React.useEffect(() => {
+    if (!sessionDiff) return
+    let cancelled = false
+    void Promise.all(
+      sessionDiff.files.map(
+        async (file) =>
+          [
+            file.path,
+            {
+              before: file.status === "added" ? null : await gitBlobId(file.before),
+              after: file.status === "deleted" ? null : await gitBlobId(file.after),
+            },
+          ] as const,
+      ),
+    )
+      .then((entries) => {
+        if (!cancelled) setIds({ source: sessionDiff, ids: new Map(entries) })
+      })
+      .catch(() => {
+        if (!cancelled) setIds(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [sessionDiff])
+  return ids && ids.source === sessionDiff ? ids.ids : undefined
+}
+
+async function gitBlobId(text: string): Promise<string> {
+  const body = new TextEncoder().encode(text)
+  const header = new TextEncoder().encode(`blob ${body.length}\0`)
+  const bytes = new Uint8Array(header.length + body.length)
+  bytes.set(header)
+  bytes.set(body, header.length)
+  const digest = await crypto.subtle.digest("SHA-1", bytes)
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("")
 }

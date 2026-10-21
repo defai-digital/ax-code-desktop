@@ -12,6 +12,11 @@ const remoteActivityCache = createRemoteActivityCache((input) =>
     ),
 )
 
+/** Read a stale preview again now, for the row's Retry action. */
+export function retryRemoteActivityPreview(sessionId: string, cache = remoteActivityCache) {
+  cache.retry(sessionId)
+}
+
 /** Mount only on the board and pass its rendered roots, after filters and collapsed groups. */
 export function useRemoteActivityPreviews(
   rows: readonly SupervisionRow[],
@@ -37,7 +42,7 @@ export function useRemoteActivityPreviews(
         rows.map((row) => {
           const entry = entries.get(row.sessionId)
           const kept = entry?.directory === row.directory ? entry.preview : null
-          const preview = kept && entry?.stale ? { ...kept, stale: true } : kept
+          const preview = kept && entry?.stale ? { ...kept, stale: true, lastSuccessAt: entry.succeededAt } : kept
           return [row.sessionId, row.activity || !preview ? row : { ...row, activity: preview }]
         }),
       ),

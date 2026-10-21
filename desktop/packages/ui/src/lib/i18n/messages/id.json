@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "Pemeriksaan CI lulus",
   "supervision.missionControl.pr.failed": "Pemeriksaan CI gagal",
   "supervision.missionControl.pr.pending": "Pemeriksaan CI tertunda",
-  "supervision.missionControl.pr.stale": "Status PR mungkin kadaluwarsa"
+  "supervision.missionControl.pr.stale": "Status PR mungkin kadaluwarsa",
+  "supervision.missionControl.preview.staleSince": "(mungkin kedaluwarsa; terakhir dibaca {age})",
+  "supervision.missionControl.preview.retry": "Coba lagi",
+  "supervision.missionControl.preview.retryLabel": "Baca lagi aktivitas {title}"
 }

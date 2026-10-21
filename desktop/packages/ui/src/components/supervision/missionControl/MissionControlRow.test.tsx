@@ -3,7 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
-import { cleanup, render as renderDom, screen } from "@/test/dom"
+import { cleanup, fireEvent, render as renderDom, screen } from "@/test/dom"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 vi.mock("@/lib/i18n", () => ({
@@ -13,6 +13,8 @@ vi.mock("@/lib/i18n", () => ({
     number: (value: number) => String(value),
   }),
 }))
+const { retryPreview } = vi.hoisted(() => ({ retryPreview: vi.fn() }))
+vi.mock("@/hooks/useRemoteActivityPreviews", () => ({ retryRemoteActivityPreview: retryPreview }))
 import { MissionControlRow } from "./MissionControlRow"
 
 const row: SupervisionRow = {
@@ -427,5 +429,57 @@ describe("Mission Control stale preview", () => {
     const preview = container.querySelector<HTMLElement>("[data-activity-stale]")!
     expect(preview.textContent?.startsWith("supervision.missionControl.preview.stale")).toBe(true)
     expect(preview.title.startsWith("supervision.missionControl.preview.stale")).toBe(true)
+  })
+
+  test("Retry reads that session again without opening or selecting the row, and the age of a known read is shown", () => {
+    const onSelect = vi.fn()
+    const onOpen = vi.fn()
+    const { container } = renderDom(
+      <MissionControlRow
+        row={{ ...row, activity: { kind: "message", text: "older", stale: true, lastSuccessAt: Date.now() - 5 * 60_000 } }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={vi.fn()}
+        onSelect={onSelect}
+        onOpen={onOpen}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    expect(container.querySelector("[data-activity-stale]")?.textContent).toContain(
+      "supervision.missionControl.preview.staleSince",
+    )
+    const retry = container.querySelector<HTMLButtonElement>("[data-activity-retry]")!
+    fireEvent.click(retry)
+    act(() => {
+      retry.dispatchEvent(new MouseEvent("dblclick", { bubbles: true }))
+    })
+    expect(retryPreview).toHaveBeenCalledWith(row.sessionId)
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  test("a fresh preview offers no Retry", () => {
+    const { container } = renderDom(
+      <MissionControlRow
+        row={{ ...row, activity: { kind: "message", text: "current" } }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    expect(container.querySelector("[data-activity-retry]")).toBeNull()
   })
 })

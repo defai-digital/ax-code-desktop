@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "Controlli CI superati",
   "supervision.missionControl.pr.failed": "Controlli CI falliti",
   "supervision.missionControl.pr.pending": "Controlli CI in attesa",
-  "supervision.missionControl.pr.stale": "Lo stato della PR potrebbe essere obsoleto"
+  "supervision.missionControl.pr.stale": "Lo stato della PR potrebbe essere obsoleto",
+  "supervision.missionControl.preview.staleSince": "(potrebbe essere obsoleto; ultima lettura {age})",
+  "supervision.missionControl.preview.retry": "Riprova",
+  "supervision.missionControl.preview.retryLabel": "Leggi di nuovo l'attivit\u00e0 di {title}"
 }

@@ -288,3 +288,38 @@ in the session grid (drag to split, reorder, pop out), inline three-way merge, P
 - Gates: UI 4329, web 1498 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
   release contract, 14 locales (5190 keys); build; macOS native journeys (supervision-workspace, portfolio-identity,
   project-home) and `e2e:desktop` passed.
+
+### Round 10 result (judged at `acc31cad`)
+
+Raw judgments: `round10/`.
+
+| Judge | AX | Orca | Claude Code | Codex app | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| codex | 9.10 | 8.93 | 8.73 | 8.17 | 6.90 | equal | better |
+| deepseek-flash | 9.09 | 8.97 | 8.77 | 8.25 | 6.94 | equal | better |
+| MiniMax-M3 | 9.01 | 8.97 | 8.72 | 8.23 | 6.86 | equal | better |
+
+AX leads Orca by 0.17, 0.12 and 0.04; every judge still calls it equal, since the PRD needs a 0.2 lead from all three. Overview
+moved most (PR state on rows, the actionable badge); workspace still trails Orca (fixed grid layouts). The judges gave the
+optional runtime WebMCP fields no credit until a signed runtime with ADR-266 is pinned. Named flips: landing from This session and
+Last turn (all three), a review rail tree with adjustable width (codex, MiniMax), Retry and last-success age (codex), PR
+discovery for branches the store does not know and a multi-select PR facet (deepseek), free grid arrangement (deepseek), and
+pinning the ADR-266 runtime (MiniMax; needs a signed AX Code release and approval).
+
+## Round 11 (2026-10-21)
+
+- S10 (Claude): Stage, Commit and Push from This session and Last turn. A session file counts as reviewed only while staging it
+  applies exactly the reviewed change: its review mark matches, the index still holds the reviewed `before` (an addition is
+  untracked), the worktree holds the reviewed `after` (git blob ids computed in the renderer from the runtime's text), and the
+  worktree mode equals the index mode (a new file must be 100644). Git status now reports `indexMode` and `worktreeMode`.
+  Anything else falls back to the explicit "Stage all N" confirmation. Review (codex): two P1 (earlier turns' changes staged
+  with the reviewed turn; equal bytes hiding a symlink or executable-bit change) and one P2, all fixed with mutation probes
+  (`reviews/round11/REVIEW-s10-f10-codex.md`). The supervision journey now requires the landing section in session scopes and
+  still forbids per-file stage or revert controls there.
+- F10 (Claude): a stale activity preview shows "(may be outdated; last read 5m ago)" and a Retry button that reads the session
+  again now, without opening or selecting the row. Retry applies only to a stale session on a board, adds nothing while a read
+  is in flight, and intents for rows that leave every board are dropped.
+- Gates: UI 4335, web 1499 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint,
+  boundaries, release contract, 14 locales (5193 keys); build; macOS native journeys (supervision-workspace, portfolio-identity,
+  project-home) and `e2e:desktop` passed. R10 (review rail tree, grok) follows in a separate commit.
+

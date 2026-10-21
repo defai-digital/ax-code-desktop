@@ -115,6 +115,10 @@ export interface GitStatusFile {
    * deleted, over the size cap, or otherwise not hashed. Never file content.
    */
   worktreeBlobId?: string | null
+  /** Git mode of the index entry ("100644", "100755", "120000"). Null when the path is not in the index. */
+  indexMode?: string | null
+  /** Git mode of the working-tree file, known only when its blob id is. A symlink is "120000". */
+  worktreeMode?: string | null
 }
 
 export interface GitMergeInProgress {

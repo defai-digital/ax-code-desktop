@@ -184,6 +184,78 @@ describe("useRemoteActivityPreviews", () => {
     }
   })
 
+  test("Retry reads a stale preview again before the backoff, once, and keeps when the text was last read", async () => {
+    vi.useFakeTimers()
+    try {
+      let clock = 100
+      let finish!: (value: Awaited<ReturnType<FetchActivityPage>>) => void
+      const fetchPage = vi
+        .fn<FetchActivityPage>()
+        .mockResolvedValueOnce({ data: page("previous") })
+        .mockResolvedValueOnce({ error: "unavailable" })
+        .mockImplementationOnce(() => new Promise((resolve) => (finish = resolve)))
+      const cache = createRemoteActivityCache(fetchPage, { minRefetchMs: 1_000, failureBackoffMs: 60_000, now: () => clock })
+      const consumer = cache.mount()
+      consumer.update([row("a", 1)])
+      await vi.advanceTimersByTimeAsync(0)
+      clock = 5_000
+      consumer.update([row("a", 2)])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cache.getSnapshot().get("a")).toMatchObject({ stale: true, succeededAt: 100, preview: { text: "previous" } })
+      // A fresh entry ignores Retry; a stale one is read now, and repeated clicks while it is read add nothing.
+      cache.retry("missing")
+      cache.retry("a")
+      cache.retry("a")
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchPage).toHaveBeenCalledTimes(3)
+      clock = 6_000
+      finish({ data: page("fresh") })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cache.getSnapshot().get("a")).toMatchObject({ preview: { text: "fresh" }, succeededAt: 6_000 })
+      cache.retry("a")
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchPage).toHaveBeenCalledTimes(3)
+      // No Retry above leaves a pass behind: new activity still waits for the normal refetch interval.
+      consumer.update([row("a", 3)])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchPage).toHaveBeenCalledTimes(3)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("a Retry waiting for a free slot is dropped when its row leaves the board", async () => {
+    vi.useFakeTimers()
+    try {
+      let clock = 0
+      const fetchPage = vi
+        .fn<FetchActivityPage>()
+        .mockResolvedValueOnce({ data: page("previous") })
+        .mockResolvedValueOnce({ error: "unavailable" })
+        .mockImplementation(() => new Promise(() => {}))
+      const cache = createRemoteActivityCache(fetchPage, { minRefetchMs: 0, failureBackoffMs: 60_000, now: () => clock })
+      const consumer = cache.mount()
+      consumer.update([row("a", 1)])
+      await vi.advanceTimersByTimeAsync(0)
+      consumer.update([row("a", 2)])
+      await vi.advanceTimersByTimeAsync(0)
+      // Two reads that never settle hold both slots, so the Retry has to wait.
+      consumer.update([row("a", 2), row("b", 1), row("c", 1)])
+      await vi.advanceTimersByTimeAsync(0)
+      cache.retry("a")
+      consumer.update([row("b", 1), row("c", 1)])
+      consumer.update([row("a", 2), row("b", 1), row("c", 1)])
+      clock = 20_000
+      await vi.advanceTimersByTimeAsync(20_000)
+      // The slots are free again, but the session is still inside its backoff.
+      expect(fetchPage.mock.calls.filter(([input]) => input.sessionID === "a")).toHaveLength(2)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("many failing sessions, including evicted ones, are read once per backoff and never in a tight loop", async () => {
     vi.useFakeTimers()
     try {

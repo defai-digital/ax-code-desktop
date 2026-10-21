@@ -1255,6 +1255,35 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(stagedRow.worktreeBlobId).toBe(stagedBlob)
   })
 
+  it("reports index and worktree modes, so an executable bit or a symlink swap is visible beside equal content", async () => {
+    if (!canRunGit()) return
+
+    const repo = initRepo()
+    fs.writeFileSync(path.join(repo, "script.sh"), "echo\n")
+    fs.writeFileSync(path.join(repo, "target"), "target")
+    fs.writeFileSync(path.join(repo, "link"), "target")
+    runGit(repo, ["add", "script.sh", "target", "link"])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.writeFileSync(path.join(repo, "script.sh"), "echo hi\n")
+    if (process.platform !== "win32") {
+      fs.chmodSync(path.join(repo, "script.sh"), 0o755)
+      fs.rmSync(path.join(repo, "link"))
+      fs.symlinkSync("target", path.join(repo, "link"))
+    }
+
+    const status = await getStatus(repo)
+    const script = status.files.find((entry) => entry.path === "script.sh")
+    expect(script.indexMode).toBe("100644")
+    expect(script.worktreeMode).toBe(process.platform === "win32" ? "100644" : "100755")
+    if (process.platform !== "win32") {
+      const link = status.files.find((entry) => entry.path === "link")
+      // Same bytes as the committed regular file: only the mode tells the swap apart.
+      expect(link.worktreeBlobId).toBe(link.indexBlobId)
+      expect(link.indexMode).toBe("100644")
+      expect(link.worktreeMode).toBe("120000")
+    }
+  })
+
   it("gives a deleted file no worktree id", async () => {
     if (!canRunGit()) return
 

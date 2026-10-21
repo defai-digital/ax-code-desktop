@@ -3,10 +3,15 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import type { GitStatus } from "@/lib/api/types"
 import { useGitStore } from "@/stores/useGitStore"
-import { reviewFileSignature, useReviewProgressStore, type ReviewGitScope } from "@/stores/useReviewProgressStore"
+import {
+  reviewContentSignature,
+  reviewFileSignature,
+  useReviewProgressStore,
+  type ReviewGitScope,
+} from "@/stores/useReviewProgressStore"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
 import { createHash } from "node:crypto"
-import { ReviewLanding } from "./ReviewLanding"
+import { ReviewLanding, type ReviewLandingSessionDiff } from "./ReviewLanding"
 
 const blobId = (seed: string) => createHash("sha1").update(seed).digest("hex")
 
@@ -448,5 +453,106 @@ describe("review to landing", () => {
     await flush()
     expect(git.stageGitFiles).not.toHaveBeenCalled()
     expect(button("Confirm: stage all 1 unreviewed files")).toBeTruthy()
+  })
+})
+
+describe("landing from a session or turn scope", () => {
+  const rawBlobId = (text: string) =>
+    createHash("sha1").update(`blob ${Buffer.byteLength(text)}\0`).update(text).digest("hex")
+  const sessionFile = (path: string, after: string, status = "modified", before = "before\n") => ({
+    path,
+    before: status === "added" ? "" : before,
+    after,
+    status,
+    signature: reviewContentSignature(status === "added" ? "" : before, after, status, path),
+  })
+  // The live state that staging would turn into exactly the reviewed change.
+  const live = (path: string, after: string | null, patch: Record<string, unknown> = {}) => ({
+    ...file(path, " ", after === null ? "D" : "M"),
+    indexBlobId: rawBlobId("before\n"),
+    indexMode: "100644",
+    worktreeBlobId: after === null ? null : rawBlobId(after),
+    worktreeMode: after === null ? null : "100644",
+    ...patch,
+  })
+  function SessionHarness({ diff, scope = "session" }: { diff: ReviewLandingSessionDiff; scope?: "session" | `turn:${string}` }) {
+    const current = useGitStore((state) => state.directories.get(directory)?.status)
+    const files = diff.files.map((entry) => ({ path: entry.path, index: " ", working_dir: " ", insertions: 1, deletions: 1 }))
+    return (
+      <I18nProvider>
+        {current ? <ReviewLanding directory={directory} scope={scope} files={files} sessionDiff={diff} /> : null}
+      </I18nProvider>
+    )
+  }
+  const markAll = (scope: string, diff: ReviewLandingSessionDiff) => {
+    for (const entry of diff.files) useReviewProgressStore.getState().setViewed(directory, scope, entry.path, entry.signature, true)
+  }
+
+  test("stages only marked files whose staging applies exactly the reviewed change", async () => {
+    const diff = {
+      files: [
+        sessionFile("kept.ts", "agent text\n"),
+        sessionFile("edited.ts", "agent text\n"),
+        sessionFile("unmarked.ts", "agent text\n"),
+        sessionFile("removed.ts", "", "deleted"),
+        sessionFile("created.ts", "new\n", "added"),
+        sessionFile("created-executable.sh", "new\n", "added"),
+        sessionFile("earlier-turn.ts", "agent text\n"),
+        sessionFile("swapped.ts", "agent text\n"),
+        sessionFile("executable.ts", "agent text\n"),
+      ],
+    }
+    setStatus({
+      files: [
+        live("kept.ts", "agent text\n"),
+        // Edited by a person after the review: the worktree no longer holds what was signed.
+        live("edited.ts", "agent text\nhuman edit\n"),
+        live("unmarked.ts", "agent text\n"),
+        live("removed.ts", null),
+        { ...live("created.ts", "new\n"), index: "?", working_dir: "?", indexBlobId: null, indexMode: null },
+        // A new executable shows the same text, but its mode was never shown.
+        {
+          ...live("created-executable.sh", "new\n"),
+          index: "?",
+          working_dir: "?",
+          indexBlobId: null,
+          indexMode: null,
+          worktreeMode: "100755",
+        },
+        // An earlier turn already changed the file: the index does not hold this turn's `before`.
+        live("earlier-turn.ts", "agent text\n", { indexBlobId: rawBlobId("original\n") }),
+        // Same bytes, but a symlink or a new executable bit would be staged unseen.
+        live("swapped.ts", "agent text\n", { worktreeMode: "120000", working_dir: "T" }),
+        live("executable.ts", "agent text\n", { worktreeMode: "100755" }),
+        // Not part of the session diff: never a candidate.
+        live("unrelated.ts", "agent text\n"),
+      ],
+    })
+    markAll("turn:m1", { files: diff.files.filter((entry) => entry.path !== "unmarked.ts") })
+    const { container } = render(<SessionHarness diff={diff} scope="turn:m1" />)
+    await flush()
+    expect(Array.from(container.querySelectorAll("li"), (li) => li.textContent)).toEqual([
+      "kept.ts",
+      "removed.ts",
+      "created.ts",
+    ])
+    fireEvent.click(button("Stage all reviewed"))
+    await flush()
+    expect(git.stageGitFiles).toHaveBeenCalledWith(directory, ["kept.ts", "removed.ts", "created.ts"])
+  })
+
+  test("a file rewritten between the review and the click is refused", async () => {
+    const diff = { files: [sessionFile("kept.ts", "agent text\n")] }
+    setStatus({ files: [live("kept.ts", "agent text\n")] })
+    markAll("session", diff)
+    render(<SessionHarness diff={diff} />)
+    await flush()
+    git.getGitStatus.mockImplementation(async () => ({ ...status, files: [live("kept.ts", "rewritten\n")] }))
+    fireEvent.click(button("Stage all reviewed"))
+    await flush()
+    expect(git.stageGitFiles).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalledWith(
+      "Files changed since they were reviewed. Review the updated changes before staging.",
+    )
   })
 })

@@ -14,6 +14,8 @@ import { reviewContentSignature, useReviewPaneFileKeys } from "@/stores/useRevie
 import { useDirectorySync, useSessionMessages, useSessionMessagesResolved, useSessionStatus } from "@/sync/sync-context"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
+import { ReviewLanding, type ReviewLandingSessionDiff } from "./git/ReviewLanding"
+import { useIsGitRepo } from "@/stores/useGitStore"
 
 /** Matches the review pane's side-by-side minimum. A session diff also needs both sides. */
 const SESSION_SIDE_BY_SIDE_MIN_WIDTH = 1100
@@ -40,6 +42,7 @@ interface SessionChangesViewProps {
   onSelectFile: (path: string) => void
   wrapLines: boolean
   onModelChange: (model: SessionChangesModel) => void
+  onStaged?: () => void
 }
 
 type SessionFileDiff = {
@@ -169,6 +172,7 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
   onSelectFile,
   wrapLines,
   onModelChange,
+  onStaged,
 }) => {
   const { t } = useI18n()
   const messages = useSessionMessages(sessionID, directory)
@@ -277,6 +281,20 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
     [loadedFiles],
   )
 
+  const isGitRepo = useIsGitRepo(directory)
+  const landingDiff = React.useMemo<ReviewLandingSessionDiff>(
+    () => ({
+      files: loadedFiles.map((file) => ({
+        path: file.file,
+        before: file.before,
+        after: file.after,
+        status: file.status,
+        signature: reviewContentSignature(file.before, file.after, file.status ?? "", file.file),
+      })),
+    }),
+    [loadedFiles],
+  )
+
   const reviewKeyFiles = React.useMemo(
     () => railFiles.map((file) => ({ path: file.path, signature: file.signature ?? "" })),
     [railFiles],
@@ -365,7 +383,26 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
           onOpenFile={(path) => void openInEditor(path)}
         />
       ) : null}
-      <div className="session-changes__body">{body}</div>
+      <div className="session-changes__body">
+        {isGitRepo && visible?.phase === "ready" && loadedFiles.length > 0 ? (
+          <ReviewLanding
+            key={`${directory}\0${progressScope}`}
+            directory={directory}
+            sessionId={sessionID}
+            onStaged={onStaged}
+            scope={progressScope as "session" | `turn:${string}`}
+            files={loadedFiles.map((file) => ({
+              path: file.file,
+              index: " ",
+              working_dir: " ",
+              insertions: file.additions,
+              deletions: file.deletions,
+            }))}
+            sessionDiff={landingDiff}
+          />
+        ) : null}
+        {body}
+      </div>
     </div>
   )
 }

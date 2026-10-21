@@ -1619,7 +1619,7 @@ const parseGitStageRecords = (raw) => {
     const [mode, objectId, stage] = record.slice(0, tabIndex).split(" ")
     const recordPath = record.slice(tabIndex + 1)
     if (stage !== "0" || !mode || !normalizeGitBlobId(objectId) || !recordPath) continue
-    entries.set(recordPath, normalizeGitBlobId(objectId))
+    entries.set(recordPath, { id: normalizeGitBlobId(objectId), mode })
   }
   return entries
 }
@@ -1664,6 +1664,15 @@ const readTreeBlobIds = async (repoRoot, treeish, repoPaths, timeout) => {
 
 const readHeadBlobIds = async (repoRoot, repoPaths, timeout) => readTreeBlobIds(repoRoot, "HEAD", repoPaths, timeout)
 
+/**
+ * The git mode of a regular worktree file. Windows has no executable bit, so git keeps the index mode there (core.filemode
+ * is false); elsewhere the owner executable bit decides, as git does.
+ */
+const worktreeRegularMode = (stat, indexMode) => {
+  if (process.platform === "win32") return indexMode === "100755" ? "100755" : "100644"
+  return stat.mode & 0o100 ? "100755" : "100644"
+}
+
 // Git's blob id for these exact bytes (what `git hash-object --no-filters` prints).
 const gitBlobId = (bytes) =>
   createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex")
@@ -1676,8 +1685,9 @@ const gitBlobId = (bytes) =>
  * resolve outside the repository are skipped. git hash-object --stdin-paths is not used: it decodes quoted
  * C-style escapes in a path, which let a crafted filename name a file outside the repository.
  */
-const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout) => {
+const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout, indexModes = new Map()) => {
   const ids = new Map()
+  const modes = new Map()
   const deadline = Date.now() + timeout
   const rootReal = await fsp.realpath(repoRoot).catch(() => null)
   if (!rootReal) return ids
@@ -1697,7 +1707,10 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout) => {
     if (!entry) continue
     if (entry.isSymbolicLink()) {
       const linkText = await fsp.readlink(absolute, { encoding: "buffer" }).catch(() => null)
-      if (linkText && linkText.length <= maxBytes) ids.set(file.path, gitBlobId(linkText))
+      if (linkText && linkText.length <= maxBytes) {
+        ids.set(file.path, gitBlobId(linkText))
+        modes.set(file.path, "120000")
+      }
       continue
     }
     if (!entry.isFile() || entry.size > maxBytes) continue
@@ -1718,13 +1731,14 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout) => {
       }
       if (length > maxBytes) continue
       ids.set(file.path, gitBlobId(buffer.subarray(0, length)))
+      modes.set(file.path, worktreeRegularMode(stat, indexModes.get(file.path)))
     } catch {
       continue
     } finally {
       await handle?.close().catch(() => {})
     }
   }
-  return ids
+  return { ids, modes }
 }
 
 /**
@@ -1753,19 +1767,23 @@ const collectContentIdentities = async (repoRoot, files, options) => {
     const headPath = (index === "R" || index === "C") && isSafeGitStatusPath(file.from) ? file.from : file.path
     headPaths.push(headPath)
   }
-  const [indexIds, headIds, worktreeIds] = await Promise.all([
+  const [indexEntries, headIds] = await Promise.all([
     readIndexBlobIds(repoRoot, indexPaths, timeout),
     readHeadBlobIds(repoRoot, [...new Set(headPaths)], timeout),
-    hashWorktreeBlobs(repoRoot, safe, maxBytes, timeout),
   ])
+  const indexModes = new Map([...indexEntries].map(([filePath, entry]) => [filePath, entry.mode]))
+  const worktree = await hashWorktreeBlobs(repoRoot, safe, maxBytes, timeout, indexModes)
   const identities = new Map()
   for (const file of safe) {
     const index = gitStatusColumn(file.index)
     const headPath = (index === "R" || index === "C") && isSafeGitStatusPath(file.from) ? file.from : file.path
     identities.set(file.path, {
       headBlobId: headIds.get(headPath) ?? null,
-      indexBlobId: indexIds.get(file.path) ?? null,
-      worktreeBlobId: worktreeIds.get(file.path) ?? null,
+      indexBlobId: indexEntries.get(file.path)?.id ?? null,
+      worktreeBlobId: worktree.ids.get(file.path) ?? null,
+      // Modes let a reviewer's content proof also cover the file type and executable bit.
+      indexMode: indexEntries.get(file.path)?.mode ?? null,
+      worktreeMode: worktree.modes.get(file.path) ?? null,
     })
   }
   return { identities, maxFiles }
@@ -2080,6 +2098,8 @@ export async function getStatus(directory, options = {}) {
           headBlobId: null,
           indexBlobId: null,
           worktreeBlobId: null,
+          indexMode: null,
+          worktreeMode: null,
         }
         return { ...row, ...identity }
       }),

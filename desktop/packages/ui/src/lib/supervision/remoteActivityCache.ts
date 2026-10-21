@@ -35,6 +35,8 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
   const consumers = new Set<Demand>()
   const pending = new Map<string, { updatedAt: number; directory: string }>()
   let retryTimer: ReturnType<typeof setTimeout> | null = null
+  // Sessions a person asked to read again now: the backoff and refetch interval are skipped once.
+  const forced = new Set<string>()
 
   function demanded(): Set<string> {
     const ids = new Set<string>()
@@ -76,7 +78,8 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
     for (const consumer of consumers) {
       for (const row of consumer.rows) {
         if (row.activity || !row.directory) continue
-        const deadline = failedUntil.get(receiptKey(row))
+        const isForced = forced.has(row.sessionId)
+        const deadline = isForced ? undefined : failedUntil.get(receiptKey(row))
         if (deadline !== undefined) {
           const remaining = deadline - now()
           if (remaining > 0) {
@@ -94,7 +97,7 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
         )
         if (row.updatedAt <= revision) continue
         const interval = entry?.stale ? Math.max(minRefetchMs, failureBackoffMs) : minRefetchMs
-        const wait = entry && sameDirectory ? entry.fetchedAt + interval - now() : 0
+        const wait = entry && sameDirectory && !isForced ? entry.fetchedAt + interval - now() : 0
         if (wait > 0) {
           scheduleRetry(wait)
           continue
@@ -108,6 +111,7 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
           continue
         }
         if (pending.size >= 2) return
+        forced.delete(row.sessionId)
         consumer.attempted.set(receiptKey(row), row.updatedAt)
         pending.set(row.sessionId, { updatedAt: row.updatedAt, directory: row.directory })
         void fetch(row)
@@ -147,13 +151,15 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
       // Keep the previous safe preview. Errors may contain credentials; do not retain or log them.
     }
     if (ok) {
-      publish(row.sessionId, { preview, updatedAt: row.updatedAt, fetchedAt: now(), directory: row.directory! })
+      const fetchedAt = now()
+      publish(row.sessionId, { preview, updatedAt: row.updatedAt, fetchedAt, succeededAt: fetchedAt, directory: row.directory! })
     } else {
       // The older text stays, marked stale; its revision is not advanced, so the session is read again after a backoff.
       publish(row.sessionId, {
         preview,
         updatedAt: sameDirectory ? (previous?.updatedAt ?? -Infinity) : -Infinity,
         fetchedAt: now(),
+        succeededAt: sameDirectory ? previous?.succeededAt : undefined,
         directory: row.directory!,
         stale: true,
       })
@@ -170,6 +176,15 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
 
   return {
     getSnapshot: () => entries,
+    /** Read a stale session again now. No effect while it is fresh or already being read, so clicks cannot pile up. */
+    retry(sessionId: string) {
+      if (!entries.get(sessionId)?.stale || pending.has(sessionId) || !demanded().has(sessionId)) return
+      forced.add(sessionId)
+      for (const consumer of consumers)
+        for (const key of consumer.attempted.keys()) if (key.startsWith(`${sessionId}\n`)) consumer.attempted.delete(key)
+      for (const key of failedUntil.keys()) if (key.startsWith(`${sessionId}\n`)) failedUntil.delete(key)
+      pump()
+    },
     subscribe(listener: () => void) {
       listeners.add(listener)
       return () => {
@@ -185,10 +200,14 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
           // Receipts only matter for rows this board still shows.
           const ids = new Set(rows.map(receiptKey))
           for (const id of consumer.attempted.keys()) if (!ids.has(id)) consumer.attempted.delete(id)
+          // A Retry for a session no board shows any more is dropped, so retry intents stay bounded by the boards.
+          const shown = demanded()
+          for (const id of forced) if (!shown.has(id)) forced.delete(id)
           pump()
         },
         dispose() {
           consumers.delete(consumer)
+          if (consumers.size === 0) forced.clear()
           if (consumers.size === 0 && retryTimer !== null) {
             clearTimeout(retryTimer)
             retryTimer = null

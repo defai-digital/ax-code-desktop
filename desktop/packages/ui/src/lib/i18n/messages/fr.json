@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "V\u00e9rifications CI r\u00e9ussies",
   "supervision.missionControl.pr.failed": "V\u00e9rifications CI \u00e9chou\u00e9es",
   "supervision.missionControl.pr.pending": "V\u00e9rifications CI en attente",
-  "supervision.missionControl.pr.stale": "Le statut de la PR peut \u00eatre obsol\u00e8te"
+  "supervision.missionControl.pr.stale": "Le statut de la PR peut \u00eatre obsol\u00e8te",
+  "supervision.missionControl.preview.staleSince": "(peut \u00eatre obsol\u00e8te ; derni\u00e8re lecture {age})",
+  "supervision.missionControl.preview.retry": "R\u00e9essayer",
+  "supervision.missionControl.preview.retryLabel": "Relire l'activit\u00e9 de {title}"
 }

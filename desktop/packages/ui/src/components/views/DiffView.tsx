@@ -2294,6 +2294,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
             onSelectFile={setSessionSelected}
             wrapLines={diffWrapLines}
             onModelChange={handleSessionModel}
+            onStaged={scopeSelectable ? () => setChosenScope("staged") : undefined}
           />
         ) : branchReview && effectiveDirectory ? (
           <BranchChangesView

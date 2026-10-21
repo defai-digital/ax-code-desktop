@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "CI\u30c1\u30a7\u30c3\u30af\u901a\u904e",
   "supervision.missionControl.pr.failed": "CI\u30c1\u30a7\u30c3\u30af\u5931\u6557",
   "supervision.missionControl.pr.pending": "CI\u30c1\u30a7\u30c3\u30af\u4fdd\u7559\u4e2d",
-  "supervision.missionControl.pr.stale": "PR\u306e\u30b9\u30c6\u30fc\u30bf\u30b9\u304c\u53e4\u3044\u53ef\u80fd\u6027\u3042\u308a"
+  "supervision.missionControl.pr.stale": "PR\u306e\u30b9\u30c6\u30fc\u30bf\u30b9\u304c\u53e4\u3044\u53ef\u80fd\u6027\u3042\u308a",
+  "supervision.missionControl.preview.staleSince": "(\u53e4\u3044\u53ef\u80fd\u6027\u3042\u308a\uff1b\u6700\u5f8c\u306e\u8aad\u307f\u53d6\u308a {age})",
+  "supervision.missionControl.preview.retry": "\u518d\u8a66\u884c",
+  "supervision.missionControl.preview.retryLabel": "{title} \u306e\u30a2\u30af\u30c6\u30a3\u30d3\u30c6\u30a3\u3092\u518d\u8aad\u307f\u53d6\u308a"
 }

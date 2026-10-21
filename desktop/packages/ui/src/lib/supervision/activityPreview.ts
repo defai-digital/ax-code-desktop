@@ -11,6 +11,8 @@ export interface ActivityPreview {
   text: string
   /** Set on a preview kept from an earlier read after the latest read failed. */
   stale?: boolean
+  /** On a stale preview: when the read that produced it succeeded. */
+  lastSuccessAt?: number
 }
 
 export interface ActivityTodo {

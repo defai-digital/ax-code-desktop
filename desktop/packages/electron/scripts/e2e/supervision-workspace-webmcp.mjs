@@ -327,6 +327,8 @@ const outcome = await runHarness({
           const names = []
           const inspect = root => {
             for (const e of root.querySelectorAll('*')) {
+              // The guarded landing action is the only staging entry point in session scopes (S10).
+              if (e.closest('[data-review-landing]')) continue
               if (e.matches('button, [role="button"], input[type="button"], input[type="submit"]')) {
                 const name = [e.getAttribute('aria-label'), e.getAttribute('title'), e.textContent, e.value].filter(Boolean).join(' ')
                 if (/stage|revert/i.test(name)) names.push(name)
@@ -338,6 +340,7 @@ const outcome = await runHarness({
           return names
         })()`)
         if (mutationControls.length) throw new Error(`${scope} exposes stage/revert controls: ${JSON.stringify(mutationControls)}`)
+        await audit.wait(`Boolean(document.querySelector('[data-session-changes] [data-review-landing]'))`, `${scope} landing action beside the review`)
       }
       await selectScope("This session")
       await checkFiles("session", STUB_REVIEW_DIFFS)
@@ -554,7 +557,7 @@ const outcome = await runHarness({
     await audit.click("Session grid", { role: "button" })
     await audit.wait(`document.querySelector('[data-session-grid]')?.querySelectorAll('iframe').length === 2`, "return restores both grid panes")
 
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

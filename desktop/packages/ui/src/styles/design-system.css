@@ -592,7 +592,8 @@
 [data-density="compact"] .mission-control-row {
   padding-block: 0.5rem;
 }
-[data-density="compact"] .mission-activity {
+[data-density="compact"] .mission-activity,
+[data-density="compact"] .mission-activity-line {
   display: none;
 }
 @container mission-board (min-width: 52rem) {

@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "Verifica\u00e7\u00f5es de CI passadas",
   "supervision.missionControl.pr.failed": "Verifica\u00e7\u00f5es de CI falhadas",
   "supervision.missionControl.pr.pending": "Verifica\u00e7\u00f5es de CI pendentes",
-  "supervision.missionControl.pr.stale": "Status do PR pode estar desatualizado"
+  "supervision.missionControl.pr.stale": "Status do PR pode estar desatualizado",
+  "supervision.missionControl.preview.staleSince": "(pode estar desatualizado; \u00faltima leitura {age})",
+  "supervision.missionControl.preview.retry": "Tentar novamente",
+  "supervision.missionControl.preview.retryLabel": "Ler a atividade de {title} novamente"
 }

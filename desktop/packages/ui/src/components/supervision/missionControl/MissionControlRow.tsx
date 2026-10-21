@@ -20,6 +20,7 @@ import { updatedSinceViewed } from "@/lib/supervision/missionControl"
 import { inlineChildSessions } from "@/lib/supervision/childSessions"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { retryRemoteActivityPreview } from "@/hooks/useRemoteActivityPreviews"
 import { ChecksChip, GoalBudgetLeft } from "./MissionControlChecks"
 
 export interface MissionControlRowProps {
@@ -75,6 +76,11 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const updated = useSupervisionStore((state) => updatedSinceViewed(row, state.lastViewedAt))
   const showsGoalOrError = Boolean(row.goal) || (row.state === "error" && Boolean(row.errorMessage))
   const activityText = activity ? activityLine(activity, t) : null
+  // A stale preview says how old its text is, so the person can judge it without opening the session.
+  const staleLabel =
+    activity?.stale && activity.lastSuccessAt !== undefined
+      ? t("supervision.missionControl.preview.staleSince", { age: formatRelativeAge(Date.now() - activity.lastSuccessAt, t) })
+      : t("supervision.missionControl.preview.stale")
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
   const inlineChildren = inlineChildSessions(row.childSessions)
@@ -172,15 +178,32 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             </span>
           </span>
           {activity && activityText ? (
-            <span
-              className="mission-activity typography-meta text-muted-foreground"
-              title={activity.stale ? `${t("supervision.missionControl.preview.stale")} ${activityText}` : activityText}
-              data-activity-preview={activity.kind}
-              data-activity-stale={activity.stale ? "" : undefined}
-            >
-              {/* First, so ellipsis truncation of a long preview never hides that it may be outdated. */}
-              {activity.stale ? <span className="mr-1 italic">{t("supervision.missionControl.preview.stale")}</span> : null}
-              {activityText}
+            <span className="mission-activity-line flex min-w-0 items-center gap-1.5">
+              <span
+                className="mission-activity min-w-0 typography-meta text-muted-foreground"
+                title={activity.stale ? `${staleLabel} ${activityText}` : activityText}
+                data-activity-preview={activity.kind}
+                data-activity-stale={activity.stale ? "" : undefined}
+              >
+                {/* First, so ellipsis truncation of a long preview never hides that it may be outdated. */}
+                {activity.stale ? <span className="mr-1 italic">{staleLabel}</span> : null}
+                {activityText}
+              </span>
+              {activity.stale ? (
+                <button
+                  type="button"
+                  className="shrink-0 typography-micro text-[var(--status-info)] hover:underline"
+                  aria-label={t("supervision.missionControl.preview.retryLabel", { title: row.title })}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    retryRemoteActivityPreview(row.sessionId)
+                  }}
+                  onDoubleClick={handleActionDoubleClick}
+                  data-activity-retry
+                >
+                  {t("supervision.missionControl.preview.retry")}
+                </button>
+              ) : null}
             </span>
           ) : null}
         </span>

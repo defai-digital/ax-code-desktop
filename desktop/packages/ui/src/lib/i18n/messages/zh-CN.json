@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "CI \u68c0\u67e5\u901a\u8fc7",
   "supervision.missionControl.pr.failed": "CI \u68c0\u67e5\u5931\u8d25",
   "supervision.missionControl.pr.pending": "CI \u68c0\u67e5\u5f85\u5904\u7406",
-  "supervision.missionControl.pr.stale": "PR \u72b6\u6001\u53ef\u80fd\u5df2\u8fc7\u65f6"
+  "supervision.missionControl.pr.stale": "PR \u72b6\u6001\u53ef\u80fd\u5df2\u8fc7\u65f6",
+  "supervision.missionControl.preview.staleSince": "(\u53ef\u80fd\u5df2\u8fc7\u65f6\uff1b\u4e0a\u6b21\u8bfb\u53d6 {age})",
+  "supervision.missionControl.preview.retry": "\u91cd\u8bd5",
+  "supervision.missionControl.preview.retryLabel": "\u91cd\u65b0\u8bfb\u53d6 {title} \u7684\u6d3b\u52a8"
 }

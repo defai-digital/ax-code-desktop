@@ -98,6 +98,19 @@ round 10 makes WebMCP visible where the persona supervises and lands work:
 | M10: three-way merge | inline conflict resolution | later | | candidate |
 | R10: review rail tree | collapsible directory grouping in the review rail | | | candidate |
 
+## Round 11
+
+Targets from the round 10 judgments (codex +0.17, deepseek-flash +0.12, MiniMax-M3 +0.04; all equal).
+
+| Package | Requirement | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| S10: land from session scopes | Stage, Commit and Push in This session and Last turn; a file is reviewed only while staging applies exactly the reviewed change (index holds `before`, worktree holds `after`, mode unchanged) | Claude | codex | done; two P1 and one P2 fixed with mutation probes |
+| F10: stale preview recovery | Retry and last-read age on stale activity previews, bounded retry intents | Claude | codex | done |
+| R10: review rail tree | collapsible directory grouping and adjustable rail width | grok (worktree `r11-rail-tree`) | to be assigned | in progress |
+| PR discovery | PR state for branches the PR store does not know yet; multi-select PR facet | | | candidate |
+| G10: free grid arrangement | drag to split, reorder, pop out | | | candidate |
+| Runtime pin | pin a signed AX Code runtime with ADR-266 | | | needs a signed release and explicit approval |
+
 ## Decisions
 
 - 2026-10-21: the user asked to merge all branches and worktrees into main, clean up, commit and push before round 8 (approves the

@@ -34,6 +34,8 @@ export interface RemoteActivityEntry {
   updatedAt: number
   /** The latest read failed: `preview` is older text and is shown as possibly outdated. */
   stale?: boolean
+  /** When the read that produced `preview` succeeded; kept across failed reads of the same directory. */
+  succeededAt?: number
   fetchedAt: number
   /** The directory read; a session that moved to another directory is read again. */
   directory: string

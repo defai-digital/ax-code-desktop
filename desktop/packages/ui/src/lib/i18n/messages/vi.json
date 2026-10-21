@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "Ki\u1ec3m tra CI \u0111\u00e3 qua",
   "supervision.missionControl.pr.failed": "Ki\u1ec3m tra CI th\u1ea5t b\u1ea1i",
   "supervision.missionControl.pr.pending": "Ki\u1ec3m tra CI \u0111ang ch\u1edd",
-  "supervision.missionControl.pr.stale": "Tr\u1ea1ng th\u00e1i PR c\u00f3 th\u1ec3 \u0111\u00e3 l\u1ed7i th\u1eddi"
+  "supervision.missionControl.pr.stale": "Tr\u1ea1ng th\u00e1i PR c\u00f3 th\u1ec3 \u0111\u00e3 l\u1ed7i th\u1eddi",
+  "supervision.missionControl.preview.staleSince": "(c\u00f3 th\u1ec3 \u0111\u00e3 l\u1ed7i th\u1eddi; l\u1ea7n \u0111\u1ecdc cu\u1ed1i {age})",
+  "supervision.missionControl.preview.retry": "Th\u1eed l\u1ea1i",
+  "supervision.missionControl.preview.retryLabel": "\u0110\u1ecdc l\u1ea1i ho\u1ea1t \u0111\u1ed9ng c\u1ee7a {title}"
 }

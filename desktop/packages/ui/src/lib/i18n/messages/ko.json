@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "CI \uccb4\ud06c \ud1b5\uacfc",
   "supervision.missionControl.pr.failed": "CI \uccb4\ud06c \uc2e4\ud328",
   "supervision.missionControl.pr.pending": "CI \uccb4\ud06c \ubcf4\ub958 \uc911",
-  "supervision.missionControl.pr.stale": "PR \uc0c1\ud0dc\uac00 \ucd5c\uc2e0\uc774\uc9c0 \uc54a\uc744 \uc218 \uc788\uc74c"
+  "supervision.missionControl.pr.stale": "PR \uc0c1\ud0dc\uac00 \ucd5c\uc2e0\uc774\uc9c0 \uc54a\uc744 \uc218 \uc788\uc74c",
+  "supervision.missionControl.preview.staleSince": "(\ucd5c\uc2e0 \uc815\ubcf4\uac00 \uc544\ub2d0 \uc218 \uc788\uc74c; \ub9c8\uc9c0\ub9c9\uc73c\ub85c \uc77d\uc74c {age})",
+  "supervision.missionControl.preview.retry": "\ub2e4\uc2dc \uc2dc\ub3c4",
+  "supervision.missionControl.preview.retryLabel": "{title} \ud65c\ub3d9 \ub2e4\uc2dc \uc77d\uae30"
 }

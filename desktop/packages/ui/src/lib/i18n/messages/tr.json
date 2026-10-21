@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "CI kontrolleri ge\u00e7ti",
   "supervision.missionControl.pr.failed": "CI kontrolleri ba\u015far\u0131s\u0131z",
   "supervision.missionControl.pr.pending": "CI kontrolleri bekliyor",
-  "supervision.missionControl.pr.stale": "PR durumu g\u00fcncel olmayabilir"
+  "supervision.missionControl.pr.stale": "PR durumu g\u00fcncel olmayabilir",
+  "supervision.missionControl.preview.staleSince": "(g\u00fcncel olmayabilir; son okuma {age})",
+  "supervision.missionControl.preview.retry": "Yeniden dene",
+  "supervision.missionControl.preview.retryLabel": "{title} etkinli\u011fini tekrar oku"
 }

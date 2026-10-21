@@ -5188,5 +5188,8 @@
   "supervision.missionControl.pr.passed": "CI-Pr\u00fcfungen bestanden",
   "supervision.missionControl.pr.failed": "CI-Pr\u00fcfungen fehlgeschlagen",
   "supervision.missionControl.pr.pending": "CI-Pr\u00fcfungen ausstehend",
-  "supervision.missionControl.pr.stale": "PR-Status m\u00f6glicherweise veraltet"
+  "supervision.missionControl.pr.stale": "PR-Status m\u00f6glicherweise veraltet",
+  "supervision.missionControl.preview.staleSince": "(m\u00f6glicherweise veraltet; zuletzt gelesen {age})",
+  "supervision.missionControl.preview.retry": "Erneut versuchen",
+  "supervision.missionControl.preview.retryLabel": "Aktivit\u00e4t von {title} erneut lesen"
 }
