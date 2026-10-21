@@ -433,7 +433,12 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       {browserId ? (
         <WebMcpToolPanel
           tryTool={(toolName, input) =>
-            invoke<{ ok: boolean; output?: unknown; reason?: string }>({ action: "tryTool", id: browserId, toolName, input })
+            invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
+              action: "tryTool",
+              id: browserId,
+              toolName,
+              input,
+            })
           }
         />
       ) : null}

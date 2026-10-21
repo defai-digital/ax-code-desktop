@@ -186,15 +186,18 @@ describe("pageKind", () => {
       return { ...f, scripts, ask }
     }
     test("reads the page and then acts only on that read", async () => {
-      const f = await interactive([{ title: "T", text: "hello", outline: [{ ref: "e1", kind: "button", name: "Go" }] }, { ok: true }])
+      const f = await interactive([
+        { title: "T", text: "hello", outline: [{ ref: "e1", kind: "button", name: "Go" }] },
+        { ok: true },
+      ])
       const read = await f.adapter.execute(f.ask("read"))
       expect(read.output).toMatchObject({ title: "T", text: "hello" })
       expect(f.scripts[0].world).toBe(1998)
       const acted = await f.adapter.execute(f.ask("act", { readId: read.output.readId, ref: "e1", how: "click" }))
       expect(acted.output).toEqual({ done: true, how: "click", navigated: false })
-      await expect(
-        f.adapter.execute(f.ask("act", { readId: randomUUID(), ref: "e1", how: "click" })),
-      ).rejects.toThrow("stale")
+      await expect(f.adapter.execute(f.ask("act", { readId: randomUUID(), ref: "e1", how: "click" }))).rejects.toThrow(
+        "stale",
+      )
       f.adapter.close()
     })
     test("a navigation retires the read and an action reports the new document", async () => {
@@ -202,7 +205,9 @@ describe("pageKind", () => {
       const read = await f.adapter.execute(f.ask("read"))
       f.adapter.invalidate()
       await expect(
-        f.adapter.execute(f.ask("act", { readId: read.output.readId, ref: "e1", how: "click", generation: f.adapter.generation })),
+        f.adapter.execute(
+          f.ask("act", { readId: read.output.readId, ref: "e1", how: "click", generation: f.adapter.generation }),
+        ),
       ).rejects.toThrow("stale")
       f.adapter.close()
     })
@@ -239,4 +244,87 @@ describe("pageKind", () => {
       f.adapter.close()
     })
   })
+})
+
+test("manual deadline expiry is a timeout rather than a claimed cancellation", async () => {
+  const f = await fixture()
+  const request = { ...f.request(), deadline: Date.now() + 20 }
+  await expect(f.adapter.execute(request)).rejects.toMatchObject({ outcome: "timeout", reason: "timeout" })
+  expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
+  f.adapter.close()
+})
+
+test("explicit adapter cancellation retains its outcome and never retries", async () => {
+  const f = await fixture()
+  const request = f.request()
+  const pending = f.adapter.execute(request)
+  const rejected = expect(pending).rejects.toMatchObject({ outcome: "cancelled", reason: "cancelled" })
+  await Promise.resolve()
+  f.adapter.cancel(request.requestID)
+  await rejected
+  expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
+  f.adapter.close()
+})
+
+test("an expired deadline before dispatch reports timeout without invoking the page", async () => {
+  const f = await fixture()
+  await expect(f.adapter.execute({ ...f.request(), deadline: Date.now() - 1 })).rejects.toMatchObject({
+    outcome: "timeout",
+    reason: "timeout",
+  })
+  expect(f.commands.some((command) => command.method === "WebMCP.invokeTool")).toBe(false)
+  f.adapter.close()
+})
+
+test("the 64 KiB input limit counts serialized UTF-8 bytes and has its own reason", async () => {
+  const f = await fixture()
+  // JSON overhead is eight bytes; two UTF-8 bytes per character reaches the exact limit.
+  const input = { x: "é".repeat((65536 - 8) / 2) }
+  expect(Buffer.byteLength(JSON.stringify(input))).toBe(65536)
+  await expect(f.adapter.execute({ ...f.request(), input: { x: input.x + "é" } })).rejects.toMatchObject({
+    outcome: "failed",
+    reason: "input-too-large",
+  })
+  expect(f.commands.some((command) => command.method === "WebMCP.invokeTool")).toBe(false)
+  const pending = f.adapter.execute({ ...f.request(), input })
+  await Promise.resolve()
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "ok" })
+  expect(await pending).toMatchObject({ status: "Completed", output: "ok" })
+  f.adapter.close()
+})
+
+test("a definition change after dispatch reports definition-changed while the browser stays connected", async () => {
+  const f = await fixture()
+  const pending = f.adapter.execute(f.request())
+  const rejected = expect(pending).rejects.toMatchObject({ outcome: "failed", reason: "definition-changed" })
+  await Promise.resolve()
+  f.emit("WebMCP.toolsRemoved", { tools: [fixtureTool] })
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Updated definition" }] })
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "stale" })
+  await rejected
+  expect(f.adapter.available).toBe(true)
+  expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
+  f.adapter.close()
+})
+
+test.each([true, false])("oversized result has its own reason (before native acknowledgement: %s)", async (early) => {
+  const f = await fixture()
+  const pending = f.adapter.execute(f.request())
+  const rejected = expect(pending).rejects.toMatchObject({ outcome: "failed", reason: "result-too-large" })
+  if (!early) await Promise.resolve()
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "x".repeat(65537) })
+  await rejected
+  expect(f.adapter.available).toBe(true)
+  expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
+  f.adapter.close()
+})
+
+test("an unrelated oversized response cannot reject the active invocation", async () => {
+  const f = await fixture()
+  const pending = f.adapter.execute(f.request())
+  await Promise.resolve()
+  f.emit("WebMCP.toolResponded", { invocationId: "another-call", status: "Completed", output: "x".repeat(65537) })
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "ok" })
+  expect(await pending).toMatchObject({ output: "ok" })
+  f.adapter.close()
 })

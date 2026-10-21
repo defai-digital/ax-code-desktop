@@ -2,8 +2,11 @@ import { describe, expect, test } from "vitest"
 import { dict } from "@/lib/i18n/messages/en"
 import {
   WEBMCP_ARGUMENTS_MISSING,
+  WEBMCP_FAILURE_REASONS,
+  webMcpResultPreview,
   describeWebMcpCall,
   desktopWebMcpResultFailed,
+  desktopWebMcpResultOutcome,
   desktopWebMcpRowTitle,
   formatToolInput,
   getToolMetadata,
@@ -136,9 +139,9 @@ describe("desktop_webmcp row title and failure", () => {
     expect(withPreview.argumentsMissing).toBe(false)
     expect(withPreview.argumentsText).toBe('{"query":"shoes","token":"[redacted]"}')
     // A preview that still looks like a credential is not shown.
-    expect(describeWebMcpCall({ action: "invoke" }, { operation: "invoke", inputPreview: "password=hunter2" }).argumentsText).toBe(
-      "[redacted]",
-    )
+    expect(
+      describeWebMcpCall({ action: "invoke" }, { operation: "invoke", inputPreview: "password=hunter2" }).argumentsText,
+    ).toBe("[redacted]")
     const failed = describeWebMcpCall(
       { action: "invoke" },
       { operation: "invoke", reason: "invalid-input", nextAction: "List the tools again and use the invoke template." },
@@ -152,3 +155,37 @@ describe("desktop_webmcp row title and failure", () => {
     expect(dict["chat.toolPart.webmcp.reason.invalid-input"]).toBeTruthy()
   })
 })
+
+test("manual failure reasons share transcript labels and the known reason vocabulary", () => {
+  for (const reason of WEBMCP_FAILURE_REASONS) {
+    expect(describeWebMcpCall(undefined, { reason }).failureReason).toBe(reason)
+    expect(dict[`chat.toolPart.webmcp.reason.${reason}`]).toBeTruthy()
+  }
+})
+
+test("manual previews filter parsed JSON credentials, cycles and deeply nested or excessive output", () => {
+  expect(webMcpResultPreview('{"password":"hunter2","nested":{"apiKey":"x1"}}')).not.toContain("hunter2")
+  expect(webMcpResultPreview('{"password":"hunter2","nested":{"apiKey":"x1"}}')).not.toContain("x1")
+  const cycle: Record<string, unknown> = { text: "normal" }
+  cycle.self = cycle
+  expect(webMcpResultPreview(cycle)).toContain("…")
+  let deep: unknown = "tail"
+  for (let index = 0; index < 30; index++) deep = { deep }
+  expect(webMcpResultPreview(deep)).not.toContain("tail")
+  expect(webMcpResultPreview(Array.from({ length: 1000 }, () => "a".repeat(9000))).length).toBeLessThanOrEqual(4000)
+  expect(webMcpResultPreview(undefined)).toBe("")
+  expect(webMcpResultPreview("short", "apiToken")).toBe("[redacted]")
+  expect(webMcpResultPreview(`${"a".repeat(5000)} password=short`)).toBe("[redacted]")
+})
+
+test.each(["timeout", "cancelled", "canceled", "aborted"])(
+  "returned %s wins over generic error flags in transcript outcomes",
+  (status) => {
+    const result = { status: ` ${status.toUpperCase()} `, isError: true, ok: false }
+    const expected = status === "timeout" ? "timeout" : "cancelled"
+    for (const output of [result, { untrusted: true, result }, JSON.stringify({ untrusted: true, result })]) {
+      expect(desktopWebMcpResultOutcome({ status: "completed", output })).toBe(expected)
+      expect(desktopWebMcpResultFailed({ status: "completed", output })).toBe(true)
+    }
+  },
+)
