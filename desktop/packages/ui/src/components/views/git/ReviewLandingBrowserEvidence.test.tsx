@@ -137,7 +137,7 @@ describe("browser evidence beside landing", () => {
   test("a long turn says how many steps are shown, and Copy recap writes the steps to the clipboard", async () => {
     sync.messages = [{ id: "u1", role: "user" }, { id: "a1", role: "assistant" }]
     sync.parts = new Map([["a1", Array.from({ length: 60 }, (_, index) => call(`c${index}`, "completed"))]])
-    const writeText = vi.fn(async (_text: string) => undefined)
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
     const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
     expect(container.querySelector("[data-recap-capped]")?.textContent).toBe("diffView.landing.browserRecap.capped:50|60")
