@@ -469,6 +469,66 @@ test.each(["read", "act", "wait"])(
   },
 )
 
+test.each([false, true])(
+  "cancel during the post-click delay does not interrupt a script (navigated: %s)",
+  async (navigated) => {
+    const f = await fixture()
+    vi.useFakeTimers()
+    try {
+      f.contents.executeJavaScriptInIsolatedWorld = async () => ({ ok: true })
+      f.adapter.readId = randomUUID()
+      const request = { ...f.request(), operation: "act", readId: f.adapter.readId, ref: "e1", how: "click" }
+      const execution = f.adapter.execute(request).catch((error) => error)
+      await vi.advanceTimersByTimeAsync(0)
+      if (navigated) {
+        f.contents.getURL = () => "https://example.org/replacement"
+        f.emit("Page.frameNavigated", { frame: { id: "top" } })
+        expect(f.adapter.generation).not.toBe(request.generation)
+      }
+      const stopping = f.adapter.cancel(request.requestID)
+      expect(f.commands.some(({ method }) => method === "Runtime.terminateExecution")).toBe(false)
+      await vi.advanceTimersByTimeAsync(300)
+      expect(await stopping).toEqual({ requestID: request.requestID, state: "stopped" })
+      expect(await execution).toMatchObject({ message: "The browser request was canceled" })
+    } finally {
+      f.adapter.close()
+      vi.useRealTimers()
+    }
+  },
+)
+
+test.each(["navigation", "revocation"])(
+  "interrupts an unsettled script only in its original document: %s",
+  async (change) => {
+    const f = await fixture()
+    let settle
+    f.contents.executeJavaScriptInIsolatedWorld = () =>
+      new Promise((resolve) => {
+        settle = resolve
+      })
+    const request = { ...f.request(), operation: "read" }
+    const execution = f.adapter.execute(request).catch((error) => error)
+    try {
+      if (change === "navigation") {
+        // A same-URL reload still replaces the document, even before the old script promise settles.
+        f.emit("Page.frameNavigated", { frame: { id: "top" } })
+      } else {
+        await f.adapter.revoke()
+      }
+      expect(f.adapter.generation).not.toBe(request.generation)
+      const stopping = f.adapter.cancel(request.requestID)
+      expect(f.commands.some(({ method }) => method === "Runtime.terminateExecution")).toBe(change === "revocation")
+      settle({ title: "", text: "", outline: [] })
+      expect(await stopping).toMatchObject({ state: "stopped" })
+      expect(await execution).toBeInstanceOf(Error)
+    } finally {
+      settle({})
+      await execution
+      f.adapter.close()
+    }
+  },
+)
+
 test("navigation retires a canceled invocation even when the old page never responds", async () => {
   const f = await fixture()
   vi.useFakeTimers()

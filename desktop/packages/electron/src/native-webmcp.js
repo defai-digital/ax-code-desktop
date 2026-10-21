@@ -111,6 +111,9 @@ class NativeWebMcp {
     this.interacting = false
     // Keep the operation occupied until the page settles, including after a stop acknowledgement timeout.
     this.activePageRequestId = null
+    // Enrollment revocation changes generation without replacing the executing document.
+    this.documentId = randomUUID()
+    this.executingPageScript = null
     this.canceledPageRequests = new Set()
     this.message = (_event, method, params) => this.onMessage(method, params)
     this.navigation = (_event, _url, inPlace, mainFrame) => {
@@ -147,6 +150,7 @@ class NativeWebMcp {
     }
   }
   invalidate() {
+    this.documentId = randomUUID()
     this.tools.clear()
     this.toolKinds.clear()
     this.catalogRejection = null
@@ -421,10 +425,16 @@ class NativeWebMcp {
     }
     try {
       const run = async (payload) => {
-        // Electron resolves with the script's own value, not a list of results.
-        const result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
-          { code: page.program(payload) },
-        ])
+        this.executingPageScript = { requestID: request.requestID, documentId: this.documentId }
+        let result
+        try {
+          // Electron resolves with the script's own value, not a list of results.
+          result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
+            { code: page.program(payload) },
+          ])
+        } finally {
+          this.executingPageScript = null
+        }
         if (this.closed || Date.now() >= request.deadline) throw new Error("The browser request lifetime changed")
         return result
       }
@@ -470,8 +480,14 @@ class NativeWebMcp {
     if (typeof requestID === "string" && this.activePageRequestId === requestID) {
       this.canceledPageRequests.add(requestID)
       if (!this.pageStop) {
-        // A debugger interrupt reaches a busy renderer without queueing another page script.
-        void this.contents.debugger.sendCommand("Runtime.terminateExecution").catch(() => {})
+        // The interrupt targets the isolate, so never send it during the post-script delay
+        // or after navigation has replaced the document that owns the executing script.
+        if (
+          this.executingPageScript?.requestID === requestID &&
+          this.executingPageScript.documentId === this.documentId
+        ) {
+          void this.contents.debugger.sendCommand("Runtime.terminateExecution").catch(() => {})
+        }
         this.pageStop = boundedStop(this.pageAcknowledged, requestID)
       }
       return this.pageStop

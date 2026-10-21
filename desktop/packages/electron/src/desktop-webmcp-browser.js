@@ -310,7 +310,15 @@ function createDesktopWebMcpBrowser({
       AbortSignal.timeout(2000),
     ).catch(() => {})
 
-  function stopAgentWork(entry, connection, reason) {
+  function cancellationSummary(results) {
+    const cancellations = [...new Map(results.map((call) => [call.requestID, call])).values()]
+    return {
+      stoppedCalls: cancellations.filter((call) => call.state === "stopped").length,
+      finishingCalls: cancellations.filter((call) => call.state === "still-finishing").length,
+      cancellations,
+    }
+  }
+  function stopAgentWork(entry, reason) {
     const work = [...entry.activeRequests.values()]
     // Withdraw admission synchronously; report completion only after the page acknowledgement.
     const stops = work.map((item) => item.cancel())
@@ -318,24 +326,20 @@ function createDesktopWebMcpBrowser({
       (id) => !work.some(({ request }) => request.requestID === id),
     )
     stops.push(...manual.map((id) => entry.adapter.cancel(id)))
-    entry.activeRequests.clear()
+    // Keep unfinished page scripts discoverable by later stops until their settlement cleanup.
     return Promise.all(stops).then(async (cancellations) => {
       await Promise.all(
-        work.map(({ request }, index) =>
+        work.map(({ request, connection }, index) =>
           cancellationReply(entry, connection, request, reason, cancellations[index].state),
         ),
       )
-      return {
-        stoppedCalls: cancellations.filter((call) => call.state === "stopped").length,
-        finishingCalls: cancellations.filter((call) => call.state === "still-finishing").length,
-        cancellations,
-      }
+      return cancellationSummary(cancellations)
     })
   }
   async function disconnect(entry) {
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
-    const stopped = stopAgentWork(entry, connection, "agent-disconnected")
+    const stopped = stopAgentWork(entry, "agent-disconnected")
     const held = entry.waiting?.request
     entry.connection = null
     entry.interrupted = false
@@ -344,7 +348,7 @@ function createDesktopWebMcpBrowser({
     entry.controller = null
     entry.waiting?.wake()
     const revoked = entry.adapter.revoke({ cancelPageRequest: true })
-    const [result] = await Promise.all([
+    const [result, revokedCancellations] = await Promise.all([
       stopped,
       revoked,
       connection && held ? cancellationReply(entry, connection, held, "agent-disconnected") : Promise.resolve(),
@@ -361,17 +365,17 @@ function createDesktopWebMcpBrowser({
         AbortSignal.timeout(2000),
       ).catch(() => {})
     // A held call that never ran is failed too, so it counts as stopped for the person's acknowledgement.
-    return {
-      ...result,
-      stoppedCalls: result.stoppedCalls + (held ? 1 : 0),
-      cancellations: [...result.cancellations, ...(held ? [{ requestID: held.requestID, state: "stopped" }] : [])],
-    }
+    return cancellationSummary([
+      ...result.cancellations,
+      ...revokedCancellations,
+      ...(held ? [{ requestID: held.requestID, state: "stopped" }] : []),
+    ])
   }
   async function pause(entry) {
     // Keep the provider and document so held requests remain bound to this session/page.
     entry.revision = (entry.revision ?? 0) + 1
     entry.paused = Boolean(entry.connection) || entry.paused || Boolean(entry.enrolling)
-    const stopped = stopAgentWork(entry, entry.connection, "agent-paused")
+    const stopped = stopAgentWork(entry, "agent-paused")
     return stopped
   }
 
@@ -657,6 +661,7 @@ function createDesktopWebMcpBrowser({
         if (signal.aborted || entry.connection !== connection) return
         const work = {
           request,
+          connection,
           cancel: () => {
             canceled.add(request.requestID)
             entry.navigations.get(request.requestID)?.abort()

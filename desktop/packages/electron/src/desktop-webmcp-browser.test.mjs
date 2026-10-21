@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events"
 import { createRequire } from "node:module"
 import { createDesktopWebMcpBrowser, projectToolCatalog } from "./desktop-webmcp-browser.js"
 
-const { catalogDigest, definitionDigest } = createRequire(import.meta.url)("./native-webmcp.js")
+const { NativeWebMcp, catalogDigest, definitionDigest } = createRequire(import.meta.url)("./native-webmcp.js")
 
 const controllers = []
 afterEach(async () => {
@@ -811,6 +811,88 @@ describe("desktop WebMCP page interaction requests", () => {
     await vi.waitFor(() => expect(replies(f)).toHaveLength(2))
     expect(guest.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2)
     expect(replies(f)[1].body).toMatchObject({ requestID: "held-act", status: "Completed" })
+  })
+
+  test.each(["read", "act", "wait"])(
+    "keeps unfinished %s calls in repeated stop reports until settlement",
+    async (operation) => {
+      const f = fixture()
+      const { sender, status } = await f.create()
+      const live = await f.controller.command(sender, { action: "enable", id: status.id })
+      const guest = f.guests[0]
+      let readId
+      if (operation === "act") {
+        guest.executeJavaScriptInIsolatedWorld = async () => ({ title: "", text: "", outline: [{ ref: "e1" }] })
+        f.pushStreamRequest(boundRequest(live, { requestID: "setup-read", operation: "read" }))
+        await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+        readId = replies(f)[0].body.output.readId
+      }
+      let settle
+      guest.executeJavaScriptInIsolatedWorld = vi.fn(
+        () =>
+          new Promise((resolve) => {
+            settle = resolve
+          }),
+      )
+      f.pushStreamRequest(
+        boundRequest(live, {
+          requestID: "unfinished-page-call",
+          operation,
+          readId,
+          ref: "e1",
+          how: "click",
+          waitText: "ready",
+        }),
+      )
+      await vi.waitFor(() => expect(guest.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(1))
+      const expected = {
+        stoppedCalls: 0,
+        finishingCalls: 1,
+        cancellations: [{ requestID: "unfinished-page-call", state: "still-finishing" }],
+      }
+      try {
+        expect(await f.controller.command(sender, { action: "pause", id: status.id })).toMatchObject(expected)
+        await f.controller.command(sender, { action: "resume", id: status.id })
+        expect(await f.controller.command(sender, { action: "pause", id: status.id })).toMatchObject(expected)
+        expect(await f.controller.command(sender, { action: "disconnect", id: status.id })).toMatchObject(expected)
+        expect(await f.controller.command(sender, { action: "disconnect", id: status.id })).toMatchObject(expected)
+        settle({ title: "", text: "", outline: [] })
+        await vi.waitFor(async () => {
+          expect(await f.controller.command(sender, { action: "disconnect", id: status.id })).toMatchObject({
+            stoppedCalls: 0,
+            finishingCalls: 0,
+            cancellations: [],
+          })
+        })
+        expect(
+          replies(f)
+            .filter(({ body }) => body.requestID === "unfinished-page-call")
+            .every(({ body }) => body.status === "Error"),
+        ).toBe(true)
+      } finally {
+        settle({})
+      }
+    },
+  )
+
+  test("disconnect includes cancellation results found only during adapter revocation", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const cancellations = [
+      { requestID: "adapter-stopped", state: "stopped" },
+      { requestID: "adapter-finishing", state: "still-finishing" },
+    ]
+    const revoke = vi.spyOn(NativeWebMcp.prototype, "revoke").mockResolvedValueOnce(cancellations)
+    try {
+      expect(await f.controller.command(sender, { action: "disconnect", id: status.id })).toMatchObject({
+        stoppedCalls: 1,
+        finishingCalls: 1,
+        cancellations,
+      })
+    } finally {
+      revoke.mockRestore()
+    }
   })
 
   test("pushes the new document before replying to an action that navigated", async () => {
