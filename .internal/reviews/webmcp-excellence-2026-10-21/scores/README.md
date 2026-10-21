@@ -105,3 +105,9 @@ held only its summary; it was rerun with an instruction to put the full table in
 Round 14 targets the four failing steps: A8 and A2 (page switcher, per-session revoke, capacity and LRU unload, waiting
 surfaced in Needs you, Mission Control and the grid, task W7) and B2 and B4 (manual journal and replay, comparison with the
 agent's call, misuse diagnosis naming the property and rule, regression export).
+
+## P1 audit after round 13 (glm-5.3, `AUDIT-2026-10-21-p1-glm-round13.md`)
+
+No P1. One P2: the provider's `/next` poll has no independent timeout, so a half-open runtime connection stalls agent calls
+silently while the pane shows access as on; fixed in round 14 (R14a). Three P3 notes recorded. Definition of done item 3 needs
+the audit repeated after round 14.
