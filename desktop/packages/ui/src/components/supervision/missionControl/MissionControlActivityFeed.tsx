@@ -11,7 +11,10 @@ export interface MissionControlActivityFeedProps {
   onSelectSession: (event: ActivityFeedEvent) => void
 }
 
-export const MissionControlActivityFeed: React.FC<MissionControlActivityFeedProps> = ({ onSelectSession }) => {
+// Memoized: hosts re-render on every streamed update, while the feed changes only when events or the read mark do.
+export const MissionControlActivityFeed = React.memo(function MissionControlActivityFeed({
+  onSelectSession,
+}: MissionControlActivityFeedProps) {
   const { t, relativeTime } = useI18n()
   const events = useActivityFeedStore((state) => state.events)
   const seenAt = useActivityFeedStore((state) => state.seenAt)
@@ -110,4 +113,4 @@ export const MissionControlActivityFeed: React.FC<MissionControlActivityFeedProp
       )}
     </section>
   )
-}
+})

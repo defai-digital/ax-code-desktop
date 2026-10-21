@@ -262,17 +262,18 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
 
   // A feed item selects its row when the board shows it. A session hidden by filters, the working set or a collapsed group is
   // opened instead, never substituted by whichever row is visible first; a session that no longer exists does nothing.
-  const selectFromFeed = React.useCallback(
-    (event: ActivityFeedEvent) => {
-      if (visibleRows.some((row) => row.sessionId === event.sessionId)) {
-        setSelectedId(event.sessionId)
-        return
-      }
-      const row = rows.find((candidate) => candidate.sessionId === event.sessionId)
-      if (row) openRow(row)
-    },
-    [openRow, rows, setSelectedId, visibleRows],
-  )
+  // Read through a ref so the handler stays stable and the memoized feed does not re-render on every streamed update.
+  const feedTargets = React.useRef({ visibleRows, rows, openRow, setSelectedId })
+  feedTargets.current = { visibleRows, rows, openRow, setSelectedId }
+  const selectFromFeed = React.useCallback((event: ActivityFeedEvent) => {
+    const { visibleRows: shown, rows: all, openRow: open, setSelectedId: select } = feedTargets.current
+    if (shown.some((row) => row.sessionId === event.sessionId)) {
+      select(event.sessionId)
+      return
+    }
+    const row = all.find((candidate) => candidate.sessionId === event.sessionId)
+    if (row) open(row)
+  }, [])
 
   // Cmd/Ctrl+click (or Cmd/Ctrl+Enter) keeps the current chat and shows the row's session beside it.
   const openRowBeside = React.useCallback((row: SupervisionRow) => {

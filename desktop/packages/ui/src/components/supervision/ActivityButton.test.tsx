@@ -1,10 +1,23 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import React, { act } from "react"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 
 const rows = vi.hoisted(() => ({ value: [] as SupervisionRow[] }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => rows.value }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
+// Counts feed item renders: the feed formats each event's time once per render.
+const feedRenders = vi.hoisted(() => ({ count: 0 }))
+vi.mock("@/lib/supervision/sinceYouLeft", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/supervision/sinceYouLeft")>()
+  return {
+    ...actual,
+    sinceYouLeftRelativeParts: (...args: Parameters<typeof actual.sinceYouLeftRelativeParts>) => {
+      feedRenders.count += 1
+      return actual.sinceYouLeftRelativeParts(...args)
+    },
+  }
+})
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
@@ -35,10 +48,38 @@ const event = (sessionId: string, at: number) => ({
 
 afterEach(() => {
   cleanup()
+  vi.clearAllMocks()
+  feedRenders.count = 0
   useActivityFeedStore.setState({ events: [], seenAt: 0 })
 })
 
 describe("titlebar Activity button", () => {
+  test("streamed row updates do not re-render the open feed, and a choice still uses the latest rows", () => {
+    const row = (projectId: string): SupervisionRow => ({
+      sessionId: "s1", title: "Task s1", state: "running", treeSessionIds: ["s1"], projectId, projectLabel: "P",
+      directory: "/repo", updatedAt: 1, evidence: null, goal: null,
+    })
+    rows.value = [row("p-old")]
+    useActivityFeedStore.setState({ events: Array.from({ length: 50 }, (_, i) => event("s1", 100 - i)), seenAt: 0 })
+    let bump: () => void = () => {}
+    function Host() {
+      const [, setTick] = React.useState(0)
+      bump = () => setTick((tick) => tick + 1)
+      return <ActivityButton />
+    }
+    const { container } = render(<Host />)
+    fireEvent.click(screen.getByRole("button", { name: "supervision.missionControl.feed.toggleUnread:50" }))
+    const afterOpen = feedRenders.count
+    expect(afterOpen).toBeGreaterThan(0)
+    for (let update = 0; update < 20; update += 1) {
+      rows.value = [row(`p-${update}`)]
+      act(() => bump())
+    }
+    expect(feedRenders.count).toBe(afterOpen)
+    fireEvent.click(container.querySelector<HTMLButtonElement>("[data-activity-session='s1']")!)
+    expect(openSupervisedSession).toHaveBeenLastCalledWith({ sessionId: "s1", projectId: "p-19", directory: "/repo" })
+  })
+
   test("shows the unread count and opens a feed item's session from anywhere; an unknown session is not substituted", () => {
     rows.value = [
       { sessionId: "s1", title: "Task s1", state: "question", treeSessionIds: ["s1"], projectId: "p", projectLabel: "P", directory: "/repo", updatedAt: 1, evidence: null, goal: null },

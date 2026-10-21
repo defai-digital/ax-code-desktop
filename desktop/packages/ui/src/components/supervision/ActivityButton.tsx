@@ -43,13 +43,17 @@ export const ActivityButton: React.FC = () => {
     }
   }, [open])
 
-  const openEvent = (event: ActivityFeedEvent) => {
-    const row = rows.find((candidate) => candidate.sessionId === event.sessionId)
+  // Rows change on every streamed update. Reading them through a ref keeps the open feed (up to 200 events) from
+  // re-rendering on each update, which made the app unresponsive while sessions were streaming.
+  const rowsRef = React.useRef(rows)
+  rowsRef.current = rows
+  const openEvent = React.useCallback((event: ActivityFeedEvent) => {
+    const row = rowsRef.current.find((candidate) => candidate.sessionId === event.sessionId)
     // A session that is no longer listed is not substituted by another one.
     if (!row) return
-    openSupervisedSession({ sessionId: row.sessionId, projectId: row.projectId, directory: row.directory })
     setOpen(false)
-  }
+    openSupervisedSession({ sessionId: row.sessionId, projectId: row.projectId, directory: row.directory })
+  }, [])
 
   return (
     <div className="relative inline-flex" data-activity-button>
