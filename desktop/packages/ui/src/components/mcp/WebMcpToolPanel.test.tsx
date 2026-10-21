@@ -585,6 +585,7 @@ test("keeps drafts for the same identity and leaves previous results behind on a
   expect(changed?.textContent).toContain(useWebMcpBrowserStore.getState().catalog[0]?.digest?.slice(0, 12))
   fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
   expect(container.querySelector("[data-webmcp-tool-result]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-journal-entry] [data-webmcp-stale=true]")?.textContent).toBe("webmcp.tools.resultStale")
   expect(container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("")
   expect(setItem).not.toHaveBeenCalled()
   setItem.mockRestore()
@@ -1277,4 +1278,37 @@ test("the bounded catalog schema never changes executable keys or colliding enum
   await runTool()
   expect(tryTool).toHaveBeenCalledWith(projected[0].invocationID, { [key]: second }, expect.anything())
   expect(container.querySelector("[data-webmcp-diagnosis='manual']")?.textContent).toContain("webmcp.tools.diagnosis.none")
+})
+
+
+test("registration diffs redact original password enums before display transformation", () => {
+  const make = (value: string) => projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: {
+    type: "object", properties: { password: { type: "string", enum: [value] } },
+  } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [make("synthetic-old-password")] })
+  store.updateSnapshot({ catalog: [make("synthetic-new-password")] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  const diff = container.querySelector("[data-webmcp-property-diff]")!.textContent!
+  expect(diff).toContain('"enum"')
+  expect(diff).toContain('"before": "[redacted]"')
+  expect(diff).toContain('"after": "[redacted]"')
+  expect(container.textContent).not.toContain("synthetic-old-password")
+  expect(container.textContent).not.toContain("synthetic-new-password")
+})
+
+test("input schema hides values whose sensitive key suffix exceeds the projection bound", () => {
+  const key = "x".repeat(4000) + "password"
+  const tool = projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: {
+    type: "object", properties: { [key]: { type: "string", default: "synthetic-password" } },
+  } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  const schema = container.querySelector("[data-webmcp-schema]")!.textContent!
+  expect(schema).toContain("[redacted secret]")
+  expect(schema).not.toContain("synthetic-password")
 })

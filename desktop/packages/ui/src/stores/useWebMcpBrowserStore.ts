@@ -5,6 +5,7 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import {
   diffWebMcpRegistration,
   markWebMcpRunsStale,
+  webMcpToolIdentity,
   readWebMcpCatalog,
   WEBMCP_DRAFT_LIMIT,
   WEBMCP_JOURNAL_LIMIT,
@@ -340,7 +341,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
           text: redactWebMcpText(run.text).slice(0, 4000),
           stale:
             run.stale === true ||
-            Boolean(state.catalog.find((tool) => tool.name === name && tool.digest !== run.digest)),
+            !state.catalog.some((tool) => webMcpToolIdentity(tool) === name && tool.digest === run.digest),
         }
         const names = Object.keys(next)
         while (names.length > WEBMCP_RUN_LIMIT) {

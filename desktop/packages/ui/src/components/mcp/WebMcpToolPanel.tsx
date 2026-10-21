@@ -972,6 +972,7 @@ export function WebMcpToolPanel({
   const catalogRejection = useWebMcpBrowserValue((state) => state.catalogRejection, viewKey)
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const journal = useWebMcpBrowserValue((state) => state.toolJournal, viewKey)
+  const toolRuns = useWebMcpBrowserValue((state) => state.toolRuns, viewKey)
   const [replay, setReplay] = React.useState<{
     id: string
     invocationID?: string
@@ -1041,7 +1042,7 @@ export function WebMcpToolPanel({
                       previous: shortDigest(event.previousDigest ?? ""),
                     })}
                     {event.kind === "changed" && event.previousDefinition && event.definition ? (
-                      <pre data-webmcp-property-diff className="max-h-60 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(redactWebMcpReport(propertyDiff(event.previousDefinition.inputSchema, event.definition.inputSchema)), null, 2)}</pre>
+                      <pre data-webmcp-property-diff className="max-h-60 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(redactWebMcpReport(propertyDiff(event.previousDefinition.executionSchema ?? event.previousDefinition.inputSchema, event.definition.executionSchema ?? event.definition.inputSchema)), null, 2)}</pre>
                     ) : null}
                   </li>
                 ))}
@@ -1066,6 +1067,9 @@ export function WebMcpToolPanel({
                     data-webmcp-journal-definition-changed={entry.definitionChanged || undefined}
                     className="flex flex-wrap items-center gap-1"
                   >
+                    {toolRuns[webMcpToolIdentity(entry) ?? ""]?.stale ? (
+                      <span data-webmcp-stale="true">{t("webmcp.tools.resultStale")}</span>
+                    ) : null}
                     {entry.definitionChanged ? <span>{t("chat.toolPart.webmcp.reason.definition-changed")}</span> : null}
                     <Button
                       type="button"

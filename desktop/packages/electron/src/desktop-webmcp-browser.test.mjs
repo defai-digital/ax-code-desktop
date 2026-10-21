@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { redactWebMcpReport, WEBMCP_SENSITIVE_NAME } from "../../../shared/webmcp-redaction.mjs"
 import { EventEmitter } from "node:events"
 import { createRequire } from "node:module"
 import { createDesktopWebMcpBrowser, projectToolCatalog } from "./desktop-webmcp-browser.js"
@@ -2918,7 +2919,7 @@ test("main status and catalog project bounded redacted page text", async () => {
   expect(projection.catalog[0].description.length).toBe(4096)
   expect(projection.catalog[0].inputSchema.description).toBe("[redacted]")
   expect(projection.catalog[0].executionSchema.description).toBe("token=SCHEMA_SECRET")
-  expect(projection.catalog[0].inputSchema.properties.password).toEqual({ type: "string" })
+  expect(projection.catalog[0].inputSchema.properties.password).toBe("[redacted]")
 })
 
 test("catalog bounds display schema strings separately from exact executable schema values", () => {
@@ -3065,4 +3066,19 @@ test("credential-shaped tool names retain distinct native identities in the rend
     expect(catalog[index].definitionDigest).toBe(definitionDigest(tool))
   }
   expect(JSON.stringify(catalog)).not.toMatch(/token=alpha|token=beta/)
+})
+
+
+test("catalog redacts original sensitive keys before truncation and renderer filtering", () => {
+  const key = "x".repeat(4000) + "password"
+  const schema = { type: "object", properties: { [key]: { type: "string", default: "synthetic-password" } } }
+  const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0]
+  const displayKey = Object.keys(projected.inputSchema.properties)[0]
+  expect(displayKey).toHaveLength(4000)
+  expect(displayKey).toContain("[redacted secret]")
+  expect(WEBMCP_SENSITIVE_NAME.test(displayKey)).toBe(true)
+  expect(projected.inputSchema.properties[displayKey]).toBe("[redacted]")
+  expect(JSON.stringify(redactWebMcpReport(projected.inputSchema))).not.toContain("synthetic-password")
+  expect(projected.executionSchema).toEqual(schema)
+  expect(schema.properties[key].default).toBe("synthetic-password")
 })

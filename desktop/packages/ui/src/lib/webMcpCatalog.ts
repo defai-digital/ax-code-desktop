@@ -333,15 +333,14 @@ export function markWebMcpRunsStale<T extends { digest: string; stale: boolean }
   runs: Record<string, T>,
   catalog: readonly WebMcpToolDefinition[],
 ): Record<string, T> {
-  const byName = new Map(catalog.map((tool) => [tool.name, tool.digest ?? ""]))
+  const byIdentity = new Map(catalog.map((tool) => [webMcpToolIdentity(tool), tool.digest ?? ""]))
   let changed = false
   const next: Record<string, T> = { ...runs }
-  for (const [name, run] of Object.entries(runs)) {
-    const digest = byName.get(name)
-    if (digest === undefined) continue
-    const stale = digest !== run.digest
+  for (const [identity, run] of Object.entries(runs)) {
+    // A removed or replaced native identity cannot provide current manual evidence.
+    const stale = byIdentity.get(identity) !== run.digest
     if (stale !== run.stale) {
-      next[name] = { ...run, stale }
+      next[identity] = { ...run, stale }
       changed = true
     }
   }
