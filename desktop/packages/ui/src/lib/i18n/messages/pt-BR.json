@@ -5392,5 +5392,7 @@
   "sessionGrid.moved": "{title} movido para o painel {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "A defini\u00e7\u00e3o atual da ferramenta da p\u00e1gina pode diferir da solicitada.",
   "webmcp.tools.staleForm": "Este formul\u00e1rio est\u00e1 desatualizado porque a p\u00e1gina ou a ferramenta da p\u00e1gina mudou. Reabra a ferramenta e revise a entrada antes de tentar novamente.",
-  "chat.permissionCard.webmcp.inputsTruncated": "Exibindo {shown} de {total} entradas; {required} entradas adicionais obrigat\u00f3rias n\u00e3o s\u00e3o exibidas."
+  "chat.permissionCard.webmcp.inputsTruncated": "Exibindo {shown} de {total} entradas; {required} entradas adicionais obrigat\u00f3rias n\u00e3o s\u00e3o exibidas.",
+  "webmcp.browser.waitingForSignIn": "O agente est\u00e1 esperando que voc\u00ea finalize o login e feche as janelas de login.",
+  "webmcp.browser.signOut": "Sair do navegador do projeto"
 }

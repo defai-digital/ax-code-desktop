@@ -5392,5 +5392,7 @@
   "sessionGrid.moved": "{title} dipindahkan ke panel {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "Definisi alat halaman saat ini mungkin berbeda dari yang diminta.",
   "webmcp.tools.staleForm": "Formulir ini sudah usang karena halaman atau alat halaman berubah. Buka kembali alat dan tinjau input sebelum mencoba lagi.",
-  "chat.permissionCard.webmcp.inputsTruncated": "Menampilkan {shown} dari {total} input; {required} input wajib tambahan tidak ditampilkan."
+  "chat.permissionCard.webmcp.inputsTruncated": "Menampilkan {shown} dari {total} input; {required} input wajib tambahan tidak ditampilkan.",
+  "webmcp.browser.waitingForSignIn": "Agen menunggu Anda menyelesaikan masuk dan menutup jendela masuk.",
+  "webmcp.browser.signOut": "Keluar dari peramban proyek"
 }

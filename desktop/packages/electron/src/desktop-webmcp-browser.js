@@ -171,6 +171,7 @@ function createDesktopWebMcpBrowser({
   }
   const idle = (entry) =>
     !entry.paused &&
+    !entry.popups.size &&
     !entry.waiting &&
     !entry.activeRequests.size &&
     !entry.pendingLoads.size &&
@@ -350,7 +351,13 @@ function createDesktopWebMcpBrowser({
       return cancellationSummary(cancellations)
     })
   }
+  function closePopups(entry) {
+    for (const popup of entry.popups) {
+      if (!popup.isDestroyed()) popup.destroy()
+    }
+  }
   async function disconnect(entry) {
+    closePopups(entry)
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
     const stopped = stopAgentWork(entry, "agent-disconnected")
@@ -423,6 +430,7 @@ function createDesktopWebMcpBrowser({
       sessionID: entry.sessionID,
       visible: visible(entry),
       waiting: Boolean(entry.waiting),
+      waitingForSignIn: entry.popups.size > 0,
       lastUsed: entry.lastUsed,
       unloaded: false,
       idle: idle(entry),
@@ -563,7 +571,7 @@ function createDesktopWebMcpBrowser({
   }
 
   async function waitUntilVisible(entry, request, signal) {
-    if (visible(entry) && !entry.paused) return true
+    if (visible(entry) && !entry.paused && !entry.popups.size) return true
     await new Promise((resolve) => {
       const wake = () => resolve()
       const timer = setTimeout(wake, Math.max(0, request.deadline - Date.now()))
@@ -575,7 +583,7 @@ function createDesktopWebMcpBrowser({
       if (entry.waiting) signal.removeEventListener("abort", entry.waiting.wake)
       entry.waiting = null
     })
-    return !signal.aborted && visible(entry) && !entry.paused && Date.now() < request.deadline
+    return !signal.aborted && visible(entry) && !entry.paused && !entry.popups.size && Date.now() < request.deadline
   }
 
   // The runtime normally answers an idle poll after 15s. Bound each HTTP attempt
@@ -612,7 +620,7 @@ function createDesktopWebMcpBrowser({
       const wasHidden = !visible(entry)
       const wasPaused = entry.paused
       while (
-        (!visible(entry) || entry.paused) &&
+        (!visible(entry) || entry.paused || entry.popups.size) &&
         Date.now() < request.deadline &&
         !signal.aborted &&
         entry.connection === connection &&
@@ -807,7 +815,6 @@ function createDesktopWebMcpBrowser({
         allowRunningInsecureContent: false,
       },
     })
-    view.webContents.setWindowOpenHandler(() => ({ action: "deny" }))
     view.webContents.on("will-navigate", (event, url) => {
       if (!allowedUrl(url)) event.preventDefault()
     })
@@ -834,11 +841,52 @@ function createDesktopWebMcpBrowser({
       activeRequests: new Map(),
       revision: 0,
       waiting: null,
+      popups: new Set(),
       connection: null,
       controller: null,
       attached: false,
       syncing: Promise.resolve(),
     }
+    // Only the person owns these windows: no preload, adapter, or provider enrollment.
+    const popupPreferences = {
+      partition,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      nodeIntegrationInSubFrames: false,
+      nodeIntegrationInWorker: false,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
+      preload: undefined,
+    }
+    const popupUrlAllowed = (url) => /^https?:\/\//i.test(url) && allowedUrl(url)
+    view.webContents.setWindowOpenHandler(({ url }) => {
+      if (entry.closed || !popupUrlAllowed(url)) return { action: "deny" }
+      return {
+        action: "allow",
+        createWindow: (options) => {
+          if (entry.closed) throw new Error("The browser is closed")
+          const popup = new BrowserWindow({
+            ...options,
+            parent: owner,
+            webPreferences: popupPreferences,
+          })
+          entry.popups.add(popup)
+          const contents = popup.webContents
+          contents.setWindowOpenHandler(() => ({ action: "deny" }))
+          for (const eventName of ["will-navigate", "will-redirect"]) {
+            contents.on(eventName, (event, destination) => {
+              if (!popupUrlAllowed(destination)) event.preventDefault()
+            })
+          }
+          popup.once("closed", () => {
+            entry.popups.delete(popup)
+            if (!entry.popups.size) entry.waiting?.wake()
+          })
+          return contents
+        },
+      }
+    })
     // Sticky for the lifetime of this view: even removing an editor after typing does not
     // establish that its draft was saved. Only the person can discard such a page.
     const protectWork = () => { entry.possibleUnsavedWork = true }

@@ -106,8 +106,20 @@ function fixture({
       stream.waiters.push(waiter)
       signal?.addEventListener("abort", abort, { once: true })
     })
+  const popups = []
+  class Popup extends EventEmitter {
+    static fromWebContents(sender) { return owners.get(sender) }
+    constructor(options) {
+      super()
+      this.options = options
+      this.webContents = new View(options).webContents
+      popups.push(this)
+    }
+    isDestroyed() { return this.destroyed ?? false }
+    destroy() { this.destroyed = true; this.webContents.close(); this.emit("closed") }
+  }
   const controller = createDesktopWebMcpBrowser({
-    BrowserWindow: { fromWebContents: (sender) => owners.get(sender) },
+    BrowserWindow: Popup,
     WebContentsView: View,
     // Short deadline so the hang tests stay fast.
     loadTimeoutMs,
@@ -198,6 +210,7 @@ function fixture({
   return {
     controller,
     partitions,
+    popups,
     create,
     requests,
     pushStreamRequest,
@@ -2769,4 +2782,51 @@ test.each(["manual", "invoke", "act"])("a completed %s action keeps its possible
     })).rejects.toThrow("pool-full")
     expect(f.guests[0].close).not.toHaveBeenCalled()
   } finally { execute.mockRestore() }
+})
+
+
+test("sign-in popups share the hardened profile, hold agent work, and resume after all close", async () => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  await f.controller.command(sender, { action: "enable", id: status.id })
+  const handler = f.guests[0].setWindowOpenHandler.mock.calls[0][0]
+  for (const url of ["file:///tmp/test", "javascript:alert(1)", "about:blank"]) {
+    expect(handler({ url })).toEqual({ action: "deny" })
+  }
+  for (const disposition of ["new-window", "foreground-tab"]) {
+    const result = handler({ url: "https://login.test/", disposition })
+    expect(result.action).toBe("allow")
+    result.createWindow({ webPreferences: { preload: "unsafe", nodeIntegration: true } })
+  }
+  for (const popup of f.popups) {
+    expect(popup.options.webPreferences).toMatchObject({
+      partition: f.guests[0].partition, sandbox: true, nodeIntegration: false,
+      contextIsolation: true, preload: undefined,
+    })
+    expect(popup.webContents.debugger.attach).not.toHaveBeenCalled()
+    for (const event of ["will-navigate", "will-redirect"]) {
+      const preventDefault = vi.fn()
+      popup.webContents.emit(event, { preventDefault }, "file:///tmp/test")
+      expect(preventDefault).toHaveBeenCalled()
+    }
+  }
+  const preventDefault = vi.fn()
+  f.partitions.values().next().value.emit("will-download", { preventDefault })
+  expect(preventDefault).toHaveBeenCalled()
+  f.pushStreamRequest(f.navigationRequest({ requestID: "popup-held", deadline: Date.now() + 2000 }))
+  await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true, waitingForSignIn: true }))
+  expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
+  f.popups[0].destroy()
+  expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waitingForSignIn: true })
+  f.popups[1].destroy()
+  await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Completed" }))
+})
+
+test.each(["close", "disconnect", "revokeSession"])("%s closes the opener's sign-in windows", async (action) => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  const result = f.guests[0].setWindowOpenHandler.mock.calls[0][0]({ url: "https://login.test/" })
+  result.createWindow({})
+  await f.controller.command(sender, { action, id: status.id, directory: "/tmp/project", sessionID: "ses_fixture" })
+  expect(f.popups[0].isDestroyed()).toBe(true)
 })

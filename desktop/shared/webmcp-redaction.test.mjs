@@ -1,11 +1,12 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
-import { redactWebMcpReport, webMcpTextLooksSensitive } from "./webmcp-redaction.mjs"
+import { redactWebMcpText, redactWebMcpReport, webMcpTextLooksSensitive } from "./webmcp-redaction.mjs"
 import { credentialTextCases, credentialUrlShapes, secret } from "./testing/webmcp-redaction-cases.mjs"
 
 test("embedded credential assignments are filtered across every generated shape", () => {
   for (const text of credentialTextCases) {
     assert.equal(webMcpTextLooksSensitive(text), true, text)
+    assert.equal(redactWebMcpText(text), "[redacted]", text)
     for (const value of [text, { error: text }, { nested: [JSON.stringify({ message: text })] }]) {
       assert.ok(!JSON.stringify(redactWebMcpReport(value)).includes(secret), text)
       assert.ok(!JSON.stringify(redactWebMcpReport(value, "<fill in>")).includes(secret), text)
@@ -14,7 +15,7 @@ test("embedded credential assignments are filtered across every generated shape"
 })
 
 test("ordinary diagnostics and credential labels without values remain readable", () => {
-  for (const text of ["Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
+  for (const text of ["code=5", "code=true", "state=ready", "?code=5", "https://example.test/code=5", '{"code":5,"state":true}', "Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
     assert.equal(webMcpTextLooksSensitive(text), false)
     assert.equal(redactWebMcpReport(text), text)
   }
@@ -41,6 +42,14 @@ test("signed URL and OAuth shapes are redacted across display and report project
     assert.equal(webMcpTextLooksSensitive(url), true, provider)
     assert.equal(redactWebMcpReport({ downloadUrl: url }).downloadUrl, "[redacted]", provider)
   }
-  const ordinary = "https://example.test/?sv=1&sp=r&se=2030&code=200"
+  const ordinary = "https://example.test/?sv=1&sp=r&se=2030&status=200"
   assert.equal(redactWebMcpReport(ordinary), ordinary)
+})
+
+test("short credential keys are filtered in structured reports", () => {
+  for (const key of ["token", "sig", "password", "secret", "api_key", "Authorization"]) {
+    for (const value of ["a", "abc123", 1]) {
+      assert.deepEqual(redactWebMcpReport({ [key]: value }), { [key]: "[redacted]" })
+    }
+  }
 })

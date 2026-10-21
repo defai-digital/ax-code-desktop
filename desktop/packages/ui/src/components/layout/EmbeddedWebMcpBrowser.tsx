@@ -37,6 +37,7 @@ type BrowserStatus = {
   visible?: boolean
   unloaded?: boolean
   idle?: boolean
+  waitingForSignIn?: boolean
   waiting?: boolean
   paused?: boolean
   stoppedCalls?: number
@@ -95,6 +96,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const browserId = useWebMcpBrowserValue((state) => state.browserId, key)
   const phase = useWebMcpBrowserValue((state) => state.phase, key)
   const paused = useWebMcpBrowserValue((state) => state.paused, key)
+  const waitingForSignIn = useWebMcpBrowserValue((state) => state.waitingForSignIn, key)
   const waiting = useWebMcpBrowserValue((state) => state.waiting, key)
   const interrupted = useWebMcpBrowserValue((state) => state.interrupted, key)
   const otherWindows = useWebMcpBrowserStore((state) => state.capacity?.otherWindows)
@@ -179,6 +181,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         ...(result.enabled ? { runtimeCompatible: true } : {}),
         visible: result.visible ?? false,
         waiting: result.waiting ?? false,
+        waitingForSignIn: result.waitingForSignIn ?? false,
         unloaded: result.unloaded ?? false,
         idle: result.idle ?? false,
         paused: result.paused ?? false,
@@ -467,6 +470,17 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         </p>
       )}
       <WebMcpTrustSummary viewKey={key} />
+      <Button
+        type="button"
+        size="xs"
+        variant="outline"
+        disabled={busy}
+        onClick={() =>
+          void invoke({ action: "clearProject", directory }).catch(() => updateSnapshot({ error: "operation-failed" }))
+        }
+      >
+        {t("webmcp.browser.signOut")}
+      </Button>
       <form
         className="flex items-center gap-1.5 border-b border-border/40 px-2 py-1.5"
         onSubmit={(event) => {
@@ -563,9 +577,15 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       <div role="status" aria-live="polite" aria-atomic="true" data-webmcp-access-status>
         {interrupted ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.detail.interrupted")}</p> : null}
         {paused ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.browser.takeOver")}</p> : null}
-        {waiting ? (
+        {waiting || waitingForSignIn ? (
           <p className="px-2.5 py-1.5 typography-micro">
-            {t(paused ? "webmcp.browser.waitingForResume" : "webmcp.browser.waitingForPage")}
+            {t(
+              waitingForSignIn
+                ? "webmcp.browser.waitingForSignIn"
+                : paused
+                  ? "webmcp.browser.waitingForResume"
+                  : "webmcp.browser.waitingForPage",
+            )}
           </p>
         ) : null}
         <WebMcpCancellationStatus calls={cancellations} />

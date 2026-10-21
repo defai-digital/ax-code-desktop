@@ -8,7 +8,7 @@ const WEBMCP_CREDENTIALS = [
   /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/,
   /\bxox[baprs]-[A-Za-z0-9-]{10,}/,
   /\bAKIA[0-9A-Z]{16}\b/,
-  /\bBearer\s+\S{16,}/i,
+  /\b(?:Bearer|Basic)\s+\S+/i,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
 ]
 
@@ -16,12 +16,12 @@ const WEBMCP_CREDENTIALS = [
 export const WEBMCP_SENSITIVE_NAME =
   /(?:^|[-_])(?:sig|signature|policy|key[-_]pair[-_]id)$|password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
 
-// OAuth callback codes are bearer values; short ordinary status codes remain readable.
-function sensitiveParameterName(value, parameterValue = "") {
+// Explicit credential names are sensitive regardless of the value length.
+function sensitiveParameterName(value, urlContext = false) {
   let name = value.replaceAll("+", " ")
   for (let layer = 0; ; layer++) {
     const decoded = name.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
-    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name) || (/^code$/i.test(name) && parameterValue.length >= 8)
+    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name) || (urlContext && /^(?:code|state)$/i.test(name))
     // Unknown deeply encoded names fail closed, as deeply escaped diagnostics do.
     if (layer >= 31) return true
     name = decoded
@@ -55,7 +55,7 @@ export function webMcpTextLooksSensitive(value) {
         for (const pair of part.split(/[?&#/;\\]/)) {
           const equals = pair.indexOf("=")
           if (equals < 0) continue
-          if (sensitiveParameterName(pair.slice(0, equals), pair.slice(equals + 1))) return true
+          if (pair.slice(equals + 1).trim() && sensitiveParameterName(pair.slice(0, equals), part === url.search || part === url.hash)) return true
         }
       }
     } catch {
@@ -63,7 +63,7 @@ export function webMcpTextLooksSensitive(value) {
     }
   }
   for (const pair of text.matchAll(/[?&#/;]([^\s?&#/;=]+)=([^\s&#"'`]+)/g)) {
-    if (sensitiveParameterName(pair[1], pair[2])) return true
+    if (sensitiveParameterName(pair[1])) return true
   }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.

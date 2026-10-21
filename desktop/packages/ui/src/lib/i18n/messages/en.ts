@@ -2683,6 +2683,8 @@ export const dict = {
   "webmcp.actions.resumeAgent": "Resume agent",
   "webmcp.browser.takeOver": "You have control of the page. The agent's calls wait until you resume.",
   "webmcp.browser.waitingForResume": "Agent call waiting for you to resume.",
+  "webmcp.browser.waitingForSignIn": "Agent waiting for you to finish sign-in and close the sign-in windows.",
+  "webmcp.browser.signOut": "Sign out of project browser",
   "webmcp.browser.waitingForPage": "Agent call waiting for this page to be visible.",
   "webmcp.detail.ownedByAnotherWindow": "This session's browser is open in another window",
   "webmcp.actions.fix.focusOwner": "Focus that window",
