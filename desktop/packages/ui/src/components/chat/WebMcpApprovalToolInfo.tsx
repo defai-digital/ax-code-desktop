@@ -46,7 +46,7 @@ export function WebMcpApprovalToolInfo({
       [origin, sessionID, toolName],
     ),
   )
-  if (!tool || !definitionDigest || tool.digest !== definitionDigest)
+  if (!tool || !definitionDigest || tool.definitionDigest !== definitionDigest)
     return (
       <p className="mb-2 typography-micro text-muted-foreground" data-webmcp-approval-definition-unknown>
         {t("chat.permissionCard.webmcp.definitionMayDiffer")}

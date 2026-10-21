@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { cleanup, fireEvent, render } from "@/test/dom"
 
@@ -96,7 +97,13 @@ describe("browser evidence beside landing", () => {
     expect(other.container.querySelector("[data-recap-not-called]")).toBeNull()
   })
 
-  test("each step opens its exact call, carries a receipt and flags a definition that has changed since", () => {
+  test.each(["same", "changed", "frame", "missing"])("recap compares native definition identities: %s", (change) => {
+    const original = nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} })
+    const current = change === "changed"
+      ? nativeWebMcpTool({ ...original, description: "Updated payment" })
+      : change === "frame" ? nativeWebMcpTool(original, "new-frame")
+      : change === "missing" ? { ...original, definitionDigest: undefined } : original
+    expect(original.digest).not.toBe(original.definitionDigest)
     sync.messages = [{ id: "u1", role: "user" }, { id: "a1", role: "assistant" }]
     sync.parts = new Map([
       [
@@ -109,7 +116,7 @@ describe("browser evidence beside landing", () => {
             state: {
               status: "completed",
               input: { action: "invoke", toolName: "checkout" },
-              metadata: { operation: "invoke", toolName: "checkout", definitionDigest: "aaaaaaaaaaaaaaaa" },
+              metadata: { operation: "invoke", toolName: "checkout", definitionDigest: original.definitionDigest },
               time: { start: 0, end: 1500 },
               output: JSON.stringify({ untrusted: true, result: { paid: true } }),
             },
@@ -121,14 +128,14 @@ describe("browser evidence beside landing", () => {
       sessionID: "s1",
       directory: "/repo",
       origin: "https://shop.test",
-      catalog: [{ name: "checkout", description: "Pay", inputSchema: {}, digest: "bbbbbbbbbbbbbbbb" }],
+      catalog: [current],
     })
     const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
     const step = container.querySelector("[data-recap-outcome]")!
     expect(step.textContent).toContain("1.5 s")
     expect(step.querySelector("[data-recap-result]")?.textContent).toContain('"paid": true')
-    expect(step.querySelector("[data-recap-definition]")?.getAttribute("title")).toBe("aaaaaaaaaaaaaaaa")
-    expect(step.querySelector("[data-recap-definition-changed]")).not.toBeNull()
+    expect(step.querySelector("[data-recap-definition]")?.getAttribute("title")).toBe(original.definitionDigest)
+    expect(Boolean(step.querySelector("[data-recap-definition-changed]"))).toBe(change === "changed" || change === "frame")
     fireEvent.click(step.querySelector<HTMLButtonElement>("[data-recap-open]")!)
     expect(useUIStore.getState().pendingMessageNavigation).toEqual({ sessionId: "s1", messageId: "a1", partId: "prt_1" })
     useUIStore.getState().setPendingMessageNavigation(null)

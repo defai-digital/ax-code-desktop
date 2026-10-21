@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto"
+import { EXIT, evaluateReport } from "./webmcp-check-lib.mjs"
 import { createRequire, Module } from "node:module"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
@@ -15,6 +17,7 @@ afterEach(() => {
 test("the actual Electron entry redacts every disk write without altering the invoked input", async () => {
   vi.useFakeTimers()
   const writes = []
+  const receiptKey = randomBytes(32).toString("hex")
   const contents = Object.assign(new EventEmitter(), {
     setWindowOpenHandler() {},
     session: Object.assign(new EventEmitter(), {
@@ -26,6 +29,10 @@ test("the actual Electron entry redacts every disk write without altering the in
     debugger: Object.assign(new EventEmitter(), { attach() {}, sendCommand: async () => {} }),
     executeJavaScript: vi.fn(),
   })
+  contents.debugger.sendCommand = async (method) => {
+    if (method === "WebMCP.enable")
+      contents.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [{ name: "echo" }] })
+  }
   const inputs = []
   const context = {
     getTools: async () => [{ name: "echo" }],
@@ -60,6 +67,7 @@ test("the actual Electron entry redacts every disk write without altering the in
       url: "https://example.com",
       profile: "/unused/profile",
       output: "/unused/report",
+      receiptKey,
       settleMs: 0,
       timeoutMs: 1000,
       runs: [
@@ -80,6 +88,16 @@ test("the actual Electron entry redacts every disk write without altering the in
       expect(text).not.toContain(secret)
   }
   const report = JSON.parse(writes.at(-1))
+  const evaluateFirst = (password) => evaluateReport(
+    { tools: report.tools, runs: [report.runs[0]] },
+    { expectTools: [], runs: [{ name: "echo", input: { password } }] },
+    undefined,
+    receiptKey,
+  )
+  expect(evaluateFirst("input-secret").exitCode).toBe(EXIT.ok)
+  expect(evaluateFirst("different-secret").exitCode).toBe(EXIT.failed)
+  expect(JSON.stringify(evaluateFirst("input-secret"))).not.toContain("inputReceipt")
+  for (const text of writes) expect(text).not.toContain(receiptKey)
   expect(report.runs[0].input).toEqual({ password: "[redacted]" })
   expect(JSON.parse(report.runs[0].output)).toMatchObject({ access_token: "[redacted]", value: "kept" })
   expect(report.runs[1].error).not.toContain("thrown-secret")

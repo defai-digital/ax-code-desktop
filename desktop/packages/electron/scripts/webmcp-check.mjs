@@ -2,6 +2,7 @@
 // `pnpm run webmcp:check -- --url <url> [--run tool='{"a":1}'] [--expect-tools a,b] [--json] [--timeout ms] [--settle ms] [--verbose]`
 // Lists the page tools a web app registers and runs the named ones in the browser engine AX Code Desktop bundles,
 // then exits 0 (ok), 1 (load failure or an expected tool missing), 2 (no tools), 3 (a run failed) or 64 (usage).
+import { randomBytes } from "node:crypto"
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
@@ -30,10 +31,11 @@ try {
 const work = fs.mkdtempSync(path.join(os.tmpdir(), "ax-webmcp-check-"))
 const output = path.join(work, "report.json")
 const profile = path.join(work, "profile")
+const receiptKey = randomBytes(32).toString("hex")
 const child = spawn(electron, [path.join(here, "webmcp-check-entry.cjs")], {
   env: {
     ...process.env,
-    AX_WEBMCP_CHECK: JSON.stringify({ ...options, output, profile }),
+    AX_WEBMCP_CHECK: JSON.stringify({ ...options, output, profile, receiptKey }),
     // The page is the subject of the check; the engine's own warnings and logs are noise unless asked for.
     ELECTRON_DISABLE_SECURITY_WARNINGS: "true",
   },
@@ -65,7 +67,7 @@ try {
 } catch {
   // A locked profile file (Windows) must not change the result; the directory is in the system temp folder.
 }
-const result = evaluateReport(report, options, { ...termination, timedOut })
+const result = evaluateReport(report, options, { ...termination, timedOut }, receiptKey)
 if (options.json) {
   console.log(JSON.stringify({ url: redactWebMcpReport(options.url), tools: report.tools ?? [], runs: result.runs, problems: result.problems, exitCode: result.exitCode }, null, 2))
 } else {

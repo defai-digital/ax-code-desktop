@@ -2611,3 +2611,36 @@ test.each(["invalid-input", "timeout", "native-failure"])("failed agent navigati
   await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Error", output: { reason } }))
   expect(JSON.stringify(f.requests.filter((r) => r.url.endsWith("/reply")))).not.toContain("AUDIT_FAKE_PASSWORD")
 })
+
+
+test("a failed first create does not retain ownership of another window's profile", async () => {
+  const f = fixture()
+  const first = await f.create()
+  const start = vi.spyOn(NativeWebMcp.prototype, "start").mockRejectedValueOnce(new Error("fixture setup failure"))
+  try {
+    await expect(f.create()).rejects.toThrow("could not load")
+    expect(f.owners.size).toBe(2)
+    await expect(f.controller.command(first.sender, { action: "clearProject", directory: "/tmp/project" }))
+      .resolves.toEqual({ cleared: true })
+    expect([...f.partitions.values()][0].clearStorageData).toHaveBeenCalledOnce()
+  } finally {
+    start.mockRestore()
+  }
+})
+
+test("a failed later create preserves a window's earlier profile ownership", async () => {
+  const f = fixture()
+  const first = await f.create()
+  const second = await f.create()
+  await f.controller.command(first.sender, { action: "close", id: first.status.id })
+  const start = vi.spyOn(NativeWebMcp.prototype, "start").mockRejectedValueOnce(new Error("fixture setup failure"))
+  try {
+    await expect(f.controller.command(first.sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_retry", url: "https://example.com",
+    })).rejects.toThrow("could not load")
+    await expect(f.controller.command(second.sender, { action: "clearProject", directory: "/tmp/project" }))
+      .rejects.toThrow("another window")
+  } finally {
+    start.mockRestore()
+  }
+})

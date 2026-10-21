@@ -89,7 +89,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   // Oldest first reads as the order the agent worked in.
   const steps = calls.slice(0, RECAP_LIMIT).reverse()
   // The definition each tool has now, to show when a call ran against an earlier one.
-  const currentDigest = new Map((pageTools ?? []).flatMap((tool) => (tool.digest ? [[tool.name, tool.digest]] : [])))
+  const currentDigest = new Map((pageTools ?? []).flatMap((tool) => (tool.definitionDigest ? [[tool.name, tool.definitionDigest]] : [])))
   const recapText = () =>
     steps
       .map((call, index) => {

@@ -1,3 +1,4 @@
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import { expect, test } from "vitest"
 import {
   diffWebMcpRegistration,
@@ -95,4 +96,18 @@ test("marks a result stale only when the same tool's definition changed", () => 
   expect(revised.echo?.stale).toBe(true)
   expect(revised.echo?.digest).toBe(echo.digest)
   expect(markWebMcpRunsStale(runs, []).echo?.stale).toBe(false)
+})
+
+
+test("preserves native definition identity separately from the frame-independent catalog digest", () => {
+  const original = nativeWebMcpTool(tool("echo"), "frame-1")
+  const reloaded = nativeWebMcpTool(tool("echo"), "frame-2")
+  const before = readWebMcpCatalog([original]).catalog
+  const after = readWebMcpCatalog([reloaded]).catalog
+  expect(before[0].definitionDigest).toBe(original.definitionDigest)
+  expect(after[0].definitionDigest).toBe(reloaded.definitionDigest)
+  expect(after[0].definitionDigest).not.toBe(before[0].definitionDigest)
+  expect(after[0].digest).toBe(before[0].digest)
+  expect(diffWebMcpRegistration(before, after, [])).toEqual([])
+  expect(readWebMcpCatalog([tool("echo")]).catalog[0].definitionDigest).toBeUndefined()
 })
