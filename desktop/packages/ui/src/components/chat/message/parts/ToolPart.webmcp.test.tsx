@@ -36,10 +36,17 @@ const part = (tool: string, state: Record<string, unknown>): ToolPartType =>
 
 const renderPart = (tool: string, state: Record<string, unknown>, isExpanded = false) =>
   render(
-    <ToolPart part={part(tool, state)} isExpanded={isExpanded} onToggle={() => undefined} syntaxTheme={{}} isMobile={false} />,
+    <ToolPart
+      part={part(tool, state)}
+      isExpanded={isExpanded}
+      onToggle={() => undefined}
+      syntaxTheme={{}}
+      isMobile={false}
+    />,
   )
 
-const outcome = (container: ParentNode) => container.querySelector("[data-webmcp-outcome]")?.getAttribute("data-webmcp-outcome")
+const outcome = (container: ParentNode) =>
+  container.querySelector("[data-webmcp-outcome]")?.getAttribute("data-webmcp-outcome")
 
 describe("desktop_webmcp transcript rows", () => {
   test("names the page tool and shows an encoded failure while collapsed", () => {
@@ -130,3 +137,36 @@ describe("desktop_webmcp transcript rows", () => {
     expect(container.textContent).not.toContain("chat.toolPart.webmcp.failed")
   })
 })
+
+test.each(["timeout", "canceled", "cancelled", "aborted"])(
+  "transcript reports returned %s with its specific outcome and label",
+  (status) => {
+    const expected = status === "timeout" ? "timeout" : "cancelled"
+    const { container } = renderPart("desktop_webmcp", {
+      status: "completed",
+      input: { action: "invoke", toolName: "echo" },
+      output: JSON.stringify({ untrusted: true, result: { status, isError: true } }),
+    })
+    expect(outcome(container)).toBe(expected)
+    expect(container.textContent).toContain(`chat.toolPart.webmcp.reason.${expected}`)
+    expect(container.textContent).not.toContain("chat.toolPart.webmcp.failed")
+  },
+)
+
+test.each(["definition-changed", "result-too-large", "input-too-large"])(
+  "transcript preserves the shared %s reason",
+  (reason) => {
+    const { container } = renderPart(
+      "desktop_webmcp",
+      {
+        status: "error",
+        input: { action: "invoke", toolName: "echo" },
+        metadata: { reason },
+        error: "Tool result was rejected",
+      },
+      true,
+    )
+    expect(container.textContent).toContain(`chat.toolPart.webmcp.reason.${reason}`)
+    expect(container.textContent).not.toContain("chat.toolPart.webmcp.reason.provider-gone")
+  },
+)

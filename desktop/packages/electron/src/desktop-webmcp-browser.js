@@ -1,5 +1,7 @@
 "use strict"
 
+const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
+
 const { randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
 const { NativeWebMcp, CAPABILITY, agentOrigin, allowedUrl, pageKind, definitionDigest, byteSize } = require("./native-webmcp")
@@ -609,8 +611,9 @@ function createDesktopWebMcpBrowser({
       assertViewAlive(entry)
       const snapshot = entry.adapter.snapshot()
       const tool = snapshot.tools.find((candidate) => candidate.name === args.toolName)
-      if (!snapshot.origin || typeof args.toolName !== "string" || !tool) {
-        return { ok: false, reason: "tool-unavailable" }
+      if (!snapshot.origin) return { ok: false, outcome: "failed", reason: "no-page" }
+      if (typeof args.toolName !== "string" || !tool) {
+        return { ok: false, outcome: "failed", reason: "tool-not-found" }
       }
       try {
         const result = await entry.adapter.execute({
@@ -624,9 +627,9 @@ function createDesktopWebMcpBrowser({
           input: args.input,
           deadline: Date.now() + 30000,
         })
-        return { ok: true, output: result.output }
-      } catch {
-        return { ok: false, reason: "invoke-failed" }
+        return manualToolResult(result)
+      } catch (error) {
+        return manualToolFailure(error)
       }
     }
     if (args.action === "reload") {

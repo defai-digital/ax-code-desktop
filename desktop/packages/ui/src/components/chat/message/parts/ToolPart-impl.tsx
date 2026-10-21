@@ -7,6 +7,7 @@ import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
 import {
   describeWebMcpCall,
   desktopWebMcpResultFailed,
+  desktopWebMcpResultOutcome,
   desktopWebMcpRowTitle,
   getToolMetadata,
   isWebMcpToolName,
@@ -1023,6 +1024,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
     status === "timeout" ||
     status === "cancelled"
   const webmcp = normalizedPartTool === "desktop_webmcp" || normalizedPartTool === "webmcp"
+  const webmcpOutcome = webmcp ? desktopWebMcpResultOutcome(state) : null
   const webmcpFailed = webmcp && desktopWebMcpResultFailed(state)
   const isError = status === "error" || status === "failed" || webmcpFailed
 
@@ -1666,6 +1668,8 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   // Tool title/description — shown inline as context
   const justificationText = React.useMemo(() => {
     if (webmcp) {
+      if (webmcpOutcome === "timeout" || webmcpOutcome === "cancelled")
+        return t(`chat.toolPart.webmcp.reason.${webmcpOutcome}`)
       return isError ? t("chat.toolPart.webmcp.failed") : null
     }
     if (normalizedPartTool === "bash") {
@@ -1692,7 +1696,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
       return inputDesc
     }
     return null
-  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp])
+  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp, webmcpOutcome])
 
   const runtime = React.useContext(RuntimeAPIContext)
 
@@ -1766,7 +1770,15 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         onKeyDown={handleMainKeyDown}
         role="button"
         tabIndex={0}
-        data-webmcp-outcome={webmcp ? (isError ? "failed" : "ok") : undefined}
+        data-webmcp-outcome={
+          webmcp
+            ? webmcpOutcome === "timeout" || webmcpOutcome === "cancelled"
+              ? webmcpOutcome
+              : isError
+                ? "failed"
+                : "ok"
+            : undefined
+        }
       >
         <div
           className={cn(

@@ -88,3 +88,12 @@ byteSize(result.output) > MAX_RESULT_BYTES
 ### Bottom line
 
 **Not ready to merge.** The one blocker is **H1** (missing locale entries: red `check:locales` gate plus English-only UI for 12 locales), which the handoff already flags and which needs the 13 keys in all 13 catalogs. **M1** should be fixed in the same pass if WX-03's honesty claim is to hold, since it currently tells users the browser disconnected when it did not. L1–L6 are worth fixing or explicitly deferring with a tracked item; I1–I2 are judgement calls on shared transcript behavior.
+## Dispositions (fixed by codex on `wx12-manual-panel`, details in `HANDOFF-m12-codex.md`)
+
+- H1 translations: done in the merge (all 26 strings in 13 locales; `check:locales` passes).
+- M1: an oversized result is `result-too-large` and a definition change after dispatch is `definition-changed`, never
+  "uncertain / provider-gone"; probes killed.
+- L1: an expired deadline before dispatch is a timeout. L2: `input-too-large` with the limit shown in the editor. L3: plain
+  sentences naming the expected type, choices or bound. L4: `aria-describedby` for hints and warnings. L5: tests for labels,
+  descriptions, `aria-expanded` and the live region. L6: `aria-disabled` keeps focus while running; probes killed.
+- I1: a result-shaped timeout or cancellation is reported as that outcome on both surfaces. I2: advisories reset after a send.

@@ -5,6 +5,9 @@ const page = require("./webmcp-page")
 
 const CAPABILITY = "desktop.webmcp.v1"
 const MAX_RESULT_BYTES = 65536
+// Fixed metadata only: page exceptions and debugger errors may contain credentials.
+const invocationError = (outcome, reason, message = "Native completion is unconfirmed; do not retry automatically") =>
+  Object.assign(new Error(message), { outcome, reason })
 const byteSize = (value) => Buffer.byteLength(JSON.stringify(value) ?? "", "utf8")
 const canonical = (value, depth = 0) => {
   if (depth > 32) throw new Error("WebMCP JSON nesting limit exceeded")
@@ -117,7 +120,7 @@ class NativeWebMcp {
     // mid-script, so marking it canceled stops it at the next checkpoint and an act still queued never clicks or types.
     // A navigation the act itself caused revokes too, but must not cancel that act.
     if (cancelPageRequest && this.activePageRequestId) this.canceledPageRequests.add(this.activePageRequestId)
-    for (const id of [...this.pending.keys()]) this.cancel(id)
+    for (const id of [...this.pending.keys()]) this.cancel(id, "uncertain", "provider-gone")
     this.changed()
   }
   onMessage(method, params) {
@@ -160,14 +163,15 @@ class NativeWebMcp {
       for (const tool of params.tools) if (tool.frameId === this.frameId) this.tools.delete(tool.name)
       this.changed()
     } else if (method === "WebMCP.toolResponded") {
-      if (byteSize(params.output) > MAX_RESULT_BYTES) {
-        for (const id of [...this.pending.keys()]) this.cancel(id)
-        return
-      }
+      // Keep early responses bounded without rejecting an unrelated invocation.
+      const response =
+        byteSize(params.output) > MAX_RESULT_BYTES
+          ? { invocationId: params.invocationId, oversized: true }
+          : { invocationId: params.invocationId, status: params.status, output: params.output }
       const pending = [...this.pending.values()].find((entry) => entry.invocationId === params.invocationId)
-      if (pending) pending.finish(params)
+      if (pending) pending.finish(response)
       // Responses that race the invokeTool acknowledgement stay bounded on the active call.
-      else for (const entry of this.pending.values()) if (!entry.invocationId) entry.early = params
+      else for (const entry of this.pending.values()) if (!entry.invocationId) entry.early = response
     }
   }
   snapshot() {
@@ -184,31 +188,27 @@ class NativeWebMcp {
   }
   async execute(request) {
     const snapshot = this.snapshot()
+    if (request.deadline <= Date.now()) throw invocationError("timeout", "timeout")
     if (
       this.closed ||
       !this.available ||
       request.generation !== snapshot.generation ||
       request.origin !== snapshot.origin ||
-      request.frameId !== snapshot.frameId ||
-      request.deadline <= Date.now()
+      request.frameId !== snapshot.frameId
     ) {
-      throw new Error("The browser document or request lifetime changed")
+      throw invocationError("failed", "page-changed")
     }
     if (request.operation === "list")
       return { requestID: request.requestID, generation: request.generation, status: "Completed", snapshot }
     if (["read", "act", "wait"].includes(request.operation)) return this.interact(request)
     if (request.operation !== "invoke" || this.pending.size !== 0 || this.interacting)
-      throw new Error("Native operation is unavailable")
+      throw invocationError("failed", "native-failure", "Native operation is unavailable")
     const tool = this.tools.get(request.toolName)
-    if (!tool || definitionDigest(tool) !== request.digest) throw new Error("The native tool definition changed")
-    if (
-      !request.input ||
-      Array.isArray(request.input) ||
-      typeof request.input !== "object" ||
-      byteSize(request.input) > 65536
-    ) {
-      throw new Error("Invalid native tool input")
+    if (!tool || definitionDigest(tool) !== request.digest) throw invocationError("failed", "definition-changed")
+    if (!request.input || Array.isArray(request.input) || typeof request.input !== "object") {
+      throw invocationError("failed", "invalid-input")
     }
+    if (byteSize(request.input) > 65536) throw invocationError("failed", "input-too-large")
     return new Promise((resolve, reject) => {
       const finish = (result) => {
         clearTimeout(timer)
@@ -218,13 +218,23 @@ class NativeWebMcp {
           this.closed ||
           current.generation !== request.generation ||
           current.origin !== request.origin ||
-          !this.available ||
-          definitionDigest(this.tools.get(request.toolName) ?? {}) !== request.digest ||
-          Date.now() >= request.deadline ||
-          result.status !== "Completed" ||
-          byteSize(result.output) > MAX_RESULT_BYTES
+          !this.available
         ) {
-          reject(new Error("Native completion is unconfirmed; do not retry automatically"))
+          reject(invocationError("uncertain", "provider-gone"))
+        } else if (definitionDigest(this.tools.get(request.toolName) ?? {}) !== request.digest) {
+          reject(invocationError("failed", "definition-changed"))
+        } else if (Date.now() >= request.deadline) {
+          reject(invocationError("timeout", "timeout"))
+        } else if (result.oversized || byteSize(result.output) > MAX_RESULT_BYTES) {
+          reject(invocationError("failed", "result-too-large"))
+        } else if (/^(canceled|cancelled|aborted)$/i.test(result.status)) {
+          reject(invocationError("cancelled", "cancelled"))
+        } else if (/^timeout$/i.test(result.status)) {
+          reject(invocationError("timeout", "timeout"))
+        } else if (/^(error|failed)$/i.test(result.status)) {
+          reject(invocationError("application-error", "application-error"))
+        } else if (result.status !== "Completed") {
+          reject(invocationError("uncertain", "native-failure"))
         } else
           resolve({
             requestID: request.requestID,
@@ -233,15 +243,18 @@ class NativeWebMcp {
             output: result.output,
           })
       }
-      const timer = setTimeout(() => this.cancel(request.requestID), Math.min(30000, request.deadline - Date.now()))
+      const timer = setTimeout(
+        () => this.cancel(request.requestID, "timeout", "timeout"),
+        Math.min(30000, request.deadline - Date.now()),
+      )
       const entry = {
         invocationId: null,
         early: null,
         finish,
-        reject: () => {
+        reject: (outcome = "uncertain", reason = "provider-gone") => {
           clearTimeout(timer)
           this.pending.delete(request.requestID)
-          reject(new Error("Native invocation canceled; completion is unconfirmed"))
+          reject(invocationError(outcome, reason))
         },
       }
       this.pending.set(request.requestID, entry)
@@ -321,7 +334,7 @@ class NativeWebMcp {
       if (request.requestID) this.canceledPageRequests.delete(request.requestID)
     }
   }
-  cancel(requestID) {
+  cancel(requestID, outcome = "cancelled", reason = "cancelled") {
     // A page operation has no invocation id and cannot be aborted mid-script; record the
     // cancellation so the checkpoints above stop it and the reply is suppressed.
     if (typeof requestID === "string" && this.activePageRequestId === requestID) {
@@ -334,13 +347,13 @@ class NativeWebMcp {
       this.contents.debugger
         .sendCommand("WebMCP.cancelInvocation", { invocationId: pending.invocationId })
         .catch(() => {})
-    pending.reject()
+    pending.reject(outcome, reason)
   }
   close() {
     if (this.closed) return
     this.closed = true
     this.available = false
-    for (const id of [...this.pending.keys()]) this.cancel(id)
+    for (const id of [...this.pending.keys()]) this.cancel(id, "uncertain", "provider-gone")
     this.contents.removeListener("did-start-navigation", this.navigation)
     this.contents.removeListener("render-process-gone", this.gone)
     this.contents.debugger.removeListener("message", this.message)

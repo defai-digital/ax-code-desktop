@@ -261,9 +261,13 @@ export const WEBMCP_FAILURE_REASONS = [
   "tool-not-found",
   "definition-changed",
   "invalid-input",
+  "input-too-large",
+  "result-too-large",
   "provider-gone",
   "timeout",
   "native-failure",
+  "application-error",
+  "cancelled",
 ] as const
 export type WebMcpFailureReason = (typeof WEBMCP_FAILURE_REASONS)[number]
 
@@ -301,7 +305,8 @@ export function redactDisplayedText(value: string): WebMcpDisplayedText | null {
 
 /** Text typed into a field whose name or kind marks it sensitive is never shown, even when the text itself looks ordinary. */
 function redactActText(value: string, element: WebMcpElementDetails | null): WebMcpDisplayedText | null {
-  if (element && WEBMCP_SENSITIVE_NAME.test(`${element.name} ${element.kind}`) && value.trim()) return { redacted: true }
+  if (element && WEBMCP_SENSITIVE_NAME.test(`${element.name} ${element.kind}`) && value.trim())
+    return { redacted: true }
   return redactDisplayedText(value)
 }
 
@@ -316,10 +321,55 @@ function redactJsonValue(value: unknown): unknown {
   if (isPlainRecord(value)) {
     const next: Record<string, unknown> = {}
     for (const [key, entry] of Object.entries(value))
-      next[key] = WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
+      next[key] =
+        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
     return next
   }
   return null
+}
+
+/** Bounded, credential-filtered manual result preview. Results remain inert text, never HTML. */
+export function webMcpResultPreview(output: unknown, fieldName?: string): string {
+  if (output === undefined) return ""
+  if (fieldName && WEBMCP_SENSITIVE_NAME.test(fieldName)) return "[redacted]"
+  let remaining = 256
+  const seen = new WeakSet<object>()
+  const visit = (value: unknown, depth: number): unknown => {
+    if (--remaining < 0 || depth > 8) return "…"
+    if (typeof value === "string") {
+      // Filter the entire string before truncating so a credential past the preview boundary cannot leak.
+      if (webMcpTextLooksSensitive(value)) return "[redacted]"
+      return truncateToCodeUnits(value, 4000)
+    }
+    if (typeof value === "number" || typeof value === "boolean" || value === null) return value
+    if (!value || typeof value !== "object") return null
+    if (seen.has(value)) return "…"
+    seen.add(value)
+    if (Array.isArray(value)) return value.slice(0, 64).map((entry) => visit(entry, depth + 1))
+    return Object.fromEntries(
+      Object.entries(value)
+        .slice(0, 64)
+        .map(([key, entry]) => [
+          webMcpTextLooksSensitive(key) ? "[redacted]" : truncateToCodeUnits(key, 140),
+          WEBMCP_SENSITIVE_NAME.test(key) ? "[redacted]" : visit(entry, depth + 1),
+        ]),
+    )
+  }
+  try {
+    // JSON strings need the same sensitive-name filtering as object outputs.
+    let value = output
+    if (typeof value === "string") {
+      try {
+        value = JSON.parse(value)
+      } catch {
+        /* Plain text is also supported. */
+      }
+    }
+    const safe = visit(value, 0)
+    return truncateToCodeUnits(typeof safe === "string" ? safe : (JSON.stringify(safe, null, 2) ?? ""), 4000)
+  } catch {
+    return ""
+  }
 }
 
 function readWebMcpElement(record: Record<string, unknown> | null | undefined): WebMcpElementDetails | null {
@@ -366,7 +416,10 @@ export function describeWebMcpCall(
     // Newer runtimes (ADR-266) send `inputPreview`: the exact input, already redacted and capped. It is still filtered here.
     const preview = readWebMcpString(metadata, "inputPreview")
     if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
-    else if (preview) argumentsText = webMcpTextLooksSensitive(preview) ? "[redacted]" : truncateToCodeUnits(preview, WEBMCP_PREVIEW_LIMIT)
+    else if (preview)
+      argumentsText = webMcpTextLooksSensitive(preview)
+        ? "[redacted]"
+        : truncateToCodeUnits(preview, WEBMCP_PREVIEW_LIMIT)
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")
@@ -374,13 +427,16 @@ export function describeWebMcpCall(
     ? (reason as WebMcpFailureReason)
     : null
   const rawNext = readWebMcpString(metadata, "nextAction")
-  const nextAction = rawNext && !webMcpTextLooksSensitive(rawNext) ? truncateToCodeUnits(rawNext.replace(/\s+/g, " ").trim(), 300) : null
+  const nextAction =
+    rawNext && !webMcpTextLooksSensitive(rawNext) ? truncateToCodeUnits(rawNext.replace(/\s+/g, " ").trim(), 300) : null
   return {
     toolName,
     operation,
     how: act ? readWebMcpString(metadata, "how") || readWebMcpString(input, "how") : null,
-    element: act ? readWebMcpElement(metadata) ?? readWebMcpElement(input) : null,
-    text: rawText ? redactActText(rawText, act ? readWebMcpElement(metadata) ?? readWebMcpElement(input) : null) : null,
+    element: act ? (readWebMcpElement(metadata) ?? readWebMcpElement(input)) : null,
+    text: rawText
+      ? redactActText(rawText, act ? (readWebMcpElement(metadata) ?? readWebMcpElement(input)) : null)
+      : null,
     argumentsMissing,
     argumentsText,
     failureReason,
@@ -444,23 +500,40 @@ function webMcpResultRecord(output: unknown): Record<string, unknown> | null {
   return parsed
 }
 
-/**
- * Thrown WebMCP calls arrive as status `error` or `failed`. A completed invoke can still be a page-tool
- * failure inside `{ untrusted: true, result }`. `found: false` and `done: true` are not failures.
- */
-export function desktopWebMcpResultFailed(state: { status?: unknown; output?: unknown } | null | undefined): boolean {
+/** Explicit timeout/cancellation wins over generic error flags, including returned result envelopes. */
+export function desktopWebMcpResultOutcome(
+  state: { status?: unknown; output?: unknown } | null | undefined,
+): "completed" | "application-error" | "timeout" | "cancelled" | null {
+  const terminalStatus = (status: unknown) => {
+    if (typeof status !== "string") return null
+    if (/^timeout$/i.test(status.trim())) return "timeout" as const
+    if (/^(canceled|cancelled|aborted)$/i.test(status.trim())) return "cancelled" as const
+    return null
+  }
   const status = typeof state?.status === "string" ? state.status : ""
-  // A call that timed out, was cancelled or aborted did not do what was asked: it is a failure for the row too.
-  if (["error", "failed", "timeout", "cancelled", "canceled", "aborted"].includes(status)) return true
-  if (status !== "completed") return false
+  const terminal = terminalStatus(status)
+  if (terminal) return terminal
+  if (["error", "failed"].includes(status)) return "application-error"
+  if (status !== "completed") return null
   const result = webMcpResultRecord(state?.output)
-  if (!result) return false
-  if (result.isError === true) return true
-  if (result.ok === false) return true
-  if (typeof result.status === "string" && WEBMCP_FAILURE_STATUSES.test(result.status.trim())) return true
-  if (typeof result.error === "string" && result.error.trim().length > 0) return true
-  if (typeof result.errorText === "string" && result.errorText.trim().length > 0) return true
-  return false
+  const returnedTerminal = terminalStatus(result?.status)
+  if (returnedTerminal) return returnedTerminal
+  if (
+    result &&
+    (result.isError === true ||
+      result.ok === false ||
+      (typeof result.status === "string" && WEBMCP_FAILURE_STATUSES.test(result.status.trim())) ||
+      (typeof result.error === "string" && result.error.trim().length > 0) ||
+      (typeof result.errorText === "string" && result.errorText.trim().length > 0))
+  )
+    return "application-error"
+  return "completed"
+}
+
+/** Transport completion can still carry a failed page-tool result; found:false and done:true are normal. */
+export function desktopWebMcpResultFailed(state: { status?: unknown; output?: unknown } | null | undefined): boolean {
+  const outcome = desktopWebMcpResultOutcome(state)
+  return outcome !== null && outcome !== "completed"
 }
 
 function formatWebMcpToolInput(input: Record<string, unknown>): string {

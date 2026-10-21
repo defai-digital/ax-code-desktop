@@ -926,11 +926,66 @@ describe("page tools for the user", () => {
       toolName: "add_numbers",
       input: { a: 2, b: 3 },
     })
-    expect(tried).toEqual({ ok: true, output: { content: [{ type: "text", text: "5" }] } })
+    expect(tried).toEqual({ ok: true, outcome: "completed", output: { content: [{ type: "text", text: "5" }] } })
     // Trying a tool is the user acting: no provider enrollment, no grant.
     expect(f.requests.some((request) => request.method === "POST" && request.url.endsWith("/provider"))).toBe(false)
     expect(
       await f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "missing", input: {} }),
-    ).toEqual({ ok: false, reason: "tool-unavailable" })
+    ).toEqual({ ok: false, outcome: "failed", reason: "tool-not-found" })
+  })
+})
+
+describe("manual invocation native outcomes", () => {
+  test.each([
+    ["Completed", { value: 5 }, "completed", undefined],
+    ["Completed", { isError: true }, "application-error", "application-error"],
+    ["Completed", { status: "timeout", isError: true }, "timeout", "timeout"],
+    ["Completed", JSON.stringify({ untrusted: true, result: { status: "cancelled" } }), "cancelled", "cancelled"],
+    ["Completed", "x".repeat(65537), "failed", "result-too-large"],
+    ["replace", "stale", "failed", "definition-changed"],
+    ["Error", { error: "password=hunter2" }, "application-error", "application-error"],
+    ["Canceled", {}, "cancelled", "cancelled"],
+    ["Timeout", {}, "timeout", "timeout"],
+    ["detach", {}, "uncertain", "provider-gone"],
+    ["command-rejected", {}, "uncertain", "provider-gone"],
+  ])("%s maps to %s through the manual IPC path", async (nativeStatus, output, outcome, reason) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests.at(-1)
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+      tools: [{ name: "echo", description: "Echo", frameId: "top" }],
+    })
+    guest.debugger.sendCommand = async (method, params) => {
+      if (method !== "WebMCP.invokeTool") return {}
+      expect(params.input).toEqual({ text: "  exact  ", zero: 0, off: false, empty: "" })
+      if (nativeStatus === "command-rejected") throw new Error("password=hunter2")
+      queueMicrotask(() => {
+        if (nativeStatus === "detach") guest.debugger.emit("detach")
+        else {
+          if (nativeStatus === "replace") {
+            guest.debugger.emit("message", {}, "WebMCP.toolsRemoved", { tools: [{ name: "echo", frameId: "top" }] })
+            guest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+              tools: [{ name: "echo", description: "Updated", frameId: "top" }],
+            })
+          }
+          guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
+            invocationId: "manual",
+            status: nativeStatus === "replace" ? "Completed" : nativeStatus,
+            output,
+          })
+        }
+      })
+      return { invocationId: "manual" }
+    }
+    const result = await f.controller.command(sender, {
+      action: "tryTool",
+      id: status.id,
+      toolName: "echo",
+      input: { text: "  exact  ", zero: 0, off: false, empty: "" },
+    })
+    expect(result).toMatchObject({ ok: outcome === "completed", outcome, ...(reason ? { reason } : {}) })
+    if (nativeStatus === "Error" || nativeStatus === "command-rejected")
+      expect(JSON.stringify(result)).not.toContain("hunter2")
+    expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
 })
