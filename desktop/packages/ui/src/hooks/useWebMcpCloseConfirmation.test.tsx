@@ -31,3 +31,14 @@ test.each([false, true])("destructive confirmation names all pages; confirmed=%s
   })
   else expect(done).toHaveBeenCalledWith(null)
 })
+
+ test.each(["token=FAKE_AUDIT_SECRET", "x".repeat(5000) + " token=TAIL_SECRET", "x".repeat(5000)])("confirmation filters and bounds page titles: %s", async (title) => {
+  bridge.invoke.mockResolvedValueOnce({ confirmationRequired: true, pages: [{ id: "popup", sessionID: "ses_a", title }] })
+  render(<Harness done={vi.fn()} />)
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Sign out" })))
+  const dialog = screen.getByRole("dialog")
+  expect(dialog.innerHTML).not.toContain("FAKE_AUDIT_SECRET")
+  expect(dialog.innerHTML).not.toContain("TAIL_SECRET")
+  expect(dialog.textContent!.length).toBeLessThan(4500)
+  if (title.includes("token=")) expect(dialog.textContent).toContain("[redacted]")
+})

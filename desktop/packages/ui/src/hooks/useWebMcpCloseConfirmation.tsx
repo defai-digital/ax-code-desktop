@@ -1,3 +1,4 @@
+import { webMcpDisplayText } from "../../../../shared/webmcp-redaction.mjs"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { getDesktopBridge } from "@/lib/desktopBridge"
 import { useI18n } from "@/lib/i18n"
@@ -17,7 +18,7 @@ export function useWebMcpCloseConfirmation() {
     if (!bridge?.invoke) throw new Error("Browser unavailable")
     let reply = await bridge.invoke<T & CloseReply>("desktop_webmcp_browser", args)
     while (reply?.confirmationRequired) {
-      const pages = (reply.pages ?? []).map((page) => `${page.sessionID ?? page.id} · ${page.title} · ${page.id}`).join("\n")
+      const pages = (reply.pages ?? []).map((page) => `${page.sessionID ?? page.id} · ${webMcpDisplayText(page.title)} · ${page.id}`).join("\n")
       if (!(await requestConfirm(t("webmcp.browser.confirmClose", { pages }), { destructive: true }))) return null
       reply = await bridge.invoke<T & CloseReply>("desktop_webmcp_browser", { ...args, closeConfirmation: reply.closeConfirmation })
     }

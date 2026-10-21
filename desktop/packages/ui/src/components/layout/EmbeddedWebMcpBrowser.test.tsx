@@ -703,6 +703,15 @@ describe("agent browser enable request", () => {
     expect(localStorage.getItem(WEBMCP_HISTORY_KEY)).not.toContain(secret)
   })
 
+  test("page status URLs are bounded again in the address bar", async () => {
+    invoke.mockImplementation(async () => ({ ...browserStatus(false), url: "https://example.test/" + "x".repeat(5000) }))
+    render()
+    openAgentMode()
+    await flush()
+    const address = within(container).getByRole("textbox", { name: "webmcp.browser.addressAria" }) as HTMLInputElement
+    expect(address.value).toHaveLength(4000)
+  })
+
   test("sensitive address drafts remain editable and navigate with the exact user input", async () => {
     render()
     openAgentMode()

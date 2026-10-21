@@ -28,6 +28,7 @@ const call = (id: string, status: string) => ({
 
 afterEach(() => {
   cleanup()
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
   useWebMcpBrowserStore.getState().resetSnapshot()
 })
 
@@ -97,7 +98,7 @@ describe("browser evidence beside landing", () => {
     expect(other.container.querySelector("[data-recap-not-called]")).toBeNull()
   })
 
-  test.each(["same", "changed", "frame", "missing"])("recap compares native definition identities: %s", (change) => {
+  test.each(["same", "changed", "frame", "missing"])("recap compares native definition identities: %s", async (change) => {
     const original = nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} })
     const current = change === "changed"
       ? nativeWebMcpTool({ ...original, description: "Updated payment" })
@@ -128,9 +129,14 @@ describe("browser evidence beside landing", () => {
       sessionID: "s1",
       directory: "/repo",
       origin: "https://shop.test",
-      catalog: [current],
+      catalog: [current, nativeWebMcpTool({ name: "unused", description: "Unused", inputSchema: {} })],
     })
     const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+    const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+    await act(async () => fireEvent.click(container.querySelector("[data-recap-copy]")!))
+    expect(writeText.mock.calls[0][0]).toContain("diffView.landing.browserRecap.notCalled:unused")
+    expect(writeText.mock.calls[0][0].includes("diffView.landing.browserRecap.definitionChanged")).toBe(change === "changed" || change === "frame")
     const step = container.querySelector("[data-recap-outcome]")!
     expect(step.textContent).toContain("1.5 s")
     expect(step.querySelector("[data-recap-result]")?.textContent).toContain('"paid": true')
@@ -143,6 +149,7 @@ describe("browser evidence beside landing", () => {
 
   test("a long turn says how many steps are shown, and Copy recap writes the steps to the clipboard", async () => {
     sync.messages = [{ id: "u1", role: "user" }, { id: "a1", role: "assistant" }]
+    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [] })
     sync.parts = new Map([["a1", Array.from({ length: 60 }, (_, index) => call(`c${index}`, "completed"))]])
     const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })

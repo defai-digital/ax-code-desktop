@@ -1,4 +1,4 @@
-import { redactWebMcpReport, redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { redactWebMcpReport, webMcpDisplayText as redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 

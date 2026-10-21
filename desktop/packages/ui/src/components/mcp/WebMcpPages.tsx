@@ -1,4 +1,4 @@
-import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { webMcpDisplayText as redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "./WebMcpCancellationStatus"
 import { useI18n } from "@/lib/i18n"
