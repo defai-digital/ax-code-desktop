@@ -1,3 +1,4 @@
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
@@ -26,7 +27,7 @@ afterEach(() => {
 })
 
 const catalog = [
-  {
+  nativeWebMcpTool({
     name: "add_numbers",
     description: "Add two integers",
     inputSchema: {
@@ -34,7 +35,7 @@ const catalog = [
       properties: { a: { type: "integer" }, b: { type: "integer" } },
       required: ["a", "b"],
     },
-  },
+  }),
 ]
 
 describe("WebMCP tool panel", () => {
@@ -678,7 +679,7 @@ function pageCall(overrides: Partial<WebMcpCall>): WebMcpCall {
     resultPreview: null,
     generation: null,
     argumentsMissing: false,
-    definitionDigest: "bbbbbbbbbbbbbbbb",
+    definitionDigest: nativeWebMcpTool({ ...catalog[0], description: "Earlier definition" }).definitionDigest!,
     inputKind: "object",
     input: { a: 1, b: "nope" },
     ...overrides,
@@ -753,10 +754,11 @@ test("compare shows the transcript arguments beside the manual run and flags dif
 })
 
 test("the same definition digest is not flagged, and a missing runtime input is not guessed", async () => {
-  const digest = "cdcdcdcdcdcdcdcd"
+  const digest = catalog[0].definitionDigest!
+  expect(digest).not.toBe(catalog[0].digest)
   useWebMcpBrowserStore.getState().updateSnapshot({
     origin: "https://shop.test",
-    catalog: [{ ...catalog[0], digest }],
+    catalog,
   })
   const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
   const view = render(
@@ -780,6 +782,8 @@ test("the same definition digest is not flagged, and a missing runtime input is 
   fireEvent.change(b, { target: { value: "3" } })
   await runTool()
   expect(view.container.querySelector("[data-webmcp-definition-diff]")).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-definition-changed]")).toBeNull()
+  expect(useWebMcpBrowserStore.getState().toolJournal[0].definitionDigest).toBe(digest)
   expect(view.container.querySelector("[data-webmcp-diagnosis='agent']")?.getAttribute("data-webmcp-diagnosis")).toBe(
     "agent",
   )
@@ -800,7 +804,7 @@ test("a changed definition is named for the manual run that used the earlier dig
   await runTool()
   act(() => {
     useWebMcpBrowserStore.getState().updateSnapshot({
-      catalog: [{ ...catalog[0], description: "A different definition" }],
+      catalog: [nativeWebMcpTool({ ...catalog[0], description: "A different definition" })],
     })
   })
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
@@ -926,4 +930,27 @@ test.each([
   expect(container.textContent).not.toContain("AUDIT_FAKE_PASSWORD")
   expect(container.querySelector("[data-webmcp-export-snippet]")?.textContent).toContain("<fill in>")
   expect(container.querySelector("[data-webmcp-tool-result]")?.textContent).toContain("[redacted]")
+})
+
+
+test.each(["frame", "missing-current", "missing-agent"])("comparison uses only known native identities: %s", async (change) => {
+  const original = catalog[0]
+  const current = change === "frame"
+    ? nativeWebMcpTool(original, "replacement-frame")
+    : change === "missing-current" ? { ...original, definitionDigest: undefined } : original
+  expect(current.digest).toBe(original.digest)
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [current] })
+  const view = render(<WebMcpToolPanel
+    tryTool={vi.fn(async () => ({ ok: true, output: "5" }))}
+    agentCalls={[pageCall({ definitionDigest: change === "missing-agent" ? null : original.definitionDigest! })]}
+  />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  await runTool()
+  expect(Boolean(view.container.querySelector("[data-webmcp-definition-diff]"))).toBe(change === "frame")
+  expect(Boolean(view.container.querySelector("[data-webmcp-definition-changed='agent']"))).toBe(change === "frame")
+  expect(view.container.querySelector("[data-webmcp-definition-changed='manual']")).toBeNull()
 })

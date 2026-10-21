@@ -22,7 +22,7 @@ export interface WebMcpToolDefinition {
   inputSchema?: unknown
   annotations?: WebMcpToolAnnotations
   kind?: WebMcpToolKind
-  /** Definition digest. Electron sends sha256; a local fallback covers direct store updates. */
+  /** Frame-independent catalog identity for drafts and registration changes. */
   digest?: string
   /** Native invocation identity, including the frame. Never synthesized in the renderer. */
   definitionDigest?: string
@@ -75,7 +75,7 @@ export interface WebMcpToolRun {
   stale: boolean
 }
 
-/** One Try it run. The digest is the definition it ran against, not the definition currently registered. */
+/** One Try it run, with the catalog and native invocation identities captured at dispatch. */
 export interface WebMcpJournalEntry {
   id: string
   tool: string
@@ -84,6 +84,8 @@ export interface WebMcpJournalEntry {
   text: string
   durationMs: number
   digest: string
+  /** Full native definition identity, including the frame, for comparison with runtime receipts. */
+  definitionDigest?: string
   at: number
 }
 

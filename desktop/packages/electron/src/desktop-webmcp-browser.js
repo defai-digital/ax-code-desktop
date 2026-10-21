@@ -759,9 +759,6 @@ function createDesktopWebMcpBrowser({
     // hardened, in-memory profile per project, independent of its session count.
     // Closing a page does not sign the project out; only clearProject does.
     const partition = partitionFor(args.directory)
-    const owners = profileOwners.get(partition) ?? new Set()
-    owners.add(sender)
-    profileOwners.set(partition, owners)
     const guestSession = session.fromPartition(partition)
     if (!guestSessions.has(partition)) {
       guestSessions.add(partition)
@@ -890,6 +887,10 @@ function createDesktopWebMcpBrowser({
       const selected = views.get(shown.get(sender.id))
       if (selected && !selected.closed && !owner.isDestroyed()) show(selected)
     }
+    // Pool operations are serialized: failed setup must not acquire profile ownership.
+    const owners = profileOwners.get(partition) ?? new Set()
+    owners.add(sender)
+    profileOwners.set(partition, owners)
     if (remembered) forget(remembered)
     return status(entry)
   }

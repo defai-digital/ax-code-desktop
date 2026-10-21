@@ -1,3 +1,5 @@
+import { runInputReceipt } from "./webmcp-check-receipt.cjs"
+import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
 
@@ -37,12 +39,15 @@ test.each([
   const child = new EventEmitter()
   child.kill = vi.fn(() => child.emit("exit", code, signal))
   mocks.spawn.mockReturnValue(child)
-  mocks.read.mockReturnValue(
-    JSON.stringify({
+  mocks.read.mockImplementation(() => {
+    const config = JSON.parse(mocks.spawn.mock.calls.at(-1)[2].env.AX_WEBMCP_CHECK)
+    const report = {
       tools: [{ name: "echo" }],
       runs: complete ? [{ name: "echo", input: {}, output: "{}" }] : [],
-    }),
-  )
+    }
+    report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
+    return JSON.stringify(redactWebMcpReport(report))
+  })
   vi.spyOn(process, "argv", "get").mockReturnValue([
     "node",
     "check",
@@ -76,15 +81,18 @@ test.each([false, true])("launcher filters runs and problems (json: %s)", async 
   vi.resetModules()
   const child = new EventEmitter()
   mocks.spawn.mockReturnValue(child)
-  mocks.read.mockReturnValue(
-    JSON.stringify({
+  mocks.read.mockImplementation(() => {
+    const config = JSON.parse(mocks.spawn.mock.calls.at(-1)[2].env.AX_WEBMCP_CHECK)
+    const report = {
       tools: [{ name: "echo", description: "password=catalog-secret" }],
       runs: [
         { name: "echo", input: { password: "input-secret" }, output: '{"access_token":"output-secret","ok":true}' },
         { name: "echo", input: {}, error: "Error: password=error-secret" },
       ],
-    }),
-  )
+    }
+    report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
+    return JSON.stringify(redactWebMcpReport(report))
+  })
   vi.spyOn(process, "argv", "get").mockReturnValue([
     "node",
     "check",

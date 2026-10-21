@@ -1,3 +1,6 @@
+import { randomBytes } from "node:crypto"
+import { runInputReceipt } from "./webmcp-check-receipt.cjs"
+import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { describe, expect, test } from "vitest"
 import { EXIT, checkableUrl, evaluateReport, parseCheckArgs } from "./webmcp-check-lib.mjs"
 
@@ -84,4 +87,44 @@ describe("webmcp:check exit codes", () => {
     expect(evaluateReport({ error: "the page did not load in time" }, options).exitCode).toBe(EXIT.failed)
     expect(evaluateReport({ tools, runs: [{ name: "list_tasks", output: "{}" }] }, options).exitCode).toBe(EXIT.ok)
   })
+})
+
+// Different secrets can produce identical display projections, but are different requested runs.
+test.each([
+  [{ password: "first-secret" }, { password: "second-secret" }],
+  [{ nested: { apiKey: "first-key" } }, { nested: { apiKey: "second-key" } }],
+  [{ text: "password=first-secret" }, { text: "password=second-secret" }],
+])("run matching compares original inputs before redaction", (requested, actual) => {
+  const result = evaluateReport(
+    { tools: [{ name: "echo" }], runs: [{ name: "echo", input: actual, output: "{}" }] },
+    { expectTools: [], runs: [{ name: "echo", input: requested }] },
+  )
+  expect(result.exitCode).toBe(EXIT.failed)
+  expect(JSON.stringify(result)).not.toMatch(/first-secret|second-secret|first-key|second-key/)
+})
+
+
+test("disk receipts bind secret inputs and occurrence order without retaining a secret or key", () => {
+  const receiptKey = randomBytes(32).toString("hex")
+  const runs = [
+    { name: "echo", input: { nested: { password: "first-secret" }, count: 1 } },
+    { name: "echo", input: { nested: { password: "second-secret" }, count: 1 } },
+  ]
+  const report = redactWebMcpReport({
+    tools: [{ name: "echo" }],
+    runs: runs.map((run, index) => ({ ...run, output: "{}", inputReceipt: runInputReceipt(receiptKey, index, run) })),
+  })
+  const evaluate = (recorded, requested = runs, key = receiptKey) =>
+    evaluateReport({ ...report, runs: recorded }, { expectTools: [], runs: requested }, undefined, key)
+  expect(report.runs[0].input).toEqual(report.runs[1].input)
+  expect(evaluate(report.runs).exitCode).toBe(EXIT.ok)
+  expect(evaluate(report.runs, runs.map((run) => ({ ...run, input: { count: 1, nested: run.input.nested } }))).exitCode).toBe(EXIT.ok)
+  expect(evaluate([...report.runs].reverse()).exitCode).toBe(EXIT.failed)
+  expect(evaluate(report.runs, [runs[1], runs[1]]).exitCode).toBe(EXIT.failed)
+  expect(evaluate(report.runs, runs, randomBytes(32).toString("hex")).exitCode).toBe(EXIT.failed)
+  expect(evaluate(report.runs.map((run) => ({ ...run, inputReceipt: undefined }))).exitCode).toBe(EXIT.failed)
+  expect(evaluateReport(report, { expectTools: [], runs }).exitCode).toBe(EXIT.failed)
+  expect(JSON.stringify(report)).not.toMatch(/first-secret|second-secret/)
+  expect(JSON.stringify(report)).not.toContain(receiptKey)
+  expect(JSON.stringify(evaluate(report.runs))).not.toContain("inputReceipt")
 })

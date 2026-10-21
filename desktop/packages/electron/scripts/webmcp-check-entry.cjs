@@ -4,6 +4,7 @@
 // tools it registers and runs the requested ones through the page's own model context. Never imported by the app.
 const { app, BrowserWindow } = require("electron")
 const fs = require("node:fs")
+const { runInputReceipt } = require("./webmcp-check-receipt.cjs")
 const { redactWebMcpReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const config = JSON.parse(process.env.AX_WEBMCP_CHECK ?? "{}")
@@ -88,7 +89,7 @@ async function check() {
     inputSchema: tool.inputSchema ?? null,
   }))
   save()
-  for (const run of config.runs ?? []) {
+  for (const [index, run] of (config.runs ?? []).entries()) {
     // The engine bundled with AX Code Desktop takes the input as a JSON string and answers with one.
     const result = await Promise.race([
       contents
@@ -108,7 +109,7 @@ async function check() {
         .catch((error) => ({ error: `the page could not run the tool (${error instanceof Error ? error.message : error})` })),
       delay(config.timeoutMs).then(() => ({ error: `the tool did not answer in ${config.timeoutMs} ms` })),
     ])
-    report.runs.push({ name: run.name, input: run.input, ...result })
+    report.runs.push({ name: run.name, input: run.input, ...result, inputReceipt: runInputReceipt(config.receiptKey, index, run) })
     save()
   }
   window.destroy()

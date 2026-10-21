@@ -290,8 +290,8 @@ function ToolCompare({
   agentCall: WebMcpCall | null
 }) {
   const { t } = useI18n()
-  const digest = tool.digest ?? ""
-  const differ = webMcpDefinitionsDiffer(journalEntry?.digest, agentCall?.definitionDigest)
+  const digest = tool.definitionDigest ?? ""
+  const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
   if (!journalEntry && !agentCall) return null
   return (
     <div className="space-y-2" data-webmcp-compare="">
@@ -313,7 +313,7 @@ function ToolCompare({
               </pre>
               <DiagnosisList
                 diagnosis={diagnoseWebMcpInput(tool.inputSchema, journalEntry.input)}
-                digest={journalEntry.digest || null}
+                digest={journalEntry.definitionDigest ?? null}
                 currentDigest={digest}
                 source="manual"
               />
@@ -358,10 +358,10 @@ function ToolCompare({
           )}
         </div>
       </div>
-      {differ && journalEntry && agentCall?.definitionDigest ? (
+      {differ && journalEntry?.definitionDigest && agentCall?.definitionDigest ? (
         <p className="typography-micro" data-webmcp-definition-diff="">
           {t("webmcp.tools.compare.differentDefinitions", {
-            manual: shortDigest(journalEntry.digest),
+            manual: shortDigest(journalEntry.definitionDigest),
             agent: shortDigest(agentCall.definitionDigest),
           })}
         </p>
@@ -650,6 +650,7 @@ function ToolItem({
           text: next.text,
           durationMs: performance.now() - started,
           digest,
+          definitionDigest: binding.definitionDigest ?? undefined,
           at: Date.now(),
         },
         viewKey,

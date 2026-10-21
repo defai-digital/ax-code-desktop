@@ -1,6 +1,7 @@
 import React, { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render } from "@/test/dom"
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import type { PermissionRequest } from "@/types/permission"
 
 vi.mock("@/lib/i18n", () => ({
@@ -52,9 +53,8 @@ describe("WebMCP permission card", () => {
       directory: "/repo",
       origin: "https://example.com",
       catalog: [
-        {
+        nativeWebMcpTool({
           name: "add_task",
-          digest: "a".repeat(64),
           description: "Add a task to the list.",
           inputSchema: {
             type: "object",
@@ -62,7 +62,7 @@ describe("WebMCP permission card", () => {
             required: ["title"],
           },
           annotations: { consequentialHint: true },
-        },
+        }),
       ],
     })
     const { container } = render(
@@ -72,7 +72,7 @@ describe("WebMCP permission card", () => {
             origin: "https://example.com",
             operation: "invoke",
             toolName: "add_task",
-            definitionDigest: "a".repeat(64),
+            definitionDigest: useWebMcpBrowserStore.getState().views[key].catalog[0].definitionDigest,
             desktopProvider: true,
           },
         })}
@@ -87,12 +87,11 @@ describe("WebMCP permission card", () => {
     act(() =>
       useWebMcpBrowserStore.getState().updateView(key, {
         catalog: [
-          {
+          nativeWebMcpTool({
             name: "add_task",
-            digest: "b".repeat(64),
             description: "Replacement definition",
             annotations: { readOnlyHint: true },
-          },
+          }),
         ],
       }),
     )
@@ -114,7 +113,7 @@ describe("WebMCP permission card", () => {
     useWebMcpBrowserStore.getState().resetView?.(key)
   })
 
-  test.each([undefined, "b".repeat(64)])(
+  test.each([undefined, nativeWebMcpTool({ name: "echo", description: "Earlier claim" }).definitionDigest])(
     "withholds the current definition when the call digest is %s",
     (definitionDigest) => {
       const key = viewKeyFor("/repo", "ses_1")
@@ -123,7 +122,7 @@ describe("WebMCP permission card", () => {
         directory: "/repo",
         origin: "https://example.com",
         catalog: [
-          { name: "echo", digest: "a".repeat(64), description: "Current claim", annotations: { readOnlyHint: true } },
+          nativeWebMcpTool({ name: "echo", description: "Current claim", annotations: { readOnlyHint: true } }),
         ],
       })
       const { container } = render(
@@ -383,16 +382,15 @@ test.each([1, 5, 14])("approval lists required properties before the twelve-inpu
     directory: "/repo",
     origin: "https://example.com",
     catalog: [
-      {
+      nativeWebMcpTool({
         name: "echo",
-        digest: "a".repeat(64),
         description: "Echo",
         inputSchema: {
           type: "object",
           properties: Object.fromEntries([...optional, ...required].map((name) => [name, { type: "string" }])),
           required,
         },
-      },
+      }),
     ],
   })
   const { container } = render(
@@ -402,7 +400,7 @@ test.each([1, 5, 14])("approval lists required properties before the twelve-inpu
           origin: "https://example.com",
           operation: "invoke",
           toolName: "echo",
-          definitionDigest: "a".repeat(64),
+          definitionDigest: useWebMcpBrowserStore.getState().views[key].catalog[0].definitionDigest,
           desktopProvider: true,
         },
       })}
@@ -411,5 +409,24 @@ test.each([1, 5, 14])("approval lists required properties before the twelve-inpu
   const text = container.querySelector("[data-webmcp-approval-inputs]")!.textContent!
   const names = JSON.parse(text.slice(text.indexOf(":") + 1)).names.split(", ")
   expect(names).toEqual([...required.map((name) => `${name}*`), ...optional].slice(0, 12))
+  useWebMcpBrowserStore.getState().resetView(key)
+})
+
+
+test.each(["frame", "missing-native"])("approval does not substitute catalog identity: %s", (change) => {
+  const key = viewKeyFor("/repo", "ses_1")
+  const original = nativeWebMcpTool({ name: "echo", description: "Page claim" })
+  const current = change === "frame" ? nativeWebMcpTool(original, "replacement-frame")
+    : { ...original, definitionDigest: undefined }
+  expect(current.digest).toBe(original.digest)
+  useWebMcpBrowserStore.getState().updateView(key, {
+    sessionID: "ses_1", directory: "/repo", origin: "https://example.com", catalog: [current],
+  })
+  const { container } = render(<PermissionCard permission={request({ metadata: {
+    origin: "https://example.com", operation: "invoke", toolName: "echo",
+    definitionDigest: original.definitionDigest, desktopProvider: true,
+  } })} />)
+  expect(container.querySelector("[data-webmcp-approval-tool]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-approval-definition-unknown]")).not.toBeNull()
   useWebMcpBrowserStore.getState().resetView(key)
 })

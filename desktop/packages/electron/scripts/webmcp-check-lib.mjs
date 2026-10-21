@@ -4,6 +4,7 @@ import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { isDeepStrictEqual } from "node:util"
 
 const require = createRequire(import.meta.url)
+const { runInputReceipt } = require("./webmcp-check-receipt.cjs")
 // The same mapping the project browser's Try it panel uses, so a CI check and a person agree on what failed.
 const { manualToolResult } = require("../src/webmcp-manual-outcome.js")
 
@@ -81,9 +82,15 @@ export function parseCheckArgs(argv) {
  * Classifies a check report and picks the exit code: a load or engine failure, no tools, an expected tool missing,
  * a run whose tool is missing or that returned an error, or success.
  */
-export function evaluateReport(report, options, termination) {
-  // Reports are already filtered on disk. Apply the same projection to requested occurrences
-  // and defensively filter legacy/raw reports before diagnostics or JSON output can expose them.
+export function evaluateReport(report, options, termination, receiptKey) {
+  // Verify original identity before projecting diagnostics. Disk reports use keyed receipts;
+  // legacy/raw reports without a key must match the actual input, never its redacted projection.
+  const matchingInputs = options.runs?.map((requested, index) => {
+    const run = report.runs?.[index]
+    return Boolean(run && (receiptKey
+      ? run.inputReceipt === runInputReceipt(receiptKey, index, requested)
+      : isDeepStrictEqual(run.input, requested.input)))
+  })
   report = redactWebMcpReport(report)
   options = redactWebMcpReport(options)
   const problems = []
@@ -102,7 +109,7 @@ export function evaluateReport(report, options, termination) {
       if (
         !run ||
         run.name !== requested.name ||
-        !isDeepStrictEqual(run.input, requested.input) ||
+        !matchingInputs[index] ||
         (!Object.hasOwn(run, "output") && !run.error)
       )
         problems.push(`Requested run ${index + 1} (${requested.name}) has no matching completed report.`)
@@ -113,7 +120,9 @@ export function evaluateReport(report, options, termination) {
   const names = new Set((report.tools ?? []).map((tool) => tool.name))
   if (names.size === 0) problems.push("The page registered no page tools.")
   for (const name of options.expectTools) if (!names.has(name)) problems.push(`Expected tool not registered: ${name}`)
-  const runs = recorded.map((run) => {
+  const runs = recorded.map((recordedRun) => {
+    const run = { ...recordedRun }
+    delete run.inputReceipt
     if (run.error) return { ...run, outcome: "failed", detail: run.error }
     if (!Object.hasOwn(run, "output")) return { ...run, outcome: "failed", detail: "The run has no result." }
     const mapped = manualToolResult({ output: run.output })
