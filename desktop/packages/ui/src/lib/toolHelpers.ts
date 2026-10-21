@@ -1,4 +1,8 @@
-import { WEBMCP_SENSITIVE_NAME, webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
+import {
+  WEBMCP_SENSITIVE_NAME,
+  webMcpTextLooksSensitive,
+  redactWebMcpReport,
+} from "../../../../shared/webmcp-redaction.mjs"
 import { isPlainRecord } from "@/lib/record"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
 
@@ -276,7 +280,9 @@ function readWebMcpString(record: Record<string, unknown> | null | undefined, ke
 export function redactDisplayedText(value: string): WebMcpDisplayedText | null {
   const collapsed = value.replace(/\s+/g, " ").trim()
   if (!collapsed) return null
-  if (webMcpTextLooksSensitive(value) || webMcpTextLooksSensitive(collapsed)) return { redacted: true }
+  // Different replacements detect redaction without mistaking JSON whitespace normalization for a secret.
+  if (redactWebMcpReport(value, "<fill in>") !== redactWebMcpReport(value) || webMcpTextLooksSensitive(collapsed))
+    return { redacted: true }
   return { redacted: false, value: truncateToCodeUnits(collapsed, WEBMCP_TEXT_LIMIT) }
 }
 
@@ -299,18 +305,7 @@ export function redactWebMcpInput(value: unknown): unknown {
 
 /** A copy for export: secret-named fields become a placeholder to fill in, so a copied test never carries the secret. */
 export function placeholderWebMcpSecrets(value: Record<string, unknown>): Record<string, unknown> {
-  const next: Record<string, unknown> = {}
-  for (const [key, entry] of Object.entries(value))
-    next[key] =
-      WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "<fill in>" : placeholderWebMcpValue(entry)
-  return next
-}
-
-function placeholderWebMcpValue(value: unknown): unknown {
-  if (typeof value === "string" && webMcpTextLooksSensitive(value)) return "<fill in>"
-  if (Array.isArray(value)) return value.map(placeholderWebMcpValue)
-  if (value && typeof value === "object") return placeholderWebMcpSecrets(value as Record<string, unknown>)
-  return value
+  return redactWebMcpReport(value, "<fill in>") as Record<string, unknown>
 }
 
 function redactJsonValue(value: unknown): unknown {
@@ -341,8 +336,7 @@ export function webMcpResultPreview(output: unknown, fieldName?: string): string
     if (--remaining < 0 || depth > 8) return "…"
     if (typeof value === "string") {
       // Filter the entire string before truncating so a credential past the preview boundary cannot leak.
-      if (webMcpTextLooksSensitive(value)) return "[redacted]"
-      return truncateToCodeUnits(value, 4000)
+      return truncateToCodeUnits(redactWebMcpReport(value) as string, 4000)
     }
     if (typeof value === "number" || typeof value === "boolean" || value === null) return value
     if (!value || typeof value !== "object") return null
@@ -440,7 +434,7 @@ function redactInvokeRecord(value: Record<string, unknown>): Record<string, unkn
 function redactInvokeValue(value: unknown, budget: { left: number }, depth: number): unknown {
   if (budget.left <= 0 || depth > 8) return "…"
   budget.left -= 1
-  if (typeof value === "string") return webMcpTextLooksSensitive(value) ? "[redacted]" : value
+  if (typeof value === "string") return redactWebMcpReport(value)
   if (typeof value === "number" || typeof value === "boolean" || value === null) return value
   if (Array.isArray(value)) return value.slice(0, 64).map((entry) => redactInvokeValue(entry, budget, depth + 1))
   if (isPlainRecord(value)) {
@@ -484,7 +478,7 @@ export function describeWebMcpCall(
     else if (preview)
       argumentsText = webMcpTextLooksSensitive(preview)
         ? "[redacted]"
-        : truncateToCodeUnits(preview, WEBMCP_PREVIEW_LIMIT)
+        : truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")

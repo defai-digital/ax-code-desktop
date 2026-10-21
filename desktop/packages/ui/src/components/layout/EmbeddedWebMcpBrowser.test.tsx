@@ -162,6 +162,28 @@ describe("agent browser enable request", () => {
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
   })
 
+  test("Try it sends the displayed page binding and renders stale-form before a status poll", async () => {
+    const displayed = { ...browserStatus(false), generation: "page-A", catalog: [{
+      name: "submit", description: "Submit", digest: "a".repeat(64), definitionDigest: "b".repeat(64),
+      inputSchema: { type: "object", properties: { password: { type: "string" } } },
+    }] }
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
+      if (call.action === "tryTool") return { ok: false, outcome: "stale-form", reason: "page-changed" }
+      return call.action === "bounds" ? undefined : displayed
+    })
+    render()
+    openAgentMode()
+    await flush()
+    fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool-panel] > button")!)
+    fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='submit'] button")!)
+    fireEvent.change(container.querySelector<HTMLInputElement>("input[type=password]")!, { target: { value: "AUDIT_FAKE_PASSWORD" } })
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.tools.try" }))
+    await flush()
+    expect(callsFor("tryTool")[0][1]).toEqual({ action: "tryTool", id: "browser-1", toolName: "submit",
+      input: { password: "AUDIT_FAKE_PASSWORD" }, origin: displayed.origin, generation: "page-A", definitionDigest: "b".repeat(64) })
+    expect(container.querySelector("[data-webmcp-tool-result='stale-form']")?.textContent).toContain("webmcp.tools.staleForm")
+  })
+
   test("a cross-window full pool offers owner focus and a working reopen action", async () => {
     let full = true
     invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
@@ -382,7 +404,7 @@ describe("agent browser enable request", () => {
       await flush()
       expect(callsFor(action)).toHaveLength(1)
       const feedback = container.querySelector<HTMLElement>("[data-webmcp-access-status]")!
-      expect(feedback.textContent).toContain("Stopped 1 agent call. Changes it already made on the page stay.")
+      expect(feedback.textContent).toContain("Stopped 1 call. Changes it already made on the page stay.")
       expect(feedback.textContent).not.toMatch(/roll.?back|undone|reverted|restored/i)
       expect(document.activeElement).toBe(
         within(container).getByRole("button", { name: action === "pause" ? "Resume agent" : "webmcp.actions.enable" }),
@@ -427,7 +449,7 @@ describe("agent browser enable request", () => {
       finish({ ...browserStatus(false), paused: true, stoppedCalls: 1 })
     })
     expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).toContain(
-      "Stopped 1 agent call.",
+      "Stopped 1 call.",
     )
     expect(document.activeElement).toBe(address)
   })
@@ -445,7 +467,7 @@ describe("agent browser enable request", () => {
     expect(within(container).getByRole("button", { name: "Pause agent" })).toBeTruthy()
   })
 
-  test.each([0, 2])("reports only actual in-flight cancellation counts: %s", async (count) => {
+  test.each([0, 2])("labels aggregate agent and manual cancellation counts without attributing them all to the agent: %s", async (count) => {
     invoke.mockImplementation(async (_channel: string, call: { action: string }) => ({
       ...browserStatus(call.action !== "pause"),
       paused: call.action === "pause",
@@ -458,7 +480,7 @@ describe("agent browser enable request", () => {
     await flush()
     const feedback = container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent
     if (count === 0) expect(feedback).not.toContain("Stopped")
-    else expect(feedback).toContain("Stopped 2 agent calls. Changes they already made on the page stay.")
+    else expect(feedback).toContain("Stopped 2 calls. Changes they already made on the page stay.")
   })
 
   test("keeps Pause and Disconnect reachable when an enrolled page reports an error", async () => {

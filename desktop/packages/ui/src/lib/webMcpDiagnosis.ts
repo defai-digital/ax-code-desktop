@@ -19,7 +19,7 @@ export type WebMcpDiagnosisFinding = {
 
 export type WebMcpDiagnosis =
   | { status: "unchecked"; reason: "no-schema" | "unsupported-schema" }
-  | { status: "checked"; findings: WebMcpDiagnosisFinding[] }
+  | { status: "checked"; findings: WebMcpDiagnosisFinding[]; uncheckable?: string[] }
 
 const RULES = new Set<WebMcpDiagnosisRule>(["required", "type", "enum", "minimum", "maximum", "minLength", "maxLength"])
 
@@ -53,6 +53,7 @@ export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unkno
   if (schema === undefined) return { status: "unchecked", reason: "no-schema" }
   const fields = diagnosisFields(schema)
   const findings: WebMcpDiagnosisFinding[] = []
+  const uncheckable: string[] = []
   for (const name of diagnosisOpaqueRequired(schema, fields)) {
     if (!Object.hasOwn(input, name) || input[name] === undefined) {
       findings.push({ property: name, rule: "required", valueKind: "absent" })
@@ -64,6 +65,11 @@ export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unkno
       continue
     }
     const value = input[field.name]
+    // Receipt placeholders are not the original value and cannot establish a schema failure.
+    if (/\[redacted\]|<fill in>|…/.test(JSON.stringify(value) ?? "")) {
+      uncheckable.push(field.name)
+      continue
+    }
     const valueKind = webMcpValueKind(value)
     if (!typeOk(field, value)) {
       findings.push({ property: field.name, rule: "type", valueKind, expected: expectedType(field) })
@@ -77,7 +83,7 @@ export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unkno
   if (findings.length === 0 && fields.length === 0 && !emptyObjectSchema(schema)) {
     return { status: "unchecked", reason: "unsupported-schema" }
   }
-  return { status: "checked", findings }
+  return { status: "checked", findings, ...(uncheckable.length ? { uncheckable } : {}) }
 }
 
 function emptyObjectSchema(schema: unknown): boolean {

@@ -2,6 +2,7 @@ import { settingsDict } from "./en.settings"
 import nativeDict from "../../../../../../shared/native.en.json"
 
 export const dict = {
+  "webmcp.tools.staleForm": "This form is stale because the page or tool changed. Reopen the tool and review the input before trying again.",
   ...settingsDict,
   ...nativeDict,
   "webmcp.pages.fullOtherWindows": "Other AX Code windows hold pages in the full browser pool. Open Pages and focus an owner window below. Close an unneeded owner window, or free a page using its Pages controls, then return here and reopen the browser.",
@@ -2688,8 +2689,8 @@ export const dict = {
   "webmcp.browser.callStopped": "Call {call}: stopped. Changes already made on the page stay.",
   "webmcp.browser.callStillFinishing": "Call {call}: stop requested, still finishing. Changes already made on the page stay.",
   "webmcp.browser.stillFinishing": "Stop requested for {count} call(s), still finishing. Changes already made on the page stay.",
-  "webmcp.browser.stoppedCall": "Stopped 1 agent call. Changes it already made on the page stay.",
-  "webmcp.browser.stoppedCalls": "Stopped {count} agent calls. Changes they already made on the page stay.",
+  "webmcp.browser.stoppedCall": "Stopped 1 call. Changes it already made on the page stay.",
+  "webmcp.browser.stoppedCalls": "Stopped {count} calls. Changes they already made on the page stay.",
   "webmcp.actions.resume": "Resume agent access",
   "webmcp.detail.unsafePort": "The browser blocked an unsafe port (ERR_UNSAFE_PORT); use a supported port in the address.",
   "webmcp.detail.nameNotResolved": "The host could not be found (ERR_NAME_NOT_RESOLVED); check the address.",

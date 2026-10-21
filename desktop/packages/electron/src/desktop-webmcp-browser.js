@@ -67,6 +67,7 @@ function projectToolCatalog(tools, kinds = new Map()) {
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),
+      definitionDigest: definitionDigest(tool),
     }
     const size = byteSize(entry)
     if (bytes + size > CATALOG_MAX_BYTES) {
@@ -123,6 +124,16 @@ function createDesktopWebMcpBrowser({
   }
   // A project/session owns one live view; opaque IDs remain the only renderer handle.
   const views = new Map()
+  // Cross-window focus is permitted only for an owner disclosed to this sender.
+  // Bind to the entry object so closing/recreating a view cannot inherit authority.
+  const focusTargets = new WeakMap()
+  function discloseOwner(sender, target) {
+    const targets = focusTargets.get(sender) ?? new Set()
+    if (targets.size >= 16) targets.delete(targets.values().next().value)
+    targets.add(target)
+    focusTargets.set(sender, targets)
+    return target.id
+  }
   // Unloaded addresses live only in this process. No page, provider, or tool reference survives.
   const unloaded = new Map()
   const unloadedOwners = new Map()
@@ -464,7 +475,7 @@ function createDesktopWebMcpBrowser({
         entry.loadAborts.add(abort)
         timer = setTimeout(() => {
           stop()
-          reject(new Error("Navigation timed out"))
+          reject(Object.assign(new Error("Navigation timed out"), { reason: "timeout" }))
         }, loadTimeoutMs)
         timer.unref?.()
         contents.loadURL(url).then(resolve, reject)
@@ -500,7 +511,7 @@ function createDesktopWebMcpBrowser({
       // http only on loopback, no credentials); user-driven pane navigation keeps
       // the wider allowedUrl gate.
       if (typeof request.url !== "string" || !agentOrigin(request.url))
-        throw new Error("Only ordinary web page URLs can be opened")
+        throw Object.assign(new Error("Only ordinary web page URLs can be opened"), { reason: "invalid-input" })
       const before = entry.adapter.generation
       await loadPage(entry, request.url, controller.signal)
       if (controller.signal.aborted) return
@@ -521,11 +532,12 @@ function createDesktopWebMcpBrowser({
         status: "Completed",
         snapshot,
       })
-    } catch {
+    } catch (error) {
       await reply({
         requestID: request.requestID,
         generation: entry.adapter.snapshot().generation,
         status: "Error",
+        output: { reason: ["invalid-input", "timeout"].includes(error?.reason) ? error.reason : "native-failure" },
       })
     } finally {
       signal.removeEventListener("abort", abort)
@@ -729,11 +741,13 @@ function createDesktopWebMcpBrowser({
     const key = viewKey(args.directory, args.sessionID)
     const existing = views.get(key)
     if (existing) {
-      if (existing.sender !== sender) return { error: "owned-by-another-window", ownerId: existing.id }
+      if (existing.sender !== sender)
+        return { error: "owned-by-another-window", ownerId: discloseOwner(sender, existing) }
       return status(existing)
     }
     const remembered = unloaded.get(key)
-    if (remembered && remembered.sender !== sender) return { error: "owned-by-another-window", ownerId: remembered.id }
+    if (remembered && remembered.sender !== sender)
+      return { error: "owned-by-another-window", ownerId: discloseOwner(sender, remembered) }
     if (views.size >= maxLiveViews) {
       const candidate = [...views.values()]
         .filter((entry) => entry.sender === sender && entry.ready && !visible(entry) && idle(entry))
@@ -1017,6 +1031,8 @@ function createDesktopWebMcpBrowser({
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
       const target = [...views.values(), ...unloaded.values()].find((entry) => entry.id === args.id)
       if (!target || target.owner.isDestroyed()) throw new Error("The browser owner window is unavailable")
+      if (target.sender !== sender && !focusTargets.get(sender)?.has(target))
+        throw new Error("This browser belongs to another window")
       if (target.owner.isMinimized()) target.owner.restore()
       target.owner.show()
       target.owner.focus()
@@ -1032,7 +1048,7 @@ function createDesktopWebMcpBrowser({
         ]
           .map((owner) => {
             const pages = [...views.values()].filter((entry) => entry.owner === owner && entry.ready)
-            return { id: pages[0]?.id, pageCount: pages.length }
+            return { id: pages[0] ? discloseOwner(sender, pages[0]) : undefined, pageCount: pages.length }
           })
           .filter((owner) => owner.id),
         views: [
@@ -1199,24 +1215,32 @@ function createDesktopWebMcpBrowser({
       assertViewAlive(entry)
       const snapshot = entry.adapter.snapshot()
       const tool = snapshot.tools.find((candidate) => candidate.name === args.toolName)
-      if (!snapshot.origin) return { ok: false, outcome: "failed", reason: "no-page" }
-      if (typeof args.toolName !== "string" || !tool) {
-        return { ok: false, outcome: "failed", reason: "tool-not-found" }
-      }
+      if (
+        !snapshot.origin ||
+        !args.generation ||
+        !args.definitionDigest ||
+        args.origin !== snapshot.origin ||
+        args.generation !== snapshot.generation ||
+        !tool ||
+        args.definitionDigest !== definitionDigest(tool)
+      )
+        return { ok: false, outcome: "stale-form", reason: "page-changed" }
       try {
         const result = await entry.adapter.execute({
           operation: "invoke",
           requestID: randomUUID(),
-          generation: snapshot.generation,
-          origin: snapshot.origin,
+          generation: args.generation,
+          origin: args.origin,
           frameId: snapshot.frameId,
           toolName: tool.name,
-          digest: definitionDigest(tool),
+          digest: args.definitionDigest,
           input: args.input,
           deadline: Date.now() + 30000,
         })
         return manualToolResult(result)
       } catch (error) {
+        if (error?.outcome === "failed" && ["page-changed", "definition-changed"].includes(error.reason))
+          return { ok: false, outcome: "stale-form", reason: error.reason }
         return manualToolFailure(error)
       }
     }

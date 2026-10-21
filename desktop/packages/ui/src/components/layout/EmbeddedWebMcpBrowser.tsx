@@ -609,9 +609,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           viewKey={key}
           sessionID={sessionID}
           directory={directory}
-          tryTool={(toolName, input) =>
+          tryTool={(toolName, input, binding) =>
             invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
               action: "tryTool",
+              ...binding,
               id: browserId,
               toolName,
               input,

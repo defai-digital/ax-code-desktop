@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Vous avez le contr\u00f4le de la page. Les appels de l\u2019agent attendent que vous le repreniez.",
   "webmcp.browser.waitingForResume": "Appel de l\u2019agent en attente de votre reprise.",
   "webmcp.browser.waitingForPage": "Appel de l\u2019agent en attente que cette page soit visible.",
-  "webmcp.browser.stoppedCall": "1 appel d\u2019agent arr\u00eat\u00e9. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent.",
-  "webmcp.browser.stoppedCalls": "{count} appels d\u2019agent arr\u00eat\u00e9s. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent.",
+  "webmcp.browser.stoppedCall": "1 appel arr\u00eat\u00e9. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent en place.",
+  "webmcp.browser.stoppedCalls": "{count} appels arr\u00eat\u00e9s. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent en place.",
   "webmcp.pages.title": "Pages ({count})",
   "webmcp.pages.fullLabel": "Pool de navigateurs plein",
   "webmcp.pages.list": "Pages maintenues par cette fen\u00eatre",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "En attente de votre approbation. V\u00e9rifiez-la",
   "sessionGrid.moveSession": "D\u00e9placer la session : {title}",
   "sessionGrid.moved": "{title} d\u00e9plac\u00e9 vers le volet {count}",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "La d\u00e9finition actuelle de l'outil de la page peut diff\u00e9rer de celle demand\u00e9e."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "La d\u00e9finition actuelle de l'outil de la page peut diff\u00e9rer de celle demand\u00e9e.",
+  "webmcp.tools.staleForm": "Ce formulaire est obsol\u00e8te car la page ou l\u2019outil de page a chang\u00e9. Rouvrez l\u2019outil et v\u00e9rifiez les entr\u00e9es avant de r\u00e9essayer."
 }

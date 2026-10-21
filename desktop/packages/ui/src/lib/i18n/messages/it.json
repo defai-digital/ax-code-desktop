@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Hai il controllo della pagina. Le chiamate dell\u2019agente attendono che tu lo riattivi.",
   "webmcp.browser.waitingForResume": "Chiamata dell\u2019agente in attesa che tu la riattivi.",
   "webmcp.browser.waitingForPage": "Chiamata dell\u2019agente in attesa che questa pagina sia visibile.",
-  "webmcp.browser.stoppedCall": "1 chiamata dell\u2019agente interrotta. Le modifiche gi\u00e0 apportate alla pagina rimangono.",
-  "webmcp.browser.stoppedCalls": "{count} chiamate dell\u2019agente interrotte. Le modifiche gi\u00e0 apportate alla pagina rimangono.",
+  "webmcp.browser.stoppedCall": "1 chiamata interrotta. Le modifiche gi\u00e0 apportate alla pagina rimangono.",
+  "webmcp.browser.stoppedCalls": "{count} chiamate interrotte. Le modifiche gi\u00e0 apportate alla pagina rimangono.",
   "webmcp.pages.title": "Pagine ({count})",
   "webmcp.pages.fullLabel": "Pool browser pieno",
   "webmcp.pages.list": "Pagine mantenute da questa finestra",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "In attesa della tua approvazione. Controllala",
   "sessionGrid.moveSession": "Sposta sessione: {title}",
   "sessionGrid.moved": "{title} spostato nel riquadro {count}",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "La definizione corrente dello strumento della pagina potrebbe differire da quella richiesta."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "La definizione corrente dello strumento della pagina potrebbe differire da quella richiesta.",
+  "webmcp.tools.staleForm": "Questo modulo \u00e8 obsoleto perch\u00e9 la pagina o lo strumento di pagina \u00e8 cambiato. Riapri lo strumento e controlla l'input prima di riprovare."
 }
