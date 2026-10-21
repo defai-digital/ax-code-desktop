@@ -72,3 +72,7 @@ WX-04. The definition of done (every step 9, none below 8) is not met.
 - Merged: WX-07 call strip (`56abfb59`), W2 journey and structured-error fix (`e09d0209`), WX-17 builder CLI (`313a7c70`),
   WX-02/WX-04 inspectable tools and registration truth (`2df77ae8`). WX-15 is being merged with main in its worktree.
 - Rubric rule (PRD section 3, revised by the user): a step passes with 8 or more from two of the three judges.
+- WX-15 steps 1 to 6 merged (`920e1d1b`): reviews by deepseek-flash and Kimi K3 (no blocking issue; all findings fixed with
+  mutation probes, `reviews/round13/HANDOFF-v13-codex.md`). Gates on the merged tree: UI 4460, Electron 862, web 1499,
+  shared 240 tests; build; supervision-workspace, portfolio-identity, project-home and project-browser journeys and
+  `e2e:desktop` on macOS.
