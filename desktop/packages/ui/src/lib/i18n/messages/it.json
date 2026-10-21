@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Anteprima troncata; gli argomenti completi non sono disponibili per la diagnosi.",
   "chat.permissionCard.webmcp.unanswered": "Nessuna risposta registrata; la richiesta di approvazione non \u00e8 pi\u00f9 disponibile.",
   "diffView.landing.browserRecap.unknownAssociation": "Alcune chiamate registrate non possono essere associate alle definizioni degli strumenti conservate. Non si sa quali strumenti attuali non siano stati chiamati.",
-  "webmcp.tools.compare.unknownAgent": "Alcune chiamate registrate hanno associazioni di strumenti sconosciute. Una chiamata a questo strumento potrebbe essere tra queste."
+  "webmcp.tools.compare.unknownAgent": "Alcune chiamate registrate hanno associazioni di strumenti sconosciute. Una chiamata a questo strumento potrebbe essere tra queste.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "La definizione non è più disponibile; lo schema attuale non è stato utilizzato.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Rifiuto del runtime: {reason}",
+  "webmcp.tools.draftLimit": "Limite di conservazione della bozza raggiunto (128 campi, 65.536 caratteri per valore o input JSON). È possibile ripristinare solo la bozza entro tale limite."
 }

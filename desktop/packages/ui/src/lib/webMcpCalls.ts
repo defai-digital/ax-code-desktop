@@ -1,3 +1,5 @@
+import type { WebMcpApprovalReceipt } from "@/stores/useWebMcpApprovalOutcome"
+import { webMcpRuntimeRejections, type WebMcpRuntimeRejection } from "./webMcpDiagnosis"
 import { webMcpDisplayText } from "../../../../shared/webmcp-redaction.mjs"
 import { webMcpDefinitionForDigest, type WebMcpToolDefinition } from "./webMcpCatalog"
 import {
@@ -46,6 +48,7 @@ export interface WebMcpCall {
   inputKind: WebMcpInvokeInputKind
   /** Redacted arguments when they form a JSON object. Never taken from the model's own payload. */
   input: Record<string, unknown> | null
+  rejections?: WebMcpRuntimeRejection[]
 }
 
 /** The result a page tool returned, without the runtime's untrusted envelope, as a short filtered line. */
@@ -75,6 +78,7 @@ type PartLike = {
     input?: unknown
     metadata?: unknown
     output?: unknown
+    error?: unknown
     time?: { start?: unknown; end?: unknown }
   }
 }
@@ -111,6 +115,8 @@ export function collectWebMcpCalls(
   limit = 20,
   scanMessages = WEBMCP_CALL_SCAN_MESSAGES,
   definitions: readonly WebMcpToolDefinition[] = [],
+  receipts: ReadonlyMap<string, WebMcpApprovalReceipt> = new Map(),
+  sessionID = "",
 ): WebMcpCall[] {
   const calls: WebMcpCall[] = []
   const floor = Math.max(0, messages.length - scanMessages)
@@ -123,7 +129,8 @@ export function collectWebMcpCalls(
       if (part?.type !== "tool" || typeof part.tool !== "string" || !isWebMcpToolName(part.tool)) continue
       const state = part.state ?? {}
       const input = record(state.input)
-      const metadata = record(state.metadata)
+      const receipt = receipts.get(JSON.stringify([sessionID, part.callID]))
+      const metadata: Record<string, unknown> = { ...receipt, ...record(state.metadata) }
       const definitionDigest = readWebMcpDefinitionDigest(metadata)
       const definition = webMcpDefinitionForDigest(definitions, definitionDigest)
       // Runtime names are never used for joins or retained in the UI call projection.
@@ -149,6 +156,7 @@ export function collectWebMcpCalls(
               ? "failed"
               : status === "completed" ? "ok" : "running",
         failureReason: call.failureReason,
+        rejections: failed ? webMcpRuntimeRejections(state.metadata, state.output, state.error) : [],
         at: typeof state.time?.start === "number" ? state.time.start : null,
         messageId,
         partId: typeof part.id === "string" ? part.id : null,

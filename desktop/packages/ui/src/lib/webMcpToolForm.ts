@@ -161,8 +161,8 @@ export function draftFromRecordedInput(
   const form = toolForm(schema)
   const empty = { values: {} as Record<string, string>, sendEmpty: {} as Record<string, boolean>, json, jsonMode: true }
   if (form.kind !== "fields") return empty
-  const values: Record<string, string> = {}
-  const sendEmpty: Record<string, boolean> = {}
+  const values: Record<string, string> = Object.create(null)
+  const sendEmpty: Record<string, boolean> = Object.create(null)
   for (const [key, value] of Object.entries(input)) {
     const field = form.fields.find((item) => item.name === key)
     if (!field) return empty

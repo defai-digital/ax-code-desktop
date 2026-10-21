@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Visualiza\u00e7\u00e3o truncada; argumentos completos n\u00e3o est\u00e3o dispon\u00edveis para diagn\u00f3stico.",
   "chat.permissionCard.webmcp.unanswered": "Nenhuma resposta registrada; a solicita\u00e7\u00e3o de aprova\u00e7\u00e3o n\u00e3o est\u00e1 mais dispon\u00edvel.",
   "diffView.landing.browserRecap.unknownAssociation": "Algumas chamadas gravadas n\u00e3o podem ser associadas \u00e0s defini\u00e7\u00f5es de ferramentas retidas. Quais ferramentas atuais n\u00e3o foram chamadas \u00e9 desconhecido.",
-  "webmcp.tools.compare.unknownAgent": "Algumas chamadas gravadas t\u00eam associa\u00e7\u00f5es de ferramentas desconhecidas. Uma chamada para esta ferramenta pode estar entre elas."
+  "webmcp.tools.compare.unknownAgent": "Algumas chamadas gravadas t\u00eam associa\u00e7\u00f5es de ferramentas desconhecidas. Uma chamada para esta ferramenta pode estar entre elas.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "A definição não está mais disponível; o esquema atual não foi utilizado.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Rejeição do runtime: {reason}",
+  "webmcp.tools.draftLimit": "Limite de retenção do rascunho atingido (128 campos, 65.536 caracteres por valor ou entrada JSON). Apenas o rascunho dentro do limite pode ser restaurado."
 }

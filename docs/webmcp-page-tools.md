@@ -69,8 +69,10 @@ in the transcript. The agent's side shows the redacted arguments the transcript 
 definition digest and those digests differ, the panel says the runs used different definitions. A missing digest is not
 treated as a difference.
 
-**Schema check.** For your manual run and for the agent's call, the panel checks the input against the tool's current
-schema. It names the failing property, the rule (`required`, `type`, `enum`, `minimum`, `maximum`, `minLength`, or
+**Schema check.** For your manual run and for the agent's call, the panel checks the complete recorded input against
+the retained definition named by that call's digest. Display shortening never changes the values being checked. If the
+exact definition is missing, it says **Definition no longer available** and does not substitute the current schema.
+It names the failing property, the rule (`required`, `type`, `enum`, `minimum`, `maximum`, `minLength`, or
 `maxLength`), and the kind of value (`absent`, `null`, `string`, `number`, `integer`, `boolean`, `array`, or `object`).
 The check is advisory and never blocks **Try it**. It shows the definition digest the call ran against when that digest
 is known, and it says when that definition is not the one registered now. When the runtime did not send an arguments
@@ -306,6 +308,19 @@ Invoke approvals use the runtime's `desktopProvider`, `origin`, `operation`, `to
 `definitionDigest` and `inputPreview` metadata. The runtime masks sensitive keys and caps the UTF-8 preview at 2 KiB.
 Desktop filters it again and preserves the `… (N bytes, M not shown)` marker. A truncated preview is labelled as such and
 is not treated as complete JSON for schema diagnosis. A complete JSON object can be compared with a manual run.
+The runtime v7.28.2 sends these fields on permission metadata only. Desktop retains a redacted receipt keyed by session
+and `permission.tool.callID`, including after the approval is answered or removed, and joins it to completed calls.
+This memory-only cache holds at most 256 receipts, caps each preview at 65,536 characters, and never writes receipts to disk.
+Eviction or restart leaves an explicit evidence gap; Desktop never invents the missing input or definition.
+
+Runtime rejection details appear beside the advisory diagnosis in the transcript, comparison and recap. Structured
+`instancePath`, `path` or `field` errors name the property and use the same supported rule names as the schema check.
+Unknown reasons remain redacted text. These details describe the runtime or page response, not a new validation authority.
+
+The shared redactor also handles sensitive `[name, value]` pairs and `{name, value}` / `{key, value}` entries, including
+nested JSON text and checker reports. Manual drafts and explicit-empty flags retain every accepted property name,
+including `__proto__` and names longer than 256 characters. Drafts retain up to 128 fields and 65,536 characters per
+value or JSON input; a visible notice reports truncation, including after the panel is reopened.
 
 The approval card shows page hints and its full, filtered description only for a matching native definition digest.
 Expand the description to read the page's own claim (up to the 4096-character registration limit); it is not evidence of

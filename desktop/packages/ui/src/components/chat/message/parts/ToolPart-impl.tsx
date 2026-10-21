@@ -1,3 +1,9 @@
+import { useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { webMcpKnownDefinitions } from "@/lib/webMcpCatalog"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
+import { collectWebMcpCalls } from "@/lib/webMcpCalls"
+import { WebMcpCallDiagnosis } from "@/components/mcp/WebMcpCallDiagnosis"
 import { useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
@@ -2033,7 +2039,17 @@ class ToolPartErrorBoundary extends React.Component<
 const ToolPart: React.FC<ToolPartProps> = (props) => {
   const { t } = useI18n()
   const toolName = normalizeToolName(props.part.tool) || "tool"
-  const boundaryState = props.part.state as
+  const session = useSessionUIStore((state) => state.currentSessionId)
+  const directory = useDirectoryStore((state) => state.currentDirectory)
+  const sessionID = props.part.sessionID ?? session ?? ""
+  const webmcp = isWebMcpToolName(toolName)
+  const receipt = useWebMcpApprovalReceipts((state) => webmcp ? state.receipts.get(JSON.stringify([sessionID, props.part.callID])) : undefined)
+  const part = receipt ? { ...props.part, state: { ...props.part.state, metadata: { ...receipt, ...("metadata" in props.part.state ? props.part.state.metadata : {}) } } } as ToolPartProps["part"] : props.part
+  const view = useWebMcpBrowserStore((state) => webmcp ? (state.views[viewKeyFor(directory ?? "", sessionID)] ??
+    (state.order.length === 0 && state.sessionID === sessionID ? state : null)) : null)
+  const definitions = webMcpKnownDefinitions(view)
+  const call = isWebMcpToolName(toolName) ? collectWebMcpCalls([{ id: "part" }], () => [part], 1, 1, definitions)[0] : undefined
+  const boundaryState = part.state as
     | { input?: Record<string, unknown>; metadata?: Record<string, unknown> }
     | undefined
   const displayName = getToolMetadata(toolName, {
@@ -2048,7 +2064,8 @@ const ToolPart: React.FC<ToolPartProps> = (props) => {
       resetKey={props.part}
       toolName={toolName}
     >
-      <ToolPartContent {...props} />
+      <ToolPartContent {...props} part={part} />
+      {props.isExpanded && call ? <WebMcpCallDiagnosis call={call} definitions={definitions} /> : null}
     </ToolPartErrorBoundary>
   )
 }

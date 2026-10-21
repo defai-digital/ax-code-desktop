@@ -225,3 +225,21 @@ test("an unanswered approval remains an explicit transcript outcome", () => {
   expect(container.textContent).toContain("chat.permissionCard.webmcp.unanswered")
   useWebMcpApprovalOutcomes.setState({ calls: new Map() })
 })
+
+import { recordWebMcpApprovalReceipt, useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
+test("expanded transcript diagnoses a completed permission-only receipt and shows runtime property errors", () => {
+  const definition = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { count: { type: "integer" } } } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "ses_1", catalog: [definition] })
+  recordWebMcpApprovalReceipt("ses_1", { permission: "webmcp", tool: { callID: "call_1" }, metadata: {
+    definitionDigest: definition.definitionDigest, inputPreview: '{"count":"wrong","password":"PRIVATE"}',
+  } })
+  const { container } = renderPart("desktop_webmcp", { status: "error", input: { action: "invoke", toolName: "echo" },
+    metadata: { operation: "invoke", validationErrors: [{ instancePath: "/count", keyword: "type", message: "must be integer" }] }, error: "rejected" }, true)
+  expect(container.querySelector('[data-webmcp-diagnosis-property="count"]')?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
+  expect(container.querySelector('[data-webmcp-rejection-property="/count"]')?.getAttribute("data-webmcp-rejection-rule")).toBe("type")
+  expect(container.textContent).not.toContain("PRIVATE")
+  useWebMcpApprovalReceipts.setState({ receipts: new Map() })
+  useWebMcpBrowserStore.getState().resetSnapshot()
+})

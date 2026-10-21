@@ -1,3 +1,5 @@
+import { useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
+import { WebMcpCallDiagnosis } from "@/components/mcp/WebMcpCallDiagnosis"
 import { webMcpKnownDefinitions, webMcpToolIdentity } from "@/lib/webMcpCatalog"
 import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import { redactWebMcpText } from "../../../../../../shared/webmcp-redaction.mjs"
@@ -17,21 +19,7 @@ import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
 const RECAP_LIMIT = 50
 const RECAP_KINDS = new Set(["invoke", "act", "read", "navigate", "list"])
 
-type RecapCall = Pick<
-  WebMcpCall,
-  | "id"
-  | "title"
-  | "toolName"
-  | "invocationID"
-  | "operation"
-  | "outcome"
-  | "failureReason"
-  | "messageId"
-  | "partId"
-  | "durationMs"
-  | "resultPreview"
-  | "definitionDigest"
->
+type RecapCall = WebMcpCall
 
 /** A short digest label; full digests stay in the tooltip. */
 const shortDigest = (digest: string) => digest.slice(0, 8)
@@ -43,6 +31,7 @@ const shortDigest = (digest: string) => digest.slice(0, 8)
  */
 export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directory: string; sessionId: string }) {
   const { t } = useI18n()
+  const receipts = useWebMcpApprovalReceipts((state) => state.receipts)
   const messages = useSessionMessages(sessionId, directory)
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
   // Tools of the page this session's browser shows; another session's page must never be read as "not called" here.
@@ -63,26 +52,13 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
           Infinity,
           Infinity,
           definitions,
+          receipts,
+          sessionId,
         )
-        const recap: RecapCall[] = calls.map(
-          ({ id, title, toolName, operation, outcome, failureReason, messageId, partId, durationMs, resultPreview, definitionDigest, invocationID }) => ({
-          messageId,
-          partId,
-          durationMs,
-          resultPreview,
-          definitionDigest,
-          invocationID,
-          id,
-          title,
-          toolName,
-          operation,
-          outcome,
-          failureReason,
-          }),
-        )
+        const recap = calls
         return JSON.stringify(recap)
       },
-      [messages, definitions],
+      [messages, definitions, receipts, sessionId],
     ) as never,
     directory,
   ) as unknown as string
@@ -119,6 +95,9 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
           if (call.invocationID && currentDigest.has(call.invocationID) && currentDigest.get(call.invocationID) !== call.definitionDigest)
             parts.push(t("diffView.landing.browserRecap.definitionChanged"))
         }
+        for (const rejection of call.rejections ?? []) parts.push(t("webmcp.tools.diagnosis.runtimeRejection", {
+          reason: [rejection.property, rejection.rule, rejection.text].filter(Boolean).join(" · "),
+        }))
         if (call.resultPreview) parts.push(call.resultPreview)
         return parts.join(" · ")
       })
@@ -201,6 +180,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
                     {t("webmcp.calls.result", { preview: call.resultPreview })}
                   </span>
                 ) : null}
+                <WebMcpCallDiagnosis call={call} definitions={definitions} />
               </li>
             )
           })}

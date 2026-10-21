@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Xem tr\u01b0\u1edbc b\u1ecb c\u1eaft ng\u1eafn; c\u00e1c \u0111\u1ed1i s\u1ed1 \u0111\u1ea7y \u0111\u1ee7 kh\u00f4ng kh\u1ea3 d\u1ee5ng \u0111\u1ec3 ch\u1ea9n \u0111o\u00e1n.",
   "chat.permissionCard.webmcp.unanswered": "Kh\u00f4ng c\u00f3 c\u00e2u tr\u1ea3 l\u1eddi n\u00e0o \u0111\u01b0\u1ee3c ghi nh\u1eadn; y\u00eau c\u1ea7u ph\u00ea duy\u1ec7t kh\u00f4ng c\u00f2n kh\u1ea3 d\u1ee5ng.",
   "diffView.landing.browserRecap.unknownAssociation": "M\u1ed9t s\u1ed1 cu\u1ed9c g\u1ecdi \u0111\u00e3 ghi kh\u00f4ng th\u1ec3 li\u00ean k\u1ebft v\u1edbi c\u00e1c \u0111\u1ecbnh ngh\u0129a c\u00f4ng c\u1ee5 \u0111\u01b0\u1ee3c gi\u1eef l\u1ea1i. Kh\u00f4ng bi\u1ebft c\u00f4ng c\u1ee5 hi\u1ec7n t\u1ea1i n\u00e0o ch\u01b0a \u0111\u01b0\u1ee3c g\u1ecdi.",
-  "webmcp.tools.compare.unknownAgent": "M\u1ed9t s\u1ed1 cu\u1ed9c g\u1ecdi \u0111\u00e3 ghi c\u00f3 li\u00ean k\u1ebft c\u00f4ng c\u1ee5 kh\u00f4ng x\u00e1c \u0111\u1ecbnh. Cu\u1ed9c g\u1ecdi \u0111\u1ebfn c\u00f4ng c\u1ee5 n\u00e0y c\u00f3 th\u1ec3 n\u1eb1m trong s\u1ed1 \u0111\u00f3."
+  "webmcp.tools.compare.unknownAgent": "M\u1ed9t s\u1ed1 cu\u1ed9c g\u1ecdi \u0111\u00e3 ghi c\u00f3 li\u00ean k\u1ebft c\u00f4ng c\u1ee5 kh\u00f4ng x\u00e1c \u0111\u1ecbnh. Cu\u1ed9c g\u1ecdi \u0111\u1ebfn c\u00f4ng c\u1ee5 n\u00e0y c\u00f3 th\u1ec3 n\u1eb1m trong s\u1ed1 \u0111\u00f3.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "Định nghĩa không còn khả dụng; lược đồ hiện tại không được sử dụng.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Môi trường chạy từ chối: {reason}",
+  "webmcp.tools.draftLimit": "Đã đạt giới hạn lưu bản nháp (128 trường, 65.536 ký tự cho mỗi giá trị hoặc đầu vào JSON). Chỉ có thể khôi phục bản nháp trong giới hạn."
 }

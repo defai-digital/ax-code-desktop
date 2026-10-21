@@ -1,3 +1,4 @@
+import { DiagnosisList, WebMcpRuntimeRejections } from "./WebMcpCallDiagnosis"
 import { propertyDiff } from "@/lib/webMcpPropertyDiff"
 import {
   webMcpSchemaLooksSensitive,
@@ -5,7 +6,6 @@ import {
   redactWebMcpReport,
   webMcpDisplayText as redactWebMcpText,
   webMcpDisplayDescription,
-  webMcpDisplaySchema,
 } from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
@@ -18,12 +18,11 @@ import type { I18nKey, I18nParams } from "@/lib/i18n/store"
 import type { WebMcpCall } from "@/lib/webMcpCalls"
 import {
   diagnoseWebMcpInput,
-  webMcpDefinitionChanged,
+  agentDiagnosis,
+  webMcpRuntimeRejections,
   webMcpDefinitionsDiffer,
   webMcpRegressionExport,
   webMcpManualRegressionExport,
-  type WebMcpDiagnosis,
-  type WebMcpDiagnosisFinding,
 } from "@/lib/webMcpDiagnosis"
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
 import { draftFromRecordedInput, toolFieldDisplayValue, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
@@ -36,6 +35,7 @@ import {
 } from "@/lib/toolHelpers"
 import {
   useWebMcpBrowserStore,
+  webMcpDraftTruncated,
   type WebMcpCatalogRejectionReason,
   type WebMcpJournalEntry,
   type WebMcpRegistrationEvent,
@@ -78,6 +78,7 @@ function storedDraft(name: string, digest: string, key?: string) {
       sendEmpty: {} as Record<string, boolean>,
       json: "{}",
       jsonMode: false,
+      truncated: false,
     }
   }
   return draft
@@ -189,97 +190,6 @@ function CopyExport({
   )
 }
 
-function DiagnosisList({
-  diagnosis,
-  digest,
-  currentDigest,
-  source,
-}: {
-  diagnosis: WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" | "truncated" }
-  digest: string | null
-  currentDigest: string
-  source: "manual" | "agent"
-}) {
-  const { t } = useI18n()
-  const changed = webMcpDefinitionChanged(digest, currentDigest)
-  const findingText = (finding: WebMcpDiagnosisFinding) =>
-    t("webmcp.tools.diagnosis.finding", {
-      property: redactWebMcpText(finding.property),
-      rule: finding.expected ? `${finding.rule}:${finding.expected}` : finding.rule,
-      kind: finding.valueKind,
-    })
-  return (
-    <div className="space-y-1" data-webmcp-diagnosis={source}>
-      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.title")}</p>
-      {diagnosis.status === "checked" && diagnosis.uncheckable?.length ? (
-        <p className="typography-micro" data-webmcp-diagnosis-gap="redacted">
-          {t("webmcp.tools.diagnosis.redacted")}
-        </p>
-      ) : null}
-      {diagnosis.status === "unavailable" ? (
-        <p className="typography-micro" data-webmcp-diagnosis-gap={diagnosis.reason}>
-          {t(
-            diagnosis.reason === "truncated" ? "webmcp.tools.diagnosis.truncated" : diagnosis.reason === "no-arguments"
-              ? "webmcp.tools.diagnosis.noArguments"
-              : diagnosis.reason === "redacted"
-                ? "webmcp.tools.diagnosis.redacted"
-                : "webmcp.tools.diagnosis.unparsed",
-          )}
-        </p>
-      ) : diagnosis.status === "unchecked" ? (
-        <p className="typography-micro text-muted-foreground">
-          {t(
-            diagnosis.reason === "no-schema" ? "webmcp.tools.diagnosis.noSchema" : "webmcp.tools.diagnosis.unsupported",
-          )}
-        </p>
-      ) : diagnosis.findings.length === 0 ? (
-        diagnosis.uncheckable?.length ? null : (
-          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.none")}</p>
-        )
-      ) : (
-        <ul className="space-y-0.5">
-          {diagnosis.findings.map((finding) => (
-            <li
-              key={`${finding.property}:${finding.rule}:${finding.valueKind}`}
-              data-webmcp-diagnosis-property={redactWebMcpText(finding.property)}
-              data-webmcp-diagnosis-rule={finding.rule}
-              data-webmcp-diagnosis-kind={finding.valueKind}
-              className="typography-micro"
-            >
-              {findingText(finding)}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="typography-micro text-muted-foreground">
-        {digest
-          ? t("webmcp.tools.diagnosis.digest", { digest: shortDigest(digest) })
-          : t("webmcp.tools.diagnosis.digestUnknown")}
-      </p>
-      {changed && digest ? (
-        <p className="typography-micro" data-webmcp-definition-changed={source}>
-          {t("webmcp.tools.diagnosis.changed", {
-            digest: shortDigest(digest),
-            current: shortDigest(currentDigest),
-          })}
-        </p>
-      ) : null}
-      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.advisory")}</p>
-    </div>
-  )
-}
-
-function agentDiagnosis(
-  call: WebMcpCall,
-  schema: unknown,
-): WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" | "truncated" } {
-  if (call.inputKind === "truncated") return { status: "unavailable", reason: "truncated" }
-  if (call.inputKind === "redacted") return { status: "unavailable", reason: "redacted" }
-  if (call.inputKind === "unparsed") return { status: "unavailable", reason: "unparsed" }
-  if (call.inputKind === "missing" || !call.input) return { status: "unavailable", reason: "no-arguments" }
-  return diagnoseWebMcpInput(schema, webMcpDisplaySchema(call.input) as Record<string, unknown>)
-}
-
 /** The page outcome a regression snippet should assert for one transcript call. */
 function recordedPageOutcome(call: WebMcpCall): string {
   if (call.outcome === "ok") return "completed"
@@ -310,10 +220,11 @@ function ToolCompare({
 }) {
   const { t } = useI18n()
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
-  const historical = [...registration].reverse().flatMap((event) => [event.definition, event.previousDefinition])
-    .find((definition) => definition?.invocationID === tool.invocationID && definition?.definitionDigest === agentCall?.definitionDigest)
-  const agentDefinition = tool.definitionDigest === agentCall?.definitionDigest ? tool : (historical ?? tool)
-  const agentSchema = agentDefinition.inputSchema
+  const definitions = [tool, ...registration.flatMap((event) => [event.definition, event.previousDefinition])]
+  const definitionFor = (digest: string | null | undefined) => digest ? definitions.find((definition) =>
+    definition?.invocationID === tool.invocationID && definition?.definitionDigest === digest) : undefined
+  const agentDefinition = definitionFor(agentCall?.definitionDigest)
+  const manualDefinition = definitionFor(journalEntry?.definitionDigest)
   const digest = tool.definitionDigest ?? ""
   const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
   if (!journalEntry && !agentCall && !associationUnknown) return null
@@ -336,11 +247,12 @@ function ToolCompare({
                 {redactWebMcpText(journalEntry.text)}
               </pre>
               <DiagnosisList
-                diagnosis={diagnoseWebMcpInput(tool.inputSchema, webMcpDisplaySchema(journalEntry.input) as Record<string, unknown>)}
+                diagnosis={manualDefinition ? diagnoseWebMcpInput(manualDefinition.executionSchema ?? manualDefinition.inputSchema, journalEntry.input) : { status: "unavailable", reason: "definition-unavailable" }}
                 digest={journalEntry.definitionDigest ?? null}
                 currentDigest={digest}
                 source="manual"
               />
+              <WebMcpRuntimeRejections rejections={journalEntry.rejections} />
               <CopyExport
                 tool={tool.name}
                 input={journalEntry.input}
@@ -365,11 +277,12 @@ function ToolCompare({
                 {agentCall.argumentsText ?? (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
               </pre>
               <DiagnosisList
-                diagnosis={agentDiagnosis(agentCall, agentSchema)}
+                diagnosis={agentDiagnosis(agentCall, agentDefinition)}
                 digest={agentCall.definitionDigest}
                 currentDigest={digest}
                 source="agent"
               />
+              <WebMcpRuntimeRejections rejections={agentCall.rejections} />
               <CopyExport
                 tool={agentCall.toolName ?? tool.name}
                 input={agentCall.input}
@@ -575,6 +488,7 @@ function ToolItem({
   const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>(
     () => storedDraft(identity, digest, viewKey).sendEmpty,
   )
+  const [draftWasTruncated] = React.useState(() => storedDraft(identity, digest, viewKey).truncated === true)
   const [jsonMode, setJsonMode] = React.useState(() => storedDraft(identity, digest, viewKey).jsonMode)
   const [warnings, setWarnings] = React.useState<{ field: string; constraint: string }[]>([])
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
@@ -590,8 +504,8 @@ function ToolItem({
   const appliedReplay = React.useRef<number | null>(null)
 
   React.useEffect(() => {
-    saveToolDraft(identity, { digest, values, sendEmpty, json, jsonMode }, viewKey)
-  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, identity, values, viewKey])
+    saveToolDraft(identity, { digest, values, sendEmpty, json, jsonMode, truncated: draftWasTruncated }, viewKey)
+  }, [digest, draftWasTruncated, json, jsonMode, saveToolDraft, sendEmpty, identity, values, viewKey])
 
   React.useEffect(() => {
     if (!replay) {
@@ -683,7 +597,7 @@ function ToolItem({
     const started = performance.now()
     const state = useWebMcpBrowserStore.getState()
     const source = viewKey ? state.views[viewKey] : state
-    const remember = (next: { outcome: string; text: string }) => {
+    const remember = (next: { outcome: string; text: string; rejections?: WebMcpJournalEntry["rejections"] }) => {
       const currentState = useWebMcpBrowserStore.getState()
       const current = viewKey ? currentState.views[viewKey] : currentState
       if (
@@ -702,6 +616,7 @@ function ToolItem({
           input,
           outcome: next.outcome,
           text: next.text,
+          rejections: next.rejections,
           durationMs: performance.now() - started,
           digest,
           definitionDigest: binding.definitionDigest ?? undefined,
@@ -728,7 +643,8 @@ function ToolItem({
             : outcome === "uncertain"
               ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)}`
               : t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)
-      remember({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
+      remember({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n"),
+        rejections: outcome !== "completed" ? webMcpRuntimeRejections(reply.reason, reply.output) : [] })
     } catch {
       // IPC can disappear after the invocation was sent. Never infer failure or offer an automatic retry.
       remember({
@@ -770,6 +686,8 @@ function ToolItem({
       </button>
       {open ? (
         <div className="space-y-2 border-t border-border/60 px-2 py-2">
+          {draftWasTruncated || webMcpDraftTruncated({ digest, values, sendEmpty, json, jsonMode }) ?
+            <p role="status" data-webmcp-draft-limit>{t("webmcp.tools.draftLimit")}</p> : null}
           {tool.description ? (
             <p
               data-webmcp-description=""

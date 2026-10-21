@@ -380,3 +380,19 @@ test("run and journal storage filter secrets before truncation without changing 
     tool: "echo", text: "[redacted]", input: { password: "<fill in>", message: "<fill in>" },
   })
 })
+
+test("draft retention preserves every accepted field name and explicit-empty flag", () => {
+  const store = useWebMcpBrowserStore.getState()
+  const keys = ["__proto__", "constructor", "x".repeat(257), "y".repeat(5000)]
+  store.saveToolDraft("echo", { digest: "abcdabcd", values: Object.fromEntries(keys.map(key => [key, "draft"])), sendEmpty: Object.fromEntries(keys.map(key => [key, true])), json: "{}", jsonMode: false })
+  const saved = useWebMcpBrowserStore.getState().toolDrafts.echo
+  for (const key of keys) {
+    expect(Object.hasOwn(saved.values, key)).toBe(true)
+    expect(saved.values[key]).toBe("draft")
+    expect(Object.hasOwn(saved.sendEmpty, key)).toBe(true)
+    expect(saved.sendEmpty[key]).toBe(true)
+  }
+  expect(saved.truncated).toBe(false)
+  store.saveToolDraft("echo", { ...saved, json: "x".repeat(65537) })
+  expect(useWebMcpBrowserStore.getState().toolDrafts.echo.truncated).toBe(true)
+})

@@ -773,8 +773,8 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   ])
   expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe(transcript)
   const finding = view.container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property='b']")
-  expect(finding?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
-  expect(finding?.getAttribute("data-webmcp-diagnosis-kind")).toBe("string")
+  expect(finding).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis-gap='definition-unavailable']")).not.toBeNull()
   expect(view.container.querySelector("[data-webmcp-definition-diff]")).toBeNull()
   const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
   fireEvent.change(a, { target: { value: "2" } })
@@ -934,7 +934,7 @@ test("nested JSON credentials stay out of rendered manual results and copied exp
 test("redacted receipt values are uncheckable while ordinary properties still get diagnosis", () => {
   const inputSchema = { type: "object", properties: { password: { type: "string", minLength: 12 }, count: { type: "integer" } } }
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema })] })
-  const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ invocationID: nativeWebMcpTool({ name: "echo", description: "" }).invocationID, toolName: "echo", input: { password: "[redacted]", count: "bad" } })]} />)
+  const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ invocationID: nativeWebMcpTool({ name: "echo", description: "" }).invocationID, toolName: "echo", definitionDigest: nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema }).definitionDigest!, input: { password: "[redacted]", count: "bad" } })]} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
   expect(view.container.querySelector("[data-webmcp-diagnosis-property='password']")).toBeNull()
@@ -1414,4 +1414,61 @@ test("comparison reports unknown association after registration history evicts a
   fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
   expect(container.querySelector('[data-webmcp-compare-agent]')?.textContent).toContain("webmcp.tools.compare.unknownAgent")
   expect(container.textContent).not.toContain("webmcp.tools.compare.noAgent")
+})
+
+test.each(["maxLength", "minLength"])("manual and agent diagnosis use complete values for %s", async (rule) => {
+  const schema = { type: "object", properties: { text: { type: "string", [rule]: 4500 } } }
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: schema })
+  const input = { text: "x".repeat(5000) }
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn(async () => ({ ok: true, output: "done" }))}
+    agentCalls={[pageCall({ invocationID: tool.invocationID, definitionDigest: tool.definitionDigest!, toolName: tool.name, input, inputKind: "preview" })]} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
+  fireEvent.change(container.querySelector("input")!, { target: { value: input.text } })
+  await runTool()
+  if (rule === "maxLength") await act(async () => fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.sendAnyway" })))
+  for (const source of ["manual", "agent"]) {
+    const node = container.querySelector(`[data-webmcp-diagnosis="${source}"]`)!
+    expect(node).not.toBeNull()
+    expect(node.querySelector(`[data-webmcp-diagnosis-rule="${rule}"]`) !== null).toBe(rule === "maxLength")
+  }
+})
+test.each(["__proto__", "x".repeat(257)])("draft and explicit empty survive a panel remount: %s", (name) => {
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { [name]: { type: "string" } } } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const mount = () => {
+    const view = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+    fireEvent.click(view.container.querySelector("[data-webmcp-tool] button")!)
+    return view
+  }
+  const first = mount()
+  fireEvent.change(first.container.querySelector("input:not([type=checkbox])")!, { target: { value: "kept draft" } })
+  fireEvent.click(first.container.querySelector("input[type=checkbox]")!)
+  cleanup()
+  const second = mount()
+  expect(second.container.querySelector<HTMLInputElement>("input:not([type=checkbox])")!.value).toBe("kept draft")
+  expect(second.container.querySelector<HTMLInputElement>("input[type=checkbox]")!.checked).toBe(true)
+})
+test("draft truncation is visible after restoration", () => {
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { text: { type: "string" } } } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const projected = useWebMcpBrowserStore.getState().catalog[0]
+  store.saveToolDraft(webMcpToolIdentity(projected)!, { digest: projected.digest!, values: { text: "x".repeat(65537) }, sendEmpty: {}, json: "{}", jsonMode: false })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
+  expect(container.querySelector("[data-webmcp-draft-limit]")?.textContent).toContain("webmcp.tools.draftLimit")
+})
+
+test("comparison retains manual runtime validation paths and redacted unknown reasons", async () => {
+  const { container } = openTool({ type: "object", properties: { title: { type: "string" } } }, vi.fn(async () => ({
+    ok: false, reason: "Unknown rejection password=PRIVATE", output: { error: { field: "title", constraint: "minLength: 1", message: "must not be blank" } },
+  })))
+  await runTool()
+  expect(container.querySelector('[data-webmcp-compare-manual] [data-webmcp-rejection-property="title"]')?.getAttribute("data-webmcp-rejection-rule")).toBe("minLength")
+  expect(container.querySelector('[data-webmcp-runtime-rejections]')?.textContent).toContain("[redacted]")
+  expect(container.textContent).not.toContain("PRIVATE")
 })

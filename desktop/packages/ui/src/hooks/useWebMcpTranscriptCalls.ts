@@ -1,3 +1,4 @@
+import { useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
 import { webMcpKnownDefinitions } from "@/lib/webMcpCatalog"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
@@ -11,6 +12,7 @@ import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
  * Returns an empty list when no session is selected. Arguments stay the redacted transcript text.
  */
 export function useWebMcpTranscriptCalls(sessionID: string | null, directory: string): WebMcpCall[] {
+  const receipts = useWebMcpApprovalReceipts((state) => state.receipts)
   const view = useWebMcpBrowserStore((state) =>
     state.views[viewKeyFor(directory, sessionID)] ??
     (state.order.length === 0 && state.sessionID === sessionID ? state : null))
@@ -20,9 +22,9 @@ export function useWebMcpTranscriptCalls(sessionID: string | null, directory: st
     React.useCallback(
       (state: { part: Map<string, unknown[]> }) =>
         sessionID
-          ? JSON.stringify(collectWebMcpCalls(messages as never, (id) => state.part.get(id) as never, 20, undefined, definitions))
+          ? JSON.stringify(collectWebMcpCalls(messages as never, (id) => state.part.get(id) as never, 20, undefined, definitions, receipts, sessionID))
           : "[]",
-      [messages, sessionID, definitions],
+      [messages, sessionID, definitions, receipts],
     ) as never,
     directory,
   ) as unknown as string

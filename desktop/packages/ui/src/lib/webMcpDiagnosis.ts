@@ -1,10 +1,11 @@
-import { webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
+import type { WebMcpCall } from "./webMcpCalls"
+import { redactWebMcpReport, webMcpDisplayText, webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
 import { webMcpEvidenceMatchesTool, type WebMcpJournalEntry, type WebMcpToolDefinition } from "./webMcpCatalog"
 import { placeholderWebMcpSecrets } from "./toolHelpers"
 import { diagnosisFields, diagnosisOpaqueRequired, toolInputWarnings, type ToolField } from "./webMcpToolForm"
 
 /**
- * Advisory check of one input against the tool's current schema. It names the failing property, the rule and the
+ * Advisory check of one input against the call's retained schema. It names the failing property, the rule and the
  * value's kind. It never decides whether a call may run; the page does.
  */
 export type WebMcpDiagnosisRule = "required" | "type" | "enum" | "minimum" | "maximum" | "minLength" | "maxLength"
@@ -48,7 +49,7 @@ function expectedType(field: ToolField): WebMcpDiagnosisFinding["expected"] {
 }
 
 /**
- * Check `input` against the current schema. Constraint comparisons are `toolInputWarnings`; type and required are
+ * Check `input` against the retained schema. Constraint comparisons are `toolInputWarnings`; type and required are
  * added here. Findings stay in schema order. A wrong type suppresses range checks on that property.
  */
 export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unknown>): WebMcpDiagnosis {
@@ -174,4 +175,63 @@ export function webMcpRegressionExport(entry: {
 export function webMcpManualRegressionExport(entry: WebMcpJournalEntry, tool: WebMcpToolDefinition) {
   if (!webMcpEvidenceMatchesTool(entry, tool)) return null
   return webMcpRegressionExport({ tool: tool.name, input: entry.input, outcome: entry.outcome })
+}
+
+/** Runtime/page validation details share the advisory vocabulary without becoming admission decisions. */
+export type WebMcpRuntimeRejection = { property?: string; rule?: WebMcpDiagnosisRule; text: string }
+export function webMcpRuntimeRejections(...sources: unknown[]): WebMcpRuntimeRejection[] {
+  const found: WebMcpRuntimeRejection[] = []
+  const seen = new Set<string>()
+  let budget = 256
+  const visit = (value: unknown, depth: number, reason = false) => {
+    if (--budget < 0 || depth > 8 || found.length >= 16) return
+    if (typeof value === "string") {
+      try {
+        const parsed: unknown = JSON.parse(value)
+        if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
+          visit(parsed, depth + 1, reason)
+          return
+        }
+      } catch { /* Plain reason text is valid. */ }
+      if (reason && value) add({ text: webMcpDisplayText(value) })
+      return
+    }
+    if (Array.isArray(value)) { value.forEach((entry) => visit(entry, depth + 1, reason)); return }
+    if (!value || typeof value !== "object") return
+    const item = value as Record<string, unknown>
+    const path = item.instancePath ?? item.path ?? item.field
+    const property = typeof path === "string" ? path : Array.isArray(path) ? path.join(".") : undefined
+    const keyword = item.keyword ?? item.rule ?? (typeof item.constraint === "string" ? item.constraint.split(":")[0] : undefined) ?? item.code
+    const rule = typeof keyword === "string" && RULES.has(keyword as WebMcpDiagnosisRule) ? keyword as WebMcpDiagnosisRule : undefined
+    const message = item.message ?? item.reason ?? item.error ?? item.constraint ?? item.code
+    if (property !== undefined || rule) add({
+      ...(property !== undefined ? { property: webMcpDisplayText(property) } : {}),
+      ...(rule ? { rule } : {}),
+      text: typeof message === "string" ? webMcpDisplayText(message) : "",
+    })
+    for (const key of ["error", "errors", "validationErrors", "validationError", "reason", "failureReason", "result", "content"]) {
+      if (Object.hasOwn(item, key) && !(typeof item[key] === "string" && item[key] === message && (property !== undefined || rule)))
+        visit(item[key], depth + 1, true)
+    }
+    if (reason && property === undefined && !rule && typeof message === "string") visit(message, depth + 1, true)
+    if (item.type === "text") visit(item.text, depth + 1, reason)
+  }
+  const add = (entry: WebMcpRuntimeRejection) => {
+    const key = JSON.stringify(entry)
+    if (!seen.has(key)) { seen.add(key); found.push(entry) }
+  }
+  for (const source of sources) visit(redactWebMcpReport(source), 0, true)
+  return found
+}
+
+export function agentDiagnosis(
+  call: WebMcpCall,
+  definition: WebMcpToolDefinition | null | undefined,
+): WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" | "truncated" | "definition-unavailable" } {
+  if (call.inputKind === "truncated") return { status: "unavailable", reason: "truncated" }
+  if (call.inputKind === "redacted") return { status: "unavailable", reason: "redacted" }
+  if (call.inputKind === "unparsed") return { status: "unavailable", reason: "unparsed" }
+  if (call.inputKind === "missing" || !call.input) return { status: "unavailable", reason: "no-arguments" }
+  if (!definition) return { status: "unavailable", reason: "definition-unavailable" }
+  return diagnoseWebMcpInput(definition.executionSchema ?? definition.inputSchema, call.input)
 }

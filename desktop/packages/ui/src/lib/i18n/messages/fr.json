@@ -5403,5 +5403,8 @@
   "webmcp.tools.diagnosis.truncated": "Aper\u00e7u tronqu\u00e9 ; les arguments complets ne sont pas disponibles pour le diagnostic.",
   "chat.permissionCard.webmcp.unanswered": "Aucune r\u00e9ponse enregistr\u00e9e ; la demande d'approbation n'est plus disponible.",
   "diffView.landing.browserRecap.unknownAssociation": "Certains appels enregistr\u00e9s ne peuvent pas \u00eatre associ\u00e9s aux d\u00e9finitions d'outils conserv\u00e9es. On ne sait pas quels outils actuels n'ont pas \u00e9t\u00e9 appel\u00e9s.",
-  "webmcp.tools.compare.unknownAgent": "Certains appels enregistr\u00e9s ont des associations d'outils inconnues. Un appel \u00e0 cet outil peut en faire partie."
+  "webmcp.tools.compare.unknownAgent": "Certains appels enregistr\u00e9s ont des associations d'outils inconnues. Un appel \u00e0 cet outil peut en faire partie.",
+  "webmcp.tools.diagnosis.definitionUnavailable": "La définition n’est plus disponible ; le schéma actuel n’a pas été utilisé.",
+  "webmcp.tools.diagnosis.runtimeRejection": "Rejet du moteur d’exécution : {reason}",
+  "webmcp.tools.draftLimit": "Limite de conservation du brouillon atteinte (128 champs, 65 536 caractères par valeur ou saisie JSON). Seul le brouillon limité peut être restauré."
 }
