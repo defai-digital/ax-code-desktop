@@ -4,7 +4,16 @@ const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome
 
 const { randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
-const { NativeWebMcp, CAPABILITY, agentOrigin, allowedUrl, pageKind, definitionDigest, byteSize } = require("./native-webmcp")
+const {
+  NativeWebMcp,
+  CAPABILITY,
+  agentOrigin,
+  allowedUrl,
+  pageKind,
+  definitionDigest,
+  catalogDigest,
+  byteSize,
+} = require("./native-webmcp")
 const { DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
@@ -22,6 +31,53 @@ const REASON_CODES = new Set([
   "ERR_ABORTED",
   "ERR_INVALID_URL",
 ])
+// The panel lists a bounded projection. The adapter may hold more (up to 128 tools); the counts
+// below are what the builder is shown, and a truncation reason says which cap applied.
+const CATALOG_MAX_TOOLS = 64
+const CATALOG_MAX_BYTES = 262144
+const plainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
+
+function publicAnnotations(annotations) {
+  if (!plainObject(annotations)) return undefined
+  const hints = {
+    readOnlyHint: annotations.readOnlyHint === true || annotations.readOnly === true,
+    untrustedContentHint: annotations.untrustedContentHint === true || annotations.untrustedContent === true,
+    consequentialHint: annotations.consequentialHint === true || annotations.consequential === true,
+  }
+  if (!hints.readOnlyHint && !hints.untrustedContentHint && !hints.consequentialHint) return undefined
+  return hints
+}
+
+function projectToolCatalog(tools, kinds = new Map()) {
+  const catalog = []
+  let bytes = 0
+  let truncation = null
+  const list = Array.isArray(tools) ? tools : []
+  for (const tool of list) {
+    if (catalog.length >= CATALOG_MAX_TOOLS) {
+      truncation = "count"
+      break
+    }
+    const annotations = publicAnnotations(tool.annotations)
+    const entry = {
+      name: tool.name,
+      description: tool.description,
+      ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
+      ...(annotations ? { annotations } : {}),
+      kind: kinds.get(tool.name) === "form" ? "form" : "script",
+      digest: catalogDigest(tool),
+    }
+    const size = byteSize(entry)
+    if (bytes + size > CATALOG_MAX_BYTES) {
+      truncation = "bytes"
+      break
+    }
+    bytes += size
+    catalog.push(entry)
+  }
+  return { catalog, total: list.length, truncation }
+}
+
 function browserReason(error) {
   const code = typeof error?.code === "string" ? error.code : String(error?.message ?? "").match(/\bERR_[A-Z_]+\b/)?.[0]
   return REASON_CODES.has(code) ? code : "operation-failed"
@@ -154,27 +210,9 @@ function createDesktopWebMcpBrowser({
     pendingGuestClears.set(partition, clearing)
     await disconnection
   }
-  // The page's own tool catalog, so the user can see what the page offers before granting the agent anything.
-  // Bounded: the adapter already caps each definition; the catalog sent to the renderer is capped again as a whole.
-  const CATALOG_MAX_TOOLS = 64
-  const CATALOG_MAX_BYTES = 262144
-  const toolCatalog = (tools) => {
-    const catalog = []
-    let bytes = 0
-    for (const tool of tools.slice(0, CATALOG_MAX_TOOLS)) {
-      const entry = {
-        name: tool.name,
-        description: tool.description,
-        ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
-      }
-      bytes += byteSize(entry)
-      if (bytes > CATALOG_MAX_BYTES) break
-      catalog.push(entry)
-    }
-    return catalog
-  }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
+    const projected = projectToolCatalog(snapshot.tools, entry.adapter.toolKinds)
     // Shown in the pane's address bar; never logged.
     const url = entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL()
     return {
@@ -185,7 +223,10 @@ function createDesktopWebMcpBrowser({
       error: entry.error ?? null,
       origin: snapshot.origin,
       tools: snapshot.tools.length,
-      catalog: toolCatalog(snapshot.tools),
+      catalog: projected.catalog,
+      catalogTotal: projected.total,
+      catalogTruncation: projected.truncation,
+      catalogRejection: entry.adapter.catalogRejection,
       generation: entry.adapter.generation,
       // Lets the renderer say whether the pane is blank or shows a page the agent cannot be granted.
       page: pageKind(url, snapshot.origin),
@@ -409,15 +450,19 @@ function createDesktopWebMcpBrowser({
       if (isMainFrame && !isInPlace && !entry.pendingLoads.has(entry.loadSequence)) ++entry.loadSequence
     })
     view.webContents.on("did-navigate", () => {
-      if (!entry.pendingLoads.has(entry.loadSequence) && (REASON_CODES.has(entry.error) || entry.error === "operation-failed")) {
+      if (
+        !entry.pendingLoads.has(entry.loadSequence) &&
+        (REASON_CODES.has(entry.error) || entry.error === "operation-failed")
+      ) {
         entry.error = null
       }
     })
     entry.adapter = new NativeWebMcp(view.webContents, () => {
-      // A dead adapter (debugger detach, renderer crash, unusable catalog) can no
-      // longer run a single call, so agent access must be revoked: syncing an
-      // empty catalog would leave the runtime holding a live provider and turn
-      // every later call into an unconfirmed timeout. The connection check keeps
+      // A dead adapter (debugger detach or renderer crash) can no longer run a call,
+      // so agent access must be revoked: syncing an empty catalog would leave the
+      // runtime holding a live provider and turn every later call into an unconfirmed
+      // timeout. A rejected catalog is not this case. The adapter stays available and
+      // names the reason; tools already accepted remain. The connection check keeps
       // disconnect's own revoke (which re-enters here) from recursing.
       if (!entry.closed && !entry.adapter.available) {
         if (entry.connection) {
@@ -683,4 +728,10 @@ function createDesktopWebMcpBrowser({
   }
 }
 
-module.exports = { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN }
+module.exports = {
+  createDesktopWebMcpBrowser,
+  DESKTOP_BROWSER_TOKEN,
+  projectToolCatalog,
+  CATALOG_MAX_TOOLS,
+  CATALOG_MAX_BYTES,
+}

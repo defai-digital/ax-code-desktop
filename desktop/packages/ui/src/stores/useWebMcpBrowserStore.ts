@@ -1,5 +1,31 @@
 import { create } from "zustand"
 import { normalizeProjectPath } from "@/lib/projectResolution"
+import {
+  diffWebMcpRegistration,
+  markWebMcpRunsStale,
+  readWebMcpCatalog,
+  WEBMCP_DRAFT_LIMIT,
+  WEBMCP_RUN_LIMIT,
+  type WebMcpCatalogLimit,
+  type WebMcpCatalogRejection,
+  type WebMcpRegistrationEvent,
+  type WebMcpToolDefinition,
+  type WebMcpToolDraft,
+  type WebMcpToolRun,
+} from "@/lib/webMcpCatalog"
+
+export type {
+  WebMcpCatalogLimit,
+  WebMcpCatalogRejection,
+  WebMcpCatalogRejectionReason,
+  WebMcpRegistrationEvent,
+  WebMcpToolAnnotations,
+  WebMcpToolDefinition,
+  WebMcpToolDraft,
+  WebMcpToolKind,
+  WebMcpToolRun,
+} from "@/lib/webMcpCatalog"
+export { readWebMcpCatalog } from "@/lib/webMcpCatalog"
 
 /**
  * Shared projection of the native WebMCP project browser.
@@ -32,13 +58,6 @@ export type WebMcpBrowserErrorCode =
   | "enable-failed"
   | "operation-failed"
 
-/** A tool the current page registers, as the browser reports it (already bounded in Electron main). */
-export interface WebMcpToolDefinition {
-  name: string
-  description: string
-  inputSchema?: unknown
-}
-
 export interface WebMcpBrowserSnapshot {
   phase: WebMcpBrowserPhase
   browserId: string | null
@@ -57,6 +76,10 @@ export interface WebMcpBrowserSnapshot {
   catalog: WebMcpToolDefinition[]
   /** The page document's generation; a new load gets a new one. Calls record the generation they ran on. */
   generation: string | null
+  /** How many tools the page registered, and whether the panel stopped at 64 tools or 256 KiB. */
+  catalogLimit: WebMcpCatalogLimit
+  /** Named reason the latest registration was refused. Null when the catalog was accepted. */
+  catalogRejection: WebMcpCatalogRejection | null
   busy: boolean
   error: WebMcpBrowserErrorCode | null
   /** Chrome-bridge MCP servers paused while this browser is enrolled (see lib/webMcpBridgeCoordination). */
@@ -72,12 +95,27 @@ interface WebMcpBrowserState extends WebMcpBrowserSnapshot {
   enableConsumed: number
   /** Settings → MCP shows the browser-tools card instead of a server page. */
   settingsCardSelected: boolean
-  updateSnapshot: (partial: Partial<WebMcpBrowserSnapshot>) => void
+  /** Latest registration changes for the current page. In memory only, capped. */
+  registration: readonly WebMcpRegistrationEvent[]
+  /** Form drafts keyed by tool name. Kept across a same-definition reload; not written to disk. */
+  toolDrafts: Record<string, WebMcpToolDraft>
+  /** Manual results keyed by tool name. A changed definition is marked stale. */
+  toolRuns: Record<string, WebMcpToolRun>
+  updateSnapshot: (partial: WebMcpSnapshotUpdate) => void
+  saveToolDraft: (name: string, draft: WebMcpToolDraft) => void
+  recordToolRun: (name: string, run: WebMcpToolRun) => void
+  clearToolRun: (name: string) => void
   resetSnapshot: () => void
   requestAgentMode: (options?: { enable?: boolean }) => void
   consumeAgentModeRequest: () => boolean
   consumeEnableRequest: () => boolean
   setSettingsCardSelected: (selected: boolean) => void
+}
+
+/** Catalog and rejection arrive untrusted from the page. `updateSnapshot` normalizes them. */
+type WebMcpSnapshotUpdate = Omit<Partial<WebMcpBrowserSnapshot>, "catalog" | "catalogRejection"> & {
+  catalog?: unknown
+  catalogRejection?: unknown
 }
 
 const initialSnapshot: WebMcpBrowserSnapshot = {
@@ -94,6 +132,8 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   tools: 0,
   catalog: [],
   generation: null,
+  catalogLimit: { total: 0, shown: 0, truncation: null },
+  catalogRejection: null,
   busy: false,
   error: null,
   pausedBridgeServers: [],
@@ -106,10 +146,70 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
   enableRequests: 0,
   enableConsumed: 0,
   settingsCardSelected: false,
-  updateSnapshot: (partial) => set(partial),
+  registration: [],
+  toolDrafts: {},
+  toolRuns: {},
+  updateSnapshot: (partial) =>
+    set((state) => {
+      // Raw catalog bytes are normalized below. They must not land on the snapshot first.
+      const { catalog, catalogRejection, ...rest } = partial
+      void catalog
+      void catalogRejection
+      return {
+        ...rest,
+        ...observeCatalog(state, partial),
+      }
+    }),
+  saveToolDraft: (name, draft) =>
+    set((state) => {
+      if (!name || name.length > 256 || draft.digest.length > 64) return {}
+      const next = { ...state.toolDrafts }
+      delete next[name]
+      next[name] = {
+        digest: draft.digest,
+        values: boundRecord(draft.values),
+        sendEmpty: boundFlags(draft.sendEmpty),
+        json: draft.json.slice(0, 65536),
+        jsonMode: draft.jsonMode === true,
+      }
+      const names = Object.keys(next)
+      while (names.length > WEBMCP_DRAFT_LIMIT) {
+        const oldest = names.shift()
+        if (oldest) delete next[oldest]
+      }
+      return { toolDrafts: next }
+    }),
+  recordToolRun: (name, run) =>
+    set((state) => {
+      if (!name || name.length > 256 || run.digest.length > 64) return {}
+      const next = { ...state.toolRuns }
+      delete next[name]
+      next[name] = {
+        digest: run.digest,
+        outcome: run.outcome.slice(0, 64),
+        text: run.text.slice(0, 4000),
+        stale: run.stale === true,
+      }
+      const names = Object.keys(next)
+      while (names.length > WEBMCP_RUN_LIMIT) {
+        const oldest = names.shift()
+        if (oldest) delete next[oldest]
+      }
+      return { toolRuns: next }
+    }),
+  clearToolRun: (name) =>
+    set((state) => {
+      if (!Object.hasOwn(state.toolRuns, name)) return {}
+      const next = { ...state.toolRuns }
+      delete next[name]
+      return { toolRuns: next }
+    }),
   resetSnapshot: () =>
     set((state) => ({
       ...initialSnapshot,
+      registration: [],
+      toolDrafts: {},
+      toolRuns: {},
       // The runtime compatibility answer does not depend on a live browser.
       runtimeCompatible: state.runtimeCompatible,
     })),
@@ -210,15 +310,67 @@ export function rememberWebMcpAddress(directory: string, sessionID: string | nul
   }
 }
 
-/** Keeps only well-formed catalog entries; anything else the browser sends is dropped, not trusted. */
-export function readWebMcpCatalog(value: unknown): WebMcpToolDefinition[] {
-  if (!Array.isArray(value)) return []
-  const catalog: WebMcpToolDefinition[] = []
-  for (const entry of value.slice(0, 64)) {
-    if (!entry || typeof entry !== "object") continue
-    const { name, description, inputSchema } = entry as Record<string, unknown>
-    if (typeof name !== "string" || !name || name.length > 256 || typeof description !== "string") continue
-    catalog.push({ name, description: description.slice(0, 4096), ...(inputSchema === undefined ? {} : { inputSchema }) })
+const boundRecord = (value: Record<string, string>) => {
+  const next: Record<string, string> = {}
+  for (const [key, entry] of Object.entries(value).slice(0, 128)) {
+    if (typeof key !== "string" || typeof entry !== "string" || key.length > 256) continue
+    next[key] = entry.slice(0, 65536)
   }
-  return catalog
+  return next
+}
+
+const boundFlags = (value: Record<string, boolean>) => {
+  const next: Record<string, boolean> = {}
+  for (const [key, entry] of Object.entries(value).slice(0, 128)) {
+    if (typeof key !== "string" || key.length > 256) continue
+    next[key] = entry === true
+  }
+  return next
+}
+
+/**
+ * Page identity for drafts, results and the registration timeline. An origin change drops them.
+ * Catalog updates diff the definitions already on the page. Nothing here is written to disk.
+ */
+function observeCatalog(
+  state: {
+    origin: string | null
+    catalog: readonly WebMcpToolDefinition[]
+    registration: readonly WebMcpRegistrationEvent[]
+    toolDrafts: Record<string, WebMcpToolDraft>
+    toolRuns: Record<string, WebMcpToolRun>
+  },
+  partial: WebMcpSnapshotUpdate,
+): Partial<WebMcpBrowserSnapshot> & Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns">> {
+  const originChanged = partial.origin !== undefined && partial.origin !== state.origin
+  if (!("catalog" in partial) && !originChanged && !("catalogRejection" in partial) && !("catalogLimit" in partial)) {
+    return {}
+  }
+  const next: Partial<WebMcpBrowserSnapshot> &
+    Partial<Pick<WebMcpBrowserState, "registration" | "toolDrafts" | "toolRuns">> = {}
+  // Keep the same array when the catalog is unchanged so a status poll does not rebuild the timeline.
+  let registration = originChanged ? [] : state.registration
+  const toolDrafts = originChanged ? {} : state.toolDrafts
+  let toolRuns = originChanged ? {} : state.toolRuns
+  const previous = originChanged ? [] : state.catalog
+  if ("catalog" in partial || "catalogLimit" in partial || "catalogRejection" in partial) {
+    const read = readWebMcpCatalog("catalog" in partial ? partial.catalog : previous, {
+      total: partial.catalogLimit?.total,
+      truncation: partial.catalogLimit?.truncation,
+      rejection: "catalogRejection" in partial ? partial.catalogRejection : undefined,
+    })
+    if ("catalog" in partial) {
+      next.catalog = read.catalog
+      registration = diffWebMcpRegistration(previous, read.catalog, registration)
+      toolRuns = markWebMcpRunsStale(toolRuns, read.catalog)
+    }
+    if ("catalog" in partial || "catalogLimit" in partial) next.catalogLimit = read.catalogLimit
+    if ("catalogRejection" in partial) next.catalogRejection = read.catalogRejection
+  }
+  if (originChanged || "catalog" in partial) {
+    next.registration = registration
+    next.toolDrafts = toolDrafts
+    next.toolRuns = toolRuns
+  }
+  return next
 }

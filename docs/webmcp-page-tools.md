@@ -35,6 +35,28 @@ If no tools appear, see [Troubleshooting](#troubleshooting).
 Open a tool to see a form generated from its input schema; schemas that are nested or too large for fields get a JSON editor
 instead. **Try it** runs the tool on the page as you; the agent is not involved and nothing is added to the conversation.
 
+The open tool also shows:
+
+- The full description, including line breaks. The collapsed row stays short.
+- **Form** or **Script**. A form is a declarative tool on the page. A script is a function the page registered.
+- Hint badges for `readOnlyHint`, `untrustedContentHint` and `consequentialHint` (the browser's shorter annotation names
+  count too). Hints never approve a call and never grant the agent access. A tool with no hints is not an approval either.
+- **Input schema**, collapsed until you open it. It is the raw schema as read-only text. The panel does not treat that text
+  as HTML.
+- Authoring notes: a long name or description, a missing description, an opaque value, or the schema keywords `pattern` and
+  `patternProperties`. These notes are advice. **Try it** still runs. The page and the AX Code runtime decide what is valid.
+
+If the page registers more than the panel lists, the panel says so, for example "Showing 64 of 65". The list stops at 64
+tools or 256 KiB of definitions, whichever comes first. Tools past that cap stay registered; they are left off this list.
+
+When the page's latest registration is rejected, the panel names the tool and the reason. A duplicate name, a schema this
+browser cannot accept, a name over 256 characters, a missing or over-long description, a definition over 32 KiB, or a
+catalog over 128 tools or 256 KiB are named. Tools already accepted stay listed. The project browser stays connected.
+
+**Registration** lists tools added, removed, or changed on this page, each with a short digest of the definition. A result
+from before a definition change is marked stale. Text you typed is kept when the same definition is registered again,
+including a reload. Drafts, the registration list, and results stay in memory for the current page only.
+
 - Run `add_task` with a title and watch the list update.
 - Run it with a title of only spaces. The form sends it exactly as typed, the page's own check rejects it, and the panel shows
   the page's error: `{ "error": { "field": "title", "constraint": "minLength: 1", "got": "   " } }`. (An empty title is stopped
@@ -78,8 +100,11 @@ engine in AX Code Desktop does not, so the example does not fall back to it.)
 - Keep schemas to plain JSON Schema objects: `type`, `properties`, `required`, `enum`, `minimum`/`maximum`,
   `minLength`/`maxLength`, `description`, `default`.
 - Avoid `pattern` and `patternProperties`. The next AX Code runtime contract rejects them (a page-supplied regular expression
-  could stall the agent); validate formats in your `execute` function instead.
-- The project browser shows at most 64 tools per page, and fewer if their definitions together exceed 256 KiB.
+  could stall the agent); validate formats in your `execute` function instead. The page tools panel names those keywords as
+  advice. It does not block **Try it**, and it is not the runtime's schema check.
+- The project browser's page tools panel shows at most 64 tools, and fewer if their definitions together exceed 256 KiB.
+  It says "Showing N of M" when it stops. The browser itself accepts up to 128 tools and 256 KiB; past that, the panel
+  names the catalog as too large instead of dropping tools quietly or disconnecting.
 - Inputs and results above 64 KiB are refused.
 
 ## 6. Test your tools
@@ -135,6 +160,9 @@ through the page's model context, which is not the path an agent's call takes; c
 | "Start a coding session to enable agent access" | no coding session is selected | start or select a session, then enable agent access |
 | "Update the bundled AX Code runtime to let the agent use page tools." | the bundled runtime does not support the project browser | update AX Code Desktop |
 | Agent access stopped by itself | the browser was closed, covered by a dialog, or the window was minimized or hidden | show it again and choose **Resume agent access** |
-| A tool is missing after an action | it was unregistered by its `AbortSignal` | expected when it no longer applies |
+| A tool is missing after an action | it was unregistered by its `AbortSignal`, or the panel is showing 64 of N | check **Registration**; a cap leaves later tools off the list and says how many were registered |
+| The panel names a rejected registration | two tools share a name in one update, or a name, description, or schema is outside the limits above | the message names the tool; fix that registration. Tools already accepted stay, and the project browser stays connected |
+| A previous **Try it** result is marked stale | the page registered a different definition for that tool | run it again if you still want a result for the new definition |
+| Typed input disappeared | the tool's definition changed, or you opened another page | the same definition keeps what you typed, including across a reload of that page |
 | **Try it** shows an error result | your `execute` returned an error, or threw | prefer returning `{ error: { field, constraint, got } }`; it tells the agent what to fix |
 | The agent picks the wrong tool, or never calls one | overlapping tools or vague descriptions | merge or rename tools; state inputs and results in the description; the landing recap lists tools never called |
