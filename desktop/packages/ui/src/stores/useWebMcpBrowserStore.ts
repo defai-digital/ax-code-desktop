@@ -377,6 +377,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
             durationMs: Math.min(86_400_000, Math.max(0, Math.round(entry.durationMs))),
             digest: entry.digest,
             definitionDigest: entry.definitionDigest,
+            definitionChanged: entry.definitionChanged === true,
             at: Number.isFinite(entry.at) ? entry.at : Date.now(),
           },
           ...state.toolJournal.filter((item) => item.id !== entry.id),

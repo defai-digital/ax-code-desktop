@@ -1,4 +1,4 @@
-import { runInputReceipt } from "./webmcp-check-receipt.cjs"
+import { runInputReceipt, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
 import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
@@ -45,6 +45,7 @@ test.each([
       tools: [{ name: "echo" }],
       runs: complete ? [{ name: "echo", input: {}, output: "{}" }] : [],
     }
+    report.tools = report.tools.map((tool) => ({ ...tool, identityReceipt: toolIdentityReceipt(config.receiptKey, tool.name) }))
     report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
     return JSON.stringify(redactWebMcpReport(report))
   })
@@ -90,6 +91,7 @@ test.each([false, true])("launcher filters runs and problems (json: %s)", async 
         { name: "echo", input: {}, error: "Error: password=error-secret" },
       ],
     }
+    report.tools = report.tools.map((tool) => ({ ...tool, identityReceipt: toolIdentityReceipt(config.receiptKey, tool.name) }))
     report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
     return JSON.stringify(redactWebMcpReport(report))
   })

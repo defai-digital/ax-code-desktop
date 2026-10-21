@@ -238,3 +238,5 @@ satisfy each other's checks.
 
 Approval input summaries include every required name even if the schema omits its property definition. Required names
 come first; names beyond the twelve-input display limit count toward the total and omitted-required notice.
+
+Manual calls that were sent retain their outcome when registrations change during execution; the journal marks the definition as changed. Browser eviction probes bound every debugger command, including cleanup, to 250 ms. A timeout conservatively retains the page and releases the pool queue. Credential filtering covers signed download URLs (Azure SAS, AWS, Google Cloud and CloudFront) and OAuth callback codes, across previews and checker reports. Advisory input diagnosis also names required properties missing from the schema's `properties` map.

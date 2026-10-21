@@ -657,7 +657,6 @@ function ToolItem({
         !source ||
         !current ||
         current.origin !== source.origin ||
-        current.generation !== source.generation ||
         current.browserId !== source.browserId
       )
         return
@@ -672,6 +671,7 @@ function ToolItem({
           durationMs: performance.now() - started,
           digest,
           definitionDigest: binding.definitionDigest ?? undefined,
+          definitionChanged: current.generation !== source.generation,
           at: Date.now(),
         },
         viewKey,
@@ -1025,8 +1025,10 @@ export function WebMcpToolPanel({
                     data-webmcp-journal-outcome={entry.outcome}
                     data-webmcp-journal-digest={entry.digest}
                     data-webmcp-journal-duration={entry.durationMs}
+                    data-webmcp-journal-definition-changed={entry.definitionChanged || undefined}
                     className="flex flex-wrap items-center gap-1"
                   >
+                    {entry.definitionChanged ? <span>{t("chat.toolPart.webmcp.reason.definition-changed")}</span> : null}
                     <Button
                       type="button"
                       size="xs"

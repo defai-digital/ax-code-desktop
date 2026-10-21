@@ -295,3 +295,9 @@ test("every embedded credential shape is removed from executable exports and che
     await executeExport(exported.snippet, {}, (input) => expect(JSON.stringify(input)).not.toContain(secret))
   }
 })
+
+test("required names absent from properties are diagnosed", () => {
+  const result = diagnoseWebMcpInput({ type: "object", properties: {}, required: ["destination"] }, {})
+  expect(JSON.stringify(result)).toContain("destination")
+  expect(JSON.stringify(result)).toContain("required")
+})

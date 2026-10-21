@@ -14,13 +14,14 @@ const WEBMCP_CREDENTIALS = [
 
 /** Key or field names whose values are never shown, whatever the value looks like. */
 export const WEBMCP_SENSITIVE_NAME =
-  /password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
+  /(?:^|[-_])(?:sig|signature|policy|key[-_]pair[-_]id)$|password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
 
-function sensitiveParameterName(value) {
+// OAuth callback codes are bearer values; short ordinary status codes remain readable.
+function sensitiveParameterName(value, parameterValue = "") {
   let name = value.replaceAll("+", " ")
   for (let layer = 0; ; layer++) {
     const decoded = name.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
-    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name)
+    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name) || (/^code$/i.test(name) && parameterValue.length >= 8)
     // Unknown deeply encoded names fail closed, as deeply escaped diagnostics do.
     if (layer >= 31) return true
     name = decoded
@@ -54,15 +55,15 @@ export function webMcpTextLooksSensitive(value) {
         for (const pair of part.split(/[?&#/;\\]/)) {
           const equals = pair.indexOf("=")
           if (equals < 0) continue
-          if (sensitiveParameterName(pair.slice(0, equals))) return true
+          if (sensitiveParameterName(pair.slice(0, equals), pair.slice(equals + 1))) return true
         }
       }
     } catch {
       // Malformed URLs still receive assignment and credential-shape checks below.
     }
   }
-  for (const pair of text.matchAll(/[?&#/;]([^\s?&#/;=]+)=/g)) {
-    if (sensitiveParameterName(pair[1])) return true
+  for (const pair of text.matchAll(/[?&#/;]([^\s?&#/;=]+)=([^\s&#"'`]+)/g)) {
+    if (sensitiveParameterName(pair[1], pair[2])) return true
   }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.

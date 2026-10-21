@@ -1041,3 +1041,17 @@ test.each([
   expect(useWebMcpBrowserStore.getState().catalog[0]).toMatchObject(tool)
   expect(container.innerHTML).not.toContain(secret)
 })
+
+test("a sent manual call survives registration retirement during execution", async () => {
+  let finish!: (value: { ok: boolean; output: string }) => void
+  const tryTool = vi.fn(() => new Promise<{ ok: boolean; output: string }>((resolve) => { finish = resolve }))
+  const view = openAdd(tryTool)
+  const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+  fireEvent.change(a, { target: { value: "2" } })
+  fireEvent.change(b, { target: { value: "3" } })
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" })) })
+  act(() => { useWebMcpBrowserStore.getState().updateSnapshot({ generation: "retired", catalog: [] }) })
+  await act(async () => { finish({ ok: true, output: "done" }) })
+  expect(useWebMcpBrowserStore.getState().toolJournal[0]).toMatchObject({ outcome: "completed", definitionChanged: true, text: expect.stringContaining("done") })
+  expect(view.container.querySelector("[data-webmcp-journal-definition-changed='true']")).not.toBeNull()
+})

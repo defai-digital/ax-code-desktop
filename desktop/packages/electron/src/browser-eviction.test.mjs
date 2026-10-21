@@ -59,3 +59,17 @@ test("a detached debugger fails closed even when probe and cleanup throw synchro
   const contents = { isDestroyed: () => false, debugger: { sendCommand() { throw new Error("Debugger detached") } } }
   expect(await canDiscardDocument(contents)).toBe(false)
 })
+
+test.each([0, 1, 2, 3])("a stalled debugger command %s retains the page and releases the queue", async (stalled) => {
+  vi.useFakeTimers()
+  let index = 0
+  const sendCommand = vi.fn(() => {
+    const current = index++
+    if (current === stalled) return new Promise(() => {})
+    return Promise.resolve(current === 0 ? { result: { value: false } } : current === 1 ? { result: { objectId: "window" } } : { listeners: [] })
+  })
+  const queued = canDiscardDocument({ isDestroyed: () => false, debugger: { sendCommand } }).then((discard) => ({ discard, queueReleased: true }))
+  await vi.runAllTimersAsync()
+  expect(await queued).toEqual({ discard: false, queueReleased: true })
+  expect(vi.getTimerCount()).toBe(0)
+})

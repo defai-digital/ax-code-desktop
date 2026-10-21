@@ -55,3 +55,19 @@ credentialTextCases.push(
     `https://example.test/?%70assword=${secret}#details`,
   ].flatMap((url) => wrappers.map((wrap) => wrap(url))),
 )
+
+// Real-world credential URL shapes, using synthetic values only.
+export const credentialUrlShapes = [
+  ["Azure SAS", `https://account.blob.core.windows.net/container/file?sv=2024-11-04&sp=r&sr=b&se=2030-01-01&sig=${secret}`],
+  ["AWS signature", `https://bucket.s3.amazonaws.com/file?X-Amz-Signature=${secret}`],
+  ["AWS credential", `https://bucket.s3.amazonaws.com/file?X-Amz-Credential=${secret}`],
+  ["AWS session", `https://bucket.s3.amazonaws.com/file?X-Amz-Security-Token=${secret}`],
+  ["Google signature", `https://storage.googleapis.com/bucket/file?X-Goog-Signature=${secret}`],
+  ["Google credential", `https://storage.googleapis.com/bucket/file?X-Goog-Credential=${secret}`],
+  ["CloudFront", `https://cdn.example.test/file?Policy=${secret}&Key-Pair-Id=example`],
+  ["CloudFront signature", `https://cdn.example.test/file?Signature=${secret}`],
+  ["Generic signature", `https://example.test/file?signature=${secret}`],
+  ["Encoded OAuth callback", `https://example.test/callback?%2563ode=${secret}&state=example`],
+  ["OAuth callback", `https://example.test/callback?code=${secret}&state=example`],
+]
+credentialTextCases.push(...credentialUrlShapes.flatMap(([, url]) => wrappers.map((wrap) => wrap(url))))

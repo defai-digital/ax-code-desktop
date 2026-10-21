@@ -87,6 +87,7 @@ export interface WebMcpJournalEntry {
   digest: string
   /** Full native definition identity, including the frame, for comparison with runtime receipts. */
   definitionDigest?: string
+  definitionChanged?: boolean
   at: number
 }
 
