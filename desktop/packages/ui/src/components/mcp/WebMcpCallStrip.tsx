@@ -3,6 +3,7 @@ import React from "react"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n, type I18nKey } from "@/lib/i18n"
 import { collectWebMcpCalls } from "@/lib/webMcpCalls"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { cn } from "@/lib/utils"
 import { useUIStore } from "@/stores/useUIStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
@@ -56,7 +57,7 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
               <button
                 type="button"
                 onClick={() => openInTranscript({ sessionId: sessionID, messageId: call.messageId })}
-                aria-label={t("webmcp.calls.open", { title: call.title })}
+                aria-label={t("webmcp.calls.open", { title: truncateToCodeUnits(call.title, 80) })}
                 className="flex w-full min-w-0 items-start gap-2 rounded border border-border/50 px-2 py-1 text-left hover:bg-interactive-hover/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
               >
               <span
@@ -72,12 +73,20 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
               />
               <span className="min-w-0 flex-1">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="truncate font-mono typography-meta text-foreground">{call.title}</span>
+                  {/* Tool names come from the page: capped, and isolated so bidirectional text cannot reorder the row. */}
+                  <span
+                    className="truncate font-mono typography-meta text-foreground"
+                    style={{ unicodeBidi: "isolate" }}
+                    title={call.title}
+                  >
+                    {truncateToCodeUnits(call.title, 80)}
+                  </span>
                   <span className="shrink-0 typography-micro text-muted-foreground">
                     {t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)}
                     {call.durationMs !== null ? ` · ${formatDuration(call.durationMs)}` : null}
                   </span>
-                  {/* A call made on an earlier load of the page: its result may not match what is shown now. */}
+                  {/* The page generation changes on a reload and when agent access pauses or reconnects, so this marks calls
+                      made against an earlier page state, whose results may not match what is shown now. */}
                   {call.generation && generation && call.generation !== generation ? (
                     <span className="shrink-0 typography-micro text-muted-foreground" data-webmcp-call-earlier>
                       {t("webmcp.calls.earlierPage")}

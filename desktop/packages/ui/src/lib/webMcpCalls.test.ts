@@ -60,4 +60,10 @@ describe("collectWebMcpCalls", () => {
     expect(failed.resultPreview).toBeNull()
     expect(failed.durationMs).toBeNull()
   })
+
+  test("unwraps only the runtime envelope, so a tool's own result field is kept", () => {
+    const parts = new Map<string, unknown[]>([["m1", [tool("own", "completed", { output: JSON.stringify({ result: { id: 7 }, extra: 1 }) })]]])
+    const [call] = collectWebMcpCalls([{ id: "m1" }], (id) => parts.get(id) as never)
+    expect(call.resultPreview).toContain('"extra": 1')
+  })
 })

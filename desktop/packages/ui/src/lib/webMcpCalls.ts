@@ -39,7 +39,9 @@ function resultLine(output: unknown): string | null {
       value = output
     }
   }
-  const inner = value && typeof value === "object" && "result" in value ? (value as { result: unknown }).result : value
+  // Unwrap only the runtime's untrusted envelope; a tool's own `result` field stays part of what it returned.
+  const envelope = value as { untrusted?: unknown; result?: unknown } | null
+  const inner = envelope && typeof envelope === "object" && envelope.untrusted === true && "result" in envelope ? envelope.result : value
   const preview = webMcpResultPreview(inner).replace(/\s+/g, " ").trim()
   return preview ? truncateToCodeUnits(preview, 140) : null
 }

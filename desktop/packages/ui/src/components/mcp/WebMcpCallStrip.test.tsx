@@ -62,4 +62,15 @@ describe("WebMCP call strip", () => {
     const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
     expect(container.querySelector("[data-webmcp-call-earlier]")).toBeNull()
   })
+
+  test("a page-supplied tool name is capped and isolated", () => {
+    sync.messages = [{ id: "m1" }]
+    sync.parts = new Map([
+      ["m1", [call("long", "gen-1", { input: { action: "invoke", toolName: "x".repeat(500) }, metadata: { operation: "invoke", toolName: "x".repeat(500), generation: "gen-1" } })]],
+    ])
+    const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+    const name = container.querySelector<HTMLElement>("[data-webmcp-call] .font-mono")!
+    expect(name.textContent!.length).toBeLessThanOrEqual(80)
+    expect(name.style.unicodeBidi).toBe("isolate")
+  })
 })

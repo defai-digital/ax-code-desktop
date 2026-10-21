@@ -2686,7 +2686,7 @@ export const dict = {
   "webmcp.calls.toggle": "Agent calls ({count})",
   "webmcp.calls.failedCount": "{count} failed",
   "webmcp.calls.open": "Open {title} in the conversation",
-  "webmcp.calls.earlierPage": "earlier page",
+  "webmcp.calls.earlierPage": "earlier page state",
   "webmcp.calls.result": "Returned: {preview}",
   "webmcp.calls.outcome.ok": "done",
   "webmcp.calls.outcome.failed": "failed",
