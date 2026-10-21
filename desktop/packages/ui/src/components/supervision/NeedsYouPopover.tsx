@@ -1,4 +1,6 @@
 import React from "react"
+import { WebMcpWaitingPages } from "@/components/mcp/WebMcpPages"
+import { useWebMcpPages } from "@/hooks/useWebMcpPages"
 
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
@@ -59,7 +61,8 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
     () => supervisionStatusRows(rows, new Set(groups.map((group) => group.row.sessionId))),
     [groups, rows],
   )
-  const empty = groups.length === 0 && unmatched.length === 0 && statusRows.length === 0
+  const waiting = useWebMcpPages().filter((page) => page.waiting && !page.visible)
+  const empty = waiting.length === 0 && groups.length === 0 && unmatched.length === 0 && statusRows.length === 0
   const decisionRecords = useRequestDecisionStore((state) => state.records)
   // Batch in the inbox's own order, and leave out requests another surface is already answering.
   const batches = React.useMemo(() => {
@@ -115,6 +118,7 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
         className="app-region-no-drag absolute right-0 top-full z-50 mt-1.5 flex w-[380px] max-w-[calc(100vw-1rem)] max-h-[460px] flex-col overflow-hidden rounded-xl border border-border bg-[var(--surface-elevated)] text-[var(--surface-elevated-foreground)] shadow-popover outline-none"
       >
         <div className="max-h-[400px] overflow-y-auto p-1.5">
+          <WebMcpWaitingPages />
           {empty ? (
             <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
               <Icon name="checkbox-circle" className="h-5 w-5 text-muted-foreground" aria-hidden="true" />

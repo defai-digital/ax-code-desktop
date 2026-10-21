@@ -1,3 +1,4 @@
+import { WebMcpSessionPage } from "@/components/mcp/WebMcpPages"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { MissionControlPullRequest } from "./MissionControlPullRequest"
 import React from "react"
@@ -88,6 +89,9 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
   const inlineChildren = inlineChildSessions(row.childSessions)
   // Each row reads only its own project/session page.
+  const pooledBrowser = useWebMcpBrowserStore(
+    (state) => state.views[viewKeyFor(row.directory ?? "", row.sessionId)]?.browserId,
+  )
   const browserOrigin = useWebMcpBrowserStore(
     (state) =>
       state.views[viewKeyFor(row.directory ?? "", row.sessionId)]?.origin ??
@@ -246,7 +250,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               )}
             </span>
           ) : null}
-          {browserOrigin ? (
+          <WebMcpSessionPage directory={row.directory ?? null} sessionID={row.sessionId} />
+          {browserOrigin && !pooledBrowser ? (
             <span
               className={cn(
                 "mission-browser inline-flex min-w-0 items-center gap-1 rounded border px-1.5 py-0.5 typography-micro",

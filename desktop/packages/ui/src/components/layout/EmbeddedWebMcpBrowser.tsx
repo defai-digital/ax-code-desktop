@@ -1,4 +1,5 @@
 import * as React from "react"
+import { WebMcpPageSwitcher, WebMcpTrustSummary } from "@/components/mcp/WebMcpPages"
 import { useWebMcpStorageEvents } from "@/hooks/useWebMcpStorageEvents"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { normalizeProjectPath } from "@/lib/projectResolution"
@@ -32,11 +33,14 @@ type BrowserStatus = {
   id: string
   nativeAvailable: boolean
   visible?: boolean
+  unloaded?: boolean
+  idle?: boolean
   waiting?: boolean
   paused?: boolean
   stoppedCalls?: number
   error?: WebMcpBrowserErrorCode | null
   reason?: "runtime-incompatible" | "enable-failed" | "session-required"
+  interrupted?: boolean
   enabled: boolean
   origin: string | null
   page?: WebMcpPageKind
@@ -87,6 +91,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const phase = useWebMcpBrowserValue((state) => state.phase, key)
   const paused = useWebMcpBrowserValue((state) => state.paused, key)
   const waiting = useWebMcpBrowserValue((state) => state.waiting, key)
+  const interrupted = useWebMcpBrowserValue((state) => state.interrupted, key)
+  const otherWindows = useWebMcpBrowserStore((state) => state.capacity?.otherWindows)
   const enabled = useWebMcpBrowserValue((state) => state.enabled, key)
   const origin = useWebMcpBrowserValue((state) => state.origin, key)
   const nativeAvailable = useWebMcpBrowserValue((state) => state.nativeAvailable, key)
@@ -95,6 +101,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const summary = useWebMcpSummary(key)
   const openProjectBrowser = useOpenProjectBrowser()
   const [url, setUrl] = React.useState(initialUrl || "about:blank")
+  const [poolFull, setPoolFull] = React.useState(false)
   const [restart, setRestart] = React.useState(0)
   const draftUrl = React.useRef<{ directory: string; url: string } | null>({ directory, url: initialUrl })
   const [pendingAction, setPendingAction] = React.useState<string | null>(null)
@@ -162,11 +169,14 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         ...(result.enabled ? { runtimeCompatible: true } : {}),
         visible: result.visible ?? false,
         waiting: result.waiting ?? false,
+        unloaded: result.unloaded ?? false,
+        idle: result.idle ?? false,
         paused: result.paused ?? false,
         phase: "ready",
         browserId: result.id,
         nativeAvailable: result.nativeAvailable,
         enabled: result.enabled,
+        interrupted: result.interrupted ?? false,
         origin: result.origin,
         page: result.page ?? null,
         tools: result.tools,
@@ -189,6 +199,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     commandErrorRef.current = null
     setPendingAction(null)
     setStoppedCalls(0)
+    setPoolFull(false)
     focusAfterAction.current = null
     useWebMcpBrowserStore.getState().selectView(directory, sessionID)
     updateSnapshot({ directory, sessionID })
@@ -224,7 +235,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         return
       }
       applyStatus(shown, lifecycle)
-    })().catch(() => {
+    })().catch((error) => {
+      if (!disposed && String(error).includes("pool-full")) setPoolFull(true)
       if (!disposed && lifecycleRef.current === lifecycle) {
         if (id && retiredView.current?.id === id) {
           useWebMcpBrowserStore.getState().resetView(key, retiredView.current.error)
@@ -305,7 +317,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           // One missed poll is noise; three in a row means the browser really went away.
           pollFailures += 1
           if (!disposed && pollFailures >= 3 && lifecycleRef.current === lifecycle) {
-            updateSnapshot({ phase: "error", error: "disconnected", enabled: false })
+            updateSnapshot({ phase: "error", error: "disconnected", enabled: false, interrupted: false })
           }
         })
     }, 1000)
@@ -371,7 +383,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   )
   const hasPendingEnableRequest = enableRequests > enableConsumed
   React.useEffect(() => {
-    if (paused || enabled) {
+    if (paused || enabled || interrupted) {
       consumeEnableRequest()
       return
     }
@@ -393,6 +405,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     command,
     consumeEnableRequest,
     enabled,
+    interrupted,
     enableConsumed,
     enableRequests,
     hasPendingEnableRequest,
@@ -411,6 +424,21 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      <WebMcpPageSwitcher
+        selectedKey={key}
+        onRetry={() => {
+          if (poolFull) setRestart((value) => value + 1)
+        }}
+      />
+      {poolFull && (
+        <p role="alert" className="p-2 typography-meta">
+          {t(otherWindows?.length ? "webmcp.pages.fullOtherWindows" : "webmcp.pages.blocked")}
+          <Button type="button" size="xs" variant="outline" onClick={() => setRestart((value) => value + 1)}>
+            {t("webmcp.actions.fix.reopen")}
+          </Button>
+        </p>
+      )}
+      <WebMcpTrustSummary viewKey={key} />
       <form
         className="flex items-center gap-1.5 border-b border-border/40 px-2 py-1.5"
         onSubmit={(event) => {
@@ -457,7 +485,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             {summary.detail}
           </span>
         </div>
-        {paused || enabled ? (
+        {paused || enabled || interrupted ? (
           <>
             <Button
               ref={accessControlRef}
@@ -499,7 +527,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         )}
       </div>
 
-      <div role="status" aria-live="polite" aria-atomic="true">
+      <div role="status" aria-live="polite" aria-atomic="true" data-webmcp-access-status>
+        {interrupted ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.detail.interrupted")}</p> : null}
         {paused ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.browser.takeOver")}</p> : null}
         {waiting ? (
           <p className="px-2.5 py-1.5 typography-micro">
@@ -514,7 +543,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           </p>
         ) : null}
       </div>
-      {!enabled && !paused && ready ? (
+      {!enabled && !paused && !interrupted && ready ? (
         <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
           {t("webmcp.browser.explanation")}
         </p>
@@ -530,7 +559,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         </p>
       ) : null}
 
-      {showErrorBanner ? (
+      {showErrorBanner && !poolFull ? (
         <p
           role="alert"
           className="flex items-start gap-2 border-b border-border/40 bg-[color-mix(in_srgb,var(--status-error)_10%,transparent)] px-2.5 py-1.5 typography-micro text-foreground"

@@ -1,4 +1,6 @@
 import React from "react"
+import { countSessionsWithWaitingPages } from "@/lib/webMcpViewKey"
+import { useWebMcpPages } from "@/hooks/useWebMcpPages"
 
 import { Icon } from "@/components/icon/Icon"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -22,7 +24,11 @@ export const NeedsYouButton: React.FC = () => {
   const rows = useSupervisionRows()
   const open = useSupervisionStore((state) => state.needsYouPopoverOpen)
   const setOpen = useSupervisionStore((state) => state.setNeedsYouPopoverOpen)
-  const count = React.useMemo(() => rows.reduce((total, row) => total + (needsHuman(row.state) ? 1 : 0), 0), [rows])
+  const waiting = useWebMcpPages().filter((page) => page.waiting && !page.visible)
+  const count = countSessionsWithWaitingPages(
+    rows.filter((row) => needsHuman(row.state)),
+    waiting,
+  )
   const close = React.useCallback(() => setOpen(false), [setOpen])
   const label = count > 0 ? t("supervision.needsYou.openAria", { count }) : t("supervision.needsYou.openEmptyAria")
 

@@ -17,7 +17,7 @@ export interface WebMcpSummary {
 type SummaryInput = Pick<
   WebMcpBrowserSnapshot,
   "phase" | "nativeAvailable" | "runtimeCompatible" | "enabled" | "origin" | "page" | "tools" | "error"
-> & { paused?: boolean }
+> & { paused?: boolean; interrupted?: boolean }
 
 export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18nKey => {
   switch (error) {
@@ -70,6 +70,14 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
       stateKey: "webmcp.state.unavailable",
       detailKey: "webmcp.detail.desktopOnly",
       canOpen: false,
+    }
+  }
+  if (state.interrupted) {
+    return {
+      tone: "warning",
+      stateKey: "webmcp.pages.access.interrupted",
+      detailKey: "webmcp.detail.interrupted",
+      canOpen: true,
     }
   }
   if (state.phase === "error") {
