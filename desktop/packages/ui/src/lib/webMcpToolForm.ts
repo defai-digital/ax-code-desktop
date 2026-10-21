@@ -1,4 +1,10 @@
-import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
+import { webMcpDisplaySchema } from "../../../../shared/webmcp-redaction.mjs"
+/** Display a derived value with its original property path, before any truncation or flattening. */
+export function toolFieldDisplayValue(name: string, value: unknown): unknown {
+  const projected = webMcpDisplaySchema({ properties: { [name]: value } }) as { properties: Record<string, unknown> }
+  return Object.values(projected.properties)[0]
+}
+
 /** Primitive fields are an input aid, not an authoritative schema validator. */
 export type ToolField = {
   name: string
@@ -21,7 +27,7 @@ function readToolField(name: string, property: unknown, required: boolean): Tool
   if (!isRecord(property)) return null
   if (compositionKeys.some((key) => key in property)) return null
   const description =
-    typeof property.description === "string" ? redactWebMcpText(property.description).slice(0, 300) : undefined
+    typeof property.description === "string" ? String(toolFieldDisplayValue(name, property.description)).slice(0, 300) : undefined
   const constraints = Object.fromEntries(
     constraintNames.filter((key) => key in property).map((key) => [key, property[key]]),
   )

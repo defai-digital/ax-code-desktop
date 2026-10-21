@@ -55,8 +55,11 @@ export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unkno
   if (schema === undefined) return { status: "unchecked", reason: "no-schema" }
   const fields = diagnosisFields(schema)
   const findings: WebMcpDiagnosisFinding[] = []
-  const uncheckable: string[] = []
+  // The display projection can hide a complete property definition. Absence of a check is not a pass.
+  const properties = (schema as { properties?: Record<string, unknown> } | null)?.properties
+  const uncheckable = Object.entries(properties ?? {}).filter(([, value]) => value === "[redacted]").map(([name]) => name)
   for (const name of diagnosisOpaqueRequired(schema, fields)) {
+    if (uncheckable.includes(name)) continue
     if (!Object.hasOwn(input, name) || input[name] === undefined) {
       findings.push({ property: name, rule: "required", valueKind: "absent" })
     }
@@ -82,7 +85,7 @@ export function diagnoseWebMcpInput(schema: unknown, input: Record<string, unkno
       findings.push({ property: field.name, rule: warning.constraint as WebMcpDiagnosisRule, valueKind })
     }
   }
-  if (findings.length === 0 && fields.length === 0 && !emptyObjectSchema(schema)) {
+  if (findings.length === 0 && fields.length === 0 && uncheckable.length === 0 && !emptyObjectSchema(schema)) {
     return { status: "unchecked", reason: "unsupported-schema" }
   }
   return { status: "checked", findings, ...(uncheckable.length ? { uncheckable } : {}) }

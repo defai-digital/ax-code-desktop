@@ -1,6 +1,6 @@
 import { webMcpToolIdentity } from "@/lib/webMcpCatalog"
 import { compoundKeys } from "../../../../../shared/testing/webmcp-redaction-cases.mjs"
-import { nativeWebMcpTool, projectedWebMcpTool } from "@/test/webMcpCatalog"
+import { nativeWebMcpTool, projectedWebMcpTool, projectToolCatalog } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
@@ -1340,4 +1340,78 @@ test("two credential-shaped tools keep agent comparison and changed property evi
   expect(changed.querySelector("[data-webmcp-property-diff]")?.textContent).toContain("boolean")
   expect(changed.querySelector("[data-webmcp-property-diff]")?.textContent).toContain("required")
   expect(container.innerHTML).not.toMatch(/ghp_/)
+})
+
+
+test("every rendered schema-derived text retains original sensitive property context", async () => {
+  const numericSecret = 123456
+  const secret = "plain-sensitive-keyword-value"
+  const schema = {
+    type: "object",
+    properties: {
+      pin: { type: "integer", minimum: numericSecret, maximum: numericSecret,
+        exclusiveMinimum: numericSecret, exclusiveMaximum: numericSecret, multipleOf: numericSecret,
+        minLength: numericSecret, maxLength: numericSecret, minItems: numericSecret, maxItems: numericSecret,
+        minProperties: numericSecret, maxProperties: numericSecret,
+        description: secret, title: secret, format: secret, default: numericSecret, const: numericSecret,
+        enum: [numericSecret], examples: [numericSecret], pattern: secret, placeholder: secret, hint: secret },
+      apiKey: { type: "string", description: secret, title: secret, format: secret,
+        default: secret, const: secret, enum: [secret], examples: [secret], pattern: secret,
+        minLength: numericSecret, maxLength: numericSecret, placeholder: secret, hint: secret },
+      ["x".repeat(4000) + "password"]: { type: "string", description: secret, default: secret },
+    },
+    required: ["pin", "apiKey"],
+  }
+  const tool = projectToolCatalog([{ name: "echo", description: "Echo", frameId: "top", inputSchema: schema }], new Map(), new Map(), "https://shop.test").catalog[0]
+  expect((tool.inputSchema as { properties: { pin: unknown } }).properties.pin).toBe("[redacted]")
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
+  const inspectEveryText = () => {
+    const walker = document.createTreeWalker(container, 4)
+    const texts: string[] = []
+    while (walker.nextNode()) texts.push(walker.currentNode.textContent ?? "")
+    for (const element of container.querySelectorAll("*")) {
+      texts.push(...Array.from(element.attributes, (attribute) => attribute.value))
+      if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) texts.push(element.value)
+    }
+    for (const text of texts) {
+      expect(text).not.toContain(secret)
+      expect(text).not.toContain(String(numericSecret))
+    }
+  }
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  inspectEveryText()
+  await runTool() // Required-field feedback.
+  inspectEveryText()
+  fireEvent.change(container.querySelector('input[type="password"]')!, { target: { value: "7" } })
+  const select = container.querySelector("select")!
+  fireEvent.change(select, { target: { value: select.options[1].value } })
+  await runTool() // Numeric and length warnings.
+  expect(container.querySelector('[role="alert"]')).not.toBeNull()
+  inspectEveryText()
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.sendAnyway" }))) // Preserve the executable enum.
+  expect(tryTool).toHaveBeenCalledWith(tool.invocationID, { pin: 7, apiKey: secret }, expect.anything())
+  expect(container.querySelector('[data-webmcp-diagnosis="manual"]')).not.toBeNull()
+  inspectEveryText()
+})
+
+test("comparison reports unknown association after registration history evicts a completed call", async () => {
+  const { collectWebMcpCalls } = await import("@/lib/webMcpCalls")
+  const { webMcpKnownDefinitions } = await import("@/lib/webMcpCatalog")
+  const old = nativeWebMcpTool({ name: "echo", description: "Original", inputSchema: { type: "object", properties: {} } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [old] })
+  for (let edit = 0; edit < 33; edit++) store.updateSnapshot({ catalog: [nativeWebMcpTool({ ...old, description: `Edit ${edit}` })] })
+  const calls = collectWebMcpCalls([{ id: "m" }], () => [{ type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", metadata: { operation: "invoke", toolName: old.name, definitionDigest: old.definitionDigest, arguments: {} }, output: "{}",
+  } }], 20, undefined, webMcpKnownDefinitions(useWebMcpBrowserStore.getState()))
+  expect(calls[0]).toMatchObject({ outcome: "ok", invocationID: undefined })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={calls} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
+  expect(container.querySelector('[data-webmcp-compare-agent]')?.textContent).toContain("webmcp.tools.compare.unknownAgent")
+  expect(container.textContent).not.toContain("webmcp.tools.compare.noAgent")
 })

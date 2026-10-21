@@ -163,7 +163,8 @@ describe("browser evidence beside landing", () => {
       fireEvent.click(container.querySelector<HTMLButtonElement>("[data-recap-copy]")!)
     })
     const text = writeText.mock.calls[0][0]
-    expect(text.split("\n")).toHaveLength(62)
+    expect(text.split("\n")).toHaveLength(63)
+    expect(text).toContain("diffView.landing.browserRecap.unknownAssociation")
     expect(text).toContain("diffView.landing.browserEvidence:60")
     expect(text).not.toContain("diffView.landing.browserRecap.capped")
     expect(text).toContain("1. checkout")
@@ -181,7 +182,7 @@ test("uncalled tool names and structured failures are redacted in the recap and 
   } }]]])
   useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
   useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", origin: "https://shop.test",
-    catalog: [{ name: "checkout", description: "Pay" }, { name: secret, description: "Unused" }] })
+    catalog: [nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} }), nativeWebMcpTool({ name: secret, description: "Unused" })] })
   const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
   Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
   const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
@@ -214,7 +215,7 @@ test.each([false, true])("whole-turn evidence includes an early failure beyond c
   useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
   useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", catalog: [
     nativeWebMcpTool({ name: "complete_task", description: "Complete" }), nativeWebMcpTool({ name: "list_tasks", description: "List" }),
-    { name: "unused", description: "Unused" },
+    nativeWebMcpTool({ name: "unused", description: "Unused" }),
   ] })
   const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
   expect(container.querySelector("[data-landing-browser-evidence]")?.textContent).toBe("diffView.landing.browserEvidenceFailed:206|1")
@@ -251,4 +252,27 @@ test("recap and copied evidence distinguish two credential-shaped tools and attr
   expect(writeText.mock.calls[0][0]).toContain("1. [redacted tool 1]")
   expect(writeText.mock.calls[0][0]).toContain("notCalled:[redacted tool 2]")
   expect(container.innerHTML + writeText.mock.calls[0][0]).not.toMatch(/ghp_/)
+})
+
+
+test("evicted successful invocation stays successful and makes displayed and copied coverage unknown", async () => {
+  const old = nativeWebMcpTool({ name: "add_task", description: "Original", inputSchema: {} })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ sessionID: "s1", origin: "https://tasks.test", catalog: [old] })
+  for (let edit = 0; edit < 33; edit++) store.updateSnapshot({ catalog: [nativeWebMcpTool({ ...old, description: `Edit ${edit}` })] })
+  expect(useWebMcpBrowserStore.getState().catalog[0].invocationID).toBe(old.invocationID)
+  expect(useWebMcpBrowserStore.getState().registration).toHaveLength(32)
+  sync.messages = [{ id: "u", role: "user" }, { id: "a", role: "assistant" }]
+  sync.parts = new Map([["a", [{ type: "tool", tool: "desktop_webmcp", state: { status: "completed",
+    metadata: { operation: "invoke", toolName: "add_task", definitionDigest: old.definitionDigest }, output: "created",
+  } }]]])
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  expect(container.querySelector('[data-recap-outcome="ok"]')).not.toBeNull()
+  expect(container.querySelector('[data-recap-not-called]')).toBeNull()
+  expect(container.querySelector('[data-recap-unknown-association]')).not.toBeNull()
+  await act(async () => fireEvent.click(container.querySelector('[data-recap-copy]')!))
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("diffView.landing.browserRecap.unknownAssociation"))
+  expect(writeText.mock.calls.flat().join(" ")).not.toContain("browserRecap.notCalled")
 })

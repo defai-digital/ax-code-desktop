@@ -3088,3 +3088,34 @@ test("catalog redacts original sensitive keys before truncation and renderer fil
   expect(projected.executionSchema).toEqual(schema)
   expect(schema.properties[key].default).toBe("synthetic-password")
 })
+
+
+test("view identities expire, remain capped under churn, and keep live labels stable", () => {
+  const identities = new Map()
+  const project = (names, origin = "https://tools.test") => projectToolCatalog(
+    names.map((name) => ({ name, description: "Tool", frameId: "top" })), new Map(), identities, origin,
+  ).catalog
+  const [live] = project(["token=live"])
+  const [recent] = project(["token=recent", "token=live"])
+  expect(project(["token=live", "token=recent"])[1]).toEqual(recent)
+  for (let revision = 0; revision < 1000; revision++) {
+    const catalog = project(["token=live", ...Array.from({ length: 63 }, (_, index) => `token=${revision}-${index}`)])
+    expect(catalog[0]).toEqual(live)
+    expect(new Set(catalog.map((tool) => tool.name)).size).toBe(catalog.length)
+    expect(identities.size).toBeLessThanOrEqual(256)
+  }
+  expect(identities.has(JSON.stringify(["https://tools.test", "token=recent"]))).toBe(false)
+  for (let revision = 0; revision < 33; revision++) project(["token=live"])
+  expect(identities.size).toBe(1)
+  for (let revision = 0; revision < 33; revision++) project([], "https://other.test")
+  expect(identities.size).toBe(0)
+  expect(project(["token=live"])[0].invocationID).not.toBe(live.invocationID)
+})
+
+test("assigning a placeholder ordinal never scans retained identity values", () => {
+  const identities = new Map()
+  projectToolCatalog([{ name: "token=first" }], new Map(), identities)
+  const values = vi.spyOn(identities, "values").mockImplementation(() => { throw new Error("linear ordinal scan") })
+  expect(projectToolCatalog([{ name: "token=second" }], new Map(), identities).catalog[0].name).toBe("[redacted tool 2]")
+  expect(values).not.toHaveBeenCalled()
+})
