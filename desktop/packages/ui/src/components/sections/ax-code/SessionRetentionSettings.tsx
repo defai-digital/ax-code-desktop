@@ -59,6 +59,7 @@ export const SessionRetentionSettings: React.FC = () => {
         result.action === "archive"
           ? t("settings.openchamber.sessionRetention.toast.failedArchiveCount", { count: result.failedIds.length })
           : t("settings.openchamber.sessionRetention.toast.failedDeleteCount", { count: result.failedIds.length }),
+        result.failureReason ? { description: result.failureReason } : undefined,
       )
     }
   }, [runCleanup, t])

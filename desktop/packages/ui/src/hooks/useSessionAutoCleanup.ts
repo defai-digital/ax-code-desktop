@@ -1,6 +1,8 @@
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { archiveGlobalSession, GlobalSessionArchiveUnavailableError } from "@/lib/ax-code/sessionArchiveApi"
+import { formatSdkError } from "@/lib/ax-code/sdkError"
 import {
   ensureGlobalSessionsLoaded,
   useGlobalSessionsStore,
@@ -58,6 +60,7 @@ type CleanupResult = {
   completedIds: string[]
   failedIds: string[]
   action: "archive" | "delete"
+  failureReason?: string
   skippedReason?: "disabled" | "loading" | "cooldown" | "no-candidates" | "running"
 }
 
@@ -145,7 +148,8 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
       setIsRunning(true)
 
       const run = (async (): Promise<CleanupResult> => {
-        try {          if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
+        try {
+          if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
             if (!force) {
               return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "disabled" }
             }
@@ -181,14 +185,36 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           const sessionMap = new Map(sessions.map((session) => [session.id, session]))
           const completedIds: string[] = []
           const failedIds: string[] = []
+          let failureReason: string | undefined
+          let globalArchiveAvailable = true
+          let archiveUpgradeReason: string | undefined
 
           for (const id of candidateIds) {
             // Selection can change while loading or awaiting a prior action.
             if (id === useSessionUIStore.getState().currentSessionId) continue
+            if (sessionRetentionAction === "archive" && globalArchiveAvailable) {
+              try {
+                await archiveGlobalSession(id, Date.now())
+                completedIds.push(id)
+                continue
+              } catch (error) {
+                if (error instanceof GlobalSessionArchiveUnavailableError) {
+                  // Older signed runtimes can still archive sessions in valid projects.
+                  // Probe once per run, then retain their existing scoped behavior.
+                  globalArchiveAvailable = false
+                  archiveUpgradeReason = error.message
+                } else {
+                  failedIds.push(id)
+                  failureReason ??= formatSdkError(error)
+                  continue
+                }
+              }
+            }
             const session = sessionMap.get(id)
             const directory = session ? resolveGlobalSessionDirectory(session) : null
             if (!directory) {
               failedIds.push(id)
+              failureReason ??= archiveUpgradeReason
               continue
             }
 
@@ -200,9 +226,11 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
                 completedIds.push(id)
               } else {
                 failedIds.push(id)
+                failureReason ??= archiveUpgradeReason
               }
-            } catch {
+            } catch (error) {
               failedIds.push(id)
+              failureReason ??= archiveUpgradeReason ?? formatSdkError(error)
             }
           }
 
@@ -213,7 +241,12 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           // per-session client-state cleanup there still runs.)
           // Failed work must remain eligible for the next non-forced retry.
           if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
-          return { completedIds, failedIds, action: sessionRetentionAction }
+          return {
+            completedIds,
+            failedIds,
+            action: sessionRetentionAction,
+            ...(failureReason ? { failureReason } : {}),
+          }
         } finally {
           setIsRunning(false)
         }

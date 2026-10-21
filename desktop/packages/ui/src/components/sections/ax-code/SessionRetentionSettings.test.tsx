@@ -4,7 +4,13 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-type CleanupResult = { completedIds: string[]; failedIds: string[]; action: "archive" | "delete"; skippedReason?: string }
+type CleanupResult = {
+  completedIds: string[]
+  failedIds: string[]
+  action: "archive" | "delete"
+  skippedReason?: string
+  failureReason?: string
+}
 
 const { runCleanup, toastMessage, toastSuccess, toastError } = vi.hoisted(() => ({
   runCleanup: vi.fn<(options?: { force?: boolean }) => Promise<CleanupResult>>(),
@@ -104,9 +110,7 @@ describe("SessionRetentionSettings manual cleanup", () => {
     render()
     await click()
 
-    expect(toastMessage).toHaveBeenCalledWith(
-      dict["settings.openchamber.sessionRetention.toast.noneEligibleDelete"],
-    )
+    expect(toastMessage).toHaveBeenCalledWith(dict["settings.openchamber.sessionRetention.toast.noneEligibleDelete"])
   })
 
   test("a run that deleted sessions reports the count", async () => {
@@ -114,7 +118,26 @@ describe("SessionRetentionSettings manual cleanup", () => {
     render()
     await click()
 
-    expect(toastSuccess).toHaveBeenCalledWith(dict["settings.openchamber.sessionRetention.toast.deletedCount"].replace("{count}", "2"))
+    expect(toastSuccess).toHaveBeenCalledWith(
+      dict["settings.openchamber.sessionRetention.toast.deletedCount"].replace("{count}", "2"),
+    )
     expect(toastMessage).not.toHaveBeenCalled()
+  })
+
+  test("failed archives show the reason alongside the count", async () => {
+    runCleanup.mockResolvedValue({
+      completedIds: [],
+      failedIds: Array.from({ length: 658 }, (_, i) => `old-${i}`),
+      action: "archive",
+      failureReason: "Update the runtime and try again.",
+    })
+    render()
+    await click()
+
+    expect(toastError).toHaveBeenCalledWith(
+      dict["settings.openchamber.sessionRetention.toast.failedArchiveCount"].replace("{count}", "658"),
+      { description: "Update the runtime and try again." },
+    )
+    expect(toastSuccess).not.toHaveBeenCalled()
   })
 })
