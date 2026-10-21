@@ -90,10 +90,7 @@
     "terminalView.quickKeys.enterAria",
     "terminalView.quickKeys.escape",
     "terminalView.quickKeys.tabAria",
-    "webmcp.browser.addressPlaceholder",
-    "webmcp.browser.explanation",
-    "webmcp.detail.storageClearing",
-    "webmcp.detail.storageCleared"
+    "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
     "supervision.missionControl.pr.label",
