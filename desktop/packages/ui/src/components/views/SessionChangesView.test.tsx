@@ -36,6 +36,8 @@ const harness = vi.hoisted(() => ({
   message: vi.fn(),
 }))
 
+// Browser evidence reads the session transcript from sync state; it has its own tests.
+vi.mock("@/components/views/git/ReviewLandingBrowserEvidence", () => ({ ReviewLandingBrowserEvidence: () => null }))
 vi.mock("@/hooks/useElementWidth", () => ({
   useElementWidth: () => ({ ref: harness.paneRef, width: harness.width }),
 }))

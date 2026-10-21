@@ -245,3 +245,46 @@ Targets from the rounds 6-8 judgments.
   release contract, 14 locales; macOS native journeys and `e2e:desktop` passed.
 - Runtime contract (ADR-266 in AX Code, branch `feat/webmcp-desktop-contract-v1`): in progress separately; Desktop does not depend
   on it until a signed runtime is pinned.
+
+### Round 9 result (judged at `b52c0d96`)
+
+Raw judgments: `round9/`.
+
+| Judge | AX | Orca | Claude Code | Codex app | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| codex | 8.96 | 8.93 | 8.73 | 8.17 | 6.90 | equal | better |
+| deepseek-flash | 9.02 | 8.97 | 8.77 | 8.25 | 6.94 | equal | better |
+| MiniMax-M3 | 9.03 | 9.01 | 8.72 | 8.16 | 6.94 | equal | better |
+
+For the first time every judge scores AX above Orca, by 0.02 to 0.05, inside the judges' spread; the PRD needs a 0.2 lead from all
+three. Correction to the round 9 record: the OS badge counted unseen notifications, not the Needs You count; round 10 changes it.
+Named flips: landing from This session and Last turn, a manual Retry and last-success age for stale previews, free pane arrangement
+in the session grid (drag to split, reorder, pop out), inline three-way merge, PR and check state on rows, an actionable badge.
+
+## Round 10 (2026-10-21): WebMCP where the persona supervises and lands
+
+- W10a (Claude): Desktop reads the AX Code runtime's optional WebMCP fields (ADR-266): the invoke `inputPreview`, a failure `reason`
+  from eight codes, and `nextAction`. The expanded tool row shows the reason and "Next step:"; both are credential-filtered. Older
+  runtimes keep the previous behavior.
+- W10b (Claude): the project browser pane shows the session's recent page-tool calls ("Agent calls (N)"): tool, redacted
+  arguments, outcome and failure reason. Orca's browser pane has no page-tool concept.
+- W10c (Claude): beside Stage, Commit and Push, "Tried in the browser this turn" counts the latest turn's page-tool calls and
+  failures and opens the browser. It is labelled as calls, not as test results.
+- B10 (Claude): the OS dock and taskbar badge counts unique pending decisions (permissions and questions, child sessions
+  included), not unseen notifications. Review of W10a-c and B10 (k3-256k): two MEDIUM (a render and scan on every streamed token;
+  a live region re-announcing the call list) and three LOW, all fixed (`reviews/round10/REVIEW-w10-kimi.md`).
+- P10 (codex, CS-15): PR state and CI checks the existing PR integration knows appear on Mission Control rows, in the peek and as
+  a PR filter, with a bounded cache (two reads in flight, timeouts, per-key backoff). Review (deepseek-flash): three MEDIUM (the
+  failing-checks filter matched merged PRs; a board read dropped a loaded PR body; a status never aged into stale without a
+  render) and two LOW, all fixed with tests and mutation probes (`reviews/round10/REVIEW-p10-deepseek.md`).
+- Round 9 CI: supervision journeys pass on macOS, Windows and Ubuntu, so the Windows "Last turn" loading failure is resolved.
+  The verify job failed on a round 9 test that assumed every `execFile` call has options; fixed.
+- Runtime contract (ADR-266, AX Code branch `feat/webmcp-desktop-contract-v1`, local commit `4474edbbf`, not pushed): grok fixed
+  the deepseek-flash review findings with mutation probes: a visible marker when the 2 KiB preview is cut, cached validators and
+  rejection of page-supplied `pattern`/`patternProperties` (fails closed; a deliberate safety-over-compatibility choice),
+  enrollment inside the project boundary, broader secret-key redaction, and a `session-rejected` reason. Verified here: runtime
+  typecheck and 36 contract tests pass. Desktop does not depend on it until a signed runtime is pinned.
+- Moved to round 11: S10 (landing from This session and Last turn) and F10 (manual Retry and last-success age).
+- Gates: UI 4329, web 1498 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales (5190 keys); build; macOS native journeys (supervision-workspace, portfolio-identity,
+  project-home) and `e2e:desktop` passed.

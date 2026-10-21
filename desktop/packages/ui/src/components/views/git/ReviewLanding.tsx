@@ -15,6 +15,7 @@ import {
 } from "@/stores/useReviewProgressStore"
 import type { GitBranchDiffResponse, GitStatus } from "@/lib/api/types"
 import { ReviewLandingChecks } from "./ReviewLandingChecks"
+import { ReviewLandingBrowserEvidence } from "./ReviewLandingBrowserEvidence"
 import { CommitInput } from "./CommitInput"
 import { commitChanges, pushChanges } from "./landingActions"
 import { isConflictedStatusFile } from "../useDiffHunkStage"
@@ -345,6 +346,7 @@ export function ReviewLanding({
             warn={action === "commit" || action === "push"}
           />
         ) : null}
+        {sessionId ? <ReviewLandingBrowserEvidence directory={directory} sessionId={sessionId} /> : null}
       </div>
       {reason && (
         <p role="status" className="typography-meta text-muted-foreground">

@@ -25,6 +25,8 @@ export interface SupervisionRow {
    * or is not the pinned envelope list. Omitted on rows built before checks existed.
    */
   checks?: VerificationEvidence | null
+  /** Existing GitHub integration data for this directory and branch; separate from runtime verification. */
+  pullRequest?: import("./pullRequestCache").MissionPullRequest | null
   /**
    * In-progress todo, or the latest loaded assistant text. Null when that session's
    * todo and parts are not loaded. Omitted on rows built before activity existed.

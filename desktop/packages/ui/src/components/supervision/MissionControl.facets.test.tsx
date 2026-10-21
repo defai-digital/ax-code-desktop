@@ -232,3 +232,38 @@ describe("Mission Control child visibility", () => {
     expect(screen.queryByRole("list", { name: "Child agents" })).toBeNull()
   })
 })
+
+test("PR menu filters structured PRs, exposes a removable chip and resets through Clear all", async () => {
+  useSupervisionStore.setState({
+    rows: useSupervisionStore.getState().rows.map((item) => ({
+      ...item,
+      pullRequest:
+        item.sessionId === "a1"
+          ? { number: 42, state: "open" as const, checks: "failed" as const }
+          : item.sessionId === "b1"
+            ? { number: 43, state: "draft" as const, checks: "pending" as const }
+            : // A merged PR whose checks failed is not actionable and must not match the failing facet.
+              { number: 44, state: "merged" as const, checks: "failed" as const },
+    })),
+  })
+  render(<MissionControl />)
+  fireEvent.click(screen.getByRole("button", { name: "PR" }))
+  await settle()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Has an open PR" }))
+  await settle()
+  expect(visibleIds()).toEqual(["mission-row-a1", "mission-row-b1"])
+  fireEvent.click(screen.getByRole("button", { name: "Remove filter Has an open PR" }))
+  await act(async () => {
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
+  })
+  expect(visibleIds()).toHaveLength(3)
+  fireEvent.click(screen.getByRole("button", { name: "PR" }))
+  await settle()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Checks failing on PR" }))
+  await settle()
+  expect(visibleIds()).toEqual(["mission-row-a1"])
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
+  await settle()
+  expect(visibleIds()).toHaveLength(3)
+  expect(screen.queryByRole("button", { name: "Remove filter Checks failing on PR" })).toBeNull()
+})

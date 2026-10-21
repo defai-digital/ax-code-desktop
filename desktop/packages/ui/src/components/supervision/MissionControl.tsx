@@ -5,6 +5,7 @@ import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
+import { useMissionControlPullRequests } from "@/hooks/useMissionControlPullRequests"
 import { useRemoteActivityPreviews } from "@/hooks/useRemoteActivityPreviews"
 import { useSupervisionVerificationDemand } from "@/hooks/useSupervisionVerification"
 import { useI18n } from "@/lib/i18n"
@@ -16,6 +17,7 @@ import {
   filterMissionFacets,
   updatedSinceViewed,
   type MissionStatusFilter,
+  type MissionPrFilter,
 } from "@/lib/supervision/missionControl"
 import { groupMissionRows } from "@/lib/supervision/missionGroups"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -109,6 +111,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const projectFilters = React.useMemo(() => selectedProjects.map((project) => project.key), [selectedProjects])
   const [hasChanges, setHasChanges] = React.useState(false)
   const [checksFailing, setChecksFailing] = React.useState(false)
+  const [prFilter, setPrFilter] = React.useState<MissionPrFilter>("all")
   const [updatedOnly, setUpdatedOnly] = React.useState(false)
   const lastViewedAt = useSupervisionStore((s) => s.lastViewedAt)
   const hasFilters =
@@ -117,9 +120,10 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     projectFilters.length > 0 ||
     hasChanges ||
     checksFailing ||
+    prFilter !== "all" ||
     updatedOnly
 
-  const scoped = React.useMemo(
+  const scopedSource = React.useMemo(
     () =>
       filterRows(
         rows,
@@ -129,6 +133,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       ),
     [rows, activeWorkingSetId, mode, workingSets],
   )
+  const { rows: scoped, setVisibleRows: setPrVisibleRows } = useMissionControlPullRequests(scopedSource)
   useSupervisionVerificationDemand(scoped)
   const projectOptions = React.useMemo(() => groupMissionRows(scoped, homeDirectory), [scoped, homeDirectory])
   // Each facet counts what selecting it would show: every other active filter applies, the project facet itself does not.
@@ -140,12 +145,13 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       projectKeys: [],
       hasChanges,
       checksFailing,
+      pr: prFilter,
       updatedOnly,
       lastViewedAt,
     })
     for (const group of groupMissionRows(base, homeDirectory)) counts.set(group.key, group.rows.length)
     return counts
-  }, [scoped, query, statusFilter, hasChanges, checksFailing, updatedOnly, lastViewedAt, homeDirectory])
+  }, [scoped, query, statusFilter, hasChanges, checksFailing, prFilter, updatedOnly, lastViewedAt, homeDirectory])
   // Keep counts responsive to every other facet, without constraining the available project options.
   const searched = React.useMemo(
     () =>
@@ -155,10 +161,11 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         projectKeys: projectFilters,
         hasChanges,
         checksFailing,
+        pr: prFilter,
         updatedOnly,
         lastViewedAt,
       }),
-    [scoped, query, projectFilters, hasChanges, checksFailing, updatedOnly, lastViewedAt],
+    [scoped, query, projectFilters, hasChanges, checksFailing, prFilter, updatedOnly, lastViewedAt],
   )
   const filtered = React.useMemo(
     () => filterMissionFacets(searched, { query: "", status: statusFilter, projectKeys: [], hasChanges: false }),
@@ -172,6 +179,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         : filtered,
     [boardGroupBy, groups, collapsedGroups, filtered],
   )
+  React.useEffect(() => setPrVisibleRows(visibleRows), [setPrVisibleRows, visibleRows])
   const activityRows = useRemoteActivityPreviews(visibleRows)
   const bulkRows = visibleRows.filter((row) => selectedSessionIds.has(row.sessionId))
   const runningCount = bulkRows.filter((row) => row.state === "running").length
@@ -207,6 +215,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     setSelectedProjects([])
     setHasChanges(false)
     setChecksFailing(false)
+    setPrFilter("all")
     setUpdatedOnly(false)
   }
   const wip = React.useMemo(() => summarizeWorkInProgress(rows), [rows])
@@ -703,6 +712,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         }
         hasChanges={hasChanges}
         onHasChangesChange={setHasChanges}
+        pr={prFilter}
+        onPrChange={setPrFilter}
         checksFailing={checksFailing}
         onChecksFailingChange={setChecksFailing}
         updatedOnly={updatedOnly}

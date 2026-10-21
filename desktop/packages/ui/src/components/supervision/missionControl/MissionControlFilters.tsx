@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
-import { matchesMissionStatus, type MissionStatusFilter } from "@/lib/supervision/missionControl"
+import { matchesMissionStatus, type MissionStatusFilter, type MissionPrFilter } from "@/lib/supervision/missionControl"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
 
@@ -24,6 +24,8 @@ interface Props {
   onProjectsChange: (keys: string[]) => void
   hasChanges: boolean
   onHasChangesChange: (value: boolean) => void
+  pr: MissionPrFilter
+  onPrChange: (value: MissionPrFilter) => void
   checksFailing: boolean
   onChecksFailingChange: (value: boolean) => void
   updatedOnly: boolean
@@ -96,6 +98,40 @@ export function MissionControlFilters(props: Props) {
                   {project.label}
                 </span>
                 <span className="ml-auto tabular-nums text-muted-foreground">{project.count}</span>
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild data-mission-project-filter>
+            <Button
+              variant="outline"
+              size="sm"
+              className={cn(
+                "normal-case min-h-9",
+                props.pr !== "all" && "border-primary/40 bg-interactive-selection text-primary",
+              )}
+            >
+              {t("supervision.missionControl.filter.pr")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="start"
+            data-mission-project-filter
+            aria-label={t("supervision.missionControl.filter.pr")}
+          >
+            {(["open", "failing"] as const).map((value) => (
+              <DropdownMenuCheckboxItem
+                key={value}
+                closeOnClick
+                checked={props.pr === value}
+                onCheckedChange={(checked) => props.onPrChange(checked ? value : "all")}
+              >
+                {t(
+                  value === "open"
+                    ? "supervision.missionControl.filter.prOpen"
+                    : "supervision.missionControl.filter.prFailing",
+                )}
               </DropdownMenuCheckboxItem>
             ))}
           </DropdownMenuContent>
@@ -196,11 +232,37 @@ export function MissionControlFilters(props: Props) {
             </Button>
           )
         })}
+        {props.pr !== "all" ? (
+          <Button
+            variant="outline"
+            size="sm"
+            className="normal-case h-auto min-h-7"
+            aria-label={t("supervision.missionControl.filter.remove", {
+              name: t(
+                props.pr === "open"
+                  ? "supervision.missionControl.filter.prOpen"
+                  : "supervision.missionControl.filter.prFailing",
+              ),
+            })}
+            onClick={() => {
+              props.onPrChange("all")
+              keepFocus()
+            }}
+          >
+            {t(
+              props.pr === "open"
+                ? "supervision.missionControl.filter.prOpen"
+                : "supervision.missionControl.filter.prFailing",
+            )}{" "}
+            <span aria-hidden="true">×</span>
+          </Button>
+        ) : null}
         {props.query ||
         props.status !== "all" ||
         projectKeys.length > 0 ||
         props.hasChanges ||
         props.checksFailing ||
+        props.pr !== "all" ||
         props.updatedOnly ? (
           <Button
             variant="ghost"

@@ -203,8 +203,10 @@ describe("useTraySync", () => {
 
       const trayCall = invokeCalls().find((call) => call[0] === "desktop_tray_update")
       expect(trayCall).toBeTruthy()
-      const snapshot = trayCall?.[1] as { dockBadgeCount: number }
-      expect(snapshot.dockBadgeCount).toBe(3)
+      const snapshot = trayCall?.[1] as { dockBadgeCount: number; sessions: Array<{ id: string; unseen: number }> }
+      expect(snapshot.sessions.find((session) => session.id === "root-1")?.unseen).toBe(3)
+      // The badge counts decisions waiting for the person (one pending permission here), not unread activity.
+      expect(snapshot.dockBadgeCount).toBe(1)
     } finally {
       vi.useRealTimers()
     }

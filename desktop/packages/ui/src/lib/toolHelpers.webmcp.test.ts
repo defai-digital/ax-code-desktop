@@ -127,4 +127,28 @@ describe("desktop_webmcp row title and failure", () => {
     for (const status of ["timeout", "cancelled", "aborted"]) expect(desktopWebMcpResultFailed({ status })).toBe(true)
     expect(desktopWebMcpResultFailed({ status: "running" })).toBe(false)
   })
+
+  test("reads the runtime's invocation preview, failure reason and next step (ADR-266), and ignores what it does not know", () => {
+    const withPreview = describeWebMcpCall(
+      { action: "invoke" },
+      { operation: "invoke", inputPreview: '{"query":"shoes","token":"[redacted]"}' },
+    )
+    expect(withPreview.argumentsMissing).toBe(false)
+    expect(withPreview.argumentsText).toBe('{"query":"shoes","token":"[redacted]"}')
+    // A preview that still looks like a credential is not shown.
+    expect(describeWebMcpCall({ action: "invoke" }, { operation: "invoke", inputPreview: "password=hunter2" }).argumentsText).toBe(
+      "[redacted]",
+    )
+    const failed = describeWebMcpCall(
+      { action: "invoke" },
+      { operation: "invoke", reason: "invalid-input", nextAction: "List the tools again and use the invoke template." },
+    )
+    expect(failed.failureReason).toBe("invalid-input")
+    expect(failed.nextAction).toBe("List the tools again and use the invoke template.")
+    // Older runtimes: no preview means arguments are reported missing; unknown reasons are ignored.
+    const older = describeWebMcpCall({ action: "invoke" }, { operation: "invoke", reason: "something-new" })
+    expect(older.argumentsMissing).toBe(true)
+    expect(older.failureReason).toBeNull()
+    expect(dict["chat.toolPart.webmcp.reason.invalid-input"]).toBeTruthy()
+  })
 })

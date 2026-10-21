@@ -15,6 +15,7 @@ import {
   restoreWebMcpAddress,
 } from "@/stores/useWebMcpBrowserStore"
 import { WebMcpToolPanel } from "@/components/mcp/WebMcpToolPanel"
+import { WebMcpCallStrip } from "@/components/mcp/WebMcpCallStrip"
 import { describeWebMcpError, webMcpErrorAction } from "@/lib/webMcpSummary"
 import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
@@ -428,6 +429,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         </p>
       ) : null}
 
+      {sessionID ? <WebMcpCallStrip sessionID={sessionID} directory={directory} /> : null}
       {browserId ? (
         <WebMcpToolPanel
           tryTool={(toolName, input) =>

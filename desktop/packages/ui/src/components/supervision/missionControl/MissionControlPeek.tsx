@@ -1,3 +1,4 @@
+import { MissionControlPullRequest } from "./MissionControlPullRequest"
 import React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -134,6 +135,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
             <GoalBudgetLeft goal={row.goal} />
           </div>
         ) : null}
+        <MissionControlPullRequest pr={row.pullRequest} />
         {row.checks ? <ChecksDetail checks={row.checks} /> : null}
         <EvidenceText fallback="none" evidence={row.evidence} className="typography-micro text-muted-foreground" />
         {recentRuns.length ? (

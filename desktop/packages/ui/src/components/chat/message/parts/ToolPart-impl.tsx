@@ -218,6 +218,8 @@ const webMcpExpandedInput = (
   else if (call.text) lines.push(`${t("chat.permissionCard.webmcp.text")} ${call.text.value}`)
   if (call.argumentsMissing) lines.push(t("chat.toolPart.webmcp.argumentsMissing"))
   if (call.argumentsText) lines.push(call.argumentsText)
+  if (call.failureReason) lines.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
+  if (call.nextAction) lines.push(`${t("chat.toolPart.webmcp.nextAction")} ${call.nextAction}`)
   return lines.join("\n")
 }
 

@@ -99,3 +99,23 @@ describe("web github API issue board requests", () => {
     expect(url).not.toContain("owner=")
   })
 })
+
+describe("web PR status cancellation", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    fetchMock.mockClear()
+  })
+  it("forwards AbortSignal to fetch and keeps the existing cached PR endpoint", async () => {
+    vi.stubGlobal("fetch", fetchMock)
+    const controller = new AbortController()
+    await createWebGitHubAPI().prStatus("C:/work/repo", "feature", "upstream", { signal: controller.signal })
+    const [url, init] = (fetchMock.mock.calls as unknown as Array<[RequestInfo | URL, RequestInit]>)[0]
+    expect(String(url)).toContain("/api/github/pr/status?")
+    expect(String(url)).toContain("branch=feature")
+    expect(String(url)).toContain("remote=upstream")
+    expect(String(url)).not.toContain("force=")
+    expect(init.signal).toBe(controller.signal)
+    controller.abort()
+    expect(init.signal?.aborted).toBe(true)
+  })
+})

@@ -1,3 +1,4 @@
+import { MissionControlPullRequest } from "./MissionControlPullRequest"
 import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
@@ -241,6 +242,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               <span className="truncate">{branch}</span>
             </span>
           ) : null}
+          <MissionControlPullRequest pr={row.pullRequest} />
           {row.checks ? <ChecksChip checks={row.checks} /> : null}
           <GoalBudgetLeft goal={row.goal} />
           {evidenceLabel && row.evidence ? (

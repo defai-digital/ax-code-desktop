@@ -70,6 +70,34 @@ Started 2026-10-21 at the user's direction to continue to the next round while r
 | N9: signals outside the board | Activity unread in the titlebar (the dock badge already showed Needs You); stale activity previews with backoff retry | Claude | codex | done; review findings fixed |
 | M9: three-way merge | inline conflict resolution | later | | not started |
 
+## Round 10
+
+Targets from the round 9 judgments (codex 8.96 vs 8.93, deepseek 9.02 vs 8.97, MiniMax 9.03 vs 9.01: all equal, AX slightly ahead).
+Correction: rounds 9 records said the OS badge already showed the Needs You count; it counted unseen notifications
+(`lib/tray/traySnapshot.ts`). Round 10 changes it.
+
+| Package | Requirement | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+WebMCP first (user direction 2026-10-21: "WebMCP is the winning chance"). Orca has a browser pane with no page-tool concept, so
+round 10 makes WebMCP visible where the persona supervises and lands work:
+
+| Package | Requirement | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| W10a: runtime contract in Desktop | read ADR-266's optional fields as they arrive: invoke `inputPreview`, failure `reason` and `nextAction`; older runtimes keep today's behavior | Claude | Kimi K3 | done |
+| W10b: live call strip (CS-21) | in the project browser pane, the session's recent page-tool calls (tool, redacted arguments, outcome, failure reason) | Claude | Kimi K3 | done |
+| W10c: browser evidence beside landing | next to Stage, Commit and Push, the latest turn's page-tool calls and failures, opening the browser; labelled as calls, not test results | Claude | Kimi K3 | done |
+| R-runtime (ADR-266) | runtime contract on branch `feat/webmcp-desktop-contract-v1` in AX Code | grok | deepseek-flash | implemented; review: no blocking issue, three MEDIUM fixed on the branch; not yet in a signed runtime |
+
+| Package | Requirement | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| B10: actionable badge | the OS dock/taskbar badge counts pending decisions (permissions and questions, child sessions included) | Claude | Kimi K3 | done |
+| P10: PR and check state on the board | CS-15: PR state and CI checks the existing PR integration knows, on Mission Control rows and as a filter | codex | deepseek-flash | done; review: four MEDIUM/LOW fixed with mutation probes |
+| S10: land from session scopes | ReviewLanding in This session and Last turn, reusing the preflight | Claude | codex | moved to round 11 |
+| F10: stale preview recovery | manual Retry and last-success age on stale activity previews | Claude | codex | moved to round 11 |
+| G10: free grid arrangement | drag a slot to split or reorder, pop a slot out into its own window | grok after the runtime package | codex | not started |
+| M10: three-way merge | inline conflict resolution | later | | candidate |
+| R10: review rail tree | collapsible directory grouping in the review rail | | | candidate |
+
 ## Decisions
 
 - 2026-10-21: the user asked to merge all branches and worktrees into main, clean up, commit and push before round 8 (approves the

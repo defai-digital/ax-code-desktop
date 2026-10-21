@@ -86,6 +86,8 @@ export function missionProjectKey(row: Pick<SupervisionRow, "projectId" | "direc
   return row.projectId ?? row.directory ?? "__none__"
 }
 
+export type MissionPrFilter = "all" | "open" | "failing"
+
 export interface MissionFacets {
   query: string
   status: MissionStatusFilter
@@ -93,6 +95,7 @@ export interface MissionFacets {
   hasChanges: boolean
   /** Sessions whose verification envelopes include a failed check. */
   checksFailing?: boolean
+  pr?: MissionPrFilter
   /** Only sessions updated after the user last viewed them (never-viewed sessions count as updated). */
   updatedOnly?: boolean
   lastViewedAt?: Readonly<Record<string, number>>
@@ -120,6 +123,7 @@ export function filterMissionFacets<
     | "evidence"
     | "goal"
     | "checks"
+    | "pullRequest"
   >,
 >(rows: readonly T[], facets: MissionFacets): T[] {
   const projects = new Set(facets.projectKeys)
@@ -129,6 +133,13 @@ export function filterMissionFacets<
       (projects.size === 0 || projects.has(missionProjectKey(row))) &&
       (!facets.hasChanges || row.evidence != null) &&
       (!facets.checksFailing || (row.checks?.state === "failed" && !row.checks.stale)) &&
+      (!facets.pr ||
+        facets.pr === "all" ||
+        (row.pullRequest != null &&
+          !row.pullRequest.stale &&
+          (facets.pr === "open"
+            ? ["open", "draft"].includes(row.pullRequest.state)
+            : ["open", "draft"].includes(row.pullRequest.state) && row.pullRequest.checks === "failed"))) &&
       (!facets.updatedOnly || updatedSinceViewed(row, facets.lastViewedAt)),
   )
 }

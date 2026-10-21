@@ -125,7 +125,11 @@ type GitHubPrStatusStore = {
   stopWatching: (key: string) => void
   refresh: (key: string, options?: PrStatusRefreshOptions) => Promise<void>
   refreshTargets: (targets: PrTrackingTarget[], options?: PrStatusRefreshOptions) => Promise<void>
-  updateStatus: (key: string, updater: (prev: GitHubPullRequestStatus | null) => GitHubPullRequestStatus | null) => void
+  updateStatus: (
+    key: string,
+    updater: (prev: GitHubPullRequestStatus | null) => GitHubPullRequestStatus | null,
+    refreshedAt?: number,
+  ) => void
 }
 
 const timers = new Map<string, number>()
@@ -643,13 +647,14 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         await mapWithConcurrency(keys, PR_STATUS_REFRESH_CONCURRENCY, (key) => get().refresh(key, options))
       },
 
-      updateStatus: (key, updater) => {
+      updateStatus: (key, updater, refreshedAt) => {
         set((state) => {
           const current = state.entries[key] ?? createEntry()
           return {
             entries: writeEntry(state.entries, key, {
               ...current,
               status: updater(current.status),
+              ...(refreshedAt !== undefined ? { lastRefreshAt: refreshedAt, error: null } : {}),
             }),
           }
         })

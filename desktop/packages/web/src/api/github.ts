@@ -135,7 +135,7 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
     directory: string,
     branch: string,
     remote?: string,
-    options?: { force?: boolean },
+    options?: { force?: boolean; signal?: AbortSignal },
   ): Promise<GitHubPullRequestStatus> {
     const params = new URLSearchParams({
       directory,
@@ -144,6 +144,7 @@ export const createWebGitHubAPI = (): GitHubAPI => ({
       ...(options?.force ? { force: HTTP_QUERY_STRINGS.true } : {}),
     })
     const response = await fetch(buildQueryUrl(API_ENDPOINTS.github.prStatus, params), {
+      signal: options?.signal,
       method: HTTP_DEFAULTS.method.get,
       headers: HTTP_DEFAULTS.headers.acceptJson,
     })

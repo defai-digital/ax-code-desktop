@@ -88,10 +88,22 @@ describe("buildTraySnapshot", () => {
     expect(withPatterns.approvals[0].canSave).toBe(true)
   })
 
-  test("counts unseen activity across the listed sessions for the dock badge", () => {
-    const snapshot = buildTraySnapshot(baseInput)
-
-    expect(snapshot.dockBadgeCount).toBe(3)
+  test("the dock badge counts every pending decision, child sessions and requests past the menu limit included", () => {
+    const decisions = Array.from({ length: 7 }, (_, index) => ({
+      kind: (index % 2 ? "question" : "permission") as "question" | "permission",
+      id: `req-${index}`,
+      sessionId: index === 0 ? "child-1" : "root-1",
+      title: "Bash",
+    }))
+    const snapshot = buildTraySnapshot({ ...baseInput, approvals: [...decisions, decisions[0]], maxApprovals: 2 })
+    expect(snapshot.approvals).toHaveLength(2)
+    expect(snapshot.dockBadgeCount).toBe(7)
+    // A request listed twice (a session lingering in two stores) appears once in the menu, as the badge counts it.
+    const twice = buildTraySnapshot({ ...baseInput, approvals: [decisions[1], decisions[1]] })
+    expect(twice.approvals).toHaveLength(1)
+    expect(twice.dockBadgeCount).toBe(1)
+    // Unread activity alone no longer raises the badge; it has its own titlebar count.
+    expect(buildTraySnapshot({ ...baseInput, approvals: [] }).dockBadgeCount).toBe(0)
   })
 
   test("caps the menu rows and defaults the instance label", () => {

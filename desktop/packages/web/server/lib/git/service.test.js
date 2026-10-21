@@ -1138,7 +1138,7 @@ describe("getStatus content identities", () => {
     const { result, invocations } = await recordGitInvocations(() => getStatus(repo, { mode }))
     expect(result.headOid).toBeNull()
     const headReads = execFile[promisify.custom].mock.calls.filter(
-      ([, args, options]) => options.cwd === fs.realpathSync(repo) && args.join(" ") === "rev-parse --verify HEAD",
+      ([, args, options]) => options?.cwd === fs.realpathSync(repo) && args.join(" ") === "rev-parse --verify HEAD",
     )
     expect(headReads).toHaveLength(1)
     expect(headReads[0][2].timeout).toBe(GIT_STATUS_CONTENT_ID_TIMEOUT_MS)

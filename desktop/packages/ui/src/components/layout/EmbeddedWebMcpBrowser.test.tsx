@@ -24,6 +24,8 @@ vi.doMock("@/hooks/useWebMcpBrowser", async (importOriginal) => {
   }
 })
 vi.doMock("@/components/mcp/WebMcpBrowserTools", () => ({ WebMcpStatusDot: () => null }))
+// The call strip reads the session transcript from sync state; it has its own tests.
+vi.doMock("@/components/mcp/WebMcpCallStrip", () => ({ WebMcpCallStrip: () => null }))
 
 const { EmbeddedBrowserChoice } = await import("./EmbeddedWebMcpBrowser")
 const { useWebMcpBrowserStore } = await import("@/stores/useWebMcpBrowserStore")

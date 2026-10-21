@@ -28,7 +28,8 @@ export const ActivityButton: React.FC = () => {
   // Focus moves into the panel when it opens and back to the button when it closes, so keyboard users keep their place.
   React.useEffect(() => {
     if (!open) return
-    panelRef.current?.focus()
+    const panel = panelRef.current
+    panel?.focus()
     const trigger = triggerRef.current
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") setOpen(false)
@@ -37,7 +38,7 @@ export const ActivityButton: React.FC = () => {
     return () => {
       document.removeEventListener("keydown", onKey)
       // A chosen session moves focus to its own view; only restore when focus would otherwise be lost.
-      if (!document.activeElement || document.activeElement === document.body || panelRef.current?.contains(document.activeElement))
+      if (!document.activeElement || document.activeElement === document.body || panel?.contains(document.activeElement))
         trigger?.focus()
     }
   }, [open])

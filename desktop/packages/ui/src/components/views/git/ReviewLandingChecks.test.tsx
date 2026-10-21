@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
     getGitLog: vi.fn(async () => ({ all: [], total: 0, latest: null })),
   },
 }))
+// Browser evidence reads the session transcript from sync state; it has its own tests.
+vi.mock("@/components/views/git/ReviewLandingBrowserEvidence", () => ({ ReviewLandingBrowserEvidence: () => null }))
 vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => ({ git: mocks.git }) }))
 vi.mock("@/sync/sync-context", () => ({ useSession: () => mocks.session }))
 vi.mock("@/lib/ax-code/client", () => ({

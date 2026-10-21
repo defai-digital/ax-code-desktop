@@ -249,7 +249,25 @@ export interface WebMcpCallDescription {
   text: WebMcpDisplayedText | null
   argumentsMissing: boolean
   argumentsText: string | null
+  /** Runtime failure code (AX Code ADR-266), when the runtime sends one. */
+  failureReason: WebMcpFailureReason | null
+  /** The single next step the runtime suggests after a failure, credential-filtered. */
+  nextAction: string | null
 }
+
+export const WEBMCP_FAILURE_REASONS = [
+  "no-page",
+  "page-changed",
+  "tool-not-found",
+  "definition-changed",
+  "invalid-input",
+  "provider-gone",
+  "timeout",
+  "native-failure",
+] as const
+export type WebMcpFailureReason = (typeof WEBMCP_FAILURE_REASONS)[number]
+
+const WEBMCP_PREVIEW_LIMIT = 600
 
 export interface ToolMetadataContext {
   input?: Record<string, unknown> | null
@@ -345,9 +363,18 @@ export function describeWebMcpCall(
   let argumentsText: string | null = null
   if (normalized === "invoke") {
     const args = readWebMcpArguments(metadata)
-    if (!args) argumentsMissing = true
-    else argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
+    // Newer runtimes (ADR-266) send `inputPreview`: the exact input, already redacted and capped. It is still filtered here.
+    const preview = readWebMcpString(metadata, "inputPreview")
+    if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
+    else if (preview) argumentsText = webMcpTextLooksSensitive(preview) ? "[redacted]" : truncateToCodeUnits(preview, WEBMCP_PREVIEW_LIMIT)
+    else argumentsMissing = true
   }
+  const reason = readWebMcpString(metadata, "reason")
+  const failureReason = (WEBMCP_FAILURE_REASONS as readonly string[]).includes(reason ?? "")
+    ? (reason as WebMcpFailureReason)
+    : null
+  const rawNext = readWebMcpString(metadata, "nextAction")
+  const nextAction = rawNext && !webMcpTextLooksSensitive(rawNext) ? truncateToCodeUnits(rawNext.replace(/\s+/g, " ").trim(), 300) : null
   return {
     toolName,
     operation,
@@ -356,6 +383,8 @@ export function describeWebMcpCall(
     text: rawText ? redactActText(rawText, act ? readWebMcpElement(metadata) ?? readWebMcpElement(input) : null) : null,
     argumentsMissing,
     argumentsText,
+    failureReason,
+    nextAction,
   }
 }
 

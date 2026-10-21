@@ -1162,7 +1162,7 @@ export interface GitHubAPI {
     directory: string,
     branch: string,
     remote?: string,
-    options?: { force?: boolean },
+    options?: { force?: boolean; signal?: AbortSignal },
   ): Promise<GitHubPullRequestStatus>
   prCreate(payload: GitHubPullRequestCreateInput): Promise<GitHubPullRequest>
   prUpdate(payload: GitHubPullRequestUpdateInput): Promise<GitHubPullRequest>

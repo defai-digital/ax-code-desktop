@@ -40,7 +40,11 @@ export type TraySnapshot = {
   approvals: TrayApproval[]
   instanceName: string
   usage: TrayUsage
-  /** Root sessions with unseen activity; 0 clears the dock badge. */
+  /**
+   * Decisions waiting for the person (permissions and questions, child sessions included, before the menu limit). The OS
+   * badge means "this many things need you"; unread activity has its own count on the titlebar Activity button.
+   * 0 clears the dock badge.
+   */
   dockBadgeCount: number
 }
 
@@ -140,8 +144,16 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
     directoryBySession.set(session.id, typeof session.directory === "string" ? session.directory : "")
   }
 
+  const seenApprovals = new Set<string>()
   const approvals: TrayApproval[] = input.approvals
     .filter((approval) => Boolean(approval?.id) && Boolean(approval?.sessionId))
+    // A session can linger in two directory stores after a move; list each request once, as the badge counts it.
+    .filter((approval) => {
+      const key = `${approval.kind}\u0000${approval.sessionId}\u0000${approval.id}`
+      if (seenApprovals.has(key)) return false
+      seenApprovals.add(key)
+      return true
+    })
     .map((approval, index) => ({ approval, index, rank: approval.riskRank ?? UNCLASSIFIED_RISK_RANK }))
     // Most consequential first, so the menu limit never hides a must-decide request behind safe ones.
     .sort((left, right) => left.rank - right.rank || left.index - right.index)
@@ -169,7 +181,11 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
       }
     })
 
-  const dockBadgeCount = ordered.reduce((total, session) => total + (input.unseenCountBySession[session.id] ?? 0), 0)
+  const dockBadgeCount = new Set(
+    input.approvals
+      .filter((approval) => Boolean(approval?.id) && Boolean(approval?.sessionId))
+      .map((approval) => `${approval.kind}\u0000${approval.sessionId}\u0000${approval.id}`),
+  ).size
 
   return {
     sessions,
