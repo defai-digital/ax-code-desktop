@@ -31,7 +31,7 @@ export function projectedWebMcpTool(tool: WebMcpToolDefinition): WebMcpToolDefin
   }
 }
 
-const { projectToolCatalog } = createRequire(import.meta.url)("../../../../shared/webmcp-catalog-projection.cjs") as {
+export const { projectToolCatalog } = createRequire(import.meta.url)("../../../../shared/webmcp-catalog-projection.cjs") as {
   projectToolCatalog: (tools: unknown[], kinds: Map<string, string>, identities: Map<string, unknown>, origin: string) => { catalog: WebMcpToolDefinition[] }
 }
 

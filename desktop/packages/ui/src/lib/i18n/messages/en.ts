@@ -51,6 +51,7 @@ export const dict = {
   "diffView.landing.browserRecap.capped": "Showing the latest {shown} of {total} steps.",
   "diffView.landing.browserRecap.copy": "Copy recap",
   "diffView.landing.browserRecap.copied": "Copied",
+  "diffView.landing.browserRecap.unknownAssociation": "Some recorded calls cannot be associated with the retained tool definitions. Which current tools were not called is unknown.",
   "diffView.landing.browserRecap.notCalled": "Tools on this page the agent did not call: {names}",
   "diffView.landing.title": "Review to landing",
   "diffView.landing.stageReviewed": "Stage all reviewed",
@@ -2843,6 +2844,7 @@ export const dict = {
   "webmcp.tools.compare.manual": "Your run",
   "webmcp.tools.compare.agent": "Agent's latest call",
   "webmcp.tools.compare.noManual": "You have not run this tool on this page.",
+  "webmcp.tools.compare.unknownAgent": "Some recorded calls have unknown tool associations. A call to this tool may be among them.",
   "webmcp.tools.compare.noAgent": "The agent has not called this tool in the recent transcript.",
   "webmcp.tools.compare.differentDefinitions":
     "Your run and the agent's call used different definitions ({manual} and {agent}).",

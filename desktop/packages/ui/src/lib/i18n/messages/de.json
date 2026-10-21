@@ -5401,5 +5401,7 @@
   "webmcp.tools.hideJson": "JSON-Eingabe ausblenden",
   "chat.permissionCard.webmcp.expandDescription": "Vollst\u00e4ndige Seitenbeschreibung erweitern",
   "webmcp.tools.diagnosis.truncated": "Vorschau abgeschnitten; vollst\u00e4ndige Argumente sind f\u00fcr die Diagnose nicht verf\u00fcgbar.",
-  "chat.permissionCard.webmcp.unanswered": "Keine Antwort aufgezeichnet; die Genehmigungsanfrage ist nicht mehr verf\u00fcgbar."
+  "chat.permissionCard.webmcp.unanswered": "Keine Antwort aufgezeichnet; die Genehmigungsanfrage ist nicht mehr verf\u00fcgbar.",
+  "diffView.landing.browserRecap.unknownAssociation": "Einige aufgezeichnete Aufrufe k\u00f6nnen nicht mit den beibehaltenen Tool-Definitionen verkn\u00fcpft werden. Welche aktuellen Tools nicht aufgerufen wurden, ist unbekannt.",
+  "webmcp.tools.compare.unknownAgent": "Einige aufgezeichnete Aufrufe haben unbekannte Tool-Zuordnungen. Ein Aufruf dieses Tools k\u00f6nnte darunter sein."
 }

@@ -1,4 +1,4 @@
-import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
+import { redactWebMcpText, webMcpDisplaySchema } from "../../../../shared/webmcp-redaction.mjs"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 
 /**
@@ -120,7 +120,7 @@ export function lintWebMcpTool(
   }
   const state: LintWalk = { nodes: 0, keywords: new Set(), missing: [], opaque: [] }
   try {
-    walkSchema(tool.inputSchema, state)
+    walkSchema(webMcpDisplaySchema(tool.inputSchema), state)
   } catch {
     // A hostile schema yields whatever advice was collected before the walk stopped.
   }

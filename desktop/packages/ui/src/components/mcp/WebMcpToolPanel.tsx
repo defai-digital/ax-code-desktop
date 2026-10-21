@@ -5,6 +5,7 @@ import {
   redactWebMcpReport,
   webMcpDisplayText as redactWebMcpText,
   webMcpDisplayDescription,
+  webMcpDisplaySchema,
 } from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
@@ -25,7 +26,7 @@ import {
   type WebMcpDiagnosisFinding,
 } from "@/lib/webMcpDiagnosis"
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
-import { draftFromRecordedInput, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
+import { draftFromRecordedInput, toolFieldDisplayValue, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
 import {
   desktopWebMcpResultOutcome,
   WEBMCP_FAILURE_REASONS,
@@ -276,7 +277,7 @@ function agentDiagnosis(
   if (call.inputKind === "redacted") return { status: "unavailable", reason: "redacted" }
   if (call.inputKind === "unparsed") return { status: "unavailable", reason: "unparsed" }
   if (call.inputKind === "missing" || !call.input) return { status: "unavailable", reason: "no-arguments" }
-  return diagnoseWebMcpInput(schema, call.input)
+  return diagnoseWebMcpInput(schema, webMcpDisplaySchema(call.input) as Record<string, unknown>)
 }
 
 /** The page outcome a regression snippet should assert for one transcript call. */
@@ -299,21 +300,23 @@ function ToolCompare({
   journalEntry,
   agentCall,
   viewKey,
+  associationUnknown,
 }: {
   viewKey?: string
   tool: WebMcpToolDefinition
   journalEntry: WebMcpJournalEntry | null
   agentCall: WebMcpCall | null
+  associationUnknown: boolean
 }) {
   const { t } = useI18n()
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const historical = [...registration].reverse().flatMap((event) => [event.definition, event.previousDefinition])
     .find((definition) => definition?.invocationID === tool.invocationID && definition?.definitionDigest === agentCall?.definitionDigest)
   const agentDefinition = tool.definitionDigest === agentCall?.definitionDigest ? tool : (historical ?? tool)
-  const agentSchema = agentDefinition.executionSchema ?? agentDefinition.inputSchema
+  const agentSchema = agentDefinition.inputSchema
   const digest = tool.definitionDigest ?? ""
   const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
-  if (!journalEntry && !agentCall) return null
+  if (!journalEntry && !agentCall && !associationUnknown) return null
   return (
     <div className="space-y-2" data-webmcp-compare="">
       <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.title")}</p>
@@ -333,7 +336,7 @@ function ToolCompare({
                 {redactWebMcpText(journalEntry.text)}
               </pre>
               <DiagnosisList
-                diagnosis={diagnoseWebMcpInput(tool.executionSchema ?? tool.inputSchema, journalEntry.input)}
+                diagnosis={diagnoseWebMcpInput(tool.inputSchema, webMcpDisplaySchema(journalEntry.input) as Record<string, unknown>)}
                 digest={journalEntry.definitionDigest ?? null}
                 currentDigest={digest}
                 source="manual"
@@ -375,7 +378,7 @@ function ToolCompare({
               />
             </>
           ) : (
-            <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.noAgent")}</p>
+            <p className="typography-micro text-muted-foreground">{t(associationUnknown ? "webmcp.tools.compare.unknownAgent" : "webmcp.tools.compare.noAgent")}</p>
           )}
         </div>
       </div>
@@ -425,7 +428,7 @@ function FieldInput({
         <option value="">—</option>
         {options.map((option, index) => (
           <option key={index} value={optionValue(option, index)}>
-            {isWebMcpSensitiveName(field.name) ? webMcpResultPreview(option, field.name) : redactWebMcpText(option)}
+            {String(toolFieldDisplayValue(field.name, option))}
           </option>
         ))}
       </select>
@@ -545,6 +548,7 @@ function ToolItem({
   journalEntry,
   replay,
   agentCall,
+  associationUnknown,
 }: {
   tool: WebMcpToolDefinition
   binding: TryToolBinding
@@ -553,6 +557,7 @@ function ToolItem({
   journalEntry: WebMcpJournalEntry | null
   replay: { id: string; input: Record<string, unknown>; nonce: number } | null
   agentCall: WebMcpCall | null
+  associationUnknown: boolean
 }) {
   const { t } = useI18n()
   const saveToolDraft = useWebMcpBrowserStore((state) => state.saveToolDraft)
@@ -619,8 +624,7 @@ function ToolItem({
     t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
       field: redactWebMcpText(field.name),
       bound: webMcpResultPreview(
-        field.constraints?.[constraint],
-        ["default", "enum"].includes(constraint) ? field.name : undefined,
+        toolFieldDisplayValue(field.name, field.constraints?.[constraint]),
       ),
     })
   const showResult = (next: { outcome: string; text: string } | null) => {
@@ -785,7 +789,7 @@ function ToolItem({
                   <label htmlFor={`${baseId}-field-${index}`}>
                     <span className="typography-micro text-muted-foreground">
                       <span className="font-mono">{redactWebMcpText(field.name)}</span>
-                      {field.required ? " *" : ""} · {field.kind}
+                      {field.required ? " *" : ""} · {String(toolFieldDisplayValue(field.name, field.kind))}
                       {field.description ? ` — ${webMcpDisplayDescription(field.description)}` : ""}
                     </span>
                   </label>
@@ -941,7 +945,7 @@ function ToolItem({
               <p className="typography-micro">{t("webmcp.tools.inspectPage")}</p>
             ) : null}
           </div>
-          <ToolCompare viewKey={viewKey} tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
+          <ToolCompare associationUnknown={associationUnknown} viewKey={viewKey} tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
         </div>
       ) : null}
     </li>
@@ -1116,6 +1120,7 @@ export function WebMcpToolPanel({
                 viewKey={toolViewKey}
                 journalEntry={journal.find((entry) => webMcpEvidenceMatchesTool(entry, tool)) ?? null}
                 replay={replay && webMcpEvidenceMatchesTool(replay, tool) ? replay : null}
+                associationUnknown={agentCalls.some((call) => call.operation?.toLowerCase() === "invoke" && !call.invocationID)}
                 agentCall={
                   agentCalls.find(
                     (call) => call.operation?.toLowerCase() === "invoke" && Boolean(call.invocationID) && call.invocationID === tool.invocationID,

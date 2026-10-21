@@ -95,8 +95,9 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const called = new Set(calls.filter((call) => call.operation?.toLowerCase() === "invoke" &&
     webMcpToolIdentity({ invocationID: call.invocationID, definitionDigest: call.definitionDigest ?? undefined }))
     .map((call) => call.invocationID))
-  const notCalled = calls.some((call) => call.operation?.toLowerCase() === "invoke")
-    ? (pageTools ?? []).filter((tool) => !tool.invocationID || !called.has(tool.invocationID)).map((tool) => tool.name)
+  const associationUnknown = calls.some((call) => call.operation?.toLowerCase() === "invoke" && !call.invocationID)
+  const notCalled = !associationUnknown && calls.some((call) => call.operation?.toLowerCase() === "invoke")
+    ? (pageTools ?? []).filter((tool) => tool.invocationID && !called.has(tool.invocationID)).map((tool) => tool.name)
     : []
   // Oldest first reads as the order the agent worked in.
   const steps = calls.slice(0, RECAP_LIMIT).reverse()
@@ -124,7 +125,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       .join("\n")
   const copyRecap = async () => {
     try {
-      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), recapText(), ...(notCalled.length ? [t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })] : [])].join("\n"))
+      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), recapText(), ...(associationUnknown ? [t("diffView.landing.browserRecap.unknownAssociation")] : []), ...(notCalled.length ? [t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })] : [])].join("\n"))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -212,6 +213,11 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
         <button type="button" className="mt-1 text-[var(--status-info)] hover:underline" onClick={() => void copyRecap()} data-recap-copy>
           {copied ? t("diffView.landing.browserRecap.copied") : t("diffView.landing.browserRecap.copy")}
         </button>
+        {associationUnknown ? (
+          <p className="mt-1" data-recap-unknown-association>
+            {t("diffView.landing.browserRecap.unknownAssociation")}
+          </p>
+        ) : null}
         {notCalled.length > 0 ? (
           <p className="mt-1" data-recap-not-called>
             {t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })}
