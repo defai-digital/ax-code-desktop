@@ -547,3 +547,29 @@ test("WebMCP approval response errors are redacted in toast text and logs", asyn
     expect(toast.error).toHaveBeenCalledWith("chat.permissionCard.responseFailed.title", { description: "[redacted]" })
   } finally { log.mockRestore() }
 })
+
+
+test.each([undefined, {}, { note: { type: "string" } }])(
+  "approval includes required names without property definitions: %j",
+  (properties) => {
+    const key = viewKeyFor("/repo", "ses_1")
+    const names = ["accountId", ...Array.from({ length: 13 }, (_, index) => `required${index}`)]
+    const tool = nativeWebMcpTool({
+      name: "approve",
+      description: "Approve the account",
+      inputSchema: { type: "object", properties, required: [...names, "accountId", 42] },
+    })
+    useWebMcpBrowserStore.getState().updateView(key, {
+      sessionID: "ses_1", directory: "/repo", origin: "https://example.com", catalog: [tool],
+    })
+    const { container } = render(<PermissionCard permission={request({ metadata: {
+      origin: "https://example.com", operation: "invoke", toolName: tool.name,
+      definitionDigest: tool.definitionDigest, desktopProvider: true,
+    } })} />)
+    const inputs = container.querySelector("[data-webmcp-approval-inputs]")!.textContent!
+    expect(inputs).toContain(names.slice(0, 12).map((name) => `${name}*`).join(", "))
+    const note = container.querySelector("[data-webmcp-approval-inputs-truncated]")!.textContent!
+    expect(note).toContain(`"total":${names.length + Object.keys(properties ?? {}).length}`)
+    expect(note).toContain('"required":2')
+  },
+)

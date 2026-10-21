@@ -90,10 +90,9 @@ export function diagnosisFields(schema: unknown): ToolField[] {
 
 /** Required names whose schema is not a primitive field, so a missing value can still be named. */
 export function diagnosisOpaqueRequired(schema: unknown, fields: readonly ToolField[]): string[] {
-  if (!isRecord(schema) || !isRecord(schema.properties)) return []
+  if (!isRecord(schema)) return []
   const covered = new Set(fields.map((field) => field.name))
-  const properties = schema.properties
-  return [...requiredNames(schema)].filter((name) => Object.hasOwn(properties, name) && !covered.has(name))
+  return [...requiredNames(schema)].filter((name) => !covered.has(name))
 }
 
 /** Empty text omits a field unless the person explicitly chooses to send an empty string. */

@@ -184,6 +184,28 @@ describe("agent browser enable request", () => {
     expect(container.querySelector("[data-webmcp-tool-result='stale-form']")?.textContent).toContain("webmcp.tools.staleForm")
   })
 
+  test("a retained idle page is named in the full pool and is not automatically closed", async () => {
+    const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+    useWebMcpBrowserStore.getState().updateView(viewKeyFor("/repo", "ses_unsaved"), {
+      browserId: "retained-page", directory: "/repo", sessionID: "ses_unsaved",
+      origin: "https://draft.test", idle: true, unloaded: false,
+    })
+    useWebMcpBrowserStore.setState({ capacity: { liveViews: 1, maxLiveViews: 1 } })
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
+      if (call.action === "create") throw new Error("pool-full")
+      return undefined
+    })
+    render()
+    openAgentMode()
+    await flush()
+    expect(container.textContent).toContain("webmcp.pages.blocked")
+    const page = container.querySelector('[data-webmcp-session="ses_unsaved"]')!
+    expect(page.textContent).toContain("ses_unsaved")
+    expect(page.textContent).toContain("https://draft.test")
+    expect(page.textContent).toContain("webmcp.pages.close")
+    expect(callsFor("close")).toHaveLength(0)
+  })
+
   test("a cross-window full pool offers owner focus and a working reopen action", async () => {
     let full = true
     invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {

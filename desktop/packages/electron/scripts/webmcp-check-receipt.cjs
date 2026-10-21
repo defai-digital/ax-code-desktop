@@ -17,4 +17,8 @@ function runInputReceipt(key, index, run) {
     .digest("hex")
 }
 
-module.exports = { runInputReceipt }
+function toolIdentityReceipt(key, name) {
+  return createHmac("sha256", key).update(JSON.stringify(["catalog-tool", name])).digest("hex")
+}
+
+module.exports = { runInputReceipt, toolIdentityReceipt }

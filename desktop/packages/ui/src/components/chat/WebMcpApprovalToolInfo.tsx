@@ -10,11 +10,13 @@ import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 function schemaInputs(schema: unknown): { name: string; required: boolean }[] {
   if (!schema || typeof schema !== "object") return []
   const record = schema as { properties?: unknown; required?: unknown }
-  if (!record.properties || typeof record.properties !== "object") return []
   const required = new Set(
     Array.isArray(record.required) ? record.required.filter((key) => typeof key === "string") : [],
   )
-  return Object.keys(record.properties as Record<string, unknown>)
+  const properties = record.properties && typeof record.properties === "object" && !Array.isArray(record.properties)
+    ? Object.keys(record.properties)
+    : []
+  return [...new Set([...required, ...properties])]
     .map((name) => ({ name, required: required.has(name) }))
     .sort((a, b) => Number(b.required) - Number(a.required))
 }

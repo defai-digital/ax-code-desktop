@@ -4,7 +4,7 @@
 // tools it registers and runs the requested ones through the page's own model context. Never imported by the app.
 const { app, BrowserWindow } = require("electron")
 const fs = require("node:fs")
-const { runInputReceipt } = require("./webmcp-check-receipt.cjs")
+const { runInputReceipt, toolIdentityReceipt } = require("./webmcp-check-receipt.cjs")
 const { definitionDigest } = require("../../../shared/webmcp-digests.cjs")
 const { redactWebMcpReport } = require("../../../shared/webmcp-redaction.mjs")
 
@@ -107,6 +107,7 @@ async function check() {
   }
   report.tools = [...live.values()].map((tool) => ({
     name: tool.name,
+    identityReceipt: toolIdentityReceipt(config.receiptKey, tool.name),
     description: tool.description ?? "",
     form: tool.backendNodeId !== undefined,
     annotations: tool.annotations ?? {},

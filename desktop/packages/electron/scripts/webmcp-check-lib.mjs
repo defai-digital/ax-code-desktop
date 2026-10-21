@@ -4,7 +4,7 @@ import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { isDeepStrictEqual } from "node:util"
 
 const require = createRequire(import.meta.url)
-const { runInputReceipt } = require("./webmcp-check-receipt.cjs")
+const { runInputReceipt, toolIdentityReceipt } = require("./webmcp-check-receipt.cjs")
 // The same mapping the project browser's Try it panel uses, so a CI check and a person agree on what failed.
 const { manualToolResult } = require("../src/webmcp-manual-outcome.js")
 
@@ -89,8 +89,11 @@ export function evaluateReport(report, options, termination, receiptKey) {
     const run = report.runs?.[index]
     return Boolean(run && (receiptKey
       ? run.inputReceipt === runInputReceipt(receiptKey, index, requested)
-      : isDeepStrictEqual(run.input, requested.input)))
+      : run.name === requested.name && isDeepStrictEqual(run.input, requested.input)))
   })
+  const identities = new Set((report.tools ?? []).map((tool) => receiptKey ? tool.identityReceipt : tool.name))
+  const missingTools = options.expectTools.map((name) =>
+    !identities.has(receiptKey ? toolIdentityReceipt(receiptKey, name) : name))
   report = redactWebMcpReport(report)
   options = redactWebMcpReport(options)
   const problems = []
@@ -108,7 +111,6 @@ export function evaluateReport(report, options, termination, receiptKey) {
       const run = recorded[index]
       if (
         !run ||
-        run.name !== requested.name ||
         !matchingInputs[index] ||
         (!Object.hasOwn(run, "output") && !run.error)
       )
@@ -119,7 +121,7 @@ export function evaluateReport(report, options, termination, receiptKey) {
   const incomplete = problems.length > 0
   const names = new Set((report.tools ?? []).map((tool) => tool.name))
   if (names.size === 0) problems.push("The page registered no page tools.")
-  for (const name of options.expectTools) if (!names.has(name)) problems.push(`Expected tool not registered: ${name}`)
+  for (const [index, name] of options.expectTools.entries()) if (missingTools[index]) problems.push(`Expected tool not registered: ${name}`)
   const runs = recorded.map((recordedRun) => {
     const run = { ...recordedRun }
     delete run.inputReceipt
@@ -134,7 +136,7 @@ export function evaluateReport(report, options, termination, receiptKey) {
     ? EXIT.failed
     : names.size === 0
       ? EXIT.noTools
-      : options.expectTools.some((name) => !names.has(name))
+      : missingTools.some(Boolean)
         ? EXIT.failed
         : runs.some((run) => run.outcome !== "completed")
           ? EXIT.toolError
