@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Von Projekt-Browser abmelden",
   "webmcp.browser.confirmClose": "Diese Seiten k\u00f6nnen nicht gespeicherte \u00c4nderungen enthalten. Sie schlie\u00dfen und nicht gespeicherte \u00c4nderungen verwerfen? {pages}",
   "webmcp.tools.showJson": "JSON-Eingabe anzeigen",
-  "webmcp.tools.hideJson": "JSON-Eingabe ausblenden"
+  "webmcp.tools.hideJson": "JSON-Eingabe ausblenden",
+  "chat.permissionCard.webmcp.expandDescription": "Vollst\u00e4ndige Seitenbeschreibung erweitern",
+  "webmcp.tools.diagnosis.truncated": "Vorschau abgeschnitten; vollst\u00e4ndige Argumente sind f\u00fcr die Diagnose nicht verf\u00fcgbar.",
+  "chat.permissionCard.webmcp.unanswered": "Keine Antwort aufgezeichnet; die Genehmigungsanfrage ist nicht mehr verf\u00fcgbar."
 }

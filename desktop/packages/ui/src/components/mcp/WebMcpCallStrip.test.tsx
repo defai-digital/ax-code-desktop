@@ -153,3 +153,17 @@ test("structured application failures keep their redacted explanation without me
   expect(container.querySelector("[data-webmcp-call-result]")?.textContent).toContain("[redacted]")
   expect(container.innerHTML).not.toContain(secret)
 })
+
+import { recordWebMcpApproval, useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
+test.each([false, true])("disappearing approval records an outcome unless answered (%s)", (answered) => {
+  useWebMcpApprovalOutcomes.setState({ calls: new Map() })
+  sync.messages = [{ id: "m1" }]
+  sync.parts = new Map([["m1", [{ ...call("expired", "gen-1"), callID: "expired-call", state: { status: "running", input: { action: "invoke", toolName: "echo" } } }]]])
+  sync.permissions = [{ id: "per_expired", tool: { messageID: "m1", callID: "expired-call" } }]
+  const view = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+  if (answered) recordWebMcpApproval("s1", "expired-call", "answered")
+  sync.permissions = []
+  view.rerender(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+  expect(Boolean(view.container.querySelector("[data-webmcp-approval-unanswered]"))).toBe(!answered)
+  useWebMcpApprovalOutcomes.setState({ calls: new Map() })
+})

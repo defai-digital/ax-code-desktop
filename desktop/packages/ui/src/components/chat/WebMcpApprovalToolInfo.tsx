@@ -1,8 +1,7 @@
-import { webMcpDisplayText as redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { webMcpDisplayText as redactWebMcpText, webMcpDisplayDescription } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 
 import { useI18n } from "@/lib/i18n"
-import { truncateToCodeUnits } from "@/lib/textTruncate"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 
@@ -42,12 +41,12 @@ export function WebMcpApprovalToolInfo({
       (state) => {
         for (const view of Object.values(state.views)) {
           if (view.sessionID !== sessionID || view.origin !== origin) continue
-          const match = view.catalog.find((candidate: WebMcpToolDefinition) => candidate.name === toolName)
+          const match = view.catalog.find((candidate: WebMcpToolDefinition) => candidate.definitionDigest === definitionDigest || candidate.name === toolName)
           if (match) return match
         }
         return null
       },
-      [origin, sessionID, toolName],
+      [origin, sessionID, toolName, definitionDigest],
     ),
   )
   if (!tool || !definitionDigest || tool.definitionDigest !== definitionDigest)
@@ -90,11 +89,12 @@ export function WebMcpApprovalToolInfo({
         </p>
       ) : null}
       {tool.description ? (
-        <p style={{ unicodeBidi: "isolate" }} data-webmcp-approval-description>
-          {t("chat.permissionCard.webmcp.pageSays", {
-            description: truncateToCodeUnits(redactWebMcpText(tool.description), 200),
-          })}
-        </p>
+        <details style={{ unicodeBidi: "isolate" }} data-webmcp-approval-description>
+          <summary>{t("chat.permissionCard.webmcp.pageSays", {
+            description: webMcpDisplayDescription(tool.description).slice(0, 200),
+          })} {t("chat.permissionCard.webmcp.expandDescription")}</summary>
+          <p>{t("chat.permissionCard.webmcp.pageSays", { description: webMcpDisplayDescription(tool.description) })}</p>
+        </details>
       ) : null}
       <p>{t("webmcp.tools.hintsDoNotApprove")}</p>
     </div>

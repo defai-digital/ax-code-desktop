@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "\u767b\u51fa\u5c08\u6848\u700f\u89bd\u5668",
   "webmcp.browser.confirmClose": "\u9019\u4e9b\u9801\u9762\u53ef\u80fd\u5305\u542b\u672a\u5132\u5b58\u7684\u5de5\u4f5c\u3002\u95dc\u9589\u5b83\u5011\u4e26\u653e\u68c4\u672a\u5132\u5b58\u7684\u8b8a\u66f4\uff1f {pages}",
   "webmcp.tools.showJson": "\u986f\u793a JSON \u8f38\u5165",
-  "webmcp.tools.hideJson": "\u96b1\u85cf JSON \u8f38\u5165"
+  "webmcp.tools.hideJson": "\u96b1\u85cf JSON \u8f38\u5165",
+  "chat.permissionCard.webmcp.expandDescription": "\u5c55\u958b\u9801\u9762\u5b8c\u6574\u63cf\u8ff0",
+  "webmcp.tools.diagnosis.truncated": "\u9810\u89bd\u5df2\u622a\u65b7\uff1b\u5b8c\u6574\u53c3\u6578\u4e0d\u53ef\u7528\u65bc\u8a3a\u65b7\u3002",
+  "chat.permissionCard.webmcp.unanswered": "\u672a\u8a18\u9304\u7b54\u6848\uff1b\u6838\u51c6\u8acb\u6c42\u4e0d\u518d\u53ef\u7528\u3002"
 }

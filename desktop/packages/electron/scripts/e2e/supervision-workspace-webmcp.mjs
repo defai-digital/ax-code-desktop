@@ -353,9 +353,16 @@ const outcome = await runHarness({
       for (const row of rows) {
         const [button] = row.buttons
         if (row.buttons.length !== 1 || !button.visible || button.disabled) throw new Error(`Missing usable editor control for ${row.file}`)
-        const name = await observedControl(button.name)
-        if (name !== `Open ${path.posix.basename(row.file)} in the editor`) throw new Error(`Unexpected editor control: ${name}`)
+        if (button.name !== `Open ${path.posix.basename(row.file)} in the editor`) throw new Error(`Unexpected editor control: ${button.name}`)
       }
+      // Each WebMCP page reads the live DOM. Async controls inserted before the
+      // rail can move a button across the 100-control boundary between reads,
+      // duplicating it in the combined inventory without duplicating the DOM.
+      // Keep the DOM uniqueness checks above; wait for a coherent inventory.
+      await waitForCondition(async () => {
+        const { controls } = await audit.all()
+        return rows.every(row => controls.filter(control => control.role === "button" && control.name === row.buttons[0].name).length === 1)
+      }, { timeoutMs: 10_000, label: "WebMCP inventory agrees with the unique rail editor controls" })
       // Inventory only: opening an editor would leave the review under test.
     }
     const checkSessionReview = async theme => {

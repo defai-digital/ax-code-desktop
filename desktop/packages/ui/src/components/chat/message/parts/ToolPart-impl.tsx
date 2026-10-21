@@ -1,3 +1,4 @@
+import { useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import type { AnimationPlaybackControls } from "motion"
@@ -1015,6 +1016,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
 
+  const approvalOutcome = useWebMcpApprovalOutcomes((state) => state.calls.get(JSON.stringify([part.sessionID ?? currentSessionId ?? "", part.callID])))
   const normalizedPartTool = normalizeToolName(part.tool)
   const isTaskTool = normalizedPartTool === "task"
 
@@ -1671,6 +1673,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   // Tool title/description — shown inline as context
   const justificationText = React.useMemo(() => {
     if (webmcp) {
+      if (approvalOutcome === "unanswered") return t("chat.permissionCard.webmcp.unanswered")
       if (webmcpOutcome === "timeout" || webmcpOutcome === "cancelled")
         return t(`chat.toolPart.webmcp.reason.${webmcpOutcome}`)
       return isError ? t("chat.toolPart.webmcp.failed") : null
@@ -1699,7 +1702,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
       return inputDesc
     }
     return null
-  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp, webmcpOutcome])
+  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp, webmcpOutcome, approvalOutcome])
 
   const runtime = React.useContext(RuntimeAPIContext)
 

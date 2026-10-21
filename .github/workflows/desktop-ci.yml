@@ -316,6 +316,8 @@ jobs:
           # Task suite W7: two projects, each with a session and its own page.
           run node desktop/packages/electron/scripts/e2e/project-browser-sessions.mjs \
             --artifacts "$RUNNER_TEMP/supervision-journeys/project-browser-sessions" || status=1
+          run node desktop/packages/electron/scripts/e2e/project-browser-tasks.mjs \
+            --artifacts "$RUNNER_TEMP/supervision-journeys/project-browser-tasks" || status=1
           exit "$status"
 
       - name: Upload journey artifacts

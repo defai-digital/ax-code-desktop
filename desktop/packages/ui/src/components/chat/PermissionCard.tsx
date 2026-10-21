@@ -1,3 +1,4 @@
+import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import { cn } from "@/lib/utils"
@@ -117,6 +118,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
           throw new Error("Timed out sending the permission response")
         },
       )
+      if (permission.tool?.callID) recordWebMcpApproval(permission.sessionID, permission.tool.callID, "answered")
       if (unmountedRef.current) return
       setHasResponded(true)
       onResponse?.(response)
@@ -173,6 +175,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
           throw new Error("Timed out saving the WebMCP approval")
         },
       )
+      if (permission.tool?.callID) recordWebMcpApproval(permission.sessionID, permission.tool.callID, "answered")
       if (unmountedRef.current) return
       setHasResponded(true)
       onResponse?.("always")
