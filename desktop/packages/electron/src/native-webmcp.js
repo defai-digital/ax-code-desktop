@@ -1,7 +1,8 @@
 "use strict"
 
-const { createHash, randomUUID } = require("node:crypto")
+const { randomUUID } = require("node:crypto")
 const page = require("./webmcp-page")
+const { definitionDigest, catalogDigest } = require("../../../shared/webmcp-digests.cjs")
 
 const CAPABILITY = "desktop.webmcp.v1"
 const MAX_RESULT_BYTES = 65536
@@ -24,31 +25,7 @@ const boundedStop = async (acknowledged, requestID) => {
 const invocationError = (outcome, reason, message = "Native completion is unconfirmed; do not retry automatically") =>
   Object.assign(new Error(message), { outcome, reason })
 const byteSize = (value) => Buffer.byteLength(JSON.stringify(value) ?? "", "utf8")
-const canonical = (value, depth = 0) => {
-  if (depth > 32) throw new Error("WebMCP JSON nesting limit exceeded")
-  if (Array.isArray(value)) return `[${value.map((item) => canonical(item, depth + 1)).join(",")}]`
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(value[key], depth + 1)}`)
-      .join(",")}}`
-  }
-  return JSON.stringify(value) ?? "null"
-}
-const definitionDigest = (tool) => createHash("sha256").update(canonical(tool)).digest("hex")
 const plainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
-// Identity of a tool for the builder. Frame ids change on reload, so they are not part of this digest:
-// a same-definition reload must still match drafts and must not look like a schema change.
-const catalogIdentity = (tool) => {
-  const identity = { name: tool.name, description: tool.description }
-  if (tool.inputSchema !== undefined) identity.inputSchema = tool.inputSchema
-  if (tool.annotations !== undefined) identity.annotations = tool.annotations
-  return identity
-}
-const catalogDigest = (tool) =>
-  createHash("sha256")
-    .update(canonical(catalogIdentity(tool)))
-    .digest("hex")
 const catalogRejection = (reason, tool) => ({
   code: "invalid-catalog",
   reason,
