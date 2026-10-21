@@ -354,12 +354,12 @@ describe("branch review scope", () => {
     expect(screen.getByTestId("branch-diff").getAttribute("data-file")).toBe("src/a.ts")
     expect(screen.getByTestId("branch-diff").getAttribute("data-side-by-side")).toBe("true")
     expect(
-      screen.getByRole("listitem", { current: true }).querySelector("[aria-label='Modified file']")?.textContent,
+      screen.getByRole("treeitem", { current: true }).querySelector("[aria-label='Modified file']")?.textContent,
     ).toBe("M")
 
     fireEvent.keyDown(pane, { key: "]" })
     expect(screen.getByTestId("branch-diff").getAttribute("data-file")).toBe("src/b.ts")
-    expect(screen.getByRole("listitem", { current: true }).querySelector("[aria-label='New file']")?.textContent).toBe(
+    expect(screen.getByRole("treeitem", { current: true }).querySelector("[aria-label='New file']")?.textContent).toBe(
       "A",
     )
     fireEvent.keyDown(pane, { key: "[" })
