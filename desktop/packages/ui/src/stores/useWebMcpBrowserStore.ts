@@ -55,6 +55,8 @@ export interface WebMcpBrowserSnapshot {
   tools: number
   /** The page's tools with their descriptions and input schemas, visible before the agent is granted anything. */
   catalog: WebMcpToolDefinition[]
+  /** The page document's generation; a new load gets a new one. Calls record the generation they ran on. */
+  generation: string | null
   busy: boolean
   error: WebMcpBrowserErrorCode | null
   /** Chrome-bridge MCP servers paused while this browser is enrolled (see lib/webMcpBridgeCoordination). */
@@ -91,6 +93,7 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   page: null,
   tools: 0,
   catalog: [],
+  generation: null,
   busy: false,
   error: null,
   pausedBridgeServers: [],

@@ -35,4 +35,29 @@ describe("collectWebMcpCalls", () => {
     const long = Array.from({ length: WEBMCP_CALL_SCAN_MESSAGES + 40 }, (_, index) => ({ id: `m${index}`, role: "assistant" }))
     expect(latestTurnMessages(long)).toHaveLength(WEBMCP_CALL_SCAN_MESSAGES)
   })
+
+  test("carries the message, duration, page generation and a filtered result preview without the untrusted envelope", () => {
+    const parts = new Map<string, unknown[]>([
+      [
+        "m1",
+        [
+          tool("ok", "completed", {
+            metadata: { operation: "invoke", toolName: "add_numbers", generation: "gen-1" },
+            time: { start: 1000, end: 2400 },
+            output: JSON.stringify({ untrusted: true, result: { sum: 5, token: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" } }),
+          }),
+          tool("bad", "error", { output: JSON.stringify({ untrusted: true, result: { sum: 1 } }) }),
+        ],
+      ],
+    ])
+    const [failed, ok] = collectWebMcpCalls([{ id: "m1" }], (id) => parts.get(id) as never)
+    expect(ok).toMatchObject({ messageId: "m1", durationMs: 1400, generation: "gen-1" })
+    expect(ok.resultPreview).toContain('"sum": 5')
+    expect(ok.resultPreview).not.toContain("untrusted")
+    expect(ok.resultPreview).not.toContain("ghp_")
+    expect(ok.resultPreview!.length).toBeLessThanOrEqual(140)
+    // A failed call shows its reason, never a result.
+    expect(failed.resultPreview).toBeNull()
+    expect(failed.durationMs).toBeNull()
+  })
 })

@@ -33,6 +33,7 @@ type BrowserStatus = {
   page?: WebMcpPageKind
   tools: number
   catalog?: unknown
+  generation?: unknown
   url?: string
 }
 
@@ -117,6 +118,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         page: result.page ?? null,
         tools: result.tools,
         catalog: readWebMcpCatalog(result.catalog),
+        generation: typeof result.generation === "string" ? result.generation : null,
       })
     },
     [directory, sessionID, updateSnapshot],
