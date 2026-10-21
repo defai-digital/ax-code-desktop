@@ -82,6 +82,7 @@ describe("webmcp:check exit codes", () => {
 
   test("no tools, a missing expected tool, a tool that is not registered, and a load failure each fail", () => {
     expect(evaluateReport({ tools: [], runs: [] }, options).exitCode).toBe(EXIT.noTools)
+    expect(evaluateReport({ tools: [], runs: [] }, { expectTools: ["required"] }).exitCode).toBe(EXIT.failed)
     expect(evaluateReport({ tools, runs: [] }, { expectTools: ["complete_task"] }).exitCode).toBe(EXIT.failed)
     expect(evaluateReport({ tools, runs: [{ name: "x", error: "tool not registered" }] }, options).exitCode).toBe(EXIT.toolError)
     expect(evaluateReport({ error: "the page did not load in time" }, options).exitCode).toBe(EXIT.failed)

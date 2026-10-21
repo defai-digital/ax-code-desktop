@@ -87,3 +87,8 @@ describe("collectWebMcpCalls", () => {
     expect(call.resultPreview).toContain('"extra": 1')
   })
 })
+
+test.each(["checkpointed", "cancelled"])("terminal %s calls retain their outcome", (status) => {
+  const calls = collectWebMcpCalls([{ id: "m" }], () => [tool("p", status)] as never)
+  expect(calls[0].outcome).toBe(status)
+})

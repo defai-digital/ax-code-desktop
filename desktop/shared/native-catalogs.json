@@ -1,5 +1,6 @@
 {
   "en": {
+    "desktop.native.closeAnyway": "Close anyway",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code could not find its agent runtime.",
     "desktop.native.axCodeIsNotResponding": "AX Code is not responding",
     "desktop.native.axCodeRuntimeNotFound": "AX Code runtime not found",
@@ -111,6 +112,7 @@
     "common.confirmDialog.title": "Please confirm"
   },
   "zh-TW": {
+    "desktop.native.closeAnyway": "\u4ecd\u7136\u95dc\u9589",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u57f7\u884c\u968e\u6bb5\u3002",
     "desktop.native.axCodeIsNotResponding": "AX Code \u6c92\u6709\u56de\u61c9",
     "desktop.native.axCodeRuntimeNotFound": "\u627e\u4e0d\u5230 AX Code \u57f7\u884c\u968e\u6bb5",
@@ -222,6 +224,7 @@
     "common.confirmDialog.title": "\u8acb\u78ba\u8a8d"
   },
   "zh-CN": {
+    "desktop.native.closeAnyway": "\u4ecd\u7136\u5173\u95ed",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u8fd0\u884c\u65f6\u3002",
     "desktop.native.axCodeIsNotResponding": "AX Code \u65e0\u54cd\u5e94",
     "desktop.native.axCodeRuntimeNotFound": "\u672a\u627e\u5230 AX Code \u8fd0\u884c\u65f6",
@@ -333,6 +336,7 @@
     "common.confirmDialog.title": "\u8bf7\u786e\u8ba4"
   },
   "ja": {
+    "desktop.native.closeAnyway": "\u9589\u3058\u308b",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u306f\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u30e9\u30f3\u30bf\u30a4\u30e0\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
     "desktop.native.axCodeIsNotResponding": "AX Code \u304c\u5fdc\u7b54\u3057\u307e\u305b\u3093",
     "desktop.native.axCodeRuntimeNotFound": "AX Code \u30e9\u30f3\u30bf\u30a4\u30e0\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093",
@@ -444,6 +448,7 @@
     "common.confirmDialog.title": "\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044"
   },
   "ko": {
+    "desktop.native.closeAnyway": "\uacc4\uc18d \ub2eb\uae30",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code\uac00 \uc5d0\uc774\uc804\ud2b8 \ub7f0\ud0c0\uc784\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
     "desktop.native.axCodeIsNotResponding": "AX Code\uac00 \uc751\ub2f5\ud558\uc9c0 \uc54a\uc2b5\ub2c8\ub2e4",
     "desktop.native.axCodeRuntimeNotFound": "AX Code \ub7f0\ud0c0\uc784\uc744 \ucc3e\uc744 \uc218 \uc5c6\uc2b5\ub2c8\ub2e4",
@@ -555,6 +560,7 @@
     "common.confirmDialog.title": "\ud655\uc778\ud574 \uc8fc\uc138\uc694"
   },
   "fr": {
+    "desktop.native.closeAnyway": "Fermer quand m\u00eame",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code n\u2019a pas trouv\u00e9 son runtime d\u2019agent.",
     "desktop.native.axCodeIsNotResponding": "AX Code ne r\u00e9pond pas",
     "desktop.native.axCodeRuntimeNotFound": "Runtime AX Code introuvable",
@@ -666,6 +672,7 @@
     "common.confirmDialog.title": "Veuillez confirmer"
   },
   "de": {
+    "desktop.native.closeAnyway": "Trotzdem schlie\u00dfen",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code konnte seine Agent-Runtime nicht finden.",
     "desktop.native.axCodeIsNotResponding": "AX Code antwortet nicht",
     "desktop.native.axCodeRuntimeNotFound": "AX Code-Runtime nicht gefunden",
@@ -777,6 +784,7 @@
     "common.confirmDialog.title": "Bitte best\u00e4tigen"
   },
   "id": {
+    "desktop.native.closeAnyway": "Tetap tutup",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code tidak dapat menemukan runtime agennya.",
     "desktop.native.axCodeIsNotResponding": "AX Code tidak merespons",
     "desktop.native.axCodeRuntimeNotFound": "Runtime AX Code tidak ditemukan",
@@ -888,6 +896,7 @@
     "common.confirmDialog.title": "Mohon konfirmasi"
   },
   "it": {
+    "desktop.native.closeAnyway": "Chiudi comunque",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code non ha trovato il runtime dell'agente.",
     "desktop.native.axCodeIsNotResponding": "AX Code non risponde",
     "desktop.native.axCodeRuntimeNotFound": "Runtime di AX Code non trovato",
@@ -999,6 +1008,7 @@
     "common.confirmDialog.title": "Conferma"
   },
   "pt-BR": {
+    "desktop.native.closeAnyway": "Fechar mesmo assim",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "O AX Code n\u00e3o encontrou seu runtime de agente.",
     "desktop.native.axCodeIsNotResponding": "O AX Code n\u00e3o est\u00e1 respondendo",
     "desktop.native.axCodeRuntimeNotFound": "Runtime do AX Code n\u00e3o encontrado",
@@ -1110,6 +1120,7 @@
     "common.confirmDialog.title": "Confirme"
   },
   "ru": {
+    "desktop.native.closeAnyway": "\u0412\u0441\u0451 \u0440\u0430\u0432\u043d\u043e \u0437\u0430\u043a\u0440\u044b\u0442\u044c",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u0439\u0442\u0438 \u0441\u0440\u0435\u0434\u0443 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f \u0430\u0433\u0435\u043d\u0442\u0430.",
     "desktop.native.axCodeIsNotResponding": "AX Code \u043d\u0435 \u043e\u0442\u0432\u0435\u0447\u0430\u0435\u0442",
     "desktop.native.axCodeRuntimeNotFound": "\u0421\u0440\u0435\u0434\u0430 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f AX Code \u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d\u0430",
@@ -1221,6 +1232,7 @@
     "common.confirmDialog.title": "\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0435"
   },
   "es": {
+    "desktop.native.closeAnyway": "Cerrar de todos modos",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code no pudo encontrar su tiempo de ejecuci\u00f3n de agente.",
     "desktop.native.axCodeIsNotResponding": "AX Code no responde",
     "desktop.native.axCodeRuntimeNotFound": "Tiempo de ejecuci\u00f3n de AX Code no encontrado",
@@ -1332,6 +1344,7 @@
     "common.confirmDialog.title": "Confirma, por favor"
   },
   "tr": {
+    "desktop.native.closeAnyway": "Yine de kapat",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code, arac\u0131 \u00e7al\u0131\u015fma zaman\u0131n\u0131 bulamad\u0131.",
     "desktop.native.axCodeIsNotResponding": "AX Code yan\u0131t vermiyor",
     "desktop.native.axCodeRuntimeNotFound": "AX Code \u00e7al\u0131\u015fma zaman\u0131 bulunamad\u0131",
@@ -1443,6 +1456,7 @@
     "common.confirmDialog.title": "L\u00fctfen onaylay\u0131n"
   },
   "vi": {
+    "desktop.native.closeAnyway": "V\u1eabn \u0111\u00f3ng",
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code kh\u00f4ng t\u00ecm th\u1ea5y runtime t\u00e1c nh\u00e2n c\u1ee7a n\u00f3.",
     "desktop.native.axCodeIsNotResponding": "AX Code kh\u00f4ng ph\u1ea3n h\u1ed3i",
     "desktop.native.axCodeRuntimeNotFound": "Kh\u00f4ng t\u00ecm th\u1ea5y runtime AX Code",

@@ -1,3 +1,4 @@
+import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
@@ -87,7 +88,7 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
                       {truncateToCodeUnits(call.title, 80)}
                     </span>
                     <span className="shrink-0 typography-micro text-muted-foreground">
-                      {t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)}
+                      {t(webMcpCallOutcomeKey(call.outcome))}
                       {call.durationMs !== null ? ` · ${formatWebMcpDuration(call.durationMs)}` : null}
                     </span>
                     {/* The page generation changes on a reload and when agent access pauses or reconnects, so this marks calls

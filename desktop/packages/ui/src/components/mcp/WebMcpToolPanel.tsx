@@ -276,6 +276,8 @@ function agentDiagnosis(
 /** The page outcome a regression snippet should assert for one transcript call. */
 function recordedPageOutcome(call: WebMcpCall): string {
   if (call.outcome === "ok") return "completed"
+  if (call.outcome === "cancelled") return "cancelled"
+  if (call.outcome === "checkpointed") return "uncertain"
   if (
     call.failureReason === "timeout" ||
     call.failureReason === "cancelled" ||

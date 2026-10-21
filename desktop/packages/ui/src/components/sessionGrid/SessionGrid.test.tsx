@@ -15,7 +15,7 @@ import { SessionGrid } from "./SessionGrid"
 import { MiniChatGridReturn } from "@/apps/MiniChatGridReturn"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
-import { trackGridWindows, useGridWindowOwners } from "@/lib/supervision/sessionGridPopout"
+import { popOutGridSlot, gridWindowOwns, trackGridWindows, useGridWindowOwners } from "@/lib/supervision/sessionGridPopout"
 const live = vi.hoisted(() => ({
   rows: [] as SupervisionRow[],
   canWindow: false,
@@ -507,4 +507,13 @@ test("successive arrow moves follow the session focus and announce each destinat
   expect(document.activeElement).toBe(slot(container, 2).querySelector("[data-session-grid-handle]"))
   expect(document.activeElement?.getAttribute("aria-label")).toBe("sessionGrid.moveSession Task a")
   expect(container.querySelector("[aria-live=polite]")?.textContent).toBe("sessionGrid.moved Task a 3")
+})
+
+test("a rejected pop-out releases its pending reservation and can be retried", async () => {
+  live.canWindow = true
+  live.openWindow.mockRejectedValueOnce(new Error("transport failed"))
+  await expect(popOutGridSlot("a", "C:/repo-a", "failed")).rejects.toThrow("transport failed")
+  expect(gridWindowOwns({ sessionId: "a", directory: "C:/repo-a" })).toBe(false)
+  live.openWindow.mockResolvedValueOnce(true)
+  expect(await popOutGridSlot("a", "C:/repo-a", "failed")).toBe(true)
 })

@@ -3,10 +3,10 @@ import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { cleanup, fireEvent, render } from "@/test/dom"
 
-const sync = vi.hoisted(() => ({ messages: [] as unknown[], parts: new Map<string, unknown[]>() }))
+const sync = vi.hoisted(() => ({ messages: [] as unknown[], parts: new Map<string, unknown[]>(), unavailable: false }))
 vi.mock("@/sync/sync-context", () => ({
   useSessionMessages: () => sync.messages,
-  useDirectorySync: (selector: (state: { part: Map<string, unknown[]> }) => unknown) => selector({ part: sync.parts }),
+  useDirectorySync: (selector: (state: { part: Map<string, unknown[]> }) => unknown) => sync.unavailable ? undefined : selector({ part: sync.parts }),
 }))
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
@@ -27,6 +27,7 @@ const call = (id: string, status: string) => ({
 })
 
 afterEach(() => {
+  sync.unavailable = false
   cleanup()
   useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
   useWebMcpBrowserStore.getState().resetSnapshot()
@@ -215,4 +216,9 @@ test.each([false, true])("whole-turn evidence includes an early failure beyond c
   expect(container.querySelectorAll("[data-recap-outcome]")).toHaveLength(50)
   expect(container.querySelector("[data-recap-capped]")?.textContent).toBe("diffView.landing.browserRecap.capped:50|206")
   expect(container.querySelector("[data-recap-not-called]")?.textContent).toBe("diffView.landing.browserRecap.notCalled:unused")
+})
+
+test("an unavailable initial directory snapshot renders no recap", () => {
+  sync.unavailable = true
+  expect(render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />).container.innerHTML).toBe("")
 })

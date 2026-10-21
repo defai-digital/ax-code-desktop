@@ -1,3 +1,4 @@
+import { compoundKeys } from "../../../../../shared/testing/webmcp-redaction-cases.mjs"
 import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
@@ -1117,4 +1118,11 @@ test("Use JSON on a primitive schema masks credential-shaped draft text", () => 
   fireEvent.change(editor, { target: { value: '{"text":"API key: example-credential-123"}' } })
   expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("disc")
   expect(screen.getByRole("button", { name: "webmcp.tools.showJson" })).toBeTruthy()
+})
+
+test.each(compoundKeys)("compound credential %s is masked before opaque input", (name) => {
+  const { container } = openTool({ type: "object", properties: { [name]: { type: "string" } } })
+  const input = container.querySelector("input")!
+  expect(input.type).toBe("password")
+  expect(input.autocomplete).toBe("off")
 })

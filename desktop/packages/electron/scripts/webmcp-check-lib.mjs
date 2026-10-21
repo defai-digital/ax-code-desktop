@@ -134,10 +134,10 @@ export function evaluateReport(report, options, termination, receiptKey) {
     if (run.outcome !== "completed") problems.push(`${run.name}: ${run.outcome}${run.detail ? ` (${run.detail})` : ""}`)
   const exitCode = incomplete
     ? EXIT.failed
-    : names.size === 0
-      ? EXIT.noTools
-      : missingTools.some(Boolean)
-        ? EXIT.failed
+    : missingTools.some(Boolean)
+      ? EXIT.failed
+      : names.size === 0
+        ? EXIT.noTools
         : runs.some((run) => run.outcome !== "completed")
           ? EXIT.toolError
           : EXIT.ok

@@ -1,3 +1,4 @@
+import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import { redactWebMcpText } from "../../../../../../shared/webmcp-redaction.mjs"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import React from "react"
@@ -79,7 +80,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
     ) as never,
     directory,
   ) as unknown as string
-  const calls = React.useMemo(() => JSON.parse(serialized) as RecapCall[], [serialized])
+  const calls = React.useMemo(() => JSON.parse(serialized ?? "[]") as RecapCall[], [serialized])
   const openCall = useUIStore((state) => state.setPendingMessageNavigation)
   const [copied, setCopied] = React.useState(false)
   if (calls.length === 0) return null
@@ -99,7 +100,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       .map((call, index) => {
         const operation = call.operation?.toLowerCase() ?? ""
         const kind = t(`diffView.landing.browserRecap.kind.${RECAP_KINDS.has(operation) ? operation : "other"}` as I18nKey)
-        const parts = [`${index + 1}. ${call.title}`, kind, t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)]
+        const parts = [`${index + 1}. ${call.title}`, kind, t(webMcpCallOutcomeKey(call.outcome))]
         if (call.durationMs !== null) parts.push(formatWebMcpDuration(call.durationMs))
         if (call.outcome === "failed" && call.failureReason)
           parts.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
@@ -165,7 +166,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
                 {t(`diffView.landing.browserRecap.kind.${kind}` as I18nKey)}
                 {" · "}
                 <span className={call.outcome === "failed" ? "text-[var(--status-error)]" : undefined}>
-                  {t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)}
+                  {t(webMcpCallOutcomeKey(call.outcome))}
                 </span>
                 {call.outcome === "failed" && call.failureReason
                   ? ` · ${t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey)}`

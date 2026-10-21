@@ -340,14 +340,14 @@ let loginShellEnvEncoded = null
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
 const desktopWebMcpBrowser = createDesktopWebMcpBrowser({
-  confirmClose: async (owner, pages) => {
+  confirmClose: async (owner, pages, { closeAnyway = false } = {}) => {
     const result = await localizedDialog.showMessageBox(owner, {
       type: "warning",
       title: "Please confirm",
       message: nativeT("These pages may contain unsaved work. Close them and discard unsaved changes? {pages}", {
         pages: pages.map((page) => `${page.sessionID ?? page.id} · ${page.title} · ${page.id}`).join("\n"),
       }),
-      buttons: ["Cancel", "Confirm"],
+      buttons: ["Cancel", closeAnyway ? "Close anyway" : "Confirm"],
       defaultId: 0,
       cancelId: 0,
       noLink: true,

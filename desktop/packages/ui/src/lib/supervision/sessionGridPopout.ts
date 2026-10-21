@@ -66,11 +66,13 @@ export async function popOutGridSlot(sessionId: string, directory: string, failu
   pending.add(key)
   useGridWindowOwners.setState({ owners: new Set([...useGridWindowOwners.getState().owners, key]) })
   ui.setSessionGrid({ ...ui.sessionGrid, slots: marked })
-  const opened = await openSessionWindow(target, failureMessage)
-  pending.delete(key)
-  // Failed opens may have created a window before transport failed. Reconcile either outcome.
-  await reconcileGridWindows()
-  return opened
+  try {
+    return await openSessionWindow(target, failureMessage)
+  } finally {
+    pending.delete(key)
+    // Failed opens may have created a window before transport failed. Reconcile either outcome.
+    await reconcileGridWindows()
+  }
 }
 
 export function requestMiniChatReturn(sessionId: string, directory: string): boolean {

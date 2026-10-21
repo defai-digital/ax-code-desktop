@@ -42,3 +42,16 @@ test.each([false, true])("destructive confirmation names all pages; confirmed=%s
   expect(dialog.textContent!.length).toBeLessThan(4500)
   if (title.includes("token=")) expect(dialog.textContent).toContain("[redacted]")
 })
+
+test("a changing page cannot create more than two confirmation dialogs", async () => {
+  bridge.invoke.mockResolvedValue({ confirmationRequired: true, closeConfirmation: "changed" })
+  const done = vi.fn()
+  render(<Harness done={done} />)
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "Sign out" })))
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await act(async () => fireEvent.click(screen.getByRole("button", { name: "common.confirm" })))
+  }
+  expect(screen.queryByRole("dialog")).toBeNull()
+  expect(bridge.invoke).toHaveBeenCalledTimes(3)
+  expect(done).toHaveBeenCalledWith(null)
+})

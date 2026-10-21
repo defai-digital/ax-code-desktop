@@ -417,22 +417,15 @@ function createDesktopWebMcpBrowser({
         })),
       ])
       .filter(({ contents }) => !contents.isDestroyed())
-    const identity = JSON.stringify(
-      documents.map(({ entry, contents, id }) => [
-        id,
-        contents.id,
-        entry.adapter.generation,
-        contents.desktopDocumentRevision,
-        contents.getURL(),
-      ]),
-    )
+    // Closing discards the view, regardless of its current URL or tool registrations.
+    const identity = JSON.stringify(documents.map(({ contents, id }) => [id, contents.id]))
     const approval = closeApprovals.get(sender)
     closeApprovals.delete(sender)
     if (
       approval &&
       approval.token === args.closeConfirmation &&
       approval.action === args.action &&
-      approval.identity === identity
+      (approval.identity === identity || approval.reprompted)
     )
       return { approved: true }
     const risky = []
@@ -446,7 +439,13 @@ function createDesktopWebMcpBrowser({
     }
     if (!risky.length) return { approved: false }
     const token = randomUUID()
-    closeApprovals.set(sender, { token, action: args.action, identity })
+    closeApprovals.set(sender, {
+      token,
+      action: args.action,
+      identity,
+      // A valid first confirmation permits only one further prompt for changed contents.
+      reprompted: Boolean(approval && approval.token === args.closeConfirmation && approval.action === args.action),
+    })
     return {
       confirmationRequired: true,
       closeConfirmation: token,
@@ -594,7 +593,7 @@ function createDesktopWebMcpBrowser({
     entry.navigations.set(request.requestID, controller)
     const reply = async (payload) => {
       if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
-      await api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", payload, signal)
+      await api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", payload, AbortSignal.any([signal, AbortSignal.timeout(2000)]))
     }
     try {
       // Revalidate after visibility/pause waits, immediately before starting the load.
@@ -726,7 +725,7 @@ function createDesktopWebMcpBrowser({
                   : "request-deadline-exceeded",
             },
           },
-          signal,
+          AbortSignal.any([signal, AbortSignal.timeout(2000)]),
         )
         return
       }
@@ -774,7 +773,7 @@ function createDesktopWebMcpBrowser({
           if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
           // An action can change the document; the runtime must hold that snapshot before the reply.
           if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
-          return api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", reply, signal)
+          return api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", reply, AbortSignal.any([signal, AbortSignal.timeout(2000)]))
         })
         .catch(() => {
           if (!signal.aborted) void disconnect(entry)
@@ -1501,7 +1500,10 @@ function createDesktopWebMcpBrowser({
                 { ...args, closeConfirmation: approval.closeConfirmation },
                 [entry],
               )
-              if (approval.confirmationRequired) throw new Error("Browser document changed")
+              if (approval.confirmationRequired) {
+                if (!(await confirmClose(entry.owner, approval.pages, { closeAnyway: true }))) throw new Error("Browser closure cancelled")
+                approval = { approved: true }
+              }
             }
             release()
             await close(entry, approval.approved)
