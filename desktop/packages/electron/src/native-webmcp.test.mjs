@@ -83,7 +83,7 @@ describe("native WebMCP adapter", () => {
     const f = await fixture()
     const request = f.request()
     f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Replaced" }] })
-    await expect(f.adapter.execute(request)).rejects.toMatchObject({ reason: "definition-changed" })
+    await expect(f.adapter.execute(request)).rejects.toMatchObject({ reason: "page-changed" })
     expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
     f.adapter.close()
   })
@@ -320,7 +320,8 @@ test.each([true, false])("oversized result has its own reason (before native ack
 
 test("names a rejected catalog and keeps the browser connected", async () => {
   const f = await fixture()
-  const accepted = [fixtureTool]
+  const accepted = [{ ...fixtureTool, name: "unrelated" }]
+  f.emit("WebMCP.toolsAdded", { tools: accepted })
   f.emit("WebMCP.toolsAdded", { tools: [fixtureTool, { ...fixtureTool, description: "other" }] })
   expect(f.adapter.available).toBe(true)
   expect(f.adapter.snapshot().tools).toEqual(accepted)
@@ -358,7 +359,7 @@ test("names a rejected catalog and keeps the browser connected", async () => {
   f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Updated" }] })
   expect(f.adapter.catalogRejection).toBeNull()
   expect(f.adapter.available).toBe(true)
-  expect(f.adapter.snapshot().tools.map((tool) => tool.description)).toEqual(["Updated"])
+  expect(f.adapter.snapshot().tools.map((tool) => tool.description)).toEqual([fixtureTool.description, "Updated"])
   expect(f.adapter.snapshot().tools[0]).not.toHaveProperty("kind")
 
   f.contents.emit("did-start-navigation", {}, "https://example.com/", false, true)
@@ -630,4 +631,78 @@ test("an interaction deadline keeps the same-document guard until settlement or 
     f.adapter.close()
     vi.useRealTimers()
   }
+})
+
+const rejectedReplacements = [
+  ["null-entry", () => [null]],
+  ["missing-frame", () => [{ ...fixtureTool, frameId: undefined }]],
+  ["invalid-description", () => [{ ...fixtureTool, description: "x".repeat(4097) }]],
+  ["missing-description", () => [{ ...fixtureTool, description: undefined }]],
+  ["invalid-schema", () => [{ ...fixtureTool, inputSchema: [] }]],
+  ["invalid-annotations", () => [{ ...fixtureTool, annotations: [] }]],
+  ["definition-too-large", () => [{ ...fixtureTool, inputSchema: { value: "x".repeat(33000) } }]],
+  [
+    "cycle",
+    () => {
+      const schema = {}
+      schema.self = schema
+      return [{ ...fixtureTool, inputSchema: schema }]
+    },
+  ],
+  ["nesting", () => [{ ...fixtureTool, inputSchema: Array.from({ length: 40 }).reduce((inner) => ({ inner }), {}) }]],
+  ["duplicate-name", () => [fixtureTool, fixtureTool]],
+  ["earlier-invalid-entry", () => [{ ...fixtureTool, name: "bad", description: null }, fixtureTool]],
+  ["later-invalid-entry", () => [fixtureTool, { ...fixtureTool, name: "bad", description: null }]],
+  ["unknown-name", () => [{ ...fixtureTool, name: null }]],
+  ["malformed-batch", () => null],
+  [
+    "catalog-too-large",
+    () => [fixtureTool, ...Array.from({ length: 129 }, (_, index) => ({ ...fixtureTool, name: `extra${index}` }))],
+  ],
+]
+
+test.each(rejectedReplacements)("rejected replacement %s retires every affected identity", async (_reason, batch) => {
+  const f = await fixture()
+  const old = f.request()
+  f.emit("WebMCP.toolsAdded", { tools: batch() })
+  expect(f.adapter.catalogRejection).not.toBeNull()
+  expect(f.adapter.snapshot().tools.find((tool) => tool.name === old.toolName)).toBeUndefined()
+  expect(f.adapter.toolKinds.has(old.toolName)).toBe(false)
+  await expect(f.adapter.execute(old)).rejects.toThrow()
+  // A fresh generation cannot authorize a rejected definition using the old digest either.
+  await expect(f.adapter.execute(f.request())).rejects.toMatchObject({ reason: "definition-changed" })
+  expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
+  f.adapter.close()
+})
+
+test.each(["remove", "replace", "reject"])(
+  "%s then identical registration never revives an old request",
+  async (change) => {
+    const f = await fixture()
+    const old = f.request()
+    if (change === "remove") f.emit("WebMCP.toolsRemoved", { tools: [fixtureTool] })
+    if (change === "reject") f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: null }] })
+    f.emit("WebMCP.toolsAdded", { tools: [fixtureTool] })
+    await expect(f.adapter.execute(old)).rejects.toThrow()
+    expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
+    const fresh = f.adapter.execute(f.request())
+    await Promise.resolve()
+    f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "ok" })
+    await expect(fresh).resolves.toMatchObject({ output: "ok" })
+    f.adapter.close()
+  },
+)
+
+test.each(["frameId", "name", "description"])("dispatch verifies current accepted definition %s", async (field) => {
+  const f = await fixture()
+  const current = { ...fixtureTool, [field]: "different" }
+  f.adapter.tools.set(fixtureTool.name, current)
+  // A matching digest alone is insufficient when frame or name differs from the request.
+  const request = {
+    ...f.request(),
+    digest: field === "description" ? definitionDigest(fixtureTool) : definitionDigest(current),
+  }
+  await expect(f.adapter.execute(request)).rejects.toMatchObject({ reason: "definition-changed" })
+  expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
+  f.adapter.close()
 })

@@ -254,3 +254,42 @@ test("regression snippet and checker argument replace nested JSON secrets", asyn
   expect(exported.runArgument).not.toContain("AUDIT_FAKE_PASSWORD")
   await executeExport(exported.snippet, {}, (input) => expect(input).toEqual({ payload: '{"password":"<fill in>"}' }))
 })
+
+test("every shared manual outcome either has an executable classifier assertion or no export", async () => {
+  const { createRequire } = await import("node:module")
+  const { MANUAL_TOOL_OUTCOMES, manualToolResult, manualToolFailure } = createRequire(import.meta.url)(
+    "../../../electron/src/webmcp-manual-outcome.js",
+  )
+  const outputs: Record<string, unknown> = {
+    completed: { value: 1 },
+    "application-error": { isError: true },
+    timeout: { status: "timeout" },
+    cancelled: { status: "cancelled" },
+  }
+  for (const outcome of [...MANUAL_TOOL_OUTCOMES, "running", "future-outcome"]) {
+    const exported = webMcpRegressionExport({ tool: "echo", input: {}, outcome })
+    if (Object.hasOwn(outputs, outcome)) {
+      expect(manualToolResult({ output: outputs[outcome] }).outcome).toBe(outcome)
+      expect(exported).not.toBeNull()
+      await executeExport(exported!.snippet, outputs[outcome])
+    } else expect(exported, outcome).toBeNull()
+  }
+  expect(
+    webMcpRegressionExport({
+      tool: "echo",
+      input: {},
+      outcome: manualToolFailure({ outcome: "failed", reason: "result-too-large" }).outcome,
+    }),
+  ).toBeNull()
+})
+
+test("every embedded credential shape is removed from executable exports and checker arguments", async () => {
+  const { credentialTextCases, secret } = await import("../../../../shared/testing/webmcp-redaction-cases.mjs")
+  for (const text of credentialTextCases) {
+    const exported = webMcpRegressionExport({ tool: "echo", input: { message: text }, outcome: "completed" })!
+    expect(exported.snippet).not.toContain(secret)
+    expect(exported.runArgument).not.toContain(secret)
+    expect(webMcpRegressionExport({ tool: text, input: {}, outcome: "completed" })).toBeNull()
+    await executeExport(exported.snippet, {}, (input) => expect(JSON.stringify(input)).not.toContain(secret))
+  }
+})

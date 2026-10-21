@@ -149,6 +149,7 @@ function CopyExport({
     window.setTimeout(() => setCopied((current) => (current === kind ? null : current)), 1500)
   }
   if (!exported) {
+    if (input) return null
     return <p className="typography-micro text-muted-foreground">{t("webmcp.tools.export.unavailable")}</p>
   }
   return (

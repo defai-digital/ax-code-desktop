@@ -319,7 +319,7 @@ function redactJsonValue(value: unknown): unknown {
   if (isPlainRecord(value)) {
     const next: Record<string, unknown> = {}
     for (const [key, entry] of Object.entries(value))
-      next[key] =
+      next[webMcpTextLooksSensitive(key) ? "[redacted]" : key] =
         WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
     return next
   }

@@ -54,3 +54,22 @@ test("non-syntax JSON parser failures cannot return the unfiltered source", () =
     parse.mockRestore()
   }
 })
+
+
+test.each([
+  "Response: {\"db_password\":\"synthetic-private-value\"}",
+  "Response: {\"accessToken\":\"synthetic-private-value\"}",
+  "Response: {\"refresh_token\":\"synthetic-private-value\"}",
+  "Response: {\"client_secret\":\"synthetic-private-value\"}",
+  "Response: {\"openai_api_key\":\"synthetic-private-value\"}",
+  "Response: {\"secretKey\":\"synthetic-private-value\"}",
+  "Response: {\"passwordHash\":\"synthetic-private-value\"}",
+  "Response: {\"pass\\u0077ord\":\"synthetic-private-value\"}"
+])("compound and escaped credential names in fragments stay private: %s", (value) => {
+  expect(redactWebMcpReport(value)).not.toContain("synthetic-private-value")
+})
+
+test("successive escape layers have a bounded fail-closed detection path", () => {
+  const value = String.raw`\u005c` + "u005c".repeat(100) + "u0061"
+  expect(redactWebMcpReport(value)).toBe("[redacted]")
+})
