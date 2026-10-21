@@ -96,6 +96,34 @@ engine in AX Code Desktop does not, so the example does not fall back to it.)
   const result = JSON.parse(await document.modelContext.executeTool(tool, JSON.stringify({ title: "Ship the beta" })))
   ```
 
+### In CI
+
+`pnpm run webmcp:check` (in this repository) loads a page in the browser engine AX Code Desktop bundles, lists the page tools
+it registers and runs the ones you name, then exits with a status code:
+
+```sh
+pnpm run webmcp:check -- --url http://127.0.0.1:4173 \
+  --expect-tools add_task,list_tasks \
+  --run 'add_task={"title":"Ship the beta"}' --run list_tasks
+```
+
+| Option | Meaning |
+| --- | --- |
+| `--url <url>` | The page to check (required) |
+| `--run <tool>='<json object>'` | Run a tool with this input; repeatable |
+| `--expect-tools a,b` | Fail when one of these tools is not registered |
+| `--settle <ms>` | How long to wait for late registrations (default 5000) |
+| `--timeout <ms>` | Limit for loading the page and for each run (default 15000) |
+| `--json` | Print the tools, their schemas and each run's outcome as JSON |
+| `--verbose` | Show the browser engine's own output |
+
+Exit codes: 0 every check passed, 1 the page did not load, left the allowed origins, or an expected tool is missing, 2 no
+page tools, 3 a run failed (the tool is missing, threw, did not answer in time, or returned an error such as
+`{ error: ... }`), 64 usage error. The same origin rules apply as in the project browser, to every redirect and navigation:
+`https://`, or `http://` on `localhost`, `127.0.0.1` or `[::1]`. It needs `pnpm install` in this repository (it uses the
+bundled engine), and on Linux a display server, for example `xvfb-run -a pnpm run webmcp:check -- ...`. Form tools are run
+through the page's model context, which is not the path an agent's call takes; check those in the project browser too.
+
 ## Troubleshooting
 
 | You see | Likely cause | What to do |

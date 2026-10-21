@@ -37,6 +37,7 @@
     "e2e:desktop": "node desktop/packages/electron/scripts/e2e/run.mjs",
     "e2e:desktop:self-test": "node desktop/packages/electron/scripts/e2e/self-test.mjs",
     "e2e:desktop:webmcp": "node desktop/packages/electron/scripts/e2e/ui-webmcp.mjs --smoke",
+    "webmcp:check": "node desktop/packages/electron/scripts/webmcp-check.mjs",
     "e2e:desktop:settings-webmcp": "node desktop/packages/electron/scripts/e2e/settings-webmcp.mjs",
     "dev:webmcp": "node desktop/packages/electron/scripts/e2e/ui-webmcp.mjs",
     "soak:desktop": "node desktop/scripts/renderer-soak.mjs",
