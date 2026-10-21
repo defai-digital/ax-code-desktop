@@ -258,3 +258,21 @@ Windows 2022 and Ubuntu 24.04.
 All thirteen steps pass, and also pass two of three when grok-4.7 replaces any one judge. P1 audit at `7811c298`: glm-5.3 no
 P1 (two P2s); codex one P1 (credential-shaped tool names share the redacted display name in journal, compare, replay and
 export), fixed in round 19.
+
+## Round 19 and closure (main `8670e718`)
+
+Round 19 fixed the round 18 audit P1 and the findings of four further audit passes: manual evidence, replay, diagnosis and
+export key on the main-issued tool id plus native definition digest; one shared WebMCP permission predicate; schema displays,
+property diffs and form text decide sensitivity on the original schema before transforming; credential-shaped tool names get
+distinct stable labels and are mapped to the stable id inside main; unresolved call associations are shown as unknown instead
+of "never called"; the identity map is bounded. Every merged step passed typecheck, lint, boundaries, locales, all tests,
+build, seven native journeys (including W3, W4, W6 and W8) and `e2e:desktop`; Desktop CI on main passed on macOS, Windows and
+Ubuntu.
+
+Final audit at `dd6b4bf6` (merged as `8670e718`): glm-5.3 no P1 (it has reported no P1 at every pass since round 18); codex
+two P1s, both narrow: an API key in a `[name, value]` pair array (for example `Array.from(headers.entries())`) is not redacted,
+and manual-form drafts for a property name longer than 256 characters or named `__proto__` are lost on remount; plus one P2
+(advisory diagnosis checks display-truncated values). Codex has found new edge-case variants at every pass for nineteen
+rounds. On 2026-10-21 the user accepted closing the goal on this basis: rubric 13 of 13 (round 18), all four judges rate AX
+better than Orca by more than 0.2 and better than opencode (round 18), W1 to W8 native on three platforms, and the remaining
+codex findings recorded as open follow-ups (`AUDIT-2026-10-21-p1-codex-round19d.md`).
