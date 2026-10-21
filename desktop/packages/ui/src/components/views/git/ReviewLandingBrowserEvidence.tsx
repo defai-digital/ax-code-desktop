@@ -97,7 +97,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       .map((call, index) => {
         const operation = call.operation?.toLowerCase() ?? ""
         const kind = t(`diffView.landing.browserRecap.kind.${RECAP_KINDS.has(operation) ? operation : "other"}` as I18nKey)
-        const parts = [`${index + 1}. ${call.title}`, kind, t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)]
+        const parts = [`${calls.length - steps.length + index + 1}. ${call.title}`, kind, t(`webmcp.calls.outcome.${call.outcome}` as I18nKey)]
         if (call.durationMs !== null) parts.push(formatWebMcpDuration(call.durationMs))
         if (call.outcome === "failed" && call.failureReason)
           parts.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
@@ -108,7 +108,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       .join("\n")
   const copyRecap = async () => {
     try {
-      await navigator.clipboard.writeText(`${t("diffView.landing.browserRecap.title")}\n${recapText()}`)
+      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), ...(calls.length > RECAP_LIMIT ? [t("diffView.landing.browserRecap.capped", { shown: RECAP_LIMIT, total: calls.length })] : []), recapText()].join("\n"))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
@@ -135,7 +135,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
       <details className="mt-1 typography-micro text-muted-foreground">
         <summary className="cursor-pointer">{t("diffView.landing.browserRecap.title")}</summary>
         <p className="mt-1">{t("diffView.landing.browserEvidenceHint")}</p>
-        <ol className="mt-1 max-h-40 space-y-0.5 overflow-auto" tabIndex={0}>
+        <ol start={calls.length - steps.length + 1} className="mt-1 max-h-40 space-y-0.5 overflow-auto" tabIndex={0}>
           {steps.map((call) => {
             const operation = call.operation?.toLowerCase() ?? ""
             const kind = RECAP_KINDS.has(operation) ? operation : "other"

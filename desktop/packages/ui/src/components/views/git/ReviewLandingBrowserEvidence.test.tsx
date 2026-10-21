@@ -152,8 +152,12 @@ describe("browser evidence beside landing", () => {
       fireEvent.click(container.querySelector<HTMLButtonElement>("[data-recap-copy]")!)
     })
     const text = writeText.mock.calls[0][0]
-    expect(text.split("\n")).toHaveLength(51)
-    expect(text).toContain("1. checkout")
+    expect(text.split("\n")).toHaveLength(53)
+    expect(text).toContain("diffView.landing.browserEvidence:60")
+    expect(text).toContain("diffView.landing.browserRecap.capped:50|60")
+    expect(text).toContain("11. checkout")
+    expect(text).toContain("60. checkout")
+    expect(container.querySelector("ol")?.start).toBe(11)
   })
 })
 

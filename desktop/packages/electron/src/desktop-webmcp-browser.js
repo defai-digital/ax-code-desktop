@@ -351,13 +351,15 @@ function createDesktopWebMcpBrowser({
       return cancellationSummary(cancellations)
     })
   }
-  function closePopups(entry) {
+  function closePopups(entry, confirmed = false) {
     for (const popup of entry.popups) {
-      if (!popup.isDestroyed()) popup.destroy()
+      if (!popup.isDestroyed()) {
+        if (confirmed) popup.destroy()
+        else popup.close()
+      }
     }
   }
   async function disconnect(entry) {
-    closePopups(entry)
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
     const stopped = stopAgentWork(entry, "agent-disconnected")
@@ -400,8 +402,38 @@ function createDesktopWebMcpBrowser({
     return stopped
   }
 
-  async function close(entry) {
+  const closeApprovals = new WeakMap()
+  async function authorizeClose(sender, args, targets) {
+    const documents = targets.flatMap((entry) => [
+      { entry, contents: entry.view.webContents, id: entry.id },
+      ...[...entry.popups].map((popup, index) => ({ entry, contents: popup.webContents, id: `${entry.id}:popup:${index}` })),
+    ]).filter(({ contents }) => !contents.isDestroyed())
+    const identity = JSON.stringify(documents.map(({ entry, contents, id }) =>
+      [id, contents.id, entry.adapter.generation, contents.desktopDocumentRevision, contents.getURL()]))
+    const approval = closeApprovals.get(sender)
+    closeApprovals.delete(sender)
+    if (approval && approval.token === args.closeConfirmation && approval.action === args.action && approval.identity === identity)
+      return { approved: true }
+    const risky = []
+    for (const document of documents) {
+      if (document.entry.possibleUnsavedWork || !(await canDiscardDocument(document.contents)) || document.entry.possibleUnsavedWork)
+        risky.push(document)
+    }
+    if (!risky.length) return { approved: false }
+    const token = randomUUID()
+    closeApprovals.set(sender, { token, action: args.action, identity })
+    return { confirmationRequired: true, closeConfirmation: token, pages: documents.map(({ entry, contents, id }) => ({
+      id, sessionID: entry.sessionID, title: contents.getTitle?.() || pageKind(contents.getURL(), null),
+    })) }
+  }
+  async function close(entry, confirmed = false) {
     if (entry.closed) return
+    if (!confirmed) {
+      // A handler can be installed after the probe. Preserve ownership and storage if Chromium vetoes.
+      for (const contents of [...entry.popups].map((popup) => popup.webContents).concat(entry.view.webContents)) {
+        if (!(await closeForEviction(contents))) throw new Error("Browser page refused closure")
+      }
+    }
     entry.closed = true
     for (const abort of entry.loadAborts) abort()
     if (views.get(entry.key) === entry) views.delete(entry.key)
@@ -414,9 +446,10 @@ function createDesktopWebMcpBrowser({
     entry.sender.removeListener("destroyed", entry.onOwnerClosed)
     entry.sender.removeListener("render-process-gone", entry.onOwnerClosed)
     const disconnection = disconnect(entry)
+    closePopups(entry, confirmed)
     entry.adapter.close()
     if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
-    if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: false })
+    if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: !confirmed })
     await disconnection
   }
   const status = (entry) => {
@@ -873,6 +906,11 @@ function createDesktopWebMcpBrowser({
           })
           entry.popups.add(popup)
           const contents = popup.webContents
+          for (const event of ["before-input-event", "before-mouse-event"])
+            contents.on(event, () => { entry.possibleUnsavedWork = true })
+          contents.on("did-start-navigation", (_event, _url, inPlace, mainFrame) => {
+            if (mainFrame && !inPlace) contents.desktopDocumentRevision = (contents.desktopDocumentRevision ?? 0) + 1
+          })
           contents.setWindowOpenHandler(() => ({ action: "deny" }))
           for (const eventName of ["will-navigate", "will-redirect"]) {
             contents.on(eventName, (event, destination) => {
@@ -1062,6 +1100,8 @@ function createDesktopWebMcpBrowser({
           throw new Error("This browser storage belongs to another window")
         const dormant = [...unloaded.values()].filter((entry) => entry.directory === directory)
         if (dormant.some((entry) => entry.sender !== sender)) throw new Error("This browser belongs to another window")
+        const confirmation = await authorizeClose(sender, args, targets)
+        if (confirmation.confirmationRequired) return confirmation
         const affected = [...targets, ...dormant].map(({ id, directory, sessionID }) => ({ id, directory, sessionID }))
         const notify = (error) => {
           if (!sender.isDestroyed?.())
@@ -1073,7 +1113,7 @@ function createDesktopWebMcpBrowser({
         notify("storage-clearing")
         try {
           dormant.forEach(forget)
-          await Promise.all(targets.map(close))
+          await Promise.all(targets.map((entry) => close(entry, confirmation.approved)))
           if (guestSessions.has(partition)) await session.fromPartition(partition).clearStorageData()
           notify("storage-cleared")
           return { cleared: true }
@@ -1175,7 +1215,9 @@ function createDesktopWebMcpBrowser({
     }
     if (args.action === "status") return status(entry)
     if (args.action === "close") {
-      await close(entry)
+      const confirmation = await authorizeClose(sender, args, [entry])
+      if (confirmation.confirmationRequired) return confirmation
+      await close(entry, confirmation.approved)
       return { closed: true }
     }
     if (args.action === "pause") {

@@ -1,4 +1,5 @@
 import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { useWebMcpCloseConfirmation } from "@/hooks/useWebMcpCloseConfirmation"
 import * as React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "@/components/mcp/WebMcpCancellationStatus"
 import { WebMcpPageSwitcher, WebMcpTrustSummary } from "@/components/mcp/WebMcpPages"
@@ -85,6 +86,7 @@ const TOOLBAR_BUTTON_CLASS =
  */
 function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl: string }) {
   const { t } = useI18n()
+  const { invoke: confirmClose, confirmDialog } = useWebMcpCloseConfirmation()
   const sessionID = useSessionUIStore((state) => state.currentSessionId)
   const key = viewKeyFor(directory, sessionID)
   const updateSnapshot = React.useCallback(
@@ -447,14 +449,15 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       void invoke({ action: "focusOwner", id: ownerId }).catch(() => setRestart((value) => value + 1))
     } else if (fixAction === "address") addressRef.current?.focus()
     else if (fixAction === "reopen") {
-      void (browserId ? invoke({ action: "close", id: browserId }) : Promise.resolve())
+      void (browserId ? confirmClose({ action: "close", id: browserId }) : Promise.resolve(true))
         .catch(() => {})
-        .then(() => setRestart((value) => value + 1))
+        .then((result) => { if (result !== null) setRestart((value) => value + 1) })
     } else void command(fixAction === "enable" && paused ? "resume" : fixAction)
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
+      {confirmDialog}
       <WebMcpPageSwitcher
         selectedKey={key}
         onRetry={() => {
@@ -476,7 +479,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         variant="outline"
         disabled={busy}
         onClick={() =>
-          void invoke({ action: "clearProject", directory }).catch(() => updateSnapshot({ error: "operation-failed" }))
+          void confirmClose({ action: "clearProject", directory }).catch(() => updateSnapshot({ error: "operation-failed" }))
         }
       >
         {t("webmcp.browser.signOut")}

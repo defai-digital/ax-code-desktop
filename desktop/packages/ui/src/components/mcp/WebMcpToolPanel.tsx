@@ -417,8 +417,8 @@ function FieldInput({
       aria-describedby={describedBy}
       className={className}
       // A secret-named field is masked while typed, like any password field.
-      type={field.kind === "string" && isWebMcpSensitiveName(field.name) ? "password" : undefined}
-      autoComplete={field.kind === "string" && isWebMcpSensitiveName(field.name) ? "off" : undefined}
+      type={isWebMcpSensitiveName(field.name) ? "password" : undefined}
+      autoComplete={isWebMcpSensitiveName(field.name) ? "off" : undefined}
       inputMode={field.kind === "string" ? undefined : "decimal"}
       value={value}
       onChange={(event) => onChange(event.target.value)}

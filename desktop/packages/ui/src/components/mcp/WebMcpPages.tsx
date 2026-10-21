@@ -3,6 +3,7 @@ import React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "./WebMcpCancellationStatus"
 import { useI18n } from "@/lib/i18n"
 import { getDesktopBridge } from "@/lib/desktopBridge"
+import { useWebMcpCloseConfirmation } from "@/hooks/useWebMcpCloseConfirmation"
 import { pageAccess, showWebMcpPage, useWebMcpPages } from "@/hooks/useWebMcpPages"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
@@ -12,6 +13,7 @@ const buttonClass =
 
 export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: string; onRetry: () => void }) {
   const { t } = useI18n()
+  const { invoke, confirmDialog } = useWebMcpCloseConfirmation()
   const pages = useWebMcpPages()
   const capacity = useWebMcpBrowserStore((state) => state.capacity)
   const [pending, setPending] = React.useState<string | null>(null)
@@ -29,14 +31,12 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
     setFailed(false)
     setCancellations((previous) => ({ ...previous, [key]: [] }))
     try {
-      const invoke = getDesktopBridge()?.invoke
-      if (!invoke) throw new Error("Browser unavailable")
       const result = await invoke<{ cancellations?: WebMcpCancellation[] }>(
-        "desktop_webmcp_browser",
         action === "revokeSession"
           ? { action, directory: page.directory, sessionID: page.sessionID }
           : { action, id: page.browserId },
       )
+      if (!result) return
       if (action === "revokeSession")
         setCancellations((previous) => ({ ...previous, [key]: result?.cancellations ?? [] }))
       const store = useWebMcpBrowserStore.getState()
@@ -67,6 +67,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
     )
   return (
     <>
+      {confirmDialog}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-webmcp-pages-status>
         {[poolMessage, ...announcements].filter(Boolean).join(". ")}
       </div>

@@ -5394,5 +5394,6 @@
   "webmcp.tools.staleForm": "Este formulario est\u00e1 obsoleto porque la p\u00e1gina o la herramienta de p\u00e1gina cambi\u00f3. Vuelva a abrir la herramienta y revise la entrada antes de intentarlo de nuevo.",
   "chat.permissionCard.webmcp.inputsTruncated": "Mostrando {shown} de {total} entradas; {required} entradas adicionales obligatorias no se muestran.",
   "webmcp.browser.waitingForSignIn": "El agente est\u00e1 esperando a que finalices el inicio de sesi\u00f3n y cierres las ventanas de inicio de sesi\u00f3n.",
-  "webmcp.browser.signOut": "Cerrar sesi\u00f3n en el navegador del proyecto"
+  "webmcp.browser.signOut": "Cerrar sesi\u00f3n en el navegador del proyecto",
+  "webmcp.browser.confirmClose": "Estas p\u00e1ginas pueden contener cambios no guardados. \u00bfCerrarlas y descartar los cambios no guardados? {pages}"
 }

@@ -116,6 +116,7 @@ function fixture({
       popups.push(this)
     }
     isDestroyed() { return this.destroyed ?? false }
+    close() { this.destroy() }
     destroy() { this.destroyed = true; this.webContents.close(); this.emit("closed") }
   }
   const controller = createDesktopWebMcpBrowser({
@@ -2822,11 +2823,55 @@ test("sign-in popups share the hardened profile, hold agent work, and resume aft
   await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Completed" }))
 })
 
-test.each(["close", "disconnect", "revokeSession"])("%s closes the opener's sign-in windows", async (action) => {
+test.each(["close", "disconnect", "revokeSession"])("%s preserves sign-in windows unless page closure is approved", async (action) => {
   const f = fixture()
   const { sender, status } = await f.create()
   const result = f.guests[0].setWindowOpenHandler.mock.calls[0][0]({ url: "https://login.test/" })
   result.createWindow({})
-  await f.controller.command(sender, { action, id: status.id, directory: "/tmp/project", sessionID: "ses_fixture" })
-  expect(f.popups[0].isDestroyed()).toBe(true)
+  f.popups[0].webContents.emit("before-input-event", {}, { type: "keyDown" })
+  const args = { action, id: status.id, directory: "/tmp/project", sessionID: "ses_fixture" }
+  const reply = await f.controller.command(sender, args)
+  expect(f.popups[0].isDestroyed()).toBe(false)
+  if (action === "close") {
+    expect(reply.confirmationRequired).toBe(true)
+    expect(reply.pages).toHaveLength(2)
+    await f.controller.command(sender, { ...args, closeConfirmation: reply.closeConfirmation })
+    expect(f.popups[0].isDestroyed()).toBe(true)
+  }
+})
+
+describe("explicit destructive page confirmation", () => {
+  test.each(["clearProject", "close"])("%s protects sticky and beforeunload work and binds approval to the document", async (action) => {
+    const f = fixture()
+    const { sender, status } = await f.create({ attach: false })
+    const guest = f.guests[0]
+    const send = guest.debugger.sendCommand
+    guest.debugger.sendCommand = async (method, params) => method === "DOMDebugger.getEventListeners"
+      ? { listeners: [{ type: "beforeunload" }] } : send(method, params)
+    const args = action === "close" ? { action, id: status.id } : { action, directory: "/tmp/project" }
+    const first = await f.controller.command(sender, args)
+    expect(first.confirmationRequired).toBe(true)
+    expect(first.pages).toEqual([expect.objectContaining({ id: status.id, sessionID: "ses_fixture" })])
+    expect(guest.close).not.toHaveBeenCalled()
+    guest.emit("before-input-event", {}, { type: "keyDown" })
+    guest.url = "https://example.com/replacement"
+    const stale = await f.controller.command(sender, { ...args, closeConfirmation: first.closeConfirmation })
+    expect(stale.confirmationRequired).toBe(true)
+    expect(guest.close).not.toHaveBeenCalled()
+    await f.controller.command(sender, { ...args, closeConfirmation: stale.closeConfirmation })
+    expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
+  })
+
+  test("sign out identifies and protects hidden sessions before clearing any storage", async () => {
+    const f = fixture()
+    const { sender } = await f.create({ attach: false })
+    f.guests[0].emit("before-input-event", {}, { type: "keyDown" })
+    await f.controller.command(sender, { action: "create", directory: "/tmp/project", sessionID: "ses_two", url: "about:blank" })
+    const args = { action: "clearProject", directory: "/tmp/project" }
+    const reply = await f.controller.command(sender, args)
+    expect(reply.pages.map((page) => page.sessionID)).toEqual(["ses_fixture", "ses_two"])
+    expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
+    await f.controller.command(sender, { ...args, closeConfirmation: reply.closeConfirmation })
+    expect(f.guests.every((guest) => guest.destroyed)).toBe(true)
+  })
 })
