@@ -300,3 +300,28 @@ display-truncated value and can fall back to the current schema, completed agent
 and runtime rejection reasons do not reach the failing property. Desktop CI: the code commit `8670e718` was cancelled by the
 docs commit; `c1e2ab94` failed only on the macOS opening-animation video smoke; the docs-only `f06cea02` skipped native jobs.
 Round 20 takes B4 and a fresh three-platform CI run on code. The earlier closure note is superseded by this result.
+
+## Round 20 result and closure (main `4b7f80db`; raw judgments in `round20/`)
+
+| Step | codex | deepseek-flash | MiniMax-M3 | grok-4.7 | Pass |
+| --- | --- | --- | --- | --- | --- |
+| A1 | 8 | 8 | 8 | 8 | yes |
+| A2 | 9 | 8 | 8 | 9 | yes |
+| A3 | 8 | 9 | 8 | 8 | yes |
+| A4 | 8 | 8 | 9 | 8 | yes |
+| A5 | 8 | 9 | 8 | 7 | yes |
+| A6 | 8 | 9 | 8 | 8 | yes |
+| A7 | 8 | 8 | 8 | 8 | yes |
+| A8 | 8 | 8 | 8 | 8 | yes |
+| B1 | 8 | 8 | 8 | 8 | yes |
+| B2 | 8 | 9 | 8 | 8 | yes |
+| B3 | 8 | 8 | 8 | 8 | yes |
+| B4 | 8 | 9 | 8 | 8 | yes |
+| B5 | 8 | 9 | 8 | 8 | yes |
+
+All thirteen steps pass; every step scores 8 or more from all three original judges, and from grok-4.7 except A5 (7).
+Desktop CI run 39689561526 on `4b7f80db` passed on macOS 15, Windows 2022 and Ubuntu 24.04, including the native task
+journeys W1 to W8. P1 audit at `25c5ee98` (same code): codex three narrow P1s recorded as open follow-ups in
+`AUDIT-2026-10-21-p1-codex-round20.md` (the user accepted closing with codex edge-case findings open on 2026-10-21); the
+glm-5.3 pass was cut off by an upstream error, and every completed glm pass since round 18 reported no P1. This supersedes the
+round 19 closure note.

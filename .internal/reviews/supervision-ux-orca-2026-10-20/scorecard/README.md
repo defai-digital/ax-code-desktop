@@ -398,3 +398,14 @@ All four judges rate AX better than Orca by more than the 0.2 margin and better 
 | grok-4.7 | better | better |
 
 All four judges rate AX better than Orca and opencode at the closing commit; the three with numbers exceed the 0.2 margin.
+
+## Round 20 comparison (HEAD `4b7f80db`; raw judgments in `round20/`)
+
+| Judge | AX | Orca | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- |
+| codex | 9.25 | 8.97 | 7.07 | +0.28, better | better (+2.18) |
+| deepseek-flash | 9.25 | 8.97 | 7.00 | +0.28, better | better (+2.25) |
+| MiniMax-M3 | 9.25 | 8.97 | 7.03 | +0.28, better | better (+2.22) |
+| grok-4.7 | 9.29 | 8.97 | 7.07 | +0.32, better | better (+2.22) |
+
+At the final code commit all four judges rate AX better than Orca by more than the 0.2 margin and better than opencode.
