@@ -21,6 +21,8 @@ export interface WebMcpToolDefinition {
   name: string
   description: string
   inputSchema?: unknown
+  /** Exact schema for manual input construction and validation, never a display document. */
+  executionSchema?: unknown
   annotations?: WebMcpToolAnnotations
   kind?: WebMcpToolKind
   /** Frame-independent catalog identity for drafts and registration changes. */
@@ -82,7 +84,9 @@ export interface WebMcpToolRun {
 /** One Try it run, with the catalog and native invocation identities captured at dispatch. */
 export interface WebMcpJournalEntry {
   id: string
+  /** Display label only. Manual evidence is bound by invocationID and definitionDigest. */
   tool: string
+  invocationID?: string
   input: Record<string, unknown>
   outcome: string
   text: string
@@ -92,6 +96,19 @@ export interface WebMcpJournalEntry {
   definitionDigest?: string
   definitionChanged?: boolean
   at: number
+}
+
+/** Missing native identities never match, even when display labels or catalog digests coincide. */
+export function webMcpToolIdentity(tool: { invocationID?: string; definitionDigest?: string }): string | null {
+  return tool.invocationID && tool.definitionDigest ? `${tool.invocationID}:${tool.definitionDigest}` : null
+}
+
+export function webMcpEvidenceMatchesTool(
+  evidence: { invocationID?: string; definitionDigest?: string },
+  tool: WebMcpToolDefinition,
+): boolean {
+  const identity = webMcpToolIdentity(tool)
+  return identity !== null && webMcpToolIdentity(evidence) === identity
 }
 
 let journalSerial = 0
@@ -184,6 +201,7 @@ const readTool = (entry: unknown): WebMcpToolDefinition | null => {
     kind: readKind(entry.kind),
   }
   if (inputSchema !== undefined) tool.inputSchema = inputSchema
+  if (entry.executionSchema !== undefined) tool.executionSchema = entry.executionSchema
   const annotations = readWebMcpAnnotations(entry.annotations)
   if (annotations) tool.annotations = annotations
   tool.digest = providedDigest(entry.digest) ?? webMcpDefinitionDigest(tool)
@@ -315,15 +333,14 @@ export function markWebMcpRunsStale<T extends { digest: string; stale: boolean }
   runs: Record<string, T>,
   catalog: readonly WebMcpToolDefinition[],
 ): Record<string, T> {
-  const byName = new Map(catalog.map((tool) => [tool.name, tool.digest ?? ""]))
+  const byIdentity = new Map(catalog.map((tool) => [webMcpToolIdentity(tool), tool.digest ?? ""]))
   let changed = false
   const next: Record<string, T> = { ...runs }
-  for (const [name, run] of Object.entries(runs)) {
-    const digest = byName.get(name)
-    if (digest === undefined) continue
-    const stale = digest !== run.digest
+  for (const [identity, run] of Object.entries(runs)) {
+    // A removed or replaced native identity cannot provide current manual evidence.
+    const stale = byIdentity.get(identity) !== run.digest
     if (stale !== run.stale) {
-      next[name] = { ...run, stale }
+      next[identity] = { ...run, stale }
       changed = true
     }
   }

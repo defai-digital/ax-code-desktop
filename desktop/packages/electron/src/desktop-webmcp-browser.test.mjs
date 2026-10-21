@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
+import { redactWebMcpReport, WEBMCP_SENSITIVE_NAME } from "../../../shared/webmcp-redaction.mjs"
 import { EventEmitter } from "node:events"
 import { createRequire } from "node:module"
 import { createDesktopWebMcpBrowser, projectToolCatalog } from "./desktop-webmcp-browser.js"
@@ -1221,6 +1222,7 @@ describe("page tools for the user", () => {
         name: name === "add_numbers" ? name : "[redacted]",
         description: tool.description,
         inputSchema: tool.inputSchema,
+        executionSchema: tool.inputSchema,
         kind: "script",
         digest: catalogDigest(tool),
         definitionDigest: definitionDigest(tool),
@@ -2915,16 +2917,24 @@ test("main status and catalog project bounded redacted page text", async () => {
   const projection = projectToolCatalog([{ name: "token=NAME_SECRET", description: "x".repeat(5000), inputSchema: { type: "object", description: "token=SCHEMA_SECRET", properties: { password: { type: "string" } } } }])
   expect(projection.catalog[0].name).toBe("[redacted]")
   expect(projection.catalog[0].description.length).toBe(4096)
-  expect(projection.catalog[0].inputSchema.description).toBe("token=SCHEMA_SECRET")
-  expect(projection.catalog[0].inputSchema.properties.password).toEqual({ type: "string" })
+  expect(projection.catalog[0].inputSchema.description).toBe("[redacted]")
+  expect(projection.catalog[0].executionSchema.description).toBe("token=SCHEMA_SECRET")
+  expect(projection.catalog[0].inputSchema.properties.password).toBe("[redacted]")
 })
 
-test("catalog preserves executable schema keys, defaults, constants and colliding long enums", () => {
+test("catalog bounds display schema strings separately from exact executable schema values", () => {
   const key = "k".repeat(4100)
   const schema = { type: "object", properties: { [key]: { type: "string", enum: ["a".repeat(4100), "a".repeat(4000) + "b".repeat(100)], const: "token=original", default: "API key: original" } } }
-  const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0].inputSchema
-  expect(projected).toEqual(schema)
-  expect(projected).not.toBe(schema)
+  const original = structuredClone(schema)
+  const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0]
+  const field = projected.inputSchema.properties[key.slice(0, 4000)]
+  expect(Object.keys(projected.inputSchema.properties)).toEqual([key.slice(0, 4000)])
+  expect(field.enum).toEqual(["a".repeat(4000), "a".repeat(4000)])
+  expect(field.const).toBe("[redacted]")
+  expect(field.default).toBe("[redacted]")
+  expect(projected.executionSchema).toEqual(original)
+  expect(projected.executionSchema).not.toBe(schema)
+  expect(schema).toEqual(original)
 })
 
 describe("shutdown honors project browser refusal", () => {
@@ -3041,4 +3051,34 @@ test.each(["navigate", "act", "waiting"])("%s reply POST has its own bounded abo
   } finally {
     deadlines.mockRestore()
   }
+})
+
+
+test("credential-shaped tool names retain distinct native identities in the renderer catalog", () => {
+  const inputSchema = { type: "object", properties: { item: { type: "string" } } }
+  const tools = ["token=alpha", "token=beta"].map((name) => ({ name, description: "Echo", frameId: "top", inputSchema }))
+  const { catalog } = projectToolCatalog(tools)
+  expect(catalog.map((tool) => tool.name)).toEqual(["[redacted]", "[redacted]"])
+  expect(catalog[0].invocationID).not.toBe(catalog[1].invocationID)
+  expect(catalog[0].definitionDigest).not.toBe(catalog[1].definitionDigest)
+  for (const [index, tool] of tools.entries()) {
+    expect(catalog[index].invocationID).toBe(definitionDigest(tool))
+    expect(catalog[index].definitionDigest).toBe(definitionDigest(tool))
+  }
+  expect(JSON.stringify(catalog)).not.toMatch(/token=alpha|token=beta/)
+})
+
+
+test("catalog redacts original sensitive keys before truncation and renderer filtering", () => {
+  const key = "x".repeat(4000) + "password"
+  const schema = { type: "object", properties: { [key]: { type: "string", default: "synthetic-password" } } }
+  const projected = projectToolCatalog([{ name: "echo", inputSchema: schema }]).catalog[0]
+  const displayKey = Object.keys(projected.inputSchema.properties)[0]
+  expect(displayKey).toHaveLength(4000)
+  expect(displayKey).toContain("[redacted secret]")
+  expect(WEBMCP_SENSITIVE_NAME.test(displayKey)).toBe(true)
+  expect(projected.inputSchema.properties[displayKey]).toBe("[redacted]")
+  expect(JSON.stringify(redactWebMcpReport(projected.inputSchema))).not.toContain("synthetic-password")
+  expect(projected.executionSchema).toEqual(schema)
+  expect(schema.properties[key].default).toBe("synthetic-password")
 })

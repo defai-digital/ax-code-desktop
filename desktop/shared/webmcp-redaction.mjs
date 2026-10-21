@@ -156,7 +156,16 @@ export function webMcpDisplayDescription(value) {
   return redactWebMcpText(value).slice(0, 4096)
 }
 
-/** Preserve structure while bounding every string in a page-authored display projection. */
+/** Retain sensitive-name context even when the identifying suffix lies beyond the display limit. */
+export function webMcpDisplayKey(key) {
+  const safe = redactWebMcpText(key)
+  const marker = "[redacted secret]"
+  return safe.length > 4000 && WEBMCP_SENSITIVE_NAME.test(key)
+    ? safe.slice(0, 4000 - marker.length) + marker
+    : safe.slice(0, 4000)
+}
+
+/** Redact the original tree with full key context before bounding its display projection. */
 export function webMcpDisplaySchema(value) {
   let remaining = 100000
   const bound = (entry, depth = 0) => {
@@ -164,15 +173,15 @@ export function webMcpDisplaySchema(value) {
     if (typeof entry === "string") return webMcpDisplayText(entry)
     if (Array.isArray(entry)) return entry.map((child) => bound(child, depth + 1))
     if (entry && typeof entry === "object")
-      return Object.fromEntries(Object.entries(entry).map(([key, child]) => [webMcpDisplayText(key), bound(child, depth + 1)]))
+      return Object.fromEntries(Object.entries(entry).map(([key, child]) => [webMcpDisplayKey(key), bound(child, depth + 1)]))
     return entry
   }
-  return bound(value)
+  return bound(redactWebMcpReport(value))
 }
 
 /** Tool output and diagnostics also redact values identified by sensitive field names. */
 export function webMcpDisplayReport(value) {
-  return webMcpDisplaySchema(redactWebMcpReport(value))
+  return webMcpDisplaySchema(value)
 }
 
 /** Inspect schema property names at every depth without changing executable values. */

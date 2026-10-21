@@ -3,6 +3,7 @@ import { expect, test } from "vitest"
 import {
   diffWebMcpRegistration,
   markWebMcpRunsStale,
+  webMcpToolIdentity,
   readWebMcpCatalog,
   readWebMcpRejection,
   WEBMCP_CATALOG_BYTE_CAP,
@@ -90,14 +91,18 @@ test("a same-definition reload is not a registration change, and a different dig
   expect(events.at(-1)?.name).toBe("tool_39")
 })
 
-test("marks a result stale only when the same tool's definition changed", () => {
-  const echo = readWebMcpCatalog([tool("echo")]).catalog[0]!
-  const runs = { echo: { digest: echo.digest ?? "", stale: false, text: "5" } }
-  expect(markWebMcpRunsStale(runs, readWebMcpCatalog([tool("echo")]).catalog)).toBe(runs)
-  const revised = markWebMcpRunsStale(runs, readWebMcpCatalog([tool("echo", "Revised")]).catalog)
-  expect(revised.echo?.stale).toBe(true)
-  expect(revised.echo?.digest).toBe(echo.digest)
-  expect(markWebMcpRunsStale(runs, []).echo?.stale).toBe(false)
+test("marks removed and changed native run identities stale without matching display labels", () => {
+  const echo = nativeWebMcpTool(tool("[redacted]"), "frame-1")
+  const identity = webMcpToolIdentity(echo)!
+  const runs = { [identity]: { digest: echo.digest!, stale: false, text: "5" } }
+  expect(markWebMcpRunsStale(runs, [echo])).toBe(runs)
+  for (const catalog of [[], [nativeWebMcpTool(tool("[redacted]", "Revised"), "frame-1")], [nativeWebMcpTool(tool("[redacted]"), "frame-2")]]) {
+    const revised = markWebMcpRunsStale(runs, catalog)
+    expect(revised[identity]).toEqual({ ...runs[identity], stale: true })
+    expect(markWebMcpRunsStale(revised, [echo])[identity].stale).toBe(false)
+  }
+  // A matching display label is never a substitute for a native identity.
+  expect(markWebMcpRunsStale({ "[redacted]": runs[identity] }, [echo])["[redacted]"].stale).toBe(true)
 })
 
 

@@ -1,5 +1,5 @@
 import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
-import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { redactWebMcpText, redactWebMcpReport } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import { cn } from "@/lib/utils"
 import type { PermissionRequest, PermissionResponse } from "@/types/permission"
@@ -18,6 +18,7 @@ import {
   getPermissionAlwaysPatterns,
   getPermissionPatterns,
   normalizePermissionName,
+  isWebMcpPermission,
 } from "@/lib/permissions/permissionPayload"
 import { describeWebMcpCall, readWebMcpDefinitionDigest, webMcpEffect } from "@/lib/toolHelpers"
 import { WebMcpApprovalToolInfo } from "./WebMcpApprovalToolInfo"
@@ -68,7 +69,7 @@ const getToolIcon = (toolName: string) => {
 
 export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onResponse }) => {
   const { t } = useI18n()
-  const isWebMcp = ["webmcp", "desktop_webmcp"].includes(normalizePermissionName(permission.permission).toLowerCase())
+  const isWebMcp = isWebMcpPermission(permission.permission)
   const displayText = (text: string) => isWebMcp ? redactWebMcpText(text) : text
   const [isResponding, setIsResponding] = React.useState(false)
   const [hasResponded, setHasResponded] = React.useState(false)
@@ -201,7 +202,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   // "Always allow" is offered. The Chrome bridge keeps its own named scope, the site allowlist record (origin and
   // capability), so its "Always allow on this site" stays.
   const isDesktopWebMcp =
-    tool === "desktop_webmcp" || ((tool === "webmcp" || tool.endsWith(".webmcp")) && permission.metadata.desktopProvider === true)
+    isWebMcp && (/(?:^|\.)desktop[._]webmcp(?:\.|$)/.test(tool) || permission.metadata.desktopProvider === true)
   const webMcpNamedAlways = !isDesktopWebMcp || alwaysPatterns.length > 0
   const canSaveWebMcpApproval =
     normalizePermissionName(permission.permission) === "webmcp" &&
@@ -378,7 +379,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       )
     }
 
-    if (tool === "webmcp" || tool === "desktop_webmcp") {
+    if (isWebMcp) {
       const origin = getMeta("origin") || patterns[0] || ""
       const operation = getMeta("operation")
       const webTool = getMeta("toolName")
@@ -506,7 +507,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.details")}</div>
             <ScrollableOverlay outerClassName="max-h-32" className="p-0">
               <pre className="typography-meta font-mono px-2 py-1 bg-muted/30 rounded whitespace-pre-wrap break-all">
-                {JSON.stringify(permission.metadata, null, 2)}
+                {JSON.stringify(redactWebMcpReport(permission.metadata), null, 2)}
               </pre>
             </ScrollableOverlay>
           </div>

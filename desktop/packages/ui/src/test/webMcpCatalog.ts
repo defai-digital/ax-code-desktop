@@ -1,3 +1,4 @@
+import { webMcpDisplayText, webMcpDisplayDescription, webMcpDisplaySchema } from "../../../../shared/webmcp-redaction.mjs"
 import { createRequire } from "node:module"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 
@@ -16,5 +17,16 @@ export function nativeWebMcpTool(tool: WebMcpToolDefinition, frameId = "top"): W
     ...(inputSchema === undefined ? {} : { inputSchema }),
     ...(annotations === undefined ? {} : { annotations }),
   }
-  return { ...tool, digest: catalogDigest(definition), definitionDigest: definitionDigest(definition) }
+  return { ...tool, digest: catalogDigest(definition), definitionDigest: definitionDigest(definition), invocationID: definitionDigest(definition) }
+}
+
+/** Renderer fixture with the same shared display filters and native identities as the main-process projection. */
+export function projectedWebMcpTool(tool: WebMcpToolDefinition): WebMcpToolDefinition {
+  return {
+    ...nativeWebMcpTool(tool),
+    name: webMcpDisplayText(tool.name),
+    description: webMcpDisplayDescription(tool.description),
+    inputSchema: webMcpDisplaySchema(tool.inputSchema),
+    executionSchema: structuredClone(tool.inputSchema),
+  }
 }

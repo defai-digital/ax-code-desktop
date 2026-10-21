@@ -1,3 +1,5 @@
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
+import { webMcpToolIdentity } from "@/lib/webMcpCatalog"
 import { beforeEach, expect, test, vi } from "vitest"
 import {
   WEBMCP_HISTORY_KEY,
@@ -79,24 +81,25 @@ test("a changed definition marks the previous result stale and the same definiti
   // Mutation probe: clearing the stale flag on a digest mismatch, or setting it when the digest matches, fails.
   const store = useWebMcpBrowserStore.getState()
   store.resetSnapshot()
-  const tool = { name: "echo", description: "Echo", inputSchema: { type: "object" } }
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object" } })
+  const identity = webMcpToolIdentity(tool)!
   store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
   const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
-  store.recordToolRun("echo", { digest, outcome: "completed", text: "5", stale: false })
-  store.updateSnapshot({ catalog: [{ ...tool, description: "Echo revised" }] })
-  expect(useWebMcpBrowserStore.getState().toolRuns.echo).toMatchObject({ stale: true, digest, text: "5" })
+  store.recordToolRun(identity, { digest, outcome: "completed", text: "5", stale: false })
+  store.updateSnapshot({ catalog: [nativeWebMcpTool({ ...tool, description: "Echo revised" })] })
+  expect(useWebMcpBrowserStore.getState().toolRuns[identity]).toMatchObject({ stale: true, digest, text: "5" })
   expect(useWebMcpBrowserStore.getState().registration.some((event) => event.kind === "changed")).toBe(true)
 
   store.resetSnapshot()
   store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
   const same = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
-  store.recordToolRun("echo", { digest: same, outcome: "completed", text: "5", stale: false })
+  store.recordToolRun(identity, { digest: same, outcome: "completed", text: "5", stale: false })
   const registration = useWebMcpBrowserStore.getState().registration
   store.updateSnapshot({ catalog: [{ ...tool }] })
-  expect(useWebMcpBrowserStore.getState().toolRuns.echo?.stale).toBe(false)
+  expect(useWebMcpBrowserStore.getState().toolRuns[identity]?.stale).toBe(false)
   expect(useWebMcpBrowserStore.getState().registration).toBe(registration)
   store.updateSnapshot({ catalog: [] })
-  expect(useWebMcpBrowserStore.getState().toolRuns.echo?.stale).toBe(false)
+  expect(useWebMcpBrowserStore.getState().toolRuns[identity]?.stale).toBe(true)
   store.updateSnapshot({ busy: true })
   expect(useWebMcpBrowserStore.getState().registration.length).toBeGreaterThan(0)
 })
@@ -237,7 +240,7 @@ test("catalog metadata, registration, drafts and results belong to their view ac
   const store = () => useWebMcpBrowserStore.getState()
   const first = viewKeyFor("/repo", "ses_first")
   const second = viewKeyFor("/repo", "ses_second")
-  const tool = { name: "echo", description: "Echo" }
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo" })
   const rejection = { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" }
   store().selectView("/repo", "ses_first")
   store().updateSnapshot({
@@ -249,9 +252,10 @@ test("catalog metadata, registration, drafts and results belong to their view ac
   })
   const digest = store().catalog[0].digest!
   const draft = { digest, values: { title: "First" }, sendEmpty: {}, json: "{}", jsonMode: false }
+  const identity = webMcpToolIdentity(tool)!
   const run = { digest, outcome: "completed", text: "First result", stale: false }
   store().saveToolDraft("echo", draft)
-  store().recordToolRun("echo", run)
+  store().recordToolRun(identity, run)
   store().selectView("/repo", "ses_second")
   store().updateSnapshot({ origin: "https://same.test", generation: "second", catalog: [tool] })
   expect(store()).toMatchObject({
@@ -262,35 +266,35 @@ test("catalog metadata, registration, drafts and results belong to their view ac
     toolRuns: {},
   })
   store().saveToolDraft("echo", { ...draft, values: { title: "Second" } })
-  store().recordToolRun("echo", { ...run, text: "Second result" })
+  store().recordToolRun(identity, { ...run, text: "Second result" })
   const untouched = store().views[second]
   store().updateView(first, {
     generation: "first-reloaded",
-    catalog: [{ ...tool, description: "Changed" }],
+    catalog: [nativeWebMcpTool({ ...tool, description: "Changed" })],
     catalogLimit: { total: 70, shown: 1, truncation: "count" },
   })
   // A manual invocation started before switching still writes to its original page and stays stale.
-  store().recordToolRun("echo", run, first)
+  store().recordToolRun(identity, run, first)
   expect(store().views[second]).toBe(untouched)
-  expect(store().toolRuns.echo).toMatchObject({ text: "Second result", stale: false })
+  expect(store().toolRuns[identity]).toMatchObject({ text: "Second result", stale: false })
   store().selectView("/repo", "ses_first")
   expect(store()).toMatchObject({
     generation: "first-reloaded",
     catalogRejection: rejection,
     catalogLimit: { total: 70, shown: 1, truncation: "count" },
     toolDrafts: { echo: draft },
-    toolRuns: { echo: { ...run, stale: true } },
+    toolRuns: { [identity]: { ...run, stale: true } },
   })
   expect(store().registration.some((event) => event.kind === "changed")).toBe(true)
-  store().clearToolRun("echo", second)
-  expect(store().toolRuns.echo).toBeDefined()
+  store().clearToolRun(identity, second)
+  expect(store().toolRuns[identity]).toBeDefined()
   expect(store().views[second].toolRuns).toEqual({})
   store().updateView(first, { origin: "https://other.test", catalog: [tool] })
   expect(store().toolDrafts).toEqual({})
   expect(store().toolRuns).toEqual({})
   expect(store().views[second].toolDrafts.echo.values.title).toBe("Second")
   store().resetView(first)
-  store().recordToolRun("echo", run, first)
+  store().recordToolRun(identity, run, first)
   store().saveToolDraft("echo", draft, first)
   expect(store().views[first]).toBeUndefined()
   expect(store()).toMatchObject({

@@ -1,5 +1,6 @@
+import { webMcpToolIdentity } from "@/lib/webMcpCatalog"
 import { compoundKeys } from "../../../../../shared/testing/webmcp-redaction-cases.mjs"
-import { nativeWebMcpTool } from "@/test/webMcpCatalog"
+import { nativeWebMcpTool, projectedWebMcpTool } from "@/test/webMcpCatalog"
 import { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
@@ -52,7 +53,7 @@ describe("WebMCP tool panel", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
     })
-    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
+    expect(tryTool).toHaveBeenCalledWith(catalog[0].invocationID, { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
     expect(container.querySelector("[data-webmcp-tool-result='completed']")?.textContent).toContain('"text": "5"')
   })
 
@@ -90,7 +91,7 @@ function openTool(
 ) {
   useWebMcpBrowserStore
     .getState()
-    .updateSnapshot({ origin: "https://shop.test", catalog: [{ name: "echo", description: "Echo", inputSchema }] })
+    .updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema })] })
   const view = render(<WebMcpToolPanel tryTool={reply} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
@@ -117,7 +118,7 @@ test("30 rendered fields send padded property 25, empty, zero and false without 
   fireEvent.change(inputs[24], { target: { value: "  lead  " } })
   fireEvent.change(inputs[29], { target: { value: "last" } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { p1: "", p2: 0, p3: false, p25: "  lead  ", p30: "last" }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { p1: "", p2: 0, p3: false, p25: "  lead  ", p30: "last" }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("constraints appear beside fields and advisory checks allow sending unchanged input", async () => {
@@ -149,7 +150,7 @@ test("constraints appear beside fields and advisory checks allow sending unchang
   expect(container.textContent).toContain("count must be at least 1.")
   expect(container.textContent).toContain("webmcp.tools.advisory")
   await runTool("webmcp.tools.sendAnyway")
-  expect(reply).toHaveBeenCalledWith("echo", { count: 0 }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { count: 0 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(screen.queryByRole("button", { name: "webmcp.tools.sendAnyway" })).toBeNull()
   expect(screen.queryByRole("button", { name: "webmcp.tools.try" })).not.toBeNull()
   expect(container.querySelector("[role=alert]")).toBeNull()
@@ -249,7 +250,7 @@ test.each([
   expect(container.textContent).toContain(reason)
   fireEvent.change(container.querySelector("textarea")!, { target: { value: '{"nested":{"text":"  exact  "}}' } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { nested: { text: "  exact  " } }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { nested: { text: "  exact  " } }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("JSON escape hatch keeps input editable even when primitive conversion fails", async () => {
@@ -257,7 +258,7 @@ test("JSON escape hatch keeps input editable even when primitive conversion fail
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.useJson" }))
   fireEvent.change(container.querySelector("textarea")!, { target: { value: '{"x":1}' } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { x: 1 }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { x: 1 }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 const descriptions = (input: Element) =>
@@ -373,7 +374,7 @@ test("the JSON editor shows and describes the UTF-8 limit, rejects oversized inp
   expect(screen.getByRole("status").textContent).not.toContain("chat.toolPart.webmcp.reason.invalid-input")
   fireEvent.change(editor, { target: { value: JSON.stringify(input, null, 2) } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", input, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, input, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("panel and tool toggles expose aria-expanded and results update the persistent polite live region", async () => {
@@ -546,13 +547,13 @@ test("names a rejected catalog, including a long name, and keeps the panel when 
   expect(named.container.querySelector("[data-webmcp-catalog-rejection='invalid-name']")).not.toBeNull()
 })
 
-test("records registration, marks a changed definition stale, and keeps a draft for the same definition", async () => {
+test("keeps drafts for the same identity and leaves previous results behind on a definition change", async () => {
   const setItem = vi.spyOn(Storage.prototype, "setItem")
-  const tool = {
+  const tool = nativeWebMcpTool({
     name: "echo",
     description: "Echo",
     inputSchema: { type: "object", properties: { title: { type: "string", description: "Title" } } },
-  }
+  })
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
   const reply = vi.fn(async () => ({ ok: true, output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={reply} />)
@@ -577,14 +578,14 @@ test("records registration, marks a changed definition stale, and keeps a draft 
   expect(container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("Ship")
   expect(container.querySelector("[data-webmcp-stale]")).toBeNull()
   await act(async () => {
-    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [{ ...tool, description: "Echo revised" }] })
+    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [nativeWebMcpTool({ ...tool, description: "Echo revised" })] })
   })
   const changed = container.querySelector("[data-webmcp-registration-kind='changed']")
   expect(changed?.textContent).toContain(digest.slice(0, 12))
   expect(changed?.textContent).toContain(useWebMcpBrowserStore.getState().catalog[0]?.digest?.slice(0, 12))
   fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
-  expect(container.querySelector("[data-webmcp-stale='true']")?.textContent).toContain("done")
-  expect(container.textContent).toContain("webmcp.tools.resultStale")
+  expect(container.querySelector("[data-webmcp-tool-result]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-journal-entry] [data-webmcp-stale=true]")?.textContent).toBe("webmcp.tools.resultStale")
   expect(container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("")
   expect(setItem).not.toHaveBeenCalled()
   setItem.mockRestore()
@@ -601,7 +602,7 @@ test("an enum warning names the allowed choices without blocking an explicit ove
   expect(reply).not.toHaveBeenCalled()
   expect(screen.getByRole("alert").textContent).toBe('Choose one of [\n  "a",\n  "b"\n] for mode.')
   await runTool("webmcp.tools.sendAnyway")
-  expect(reply).toHaveBeenCalledWith("echo", { mode: "other" }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { mode: "other" }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("selected tool forms restore per-view drafts and late manual results stay with the originating view", async () => {
@@ -635,7 +636,7 @@ test("selected tool forms restore per-view drafts and late manual results stay w
     fireEvent.change(a, { target: { value: "2" } })
     fireEvent.change(b, { target: { value: "3" } })
     fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
-    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
+    expect(tryTool).toHaveBeenCalledWith(catalog[0].invocationID, { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
     view.rerender(<WebMcpToolPanel viewKey={second} tryTool={tryTool} />)
     expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).toBeNull()
     expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).toBeNull()
@@ -647,7 +648,7 @@ test("selected tool forms restore per-view drafts and late manual results stay w
     await act(async () => {
       complete({ ok: true, output: "First result" })
     })
-    expect(store().views[first].toolRuns.add_numbers.text).toContain("First result")
+    expect(store().views[first].toolRuns[webMcpToolIdentity(catalog[0])!].text).toContain("First result")
     expect(store().views[second].toolRuns).toEqual({})
     expect(view.container.querySelector("[data-webmcp-tool-result]")).toBeNull()
     view.rerender(<WebMcpToolPanel viewKey={first} tryTool={tryTool} />)
@@ -757,7 +758,7 @@ test("a manual journal keeps the sent run and replays it into editable fields wi
   expect([nextA.value, nextB.value]).toEqual(["2", "3"])
   fireEvent.change(nextA, { target: { value: "9" } })
   await runTool()
-  expect(tryTool).toHaveBeenLastCalledWith("add_numbers", { a: 9, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(tryTool).toHaveBeenLastCalledWith(catalog[0].invocationID, { a: 9, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(view.container.querySelectorAll("[data-webmcp-journal-entry]")).toHaveLength(2)
   expect(JSON.stringify(localStorage)).not.toContain('"a": 9')
 })
@@ -779,7 +780,7 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   const tryButton = screen.getByRole("button", { name: "webmcp.tools.try" })
   expect(tryButton.getAttribute("aria-disabled")).not.toBe("true")
   await runTool()
-  expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
+  expect(tryTool).toHaveBeenCalledWith(catalog[0].invocationID, { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(view.container.querySelector("[data-webmcp-compare-manual]")?.textContent).toContain('"a": 2')
   expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe(transcript)
   // Mutation probe: this attribute is present only when the two known digests differ.
@@ -835,7 +836,7 @@ test("the same definition digest is not flagged, and a missing runtime input is 
   expect(tryTool).toHaveBeenCalledTimes(1)
 })
 
-test("a changed definition is named for the manual run that used the earlier digest", async () => {
+test("a changed definition cannot claim or replay the earlier manual evidence", async () => {
   const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
   const view = openAdd(tryTool)
   const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
@@ -848,7 +849,8 @@ test("a changed definition is named for the manual run that used the earlier dig
     })
   })
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
-  expect(view.container.querySelector("[data-webmcp-definition-changed='manual']")).not.toBeNull()
+  expect(view.container.querySelector("[data-webmcp-compare-manual]")).toBeNull()
+  expect(view.container.querySelector<HTMLButtonElement>("[data-webmcp-replay]")!.disabled).toBe(true)
   expect(view.container.querySelector("[data-webmcp-journal-entry]")).not.toBeNull()
 })
 
@@ -929,7 +931,7 @@ test("nested JSON credentials stay out of rendered manual results and copied exp
 
 test("redacted receipt values are uncheckable while ordinary properties still get diagnosis", () => {
   const inputSchema = { type: "object", properties: { password: { type: "string", minLength: 12 }, count: { type: "integer" } } }
-  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [{ name: "echo", description: "Echo", inputSchema }] })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema })] })
   const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ toolName: "echo", input: { password: "[redacted]", count: "bad" } })]} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
@@ -1035,7 +1037,7 @@ test.each([
   fireEvent.change(selects[1], { target: { value: selects[1].options[1].value } })
   await runTool()
   expect(tryTool).toHaveBeenCalledWith(
-    "echo",
+    tool.invocationID,
     { password: secret, url },
     expect.objectContaining({ definitionDigest: tool.definitionDigest }),
   )
@@ -1065,7 +1067,7 @@ test.each([['pin', 'integer', '1234', 1234], ['cvv', 'number', '123.5', 123.5]])
     expect(input.autocomplete).toBe('off')
     fireEvent.change(input, { target: { value: typed } })
     await runTool()
-    expect(reply).toHaveBeenCalledWith("echo", { [name]: expected }, expect.any(Object))
+    expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { [name]: expected }, expect.any(Object))
   },
 )
 
@@ -1088,7 +1090,7 @@ test.each([false, true])("long enum values keep exact executable identity, colli
   expect(select.options[index].textContent!.length).toBeLessThanOrEqual(4000)
   fireEvent.change(select, { target: { value: select.options[index].value } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { choice: collision ? second : first }, expect.anything())
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { choice: collision ? second : first }, expect.anything())
 })
 
 test.each([true, false])("JSON masks nested sensitive schemas and sensitive drafts, schema=%s", async (sensitiveSchema) => {
@@ -1103,7 +1105,7 @@ test.each([true, false])("JSON masks nested sensitive schemas and sensitive draf
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.showJson" }))
   expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("")
   await runTool()
-  expect(view.reply).toHaveBeenCalledWith("echo", { auth: { password: "example-credential-123" } }, expect.anything())
+  expect(view.reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { auth: { password: "example-credential-123" } }, expect.anything())
   cleanup()
   const restored = openTool(schema).container.querySelector("textarea")!
   expect(restored.value).toContain("example-credential-123")
@@ -1196,4 +1198,117 @@ test("property diffs include changes beyond the preview text limit", () => {
   expect(text.length).toBeGreaterThan(4000)
   expect(JSON.parse(text)).toHaveLength(35)
   expect(text).toContain("property_34")
+})
+
+test("redacted tool labels keep manual evidence, drafts and replay bound to their native identities", async () => {
+  const inputSchema = { type: "object", properties: { item: { type: "string" } }, required: ["item"] }
+  const tools = [
+    { name: "token=alpha", description: "First tool", inputSchema },
+    { name: "token=beta", description: "Second tool", inputSchema },
+  ].map(projectedWebMcpTool)
+  expect(tools.map((tool: { name: string }) => tool.name)).toEqual(["[redacted]", "[redacted]"])
+  expect(tools[0].invocationID).not.toBe(tools[1].invocationID)
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: tools })
+  const tryTool = vi.fn(async (id: string) => ({ ok: true, output: id === tools[0].invocationID ? "effect A" : "effect B" }))
+  const view = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:2" }))
+  const [first, second] = [...view.container.querySelectorAll<HTMLElement>("[data-webmcp-tool]")]
+  fireEvent.click(first.querySelector("button")!)
+  fireEvent.click(second.querySelector("button")!)
+  const run = async (item: HTMLElement, input: string) => {
+    fireEvent.change(item.querySelector("input")!, { target: { value: input } })
+    await act(async () => {
+      fireEvent.click([...item.querySelectorAll("button")].find((button) => button.textContent === "webmcp.tools.try")!)
+    })
+  }
+  await run(first, "from A")
+  const entryA = useWebMcpBrowserStore.getState().toolJournal[0]
+  expect(entryA).toMatchObject({ invocationID: tools[0].invocationID, definitionDigest: tools[0].definitionDigest })
+  expect(first.querySelector("[data-webmcp-compare-manual]")?.textContent).toContain("from A")
+  expect(second.querySelector("[data-webmcp-compare]")).toBeNull()
+  expect(second.querySelector("[data-webmcp-tool-result]")).toBeNull()
+  expect(second.querySelector("[data-webmcp-diagnosis]")).toBeNull()
+  await run(second, "from B")
+  expect(tryTool).toHaveBeenNthCalledWith(1, tools[0].invocationID, { item: "from A" }, expect.anything())
+  expect(tryTool).toHaveBeenNthCalledWith(2, tools[1].invocationID, { item: "from B" }, expect.anything())
+  for (const [item, own, other] of [[first, "A", "B"], [second, "B", "A"]] as const) {
+    const evidence = item.querySelector("[data-webmcp-compare-manual]")!
+    expect(evidence.textContent).toContain(`from ${own}`)
+    expect(evidence.textContent).toContain(`effect ${own}`)
+    expect(evidence.textContent).not.toContain(`from ${other}`)
+    expect(evidence.querySelector("[data-webmcp-diagnosis='manual']")).not.toBeNull()
+    expect(evidence.textContent).toContain("webmcp.tools.export.unavailable")
+    expect(item.querySelector("[data-webmcp-export]")).toBeNull()
+    fireEvent.change(item.querySelector("input")!, { target: { value: `edited ${own}` } })
+  }
+  fireEvent.click(view.container.querySelector(`[data-webmcp-replay='${entryA.id}']`)!)
+  expect(first.querySelector<HTMLInputElement>("input")!.value).toBe("from A")
+  expect(second.querySelector<HTMLInputElement>("input")!.value).toBe("edited B")
+  expect(tryTool).toHaveBeenCalledTimes(2)
+  expect(view.container.querySelector("[data-webmcp-export-run]")).toBeNull()
+  expect(view.container.innerHTML).not.toMatch(/token=alpha|token=beta/)
+
+  cleanup()
+  const remounted = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:2" }))
+  const rows = [...remounted.container.querySelectorAll<HTMLElement>("[data-webmcp-tool]")]
+  for (const row of rows) fireEvent.click(row.querySelector("button")!)
+  expect(rows[0].querySelector<HTMLInputElement>("input")!.value).toBe("from A")
+  expect(rows[1].querySelector<HTMLInputElement>("input")!.value).toBe("edited B")
+  expect(rows[0].querySelector("[data-webmcp-compare-manual]")?.textContent).toContain("effect A")
+  expect(rows[1].querySelector("[data-webmcp-compare-manual]")?.textContent).toContain("effect B")
+})
+
+test("the bounded catalog schema never changes executable keys or colliding enum values", async () => {
+  const key = "k".repeat(4100)
+  const first = "a".repeat(4100)
+  const second = "a".repeat(4000) + "b".repeat(100)
+  const schema = { type: "object", properties: { [key]: { type: "string", enum: [first, second], description: "token=SCHEMA_SECRET" } } }
+  const projected = [projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: schema })]
+  expect(projected[0].inputSchema).toEqual({ type: "object", properties: { [key.slice(0, 4000)]: { type: "string", enum: [first.slice(0, 4000), second.slice(0, 4000)], description: "[redacted]" } } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: projected })
+  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  expect(container.innerHTML).not.toContain("SCHEMA_SECRET")
+  const select = container.querySelector<HTMLSelectElement>("select")!
+  fireEvent.change(select, { target: { value: select.options[2].value } })
+  await runTool()
+  expect(tryTool).toHaveBeenCalledWith(projected[0].invocationID, { [key]: second }, expect.anything())
+  expect(container.querySelector("[data-webmcp-diagnosis='manual']")?.textContent).toContain("webmcp.tools.diagnosis.none")
+})
+
+
+test("registration diffs redact original password enums before display transformation", () => {
+  const make = (value: string) => projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: {
+    type: "object", properties: { password: { type: "string", enum: [value] } },
+  } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [make("synthetic-old-password")] })
+  store.updateSnapshot({ catalog: [make("synthetic-new-password")] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  const diff = container.querySelector("[data-webmcp-property-diff]")!.textContent!
+  expect(diff).toContain('"enum"')
+  expect(diff).toContain('"before": "[redacted]"')
+  expect(diff).toContain('"after": "[redacted]"')
+  expect(container.textContent).not.toContain("synthetic-old-password")
+  expect(container.textContent).not.toContain("synthetic-new-password")
+})
+
+test("input schema hides values whose sensitive key suffix exceeds the projection bound", () => {
+  const key = "x".repeat(4000) + "password"
+  const tool = projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: {
+    type: "object", properties: { [key]: { type: "string", default: "synthetic-password" } },
+  } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  const schema = container.querySelector("[data-webmcp-schema]")!.textContent!
+  expect(schema).toContain("[redacted secret]")
+  expect(schema).not.toContain("synthetic-password")
 })
