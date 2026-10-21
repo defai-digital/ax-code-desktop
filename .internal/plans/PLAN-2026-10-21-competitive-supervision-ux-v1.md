@@ -74,3 +74,5 @@ Started 2026-10-21 at the user's direction to continue to the next round while r
 
 - 2026-10-21: the user asked to merge all branches and worktrees into main, clean up, commit and push before round 8 (approves the
   push that produces the three-platform CI receipts for D3).
+- 2026-10-21: the user approved pushing each round to `origin/main` after its gates pass, without asking again (round 9 onward).
+  This covers commits of this plan's rounds only; releases and publication still need explicit approval under ADR-012.
