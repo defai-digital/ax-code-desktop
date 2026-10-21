@@ -45,6 +45,31 @@ const outcome = await runHarness({
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "review-scopes" }),
     })
     if (!reviewArmed.ok) throw new Error("Could not arm session review fixture")
+    // Seed the normal persisted PR cache in this disposable profile, then serve bounded refreshes.
+    const prEntries = {}
+    const prFixtures = new Map()
+    for (const [index, target] of targets.entries()) {
+      const branch = (await exec("git", ["-C", target.directory, "branch", "--show-current"])).stdout.trim()
+      const status = { connected: true, branch, pr: { number: 123 + index, state: index ? "merged" : "open", draft: false },
+        checks: { total: 1, state: "failure", failed: 1, passed: 0, pending: 0 } }
+      for (const directory of pathForms(target.directory)) {
+        prFixtures.set(directory, status)
+        prEntries[`${directory}::${branch}`] = { status, identity: { directory, branch, remoteName: null },
+          lastRefreshAt: Date.now(), lastDiscoveryPollAt: Date.now(), isInitialStatusResolved: true, resolvedRemoteName: null }
+      }
+    }
+    await session.evaluate(`localStorage.setItem('openchamber.github-pr-status', ${JSON.stringify(JSON.stringify({ state: { entries: prEntries }, version: 0 }))}); true`)
+    const prErrors = []
+    session.on("Fetch.requestPaused", event => {
+      void (async () => {
+        const url = new URL(event.request.url)
+        const fixture = prFixtures.get(url.searchParams.get("directory"))
+        if (!fixture || event.request.method !== "GET") throw new Error("PR request escaped fixture scope")
+        await session.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 200,
+          responseHeaders: [{ name: "Content-Type", value: "application/json" }], body: Buffer.from(JSON.stringify(fixture)).toString("base64") })
+      })().catch(error => prErrors.push(String(error)))
+    })
+    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*/api/github/pr/status*", requestStage: "Request" }] })
     await session.send("Page.reload", { ignoreCache: true })
     await journeyBoot({ session })
     await audit.client.enable()
@@ -198,6 +223,20 @@ const outcome = await runHarness({
       await dispatchKey("Escape", "Escape", 27)
       await audit.wait(`${selectedRows([])} && !${toolbar}`, "Escape clears selection and keeps the board open")
     }
+    const checkPrFacet = async theme => {
+      await audit.click("PR")
+      await audit.wait(`Boolean(document.querySelector('[role="menuitemcheckbox"][aria-label="Open PR (1)"]') && document.querySelector('[role="menuitemcheckbox"][aria-label="Merged PR (1)"]') && document.querySelector('[role="menuitemcheckbox"][aria-label="Checks failing (1)"]'))`, "PR state counts exclude merged failures")
+      await audit.click("Open PR (1)", { role: "menuitemcheckbox" })
+      await audit.wait(`document.querySelectorAll('.mission-control-row').length === 1 && document.querySelector('[role="menuitemcheckbox"][aria-label="Open PR (1)"]')?.getAttribute('aria-checked') === 'true'`, "PR selection persists in open menu")
+      await audit.click("Merged PR (1)", { role: "menuitemcheckbox" })
+      await audit.wait(`document.querySelectorAll('.mission-control-row').length === 2`, "PR states OR together")
+      await audit.click("Checks failing (1)", { role: "menuitemcheckbox" })
+      await audit.wait(`Boolean(document.querySelectorAll('.mission-control-row').length === 1 && document.querySelector('[role="menuitemcheckbox"][aria-label="Merged PR (0)"]'))`, "CI selection ANDs states and updates sibling counts")
+      await capture(`pr-facets-${theme}`)
+      await dispatchKey("Escape", "Escape", 27)
+      await audit.click("Clear all")
+      await audit.wait(`document.querySelectorAll('.mission-control-row').length === 2`, "clear PR facets restores both sessions")
+    }
     const checkRankedPalette = async theme => {
       const controls = (await audit.all()).controls
       const opener = controls.find(control => control.role === "button" && !control.disabled &&
@@ -224,6 +263,22 @@ const outcome = await runHarness({
       })()`, "Sessions is the first group; both fixture sessions precede all other sessions and have visible state badges")
       const names = await session.evaluate(`Array.from(${palette}.querySelectorAll('[cmdk-item][data-value^="session:"]')).slice(0, 2).map(e => e.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160))`)
       for (const name of names) await observedControl(name, "option")
+      await audit.fill("Search files, sessions, commands...", "#123")
+      await audit.wait(`Boolean(${palette}.querySelectorAll('[cmdk-item]').length === 1 && ${palette}.querySelector('[data-palette-pr="123"]'))`, "palette PR number search")
+      await audit.fill("Search files, sessions, commands...", "#PR merged")
+      await audit.wait(`Boolean(${palette}.querySelectorAll('[cmdk-item]').length === 1 && ${palette}.querySelector('[data-palette-pr="124"]'))`, "palette PR state search")
+      await dispatchKey("Tab", "Tab", 9)
+      await audit.wait(`document.activeElement === ${palette}.querySelector('select')`, "Tab reaches host/project scope")
+      // Native select keyboard changes to the host option, then to the first project.
+      await dispatchKey("ArrowDown", "ArrowDown", 40)
+      await dispatchKey("Enter", "Enter", 13)
+      await audit.wait(`document.activeElement === ${palette}.querySelector('[cmdk-input]')`, "scope Enter returns to search")
+      await audit.wait(`${palette}.querySelector('select').value === 'host'`, "host filter selected by keyboard")
+      await audit.fill("Search files, sessions, commands...", "#PR")
+      await dispatchKey("Tab", "Tab", 9)
+      await dispatchKey("End", "End", 35)
+      await dispatchKey("Enter", "Enter", 13)
+      await audit.wait(`${palette}.querySelector('select').value.startsWith('project:') && ${palette}.querySelectorAll('[cmdk-item]').length === 1`, "project scope narrows PR search to its session")
       await capture(`palette-${theme}`)
       await audit.wait(`${palette}?.contains(document.activeElement)`, "palette owns keyboard focus")
       await dispatchKey("Escape", "Escape", 27)
@@ -418,6 +473,7 @@ const outcome = await runHarness({
         await checkGroupedBoard()
         if (width === 1280) {
           await checkBulkSelection(theme)
+          await checkPrFacet(theme)
           await checkRankedPalette(theme)
         }
         await capture(`board-grouped-${theme}-${width}`)
@@ -557,7 +613,22 @@ const outcome = await runHarness({
     await audit.click("Session grid", { role: "button" })
     await audit.wait(`document.querySelector('[data-session-grid]')?.querySelectorAll('iframe').length === 2`, "return restores both grid panes")
 
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
+    await audit.click("Workspace", { role: "button" })
+    await openBoard()
+    await rowAction("Open —", targets[0])
+    await dispatchKey("p", "KeyP", 80, process.platform === "darwin" ? 4 : 2)
+    await audit.wait(`Boolean(document.querySelector('[cmdk-input]'))`, "split palette opened")
+    await audit.fill("Search files, sessions, commands...", "#124")
+    await audit.wait(`document.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute('data-value') === ${JSON.stringify(`session:${targets[1].id}`)}`, "chosen PR session is keyboard-selected")
+    await dispatchKey("Enter", "Enter", 13, 8)
+    await audit.wait(`(() => {
+      const frames = Array.from(document.querySelectorAll('[data-session-grid] iframe'))
+      return frames.length === 2 && frames.every((frame, index) => new URL(frame.src).searchParams.get('sessionId') === ${JSON.stringify(targets.map(target => target.id))}[index] && frame.contentDocument?.querySelector('[data-chat-input]')?.checkVisibility())
+    })()`, "Shift+Enter keeps current session first and opens chosen PR session beside it")
+    await capture("palette-split-open")
+    if (prErrors.length) throw new Error(prErrors.join("; "))
+
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, PR/CI multi-select counts, PR number/state palette search, keyboard host/project scope and Shift+Enter split-open, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

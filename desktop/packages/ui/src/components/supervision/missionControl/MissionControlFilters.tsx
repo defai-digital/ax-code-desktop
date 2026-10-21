@@ -9,7 +9,14 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
-import { matchesMissionStatus, type MissionStatusFilter, type MissionPrFilter } from "@/lib/supervision/missionControl"
+import {
+  matchesMissionStatus,
+  MISSION_PR_STATES,
+  MISSION_CHECK_STATES,
+  type missionPrFacetCounts,
+  type MissionStatusFilter,
+  type MissionPrFilter,
+} from "@/lib/supervision/missionControl"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
 
@@ -26,8 +33,7 @@ interface Props {
   onHasChangesChange: (value: boolean) => void
   pr: MissionPrFilter
   onPrChange: (value: MissionPrFilter) => void
-  checksFailing: boolean
-  onChecksFailingChange: (value: boolean) => void
+  prCounts: ReturnType<typeof missionPrFacetCounts>
   updatedOnly: boolean
   onUpdatedOnlyChange: (value: boolean) => void
   /** Sessions in scope updated since the user last viewed them. */
@@ -109,7 +115,8 @@ export function MissionControlFilters(props: Props) {
               size="sm"
               className={cn(
                 "normal-case min-h-9",
-                props.pr !== "all" && "border-primary/40 bg-interactive-selection text-primary",
+                (props.pr.states.length > 0 || props.pr.checks.length > 0) &&
+                  "border-primary/40 bg-interactive-selection text-primary",
               )}
             >
               {t("supervision.missionControl.filter.pr")}
@@ -120,19 +127,39 @@ export function MissionControlFilters(props: Props) {
             data-mission-project-filter
             aria-label={t("supervision.missionControl.filter.pr")}
           >
-            {(["open", "failing"] as const).map((value) => (
-              <DropdownMenuCheckboxItem
-                key={value}
-                closeOnClick
-                checked={props.pr === value}
-                onCheckedChange={(checked) => props.onPrChange(checked ? value : "all")}
-              >
-                {t(
-                  value === "open"
-                    ? "supervision.missionControl.filter.prOpen"
-                    : "supervision.missionControl.filter.prFailing",
-                )}
-              </DropdownMenuCheckboxItem>
+            {(
+              [
+                ["states", MISSION_PR_STATES],
+                ["checks", MISSION_CHECK_STATES],
+              ] as const
+            ).map(([group, values]) => (
+              <div key={group} role="group" aria-label={t(`supervision.missionControl.facet.${group}`)}>
+                <div className="px-3 py-1 typography-micro text-muted-foreground">
+                  {t(`supervision.missionControl.facet.${group}`)}
+                </div>
+                {values.map((value) => (
+                  <DropdownMenuCheckboxItem
+                    key={value}
+                    closeOnClick={false}
+                    className="normal-case min-h-9 gap-3 pr-8"
+                    checked={(props.pr[group] as readonly string[]).includes(value)}
+                    aria-label={`${t(`supervision.missionControl.facet.${value}`)} (${(props.prCounts[group] as Record<string, number>)[value]})`}
+                    onCheckedChange={(checked) =>
+                      props.onPrChange({
+                        ...props.pr,
+                        [group]: checked
+                          ? [...props.pr[group], value]
+                          : props.pr[group].filter((item) => item !== value),
+                      })
+                    }
+                  >
+                    {t(`supervision.missionControl.facet.${value}`)}
+                    <span className="ml-auto pl-3 tabular-nums text-muted-foreground">
+                      {(props.prCounts[group] as Record<string, number>)[value]}
+                    </span>
+                  </DropdownMenuCheckboxItem>
+                ))}
+              </div>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
@@ -147,18 +174,6 @@ export function MissionControlFilters(props: Props) {
           onClick={() => props.onHasChangesChange(!props.hasChanges)}
         >
           {t("supervision.missionControl.filter.hasChanges")}
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          className={cn(
-            "normal-case min-h-9",
-            props.checksFailing && "border-primary/40 bg-interactive-selection text-primary",
-          )}
-          aria-pressed={props.checksFailing}
-          onClick={() => props.onChecksFailingChange(!props.checksFailing)}
-        >
-          {t("supervision.missionControl.filter.checksFailing")}
         </Button>
         <Button
           variant="outline"
@@ -232,37 +247,31 @@ export function MissionControlFilters(props: Props) {
             </Button>
           )
         })}
-        {props.pr !== "all" ? (
-          <Button
-            variant="outline"
-            size="sm"
-            className="normal-case h-auto min-h-7"
-            aria-label={t("supervision.missionControl.filter.remove", {
-              name: t(
-                props.pr === "open"
-                  ? "supervision.missionControl.filter.prOpen"
-                  : "supervision.missionControl.filter.prFailing",
-              ),
-            })}
-            onClick={() => {
-              props.onPrChange("all")
-              keepFocus()
-            }}
-          >
-            {t(
-              props.pr === "open"
-                ? "supervision.missionControl.filter.prOpen"
-                : "supervision.missionControl.filter.prFailing",
-            )}{" "}
-            <span aria-hidden="true">×</span>
-          </Button>
-        ) : null}
+        {(["states", "checks"] as const).flatMap((group) =>
+          props.pr[group].map((value) => (
+            <Button
+              key={value}
+              variant="outline"
+              size="sm"
+              className="normal-case h-auto min-h-7"
+              aria-label={t("supervision.missionControl.filter.remove", {
+                name: t(`supervision.missionControl.facet.${value}`),
+              })}
+              onClick={() => {
+                props.onPrChange({ ...props.pr, [group]: props.pr[group].filter((item) => item !== value) })
+                keepFocus()
+              }}
+            >
+              {t(`supervision.missionControl.facet.${value}`)} <span aria-hidden="true">×</span>
+            </Button>
+          )),
+        )}
         {props.query ||
         props.status !== "all" ||
         projectKeys.length > 0 ||
         props.hasChanges ||
-        props.checksFailing ||
-        props.pr !== "all" ||
+        props.pr.states.length > 0 ||
+        props.pr.checks.length > 0 ||
         props.updatedOnly ? (
           <Button
             variant="ghost"

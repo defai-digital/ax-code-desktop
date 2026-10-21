@@ -171,9 +171,17 @@ test("PR facet ANDs other facets, includes drafts, and excludes stale or unknown
     { ...base, sessionId: "runtime", checks: { state: "failed" as const, passed: 0, failed: 1, total: 1 } },
   ]
   const facets = { query: "", status: "all" as const, projectKeys: [], hasChanges: false }
-  expect(filterMissionFacets(rows, { ...facets, pr: "open" }).map((r) => r.sessionId)).toEqual(["open", "draft"])
-  expect(filterMissionFacets(rows, { ...facets, pr: "failing" }).map((r) => r.sessionId)).toEqual(["open"])
-  expect(filterMissionFacets(rows, { ...facets, pr: "failing", projectKeys: ["other"] })).toEqual([])
-  expect(filterMissionFacets(rows, { ...facets, pr: "open", hasChanges: true })).toEqual([])
-  expect(filterMissionFacets(rows, { ...facets, pr: "all" })).toHaveLength(6)
+  expect(
+    filterMissionFacets(rows, { ...facets, pr: { states: ["open", "draft"], checks: [] } }).map((r) => r.sessionId),
+  ).toEqual(["open", "draft"])
+  expect(
+    filterMissionFacets(rows, { ...facets, pr: { states: [], checks: ["failed"] } }).map((r) => r.sessionId),
+  ).toEqual(["open"])
+  expect(
+    filterMissionFacets(rows, { ...facets, pr: { states: [], checks: ["failed"] }, projectKeys: ["other"] }),
+  ).toEqual([])
+  expect(
+    filterMissionFacets(rows, { ...facets, pr: { states: ["open", "draft"], checks: [] }, hasChanges: true }),
+  ).toEqual([])
+  expect(filterMissionFacets(rows, { ...facets, pr: { states: [], checks: [] } })).toHaveLength(6)
 })
