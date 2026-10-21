@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Perubahan terakhir dalam tinjauan ini",
   "supervision.missionControl.checks.stale": "(mungkin kedaluwarsa: pembacaan terakhir gagal)",
   "webmcp.state.paused": "Akses agen dijeda",
-  "webmcp.detail.paused": "Akses agen dijeda; lanjutkan untuk memvalidasi ulang halaman ini tanpa memuat ulang permintaan tertunda.",
+  "webmcp.detail.paused": "Akses agen dijeda. Lanjutkan melepaskan panggilan yang menunggu.",
   "webmcp.actions.resume": "Lanjutkan akses agen",
   "webmcp.detail.unsafePort": "Browser memblokir port yang tidak aman (ERR_UNSAFE_PORT); gunakan port yang didukung di alamat.",
   "webmcp.detail.nameNotResolved": "Host tidak dapat ditemukan (ERR_NAME_NOT_RESOLVED); periksa alamat.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} ditambahkan ({digest})",
   "webmcp.tools.registration.removed": "{name} dihapus ({digest})",
   "webmcp.tools.registration.changed": "{name} diubah ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Hasil ini berasal dari definisi alat yang lebih awal."
+  "webmcp.tools.resultStale": "Hasil ini berasal dari definisi alat yang lebih awal.",
+  "webmcp.actions.pauseAgent": "Jeda agen",
+  "webmcp.actions.resumeAgent": "Lanjutkan agen",
+  "webmcp.browser.takeOver": "Anda mengontrol halaman. Panggilan agen menunggu hingga Anda melanjutkannya.",
+  "webmcp.browser.waitingForResume": "Panggilan agen menunggu Anda melanjutkannya.",
+  "webmcp.browser.waitingForPage": "Panggilan agen menunggu halaman ini terlihat.",
+  "webmcp.browser.stoppedCall": "1 panggilan agen dihentikan. Perubahan yang sudah dibuat di halaman tetap ada.",
+  "webmcp.browser.stoppedCalls": "{count} panggilan agen dihentikan. Perubahan yang sudah dibuat di halaman tetap ada."
 }

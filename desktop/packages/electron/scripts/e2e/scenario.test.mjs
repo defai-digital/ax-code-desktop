@@ -568,3 +568,19 @@ describe("stub runtime with a scenario", () => {
     }
   }, 20_000)
 })
+
+spawnTest("project browser stub enrolls a real session and retires only the disconnected provider", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/browser-fixture" })
+  const stub = await startStub({ scenario })
+  const call = (route, method = "GET", body) => fetch(`${stub.base}/desktop/browser${route}?directory=${encodeURIComponent(scenario.session.directory)}`, {
+    method, headers: { "content-type": "application/json" }, ...(body ? { body: JSON.stringify(body) } : {}),
+  })
+  expect(await (await call("/capability")).json()).toEqual({ capability: "desktop.webmcp.v1", browserMode: "embedded" })
+  expect((await call("/provider", "POST", { sessionID: "foreign" })).status).toBe(404)
+  const connection = await (await call("/provider", "POST", { sessionID: scenario.session.id })).json()
+  expect(connection.projectID).toBe(scenario.project.id)
+  expect(await (await call(`/provider/${connection.providerID}/next`)).json()).toEqual({ canceled: [] })
+  expect((await call(`/provider/${connection.providerID}/state`, "PUT", {})).ok).toBe(true)
+  await call(`/provider/${connection.providerID}`, "DELETE")
+  expect((await call(`/provider/${connection.providerID}/next`)).status).toBe(404)
+})

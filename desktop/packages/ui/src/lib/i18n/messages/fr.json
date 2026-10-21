@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Derni\u00e8re modification de cette revue",
   "supervision.missionControl.checks.stale": "(peut \u00eatre obsol\u00e8te : la derni\u00e8re lecture a \u00e9chou\u00e9)",
   "webmcp.state.paused": "Acc\u00e8s de l'agent en pause",
-  "webmcp.detail.paused": "L'acc\u00e8s de l'agent est en pause ; reprenez pour r\u00e9valider cette page sans rejouer les requ\u00eates en attente.",
+  "webmcp.detail.paused": "L'acc\u00e8s de l'agent est en pause. La reprise lib\u00e8re les appels en attente.",
   "webmcp.actions.resume": "Reprendre l'acc\u00e8s de l'agent",
   "webmcp.detail.unsafePort": "Le navigateur a bloqu\u00e9 un port non s\u00e9curis\u00e9 (ERR_UNSAFE_PORT) ; utilisez un port pris en charge dans l'adresse.",
   "webmcp.detail.nameNotResolved": "L'h\u00f4te est introuvable (ERR_NAME_NOT_RESOLVED) ; v\u00e9rifiez l'adresse.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} ajout\u00e9 ({digest})",
   "webmcp.tools.registration.removed": "{name} supprim\u00e9 ({digest})",
   "webmcp.tools.registration.changed": "{name} modifi\u00e9 ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Ce r\u00e9sultat provient d'une d\u00e9finition ant\u00e9rieure de l'outil."
+  "webmcp.tools.resultStale": "Ce r\u00e9sultat provient d'une d\u00e9finition ant\u00e9rieure de l'outil.",
+  "webmcp.actions.pauseAgent": "Mettre l\u2019agent en pause",
+  "webmcp.actions.resumeAgent": "Rependre l\u2019agent",
+  "webmcp.browser.takeOver": "Vous avez le contr\u00f4le de la page. Les appels de l\u2019agent attendent que vous le repreniez.",
+  "webmcp.browser.waitingForResume": "Appel de l\u2019agent en attente de votre reprise.",
+  "webmcp.browser.waitingForPage": "Appel de l\u2019agent en attente que cette page soit visible.",
+  "webmcp.browser.stoppedCall": "1 appel d\u2019agent arr\u00eat\u00e9. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent.",
+  "webmcp.browser.stoppedCalls": "{count} appels d\u2019agent arr\u00eat\u00e9s. Les modifications d\u00e9j\u00e0 effectu\u00e9es sur la page restent."
 }

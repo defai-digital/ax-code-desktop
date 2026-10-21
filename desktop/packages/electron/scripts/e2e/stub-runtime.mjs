@@ -120,6 +120,8 @@ const readBody = (req, done) => {
   req.on('error', () => done({}));
 };
 const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').replace(/^([a-z]):/, (_, letter) => letter.toUpperCase() + ':').replace(/(.)\\/+$/, '$1');
+const browserProviders = new Map();
+let browserProviderSequence = 0;
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
   const pathname = url.pathname.replace(/\\/+$/, '') || '/';
@@ -148,6 +150,33 @@ const server = http.createServer((req, res) => {
     // Windows sends C:/Work/Repo while fixtures use C:\Work\Repo: compare one canonical spelling.
     const scopedDirectory = canonDirectory(url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '');
     const sessions = [scenario.session, ...portfolio.map(entry => entry.session)];
+    // Native project-browser journey: provider enrollment without a model or agent calls.
+    if (pathname === '/desktop/browser/capability') {
+      json(res, { capability: 'desktop.webmcp.v1', browserMode: 'embedded' });
+      return;
+    }
+    if (pathname === '/desktop/browser/provider' && req.method === 'POST') {
+      readBody(req, body => {
+        const selected = sessions.find(item => item.id === body.sessionID && canonDirectory(item.directory) === scopedDirectory);
+        if (!selected) { res.statusCode = 404; json(res, { error: 'Unknown browser session' }); return; }
+        const providerID = 'e2e-browser-' + (++browserProviderSequence);
+        const connection = { providerID, epoch: 'e2e', projectID: selected.projectID };
+        browserProviders.set(providerID, connection);
+        json(res, connection);
+      });
+      return;
+    }
+    if (pathname.startsWith('/desktop/browser/provider/')) {
+      const [, , , , providerID, operation] = pathname.split('/');
+      if (!browserProviders.has(providerID)) { res.statusCode = 404; json(res, { error: 'Browser disconnected' }); return; }
+      if (req.method === 'DELETE') browserProviders.delete(providerID);
+      if (operation === 'next') {
+        const timer = setTimeout(() => json(res, { canceled: [] }), 250);
+        res.on('close', () => clearTimeout(timer));
+      } else json(res, {});
+      return;
+    }
+
     const projects = [scenario.project, ...portfolio.map(entry => entry.project)];
     if (pathname === '/__e2e__/hooks' && req.method === 'POST') {
       readBody(req, (body) => {

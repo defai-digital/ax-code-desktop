@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Letzte \u00c4nderung in dieser Pr\u00fcfung",
   "supervision.missionControl.checks.stale": "(m\u00f6glicherweise veraltet: der letzte Lesevorgang ist fehlgeschlagen)",
   "webmcp.state.paused": "Agent-Zugriff pausiert",
-  "webmcp.detail.paused": "Agent-Zugriff ist pausiert; setzen Sie die Validierung dieser Seite fort, ohne ausstehende Anfragen erneut zu senden.",
+  "webmcp.detail.paused": "Agentenzugriff ist pausiert. Fortsetzen gibt wartende Aufrufe frei.",
   "webmcp.actions.resume": "Agent-Zugriff fortsetzen",
   "webmcp.detail.unsafePort": "Der Browser hat einen unsicheren Port blockiert (ERR_UNSAFE_PORT); verwenden Sie einen unterst\u00fctzten Port in der Adresse.",
   "webmcp.detail.nameNotResolved": "Der Host konnte nicht gefunden werden (ERR_NAME_NOT_RESOLVED); \u00fcberpr\u00fcfen Sie die Adresse.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} hinzugef\u00fcgt ({digest})",
   "webmcp.tools.registration.removed": "{name} entfernt ({digest})",
   "webmcp.tools.registration.changed": "{name} ge\u00e4ndert ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Dieses Ergebnis stammt von einer fr\u00fcheren Definition des Tools."
+  "webmcp.tools.resultStale": "Dieses Ergebnis stammt von einer fr\u00fcheren Definition des Tools.",
+  "webmcp.actions.pauseAgent": "Agent pausieren",
+  "webmcp.actions.resumeAgent": "Agent fortsetzen",
+  "webmcp.browser.takeOver": "Sie haben die Kontrolle \u00fcber die Seite. Die Aufrufe des Agents warten, bis Sie ihn fortsetzen.",
+  "webmcp.browser.waitingForResume": "Agent-Aufruf wartet darauf, dass Sie ihn fortsetzen.",
+  "webmcp.browser.waitingForPage": "Agent-Aufruf wartet darauf, dass diese Seite sichtbar ist.",
+  "webmcp.browser.stoppedCall": "1 Agent-Aufruf angehalten. \u00c4nderungen, die er bereits auf der Seite vorgenommen hat, bleiben bestehen.",
+  "webmcp.browser.stoppedCalls": "{count} Agent-Aufrufe angehalten. \u00c4nderungen, die sie bereits auf der Seite vorgenommen haben, bleiben bestehen."
 }

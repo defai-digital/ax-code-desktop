@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Bu incelemedeki son de\u011fi\u015fiklik",
   "supervision.missionControl.checks.stale": "(g\u00fcncel olmayabilir: son okuma ba\u015far\u0131s\u0131z)",
   "webmcp.state.paused": "Ajan eri\u015fimi durduruldu",
-  "webmcp.detail.paused": "Ajan eri\u015fimi durduruldu; ask\u0131daki istekleri yeniden g\u00f6ndermeden bu sayfay\u0131 yeniden do\u011frulamak i\u00e7in devam ettirin.",
+  "webmcp.detail.paused": "Ajan eri\u015fimi duraklat\u0131ld\u0131. Devam ettirmek bekleyen \u00e7a\u011fr\u0131lar\u0131 serbest b\u0131rak\u0131r.",
   "webmcp.actions.resume": "Ajan eri\u015fimini devam ettir",
   "webmcp.detail.unsafePort": "Taray\u0131c\u0131 g\u00fcvenli olmayan bir ba\u011flant\u0131 noktas\u0131n\u0131 engelledi (ERR_UNSAFE_PORT); adresinde desteklenen bir ba\u011flant\u0131 noktas\u0131 kullan\u0131n.",
   "webmcp.detail.nameNotResolved": "Ana bilgisayar bulunamad\u0131 (ERR_NAME_NOT_RESOLVED); adresi kontrol edin.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} eklendi ({digest})",
   "webmcp.tools.registration.removed": "{name} kald\u0131r\u0131ld\u0131 ({digest})",
   "webmcp.tools.registration.changed": "{name} de\u011fi\u015ftirildi ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Bu sonu\u00e7, arac\u0131n \u00f6nceki tan\u0131m\u0131ndan gelmekte."
+  "webmcp.tools.resultStale": "Bu sonu\u00e7, arac\u0131n \u00f6nceki tan\u0131m\u0131ndan gelmekte.",
+  "webmcp.actions.pauseAgent": "Ajan\u0131 duraklat",
+  "webmcp.actions.resumeAgent": "Ajan\u0131 devam ettir",
+  "webmcp.browser.takeOver": "Sayfan\u0131n kontrol\u00fc sizde. Ajan \u00e7a\u011fr\u0131lar\u0131, devam ettirene kadar bekliyor.",
+  "webmcp.browser.waitingForResume": "Ajan \u00e7a\u011fr\u0131s\u0131, devam ettirmenizi bekliyor.",
+  "webmcp.browser.waitingForPage": "Ajan \u00e7a\u011fr\u0131s\u0131, bu sayfan\u0131n g\u00f6r\u00fcn\u00fcr olmas\u0131n\u0131 bekliyor.",
+  "webmcp.browser.stoppedCall": "1 ajan \u00e7a\u011fr\u0131s\u0131 durduruldu. Sayfada yapt\u0131\u011f\u0131 de\u011fi\u015fiklikler kal\u0131r.",
+  "webmcp.browser.stoppedCalls": "{count} ajan \u00e7a\u011fr\u0131s\u0131 durduruldu. Sayfada yapt\u0131klar\u0131 de\u011fi\u015fiklikler kal\u0131r."
 }
