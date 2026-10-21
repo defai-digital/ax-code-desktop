@@ -276,3 +276,27 @@ and manual-form drafts for a property name longer than 256 characters or named `
 rounds. On 2026-10-21 the user accepted closing the goal on this basis: rubric 13 of 13 (round 18), all four judges rate AX
 better than Orca by more than 0.2 and better than opencode (round 18), W1 to W8 native on three platforms, and the remaining
 codex findings recorded as open follow-ups (`AUDIT-2026-10-21-p1-codex-round19d.md`).
+
+## Round 19 judgment at the closing commit (`f06cea02`; raw judgments in `round19/`)
+
+| Step | codex | deepseek-flash | MiniMax-M3 | grok-4.7 | Pass |
+| --- | --- | --- | --- | --- | --- |
+| A1 | 8 | 8 | 8 | 8 | yes |
+| A2 | 9 | 8 | 8 | 9 | yes |
+| A3 | 8 | 8 | 8 | 8 | yes |
+| A4 | 8 | 8 | 9 | 8 | yes |
+| A5 | 8 | 8 | 7 | 7 | yes |
+| A6 | 7 | 8 | 8 | 8 | yes |
+| A7 | 8 | 8 | 8 | 8 | yes |
+| A8 | 8 | 8 | 8 | 8 | yes |
+| B1 | 8 | 8 | 8 | 8 | yes |
+| B2 | 7 | 8 | 8 | 8 | yes |
+| B3 | 7 | 8 | 8 | 8 | yes |
+| B4 | 7 | 8 | 7 | 7 | no |
+| B5 | 8 | 8 | 8 | 8 | yes |
+
+Twelve of thirteen pass at the closing commit; B4 falls back (codex, MiniMax and grok 7): diagnosis validates the
+display-truncated value and can fall back to the current schema, completed agent calls lose the approval's preview and digest,
+and runtime rejection reasons do not reach the failing property. Desktop CI: the code commit `8670e718` was cancelled by the
+docs commit; `c1e2ab94` failed only on the macOS opening-animation video smoke; the docs-only `f06cea02` skipped native jobs.
+Round 20 takes B4 and a fresh three-platform CI run on code. The earlier closure note is superseded by this result.

@@ -387,3 +387,14 @@ At the final hardening commit all four judges rate AX better than Orca by at lea
 | grok-4.7 | +0.27, better (AX 9.24, Orca 8.97) | better (+2.17) |
 
 All four judges rate AX better than Orca by more than the 0.2 margin and better than opencode.
+
+## Round 19 comparison (HEAD `f06cea02`; raw judgments in `round19/`)
+
+| Judge | AX vs Orca | AX vs opencode |
+| --- | --- | --- |
+| codex | +0.25, better | better (+2.15) |
+| deepseek-flash | +0.26, better | better (+2.23) |
+| MiniMax-M3 | +0.39, better | better (+2.39) |
+| grok-4.7 | better | better |
+
+All four judges rate AX better than Orca and opencode at the closing commit; the three with numbers exceed the 0.2 margin.
