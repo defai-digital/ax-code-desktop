@@ -415,14 +415,13 @@ export function readWebMcpInvokeInput(metadata: Record<string, unknown> | null |
   if (args) return { kind: "object", input: redactInvokeRecord(args) }
   const preview = readWebMcpString(metadata, "inputPreview")
   if (!preview) return { kind: "missing", input: null }
-  if (webMcpTextLooksSensitive(preview)) return { kind: "redacted", input: null }
   try {
     const parsed: unknown = JSON.parse(preview)
     if (isPlainRecord(parsed)) return { kind: "preview", input: redactInvokeRecord(parsed) }
   } catch {
     /* A truncated or non-JSON preview is not a property bag. */
   }
-  return { kind: "unparsed", input: null }
+  return { kind: webMcpTextLooksSensitive(preview) ? "redacted" : "unparsed", input: null }
 }
 
 function redactInvokeRecord(value: Record<string, unknown>): Record<string, unknown> {
@@ -476,9 +475,7 @@ export function describeWebMcpCall(
     const preview = readWebMcpString(metadata, "inputPreview")
     if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
     else if (preview)
-      argumentsText = webMcpTextLooksSensitive(preview)
-        ? "[redacted]"
-        : truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
+      argumentsText = truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")
