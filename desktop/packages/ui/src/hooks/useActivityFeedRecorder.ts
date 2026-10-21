@@ -31,14 +31,26 @@ export function useActivityFeedRecorder(enabled = true): void {
   const origin = useWebMcpBrowserStore((state) => state.origin)
   const browserEnabled = useWebMcpBrowserStore((state) => state.enabled)
   const ready = useWebMcpBrowserStore((state) => state.phase === "ready")
-  const previousBrowser = React.useRef<BrowserSessionUse | null | undefined>(undefined)
+  const views = useWebMcpBrowserStore((state) => state.views)
+  const previousBrowser = React.useRef<Map<string, BrowserSessionUse | null> | undefined>(undefined)
   const rowsRef = React.useRef(rows)
   rowsRef.current = rows
   React.useEffect(() => {
     if (!enabled) return
-    const next = browserSessionUse({ sessionID, origin, enabled: browserEnabled, ready })
-    const events = diffBrowserActivity(previousBrowser.current, next, rowsRef.current, Date.now())
+    const next = new Map(
+      Object.entries(views).map(([key, view]) => [key, browserSessionUse({ ...view, ready: view.phase === "ready" })]),
+    )
+    if (next.size === 0) next.set("legacy", browserSessionUse({ sessionID, origin, enabled: browserEnabled, ready }))
+    const prior = previousBrowser.current
+    const events = [...new Set([...next.keys(), ...(prior?.keys() ?? [])])].flatMap((key) =>
+      diffBrowserActivity(
+        prior ? (prior.get(key) ?? null) : undefined,
+        next.get(key) ?? null,
+        rowsRef.current,
+        Date.now(),
+      ),
+    )
     previousBrowser.current = next
     if (events.length > 0) useActivityFeedStore.getState().record(events)
-  }, [enabled, sessionID, origin, browserEnabled, ready])
+  }, [enabled, views, sessionID, origin, browserEnabled, ready])
 }

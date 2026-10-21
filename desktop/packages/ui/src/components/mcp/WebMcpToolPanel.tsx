@@ -1,3 +1,4 @@
+import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -36,8 +37,13 @@ const REGISTRATION_TEXT: Record<WebMcpRegistrationEvent["kind"], I18nKey> = {
 
 type Translate = (key: I18nKey, params?: I18nParams) => string
 
-function storedDraft(name: string, digest: string) {
-  const draft = useWebMcpBrowserStore.getState().toolDrafts[name]
+function storedView(key?: string) {
+  const state = useWebMcpBrowserStore.getState()
+  return key ? state.views[key] : state
+}
+
+function storedDraft(name: string, digest: string, key?: string) {
+  const draft = storedView(key)?.toolDrafts[name]
   if (!draft || draft.digest !== digest) {
     return {
       values: {} as Record<string, string>,
@@ -49,8 +55,12 @@ function storedDraft(name: string, digest: string) {
   return draft
 }
 
-function storedRun(name: string, digest: string): { outcome: string; text: string; stale: boolean } | null {
-  const run = useWebMcpBrowserStore.getState().toolRuns[name]
+function storedRun(
+  name: string,
+  digest: string,
+  key?: string,
+): { outcome: string; text: string; stale: boolean } | null {
+  const run = storedView(key)?.toolRuns[name]
   if (!run) return null
   return { outcome: run.outcome, text: run.text, stale: run.stale || run.digest !== digest }
 }
@@ -222,7 +232,7 @@ function SchemaBlock({ schema }: { schema: unknown }) {
   )
 }
 
-function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryTool }) {
+function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryTool: TryTool; viewKey?: string }) {
   const { t } = useI18n()
   const saveToolDraft = useWebMcpBrowserStore((state) => state.saveToolDraft)
   const recordToolRun = useWebMcpBrowserStore((state) => state.recordToolRun)
@@ -230,23 +240,25 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
   const digest = tool.digest ?? ""
   const form = React.useMemo(() => toolForm(tool.inputSchema), [tool.inputSchema])
   const [open, setOpen] = React.useState(false)
-  const [values, setValues] = React.useState<Record<string, string>>(() => storedDraft(tool.name, digest).values)
-  const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>(
-    () => storedDraft(tool.name, digest).sendEmpty,
+  const [values, setValues] = React.useState<Record<string, string>>(
+    () => storedDraft(tool.name, digest, viewKey).values,
   )
-  const [jsonMode, setJsonMode] = React.useState(() => storedDraft(tool.name, digest).jsonMode)
+  const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>(
+    () => storedDraft(tool.name, digest, viewKey).sendEmpty,
+  )
+  const [jsonMode, setJsonMode] = React.useState(() => storedDraft(tool.name, digest, viewKey).jsonMode)
   const [warnings, setWarnings] = React.useState<{ field: string; constraint: string }[]>([])
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
-  const [json, setJson] = React.useState(() => storedDraft(tool.name, digest).json)
+  const [json, setJson] = React.useState(() => storedDraft(tool.name, digest, viewKey).json)
   const [running, setRunning] = React.useState(false)
   const [result, setResult] = React.useState<{ outcome: string; text: string; stale: boolean } | null>(() =>
-    storedRun(tool.name, digest),
+    storedRun(tool.name, digest, viewKey),
   )
   const baseId = React.useId()
 
   React.useEffect(() => {
-    saveToolDraft(tool.name, { digest, values, sendEmpty, json, jsonMode })
-  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, tool.name, values])
+    saveToolDraft(tool.name, { digest, values, sendEmpty, json, jsonMode }, viewKey)
+  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, tool.name, values, viewKey])
 
   const constraintText = (field: ToolField, constraint: string) =>
     t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
@@ -255,8 +267,8 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
     })
   const showResult = (next: { outcome: string; text: string } | null) => {
     setResult(next ? { outcome: next.outcome, text: next.text, stale: false } : null)
-    if (next) recordToolRun(tool.name, { digest, outcome: next.outcome, text: next.text, stale: false })
-    else clearToolRun(tool.name)
+    if (next) recordToolRun(tool.name, { digest, outcome: next.outcome, text: next.text, stale: false }, viewKey)
+    else clearToolRun(tool.name, viewKey)
   }
   const clearFeedback = () => {
     setWarnings([])
@@ -534,13 +546,16 @@ type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<Try
  * the user, the same as using the page; it creates no agent grant and adds nothing to the conversation.
  * Hint badges and authoring notes never approve a call. A rejected registration is named here and does not hide the page.
  */
-export function WebMcpToolPanel({ tryTool }: { tryTool: TryTool }) {
+export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKey?: string }) {
   const { t } = useI18n()
-  const catalog = useWebMcpBrowserStore((state) => state.catalog)
-  const origin = useWebMcpBrowserStore((state) => state.origin)
-  const catalogLimit = useWebMcpBrowserStore((state) => state.catalogLimit)
-  const catalogRejection = useWebMcpBrowserStore((state) => state.catalogRejection)
-  const registration = useWebMcpBrowserStore((state) => state.registration)
+  const currentKey = useCurrentWebMcpViewKey()
+  const pooled = useWebMcpBrowserStore((state) => state.activeKey !== null || state.order.length > 0)
+  const toolViewKey = viewKey ?? (pooled ? currentKey : undefined)
+  const catalog = useWebMcpBrowserValue((state) => state.catalog, viewKey)
+  const origin = useWebMcpBrowserValue((state) => state.origin, viewKey)
+  const catalogLimit = useWebMcpBrowserValue((state) => state.catalogLimit, viewKey)
+  const catalogRejection = useWebMcpBrowserValue((state) => state.catalogRejection, viewKey)
+  const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const [open, setOpen] = React.useState(false)
   if (!origin || (catalog.length === 0 && !catalogRejection && registration.length === 0)) return null
   const truncated = catalogLimit.truncation !== null || catalogLimit.shown < catalogLimit.total
@@ -603,7 +618,12 @@ export function WebMcpToolPanel({ tryTool }: { tryTool: TryTool }) {
           ) : null}
           <ul className="max-h-72 space-y-1.5 overflow-auto">
             {catalog.map((tool) => (
-              <ToolItem key={`${tool.name}:${tool.digest ?? ""}`} tool={tool} tryTool={tryTool} />
+              <ToolItem
+                key={`${toolViewKey ?? ""}:${tool.name}:${tool.digest ?? ""}`}
+                tool={tool}
+                tryTool={tryTool}
+                viewKey={toolViewKey}
+              />
             ))}
           </ul>
         </div>

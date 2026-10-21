@@ -1,3 +1,4 @@
+import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Icon } from "@/components/icon/Icon"
@@ -6,7 +7,6 @@ import { useI18n } from "@/lib/i18n"
 import { isElectronShell } from "@/lib/desktop"
 import { useOpenProjectBrowser, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useUIStore } from "@/stores/useUIStore"
 
 // The header is a window drag region; without the no-drag marker a click would move the window.
@@ -22,7 +22,7 @@ const HEADER_BUTTON_CLASS =
 export const WebMcpHeaderButton: React.FC<{ className?: string }> = ({ className }) => {
   const { t } = useI18n()
   const summary = useWebMcpSummary()
-  const enabled = useWebMcpBrowserStore((state) => state.enabled)
+  const enabled = useWebMcpBrowserValue((state) => state.enabled)
   const panelOpen = useUIStore((state) => state.browserPanel.isOpen)
   const closeContextBrowser = useUIStore((state) => state.closeContextBrowser)
   const openProjectBrowser = useOpenProjectBrowser()

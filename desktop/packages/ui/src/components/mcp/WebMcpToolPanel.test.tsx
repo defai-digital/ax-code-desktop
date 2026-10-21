@@ -600,3 +600,62 @@ test("an enum warning names the allowed choices without blocking an explicit ove
   await runTool("webmcp.tools.sendAnyway")
   expect(reply).toHaveBeenCalledWith("echo", { mode: "other" })
 })
+
+test("selected tool forms restore per-view drafts and late manual results stay with the originating view", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  const initial = useWebMcpBrowserStore.getState()
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  let complete!: (result: { ok: boolean; output: string }) => void
+  const tryTool = vi.fn(
+    () =>
+      new Promise<{ ok: boolean; output: string }>((resolve) => {
+        complete = resolve
+      }),
+  )
+  try {
+    for (const session of ["ses_first", "ses_second"]) {
+      store().selectView("/repo", session)
+      store().updateSnapshot({ origin: "https://same.test", catalog })
+    }
+    store().updateView(first, {
+      catalogRejection: { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" },
+      catalogLimit: { total: 65, shown: 1, truncation: "count" },
+    })
+    const view = render(<WebMcpToolPanel viewKey={first} tryTool={tryTool} />)
+    expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).not.toBeNull()
+    expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).not.toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+    fireEvent.change(a, { target: { value: "2" } })
+    fireEvent.change(b, { target: { value: "3" } })
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
+    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+    view.rerender(<WebMcpToolPanel viewKey={second} tryTool={tryTool} />)
+    expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).toBeNull()
+    expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).toBeNull()
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    expect([...view.container.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value)).toEqual([
+      "",
+      "",
+    ])
+    await act(async () => {
+      complete({ ok: true, output: "First result" })
+    })
+    expect(store().views[first].toolRuns.add_numbers.text).toContain("First result")
+    expect(store().views[second].toolRuns).toEqual({})
+    expect(view.container.querySelector("[data-webmcp-tool-result]")).toBeNull()
+    view.rerender(<WebMcpToolPanel viewKey={first} tryTool={tryTool} />)
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    expect([...view.container.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value)).toEqual([
+      "2",
+      "3",
+    ])
+    expect(view.container.querySelector("[data-webmcp-tool-result='completed']")?.textContent).toContain("First result")
+  } finally {
+    cleanup()
+    useWebMcpBrowserStore.setState(initial, true)
+  }
+})

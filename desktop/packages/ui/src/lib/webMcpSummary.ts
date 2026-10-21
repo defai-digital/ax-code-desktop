@@ -42,6 +42,10 @@ export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18n
       return "webmcp.detail.sessionRequired"
     case "runtime-incompatible":
       return "webmcp.detail.runtimeIncompatible"
+    case "storage-clearing":
+      return "webmcp.detail.storageClearing"
+    case "storage-cleared":
+      return "webmcp.detail.storageCleared"
     case "disconnected":
       return "webmcp.detail.disconnected"
     case "enable-failed":
@@ -185,6 +189,7 @@ export function webMcpErrorAction(error: WebMcpBrowserSnapshot["error"]): "addre
     case "runtime-incompatible":
       return "enable"
     case "start-failed":
+    case "storage-cleared":
     case "disconnected":
       return "reopen"
     default:

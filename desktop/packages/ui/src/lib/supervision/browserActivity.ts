@@ -1,7 +1,7 @@
 import type { ActivityFeedEvent } from "./activityFeed"
 import type { SupervisionRow } from "./rows"
 
-/** What Mission Control needs from the project browser projection; one browser exists at a time. */
+/** What Mission Control needs from the project browser projection; one snapshot per project/session view. */
 export interface BrowserSessionSnapshot {
   sessionID: string | null
   origin: string | null

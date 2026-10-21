@@ -15,7 +15,10 @@ let surfaceMode: "main" | "mini-chat" = "main"
 vi.mock("@/components/chat/useChatSurfaceMode", () => ({ useChatSurfaceMode: () => surfaceMode }))
 
 const openProjectBrowser = vi.fn()
-vi.mock("@/hooks/useWebMcpBrowser", () => ({ useOpenProjectBrowser: () => openProjectBrowser }))
+vi.mock("@/hooks/useWebMcpBrowser", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/hooks/useWebMcpBrowser")>()),
+  useOpenProjectBrowser: () => openProjectBrowser,
+}))
 
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { WebMcpBrowserErrorAction } from "./WebMcpBrowserErrorAction"

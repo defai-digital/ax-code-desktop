@@ -1,4 +1,6 @@
 import * as React from "react"
+import { useWebMcpStorageEvents } from "@/hooks/useWebMcpStorageEvents"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
@@ -18,13 +20,19 @@ import { WebMcpToolPanel } from "@/components/mcp/WebMcpToolPanel"
 import { WebMcpCallStrip } from "@/components/mcp/WebMcpCallStrip"
 import { WebMcpBuilderHint } from "@/components/mcp/WebMcpBuilderHint"
 import { describeWebMcpError, webMcpErrorAction } from "@/lib/webMcpSummary"
-import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { WebMcpStatusDot } from "@/components/mcp/WebMcpBrowserTools"
-import { useOpenProjectBrowser, useWebMcpCapabilityProbe, useWebMcpSummary } from "@/hooks/useWebMcpBrowser"
+import {
+  useOpenProjectBrowser,
+  useWebMcpCapabilityProbe,
+  useWebMcpSummary,
+  useWebMcpBrowserValue,
+} from "@/hooks/useWebMcpBrowser"
 
 type BrowserStatus = {
   id: string
   nativeAvailable: boolean
+  visible?: boolean
+  waiting?: boolean
   paused?: boolean
   error?: WebMcpBrowserErrorCode | null
   reason?: "runtime-incompatible" | "enable-failed" | "session-required"
@@ -67,17 +75,22 @@ const TOOLBAR_BUTTON_CLASS =
 function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl: string }) {
   const { t } = useI18n()
   const sessionID = useSessionUIStore((state) => state.currentSessionId)
-  const updateSnapshot = useWebMcpBrowserStore((state) => state.updateSnapshot)
-  const resetSnapshot = useWebMcpBrowserStore((state) => state.resetSnapshot)
-  const browserId = useWebMcpBrowserStore((state) => state.browserId)
-  const phase = useWebMcpBrowserStore((state) => state.phase)
-  const paused = useWebMcpBrowserStore((state) => state.paused)
-  const enabled = useWebMcpBrowserStore((state) => state.enabled)
-  const origin = useWebMcpBrowserStore((state) => state.origin)
-  const nativeAvailable = useWebMcpBrowserStore((state) => state.nativeAvailable)
-  const runtimeCompatible = useWebMcpBrowserStore((state) => state.runtimeCompatible)
-  const busy = useWebMcpBrowserStore((state) => state.busy)
-  const summary = useWebMcpSummary()
+  const key = viewKeyFor(directory, sessionID)
+  const updateSnapshot = React.useCallback(
+    (partial: Parameters<ReturnType<typeof useWebMcpBrowserStore.getState>["updateSnapshot"]>[0]) => {
+      useWebMcpBrowserStore.getState().updateView(key, partial)
+    },
+    [key],
+  )
+  const browserId = useWebMcpBrowserValue((state) => state.browserId, key)
+  const phase = useWebMcpBrowserValue((state) => state.phase, key)
+  const paused = useWebMcpBrowserValue((state) => state.paused, key)
+  const enabled = useWebMcpBrowserValue((state) => state.enabled, key)
+  const origin = useWebMcpBrowserValue((state) => state.origin, key)
+  const nativeAvailable = useWebMcpBrowserValue((state) => state.nativeAvailable, key)
+  const runtimeCompatible = useWebMcpBrowserValue((state) => state.runtimeCompatible, key)
+  const busy = useWebMcpBrowserValue((state) => state.busy, key)
+  const summary = useWebMcpSummary(key)
   const openProjectBrowser = useOpenProjectBrowser()
   const [url, setUrl] = React.useState(initialUrl || "about:blank")
   const [restart, setRestart] = React.useState(0)
@@ -90,6 +103,20 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   initialUrlRef.current = initialUrl
   // Bumped whenever a new browser lifecycle starts so late replies from an old one are dropped.
   const lifecycleRef = React.useRef(0)
+  const retiredView = React.useRef<{ id: string; error: WebMcpBrowserErrorCode } | null>(null)
+  useWebMcpStorageEvents(
+    React.useCallback(
+      (changedKey: string, id: string, error: WebMcpBrowserErrorCode) => {
+        if (changedKey !== key) return
+        retiredView.current = { id, error }
+        const state = useWebMcpBrowserStore.getState()
+        if (state.browserId === id || (!state.browserId && state.error === "storage-clearing")) {
+          lifecycleRef.current += 1
+        }
+      },
+      [key],
+    ),
+  )
   const commandErrorRef = React.useRef<WebMcpBrowserErrorCode | null>(null)
   const currentContext = React.useRef({ directory, sessionID })
   currentContext.current = { directory, sessionID }
@@ -99,6 +126,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const applyStatus = React.useCallback(
     (result: BrowserStatus, lifecycle: number) => {
       if (lifecycleRef.current !== lifecycle) return
+      if (retiredView.current?.id === result.id) {
+        useWebMcpBrowserStore.getState().resetView(key, retiredView.current.error)
+        return
+      }
       // Follow in-page navigation unless the user is editing the address.
       if (result.url && result.url !== "about:blank" && document.activeElement !== addressRef.current) {
         setUrl(result.url)
@@ -117,6 +148,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         ...(result.reason ? { error: result.reason } : {}),
         ...(result.reason === "runtime-incompatible" ? { runtimeCompatible: false } : {}),
         ...(result.enabled ? { runtimeCompatible: true } : {}),
+        visible: result.visible ?? false,
+        waiting: result.waiting ?? false,
         paused: result.paused ?? false,
         phase: "ready",
         browserId: result.id,
@@ -131,18 +164,19 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         catalogRejection: catalog.catalogRejection,
       })
     },
-    [directory, sessionID, updateSnapshot],
+    [directory, key, sessionID, updateSnapshot],
   )
 
   useWebMcpCapabilityProbe(directory)
 
-  // A project/session change always creates a fresh browser with agent access off.
+  // Reuse this project/session page; only a fresh view starts with agent access off.
   React.useEffect(() => {
     let disposed = false
     let id: string | undefined
     const lifecycle = ++lifecycleRef.current
     commandErrorRef.current = null
-    resetSnapshot()
+    setPendingAction(null)
+    useWebMcpBrowserStore.getState().selectView(directory, sessionID)
     updateSnapshot({ directory, sessionID })
     updateSnapshot({ phase: "starting" })
     const restored =
@@ -150,30 +184,53 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       (draftUrl.current?.directory === directory ? draftUrl.current.url : initialUrlRef.current)
     setUrl(restored || "about:blank")
     draftUrl.current = null
-    void invoke<BrowserStatus>({ action: "create", directory, sessionID, url: restored || "about:blank" })
-      .then((result) => {
-        id = result.id
-        if (disposed) void invoke({ action: "close", id }).catch(() => {})
-        else applyStatus(result, lifecycle)
+    let pooled = false
+    const retire = (id: string) =>
+      invoke(pooled ? { action: "bounds", id, x: 0, y: 0, width: 0, height: 0 } : { action: "close", id }).catch(
+        () => {},
+      )
+    void (async () => {
+      // list is additive: an older main keeps the original close/recreate lifecycle.
+      const listing = await invoke<{ views?: BrowserStatus[] }>({ action: "list" }).catch(() => null)
+      pooled = Array.isArray(listing?.views)
+      const result = await invoke<BrowserStatus>({
+        action: "create",
+        directory,
+        sessionID,
+        url: restored || "about:blank",
       })
-      .catch(() => {
-        if (!disposed && lifecycleRef.current === lifecycle) updateSnapshot({ phase: "error", error: "start-failed" })
-      })
+      id = result.id
+      if (disposed) {
+        await retire(id)
+        return
+      }
+      const shown = pooled ? await invoke<BrowserStatus>({ action: "show", id }) : result
+      if (disposed) {
+        await retire(id)
+        return
+      }
+      applyStatus(shown, lifecycle)
+    })().catch(() => {
+      if (!disposed && lifecycleRef.current === lifecycle) {
+        if (id && retiredView.current?.id === id) {
+          useWebMcpBrowserStore.getState().resetView(key, retiredView.current.error)
+        } else updateSnapshot({ phase: "error", error: "start-failed" })
+      }
+    })
     return () => {
       disposed = true
-      if (id) void invoke({ action: "close", id }).catch(() => {})
-      // Retire this lifecycle so a command that is still in flight cannot write the closed browser
-      // back into the store after the reset below: `command` compares lifecycles, and without this
-      // its late reply passed that check and restored `phase: "ready"` with a dead `browserId`.
+      if (id) void retire(id)
+      // Late replies from the departing pane cannot overwrite its retained snapshot or the new pane.
       lifecycleRef.current += 1
       // Only the draft-to-session transition carries the user's explicit enable click.
-      // Closing, reopening or switching an existing session must start with access off.
+      // Pending clicks from an existing session never transfer to another session.
       if (sessionID || !currentContext.current.sessionID || currentContext.current.directory !== directory) {
-        useWebMcpBrowserStore.getState().consumeEnableRequest()
+        useWebMcpBrowserStore.getState().consumeEnableRequest(key)
       }
-      resetSnapshot()
+      if (!pooled) useWebMcpBrowserStore.getState().resetView(key)
+      else useWebMcpBrowserStore.getState().releaseView(key)
     }
-  }, [applyStatus, directory, resetSnapshot, sessionID, updateSnapshot, restart])
+  }, [applyStatus, directory, key, sessionID, updateSnapshot, restart])
 
   React.useEffect(() => {
     if (!browserId || !host.current) return
@@ -271,34 +328,25 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         commandErrorRef.current = error
         updateSnapshot({ error })
       } finally {
-        setPendingAction(null)
-        if (lifecycleRef.current === lifecycle) updateSnapshot({ busy: false })
+        if (lifecycleRef.current === lifecycle) {
+          setPendingAction(null)
+          updateSnapshot({ busy: false })
+        }
       }
     },
     [applyStatus, browserId, busy, updateSnapshot],
   )
 
-  // While this browser is enrolled, a connected Chrome bridge would still pull the agent to
-  // Chrome; pause it for the project and reconnect exactly those servers when access ends.
-  React.useEffect(() => {
-    if (!enabled) return
-    let disposed = false
-    void pauseChromeBridgeForProjectBrowser(directory).then((paused) => {
-      if (!disposed) updateSnapshot({ pausedBridgeServers: paused })
-    })
-    return () => {
-      disposed = true
-      updateSnapshot({ pausedBridgeServers: [] })
-      void resumeChromeBridgeForProjectBrowser(directory)
-    }
-  }, [directory, enabled, updateSnapshot])
-  const pausedBridgeServers = useWebMcpBrowserStore((state) => state.pausedBridgeServers)
+  const pausedBridgeServers = useWebMcpBrowserValue((state) => state.pausedBridgeServers, key)
 
   const ready = phase === "ready" && Boolean(browserId)
   const canEnable = ready && nativeAvailable && runtimeCompatible !== false
-  const enableRequests = useWebMcpBrowserStore((state) => state.enableRequests)
-  const enableConsumed = useWebMcpBrowserStore((state) => state.enableConsumed)
-  const consumeEnableRequest = useWebMcpBrowserStore((state) => state.consumeEnableRequest)
+  const enableRequests = useWebMcpBrowserValue((state) => state.enableRequests, key)
+  const enableConsumed = useWebMcpBrowserValue((state) => state.enableConsumed, key)
+  const consumeEnableRequest = React.useCallback(
+    () => useWebMcpBrowserStore.getState().consumeEnableRequest(key),
+    [key],
+  )
   const hasPendingEnableRequest = enableRequests > enableConsumed
   React.useEffect(() => {
     if (paused || enabled) {
@@ -327,13 +375,16 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     enableRequests,
     hasPendingEnableRequest,
   ])
-  const error = useWebMcpBrowserStore((state) => state.error)
+  const error = useWebMcpBrowserValue((state) => state.error, key)
   const showErrorBanner = error !== null && error !== "session-required"
   const fixAction = webMcpErrorAction(error)
   const fixError = () => {
     if (fixAction === "address") addressRef.current?.focus()
-    else if (fixAction === "reopen") setRestart((value) => value + 1)
-    else void command(fixAction === "enable" && paused ? "resume" : fixAction)
+    else if (fixAction === "reopen") {
+      void (browserId ? invoke({ action: "close", id: browserId }) : Promise.resolve())
+        .catch(() => {})
+        .then(() => setRestart((value) => value + 1))
+    } else void command(fixAction === "enable" && paused ? "resume" : fixAction)
   }
 
   return (
@@ -445,6 +496,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       {sessionID ? <WebMcpCallStrip sessionID={sessionID} directory={directory} /> : null}
       {browserId ? (
         <WebMcpToolPanel
+          key={key}
+          viewKey={key}
           tryTool={(toolName, input) =>
             invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
               action: "tryTool",
@@ -455,7 +508,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
           }
         />
       ) : null}
-      {browserId ? <WebMcpBuilderHint /> : null}
+      {browserId ? <WebMcpBuilderHint viewKey={key} /> : null}
 
       {/* The page itself is a native view over this box; the region names it so assistive technology announces the boundary. */}
       <div
@@ -499,10 +552,18 @@ export function EmbeddedBrowserChoice({
 }) {
   const { t } = useI18n()
   const [agentBrowser, setAgentBrowser] = React.useState(false)
-  const agentModeRequests = useWebMcpBrowserStore((state) => state.agentModeRequests)
-  const consumeAgentModeRequest = useWebMcpBrowserStore((state) => state.consumeAgentModeRequest)
+  const sessionID = useSessionUIStore((state) => state.currentSessionId)
+  React.useLayoutEffect(() => {
+    useWebMcpBrowserStore.getState().selectView(directory, sessionID)
+  }, [directory, sessionID])
+  const key = viewKeyFor(directory, sessionID)
+  const agentModeRequests = useWebMcpBrowserValue((state) => state.agentModeRequests, key)
+  const consumeAgentModeRequest = React.useCallback(
+    () => useWebMcpBrowserStore.getState().consumeAgentModeRequest(key),
+    [key],
+  )
   const openProjectBrowser = useOpenProjectBrowser()
-  const summary = useWebMcpSummary()
+  const summary = useWebMcpSummary(viewKeyFor(directory, sessionID))
 
   React.useEffect(() => {
     if (consumeAgentModeRequest()) setAgentBrowser(true)

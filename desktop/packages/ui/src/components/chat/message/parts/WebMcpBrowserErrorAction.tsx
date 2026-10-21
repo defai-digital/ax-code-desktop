@@ -1,3 +1,4 @@
+import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
@@ -5,7 +6,6 @@ import { useI18n } from "@/lib/i18n"
 import { isElectronShell } from "@/lib/desktop"
 import { useChatSurfaceMode } from "@/components/chat/useChatSurfaceMode"
 import { useOpenProjectBrowser } from "@/hooks/useWebMcpBrowser"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 
 /**
  * Shown under a failed `desktop_webmcp` call. The tool cannot open or attach to the
@@ -18,9 +18,9 @@ import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 export const WebMcpBrowserErrorAction: React.FC = () => {
   const { t } = useI18n()
   const surfaceMode = useChatSurfaceMode()
-  const enabled = useWebMcpBrowserStore((state) => state.enabled)
-  const origin = useWebMcpBrowserStore((state) => state.origin)
-  const busy = useWebMcpBrowserStore((state) => state.busy)
+  const enabled = useWebMcpBrowserValue((state) => state.enabled)
+  const origin = useWebMcpBrowserValue((state) => state.origin)
+  const busy = useWebMcpBrowserValue((state) => state.busy)
   const openProjectBrowser = useOpenProjectBrowser()
 
   if (!isElectronShell() || surfaceMode === "mini-chat" || (enabled && origin)) {

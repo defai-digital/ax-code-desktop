@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events"
 import { createRequire } from "node:module"
 import { createDesktopWebMcpBrowser, projectToolCatalog } from "./desktop-webmcp-browser.js"
 
-const { catalogDigest } = createRequire(import.meta.url)("./native-webmcp.js")
+const { catalogDigest, definitionDigest } = createRequire(import.meta.url)("./native-webmcp.js")
 
 const controllers = []
 afterEach(async () => {
@@ -17,19 +17,23 @@ function fixture({
   loadError = null,
   attachTimeoutMs = 200,
   loadTimeoutMs = 20,
+  sessionDirectory = null,
+  maxLiveViews = 4,
 } = {}) {
   const owners = new Map()
   const guests = []
   const revocations = []
+  const partitions = new Map()
   let provider = 0
   // Set by a test before a load to model a guest whose loadURL never settles: a
   // server that accepts TCP and never answers would leave the pane starting
   // forever without the load deadline.
   let hangLoad = false
   class View {
-    constructor() {
+    constructor(options) {
       this.webContents = new EventEmitter()
       const contents = this.webContents
+      contents.partition = options.webPreferences.partition
       contents.destroyed = false
       contents.isDestroyed = () => contents.destroyed
       contents.close = () => {
@@ -62,31 +66,38 @@ function fixture({
   const requests = []
   // The provider stream hands the bridge one request per poll; a test can push a
   // request before or after the stream starts.
-  const streamRequests = []
-  const streamWaiters = []
-  const pushStreamRequest = (request) => {
-    const waiter = streamWaiters.shift()
-    if (waiter) waiter(request)
-    else streamRequests.push(request)
+  const streams = new Map()
+  const streamFor = (providerID) => {
+    if (!streams.has(providerID)) streams.set(providerID, { requests: [], waiters: [] })
+    return streams.get(providerID)
   }
-  const nextStreamRequest = (signal) =>
+  const pushStreamRequest = (request, transportProvider) => {
+    const stream = streamFor(
+      transportProvider ?? request.providerID ?? request.batch?.request?.providerID ?? "provider-1",
+    )
+    const waiter = stream.waiters.shift()
+    if (waiter) waiter(request)
+    else stream.requests.push(request)
+  }
+  const nextStreamRequest = (providerID, signal) =>
     new Promise((resolve, reject) => {
-      const queued = streamRequests.shift()
+      const stream = streamFor(providerID)
+      const queued = stream.requests.shift()
       if (queued) {
         resolve(queued)
         return
       }
-      const waiter = (request) => resolve(request)
-      streamWaiters.push(waiter)
-      signal?.addEventListener(
-        "abort",
-        () => {
-          const index = streamWaiters.indexOf(waiter)
-          if (index >= 0) streamWaiters.splice(index, 1)
-          reject(new Error("aborted"))
-        },
-        { once: true },
-      )
+      const abort = () => {
+        const index = stream.waiters.indexOf(waiter)
+        if (index >= 0) stream.waiters.splice(index, 1)
+        reject(new Error("aborted"))
+      }
+      const waiter = (request) => {
+        signal?.removeEventListener("abort", abort)
+        resolve(request)
+      }
+      stream.waiters.push(waiter)
+      signal?.addEventListener("abort", abort, { once: true })
     })
   const controller = createDesktopWebMcpBrowser({
     BrowserWindow: { fromWebContents: (sender) => owners.get(sender) },
@@ -94,12 +105,20 @@ function fixture({
     // Short deadline so the hang tests stay fast.
     loadTimeoutMs,
     attachTimeoutMs,
+    maxLiveViews,
     session: {
-      fromPartition: () =>
-        Object.assign(new EventEmitter(), {
-          setPermissionRequestHandler() {},
-          setPermissionCheckHandler() {},
-        }),
+      fromPartition: (partition) => {
+        if (!partitions.has(partition))
+          partitions.set(
+            partition,
+            Object.assign(new EventEmitter(), {
+              setPermissionRequestHandler: vi.fn(),
+              setPermissionCheckHandler: vi.fn(),
+              clearStorageData: vi.fn(async () => {}),
+            }),
+          )
+        return partitions.get(partition)
+      },
     },
     getRuntime: () => "http://127.0.0.1:31418",
     getAuthorization: () => "Basic fixture",
@@ -107,6 +126,12 @@ function fixture({
     clientFactory: () => ({
       request: (request) => {
         requests.push(request)
+        if (request.url.startsWith("/session/"))
+          return Promise.resolve({
+            id: request.url.split("/").at(-1),
+            directory: sessionDirectory ?? request.query.directory,
+            projectID: "project",
+          })
         if (request.url.endsWith("/capability")) return Promise.resolve({ capability, browserMode })
         if (request.url.endsWith("/provider"))
           return Promise.resolve({
@@ -115,21 +140,35 @@ function fixture({
             projectID: "project",
           })
         if (request.url.endsWith("/next"))
-          return nextStreamRequest(request.signal).then((next) => next.batch ?? { request: next, canceled: [] })
+          return nextStreamRequest(request.url.split("/").at(-2), request.signal).then(
+            (next) => next.batch ?? { request: next, canceled: [] },
+          )
         if (request.method === "DELETE" && holdRevocation) return new Promise((resolve) => revocations.push(resolve))
         return Promise.resolve({})
       },
     }),
   })
   controllers.push(controller)
-  const create = async ({ attach = true, sessionID = "ses_fixture" } = {}) => {
-    const sender = Object.assign(new EventEmitter(), { id: owners.size + 1, getZoomFactor: () => 1 })
+  const create = async ({
+    attach = true,
+    sessionID = owners.size ? `ses_fixture${owners.size}` : "ses_fixture",
+  } = {}) => {
+    const sender = Object.assign(new EventEmitter(), { id: owners.size + 1, getZoomFactor: () => 1, send: vi.fn() })
     const owner = Object.assign(new EventEmitter(), {
       isDestroyed: () => false,
       isVisible: () => true,
       isMinimized: () => false,
       getContentBounds: () => ({ width: 800, height: 600 }),
-      contentView: { addChildView() {}, removeChildView() {} },
+      contentView: {
+        children: new Set(),
+        addChildView(view) {
+          this.children.add(view)
+          expect(this.children.size).toBeLessThanOrEqual(1)
+        },
+        removeChildView(view) {
+          this.children.delete(view)
+        },
+      },
     })
     owners.set(sender, owner)
     const status = await controller.command(sender, {
@@ -144,6 +183,7 @@ function fixture({
   }
   return {
     controller,
+    partitions,
     create,
     requests,
     pushStreamRequest,
@@ -188,49 +228,54 @@ describe("desktop WebMCP navigation requests", () => {
     expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
   })
 
-  test.each(["pause", "cancel"])("stops an in-flight agent load on %s without replay", async (action) => {
-    const f = fixture({ loadTimeoutMs: 1000 })
-    const { sender, status } = await f.create()
-    await f.controller.command(sender, { action: "enable", id: status.id })
-    const guest = f.guests[0]
-    let finish
-    guest.loadURL = vi.fn(
-      (url) =>
-        new Promise((resolve, reject) => {
-          let stopped = false
-          guest.stop.mockImplementation(() => {
-            stopped = true
-            reject(Object.assign(new Error("aborted"), { code: "ERR_ABORTED" }))
-          })
-          finish = () => {
-            if (!stopped) {
-              guest.url = url
-              guest.loadedUrls.push(url)
+  test.each(["pause", "disconnect", "revokeSession", "cancel"])(
+    "stops an in-flight agent load on %s without replay",
+    async (action) => {
+      const f = fixture({ loadTimeoutMs: 1000 })
+      const { sender, status } = await f.create()
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      const guest = f.guests[0]
+      let finish
+      guest.loadURL = vi.fn(
+        (url) =>
+          new Promise((resolve, reject) => {
+            let stopped = false
+            guest.stop.mockImplementation(() => {
+              stopped = true
+              reject(Object.assign(new Error("aborted"), { code: "ERR_ABORTED" }))
+            })
+            finish = () => {
+              if (!stopped) {
+                guest.url = url
+                guest.loadedUrls.push(url)
+              }
+              resolve()
             }
-            resolve()
-          }
-        }),
-    )
-    f.pushStreamRequest(navigateRequest())
-    await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
-    if (action === "pause") {
-      await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
-    } else {
-      const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
-      f.pushStreamRequest({ batch: { canceled: ["req-navigate"] } })
-      await vi.waitFor(() => expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls))
-    }
-    expect(guest.stop).toHaveBeenCalledTimes(1)
-    finish()
-    await new Promise((resolve) => setTimeout(resolve, 10))
-    expect(guest.getURL()).toBe("https://example.com/")
-    expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
-    if (action === "pause") {
-      await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
-      await f.controller.command(sender, { action: "resume", id: status.id })
-    }
-    expect(guest.loadURL).toHaveBeenCalledTimes(1)
-  })
+          }),
+      )
+      f.pushStreamRequest(navigateRequest())
+      await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
+      if (action === "revokeSession") {
+        await f.controller.command(sender, { action, directory: "/tmp/project", sessionID: "ses_fixture" })
+      } else if (action !== "cancel") {
+        await f.controller.command(sender, { action, id: status.id })
+      } else {
+        const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
+        f.pushStreamRequest({ batch: { canceled: ["req-navigate"] } })
+        await vi.waitFor(() => expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls))
+      }
+      expect(guest.stop).toHaveBeenCalledTimes(1)
+      finish()
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(guest.getURL()).toBe("https://example.com/")
+      expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+      if (action === "pause") {
+        await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
+        await f.controller.command(sender, { action: "resume", id: status.id })
+      }
+      expect(guest.loadURL).toHaveBeenCalledTimes(1)
+    },
+  )
 
   test("canceling a superseded agent load does not stop the newer user navigation", async () => {
     const f = fixture({ loadTimeoutMs: 1000 })
@@ -247,7 +292,7 @@ describe("desktop WebMCP navigation requests", () => {
     f.pushStreamRequest(navigateRequest())
     await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
     const userLoad = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://user.test/" })
-    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    await f.controller.command(sender, { action: "pause", id: status.id })
     expect(guest.stop).not.toHaveBeenCalled()
     finishUser()
     await userLoad
@@ -571,9 +616,9 @@ describe("native project browser integration", () => {
       f.controller.command(sender, createArgs("https://example.org/")),
     ])
 
-    expect(first.id).not.toBe(second.id)
-    // The first pane was replaced and closed by the second; nothing is left attached.
-    expect(f.guests).toHaveLength(2)
+    expect(first.id).toBe(second.id)
+    // Concurrent creates of the same identity reuse its live page.
+    expect(f.guests).toHaveLength(1)
     expect(f.guests.filter((contents) => !contents.destroyed)).toHaveLength(1)
     await expect(f.controller.command(sender, { action: "status", id: second.id })).resolves.toMatchObject({
       id: second.id,
@@ -773,12 +818,8 @@ describe("Round 8 browser lifecycle", () => {
     const { sender, status } = await f.create()
     const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
     const paused = await f.controller.command(sender, {
-      action: "bounds",
+      action: "pause",
       id: status.id,
-      x: 0,
-      y: 0,
-      width: 0,
-      height: 0,
     })
     expect(paused).toMatchObject({ paused: true, enabled: false, url: enabled.url })
     expect(paused.generation).not.toBe(enabled.generation)
@@ -813,7 +854,7 @@ describe("Round 8 browser lifecycle", () => {
       requestID: "retired",
       url: "https://example.org/must-not-open",
     })
-    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    await f.controller.command(sender, { action: "pause", id: status.id })
     await new Promise((resolve) => setTimeout(resolve, 10))
     expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
     await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
@@ -826,7 +867,7 @@ describe("Round 8 browser lifecycle", () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
-    f.owners.get(sender).emit("hide")
+    await f.controller.command(sender, { action: "pause", id: status.id })
     f.setCapability("unsupported")
     await expect(f.controller.command(sender, { action: "resume", id: status.id })).resolves.toMatchObject({
       reason: "runtime-incompatible",
@@ -1087,4 +1128,647 @@ describe("manual invocation native outcomes", () => {
       expect(JSON.stringify(result)).not.toContain("hunter2")
     expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
+})
+
+describe("WX-15 view pool", () => {
+  test("two sessions coexist in one window without replacing the first page", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_second",
+      url: "https://second.test/",
+    })
+    expect(second.id).not.toBe(status.id)
+    expect(f.guests.filter((guest) => !guest.destroyed)).toHaveLength(2)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      url: "https://example.com/",
+    })
+  })
+})
+
+describe("WX-15 project profiles", () => {
+  test("shares one hardened profile per project, isolates projects and preserves storage on close", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const create = (directory, sessionID) =>
+      f.controller.command(sender, { action: "create", directory, sessionID, url: "about:blank" })
+    const second = await create("/tmp/project/", "ses_second")
+    await create("/tmp/other", "ses_other")
+    expect(f.guests[0].partition).toBe(f.guests[1].partition)
+    expect(f.guests[0].partition).not.toBe(f.guests[2].partition)
+    expect(f.partitions.size).toBe(2)
+    for (const profile of f.partitions.values()) {
+      expect(profile.setPermissionRequestHandler).toHaveBeenCalledTimes(1)
+      expect(profile.setPermissionCheckHandler).toHaveBeenCalledTimes(1)
+      expect(profile.listenerCount("will-download")).toBe(1)
+    }
+    await f.controller.command(sender, { action: "close", id: second.id })
+    for (const profile of f.partitions.values()) expect(profile.clearStorageData).not.toHaveBeenCalled()
+    await f.controller.command(sender, { action: "clearProject", directory: "/tmp/project" })
+    expect(f.guests[0].destroyed).toBe(true)
+    expect(f.guests[2].destroyed).toBe(false)
+    expect(f.partitions.get(f.guests[0].partition).clearStorageData).toHaveBeenCalledTimes(1)
+    await expect(f.controller.command(sender, { action: "status", id: status.id })).rejects.toThrow()
+  })
+
+  test("serializes explicit clears and a new page behind the completed storage wipe", async () => {
+    const f = fixture()
+    const { sender } = await f.create()
+    let finish
+    const profile = [...f.partitions.values()][0]
+    profile.clearStorageData.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const clearing = f.controller.command(sender, { action: "clearProject", directory: "/tmp/project" })
+    await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
+    expect(f.guests[0].destroyed).toBe(true)
+    const creating = f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_new",
+      url: "about:blank",
+    })
+    await Promise.resolve()
+    expect(f.guests).toHaveLength(1)
+    finish()
+    await clearing
+    await creating
+    expect(f.guests).toHaveLength(2)
+    expect(f.partitions.size).toBe(1)
+    expect(f.controller.poolStats()).toMatchObject({ pendingCreates: 0, pendingGuestClears: 0 })
+  })
+})
+
+describe("WX-15 additive IPC", () => {
+  test("lists only the owning window and switches one shown view while old create/bounds still works", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_second",
+      url: "https://second.test/",
+    })
+    const bounds = { x: 0, y: 0, width: 400, height: 300 }
+    await f.controller.command(sender, { action: "bounds", id: second.id, ...bounds })
+    expect(await f.controller.command(sender, { action: "list" })).toMatchObject({
+      views: [
+        { id: status.id, directory: "/tmp/project", sessionID: "ses_fixture", visible: true, waiting: false },
+        { id: second.id, directory: "/tmp/project", sessionID: "ses_second", visible: false },
+      ],
+    })
+    expect(await f.controller.command(sender, { action: "show", id: second.id })).toMatchObject({ visible: true })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ visible: false })
+    const other = await f.create()
+    expect((await f.controller.command(other.sender, { action: "list" })).views).toHaveLength(1)
+    await expect(f.controller.command(other.sender, { action: "show", id: second.id })).rejects.toThrow(
+      "another window",
+    )
+    await expect(
+      f.controller.command(sender, { action: "show", id: second.id, sessionID: "ses_wrong" }),
+    ).rejects.toThrow("session mismatch")
+  })
+})
+
+describe("WX-15 visible-to-act gate", () => {
+  const request = (partial = {}) => ({
+    providerID: "provider-1",
+    epoch: "boot",
+    projectID: "project",
+    sessionID: "ses_fixture",
+    requestID: "hidden-call",
+    operation: "navigate",
+    generation: "page",
+    deadline: Date.now() + 2000,
+    url: "https://agent.test/",
+    ...partial,
+  })
+  const bounds = { x: 0, y: 0, width: 500, height: 300 }
+  test.each(["dialog", "palette", "minimize"])(
+    "%s preserves executing navigation and holds only new calls",
+    async (reason) => {
+      const f = fixture({ loadTimeoutMs: 2000 })
+      const { sender, status } = await f.create()
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      const guest = f.guests[0]
+      const load = guest.loadURL
+      let finish
+      guest.loadURL = vi.fn(
+        (url) =>
+          new Promise((resolve) => {
+            finish = async () => {
+              await load(url)
+              resolve()
+            }
+          }),
+      )
+      f.pushStreamRequest(request({ requestID: "executing" }))
+      await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
+      const owner = f.owners.get(sender)
+      if (reason === "minimize") {
+        owner.isMinimized = () => true
+        owner.emit("minimize")
+      } else {
+        await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+      }
+      expect(guest.stop).not.toHaveBeenCalled()
+      f.pushStreamRequest(request({ requestID: "next" }))
+      await vi.waitFor(async () =>
+        expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+          waiting: true,
+        }),
+      )
+      await finish()
+      await vi.waitFor(() =>
+        expect(
+          f.requests.some(
+            (r) => r.url.endsWith("/reply") && r.body.requestID === "executing" && r.body.status === "Completed",
+          ),
+        ).toBe(true),
+      )
+      expect(guest.loadURL).toHaveBeenCalledTimes(1)
+      guest.loadURL = load
+      if (reason === "minimize") {
+        owner.isMinimized = () => false
+        owner.emit("restore")
+      } else await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds })
+      await vi.waitFor(() =>
+        expect(
+          f.requests.some(
+            (r) => r.url.endsWith("/reply") && r.body.requestID === "next" && r.body.status === "Completed",
+          ),
+        ).toBe(true),
+      )
+    },
+  )
+
+  test("a hidden request stops polling and runs only on its own shown page", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/other",
+      sessionID: "ses_other",
+      url: "https://other.test/",
+    })
+    await f.controller.command(sender, { action: "bounds", id: second.id, ...bounds })
+    await f.controller.command(sender, { action: "show", id: second.id })
+    const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
+    f.pushStreamRequest(request())
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+        waiting: true,
+        enabled: true,
+        visible: false,
+      }),
+    )
+    expect(f.requests.filter((r) => r.url.endsWith("/next"))).toHaveLength(polls)
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    expect(f.guests[1].loadedUrls).toEqual(["https://other.test/"])
+    await f.controller.command(sender, { action: "show", id: status.id })
+    await vi.waitFor(() => expect(f.guests[0].loadedUrls).toContain("https://agent.test/"))
+    expect(f.guests[1].loadedUrls).toEqual(["https://other.test/"])
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      waiting: false,
+      visible: true,
+    })
+  })
+  test("expires a hidden call with a distinct reason and never executes it on late show", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    f.pushStreamRequest(request({ deadline: Date.now() + 80 }))
+    await vi.waitFor(() =>
+      expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({
+        status: "Error",
+        output: { reason: "waiting-for-visible-timeout" },
+      }),
+    )
+    await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds })
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+  })
+  test.each(["providerID", "epoch", "sessionID", "projectID"])(
+    "rejects %s identity mismatch before dispatch",
+    async (field) => {
+      const f = fixture()
+      const { sender, status } = await f.create()
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      f.pushStreamRequest(request({ [field]: "wrong" }), "provider-1")
+      await vi.waitFor(async () =>
+        expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+          enabled: false,
+          error: "disconnected",
+        }),
+      )
+      expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    },
+  )
+})
+
+describe("WX-15 session enrollment and revocation", () => {
+  test("validates session/project ownership before posting enrollment", async () => {
+    const f = fixture({ sessionDirectory: "/tmp/somewhere-else" })
+    const { sender, status } = await f.create()
+    expect(await f.controller.command(sender, { action: "enable", id: status.id })).toMatchObject({
+      enabled: false,
+      reason: "enable-failed",
+    })
+    expect(f.requests.some((r) => r.url.endsWith("/provider") && r.method === "POST")).toBe(false)
+  })
+  test("revokes only the selected session, retaining the other provider, pages and shared storage", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_second",
+      url: "https://second.test/",
+    })
+    await f.controller.command(sender, { action: "show", id: second.id })
+    await f.controller.command(sender, { action: "bounds", id: second.id, x: 0, y: 0, width: 500, height: 300 })
+    const before = await f.controller.command(sender, { action: "enable", id: second.id })
+    await f.controller.command(sender, { action: "revokeSession", directory: "/tmp/project", sessionID: "ses_fixture" })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      enabled: false,
+      url: "https://example.com/",
+    })
+    expect(await f.controller.command(sender, { action: "status", id: second.id })).toMatchObject({
+      enabled: true,
+      url: "https://second.test/",
+      generation: before.generation,
+    })
+    expect(f.requests.filter((r) => r.method === "DELETE").map((r) => r.url)).toEqual([
+      "/desktop/browser/provider/provider-1",
+    ])
+    expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
+    expect([...f.partitions.values()][0].clearStorageData).not.toHaveBeenCalled()
+    f.pushStreamRequest({
+      providerID: "provider-2",
+      epoch: "boot",
+      projectID: "project",
+      sessionID: "ses_second",
+      requestID: "survivor",
+      generation: before.generation,
+      operation: "navigate",
+      url: "https://survivor.test/",
+      deadline: Date.now() + 2000,
+    })
+    await vi.waitFor(() => expect(f.guests[1].loadedUrls).toContain("https://survivor.test/"))
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+  })
+})
+
+describe("WX-15 bounded lifecycle", () => {
+  test("200 switches and session churn keep listeners, guest profiles and waiting timers bounded", async () => {
+    vi.useFakeTimers()
+    try {
+      const f = fixture()
+      const { sender, status } = await f.create()
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      const owner = f.owners.get(sender)
+      const baseline = (emitter) =>
+        Object.fromEntries(emitter.eventNames().map((name) => [name, emitter.listenerCount(name)]))
+      const second = await f.controller.command(sender, {
+        action: "create",
+        directory: "/tmp/project",
+        sessionID: "ses_second",
+        url: "about:blank",
+      })
+      await f.controller.command(sender, { action: "bounds", id: second.id, x: 0, y: 0, width: 100, height: 100 })
+      await f.controller.command(sender, { action: "show", id: second.id })
+      await f.controller.command(sender, { action: "enable", id: second.id })
+      const ownerListeners = baseline(owner)
+      const senderListeners = baseline(sender)
+      const timers = vi.getTimerCount()
+      for (let index = 0; index < 200; index++) {
+        await f.controller.command(sender, { action: "show", id: index % 2 ? status.id : second.id })
+      }
+      expect(baseline(owner)).toEqual(ownerListeners)
+      expect(baseline(sender)).toEqual(senderListeners)
+      expect(vi.getTimerCount()).toBe(timers)
+      expect((await f.controller.command(sender, { action: "list" })).views).toHaveLength(2)
+      expect(f.partitions.size).toBe(1)
+      expect((await f.controller.command(sender, { action: "list" })).views.every((view) => view.enabled)).toBe(true)
+      await f.controller.command(sender, { action: "show", id: second.id })
+      f.pushStreamRequest({
+        providerID: "provider-1",
+        epoch: "boot",
+        projectID: "project",
+        sessionID: "ses_fixture",
+        requestID: "pending",
+        generation: "page",
+        operation: "navigate",
+        url: "https://must-not-run.test/",
+        deadline: Date.now() + 30000,
+      })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true })
+      expect(vi.getTimerCount()).toBe(timers + 1)
+      await f.controller.closeAll()
+      await vi.advanceTimersByTimeAsync(0)
+      expect(vi.getTimerCount()).toBe(0)
+      expect(owner.eventNames()).toHaveLength(0)
+      expect(sender.eventNames()).toHaveLength(0)
+      expect(f.guests.filter((guest) => guest.destroyed)).toHaveLength(f.guests.length)
+      for (let index = 0; index < 20; index++) {
+        const view = await f.controller.command(sender, {
+          action: "create",
+          directory: "/tmp/project",
+          sessionID: `ses_churn${index}`,
+          url: "about:blank",
+        })
+        await f.controller.command(sender, { action: "close", id: view.id })
+      }
+      expect(f.partitions.size).toBe(1)
+      expect(owner.eventNames()).toHaveLength(0)
+      expect(sender.eventNames()).toHaveLength(0)
+      expect(vi.getTimerCount()).toBe(0)
+      expect(f.controller.poolStats()).toEqual({
+        liveViews: 0,
+        shownWindows: 0,
+        pendingCreates: 0,
+        pendingGuestClears: 0,
+        initializing: 0,
+        partitions: 1,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+  test("enforces the configured live bound without LRU or a new partition on rejection", async () => {
+    const f = fixture({ maxLiveViews: 1 })
+    const { sender, status } = await f.create()
+    await expect(
+      f.controller.command(sender, {
+        action: "create",
+        directory: "/tmp/other",
+        sessionID: "ses_other",
+        url: "about:blank",
+      }),
+    ).rejects.toThrow("pool-full")
+    expect(f.partitions.size).toBe(1)
+    expect(f.guests).toHaveLength(1)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ visible: true })
+  })
+})
+
+test("closing the pool aborts an unfinished first load and drains its create and load timer", async () => {
+  vi.useFakeTimers()
+  try {
+    const f = fixture({ loadTimeoutMs: 30000 })
+    f.hangLoads(true)
+    const creating = f.create({ attach: false })
+    const rejected = expect(creating).rejects.toThrow("could not load")
+    await vi.waitFor(() => expect(f.guests).toHaveLength(1))
+    await f.controller.closeAll()
+    await rejected
+    expect(f.guests[0].destroyed).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+    expect(f.controller.poolStats()).toMatchObject({ liveViews: 0, pendingCreates: 0, initializing: 0 })
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+describe("WX-15 review fixes", () => {
+  test("clearProject rejects foreign and shared profile ownership even after views close", async () => {
+    const f = fixture()
+    const first = await f.create()
+    const second = await f.create()
+    const clear = (sender) => f.controller.command(sender, { action: "clearProject", directory: "/tmp/project/" })
+    await expect(clear(second.sender)).rejects.toThrow("another window")
+    expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
+    expect(first.sender.send).not.toHaveBeenCalled()
+    await f.controller.command(first.sender, { action: "close", id: first.status.id })
+    await expect(clear(second.sender)).rejects.toThrow("another window")
+    await f.controller.command(second.sender, { action: "close", id: second.status.id })
+    await expect(clear(second.sender)).rejects.toThrow("another window")
+    expect([...f.partitions.values()][0].clearStorageData).not.toHaveBeenCalled()
+    // A window with no ownership cannot wipe another project's retained profile.
+    await f.controller.command(first.sender, {
+      action: "create",
+      directory: "/tmp/owned",
+      sessionID: "ses_owned",
+      url: "about:blank",
+    })
+    await expect(
+      f.controller.command(second.sender, { action: "clearProject", directory: "/tmp/owned" }),
+    ).rejects.toThrow("another window")
+  })
+
+  test("clearProject sends clearing and cleared states only to its owning pane", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "clearProject", directory: "/tmp/project" })
+    expect(sender.send.mock.calls.map((call) => call[1].detail.error)).toEqual(["storage-clearing", "storage-cleared"])
+    expect(sender.send).toHaveBeenLastCalledWith("ax-code:dom-event", {
+      event: "openchamber:webmcp-storage",
+      detail: {
+        views: [{ id: status.id, directory: "/tmp/project", sessionID: "ses_fixture" }],
+        error: "storage-cleared",
+      },
+    })
+    expect(f.guests[0].destroyed).toBe(true)
+  })
+
+  test("failed storage clearing reports failure without claiming storage was cleared", async () => {
+    const f = fixture()
+    const { sender } = await f.create()
+    ;[...f.partitions.values()][0].clearStorageData.mockRejectedValueOnce(new Error("fixture failure"))
+    await expect(f.controller.command(sender, { action: "clearProject", directory: "/tmp/project" })).rejects.toThrow(
+      "fixture failure",
+    )
+    expect(sender.send.mock.calls.map((call) => call[1].detail.error)).toEqual(["storage-clearing", "operation-failed"])
+  })
+
+  test("revoke waits behind create and clear and blocks the next create", async () => {
+    const f = fixture({ holdRevocation: true })
+    const { sender } = await f.create()
+    let finishClear
+    ;[...f.partitions.values()][0].clearStorageData.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishClear = resolve
+        }),
+    )
+    const clearing = f.controller.command(sender, { action: "clearProject", directory: "/tmp/project" })
+    await vi.waitFor(() => expect(finishClear).toBeTypeOf("function"))
+    let revoked = false
+    const revoking = f.controller
+      .command(sender, { action: "revokeSession", directory: "/tmp/project", sessionID: "ses_fixture" })
+      .then(() => {
+        revoked = true
+      })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(revoked).toBe(false)
+    finishClear()
+    await clearing
+    await revoking
+    const creating = f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_new",
+      url: "about:blank",
+    })
+    const newRevoke = f.controller.command(sender, {
+      action: "revokeSession",
+      directory: "/tmp/project",
+      sessionID: "ses_new",
+    })
+    const created = await creating
+    await newRevoke
+    await f.controller.command(sender, { action: "show", id: created.id })
+    await f.controller.command(sender, { action: "bounds", id: created.id, x: 0, y: 0, width: 100, height: 100 })
+    await f.controller.command(sender, { action: "enable", id: created.id })
+    const pendingRevoke = f.controller.command(sender, {
+      action: "revokeSession",
+      directory: "/tmp/project",
+      sessionID: "ses_new",
+    })
+    await vi.waitFor(() => expect(f.revocations).toHaveLength(1))
+    const next = f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_next",
+      url: "about:blank",
+    })
+    await Promise.resolve()
+    expect(f.guests).toHaveLength(2)
+    f.revocations.shift()({})
+    await pendingRevoke
+    await next
+  })
+
+  test("main reuses renderer-normalized path aliases", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const aliased = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project/child/../",
+      sessionID: "ses_fixture",
+      url: "about:blank",
+    })
+    expect(aliased.id).toBe(status.id)
+    expect(f.guests).toHaveLength(1)
+  })
+})
+
+test.each(["complete", "timeout", "pause", "disconnect", "revokeSession"])(
+  "hidden executing native tool retains its deadline and explicit cancellation: %s",
+  async (outcome) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    const tool = { name: "slow", description: "A slow tool", frameId: "top", inputSchema: { type: "object" } }
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    guest.debugger.sendCommand = vi.fn(async (method) =>
+      method === "WebMCP.invokeTool" ? { invocationId: "slow-1" } : {},
+    )
+    f.pushStreamRequest({
+      providerID: "provider-1",
+      epoch: "boot",
+      projectID: "project",
+      sessionID: "ses_fixture",
+      requestID: "slow-call",
+      operation: "invoke",
+      generation: live.generation,
+      origin: "https://example.com",
+      frameId: "top",
+      deadline: Date.now() + (outcome === "timeout" ? 300 : 5000),
+      toolName: "slow",
+      digest: definitionDigest(tool),
+      input: {},
+    })
+    await vi.waitFor(() =>
+      expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.invokeTool", expect.anything()),
+    )
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    expect(guest.debugger.sendCommand.mock.calls.some(([method]) => method === "WebMCP.cancelInvocation")).toBe(false)
+    if (outcome === "complete") {
+      guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
+        invocationId: "slow-1",
+        status: "Completed",
+        output: { result: "done" },
+      })
+      await vi.waitFor(() =>
+        expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({
+          requestID: "slow-call",
+          status: "Completed",
+        }),
+      )
+    } else if (outcome === "timeout") {
+      await vi.waitFor(() =>
+        expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({
+          requestID: "slow-call",
+          status: "Error",
+        }),
+      )
+      expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "slow-1" })
+    } else {
+      await f.controller.command(
+        sender,
+        outcome === "revokeSession"
+          ? { action: outcome, directory: "/tmp/project", sessionID: "ses_fixture" }
+          : { action: outcome, id: status.id },
+      )
+      expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "slow-1" })
+      expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
+    }
+  },
+)
+
+test("pooled status and list preserve each page generation, catalog bounds and rejection", async () => {
+  const f = fixture()
+  const { sender, status: first } = await f.create()
+  const firstGuest = f.guests.at(-1)
+  const second = await f.controller.command(sender, {
+    action: "create",
+    directory: "/tmp/project",
+    sessionID: "ses_second",
+    url: "https://second.test/",
+  })
+  const secondGuest = f.guests.at(-1)
+  firstGuest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+    tools: Array.from({ length: 65 }, (_, index) => ({ name: `tool_${index}`, description: "First", frameId: "top" })),
+  })
+  firstGuest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+    tools: [
+      { name: "echo", description: "One", frameId: "top" },
+      { name: "echo", description: "Two", frameId: "top" },
+    ],
+  })
+  secondGuest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+    tools: [{ name: "second", description: "Second", frameId: "top" }],
+  })
+  const a = await f.controller.command(sender, { action: "status", id: first.id })
+  const b = await f.controller.command(sender, { action: "status", id: second.id })
+  expect(a).toMatchObject({
+    generation: expect.any(String),
+    catalogTotal: 65,
+    catalogTruncation: "count",
+    catalogRejection: { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" },
+  })
+  expect(a.catalog).toHaveLength(64)
+  expect(b).toMatchObject({
+    generation: expect.any(String),
+    catalogTotal: 1,
+    catalogTruncation: null,
+    catalogRejection: null,
+  })
+  expect(b.catalog[0]).toMatchObject({ name: "second", digest: expect.stringMatching(/^[a-f0-9]{64}$/) })
+  expect(a.generation).not.toBe(b.generation)
+  expect((await f.controller.command(sender, { action: "list" })).views).toEqual([a, b])
+  firstGuest.emit("did-start-navigation", {}, "https://example.com/new", false, true)
+  expect((await f.controller.command(sender, { action: "status", id: first.id })).generation).not.toBe(a.generation)
+  expect(await f.controller.command(sender, { action: "status", id: second.id })).toEqual(b)
 })

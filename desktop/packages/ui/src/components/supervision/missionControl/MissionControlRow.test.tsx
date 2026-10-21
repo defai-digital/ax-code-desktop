@@ -1,3 +1,5 @@
+import { viewKeyFor } from "@/lib/webMcpViewKey"
+import type { WebMcpViewSnapshot } from "@/stores/useWebMcpBrowserStore"
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
@@ -183,7 +185,9 @@ describe("Mission Control row interaction", () => {
     expect(failed?.className).toContain("text-[var(--status-error)]")
     // The full status is real text for assistive technology; the short chip text is hidden from it.
     expect(failed?.querySelector(".sr-only")?.textContent).toContain("supervision.missionControl.checks.label")
-    expect(failed?.querySelector("[aria-hidden='true']")?.textContent).toContain("supervision.missionControl.checks.chip")
+    expect(failed?.querySelector("[aria-hidden='true']")?.textContent).toContain(
+      "supervision.missionControl.checks.chip",
+    )
     render("running", { checks: { state: "pending", passed: 0, failed: 0, total: 1 } })
     const pending = container.querySelector("[data-checks-state='pending']")
     expect(pending?.className).toContain("text-muted-foreground")
@@ -360,9 +364,7 @@ describe("Mission Control child agent rows", () => {
     )
     const childRows = [...container.querySelectorAll<HTMLElement>("[data-child-session]")]
     expect(childRows.map((entry) => entry.dataset.childSession)).toEqual(["c3", "c2", "c1"])
-    screen
-      .getByRole("button", { name: "supervision.missionControl.child.openAria:Agent c3|Fix a long task" })
-      .click()
+    screen.getByRole("button", { name: "supervision.missionControl.child.openAria:Agent c3|Fix a long task" }).click()
     expect(onOpenChild).toHaveBeenCalledWith(parent, "c3")
     expect(onSelect).not.toHaveBeenCalled()
     screen.getByRole("button", { name: "supervision.missionControl.child.more:1" }).click()
@@ -393,8 +395,24 @@ describe("Mission Control project browser chip", () => {
       />,
     )
 
+  test("a keyed row cannot borrow another session's legacy enabled state", () => {
+    // An older partial snapshot has an origin but no enabled flag.
+    useWebMcpBrowserStore.setState({
+      activeKey: null,
+      order: [],
+      phase: "ready",
+      sessionID: "other",
+      enabled: true,
+      views: { [viewKeyFor(row.directory ?? "", row.sessionId)]: { origin: "https://own.test" } as WebMcpViewSnapshot },
+    })
+    expect(draw().container.querySelector<HTMLElement>("[data-browser-origin]")?.dataset.browserEnabled).toBe("false")
+    useWebMcpBrowserStore.setState({ views: {} })
+  })
+
   test("names the page the session's browser shows and whether the agent may use it; other sessions show nothing", () => {
-    useWebMcpBrowserStore.getState().updateSnapshot({ phase: "ready", sessionID: "s1", origin: "https://shop.test", enabled: true })
+    useWebMcpBrowserStore
+      .getState()
+      .updateSnapshot({ phase: "ready", sessionID: "s1", origin: "https://shop.test", enabled: true })
     const { container } = draw()
     const chip = container.querySelector<HTMLElement>("[data-browser-origin]")
     expect(chip?.dataset.browserOrigin).toBe("https://shop.test")
@@ -436,7 +454,10 @@ describe("Mission Control stale preview", () => {
     const onOpen = vi.fn()
     const { container } = renderDom(
       <MissionControlRow
-        row={{ ...row, activity: { kind: "message", text: "older", stale: true, lastSuccessAt: Date.now() - 5 * 60_000 } }}
+        row={{
+          ...row,
+          activity: { kind: "message", text: "older", stale: true, lastSuccessAt: Date.now() - 5 * 60_000 },
+        }}
         selected={false}
         bulkSelected={false}
         onToggleSelection={vi.fn()}

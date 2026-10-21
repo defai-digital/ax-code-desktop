@@ -1,3 +1,4 @@
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { MissionControlPullRequest } from "./MissionControlPullRequest"
 import React from "react"
 
@@ -79,16 +80,24 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   // A stale preview says how old its text is, so the person can judge it without opening the session.
   const staleLabel =
     activity?.stale && activity.lastSuccessAt !== undefined
-      ? t("supervision.missionControl.preview.staleSince", { age: formatRelativeAge(Date.now() - activity.lastSuccessAt, t) })
+      ? t("supervision.missionControl.preview.staleSince", {
+          age: formatRelativeAge(Date.now() - activity.lastSuccessAt, t),
+        })
       : t("supervision.missionControl.preview.stale")
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
   const inlineChildren = inlineChildSessions(row.childSessions)
-  // The project browser serves one session at a time; its row names the page it shows and whether the agent may use it.
-  const browserOrigin = useWebMcpBrowserStore((state) =>
-    state.phase === "ready" && state.sessionID === row.sessionId ? state.origin : null,
+  // Each row reads only its own project/session page.
+  const browserOrigin = useWebMcpBrowserStore(
+    (state) =>
+      state.views[viewKeyFor(row.directory ?? "", row.sessionId)]?.origin ??
+      (state.order.length === 0 && state.phase === "ready" && state.sessionID === row.sessionId ? state.origin : null),
   )
-  const browserEnabled = useWebMcpBrowserStore((state) => state.enabled)
+  const browserEnabled = useWebMcpBrowserStore(
+    (state) =>
+      state.views[viewKeyFor(row.directory ?? "", row.sessionId)]?.enabled ??
+      (state.order.length === 0 && state.sessionID === row.sessionId && state.enabled),
+  )
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && onOpenBeside) {
@@ -250,7 +259,9 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               <span className="sr-only">
                 {t("supervision.missionControl.browser.chipAria", {
                   origin: browserOrigin,
-                  state: t(browserEnabled ? "supervision.missionControl.browser.on" : "supervision.missionControl.browser.off"),
+                  state: t(
+                    browserEnabled ? "supervision.missionControl.browser.on" : "supervision.missionControl.browser.off",
+                  ),
                 })}
               </span>
               <Icon name="ax-browser" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

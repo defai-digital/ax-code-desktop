@@ -226,6 +226,12 @@ function loadManifest() {
     commands.set(entry.command, entry)
   }
 
+  const { BROWSER_ACTIONS } = createRequire(import.meta.url)("../packages/electron/src/desktop-webmcp-browser.js")
+  const browserActions = commands.get("desktop_webmcp_browser")?.params?.action?.enum
+  if (JSON.stringify(browserActions) !== JSON.stringify(BROWSER_ACTIONS)) {
+    failures.push("desktop_webmcp_browser action enum must match the native browser command contract")
+  }
+
   // ADR-019: the renderer's argument types are generated from this manifest.
   let committedTypes = ""
   try {

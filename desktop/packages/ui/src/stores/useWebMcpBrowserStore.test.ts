@@ -151,3 +151,157 @@ test("bounds the total serialized size and restores after a fresh module load", 
   expect(fresh.restoreWebMcpAddress(directory, "ses_63")).toBe(url)
   expect(fresh.useWebMcpBrowserStore.getState().enabled).toBe(false)
 })
+
+test("isolates keyed snapshots, reset and explicit request counters across projects and sessions", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  const other = viewKeyFor("/other", "ses_first")
+  store().selectView("/repo", "ses_first")
+  store().updateView(first, { enabled: true, origin: "https://first.test", waiting: true })
+  store().requestAgentMode({ enable: true }, first)
+  store().selectView("/repo", "ses_second")
+  store().updateView(second, { browserId: "second", origin: "https://second.test" })
+  store().requestAgentMode(undefined, second)
+  expect(store().consumeEnableRequest(second)).toBe(false)
+  expect(store().consumeEnableRequest(first)).toBe(true)
+  expect(store().consumeEnableRequest(first)).toBe(false)
+  store().updateView(other, { enabled: true, origin: "https://other.test" })
+  store().resetView(first)
+  expect(store().views[first]).toBeUndefined()
+  expect(store().views[second]).toMatchObject({
+    browserId: "second",
+    origin: "https://second.test",
+    agentModeRequests: 1,
+  })
+  expect(store().views[other]).toMatchObject({ enabled: true, origin: "https://other.test" })
+  // A late write to another view cannot overwrite the selected pane.
+  expect(store().browserId).toBe("second")
+  expect(store().origin).toBe("https://second.test")
+  expect(store().order).toHaveLength(2)
+})
+
+test("view keys normalize paths and never confuse draft, sessions or projects", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  expect(viewKeyFor("/repo/a/../", "ses_first")).toBe(viewKeyFor("/repo", "ses_first"))
+  expect(viewKeyFor("c:\\Users\\DEV\\project\\", null)).toBe(viewKeyFor("C:/Users/dev/project", null))
+  expect(viewKeyFor("/repo", null)).not.toBe(viewKeyFor("/repo", "ses_first"))
+  expect(viewKeyFor("/repo", "ses_first")).not.toBe(viewKeyFor("/other", "ses_first"))
+})
+
+test("selecting a view seeded by a capability probe restores its identity", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  store().updateView(viewKeyFor("/repo", "ses_probe"), { runtimeCompatible: true })
+  store().selectView("/repo", "ses_probe")
+  expect(store()).toMatchObject({ directory: "/repo", sessionID: "ses_probe", runtimeCompatible: true })
+})
+
+test("closed views do not accumulate or resurrect on selection and release", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  for (let i = 0; i < 200; i++) {
+    const key = viewKeyFor("/repo", `ses_${i}`)
+    store().selectView("/repo", `ses_${i}`)
+    store().updateView(key, { browserId: `id-${i}`, catalog: [{ name: "tool", description: "test" }] })
+    store().resetView(key)
+    store().releaseView(key)
+    expect(store().views).toEqual({})
+    expect(store().order).toEqual([])
+  }
+})
+
+test("transferred draft requests are consumed for both agent mode and enable", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  store().selectView("/repo/", null)
+  store().requestAgentMode({ enable: true })
+  store().selectView("/repo/child/..", "ses_new")
+  expect(store().consumeAgentModeRequest()).toBe(true)
+  expect(store().consumeEnableRequest()).toBe(true)
+  const draft = viewKeyFor("/repo", null)
+  expect(store().consumeAgentModeRequest(draft)).toBe(false)
+  expect(store().consumeEnableRequest(draft)).toBe(false)
+  store().selectView("/repo", null)
+  expect(store().consumeAgentModeRequest()).toBe(false)
+})
+
+test("catalog metadata, registration, drafts and results belong to their view across selection and hidden updates", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  const tool = { name: "echo", description: "Echo" }
+  const rejection = { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" }
+  store().selectView("/repo", "ses_first")
+  store().updateSnapshot({
+    origin: "https://same.test",
+    generation: "first",
+    catalog: [tool],
+    catalogLimit: { total: 70, shown: 1, truncation: "count" },
+    catalogRejection: rejection,
+  })
+  const digest = store().catalog[0].digest!
+  const draft = { digest, values: { title: "First" }, sendEmpty: {}, json: "{}", jsonMode: false }
+  const run = { digest, outcome: "completed", text: "First result", stale: false }
+  store().saveToolDraft("echo", draft)
+  store().recordToolRun("echo", run)
+  store().selectView("/repo", "ses_second")
+  store().updateSnapshot({ origin: "https://same.test", generation: "second", catalog: [tool] })
+  expect(store()).toMatchObject({
+    generation: "second",
+    catalogLimit: { total: 1, shown: 1, truncation: null },
+    catalogRejection: null,
+    toolDrafts: {},
+    toolRuns: {},
+  })
+  store().saveToolDraft("echo", { ...draft, values: { title: "Second" } })
+  store().recordToolRun("echo", { ...run, text: "Second result" })
+  const untouched = store().views[second]
+  store().updateView(first, {
+    generation: "first-reloaded",
+    catalog: [{ ...tool, description: "Changed" }],
+    catalogLimit: { total: 70, shown: 1, truncation: "count" },
+  })
+  // A manual invocation started before switching still writes to its original page and stays stale.
+  store().recordToolRun("echo", run, first)
+  expect(store().views[second]).toBe(untouched)
+  expect(store().toolRuns.echo).toMatchObject({ text: "Second result", stale: false })
+  store().selectView("/repo", "ses_first")
+  expect(store()).toMatchObject({
+    generation: "first-reloaded",
+    catalogRejection: rejection,
+    catalogLimit: { total: 70, shown: 1, truncation: "count" },
+    toolDrafts: { echo: draft },
+    toolRuns: { echo: { ...run, stale: true } },
+  })
+  expect(store().registration.some((event) => event.kind === "changed")).toBe(true)
+  store().clearToolRun("echo", second)
+  expect(store().toolRuns.echo).toBeDefined()
+  expect(store().views[second].toolRuns).toEqual({})
+  store().updateView(first, { origin: "https://other.test", catalog: [tool] })
+  expect(store().toolDrafts).toEqual({})
+  expect(store().toolRuns).toEqual({})
+  expect(store().views[second].toolDrafts.echo.values.title).toBe("Second")
+  store().resetView(first)
+  store().recordToolRun("echo", run, first)
+  store().saveToolDraft("echo", draft, first)
+  expect(store().views[first]).toBeUndefined()
+  expect(store()).toMatchObject({
+    generation: null,
+    registration: [],
+    toolDrafts: {},
+    toolRuns: {},
+    catalogRejection: null,
+  })
+  store().selectView("/repo", "ses_second")
+  expect(store().generation).toBe("second")
+  store().resetSnapshot()
+  expect(store().views[second]).toMatchObject({ generation: null, registration: [], toolDrafts: {}, toolRuns: {} })
+})
