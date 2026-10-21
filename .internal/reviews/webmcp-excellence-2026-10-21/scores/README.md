@@ -118,3 +118,6 @@ the audit repeated after round 14.
   Mission Control and the session grid, bounded provider poll. Gates: UI 4485, Electron 881, web 1499, shared 240 tests; build;
   five native journeys including `project-browser-sessions` (W7: two projects, 7 actions of a 12 budget, 50 switches with flat
   listeners and memory) and `e2e:desktop` on macOS. W7 joins the three-platform CI job.
+- R14b merged: manual journal and replay, comparison with the agent's latest call, schema diagnosis naming the property, rule
+  and value kind, regression export, guide update. Gates: UI 4498, Electron 881, web 1499, shared 240 tests; build; five
+  native journeys and `e2e:desktop` on macOS.
