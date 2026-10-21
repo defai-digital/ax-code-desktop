@@ -325,3 +325,7 @@ journeys W1 to W8. P1 audit at `25c5ee98` (same code): codex three narrow P1s re
 `AUDIT-2026-10-21-p1-codex-round20.md` (the user accepted closing with codex edge-case findings open on 2026-10-21); the
 glm-5.3 pass was cut off by an upstream error, and every completed glm pass since round 18 reported no P1. This supersedes the
 round 19 closure note.
+
+Final audit at `e9555305` (code identical to `4b7f80db`): glm-5.3 and deepseek-flash both report no P1
+(`AUDIT-2026-10-21-p1-glm-final.md`, `AUDIT-2026-10-21-p1-deepseek-final.md`). The three codex P1s at the same code remain open
+follow-ups, accepted by the user.

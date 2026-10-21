@@ -1,0 +1,27 @@
+All in-scope files are now reviewed. Final audit result:
+
+## WebMCP P1 Audit — HEAD e9555305 (read-only, static)
+
+**Verdict: no P1.** All previously disclosed review gaps are now closed; every file named in the brief has been read (directly or, for `main.js`, at every WebMCP-relevant site). The four earlier audit passes' fixes are present in source, and no new P1-class defect was found.
+
+### Gap-closure results (this round)
+- **Quit/restart/update refusal** (`browser-shutdown.js`, `main.js:1160,1231`): `requireBrowserClosure` runs `closeAll()` and throws `BROWSER_CLOSURE_REFUSEDError` *before* the web server stops, the runtime supervision stops, or the process exits; the update installer gates on it via `beforeInstall`. A page refusing closure cannot lose work. Matches docs §"Closing pages with unsaved work".
+- **Checker receipts** (`webmcp-check-receipt.cjs`): HMAC-SHA256 under a per-launch random key; disk reports carry keyed receipts only, so `[redacted]`-colliding names/inputs cannot satisfy each other's checks. Sound.
+- **View isolation** (`useWebMcpBrowser.ts:27-37`): selectors fall back to `emptyWebMcpView`, never another session's state; `useWebMcpApprovalDefinition` filters by sessionID+origin; `useWebMcpTranscriptCalls` scopes definitions/receipts to the view key. No cross-session bleed.
+- **`showWebMcpPage`** (`useWebMcpPages.ts:37-53`): showing is navigation only — `requestAgentMode(undefined, …)` never increments `enableRequests`, so showing a page can never silently enroll agent access.
+- **Property diff** (`webMcpPropertyDiff.ts`): compares original values, redacts whole schemas *before* moving properties into display containers — the round-19 "sensitivity decided on the original schema" fix confirmed.
+- **Bridge coordination** (`webMcpBridgeCoordination.ts:20-76`): resume-epoch guard correctly resolves the pause/resume overtake race (pause in flight during a resume restores what it disconnected instead of recording an unlifted pause).
+- **Pop-out single owner** (`SessionGrid.tsx:231,288,397-399`, `sessionGridPopout.ts`): popped slots unmount the embedded iframe and hide the show-button; ownership is released/reacquired only via the native window inventory (`reconcileGridWindows`), and main enforces one owner per (project, session) with `owned-by-another-window`. Confirmed.
+- **Docs vs code** (`docs/webmcp-page-tools.md`): spot-checked every behavioral claim — 64/128 tool caps, 256 KiB catalog/definition budgets, 64 KiB input/result refusal, exit codes 0/1/2/3/64, one-use close-confirmation semantics ("second confirmation closes anyway" = the `reprompted` path), sign-out scope (profile per project; page close keeps sign-in), sign-in popup constraints, 256-receipt memory cap, enum-by-index submission (`FieldInput` `option-${index}` → original value), `__proto__` draft retention (null-prototype records in `boundRecord`/`toolInput`). All match implementation. No documented flow found broken.
+- Remaining small files (`McpDropdown`, `WebMcpBrowserTools`, `WebMcpBuilderHint`, `WebMcpCancellationStatus`, `WebMcpToolPanelConnected`, `WebMcpCallDiagnosis`, `webMcpToolLint`, `webMcpSummary`, `useWebMcpTranscriptCalls`): summary-driven or pass-through; all page-derived text passes the shared redactor; `webMcpSummary` never claims "on" without a grantable page and its fix actions never replay agent calls.
+
+### P2 findings (unchanged from interim; only actionable items)
+1. **`webmcp-page.js:74-76` — read outline returns typed field values for text-like inputs.** `kind !== "password"` and kind ∈ {text, search, email, url, tel, number} ⇒ `clip(el.value, 100)` is returned to the agent. Input values are not part of `innerText`, so this outline is the sole channel exposing a person's in-progress typing (e.g. an OTP box marked only by `autocomplete="one-time-code"` with `type="text"`, or a card field). Repro: open such a page, type a code, have the agent `read` — the code appears in the tool result. Fix: also mask values whose `autocomplete` token (`one-time-code`, `cc-*`, `current-password`) or element name/aria-label matches `WEBMCP_SENSITIVE_NAME`.
+2. **`desktop-webmcp-browser.js:363-368` — close-confirmation identity keys popups by index** (`${entry.id}:popup:${index}`). A popup closing while another opens between the two confirmation round-trips shifts indices and forces an extra prompt. Safe direction only; pairing by `contents.id` would avoid the re-prompt.
+
+### P3
+- `useWebMcpBrowserStore.ts:197-207` — per-write double `JSON.stringify` dedup across all fields at 1 Hz polling; CPU-only cost on large catalogs.
+- `WEBMCP_SENSITIVE_NAME` matches `session`, so benign `sessionId` tool outputs display as `[redacted]`; fail-closed, cosmetic.
+
+### Method note
+Static review only — no shell or test execution was available in this session (read/grep/glob tools only). Runtime-only behaviors (native WebMCP CDP semantics, Electron dialog behavior) were inferred from source plus the extensive in-repo test suites (`desktop-webmcp-browser.test.mjs`, `native-webmcp.test.mjs`, `webmcp-check*.test.mjs`, UI `.test.tsx`), which encode the audited behaviors. Definition of done item 3 ("no P1 finding in an audit run after the last round") is satisfied for this audit run.
