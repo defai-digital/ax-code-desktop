@@ -27,6 +27,21 @@ interface DirectoryNavigationStore {
 
 let cachedHomeDirectory: string | null = null
 const safeStorage = getSafeStorage()
+// Secondary renderers navigate independently; only the main renderer owns the startup project preference.
+const persistLastDirectory = (directory: string) => {
+  if (typeof window !== "undefined") {
+    const { pathname, search } = window.location
+    if (
+      pathname.endsWith("/mini-chat.html") ||
+      pathname.endsWith("/supervision.html") ||
+      new URLSearchParams(search).get("ocPanel") === "session-chat"
+    )
+      return
+  }
+  safeStorage.setItem("lastDirectory", directory)
+  void updateDesktopSettings({ lastDirectory: directory })
+}
+
 const persistedLastDirectory = safeStorage.getItem("lastDirectory")
 const initialHasPersistedDirectory = typeof persistedLastDirectory === "string" && persistedLastDirectory.length > 0
 
@@ -246,14 +261,10 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
         // After the state change, as goBack/goForward do: a Zustand updater has to be pure, and these
         // are writes (local storage and an IPC call) that a middleware replaying the updater would
         // otherwise repeat.
-        safeStorage.setItem("lastDirectory", resolvedPath)
-        void updateDesktopSettings({ lastDirectory: resolvedPath })
+        persistLastDirectory(resolvedPath)
 
         set((state) => {
-          if (
-            resolvedPath === state.currentDirectory &&
-            state.directoryHistory[state.historyIndex] === resolvedPath
-          ) {
+          if (resolvedPath === state.currentDirectory && state.directoryHistory[state.historyIndex] === resolvedPath) {
             // Re-selecting the current directory must not push a duplicate
             // history entry: Back would first "navigate" to the same path.
             return {
@@ -286,9 +297,7 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
           axCodeClient.setDirectory(newDirectory)
           invalidateFileSearchCache()
 
-          safeStorage.setItem("lastDirectory", newDirectory)
-
-          void updateDesktopSettings({ lastDirectory: newDirectory })
+          persistLastDirectory(newDirectory)
 
           set({
             currentDirectory: newDirectory,
@@ -309,9 +318,7 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
           axCodeClient.setDirectory(newDirectory)
           invalidateFileSearchCache()
 
-          safeStorage.setItem("lastDirectory", newDirectory)
-
-          void updateDesktopSettings({ lastDirectory: newDirectory })
+          persistLastDirectory(newDirectory)
 
           set({
             currentDirectory: newDirectory,
@@ -412,8 +419,7 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
           const nextDirectory = shouldReplaceCurrent ? resolvedHome : (resolvedCurrent as string)
           axCodeClient.setDirectory(nextDirectory)
           invalidateFileSearchCache()
-          safeStorage.setItem("lastDirectory", nextDirectory)
-          void updateDesktopSettings({ lastDirectory: nextDirectory })
+          persistLastDirectory(nextDirectory)
         }
 
         void updateDesktopSettings({ homeDirectory: resolvedHome })

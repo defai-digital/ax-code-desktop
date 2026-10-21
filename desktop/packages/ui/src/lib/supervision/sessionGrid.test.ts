@@ -203,3 +203,17 @@ describe("session grid arrangement", () => {
     expect(grown!.slots).toHaveLength(4)
   })
 })
+
+test("docking back to the preset restores the saved splitter ratio", () => {
+  const initial = {
+    ...emptySessionGrid(),
+    layout: 2 as const,
+    slots: [null, null],
+    ratios: { columns: 0.4, rows: 0.5 },
+  }
+  const custom = applyGridDrop(initial, 0, 1, "bottom")
+  expect(custom.tree).not.toBeNull()
+  const restored = applyGridDrop(custom, 0, 1, "left")
+  expect(restored.tree).toBeNull()
+  expect(placedPanes(restored, 1000, 800)[0].width).toBeCloseTo((1000 - 6) * 0.4)
+})

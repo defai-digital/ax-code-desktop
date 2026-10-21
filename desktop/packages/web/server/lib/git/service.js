@@ -1690,8 +1690,8 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout, indexModes 
   const modes = new Map()
   const deadline = Date.now() + timeout
   const rootReal = await fsp.realpath(repoRoot).catch(() => null)
-  if (!rootReal) return ids
-  const noFollow = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0)
+  if (!rootReal) return { ids, modes }
+  const noFollow = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0)
   for (const file of files) {
     if (Date.now() > deadline) break
     if (worktreeFileRemoved(file) || !isSafeGitStatusPath(file.path)) continue
@@ -1719,6 +1719,8 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout, indexModes 
       handle = await fsp.open(absolute, noFollow)
       const stat = await handle.stat()
       if (!stat.isFile() || stat.size > maxBytes) continue
+      const openedParent = await fsp.realpath(path.dirname(absolute)).catch(() => null)
+      if (openedParent !== parentReal || !isInsideOrSameDirectory(rootReal, openedParent)) continue
       // Windows has no O_NOFOLLOW: the opened file must be the one lstat checked, not a link swapped in since.
       if (stat.dev !== entry.dev || stat.ino !== entry.ino) continue
       // Read one byte past the cap: a file that grew past it after the stat is skipped, not truncated.
@@ -2603,44 +2605,49 @@ const countBranchDiffLines = (text) => {
 }
 
 const readBranchWorkingSide = async (repoRoot, repoPath) => {
+  let handle
   let absolute
   try {
     absolute = resolveRepositoryFilePath(repoRoot, repoPath)
-  } catch {
-    return { text: "", tooLarge: true }
-  }
+    const [rootReal, target] = await Promise.all([fsp.realpath(repoRoot), fsp.realpath(absolute)])
+    if (!isInsideOrSameDirectory(rootReal, target)) return { text: "", tooLarge: true }
+    const entry = await fsp.lstat(target)
+    if (!entry.isFile()) return { text: "", missing: true }
+    if (entry.size > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
 
-  let entry
-  try {
-    entry = await fsp.lstat(absolute)
-  } catch (error) {
-    if (error?.code === "ENOENT") return { text: "", missing: true }
-    throw error
-  }
-
-  let readPath = absolute
-  let size = entry.size
-  if (entry.isSymbolicLink()) {
-    const [rootReal, target] = await Promise.all([
-      fsp.realpath(repoRoot).catch(() => repoRoot),
-      fsp.realpath(absolute).catch(() => null),
-    ])
-    if (!target || !isInsideOrSameDirectory(rootReal, target)) {
+    // Use one checked handle for both binary detection and content. Never reopen by path after checking it.
+    handle = await fsp.open(
+      target,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0),
+    )
+    const stat = await handle.stat()
+    if (!stat.isFile() || stat.dev !== entry.dev || stat.ino !== entry.ino || stat.size > BRANCH_DIFF_MAX_BYTES)
       return { text: "", tooLarge: true }
+    // A parent directory may also have changed while opening the file.
+    const currentTarget = await fsp.realpath(target)
+    if (currentTarget !== target || !isInsideOrSameDirectory(rootReal, currentTarget))
+      return { text: "", tooLarge: true }
+    const buffer = Buffer.alloc(BRANCH_DIFF_MAX_BYTES + 1)
+    let length = 0
+    while (length < buffer.length) {
+      const { bytesRead } = await handle.read(buffer, length, buffer.length - length, length)
+      if (bytesRead === 0) break
+      length += bytesRead
     }
-    const targetStat = await fsp.stat(target).catch(() => null)
-    if (!targetStat?.isFile()) return { text: "", missing: true }
-    readPath = target
-    size = targetStat.size
-  } else if (!entry.isFile()) {
-    return { text: "", missing: true }
+    if (length > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
+    const bytes = buffer.subarray(0, length)
+    if (bytes.subarray(0, BINARY_SNIFF_BYTES).includes(0)) return { text: "", binary: true }
+    return { text: bytes.toString("utf8").replace(/\r\n/g, "\n") }
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      const entry = absolute && await fsp.lstat(absolute).catch(() => null)
+      return entry?.isSymbolicLink() ? { text: "", tooLarge: true } : { text: "", missing: true }
+    }
+    if (["ELOOP", "ENOTDIR"].includes(error?.code)) return { text: "", tooLarge: true }
+    throw error
+  } finally {
+    await handle?.close().catch(() => {})
   }
-
-  if (size > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
-  if (await looksBinaryBySniff(readPath)) return { text: "", binary: true }
-  const text = await fsp.readFile(readPath, "utf8")
-  if (Buffer.byteLength(text) > BRANCH_DIFF_MAX_BYTES) return { text: "", tooLarge: true }
-  return { text: text.replace(/\r\n/g, "\n") }
 }
 
 const readBranchBaseSide = async (repoRoot, mergeBase, repoPath) => {

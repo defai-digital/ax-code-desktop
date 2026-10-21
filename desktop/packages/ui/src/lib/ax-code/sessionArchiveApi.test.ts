@@ -1,41 +1,30 @@
 import { afterEach, expect, test, vi } from "vitest"
 import { axCodeClient } from "./client"
-import { archiveGlobalSession } from "./sessionArchiveApi"
+import { archiveGlobalSession, GlobalSessionArchiveUnavailableError } from "./sessionArchiveApi"
+
+const archiveSession = vi.fn()
+
+vi.spyOn(axCodeClient, "getSdkClient").mockReturnValue({ global: { archiveSession } } as never)
 
 afterEach(() => {
-  vi.restoreAllMocks()
-  vi.unstubAllGlobals()
+  archiveSession.mockReset()
 })
 
-test("archives through the authenticated global API without attaching a project directory", async () => {
-  vi.spyOn(axCodeClient, "getBaseUrl").mockReturnValue("http://localhost:4096/api")
-  const fetch = vi.fn().mockResolvedValue(new Response("{}", { status: 200 }))
-  vi.stubGlobal("fetch", fetch)
+test("archives through the published SDK without attaching a project directory", async () => {
+  archiveSession.mockResolvedValue({ data: {}, response: new Response("{}", { status: 200 }) })
   await archiveGlobalSession("ses_old", 123)
-  expect(fetch).toHaveBeenCalledWith("http://localhost:4096/api/global/session/ses_old/archive", {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ archived: 123 }),
-    signal: expect.any(AbortSignal),
-  })
+  expect(archiveSession).toHaveBeenCalledWith({ sessionID: "ses_old", archived: 123 })
 })
 
 test("rejects runtime errors instead of counting them as archived", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Unavailable" }), { status: 503 })),
-  )
+  archiveSession.mockResolvedValue({ error: { message: "Unavailable" }, response: new Response(null, { status: 503 }) })
   await expect(archiveGlobalSession("ses_old", 123)).rejects.toThrow("Unavailable")
 })
 
 test("distinguishes an unsupported endpoint from a missing stored session", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi
-      .fn()
-      .mockResolvedValueOnce(new Response("Not Found", { status: 404 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ message: "Session not found" }), { status: 404 })),
-  )
-  await expect(archiveGlobalSession("ses_old", 123)).rejects.toThrow("Update the runtime")
+  archiveSession
+    .mockResolvedValueOnce({ error: "Not Found", response: new Response(null, { status: 404 }) })
+    .mockResolvedValueOnce({ error: { message: "Session not found" }, response: new Response(null, { status: 404 }) })
+  await expect(archiveGlobalSession("ses_old", 123)).rejects.toBeInstanceOf(GlobalSessionArchiveUnavailableError)
   await expect(archiveGlobalSession("ses_old", 123)).rejects.toThrow("Session not found")
 })

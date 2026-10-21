@@ -114,7 +114,12 @@ function restoreTree(value: unknown, layout: number): GridNode | null {
       second?: unknown
     }
     if (record.kind === "leaf") {
-      if (!Number.isInteger(record.slot) || (record.slot ?? -1) < 0 || (record.slot ?? 0) >= layout || seen.has(record.slot!))
+      if (
+        !Number.isInteger(record.slot) ||
+        (record.slot ?? -1) < 0 ||
+        (record.slot ?? 0) >= layout ||
+        seen.has(record.slot!)
+      )
         return null
       seen.add(record.slot!)
       return { kind: "leaf", slot: record.slot! }
@@ -138,9 +143,8 @@ export function resolveGridSession<T extends { sessionId: string; directory: str
   rows: readonly T[],
 ): T | null {
   return slot
-    ? (rows.find(
-        (row) => row.sessionId === slot.sessionId && sameDirectory(row.directory ?? "", slot.directory),
-      ) ?? null)
+    ? (rows.find((row) => row.sessionId === slot.sessionId && sameDirectory(row.directory ?? "", slot.directory)) ??
+        null)
     : null
 }
 
@@ -158,7 +162,8 @@ export function sessionGridGeometry(
 ) {
   // A pane keeps GRID_MIN_WIDTH when the window allows it; in a narrow window the panes share the visible width instead
   // of being pushed off-screen, never below half of the minimum.
-  const minimum = layout === 1 ? GRID_MIN_WIDTH : Math.max(GRID_MIN_WIDTH / 2, Math.min(GRID_MIN_WIDTH, (width - GRID_GAP) / 2))
+  const minimum =
+    layout === 1 ? GRID_MIN_WIDTH : Math.max(GRID_MIN_WIDTH / 2, Math.min(GRID_MIN_WIDTH, (width - GRID_GAP) / 2))
   const w = Math.max(layout === 1 ? GRID_MIN_WIDTH / 2 : minimum * 2 + GRID_GAP, width)
   const h = Math.max(layout >= 3 ? 326 : 160, height)
   const columns = clampGridRatio(ratios.columns, w, minimum)
@@ -332,7 +337,8 @@ export function gridNeighbor(panes: readonly PlacedPane[], slot: number, directi
     const nearer =
       !best ||
       gap < best.gap - 1e-6 ||
-      (Math.abs(gap - best.gap) <= 1e-6 && (overlap > best.overlap + 1e-6 || (Math.abs(overlap - best.overlap) <= 1e-6 && start < best.start)))
+      (Math.abs(gap - best.gap) <= 1e-6 &&
+        (overlap > best.overlap + 1e-6 || (Math.abs(overlap - best.overlap) <= 1e-6 && start < best.start)))
     if (nearer) best = { slot: pane.slot, gap, overlap, start }
   }
   return best?.slot ?? null
@@ -344,7 +350,15 @@ export function reorderGridSlots(
   from: number,
   to: number,
 ): (SessionGridSlot | null)[] {
-  if (!Number.isInteger(from) || !Number.isInteger(to) || from === to || from < 0 || to < 0 || from >= slots.length || to >= slots.length)
+  if (
+    !Number.isInteger(from) ||
+    !Number.isInteger(to) ||
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= slots.length ||
+    to >= slots.length
+  )
     return slots.slice()
   const next = slots.slice()
   const held = next[from]
@@ -415,7 +429,12 @@ export function placedPanes(state: SessionGridState, width = 1000, height = 800)
 }
 
 /** Keyboard move: trade places with the pane in that direction. */
-export function moveGridSlot(state: SessionGridState, index: number, direction: GridEdge, panes: readonly PlacedPane[] = placedPanes(state)): SessionGridState {
+export function moveGridSlot(
+  state: SessionGridState,
+  index: number,
+  direction: GridEdge,
+  panes: readonly PlacedPane[] = placedPanes(state),
+): SessionGridState {
   const target = gridNeighbor(panes, index, direction)
   if (target === null) return state
   return { ...state, slots: reorderGridSlots(state.slots, index, target) }
@@ -425,12 +444,18 @@ export function moveGridSlot(state: SessionGridState, index: number, direction: 
  * Drop a dragged slot. The center swaps the two sessions. An edge docks the dragged pane on that side of the target.
  * Docking back into the preset shape clears the free arrangement so the preset ratios apply again.
  */
-export function applyGridDrop(state: SessionGridState, from: number, target: number, edge: GridDropTarget): SessionGridState {
-  if (from === target || from < 0 || target < 0 || from >= state.slots.length || target >= state.slots.length) return state
+export function applyGridDrop(
+  state: SessionGridState,
+  from: number,
+  target: number,
+  edge: GridDropTarget,
+): SessionGridState {
+  if (from === target || from < 0 || target < 0 || from >= state.slots.length || target >= state.slots.length)
+    return state
   if (edge === "center") return { ...state, slots: reorderGridSlots(state.slots, from, target) }
   const next = placeGridSlot(state.tree ?? presetTree(state.layout, state.ratios), from, target, edge)
   if (!next) return state
-  if (!state.tree && sameShape(next, presetTree(state.layout, state.ratios))) return state
+  if (sameShape(next, presetTree(state.layout, state.ratios))) return state.tree ? { ...state, tree: null } : state
   return { ...state, tree: next }
 }
 
@@ -462,7 +487,12 @@ export function markSlotPopped(
 ): (SessionGridSlot | null)[] {
   let changed = false
   const next = slots.map((slot) => {
-    if (!slot || slot.sessionId !== sessionId || !sameDirectory(slot.directory, directory) || Boolean(slot.poppedOut) === popped)
+    if (
+      !slot ||
+      slot.sessionId !== sessionId ||
+      !sameDirectory(slot.directory, directory) ||
+      Boolean(slot.poppedOut) === popped
+    )
       return slot
     changed = true
     return popped

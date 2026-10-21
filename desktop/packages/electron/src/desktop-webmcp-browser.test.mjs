@@ -22,6 +22,7 @@ function fixture({
   pollTimeoutMs,
   pollRetryMs,
   nextPoll,
+  capabilityResponse,
 } = {}) {
   const owners = new Map()
   const guests = []
@@ -137,7 +138,8 @@ function fixture({
             directory: sessionDirectory ?? request.query.directory,
             projectID: "project",
           })
-        if (request.url.endsWith("/capability")) return Promise.resolve({ capability, browserMode })
+        if (request.url.endsWith("/capability"))
+          return capabilityResponse ? capabilityResponse() : Promise.resolve({ capability, browserMode })
         if (request.url.endsWith("/provider"))
           return Promise.resolve({
             providerID: `provider-${++provider}`,
@@ -1547,7 +1549,70 @@ describe("WX-15 visible-to-act gate", () => {
     },
   )
 
-  test("a hidden request stops polling and runs only on its own shown page", async () => {
+  test("a runtime cancellation reaches a hidden request before the page is shown", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    f.pushStreamRequest(request({ requestID: "held-canceled" }))
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
+    )
+    f.pushStreamRequest({ batch: { request: null, canceled: ["held-canceled"] } })
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: false }),
+    )
+    await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds })
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+  })
+
+  test("an older enrollment cannot clear the newer enrollment eviction guard", async () => {
+    const capabilities = []
+    const f = fixture({
+      maxLiveViews: 1,
+      capabilityResponse: () => new Promise((resolve) => capabilities.push(resolve)),
+    })
+    const { sender, status } = await f.create()
+    const first = f.controller.command(sender, { action: "enable", id: status.id })
+    await vi.waitFor(() => expect(capabilities).toHaveLength(1))
+    const second = f.controller.command(sender, { action: "enable", id: status.id })
+    await vi.waitFor(() => expect(capabilities).toHaveLength(2))
+    capabilities[0]({ capability: "desktop.webmcp.v1", browserMode: "embedded" })
+    await first
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      idle: false,
+      error: null,
+    })
+    capabilities[1]({ capability: "desktop.webmcp.v1", browserMode: "embedded" })
+    expect(await second).toMatchObject({ enabled: true, error: null })
+  })
+
+  test("revocation does not wait behind another page loading in the pool", async () => {
+    const f = fixture({ loadTimeoutMs: 2000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    f.hangLoads(true)
+    const creating = f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/other",
+      sessionID: "ses_other",
+      url: "https://other.test/",
+    })
+    await vi.waitFor(() => expect(f.guests).toHaveLength(2))
+    let revoked = false
+    const revoking = f.controller
+      .command(sender, { action: "revokeSession", directory: "/tmp/project", sessionID: "ses_fixture" })
+      .then(() => {
+        revoked = true
+      })
+    try {
+      await vi.waitFor(() => expect(revoked).toBe(true), { timeout: 300 })
+    } finally {
+      await Promise.all([creating, revoking])
+    }
+  })
+
+  test("a hidden request keeps polling and runs only on its own shown page", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
@@ -1568,7 +1633,7 @@ describe("WX-15 visible-to-act gate", () => {
         visible: false,
       }),
     )
-    expect(f.requests.filter((r) => r.url.endsWith("/next"))).toHaveLength(polls)
+    expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls)
     expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
     expect(f.guests[1].loadedUrls).toEqual(["https://other.test/"])
     await f.controller.command(sender, { action: "show", id: status.id })
@@ -1711,8 +1776,8 @@ describe("WX-15 bounded lifecycle", () => {
       })
       await vi.advanceTimersByTimeAsync(0)
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true })
-      // A held request replaces this provider's poll deadline with its request deadline.
-      expect(vi.getTimerCount()).toBe(timers)
+      // A held request keeps its deadline in addition to the live cancellation poll.
+      expect(vi.getTimerCount()).toBe(timers + 1)
       await f.controller.closeAll()
       await vi.advanceTimersByTimeAsync(0)
       expect(vi.getTimerCount()).toBe(0)

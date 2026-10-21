@@ -1355,6 +1355,36 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(JSON.stringify(status)).not.toContain("secret-content")
   })
 
+  it("does not hash an external file after its parent directory is replaced", async () => {
+    if (process.platform === "win32") return
+    const repo = initRepo()
+    const parent = path.join(fs.realpathSync(repo), "nested")
+    fs.mkdirSync(parent)
+    fs.writeFileSync(path.join(parent, "review.txt"), "local\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.writeFileSync(path.join(parent, "review.txt"), "changed\n")
+    const outside = createTempDir()
+    fs.writeFileSync(path.join(outside, "review.txt"), "external-private-content\n")
+    const originalLstat = fs.promises.lstat.bind(fs.promises)
+    let swapped = false
+    const spy = vi.spyOn(fs.promises, "lstat").mockImplementation(async (target, ...args) => {
+      if (String(target) === path.join(parent, "review.txt") && !swapped) {
+        swapped = true
+        fs.renameSync(parent, `${parent}-original`)
+        fs.symlinkSync(outside, parent, "dir")
+      }
+      return originalLstat(target, ...args)
+    })
+    try {
+      const status = await getStatus(repo, { mode: "light" })
+      expect(swapped).toBe(true)
+      expect(status.files.find((file) => file.path === "nested/review.txt")?.worktreeBlobId).toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it("matches git's own blob id for a regular file", async () => {
     if (!canRunGit()) return
 
@@ -2585,6 +2615,46 @@ describe("getGitBranchDiff", () => {
     await git.add("-A")
     await git.commit(message)
   }
+
+  it("does not follow a file swapped to an external symlink before opening the branch diff", async () => {
+    if (process.platform === "win32") return // Creating file symlinks requires a privileged Windows token.
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "review.txt", "base\n")
+    await commitAll(git, "base")
+    write(tmpDir, "review.txt", "changed\n")
+    const outside = createTempDir()
+    const secret = path.join(outside, "secret.txt")
+    fs.writeFileSync(secret, "external-private-content\n")
+    const filename = fs.realpathSync(path.join(tmpDir, "review.txt"))
+    const originalOpen = fs.promises.open.bind(fs.promises)
+    let swapped = false
+    const spy = vi.spyOn(fs.promises, "open").mockImplementation(async (target, ...args) => {
+      if (String(target) === filename && !swapped) {
+        swapped = true
+        fs.unlinkSync(filename)
+        fs.symlinkSync(secret, filename)
+      }
+      return originalOpen(target, ...args)
+    })
+    try {
+      const result = await getGitBranchDiff(tmpDir, { base: "main" })
+      expect(swapped).toBe(true)
+      expect(JSON.stringify(result)).not.toContain("external-private-content")
+      expect(result.files.find((file) => file.file === "review.txt")).toMatchObject({ after: "", tooLarge: true })
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("does not present a dangling symlink as an empty regular file", async () => {
+    if (process.platform === "win32") return
+    const { tmpDir, git } = await createTempRepo()
+    write(tmpDir, "base.txt", "base\n")
+    await commitAll(git, "base")
+    fs.symlinkSync("missing.txt", path.join(tmpDir, "dangling.txt"))
+    const result = await getGitBranchDiff(tmpDir, { base: "main" })
+    expect(result.files.find((file) => file.file === "dangling.txt")).toMatchObject({ after: "", tooLarge: true })
+  })
 
   it("stops reading file content once the response budget is spent", async () => {
     const { tmpDir, git } = await createTempRepo()

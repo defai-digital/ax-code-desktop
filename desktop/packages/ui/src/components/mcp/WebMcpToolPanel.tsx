@@ -17,7 +17,13 @@ import {
 } from "@/lib/webMcpDiagnosis"
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
 import { draftFromRecordedInput, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
-import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview, isWebMcpSensitiveName, redactWebMcpInput } from "@/lib/toolHelpers"
+import {
+  desktopWebMcpResultOutcome,
+  WEBMCP_FAILURE_REASONS,
+  webMcpResultPreview,
+  isWebMcpSensitiveName,
+  redactWebMcpInput,
+} from "@/lib/toolHelpers"
 import {
   useWebMcpBrowserStore,
   type WebMcpCatalogRejectionReason,
@@ -203,9 +209,7 @@ function DiagnosisList({
       ) : diagnosis.status === "unchecked" ? (
         <p className="typography-micro text-muted-foreground">
           {t(
-            diagnosis.reason === "no-schema"
-              ? "webmcp.tools.diagnosis.noSchema"
-              : "webmcp.tools.diagnosis.unsupported",
+            diagnosis.reason === "no-schema" ? "webmcp.tools.diagnosis.noSchema" : "webmcp.tools.diagnosis.unsupported",
           )}
         </p>
       ) : diagnosis.findings.length === 0 ? (
@@ -323,8 +327,7 @@ function ToolCompare({
                 data-webmcp-compare-agent-arguments=""
                 className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
               >
-                {agentCall.argumentsText ??
-                  (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
+                {agentCall.argumentsText ?? (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
               </pre>
               <DiagnosisList
                 diagnosis={agentDiagnosis(agentCall, tool.inputSchema)}
@@ -623,7 +626,19 @@ function ToolItem({
     setRunning(true)
     showResult(null)
     const started = performance.now()
+    const state = useWebMcpBrowserStore.getState()
+    const source = viewKey ? state.views[viewKey] : state
     const remember = (next: { outcome: string; text: string }) => {
+      const currentState = useWebMcpBrowserStore.getState()
+      const current = viewKey ? currentState.views[viewKey] : currentState
+      if (
+        !source ||
+        !current ||
+        current.origin !== source.origin ||
+        current.generation !== source.generation ||
+        current.browserId !== source.browserId
+      )
+        return
       showResult(next)
       recordToolJournal(
         {
@@ -1010,7 +1025,7 @@ export function WebMcpToolPanel({
           <ul className="max-h-72 space-y-1.5 overflow-auto">
             {catalog.map((tool) => (
               <ToolItem
-                key={`${toolViewKey ?? ""}:${tool.name}:${tool.digest ?? ""}`}
+                key={`${toolViewKey ?? ""}:${origin}:${tool.name}:${tool.digest ?? ""}`}
                 tool={tool}
                 tryTool={tryTool}
                 viewKey={toolViewKey}

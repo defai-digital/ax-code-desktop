@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises"
-import { mentionsPath, pathForms } from "./paths.mjs"
+import { mentionsPath } from "./paths.mjs"
 import path from "node:path"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"

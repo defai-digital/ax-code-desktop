@@ -176,3 +176,27 @@ describe("useDirectoryStore", () => {
     expect(values.get("lastDirectory")).toBeUndefined()
   })
 })
+
+test.each(["/?ocPanel=session-chat", "/mini-chat.html?mode=session", "/supervision.html"])(
+  "secondary renderer %s keeps directory navigation local",
+  async (url) => {
+    const original = window.location.href
+    window.history.replaceState(null, "", url)
+    try {
+      const { useDirectoryStore, values, updateDesktopSettingsMock } = await importStore()
+      values.set("lastDirectory", "/primary")
+      useDirectoryStore.getState().setDirectory("/secondary")
+      useDirectoryStore.getState().setDirectory("/secondary-next")
+      useDirectoryStore.getState().goBack()
+      expect(useDirectoryStore.getState().currentDirectory).toBe("/secondary")
+      useDirectoryStore.getState().goForward()
+      expect(useDirectoryStore.getState().currentDirectory).toBe("/secondary-next")
+      expect(values.get("lastDirectory")).toBe("/primary")
+      expect(updateDesktopSettingsMock).not.toHaveBeenCalledWith(
+        expect.objectContaining({ lastDirectory: expect.any(String) }),
+      )
+    } finally {
+      window.history.replaceState(null, "", original)
+    }
+  },
+)

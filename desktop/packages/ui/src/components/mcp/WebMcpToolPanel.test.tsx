@@ -661,6 +661,43 @@ test("selected tool forms restore per-view drafts and late manual results stay w
   }
 })
 
+test("a late manual result cannot repopulate the journal after navigating to another origin", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  const initial = useWebMcpBrowserStore.getState()
+  const store = () => useWebMcpBrowserStore.getState()
+  const key = viewKeyFor("/repo", "ses_first")
+  let complete!: (result: { ok: boolean; output: string }) => void
+  const tryTool = vi.fn(
+    () =>
+      new Promise<{ ok: boolean; output: string }>((resolve) => {
+        complete = resolve
+      }),
+  )
+  try {
+    store().selectView("/repo", "ses_first")
+    store().updateSnapshot({ origin: "https://staging.test", generation: "first", catalog })
+    const view = render(<WebMcpToolPanel viewKey={key} tryTool={tryTool} />)
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+    fireEvent.change(a, { target: { value: "2" } })
+    fireEvent.change(b, { target: { value: "3" } })
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
+    await act(async () => {
+      store().updateView(key, { origin: "https://production.test", generation: "second", catalog })
+    })
+    await act(async () => {
+      complete({ ok: true, output: "staging result" })
+    })
+    expect(store().views[key].toolRuns).toEqual({})
+    expect(store().views[key].toolJournal).toEqual([])
+    expect(view.container.textContent).not.toContain("staging result")
+  } finally {
+    cleanup()
+    useWebMcpBrowserStore.setState(initial, true)
+  }
+})
+
 function pageCall(overrides: Partial<WebMcpCall>): WebMcpCall {
   return {
     id: "call-1",
@@ -696,7 +733,9 @@ const openAdd = (tryTool: TryTool, agentCalls?: readonly WebMcpCall[]) => {
 test("a manual journal keeps the sent run and replays it into editable fields without running", async () => {
   const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
   const view = openAdd(tryTool)
-  expect(view.container.querySelector("[data-webmcp-journal-count]")?.getAttribute("data-webmcp-journal-count")).toBe("0")
+  expect(view.container.querySelector("[data-webmcp-journal-count]")?.getAttribute("data-webmcp-journal-count")).toBe(
+    "0",
+  )
   await runTool()
   expect(tryTool).not.toHaveBeenCalled()
   expect(view.container.querySelector("[data-webmcp-journal-entry]")).toBeNull()
@@ -749,9 +788,9 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   expect(view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-run]")?.textContent).toContain(
     "--run ",
   )
-  expect(view.container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-snippet]")?.textContent).toContain(
-    "document.modelContext.executeTool",
-  )
+  expect(
+    view.container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-snippet]")?.textContent,
+  ).toContain("document.modelContext.executeTool")
 })
 
 test("the same definition digest is not flagged, and a missing runtime input is not guessed", async () => {
@@ -817,7 +856,11 @@ test("a secret-named field is masked while typed", () => {
       {
         name: "sign_in",
         description: "Sign in",
-        inputSchema: { type: "object", properties: { user: { type: "string" }, password: { type: "string" } }, required: ["user"] },
+        inputSchema: {
+          type: "object",
+          properties: { user: { type: "string" }, password: { type: "string" } },
+          required: ["user"],
+        },
       },
     ],
   })

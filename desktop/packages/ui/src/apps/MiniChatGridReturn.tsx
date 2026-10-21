@@ -8,8 +8,9 @@ import { isMiniChatReturnMessage, MINI_CHAT_PRESENCE_CHANNEL, miniChatReturnMatc
 export function MiniChatGridReturn({ config }: { config: { sessionId: string | null; directory: string | null } }) {
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
-  const sessionId = currentSessionId || config.sessionId
-  const directory = currentDirectory || config.directory
+  // The native window inventory owns the launch identity even when its chat selection changes.
+  const sessionId = config.sessionId || currentSessionId
+  const directory = config.sessionId ? config.directory : currentDirectory
   React.useEffect(() => {
     if (!sessionId || !directory || typeof BroadcastChannel === "undefined") return
     const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL)

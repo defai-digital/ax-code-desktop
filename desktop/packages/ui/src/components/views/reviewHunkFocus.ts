@@ -88,7 +88,7 @@ function markHeader(root: ParentNode, line: HTMLElement, hunkIndex: number): voi
   if (marked) return
 
   let cursor: Element | null = line
-  while (cursor) {
+  for (;;) {
     let previous = cursor.previousElementSibling
     while (previous) {
       const separator = previous.matches("[data-separator]")
