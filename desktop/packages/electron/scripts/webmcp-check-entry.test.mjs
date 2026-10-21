@@ -105,7 +105,7 @@ test("the actual Electron entry redacts every disk write without altering the in
   expect(JSON.stringify(report)).not.toContain(secret)
 })
 
-function startCatalogCheck(onEnable) {
+function startCatalogCheck(onEnable, runs = []) {
   vi.useFakeTimers()
   const writes = []
   const exit = vi.fn()
@@ -115,6 +115,7 @@ function startCatalogCheck(onEnable) {
       setPermissionRequestHandler() {},
       setPermissionCheckHandler() {},
     }),
+    executeJavaScript: vi.fn(() => new Promise(() => {})),
     loadURL: async () => {},
     getURL: () => "https://example.com",
     debugger: Object.assign(new EventEmitter(), { attach() {} }),
@@ -146,11 +147,11 @@ function startCatalogCheck(onEnable) {
       receiptKey: "catalog-test-key",
       settleMs: 3000,
       timeoutMs: 5000,
-      runs: [],
+      runs,
     }),
   )
   require("./webmcp-check-entry.cjs")
-  return { exit, report: () => writes.at(-1) }
+  return { exit, contents, report: () => writes.at(-1) }
 }
 
 test("checker readiness only includes top-level registrations, even with colliding iframe names", async () => {
@@ -232,4 +233,15 @@ test("catalog receipts distinguish redacted tool names in actual disk reports", 
   expect(evaluate(actual).exitCode).toBe(EXIT.ok)
   expect(evaluate(missing).exitCode).toBe(EXIT.failed)
   expect(JSON.stringify(evaluate(missing))).not.toContain(missing)
+})
+
+test("an unconfirmed timeout contaminates remaining runs without invoking them", async () => {
+  const runs = [{ name: "slow", input: {} }, { name: "read", input: {} }, { name: "later", input: {} }]
+  const { report, contents } = startCatalogCheck((emit) => emit("WebMCP.toolsAdded", [{ name: "slow", frameId: "top" }]), runs)
+  await vi.runAllTimersAsync()
+  expect(contents.executeJavaScript).toHaveBeenCalledTimes(1)
+  expect(report().runs).toHaveLength(3)
+  expect(report().runs[0].timedOut).toBe(true)
+  expect(report().runs.slice(1).every((run) => run.notRun && run.error.includes("contaminated"))).toBe(true)
+  expect(evaluateReport(report(), { expectTools: [], runs }, undefined, "catalog-test-key").exitCode).toBe(EXIT.toolError)
 })

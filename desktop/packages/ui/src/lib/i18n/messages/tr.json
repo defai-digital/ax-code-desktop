@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "{shown}/{total} girdi g\u00f6steriliyor; gerekli {required} ek girdi g\u00f6sterilmiyor.",
   "webmcp.browser.waitingForSignIn": "Ajan, oturum a\u00e7may\u0131 tamamlay\u0131p oturum a\u00e7ma pencerelerini kapatman\u0131z\u0131 bekliyor.",
   "webmcp.browser.signOut": "Proje taray\u0131c\u0131s\u0131ndan oturumu kapat",
-  "webmcp.browser.confirmClose": "Bu sayfalar kaydedilmemi\u015f \u00e7al\u0131\u015fmalar i\u00e7erebilir. Kapat\u0131p kaydedilmemi\u015f de\u011fi\u015fiklikleri atmal\u0131 m\u0131y\u0131m? {pages}"
+  "webmcp.browser.confirmClose": "Bu sayfalar kaydedilmemi\u015f \u00e7al\u0131\u015fmalar i\u00e7erebilir. Kapat\u0131p kaydedilmemi\u015f de\u011fi\u015fiklikleri atmal\u0131 m\u0131y\u0131m? {pages}",
+  "webmcp.tools.showJson": "JSON giri\u015fini g\u00f6ster",
+  "webmcp.tools.hideJson": "JSON giri\u015fini gizle"
 }

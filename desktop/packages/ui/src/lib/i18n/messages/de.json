@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "Zeige {shown} von {total} Eingaben; {required} weitere erforderliche Eingaben werden nicht angezeigt.",
   "webmcp.browser.waitingForSignIn": "Agent wartet darauf, dass Sie die Anmeldung abschlie\u00dfen und die Anmeldefenster schlie\u00dfen.",
   "webmcp.browser.signOut": "Von Projekt-Browser abmelden",
-  "webmcp.browser.confirmClose": "Diese Seiten k\u00f6nnen nicht gespeicherte \u00c4nderungen enthalten. Sie schlie\u00dfen und nicht gespeicherte \u00c4nderungen verwerfen? {pages}"
+  "webmcp.browser.confirmClose": "Diese Seiten k\u00f6nnen nicht gespeicherte \u00c4nderungen enthalten. Sie schlie\u00dfen und nicht gespeicherte \u00c4nderungen verwerfen? {pages}",
+  "webmcp.tools.showJson": "JSON-Eingabe anzeigen",
+  "webmcp.tools.hideJson": "JSON-Eingabe ausblenden"
 }

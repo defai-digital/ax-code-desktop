@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "Mostro {shown} di {total} input; {required} input aggiuntivi obbligatori non mostrati.",
   "webmcp.browser.waitingForSignIn": "L\u2019agente \u00e8 in attesa che tu completi l\u2019accesso e chiuda le finestre di accesso.",
   "webmcp.browser.signOut": "Disconnetti dal browser del progetto",
-  "webmcp.browser.confirmClose": "Queste pagine potrebbero contenere modifiche non salvate. Chiuderle e scartare le modifiche non salvate? {pages}"
+  "webmcp.browser.confirmClose": "Queste pagine potrebbero contenere modifiche non salvate. Chiuderle e scartare le modifiche non salvate? {pages}",
+  "webmcp.tools.showJson": "Mostra input JSON",
+  "webmcp.tools.hideJson": "Nascondi input JSON"
 }

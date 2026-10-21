@@ -1,6 +1,7 @@
 // Synthetic credentials only. Shared by preview, export, and actual checker-entry tests.
 export const secret = "AUDIT_FAKE_PASSWORD"
 const keys = [
+  "API key", "private key", "access token", "client secret", "secret key", "auth token", "session id", "x-api-key", "Api-Key",
   "token",
   "sig",
   "secret",

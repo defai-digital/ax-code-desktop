@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "Affichage de {shown} sur {total} entr\u00e9es ; {required} entr\u00e9es suppl\u00e9mentaires obligatoires ne sont pas affich\u00e9es.",
   "webmcp.browser.waitingForSignIn": "L\u2019agent attend que vous terminiez la connexion et fermiez les fen\u00eatres de connexion.",
   "webmcp.browser.signOut": "Se d\u00e9connecter du navigateur du projet",
-  "webmcp.browser.confirmClose": "Ces pages peuvent contenir des modifications non enregistr\u00e9es. Les fermer et abandonner les modifications non enregistr\u00e9es\u202f? {pages}"
+  "webmcp.browser.confirmClose": "Ces pages peuvent contenir des modifications non enregistr\u00e9es. Les fermer et abandonner les modifications non enregistr\u00e9es\u202f? {pages}",
+  "webmcp.tools.showJson": "Afficher l'entr\u00e9e JSON",
+  "webmcp.tools.hideJson": "Masquer l'entr\u00e9e JSON"
 }

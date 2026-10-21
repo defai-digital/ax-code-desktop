@@ -1,6 +1,6 @@
 "use strict"
 
-const { webMcpDisplayText, webMcpDisplayReport, webMcpDisplaySchema } = require("../../../shared/webmcp-redaction.mjs")
+const { webMcpDisplayText, webMcpDisplayReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
@@ -66,7 +66,7 @@ function projectToolCatalog(tools, kinds = new Map()) {
     const entry = {
       name: webMcpDisplayText(tool.name),
       description: webMcpDisplayText(tool.description ?? ""),
-      ...(tool.inputSchema ? { inputSchema: webMcpDisplaySchema(tool.inputSchema) } : {}),
+      ...(tool.inputSchema ? { inputSchema: structuredClone(tool.inputSchema) } : {}),
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),
@@ -1426,9 +1426,10 @@ function createDesktopWebMcpBrowser({
     closeAll: async () => {
       ++poolRevision
       for (const record of unloaded.values()) forget(record)
-      const closing = [...views.values()].map(close)
+      // Never pass map indexes: close() reads a second argument as confirmation to discard unsaved work.
+      const closing = [...views.values()].map((entry) => close(entry))
       await poolOperations.catch(() => {})
-      await Promise.allSettled([...closing, ...[...views.values()].map(close)])
+      await Promise.allSettled([...closing, ...[...views.values()].map((entry) => close(entry))])
       for (const record of unloaded.values()) forget(record)
     },
     runtimeChanged: () => {

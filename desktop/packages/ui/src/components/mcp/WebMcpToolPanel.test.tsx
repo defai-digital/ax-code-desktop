@@ -112,7 +112,7 @@ test("30 rendered fields send padded property 25, empty, zero and false without 
   ]
   fireEvent.click(container.querySelector<HTMLInputElement>("input[type=checkbox]")!)
   fireEvent.change(inputs[1], { target: { value: "0" } })
-  fireEvent.change(inputs[2], { target: { value: "false" } })
+  fireEvent.change(inputs[2], { target: { value: "option-1" } })
   fireEvent.change(inputs[24], { target: { value: "  lead  " } })
   fireEvent.change(inputs[29], { target: { value: "last" } })
   await runTool()
@@ -1075,4 +1075,45 @@ test.each([['pin', 'integer', '1234', 1234], ['cvv', 'number', '123.5', 123.5]])
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   expect(container.querySelector("[title]")?.getAttribute("title")).toHaveLength(4000)
   expect(container.innerHTML).not.toContain(description)
+})
+
+test.each([false, true])("long enum values keep exact executable identity, collision=%s", async (collision) => {
+  const first = "a".repeat(4100)
+  const second = "a".repeat(4000) + "b".repeat(100)
+  const { container, reply } = openTool({ type: "object", properties: { choice: { type: "string", enum: collision ? [first, second] : [first] } }, required: ["choice"] })
+  const select = container.querySelector("select")!
+  const index = collision ? 2 : 1
+  expect(select.options[index].textContent!.length).toBeLessThanOrEqual(4000)
+  fireEvent.change(select, { target: { value: select.options[index].value } })
+  await runTool()
+  expect(reply).toHaveBeenCalledWith("echo", { choice: collision ? second : first }, expect.anything())
+})
+
+test.each([true, false])("JSON masks nested sensitive schemas and sensitive drafts, schema=%s", async (sensitiveSchema) => {
+  const schema = { type: "object", properties: { auth: { type: "object", properties: { [sensitiveSchema ? "password" : "name"]: { type: "string" } } } } }
+  const view = openTool(schema)
+  const editor = view.container.querySelector("textarea")!
+  if (sensitiveSchema) expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+  fireEvent.change(editor, { target: { value: '{"auth":{"password":"example-credential-123"}}' } })
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+  expect(editor.autocomplete).toBe("off")
+  expect(editor.getAttribute("spellcheck")).toBe("false")
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.showJson" }))
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("")
+  await runTool()
+  expect(view.reply).toHaveBeenCalledWith("echo", { auth: { password: "example-credential-123" } }, expect.anything())
+  cleanup()
+  const restored = openTool(schema).container.querySelector("textarea")!
+  expect(restored.value).toContain("example-credential-123")
+  expect(restored.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+})
+
+
+test("Use JSON on a primitive schema masks credential-shaped draft text", () => {
+  const { container } = openTool({ type: "object", properties: { text: { type: "string" } } })
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.useJson" }))
+  const editor = container.querySelector("textarea")!
+  fireEvent.change(editor, { target: { value: '{"text":"API key: example-credential-123"}' } })
+  expect(editor.style.getPropertyValue("-webkit-text-security")).toBe("disc")
+  expect(screen.getByRole("button", { name: "webmcp.tools.showJson" })).toBeTruthy()
 })

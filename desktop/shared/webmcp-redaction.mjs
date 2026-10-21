@@ -18,7 +18,7 @@ export const WEBMCP_SENSITIVE_NAME =
 
 // Explicit credential names are sensitive regardless of the value length.
 function sensitiveParameterName(value, urlContext = false) {
-  let name = value.replaceAll("+", " ")
+  let name = value.replaceAll("+", " ").trim()
   for (let layer = 0; ; layer++) {
     const decoded = name.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
     if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name) || (urlContext && /^(?:code|state)$/i.test(name))
@@ -68,7 +68,7 @@ export function webMcpTextLooksSensitive(value) {
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
   // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
-  const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^\s"'`{}\[\],:=]+))\s*[:=]/g
+  const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^"'`{}\[\],:=\r\n]+))\s*[:=]/g
   for (const match of text.matchAll(assignments)) {
     if (!sensitiveParameterName(match[1] ?? match[2])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
@@ -168,4 +168,16 @@ export function webMcpDisplaySchema(value) {
 /** Tool output and diagnostics also redact values identified by sensitive field names. */
 export function webMcpDisplayReport(value) {
   return webMcpDisplaySchema(redactWebMcpReport(value))
+}
+
+/** Inspect schema property names at every depth without changing executable values. */
+export function webMcpSchemaLooksSensitive(schema) {
+  const seen = new WeakSet()
+  const visit = (value) => {
+    if (!value || typeof value !== "object" || seen.has(value)) return false
+    seen.add(value)
+    if (value.properties && Object.keys(value.properties).some((key) => WEBMCP_SENSITIVE_NAME.test(key))) return true
+    return Object.values(value).some(visit)
+  }
+  return visit(schema)
 }

@@ -5395,5 +5395,7 @@
   "chat.permissionCard.webmcp.inputsTruncated": "Menampilkan {shown} dari {total} input; {required} input wajib tambahan tidak ditampilkan.",
   "webmcp.browser.waitingForSignIn": "Agen menunggu Anda menyelesaikan masuk dan menutup jendela masuk.",
   "webmcp.browser.signOut": "Keluar dari peramban proyek",
-  "webmcp.browser.confirmClose": "Halaman ini mungkin berisi pekerjaan yang belum disimpan. Tutup dan buang perubahan yang belum disimpan? {pages}"
+  "webmcp.browser.confirmClose": "Halaman ini mungkin berisi pekerjaan yang belum disimpan. Tutup dan buang perubahan yang belum disimpan? {pages}",
+  "webmcp.tools.showJson": "Tampilkan input JSON",
+  "webmcp.tools.hideJson": "Sembunyikan input JSON"
 }
