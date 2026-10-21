@@ -2,6 +2,8 @@ import { createRequire, Module } from "node:module"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
 
+import { credentialTextCases, secret } from "../../../shared/testing/webmcp-redaction-cases.mjs"
+
 const require = createRequire(import.meta.url)
 afterEach(() => {
   vi.restoreAllMocks()
@@ -29,7 +31,9 @@ test("the actual Electron entry redacts every disk write without altering the in
     getTools: async () => [{ name: "echo" }],
     executeTool: async (_tool, input) => {
       inputs.push(JSON.parse(input))
-      if (inputs.length === 2) throw new Error("password=thrown-secret")
+      if (inputs.length === 2) throw new Error(JSON.stringify({ password: "thrown-secret" }))
+      if (inputs.length === 3) return { errors: credentialTextCases }
+      if (inputs.length === 4) throw new Error(credentialTextCases.join("\n"))
       return JSON.stringify({ access_token: "returned-secret", nested: [{ apiKey: "nested-secret" }], value: "kept" })
     },
   }
@@ -61,20 +65,23 @@ test("the actual Electron entry redacts every disk write without altering the in
       runs: [
         { name: "echo", input: { password: "input-secret" } },
         { name: "echo", input: {} },
+        { name: "echo", input: { messages: credentialTextCases } },
+        { name: "echo", input: {} },
       ],
     }),
   )
   require("./webmcp-check-entry.cjs")
   await vi.runAllTimersAsync()
   expect(exit).toHaveBeenCalledWith(0)
-  expect(inputs).toEqual([{ password: "input-secret" }, {}])
+  expect(inputs).toEqual([{ password: "input-secret" }, {}, { messages: credentialTextCases }, {}])
   expect(writes.length).toBeGreaterThan(2)
   for (const text of writes) {
-    for (const secret of ["input-secret", "returned-secret", "nested-secret", "thrown-secret"])
+    for (const secret of ["input-secret", "returned-secret", "nested-secret", "thrown-secret", "AUDIT_FAKE_PASSWORD"])
       expect(text).not.toContain(secret)
   }
   const report = JSON.parse(writes.at(-1))
   expect(report.runs[0].input).toEqual({ password: "[redacted]" })
   expect(JSON.parse(report.runs[0].output)).toMatchObject({ access_token: "[redacted]", value: "kept" })
-  expect(report.runs[1].error).toBe("[redacted]")
+  expect(report.runs[1].error).not.toContain("thrown-secret")
+  expect(JSON.stringify(report)).not.toContain(secret)
 })

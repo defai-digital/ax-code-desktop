@@ -1,3 +1,4 @@
+import { webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
 import { placeholderWebMcpSecrets } from "./toolHelpers"
 import { diagnosisFields, diagnosisOpaqueRequired, toolInputWarnings, type ToolField } from "./webMcpToolForm"
 
@@ -130,7 +131,9 @@ export function webMcpRegressionExport(entry: {
   input: Record<string, unknown>
   outcome: string
 }): { snippet: string; runArgument: string } | null {
-  if (!entry.tool || entry.tool.length > 256) return null
+  // Admission and transport failures cannot be reproduced by the standalone page classifier.
+  if (!["completed", "application-error", "timeout", "cancelled"].includes(entry.outcome)) return null
+  if (!entry.tool || entry.tool.length > 256 || webMcpTextLooksSensitive(entry.tool)) return null
   if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) return null
   let encoded: string
   try {

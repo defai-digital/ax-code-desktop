@@ -10,16 +10,33 @@ const WEBMCP_CREDENTIALS = [
   /\bAKIA[0-9A-Z]{16}\b/,
   /\bBearer\s+\S{16,}/i,
   /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
-  // Any value after a credential keyword, however short (password=hunter2 must not show).
-  /\b(?:api[_-]?key|secret|token|password|passwd|passphrase|access[_-]?key|authorization|cookie)\s*[:=]\s*['"]?\S+/i,
 ]
 
 /** Key or field names whose values are never shown, whatever the value looks like. */
 export const WEBMCP_SENSITIVE_NAME =
-  /password|passwd|passphrase|secret|token|credential|api.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
+  /password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
 
 export function webMcpTextLooksSensitive(value) {
-  return WEBMCP_CREDENTIALS.some((pattern) => pattern.test(value))
+  // Inspect embedded assignments independently of JSON parsing: diagnostics, fences and quoted
+  // JSON strings are all text. Decode escape layers only for detection; never return decoded data.
+  let text = value
+  while (true) {
+    const decoded = text.replace(
+      /\\(?:u([0-9a-f]{4})|x([0-9a-f]{2})|(["'`\\/])|([nrtbf]))/gi,
+      (_match, unicode, hex, literal) =>
+        literal ?? (unicode || hex ? String.fromCharCode(parseInt(unicode || hex, 16)) : " "),
+    )
+    if (decoded === text) break
+    text = decoded
+  }
+  if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
+  // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
+  // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
+  const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^\s"'`{}\[\],:=]+))\s*[:=]/g
+  for (const match of text.matchAll(assignments)) {
+    if (WEBMCP_SENSITIVE_NAME.test(match[1] ?? match[2])) return true
+  }
+  return false
 }
 
 /** Preserve report structure while filtering the same keys and credential shapes as the UI.

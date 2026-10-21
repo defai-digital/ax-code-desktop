@@ -1,5 +1,28 @@
 "use strict"
 
+const MANUAL_TOOL_FAILURE_REASONS = {
+  "application-error": ["application-error"],
+  timeout: ["timeout"],
+  cancelled: ["cancelled"],
+  uncertain: ["provider-gone", "native-failure"],
+  failed: [
+    "page-changed",
+    "definition-changed",
+    "invalid-input",
+    "input-too-large",
+    "result-too-large",
+    "native-failure",
+  ],
+}
+
+// Includes form/admission outcomes returned before native dispatch.
+const MANUAL_TOOL_OUTCOMES = Object.freeze([
+  "completed",
+  ...Object.keys(MANUAL_TOOL_FAILURE_REASONS),
+  "stale-form",
+  "invalid-input",
+])
+
 // Mirror the transcript's application-error signals. Transport completion alone is not tool success.
 function manualToolResult(result) {
   let output = result.output
@@ -37,23 +60,13 @@ function manualToolResult(result) {
 
 function manualToolFailure(error) {
   // This metadata is made by the adapter, never copied from page exception text.
-  const reasons = {
-    "application-error": ["application-error"],
-    timeout: ["timeout"],
-    cancelled: ["cancelled"],
-    uncertain: ["provider-gone", "native-failure"],
-    failed: [
-      "page-changed",
-      "definition-changed",
-      "invalid-input",
-      "input-too-large",
-      "result-too-large",
-      "native-failure",
-    ],
-  }
-  if (Object.hasOwn(reasons, error?.outcome) && reasons[error.outcome].includes(error.reason))
+
+  if (
+    Object.hasOwn(MANUAL_TOOL_FAILURE_REASONS, error?.outcome) &&
+    MANUAL_TOOL_FAILURE_REASONS[error.outcome].includes(error.reason)
+  )
     return { ok: false, outcome: error.outcome, reason: error.reason }
   return { ok: false, outcome: "uncertain", reason: "provider-gone" }
 }
 
-module.exports = { manualToolResult, manualToolFailure }
+module.exports = { manualToolResult, manualToolFailure, MANUAL_TOOL_OUTCOMES }

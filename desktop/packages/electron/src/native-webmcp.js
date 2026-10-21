@@ -95,13 +95,13 @@ class NativeWebMcp {
     this.contents = contents
     this.changed = changed
     this.generation = randomUUID()
+    this.revocationId = randomUUID()
     this.frameId = ""
     this.tools = new Map()
     // Declarative (form) versus imperative (script). Kept beside the tool so the runtime snapshot,
     // and the digest an invocation is bound to, stay the qualified definition shape.
     this.toolKinds = new Map()
-    // A rejected registration is named for the builder. It does not drop tools already accepted
-    // and it does not mark the adapter unavailable: that path disconnects the pane.
+    // Rejections retire affected definitions while leaving unrelated tools and the pane available.
     this.catalogRejection = null
     this.pending = new Map()
     this.closed = false
@@ -164,6 +164,7 @@ class NativeWebMcp {
   }
   revoke({ cancelPageRequest = false } = {}) {
     this.generation = randomUUID()
+    this.revocationId = randomUUID()
     this.readId = null
     const ids = [...this.pending.keys()]
     if (cancelPageRequest && this.activePageRequestId) ids.push(this.activePageRequestId)
@@ -181,13 +182,7 @@ class NativeWebMcp {
       // Hints on a tool are not read here. They never authorize a call.
       this.acceptTools(params && params.tools)
     } else if (method === "WebMCP.toolsRemoved") {
-      if (!params || !Array.isArray(params.tools)) return
-      for (const tool of params.tools) {
-        if (tool && tool.frameId === this.frameId && typeof tool.name === "string") {
-          this.tools.delete(tool.name)
-          this.toolKinds.delete(tool.name)
-        }
-      }
+      this.retireDefinitions(params?.tools)
       this.changed()
     } else if (method === "WebMCP.toolResponded") {
       // Keep early responses bounded without rejecting an unrelated invocation.
@@ -201,14 +196,40 @@ class NativeWebMcp {
       else for (const entry of this.pending.values()) if (!entry.invocationId) entry.early = response
     }
   }
+  // Retire the entire affected batch before validation: a rejection anywhere in a batch must
+  // not leave an earlier or later replacement authorized by its previous definition.
+  retireDefinitions(tools) {
+    const unknown =
+      !Array.isArray(tools) ||
+      tools.some(
+        (tool) =>
+          !tool ||
+          typeof tool !== "object" ||
+          typeof tool.frameId !== "string" ||
+          !tool.frameId ||
+          (tool.frameId === this.frameId && (typeof tool.name !== "string" || !tool.name)),
+      )
+    const names = unknown
+      ? [...this.tools.keys()]
+      : tools.filter((tool) => tool.frameId === this.frameId).map((tool) => tool.name)
+    let retired = false
+    for (const name of names) {
+      retired = this.tools.delete(name) || retired
+      this.toolKinds.delete(name)
+    }
+    // Even re-registering the same digest cannot revive a previously approved request.
+    // Already dispatched calls retain their completion identity until enrollment/document revocation.
+    if (retired) this.generation = randomUUID()
+  }
   /**
    * Apply one toolsAdded batch, or name why it was rejected.
    * A repeated name is a replacement (the page re-registered that tool). Two copies of one name in the
-   * same batch are ambiguous and the whole batch is refused. Refusal keeps every tool already accepted
-   * and leaves the adapter available, so the pane stays connected and the builder can read the reason.
+   * same batch are ambiguous and the whole batch is refused. Refusal retires affected tools but
+   * leaves unrelated tools available, so the builder can read the reason without disconnecting.
    */
   acceptTools(tools) {
-    if (!Array.isArray(tools)) {
+    this.retireDefinitions(tools)
+    if (!Array.isArray(tools) || tools.some((tool) => !tool || typeof tool.frameId !== "string" || !tool.frameId)) {
       this.catalogRejection = catalogRejection("invalid-schema", "")
       this.changed()
       return
@@ -322,11 +343,18 @@ class NativeWebMcp {
     if (request.operation !== "invoke" || this.pending.size !== 0 || this.interacting)
       throw invocationError("failed", "native-failure", "Native operation is unavailable")
     const tool = this.tools.get(request.toolName)
-    if (!tool || definitionDigest(tool) !== request.digest) throw invocationError("failed", "definition-changed")
+    if (
+      !tool ||
+      tool.frameId !== request.frameId ||
+      tool.name !== request.toolName ||
+      definitionDigest(tool) !== request.digest
+    )
+      throw invocationError("failed", "definition-changed")
     if (!request.input || Array.isArray(request.input) || typeof request.input !== "object") {
       throw invocationError("failed", "invalid-input")
     }
     if (byteSize(request.input) > 65536) throw invocationError("failed", "input-too-large")
+    const revocationId = this.revocationId
     return new Promise((resolve, reject) => {
       const finish = (result) => {
         clearTimeout(timer)
@@ -337,12 +365,7 @@ class NativeWebMcp {
           return
         }
         const current = this.snapshot()
-        if (
-          this.closed ||
-          current.generation !== request.generation ||
-          current.origin !== request.origin ||
-          !this.available
-        ) {
+        if (this.closed || this.revocationId !== revocationId || current.origin !== request.origin || !this.available) {
           reject(invocationError("uncertain", "provider-gone"))
         } else if (Date.now() >= request.deadline) {
           reject(invocationError("timeout", "timeout"))

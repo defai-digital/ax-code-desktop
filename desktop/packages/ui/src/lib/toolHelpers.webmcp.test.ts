@@ -291,3 +291,13 @@ test("nested JSON strings are credential-filtered in arguments, receipts and reg
   expect(JSON.parse(JSON.parse(exported.payload as string).nested)).toEqual({ password: "<fill in>", public: "kept" })
   expect(input.payload).toContain(secret)
 })
+
+test("shared embedded-text corpus is redacted in UI previews and input receipts", async () => {
+  const { credentialTextCases, secret } = await import("../../../../shared/testing/webmcp-redaction-cases.mjs")
+  for (const text of credentialTextCases) {
+    expect(webMcpResultPreview({ error: text })).not.toContain(secret)
+    expect(JSON.stringify(redactWebMcpInput({ message: text }))).not.toContain(secret)
+    expect(JSON.stringify(redactWebMcpInput({ [text]: "ordinary" }))).not.toContain(secret)
+    expect(JSON.stringify(placeholderWebMcpSecrets({ message: text }))).not.toContain(secret)
+  }
+})

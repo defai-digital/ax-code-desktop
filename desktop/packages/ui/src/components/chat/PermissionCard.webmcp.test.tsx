@@ -373,3 +373,43 @@ describe("WebMCP permission card", () => {
     expect(container.textContent).not.toContain("{}")
   })
 })
+
+test.each([1, 5, 14])("approval lists required properties before the twelve-input cap (%s required)", (count) => {
+  const key = viewKeyFor("/repo", "ses_1")
+  const optional = Array.from({ length: 13 }, (_, index) => `optional${index}`)
+  const required = Array.from({ length: count }, (_, index) => `required${index}`)
+  useWebMcpBrowserStore.getState().updateView(key, {
+    sessionID: "ses_1",
+    directory: "/repo",
+    origin: "https://example.com",
+    catalog: [
+      {
+        name: "echo",
+        digest: "a".repeat(64),
+        description: "Echo",
+        inputSchema: {
+          type: "object",
+          properties: Object.fromEntries([...optional, ...required].map((name) => [name, { type: "string" }])),
+          required,
+        },
+      },
+    ],
+  })
+  const { container } = render(
+    <PermissionCard
+      permission={request({
+        metadata: {
+          origin: "https://example.com",
+          operation: "invoke",
+          toolName: "echo",
+          definitionDigest: "a".repeat(64),
+          desktopProvider: true,
+        },
+      })}
+    />,
+  )
+  const text = container.querySelector("[data-webmcp-approval-inputs]")!.textContent!
+  const names = JSON.parse(text.slice(text.indexOf(":") + 1)).names.split(", ")
+  expect(names).toEqual([...required.map((name) => `${name}*`), ...optional].slice(0, 12))
+  useWebMcpBrowserStore.getState().resetView(key)
+})

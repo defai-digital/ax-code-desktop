@@ -749,9 +749,7 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   expect(view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-run]")?.textContent).toContain(
     "--run ",
   )
-  expect(view.container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-snippet]")?.textContent).toContain(
-    "document.modelContext.executeTool",
-  )
+  expect(view.container.querySelector("[data-webmcp-export='agent']")).toBeNull()
 })
 
 test("the same definition digest is not flagged, and a missing runtime input is not guessed", async () => {
@@ -890,4 +888,42 @@ test("redacted receipt values are uncheckable while ordinary properties still ge
   expect(view.container.querySelector("[data-webmcp-diagnosis-property='password']")).toBeNull()
   expect(view.container.querySelector("[data-webmcp-diagnosis-gap='redacted']")).not.toBeNull()
   expect(view.container.querySelector("[data-webmcp-diagnosis-property='count']")?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
+})
+
+test.each([
+  "completed",
+  "application-error",
+  "timeout",
+  "cancelled",
+  "failed",
+  "uncertain",
+  "stale-form",
+  "invalid-input",
+])("manual outcome %s offers copy only when the standalone classifier can reproduce it", async (outcome) => {
+  const { container } = openTool(
+    { type: "object", properties: {} },
+    vi.fn(async () => ({ ok: outcome === "completed", outcome })),
+  )
+  await runTool()
+  expect(container.querySelector(`[data-webmcp-journal-outcome='${outcome}']`)).not.toBeNull()
+  const supported = ["completed", "application-error", "timeout", "cancelled"].includes(outcome)
+  expect(container.querySelector("[data-webmcp-export='manual']") !== null).toBe(supported)
+  expect(
+    [...container.querySelectorAll("button")].some((button) => button.textContent === "webmcp.tools.export.copyTest"),
+  ).toBe(supported)
+})
+
+test.each([
+  'Validation failed: {"password":"AUDIT_FAKE_PASSWORD"}',
+  '```json\n{"password":"AUDIT_FAKE_PASSWORD"}\n```',
+])("embedded diagnostics stay out of rendered previews and exports: %s", async (text) => {
+  const { container } = openTool(
+    { type: "object", properties: { payload: { type: "string" } } },
+    vi.fn(async () => ({ ok: true, output: { error: text } })),
+  )
+  fireEvent.change(container.querySelector("input")!, { target: { value: text } })
+  await runTool()
+  expect(container.textContent).not.toContain("AUDIT_FAKE_PASSWORD")
+  expect(container.querySelector("[data-webmcp-export-snippet]")?.textContent).toContain("<fill in>")
+  expect(container.querySelector("[data-webmcp-tool-result]")?.textContent).toContain("[redacted]")
 })

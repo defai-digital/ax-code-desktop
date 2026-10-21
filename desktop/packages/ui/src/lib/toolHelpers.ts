@@ -319,7 +319,7 @@ function redactJsonValue(value: unknown): unknown {
   if (isPlainRecord(value)) {
     const next: Record<string, unknown> = {}
     for (const [key, entry] of Object.entries(value))
-      next[key] =
+      next[webMcpTextLooksSensitive(key) ? "[redacted]" : key] =
         WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
     return next
   }
@@ -476,9 +476,7 @@ export function describeWebMcpCall(
     const preview = readWebMcpString(metadata, "inputPreview")
     if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
     else if (preview)
-      argumentsText = webMcpTextLooksSensitive(preview)
-        ? "[redacted]"
-        : truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
+      argumentsText = truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")
