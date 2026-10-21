@@ -5389,5 +5389,6 @@
   "chat.permissionCard.webmcp.pageSays": "La page le d\u00e9crit comme : {description}",
   "webmcp.calls.awaitingApproval": "En attente de votre approbation. V\u00e9rifiez-la",
   "sessionGrid.moveSession": "D\u00e9placer la session : {title}",
-  "sessionGrid.moved": "{title} d\u00e9plac\u00e9 vers le volet {count}"
+  "sessionGrid.moved": "{title} d\u00e9plac\u00e9 vers le volet {count}",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "La d\u00e9finition actuelle de l'outil de la page peut diff\u00e9rer de celle demand\u00e9e."
 }

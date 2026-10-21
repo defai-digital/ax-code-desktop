@@ -1,5 +1,6 @@
 // Pure helpers for `pnpm run webmcp:check`: argument parsing, the page origin rule and exit codes.
 import { createRequire } from "node:module"
+import { isDeepStrictEqual } from "node:util"
 
 const require = createRequire(import.meta.url)
 // The same mapping the project browser's Try it panel uses, so a CI check and a person agree on what failed.
@@ -79,20 +80,45 @@ export function parseCheckArgs(argv) {
  * Classifies a check report and picks the exit code: a load or engine failure, no tools, an expected tool missing,
  * a run whose tool is missing or that returned an error, or success.
  */
-export function evaluateReport(report, options) {
+export function evaluateReport(report, options, termination) {
   const problems = []
-  if (report.error) return { exitCode: EXIT.failed, problems: [`The page could not be checked: ${report.error}`], runs: [] }
+  if (termination && (termination.timedOut || termination.code !== 0 || termination.signal))
+    problems.push(
+      termination.timedOut
+        ? "The browser engine exceeded the check deadline."
+        : `The browser engine exited abnormally (${termination.signal ?? termination.code}).`,
+    )
+  if (report.error) problems.push(`The page could not be checked: ${report.error}`)
+  const recorded = report.runs ?? []
+  // Match occurrences, not a set of names: --run may repeat a tool with different inputs.
+  if (options.runs) {
+    for (const [index, requested] of options.runs.entries()) {
+      const run = recorded[index]
+      if (
+        !run ||
+        run.name !== requested.name ||
+        !isDeepStrictEqual(run.input, requested.input) ||
+        (!Object.hasOwn(run, "output") && !run.error)
+      )
+        problems.push(`Requested run ${index + 1} (${requested.name}) has no matching completed report.`)
+    }
+    if (recorded.length > options.runs.length) problems.push("The report contains unexpected runs.")
+  }
+  const incomplete = problems.length > 0
   const names = new Set((report.tools ?? []).map((tool) => tool.name))
   if (names.size === 0) problems.push("The page registered no page tools.")
   for (const name of options.expectTools) if (!names.has(name)) problems.push(`Expected tool not registered: ${name}`)
-  const runs = (report.runs ?? []).map((run) => {
+  const runs = recorded.map((run) => {
     if (run.error) return { ...run, outcome: "failed", detail: run.error }
+    if (!Object.hasOwn(run, "output")) return { ...run, outcome: "failed", detail: "The run has no result." }
     const mapped = manualToolResult({ output: run.output })
     return { ...run, outcome: mapped.outcome }
   })
-  for (const run of runs) if (run.outcome !== "completed") problems.push(`${run.name}: ${run.outcome}${run.detail ? ` (${run.detail})` : ""}`)
-  const exitCode =
-    names.size === 0
+  for (const run of runs)
+    if (run.outcome !== "completed") problems.push(`${run.name}: ${run.outcome}${run.detail ? ` (${run.detail})` : ""}`)
+  const exitCode = incomplete
+    ? EXIT.failed
+    : names.size === 0
       ? EXIT.noTools
       : options.expectTools.some((name) => !names.has(name))
         ? EXIT.failed

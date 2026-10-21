@@ -39,12 +39,16 @@ const child = spawn(electron, [path.join(here, "webmcp-check-entry.cjs")], {
 })
 // Load, settle and every run each have their own limit; this only catches an engine that stops responding.
 const budget = options.timeoutMs * (options.runs.length + 1) + options.settleMs + 15_000
-const timer = setTimeout(() => child.kill(), budget)
-const code = await new Promise((resolve) => {
-  child.on("exit", resolve)
+let timedOut = false
+const timer = setTimeout(() => {
+  timedOut = true
+  child.kill()
+}, budget)
+const termination = await new Promise((resolve) => {
+  child.on("exit", (code, signal) => resolve({ code, signal }))
   child.on("error", (error) => {
     console.error(`webmcp:check: cannot start the bundled browser engine (${error.message}); run pnpm install`)
-    resolve(null)
+    resolve({ code: null, signal: null })
   })
 })
 clearTimeout(timer)
@@ -52,14 +56,14 @@ let report
 try {
   report = JSON.parse(fs.readFileSync(output, "utf8"))
 } catch {
-  report = { error: `the browser engine exited (${code}) without a report` }
+  report = { error: `the browser engine exited (${termination.signal ?? termination.code}) without a report` }
 }
 try {
   fs.rmSync(work, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 } catch {
   // A locked profile file (Windows) must not change the result; the directory is in the system temp folder.
 }
-const result = evaluateReport(report, options)
+const result = evaluateReport(report, options, { ...termination, timedOut })
 if (options.json) {
   console.log(JSON.stringify({ url: options.url, tools: report.tools ?? [], runs: result.runs, problems: result.problems, exitCode: result.exitCode }, null, 2))
 } else {

@@ -1,4 +1,4 @@
-import React from "react"
+import React, { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, render } from "@/test/dom"
 import type { PermissionRequest } from "@/types/permission"
@@ -54,8 +54,13 @@ describe("WebMCP permission card", () => {
       catalog: [
         {
           name: "add_task",
+          digest: "a".repeat(64),
           description: "Add a task to the list.",
-          inputSchema: { type: "object", properties: { title: { type: "string" }, priority: { type: "string" } }, required: ["title"] },
+          inputSchema: {
+            type: "object",
+            properties: { title: { type: "string" }, priority: { type: "string" } },
+            required: ["title"],
+          },
           annotations: { consequentialHint: true },
         },
       ],
@@ -63,14 +68,38 @@ describe("WebMCP permission card", () => {
     const { container } = render(
       <PermissionCard
         permission={request({
-          metadata: { origin: "https://example.com", operation: "invoke", toolName: "add_task", desktopProvider: true },
+          metadata: {
+            origin: "https://example.com",
+            operation: "invoke",
+            toolName: "add_task",
+            definitionDigest: "a".repeat(64),
+            desktopProvider: true,
+          },
         })}
       />,
     )
     const info = container.querySelector("[data-webmcp-approval-tool]")
-    expect(info?.querySelector("[data-webmcp-approval-hint]")?.getAttribute("data-webmcp-approval-hint")).toBe("consequential")
+    expect(info?.querySelector("[data-webmcp-approval-hint]")?.getAttribute("data-webmcp-approval-hint")).toBe(
+      "consequential",
+    )
     expect(info?.querySelector("[data-webmcp-approval-inputs]")?.textContent).toContain("title*, priority")
     expect(info?.querySelector("[data-webmcp-approval-description]")?.textContent).toContain("Add a task to the list.")
+    act(() =>
+      useWebMcpBrowserStore.getState().updateView(key, {
+        catalog: [
+          {
+            name: "add_task",
+            digest: "b".repeat(64),
+            description: "Replacement definition",
+            annotations: { readOnlyHint: true },
+          },
+        ],
+      }),
+    )
+    expect(container.querySelector("[data-webmcp-approval-description]")).toBeNull()
+    expect(container.querySelector("[data-webmcp-approval-hint]")).toBeNull()
+    expect(container.querySelector("[data-webmcp-approval-inputs]")).toBeNull()
+    expect(container.textContent).toContain("chat.permissionCard.webmcp.definitionMayDiffer")
     // Another page's tool of the same name is never shown.
     cleanup()
     useWebMcpBrowserStore.getState().updateView(key, { origin: "https://other.example" })
@@ -84,6 +113,39 @@ describe("WebMCP permission card", () => {
     expect(other.container.querySelector("[data-webmcp-approval-tool]")).toBeNull()
     useWebMcpBrowserStore.getState().resetView?.(key)
   })
+
+  test.each([undefined, "b".repeat(64)])(
+    "withholds the current definition when the call digest is %s",
+    (definitionDigest) => {
+      const key = viewKeyFor("/repo", "ses_1")
+      useWebMcpBrowserStore.getState().updateView(key, {
+        sessionID: "ses_1",
+        directory: "/repo",
+        origin: "https://example.com",
+        catalog: [
+          { name: "echo", digest: "a".repeat(64), description: "Current claim", annotations: { readOnlyHint: true } },
+        ],
+      })
+      const { container } = render(
+        <PermissionCard
+          permission={request({
+            metadata: {
+              origin: "https://example.com",
+              operation: "invoke",
+              toolName: "echo",
+              definitionDigest,
+              desktopProvider: true,
+            },
+          })}
+        />,
+      )
+      expect(container.textContent).toContain("chat.permissionCard.webmcp.definitionMayDiffer")
+      expect(container.textContent).not.toContain("Current claim")
+      expect(container.querySelector("[data-webmcp-approval-hint]")).toBeNull()
+      cleanup()
+      useWebMcpBrowserStore.getState().resetView(key)
+    },
+  )
 
   test("opens with one plain effect sentence and says the answer covers this call only", () => {
     const { container } = render(

@@ -37,6 +37,33 @@ describe("webmcp:check arguments", () => {
 describe("webmcp:check exit codes", () => {
   const options = { expectTools: [] }
   const tools = [{ name: "add_task" }, { name: "list_tasks" }]
+  const requested = [
+    { name: "add_task", input: { title: "first" } },
+    { name: "add_task", input: { title: "second" } },
+  ]
+  test.each(
+    [
+      [],
+      [{ ...requested[0], output: "{}" }],
+      [
+        { ...requested[1], output: "{}" },
+        { ...requested[0], output: "{}" },
+      ],
+      [{ ...requested[0], output: "{}" }, { ...requested[1] }],
+    ].map((runs) => [runs]),
+  )("rejects unfinished or mismatched requested runs: %j", (runs) => {
+    const result = evaluateReport({ tools, runs }, { ...options, runs: requested })
+    expect(result.exitCode).toBe(EXIT.failed)
+    expect(result.problems.length).toBeGreaterThan(0)
+  })
+  test("accepts every requested occurrence in order, including repeated names", () => {
+    expect(
+      evaluateReport(
+        { tools, runs: requested.map((run) => ({ ...run, output: "{}" })) },
+        { ...options, runs: requested },
+      ).exitCode,
+    ).toBe(EXIT.ok)
+  })
   test("a structured error returned by the page fails the check, as it does in Try it", () => {
     const report = {
       tools,

@@ -1318,6 +1318,29 @@ test("the visible catalog stops at 64 tools and at 256 KiB before a later defini
 })
 
 describe("manual invocation native outcomes", () => {
+  test.each(["definition-changed", "page-changed", "unclassified"])(
+    "agent replies retain only safe adapter failure metadata: %s", async (reason) => {
+      const f = fixture()
+      const { sender, status } = await f.create()
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      const execute = vi.spyOn(NativeWebMcp.prototype, "execute").mockRejectedValue(
+        Object.assign(new Error("password=synthetic-secret"), { outcome: "failed", reason }),
+      )
+      try {
+        f.pushStreamRequest({
+          providerID: "provider-1", epoch: "boot", projectID: "project", sessionID: "ses_fixture",
+          requestID: "failed-call", operation: "invoke", generation: "page", deadline: Date.now() + 2000,
+        })
+        await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({
+          requestID: "failed-call", generation: "page", status: "Error",
+          output: reason === "unclassified" ? { outcome: "uncertain", reason: "provider-gone" } : { outcome: "failed", reason },
+        }))
+        expect(JSON.stringify(f.requests.filter((r) => r.url.endsWith("/reply")))).not.toContain("synthetic-secret")
+      } finally {
+        execute.mockRestore()
+      }
+    },
+  )
   test.each([
     ["Completed", { value: 5 }, "completed", undefined],
     ["Completed", { isError: true }, "application-error", "application-error"],
@@ -1491,6 +1514,27 @@ describe("WX-15 visible-to-act gate", () => {
     ...partial,
   })
   const bounds = { x: 0, y: 0, width: 500, height: 300 }
+  test.each(["bounds", "show"])("%s recovery does not undo an explicit Pause agent", async (action) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    if (action === "show") {
+      const other = await f.controller.command(sender, {
+        action: "create", directory: "/tmp/project", sessionID: "ses_other", url: "https://other.test/",
+      })
+      await f.controller.command(sender, { action: "show", id: other.id })
+    } else {
+      await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds, width: 0, height: 0 })
+    }
+    f.pushStreamRequest(request())
+    await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }))
+    await f.controller.command(sender, { action, id: status.id, ...bounds })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true, paused: true, visible: true })
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    await f.controller.command(sender, { action: "resume", id: status.id })
+    await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Completed" }))
+  })
   test.each(["dialog", "palette", "minimize"])(
     "%s preserves executing navigation and holds only new calls",
     async (reason) => {

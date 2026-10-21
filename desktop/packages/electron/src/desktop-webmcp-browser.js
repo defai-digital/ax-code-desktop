@@ -294,7 +294,7 @@ function createDesktopWebMcpBrowser({
       entry.view.setBounds(entry.bounds)
       entry.attached = true
     }
-    if (visible(entry)) entry.waiting?.wake()
+    if (visible(entry) && !entry.paused) entry.waiting?.wake()
   }
   const cancellationReply = (entry, connection, request, reason, state = "stopped") =>
     api(
@@ -641,7 +641,16 @@ function createDesktopWebMcpBrowser({
       // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
       void entry.adapter
         .execute(request)
-        .catch(() => ({ requestID: request.requestID, generation: request.generation, status: "Error" }))
+        .catch((error) => {
+          // Only adapter-owned, allowlisted metadata crosses the bridge; exception text may contain secrets.
+          const { outcome, reason } = manualToolFailure(error)
+          return {
+            requestID: request.requestID,
+            generation: request.generation,
+            status: "Error",
+            output: { outcome, reason },
+          }
+        })
         .then(async (reply) => {
           finished()
           if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
@@ -1243,7 +1252,7 @@ function createDesktopWebMcpBrowser({
           entry.attached = true
         }
         entry.view.setBounds(bounds)
-        if (visible(entry)) entry.waiting?.wake()
+        if (visible(entry) && !entry.paused) entry.waiting?.wake()
       } else if (entry.attached) {
         hide(entry)
       }
