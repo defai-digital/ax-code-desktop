@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Se d\u00e9connecter du navigateur du projet",
   "webmcp.browser.confirmClose": "Ces pages peuvent contenir des modifications non enregistr\u00e9es. Les fermer et abandonner les modifications non enregistr\u00e9es\u202f? {pages}",
   "webmcp.tools.showJson": "Afficher l'entr\u00e9e JSON",
-  "webmcp.tools.hideJson": "Masquer l'entr\u00e9e JSON"
+  "webmcp.tools.hideJson": "Masquer l'entr\u00e9e JSON",
+  "chat.permissionCard.webmcp.expandDescription": "D\u00e9velopper la description compl\u00e8te de la page",
+  "webmcp.tools.diagnosis.truncated": "Aper\u00e7u tronqu\u00e9 ; les arguments complets ne sont pas disponibles pour le diagnostic.",
+  "chat.permissionCard.webmcp.unanswered": "Aucune r\u00e9ponse enregistr\u00e9e ; la demande d'approbation n'est plus disponible."
 }

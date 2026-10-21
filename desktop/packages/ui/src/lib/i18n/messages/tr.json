@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Proje taray\u0131c\u0131s\u0131ndan oturumu kapat",
   "webmcp.browser.confirmClose": "Bu sayfalar kaydedilmemi\u015f \u00e7al\u0131\u015fmalar i\u00e7erebilir. Kapat\u0131p kaydedilmemi\u015f de\u011fi\u015fiklikleri atmal\u0131 m\u0131y\u0131m? {pages}",
   "webmcp.tools.showJson": "JSON giri\u015fini g\u00f6ster",
-  "webmcp.tools.hideJson": "JSON giri\u015fini gizle"
+  "webmcp.tools.hideJson": "JSON giri\u015fini gizle",
+  "chat.permissionCard.webmcp.expandDescription": "Sayfan\u0131n tam a\u00e7\u0131klamas\u0131n\u0131 geni\u015flet",
+  "webmcp.tools.diagnosis.truncated": "\u00d6n izleme kesildi; te\u015fhis i\u00e7in tam arg\u00fcmanlar mevcut de\u011fil.",
+  "chat.permissionCard.webmcp.unanswered": "Kay\u0131tl\u0131 yan\u0131t yok; onay talebi art\u0131k mevcut de\u011fil."
 }

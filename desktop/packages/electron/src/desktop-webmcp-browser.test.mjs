@@ -1203,12 +1203,12 @@ test("preserves the initial native load cause while keeping the address bar usab
 })
 
 describe("page tools for the user", () => {
-  test("lists the page's tools for the user and lets them try one without granting the agent anything", async () => {
+  test.each(["add_numbers", "token=TOOL_NAME_SECRET"])("invokes the opaque catalog selector without a grant: %s", async (name) => {
     const f = fixture()
     const { sender, status } = await f.create()
     const guest = f.guests.at(-1)
     const tool = {
-      name: "add_numbers",
+      name,
       description: "Add two integers",
       frameId: "top",
       inputSchema: { type: "object", properties: { a: { type: "integer" }, b: { type: "integer" } } },
@@ -1218,12 +1218,13 @@ describe("page tools for the user", () => {
     expect(listed.enabled).toBe(false)
     expect(listed.catalog).toEqual([
       {
-        name: tool.name,
+        name: name === "add_numbers" ? name : "[redacted]",
         description: tool.description,
         inputSchema: tool.inputSchema,
         kind: "script",
         digest: catalogDigest(tool),
         definitionDigest: definitionDigest(tool),
+        invocationID: definitionDigest(tool),
       },
     ])
     expect(listed.catalogTotal).toBe(1)
@@ -1232,7 +1233,7 @@ describe("page tools for the user", () => {
 
     guest.debugger.sendCommand = async (method, params) => {
       if (method === "WebMCP.invokeTool") {
-        expect(params).toMatchObject({ toolName: "add_numbers", input: { a: 2, b: 3 } })
+        expect(params).toMatchObject({ toolName: name, input: { a: 2, b: 3 } })
         queueMicrotask(() =>
           guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
             invocationId: "inv-1",
@@ -1252,7 +1253,7 @@ describe("page tools for the user", () => {
       origin: listed.origin,
       generation: listed.generation,
       definitionDigest: listed.catalog[0].definitionDigest,
-      toolName: "add_numbers",
+      toolName: listed.catalog[0].invocationID,
       input: { a: 2, b: 3 },
     })
     expect(tried).toEqual({ ok: true, outcome: "completed", output: { content: [{ type: "text", text: "5" }] } })
@@ -1282,6 +1283,7 @@ describe("page tools for the user", () => {
       description: form.description,
       annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: true },
       kind: "form",
+      invocationID: definitionDigest({ name: form.name, description: form.description, frameId: "top", annotations: form.annotations }),
       definitionDigest: definitionDigest({ name: form.name, description: form.description, frameId: "top", annotations: form.annotations }),
       digest: catalogDigest({
         name: form.name,

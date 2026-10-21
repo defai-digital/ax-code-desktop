@@ -257,7 +257,7 @@ export const WEBMCP_FAILURE_REASONS = [
 ] as const
 export type WebMcpFailureReason = (typeof WEBMCP_FAILURE_REASONS)[number]
 
-const WEBMCP_PREVIEW_LIMIT = 600
+const WEBMCP_PREVIEW_LIMIT = 4096
 
 export interface ToolMetadataContext {
   input?: Record<string, unknown> | null
@@ -401,7 +401,7 @@ export function readWebMcpDefinitionDigest(metadata: Record<string, unknown> | n
   return null
 }
 
-export type WebMcpInvokeInputKind = "object" | "preview" | "unparsed" | "redacted" | "missing"
+export type WebMcpInvokeInputKind = "object" | "preview" | "truncated" | "unparsed" | "redacted" | "missing"
 
 /**
  * The invoke input a diagnosis may check. Arguments come only from `metadata.arguments`, `metadata.input`, or the
@@ -416,6 +416,7 @@ export function readWebMcpInvokeInput(metadata: Record<string, unknown> | null |
   if (args) return { kind: "object", input: redactInvokeRecord(args) }
   const preview = readWebMcpString(metadata, "inputPreview")
   if (!preview) return { kind: "missing", input: null }
+  if (/… \(\d+ bytes, \d+ not shown\)$/.test(preview)) return { kind: "truncated", input: null }
   try {
     const parsed: unknown = JSON.parse(preview)
     if (isPlainRecord(parsed)) return { kind: "preview", input: redactInvokeRecord(parsed) }
@@ -475,7 +476,12 @@ export function describeWebMcpCall(
     // Newer runtimes (ADR-266) send `inputPreview`: the exact input, already redacted and capped. It is still filtered here.
     const preview = readWebMcpString(metadata, "inputPreview")
     if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
-    else if (preview) argumentsText = truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
+    else if (preview) {
+      // Filter the untrusted prefix independently so fail-closed redaction cannot swallow the runtime's receipt marker.
+      const marker = preview.match(/… \(\d+ bytes, \d+ not shown\)$/)?.[0] ?? ""
+      const prefix = marker ? preview.slice(0, -marker.length) : preview
+      argumentsText = truncateToCodeUnits(redactWebMcpReport(prefix) as string, WEBMCP_PREVIEW_LIMIT - marker.length) + marker
+    }
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")

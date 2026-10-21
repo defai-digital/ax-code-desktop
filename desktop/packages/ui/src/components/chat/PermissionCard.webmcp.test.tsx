@@ -1,6 +1,6 @@
 import React, { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
-import { cleanup, render } from "@/test/dom"
+import { cleanup, fireEvent, render } from "@/test/dom"
 import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import type { PermissionRequest } from "@/types/permission"
 
@@ -573,3 +573,25 @@ test.each([undefined, {}, { note: { type: "string" } }])(
     expect(note).toContain('"required":2')
   },
 )
+
+test.each([false, true])("v7.28.2 permission metadata preserves masked preview and full page claim (%s)", (truncated) => {
+  const key = viewKeyFor("/repo", "ses_1")
+  const description = "Page claim. ".repeat(341) + "End."
+  const tool = nativeWebMcpTool({ name: "echo", description, inputSchema: { type: "object", properties: { title: { type: "string" } } } })
+  useWebMcpBrowserStore.getState().updateView(key, { sessionID: "ses_1", origin: "https://example.com", catalog: [tool] })
+  // Exact permission metadata keys from desktop_webmcp v7.28.2.
+  const inputPreview = truncated ? '{"title":"' + "a".repeat(1900) + '… (4096 bytes, 2048 not shown)' : '{"title":"Ship","password":"[redacted]","note":"ghp_abcdefghijklmnopqrstuvwx"}'
+  const { container } = render(<PermissionCard permission={request({ metadata: {
+    requireInteractive: false, desktopProvider: true, origin: "https://example.com", operation: "invoke", toolName: "echo",
+    providerID: "provider-1", generation: "page-1", definitionDigest: tool.definitionDigest, inputPreview,
+  } })} />)
+  expect(container.textContent).not.toContain("ghp_abcdefghijklmnopqrstuvwx")
+  expect(container.textContent).not.toContain("DESCRIPTION_SECRET")
+  expect(container.textContent).toContain(truncated ? "… (4096 bytes, 2048 not shown)" : "Ship")
+  const details = container.querySelector<HTMLDetailsElement>("details[data-webmcp-approval-description]")!
+  expect(details.open).toBe(false)
+  fireEvent.click(details.querySelector("summary")!)
+  expect(details.open).toBe(true)
+  expect(details.querySelector("summary")?.textContent).toContain("expandDescription")
+  expect(details.querySelector("p")?.textContent).toContain(description)
+})

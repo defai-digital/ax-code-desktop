@@ -229,7 +229,7 @@ through the page's model context, which is not the path an agent's call takes; c
 | A tool is missing after an action | it was unregistered by its `AbortSignal`, or the panel is showing 64 of N | check **Registration**; a cap leaves later tools off the list and says how many were registered |
 | The panel names a rejected registration | two tools share a name in one update, or a name, description, or schema is outside the limits above | the message names the tool; fix that registration. Tools already accepted stay, and the project browser stays connected |
 | A previous **Try it** result is marked stale | the page registered a different definition for that tool | run it again if you still want a result for the new definition. The journal row still names the digest it ran against, and the schema check says the definition changed |
-| The schema check says the runtime did not provide arguments | the runtime sent no arguments object and no input preview | nothing is guessed. Compare the text the transcript shows. A newer runtime can send an input preview |
+| The schema check says the runtime did not provide arguments | the runtime sent no arguments object and no input preview | nothing is guessed. Compare the text the transcript shows. The pinned v7.28.2 runtime sends a masked JSON input preview for invokes |
 | Typed input disappeared | the tool's definition changed, or you opened another page | the same definition keeps what you typed, including across a reload of that page |
 | **Try it** shows an error result | your `execute` returned an error, or threw | prefer returning `{ error: { field, constraint, got } }`; it tells the agent what to fix |
 | The agent picks the wrong tool, or never calls one | overlapping tools or vague descriptions | merge or rename tools; state inputs and results in the description; the landing recap lists tools never called |
@@ -299,3 +299,21 @@ as not run (contaminated). The check fails and no later tool is invoked in that 
 still-running mutation from contaminating subsequent checks.
 
 The checker reports missing expected tools as failure (exit 1), including pages with no tools. Without expected tools, an empty catalog exits 2. Its watchdog terminates the entire Electron process tree before removing the temporary profile.
+
+### Approval and iteration receipts (runtime v7.28.2)
+
+Invoke approvals use the runtime's `desktopProvider`, `origin`, `operation`, `toolName`, `providerID`, `generation`,
+`definitionDigest` and `inputPreview` metadata. The runtime masks sensitive keys and caps the UTF-8 preview at 2 KiB.
+Desktop filters it again and preserves the `… (N bytes, M not shown)` marker. A truncated preview is labelled as such and
+is not treated as complete JSON for schema diagnosis. A complete JSON object can be compared with a manual run.
+
+The approval card shows page hints and its full, filtered description only for a matching native definition digest.
+Expand the description to read the page's own claim (up to the 4096-character registration limit); it is not evidence of
+what the tool will do. When an observed approval disappears without a recorded answer, the call strip and transcript say
+that no answer was recorded and the request is no longer available. They do not infer a timeout or a rollback.
+
+Registration history keeps at most 32 events in memory, including accepted definitions. Changed rows show added, removed
+and changed schema properties with type, required, enum and description differences. When the call's digest is still in
+history, the agent schema check uses that definition. History is scoped to the page view and cleared on origin changes.
+Manual invocation uses an opaque native selector, so a tool with a credential-shaped name can be tried without exposing its
+name in the displayed catalog or result. It still requires the current origin, generation and definition digest.

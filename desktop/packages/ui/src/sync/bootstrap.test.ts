@@ -262,3 +262,16 @@ describe("bootstrapDirectory — per-directory scoping", () => {
     expect(sdk.vcs.get).toHaveBeenCalledWith({ directory: "/work/project-b" })
   })
 })
+
+import { useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
+test("an uncontested empty permission resync records the vanished call without assuming a timeout", async () => {
+  useWebMcpApprovalOutcomes.setState({ calls: new Map() })
+  const request = { id: "perm_expired", sessionID: "ses_expired", permission: "webmcp", tool: { callID: "call-expired", messageID: "message-1" } } as PermissionRequest
+  const harness = makeHarness({ permission: { ses_expired: [request] } })
+  await bootstrapDirectory({ directory: "/repo", sdk: makeBaseSdk(), ...harness,
+    global: { projects: [{ id: "proj_1", worktree: "/repo" } as never] }, loadSessions: () => undefined })
+  await flush()
+  expect(harness.getState().permission.ses_expired).toBeUndefined()
+  expect(useWebMcpApprovalOutcomes.getState().calls.get(JSON.stringify(["ses_expired", "call-expired"]))).toBe("unanswered")
+  useWebMcpApprovalOutcomes.setState({ calls: new Map() })
+})

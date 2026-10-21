@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Sair do navegador do projeto",
   "webmcp.browser.confirmClose": "Essas p\u00e1ginas podem conter trabalho n\u00e3o salvo. Fechar e descartar as altera\u00e7\u00f5es n\u00e3o salvas? {pages}",
   "webmcp.tools.showJson": "Exibir entrada JSON",
-  "webmcp.tools.hideJson": "Ocultar entrada JSON"
+  "webmcp.tools.hideJson": "Ocultar entrada JSON",
+  "chat.permissionCard.webmcp.expandDescription": "Expandir a descri\u00e7\u00e3o completa da p\u00e1gina",
+  "webmcp.tools.diagnosis.truncated": "Visualiza\u00e7\u00e3o truncada; argumentos completos n\u00e3o est\u00e3o dispon\u00edveis para diagn\u00f3stico.",
+  "chat.permissionCard.webmcp.unanswered": "Nenhuma resposta registrada; a solicita\u00e7\u00e3o de aprova\u00e7\u00e3o n\u00e3o est\u00e1 mais dispon\u00edvel."
 }

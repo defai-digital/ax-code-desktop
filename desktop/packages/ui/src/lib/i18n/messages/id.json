@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Keluar dari peramban proyek",
   "webmcp.browser.confirmClose": "Halaman ini mungkin berisi pekerjaan yang belum disimpan. Tutup dan buang perubahan yang belum disimpan? {pages}",
   "webmcp.tools.showJson": "Tampilkan input JSON",
-  "webmcp.tools.hideJson": "Sembunyikan input JSON"
+  "webmcp.tools.hideJson": "Sembunyikan input JSON",
+  "chat.permissionCard.webmcp.expandDescription": "Perluas deskripsi halaman lengkap",
+  "webmcp.tools.diagnosis.truncated": "Pratinjau terpotong; argumen lengkap tidak tersedia untuk diagnosis.",
+  "chat.permissionCard.webmcp.unanswered": "Tidak ada jawaban yang tercatat; permintaan persetujuan tidak lagi tersedia."
 }
