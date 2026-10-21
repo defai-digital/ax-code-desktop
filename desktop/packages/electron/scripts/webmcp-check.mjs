@@ -33,6 +33,7 @@ const output = path.join(work, "report.json")
 const profile = path.join(work, "profile")
 const receiptKey = randomBytes(32).toString("hex")
 const child = spawn(electron, [path.join(here, "webmcp-check-entry.cjs")], {
+  detached: process.platform !== "win32",
   env: {
     ...process.env,
     AX_WEBMCP_CHECK: JSON.stringify({ ...options, output, profile, receiptKey }),
@@ -46,7 +47,11 @@ const budget = options.timeoutMs * (options.runs.length + 1) + options.settleMs 
 let timedOut = false
 const timer = setTimeout(() => {
   timedOut = true
-  child.kill()
+  if (process.platform === "win32") {
+    spawn("taskkill", ["/pid", String(child.pid), "/T", "/F"], { stdio: "ignore" })
+  } else {
+    try { process.kill(-child.pid, "SIGKILL") } catch { child.kill("SIGKILL") }
+  }
 }, budget)
 const termination = await new Promise((resolve) => {
   child.on("exit", (code, signal) => resolve({ code, signal }))

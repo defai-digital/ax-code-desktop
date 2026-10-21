@@ -134,7 +134,7 @@ Quit, restart (including menu and appearance restarts), and update installation 
 close. A refusal cancels shutdown before background services stop or the process exits, and brings the retained page and
 its window to the front. Save your work or close the page explicitly, then retry. Inconclusive probes retain their bounded
 deadline and use the same unsaved-work confirmation as explicit page closure; cancelling keeps the app running. Confirmation
-is bound to the current documents, so navigation while a prompt is open cannot authorize discarding a replacement document.
+is bound to page and webContents identities, so navigation and tool registration cannot prevent closure. A changed identity prompts once more; the second confirmation closes anyway.
 
 ## 5. Write tools the agent gets right
 
@@ -267,9 +267,10 @@ popups, using the same sticky interaction flag and bounded document probe as
 pool eviction. Close checks the affected page and its popups. If any page may
 contain unsaved work, the Desktop confirmation dialog identifies all affected
 sessions and pages. Cancel preserves the pages and project storage. Approval is
-one-use and bound to the window, action, page inventory and document generation;
-a changed document requires a fresh confirmation. Disconnect and revoke stop
+one-use and bound to the window, action, view IDs and webContents IDs. URL, document revision and tool generation changes do not invalidate it. An identity change permits at most one additional confirmation; shutdown offers an explicit Close anyway button. Disconnect and revoke stop
 agent access while preserving browser pages and sign-in popups.
+
+Repeated whitespace, tabs, dots, underscores and hyphens are accepted between compound credential names consistently in assignments, object values, schemas and input masking. Reply POSTs have a two-second deadline, including navigation and visibility-timeout replies. Checkpointed and cancelled transcript calls retain their terminal outcomes in recaps.
 
 Manual Try it inputs with sensitive names are masked and disable autocomplete,
 including integer PINs and numeric CVVs. Submitted values retain their schema
@@ -296,3 +297,5 @@ submitted JSON.
 If a checker run times out without confirmed termination, every remaining requested run is recorded
 as not run (contaminated). The check fails and no later tool is invoked in that page, preventing a
 still-running mutation from contaminating subsequent checks.
+
+The checker reports missing expected tools as failure (exit 1), including pages with no tools. Without expected tools, an empty catalog exits 2. Its watchdog terminates the entire Electron process tree before removing the temporary profile.

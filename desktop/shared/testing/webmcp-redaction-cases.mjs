@@ -1,6 +1,8 @@
 // Synthetic credentials only. Shared by preview, export, and actual checker-entry tests.
 export const secret = "AUDIT_FAKE_PASSWORD"
+export const compoundKeys = ["api key", "access key", "private key", "one time", "card number", "key pair id", "client secret", "auth token"].flatMap((key) => ["  ", "\t", "._- \t", "\n"].map((separator) => key.replaceAll(" ", separator)))
 const keys = [
+  ...compoundKeys,
   "API key", "private key", "access token", "client secret", "secret key", "auth token", "session id", "x-api-key", "Api-Key",
   "token",
   "sig",
@@ -82,7 +84,7 @@ credentialTextCases.push(
     ...["Bearer", "Basic"].flatMap((scheme) => wrappers.map((wrap) => wrap(`${scheme} ${value}`))),
     ...keys.flatMap((key) => [
       ...wrappers.map((wrap) => wrap(`"${key}":"${value}"`)),
-      ...["?", "#", "#/route?", "/route;", "/"].map((prefix) => `https://example.test/${prefix}${key}=${value}`),
+      ...["?", "#", "#/route?", "/route;", "/"].map((prefix) => `https://example.test/${prefix}${encodeURIComponent(key)}=${value}`),
     ]),
     `Authorization: ${value}`,
     `Authorization: Bearer ${value}`,

@@ -1,4 +1,5 @@
 {
+  "Close anyway": "desktop.native.closeAnyway",
   "AX Code could not find its agent runtime.": "desktop.native.axCodeCouldNotFindItsAgentRuntime",
   "AX Code is not responding": "desktop.native.axCodeIsNotResponding",
   "AX Code runtime not found": "desktop.native.axCodeRuntimeNotFound",

@@ -14,7 +14,7 @@ const WEBMCP_CREDENTIALS = [
 
 /** Key or field names whose values are never shown, whatever the value looks like. */
 export const WEBMCP_SENSITIVE_NAME =
-  /(?:^|[-_])(?:sig|signature|policy|key[-_]pair[-_]id)$|password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
+  /(?:^|[\s._-])(?:sig|signature|policy|key[\s._-]*pair[\s._-]*id)$|password|passwd|passphrase|secret|token|credential|api[\s._-]*key|access[\s._-]*key|private[\s._-]*key|authorization|bearer|cookie|session|otp|one[\s._-]*time|pin\b|cvv|cvc|card[\s._-]*number|recovery|seed/i
 
 // Explicit credential names are sensitive regardless of the value length.
 function sensitiveParameterName(value, urlContext = false) {
@@ -68,7 +68,7 @@ export function webMcpTextLooksSensitive(value) {
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
   // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
-  const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^"'`{}\[\],:=\r\n]+))\s*[:=]/g
+  const assignments = /(?:["'`]([^"'`]+)["'`]|(?<![^\s"'`{}\[\],:=])([^"'`{}\[\],:=]+))\s*[:=]/g
   for (const match of text.matchAll(assignments)) {
     if (!sensitiveParameterName(match[1] ?? match[2])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a

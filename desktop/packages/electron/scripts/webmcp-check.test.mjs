@@ -37,6 +37,8 @@ test.each([
   vi.resetModules()
   vi.useFakeTimers()
   const child = new EventEmitter()
+  child.pid = 123456
+  const killGroup = vi.spyOn(process, "kill").mockImplementation(() => { child.emit("exit", code, signal); return true })
   child.kill = vi.fn(() => child.emit("exit", code, signal))
   mocks.spawn.mockReturnValue(child)
   mocks.read.mockImplementation(() => {
@@ -69,6 +71,10 @@ test.each([
   if (timedOut) await vi.runAllTimersAsync()
   else child.emit("exit", code, signal)
   await done
+  if (timedOut && process.platform !== "win32") {
+    expect(killGroup).toHaveBeenCalledWith(-child.pid, "SIGKILL")
+    expect(mocks.spawn.mock.calls.at(-1)[2].detached).toBe(true)
+  }
   const result = JSON.parse(log.mock.calls.at(-1)[0])
   const success = complete && code === 0 && !signal && !timedOut
   expect(exit).toHaveBeenCalledWith(success ? 0 : 1)

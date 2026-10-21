@@ -22,6 +22,7 @@ function fixture({
   pollTimeoutMs,
   pollRetryMs,
   nextPoll,
+  replyPost,
   confirmClose,
   capabilityResponse,
 } = {}) {
@@ -164,6 +165,7 @@ function fixture({
             epoch: "boot",
             projectID: "project",
           })
+        if (request.url.endsWith("/reply") && replyPost) return replyPost(request)
         if (request.url.endsWith("/next") && nextPoll) return nextPoll(request)
         if (request.url.endsWith("/next"))
           return nextStreamRequest(request.url.split("/").at(-2), request.signal).then(
@@ -2866,7 +2868,7 @@ test.each(["close", "disconnect", "revokeSession"])("%s preserves sign-in window
 })
 
 describe("explicit destructive page confirmation", () => {
-  test.each(["clearProject", "close"])("%s protects sticky and beforeunload work and binds approval to the document", async (action) => {
+  test.each(["clearProject", "close"])("%s protects sticky and beforeunload work and binds approval to the page identity", async (action) => {
     const f = fixture()
     const { sender, status } = await f.create({ attach: false })
     const guest = f.guests[0]
@@ -2880,10 +2882,9 @@ describe("explicit destructive page confirmation", () => {
     expect(guest.close).not.toHaveBeenCalled()
     guest.emit("before-input-event", {}, { type: "keyDown" })
     guest.url = "https://example.com/replacement"
-    const stale = await f.controller.command(sender, { ...args, closeConfirmation: first.closeConfirmation })
-    expect(stale.confirmationRequired).toBe(true)
-    expect(guest.close).not.toHaveBeenCalled()
-    await f.controller.command(sender, { ...args, closeConfirmation: stale.closeConfirmation })
+    guest.desktopDocumentRevision = 999
+    guest.emit("did-start-navigation", {}, guest.url, false, true)
+    await f.controller.command(sender, { ...args, closeConfirmation: first.closeConfirmation })
     expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
   })
 
@@ -2988,4 +2989,54 @@ describe("shutdown honors project browser refusal", () => {
 test("catalog preserves accepted descriptions including their final instructions", () => {
   const description = "x".repeat(4046) + " final builder instructions".padEnd(50, ".")
   expect(projectToolCatalog([{ name: "inspect", description }]).catalog[0].description).toBe(description)
+})
+
+test("replacement contents require at most one extra close confirmation", async () => {
+  const f = fixture()
+  const { sender, status } = await f.create({ attach: false })
+  const guest = f.guests[0]
+  guest.emit("before-input-event", {}, { type: "keyDown" })
+  const args = { action: "close", id: status.id }
+  const first = await f.controller.command(sender, args)
+  guest.id = 100
+  const second = await f.controller.command(sender, { ...args, closeConfirmation: first.closeConfirmation })
+  expect(second.confirmationRequired).toBe(true)
+  guest.id = 101
+  await f.controller.command(sender, { ...args, closeConfirmation: second.closeConfirmation })
+  expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
+})
+
+test("shutdown offers close anyway when contents change during confirmation", async () => {
+  let f
+  const confirmClose = vi.fn(async () => { f.guests[0].id = (f.guests[0].id ?? 0) + 1; return true })
+  f = fixture({ confirmClose })
+  await f.create({ attach: false })
+  f.guests[0].emit("before-input-event", {}, { type: "keyDown" })
+  expect(await f.controller.closeAll()).toEqual([])
+  expect(confirmClose).toHaveBeenCalledTimes(2)
+  expect(confirmClose.mock.calls[1][2]).toEqual({ closeAnyway: true })
+  expect(f.guests[0].destroyed).toBe(true)
+})
+
+test.each(["navigate", "act", "waiting"])("%s reply POST has its own bounded abort signal", async (operation) => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal)
+  const deadlines = vi.spyOn(AbortSignal, "timeout").mockImplementation((ms) => timeout(ms === 2000 ? 30 : ms))
+  let aborted = false
+  const f = fixture({ replyPost: (request) => new Promise((_, reject) => {
+    request.signal.addEventListener("abort", () => { aborted = true; reject(request.signal.reason) }, { once: true })
+  }) })
+  try {
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    if (operation === "waiting") await f.controller.command(sender, { action: "pause", id: status.id })
+    f.pushStreamRequest(f.navigationRequest({
+      ...(operation === "act" ? { operation: "act", action: { kind: "wait", milliseconds: 1 } } : {}),
+      ...(operation === "waiting" ? { deadline: Date.now() + 50 } : {}),
+    }))
+    await vi.waitFor(() => expect(replies(f).length).toBeGreaterThanOrEqual(1))
+    await vi.waitFor(() => expect(aborted).toBe(true), { timeout: 500 })
+    expect(deadlines).toHaveBeenCalledWith(2000)
+  } finally {
+    deadlines.mockRestore()
+  }
 })

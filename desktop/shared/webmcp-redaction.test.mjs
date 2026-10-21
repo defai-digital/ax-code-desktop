@@ -1,12 +1,14 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 import {
+  WEBMCP_SENSITIVE_NAME,
+  webMcpSchemaLooksSensitive,
   redactWebMcpText,
   redactWebMcpReport,
   webMcpTextLooksSensitive,
   webMcpDisplayDescription,
 } from "./webmcp-redaction.mjs"
-import { credentialTextCases, credentialUrlShapes, secret } from "./testing/webmcp-redaction-cases.mjs"
+import { compoundKeys, credentialTextCases, credentialUrlShapes, secret } from "./testing/webmcp-redaction-cases.mjs"
 
 test("embedded credential assignments are filtered across every generated shape", () => {
   for (const text of credentialTextCases) {
@@ -77,4 +79,12 @@ test("display projections preserve the native 4096-character description limit",
   const description = "x".repeat(4046) + " final builder instructions".padEnd(50, ".")
   assert.equal(description.length, 4096)
   assert.equal(webMcpDisplayDescription(description), description)
+})
+
+test("compound labels share sensitivity across object and schema boundaries", () => {
+  for (const key of compoundKeys) {
+    assert.equal(WEBMCP_SENSITIVE_NAME.test(key), true, key)
+    assert.deepEqual(redactWebMcpReport({ [key]: secret }), { [key]: "[redacted]" })
+    assert.equal(webMcpSchemaLooksSensitive({ properties: { [key]: { type: "string" } } }), true, key)
+  }
 })

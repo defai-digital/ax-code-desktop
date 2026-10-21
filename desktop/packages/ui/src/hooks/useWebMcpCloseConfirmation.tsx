@@ -9,7 +9,7 @@ type CloseReply = {
   pages?: { id: string; sessionID: string | null; title: string }[]
 }
 
-/** Main binds each one-use confirmation to the affected documents, action and owner. */
+/** Main binds each one-use confirmation to the affected page identities, action and owner. */
 export function useWebMcpCloseConfirmation() {
   const { requestConfirm, confirmDialog } = useConfirmDialog()
   const { t } = useI18n()
@@ -17,12 +17,12 @@ export function useWebMcpCloseConfirmation() {
     const bridge = getDesktopBridge()
     if (!bridge?.invoke) throw new Error("Browser unavailable")
     let reply = await bridge.invoke<T & CloseReply>("desktop_webmcp_browser", args)
-    while (reply?.confirmationRequired) {
+    for (let attempt = 0; reply?.confirmationRequired && attempt < 2; attempt++) {
       const pages = (reply.pages ?? []).map((page) => `${page.sessionID ?? page.id} · ${webMcpDisplayText(page.title)} · ${page.id}`).join("\n")
       if (!(await requestConfirm(t("webmcp.browser.confirmClose", { pages }), { destructive: true }))) return null
       reply = await bridge.invoke<T & CloseReply>("desktop_webmcp_browser", { ...args, closeConfirmation: reply.closeConfirmation })
     }
-    return reply
+    return reply?.confirmationRequired ? null : reply
   }
   return { invoke, confirmDialog }
 }

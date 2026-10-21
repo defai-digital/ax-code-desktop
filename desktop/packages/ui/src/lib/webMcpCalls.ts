@@ -19,7 +19,7 @@ export interface WebMcpCall {
   toolName: string | null
   operation: string | null
   argumentsText: string | null
-  outcome: "running" | "ok" | "failed"
+  outcome: "running" | "ok" | "failed" | "checkpointed" | "cancelled"
   failureReason: WebMcpFailureReason | null
   at: number | null
   /** The transcript message holding the call, so a row can open it. */
@@ -129,7 +129,13 @@ export function collectWebMcpCalls(
         toolName: call.toolName,
         operation: call.operation,
         argumentsText: call.argumentsText,
-        outcome: failed ? "failed" : status === "completed" ? "ok" : "running",
+        outcome: status === "checkpointed"
+          ? "checkpointed"
+          : /^(cancelled|canceled|aborted)$/.test(status)
+            ? "cancelled"
+            : failed
+              ? "failed"
+              : status === "completed" ? "ok" : "running",
         failureReason: call.failureReason,
         at: typeof state.time?.start === "number" ? state.time.start : null,
         messageId,
@@ -156,4 +162,11 @@ export function formatWebMcpDuration(ms: number): string {
   if (ms < 1000) return `${Math.round(ms)} ms`
   if (ms < 60_000) return `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`
   return `${Math.round(ms / 60_000)} min`
+}
+
+/** Reuse translated terminal-state labels rather than inventing English fallbacks. */
+export function webMcpCallOutcomeKey(outcome: WebMcpCall["outcome"]) {
+  if (outcome === "cancelled") return "chat.todo.cancelled" as const
+  if (outcome === "checkpointed") return "supervision.goal.status.paused" as const
+  return `webmcp.calls.outcome.${outcome}` as const
 }
