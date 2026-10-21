@@ -5391,5 +5391,6 @@
   "sessionGrid.moveSession": "Mover sesi\u00f3n: {title}",
   "sessionGrid.moved": "{title} movido al panel {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "La definici\u00f3n actual de la herramienta de la p\u00e1gina puede diferir de la solicitada.",
-  "webmcp.tools.staleForm": "Este formulario est\u00e1 obsoleto porque la p\u00e1gina o la herramienta de p\u00e1gina cambi\u00f3. Vuelva a abrir la herramienta y revise la entrada antes de intentarlo de nuevo."
+  "webmcp.tools.staleForm": "Este formulario est\u00e1 obsoleto porque la p\u00e1gina o la herramienta de p\u00e1gina cambi\u00f3. Vuelva a abrir la herramienta y revise la entrada antes de intentarlo de nuevo.",
+  "chat.permissionCard.webmcp.inputsTruncated": "Mostrando {shown} de {total} entradas; {required} entradas adicionales obligatorias no se muestran."
 }

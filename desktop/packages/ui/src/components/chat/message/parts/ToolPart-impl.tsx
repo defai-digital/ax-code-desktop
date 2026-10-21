@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import type { AnimationPlaybackControls } from "motion"
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
@@ -205,12 +206,12 @@ const webMcpExpandedInput = (
 ): string => {
   const call: WebMcpCallDescription = describeWebMcpCall(input, metadata)
   const lines: string[] = []
-  if (call.toolName) lines.push(`${t("chat.permissionCard.webmcp.tool")} ${call.toolName}`)
-  if (call.operation) lines.push(`${t("chat.permissionCard.webmcp.operation")} ${call.operation}`)
-  if (call.how) lines.push(`${t("chat.permissionCard.webmcp.how")} ${call.how}`)
+  if (call.toolName) lines.push(`${t("chat.permissionCard.webmcp.tool")} ${redactWebMcpText(call.toolName)}`)
+  if (call.operation) lines.push(`${t("chat.permissionCard.webmcp.operation")} ${redactWebMcpText(call.operation)}`)
+  if (call.how) lines.push(`${t("chat.permissionCard.webmcp.how")} ${redactWebMcpText(call.how)}`)
   if (call.element) {
     const label = [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
-    if (label) lines.push(`${t("chat.permissionCard.webmcp.element")} ${label}`)
+    if (label) lines.push(`${t("chat.permissionCard.webmcp.element")} ${redactWebMcpText(label)}`)
     lines.push(
       t(call.element.submit ? "chat.permissionCard.webmcp.submit" : "chat.permissionCard.webmcp.doesNotSubmit"),
     )

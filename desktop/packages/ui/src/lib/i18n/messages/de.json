@@ -5391,5 +5391,6 @@
   "sessionGrid.moveSession": "Sitzung verschieben: {title}",
   "sessionGrid.moved": "{title} wurde in Bereich {count} verschoben",
   "chat.permissionCard.webmcp.definitionMayDiffer": "Die aktuelle Tool-Definition der Seite kann von der angeforderten abweichen.",
-  "webmcp.tools.staleForm": "Dieses Formular ist veraltet, weil sich die Seite oder das Seiten-Tool ge\u00e4ndert hat. \u00d6ffnen Sie das Tool erneut und \u00fcberpr\u00fcfen Sie die Eingaben, bevor Sie es erneut versuchen."
+  "webmcp.tools.staleForm": "Dieses Formular ist veraltet, weil sich die Seite oder das Seiten-Tool ge\u00e4ndert hat. \u00d6ffnen Sie das Tool erneut und \u00fcberpr\u00fcfen Sie die Eingaben, bevor Sie es erneut versuchen.",
+  "chat.permissionCard.webmcp.inputsTruncated": "Zeige {shown} von {total} Eingaben; {required} weitere erforderliche Eingaben werden nicht angezeigt."
 }

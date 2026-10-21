@@ -5391,5 +5391,6 @@
   "sessionGrid.moveSession": "D\u00e9placer la session : {title}",
   "sessionGrid.moved": "{title} d\u00e9plac\u00e9 vers le volet {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "La d\u00e9finition actuelle de l'outil de la page peut diff\u00e9rer de celle demand\u00e9e.",
-  "webmcp.tools.staleForm": "Ce formulaire est obsol\u00e8te car la page ou l\u2019outil de page a chang\u00e9. Rouvrez l\u2019outil et v\u00e9rifiez les entr\u00e9es avant de r\u00e9essayer."
+  "webmcp.tools.staleForm": "Ce formulaire est obsol\u00e8te car la page ou l\u2019outil de page a chang\u00e9. Rouvrez l\u2019outil et v\u00e9rifiez les entr\u00e9es avant de r\u00e9essayer.",
+  "chat.permissionCard.webmcp.inputsTruncated": "Affichage de {shown} sur {total} entr\u00e9es ; {required} entr\u00e9es suppl\u00e9mentaires obligatoires ne sont pas affich\u00e9es."
 }

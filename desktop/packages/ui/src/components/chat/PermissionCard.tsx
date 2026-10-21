@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import { cn } from "@/lib/utils"
 import type { PermissionRequest, PermissionResponse } from "@/types/permission"
@@ -403,7 +404,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
           <div className="mb-2">
             <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.webmcp.origin")}</div>
             <code className="typography-meta px-2 py-1 bg-muted/30 rounded block break-all font-medium text-foreground">
-              {origin || "—"}
+              {redactWebMcpText(origin) || "—"}
             </code>
           </div>
           {(webTool || operation) && (
@@ -411,13 +412,13 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               {webTool ? (
                 <span className="inline-flex items-center gap-1 typography-meta">
                   <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.tool")}</span>
-                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{webTool}</code>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{redactWebMcpText(webTool)}</code>
                 </span>
               ) : null}
               {operation ? (
                 <span className="inline-flex items-center gap-1 typography-meta">
                   <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.operation")}</span>
-                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{operation}</code>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{redactWebMcpText(operation)}</code>
                 </span>
               ) : null}
             </div>
@@ -427,7 +428,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               {elementLabel ? (
                 <span className="inline-flex items-center gap-1 typography-meta">
                   <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.element")}</span>
-                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{elementLabel}</code>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{redactWebMcpText(elementLabel)}</code>
                 </span>
               ) : null}
               <span className="typography-meta text-muted-foreground">
@@ -443,7 +444,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             <div className="mb-2">
               <span className="inline-flex items-center gap-1 typography-meta">
                 <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.how")}</span>
-                <code className="px-1.5 py-0.5 bg-muted/30 rounded">{call.how}</code>
+                <code className="px-1.5 py-0.5 bg-muted/30 rounded">{redactWebMcpText(call.how)}</code>
               </span>
             </div>
           ) : null}

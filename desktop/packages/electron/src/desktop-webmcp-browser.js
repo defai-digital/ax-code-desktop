@@ -507,6 +507,16 @@ function createDesktopWebMcpBrowser({
       await api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", payload, signal)
     }
     try {
+      // Revalidate after visibility/pause waits, immediately before starting the load.
+      const document = entry.adapter.snapshot()
+      if (
+        entry.adapter.closed ||
+        !entry.adapter.available ||
+        request.generation !== document.generation ||
+        request.origin !== document.origin ||
+        request.frameId !== document.frameId
+      )
+        throw Object.assign(new Error("The browser document changed"), { reason: "page-changed" })
       // Agent-initiated navigation follows the runtime's own rule (https anywhere,
       // http only on loopback, no credentials); user-driven pane navigation keeps
       // the wider allowedUrl gate.
@@ -537,7 +547,11 @@ function createDesktopWebMcpBrowser({
         requestID: request.requestID,
         generation: entry.adapter.snapshot().generation,
         status: "Error",
-        output: { reason: ["invalid-input", "timeout"].includes(error?.reason) ? error.reason : "native-failure" },
+        output: {
+          reason: ["invalid-input", "timeout", "page-changed"].includes(error?.reason)
+            ? error.reason
+            : "native-failure",
+        },
       })
     } finally {
       signal.removeEventListener("abort", abort)

@@ -170,3 +170,26 @@ test.each(["definition-changed", "result-too-large", "input-too-large"])(
     expect(container.textContent).not.toContain("chat.toolPart.webmcp.reason.provider-gone")
   },
 )
+
+test.each(["https://u:AUDIT_FAKE_PASSWORD@example.test/", "https://example.test/?%74oken=AUDIT_FAKE_PASSWORD"])(
+  "page labels in transcript headers and expanded metadata are redacted: %s",
+  (label) => {
+    const { container } = renderPart(
+      "desktop_webmcp",
+      {
+        status: "completed",
+        input: { action: "act", toolName: label },
+        metadata: {
+          operation: "act",
+          toolName: label,
+          how: "click",
+          element: { ref: "e1", name: label, kind: "button" },
+        },
+        output: JSON.stringify({ done: true }),
+      },
+      true,
+    )
+    expect(container.innerHTML).not.toContain("AUDIT_FAKE_PASSWORD")
+    expect(container.textContent).toContain("[redacted]")
+  },
+)

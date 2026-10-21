@@ -198,6 +198,12 @@ function fixture({
     create,
     requests,
     pushStreamRequest,
+    navigationRequest: (overrides = {}) => {
+      const providerID = overrides.providerID ?? "provider-1"
+      const state = requests.findLast((request) => request.url.endsWith(`/provider/${providerID}/state`))?.body
+        ?? requests.findLast((request) => request.url.endsWith("/provider") && request.method === "POST")?.body.snapshot
+      return navigateRequest({ generation: state.generation, origin: state.origin, frameId: state.frameId, ...overrides })
+    },
     guests,
     revocations,
     owners,
@@ -235,7 +241,7 @@ describe("desktop WebMCP navigation requests", () => {
     const guest = f.guests[0]
     const load = vi.spyOn(guest, "loadURL")
     const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
-    f.pushStreamRequest({ batch: { request: navigateRequest(), canceled: ["req-navigate"] } })
+    f.pushStreamRequest({ batch: { request: f.navigationRequest(), canceled: ["req-navigate"] } })
     await vi.waitFor(() => expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls))
     expect(load).not.toHaveBeenCalled()
     expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
@@ -266,7 +272,7 @@ describe("desktop WebMCP navigation requests", () => {
             }
           }),
       )
-      f.pushStreamRequest(navigateRequest())
+      f.pushStreamRequest(f.navigationRequest())
       await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
       if (action === "revokeSession") {
         await f.controller.command(sender, { action, directory: "/tmp/project", sessionID: "ses_fixture" })
@@ -310,7 +316,7 @@ describe("desktop WebMCP navigation requests", () => {
           if (url === "https://user.test/") finishUser = resolve
         }),
     )
-    f.pushStreamRequest(navigateRequest())
+    f.pushStreamRequest(f.navigationRequest())
     await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
     const userLoad = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://user.test/" })
     await f.controller.command(sender, { action: "pause", id: status.id })
@@ -336,7 +342,7 @@ describe("desktop WebMCP navigation requests", () => {
       return Promise.resolve()
     })
     const go = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://user.test/" })
-    f.pushStreamRequest(navigateRequest())
+    f.pushStreamRequest(f.navigationRequest())
     await vi.waitFor(() => expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(true))
     guest.emit("did-fail-load", {}, -3, "ERR_ABORTED", "https://user.test/", true)
     rejectGo(Object.assign(new Error("superseded"), { code: "ERR_ABORTED" }))
@@ -402,7 +408,7 @@ describe("desktop WebMCP navigation requests", () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
-    f.pushStreamRequest(navigateRequest())
+    f.pushStreamRequest(f.navigationRequest())
 
     await vi.waitFor(() => {
       expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
@@ -426,7 +432,7 @@ describe("desktop WebMCP navigation requests", () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
-    f.pushStreamRequest(navigateRequest({ url: "file:///etc/passwd" }))
+    f.pushStreamRequest(f.navigationRequest({ url: "file:///etc/passwd" }))
 
     await vi.waitFor(() => {
       expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
@@ -442,14 +448,14 @@ describe("desktop WebMCP navigation requests", () => {
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
 
-    f.pushStreamRequest(navigateRequest({ requestID: "req-loopback", url: "http://localhost:3000/app" }))
+    f.pushStreamRequest(f.navigationRequest({ requestID: "req-loopback", url: "http://localhost:3000/app" }))
     await vi.waitFor(() => {
       expect(f.requests.some((request) => request.url.endsWith("/reply"))).toBe(true)
     })
     const loopbackReply = f.requests.find((request) => request.url.endsWith("/reply")).body
     expect(loopbackReply).toMatchObject({ requestID: "req-loopback", status: "Completed" })
 
-    f.pushStreamRequest(navigateRequest({ requestID: "req-lan", url: "http://192.168.1.10:3000/app" }))
+    f.pushStreamRequest(f.navigationRequest({ requestID: "req-lan", url: "http://192.168.1.10:3000/app" }))
     await vi.waitFor(() => {
       expect(f.requests.some((request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan")).toBe(
         true,
@@ -1001,7 +1007,7 @@ describe("Round 8 browser lifecycle", () => {
       const f = fixture()
       const { sender, status } = await f.create()
       const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
-      const request = { ...navigateRequest(), generation: enabled.generation }
+      const request = { ...f.navigationRequest(), generation: enabled.generation }
       if (arrival === "before-pause") f.pushStreamRequest(request)
       await f.controller.command(sender, { action: "pause", id: status.id })
       if (arrival === "after-pause") f.pushStreamRequest(request)
@@ -1038,7 +1044,7 @@ describe("Round 8 browser lifecycle", () => {
     )
     await f.controller.command(sender, { action: "pause", id: status.id })
     f.pushStreamRequest({
-      ...navigateRequest(),
+      ...f.navigationRequest(),
       operation: "invoke",
       requestID: "held-tool",
       generation: live.generation,
@@ -1076,7 +1082,7 @@ describe("Round 8 browser lifecycle", () => {
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
     await f.controller.command(sender, { action: "pause", id: status.id })
-    f.pushStreamRequest(navigateRequest())
+    f.pushStreamRequest(f.navigationRequest())
     await vi.waitFor(async () =>
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
     )
@@ -1098,7 +1104,7 @@ describe("Round 8 browser lifecycle", () => {
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
     await f.controller.command(sender, { action: "pause", id: status.id })
-    f.pushStreamRequest({ ...navigateRequest(), deadline: Date.now() + 100 })
+    f.pushStreamRequest({ ...f.navigationRequest(), deadline: Date.now() + 100 })
     await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
     expect(replies(f)[0].body).toMatchObject({ status: "Error", output: { reason: "waiting-for-resume-timeout" } })
     await f.controller.command(sender, { action: "resume", id: status.id })
@@ -1510,14 +1516,14 @@ describe("WX-15 additive IPC", () => {
 })
 
 describe("WX-15 visible-to-act gate", () => {
-  const request = (partial = {}) => ({
+  const request = (f, partial = {}) => ({
+    ...f.navigationRequest(),
     providerID: "provider-1",
     epoch: "boot",
     projectID: "project",
     sessionID: "ses_fixture",
     requestID: "hidden-call",
     operation: "navigate",
-    generation: "page",
     deadline: Date.now() + 2000,
     url: "https://agent.test/",
     ...partial,
@@ -1536,7 +1542,7 @@ describe("WX-15 visible-to-act gate", () => {
     } else {
       await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds, width: 0, height: 0 })
     }
-    f.pushStreamRequest(request())
+    f.pushStreamRequest(request(f))
     await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }))
     await f.controller.command(sender, { action, id: status.id, ...bounds })
     expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true, paused: true, visible: true })
@@ -1545,7 +1551,7 @@ describe("WX-15 visible-to-act gate", () => {
     await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Completed" }))
   })
   test.each(["dialog", "palette", "minimize"])(
-    "%s preserves executing navigation and holds only new calls",
+    "%s preserves executing navigation and rejects queued old-document calls",
     async (reason) => {
       const f = fixture({ loadTimeoutMs: 2000 })
       const { sender, status } = await f.create()
@@ -1562,7 +1568,7 @@ describe("WX-15 visible-to-act gate", () => {
             }
           }),
       )
-      f.pushStreamRequest(request({ requestID: "executing" }))
+      f.pushStreamRequest(request(f, { requestID: "executing" }))
       await vi.waitFor(() => expect(finish).toBeTypeOf("function"))
       const owner = f.owners.get(sender)
       if (reason === "minimize") {
@@ -1572,7 +1578,7 @@ describe("WX-15 visible-to-act gate", () => {
         await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
       }
       expect(guest.stop).not.toHaveBeenCalled()
-      f.pushStreamRequest(request({ requestID: "next" }))
+      f.pushStreamRequest(request(f, { requestID: "next" }))
       await vi.waitFor(async () =>
         expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
           waiting: true,
@@ -1595,7 +1601,7 @@ describe("WX-15 visible-to-act gate", () => {
       await vi.waitFor(() =>
         expect(
           f.requests.some(
-            (r) => r.url.endsWith("/reply") && r.body.requestID === "next" && r.body.status === "Completed",
+            (r) => r.url.endsWith("/reply") && r.body.requestID === "next" && r.body.status === "Error" && r.body.output.reason === "page-changed",
           ),
         ).toBe(true),
       )
@@ -1672,7 +1678,7 @@ describe("WX-15 visible-to-act gate", () => {
     await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds, width: 0, height: 0 })
     const execute = vi.spyOn(NativeWebMcp.prototype, "execute")
     try {
-      f.pushStreamRequest(request({ operation }))
+      f.pushStreamRequest(request(f, { operation }))
       await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }))
       f.pushStreamRequest({ batch: { canceled: ["hidden-call"] } })
       await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: false }))
@@ -1698,7 +1704,7 @@ describe("WX-15 visible-to-act gate", () => {
     await f.controller.command(sender, { action: "bounds", id: second.id, ...bounds })
     await f.controller.command(sender, { action: "show", id: second.id })
     const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
-    f.pushStreamRequest(request())
+    f.pushStreamRequest(request(f))
     await vi.waitFor(async () =>
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
         waiting: true,
@@ -1722,7 +1728,7 @@ describe("WX-15 visible-to-act gate", () => {
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
     await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
-    f.pushStreamRequest(request({ deadline: Date.now() + 80 }))
+    f.pushStreamRequest(request(f, { deadline: Date.now() + 80 }))
     await vi.waitFor(() =>
       expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({
         status: "Error",
@@ -1738,7 +1744,7 @@ describe("WX-15 visible-to-act gate", () => {
       const f = fixture()
       const { sender, status } = await f.create()
       await f.controller.command(sender, { action: "enable", id: status.id })
-      f.pushStreamRequest(request({ [field]: "wrong" }), "provider-1")
+      f.pushStreamRequest(request(f, { [field]: "wrong" }), "provider-1")
       await vi.waitFor(async () =>
         expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
           enabled: false,
@@ -1789,6 +1795,7 @@ describe("WX-15 session enrollment and revocation", () => {
     expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
     expect([...f.partitions.values()][0].clearStorageData).not.toHaveBeenCalled()
     f.pushStreamRequest({
+      ...f.navigationRequest({ providerID: "provider-2" }),
       providerID: "provider-2",
       epoch: "boot",
       projectID: "project",
@@ -2246,7 +2253,7 @@ describe("Round 14a LRU unload", () => {
     })
     await f.controller.command(sender, { action: "show", id: second.id })
     await f.controller.command(sender, { action: "bounds", id: second.id, x: 0, y: 0, width: 200, height: 200 })
-    f.pushStreamRequest(navigateRequest({ generation: enabled.generation }))
+    f.pushStreamRequest(f.navigationRequest({ generation: enabled.generation }))
     await vi.waitFor(async () =>
       expect((await f.controller.command(sender, { action: "status", id: first.id })).waiting).toBe(true),
     )
@@ -2462,7 +2469,7 @@ test("provider poll deadline interrupts access, retries, recovers and ignores a 
     })
     await vi.advanceTimersByTimeAsync(50)
     expect(polls).toHaveLength(2)
-    polls[0].resolve({ request: navigateRequest({ generation: enabled.generation, url: "https://late.test/" }) })
+    polls[0].resolve({ request: f.navigationRequest({ generation: enabled.generation, url: "https://late.test/" }) })
     await vi.advanceTimersByTimeAsync(0)
     expect(f.guests[0].loadedUrls).not.toContain("https://late.test/")
     polls[1].resolve({ canceled: [] })
@@ -2607,7 +2614,7 @@ test.each(["invalid-input", "timeout", "native-failure"])("failed agent navigati
   await f.controller.command(sender, { action: "enable", id: status.id })
   if (reason === "timeout") f.hangLoads(true)
   if (reason === "native-failure") f.guests[0].loadURL = async () => { throw new Error("password=AUDIT_FAKE_PASSWORD") }
-  f.pushStreamRequest(navigateRequest({ url: reason === "invalid-input" ? "http://insecure.test/" : "https://valid.test/" }))
+  f.pushStreamRequest(f.navigationRequest({ url: reason === "invalid-input" ? "http://insecure.test/" : "https://valid.test/" }))
   await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Error", output: { reason } }))
   expect(JSON.stringify(f.requests.filter((r) => r.url.endsWith("/reply")))).not.toContain("AUDIT_FAKE_PASSWORD")
 })
@@ -2644,3 +2651,38 @@ test("a failed later create preserves a window's earlier profile ownership", asy
     start.mockRestore()
   }
 })
+
+
+test.each(["generation", "origin", "frameId"])(
+  "queued navigation revalidates its %s binding after resume",
+  async (changed) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    const request = f.navigationRequest()
+    f.pushStreamRequest(request)
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
+    )
+    const guest = f.guests[0]
+    if (changed === "generation") {
+      // A same-origin human reload replaces the document without changing its origin or frame id.
+      guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "top" } })
+    } else if (changed === "origin") {
+      guest.url = "https://replacement.test/unsaved"
+    } else {
+      // Keep generation and origin identical to test the frame guard independently.
+      request.frameId = "retired-frame"
+    }
+    const load = vi.spyOn(guest, "loadURL")
+    await f.controller.command(sender, { action: "resume", id: status.id })
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(load).not.toHaveBeenCalled()
+    expect(replies(f)[0].body).toMatchObject({
+      requestID: request.requestID,
+      status: "Error",
+      output: { reason: "page-changed" },
+    })
+  },
+)

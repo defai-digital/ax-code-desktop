@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 
 /**
@@ -34,7 +35,7 @@ const OPAQUE_VALUE = /^(?:[0-9]+|[0-9a-f]{16,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{
 const opaqueText = (value: unknown): string | null => {
   if (typeof value === "number" || typeof value === "boolean") return JSON.stringify(value)
   if (typeof value !== "string") return value === undefined ? null : "[value]"
-  if (OPAQUE_VALUE.test(value) || (value.length > 48 && !/\s/.test(value))) return value.slice(0, 48)
+  if (OPAQUE_VALUE.test(value) || (value.length > 48 && !/\s/.test(value))) return redactWebMcpText(value).slice(0, 48)
   return null
 }
 
@@ -102,7 +103,7 @@ const walkSchema = (node: unknown, state: LintWalk) => {
   }
 }
 
-const bounded = (values: string[]) => values.join(", ").slice(0, 200)
+const bounded = (values: string[]) => values.map(redactWebMcpText).join(", ").slice(0, 200)
 
 /** Advice only. Callers must still run the tool when the person asks. */
 export function lintWebMcpTool(

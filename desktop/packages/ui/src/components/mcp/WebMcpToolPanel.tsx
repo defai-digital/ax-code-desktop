@@ -1,3 +1,4 @@
+import { redactWebMcpReport, redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
@@ -86,7 +87,7 @@ function storedRun(
 function schemaDocument(schema: unknown): { text: string; truncated: boolean } | null {
   if (schema === undefined) return null
   try {
-    const text = JSON.stringify(schema, null, 2)
+    const text = JSON.stringify(redactWebMcpReport(schema), null, 2)
     if (typeof text !== "string") return null
     if (text.length <= SCHEMA_TEXT_CAP) return { text, truncated: false }
     return { text: text.slice(0, SCHEMA_TEXT_CAP), truncated: true }
@@ -102,10 +103,11 @@ function lintText(t: Translate, finding: WebMcpLintFinding) {
   }
   if (finding.code === "missing-description") return t("webmcp.tools.lint.missingDescription")
   if (finding.code === "missing-property-description") {
-    return t("webmcp.tools.lint.missingPropertyDescription", { names: finding.names ?? "" })
+    return t("webmcp.tools.lint.missingPropertyDescription", { names: redactWebMcpText(finding.names ?? "") })
   }
-  if (finding.code === "opaque-value") return t("webmcp.tools.lint.opaque", { names: finding.names ?? "" })
-  return t("webmcp.tools.lint.rejectedKeyword", { keyword: finding.keyword ?? "" })
+  if (finding.code === "opaque-value")
+    return t("webmcp.tools.lint.opaque", { names: redactWebMcpText(finding.names ?? "") })
+  return t("webmcp.tools.lint.rejectedKeyword", { keyword: redactWebMcpText(finding.keyword ?? "") })
 }
 
 function shortDigest(value: string) {
@@ -190,7 +192,7 @@ function DiagnosisList({
   const changed = webMcpDefinitionChanged(digest, currentDigest)
   const findingText = (finding: WebMcpDiagnosisFinding) =>
     t("webmcp.tools.diagnosis.finding", {
-      property: finding.property,
+      property: redactWebMcpText(finding.property),
       rule: finding.expected ? `${finding.rule}:${finding.expected}` : finding.rule,
       kind: finding.valueKind,
     })
@@ -227,7 +229,7 @@ function DiagnosisList({
           {diagnosis.findings.map((finding) => (
             <li
               key={`${finding.property}:${finding.rule}:${finding.valueKind}`}
-              data-webmcp-diagnosis-property={finding.property}
+              data-webmcp-diagnosis-property={redactWebMcpText(finding.property)}
               data-webmcp-diagnosis-rule={finding.rule}
               data-webmcp-diagnosis-kind={finding.valueKind}
               className="typography-micro"
@@ -382,23 +384,30 @@ function FieldInput({
 }) {
   const className = "h-7 w-full rounded border border-border bg-background px-2 typography-meta"
   if (field.kind === "enum" || field.kind === "boolean") {
-    const options = field.kind === "enum" ? (field.options ?? []) : ["true", "false"]
+    const options = (field.kind === "enum" ? (field.options ?? []) : ["true", "false"]).filter(
+      (option) => option !== "",
+    )
+    const maskOptions =
+      isWebMcpSensitiveName(field.name) || options.some((option) => redactWebMcpText(option) !== option)
+    const optionValue = (option: string, index: number) => (maskOptions ? `redacted-option-${index}` : option)
     return (
       <select
         id={id}
         aria-describedby={describedBy}
         className={className}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={value === "" ? "" : optionValue(value, options.indexOf(value))}
+        onChange={(event) =>
+          onChange(
+            options.find((option, index) => optionValue(option, index) === event.target.value) ?? event.target.value,
+          )
+        }
       >
         <option value="">—</option>
-        {options
-          .filter((option) => option !== "")
-          .map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
+        {options.map((option, index) => (
+          <option key={index} value={optionValue(option, index)}>
+            {isWebMcpSensitiveName(field.name) ? webMcpResultPreview(option, field.name) : redactWebMcpText(option)}
+          </option>
+        ))}
       </select>
     )
   }
@@ -583,8 +592,11 @@ function ToolItem({
 
   const constraintText = (field: ToolField, constraint: string) =>
     t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
-      field: field.name,
-      bound: webMcpResultPreview(field.constraints?.[constraint], constraint === "default" ? field.name : undefined),
+      field: redactWebMcpText(field.name),
+      bound: webMcpResultPreview(
+        field.constraints?.[constraint],
+        ["default", "enum"].includes(constraint) ? field.name : undefined,
+      ),
     })
   const showResult = (next: { outcome: string; text: string } | null) => {
     setResult(next ? { outcome: next.outcome, text: next.text, stale: false } : null)
@@ -695,7 +707,7 @@ function ToolItem({
   }
 
   return (
-    <li className="rounded border border-border/60" data-webmcp-tool={tool.name}>
+    <li className="rounded border border-border/60" data-webmcp-tool={redactWebMcpText(tool.name)}>
       <button
         type="button"
         aria-expanded={open}
@@ -708,10 +720,15 @@ function ToolItem({
           aria-hidden="true"
         />
         <span className="min-w-0 flex-1">
-          <span className="block truncate font-mono typography-meta text-foreground">{tool.name}</span>
+          <span className="block truncate font-mono typography-meta text-foreground">
+            {redactWebMcpText(tool.name)}
+          </span>
           {tool.description ? (
-            <span className="block truncate typography-micro text-muted-foreground" title={tool.description}>
-              {tool.description}
+            <span
+              className="block truncate typography-micro text-muted-foreground"
+              title={redactWebMcpText(tool.description)}
+            >
+              {redactWebMcpText(tool.description)}
             </span>
           ) : null}
         </span>
@@ -724,7 +741,7 @@ function ToolItem({
               data-webmcp-description=""
               className="whitespace-pre-wrap break-words typography-micro text-muted-foreground"
             >
-              {tool.description}
+              {redactWebMcpText(tool.description)}
             </p>
           ) : null}
           <LintNotes tool={tool} />
@@ -737,9 +754,9 @@ function ToolItem({
                 <div key={field.name} className="block space-y-0.5">
                   <label htmlFor={`${baseId}-field-${index}`}>
                     <span className="typography-micro text-muted-foreground">
-                      <span className="font-mono">{field.name}</span>
+                      <span className="font-mono">{redactWebMcpText(field.name)}</span>
                       {field.required ? " *" : ""} · {field.kind}
-                      {field.description ? ` — ${field.description}` : ""}
+                      {field.description ? ` — ${redactWebMcpText(field.description)}` : ""}
                     </span>
                   </label>
                   {field.constraints ? (
@@ -804,7 +821,7 @@ function ToolItem({
                           clearFeedback()
                         }}
                       />
-                      {t("webmcp.tools.sendEmpty", { field: field.name })}
+                      {t("webmcp.tools.sendEmpty", { field: redactWebMcpText(field.name) })}
                     </label>
                   ) : null}
                 </div>
@@ -958,18 +975,20 @@ export function WebMcpToolPanel({
         <p
           role="alert"
           data-webmcp-catalog-rejection={catalogRejection.reason}
-          data-webmcp-catalog-rejection-tool={catalogRejection.tool}
+          data-webmcp-catalog-rejection-tool={redactWebMcpText(catalogRejection.tool)}
           className="px-2.5 pb-1 typography-micro text-[var(--status-error)]"
         >
           {t("webmcp.tools.rejection.title")}{" "}
           {t(REJECTION_TEXT[catalogRejection.reason], {
-            tool: catalogRejection.tool || t("webmcp.tools.rejection.unnamed"),
+            tool: redactWebMcpText(catalogRejection.tool) || t("webmcp.tools.rejection.unnamed"),
           })}
         </p>
       ) : null}
       {open ? (
         <div className="space-y-2 px-2.5 pb-2">
-          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.origin", { origin })}</p>
+          <p className="typography-micro text-muted-foreground">
+            {t("webmcp.tools.origin", { origin: redactWebMcpText(origin) })}
+          </p>
           <p className="typography-micro text-muted-foreground">{t("webmcp.tools.hintsDoNotApprove")}</p>
           {timeline.length ? (
             <div className="space-y-1">
@@ -982,7 +1001,7 @@ export function WebMcpToolPanel({
                     className="font-mono typography-micro text-muted-foreground"
                   >
                     {t(REGISTRATION_TEXT[event.kind], {
-                      name: event.name,
+                      name: redactWebMcpText(event.name),
                       digest: shortDigest(event.digest),
                       previous: shortDigest(event.previousDigest ?? ""),
                     })}
@@ -1002,7 +1021,7 @@ export function WebMcpToolPanel({
                   <li
                     key={entry.id}
                     data-webmcp-journal-entry={entry.id}
-                    data-webmcp-journal-tool={entry.tool}
+                    data-webmcp-journal-tool={redactWebMcpText(entry.tool)}
                     data-webmcp-journal-outcome={entry.outcome}
                     data-webmcp-journal-digest={entry.digest}
                     data-webmcp-journal-duration={entry.durationMs}
@@ -1024,7 +1043,7 @@ export function WebMcpToolPanel({
                       }}
                     >
                       {t("webmcp.tools.journal.replay", {
-                        tool: entry.tool,
+                        tool: redactWebMcpText(entry.tool),
                         outcome: entry.outcome,
                         duration: formatDuration(entry.durationMs),
                       })}

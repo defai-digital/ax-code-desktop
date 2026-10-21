@@ -5,6 +5,7 @@
 const { app, BrowserWindow } = require("electron")
 const fs = require("node:fs")
 const { runInputReceipt } = require("./webmcp-check-receipt.cjs")
+const { definitionDigest } = require("../../../shared/webmcp-digests.cjs")
 const { redactWebMcpReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const config = JSON.parse(process.env.AX_WEBMCP_CHECK ?? "{}")
@@ -63,21 +64,44 @@ async function check() {
   ])
   if (!allowedUrl(contents.getURL())) throw new Error(`the page left the allowed origins (${contents.getURL()})`)
   contents.debugger.attach("1.3")
+  await contents.debugger.sendCommand("Page.enable")
+  const { frameTree } = await contents.debugger.sendCommand("Page.getFrameTree")
+  let topFrameId = frameTree.frame.id
+  let revision = 0
+  let changedAt = Date.now()
+  const changed = () => {
+    revision += 1
+    changedAt = Date.now()
+  }
   contents.debugger.on("message", (_event, method, params) => {
-    if (method === "WebMCP.toolsAdded") for (const tool of params.tools) live.set(tool.name, tool)
-    if (method === "WebMCP.toolsRemoved") for (const tool of params.tools) live.delete(tool.name)
+    if (method === "Page.frameNavigated" && !params.frame.parentId) {
+      topFrameId = params.frame.id
+      live.clear()
+      changed()
+    }
+    if (method === "WebMCP.toolsAdded")
+      for (const tool of params.tools) {
+        if (tool.frameId !== topFrameId) continue
+        const previous = live.get(tool.name)
+        if (!previous || definitionDigest(previous) !== definitionDigest(tool)) changed()
+        live.set(tool.name, tool)
+      }
+    if (method === "WebMCP.toolsRemoved")
+      for (const tool of params.tools) {
+        if (tool.frameId === topFrameId && live.delete(tool.name)) changed()
+      }
   })
   await contents.debugger.sendCommand("WebMCP.enable")
   // Pages often register after load (effects, fetched config). Wait until the catalog has been stable for a quiet
   // period, up to the settle limit.
   const deadline = Date.now() + config.settleMs
   let signature = null
-  let quietSince = Date.now()
+  let quietSince = changedAt
   while (Date.now() < deadline) {
-    const current = [...live.keys()].sort().join("\n")
+    const current = revision
     if (current !== signature) {
       signature = current
-      quietSince = Date.now()
+      quietSince = changedAt
     } else if (live.size > 0 && Date.now() - quietSince >= 750) break
     await delay(250)
   }
@@ -106,10 +130,17 @@ async function check() {
         }
       })()`,
         )
-        .catch((error) => ({ error: `the page could not run the tool (${error instanceof Error ? error.message : error})` })),
+        .catch((error) => ({
+          error: `the page could not run the tool (${error instanceof Error ? error.message : error})`,
+        })),
       delay(config.timeoutMs).then(() => ({ error: `the tool did not answer in ${config.timeoutMs} ms` })),
     ])
-    report.runs.push({ name: run.name, input: run.input, ...result, inputReceipt: runInputReceipt(config.receiptKey, index, run) })
+    report.runs.push({
+      name: run.name,
+      input: run.input,
+      ...result,
+      inputReceipt: runInputReceipt(config.receiptKey, index, run),
+    })
     save()
   }
   window.destroy()

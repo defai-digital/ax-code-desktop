@@ -34,3 +34,14 @@ export const credentialTextCases = keys.flatMap((key) =>
     ),
   ),
 )
+
+credentialTextCases.push(
+  ...[
+    `https://u:${secret}@example.test/`,
+    `https://${secret}@example.test/`,
+    `//u:${secret}@example.test/`,
+    `https://example.test/?%74oken=${secret}`,
+    `https://example.test/?ok=1&%61pi%5fkey=${secret}`,
+    `https://example.test/?%70assword=${secret}#details`,
+  ].flatMap((url) => wrappers.map((wrap) => wrap(url))),
+)
