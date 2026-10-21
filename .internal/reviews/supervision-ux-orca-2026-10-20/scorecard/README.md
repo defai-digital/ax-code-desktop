@@ -351,3 +351,17 @@ lost the name of the CLI to a shell substitution; the judges read the source and
 Two judges now rate AX better than Orca by more than 0.2; deepseek-flash keeps it equal because the session grid offers only
 fixed presets (no drag to split, reorder or pop out), the PR facet is a single toggle without counts, and the palette lacks
 #PR search, project filter and split-open. All three rate AX better than opencode. Round 15 takes these.
+
+## Round 15 comparison (HEAD `92775899`; raw judgments in `round15/`)
+
+| Judge | AX | Orca | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- |
+| codex | 9.28 | 8.93 | 6.90 | +0.35, better | better |
+| deepseek-flash | 9.18 | 8.98 | 7.00 | +0.20, better | better (+2.18) |
+| MiniMax-M3 | 9.21 | 8.93 | 7.06 | +0.28, better | better (+2.15) |
+
+All three judges rate AX better than Orca by at least the competitive PRD's 0.2 margin and better than opencode. Round 15
+closed deepseek-flash's named flips: free arrangement in the session grid (drag to swap or dock, arrow moves with focus,
+split, pop-out with one browser owner, remembered ratios), multi-select PR state and checks facets with counts, and palette
+#PR search, host or project scope and split-open. deepseek-flash calls workspace parity with Orca; the lead rests on overview
+and review. Residual Orca edges named: inline three-way merge, an arbitrary compare base, and a recursive pane tree.

@@ -147,3 +147,43 @@ pin update is in progress) and approval expiry is not shown as an outcome; A6 no
 definition binding; A7 cancellation is checkpoint-only and not awaited. P1 audit after round 14 (glm-5.3,
 `AUDIT-2026-10-21-p1-glm-round14.md`): no P1; two P2s (a second window's pane loops on Reopen; the manual surface shows
 secret-named inputs in clear).
+
+## Round 15 evidence
+
+- R15d merged: a running call in the call strip opens its approval; the transcript jumps to and highlights the exact tool part;
+  page-tool approval cards show the page's own definition; the recap lists steps as buttons with duration, result and
+  definition identity, caps and copies; exported regressions use placeholders for secrets. Gates: UI 4508 tests, build, five
+  native journeys and `e2e:desktop` on macOS. Review: deepseek-flash, fixes applied.
+- R15a merged: pause awaits the native cancellation acknowledgement and interrupts only the original document's script; calls
+  report stopped or still finishing and unfinished page requests stay in later reports; a second window names the owner window
+  with Focus that window. Review: codex (one P1 and one P2, fixed). Gates include the new `project-browser-second-window` journey.
+- R15b and R15c merged (workspace): grid drag, dock, split and pop-out with one browser owner (codex review: two P1s and five
+  P2s, fixed); PR state and checks facets; palette PR search, scope and split-open (codex review: two P2s, fixed).
+
+## Round 15 result (HEAD `92775899`; raw judgments in `round15/`)
+
+| Step | codex | deepseek-flash | MiniMax-M3 | Pass |
+| --- | --- | --- | --- | --- |
+| A1 discover | 8 | 8 | 8 | yes |
+| A2 enable and scope trust | 8 | 8 | 8 | yes |
+| A3 watch live | 8 | 9 | 8 | yes (new) |
+| A4 approvals | 7 | 8 | 8 | yes (new) |
+| A5 failure recovery | 7 | 8 | 8 | yes |
+| A6 evidence after the task | 8 | 9 | 8 | yes (new) |
+| A7 pause and take over | 8 | 8 | 9 | yes (new) |
+| A8 several sessions | 8 | 9 | 8 | yes |
+| B1 see registered tools | 8 | 8 | 8 | yes |
+| B2 try and compare | 7 | 9 | 8 | yes |
+| B3 iterate | 7 | 8 | 8 | yes |
+| B4 diagnose misuse | 7 | 8 | 8 | yes |
+| B5 onboarding docs | 8 | 9 | 8 | yes |
+
+All thirteen steps pass under the two-of-three rule. Means: codex A 7.75 and B 7.40, deepseek-flash A 8.4 and B 8.4, MiniMax-M3
+A 8.0 and B 8.0. Remaining judge asks: runtime receipts for approval arguments and invoked-definition identity (A4, B2, B4),
+property-level schema diffs (B3), adapter failure reasons kept through to the transcript (A5), explicit sign-out and a
+read-only grant list (A2), and an approval-expiry outcome (A4).
+
+P1 audit after round 15: glm-5.3 was cut off by an upstream error; codex ran the audit instead
+(`AUDIT-2026-10-21-p1-codex-round15.md`) and found three P1s: secrets nested in arrays survive regression export, the headless
+checker exits 0 when the Electron child dies before requested runs finish, and exported tests misclassify a recorded
+`status: "failed"` outcome. Definition of done item 3 is not met until these are fixed and an audit run reports no P1.
