@@ -51,6 +51,15 @@ Round 12 judged at `cbb21705`: supervisor means 5.75 / 6.0 / 6.5, builder 5.0 / 
 | C13: page-bound call strip | WX-07: duration, filtered result, earlier-page marker, open the call in the conversation | Claude (worktree `wx13-call-strip`) | glm-5.3 | done with probes |
 | T13: pause and take over | WX-10 after V13 lands (shares the browser pane) | | | next |
 
+## Round 14: the four steps still below the bar (A8, A2, B2, B4)
+
+Round 13 judged at `7cd2d383`: nine of thirteen steps pass (`scores/README.md`).
+
+| Package | Requirements | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| R14a: sessions you can see and control | WX-15 steps 7 to 9 (page switcher, per-session revoke, capacity and LRU unload, waiting surfaced outside the pane, W7), WX-09 trust summary | codex (worktree `r14-sessions`) | deepseek-flash | in progress |
+| R14b: try, compare and diagnose | WX-05 journal and replay, comparison with the agent's call, misuse diagnosis, WX-18 regression export, guide update | grok (worktree `r14-diagnose`) | MiniMax-M3 | in progress |
+
 ## Decisions
 
 - 2026-10-21: target changed by the user from beating Orca to an excellent WebMCP experience. Round 11 (S10, F10, R10) finishes
