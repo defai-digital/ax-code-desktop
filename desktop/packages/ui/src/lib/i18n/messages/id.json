@@ -5356,5 +5356,16 @@
   "supervision.missionControl.facet.passed": "Pemeriksaan lulus",
   "supervision.missionControl.facet.failed": "Pemeriksaan gagal",
   "supervision.missionControl.facet.pending": "Pemeriksaan tertunda",
-  "supervision.missionControl.facet.none": "Tidak ada pemeriksaan"
+  "supervision.missionControl.facet.none": "Tidak ada pemeriksaan",
+  "diffView.landing.browserRecap.definition": "Definisi {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(alat telah berubah sejak itu)",
+  "diffView.landing.browserRecap.capped": "Menampilkan {shown} dari {total} langkah terbaru.",
+  "diffView.landing.browserRecap.copy": "Salin ringkasan",
+  "diffView.landing.browserRecap.copied": "Disalin",
+  "chat.permissionCard.webmcp.hintConsequential": "Halaman menandai alat ini sebagai alat yang membuat perubahan.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Halaman mengatakan alat ini hanya membaca.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Hasilnya mungkin berisi teks dari sumber yang tidak terpercaya.",
+  "chat.permissionCard.webmcp.inputs": "Input (wajib ditandai *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Halaman mendeskripsikannya sebagai: {description}",
+  "webmcp.calls.awaitingApproval": "Menunggu persetujuan Anda. Tinjau"
 }

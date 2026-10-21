@@ -5356,5 +5356,16 @@
   "supervision.missionControl.facet.passed": "Pr\u00fcfungen bestanden",
   "supervision.missionControl.facet.failed": "Pr\u00fcfungen fehlgeschlagen",
   "supervision.missionControl.facet.pending": "Pr\u00fcfungen ausstehend",
-  "supervision.missionControl.facet.none": "Keine Pr\u00fcfungen"
+  "supervision.missionControl.facet.none": "Keine Pr\u00fcfungen",
+  "diffView.landing.browserRecap.definition": "Definition {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(das Tool hat sich seitdem ge\u00e4ndert)",
+  "diffView.landing.browserRecap.capped": "Zeige die letzten {shown} von {total} Schritten.",
+  "diffView.landing.browserRecap.copy": "Zusammenfassung kopieren",
+  "diffView.landing.browserRecap.copied": "Kopiert",
+  "chat.permissionCard.webmcp.hintConsequential": "Die Seite markiert dieses Seiten-Tool als \u00e4ndernd.",
+  "chat.permissionCard.webmcp.hintReadOnly": "Die Seite sagt, dass dieses Seiten-Tool nur liest.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Die Ergebnisse k\u00f6nnen Text aus nicht vertrauensw\u00fcrdigen Quellen enthalten.",
+  "chat.permissionCard.webmcp.inputs": "Eingaben (erforderlich mit * markiert): {names}",
+  "chat.permissionCard.webmcp.pageSays": "Die Seite beschreibt es als: {description}",
+  "webmcp.calls.awaitingApproval": "Warten auf Ihre Genehmigung. \u00dcberpr\u00fcfen Sie diese"
 }

@@ -21,6 +21,8 @@ vi.mock("@/contexts/useThemeSystem", () => ({ useThemeSystem: () => ({ currentTh
 vi.mock("@/lib/theme/syntaxThemeGenerator", () => ({ generateSyntaxTheme: () => ({}) }))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
 
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { PermissionCard } from "./PermissionCard"
 
 afterEach(() => {
@@ -43,6 +45,46 @@ const buttonTexts = (container: ParentNode) =>
 const titleText = (container: ParentNode) => container.querySelector("span.truncate.font-medium")?.textContent ?? ""
 
 describe("WebMCP permission card", () => {
+  test("an invoke approval shows what the page declared about the tool, labelled as the page's claim", () => {
+    const key = viewKeyFor("/repo", "ses_1")
+    useWebMcpBrowserStore.getState().updateView(key, {
+      sessionID: "ses_1",
+      directory: "/repo",
+      origin: "https://example.com",
+      catalog: [
+        {
+          name: "add_task",
+          description: "Add a task to the list.",
+          inputSchema: { type: "object", properties: { title: { type: "string" }, priority: { type: "string" } }, required: ["title"] },
+          annotations: { consequentialHint: true },
+        },
+      ],
+    })
+    const { container } = render(
+      <PermissionCard
+        permission={request({
+          metadata: { origin: "https://example.com", operation: "invoke", toolName: "add_task", desktopProvider: true },
+        })}
+      />,
+    )
+    const info = container.querySelector("[data-webmcp-approval-tool]")
+    expect(info?.querySelector("[data-webmcp-approval-hint]")?.getAttribute("data-webmcp-approval-hint")).toBe("consequential")
+    expect(info?.querySelector("[data-webmcp-approval-inputs]")?.textContent).toContain("title*, priority")
+    expect(info?.querySelector("[data-webmcp-approval-description]")?.textContent).toContain("Add a task to the list.")
+    // Another page's tool of the same name is never shown.
+    cleanup()
+    useWebMcpBrowserStore.getState().updateView(key, { origin: "https://other.example" })
+    const other = render(
+      <PermissionCard
+        permission={request({
+          metadata: { origin: "https://example.com", operation: "invoke", toolName: "add_task", desktopProvider: true },
+        })}
+      />,
+    )
+    expect(other.container.querySelector("[data-webmcp-approval-tool]")).toBeNull()
+    useWebMcpBrowserStore.getState().resetView?.(key)
+  })
+
   test("opens with one plain effect sentence and says the answer covers this call only", () => {
     const { container } = render(
       <PermissionCard

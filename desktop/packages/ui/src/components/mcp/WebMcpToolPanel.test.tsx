@@ -672,6 +672,8 @@ function pageCall(overrides: Partial<WebMcpCall>): WebMcpCall {
     failureReason: "invalid-input",
     at: 1,
     messageId: "m1",
+    partId: "call-1",
+    callId: null,
     durationMs: 8,
     resultPreview: null,
     generation: null,
@@ -806,4 +808,24 @@ test("a changed definition is named for the manual run that used the earlier dig
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
   expect(view.container.querySelector("[data-webmcp-definition-changed='manual']")).not.toBeNull()
   expect(view.container.querySelector("[data-webmcp-journal-entry]")).not.toBeNull()
+})
+
+test("a secret-named field is masked while typed", () => {
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [
+      {
+        name: "sign_in",
+        description: "Sign in",
+        inputSchema: { type: "object", properties: { user: { type: "string" }, password: { type: "string" } }, required: ["user"] },
+      },
+    ],
+  })
+  const view = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='sign_in'] button")!)
+  const inputs = [...view.container.querySelectorAll<HTMLInputElement>("input:not([type=checkbox])")]
+  expect(inputs.map((input) => input.type)).toEqual(["text", "password"])
+  cleanup()
+  useWebMcpBrowserStore.getState().resetSnapshot()
 })

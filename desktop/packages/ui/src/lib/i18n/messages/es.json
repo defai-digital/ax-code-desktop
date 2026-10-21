@@ -5356,5 +5356,16 @@
   "supervision.missionControl.facet.passed": "Comprobaciones superadas",
   "supervision.missionControl.facet.failed": "Comprobaciones fallidas",
   "supervision.missionControl.facet.pending": "Comprobaciones pendientes",
-  "supervision.missionControl.facet.none": "Sin comprobaciones"
+  "supervision.missionControl.facet.none": "Sin comprobaciones",
+  "diffView.landing.browserRecap.definition": "Definici\u00f3n {digest}",
+  "diffView.landing.browserRecap.definitionChanged": "(la herramienta ha cambiado desde entonces)",
+  "diffView.landing.browserRecap.capped": "Mostrando los \u00faltimos {shown} de {total} pasos.",
+  "diffView.landing.browserRecap.copy": "Copiar resumen",
+  "diffView.landing.browserRecap.copied": "Copiado",
+  "chat.permissionCard.webmcp.hintConsequential": "La p\u00e1gina marca esta herramienta como modificadora.",
+  "chat.permissionCard.webmcp.hintReadOnly": "La p\u00e1gina dice que esta herramienta solo lee.",
+  "chat.permissionCard.webmcp.hintUntrusted": "Sus resultados pueden contener texto de fuentes no confiables.",
+  "chat.permissionCard.webmcp.inputs": "Entradas (obligatorias marcadas con *): {names}",
+  "chat.permissionCard.webmcp.pageSays": "La p\u00e1gina lo describe como: {description}",
+  "webmcp.calls.awaitingApproval": "Esperando su aprobaci\u00f3n. Rev\u00edsela"
 }
