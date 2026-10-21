@@ -146,18 +146,20 @@ function CopyExport({
   outcome,
   copyId,
   manual,
+  inputKind,
 }: {
   tool: string
   input: Record<string, unknown> | null
   outcome: string
   copyId: string
+  inputKind?: WebMcpCall["inputKind"]
   manual?: { entry: WebMcpJournalEntry; definition: WebMcpToolDefinition }
 }) {
   const { t } = useI18n()
   const [copied, setCopied] = React.useState<"test" | "run" | null>(null)
   const exported = manual
     ? webMcpManualRegressionExport(manual.entry, manual.definition)
-    : input ? webMcpRegressionExport({ tool, input, outcome }) : null
+    : input ? webMcpRegressionExport({ tool, input, outcome, inputKind }) : null
   const copy = async (kind: "test" | "run", text: string) => {
     const result = await copyTextToClipboard(text)
     if (!result.ok) return
@@ -247,7 +249,7 @@ function ToolCompare({
                 {redactWebMcpText(journalEntry.text)}
               </pre>
               <DiagnosisList
-                diagnosis={manualDefinition ? diagnoseWebMcpInput(manualDefinition.executionSchema ?? manualDefinition.inputSchema, journalEntry.input) : { status: "unavailable", reason: "definition-unavailable" }}
+                diagnosis={journalEntry.inputTruncated ? { status: "unavailable", reason: "truncated" } : manualDefinition ? diagnoseWebMcpInput(manualDefinition.executionSchema ?? manualDefinition.inputSchema, journalEntry.input) : { status: "unavailable", reason: "definition-unavailable" }}
                 digest={journalEntry.definitionDigest ?? null}
                 currentDigest={digest}
                 source="manual"
@@ -286,6 +288,7 @@ function ToolCompare({
               <CopyExport
                 tool={agentCall.toolName ?? tool.name}
                 input={agentCall.input}
+                inputKind={agentCall.inputKind}
                 outcome={recordedPageOutcome(agentCall)}
                 copyId="agent"
               />
@@ -996,14 +999,16 @@ export function WebMcpToolPanel({
                     {toolRuns[webMcpToolIdentity(entry) ?? ""]?.stale ? (
                       <span data-webmcp-stale="true">{t("webmcp.tools.resultStale")}</span>
                     ) : null}
+                    {entry.inputTruncated ? <span>{t("webmcp.tools.diagnosis.truncated")}</span> : null}
                     {entry.definitionChanged ? <span>{t("chat.toolPart.webmcp.reason.definition-changed")}</span> : null}
                     <Button
                       type="button"
                       size="xs"
                       variant="ghost"
                       data-webmcp-replay={entry.id}
-                      disabled={!catalog.some((tool) => webMcpEvidenceMatchesTool(entry, tool))}
+                      disabled={entry.inputTruncated || !catalog.some((tool) => webMcpEvidenceMatchesTool(entry, tool))}
                       onClick={() => {
+                        if (entry.inputTruncated) return
                         replayNonce.current += 1
                         setReplay({
                           id: entry.id,

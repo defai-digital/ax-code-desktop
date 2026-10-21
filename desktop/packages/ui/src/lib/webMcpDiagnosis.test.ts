@@ -333,3 +333,10 @@ test("runtime and page validation failures map property paths to shared rules", 
   expect(webMcpRuntimeRejections({ error: { field: "title", message: "password=PRIVATE" } })).toEqual([{ property: "title", text: "[redacted]" }])
   expect(webMcpRuntimeRejections("Opaque runtime rejection")).toEqual([{ text: "Opaque runtime rejection" }])
 })
+
+test("regression export rejects explicit truncation and its own shared traversal limits", () => {
+  expect(webMcpRegressionExport({ tool: "echo", input: {}, outcome: "completed", inputKind: "truncated" })).toBeNull()
+  let input: Record<string, unknown> = { unseen: 1 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  expect(webMcpRegressionExport({ tool: "echo", input, outcome: "completed" })).toBeNull()
+})

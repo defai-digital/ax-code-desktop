@@ -1,4 +1,4 @@
-import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
+import { redactWebMcpReport } from "../../../../shared/webmcp-redaction.mjs"
 import { readWebMcpDefinitionDigest } from "@/lib/toolHelpers"
 import { create } from "zustand"
 
@@ -27,20 +27,24 @@ export function reconcileWebMcpApprovals(session: string, before: readonly Appro
   for (const call of pending) recordWebMcpApproval(session, call, "pending")
 }
 
-export type WebMcpApprovalReceipt = { definitionDigest?: string; inputPreview?: string }
+export type WebMcpApprovalReceipt = { definitionDigest?: string; inputPreview?: string; inputTruncated?: boolean }
 /** Only redacted permission metadata, scoped by session and call. Never persisted. */
 export const useWebMcpApprovalReceipts = create<{ receipts: ReadonlyMap<string, WebMcpApprovalReceipt> }>(() => ({ receipts: new Map() }))
 export function recordWebMcpApprovalReceipt(session: string, request: Approval) {
   if (request.permission !== "webmcp" || !request.tool?.callID || !request.metadata) return
   const definitionDigest = readWebMcpDefinitionDigest(request.metadata)
   const preview = request.metadata.inputPreview
-  const safePreview = typeof preview === "string" ? redactWebMcpText(preview) : undefined
+  let inputTruncated = request.metadata.inputTruncated === true
+  const safePreview = typeof preview === "string"
+    ? redactWebMcpReport(preview, "[redacted]", { onTruncate: () => { inputTruncated = true } }) as string
+    : undefined
   const marker = typeof preview === "string" ? preview.match(/… \(\d+ bytes, \d+ not shown\)$/)?.[0] : undefined
   const inputPreview = marker && safePreview && !safePreview.endsWith(marker) ? `${safePreview}${marker}` : safePreview
   // The signed runtime's preview is bounded; oversize future receipts retain an explicit truncation marker.
   const byteLength = (value: string) => new TextEncoder().encode(value).byteLength
   const receipt: WebMcpApprovalReceipt = {
     ...(definitionDigest ? { definitionDigest } : {}),
+    ...(inputTruncated ? { inputTruncated: true } : {}),
     ...(inputPreview !== undefined ? { inputPreview: inputPreview.length > 65536
       ? `${inputPreview.slice(0, 65536)}… (${byteLength(inputPreview)} bytes, ${byteLength(inputPreview) - byteLength(inputPreview.slice(0, 65536))} not shown)` : inputPreview } : {}),
   }

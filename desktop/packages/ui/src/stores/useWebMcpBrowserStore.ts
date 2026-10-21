@@ -377,7 +377,8 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
             id: entry.id,
             tool: redactWebMcpText(entry.tool),
             invocationID: entry.invocationID,
-            input,
+            input: input.value,
+            inputTruncated: entry.inputTruncated === true || input.truncated,
             rejections: entry.rejections ? redactWebMcpReport(entry.rejections.slice(0, 16)) as WebMcpJournalEntry["rejections"] : undefined,
             outcome: redactWebMcpText(entry.outcome).slice(0, 64),
             text: redactWebMcpText(entry.text).slice(0, 4000),
@@ -569,14 +570,17 @@ function observeCatalog(
   return next
 }
 
-function boundJournalInput(value: unknown): Record<string, unknown> | null {
+function boundJournalInput(value: unknown): { value: Record<string, unknown>; truncated: boolean } | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   try {
-    const text = JSON.stringify(redactWebMcpReport(value, "<fill in>"))
-    if (!text || text.length > 65536 || text[0] !== "{") return null
+    let truncated = false
+    const safe = redactWebMcpReport(value, "<fill in>", { onTruncate: () => { truncated = true } })
+    const text = JSON.stringify(safe)
+    if (truncated || (text && text.length > 65536)) return { value: {}, truncated: true }
+    if (!text || text[0] !== "{") return null
     const parsed: unknown = JSON.parse(text)
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null
-    return parsed as Record<string, unknown>
+    return { value: parsed as Record<string, unknown>, truncated: false }
   } catch {
     return null
   }

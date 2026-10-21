@@ -91,6 +91,8 @@ export interface WebMcpJournalEntry {
   tool: string
   invocationID?: string
   input: Record<string, unknown>
+  /** A bounded projection cannot establish missing properties or reproduce a run. */
+  inputTruncated?: boolean
   outcome: string
   text: string
   durationMs: number

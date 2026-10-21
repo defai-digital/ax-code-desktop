@@ -4,7 +4,7 @@ import { createRequire, Module } from "node:module"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
 
-import { credentialTextCases, secret } from "../../../shared/testing/webmcp-redaction-cases.mjs"
+import { credentialTextCases, fieldContextCases, secret } from "../../../shared/testing/webmcp-redaction-cases.mjs"
 
 const require = createRequire(import.meta.url)
 afterEach(() => {
@@ -40,7 +40,7 @@ test("the actual Electron entry redacts every disk write without altering the in
     executeTool: async (_tool, input) => {
       inputs.push(JSON.parse(input))
       if (inputs.length === 2) throw new Error(JSON.stringify({ password: "thrown-secret" }))
-      if (inputs.length === 3) return { errors: credentialTextCases }
+      if (inputs.length === 3) return { errors: [...credentialTextCases, ...fieldContextCases.map(({ input }) => ({ error: input }))] }
       if (inputs.length === 4) throw new Error(credentialTextCases.join("\n"))
       return JSON.stringify({ access_token: "returned-secret", nested: [{ apiKey: "nested-secret" }], value: "kept" })
     },

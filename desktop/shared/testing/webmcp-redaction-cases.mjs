@@ -93,3 +93,17 @@ credentialTextCases.push(
 )
 
 credentialTextCases.push(...["code", "state", "%2563ode", "%2573tate"].flatMap((key) => ["?", "#", "#/route?"].map((prefix) => `https://example.test/${prefix}${key}=a`)))
+
+// Field-name context applies to every sibling value spelling, regardless of member order or depth.
+export const fieldContextCases = [
+  "name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer",
+].flatMap((fieldKey) => [
+  "password", "account.password", "/account/password", "#/account/password", "/account/api~1key", "/account/api.key", "/account/sig",
+  ["account", "password"],
+].flatMap((fieldName) => [
+  "value", "got", "actual", "received", "input", "given", "provided", "data",
+].map((valueKey) => ({
+  fieldKey, fieldName, valueKey,
+  input: { [valueKey]: secret, [fieldKey]: fieldName, constraint: "minLength" },
+  expected: { [valueKey]: "[redacted]", [fieldKey]: fieldName, constraint: "minLength" },
+}))))

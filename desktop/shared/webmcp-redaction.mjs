@@ -80,23 +80,44 @@ export function webMcpTextLooksSensitive(value) {
   return false
 }
 
+const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"])
+const FIELD_PATH_KEYS = new Set(["path", "instancePath", "pointer"])
+const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
+
+/** Paths identify the final field, not a sensitive ancestor. JSON Pointer escapes belong to that final name. */
+function sensitiveFieldName(value, key) {
+  const last = Array.isArray(value) ? value.at(-1) : value
+  if (typeof last !== "string") return false
+  // Ordinary names retain the full sensitive-name vocabulary, including compound names such as api.key.
+  if (!FIELD_PATH_KEYS.has(key) && sensitiveParameterName(last)) return true
+  // A slash-delimited pointer can itself contain dots in its final property name.
+  const segment = last.includes("/") ? last.split("/").at(-1) : last.split(/[.[\]\\]/).filter(Boolean).at(-1)
+  const name = (segment ?? "").replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
+  return sensitiveParameterName(name.replaceAll("/", "_"))
+}
+
 /** Preserve report structure while filtering the same keys and credential shapes as the UI.
  * Decode JSON text (including encoded strings) before filtering, retaining its original wire type.
  * Unchanged text remains byte-for-byte intact. Bound nesting and replace cycles rather than throwing.
+ * Input consumers use onTruncate to reject incomplete projections for diagnosis and export.
  */
-export function redactWebMcpReport(value, replacement = "[redacted]") {
+export function redactWebMcpReport(value, replacement = "[redacted]", options = {}) {
   const ancestors = new WeakSet()
   let remaining = 100000
   const replaced = () => ({ value: replacement, changed: true })
-  const visit = (entry, depth) => {
+  const incomplete = () => {
+    options.onTruncate?.()
+    return replaced()
+  }
+  const visit = (entry, depth, fieldPath = false) => {
     if (--remaining < 0) throw new Error("Redaction traversal budget exceeded")
-    if (depth > 32) return replaced()
+    if (depth > 32) return incomplete()
     if (typeof entry === "string") {
       let parsed
       try {
         parsed = JSON.parse(entry)
       } catch (error) {
-        if (!(error instanceof SyntaxError)) return replaced()
+        if (!(error instanceof SyntaxError)) return incomplete()
         // Embedded or truncated JSON is still checked for quoted credential keys below.
       }
       if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
@@ -108,12 +129,12 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
       return webMcpTextLooksSensitive(entry) ? replaced() : { value: entry, changed: false }
     }
     if (!entry || typeof entry !== "object") return { value: entry, changed: false }
-    if (ancestors.has(entry)) return replaced()
+    if (ancestors.has(entry)) return incomplete()
     ancestors.add(entry)
     let changed = false
     try {
       if (Array.isArray(entry)) {
-        const sensitivePair = entry.length === 2 && typeof entry[0] === "string" && sensitiveParameterName(entry[0])
+        const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && sensitiveParameterName(entry[0])
         const safe = entry.map((child, index) => {
           const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1)
           changed ||= result.changed
@@ -121,12 +142,18 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
         })
         return { value: safe, changed }
       }
-      const safe = Object.fromEntries(Object.entries(entry).map(([key, child]) => {
+      const entries = Object.entries(entry)
+      const sensitiveField = entries.some(([key, child]) => FIELD_NAMING_KEYS.has(key) && sensitiveFieldName(child, key))
+      const safeKeys = new Set()
+      const safe = Object.fromEntries(entries.map(([key, child]) => {
         const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
-        const namedValue = key === "value" && [entry.name, entry.key].some((name) => typeof name === "string" && sensitiveParameterName(name))
+        // Redacted keys can collide. An input consumer must not mistake the resulting property bag for a full receipt.
+        if (safeKeys.has(safeKey)) options.onTruncate?.()
+        safeKeys.add(safeKey)
+        const namedValue = sensitiveField && FIELD_VALUE_KEYS.has(key)
         const result = (namedValue || WEBMCP_SENSITIVE_NAME.test(key)) && child !== null && child !== ""
           ? replaced()
-          : visit(child, depth + 1)
+          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key))
         changed ||= safeKey !== key || result.changed
         return [safeKey, result.value]
       }))
@@ -139,6 +166,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
     return visit(value, 0).value
   } catch {
     // A hostile accessor/proxy must never make the caller fall back to an unfiltered value.
+    options.onTruncate?.()
     return replacement
   }
 }

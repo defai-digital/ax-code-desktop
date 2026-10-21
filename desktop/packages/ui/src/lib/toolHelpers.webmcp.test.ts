@@ -322,3 +322,37 @@ test("entry-pair credentials are filtered in result, argument and export project
     expect(JSON.stringify(output)).toMatch(/redacted|fill in/)
   }
 })
+
+test.each(["arguments", "input", "inputPreview"])("shared redaction covers every %s argument entry", async (source) => {
+  const { fieldContextCases } = await import("../../../../shared/testing/webmcp-redaction-cases.mjs")
+  for (const input of [
+    { headers: [["Authorization", "AUDIT_FAKE_PASSWORD"]] },
+    ...fieldContextCases.map(({ input }) => ({ nested: [input] })),
+  ]) {
+    const metadata = { operation: "invoke", [source]: source === "inputPreview" ? JSON.stringify(input) : input }
+    expect(describeWebMcpCall(undefined, metadata).argumentsText).not.toContain("AUDIT_FAKE_PASSWORD")
+    expect(JSON.stringify(readWebMcpInvokeInput(metadata))).not.toContain("AUDIT_FAKE_PASSWORD")
+    expect(webMcpResultPreview({ error: input })).not.toContain("AUDIT_FAKE_PASSWORD")
+  }
+})
+
+test.each(["arguments", "input", "inputPreview"])("keeps complete wide and array %s inputs within the runtime preview", (source) => {
+  for (const input of [
+    Object.fromEntries(Array.from({ length: 129 }, (_, index) => [`p${index}`, 0])),
+    { items: Array.from({ length: 300 }, () => 0) },
+    Object.fromEntries(Array.from({ length: 30 }, (_, index) => [`p${index}`, Array(10).fill(0)])),
+  ]) {
+    expect(new TextEncoder().encode(JSON.stringify(input)).length).toBeLessThan(2048)
+    expect(readWebMcpInvokeInput({ [source]: source === "inputPreview" ? JSON.stringify(input) : input })).toEqual({
+      kind: source === "inputPreview" ? "preview" : "object", input,
+    })
+  }
+})
+
+test.each(["arguments", "input", "inputPreview"])("marks a bounded %s projection truncated, never complete", (source) => {
+  let input: Record<string, unknown> = { unseen: 1 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  expect(readWebMcpInvokeInput({ [source]: source === "inputPreview" ? JSON.stringify(input) : input })).toEqual({
+    kind: "truncated", input: null,
+  })
+})
