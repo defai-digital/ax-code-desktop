@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
 import { useMcpStore } from "@/stores/useMcpStore"
 
@@ -53,7 +54,7 @@ export async function pauseChromeBridgeForProjectBrowser(directory: string): Pro
       paused.add(name)
       disconnectedHere.push(name)
     } catch (error) {
-      console.warn("[webmcp] could not pause the Chrome bridge", name, error)
+      console.warn("[webmcp] could not pause the Chrome bridge", redactWebMcpText(name), redactWebMcpText(String(error)))
     }
   }
 
@@ -64,7 +65,7 @@ export async function pauseChromeBridgeForProjectBrowser(directory: string): Pro
       try {
         await useMcpStore.getState().connect(name, directory)
       } catch (error) {
-        console.warn("[webmcp] could not restore the Chrome bridge", name, error)
+        console.warn("[webmcp] could not restore the Chrome bridge", redactWebMcpText(name), redactWebMcpText(String(error)))
       }
     }
     return pausedChromeBridgeServers(directory)
@@ -85,7 +86,7 @@ export async function resumeChromeBridgeForProjectBrowser(directory: string): Pr
     try {
       await useMcpStore.getState().connect(name, directory)
     } catch (error) {
-      console.warn("[webmcp] could not resume the Chrome bridge", name, error)
+      console.warn("[webmcp] could not resume the Chrome bridge", redactWebMcpText(name), redactWebMcpText(String(error)))
     }
   }
 }

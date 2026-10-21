@@ -382,3 +382,16 @@ test("revoke reports each acknowledged or still-finishing call on its own page",
   expect(row.textContent).toContain("Call call-b: stop requested, still finishing.")
   expect(useWebMcpBrowserStore.getState().views[b].enabled).toBe(true)
 })
+
+test("page identities redact agent titles and origins in visible and accessible labels", () => {
+  const secret = "ghp_" + "c".repeat(36)
+  useSupervisionStore.setState({ rows: [row("/project-a", secret)] })
+  useWebMcpBrowserStore.getState().updateView(a, { origin: `https://${secret}.test` })
+  const { container } = render(<>
+    <WebMcpPageSwitcher selectedKey={a} onRetry={vi.fn()} />
+    <WebMcpTrustSummary viewKey={a} />
+    <WebMcpSessionPage directory="/project-a" sessionID="ses_same" />
+  </>)
+  expect(container.innerHTML).not.toContain(secret)
+  expect(container.textContent).toContain("[redacted]")
+})

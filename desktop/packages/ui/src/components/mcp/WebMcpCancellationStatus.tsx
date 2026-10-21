@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import { useI18n } from "@/lib/i18n"
 
 export type WebMcpCancellation = { requestID: string; state: "stopped" | "still-finishing" }
@@ -11,7 +12,7 @@ export function WebMcpCancellationStatus({ calls }: { calls: WebMcpCancellation[
       {calls.map((call) => (
         <li key={call.requestID}>
           {t(call.state === "stopped" ? "webmcp.browser.callStopped" : "webmcp.browser.callStillFinishing", {
-            call: call.requestID,
+            call: redactWebMcpText(call.requestID),
           })}
         </li>
       ))}

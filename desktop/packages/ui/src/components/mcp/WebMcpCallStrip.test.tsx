@@ -140,3 +140,16 @@ describe("WebMCP call strip approvals", () => {
     sync.permissions = []
   })
 })
+
+test("structured application failures keep their redacted explanation without metadata.reason", () => {
+  const secret = "ghp_" + "b".repeat(36)
+  sync.messages = [{ id: "m1" }]
+  sync.parts = new Map([["m1", [call("bad", "gen-1", {
+    output: JSON.stringify({ untrusted: true, result: { error: { field: "title", constraint: "required", token: secret } } }),
+  })]]])
+  const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+  expect(container.querySelector("[data-webmcp-call='failed']")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-call-result]")?.textContent).toContain("required")
+  expect(container.querySelector("[data-webmcp-call-result]")?.textContent).toContain("[redacted]")
+  expect(container.innerHTML).not.toContain(secret)
+})

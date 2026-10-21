@@ -309,7 +309,7 @@ function ToolCompare({
                 data-webmcp-compare-result={journalEntry.outcome}
                 className="max-h-32 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
               >
-                {journalEntry.text}
+                {redactWebMcpText(journalEntry.text)}
               </pre>
               <DiagnosisList
                 diagnosis={diagnoseWebMcpInput(tool.inputSchema, journalEntry.input)}
@@ -468,7 +468,7 @@ function LintNotes({ tool }: { tool: WebMcpToolDefinition }) {
           <li
             key={`${finding.code}:${finding.keyword ?? ""}:${finding.names ?? ""}`}
             data-webmcp-lint={finding.code}
-            {...(finding.keyword ? { "data-webmcp-lint-keyword": finding.keyword } : {})}
+            {...(finding.keyword ? { "data-webmcp-lint-keyword": redactWebMcpText(finding.keyword) } : {})}
             className="typography-micro text-muted-foreground"
           >
             {lintText(t, finding)}
@@ -895,7 +895,7 @@ function ToolItem({
                       : "max-h-40 overflow-auto whitespace-pre-wrap rounded p-2 typography-micro text-[var(--status-error)]"
                   }
                 >
-                  {result.text}
+                  {redactWebMcpText(result.text)}
                 </pre>
               </>
             ) : null}

@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import * as React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "@/components/mcp/WebMcpCancellationStatus"
 import { WebMcpPageSwitcher, WebMcpTrustSummary } from "@/components/mcp/WebMcpPages"
@@ -480,7 +481,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             aria-label={t("webmcp.browser.addressAria")}
             placeholder={t("webmcp.browser.addressPlaceholder")}
             className="h-7 w-full rounded-md border border-transparent bg-[var(--surface-elevated)] pl-7 pr-2 font-mono typography-meta text-foreground outline-none transition-colors focus-visible:border-[var(--interactive-border-focus)]"
-            value={url}
+            value={redactWebMcpText(url)}
             onChange={(event) => setUrl(event.target.value)}
             spellCheck={false}
             autoComplete="off"
@@ -585,7 +586,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       ) : null}
       {enabled && pausedBridgeServers.length > 0 ? (
         <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
-          {t("webmcp.detail.bridgePaused", { servers: pausedBridgeServers.join(", ") })}
+          {t("webmcp.detail.bridgePaused", { servers: pausedBridgeServers.map(redactWebMcpText).join(", ") })}
         </p>
       ) : null}
 
@@ -626,7 +627,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       <div
         ref={host}
         role="region"
-        aria-label={origin ? t("webmcp.browser.pageRegion", { origin }) : t("webmcp.browser.pageRegionEmpty")}
+        aria-label={origin ? t("webmcp.browser.pageRegion", { origin: redactWebMcpText(origin) }) : t("webmcp.browser.pageRegionEmpty")}
         className="relative min-h-0 flex-1 bg-background"
       >
         {!browserId ? (

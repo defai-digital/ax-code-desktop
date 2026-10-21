@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 import { useWebMcpBrowserStore, type WebMcpViewSnapshot } from "@/stores/useWebMcpBrowserStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
@@ -25,8 +26,9 @@ export function useWebMcpPages() {
         ...view,
         key,
         projectId: project?.id,
-        project: project?.label ? `${project.label} · ${view.directory}` : view.directory!,
-        title: row?.title || session?.title || view.sessionID,
+        project: redactWebMcpText(project?.label ? `${project.label} · ${view.directory}` : view.directory!),
+        title: redactWebMcpText(row?.title || session?.title || view.sessionID || ""),
+        origin: view.origin ? redactWebMcpText(view.origin) : null,
       }
     })
 }

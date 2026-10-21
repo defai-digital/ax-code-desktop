@@ -138,7 +138,7 @@ export function collectWebMcpCalls(
           typeof state.time?.start === "number" && typeof state.time?.end === "number"
             ? Math.max(0, state.time.end - state.time.start)
             : null,
-        resultPreview: status === "completed" && !failed ? resultLine(state.output) : null,
+        resultPreview: status === "completed" ? resultLine(state.output) : null,
         generation: typeof metadata?.generation === "string" ? metadata.generation : null,
         argumentsMissing: call.argumentsMissing,
         definitionDigest: readWebMcpDefinitionDigest(metadata),

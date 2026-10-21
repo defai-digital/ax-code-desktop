@@ -1,5 +1,6 @@
 "use strict"
 
+const { redactWebMcpText } = require("../../../shared/webmcp-redaction.mjs")
 const { randomUUID } = require("node:crypto")
 const page = require("./webmcp-page")
 const { definitionDigest, catalogDigest } = require("../../../shared/webmcp-digests.cjs")
@@ -29,7 +30,7 @@ const plainObject = (value) => Boolean(value) && typeof value === "object" && !A
 const catalogRejection = (reason, tool) => ({
   code: "invalid-catalog",
   reason,
-  tool: typeof tool === "string" && tool ? tool.slice(0, 64) : "",
+  tool: typeof tool === "string" && tool ? redactWebMcpText(tool).slice(0, 64) : "",
 })
 const allowedUrl = (value) => {
   try {

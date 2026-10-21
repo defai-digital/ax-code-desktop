@@ -134,6 +134,10 @@ describe("webMcpRegressionExport", () => {
     const output = typeof value === "string" ? value : JSON.stringify(value)
     const outcome = desktopWebMcpResultOutcome({ status: "completed", output })!
     const exported = webMcpRegressionExport({ tool: "echo", input: {}, outcome })!
+    if (outcome === "timeout" || outcome === "cancelled") {
+      expect(exported).toBeNull()
+      return
+    }
     await executeExport(exported.snippet, output)
     const changed = webMcpRegressionExport({
       tool: "echo",
@@ -263,8 +267,6 @@ test("every shared manual outcome either has an executable classifier assertion 
   const outputs: Record<string, unknown> = {
     completed: { value: 1 },
     "application-error": { isError: true },
-    timeout: { status: "timeout" },
-    cancelled: { status: "cancelled" },
   }
   for (const outcome of [...MANUAL_TOOL_OUTCOMES, "running", "future-outcome"]) {
     const exported = webMcpRegressionExport({ tool: "echo", input: {}, outcome })

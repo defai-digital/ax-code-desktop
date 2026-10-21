@@ -654,6 +654,20 @@ describe("agent browser enable request", () => {
     expect(callsFor("create")[0][1]).toMatchObject({ sessionID: null })
   })
 
+  test("page status URLs are redacted in the address bar and stored as origins", async () => {
+    const secret = "ghp_" + "j".repeat(36)
+    const url = `https://example.test/reset/${secret}`
+    invoke.mockImplementation(async () => ({ ...browserStatus(false), url }))
+    render()
+    openAgentMode()
+    await flush()
+    const address = within(container).getByRole("textbox", { name: "webmcp.browser.addressAria" }) as HTMLInputElement
+    expect(address.value).toBe("[redacted]")
+    expect(container.innerHTML).not.toContain(secret)
+    const { WEBMCP_HISTORY_KEY } = await import("@/stores/useWebMcpBrowserStore")
+    expect(localStorage.getItem(WEBMCP_HISTORY_KEY)).not.toContain(secret)
+  })
+
   test("restores session addresses with access off and isolates session switches", async () => {
     const { rememberWebMcpAddress } = await import("@/stores/useWebMcpBrowserStore")
     rememberWebMcpAddress("/repo/", "ses_one", "https://example.test/one")
@@ -661,14 +675,14 @@ describe("agent browser enable request", () => {
     render()
     openAgentMode()
     await flush()
-    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/one" })
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test" })
     act(() => useSessionUIStore.setState({ currentSessionId: "ses_two" }))
     await flush()
-    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/two" })
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test" })
     openPreviewMode()
     openAgentMode()
     await flush()
-    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/two" })
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test" })
     expect(callsFor("enable")).toHaveLength(0)
   })
 

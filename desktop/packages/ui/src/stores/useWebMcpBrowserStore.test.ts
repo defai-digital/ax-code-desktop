@@ -12,14 +12,14 @@ beforeEach(() => localStorage.clear())
 test("restores only normalized project and session addresses across a store reset", () => {
   for (const directory of ["/Users/dev/project", "/home/dev/project", "C:\\Users\\dev\\project"]) {
     rememberWebMcpAddress(directory, "ses_one", "https://example.org/one?token=secret#credential")
-    expect(restoreWebMcpAddress(directory.replaceAll("\\", "/") + "/", "ses_one")).toBe("https://example.org/one")
+    expect(restoreWebMcpAddress(directory.replaceAll("\\", "/") + "/", "ses_one")).toBe("https://example.org")
     expect(restoreWebMcpAddress(directory, "ses_two")).toBeNull()
     expect(restoreWebMcpAddress(directory + "-other", "ses_one")).toBeNull()
   }
   useWebMcpBrowserStore.setState({ enabled: true, paused: true, browserId: "live" })
   useWebMcpBrowserStore.getState().resetSnapshot()
   expect(useWebMcpBrowserStore.getState()).toMatchObject({ enabled: false, paused: false, browserId: null })
-  expect(restoreWebMcpAddress("/home/dev/project", "ses_one")).toBe("https://example.org/one")
+  expect(restoreWebMcpAddress("/home/dev/project", "ses_one")).toBe("https://example.org")
   expect(localStorage.getItem(WEBMCP_HISTORY_KEY)).not.toMatch(/secret|credential|enabled|grant|browserId/)
 })
 
@@ -45,7 +45,7 @@ test("bounds history and validates persisted data on every restore", () => {
   for (let i = 0; i < 80; i++) rememberWebMcpAddress("/repo", `ses_${i}`, `https://example.org/${i}`)
   expect(JSON.parse(localStorage.getItem(WEBMCP_HISTORY_KEY)!)).toHaveLength(64)
   expect(restoreWebMcpAddress("/repo", "ses_0")).toBeNull()
-  expect(restoreWebMcpAddress("/repo", "ses_79")).toBe("https://example.org/79")
+  expect(restoreWebMcpAddress("/repo", "ses_79")).toBe("https://example.org")
   for (const raw of [
     "{bad",
     "null",
@@ -72,7 +72,7 @@ test("bounds history and validates persisted data on every restore", () => {
     ]),
   )
   expect(restoreWebMcpAddress("/repo", "ses_one")).toBeNull()
-  expect(restoreWebMcpAddress("/repo", "ses_two")).toBe("https://example.org/path")
+  expect(restoreWebMcpAddress("/repo", "ses_two")).toBe("https://example.org")
 })
 
 test("a changed definition marks the previous result stale and the same definition does not", () => {
@@ -148,7 +148,7 @@ test("bounds the total serialized size and restores after a fresh module load", 
   expect(localStorage.getItem(WEBMCP_HISTORY_KEY)!.length).toBeLessThanOrEqual(200000)
   vi.resetModules()
   const fresh = await import("./useWebMcpBrowserStore")
-  expect(fresh.restoreWebMcpAddress(directory, "ses_63")).toBe(url)
+  expect(fresh.restoreWebMcpAddress(directory, "ses_63")).toBe("https://example.org")
   expect(fresh.useWebMcpBrowserStore.getState().enabled).toBe(false)
 })
 
@@ -344,4 +344,35 @@ test("the manual journal keeps the last 32 runs per view in memory and drops the
   expect(store().views[first].toolJournal).toHaveLength(WEBMCP_JOURNAL_LIMIT)
   expect(localStorage.length).toBe(0)
   expect(JSON.stringify(localStorage)).not.toContain("j34")
+})
+
+test.each([
+  "ghp_" + "a".repeat(36),
+  "Ab9Zx1Qk7Mv3Rs8Tn2Wp6Yd4Cf0Jh5Lu",
+  "short-reset-code",
+  "%67%68%70_" + "a".repeat(36),
+])("history removes arbitrary path credentials on write and migrates old records: %s", (secret) => {
+  const url = `https://example.test/reset-password/${secret}?token=hidden#hidden`
+  rememberWebMcpAddress("/repo", "ses_one", url)
+  expect(restoreWebMcpAddress("/repo", "ses_one")).toBe("https://example.test")
+  expect(localStorage.getItem(WEBMCP_HISTORY_KEY)).not.toContain(secret)
+  localStorage.setItem(WEBMCP_HISTORY_KEY, JSON.stringify([{ directory: "/repo", sessionID: "ses_one", url }]))
+  expect(restoreWebMcpAddress("/repo", "ses_one")).toBe("https://example.test")
+  expect(JSON.parse(localStorage.getItem(WEBMCP_HISTORY_KEY)!)).toEqual([
+    { directory: "/repo", sessionID: "ses_one", url: "https://example.test" },
+  ])
+})
+
+test("run and journal storage filter secrets before truncation without changing invocation identity", () => {
+  const store = useWebMcpBrowserStore.getState()
+  store.resetSnapshot()
+  const secret = "ghp_" + "a".repeat(36)
+  const text = "x".repeat(3990) + " " + secret
+  store.recordToolRun("echo", { digest: "abc", outcome: "application-error", text, stale: false })
+  store.recordToolJournal({ id: "one", tool: "echo", digest: "abc", outcome: "application-error", text,
+    input: { password: "hidden", message: secret }, durationMs: 1, at: 1 })
+  expect(useWebMcpBrowserStore.getState().toolRuns.echo.text).toBe("[redacted]")
+  expect(useWebMcpBrowserStore.getState().toolJournal[0]).toMatchObject({
+    tool: "echo", text: "[redacted]", input: { password: "<fill in>", message: "<fill in>" },
+  })
 })

@@ -61,7 +61,8 @@ Opening another origin clears them. They are not written to disk.
 **Manual journal.** Each **Try it** that is actually sent is kept for this page view, newest first, up to 32 runs. A row
 records the tool, the input, the outcome, how long it took, and the definition digest it ran against. Choose **Replay**
 on a row to fill the form with that input. You can edit the input and choose **Try it** again. Replay does not run the
-tool by itself, and it does not discard the result already shown.
+tool by itself, and it does not discard the result already shown. Sensitive journal input values are replaced with
+`<fill in>` before retention; re-enter those values before replaying.
 
 **Compare with the agent.** Open a tool to see your latest manual run beside the agent's most recent call to that tool
 in the transcript. The agent's side shows the redacted arguments the transcript already shows. When both runs record a
@@ -79,12 +80,19 @@ an input.
 **Regression export.** From a journal run, or from the agent's call when its input is a JSON object, **Copy test** copies
 a snippet that loads the tool with `document.modelContext.getTools()` and calls it through
 `document.modelContext.executeTool` with `JSON.stringify(...)`, then asserts the recorded outcome. **Copy --run
-argument** copies the same input for `pnpm run webmcp:check`.
+argument** copies the same input for `pnpm run webmcp:check`. Export is available only for completed and
+application-error outcomes. Timeout, cancellation, uncertain transport, and admission failures have no export because a
+standalone page call cannot reproduce the adapter deadline, cancellation, or admission context.
 
 - Run `add_task` with a title and watch the list update.
 - Run it with a title of only spaces. The form sends it exactly as typed, the page's own check rejects it, and the panel shows
   the page's error: `{ "error": { "field": "title", "constraint": "minLength: 1", "got": "   " } }`. (An empty title is stopped
   by the form first, because the schema marks `title` as required.)
+
+The call strip and landing recap retain a redacted result preview for structured application errors, even when the
+runtime provides no failure reason. Page and agent text is filtered before display, copying, or durable history storage.
+Address history persists only the HTTP(S) origin; paths, queries, fragments, and user info are never saved. Existing
+history is scrubbed on read. Reopening a session starts at that origin with agent access off.
 
 ## 4. Let the agent use it
 

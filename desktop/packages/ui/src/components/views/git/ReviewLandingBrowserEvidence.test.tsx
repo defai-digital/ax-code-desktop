@@ -156,3 +156,26 @@ describe("browser evidence beside landing", () => {
     expect(text).toContain("1. checkout")
   })
 })
+
+test("uncalled tool names and structured failures are redacted in the recap and clipboard", async () => {
+  const secret = "ghp_" + "a".repeat(36)
+  sync.messages = [{ id: "u1", role: "user" }, { id: "a1", role: "assistant" }]
+  sync.parts = new Map([["a1", [{ ...call("bad", "completed"), state: {
+    ...call("bad", "completed").state,
+    output: JSON.stringify({ untrusted: true, result: { error: { field: "title", constraint: "required", token: secret } } }),
+  } }]]])
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", origin: "https://shop.test",
+    catalog: [{ name: "checkout", description: "Pay" }, { name: secret, description: "Unused" }] })
+  const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  fireEvent.click(container.querySelector("summary")!)
+  expect(container.querySelector("[data-recap-not-called]")?.textContent).toContain("[redacted]")
+  expect(container.querySelector("[data-recap-result]")?.textContent).toContain("required")
+  expect(container.querySelector("[data-recap-outcome]")?.getAttribute("data-recap-outcome")).toBe("failed")
+  expect(container.innerHTML).not.toContain(secret)
+  await act(async () => fireEvent.click(container.querySelector("[data-recap-copy]")!))
+  expect(writeText.mock.calls[0][0]).toContain("required")
+  expect(writeText.mock.calls[0][0]).not.toContain(secret)
+})

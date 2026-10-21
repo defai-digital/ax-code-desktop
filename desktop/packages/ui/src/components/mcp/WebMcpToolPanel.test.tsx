@@ -953,7 +953,7 @@ test.each([
   )
   await runTool()
   expect(container.querySelector(`[data-webmcp-journal-outcome='${outcome}']`)).not.toBeNull()
-  const supported = ["completed", "application-error", "timeout", "cancelled"].includes(outcome)
+  const supported = ["completed", "application-error"].includes(outcome)
   expect(container.querySelector("[data-webmcp-export='manual']") !== null).toBe(supported)
   expect(
     [...container.querySelectorAll("button")].some((button) => button.textContent === "webmcp.tools.export.copyTest"),

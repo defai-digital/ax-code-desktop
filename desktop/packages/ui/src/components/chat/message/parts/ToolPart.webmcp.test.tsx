@@ -193,3 +193,26 @@ test.each(["https://u:AUDIT_FAKE_PASSWORD@example.test/", "https://example.test/
     expect(container.textContent).toContain("[redacted]")
   },
 )
+
+test.each(["desktop_webmcp", "webmcp"])("expanded %s transport errors redact credentials", (tool) => {
+  const secret = "ghp_" + "d".repeat(36)
+  const { container } = renderPart(tool, {
+    status: "error", input: { action: "invoke", toolName: "echo" }, metadata: { operation: "invoke", toolName: "echo" },
+    error: `Page rejected ${secret}`,
+  }, true)
+  expect(container.innerHTML).not.toContain(secret)
+  expect(container.textContent).toContain("[redacted]")
+})
+
+test.each(["desktop_webmcp", "webmcp"])("expanded %s outputs redact structured and plain results before rendering", (tool) => {
+  const secret = "ghp_" + "g".repeat(36)
+  for (const output of [secret, JSON.stringify({ token: "AUDIT_HIDDEN_VALUE", message: secret, count: 1 })]) {
+    const { container } = renderPart(tool, {
+      status: "completed", input: { action: "invoke", toolName: "echo" }, metadata: {}, output,
+    }, true)
+    expect(container.innerHTML).not.toContain(secret)
+    expect(container.innerHTML).not.toContain("AUDIT_HIDDEN_VALUE")
+    expect(container.textContent).toContain("[redacted]")
+    cleanup()
+  }
+})

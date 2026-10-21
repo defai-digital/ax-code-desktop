@@ -19,3 +19,14 @@ test("ordinary diagnostics and credential labels without values remain readable"
     assert.equal(redactWebMcpReport(text), text)
   }
 })
+
+test("repeated filtering preserves redacted diagnostic structure but never placeholder suffixes", () => {
+  const safe = 'Completed\n{ "password": "[redacted]", "html": "<img>", "message": "safe" }'
+  assert.equal(redactWebMcpReport(safe), safe)
+  for (const unsafe of [
+    'password="[redacted]secret"',
+    'password="[redacted]"secret',
+    'password="[redacted]", token="secret"',
+    'password="<fill in>"; token=secret',
+  ]) assert.equal(redactWebMcpReport(unsafe), "[redacted]")
+})

@@ -49,7 +49,12 @@ export function webMcpTextLooksSensitive(value) {
   // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
   const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^\s"'`{}\[\],:=]+))\s*[:=]/g
   for (const match of text.matchAll(assignments)) {
-    if (WEBMCP_SENSITIVE_NAME.test(match[1] ?? match[2])) return true
+    if (!WEBMCP_SENSITIVE_NAME.test(match[1] ?? match[2])) continue
+    // A second display/storage boundary must preserve already filtered diagnostics. Only a
+    // complete quoted placeholder is safe; suffixes or additional assignments still get checked.
+    const tail = text.slice(match.index + match[0].length)
+    if (/^\s*(["'`])(?:\[redacted\]|<fill in>)\1(?=\s*[,}\]\r\n]|\s*$)/.test(tail)) continue
+    return true
   }
   return false
 }
