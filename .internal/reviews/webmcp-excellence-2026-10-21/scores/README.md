@@ -206,3 +206,27 @@ build, six native journeys and `e2e:desktop` on macOS.
 Final audit at `5b0bc8a6` (`AUDIT-2026-10-21-p1-codex-round17.md`, `AUDIT-2026-10-21-p1-deepseek-round17.md`): no P1 from
 either auditor. Two P2s remain: a tool whose name is itself credential-shaped cannot be tried by hand (shown as a stale form),
 and approval cards shorten page descriptions to 200 characters. Definition of done item 3 is met at this commit.
+
+## Round 17 result (HEAD `7f63b436`; raw judgments in `round17/`, grok-4.7 added as a fourth judge)
+
+| Step | codex | deepseek-flash | MiniMax-M3 | grok-4.7 | Pass (2 of the 3 original judges) |
+| --- | --- | --- | --- | --- | --- |
+| A1 discover | 8 | 8 | 8 | 8 | yes |
+| A2 enable and scope trust | 9 | 9 | 8 | 9 | yes |
+| A3 watch live | 8 | 9 | 8 | 8 | yes |
+| A4 approvals | 7 | 8 | 7 | 7 | no |
+| A5 failure recovery | 8 | 8 | 8 | 7 | yes |
+| A6 evidence after the task | 8 | 9 | 8 | 8 | yes |
+| A7 pause and take over | 8 | 9 | 8 | 8 | yes |
+| A8 several sessions | 8 | 9 | 8 | 8 | yes |
+| B1 see registered tools | 8 | 8 | 8 | 8 | yes |
+| B2 try and compare | 7 | 9 | 8 | 8 | yes |
+| B3 iterate | 7 | 8 | 7 | 7 | no |
+| B4 diagnose misuse | 7 | 8 | 8 | 7 | yes |
+| B5 onboarding docs | 8 | 9 | 8 | 8 | yes |
+
+Eleven of thirteen pass at the final hardening commit; A4 and B3 fall back. Reasons: A4 the card says the runtime gives no
+arguments, there is no approval-expiry outcome and the page description is cut at 200 characters; B3 registration changes show
+digest pairs, not property-level schema differences. The brief told judges that ADR-266 runtime fields are not pinned; the
+runtime pin is now v7.28.2, which sends `definitionDigest` and a redacted `inputPreview` at approval, so round 18 verifies
+Desktop renders that shape and adds expiry, the full description and a property-level diff.

@@ -365,3 +365,14 @@ closed deepseek-flash's named flips: free arrangement in the session grid (drag 
 split, pop-out with one browser owner, remembered ratios), multi-select PR state and checks facets with counts, and palette
 #PR search, host or project scope and split-open. deepseek-flash calls workspace parity with Orca; the lead rests on overview
 and review. Residual Orca edges named: inline three-way merge, an arbitrary compare base, and a recursive pane tree.
+
+## Round 17 comparison (HEAD `7f63b436`; raw judgments in `round17/`, grok-4.7 added)
+
+| Judge | AX | Orca | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- |
+| codex | 9.28 | 8.93 | 6.90 | +0.35, better | better |
+| deepseek-flash | 9.21 | 8.97 | 7.00 | +0.24, better | better (+2.21) |
+| MiniMax-M3 | 9.22 | 8.98 | 6.88 | +0.24, better | better (+2.34) |
+| grok-4.7 | 9.23 | 8.97 | n/a in excerpt | +0.26, better | better |
+
+At the final hardening commit all four judges rate AX better than Orca by at least the 0.2 margin and better than opencode.
