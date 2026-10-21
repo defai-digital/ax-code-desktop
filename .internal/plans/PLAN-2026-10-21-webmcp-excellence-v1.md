@@ -59,4 +59,6 @@ Round 12 judged at `cbb21705`: supervisor means 5.75 / 6.0 / 6.5, builder 5.0 / 
 - 2026-10-21: the user lowered the rubric bar to 8 ("i can accept if reach 8"): every persona step at least 8 from every
   judge (PRD section 3, item 1). After round 12 the steps below 8 for at least one judge are A1, A2, A3, A5, A7, A8, B1, B2,
   B3, B4 (and B5 at 7 from codex); A4 and A6 reach 8 from two judges.
+- 2026-10-21: the user set the pass rule per step to "at least 8 from two of the three judges". Against round 12 this passes
+  A4 (7/8/8) and B5 (7/8/8); every other step is still below it (A6 7/7/8 and B2 6/6/8 have one judge at 8).
 

@@ -47,11 +47,13 @@ Every requirement in section 4 names the steps it raises and by how much; rounds
 
 ## 3. Definition of done
 
-1. Excellence rubric: every journey step in section 2 scores at least 8 of 10 from each of three independent judges (codex,
-   deepseek-flash, MiniMax-M3), from source and screenshot evidence.
+1. Excellence rubric: every journey step in section 2 passes. A step passes when at least two of the three independent judges
+   (codex, deepseek-flash, MiniMax-M3) score it 8 of 10 or higher, from source and screenshot evidence.
 
    Revision 2026-10-21 (user decision after round 12: "i can accept if reach 8"): the bar was every step at least 9, with
    none below 8. It is now every step at least 8 from every judge. Items 2 to 4 are unchanged.
+   Revision 2026-10-21, later the same day (user decision: "if 2 judges out of 3 accept 8, we can consider this item as
+   pass"): a step passes with at least 8 from two of the three judges.
 2. Task suite: the WebMCP tasks in section 6 pass as native journeys with recorded action counts, on macOS locally and in the
    three-platform CI job.
 3. Fresh audit: no P1 finding in an audit run after the last round.
