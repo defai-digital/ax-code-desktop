@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 import type { I18nKey } from "@/lib/i18n"
 import type { WebMcpBrowserSnapshot } from "@/stores/useWebMcpBrowserStore"
 
@@ -132,7 +133,7 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
       canOpen: true,
     }
   }
-  const origin = state.origin ?? ""
+  const origin = redactWebMcpText(state.origin ?? "")
   if (state.enabled) {
     // Enrolled without a grantable page: the runtime refuses every call until the user loads one,
     // so "on" would be a lie. Say what the user has to do instead.

@@ -289,7 +289,9 @@ const ToolScrollableTextOutput: React.FC<{
   input: Record<string, unknown> | undefined
   syntaxTheme: { [key: string]: React.CSSProperties }
 }> = React.memo(({ output, part, metadata, input, syntaxTheme }) => {
-  const renderedOutput = getToolOutputText(output, part, metadata)
+  const renderedOutput = isWebMcpToolName(normalizeToolName(part.tool))
+    ? redactWebMcpText(output)
+    : getToolOutputText(output, part, metadata)
   const outputLanguage = getToolOutputLanguage(output, part, metadata, input)
   // While the tool is still streaming, Prism re-tokenization and the JSON probe
   // are O(output size) per event-flush frame; throttle the text they see so a
@@ -982,7 +984,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
                     borderColor: "var(--status-error-border)",
                   }}
                 >
-                  {state.error}
+                  {isWebMcpToolName(normalizeToolName(part.tool)) ? redactWebMcpText(String(state.error)) : state.error}
                 </div>
                 {normalizeToolName(part.tool) === "desktop_webmcp" ? <WebMcpBrowserErrorAction /> : null}
               </div>
@@ -1991,7 +1993,8 @@ class ToolPartErrorBoundary extends React.Component<
 
   componentDidCatch(error: Error) {
     if (process.env.NODE_ENV === "development") {
-      console.warn("Tool part failed to render; showing safe fallback.", error)
+      console.warn("Tool part failed to render; showing safe fallback.",
+        isWebMcpToolName(this.props.toolName) ? redactWebMcpText(String(error)) : error)
     }
   }
 
@@ -2000,7 +2003,8 @@ class ToolPartErrorBoundary extends React.Component<
       return this.props.children
     }
 
-    const message = this.state.error?.message
+    const rawMessage = this.state.error?.message
+    const message = rawMessage && isWebMcpToolName(this.props.toolName) ? redactWebMcpText(rawMessage) : rawMessage
     return (
       <div className="flex items-center gap-1.5 pr-2 pl-px py-1.5 rounded-xl min-w-0">
         <div className="h-3.5 w-3.5 flex-shrink-0" style={TOOL_ERROR_ICON_STYLE}>

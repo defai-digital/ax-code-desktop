@@ -178,3 +178,11 @@ test("runtime interruption never claims access is on and explains automatic reco
     detailKey: "webmcp.detail.interrupted",
   })
 })
+
+test("summary origin parameters use the shared redactor in each live state", () => {
+  const origin = `https://ghp_${"e".repeat(36)}.test`
+  for (const enabled of [true, false]) for (const tools of [0, 1]) {
+    const summary = summarizeWebMcpBrowser({ ...base, phase: "ready", nativeAvailable: true, enabled, tools, origin }, { isElectron: true })
+    expect(summary.detailParams?.origin).toBe("[redacted]")
+  }
+})

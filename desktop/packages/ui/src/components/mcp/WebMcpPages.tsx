@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "./WebMcpCancellationStatus"
 import { useI18n } from "@/lib/i18n"
@@ -99,7 +100,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
         <ul aria-label={t("webmcp.pages.list")} className="max-h-52 overflow-y-auto space-y-2 py-2">
           {pages.map((page) => {
             const title = page.title || t("webmcp.pages.draft")
-            const identity = `${title} · ${page.origin || t("webmcp.pages.blank")} · ${page.project}`
+            const identity = `${title} · ${(page.origin ? redactWebMcpText(page.origin) : "") || t("webmcp.pages.blank")} · ${page.project}`
             const accessibleIdentity = `${identity} · ${page.sessionID || t("webmcp.pages.draft")}`
             return (
               <li
@@ -159,7 +160,7 @@ export function WebMcpTrustSummary({ viewKey }: { viewKey: string }) {
   return (
     <details className="shrink-0 border-b border-border px-2.5 py-1.5 typography-micro" data-webmcp-trust>
       <summary className="cursor-pointer">
-        {t("webmcp.trust.title")}: {page.origin || t("webmcp.pages.blank")} · {page.title || t("webmcp.pages.draft")} ·{" "}
+        {t("webmcp.trust.title")}: {(page.origin ? redactWebMcpText(page.origin) : "") || t("webmcp.pages.blank")} · {page.title || t("webmcp.pages.draft")} ·{" "}
         {t(`webmcp.pages.access.${pageAccess(page)}`)}
       </summary>
       <p className="py-1 break-all">
@@ -187,7 +188,7 @@ export function WebMcpSessionPage({ directory, sessionID }: { directory: string 
         showWebMcpPage(page)
       }}
     >
-      {page.origin || t("webmcp.pages.blank")} · {t(`webmcp.pages.access.${pageAccess(page)}`)} ·{" "}
+      {(page.origin ? redactWebMcpText(page.origin) : "") || t("webmcp.pages.blank")} · {t(`webmcp.pages.access.${pageAccess(page)}`)} ·{" "}
       {t("webmcp.pages.show")}
     </button>
   )

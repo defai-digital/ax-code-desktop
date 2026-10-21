@@ -706,3 +706,12 @@ test.each(["frameId", "name", "description"])("dispatch verifies current accepte
   expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
   f.adapter.close()
 })
+
+test("catalog rejection redacts the full tool name before shortening it", async () => {
+  const f = await fixture()
+  const name = "x".repeat(55) + " ghp_" + "a".repeat(36)
+  const tool = { ...fixtureTool, name }
+  f.emit("WebMCP.toolsAdded", { tools: [tool, tool] })
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "duplicate-name", tool: "[redacted]" })
+  f.adapter.close()
+})

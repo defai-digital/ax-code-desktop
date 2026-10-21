@@ -67,6 +67,8 @@ const getToolIcon = (toolName: string) => {
 
 export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onResponse }) => {
   const { t } = useI18n()
+  const isWebMcp = ["webmcp", "desktop_webmcp"].includes(normalizePermissionName(permission.permission).toLowerCase())
+  const displayText = (text: string) => isWebMcp ? redactWebMcpText(text) : text
   const [isResponding, setIsResponding] = React.useState(false)
   const [hasResponded, setHasResponded] = React.useState(false)
   const respondToPermission = sessionActions.respondToPermission
@@ -119,12 +121,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       setHasResponded(true)
       onResponse?.(response)
     } catch (error) {
-      console.error("[PermissionCard] Failed to respond to permission:", error)
+      console.error("[PermissionCard] Failed to respond to permission:", isWebMcp ? redactWebMcpText(String(error)) : error)
       if (!unmountedRef.current) {
         // Surface the failure to the user so they can retry instead of
         // silently believing the permission was granted/denied.
         toast.error(t("chat.permissionCard.responseFailed.title"), {
-          description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
+          description: error instanceof Error ? displayText(error.message) : t("chat.permissionCard.responseFailed.retry"),
         })
         // Reset guard on failure so the user can retry.
         submittingRef.current = false
@@ -175,10 +177,10 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       setHasResponded(true)
       onResponse?.("always")
     } catch (error) {
-      console.error("[PermissionCard] Failed to save WebMCP approval:", error)
+      console.error("[PermissionCard] Failed to save WebMCP approval:", redactWebMcpText(String(error)))
       if (!unmountedRef.current) {
         toast.error(t("chat.permissionCard.responseFailed.title"), {
-          description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
+          description: error instanceof Error ? displayText(error.message) : t("chat.permissionCard.responseFailed.retry"),
         })
         submittingRef.current = false
         setIsResponding(false)
@@ -542,7 +544,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               <div className="mb-2">
                 <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.patterns")}</div>
                 <code className="typography-meta px-2 py-1 bg-muted/30 rounded block break-all">
-                  {patterns.join(", ")}
+                  {patterns.map(displayText).join(", ")}
                 </code>
               </div>
             )}
@@ -625,7 +627,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
                 <Icon name="time" className="h-3.5 w-3.5 sm:h-3 sm:w-3 flex-shrink-0" />
                 {(() => {
                   const displayPatterns = alwaysPatterns.slice(0, 2)
-                  const text = displayPatterns.join(", ")
+                  const text = displayPatterns.map(displayText).join(", ")
                   const hasMore = alwaysPatterns.length > 2
                   return (
                     <span className="truncate max-w-[180px]">

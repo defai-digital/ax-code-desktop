@@ -1,3 +1,4 @@
+import { redactWebMcpText, redactWebMcpReport } from "../../../../shared/webmcp-redaction.mjs"
 import { create } from "zustand"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { normalizeProjectPath } from "@/lib/projectResolution"
@@ -333,8 +334,8 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
         delete next[name]
         next[name] = {
           digest: run.digest,
-          outcome: run.outcome.slice(0, 64),
-          text: run.text.slice(0, 4000),
+          outcome: redactWebMcpText(run.outcome).slice(0, 64),
+          text: redactWebMcpText(run.text).slice(0, 4000),
           stale:
             run.stale === true ||
             Boolean(state.catalog.find((tool) => tool.name === name && tool.digest !== run.digest)),
@@ -371,8 +372,8 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
             id: entry.id,
             tool: entry.tool,
             input,
-            outcome: entry.outcome.slice(0, 64),
-            text: entry.text.slice(0, 4000),
+            outcome: redactWebMcpText(entry.outcome).slice(0, 64),
+            text: redactWebMcpText(entry.text).slice(0, 4000),
             durationMs: Math.min(86_400_000, Math.max(0, Math.round(entry.durationMs))),
             digest: entry.digest,
             definitionDigest: entry.definitionDigest,
@@ -405,7 +406,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
 })
 
 // Persist only a bounded address history. Access, grants, page references and storage
-// remain ephemeral. Query strings, fragments and user info are never stored.
+// remain ephemeral. Persist origins only: paths may contain arbitrary reset/access tokens.
 export const WEBMCP_HISTORY_KEY = "ax-code.webmcp-addresses.v1"
 const MAX_ADDRESSES = 64
 const MAX_HISTORY_BYTES = 200_000
@@ -417,9 +418,7 @@ export function safeWebMcpAddress(value: unknown): string | null {
   try {
     const url = new URL(value)
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null
-    url.search = ""
-    url.hash = ""
-    return url.href
+    return redactWebMcpText(url.origin) === url.origin ? url.origin : null
   } catch {
     return null
   }
@@ -432,7 +431,9 @@ function addressIdentity(directory: string, sessionID: string | null) {
     normalized.length > 2048 ||
     normalized.includes("\0") ||
     !/^(?:\/|[A-Z]:\/)/.test(normalized) ||
+    redactWebMcpText(normalized) !== normalized ||
     !sessionID ||
+    redactWebMcpText(sessionID) !== sessionID ||
     !/^ses_[A-Za-z0-9_-]{1,200}$/.test(sessionID)
   )
     return null
@@ -442,15 +443,25 @@ function addressIdentity(directory: string, sessionID: string | null) {
 function readAddresses(): AddressEntry[] {
   try {
     const raw = localStorage.getItem(WEBMCP_HISTORY_KEY)
-    if (!raw || raw.length > MAX_HISTORY_BYTES) return []
+    if (!raw) return []
+    if (raw.length > MAX_HISTORY_BYTES) {
+      localStorage.removeItem(WEBMCP_HISTORY_KEY)
+      return []
+    }
     const data: unknown = JSON.parse(raw)
-    if (!Array.isArray(data) || data.length > MAX_ADDRESSES) return []
-    return data.flatMap((entry) => {
+    if (!Array.isArray(data) || data.length > MAX_ADDRESSES) {
+      localStorage.removeItem(WEBMCP_HISTORY_KEY)
+      return []
+    }
+    const addresses = data.flatMap((entry) => {
       if (!entry || typeof entry !== "object") return []
       const identity = addressIdentity(entry.directory, entry.sessionID)
       const url = safeWebMcpAddress(entry.url)
       return identity && url ? [{ ...identity, url }] : []
     })
+    const sanitized = JSON.stringify(addresses)
+    if (sanitized !== raw) localStorage.setItem(WEBMCP_HISTORY_KEY, sanitized)
+    return addresses
   } catch {
     return []
   }
@@ -553,7 +564,7 @@ function observeCatalog(
 function boundJournalInput(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   try {
-    const text = JSON.stringify(value)
+    const text = JSON.stringify(redactWebMcpReport(value, "<fill in>"))
     if (!text || text.length > 65536 || text[0] !== "{") return null
     const parsed: unknown = JSON.parse(text)
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null

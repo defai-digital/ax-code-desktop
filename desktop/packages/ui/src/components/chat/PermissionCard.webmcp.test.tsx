@@ -522,3 +522,28 @@ test("approval effects redact complete element names before truncation and prese
   expect(container.innerHTML).not.toContain("AUDIT_FAKE_PASSWORD")
   expect(container.querySelector("[data-webmcp-effect]")?.textContent).toContain("[redacted]")
 })
+
+test.each(["webmcp", "desktop_webmcp", "WebMCP"])("%s approval scopes redact credentials without changing response scope", (permission) => {
+  const secret = "ghp_" + "h".repeat(36)
+  const { container } = render(<PermissionCard permission={request({
+    permission, patterns: [`https://example.test/${secret}`], always: [secret],
+  })} />)
+  expect(container.innerHTML).not.toContain(secret)
+  expect(container.textContent).toContain("[redacted]")
+})
+
+test("WebMCP approval response errors are redacted in toast text and logs", async () => {
+  const { respondToPermission } = await import("@/sync/session-actions")
+  const { toast } = await import("@/components/ui")
+  const secret = "ghp_" + "m".repeat(36)
+  vi.mocked(respondToPermission).mockRejectedValueOnce(new Error(secret))
+  const log = vi.spyOn(console, "error").mockImplementation(() => {})
+  try {
+    const { container } = render(<PermissionCard permission={request()} />)
+    const button = [...container.querySelectorAll("button")].find((node) => node.textContent?.includes("chat.permissionCard.actions.allowOnce"))!
+    expect(button).toBeTruthy()
+    await act(async () => button.click())
+    expect(log).toHaveBeenCalledWith("[PermissionCard] Failed to respond to permission:", "[redacted]")
+    expect(toast.error).toHaveBeenCalledWith("chat.permissionCard.responseFailed.title", { description: "[redacted]" })
+  } finally { log.mockRestore() }
+})

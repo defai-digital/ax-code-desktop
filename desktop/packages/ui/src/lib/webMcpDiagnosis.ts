@@ -131,8 +131,8 @@ export function webMcpRegressionExport(entry: {
   input: Record<string, unknown>
   outcome: string
 }): { snippet: string; runArgument: string } | null {
-  // Admission and transport failures cannot be reproduced by the standalone page classifier.
-  if (!["completed", "application-error", "timeout", "cancelled"].includes(entry.outcome)) return null
+  // Admission, deadline and cancellation outcomes require adapter context that this snippet cannot reproduce.
+  if (!["completed", "application-error"].includes(entry.outcome)) return null
   if (!entry.tool || entry.tool.length > 256 || webMcpTextLooksSensitive(entry.tool)) return null
   if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) return null
   let encoded: string

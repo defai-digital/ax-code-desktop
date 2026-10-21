@@ -111,3 +111,12 @@ test("preserves native definition identity separately from the frame-independent
   expect(diffWebMcpRegistration(before, after, [])).toEqual([])
   expect(readWebMcpCatalog([tool("echo")]).catalog[0].definitionDigest).toBeUndefined()
 })
+
+test("catalog rejects oversized descriptions and redacts rejection labels before truncation", () => {
+  const secret = "ghp_" + "k".repeat(36)
+  const result = readWebMcpCatalog([{ name: "echo", description: "x".repeat(4085) + " " + secret }], {
+    rejection: { code: "invalid-catalog", reason: "invalid-name", tool: "x".repeat(55) + " " + secret },
+  })
+  expect(result.catalog).toEqual([])
+  expect(result.catalogRejection?.tool).toBe("[redacted]")
+})

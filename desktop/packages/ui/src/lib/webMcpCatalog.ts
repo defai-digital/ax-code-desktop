@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 /** Bounds and projection for the page-tool catalog the builder inspects. In memory only. */
 
 export const WEBMCP_CATALOG_TOOL_CAP = 64
@@ -168,10 +169,14 @@ const byteSize = (value: unknown): number => {
 const readTool = (entry: unknown): WebMcpToolDefinition | null => {
   if (!isRecord(entry)) return null
   const { name, description, inputSchema } = entry
-  if (typeof name !== "string" || !name || name.length > 256 || typeof description !== "string") return null
+  // Reject oversized definitions instead of cutting a credential before the display redactor sees it.
+  if (
+    typeof name !== "string" || !name || name.length > 256 ||
+    typeof description !== "string" || description.length > 4096
+  ) return null
   const tool: WebMcpToolDefinition = {
     name,
-    description: description.slice(0, 4096),
+    description,
     kind: readKind(entry.kind),
   }
   if (inputSchema !== undefined) tool.inputSchema = inputSchema
@@ -189,7 +194,7 @@ export function readWebMcpRejection(value: unknown): WebMcpCatalogRejection | nu
   return {
     code: "invalid-catalog",
     reason: value.reason as WebMcpCatalogRejectionReason,
-    tool: typeof value.tool === "string" ? value.tool.slice(0, 64) : "",
+    tool: typeof value.tool === "string" ? redactWebMcpText(value.tool).slice(0, 64) : "",
   }
 }
 

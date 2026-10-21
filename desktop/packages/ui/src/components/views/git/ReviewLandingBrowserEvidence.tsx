@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../../shared/webmcp-redaction.mjs"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import React from "react"
 
@@ -196,7 +197,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
         </button>
         {notCalled.length > 0 ? (
           <p className="mt-1" data-recap-not-called>
-            {t("diffView.landing.browserRecap.notCalled", { names: notCalled.join(", ") })}
+            {t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })}
           </p>
         ) : null}
       </details>

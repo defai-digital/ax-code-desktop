@@ -125,3 +125,15 @@ describe("Chrome bridge coordination", () => {
     expect(disconnect).not.toHaveBeenCalled()
   })
 })
+
+test("bridge diagnostics redact names and exception text before logging", async () => {
+  const secret = "ghp_" + "f".repeat(36)
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+  useMcpConfigStore.setState({ mcpServers: [{ ...servers[0], name: secret }] as never })
+  useMcpStore.setState({ getStatusForDirectory: () => ({ [secret]: { status: "connected" } }) as never,
+    disconnect: async () => { throw new Error(secret) } })
+  try {
+    await pauseChromeBridgeForProjectBrowser("/repo")
+    expect(warn).toHaveBeenCalledWith("[webmcp] could not pause the Chrome bridge", "[redacted]", "[redacted]")
+  } finally { warn.mockRestore() }
+})
