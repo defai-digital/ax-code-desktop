@@ -40,8 +40,22 @@ export const STUB_SCENARIO_ENV = "AX_CODE_DESKTOP_E2E_SCENARIO_PATH"
 export const STUB_REPLIES_ENV = "AX_CODE_DESKTOP_E2E_REPLIES_PATH"
 
 export const STUB_REVIEW_DIFFS = [
-  { file: "session/overview.txt", before: "Original session overview\n", after: "Revised session overview\n", additions: 1, deletions: 1, status: "modified" },
-  { file: "session/last-turn.txt", before: "Original last turn\n", after: "Revised last turn\n", additions: 1, deletions: 1, status: "modified" },
+  {
+    file: "session/overview.txt",
+    before: "Original session overview\n",
+    after: "Revised session overview\n",
+    additions: 1,
+    deletions: 1,
+    status: "modified",
+  },
+  {
+    file: "session/last-turn.txt",
+    before: "Original last turn\n",
+    after: "Revised last turn\n",
+    additions: 1,
+    deletions: 1,
+    status: "modified",
+  },
 ]
 
 export const buildStubRuntimeScript = ({ version = "0.0.0-e2e" } = {}) => `#!/usr/bin/env node
@@ -121,6 +135,7 @@ const readBody = (req, done) => {
 };
 const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').replace(/^([a-z]):/, (_, letter) => letter.toUpperCase() + ':').replace(/(.)\\/+$/, '$1');
 const browserProviders = new Map();
+const browserReplies = [];
 let browserProviderSequence = 0;
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
@@ -161,17 +176,35 @@ const server = http.createServer((req, res) => {
         if (!selected) { res.statusCode = 404; json(res, { error: 'Unknown browser session' }); return; }
         const providerID = 'e2e-browser-' + (++browserProviderSequence);
         const connection = { providerID, epoch: 'e2e', projectID: selected.projectID };
-        browserProviders.set(providerID, connection);
+        browserProviders.set(providerID, { ...connection, sessionID: selected.id, state: body.snapshot, queue: [] });
         json(res, connection);
       });
+      return;
+    }
+    if (pathname === '/__e2e__/browser-test') {
+      if (req.method === 'POST') readBody(req, body => {
+        const provider = [...browserProviders.values()].find(item => item.sessionID === body.sessionID);
+        if (!provider) { res.statusCode = 404; json(res, { error: 'No provider' }); return; }
+        provider.queue.push({
+          providerID: provider.providerID, epoch: provider.epoch, projectID: provider.projectID,
+          sessionID: provider.sessionID, requestID: body.requestID, operation: 'read',
+          generation: provider.state.generation, origin: provider.state.origin, frameId: provider.state.frameId,
+          deadline: Date.now() + 30000,
+        });
+        json(res, { queued: true });
+      });
+      else json(res, { providers: [...browserProviders.values()].map(item => ({ sessionID: item.sessionID, providerID: item.providerID })), replies: browserReplies });
       return;
     }
     if (pathname.startsWith('/desktop/browser/provider/')) {
       const [, , , , providerID, operation] = pathname.split('/');
       if (!browserProviders.has(providerID)) { res.statusCode = 404; json(res, { error: 'Browser disconnected' }); return; }
+      const provider = browserProviders.get(providerID);
       if (req.method === 'DELETE') browserProviders.delete(providerID);
+      if (operation === 'state') { readBody(req, body => { provider.state = body; json(res, {}); }); return; }
+      if (operation === 'reply') { readBody(req, body => { browserReplies.push({ sessionID: provider.sessionID, ...body }); json(res, {}); }); return; }
       if (operation === 'next') {
-        const timer = setTimeout(() => json(res, { canceled: [] }), 250);
+        const timer = setTimeout(() => json(res, { canceled: [], request: provider.queue.shift() }), 250);
         res.on('close', () => clearTimeout(timer));
       } else json(res, {});
       return;

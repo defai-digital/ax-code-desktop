@@ -101,6 +101,7 @@ const BROWSER_ACTIONS = Object.freeze([
   "clearProject",
   "revokeSession",
   "pause",
+  "focusOwner",
 ])
 
 function createDesktopWebMcpBrowser({
@@ -114,12 +115,90 @@ function createDesktopWebMcpBrowser({
   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
   attachTimeoutMs = 2000,
   maxLiveViews = 4,
+  pollTimeoutMs = 20000,
+  pollRetryMs = 1000,
 }) {
   if (!Number.isInteger(maxLiveViews) || maxLiveViews < 1 || maxLiveViews > 8) {
     throw new Error("Browser pool limit must be between 1 and 8")
   }
   // A project/session owns one live view; opaque IDs remain the only renderer handle.
   const views = new Map()
+  // Unloaded addresses live only in this process. No page, provider, or tool reference survives.
+  const unloaded = new Map()
+  const unloadedOwners = new Map()
+  function forget(record) {
+    unloaded.delete(record.key)
+    const group = unloadedOwners.get(record.sender)
+    if (!group) return
+    group.keys.delete(record.key)
+    if (group.keys.size) return
+    record.owner.removeListener("closed", group.onClosed)
+    record.sender.removeListener("destroyed", group.onClosed)
+    record.sender.removeListener("render-process-gone", group.onClosed)
+    unloadedOwners.delete(record.sender)
+  }
+  function remember(record) {
+    let group = unloadedOwners.get(record.sender)
+    if (!group) {
+      group = {
+        keys: new Set(),
+        onClosed: () => {
+          for (const key of [...group.keys]) forget(unloaded.get(key))
+        },
+      }
+      unloadedOwners.set(record.sender, group)
+      record.owner.on("closed", group.onClosed)
+      record.sender.on("destroyed", group.onClosed)
+      record.sender.on("render-process-gone", group.onClosed)
+    }
+    unloaded.set(record.key, record)
+    group.keys.add(record.key)
+    // Retain at most 32 addresses per window, evicting the oldest last-use first.
+    const records = [...group.keys].map((key) => unloaded.get(key)).sort((a, b) => a.lastUsed - b.lastUsed)
+    while (records.length > 32) forget(records.shift())
+  }
+  const idle = (entry) =>
+    !entry.paused &&
+    !entry.waiting &&
+    !entry.activeRequests.size &&
+    !entry.pendingLoads.size &&
+    !entry.enrolling &&
+    !entry.adapter?.pending.size &&
+    !entry.adapter?.interacting
+  async function unload(entry) {
+    const record = {
+      key: entry.key,
+      id: entry.id,
+      directory: entry.directory,
+      sessionID: entry.sessionID,
+      sender: entry.sender,
+      owner: entry.owner,
+      url: entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL(),
+      origin: entry.adapter.snapshot().origin,
+      lastUsed: entry.lastUsed,
+    }
+    await close(entry)
+    if (record.owner.isDestroyed() || record.sender.isDestroyed?.()) return
+    remember(record)
+  }
+  const unloadedStatus = (record) => ({
+    id: record.id,
+    directory: record.directory,
+    sessionID: record.sessionID,
+    origin: record.origin,
+    lastUsed: record.lastUsed,
+    unloaded: true,
+    idle: true,
+    visible: false,
+    waiting: false,
+    enabled: false,
+    paused: false,
+    nativeAvailable: false,
+    tools: 0,
+    catalog: [],
+    generation: null,
+    error: null,
+  })
   const shown = new Map()
   const initializing = new Map()
   // Partitions whose guest session already has the hardened handlers attached.
@@ -247,6 +326,7 @@ function createDesktopWebMcpBrowser({
     const stopped = stopAgentWork(entry, connection, "agent-disconnected")
     const held = entry.waiting?.request
     entry.connection = null
+    entry.interrupted = false
     entry.paused = false
     entry.controller?.abort()
     entry.controller = null
@@ -311,8 +391,11 @@ function createDesktopWebMcpBrowser({
       visible: visible(entry),
       waiting: Boolean(entry.waiting),
       lastUsed: entry.lastUsed,
+      unloaded: false,
+      idle: idle(entry),
       nativeAvailable: entry.adapter.available,
-      enabled: Boolean(entry.connection) && !entry.paused,
+      enabled: Boolean(entry.connection) && !entry.paused && !entry.interrupted,
+      interrupted: Boolean(entry.interrupted),
       paused: Boolean(entry.paused),
       error: entry.error ?? null,
       origin: snapshot.origin,
@@ -447,13 +530,60 @@ function createDesktopWebMcpBrowser({
     return !signal.aborted && visible(entry) && !entry.paused && Date.now() < request.deadline
   }
 
+  // The runtime normally answers an idle poll after 15s. Bound each HTTP attempt
+  // independently of the enrollment lifetime, including transports that ignore abort.
+  async function nextBatch(entry, connection, signal) {
+    const attempt = new AbortController()
+    let timer
+    let abort
+    try {
+      return await new Promise((resolve, reject) => {
+        abort = () => {
+          attempt.abort()
+          reject(new Error("Provider poll interrupted"))
+        }
+        if (signal.aborted) return abort()
+        signal.addEventListener("abort", abort, { once: true })
+        timer = setTimeout(abort, pollTimeoutMs)
+        timer.unref?.()
+        api(entry.directory, `/provider/${connection.providerID}/next`, "GET", undefined, attempt.signal).then(
+          resolve,
+          reject,
+        )
+      })
+    } finally {
+      clearTimeout(timer)
+      signal.removeEventListener("abort", abort)
+    }
+  }
   async function run(entry, connection, signal) {
     const canceled = new Set()
     try {
       while (!signal.aborted && entry.connection === connection) {
-        const batch = await api(entry.directory, `/provider/${connection.providerID}/next`, "GET", undefined, signal)
+        let batch
+        try {
+          batch = await nextBatch(entry, connection, signal)
+        } catch (error) {
+          if (signal.aborted || entry.connection !== connection) return
+          const status = error?.status ?? error?.response?.status
+          if (status >= 400 && status < 500) throw error
+          entry.interrupted = true
+          await new Promise((resolve) => {
+            const finish = () => {
+              clearTimeout(timer)
+              signal.removeEventListener("abort", finish)
+              resolve()
+            }
+            const timer = setTimeout(finish, pollRetryMs)
+            timer.unref?.()
+            signal.addEventListener("abort", finish, { once: true })
+            if (signal.aborted) finish()
+          })
+          continue
+        }
         // A poll may settle after its abort: never dispatch work from a retired provider.
         if (signal.aborted || entry.connection !== connection) return
+        entry.interrupted = false
         for (const id of batch.canceled ?? []) {
           canceled.add(id)
           entry.navigations.get(id)?.abort()
@@ -561,7 +691,15 @@ function createDesktopWebMcpBrowser({
       if (existing.sender !== sender) throw new Error("This browser belongs to another window")
       return status(existing)
     }
-    if (views.size >= maxLiveViews) throw new Error("pool-full")
+    const remembered = unloaded.get(key)
+    if (remembered && remembered.sender !== sender) throw new Error("This browser belongs to another window")
+    if (views.size >= maxLiveViews) {
+      const candidate = [...views.values()]
+        .filter((entry) => entry.sender === sender && entry.ready && !visible(entry) && idle(entry))
+        .sort((a, b) => a.lastUsed - b.lastUsed)[0]
+      if (!candidate) throw new Error("pool-full")
+      await unload(candidate)
+    }
     // Electron retains Session objects for the app lifetime. Reuse exactly one
     // hardened, in-memory profile per project, independent of its session count.
     // Closing a page does not sign the project out; only clearProject does.
@@ -594,7 +732,7 @@ function createDesktopWebMcpBrowser({
       if (!allowedUrl(url)) event.preventDefault()
     })
     const entry = {
-      id: randomUUID(),
+      id: remembered?.id ?? randomUUID(),
       key,
       projectKey: projectKey(args.directory),
       ready: false,
@@ -684,7 +822,7 @@ function createDesktopWebMcpBrowser({
       // never settles is treated the same way instead of hanging the pane's start
       // forever: without the deadline the renderer never receives an id and no
       // command it offers can be used.
-      await loadPage(entry, args.url).catch(() => {})
+      await loadPage(entry, remembered?.url || args.url).catch(() => {})
       if (entry.closed) throw new Error("Browser closed during loading")
       await entry.adapter.start()
       owner.contentView.removeChildView(view)
@@ -697,6 +835,7 @@ function createDesktopWebMcpBrowser({
       const selected = views.get(shown.get(sender.id))
       if (selected && !selected.closed && !owner.isDestroyed()) show(selected)
     }
+    if (remembered) forget(remembered)
     return status(entry)
   }
   async function command(sender, args) {
@@ -781,7 +920,9 @@ function createDesktopWebMcpBrowser({
           targets.some((entry) => entry.sender !== sender)
         )
           throw new Error("This browser storage belongs to another window")
-        const affected = targets.map(({ id, directory, sessionID }) => ({ id, directory, sessionID }))
+        const dormant = [...unloaded.values()].filter((entry) => entry.directory === directory)
+        if (dormant.some((entry) => entry.sender !== sender)) throw new Error("This browser belongs to another window")
+        const affected = [...targets, ...dormant].map(({ id, directory, sessionID }) => ({ id, directory, sessionID }))
         const notify = (error) => {
           if (!sender.isDestroyed?.())
             sender.send("ax-code:dom-event", {
@@ -791,6 +932,7 @@ function createDesktopWebMcpBrowser({
         }
         notify("storage-clearing")
         try {
+          dormant.forEach(forget)
           await Promise.all(targets.map(close))
           if (guestSessions.has(partition)) await session.fromPartition(partition).clearStorageData()
           notify("storage-cleared")
@@ -819,6 +961,8 @@ function createDesktopWebMcpBrowser({
       }
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
       return serializePool(async () => {
+        const dormant = unloaded.get(viewKey(args.directory, args.sessionID))
+        if (dormant && dormant.sender !== sender) throw new Error("This browser belongs to another window")
         const target = views.get(viewKey(args.directory, args.sessionID))
         if (target) {
           lookup(sender, target.id)
@@ -828,9 +972,56 @@ function createDesktopWebMcpBrowser({
         return { revoked: true }
       })
     }
+    if (args.action === "focusOwner") {
+      if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
+      const target = [...views.values()].find((entry) => entry.id === args.id && entry.ready)
+      if (!target || target.owner.isDestroyed()) throw new Error("The browser owner window is unavailable")
+      if (target.owner.isMinimized()) target.owner.restore()
+      target.owner.show()
+      target.owner.focus()
+      return { focused: true }
+    }
     if (args.action === "list") {
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
-      return { views: [...views.values()].filter((entry) => entry.sender === sender && entry.ready).map(status) }
+      return {
+        maxLiveViews,
+        liveViews: views.size,
+        otherWindows: [
+          ...new Set([...views.values()].filter((entry) => entry.sender !== sender).map((entry) => entry.owner)),
+        ]
+          .map((owner) => {
+            const pages = [...views.values()].filter((entry) => entry.owner === owner && entry.ready)
+            return { id: pages[0]?.id, pageCount: pages.length }
+          })
+          .filter((owner) => owner.id),
+        views: [
+          ...[...views.values()].filter((entry) => entry.sender === sender && entry.ready).map(status),
+          ...[...unloaded.values()].filter((entry) => entry.sender === sender).map(unloadedStatus),
+        ],
+      }
+    }
+    const dormant = [...unloaded.values()].find((entry) => entry.id === args.id)
+    if (dormant) {
+      if (dormant.sender !== sender) throw new Error("This browser belongs to another window")
+      if (args.sessionID !== undefined && args.sessionID !== dormant.sessionID)
+        throw new Error("Browser session mismatch")
+      if (args.directory !== undefined && projectKey(args.directory) !== dormant.directory)
+        throw new Error("Browser project mismatch")
+      if (args.action === "status") return unloadedStatus(dormant)
+      if (args.action === "close") {
+        forget(dormant)
+        return { closed: true }
+      }
+      if (args.action === "show")
+        return serializePool(async () => {
+          if (unloaded.get(dormant.key) !== dormant || dormant.owner.isDestroyed() || sender.isDestroyed?.())
+            throw new Error("The project browser is no longer available")
+          await createView({ ...dormant, url: dormant.url || "about:blank" }, sender, dormant.owner)
+          const entry = lookup(sender, args.id)
+          show(entry)
+          return status(entry)
+        })
+      throw new Error("The project browser is unloaded")
     }
     const entry = lookup(sender, args.id)
     if (args.sessionID !== undefined && args.sessionID !== entry.sessionID) throw new Error("Browser session mismatch")
@@ -1038,9 +1229,11 @@ function createDesktopWebMcpBrowser({
     }),
     closeAll: async () => {
       ++poolRevision
+      for (const record of unloaded.values()) forget(record)
       const closing = [...views.values()].map(close)
       await poolOperations.catch(() => {})
       await Promise.allSettled([...closing, ...[...views.values()].map(close)])
+      for (const record of unloaded.values()) forget(record)
     },
     runtimeChanged: () => {
       for (const entry of views.values()) {

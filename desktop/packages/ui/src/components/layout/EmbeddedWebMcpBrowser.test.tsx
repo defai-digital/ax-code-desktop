@@ -114,6 +114,8 @@ describe("agent browser enable request", () => {
       views: {},
       order: [],
       activeKey: null,
+      capacity: null,
+      interrupted: false,
       phase: "idle",
       paused: false,
       error: null,
@@ -140,6 +142,58 @@ describe("agent browser enable request", () => {
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
+  })
+
+  test("a cross-window full pool offers owner focus and a working reopen action", async () => {
+    let full = true
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
+      if (call.action === "create" && full) throw new Error("pool-full")
+      if (call.action === "focusOwner") return { focused: true }
+      return call.action === "bounds" ? undefined : browserStatus(false)
+    })
+    useWebMcpBrowserStore.setState({ capacity: { liveViews: 2, maxLiveViews: 2, otherWindows: [{ id: "foreign-page", pageCount: 2 }] } })
+    render()
+    openAgentMode()
+    await flush()
+    expect(container.textContent).toContain("webmcp.pages.fullOtherWindows")
+    expect(container.textContent).not.toContain("webmcp.pages.blocked")
+    await act(async () => { within(container).getByRole("button", { name: "webmcp.pages.focusWindow" }).click() })
+    expect(callsFor("focusOwner")[0][1]).toEqual({ action: "focusOwner", id: "foreign-page" })
+    full = false
+    await act(async () => { within(container).getByRole("button", { name: "webmcp.actions.fix.reopen" }).click() })
+    expect(callsFor("create")).toHaveLength(2)
+    expect(useWebMcpBrowserStore.getState().browserId).toBe("browser-1")
+    expect(callsFor("enable")).toHaveLength(0)
+    useWebMcpBrowserStore.setState({ capacity: null })
+  })
+
+  test("status polling reports interruption and automatic recovery while Disconnect remains available", async () => {
+    let state = { ...browserStatus(true), interrupted: false }
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) =>
+      call.action === "bounds" ? undefined : state,
+    )
+    render()
+    openAgentMode()
+    await flush()
+    state = { ...state, enabled: false, interrupted: true }
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ enabled: false, interrupted: true })
+    expect(container.textContent).toContain("webmcp.pages.access.interrupted")
+    expect(container.textContent).not.toContain("webmcp.state.on")
+    expect(within(container).getByRole("button", { name: "webmcp.actions.disconnect" })).toBeTruthy()
+    state = { ...state, enabled: true, interrupted: false }
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    expect(container.textContent).toContain("webmcp.state.on")
+    expect(callsFor("enable")).toHaveLength(0)
+    state = { ...state, enabled: false, interrupted: true }
+    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
+      if (call.action === "status") throw new Error("Browser gone")
+      return undefined
+    })
+    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ phase: "error", enabled: false, interrupted: false })
+    expect(container.textContent).not.toContain("webmcp.pages.access.interrupted")
   })
 
   test.each(["empty", "reject"])(
@@ -257,7 +311,7 @@ describe("agent browser enable request", () => {
       fireEvent.click(document.activeElement!)
       await flush()
       expect(callsFor(action)).toHaveLength(1)
-      const feedback = within(container).getByRole("status")
+      const feedback = container.querySelector<HTMLElement>("[data-webmcp-access-status]")!
       expect(feedback.textContent).toContain("Stopped 1 agent call. Changes it already made on the page stay.")
       expect(feedback.textContent).not.toMatch(/roll.?back|undone|reverted|restored/i)
       expect(document.activeElement).toBe(
@@ -296,13 +350,13 @@ describe("agent browser enable request", () => {
     const pause = within(container).getByRole("button", { name: "Pause agent" })
     act(() => pause.focus())
     fireEvent.click(pause)
-    expect(within(container).getByRole("status").textContent).not.toContain("Stopped")
+    expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).not.toContain("Stopped")
     const address = within(container).getByLabelText("webmcp.browser.addressAria")
     act(() => address.focus())
     await act(async () => {
       finish({ ...browserStatus(false), paused: true, stoppedCalls: 1 })
     })
-    expect(within(container).getByRole("status").textContent).toContain("Stopped 1 agent call.")
+    expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).toContain("Stopped 1 agent call.")
     expect(document.activeElement).toBe(address)
   })
 
@@ -315,7 +369,7 @@ describe("agent browser enable request", () => {
     fireEvent.click(within(container).getByRole("button", { name: "Pause agent" }))
     await flush()
     expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.operationFailed")
-    expect(within(container).getByRole("status").textContent).not.toContain("Stopped")
+    expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).not.toContain("Stopped")
     expect(within(container).getByRole("button", { name: "Pause agent" })).toBeTruthy()
   })
 
@@ -330,7 +384,7 @@ describe("agent browser enable request", () => {
     await flush()
     fireEvent.click(within(container).getByRole("button", { name: "Pause agent" }))
     await flush()
-    const feedback = within(container).getByRole("status").textContent
+    const feedback = container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent
     if (count === 0) expect(feedback).not.toContain("Stopped")
     else expect(feedback).toContain("Stopped 2 agent calls. Changes they already made on the page stay.")
   })
