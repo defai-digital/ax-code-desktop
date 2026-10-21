@@ -103,5 +103,9 @@
   "desktop.native.skipAnimation": "Skip animation",
   "desktop.native.disableAnimations": "Disable animations",
   "desktop.native.startingDesktop": "Starting desktop\u2026",
-  "desktop.native.closingDesktop": "Closing desktop\u2026"
+  "desktop.native.closingDesktop": "Closing desktop\u2026",
+  "webmcp.browser.confirmClose": "These pages may contain unsaved work. Close them and discard unsaved changes? {pages}",
+  "common.confirm": "Confirm",
+  "common.cancel": "Cancel",
+  "common.confirmDialog.title": "Please confirm"
 }

@@ -87,14 +87,23 @@ const waitForInstallStart = ({
   })
 
 /** Share concurrent IPC requests and leave service cleanup to the actual quit. */
-const createUpdateInstaller = ({ updater, nativeUpdater, gate, isQuitting = () => false, timeoutMs } = {}) => {
+const createUpdateInstaller = ({
+  updater,
+  nativeUpdater,
+  gate,
+  isQuitting = () => false,
+  beforeInstall = async () => {},
+  timeoutMs,
+} = {}) => {
   let inFlight = null
   return () => {
     if (inFlight) return inFlight
     if (isQuitting()) return Promise.resolve({ installed: false, reason: "app-quitting" })
     if (!gate.canInstall()) return Promise.resolve({ installed: false, reason: "no-downloaded-update" })
     const version = gate.version()
-    inFlight = waitForInstallStart({ updater, nativeUpdater, timeoutMs, start: () => updater.quitAndInstall() })
+    inFlight = Promise.resolve()
+      .then(beforeInstall)
+      .then(() => waitForInstallStart({ updater, nativeUpdater, timeoutMs, start: () => updater.quitAndInstall() }))
       .then((started) => {
         if (!started) {
           gate.onNotInstallable()

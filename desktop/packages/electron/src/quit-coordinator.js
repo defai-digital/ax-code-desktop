@@ -1,6 +1,13 @@
 "use strict"
 
-function createQuitCoordinator({ onStarting, playEnding, stopServices, quit, logger = console }) {
+function createQuitCoordinator({
+  onStarting,
+  onCancelled = () => {},
+  playEnding,
+  stopServices,
+  quit,
+  logger = console,
+}) {
   let state = "idle"
   let completion
   function handle(event) {
@@ -15,6 +22,11 @@ function createQuitCoordinator({ onStarting, playEnding, stopServices, quit, log
       (results) => {
         for (const result of results)
           if (result.status === "rejected") logger.warn("[electron] quit step failed", result.reason)
+        if (results[1].status === "rejected" && results[1].reason?.code === "BROWSER_CLOSURE_REFUSED") {
+          state = "idle"
+          onCancelled()
+          return
+        }
         state = "ready"
         quit()
       },

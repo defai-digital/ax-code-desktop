@@ -104,7 +104,11 @@
     "desktop.native.skipAnimation": "Skip animation",
     "desktop.native.disableAnimations": "Disable animations",
     "desktop.native.startingDesktop": "Starting desktop\u2026",
-    "desktop.native.closingDesktop": "Closing desktop\u2026"
+    "desktop.native.closingDesktop": "Closing desktop\u2026",
+    "webmcp.browser.confirmClose": "These pages may contain unsaved work. Close them and discard unsaved changes? {pages}",
+    "common.confirm": "Confirm",
+    "common.cancel": "Cancel",
+    "common.confirmDialog.title": "Please confirm"
   },
   "zh-TW": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u57f7\u884c\u968e\u6bb5\u3002",
@@ -211,7 +215,11 @@
     "desktop.native.skipAnimation": "\u7565\u904e\u52d5\u756b",
     "desktop.native.disableAnimations": "\u505c\u7528\u52d5\u756b",
     "desktop.native.startingDesktop": "\u6b63\u5728\u555f\u52d5\u684c\u9762\u7a0b\u5f0f\u2026",
-    "desktop.native.closingDesktop": "\u6b63\u5728\u95dc\u9589\u684c\u9762\u7a0b\u5f0f\u2026"
+    "desktop.native.closingDesktop": "\u6b63\u5728\u95dc\u9589\u684c\u9762\u7a0b\u5f0f\u2026",
+    "webmcp.browser.confirmClose": "\u9019\u4e9b\u9801\u9762\u53ef\u80fd\u5305\u542b\u672a\u5132\u5b58\u7684\u5de5\u4f5c\u3002\u95dc\u9589\u5b83\u5011\u4e26\u653e\u68c4\u672a\u5132\u5b58\u7684\u8b8a\u66f4\uff1f {pages}",
+    "common.confirm": "\u78ba\u8a8d",
+    "common.cancel": "\u53d6\u6d88",
+    "common.confirmDialog.title": "\u8acb\u78ba\u8a8d"
   },
   "zh-CN": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u627e\u4e0d\u5230\u5176\u4ee3\u7406\u8fd0\u884c\u65f6\u3002",
@@ -318,7 +326,11 @@
     "desktop.native.skipAnimation": "\u8df3\u8fc7\u52a8\u753b",
     "desktop.native.disableAnimations": "\u505c\u7528\u52a8\u753b",
     "desktop.native.startingDesktop": "\u6b63\u5728\u542f\u52a8\u684c\u9762\u7a0b\u5e8f\u2026",
-    "desktop.native.closingDesktop": "\u6b63\u5728\u5173\u95ed\u684c\u9762\u7a0b\u5e8f\u2026"
+    "desktop.native.closingDesktop": "\u6b63\u5728\u5173\u95ed\u684c\u9762\u7a0b\u5e8f\u2026",
+    "webmcp.browser.confirmClose": "\u8fd9\u4e9b\u9875\u9762\u53ef\u80fd\u5305\u542b\u672a\u4fdd\u5b58\u7684\u5de5\u4f5c\u3002\u5173\u95ed\u5b83\u4eec\u5e76\u653e\u5f03\u672a\u4fdd\u5b58\u7684\u66f4\u6539\uff1f {pages}",
+    "common.confirm": "\u786e\u8ba4",
+    "common.cancel": "\u53d6\u6d88",
+    "common.confirmDialog.title": "\u8bf7\u786e\u8ba4"
   },
   "ja": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u306f\u30a8\u30fc\u30b8\u30a7\u30f3\u30c8\u30e9\u30f3\u30bf\u30a4\u30e0\u3092\u898b\u3064\u3051\u3089\u308c\u307e\u305b\u3093\u3067\u3057\u305f\u3002",
@@ -425,7 +437,11 @@
     "desktop.native.skipAnimation": "\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3092\u30b9\u30ad\u30c3\u30d7",
     "desktop.native.disableAnimations": "\u30a2\u30cb\u30e1\u30fc\u30b7\u30e7\u30f3\u3092\u7121\u52b9\u306b\u3059\u308b",
     "desktop.native.startingDesktop": "\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u3092\u8d77\u52d5\u4e2d\u2026",
-    "desktop.native.closingDesktop": "\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u3092\u7d42\u4e86\u4e2d\u2026"
+    "desktop.native.closingDesktop": "\u30c7\u30b9\u30af\u30c8\u30c3\u30d7\u3092\u7d42\u4e86\u4e2d\u2026",
+    "webmcp.browser.confirmClose": "\u3053\u308c\u3089\u306e\u30da\u30fc\u30b8\u306b\u306f\u4fdd\u5b58\u3055\u308c\u3066\u3044\u306a\u3044\u4f5c\u696d\u304c\u542b\u307e\u308c\u3066\u3044\u308b\u53ef\u80fd\u6027\u304c\u3042\u308a\u307e\u3059\u3002\u9589\u3058\u3066\u4fdd\u5b58\u3055\u308c\u3066\u3044\u306a\u3044\u5909\u66f4\u3092\u7834\u68c4\u3057\u307e\u3059\u304b\uff1f {pages}",
+    "common.confirm": "\u78ba\u8a8d",
+    "common.cancel": "\u30ad\u30e3\u30f3\u30bb\u30eb",
+    "common.confirmDialog.title": "\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044"
   },
   "ko": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code\uac00 \uc5d0\uc774\uc804\ud2b8 \ub7f0\ud0c0\uc784\uc744 \ucc3e\uc9c0 \ubabb\ud588\uc2b5\ub2c8\ub2e4.",
@@ -532,7 +548,11 @@
     "desktop.native.skipAnimation": "\uc560\ub2c8\uba54\uc774\uc158 \uac74\ub108\ub6f0\uae30",
     "desktop.native.disableAnimations": "\uc560\ub2c8\uba54\uc774\uc158 \ub044\uae30",
     "desktop.native.startingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc2dc\uc791 \uc911\u2026",
-    "desktop.native.closingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc885\ub8cc \uc911\u2026"
+    "desktop.native.closingDesktop": "\ub370\uc2a4\ud06c\ud1b1 \uc885\ub8cc \uc911\u2026",
+    "webmcp.browser.confirmClose": "\uc774 \ud398\uc774\uc9c0\uc5d0\ub294 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc740 \uc791\uc5c5\uc774 \uc788\uc744 \uc218 \uc788\uc2b5\ub2c8\ub2e4. \ub2eb\uace0 \uc800\uc7a5\ub418\uc9c0 \uc54a\uc740 \ubcc0\uacbd \uc0ac\ud56d\uc744 \ubc84\ub9ac\uc2dc\uaca0\uc2b5\ub2c8\uae4c? {pages}",
+    "common.confirm": "\ud655\uc778",
+    "common.cancel": "\ucde8\uc18c",
+    "common.confirmDialog.title": "\ud655\uc778\ud574 \uc8fc\uc138\uc694"
   },
   "fr": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code n\u2019a pas trouv\u00e9 son runtime d\u2019agent.",
@@ -639,7 +659,11 @@
     "desktop.native.skipAnimation": "Passer l\u2019animation",
     "desktop.native.disableAnimations": "D\u00e9sactiver les animations",
     "desktop.native.startingDesktop": "D\u00e9marrage du bureau\u2026",
-    "desktop.native.closingDesktop": "Fermeture du bureau\u2026"
+    "desktop.native.closingDesktop": "Fermeture du bureau\u2026",
+    "webmcp.browser.confirmClose": "Ces pages peuvent contenir des modifications non enregistr\u00e9es. Les fermer et abandonner les modifications non enregistr\u00e9es\u202f? {pages}",
+    "common.confirm": "Confirmer",
+    "common.cancel": "Annuler",
+    "common.confirmDialog.title": "Veuillez confirmer"
   },
   "de": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code konnte seine Agent-Runtime nicht finden.",
@@ -746,7 +770,11 @@
     "desktop.native.skipAnimation": "Animation \u00fcberspringen",
     "desktop.native.disableAnimations": "Animationen deaktivieren",
     "desktop.native.startingDesktop": "Desktop wird gestartet\u2026",
-    "desktop.native.closingDesktop": "Desktop wird beendet\u2026"
+    "desktop.native.closingDesktop": "Desktop wird beendet\u2026",
+    "webmcp.browser.confirmClose": "Diese Seiten k\u00f6nnen nicht gespeicherte \u00c4nderungen enthalten. Sie schlie\u00dfen und nicht gespeicherte \u00c4nderungen verwerfen? {pages}",
+    "common.confirm": "Best\u00e4tigen",
+    "common.cancel": "Abbrechen",
+    "common.confirmDialog.title": "Bitte best\u00e4tigen"
   },
   "id": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code tidak dapat menemukan runtime agennya.",
@@ -853,7 +881,11 @@
     "desktop.native.skipAnimation": "Lewati animasi",
     "desktop.native.disableAnimations": "Nonaktifkan animasi",
     "desktop.native.startingDesktop": "Memulai desktop\u2026",
-    "desktop.native.closingDesktop": "Menutup desktop\u2026"
+    "desktop.native.closingDesktop": "Menutup desktop\u2026",
+    "webmcp.browser.confirmClose": "Halaman ini mungkin berisi pekerjaan yang belum disimpan. Tutup dan buang perubahan yang belum disimpan? {pages}",
+    "common.confirm": "Konfirmasi",
+    "common.cancel": "Batal",
+    "common.confirmDialog.title": "Mohon konfirmasi"
   },
   "it": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code non ha trovato il runtime dell'agente.",
@@ -960,7 +992,11 @@
     "desktop.native.skipAnimation": "Salta animazione",
     "desktop.native.disableAnimations": "Disattiva animazioni",
     "desktop.native.startingDesktop": "Avvio del desktop\u2026",
-    "desktop.native.closingDesktop": "Chiusura del desktop\u2026"
+    "desktop.native.closingDesktop": "Chiusura del desktop\u2026",
+    "webmcp.browser.confirmClose": "Queste pagine potrebbero contenere modifiche non salvate. Chiuderle e scartare le modifiche non salvate? {pages}",
+    "common.confirm": "Conferma",
+    "common.cancel": "Annulla",
+    "common.confirmDialog.title": "Conferma"
   },
   "pt-BR": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "O AX Code n\u00e3o encontrou seu runtime de agente.",
@@ -1067,7 +1103,11 @@
     "desktop.native.skipAnimation": "Pular anima\u00e7\u00e3o",
     "desktop.native.disableAnimations": "Desativar anima\u00e7\u00f5es",
     "desktop.native.startingDesktop": "Iniciando a \u00e1rea de trabalho\u2026",
-    "desktop.native.closingDesktop": "Fechando a \u00e1rea de trabalho\u2026"
+    "desktop.native.closingDesktop": "Fechando a \u00e1rea de trabalho\u2026",
+    "webmcp.browser.confirmClose": "Essas p\u00e1ginas podem conter trabalho n\u00e3o salvo. Fechar e descartar as altera\u00e7\u00f5es n\u00e3o salvas? {pages}",
+    "common.confirm": "Confirmar",
+    "common.cancel": "Cancelar",
+    "common.confirmDialog.title": "Confirme"
   },
   "ru": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code \u043d\u0435 \u0443\u0434\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u0439\u0442\u0438 \u0441\u0440\u0435\u0434\u0443 \u0432\u044b\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f \u0430\u0433\u0435\u043d\u0442\u0430.",
@@ -1174,7 +1214,11 @@
     "desktop.native.skipAnimation": "\u041f\u0440\u043e\u043f\u0443\u0441\u0442\u0438\u0442\u044c \u0430\u043d\u0438\u043c\u0430\u0446\u0438\u044e",
     "desktop.native.disableAnimations": "\u041e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0430\u043d\u0438\u043c\u0430\u0446\u0438\u044e",
     "desktop.native.startingDesktop": "\u0417\u0430\u043f\u0443\u0441\u043a \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u2026",
-    "desktop.native.closingDesktop": "\u0417\u0430\u043a\u0440\u044b\u0442\u0438\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u2026"
+    "desktop.native.closingDesktop": "\u0417\u0430\u043a\u0440\u044b\u0442\u0438\u0435 \u043f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u044f\u2026",
+    "webmcp.browser.confirmClose": "\u041d\u0430 \u044d\u0442\u0438\u0445 \u0441\u0442\u0440\u0430\u043d\u0438\u0446\u0430\u0445 \u043c\u043e\u0433\u0443\u0442 \u0431\u044b\u0442\u044c \u043d\u0435\u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d\u043d\u044b\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f. \u0417\u0430\u043a\u0440\u044b\u0442\u044c \u0438\u0445 \u0438 \u043e\u0442\u043c\u0435\u043d\u0438\u0442\u044c \u043d\u0435\u0441\u043e\u0445\u0440\u0430\u043d\u0451\u043d\u043d\u044b\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f? {pages}",
+    "common.confirm": "\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u044c",
+    "common.cancel": "\u041e\u0442\u043c\u0435\u043d\u0430",
+    "common.confirmDialog.title": "\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0434\u0438\u0442\u0435"
   },
   "es": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code no pudo encontrar su tiempo de ejecuci\u00f3n de agente.",
@@ -1281,7 +1325,11 @@
     "desktop.native.skipAnimation": "Omitir animaci\u00f3n",
     "desktop.native.disableAnimations": "Desactivar animaciones",
     "desktop.native.startingDesktop": "Iniciando el escritorio\u2026",
-    "desktop.native.closingDesktop": "Cerrando el escritorio\u2026"
+    "desktop.native.closingDesktop": "Cerrando el escritorio\u2026",
+    "webmcp.browser.confirmClose": "Estas p\u00e1ginas pueden contener cambios no guardados. \u00bfCerrarlas y descartar los cambios no guardados? {pages}",
+    "common.confirm": "Confirmar",
+    "common.cancel": "Cancelar",
+    "common.confirmDialog.title": "Confirma, por favor"
   },
   "tr": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code, arac\u0131 \u00e7al\u0131\u015fma zaman\u0131n\u0131 bulamad\u0131.",
@@ -1388,7 +1436,11 @@
     "desktop.native.skipAnimation": "Animasyonu atla",
     "desktop.native.disableAnimations": "Animasyonlar\u0131 devre d\u0131\u015f\u0131 b\u0131rak",
     "desktop.native.startingDesktop": "Masa\u00fcst\u00fc ba\u015flat\u0131l\u0131yor\u2026",
-    "desktop.native.closingDesktop": "Masa\u00fcst\u00fc kapat\u0131l\u0131yor\u2026"
+    "desktop.native.closingDesktop": "Masa\u00fcst\u00fc kapat\u0131l\u0131yor\u2026",
+    "webmcp.browser.confirmClose": "Bu sayfalar kaydedilmemi\u015f \u00e7al\u0131\u015fmalar i\u00e7erebilir. Kapat\u0131p kaydedilmemi\u015f de\u011fi\u015fiklikleri atmal\u0131 m\u0131y\u0131m? {pages}",
+    "common.confirm": "Onayla",
+    "common.cancel": "\u0130ptal",
+    "common.confirmDialog.title": "L\u00fctfen onaylay\u0131n"
   },
   "vi": {
     "desktop.native.axCodeCouldNotFindItsAgentRuntime": "AX Code kh\u00f4ng t\u00ecm th\u1ea5y runtime t\u00e1c nh\u00e2n c\u1ee7a n\u00f3.",
@@ -1495,6 +1547,10 @@
     "desktop.native.skipAnimation": "B\u1ecf qua ho\u1ea1t \u1ea3nh",
     "desktop.native.disableAnimations": "T\u1eaft ho\u1ea1t \u1ea3nh",
     "desktop.native.startingDesktop": "\u0110ang kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng\u2026",
-    "desktop.native.closingDesktop": "\u0110ang \u0111\u00f3ng \u1ee9ng d\u1ee5ng\u2026"
+    "desktop.native.closingDesktop": "\u0110ang \u0111\u00f3ng \u1ee9ng d\u1ee5ng\u2026",
+    "webmcp.browser.confirmClose": "C\u00e1c trang n\u00e0y c\u00f3 th\u1ec3 ch\u1ee9a c\u00f4ng vi\u1ec7c ch\u01b0a \u0111\u01b0\u1ee3c l\u01b0u. \u0110\u00f3ng ch\u00fang v\u00e0 h\u1ee7y c\u00e1c thay \u0111\u1ed5i ch\u01b0a \u0111\u01b0\u1ee3c l\u01b0u? {pages}",
+    "common.confirm": "X\u00e1c nh\u1eadn",
+    "common.cancel": "H\u1ee7y",
+    "common.confirmDialog.title": "Vui l\u00f2ng x\u00e1c nh\u1eadn"
   }
 }

@@ -1,6 +1,6 @@
 "use strict"
 
-const { webMcpDisplayText, webMcpDisplayReport } = require("../../../shared/webmcp-redaction.mjs")
+const { webMcpDisplayText, webMcpDisplayDescription, webMcpDisplayReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
@@ -65,7 +65,7 @@ function projectToolCatalog(tools, kinds = new Map()) {
     const annotations = publicAnnotations(tool.annotations)
     const entry = {
       name: webMcpDisplayText(tool.name),
-      description: webMcpDisplayText(tool.description ?? ""),
+      description: webMcpDisplayDescription(tool.description ?? ""),
       ...(tool.inputSchema ? { inputSchema: structuredClone(tool.inputSchema) } : {}),
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
@@ -115,6 +115,7 @@ function createDesktopWebMcpBrowser({
   getRuntime,
   getAuthorization,
   clientFactory,
+  confirmClose = async () => false,
   providerToken = DESKTOP_BROWSER_TOKEN,
   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
   attachTimeoutMs = 2000,
@@ -406,27 +407,70 @@ function createDesktopWebMcpBrowser({
 
   const closeApprovals = new WeakMap()
   async function authorizeClose(sender, args, targets) {
-    const documents = targets.flatMap((entry) => [
-      { entry, contents: entry.view.webContents, id: entry.id },
-      ...[...entry.popups].map((popup, index) => ({ entry, contents: popup.webContents, id: `${entry.id}:popup:${index}` })),
-    ]).filter(({ contents }) => !contents.isDestroyed())
-    const identity = JSON.stringify(documents.map(({ entry, contents, id }) =>
-      [id, contents.id, entry.adapter.generation, contents.desktopDocumentRevision, contents.getURL()]))
+    const documents = targets
+      .flatMap((entry) => [
+        { entry, contents: entry.view.webContents, id: entry.id },
+        ...[...entry.popups].map((popup, index) => ({
+          entry,
+          contents: popup.webContents,
+          id: `${entry.id}:popup:${index}`,
+        })),
+      ])
+      .filter(({ contents }) => !contents.isDestroyed())
+    const identity = JSON.stringify(
+      documents.map(({ entry, contents, id }) => [
+        id,
+        contents.id,
+        entry.adapter.generation,
+        contents.desktopDocumentRevision,
+        contents.getURL(),
+      ]),
+    )
     const approval = closeApprovals.get(sender)
     closeApprovals.delete(sender)
-    if (approval && approval.token === args.closeConfirmation && approval.action === args.action && approval.identity === identity)
+    if (
+      approval &&
+      approval.token === args.closeConfirmation &&
+      approval.action === args.action &&
+      approval.identity === identity
+    )
       return { approved: true }
     const risky = []
     for (const document of documents) {
-      if (document.entry.possibleUnsavedWork || !(await canDiscardDocument(document.contents)) || document.entry.possibleUnsavedWork)
+      if (
+        document.entry.possibleUnsavedWork ||
+        !(await canDiscardDocument(document.contents)) ||
+        document.entry.possibleUnsavedWork
+      )
         risky.push(document)
     }
     if (!risky.length) return { approved: false }
     const token = randomUUID()
     closeApprovals.set(sender, { token, action: args.action, identity })
-    return { confirmationRequired: true, closeConfirmation: token, pages: documents.map(({ entry, contents, id }) => ({
-      id, sessionID: entry.sessionID, title: webMcpDisplayText(contents.getTitle?.() || pageKind(contents.getURL(), null)),
-    })) }
+    return {
+      confirmationRequired: true,
+      closeConfirmation: token,
+      pages: documents.map(({ entry, contents, id }) => ({
+        id,
+        sessionID: entry.sessionID,
+        title: webMcpDisplayText(contents.getTitle?.() || pageKind(contents.getURL(), null)),
+      })),
+    }
+  }
+  function reveal(entry) {
+    if (!entry.owner.isDestroyed()) {
+      entry.owner.restore?.()
+      entry.owner.show?.()
+      show(entry)
+      entry.owner.focus?.()
+      entry.view.webContents.focus?.()
+      for (const popup of entry.popups) {
+        if (!popup.isDestroyed()) {
+          popup.show?.()
+          popup.focus?.()
+        }
+      }
+    }
   }
   async function close(entry, confirmed = false) {
     if (entry.closed) return
@@ -821,7 +865,13 @@ function createDesktopWebMcpBrowser({
         const generation = candidate.adapter.generation
         if (candidate.possibleUnsavedWork || !(await canDiscardDocument(candidate.view.webContents))) continue
         // A call, navigation, or input may arrive while the asynchronous probe runs.
-        if (candidate.possibleUnsavedWork || !idle(candidate) || visible(candidate) || generation !== candidate.adapter.generation) continue
+        if (
+          candidate.possibleUnsavedWork ||
+          !idle(candidate) ||
+          visible(candidate) ||
+          generation !== candidate.adapter.generation
+        )
+          continue
         if (await unload(candidate)) {
           unloadedPage = true
           break
@@ -909,7 +959,9 @@ function createDesktopWebMcpBrowser({
           entry.popups.add(popup)
           const contents = popup.webContents
           for (const event of ["before-input-event", "before-mouse-event"])
-            contents.on(event, () => { entry.possibleUnsavedWork = true })
+            contents.on(event, () => {
+              entry.possibleUnsavedWork = true
+            })
           contents.on("did-start-navigation", (_event, _url, inPlace, mainFrame) => {
             if (mainFrame && !inPlace) contents.desktopDocumentRevision = (contents.desktopDocumentRevision ?? 0) + 1
           })
@@ -929,7 +981,9 @@ function createDesktopWebMcpBrowser({
     })
     // Sticky for the lifetime of this view: even removing an editor after typing does not
     // establish that its draft was saved. Only the person can discard such a page.
-    const protectWork = () => { entry.possibleUnsavedWork = true }
+    const protectWork = () => {
+      entry.possibleUnsavedWork = true
+    }
     view.webContents.on("before-input-event", protectWork)
     view.webContents.on("before-mouse-event", protectWork)
     view.webContents.on("did-fail-load", (_event, _code, description, _url, isMainFrame) => {
@@ -1426,11 +1480,43 @@ function createDesktopWebMcpBrowser({
     closeAll: async () => {
       ++poolRevision
       for (const record of unloaded.values()) forget(record)
-      // Never pass map indexes: close() reads a second argument as confirmation to discard unsaved work.
-      const closing = [...views.values()].map((entry) => close(entry))
+      const refused = []
+      const processed = new Set()
+      const approvals = new Map()
+      const closeEntries = () => Promise.all(
+        [...views.values()].filter((entry) => !processed.has(entry)).map(async (entry) => {
+          processed.add(entry)
+          const previous = approvals.get(entry.sender) ?? Promise.resolve()
+          let release
+          approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
+          await previous
+          try {
+            const args = { action: "close" }
+            let approval = await authorizeClose(entry.sender, args, [entry])
+            if (approval.confirmationRequired) {
+              reveal(entry)
+              if (!(await confirmClose(entry.owner, approval.pages))) throw new Error("Browser closure cancelled")
+              approval = await authorizeClose(
+                entry.sender,
+                { ...args, closeConfirmation: approval.closeConfirmation },
+                [entry],
+              )
+              if (approval.confirmationRequired) throw new Error("Browser document changed")
+            }
+            release()
+            await close(entry, approval.approved)
+          } catch {
+            release()
+            refused.push(entry.id)
+            reveal(entry)
+          }
+        }),
+      )
+      const closing = closeEntries()
       await poolOperations.catch(() => {})
-      await Promise.allSettled([...closing, ...[...views.values()].map((entry) => close(entry))])
+      await Promise.all([closing, closeEntries()])
       for (const record of unloaded.values()) forget(record)
+      return refused
     },
     runtimeChanged: () => {
       for (const entry of views.values()) {

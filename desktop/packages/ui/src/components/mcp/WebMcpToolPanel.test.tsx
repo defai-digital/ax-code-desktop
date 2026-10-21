@@ -1068,13 +1068,14 @@ test.each([['pin', 'integer', '1234', 1234], ['cvv', 'number', '123.5', 123.5]])
   },
 )
 
- test("page descriptions are bounded again at the display boundary", () => {
-  const description = "d".repeat(4096)
+ test("accepted descriptions retain their final instructions in collapsed and expanded displays", () => {
+  const description = "d".repeat(4046) + " final builder instructions".padEnd(50, ".")
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description, inputSchema: {} })] })
   const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
-  expect(container.querySelector("[title]")?.getAttribute("title")).toHaveLength(4000)
-  expect(container.innerHTML).not.toContain(description)
+  expect(container.querySelector("[title]")?.getAttribute("title")).toBe(description)
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  expect(container.querySelector("[data-webmcp-description]")?.textContent).toBe(description)
 })
 
 test.each([false, true])("long enum values keep exact executable identity, collision=%s", async (collision) => {
