@@ -433,20 +433,28 @@ describe("ReviewFileRail", () => {
     expect(screen.getByRole("list")).toBeTruthy()
   })
 
-  test("does not regroup 2000 files when the path list is unchanged", () => {
-    const build = vi.spyOn(reviewRailTree, "buildReviewFileTree")
-    const files = Array.from({ length: 2000 }, (_, index) => gitFile(`group-${index % 25}/file-${index}.ts`))
-    const view = render(<ReviewHarness files={files} initialSelected={files[0].path} />)
-    const built = build.mock.calls.length
-    expect(built).toBeGreaterThan(0)
-    view.rerender(<ReviewHarness files={files.map((file) => ({ ...file }))} initialSelected={files[0].path} />)
-    expect(build.mock.calls.length).toBe(built)
-    fireEvent.click(screen.getAllByRole("checkbox")[0])
-    expect(build.mock.calls.length).toBe(built)
-    const renamed = files.map((file, index) => (index === 0 ? { ...file, path: "moved/renamed.ts" } : { ...file }))
-    view.rerender(<ReviewHarness files={renamed} initialSelected={renamed[0].path} />)
-    expect(build.mock.calls.length).toBeGreaterThan(built)
-  })
+  test.each(["copied records", "viewed mark", "renamed path"])(
+    "updates grouping only for changed paths across 2000 files: %s",
+    (change) => {
+      const build = vi.spyOn(reviewRailTree, "buildReviewFileTree")
+      const files = Array.from({ length: 2000 }, (_, index) => gitFile(`group-${index % 25}/file-${index}.ts`))
+      const view = render(<ReviewHarness files={files} initialSelected={files[0].path} />)
+      const built = build.mock.calls.length
+      expect(built).toBeGreaterThan(0)
+      expect(build.mock.calls[0][0]).toHaveLength(2000)
+      // Separate transitions keep the default deadline about one regression, not several large DOM renders.
+      if (change === "copied records") {
+        view.rerender(<ReviewHarness files={files.map((file) => ({ ...file }))} initialSelected={files[0].path} />)
+      } else if (change === "viewed mark") {
+        fireEvent.click(screen.getAllByRole("checkbox")[0])
+      } else {
+        const renamed = files.map((file, index) => (index === 0 ? { ...file, path: "moved/renamed.ts" } : { ...file }))
+        view.rerender(<ReviewHarness files={renamed} initialSelected={renamed[0].path} />)
+      }
+      if (change === "renamed path") expect(build.mock.calls.length).toBeGreaterThan(built)
+      else expect(build.mock.calls.length).toBe(built)
+    },
+  )
 
   test("uses one tab stop and moves focus with the tree keys", () => {
     const files = [gitFile("top.ts"), gitFile("src/a.ts"), gitFile("src/nested/b.ts")]
