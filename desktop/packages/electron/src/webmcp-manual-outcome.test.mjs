@@ -3,7 +3,7 @@ import { manualToolResult, manualToolFailure } from "./webmcp-manual-outcome.js"
 
 describe("manual outcome mapping", () => {
   test("normal transport completion remains successful only for normal output", () => {
-    for (const output of ["ok", { value: 5 }, { found: false }, { done: true }, { error: "" }])
+    for (const output of ["ok", { value: 5 }, { found: false }, { done: true }, { error: "" }, { error: null }, { error: {} }])
       expect(manualToolResult({ output })).toEqual({ ok: true, outcome: "completed", output })
   })
   test.each([
@@ -13,6 +13,9 @@ describe("manual outcome mapping", () => {
     { errorText: "failed" },
     { status: "Error" },
     { untrusted: true, result: { isError: true } },
+    // The structured error the builder guide recommends.
+    { error: { field: "title", constraint: "minLength: 1", got: "   " } },
+    JSON.stringify({ untrusted: true, result: { error: { field: "title", constraint: "minLength: 1", got: "" } } }),
     JSON.stringify({ isError: true }),
   ])("application-error payload %j never becomes success", (output) => {
     expect(manualToolResult({ output })).toEqual({

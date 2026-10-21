@@ -24,6 +24,11 @@ function manualToolResult(result) {
       (typeof output.status === "string" &&
         /^(error|failed|canceled|cancelled|timeout|aborted)$/i.test(output.status.trim())) ||
       (typeof output.error === "string" && output.error.trim().length > 0) ||
+      // A structured error, as the builder guide recommends: { error: { field, constraint, got } }.
+      (output.error !== null &&
+        typeof output.error === "object" &&
+        !Array.isArray(output.error) &&
+        Object.keys(output.error).length > 0) ||
       (typeof output.errorText === "string" && output.errorText.trim().length > 0))
   return applicationError
     ? { ok: false, outcome: "application-error", reason: "application-error", output: result.output }

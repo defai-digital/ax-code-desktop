@@ -228,3 +228,10 @@ test.each(["timeout", "cancelled", "canceled", "aborted"])(
     }
   },
 )
+
+test("a structured error object, as the builder guide recommends, is an application error on the transcript too", () => {
+  const output = JSON.stringify({ untrusted: true, result: { error: { field: "title", constraint: "minLength: 1", got: "   " } } })
+  expect(desktopWebMcpResultOutcome({ status: "completed", output })).toBe("application-error")
+  for (const harmless of [{ error: null }, { error: {} }, { found: false }])
+    expect(desktopWebMcpResultOutcome({ status: "completed", output: JSON.stringify(harmless) })).toBe("completed")
+})
