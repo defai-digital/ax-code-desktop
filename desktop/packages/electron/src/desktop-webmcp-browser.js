@@ -370,12 +370,14 @@ function createDesktopWebMcpBrowser({
       .filter(({ contents }) => !contents.isDestroyed())
     // Closing discards the view, regardless of its current URL or tool registrations.
     const identity = JSON.stringify(documents.map(({ contents, id }) => [id, contents.id]))
+    const targetIdentity = JSON.stringify(targets.map((entry) => entry.id))
     const approval = closeApprovals.get(sender)
     closeApprovals.delete(sender)
     if (
       approval &&
       approval.token === args.closeConfirmation &&
       approval.action === args.action &&
+      approval.targetIdentity === targetIdentity &&
       (approval.identity === identity || approval.reprompted)
     )
       return { approved: true }
@@ -394,8 +396,10 @@ function createDesktopWebMcpBrowser({
       token,
       action: args.action,
       identity,
+      targetIdentity,
       // A valid first confirmation permits only one further prompt for changed contents.
-      reprompted: Boolean(approval && approval.token === args.closeConfirmation && approval.action === args.action),
+      reprompted: Boolean(approval && approval.token === args.closeConfirmation &&
+        approval.action === args.action && approval.targetIdentity === targetIdentity),
     })
     return {
       confirmationRequired: true,

@@ -2843,6 +2843,26 @@ export async function revertFile(directory, filePath, options = {}) {
     const { absolutePath, repoPath } = await resolveGitFileContext(directoryPath, directoryGit, filePath, repoRoot)
     const git = await createGit(repoRoot)
 
+    // A lexical repository path can traverse a replaced parent into unrelated files.
+    // Reject it before changing the index, even when the path is still staged.
+    const rootReal = await fsp.realpath(repoRoot)
+    let parent = path.dirname(absolutePath)
+    while (parent !== repoRoot) {
+      const parentReal = await fsp.realpath(parent).catch((error) => {
+        if (error?.code === "ENOENT") return null
+        throw error
+      })
+      if (parentReal) {
+        if (parentReal !== path.resolve(rootReal, path.relative(repoRoot, parent))) {
+          throw new Error("Refusing to revert a file through a symbolic-link parent")
+        }
+        break
+      }
+      // A deleted tracked file may have missing ancestors that Git must restore.
+      parent = path.dirname(parent)
+    }
+    const directoryExclude = `/${repoPath.replace(/[\\*?\[\]]/g, "\\$&")}/`
+
     const isTracked = await git
       .raw(["ls-files", "--error-unmatch", "--", literalPathspec(repoPath)])
       .then(() => true)
@@ -2858,21 +2878,9 @@ export async function revertFile(directory, filePath, options = {}) {
       .catch(() => false)
 
     if (!isTracked && !existsInHead) {
-      try {
-        await git.raw(["clean", "-f", "-d", "--", literalPathspec(repoPath)])
-        return
-      } catch (cleanError) {
-        try {
-          await fsp.rm(absolutePath, { recursive: true, force: true })
-          return
-        } catch (fsError) {
-          if (fsError && typeof fsError === "object" && fsError.code === "ENOENT") {
-            return
-          }
-          console.error("Failed to remove untracked file during revert:", fsError)
-          throw fsError
-        }
-      }
+      // A failed Git cleanup is not permission to bypass its path and ignore rules.
+      await git.raw(["clean", "-f", "-e", directoryExclude, "--", literalPathspec(repoPath)])
+      return
     }
 
     if (scope === "all") {
@@ -2897,11 +2905,14 @@ export async function revertFile(directory, filePath, options = {}) {
       if (!existsInHead) {
         // A staged addition has no HEAD version to restore; reverting it means
         // removing the file instead of failing with a checkout error.
-        // Do not recursively remove a directory created after the type check.
-        await fsp.rm(absolutePath, { force: true }).catch((error) => {
-          if (error && typeof error === "object" && error.code === "ENOENT") return
+        // Keep Git's symlink-parent checks. Exclude a directory replacing this
+        // exact file, including ignored additions and literal glob characters.
+        await git.raw(["clean", "-f", "-x", "-e", directoryExclude, "--", literalPathspec(repoPath)])
+        const remaining = await fsp.lstat(absolutePath).catch((error) => {
+          if (error?.code === "ENOENT") return null
           throw error
         })
+        if (remaining) throw new Error("Refusing to remove a replaced file or directory during revert")
         return
       }
 

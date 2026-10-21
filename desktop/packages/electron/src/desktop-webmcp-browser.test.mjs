@@ -3029,6 +3029,29 @@ test("replacement contents require at most one extra close confirmation", async 
   expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
 })
 
+test("a repeated close confirmation cannot authorize a different session page", async () => {
+  const f = fixture()
+  const { sender, status } = await f.create({ attach: false })
+  const guest = f.guests[0]
+  guest.emit("before-input-event", {}, { type: "keyDown" })
+  const other = await f.controller.command(sender, {
+    action: "create", directory: "/tmp/project", sessionID: "ses_other", url: "about:blank",
+  })
+  f.guests[1].emit("before-input-event", {}, { type: "keyDown" })
+  const args = { action: "close", id: status.id }
+  const first = await f.controller.command(sender, args)
+  guest.id = 100
+  const second = await f.controller.command(sender, { ...args, closeConfirmation: first.closeConfirmation })
+  expect(second.confirmationRequired).toBe(true)
+
+  const reply = await f.controller.command(sender, {
+    action: "close", id: other.id, closeConfirmation: second.closeConfirmation,
+  })
+
+  expect(reply.confirmationRequired).toBe(true)
+  expect(f.guests.every((contents) => !contents.destroyed)).toBe(true)
+})
+
 test("shutdown offers close anyway when contents change during confirmation", async () => {
   let f
   const confirmClose = vi.fn(async () => { f.guests[0].id = (f.guests[0].id ?? 0) + 1; return true })

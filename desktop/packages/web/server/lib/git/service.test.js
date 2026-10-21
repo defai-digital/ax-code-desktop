@@ -227,6 +227,106 @@ describe("revertFile", () => {
     expect((await git.status()).files).toHaveLength(0)
   })
 
+  it("preserves external files and the index when a staged addition's parent becomes a symlink", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    const outside = createTempDir()
+    const parent = path.join(tmpDir, "nested")
+    await fs.promises.mkdir(parent)
+    await fs.promises.writeFile(path.join(parent, "new.txt"), "staged\n")
+    await git.add("nested/new.txt")
+    await fs.promises.writeFile(path.join(outside, "new.txt"), "external sentinel\n")
+    await fs.promises.rename(parent, path.join(tmpDir, "saved"))
+    await fs.promises.symlink(outside, parent, process.platform === "win32" ? "junction" : "dir")
+
+    await expect(revertFile(tmpDir, "nested/new.txt", { scope: "all" })).rejects.toThrow(/parent/)
+
+    expect(await fs.promises.readFile(path.join(outside, "new.txt"), "utf8")).toBe("external sentinel\n")
+    expect(await git.raw(["show", ":nested/new.txt"])).toBe("staged\n")
+  })
+
+  it("removes an explicitly staged ignored addition with glob characters literally", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await fs.promises.writeFile(path.join(tmpDir, ".gitignore"), "*.txt\n")
+    await fs.promises.writeFile(path.join(tmpDir, "new[1].txt"), "staged\n")
+    await fs.promises.writeFile(path.join(tmpDir, "new1.txt"), "keep\n")
+    await git.raw(["add", "-f", "--", "new[1].txt"])
+
+    await revertFile(tmpDir, "new[1].txt", { scope: "all" })
+
+    expect(fs.existsSync(path.join(tmpDir, "new[1].txt"))).toBe(false)
+    expect(await fs.promises.readFile(path.join(tmpDir, "new1.txt"), "utf8")).toBe("keep\n")
+    expect(await git.raw(["ls-files", "--", ":(literal)new[1].txt"])).toBe("")
+  })
+
+  it("preserves external content when the parent changes after the staged-file check", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    const outside = createTempDir()
+    const parent = path.join(tmpDir, "nested")
+    await fs.promises.mkdir(parent)
+    const added = path.join(parent, "new.txt")
+    await fs.promises.writeFile(added, "staged\n")
+    await git.add("nested/new.txt")
+    await fs.promises.writeFile(path.join(outside, "new.txt"), "external sentinel\n")
+    const addedReal = await fs.promises.realpath(added)
+    const lstat = fs.promises.lstat.bind(fs.promises)
+    let replaced = false
+    const spy = vi.spyOn(fs.promises, "lstat").mockImplementation(async (target, ...args) => {
+      const stat = await lstat(target, ...args)
+      if ((target === added || target === addedReal) && !replaced) {
+        replaced = true
+        await fs.promises.rename(parent, path.join(tmpDir, "saved"))
+        await fs.promises.symlink(outside, parent, process.platform === "win32" ? "junction" : "dir")
+      }
+      return stat
+    })
+    try {
+      await expect(revertFile(tmpDir, "nested/new.txt", { scope: "all" })).rejects.toThrow(/replaced/)
+      expect(await fs.promises.readFile(path.join(outside, "new.txt"), "utf8")).toBe("external sentinel\n")
+      expect(await fs.promises.readFile(path.join(tmpDir, "saved/new.txt"), "utf8")).toBe("staged\n")
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it("restores a tracked file whose parent directory was deleted", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    await fs.promises.mkdir(path.join(tmpDir, "nested"))
+    await fs.promises.writeFile(path.join(tmpDir, "nested/file.txt"), "tracked\n")
+    await git.add("nested/file.txt")
+    await git.commit("Add nested file")
+    await fs.promises.rm(path.join(tmpDir, "nested"), { recursive: true })
+
+    await revertFile(tmpDir, "nested/file.txt", { scope: "all" })
+
+    expect(await fs.promises.readFile(path.join(tmpDir, "nested/file.txt"), "utf8")).toBe("tracked\n")
+  })
+
+  it("preserves a directory replacing a staged file after its type was checked", async () => {
+    const { tmpDir, git } = await repoWithFile()
+    const added = path.join(tmpDir, "new[1].txt")
+    await fs.promises.writeFile(added, "staged\n")
+    await git.add("new[1].txt")
+    const addedReal = await fs.promises.realpath(added)
+    const lstat = fs.promises.lstat.bind(fs.promises)
+    let replaced = false
+    const spy = vi.spyOn(fs.promises, "lstat").mockImplementation(async (target, ...args) => {
+      const stat = await lstat(target, ...args)
+      if ((target === added || target === addedReal) && !replaced) {
+        replaced = true
+        await fs.promises.unlink(added)
+        await fs.promises.mkdir(added)
+        await fs.promises.writeFile(path.join(added, "keep.txt"), "keep\n")
+      }
+      return stat
+    })
+    try {
+      await expect(revertFile(tmpDir, "new[1].txt", { scope: "all" })).rejects.toThrow(/directory/)
+      expect(await fs.promises.readFile(path.join(added, "keep.txt"), "utf8")).toBe("keep\n")
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it("preserves a directory replacing a staged addition and leaves the index intact", async () => {
     const { tmpDir, git } = await repoWithFile()
     const addedPath = path.join(tmpDir, "new.txt")
