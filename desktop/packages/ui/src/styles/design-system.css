@@ -637,13 +637,13 @@
 
 /* Review rail */
 .review-file-rail {
+  position: relative;
   box-sizing: border-box;
   display: flex;
-  flex: 0 1 15rem;
+  flex: 0 0 auto;
   flex-direction: column;
   width: 15rem;
-  min-width: 12rem;
-  max-width: 15rem;
+  min-width: 0;
   min-height: 0;
   margin: 0.5rem 0 0.5rem 0.75rem;
   overflow: hidden;
@@ -660,7 +660,15 @@
   border-bottom: 1px solid color-mix(in srgb, var(--border) 40%, transparent);
 }
 
+.review-file-rail__title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
 .review-file-rail__count {
+  flex: 1 1 auto;
   margin: 0;
   overflow: hidden;
   color: var(--foreground);
@@ -668,6 +676,34 @@
   font-weight: 600;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.review-file-rail__modes {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 0.125rem;
+}
+
+.review-file-rail__mode {
+  border: 0;
+  border-radius: 0.25rem;
+  padding: 0 0.375rem;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: var(--text-micro);
+  line-height: 1.25rem;
+  cursor: pointer;
+}
+
+.review-file-rail__mode[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--foreground) 8%, transparent);
+  color: var(--foreground);
+}
+
+.review-file-rail__mode:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
 }
 
 .review-file-rail__progress {
@@ -923,4 +959,60 @@
 .review-file-rail__open:focus-visible {
   outline: 2px solid var(--interactive-focus-ring, var(--ring));
   outline-offset: 1px;
+}
+
+.review-file-rail__branch-item {
+  display: block;
+  outline: none;
+}
+
+.review-file-rail__branch-item:focus-visible > .review-file-rail__dir {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.review-file-rail__branch--collapsed {
+  /* Keep the rows mounted for selectors and assistive technology. Clip the box so they are not shown. */
+  height: 0;
+  min-height: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.review-file-rail__dir {
+  width: 100%;
+  cursor: pointer;
+}
+
+.review-file-rail__dir-count {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  color: var(--muted-foreground);
+  font-size: var(--text-micro);
+  white-space: nowrap;
+}
+
+.review-file-rail__row:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.review-file-rail__resize {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  z-index: 2;
+  width: 6px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.review-file-rail__resize:hover,
+.review-file-rail__resize:focus-visible {
+  background: color-mix(in srgb, var(--foreground) 18%, transparent);
+}
+
+.review-file-rail__resize:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
 }

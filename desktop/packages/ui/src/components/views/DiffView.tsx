@@ -36,6 +36,7 @@ import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { ReviewThreadAnchorProvider } from "@/components/comments/ReviewThreadAnchorProvider"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
+import { orderReviewRailFiles, useReviewRailMode } from "./reviewFileRailTree"
 import { ReviewLanding } from "./git/ReviewLanding"
 import { SessionChangesView, type SessionChangesModel } from "./SessionChangesView"
 import { BranchChangesView, type BranchChangesModel } from "./BranchChangesView"
@@ -1631,7 +1632,12 @@ export const DiffView: React.FC<DiffViewProps> = ({
   const showBranchRail =
     branchReview && !isMobile && paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH && branchModel.files.length > 0
   const showFileSelector = !embeddedReview && !hideFileSelector && !showFileRail
-  const navFiles = sessionReview ? sessionModel.files : branchReview ? branchModel.files : changedFiles
+  const reviewRailMode = useReviewRailMode()
+  const sourceNavFiles = sessionReview ? sessionModel.files : branchReview ? branchModel.files : changedFiles
+  const navFiles = React.useMemo(
+    () => orderReviewRailFiles(sourceNavFiles, reviewRailMode),
+    [reviewRailMode, sourceNavFiles],
+  )
   const navSelected = sessionReview ? sessionSelected : branchReview ? branchSelected : selectedFile
   const previousFilePath = adjacentReviewFile(navFiles, navSelected, -1)
   const nextFilePath = adjacentReviewFile(navFiles, navSelected, 1)

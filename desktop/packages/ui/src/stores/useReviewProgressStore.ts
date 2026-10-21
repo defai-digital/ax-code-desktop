@@ -5,6 +5,7 @@ import { createJSONStorage, persist } from "zustand/middleware"
 
 import type { GitStatus } from "@/lib/api/types"
 import { describeGitChange } from "@/components/views/git/changeDescriptors"
+import { orderReviewRailFiles } from "@/components/views/reviewFileRailTree"
 import { getSafeStorage } from "./utils/safeStorage"
 
 /**
@@ -187,12 +188,14 @@ export function adjacentReviewFile(
   selectedFile: string | null,
   offset: -1 | 1,
 ): string | null {
-  if (files.length === 0) return null
-  const index = selectedFile === null ? -1 : files.findIndex((file) => file.path === selectedFile)
-  if (index < 0) return offset > 0 ? files[0].path : null
+  // Full visual order. Files inside a collapsed directory stay reachable; the rail opens that directory.
+  const ordered = orderReviewRailFiles(files)
+  if (ordered.length === 0) return null
+  const index = selectedFile === null ? -1 : ordered.findIndex((file) => file.path === selectedFile)
+  if (index < 0) return offset > 0 ? ordered[0].path : null
   const nextIndex = index + offset
-  if (nextIndex < 0 || nextIndex >= files.length) return null
-  return files[nextIndex].path
+  if (nextIndex < 0 || nextIndex >= ordered.length) return null
+  return ordered[nextIndex].path
 }
 
 export function isReviewEditableTarget(target: EventTarget | null): boolean {
@@ -320,19 +323,20 @@ export function useReviewPaneFileKeys(options: {
       if (!directory) return
       if (reviewKeyboardEventInEditableField(event)) return
 
+      const ordered = orderReviewRailFiles(files)
       if (key === "v" || key === "V") {
         if (event.repeat || !selectedFile) return
-        const index = files.findIndex((file) => file.path === selectedFile)
+        const index = ordered.findIndex((file) => file.path === selectedFile)
         if (index < 0) return
         event.preventDefault()
         const store = useReviewProgressStore.getState()
-        const current = files[index]
+        const current = ordered[index]
         const wasViewed = store.isViewed(directory, scope, current.path, current.signature)
         store.toggleViewed(directory, scope, current.path, current.signature)
         // Un-marking keeps the file selected; only marking moves on to the next unviewed file.
         if (wasViewed) return
-        for (let cursor = index + 1; cursor < files.length; cursor += 1) {
-          const candidate = files[cursor]
+        for (let cursor = index + 1; cursor < ordered.length; cursor += 1) {
+          const candidate = ordered[cursor]
           if (!store.isViewed(directory, scope, candidate.path, candidate.signature)) {
             onSelectFile(candidate.path)
             return
@@ -341,7 +345,7 @@ export function useReviewPaneFileKeys(options: {
         return
       }
 
-      const next = adjacentReviewFile(files, selectedFile, key === "]" ? 1 : -1)
+      const next = adjacentReviewFile(ordered, selectedFile, key === "]" ? 1 : -1)
       if (!next) return
       event.preventDefault()
       onSelectFile(next)
