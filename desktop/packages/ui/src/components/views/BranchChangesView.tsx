@@ -10,6 +10,7 @@ import { getLanguageFromExtension } from "@/lib/toolHelpers"
 import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { reviewBranchFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
 import { branchReviewBase, useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
+import { ReviewLanding } from "./git/ReviewLanding"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
@@ -32,6 +33,8 @@ export interface BranchChangesModel {
 
 interface BranchChangesViewProps {
   directory: string
+  sessionId?: string | null
+  onStaged?: () => void
   paneRef: React.RefObject<HTMLElement | null>
   paneWidth: number
   allowRail: boolean
@@ -139,6 +142,8 @@ function branchDiffLayout(
 
 export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   directory,
+  sessionId,
+  onStaged,
   paneRef,
   paneWidth,
   allowRail,
@@ -370,6 +375,24 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
         />
       ) : null}
       <div className="session-changes__body">
+        {visible?.phase === "ready" ? (
+          <ReviewLanding
+            key={`${directory}\0${progressScope}`}
+            directory={directory}
+            sessionId={sessionId}
+            onStaged={onStaged}
+            scope={`branch:${resolvedBase || "default"}`}
+            files={loadedFiles.map((file) => ({
+              path: file.file,
+              index: " ",
+              working_dir: " ",
+              insertions: file.additions,
+              deletions: file.deletions,
+            }))}
+            branchDiff={{ base: resolvedBase, mergeBase, files: loadedFiles, truncated: visible.truncated }}
+            onRefreshBranch={() => setRetryNonce((nonce) => nonce + 1)}
+          />
+        ) : null}
         {optionNames.length > 0 ? (
           <div className="flex shrink-0 items-center gap-2 border-b border-border/50 px-3 py-1.5">
             <span className="typography-micro text-muted-foreground">{t(baseLabel)}</span>

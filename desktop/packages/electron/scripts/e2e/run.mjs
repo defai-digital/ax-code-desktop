@@ -46,12 +46,14 @@ const headerValue = (headers, name) => {
   return key ? String(headers[key]) : ""
 }
 
-const writeArtifacts = async ({ dir, launch, consoleMessages, session, results }) => {
+const writeArtifacts = async ({ dir, launch, consoleMessages, failedRequests = [], session, results }) => {
   if (!dir) return
   await fs.mkdir(dir, { recursive: true })
   await fs.writeFile(path.join(dir, "stdout.log"), launch.stdout.join(""))
   await fs.writeFile(path.join(dir, "stderr.log"), launch.stderr.join(""))
   await fs.writeFile(path.join(dir, "console.json"), `${JSON.stringify(consoleMessages, null, 2)}\n`)
+  // Which requests failed, so a platform-only failure (for example on Windows) can be traced to its route.
+  await fs.writeFile(path.join(dir, "failed-requests.json"), `${JSON.stringify(failedRequests, null, 2)}\n`)
   await fs.writeFile(path.join(dir, "results.json"), `${JSON.stringify(results, null, 2)}\n`)
   if (session) {
     try {
@@ -71,6 +73,7 @@ export const runHarness = async ({
 } = {}) => {
   const launch = await launchDesktop({ app, uiWebMcp, portfolio })
   const consoleMessages = []
+  const failedRequests = []
   const results = []
   let session = null
   try {
@@ -95,6 +98,11 @@ export const runHarness = async ({
     let documentCsp = ""
     let documentUrl = ""
     session.on("Network.responseReceived", (params) => {
+      const status = params.response?.status ?? 0
+      if (status >= 400 && failedRequests.length < 500) {
+        // Local fixture routes only; the app sends credentials in headers, never in these URLs.
+        failedRequests.push({ status, type: params.type, url: String(params.response?.url || "").slice(0, 600) })
+      }
       if (params.type === "Document" && !documentCsp) {
         documentCsp = headerValue(params.response?.headers, "content-security-policy")
         documentUrl = params.response?.url || ""
@@ -162,6 +170,7 @@ export const runHarness = async ({
           dir: path.join(artifacts, results.at(-1).name),
           launch,
           consoleMessages,
+          failedRequests,
           session,
           results: [results.at(-1)],
         }).catch(() => {})
@@ -173,7 +182,7 @@ export const runHarness = async ({
     results.push({ name: "harness", ok: false, detail: error.message })
     return { ...summarize(results), results, consoleMessages }
   } finally {
-    await writeArtifacts({ dir: artifacts, launch, consoleMessages, session, results }).catch(() => {})
+    await writeArtifacts({ failedRequests, dir: artifacts, launch, consoleMessages, session, results }).catch(() => {})
     session?.close()
     await launch.stop()
   }

@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Metin d\u00fczenlendi",
   "chat.permissionCard.webmcp.argumentsMissing": "\u00c7al\u0131\u015fma zaman\u0131 taraf\u0131ndan arg\u00fcman sa\u011flanmad\u0131",
   "chat.toolPart.webmcp.failed": "Ba\u015far\u0131s\u0131z",
-  "chat.toolPart.webmcp.argumentsMissing": "\u00c7al\u0131\u015fma zaman\u0131 taraf\u0131ndan arg\u00fcman sa\u011flanmad\u0131"
+  "chat.toolPart.webmcp.argumentsMissing": "\u00c7al\u0131\u015fma zaman\u0131 taraf\u0131ndan arg\u00fcman sa\u011flanmad\u0131",
+  "diffView.landing.alreadyCommitted": "Zaten onayland\u0131 ({count})",
+  "diffView.landing.checksWarning": "\u00c7al\u0131\u015fma zaman\u0131 kontrolleri ba\u015far\u0131s\u0131z veya g\u00fcncel de\u011fil. Onaylamadan veya g\u00f6ndermeden \u00f6nce kan\u0131tlar\u0131 inceleyin; yine de devam edebilirsiniz.",
+  "supervision.missionControl.preview.stale": "(g\u00fcncel olmayabilir)"
 }

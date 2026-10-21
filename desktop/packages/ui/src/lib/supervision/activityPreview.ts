@@ -9,6 +9,8 @@ export const ACTIVITY_TODO_PREFIX = "Working on: "
 export interface ActivityPreview {
   kind: "todo" | "message"
   text: string
+  /** Set on a preview kept from an earlier read after the latest read failed. */
+  stale?: boolean
 }
 
 export interface ActivityTodo {

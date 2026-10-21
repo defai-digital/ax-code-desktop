@@ -238,6 +238,7 @@ const hasStatusChanged = (oldStatus: GitStatus | null, newStatus: GitStatus | nu
   if (oldStatus.ahead !== newStatus.ahead) return true
   if (oldStatus.behind !== newStatus.behind) return true
   if (oldStatus.current !== newStatus.current) return true
+  if (oldStatus.headOid !== newStatus.headOid) return true
   if (oldStatus.tracking !== newStatus.tracking) return true
   if (oldStatus.isClean !== newStatus.isClean) return true
   if (

@@ -209,3 +209,39 @@ Method: PRD-2026-10-21 section 4a. Five independent answers (codex, grok, MiniMa
   Fixed here (shared path matching, `taskkill /T` teardown); the next CI run is the Windows evidence.
 - Gates: UI 4266, web 1490 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
   release contract, 14 locales, actionlint; macOS native journeys and `e2e:desktop` passed.
+
+### Rounds 6-8 result (judged together at `845db2cf`)
+
+Raw judgments: `round8/`.
+
+| Judge | AX | Orca | Claude Code | Codex app | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| codex | 8.85 | 8.93 | 8.73 | 8.17 | 6.90 | worse | better |
+| deepseek-flash | 8.98 | 9.01 | 8.77 | 8.25 | 6.94 | equal | better |
+| MiniMax-M3 | 8.92 | 9.07 | 8.72 | 8.00 | 6.94 | worse | better |
+
+The gap to Orca fell from about 0.3 to 0.03-0.15; the PRD's definition of done needs a 0.2 lead from all three. Named flips: landing
+from Branch scope (all three), the Activity signal outside the board (header bell, dock badge), commit confirmation bound to staged
+blob identities, preview freshness with Retry, verification evidence beside the landing action, inline three-way merge.
+
+## Round 9 (2026-10-21)
+
+Targets from the rounds 6-8 judgments.
+
+- L9 (codex): the Stage, Commit and Push action also works from Branch scope (CS-14), staging only uncommitted, reviewed members of
+  the Branch diff; the commit preflight compares staged blob identities, HEAD and branch, captured when the composer opens; the
+  session's runtime checks sit beside the landing action with a non-blocking warning when failing or stale. Review (deepseek-flash):
+  two MEDIUM (preflight served from the 1.2 s status cache; HEAD read without a timeout) and two LOW, all fixed by codex with tests and
+  mutation probes. The preflight is a read-before-write guard, not an atomic lock.
+- N9 (Claude): a titlebar Activity button with the unread count opens the feed anywhere and opens the chosen session; a failed
+  activity-preview read keeps the older text marked "(may be outdated)" and retries after a backoff. Fixed while testing: a tight
+  retry loop for failed entries evicted from the bounded caches (boards above 300 rows), in both the preview and the verification
+  caches. Review (codex): four findings, all fixed (per-session backoff deadlines independent of eviction, popover focus, marker
+  placement, no timers after unmount).
+- Windows journeys: the round 8 CI run no longer hangs and portfolio-identity passes on Windows; project-home failed on a remaining
+  raw path comparison (fixed) and "Last turn" stayed loading on Windows. The harness now records failed request URLs per journey
+  (`failed-requests.json`) to trace that on the next run.
+- Gates: UI 4305, web 1497 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales; macOS native journeys and `e2e:desktop` passed.
+- Runtime contract (ADR-266 in AX Code, branch `feat/webmcp-desktop-contract-v1`): in progress separately; Desktop does not depend
+  on it until a signed runtime is pinned.

@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "\u6587\u672c\u5df2\u7f16\u8f91",
   "chat.permissionCard.webmcp.argumentsMissing": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u53c2\u6570",
   "chat.toolPart.webmcp.failed": "\u5931\u8d25",
-  "chat.toolPart.webmcp.argumentsMissing": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u53c2\u6570"
+  "chat.toolPart.webmcp.argumentsMissing": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u53c2\u6570",
+  "diffView.landing.alreadyCommitted": "\u5df2\u63d0\u4ea4 ({count})",
+  "diffView.landing.checksWarning": "\u8fd0\u884c\u65f6\u68c0\u67e5\u5931\u8d25\u6216\u5df2\u8fc7\u65f6\u3002\u5728\u63d0\u4ea4\u6216\u63a8\u9001\u524d\u8bf7\u67e5\u770b\u8bc1\u636e\uff1b\u60a8\u4ecd\u53ef\u7ee7\u7eed\u3002",
+  "supervision.missionControl.preview.stale": "(\u53ef\u80fd\u5df2\u8fc7\u65f6)"
 }

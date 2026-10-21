@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Texto redactado",
   "chat.permissionCard.webmcp.argumentsMissing": "Argumentos no proporcionados por el entorno de ejecuci\u00f3n",
   "chat.toolPart.webmcp.failed": "Fall\u00f3",
-  "chat.toolPart.webmcp.argumentsMissing": "Argumentos no proporcionados por el entorno de ejecuci\u00f3n"
+  "chat.toolPart.webmcp.argumentsMissing": "Argumentos no proporcionados por el entorno de ejecuci\u00f3n",
+  "diffView.landing.alreadyCommitted": "Ya confirmado ({count})",
+  "diffView.landing.checksWarning": "Las comprobaciones de tiempo de ejecuci\u00f3n est\u00e1n fallando o son obsoletas. Revise la evidencia antes de confirmar o enviar; a\u00fan puede continuar.",
+  "supervision.missionControl.preview.stale": "(puede estar desactualizado)"
 }

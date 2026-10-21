@@ -68,7 +68,8 @@ Until D1 to D3 hold, reports say "not yet better than Orca" with the latest numb
 | CS-04 | 5 | Child agents as rows; cross-session Activity feed; bounded previews for never-opened sessions; beside session with Chat/Changes; inline thread markers; both-sided session marks with fallback warning; remembered Branch base | `d9f1b29d` |
 | CS-05 | 6 | Beside session Files and Terminal tabs; progressive Stage, Commit and Push with fresh-state checks; Windows/CRLF/terminal fixes; three-platform journey CI job | `590da128` |
 | CS-10 to CS-13 | 7 | Change navigation, session grid, runtime verification evidence, batch permission decisions | `4dc7d52a` |
-| CS-25 to CS-32 | 8 | WebMCP: honest browser lifecycle, truthful failures, informative approvals, page tools with "Try it", named transcript rows, supervision integration, entry flow, naming | round 8 commit |
+| CS-25 to CS-32 | 8 | WebMCP: honest browser lifecycle, truthful failures, informative approvals, page tools with "Try it", named transcript rows, supervision integration, entry flow, naming | `845db2cf` |
+| CS-14 and round 9 items | 9 | Branch-scope landing, content-bound commit preflight, checks beside landing, titlebar Activity, stale previews | round 9 commit |
 
 ### Round 7 (authorized)
 

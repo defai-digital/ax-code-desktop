@@ -208,8 +208,22 @@ export async function checkIsGitRepository(directory: string): Promise<boolean> 
   }
 }
 
-export async function getGitStatus(directory: string, options?: { mode?: "light" }): Promise<GitStatus> {
+export async function getGitStatus(
+  directory: string,
+  options?: { mode?: "light"; bypassCache?: boolean },
+): Promise<GitStatus> {
   const mode = options?.mode
+  // Landing preflights must start their own read, even while an older request is in flight.
+  // Keep these reads out of the polling cache and browser HTTP cache as well.
+  if (options?.bypassCache) {
+    const response = await gitRequest(buildUrl(`${API_BASE}/status`, directory, mode ? { mode } : undefined), {
+      cache: "no-store",
+    })
+    if (!response.ok) {
+      throw new Error(`Failed to get git status: ${response.statusText}`)
+    }
+    return (await response.json()) as GitStatus
+  }
   const key = mode === "light" ? `${normalizeDirectoryKey(directory)}::light` : normalizeDirectoryKey(directory)
   const now = Date.now()
   const cached = gitStatusCache.get(key)

@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Testo redatto",
   "chat.permissionCard.webmcp.argumentsMissing": "Argomenti non forniti dal runtime",
   "chat.toolPart.webmcp.failed": "Fallito",
-  "chat.toolPart.webmcp.argumentsMissing": "Argomenti non forniti dal runtime"
+  "chat.toolPart.webmcp.argumentsMissing": "Argomenti non forniti dal runtime",
+  "diffView.landing.alreadyCommitted": "Gi\u00e0 confermato ({count})",
+  "diffView.landing.checksWarning": "I controlli di runtime stanno fallendo o sono obsoleto. Rivedi le prove prima di fare commit o push; puoi comunque continuare.",
+  "supervision.missionControl.preview.stale": "(potrebbe essere obsoleto)"
 }

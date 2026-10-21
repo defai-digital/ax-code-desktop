@@ -36,7 +36,8 @@ export function useRemoteActivityPreviews(
       new Map(
         rows.map((row) => {
           const entry = entries.get(row.sessionId)
-          const preview = entry?.directory === row.directory ? entry.preview : null
+          const kept = entry?.directory === row.directory ? entry.preview : null
+          const preview = kept && entry?.stale ? { ...kept, stale: true } : kept
           return [row.sessionId, row.activity || !preview ? row : { ...row, activity: preview }]
         }),
       ),

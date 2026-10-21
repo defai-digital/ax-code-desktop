@@ -65,7 +65,10 @@ Started 2026-10-21 at the user's direction to continue to the next round while r
 | R-runtime: WebMCP runtime contract | R1 (invoke arguments and always-scope in permission metadata), R2 (stable failure reason codes), R3 (guard rails for weaker models: invoke templates, schema validation before invoke, `nextAction` on errors), R6 (reject enrollment whose session is not in the directory) | next free implementer, in `~/code/ax-code` on a new branch | different model | needs an AX Code ADR first (AGENTS.md governance); then a pinned runtime release before Desktop depends on it |
 | T-suite: persona task journeys | D2: T1 to T6 as native journey assertions with recorded user-action counts | codex after the package A fixes | deepseek-flash | not started |
 | W-ci: Windows supervision journeys | D3: the Windows job ran past its limit on the first run | Claude | | fixed in round 8 (path matching, process-tree teardown); needs a CI run on the remote |
-| J9: judging | rounds 6 to 8 combined, three judges | codex, deepseek-flash, MiniMax-M3 | | after the round 8 commit |
+| J9: judging | rounds 6 to 8 combined, three judges | codex, deepseek-flash, MiniMax-M3 | | done: 8.85/8.98/8.92 vs Orca 8.93/9.01/9.07 (worse, equal, worse) |
+| L9: landing everywhere | CS-14 Branch-scope staging and landing; commit bound to staged blob identities and HEAD; the session's runtime checks beside the landing action | codex | deepseek-flash | done; review findings fixed |
+| N9: signals outside the board | Activity unread in the titlebar (the dock badge already showed Needs You); stale activity previews with backoff retry | Claude | codex | done; review findings fixed |
+| M9: three-way merge | inline conflict resolution | later | | not started |
 
 ## Decisions
 

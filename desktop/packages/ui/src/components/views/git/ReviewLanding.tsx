@@ -5,6 +5,7 @@ import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { useI18n } from "@/lib/i18n"
 import { useGitLoadingStatus, useGitStatus, useGitStore } from "@/stores/useGitStore"
 import {
+  reviewBranchFileSignature,
   reviewFileSignature,
   reviewFileSignatureDetail,
   reviewProgressKey,
@@ -12,19 +13,32 @@ import {
   type ReviewGitScope,
   type ReviewProgressFile,
 } from "@/stores/useReviewProgressStore"
+import type { GitBranchDiffResponse, GitStatus } from "@/lib/api/types"
+import { ReviewLandingChecks } from "./ReviewLandingChecks"
 import { CommitInput } from "./CommitInput"
 import { commitChanges, pushChanges } from "./landingActions"
 import { isConflictedStatusFile } from "../useDiffHunkStage"
 
 interface ReviewLandingProps {
   directory: string
-  scope: ReviewGitScope
+  scope: ReviewGitScope | `branch:${string}`
   files: readonly ReviewProgressFile[]
+  branchDiff?: GitBranchDiffResponse
+  sessionId?: string | null
+  onRefreshBranch?: () => void
   onStaged?: () => void
 }
 
 /** One explicit action at a time: stage the reviewed set, compose a commit, then push. */
-export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandingProps) {
+export function ReviewLanding({
+  directory,
+  scope,
+  files,
+  branchDiff,
+  sessionId,
+  onStaged,
+  onRefreshBranch,
+}: ReviewLandingProps) {
   const { t } = useI18n()
   const { git } = useRuntimeAPIs()
   const status = useGitStatus(directory)
@@ -32,22 +46,49 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
   const marks = useReviewProgressStore((state) => state.marks)
   const [message, setMessage] = React.useState("")
   const [composing, setComposing] = React.useState(false)
+  const commitSnapshot = React.useRef<GitStatus | null>(null)
   const [pending, setPending] = React.useState<"stage" | "commit" | "push" | null>(null)
   const busy = React.useRef(false)
   const mounted = React.useRef(true)
   const inputContainer = React.useRef<HTMLDivElement>(null)
   const contextId = React.useId()
 
-  const unstaged = files.filter((file) => scope !== "staged" && (file.working_dir.trim() || file.index === "?"))
+  const branchSignatures = new Map(
+    branchDiff?.files.map((file) => [
+      file.file,
+      reviewBranchFileSignature({ ...file, path: file.file }, branchDiff.mergeBase),
+    ]),
+  )
+  // Branch membership comes from the displayed diff; stageability comes only from live Git status.
+  const candidates = branchDiff
+    ? files.flatMap((file) => {
+        const current = status?.files.find((entry) => entry.path === file.path)
+        return current ? [{ ...file, ...current }] : []
+      })
+    : files
+  const committedOnly = branchDiff
+    ? files.filter((file) => !status?.files.some((entry) => entry.path === file.path))
+    : []
+  const unstaged = candidates.filter((file) => scope !== "staged" && (file.working_dir.trim() || file.index === "?"))
   // A mark resting on line counts cannot prove the content is what was reviewed, so it never counts as reviewed here.
   const reviewed = unstaged.filter((file) => {
-    const detail = reviewFileSignatureDetail(file, scope)
+    const detail = branchSignatures.get(file.path) ?? reviewFileSignatureDetail(file, scope)
     return !detail.fallback && marks[reviewProgressKey(directory, scope, file.path)] === detail.signature
   })
   const toStage = reviewed.length ? reviewed : unstaged
   // Staging unreviewed files is never what the reviewed action silently becomes: it takes a second, explicit click.
   const [confirmAllKey, setConfirmAllKey] = React.useState<string | null>(null)
-  const stageAllKey = reviewed.length ? null : unstaged.map((file) => file.path).join("\0")
+  const stageAllKey = reviewed.length
+    ? null
+    : JSON.stringify([
+        directory,
+        scope,
+        unstaged.map((file) => [
+          file.path,
+          reviewFileSignature(file, "all"),
+          branchSignatures.get(file.path)?.signature,
+        ]),
+      ])
   const confirmingAll = stageAllKey !== null && confirmAllKey === stageAllKey
   const staged = status?.files.filter((file) => file.index.trim() && file.index !== "?") ?? []
   const ahead = status?.ahead ?? 0
@@ -102,9 +143,17 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
     if (composing) inputContainer.current?.querySelector("textarea")?.focus()
   }, [composing])
 
+  React.useEffect(() => {
+    if (action !== "commit") {
+      setComposing(false)
+      commitSnapshot.current = null
+    }
+  }, [action])
+
   const run = async () => {
     if (busy.current || reason || !action || !status) return
     if (action === "commit" && !composing) {
+      commitSnapshot.current = status
       setComposing(true)
       return
     }
@@ -119,14 +168,41 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
       if (action === "stage") {
         // Stage only what is still the content on screen: a write since the last status refresh aborts instead of being
         // staged as reviewed.
-        const fresh = await git.getGitStatus(directory)
+        if (branchDiff) {
+          const freshBranch = await git.getGitBranchDiff(directory, { base: branchDiff.base })
+          const currentSignatures = new Map(
+            freshBranch.files.map((file) => [
+              file.file,
+              reviewBranchFileSignature({ ...file, path: file.file }, freshBranch.mergeBase).signature,
+            ]),
+          )
+          if (
+            freshBranch.mergeBase !== branchDiff.mergeBase ||
+            toStage.some((file) => currentSignatures.get(file.path) !== branchSignatures.get(file.path)?.signature)
+          )
+            throw new Error(t("diffView.landing.changedSinceReview"))
+        }
+        const fresh = await git.getGitStatus(directory, { bypassCache: true })
+        if (
+          fresh.current !== status.current ||
+          fresh.headOid !== status.headOid ||
+          fresh.files.some(isConflictedStatusFile) ||
+          fresh.attentionReason ||
+          fresh.mergeInProgress ||
+          fresh.rebaseInProgress
+        ) {
+          throw new Error(t("diffView.landing.changedSinceReview"))
+        }
         const freshByPath = new Map(fresh.files.map((file) => [file.path, file]))
         const unchanged = toStage.every((file) => {
           const current = freshByPath.get(file.path)
           // Status carries no line counts; the blob ids and status letters in the signature are what identify the content.
           if (current === undefined) return false
           const comparable: ReviewProgressFile = { ...file, ...current }
-          return reviewFileSignature(comparable, scope) === reviewFileSignature(file, scope)
+          return (
+            reviewFileSignature(comparable, branchDiff ? "all" : scope) ===
+            reviewFileSignature(file, branchDiff ? "all" : scope)
+          )
         })
         if (!unchanged) throw new Error(t("diffView.landing.changedSinceReview"))
         const paths = toStage.map((file) => file.path)
@@ -137,13 +213,37 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
         if (mounted.current) onStaged?.()
       } else if (action === "commit") {
         // The commit takes the whole index, so it must still be exactly the staged list the reviewer saw.
-        const fresh = await git.getGitStatus(directory)
-        const freshStaged = fresh.files
-          .filter((file) => file.index.trim() && file.index !== "?")
-          .map((file) => `${file.path}\0${file.index}`)
-          .sort()
-        const shownStaged = staged.map((file) => `${file.path}\0${file.index}`).sort()
-        if (freshStaged.join("\n") !== shownStaged.join("\n")) throw new Error(t("diffView.landing.stagedChanged"))
+        const fresh = await git.getGitStatus(directory, { bypassCache: true })
+        const shown = commitSnapshot.current ?? status
+        const indexIdentity = (snapshot: GitStatus) =>
+          JSON.stringify(
+            snapshot.files
+              .filter((file) => file.index.trim() && file.index !== "?")
+              .map((file) => JSON.stringify([file.path, file.index, file.indexBlobId]))
+              .sort(),
+          )
+        const missingIdentity = (snapshot: GitStatus) =>
+          snapshot.headOid === undefined ||
+          snapshot.files.some(
+            (file) =>
+              file.index.trim() &&
+              file.index !== "?" &&
+              (file.index === "D" ? file.indexBlobId !== null : !file.indexBlobId),
+          )
+        if (
+          missingIdentity(shown) ||
+          missingIdentity(fresh) ||
+          fresh.headOid !== shown.headOid ||
+          fresh.current !== shown.current ||
+          indexIdentity(fresh) !== indexIdentity(shown) ||
+          fresh.files.some(isConflictedStatusFile) ||
+          fresh.attentionReason ||
+          fresh.mergeInProgress ||
+          fresh.rebaseInProgress
+        ) {
+          commitSnapshot.current = fresh
+          throw new Error(t("diffView.landing.stagedChanged"))
+        }
         await commitChanges({
           git,
           directory,
@@ -173,6 +273,7 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
       // Reconcile even after a partially successful batch or a rejected push.
       await store.fetchStatus(directory, git, { silent: true })
       if (action !== "stage") await Promise.all([store.fetchBranches(directory, git), store.fetchLog(directory, git)])
+      if (mounted.current && branchDiff) onRefreshBranch?.()
       busy.current = false
       if (mounted.current) setPending(null)
     }
@@ -207,6 +308,16 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
           </ul>
         </details>
       )}
+      {status && committedOnly.length > 0 && (
+        <details className="typography-meta">
+          <summary>{t("diffView.landing.alreadyCommitted", { count: committedOnly.length })}</summary>
+          <ul>
+            {committedOnly.map((file) => (
+              <li key={file.path}>{file.path}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {composing && (
         <div ref={inputContainer}>
           <CommitInput
@@ -217,15 +328,24 @@ export function ReviewLanding({ directory, scope, files, onStaged }: ReviewLandi
           />
         </div>
       )}
-      <Button
-        type="button"
-        size="sm"
-        onClick={() => void run()}
-        disabled={Boolean(reason)}
-        aria-describedby={contextId}
-      >
-        {pending ? t(`diffView.landing.${pending}Pending`) : label}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="sm"
+          onClick={() => void run()}
+          disabled={Boolean(reason)}
+          aria-describedby={contextId}
+        >
+          {pending ? t(`diffView.landing.${pending}Pending`) : label}
+        </Button>
+        {sessionId ? (
+          <ReviewLandingChecks
+            directory={directory}
+            sessionId={sessionId}
+            warn={action === "commit" || action === "push"}
+          />
+        ) : null}
+      </div>
       {reason && (
         <p role="status" className="typography-meta text-muted-foreground">
           {reason}

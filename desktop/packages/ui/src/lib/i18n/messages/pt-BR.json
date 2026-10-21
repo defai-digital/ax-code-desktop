@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Texto ocultado",
   "chat.permissionCard.webmcp.argumentsMissing": "Argumentos n\u00e3o fornecidos pelo runtime",
   "chat.toolPart.webmcp.failed": "Falhou",
-  "chat.toolPart.webmcp.argumentsMissing": "Argumentos n\u00e3o fornecidos pelo runtime"
+  "chat.toolPart.webmcp.argumentsMissing": "Argumentos n\u00e3o fornecidos pelo runtime",
+  "diffView.landing.alreadyCommitted": "J\u00e1 confirmado ({count})",
+  "diffView.landing.checksWarning": "As verifica\u00e7\u00f5es de tempo de execu\u00e7\u00e3o est\u00e3o falhando ou desatualizadas. Revise as evid\u00eancias antes de confirmar ou enviar; voc\u00ea ainda pode continuar.",
+  "supervision.missionControl.preview.stale": "(pode estar desatualizado)"
 }

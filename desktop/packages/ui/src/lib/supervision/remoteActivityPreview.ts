@@ -30,8 +30,10 @@ export function remoteActivityPreview(page: readonly ActivityMessageRecord[]): A
 
 export interface RemoteActivityEntry {
   preview: ActivityPreview | null
-  /** Row revision at the latest attempt, including failed reads. */
+  /** Row revision of the latest successful read; a failed read does not advance it, so that revision is read again. */
   updatedAt: number
+  /** The latest read failed: `preview` is older text and is shown as possibly outdated. */
+  stale?: boolean
   fetchedAt: number
   /** The directory read; a session that moved to another directory is read again. */
   directory: string

@@ -1778,7 +1778,36 @@ export async function getStatus(directory, options = {}) {
     const { directoryPath, repoRoot, git } = await createRepositoryGitContext(directory)
 
     // Use -uall to show all untracked files individually, not just directories
-    const status = await git.status(["-uall"])
+    // Preserve only the first porcelain-v1 record: simple-git drops the explicit no-commits marker
+    // while parsing the branch name. Both legacy and current Git report unborn branches here.
+    let statusHeader = ""
+    git.outputHandler((_command, stdout) => {
+      stdout.on("data", (chunk) => {
+        if (!statusHeader.includes("\0") && statusHeader.length < 4096) {
+          const header = (statusHeader + chunk.toString()).slice(0, 4096)
+          const end = header.indexOf("\0")
+          statusHeader = end < 0 ? header : header.slice(0, end + 1)
+        }
+      })
+    })
+    let status
+    try {
+      status = await git.status(["-uall"])
+    } finally {
+      git.outputHandler(null)
+    }
+
+    // Read the commit identity as well as the per-path blobs: an empty commit moves HEAD too.
+    const headResult = await runGitCommand(repoRoot, ["rev-parse", "--verify", "HEAD"], {
+      timeout: GIT_STATUS_CONTENT_ID_TIMEOUT_MS,
+    })
+    // Only an explicit no-commits header proves absence. Read failures remain unknown.
+    const unborn = /^## (?:No commits yet on |Initial commit on )[^\0]+\0/.test(statusHeader)
+    const headOid = headResult.success
+      ? normalizeGitBlobId(headResult.stdout.trim()) ?? undefined
+      : unborn
+        ? null
+        : undefined
 
     // Light mode: skip numstat + new-file line counting for faster response. Staged
     // (`--cached`: HEAD -> index) and working (`--numstat`: index -> worktree) stay in
@@ -2034,6 +2063,7 @@ export async function getStatus(directory, options = {}) {
 
     return {
       current: status.current,
+      headOid,
       tracking,
       ahead,
       behind,

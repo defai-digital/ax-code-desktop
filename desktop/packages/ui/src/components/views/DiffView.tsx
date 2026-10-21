@@ -2079,6 +2079,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
           key={effectiveDirectory}
           directory={effectiveDirectory}
           scope={diffScope}
+          sessionId={currentSessionId}
           files={changedFiles}
           onStaged={scopeSelectable ? () => setChosenScope("staged") : undefined}
         />
@@ -2297,6 +2298,8 @@ export const DiffView: React.FC<DiffViewProps> = ({
         ) : branchReview && effectiveDirectory ? (
           <BranchChangesView
             directory={effectiveDirectory}
+            sessionId={currentSessionId}
+            onStaged={scopeSelectable ? () => setChosenScope("staged") : undefined}
             paneRef={paneRef}
             paneWidth={paneWidth}
             allowRail={!isMobile && !hideStackedFileSidebar}

@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "\ud14d\uc2a4\ud2b8 \uc0ad\uc81c\ub428",
   "chat.permissionCard.webmcp.argumentsMissing": "\ub7f0\ud0c0\uc784\uc5d0\uc11c \uc778\uc218 \uc81c\uacf5\ud558\uc9c0 \uc54a\uc74c",
   "chat.toolPart.webmcp.failed": "\uc2e4\ud328",
-  "chat.toolPart.webmcp.argumentsMissing": "\ub7f0\ud0c0\uc784\uc5d0\uc11c \uc778\uc218 \uc81c\uacf5\ud558\uc9c0 \uc54a\uc74c"
+  "chat.toolPart.webmcp.argumentsMissing": "\ub7f0\ud0c0\uc784\uc5d0\uc11c \uc778\uc218 \uc81c\uacf5\ud558\uc9c0 \uc54a\uc74c",
+  "diffView.landing.alreadyCommitted": "\uc774\ubbf8 \ucee4\ubc0b\ub428 ({count})",
+  "diffView.landing.checksWarning": "\ub7f0\ud0c0\uc784 \uac80\uc0ac\uac00 \uc2e4\ud328\ud558\uac70\ub098 \uc624\ub798\ub418\uc5c8\uc2b5\ub2c8\ub2e4. \ucee4\ubc0b \ub610\ub294 \ud478\uc2dc\ud558\uae30 \uc804\uc5d0 \uc99d\uac70\ub97c \uac80\ud1a0\ud558\uc138\uc694. \uadf8\ub798\ub3c4 \uacc4\uc18d\ud560 \uc218 \uc788\uc2b5\ub2c8\ub2e4.",
+  "supervision.missionControl.preview.stale": "(\uc624\ub798\ub418\uc5c8\uc744 \uc218 \uc788\uc74c)"
 }

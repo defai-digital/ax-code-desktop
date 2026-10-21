@@ -84,6 +84,11 @@ export function createVerificationEvidenceCache(
     for (const listener of listeners) listener()
   }
 
+  // Backoff deadlines per session and directory, kept apart from the bounded cache so an evicted failure cannot be
+  // re-read before its deadline. Bounded too: the oldest deadlines go first.
+  const failedUntil = new Map<string, number>()
+  const MAX_FAILURE_DEADLINES = 1000
+
   function scheduleRetry(delay: number) {
     if (retryTimer !== null) return
     retryTimer = setTimeout(() => {
@@ -96,6 +101,16 @@ export function createVerificationEvidenceCache(
     for (const consumer of consumers) {
       for (const row of consumer.rows) {
         if (!row.directory) continue
+        const deadline = failedUntil.get(receiptKey(row))
+        if (deadline !== undefined) {
+          const remaining = deadline - now()
+          if (remaining > 0) {
+            scheduleRetry(remaining)
+            continue
+          }
+          failedUntil.delete(receiptKey(row))
+          for (const other of consumers) other.attempted.delete(receiptKey(row))
+        }
         const entry = entries.get(row.sessionId)
         const sameDirectory = entry?.directory === row.directory
         const revision = Math.max(
@@ -146,7 +161,12 @@ export function createVerificationEvidenceCache(
         directory,
         stale: true,
       }
-      for (const consumer of consumers) consumer.attempted.delete(receiptKey(row))
+      // The receipt stays and a deadline is set: a failing (or evicted) session is read at most once per backoff, never in a
+      // tight loop. When the deadline passes, pump releases the receipt and reads the session again.
+      const key = receiptKey(row)
+      failedUntil.delete(key)
+      failedUntil.set(key, now() + failureBackoffMs)
+      while (failedUntil.size > MAX_FAILURE_DEADLINES) failedUntil.delete(failedUntil.keys().next().value!)
     } finally {
       clearTimeout(timer)
     }
@@ -179,6 +199,7 @@ export function createVerificationEvidenceCache(
             clearTimeout(retryTimer)
             retryTimer = null
           }
+
         },
       }
     },

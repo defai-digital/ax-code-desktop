@@ -403,3 +403,29 @@ describe("Mission Control project browser chip", () => {
     expect(draw().container.querySelector("[data-browser-origin]")).toBeNull()
   })
 })
+
+describe("Mission Control stale preview", () => {
+  afterEach(() => cleanup())
+  test("a stale preview says so first, so truncation cannot hide it, and the tooltip says so too", () => {
+    const long = "x".repeat(500)
+    const { container } = renderDom(
+      <MissionControlRow
+        row={{ ...row, activity: { kind: "message", text: long, stale: true } }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    const preview = container.querySelector<HTMLElement>("[data-activity-stale]")!
+    expect(preview.textContent?.startsWith("supervision.missionControl.preview.stale")).toBe(true)
+    expect(preview.title.startsWith("supervision.missionControl.preview.stale")).toBe(true)
+  })
+})

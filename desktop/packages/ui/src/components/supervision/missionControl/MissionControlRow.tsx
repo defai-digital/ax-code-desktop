@@ -173,9 +173,12 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           {activity && activityText ? (
             <span
               className="mission-activity typography-meta text-muted-foreground"
-              title={activityText}
+              title={activity.stale ? `${t("supervision.missionControl.preview.stale")} ${activityText}` : activityText}
               data-activity-preview={activity.kind}
+              data-activity-stale={activity.stale ? "" : undefined}
             >
+              {/* First, so ellipsis truncation of a long preview never hides that it may be outdated. */}
+              {activity.stale ? <span className="mr-1 italic">{t("supervision.missionControl.preview.stale")}</span> : null}
               {activityText}
             </span>
           ) : null}

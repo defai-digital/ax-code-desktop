@@ -153,33 +153,52 @@ describe("useRemoteActivityPreviews", () => {
     expect(requests).toHaveLength(1)
   })
 
-  test("does not hammer SDK failures or thrown errors, and preserves a previous preview", async () => {
-    const { Harness, requests, cache, latest } = setup()
-    const view = render(<Harness rows={[row("a")]} />)
-    await act(async () => {
-      requests[0].resolve({ data: page("previous") })
-    })
-    view.rerender(<Harness rows={[row("a", 2)]} />)
-    await act(async () => {
-      requests[1].resolve({ error: "token=abcdefghijk12345" })
-    })
-    view.rerender(<Harness rows={[row("a", 2)]} />)
-    expect(requests).toHaveLength(2)
-    expect(latest().get("a")?.activity?.text).toBe("previous")
-    view.rerender(<Harness rows={[row("a", 3)]} />)
-    await act(async () => {
-      requests[2].reject(new Error("password=abcdefghijk12345"))
-    })
-    view.rerender(<Harness rows={[row("a", 3)]} />)
-    cleanup()
-    render(<Harness rows={[row("a", 3)]} />)
-    expect(requests).toHaveLength(3)
-    expect(cache.getSnapshot().get("a")).toEqual({
-      preview: { kind: "message", text: "previous" },
-      updatedAt: 3,
-      fetchedAt: expect.any(Number),
-      directory: "/repo",
-    })
+  test("a failed read keeps the older preview marked stale and is not retried before the backoff, even for a newer revision", async () => {
+    vi.useFakeTimers()
+    try {
+      let clock = 0
+      const fetchPage = vi
+        .fn<FetchActivityPage>()
+        .mockResolvedValueOnce({ data: page("previous") })
+        .mockResolvedValueOnce({ error: "token=abcdefghijk12345" })
+        .mockResolvedValueOnce({ data: page("fresh") })
+      const cache = createRemoteActivityCache(fetchPage, { minRefetchMs: 0, failureBackoffMs: 1000, now: () => clock })
+      const consumer = cache.mount()
+      consumer.update([row("a", 1)])
+      await vi.advanceTimersByTimeAsync(0)
+      consumer.update([row("a", 2)])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchPage).toHaveBeenCalledTimes(2)
+      expect(cache.getSnapshot().get("a")).toMatchObject({ preview: { text: "previous" }, stale: true, updatedAt: 1 })
+      consumer.update([row("a", 3)])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchPage).toHaveBeenCalledTimes(2)
+      clock = 1000
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(fetchPage).toHaveBeenCalledTimes(3)
+      expect(cache.getSnapshot().get("a")).toMatchObject({ preview: { text: "fresh" }, updatedAt: 3 })
+      expect(cache.getSnapshot().get("a")?.stale).toBeUndefined()
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("many failing sessions, including evicted ones, are read once per backoff and never in a tight loop", async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchPage = vi.fn<FetchActivityPage>(async () => ({ error: "failed" }))
+      const cache = createRemoteActivityCache(fetchPage, { failureBackoffMs: 1000 })
+      const consumer = cache.mount()
+      consumer.update(Array.from({ length: 305 }, (_, index) => row(String(index))))
+      await vi.advanceTimersByTimeAsync(10)
+      expect(fetchPage).toHaveBeenCalledTimes(305)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(fetchPage).toHaveBeenCalledTimes(305)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("unmount stops queued work and remount reuses completed reads", async () => {
@@ -347,6 +366,38 @@ describe("useRemoteActivityPreviews", () => {
       expect(signals).toHaveLength(1)
       expect(signals[0].aborted).toBe(true)
       consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("evicted failures stay backed off when their revision grows, and a failure after unmount schedules nothing", async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchPage = vi.fn<FetchActivityPage>(async () => ({ error: "failed" }))
+      const cache = createRemoteActivityCache(fetchPage, { failureBackoffMs: 60_000 })
+      const consumer = cache.mount()
+      for (let revision = 1; revision <= 4; revision += 1) {
+        consumer.update(Array.from({ length: 305 }, (_, index) => row(String(index), revision)))
+        await vi.advanceTimersByTimeAsync(5)
+      }
+      expect(fetchPage).toHaveBeenCalledTimes(305)
+      consumer.dispose()
+      expect(vi.getTimerCount()).toBe(0)
+
+      let fail!: () => void
+      const slow = vi.fn<FetchActivityPage>(
+        () => new Promise((resolve) => (fail = () => resolve({ error: "failed" }))),
+      )
+      const other = createRemoteActivityCache(slow, { failureBackoffMs: 60_000 })
+      const mounted = other.mount()
+      mounted.update([row("late")])
+      mounted.dispose()
+      await vi.advanceTimersByTimeAsync(0)
+      fail()
+      await vi.advanceTimersByTimeAsync(0)
+      // Only the request's own timeout may remain until it settles; no retry or release timer is scheduled.
+      expect(vi.getTimerCount()).toBe(0)
     } finally {
       vi.useRealTimers()
     }

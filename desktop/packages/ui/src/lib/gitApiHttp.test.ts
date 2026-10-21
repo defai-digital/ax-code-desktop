@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import {
   checkIsGitRepository,
   getGitStatus,
@@ -171,6 +171,53 @@ describe("gitApiHttp index mutations", () => {
 })
 
 describe("git api status cache invalidation", () => {
+  test.each([undefined, "light"] as const)("preflight bypasses a warm %s cache without replacing it", async (mode) => {
+    installWindowMock()
+    let reads = 0
+    const fetch = vi.fn(async () => new Response(JSON.stringify({ headOid: `head-${++reads}` })))
+    globalThis.fetch = fetch as typeof globalThis.fetch
+    const directory = `/repo-preflight-cached-${mode}`
+    try {
+      const cached = await getGitStatus(directory, { mode })
+      expect(await getGitStatus(directory, { mode })).toEqual(cached)
+      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(await getGitStatus(directory, { mode, bypassCache: true })).toEqual({ headOid: "head-2" })
+      expect(fetch.mock.calls[1]).toEqual([
+        expect.stringContaining(mode ? "&mode=light" : "/status?directory="),
+        { cache: "no-store" },
+      ])
+      expect(await getGitStatus(directory, { mode })).toEqual(cached)
+      expect(fetch).toHaveBeenCalledTimes(2)
+    } finally {
+      restoreMocks()
+    }
+  })
+
+  test.each([undefined, "light"] as const)("preflight bypasses %s in-flight dedupe", async (mode) => {
+    installWindowMock()
+    let resolveSlow!: (response: Response) => void
+    const slowResponse = new Promise<Response>((resolve) => { resolveSlow = resolve })
+    const fetch = vi.fn()
+      .mockReturnValueOnce(slowResponse)
+      .mockResolvedValueOnce(new Response(JSON.stringify({ headOid: "external-change" })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ headOid: "another-change" })))
+    globalThis.fetch = fetch as typeof globalThis.fetch
+    const directory = `/repo-preflight-inflight-${mode}`
+    const slow = getGitStatus(directory, { mode })
+    const joined = getGitStatus(directory, { mode })
+    try {
+      const fresh = getGitStatus(directory, { mode, bypassCache: true })
+      expect(fetch).toHaveBeenCalledTimes(2)
+      expect(await fresh).toEqual({ headOid: "external-change" })
+      expect(await getGitStatus(directory, { mode, bypassCache: true })).toEqual({ headOid: "another-change" })
+    } finally {
+      resolveSlow(new Response(JSON.stringify({ headOid: "old-head" })))
+      await Promise.all([slow, joined])
+      restoreMocks()
+    }
+    expect(fetch).toHaveBeenCalledTimes(3)
+  })
+
   test("a mutation drops the cached status the refresh would read", async () => {
     // The cache has a 1.2 s TTL and the UI refreshes right after a mutation, so the refresh used to
     // return the status from before it: the reverted file still listed as modified, and a second

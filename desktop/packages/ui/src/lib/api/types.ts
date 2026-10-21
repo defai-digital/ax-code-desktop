@@ -139,6 +139,8 @@ export interface GitRemoteComparison {
 }
 
 export interface GitStatus {
+  /** Commit at HEAD; null for an unborn branch, omitted by older status providers. */
+  headOid?: string | null
   current: string
   tracking: string | null
   ahead: number
@@ -513,7 +515,7 @@ export interface GitWorktreeAPI {
 
 export interface GitAPI {
   checkIsGitRepository(directory: string): Promise<boolean>
-  getGitStatus(directory: string, options?: { mode?: "light" }): Promise<GitStatus>
+  getGitStatus(directory: string, options?: { mode?: "light"; bypassCache?: boolean }): Promise<GitStatus>
   getGitDiff(directory: string, options: GetGitDiffOptions): Promise<GitDiffResponse>
   getGitFileDiff(directory: string, options: GetGitFileDiffOptions): Promise<GitFileDiffResponse>
   getGitBranchDiff(directory: string, options?: GetGitBranchDiffOptions): Promise<GitBranchDiffResponse>

@@ -45,6 +45,7 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
 }))
 
 vi.mock("@/sync/sync-context", () => ({
+  useSession: () => undefined,
   useSessionMessages: () => harness.messages,
   useSessionMessagesResolved: () => harness.messagesResolved,
   useSessionStatus: () => harness.status,

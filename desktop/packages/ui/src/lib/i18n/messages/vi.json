@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "V\u0103n b\u1ea3n \u0111\u00e3 x\u00f3a",
   "chat.permissionCard.webmcp.argumentsMissing": "\u0110\u1ed1i s\u1ed1 kh\u00f4ng \u0111\u01b0\u1ee3c runtime cung c\u1ea5p",
   "chat.toolPart.webmcp.failed": "Th\u1ea5t b\u1ea1i",
-  "chat.toolPart.webmcp.argumentsMissing": "\u0110\u1ed1i s\u1ed1 kh\u00f4ng \u0111\u01b0\u1ee3c runtime cung c\u1ea5p"
+  "chat.toolPart.webmcp.argumentsMissing": "\u0110\u1ed1i s\u1ed1 kh\u00f4ng \u0111\u01b0\u1ee3c runtime cung c\u1ea5p",
+  "diffView.landing.alreadyCommitted": "\u0110\u00e3 x\u00e1c nh\u1eadn ({count})",
+  "diffView.landing.checksWarning": "Ki\u1ec3m tra th\u1eddi gian ch\u1ea1y \u0111ang th\u1ea5t b\u1ea1i ho\u1eb7c c\u0169. Xem l\u1ea1i b\u1eb1ng ch\u1ee9ng tr\u01b0\u1edbc khi x\u00e1c nh\u1eadn ho\u1eb7c \u0111\u1ea9y; b\u1ea1n v\u1eabn c\u00f3 th\u1ec3 ti\u1ebfp t\u1ee5c.",
+  "supervision.missionControl.preview.stale": "(c\u00f3 th\u1ec3 \u0111\u00e3 c\u0169)"
 }

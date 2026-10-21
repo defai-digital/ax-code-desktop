@@ -71,8 +71,8 @@ const outcome = await runHarness({
     }
     const pinTarget = targets[1]
     await audit.click((await targetControl("Pin project · Shared project", pinTarget.directory)).name)
-    await audit.wait(`Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory === ${JSON.stringify(pinTarget.directory)}`, "pinned card moves first")
-    await audit.wait(`document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory === ${JSON.stringify(targets[0].directory)}`, "pin does not select its parent card")
+    await audit.wait(`${JSON.stringify(pathForms(pinTarget.directory))}.includes(Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory)`, "pinned card moves first")
+    await audit.wait(`${JSON.stringify(pathForms(targets[0].directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "pin does not select its parent card")
     await waitForCondition(async () => {
       const settings = await readProfile()
       return settings.projects[0]?.path === pinTarget.directory && settings.projects[0]?.pinned
@@ -81,18 +81,18 @@ const outcome = await runHarness({
     await session.send("Page.reload", { ignoreCache: true })
     await journeyBoot({ session })
     await audit.client.enable()
-    await audit.wait(`Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory === ${JSON.stringify(pinTarget.directory)}`, "pinned card survives reload")
+    await audit.wait(`${JSON.stringify(pathForms(pinTarget.directory))}.includes(Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory)`, "pinned card survives reload")
     await audit.click((await targetControl("Unpin project · Shared project", pinTarget.directory)).name)
     await waitForCondition(async () => !(await readProfile()).projects.find(project => project.path === pinTarget.directory)?.pinned,
       { timeoutMs: 10_000, label: "unpin persisted" })
     pinReceipts.push(await readProfile())
     for (const target of targets.slice().reverse()) {
       await audit.click((await targetControl("Shared project · ", target.directory)).name)
-      await audit.wait(`document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory === ${JSON.stringify(target.directory)}`, "selected card is current")
+      await audit.wait(`${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "selected card is current")
       await capture(`selected-${target.id}`)
       await audit.click((await targetControl("New session · Shared project", target.directory)).name)
-      await audit.wait(`document.querySelector('[data-draft-home]') && document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory === ${JSON.stringify(target.directory)}`, "draft in selected project")
-      await audit.wait(`Boolean(Array.from(document.querySelectorAll('[data-project-row]')).find(row => row.dataset.projectDirectory === ${JSON.stringify(target.directory)})?.querySelector('button[aria-label^="1 need you"]'))`, "attention control loaded")
+      await audit.wait(`document.querySelector('[data-draft-home]') && ${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "draft in selected project")
+      await audit.wait(`Boolean(Array.from(document.querySelectorAll('[data-project-row]')).find(row => ${JSON.stringify(pathForms(target.directory))}.includes(row.dataset.projectDirectory))?.querySelector('button[aria-label^="1 need you"]'))`, "attention control loaded")
       const attention = await targetControl("1 need you · Shared project", target.directory)
       await audit.click(attention.name)
       const marker = target.id === e2e.scenario.session.id ? "Fixture conversation for project A" : "Fixture conversation for project B"

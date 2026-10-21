@@ -4,6 +4,8 @@ import nativeDict from "../../../../../../shared/native.en.json"
 export const dict = {
   ...settingsDict,
   ...nativeDict,
+  "diffView.landing.alreadyCommitted": "Already committed ({count})",
+  "diffView.landing.checksWarning": "Runtime checks are failing or stale. Review the evidence before committing or pushing; you can still continue.",
   "diffView.landing.title": "Review to landing",
   "diffView.landing.stageReviewed": "Stage all reviewed",
   "diffView.landing.stageAll": "Stage all {count}",
@@ -3246,6 +3248,7 @@ export const dict = {
   "supervision.missionControl.density": "Density",
   "supervision.missionControl.comfortable": "Comfortable",
   "supervision.missionControl.compact": "Compact",
+  "supervision.missionControl.preview.stale": "(may be outdated)",
   "supervision.missionControl.preview.workingOn": "Working on: {content}",
   "supervision.missionControl.filterLabel": "Session filters",
   "supervision.inspector.tools": "Tools",

@@ -75,6 +75,15 @@ describe("useGitStore", () => {
     })
   })
 
+  test("publishes a HEAD move even when paths, blobs and status letters are unchanged", async () => {
+    const before = { ...createStatus(), headOid: "a".repeat(40) }
+    setDirectoryStatus(before)
+    const after = { ...before, headOid: "b".repeat(40) }
+    const changed = await useGitStore.getState().fetchStatus("/repo", createGitApi(async () => after), { silent: true })
+    expect(useGitStore.getState().getDirectoryState("/repo")?.status?.headOid).toBe(after.headOid)
+    expect(changed).toBe(true)
+  })
+
   test("does not reuse an in-flight light status request for full status", async () => {
     const requests: Deferred<GitStatus>[] = []
     const statusCalls: Array<{ directory: string; options?: { mode?: "light" } }> = []

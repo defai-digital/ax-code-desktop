@@ -75,7 +75,15 @@ beforeEach(() => {
   vi.clearAllMocks()
   useGitStore.setState({ directories: new Map(), activeDirectory: null })
   useGitStore.getState().setActiveDirectory(directory)
-  status = { current: "topic", tracking: "origin/release/topic", ahead: 0, behind: 0, files: [], isClean: false }
+  status = {
+    headOid: blobId("HEAD"),
+    current: "topic",
+    tracking: "origin/release/topic",
+    ahead: 0,
+    behind: 0,
+    files: [],
+    isClean: false,
+  }
   setStatus({})
   useReviewProgressStore.setState({ marks: {} })
   git.getGitStatus.mockImplementation(async () => status)
@@ -98,6 +106,47 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe("review to landing", () => {
+  test.each(["stage", "commit"])("%s preflight bypasses cached status and rejects an external HEAD change", async (action) => {
+    setStatus({ files: [file("a.ts", action === "commit" ? "M" : " ", action === "commit" ? " " : "M")] })
+    const shown = status
+    const { container } = render(<Harness />)
+    fireEvent.click(button(action === "commit" ? "Commit 1 staged files" : "Stage all 1"))
+    if (action === "commit") {
+      fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: draft" } })
+    }
+    git.getGitStatus.mockImplementation(async (_directory, options) =>
+      options?.bypassCache ? { ...shown, headOid: blobId("external HEAD") } : shown,
+    )
+    fireEvent.click(button(action === "commit" ? "Commit 1 staged files" : "Confirm: stage all 1 unreviewed files"))
+    await flush()
+    expect(git.getGitStatus).toHaveBeenCalledWith(directory, { bypassCache: true })
+    expect(git.stageGitFiles).not.toHaveBeenCalled()
+    expect(git.createGitCommit).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalledWith(action === "commit"
+      ? "The staged files changed. Check the updated list before committing."
+      : "Files changed since they were reviewed. Review the updated changes before staging.")
+  })
+
+  test.each(["stage", "push", "idle"])("closes the composer on %s and restores its draft when commit returns", async (next) => {
+    setStatus({ files: [file("a.ts", "M", " ")] })
+    const { container } = render(<Harness />)
+    fireEvent.click(button("Commit 1 staged files"))
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: retained draft" } })
+    act(() => setStatus({ files: next === "stage" ? [file("a.ts")] : [], ahead: next === "push" ? 1 : 0 }))
+    expect(container.querySelector("textarea")).toBeNull()
+    expect(git.createGitCommit).not.toHaveBeenCalled()
+    act(() => setStatus({ files: [{ ...file("a.ts", "M", " "), indexBlobId: blobId("new index") }], ahead: 0 }))
+    fireEvent.click(button("Commit 1 staged files"))
+    const input = container.querySelector("textarea")!
+    expect(input.value).toBe("fix: retained draft")
+    expect(document.activeElement).toBe(input)
+    fireEvent.keyDown(input, { key: "Enter", metaKey: true })
+    await flush()
+    expect(git.createGitCommit).toHaveBeenCalledWith(directory, "fix: retained draft", {
+      files: ["a.ts"], stageFiles: [],
+    })
+  })
+
   test("progresses stage → commit input → push → up to date with branch, counts and selected files", async () => {
     setStatus({ files: [file("a.ts"), file("b.ts")] })
     const { container } = render(<Harness />)
@@ -303,7 +352,9 @@ describe("review to landing", () => {
     fireEvent.click(button("Stage all reviewed"))
     await flush()
     expect(git.stageGitFiles).not.toHaveBeenCalled()
-    expect(error).toHaveBeenCalledWith("Files changed since they were reviewed. Review the updated changes before staging.")
+    expect(error).toHaveBeenCalledWith(
+      "Files changed since they were reviewed. Review the updated changes before staging.",
+    )
   })
 
   test("a commit is refused when the index no longer matches the staged list on screen", async () => {
@@ -320,5 +371,82 @@ describe("review to landing", () => {
     expect(git.createGitCommit).not.toHaveBeenCalled()
     expect(error).toHaveBeenCalledWith("The staged files changed. Check the updated list before committing.")
     expect(container.querySelector("textarea")!.value).toBe("fix: only a")
+  })
+  test.each(["index blob", "HEAD", "missing index", "missing HEAD", "new conflict"])(
+    "commit refuses changed %s identity",
+    async (change) => {
+      setStatus({ files: [file("a.ts", "M", " ")] })
+      const { container } = render(<Harness initialScope="staged" />)
+      fireEvent.click(button("Commit 1 staged files"))
+      fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: reviewed" } })
+      git.getGitStatus.mockResolvedValueOnce({
+        ...status,
+        headOid: change === "HEAD" ? blobId("new HEAD") : change === "missing HEAD" ? undefined : status.headOid,
+        mergeInProgress: change === "new conflict" ? { head: "abc1234", message: "Merge" } : undefined,
+        files: status.files.map((entry) => ({
+          ...entry,
+          indexBlobId:
+            change === "index blob" ? blobId("restaged") : change === "missing index" ? undefined : entry.indexBlobId,
+        })),
+      })
+      fireEvent.click(button("Commit 1 staged files"))
+      await flush()
+      expect(git.createGitCommit).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalledWith("The staged files changed. Check the updated list before committing.")
+      expect(container.querySelector("textarea")!.value).toBe("fix: reviewed")
+    },
+  )
+
+  test("commit keeps the identity shown when composition began across a status refresh", async () => {
+    setStatus({ files: [file("a.ts", "M", " ")] })
+    const { container } = render(<Harness initialScope="staged" />)
+    fireEvent.click(button("Commit 1 staged files"))
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: reviewed" } })
+    act(() => setStatus({ files: [{ ...file("a.ts", "M", " "), indexBlobId: blobId("restaged") }] }))
+    fireEvent.click(button("Commit 1 staged files"))
+    await flush()
+    expect(git.createGitCommit).not.toHaveBeenCalled()
+  })
+
+  test.each(["deletion", "unborn"])("commit allows a known %s absence", async (kind) => {
+    setStatus({
+      headOid: kind === "unborn" ? null : blobId("HEAD"),
+      files: [
+        {
+          ...file("a.ts", kind === "deletion" ? "D" : "A", " "),
+          indexBlobId: kind === "deletion" ? null : blobId("added"),
+        },
+      ],
+    })
+    const { container } = render(<Harness initialScope="staged" />)
+    fireEvent.click(button("Commit 1 staged files"))
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: reviewed" } })
+    fireEvent.click(button("Commit 1 staged files"))
+    await flush()
+    expect(git.createGitCommit).toHaveBeenCalledTimes(1)
+  })
+  test.each(["index", "HEAD"])("commit refuses consistently unavailable %s identity", async (missing) => {
+    setStatus({
+      headOid: missing === "HEAD" ? undefined : blobId("HEAD"),
+      files: [{ ...file("a.ts", "M", " "), indexBlobId: missing === "index" ? undefined : blobId("index") }],
+    })
+    const { container } = render(<Harness initialScope="staged" />)
+    fireEvent.click(button("Commit 1 staged files"))
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: unknown content" } })
+    fireEvent.click(button("Commit 1 staged files"))
+    await flush()
+    expect(git.createGitCommit).not.toHaveBeenCalled()
+    expect(error).toHaveBeenCalled()
+  })
+
+  test("unreviewed confirmation is invalidated by a same-path content change", async () => {
+    setStatus({ files: [file("a.ts")] })
+    render(<Harness />)
+    fireEvent.click(button("Stage all 1"))
+    act(() => setStatus({ files: [{ ...file("a.ts"), worktreeBlobId: blobId("rewrite") }] }))
+    fireEvent.click(button("Stage all 1"))
+    await flush()
+    expect(git.stageGitFiles).not.toHaveBeenCalled()
+    expect(button("Confirm: stage all 1 unreviewed files")).toBeTruthy()
   })
 })

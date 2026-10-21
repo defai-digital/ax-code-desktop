@@ -77,6 +77,7 @@ import { ConnectedNotificationCenter } from "@/components/notifications/Connecte
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
+import { ActivityButton } from "@/components/supervision/ActivityButton"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
 import { normalizeContextPanelDirectoryKey as normalize } from "./contextPanelTabs"
@@ -1755,6 +1756,7 @@ export const Header: React.FC = () => {
       />
       <SyncStatusIndicator />
       <NeedsYouButton />
+      <ActivityButton />
       {isMobile ? (
         <HeaderIconActionButton
           title={t("supervision.missionControl.toggleAria")}

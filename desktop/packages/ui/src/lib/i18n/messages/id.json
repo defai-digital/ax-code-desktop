@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Teks disensor",
   "chat.permissionCard.webmcp.argumentsMissing": "Argumen tidak disediakan oleh runtime",
   "chat.toolPart.webmcp.failed": "Gagal",
-  "chat.toolPart.webmcp.argumentsMissing": "Argumen tidak disediakan oleh runtime"
+  "chat.toolPart.webmcp.argumentsMissing": "Argumen tidak disediakan oleh runtime",
+  "diffView.landing.alreadyCommitted": "Sudah di-commit ({count})",
+  "diffView.landing.checksWarning": "Pemeriksaan runtime gagal atau kedaluwarsa. Tinjau bukti sebelum commit atau push; Anda tetap bisa melanjutkan.",
+  "supervision.missionControl.preview.stale": "(mungkin kedaluwarsa)"
 }

@@ -5155,5 +5155,8 @@
   "chat.permissionCard.webmcp.textRedacted": "Text redigiert",
   "chat.permissionCard.webmcp.argumentsMissing": "Argumente nicht von der Laufzeitumgebung bereitgestellt",
   "chat.toolPart.webmcp.failed": "Fehlgeschlagen",
-  "chat.toolPart.webmcp.argumentsMissing": "Argumente nicht von der Laufzeitumgebung bereitgestellt"
+  "chat.toolPart.webmcp.argumentsMissing": "Argumente nicht von der Laufzeitumgebung bereitgestellt",
+  "diffView.landing.alreadyCommitted": "Bereits committed ({count})",
+  "diffView.landing.checksWarning": "Runtime-Pr\u00fcfungen schlagen fehl oder sind veraltet. \u00dcberpr\u00fcfen Sie die Beweise vor dem Commit oder Push; Sie k\u00f6nnen trotzdem fortfahren.",
+  "supervision.missionControl.preview.stale": "(m\u00f6glicherweise veraltet)"
 }

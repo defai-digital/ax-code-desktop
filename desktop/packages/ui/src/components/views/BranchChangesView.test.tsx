@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import { I18nProvider } from "@/lib/i18n"
-import type { GitBranchDiffResponse, GitBranchFileDiff, RuntimeAPIs } from "@/lib/api/types"
+import type { GitBranchDiffResponse, GitBranchFileDiff, GitStatus, RuntimeAPIs } from "@/lib/api/types"
 import { reviewContentSignature, useReviewProgressStore } from "@/stores/useReviewProgressStore"
 import { useGitStore } from "@/stores/useGitStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -33,6 +33,11 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
   useEffectiveDirectory: () => harness.directory,
 }))
 
+vi.mock("@/sync/sync-context", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/sync/sync-context")>()),
+  useSession: () => undefined,
+}))
+
 vi.mock("./PierreDiffViewer", () => ({
   PierreDiffViewer: (props: { original: string; modified: string; renderSideBySide: boolean; fileName?: string }) =>
     React.createElement("div", {
@@ -46,14 +51,21 @@ vi.mock("./PierreDiffViewer", () => ({
 
 const gitApi = {
   checkIsGitRepository: vi.fn(async () => true),
-  getGitStatus: vi.fn(async () => ({
-    current: "feature",
-    tracking: null,
-    ahead: 0,
-    behind: 0,
-    files: [],
-    isClean: true,
-  })),
+  stageGitFiles: vi.fn(),
+  createGitCommit: vi.fn(),
+  gitFetch: vi.fn(async () => ({ success: true })),
+  gitPush: vi.fn(),
+  getGitStatus: vi.fn(
+    async (): Promise<GitStatus> => ({
+      headOid: "c".repeat(40),
+      current: "feature",
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+      files: [],
+      isClean: true,
+    }),
+  ),
   getGitBranches: vi.fn(async () => ({
     all: ["feature", "main", "remotes/origin/main"],
     current: "feature",
@@ -145,6 +157,20 @@ describe("branch review scope", () => {
   const originalOpen = useUIStore.getState().openContextFileAtLine
 
   beforeEach(() => {
+    gitApi.getGitStatus.mockReset()
+    gitApi.getGitStatus.mockResolvedValue({
+      headOid: "c".repeat(40),
+      current: "feature",
+      tracking: null,
+      ahead: 0,
+      behind: 0,
+      files: [],
+      isClean: true,
+    })
+    gitApi.stageGitFiles.mockReset()
+    gitApi.createGitCommit.mockReset()
+    gitApi.gitPush.mockReset()
+
     harness.width = 1280
     harness.directory = DIRECTORY
     harness.files = [changedFile]
@@ -392,5 +418,134 @@ describe("branch review scope", () => {
     expect(screen.getByRole("radio", { name: "Branch" }).getAttribute("aria-checked")).toBe("true")
     expect(screen.getByRole("radio", { name: "This session" })).toBeTruthy()
     expect(screen.getByRole("radio", { name: "All" }).getAttribute("aria-checked")).toBe("false")
+  })
+  const localFile = (path: string) => ({
+    path,
+    index: " ",
+    working_dir: "M",
+    headBlobId: "1".repeat(40),
+    indexBlobId: "1".repeat(40),
+    worktreeBlobId: "2".repeat(40),
+  })
+  function seedLanding() {
+    const local = { ...changedFile, beforeBlobId: "1".repeat(40) }
+    harness.files = [local, { ...local, file: "committed.ts" }, { ...local, file: "unreviewed.ts" }]
+    let status: GitStatus = {
+      headOid: "c".repeat(40),
+      current: "feature",
+      tracking: "origin/feature",
+      ahead: 1,
+      behind: 0,
+      files: [localFile(local.file), localFile("unreviewed.ts"), localFile("outside-branch.ts")],
+      isClean: false,
+    }
+    useGitStore.getState().restoreStatus(DIRECTORY, status)
+    gitApi.getGitStatus.mockImplementation(async () => status)
+    gitApi.stageGitFiles.mockImplementation(async (_dir: string, paths: string[]) => {
+      status = {
+        ...status,
+        files: status.files.map((file) =>
+          paths.includes(file.path) ? { ...file, index: "M", working_dir: " " } : file,
+        ),
+      }
+    })
+    return local
+  }
+
+  test("Branch landing stages only reviewed uncommitted members and labels committed-only files", async () => {
+    seedLanding()
+    const { container } = renderReview()
+    await openBranch()
+    expect(container.textContent).toContain("Already committed (1)")
+    expect(screen.getByRole("button", { name: "Stage all 2" })).toBeTruthy()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    fireEvent.click(screen.getByRole("button", { name: "Stage all reviewed" }))
+    await flush()
+    expect(gitApi.stageGitFiles).toHaveBeenCalledExactlyOnceWith(DIRECTORY, ["src/a.ts"])
+    expect(screen.getByRole("button", { name: "Commit 1 staged files" })).toBeTruthy()
+  })
+
+  test("Branch landing requires a second click for unreviewed files and progresses through Commit and Push", async () => {
+    const local = seedLanding()
+    harness.files = [local, { ...local, file: "committed.ts" }]
+    const staged: GitStatus = {
+      headOid: "c".repeat(40),
+      current: "feature",
+      tracking: "origin/feature",
+      ahead: 1,
+      behind: 0,
+      files: [{ ...localFile(local.file), index: "M", working_dir: " " }],
+      isClean: false,
+    }
+    gitApi.stageGitFiles.mockImplementation(async () => {
+      gitApi.getGitStatus.mockResolvedValue(staged)
+    })
+    gitApi.createGitCommit.mockImplementation(async () => {
+      gitApi.getGitStatus.mockResolvedValue({ ...staged, files: [], ahead: 2 })
+    })
+    gitApi.gitPush.mockImplementation(async () => {
+      gitApi.getGitStatus.mockResolvedValue({ ...staged, files: [], ahead: 0 })
+    })
+    const { container } = renderReview()
+    await openBranch()
+    fireEvent.click(screen.getByRole("button", { name: "Stage all 1" }))
+    expect(gitApi.stageGitFiles).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: "Confirm: stage all 1 unreviewed files" }))
+    await flush()
+    expect(gitApi.stageGitFiles).toHaveBeenCalledExactlyOnceWith(DIRECTORY, [local.file])
+    fireEvent.click(screen.getByRole("button", { name: "Commit 1 staged files" }))
+    fireEvent.change(container.querySelector("textarea")!, { target: { value: "fix: branch review" } })
+    fireEvent.click(screen.getByRole("button", { name: "Commit 1 staged files" }))
+    await flush()
+    expect(gitApi.createGitCommit).toHaveBeenCalledExactlyOnceWith(DIRECTORY, "fix: branch review", {
+      files: [local.file],
+      stageFiles: [],
+    })
+    fireEvent.click(screen.getByRole("button", { name: "Push 2 commits to origin/feature" }))
+    await flush()
+    expect(gitApi.gitPush).toHaveBeenCalledExactlyOnceWith(DIRECTORY, { remote: "origin", branch: "feature:feature" })
+  })
+
+  test.each(["content", "merge-base", "status blob", "HEAD", "conflict"])(
+    "Branch refuses staging when %s changed after display",
+    async (change) => {
+      const local = seedLanding()
+      renderReview()
+      await openBranch()
+      fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+      if (change === "content" || change === "merge-base") {
+        gitApi.getGitBranchDiff.mockResolvedValueOnce({
+          base: "main",
+          mergeBase: (change === "merge-base" ? "b" : "a").repeat(40),
+          truncated: false,
+          files: [{ ...local, after: change === "content" ? "new content" : local.after }],
+        })
+      } else {
+        const current = await gitApi.getGitStatus()
+        gitApi.getGitStatus.mockResolvedValueOnce({
+          ...current,
+          headOid: change === "HEAD" ? "d".repeat(40) : current.headOid,
+          mergeInProgress: change === "conflict" ? { head: "abc1234", message: "merge" } : undefined,
+          files: current.files.map((file) => ({
+            ...file,
+            worktreeBlobId: change === "status blob" ? "3".repeat(40) : file.worktreeBlobId,
+          })),
+        })
+      }
+      fireEvent.click(screen.getByRole("button", { name: "Stage all reviewed" }))
+      await flush()
+      expect(gitApi.stageGitFiles).not.toHaveBeenCalled()
+    },
+  )
+
+  test("Branch fallback marks and marks from another scope never silently stage files", async () => {
+    seedLanding()
+    harness.files = harness.files.map((file) => ({ ...file, beforeBlobId: undefined }))
+    renderReview()
+    await openBranch()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    fireEvent.click(screen.getByRole("button", { name: "Stage all 2" }))
+    expect(gitApi.stageGitFiles).not.toHaveBeenCalled()
+    expect(screen.getByRole("button", { name: "Confirm: stage all 2 unreviewed files" })).toBeTruthy()
   })
 })

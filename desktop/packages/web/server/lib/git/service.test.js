@@ -1,10 +1,21 @@
 import { createHash } from "crypto"
 import { execFileSync } from "node:child_process"
+import { execFile } from "child_process"
+import { promisify } from "node:util"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { simpleGit } from "simple-git"
+
+vi.mock("child_process", async (importOriginal) => {
+  const actual = await importOriginal()
+  const execFile = vi.fn(actual.execFile)
+  // Preserve execFile's stdout/stderr promise contract while observing its process options.
+  const custom = Symbol.for("nodejs.util.promisify.custom")
+  execFile[custom] = vi.fn(actual.execFile[custom])
+  return { ...actual, execFile }
+})
 
 import {
   checkoutBranch,
@@ -23,6 +34,7 @@ import {
   getStatus,
   GIT_STATUS_CONTENT_ID_MAX_BYTES,
   GIT_STATUS_CONTENT_ID_MAX_FILES,
+  GIT_STATUS_CONTENT_ID_TIMEOUT_MS,
   getWorktreeBootstrapStatus,
   getWorktrees,
   previewWorktreeCreate,
@@ -1119,6 +1131,88 @@ describe("getStatus content identities", () => {
     runGit(repo, ["config", "user.name", "Test User"])
     return repo
   }
+
+  it.each([undefined, "light"])("bounds the HEAD read in %s mode without a second status read", async (mode) => {
+    if (process.platform === "win32") return // Invocation recording uses a POSIX shell.
+    const repo = initRepo()
+    const { result, invocations } = await recordGitInvocations(() => getStatus(repo, { mode }))
+    expect(result.headOid).toBeNull()
+    const headReads = execFile[promisify.custom].mock.calls.filter(
+      ([, args, options]) => options.cwd === fs.realpathSync(repo) && args.join(" ") === "rev-parse --verify HEAD",
+    )
+    expect(headReads).toHaveLength(1)
+    expect(headReads[0][2].timeout).toBe(GIT_STATUS_CONTENT_ID_TIMEOUT_MS)
+    expect(invocations.filter((args) => args.startsWith("status "))).toHaveLength(1)
+  })
+
+  it.each(["No commits yet on", "Initial commit on"])("allows the first commit with a legacy '%s' status header", async (header) => {
+    if (process.platform === "win32") return // The executable shim uses a POSIX shell.
+    const repo = initRepo()
+    fs.writeFileSync(path.join(repo, "first.txt"), "first\n")
+    runGit(repo, ["add", "first.txt"])
+    const realGit = resolveRealGit()
+    const binDir = createTempDir()
+    const logFile = path.join(binDir, "calls.log")
+    const wrapper = path.join(binDir, "git")
+    fs.writeFileSync(wrapper, `#!/bin/sh
+printf '%s\\n' "$*" >> ${JSON.stringify(logFile)}
+case "$*" in
+  *--porcelain=v2*) echo 'error: unknown option porcelain=v2' >&2; exit 129 ;;
+esac
+if [ "$1" = "status" ]; then
+  printf '## ${header} main\\0A  first.txt\\0'
+  exit 0
+fi
+exec ${JSON.stringify(realGit)} "$@"
+`)
+    fs.chmodSync(wrapper, 0o755)
+    const previousPath = process.env.PATH
+    process.env.PATH = `${binDir}${path.delimiter}${previousPath}`
+    try {
+      const status = await getStatus(repo, { mode: "light" })
+      expect(status).toMatchObject({ headOid: null, current: "main" })
+      expect(status.files).toContainEqual(expect.objectContaining({ path: "first.txt", indexBlobId: expect.any(String) }))
+      expect(fs.readFileSync(logFile, "utf8")).not.toContain("--porcelain=v2")
+      await commit(repo, "first commit", { files: ["first.txt"], stageFiles: [] })
+      expect(runGit(repo, ["rev-parse", "--verify", "HEAD"]).trim()).toMatch(/^[a-f0-9]{40}$/)
+    } finally {
+      process.env.PATH = previousPath
+    }
+  })
+
+  it.each(["read failure", "timeout"])("keeps HEAD unknown after a %s on a branch with commits", async (failure) => {
+    if (process.platform === "win32") return // Invocation recording uses a POSIX shell.
+    const repo = initRepo()
+    runGit(repo, ["commit", "--allow-empty", "-m", "base"])
+    const execute = execFile[promisify.custom]
+    const original = execute.getMockImplementation()
+    execute.mockImplementation((binary, args, options) => {
+      if (options.cwd === fs.realpathSync(repo) && args.join(" ") === "rev-parse --verify HEAD") {
+        return Promise.reject(Object.assign(new Error(failure), { code: failure === "timeout" ? "ETIMEDOUT" : 128 }))
+      }
+      return original(binary, args, options)
+    })
+    try {
+      const { result, invocations } = await recordGitInvocations(() => getStatus(repo, { mode: "light" }))
+      expect(result.headOid).toBeUndefined()
+      expect(invocations.filter((args) => args.startsWith("status "))).toHaveLength(1)
+    } finally {
+      execute.mockImplementation(original)
+    }
+  })
+
+  it("reports unborn HEAD and tracks an empty commit independently of file blobs", async () => {
+    const repo = initRepo()
+    expect((await getStatus(repo)).headOid).toBeNull()
+    runGit(repo, ["commit", "--allow-empty", "-m", "first"])
+    const first = await getStatus(repo)
+    expect(first.headOid).toBe(runGit(repo, ["rev-parse", "HEAD"]).trim())
+    runGit(repo, ["commit", "--allow-empty", "-m", "second"])
+    const second = await getStatus(repo, { mode: "light" })
+    expect(second.headOid).toBe(runGit(repo, ["rev-parse", "HEAD"]).trim())
+    expect(second.headOid).not.toBe(first.headOid)
+    expect(second.files).toEqual(first.files)
+  })
 
   it("changes the worktree id on a same-count rewrite and the index id when that rewrite is staged", async () => {
     if (!canRunGit()) return
