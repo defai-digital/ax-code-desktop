@@ -954,3 +954,47 @@ test.each(["frame", "missing-current", "missing-agent"])("comparison uses only k
   expect(Boolean(view.container.querySelector("[data-webmcp-definition-changed='agent']"))).toBe(change === "frame")
   expect(view.container.querySelector("[data-webmcp-definition-changed='manual']")).toBeNull()
 })
+
+test.each([
+  "password=AUDIT_FAKE_PASSWORD",
+  "https://u:AUDIT_FAKE_PASSWORD@example.test/",
+  "https://example.test/?%74oken=AUDIT_FAKE_PASSWORD",
+])("all page-authored display surfaces redact credentials without altering execution: %s", async (description) => {
+  const secret = "AUDIT_FAKE_PASSWORD"
+  const url = `https://example.test/?%74oken=${secret}`
+  const tool = nativeWebMcpTool({
+    name: "echo",
+    description,
+    inputSchema: {
+      type: "object",
+      properties: {
+        password: { type: "string", default: secret, enum: [secret] },
+        url: { type: "string", description: `${"x".repeat(295)} ${url}`, default: url, enum: [url] },
+        [`password=${secret}`]: { type: "string" },
+        safe: { type: "string", description: "Safe description", default: "Safe default" },
+      },
+    },
+  })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const tryTool = vi.fn(async () => ({ ok: true }))
+  const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  expect(container.querySelector("[title]")?.getAttribute("title")).toBe("[redacted]")
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  expect(container.innerHTML).not.toContain(secret)
+  expect(container.textContent).toContain("Safe description")
+  expect(container.textContent).toContain("Safe default")
+  expect(container.querySelector("[data-webmcp-schema]")?.textContent).toContain("[redacted]")
+  const selects = container.querySelectorAll<HTMLSelectElement>("select")
+  fireEvent.change(selects[0], { target: { value: selects[0].options[1].value } })
+  fireEvent.change(selects[1], { target: { value: selects[1].options[1].value } })
+  await runTool()
+  expect(tryTool).toHaveBeenCalledWith(
+    "echo",
+    { password: secret, url },
+    expect.objectContaining({ definitionDigest: tool.definitionDigest }),
+  )
+  expect(useWebMcpBrowserStore.getState().catalog[0]).toMatchObject(tool)
+  expect(container.innerHTML).not.toContain(secret)
+})

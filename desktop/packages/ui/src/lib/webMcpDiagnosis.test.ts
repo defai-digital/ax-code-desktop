@@ -236,7 +236,7 @@ test("regression snippet and checker argument replace nested JSON secrets", asyn
 test("every shared manual outcome either has an executable classifier assertion or no export", async () => {
   const { createRequire } = await import("node:module")
   const { MANUAL_TOOL_OUTCOMES, manualToolResult, manualToolFailure } = createRequire(import.meta.url)(
-    "../../../electron/src/webmcp-manual-outcome.js",
+    "../../../../shared/webmcp-manual-outcome.cjs",
   )
   const outputs: Record<string, unknown> = {
     completed: { value: 1 },

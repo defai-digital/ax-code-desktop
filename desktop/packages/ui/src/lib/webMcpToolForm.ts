@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
 /** Primitive fields are an input aid, not an authoritative schema validator. */
 export type ToolField = {
   name: string
@@ -19,7 +20,8 @@ const compositionKeys = ["oneOf", "anyOf", "allOf", "$ref", "if", "not"] as cons
 function readToolField(name: string, property: unknown, required: boolean): ToolField | null {
   if (!isRecord(property)) return null
   if (compositionKeys.some((key) => key in property)) return null
-  const description = typeof property.description === "string" ? property.description.slice(0, 300) : undefined
+  const description =
+    typeof property.description === "string" ? redactWebMcpText(property.description).slice(0, 300) : undefined
   const constraints = Object.fromEntries(
     constraintNames.filter((key) => key in property).map((key) => [key, property[key]]),
   )
@@ -36,7 +38,12 @@ function readToolField(name: string, property: unknown, required: boolean): Tool
   ) {
     return { ...common, kind: "enum", options: property.enum as string[] }
   }
-  if (property.type === "string" || property.type === "number" || property.type === "integer" || property.type === "boolean") {
+  if (
+    property.type === "string" ||
+    property.type === "number" ||
+    property.type === "integer" ||
+    property.type === "boolean"
+  ) {
     return { ...common, kind: property.type }
   }
   return null
@@ -161,7 +168,11 @@ export function draftFromRecordedInput(
     } else if (field.kind === "boolean") {
       if (typeof value !== "boolean") return empty
       values[key] = value ? "true" : "false"
-    } else if (typeof value === "number" && Number.isFinite(value) && (field.kind === "number" || Number.isInteger(value))) {
+    } else if (
+      typeof value === "number" &&
+      Number.isFinite(value) &&
+      (field.kind === "number" || Number.isInteger(value))
+    ) {
       values[key] = String(value)
     } else return empty
   }

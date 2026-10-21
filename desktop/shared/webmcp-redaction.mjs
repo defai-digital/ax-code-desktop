@@ -29,6 +29,19 @@ export function webMcpTextLooksSensitive(value) {
     if (decoded === text) break
     text = decoded
   }
+  // URL credentials can occur inside prose, JSON, or diagnostics. URLSearchParams decodes
+  // query names (including percent escapes) without decoding or returning the secret value.
+  for (const match of text.matchAll(/(?:\b[a-z][a-z0-9+.-]*:)?\/\/[^\s<>"'`]+/gi)) {
+    try {
+      const url = new URL(match[0], "https://redaction.invalid")
+      if (url.username || url.password) return true
+      for (const name of url.searchParams.keys()) {
+        if (WEBMCP_SENSITIVE_NAME.test(name)) return true
+      }
+    } catch {
+      // Malformed URLs still receive assignment and credential-shape checks below.
+    }
+  }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
   // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
@@ -65,4 +78,9 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
     )
   }
   return value
+}
+
+/** Display text keeps its formatting; callers truncate only after credential filtering. */
+export function redactWebMcpText(value) {
+  return redactWebMcpReport(value)
 }

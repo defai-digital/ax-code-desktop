@@ -1,7 +1,7 @@
 import { createRequire } from "node:module"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 
-const { catalogDigest, definitionDigest } = createRequire(import.meta.url)("../../../electron/src/native-webmcp.js") as {
+const { catalogDigest, definitionDigest } = createRequire(import.meta.url)("../../../../shared/webmcp-digests.cjs") as {
   catalogDigest: (tool: unknown) => string
   definitionDigest: (tool: unknown) => string
 }

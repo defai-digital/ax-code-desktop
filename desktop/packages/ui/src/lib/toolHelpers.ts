@@ -2,6 +2,7 @@ import {
   WEBMCP_SENSITIVE_NAME,
   webMcpTextLooksSensitive,
   redactWebMcpReport,
+  redactWebMcpText,
 } from "../../../../shared/webmcp-redaction.mjs"
 import { isPlainRecord } from "@/lib/record"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
@@ -440,7 +441,7 @@ function redactInvokeValue(value: unknown, budget: { left: number }, depth: numb
   if (isPlainRecord(value)) {
     const next: Record<string, unknown> = {}
     for (const [key, entry] of Object.entries(value).slice(0, 128)) {
-      next[key] =
+      next[redactWebMcpText(key)] =
         WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
           ? "[redacted]"
           : redactInvokeValue(entry, budget, depth + 1)
@@ -475,8 +476,7 @@ export function describeWebMcpCall(
     // Newer runtimes (ADR-266) send `inputPreview`: the exact input, already redacted and capped. It is still filtered here.
     const preview = readWebMcpString(metadata, "inputPreview")
     if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
-    else if (preview)
-      argumentsText = truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
+    else if (preview) argumentsText = truncateToCodeUnits(redactWebMcpReport(preview) as string, WEBMCP_PREVIEW_LIMIT)
     else argumentsMissing = true
   }
   const reason = readWebMcpString(metadata, "reason")
@@ -501,14 +501,7 @@ export function describeWebMcpCall(
   }
 }
 
-export type WebMcpEffectKey =
-  | "invoke"
-  | "click"
-  | "clickSubmit"
-  | "type"
-  | "select"
-  | "navigate"
-  | "other"
+export type WebMcpEffectKey = "invoke" | "click" | "clickSubmit" | "type" | "select" | "navigate" | "other"
 
 /**
  * One plain sentence for an approval, built only from what the runtime sent about the call (operation, element, submit
@@ -520,8 +513,14 @@ export function webMcpEffect(
 ): { key: WebMcpEffectKey; params: { tool: string; target: string; origin: string } } {
   const operation = call.operation?.toLowerCase() ?? ""
   // The element's name comes from the page, so it is capped; the sentence's structure never comes from the page.
-  const target = call.element ? truncateToCodeUnits(call.element.name || call.element.ref || call.element.kind, 80) : ""
-  const params = { tool: call.toolName ?? "", target, origin: origin || "—" }
+  const target = call.element
+    ? truncateToCodeUnits(redactWebMcpText(call.element.name || call.element.ref || call.element.kind), 80)
+    : ""
+  const params = {
+    tool: redactWebMcpText(call.toolName ?? ""),
+    target,
+    origin: redactWebMcpText(origin) || "—",
+  }
   if (operation === "invoke" && call.toolName) return { key: "invoke", params }
   if (operation === "navigate") return { key: "navigate", params }
   if (operation === "act" && target) {
@@ -538,7 +537,8 @@ export function desktopWebMcpRowTitle(
   metadata?: Record<string, unknown> | null,
 ): string | null {
   const call = describeWebMcpCall(input, metadata)
-  return call.toolName || call.operation
+  const title = call.toolName || call.operation
+  return title ? redactWebMcpText(title) : null
 }
 
 function webMcpResultRecord(output: unknown): Record<string, unknown> | null {
@@ -601,12 +601,12 @@ export function desktopWebMcpResultFailed(state: { status?: unknown; output?: un
 function formatWebMcpToolInput(input: Record<string, unknown>): string {
   const call = describeWebMcpCall(input, undefined)
   const lines: string[] = []
-  if (call.operation) lines.push(`Operation: ${call.operation}`)
-  if (call.toolName) lines.push(`Tool: ${call.toolName}`)
-  if (call.how) lines.push(`Action: ${call.how}`)
+  if (call.operation) lines.push(`Operation: ${redactWebMcpText(call.operation)}`)
+  if (call.toolName) lines.push(`Tool: ${redactWebMcpText(call.toolName)}`)
+  if (call.how) lines.push(`Action: ${redactWebMcpText(call.how)}`)
   if (call.element) {
     const label = [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
-    if (label) lines.push(`Target: ${label}`)
+    if (label) lines.push(`Target: ${redactWebMcpText(label)}`)
     lines.push(call.element.submit ? "Submits the form" : "Does not submit")
   }
   if (call.text?.redacted) lines.push("Text redacted")

@@ -430,3 +430,95 @@ test.each(["frame", "missing-native"])("approval does not substitute catalog ide
   expect(container.querySelector("[data-webmcp-approval-definition-unknown]")).not.toBeNull()
   useWebMcpBrowserStore.getState().resetView(key)
 })
+
+test.each([12, 15, 18])(
+  "approval input summaries show truncation and omitted required counts for %i inputs",
+  (count) => {
+    const key = viewKeyFor("/repo", "ses_1")
+    const names = Array.from({ length: count }, (_, index) => `input_${index}`)
+    const tool = nativeWebMcpTool({
+      name: "approve",
+      description: "Safe description",
+      inputSchema: {
+        type: "object",
+        properties: Object.fromEntries(names.map((name) => [name, { type: "string" }])),
+        required: names.slice(0, 15),
+      },
+    })
+    useWebMcpBrowserStore
+      .getState()
+      .updateView(key, { sessionID: "ses_1", directory: "/repo", origin: "https://example.com", catalog: [tool] })
+    const { container } = render(
+      <PermissionCard
+        permission={request({
+          metadata: {
+            origin: "https://example.com",
+            operation: "invoke",
+            toolName: tool.name,
+            definitionDigest: tool.definitionDigest,
+            desktopProvider: true,
+          },
+        })}
+      />,
+    )
+    const note = container.querySelector("[data-webmcp-approval-inputs-truncated]")
+    if (count === 12) expect(note).toBeNull()
+    else {
+      expect(note?.textContent).toContain('"shown":12')
+      expect(note?.textContent).toContain(`"total":${count}`)
+      expect(note?.textContent).toContain('"required":3')
+    }
+  },
+)
+
+test.each([
+  "password=AUDIT_FAKE_PASSWORD",
+  "https://u:AUDIT_FAKE_PASSWORD@example.test/",
+  "https://example.test/?%74oken=AUDIT_FAKE_PASSWORD",
+])("approval descriptions and schema names redact page-supplied credentials: %s", (description) => {
+  const key = viewKeyFor("/repo", "ses_1")
+  const tool = nativeWebMcpTool({
+    name: "approve",
+    description,
+    inputSchema: { type: "object", properties: { [description]: { type: "string" } }, required: [description] },
+  })
+  useWebMcpBrowserStore
+    .getState()
+    .updateView(key, { sessionID: "ses_1", directory: "/repo", origin: "https://example.com", catalog: [tool] })
+  const { container } = render(
+    <PermissionCard
+      permission={request({
+        metadata: {
+          origin: "https://example.com",
+          operation: "invoke",
+          toolName: tool.name,
+          definitionDigest: tool.definitionDigest,
+          desktopProvider: true,
+        },
+      })}
+    />,
+  )
+  expect(container.innerHTML).not.toContain("AUDIT_FAKE_PASSWORD")
+  expect(container.querySelector("[data-webmcp-approval-description]")?.textContent).toContain("[redacted]")
+  expect(container.querySelector("[data-webmcp-approval-inputs]")?.textContent).toContain("[redacted]*")
+})
+
+test("approval effects redact complete element names before truncation and preserve lookup identity", () => {
+  const label = `${"x".repeat(75)} https://u:AUDIT_FAKE_PASSWORD@example.test/`
+  const { container } = render(
+    <PermissionCard
+      permission={request({
+        metadata: {
+          origin: "https://example.com",
+          operation: "act",
+          how: "click",
+          desktopProvider: true,
+          toolName: "password=AUDIT_FAKE_PASSWORD",
+          element: { ref: "e1", kind: "button", name: label },
+        },
+      })}
+    />,
+  )
+  expect(container.innerHTML).not.toContain("AUDIT_FAKE_PASSWORD")
+  expect(container.querySelector("[data-webmcp-effect]")?.textContent).toContain("[redacted]")
+})

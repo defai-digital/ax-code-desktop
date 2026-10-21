@@ -5391,5 +5391,6 @@
   "sessionGrid.moveSession": "Di chuy\u1ec3n phi\u00ean: {title}",
   "sessionGrid.moved": "\u0110\u00e3 di chuy\u1ec3n {title} \u0111\u1ebfn khung {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "\u0110\u1ecbnh ngh\u0129a c\u00f4ng c\u1ee5 hi\u1ec7n t\u1ea1i c\u1ee7a trang c\u00f3 th\u1ec3 kh\u00e1c v\u1edbi \u0111\u1ecbnh ngh\u0129a \u0111\u01b0\u1ee3c y\u00eau c\u1ea7u.",
-  "webmcp.tools.staleForm": "Bi\u1ec3u m\u1eabu n\u00e0y \u0111\u00e3 l\u1ed7i th\u1eddi v\u00ec trang ho\u1eb7c c\u00f4ng c\u1ee5 trang \u0111\u00e3 thay \u0111\u1ed5i. M\u1edf l\u1ea1i c\u00f4ng c\u1ee5 v\u00e0 xem l\u1ea1i \u0111\u1ea7u v\u00e0o tr\u01b0\u1edbc khi th\u1eed l\u1ea1i."
+  "webmcp.tools.staleForm": "Bi\u1ec3u m\u1eabu n\u00e0y \u0111\u00e3 l\u1ed7i th\u1eddi v\u00ec trang ho\u1eb7c c\u00f4ng c\u1ee5 trang \u0111\u00e3 thay \u0111\u1ed5i. M\u1edf l\u1ea1i c\u00f4ng c\u1ee5 v\u00e0 xem l\u1ea1i \u0111\u1ea7u v\u00e0o tr\u01b0\u1edbc khi th\u1eed l\u1ea1i.",
+  "chat.permissionCard.webmcp.inputsTruncated": "Hi\u1ec3n th\u1ecb {shown} trong {total} \u0111\u1ea7u v\u00e0o; {required} \u0111\u1ea7u v\u00e0o b\u1eaft bu\u1ed9c b\u1ed5 sung kh\u00f4ng \u0111\u01b0\u1ee3c hi\u1ec3n th\u1ecb."
 }

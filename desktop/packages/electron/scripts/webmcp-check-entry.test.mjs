@@ -30,8 +30,9 @@ test("the actual Electron entry redacts every disk write without altering the in
     executeJavaScript: vi.fn(),
   })
   contents.debugger.sendCommand = async (method) => {
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "top" } } }
     if (method === "WebMCP.enable")
-      contents.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [{ name: "echo" }] })
+      contents.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [{ name: "echo", frameId: "top" }] })
   }
   const inputs = []
   const context = {
@@ -102,4 +103,117 @@ test("the actual Electron entry redacts every disk write without altering the in
   expect(JSON.parse(report.runs[0].output)).toMatchObject({ access_token: "[redacted]", value: "kept" })
   expect(report.runs[1].error).not.toContain("thrown-secret")
   expect(JSON.stringify(report)).not.toContain(secret)
+})
+
+function startCatalogCheck(onEnable) {
+  vi.useFakeTimers()
+  const writes = []
+  const exit = vi.fn()
+  const contents = Object.assign(new EventEmitter(), {
+    setWindowOpenHandler() {},
+    session: Object.assign(new EventEmitter(), {
+      setPermissionRequestHandler() {},
+      setPermissionCheckHandler() {},
+    }),
+    loadURL: async () => {},
+    getURL: () => "https://example.com",
+    debugger: Object.assign(new EventEmitter(), { attach() {} }),
+  })
+  const emit = (method, tools) => contents.debugger.emit("message", {}, method, { tools })
+  contents.debugger.sendCommand = async (method) => {
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "top" } } }
+    if (method === "WebMCP.enable") onEnable(emit, contents.debugger)
+  }
+  const load = Module._load
+  vi.spyOn(Module, "_load").mockImplementation(function (name, ...args) {
+    if (name === "electron")
+      return {
+        app: { commandLine: { appendSwitch() {} }, setPath() {}, whenReady: async () => {}, exit },
+        BrowserWindow: class {
+          webContents = contents
+          destroy() {}
+        },
+      }
+    if (name === "node:fs") return { writeFileSync: (_path, text) => writes.push(JSON.parse(text)) }
+    return load.call(this, name, ...args)
+  })
+  vi.stubEnv(
+    "AX_WEBMCP_CHECK",
+    JSON.stringify({
+      url: "https://example.com",
+      profile: "/unused/profile",
+      output: "/unused/report",
+      settleMs: 3000,
+      timeoutMs: 5000,
+      runs: [],
+    }),
+  )
+  require("./webmcp-check-entry.cjs")
+  return { exit, report: () => writes.at(-1) }
+}
+
+test("checker readiness only includes top-level registrations, even with colliding iframe names", async () => {
+  const { report } = startCatalogCheck((emit) => {
+    emit("WebMCP.toolsAdded", [{ name: "echo", description: "Top-level", frameId: "top" }])
+    emit("WebMCP.toolsAdded", [
+      { name: "iframe_only", frameId: "child" },
+      { name: "echo", description: "Iframe", frameId: "child" },
+    ])
+    emit("WebMCP.toolsRemoved", [{ name: "echo", frameId: "child" }])
+  })
+  await vi.runAllTimersAsync()
+  expect(report().tools).toMatchObject([{ name: "echo", description: "Top-level" }])
+  expect(evaluateReport(report(), { expectTools: ["iframe_only"], runs: [] }).exitCode).toBe(EXIT.failed)
+  expect(evaluateReport(report(), { expectTools: ["echo"], runs: [] }).exitCode).toBe(EXIT.ok)
+})
+
+test.each([
+  { description: "Changed description" },
+  { inputSchema: { type: "object", properties: { count: { type: "number" } } } },
+  { annotations: { readOnlyHint: true } },
+  { backendNodeId: 23 },
+])("checker restarts settling when an existing definition changes: %j", async (change) => {
+  const initial = { name: "echo", frameId: "top", description: "Original", inputSchema: { type: "object" } }
+  const { exit, report } = startCatalogCheck((emit) => {
+    emit("WebMCP.toolsAdded", [initial])
+    setTimeout(() => emit("WebMCP.toolsAdded", [{ ...initial, ...change }]), 600)
+  })
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(exit).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(500)
+  expect(exit).toHaveBeenCalledWith(0)
+  expect(report().tools[0]).toMatchObject({
+    description: change.description ?? initial.description,
+    inputSchema: change.inputSchema ?? initial.inputSchema,
+    annotations: change.annotations ?? {},
+    form: change.backendNodeId !== undefined,
+  })
+})
+
+test("definition churn between polling ticks restarts settling even if it returns to the original", async () => {
+  const initial = { name: "echo", frameId: "top", description: "Original" }
+  const { exit } = startCatalogCheck((emit) => {
+    emit("WebMCP.toolsAdded", [initial])
+    setTimeout(() => {
+      emit("WebMCP.toolsRemoved", [initial])
+      emit("WebMCP.toolsAdded", [initial])
+    }, 600)
+  })
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(exit).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(500)
+  expect(exit).toHaveBeenCalledWith(0)
+})
+
+test("identical definitions and iframe changes do not extend the top-level quiet period", async () => {
+  const initial = { name: "echo", frameId: "top", description: "Original" }
+  const { exit } = startCatalogCheck((emit) => {
+    emit("WebMCP.toolsAdded", [initial])
+    setTimeout(() => {
+      emit("WebMCP.toolsAdded", [{ description: "Original", frameId: "top", name: "echo" }])
+      emit("WebMCP.toolsAdded", [{ name: "child", frameId: "child", description: "Changed" }])
+    }, 600)
+  })
+  await vi.advanceTimersByTimeAsync(750)
+  expect(exit).toHaveBeenCalledWith(0)
 })

@@ -1,3 +1,4 @@
+import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
 
 import { useI18n } from "@/lib/i18n"
@@ -5,16 +6,17 @@ import { truncateToCodeUnits } from "@/lib/textTruncate"
 import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 
-/** Input property names from a tool's schema, required ones first, capped for one line. */
+/** Input property names from a tool's schema, required ones first. */
 function schemaInputs(schema: unknown): { name: string; required: boolean }[] {
   if (!schema || typeof schema !== "object") return []
   const record = schema as { properties?: unknown; required?: unknown }
   if (!record.properties || typeof record.properties !== "object") return []
-  const required = new Set(Array.isArray(record.required) ? record.required.filter((key) => typeof key === "string") : [])
+  const required = new Set(
+    Array.isArray(record.required) ? record.required.filter((key) => typeof key === "string") : [],
+  )
   return Object.keys(record.properties as Record<string, unknown>)
     .map((name) => ({ name, required: required.has(name) }))
     .sort((a, b) => Number(b.required) - Number(a.required))
-    .slice(0, 12)
 }
 
 /**
@@ -69,13 +71,27 @@ export function WebMcpApprovalToolInfo({
       {inputs.length > 0 ? (
         <p style={{ unicodeBidi: "isolate" }} data-webmcp-approval-inputs>
           {t("chat.permissionCard.webmcp.inputs", {
-            names: inputs.map((input) => (input.required ? `${input.name}*` : input.name)).join(", "),
+            names: inputs
+              .slice(0, 12)
+              .map((input) => (input.required ? `${redactWebMcpText(input.name)}*` : redactWebMcpText(input.name)))
+              .join(", "),
+          })}
+        </p>
+      ) : null}
+      {inputs.length > 12 ? (
+        <p data-webmcp-approval-inputs-truncated>
+          {t("chat.permissionCard.webmcp.inputsTruncated", {
+            shown: 12,
+            total: inputs.length,
+            required: inputs.slice(12).filter((input) => input.required).length,
           })}
         </p>
       ) : null}
       {tool.description ? (
         <p style={{ unicodeBidi: "isolate" }} data-webmcp-approval-description>
-          {t("chat.permissionCard.webmcp.pageSays", { description: truncateToCodeUnits(tool.description, 200) })}
+          {t("chat.permissionCard.webmcp.pageSays", {
+            description: truncateToCodeUnits(redactWebMcpText(tool.description), 200),
+          })}
         </p>
       ) : null}
       <p>{t("webmcp.tools.hintsDoNotApprove")}</p>

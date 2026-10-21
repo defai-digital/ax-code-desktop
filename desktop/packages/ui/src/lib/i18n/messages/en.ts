@@ -2719,6 +2719,8 @@ export const dict = {
   "chat.permissionCard.webmcp.hintReadOnly": "The page says this tool only reads.",
   "chat.permissionCard.webmcp.hintUntrusted": "Its results may contain text from untrusted sources.",
   "chat.permissionCard.webmcp.inputs": "Inputs (required marked *): {names}",
+  "chat.permissionCard.webmcp.inputsTruncated":
+    "Showing {shown} of {total} inputs; {required} additional required inputs are not shown.",
   "chat.permissionCard.webmcp.pageSays": "The page describes it as: {description}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "The page's current tool definition may differ from the one requested by this call.",
   "chat.permissionCard.webmcp.how": "Action",
