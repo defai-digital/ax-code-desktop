@@ -230,3 +230,31 @@ arguments, there is no approval-expiry outcome and the page description is cut a
 digest pairs, not property-level schema differences. The brief told judges that ADR-266 runtime fields are not pinned; the
 runtime pin is now v7.28.2, which sends `definitionDigest` and a redacted `inputPreview` at approval, so round 18 verifies
 Desktop renders that shape and adds expiry, the full description and a property-level diff.
+
+## Round 18 result (HEAD `7811c298`; raw judgments in `round18/`)
+
+Round 18 rendered the pinned v7.28.2 runtime's `inputPreview` and `definitionDigest` on approval cards, added an approval
+expiry outcome, full page descriptions, property-level schema diffs with bounded definition history and opaque ids for
+credential-shaped tool names, and added native task journeys W3, W4, W6 and W8 (`project-browser-tasks.mjs`: 2/12, 3/10, 3/8
+and 13/15 actions) to the three-platform CI job beside W1, W2, W5 and W7. Desktop CI on `7811c298` passed on macOS 15,
+Windows 2022 and Ubuntu 24.04.
+
+| Step | codex | deepseek-flash | MiniMax-M3 | grok-4.7 | Pass (2 of the 3 original judges) |
+| --- | --- | --- | --- | --- | --- |
+| A1 discover | 8 | 8 | 8 | 8 | yes |
+| A2 enable and scope trust | 9 | 9 | 8 | 9 | yes |
+| A3 watch live | 8 | 8 | 8 | 8 | yes |
+| A4 approvals | 8 | 9 | 8 | 8 | yes |
+| A5 failure recovery | 8 | 8 | 8 | 7 | yes |
+| A6 evidence after the task | 8 | 8 | 8 | 8 | yes |
+| A7 pause and take over | 8 | 8 | 8 | 8 | yes |
+| A8 several sessions | 8 | 8 | 8 | 8 | yes |
+| B1 see registered tools | 8 | 8 | 8 | 8 | yes |
+| B2 try and compare | 7 | 9 | 8 | 8 | yes |
+| B3 iterate | 8 | 8 | 8 | 8 | yes |
+| B4 diagnose misuse | 7 | 8 | 8 | 7 | yes |
+| B5 onboarding docs | 8 | 9 | 8 | 8 | yes |
+
+All thirteen steps pass, and also pass two of three when grok-4.7 replaces any one judge. P1 audit at `7811c298`: glm-5.3 no
+P1 (two P2s); codex one P1 (credential-shaped tool names share the redacted display name in journal, compare, replay and
+export), fixed in round 19.
