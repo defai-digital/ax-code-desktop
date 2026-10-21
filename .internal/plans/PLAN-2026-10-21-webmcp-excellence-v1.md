@@ -40,6 +40,17 @@ feasibility); synthesis `SYNTHESIS-kimi.md`; verification `VERIFY-glm.md`. PRD s
 | X12: browser recap at landing | WX-13 (Desktop part): each step of the latest turn, how it was done, how it ended, tools never called | Claude | (round 12b review) | done with probes |
 | R10 (carried over) | review rail tree and adjustable width | grok (worktree) | MiniMax-M3 | review: 2 HIGH, 4 MEDIUM being fixed; ships in round 12b |
 
+## Round 13: the steps that did not move (A8, A7, A3, B1, B3)
+
+Round 12 judged at `cbb21705`: supervisor means 5.75 / 6.0 / 6.5, builder 5.0 / 5.4 / 6.0 (`scores/README.md`).
+
+| Package | Requirements | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| V13: several sessions at once | WX-15 steps 1 to 6 (view pool, per-project storage, additive IPC, hidden-page wait, per-session revocation, keyed store) | codex (worktree `wx15-view-pool`) | deepseek-flash | in progress |
+| I13: inspect and iterate | WX-02 inspectable capabilities and lint, WX-04 registration truth | grok (worktree `wx13-inspect`) | MiniMax-M3 | in progress |
+| C13: page-bound call strip | WX-07: duration, filtered result, earlier-page marker, open the call in the conversation | Claude (worktree `wx13-call-strip`) | glm-5.3 | done with probes |
+| T13: pause and take over | WX-10 after V13 lands (shares the browser pane) | | | next |
+
 ## Decisions
 
 - 2026-10-21: target changed by the user from beating Orca to an excellent WebMCP experience. Round 11 (S10, F10, R10) finishes

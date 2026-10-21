@@ -41,3 +41,26 @@ A8 are lowest.
   three-platform CI journey job.
 - Gates: UI 4349, web, Electron and shared suites; typecheck, lint, boundaries, 14 locales (5213 keys); build; the four native
   journeys and `e2e:desktop` on macOS.
+
+## Round 12 result (HEAD `cbb21705`; raw judgments in `round12/`)
+
+| Step | codex | deepseek-flash | MiniMax-M3 |
+| --- | --- | --- | --- |
+| A1 discover | 6 | 6 | 7 |
+| A2 enable and scope trust | 6 | 6 | 7 |
+| A3 watch live | 5 | 5 | 6 |
+| A4 approvals | 7 | 8 | 8 |
+| A5 failure recovery | 6 | 7 | 7 |
+| A6 evidence after the task | 7 | 7 | 8 |
+| A7 pause and take over | 6 | 6 | 6 |
+| A8 several sessions | 3 | 3 | 3 |
+| B1 see registered tools | 4 | 4 | 4 |
+| B2 try and compare | 6 | 6 | 8 |
+| B3 iterate | 4 | 4 | 5 |
+| B4 diagnose misuse | 4 | 5 | 5 |
+| B5 onboarding docs | 7 | 8 | 8 |
+
+Means: supervisor 5.75 / 6.0 / 6.5 (baseline about 5.5); builder 5.0 / 5.4 / 6.0 (baseline about 3.2). Moved most: B5, B2, A4,
+A6, A5. Not moved: A8 (one view per window), A7 (no dedicated pause or take-over), A3 (no duration, result or page binding in the
+strip), B1 and B3 (no raw schema, annotations, registration history). Round 13 targets exactly these: WX-15, WX-10, WX-07, WX-02,
+WX-04. The definition of done (every step 9, none below 8) is not met.
