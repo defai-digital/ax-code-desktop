@@ -1,3 +1,4 @@
+import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import type {
   Event,
   Message,
@@ -822,6 +823,7 @@ export function applyDirectoryEvent(
       const permission = event.properties as PermissionRequest
       // Stamped before the dedupe, in module state: the resync paths compare this around their snapshot
       // request, and an event that leaves the list looking the same still makes an older answer stale.
+      if (permission.tool?.callID) recordWebMcpApproval(permission.sessionID, permission.tool.callID, "pending")
       noteBlockingRequestEvent(permission.sessionID)
       const permissions = draft.permission[permission.sessionID] ?? []
       const next = [...permissions]
@@ -836,12 +838,14 @@ export function applyDirectoryEvent(
     }
 
     case "permission.replied": {
-      const props = event.properties as { sessionID: string; requestID: string }
+      const props = event.properties as { sessionID: string; requestID: string; reply?: string }
       noteBlockingRequestEvent(props.sessionID)
       const permissions = draft.permission[props.sessionID]
       if (!permissions) return false
       const result = Binary.search(permissions, props.requestID, (p) => p.id)
       if (result.found) {
+        const callID = permissions[result.index]?.tool?.callID
+        if (callID) recordWebMcpApproval(props.sessionID, callID, props.reply ? "answered" : "unanswered")
         const next = [...permissions]
         next.splice(result.index, 1)
         draft.permission[props.sessionID] = next

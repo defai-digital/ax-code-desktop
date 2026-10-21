@@ -1,3 +1,4 @@
+import { useWebMcpApprovalOutcome } from "@/hooks/useWebMcpApprovalOutcome"
 import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import React from "react"
 
@@ -19,6 +20,7 @@ import { useSessionPermissions } from "@/sync/sync-context"
  */
 export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; directory: string }) {
   const { t } = useI18n()
+  const approvalOutcomes = useWebMcpApprovalOutcome(sessionID, directory)
   // The parts map changes on every streamed token. The hook returns a stable list, so the strip only re-renders when
   // the recent WebMCP calls actually change, and it scans only the newest messages.
   const calls = useWebMcpTranscriptCalls(sessionID, directory)
@@ -58,6 +60,9 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
         <ol className="max-h-48 space-y-1 overflow-auto px-2.5 pb-2">
           {calls.map((call) => (
             <li key={call.id} data-webmcp-call={call.outcome}>
+              {call.callId && approvalOutcomes.get(JSON.stringify([sessionID, call.callId])) === "unanswered" ? (
+                <p data-webmcp-approval-unanswered>{t("chat.permissionCard.webmcp.unanswered")}</p>
+              ) : null}
               <button
                 type="button"
                 onClick={() =>

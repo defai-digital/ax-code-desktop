@@ -71,6 +71,7 @@ function projectToolCatalog(tools, kinds = new Map()) {
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),
       definitionDigest: definitionDigest(tool),
+      invocationID: definitionDigest(tool),
     }
     const size = Math.max(byteSize(tool), byteSize(entry))
     if (bytes + size > CATALOG_MAX_BYTES) {
@@ -1397,7 +1398,8 @@ function createDesktopWebMcpBrowser({
       // as an agent invocation. Results go back to this renderer only and are not logged.
       assertViewAlive(entry)
       const snapshot = entry.adapter.snapshot()
-      const tool = snapshot.tools.find((candidate) => candidate.name === args.toolName)
+      const tool = snapshot.tools.find((candidate) => definitionDigest(candidate) === args.toolName)
+        ?? snapshot.tools.find((candidate) => webMcpDisplayText(candidate.name) === candidate.name && candidate.name === args.toolName)
       if (
         !snapshot.origin ||
         !args.generation ||

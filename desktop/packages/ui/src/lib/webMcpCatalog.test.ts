@@ -66,7 +66,7 @@ test("keeps form tools and exact-true hints, and names only known rejection reas
 test("a same-definition reload is not a registration change, and a different digest is", () => {
   const echo = readWebMcpCatalog([tool("echo")]).catalog
   const added = diffWebMcpRegistration([], echo, [])
-  expect(added).toEqual([{ kind: "added", name: "echo", digest: echo[0]?.digest }])
+  expect(added).toEqual([{ kind: "added", name: "echo", digest: echo[0]?.digest, definition: echo[0], previousDefinition: undefined }])
   const again = diffWebMcpRegistration(echo, readWebMcpCatalog([tool("echo")]).catalog, added)
   expect(again).toBe(added)
   const removed = diffWebMcpRegistration(echo, [], added)
@@ -80,6 +80,8 @@ test("a same-definition reload is not a registration change, and a different dig
     name: "echo",
     digest: revised[0]?.digest,
     previousDigest: echo[0]?.digest,
+    definition: revised[0],
+    previousDefinition: echo[0],
   })
   const burst = readWebMcpCatalog(Array.from({ length: 40 }, (_, index) => tool(`tool_${index}`))).catalog
   const events = diffWebMcpRegistration([], burst, [])
@@ -108,7 +110,7 @@ test("preserves native definition identity separately from the frame-independent
   expect(after[0].definitionDigest).toBe(reloaded.definitionDigest)
   expect(after[0].definitionDigest).not.toBe(before[0].definitionDigest)
   expect(after[0].digest).toBe(before[0].digest)
-  expect(diffWebMcpRegistration(before, after, [])).toEqual([])
+  expect(diffWebMcpRegistration(before, after, [])).toEqual([expect.objectContaining({ kind: "changed", previousDefinition: before[0], definition: after[0] })])
   expect(readWebMcpCatalog([tool("echo")]).catalog[0].definitionDigest).toBeUndefined()
 })
 

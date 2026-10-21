@@ -9,6 +9,7 @@ vi.mock("@/lib/i18n", () => ({
   }),
 }))
 vi.mock("@/sync/sync-context", () => ({
+  useSessionPermissions: () => [],
   useDirectorySync: () => undefined,
   useSessionMessageRecords: () => [],
   useEnsureSessionMessages: () => undefined,
@@ -215,4 +216,12 @@ test.each(["desktop_webmcp", "webmcp"])("expanded %s outputs redact structured a
     expect(container.textContent).toContain("[redacted]")
     cleanup()
   }
+})
+
+import { recordWebMcpApproval, useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
+test("an unanswered approval remains an explicit transcript outcome", () => {
+  recordWebMcpApproval("ses_1", "call_1", "unanswered")
+  const { container } = renderPart("desktop_webmcp", { status: "running", input: { action: "invoke", toolName: "echo" } })
+  expect(container.textContent).toContain("chat.permissionCard.webmcp.unanswered")
+  useWebMcpApprovalOutcomes.setState({ calls: new Map() })
 })

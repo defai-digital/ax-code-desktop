@@ -27,6 +27,7 @@ export interface WebMcpToolDefinition {
   digest?: string
   /** Native invocation identity, including the frame. Never synthesized in the renderer. */
   definitionDigest?: string
+  invocationID?: string
 }
 
 export type WebMcpCatalogTruncation = "count" | "bytes"
@@ -58,6 +59,8 @@ export interface WebMcpRegistrationEvent {
   kind: "added" | "removed" | "changed"
   name: string
   digest: string
+  definition?: WebMcpToolDefinition
+  previousDefinition?: WebMcpToolDefinition
   previousDigest?: string
 }
 
@@ -186,6 +189,7 @@ const readTool = (entry: unknown): WebMcpToolDefinition | null => {
   tool.digest = providedDigest(entry.digest) ?? webMcpDefinitionDigest(tool)
   const nativeDigest = providedDigest(entry.definitionDigest)
   if (nativeDigest) tool.definitionDigest = nativeDigest
+  if (providedDigest(entry.invocationID)) tool.invocationID = entry.invocationID as string
   return tool
 }
 
@@ -268,6 +272,9 @@ export function diffWebMcpRegistration(
     copied = true
   }
   const push = (event: WebMcpRegistrationEvent) => {
+    event.definition = next.find((tool) => tool.name === event.name)
+    event.previousDefinition = previous.find((tool) => tool.name === event.name)
+
     if (event.kind === "added") {
       const index = lastForName(timeline, event.name)
       const prior = index >= 0 ? timeline[index] : undefined
@@ -275,7 +282,7 @@ export function diffWebMcpRegistration(
         edit()
         const currentIndex = lastForName(timeline, event.name)
         const current = timeline[currentIndex]
-        if (current && current.digest === event.digest) {
+        if (current && current.digest === event.digest && current.previousDefinition?.definitionDigest === event.definition?.definitionDigest) {
           timeline = timeline.filter((_, item) => item !== currentIndex)
           return
         }
@@ -285,6 +292,8 @@ export function diffWebMcpRegistration(
             name: event.name,
             digest: event.digest,
             previousDigest: current.digest,
+            definition: event.definition,
+            previousDefinition: current.previousDefinition ?? current.definition,
           }
         }
         return
@@ -296,7 +305,7 @@ export function diffWebMcpRegistration(
   for (const [name, digest] of prev) {
     const current = nxt.get(name)
     if (current === undefined) push({ kind: "removed", name, digest })
-    else if (current !== digest) push({ kind: "changed", name, digest: current, previousDigest: digest })
+    else if (current !== digest || previous.find((tool) => tool.name === name)?.definitionDigest !== next.find((tool) => tool.name === name)?.definitionDigest) push({ kind: "changed", name, digest: current, previousDigest: digest })
   }
   for (const [name, digest] of nxt) if (!prev.has(name)) push({ kind: "added", name, digest })
   return copied ? timeline.slice(-WEBMCP_REGISTRATION_LIMIT) : events

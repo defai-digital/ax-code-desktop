@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Cerrar sesi\u00f3n en el navegador del proyecto",
   "webmcp.browser.confirmClose": "Estas p\u00e1ginas pueden contener cambios no guardados. \u00bfCerrarlas y descartar los cambios no guardados? {pages}",
   "webmcp.tools.showJson": "Mostrar entrada JSON",
-  "webmcp.tools.hideJson": "Ocultar entrada JSON"
+  "webmcp.tools.hideJson": "Ocultar entrada JSON",
+  "chat.permissionCard.webmcp.expandDescription": "Expandir la descripci\u00f3n completa de la p\u00e1gina",
+  "webmcp.tools.diagnosis.truncated": "Vista previa truncada; los argumentos completos no est\u00e1n disponibles para el diagn\u00f3stico.",
+  "chat.permissionCard.webmcp.unanswered": "No se registr\u00f3 ninguna respuesta; la solicitud de aprobaci\u00f3n ya no est\u00e1 disponible."
 }

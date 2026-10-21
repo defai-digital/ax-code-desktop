@@ -301,3 +301,16 @@ test("shared embedded-text corpus is redacted in UI previews and input receipts"
     expect(JSON.stringify(placeholderWebMcpSecrets({ message: text }))).not.toContain(secret)
   }
 })
+
+test("runtime truncation receipts survive fail-closed credential filtering", () => {
+  const preview = '{"password":"[redacted]","note":"ghp_abcdefghijklmnopqrstuvwx… (4096 bytes, 2048 not shown)'
+  const call = describeWebMcpCall(undefined, { desktopProvider: true, origin: "https://example.com", operation: "invoke", toolName: "echo", providerID: "provider-1", generation: "page-1", definitionDigest: "a".repeat(64), inputPreview: preview })
+  expect(call.argumentsText).not.toContain("ghp_abcdefghijklmnopqrstuvwx")
+  expect(call.argumentsText).toContain("… (4096 bytes, 2048 not shown)")
+  expect(readWebMcpInvokeInput({ inputPreview: preview })).toEqual({ kind: "truncated", input: null })
+})
+
+test("a marker quoted inside complete JSON remains an ordinary input value", () => {
+  const input = { title: "… (4096 bytes, 2048 not shown)" }
+  expect(readWebMcpInvokeInput({ inputPreview: JSON.stringify(input) })).toEqual({ kind: "preview", input })
+})

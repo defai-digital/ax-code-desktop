@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "Disconnetti dal browser del progetto",
   "webmcp.browser.confirmClose": "Queste pagine potrebbero contenere modifiche non salvate. Chiuderle e scartare le modifiche non salvate? {pages}",
   "webmcp.tools.showJson": "Mostra input JSON",
-  "webmcp.tools.hideJson": "Nascondi input JSON"
+  "webmcp.tools.hideJson": "Nascondi input JSON",
+  "chat.permissionCard.webmcp.expandDescription": "Espandi la descrizione completa della pagina",
+  "webmcp.tools.diagnosis.truncated": "Anteprima troncata; gli argomenti completi non sono disponibili per la diagnosi.",
+  "chat.permissionCard.webmcp.unanswered": "Nessuna risposta registrata; la richiesta di approvazione non \u00e8 pi\u00f9 disponibile."
 }

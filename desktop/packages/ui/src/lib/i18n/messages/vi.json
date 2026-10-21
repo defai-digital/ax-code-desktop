@@ -5398,5 +5398,8 @@
   "webmcp.browser.signOut": "\u0110\u0103ng xu\u1ea5t kh\u1ecfi tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n",
   "webmcp.browser.confirmClose": "C\u00e1c trang n\u00e0y c\u00f3 th\u1ec3 ch\u1ee9a c\u00f4ng vi\u1ec7c ch\u01b0a \u0111\u01b0\u1ee3c l\u01b0u. \u0110\u00f3ng ch\u00fang v\u00e0 h\u1ee7y c\u00e1c thay \u0111\u1ed5i ch\u01b0a \u0111\u01b0\u1ee3c l\u01b0u? {pages}",
   "webmcp.tools.showJson": "Hi\u1ec3n th\u1ecb \u0111\u1ea7u v\u00e0o JSON",
-  "webmcp.tools.hideJson": "\u1ea8n \u0111\u1ea7u v\u00e0o JSON"
+  "webmcp.tools.hideJson": "\u1ea8n \u0111\u1ea7u v\u00e0o JSON",
+  "chat.permissionCard.webmcp.expandDescription": "M\u1edf r\u1ed9ng m\u00f4 t\u1ea3 \u0111\u1ea7y \u0111\u1ee7 c\u1ee7a trang",
+  "webmcp.tools.diagnosis.truncated": "Xem tr\u01b0\u1edbc b\u1ecb c\u1eaft ng\u1eafn; c\u00e1c \u0111\u1ed1i s\u1ed1 \u0111\u1ea7y \u0111\u1ee7 kh\u00f4ng kh\u1ea3 d\u1ee5ng \u0111\u1ec3 ch\u1ea9n \u0111o\u00e1n.",
+  "chat.permissionCard.webmcp.unanswered": "Kh\u00f4ng c\u00f3 c\u00e2u tr\u1ea3 l\u1eddi n\u00e0o \u0111\u01b0\u1ee3c ghi nh\u1eadn; y\u00eau c\u1ea7u ph\u00ea duy\u1ec7t kh\u00f4ng c\u00f2n kh\u1ea3 d\u1ee5ng."
 }

@@ -1,3 +1,4 @@
+import { reconcileWebMcpApprovals } from "@/stores/useWebMcpApprovalOutcome"
 import type {
   AxCodeClient,
   PermissionRequest,
@@ -307,6 +308,9 @@ export async function bootstrapDirectory(input: {
         if (currentSignature !== beforeSignature || blockingRequestStamp(sessionID) > (beforeStamps.get(sessionID) ?? stampFloor))
           continue
         delete merged[sessionID]
+      }
+      for (const sessionID of new Set([...Object.keys(getState().permission), ...Object.keys(merged)])) {
+        reconcileWebMcpApprovals(sessionID, getState().permission[sessionID] ?? [], merged[sessionID] ?? [])
       }
       set({ permission: merged })
     }),

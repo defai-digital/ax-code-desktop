@@ -1,3 +1,4 @@
+import { propertyDiff } from "@/lib/webMcpPropertyDiff"
 import {
   webMcpSchemaLooksSensitive,
   webMcpTextLooksSensitive,
@@ -189,7 +190,7 @@ function DiagnosisList({
   currentDigest,
   source,
 }: {
-  diagnosis: WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" }
+  diagnosis: WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" | "truncated" }
   digest: string | null
   currentDigest: string
   source: "manual" | "agent"
@@ -213,7 +214,7 @@ function DiagnosisList({
       {diagnosis.status === "unavailable" ? (
         <p className="typography-micro" data-webmcp-diagnosis-gap={diagnosis.reason}>
           {t(
-            diagnosis.reason === "no-arguments"
+            diagnosis.reason === "truncated" ? "webmcp.tools.diagnosis.truncated" : diagnosis.reason === "no-arguments"
               ? "webmcp.tools.diagnosis.noArguments"
               : diagnosis.reason === "redacted"
                 ? "webmcp.tools.diagnosis.redacted"
@@ -266,7 +267,8 @@ function DiagnosisList({
 function agentDiagnosis(
   call: WebMcpCall,
   schema: unknown,
-): WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" } {
+): WebMcpDiagnosis | { status: "unavailable"; reason: "no-arguments" | "unparsed" | "redacted" | "truncated" } {
+  if (call.inputKind === "truncated") return { status: "unavailable", reason: "truncated" }
   if (call.inputKind === "redacted") return { status: "unavailable", reason: "redacted" }
   if (call.inputKind === "unparsed") return { status: "unavailable", reason: "unparsed" }
   if (call.inputKind === "missing" || !call.input) return { status: "unavailable", reason: "no-arguments" }
@@ -292,12 +294,18 @@ function ToolCompare({
   tool,
   journalEntry,
   agentCall,
+  viewKey,
 }: {
+  viewKey?: string
   tool: WebMcpToolDefinition
   journalEntry: WebMcpJournalEntry | null
   agentCall: WebMcpCall | null
 }) {
   const { t } = useI18n()
+  const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
+  const historical = [...registration].reverse().flatMap((event) => [event.definition, event.previousDefinition])
+    .find((definition) => definition?.name === tool.name && definition.definitionDigest === agentCall?.definitionDigest)
+  const agentSchema = tool.definitionDigest === agentCall?.definitionDigest ? tool.inputSchema : (historical?.inputSchema ?? tool.inputSchema)
   const digest = tool.definitionDigest ?? ""
   const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
   if (!journalEntry && !agentCall) return null
@@ -348,7 +356,7 @@ function ToolCompare({
                 {agentCall.argumentsText ?? (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
               </pre>
               <DiagnosisList
-                diagnosis={agentDiagnosis(agentCall, tool.inputSchema)}
+                diagnosis={agentDiagnosis(agentCall, agentSchema)}
                 digest={agentCall.definitionDigest}
                 currentDigest={digest}
                 source="agent"
@@ -687,7 +695,7 @@ function ToolItem({
       )
     }
     try {
-      const reply = await tryTool(tool.name, input, binding)
+      const reply = await tryTool(tool.invocationID ?? tool.name, input, binding)
       const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
       const returnedFailure = returnedOutcome !== "completed" && returnedOutcome !== null
       const outcome = returnedFailure ? returnedOutcome : (reply.outcome ?? (reply.ok ? "completed" : "failed"))
@@ -901,6 +909,7 @@ function ToolItem({
           <div role="status" aria-live="polite">
             {result ? (
               <>
+                <p data-webmcp-tool-result-name>{redactWebMcpText(tool.name)}</p>
                 {result.stale ? <p>{t("webmcp.tools.resultStale")}</p> : null}
                 <pre
                   data-webmcp-tool-result={result.outcome}
@@ -919,7 +928,7 @@ function ToolItem({
               <p className="typography-micro">{t("webmcp.tools.inspectPage")}</p>
             ) : null}
           </div>
-          <ToolCompare tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
+          <ToolCompare viewKey={viewKey} tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
         </div>
       ) : null}
     </li>
@@ -1021,6 +1030,9 @@ export function WebMcpToolPanel({
                       digest: shortDigest(event.digest),
                       previous: shortDigest(event.previousDigest ?? ""),
                     })}
+                    {event.kind === "changed" && event.previousDefinition && event.definition ? (
+                      <pre data-webmcp-property-diff className="max-h-60 overflow-auto whitespace-pre-wrap break-all">{JSON.stringify(redactWebMcpReport(propertyDiff(event.previousDefinition.inputSchema, event.definition.inputSchema)), null, 2)}</pre>
+                    ) : null}
                   </li>
                 ))}
               </ol>

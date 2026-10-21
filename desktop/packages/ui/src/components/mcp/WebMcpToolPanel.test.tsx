@@ -1126,3 +1126,74 @@ test.each(compoundKeys)("compound credential %s is masked before opaque input", 
   expect(input.type).toBe("password")
   expect(input.autocomplete).toBe("off")
 })
+
+import { propertyDiff } from "@/lib/webMcpPropertyDiff"
+test("registration retains accepted definitions and renders property changes across reload", () => {
+  const old = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", required: ["title"], properties: { title: { type: "string", enum: ["old"], description: "Before" }, removed: { type: "number" } } } })
+  const next = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { title: { type: "number", enum: [1], description: "After" }, added: { type: "boolean" } } } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [old] })
+  store.updateSnapshot({ catalog: [] })
+  store.updateSnapshot({ catalog: [next] })
+  const event = useWebMcpBrowserStore.getState().registration.at(-1)!
+  expect(event.previousDefinition?.definitionDigest).toBe(old.definitionDigest)
+  expect(propertyDiff(event.previousDefinition?.inputSchema, event.definition?.inputSchema)).toEqual(expect.arrayContaining([
+    expect.objectContaining({ property: "title", change: "changed", fields: ["type", "enum", "description", "required"] }),
+    expect.objectContaining({ property: "removed", change: "removed" }), expect.objectContaining({ property: "added", change: "added" }),
+  ]))
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  expect(container.querySelector("[data-webmcp-property-diff]")?.textContent).toContain('"removed"')
+})
+
+test("credential-shaped tool names use the opaque invocation id and display redacted results", async () => {
+  const tool = nativeWebMcpTool({ name: "token=TOOL_NAME_SECRET", description: "Echo", inputSchema: { type: "object", properties: {} } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", generation: "page-1", catalog: [{ ...tool, invocationID: "a".repeat(64) }] })
+  const tryTool = vi.fn(async () => ({ ok: true, output: { name: tool.name } }))
+  const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool] button")!)
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" })))
+  expect(tryTool).toHaveBeenCalledWith("a".repeat(64), {}, expect.anything())
+  expect(container.innerHTML).not.toContain("TOOL_NAME_SECRET")
+  expect(container.querySelector("[data-webmcp-tool-result]")?.textContent).toContain("[redacted]")
+  expect(container.querySelector("[data-webmcp-tool-result-name]")?.textContent).toBe("[redacted]")
+})
+
+test.each([false, true])("runtime previews diagnose the digest-named historical schema (%s truncated)", async (truncated) => {
+  const old = nativeWebMcpTool({ name: "echo", description: "Earlier", inputSchema: { type: "object", properties: { title: { type: "string" } }, required: ["title"] } })
+  const current = nativeWebMcpTool({ name: "echo", description: "Now", inputSchema: { type: "object", properties: { title: { type: "integer" } } } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [old] })
+  store.updateSnapshot({ catalog: [current] })
+  const { collectWebMcpCalls } = await import("@/lib/webMcpCalls")
+  const calls = collectWebMcpCalls([{ id: "m1" }], () => [{ type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", metadata: { requireInteractive: false, desktopProvider: true, origin: "https://shop.test", operation: "invoke", toolName: "echo", providerID: "provider-1", generation: "page-1", definitionDigest: old.definitionDigest,
+      inputPreview: truncated ? '{"title":"Ship… (4096 bytes, 2048 not shown)' : '{"title":"Ship"}' }, output: "{}",
+  } }])
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={calls} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool] button")!)
+  if (truncated) {
+    expect(container.querySelector("[data-webmcp-diagnosis-gap='truncated']")?.textContent).toContain("diagnosis.truncated")
+    expect(container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toContain("… (4096 bytes, 2048 not shown)")
+  } else {
+    expect(container.querySelector("[data-webmcp-diagnosis='agent']")?.textContent).toContain("diagnosis.none")
+    expect(container.querySelector("[data-webmcp-diagnosis-property='title']")).toBeNull()
+  }
+})
+
+test("property diffs include changes beyond the preview text limit", () => {
+  const before = nativeWebMcpTool({ name: "echo", description: "Before", inputSchema: { type: "object", properties: {} } })
+  const properties = Object.fromEntries(Array.from({ length: 35 }, (_, index) => [`property_${index}`, { type: "string", description: "A changed description ".repeat(8) }]))
+  const after = nativeWebMcpTool({ name: "echo", description: "After", inputSchema: { type: "object", properties } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [before] })
+  store.updateSnapshot({ catalog: [after] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  const text = container.querySelector("[data-webmcp-property-diff]")!.textContent!
+  expect(text.length).toBeGreaterThan(4000)
+  expect(JSON.parse(text)).toHaveLength(35)
+  expect(text).toContain("property_34")
+})
