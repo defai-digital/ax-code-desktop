@@ -20,6 +20,8 @@ import { useIsGitRepo } from "@/stores/useGitStore"
 /** Matches the review pane's side-by-side minimum. A session diff also needs both sides. */
 const SESSION_SIDE_BY_SIDE_MIN_WIDTH = 1100
 const SESSION_RAIL_MIN_WIDTH = 640
+/** How long the turn scope waits for synced messages before asking the runtime for them itself. */
+const TURN_SYNC_GRACE_MS = 1500
 
 export type SessionChangesScope = "session" | "turn"
 
@@ -181,7 +183,13 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
   // from the runtime: the whole session from session.diff, and a turn from its user message, whose stored
   // summary keeps the content. The session.diff route ignores a message id, so it cannot serve a turn.
   const lastTurn = scope === "turn" ? lastTurnUserMessage(messages) : null
-  const messageID = lastTurn?.id ?? null
+  // Synced messages can stay unresolved for this pane when the session's messages were loaded under another spelling of
+  // its directory (Windows drive paths). The runtime is asked directly then, so the turn never waits forever.
+  const fallbackKey = `${directory}\0${sessionID}`
+  const [fallbackTurn, setFallbackTurn] = React.useState<{ key: string; id: string | null } | null>(null)
+  const fallback = fallbackTurn?.key === fallbackKey ? fallbackTurn : null
+  const messageID = lastTurn?.id ?? fallback?.id ?? null
+  const turnResolved = messagesResolved || fallback !== null
   const turnSummary = lastTurn?.diffs
   const progressScope = sessionReviewScopeKey(scope, messageID)
   const displayKey = `${directory}\0${sessionID}\0${scope}\0${messageID ?? ""}`
@@ -213,9 +221,33 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
   }, [busy, displayKey, summarySignal])
 
   React.useEffect(() => {
+    if (scope !== "turn" || messagesResolved || fallback) return
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const page = await axCodeClient
+            .getScopedSdkClient(directory)
+            .session.messages({ sessionID, directory, limit: 50 })
+          const data = (page as { data?: unknown }).data
+          if (!cancelled) setFallbackTurn({ key: fallbackKey, id: lastTurnUserMessage(Array.isArray(data) ? data : [])?.id ?? null })
+        } catch (error) {
+          if (cancelled) return
+          const message = error instanceof Error && error.message ? error.message : "Failed to load diff"
+          setSnapshot({ displayKey, phase: "error", files: [], error: message })
+        }
+      })()
+    }, TURN_SYNC_GRACE_MS)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [directory, displayKey, fallback, fallbackKey, messagesResolved, retryNonce, scope, sessionID])
+
+  React.useEffect(() => {
     if (scope === "turn") {
       // Messages still loading: stay in the loading state instead of claiming the turn changed nothing.
-      if (!messagesResolved) return
+      if (!turnResolved) return
       if (!messageID) {
         setSnapshot({ displayKey, phase: "ready", files: [], error: null })
         return
@@ -243,7 +275,7 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
     return () => {
       cancelled = true
     }
-  }, [directory, displayKey, messageID, messagesResolved, refresh, retryNonce, scope, sessionID])
+  }, [directory, displayKey, messageID, turnResolved, refresh, retryNonce, scope, sessionID])
 
   const visible = snapshot?.displayKey === displayKey ? snapshot : null
   const phase = visible?.phase ?? "loading"

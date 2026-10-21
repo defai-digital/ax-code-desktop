@@ -429,6 +429,164 @@ test("running keeps the send button focused and aria-disabled, guards repeat act
   await act(async () => resolve({ ok: true }))
 })
 
+test("shows the full description, raw schema, kind, hints, and advice without blocking try", async () => {
+  const description = "Add two integers\nKeep the line break and this tail."
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [
+      {
+        name: "add_numbers",
+        description,
+        kind: "form",
+        annotations: { readOnlyHint: true, untrustedContent: true, consequentialHint: "yes", readOnly: false },
+        inputSchema: {
+          type: "object",
+          properties: {
+            title: { type: "string", description: "Title" },
+            q: { type: "string", description: "Query", pattern: "^a" },
+          },
+        },
+      },
+    ],
+  })
+  const reply = vi.fn(async () => ({ ok: true, output: "done" }))
+  const { container } = render(<WebMcpToolPanel tryTool={reply} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  expect(container.querySelector("[data-webmcp-tool-kind='form']")?.textContent).toContain("webmcp.tools.kind.form")
+  expect(container.querySelector("[data-webmcp-hint='readOnlyHint']")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-hint='untrustedContentHint']")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-hint='consequentialHint']")).toBeNull()
+  expect(container.textContent).toContain("webmcp.tools.hintsDoNotApprove")
+  expect(container.textContent).toContain("webmcp.tools.origin:https://shop.test")
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+  const full = container.querySelector("[data-webmcp-description]")
+  expect(full?.textContent).toBe(description)
+  expect(full?.className).toContain("whitespace-pre-wrap")
+  expect(full?.className.includes("truncate")).toBe(false)
+  expect(container.querySelector("[data-webmcp-schema]")).toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  const schema = container.querySelector("[data-webmcp-schema]")
+  expect(schema?.getAttribute("aria-readonly")).toBe("true")
+  expect(schema?.textContent).toContain('"pattern": "^a"')
+  expect(schema?.querySelector("img, script")).toBeNull()
+  expect(
+    container.querySelector("[data-webmcp-lint='rejected-keyword']")?.getAttribute("data-webmcp-lint-keyword"),
+  ).toBe("pattern")
+  expect(container.textContent).toContain("webmcp.tools.lint.advice")
+  await runTool()
+  expect(reply).toHaveBeenCalledWith("add_numbers", {})
+  expect(screen.getAllByRole("status")).toHaveLength(1)
+})
+
+test("renders a hostile schema as text and says when a tool publishes none", () => {
+  const { container } = openTool({ note: "<img src=x onerror=alert(1)>" })
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  const schema = container.querySelector("[data-webmcp-schema]")
+  expect(schema?.textContent).toContain("<img src=x onerror=alert(1)>")
+  expect(schema?.querySelector("img")).toBeNull()
+  expect(container.querySelector("img")).toBeNull()
+  cleanup()
+  useWebMcpBrowserStore.getState().resetSnapshot()
+  openTool(undefined)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  expect(screen.getByText("webmcp.tools.schemaUnavailable")).toBeTruthy()
+  expect(document.querySelector("[data-webmcp-schema]")).toBeNull()
+})
+
+test("says 64 of 65 and names a byte cap without putting the cap in the toggle name", () => {
+  const catalog = Array.from({ length: 65 }, (_, index) => ({ name: `tool_${index}`, description: "Short" }))
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog })
+  const view = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  expect(screen.getByRole("button", { name: "webmcp.tools.toggle:64" })).toBeTruthy()
+  const count = view.container.querySelector("[data-webmcp-catalog-truncation='count']")
+  expect(count?.textContent).toBe("webmcp.tools.truncated:64|65")
+  cleanup()
+  useWebMcpBrowserStore.getState().resetSnapshot()
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [{ name: "only", description: "Short" }],
+    catalogLimit: { total: 4, shown: 1, truncation: "bytes" },
+  })
+  const bytes = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  expect(bytes.container.querySelector("[data-webmcp-catalog-truncation='bytes']")?.textContent).toBe(
+    "webmcp.tools.truncated:1|4",
+  )
+})
+
+test("names a rejected catalog, including a long name, and keeps the panel when no tool remains", () => {
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [],
+    catalogRejection: { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" },
+  })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  expect(container.querySelector("[data-webmcp-tool-panel]")).not.toBeNull()
+  const banner = container.querySelector("[data-webmcp-catalog-rejection='duplicate-name']")
+  expect(banner?.getAttribute("role")).toBe("alert")
+  expect(banner?.getAttribute("data-webmcp-catalog-rejection-tool")).toBe("echo")
+  expect(banner?.textContent).toContain("webmcp.tools.rejection.duplicate-name:echo")
+  expect(screen.getByRole("button", { name: "webmcp.tools.toggle:0" })).toBeTruthy()
+  expect(screen.queryByRole("status")).toBeNull()
+  cleanup()
+  useWebMcpBrowserStore.getState().resetSnapshot()
+  useWebMcpBrowserStore.getState().updateSnapshot({
+    origin: "https://shop.test",
+    catalog: [],
+    catalogRejection: { code: "invalid-catalog", reason: "invalid-name", tool: "n".repeat(300) },
+  })
+  const named = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  expect(
+    named.container
+      .querySelector("[data-webmcp-catalog-rejection-tool]")
+      ?.getAttribute("data-webmcp-catalog-rejection-tool"),
+  ).toBe("n".repeat(64))
+  expect(named.container.querySelector("[data-webmcp-catalog-rejection='invalid-name']")).not.toBeNull()
+})
+
+test("records registration, marks a changed definition stale, and keeps a draft for the same definition", async () => {
+  const setItem = vi.spyOn(Storage.prototype, "setItem")
+  const tool = {
+    name: "echo",
+    description: "Echo",
+    inputSchema: { type: "object", properties: { title: { type: "string", description: "Title" } } },
+  }
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const reply = vi.fn(async () => ({ ok: true, output: "done" }))
+  const { container } = render(<WebMcpToolPanel tryTool={reply} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  const added = container.querySelector("[data-webmcp-registration-kind='added']")
+  const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
+  expect(added?.textContent).toContain(digest.slice(0, 12))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  fireEvent.change(container.querySelector("input:not([type=checkbox])")!, { target: { value: "Ship" } })
+  await runTool()
+  expect(container.querySelector("[data-webmcp-stale]")).toBeNull()
+  await act(async () => {
+    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [] })
+  })
+  expect(container.querySelector("[data-webmcp-tool='echo']")).toBeNull()
+  expect(container.querySelector("[data-webmcp-registration-kind='removed']")).not.toBeNull()
+  await act(async () => {
+    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [tool] })
+  })
+  expect(container.querySelector("[data-webmcp-registration-kind='removed']")).toBeNull()
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  expect(container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("Ship")
+  expect(container.querySelector("[data-webmcp-stale]")).toBeNull()
+  await act(async () => {
+    useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [{ ...tool, description: "Echo revised" }] })
+  })
+  const changed = container.querySelector("[data-webmcp-registration-kind='changed']")
+  expect(changed?.textContent).toContain(digest.slice(0, 12))
+  expect(changed?.textContent).toContain(useWebMcpBrowserStore.getState().catalog[0]?.digest?.slice(0, 12))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  expect(container.querySelector("[data-webmcp-stale='true']")?.textContent).toContain("done")
+  expect(container.textContent).toContain("webmcp.tools.resultStale")
+  expect(container.querySelector<HTMLInputElement>("input:not([type=checkbox])")?.value).toBe("")
+  expect(setItem).not.toHaveBeenCalled()
+  setItem.mockRestore()
+})
+
 test("an enum warning names the allowed choices without blocking an explicit override", async () => {
   const { container, reply } = openTool({ type: "object", properties: { mode: { type: "string", enum: ["a", "b"] } } })
   const input = container.querySelector("select")!
@@ -441,4 +599,63 @@ test("an enum warning names the allowed choices without blocking an explicit ove
   expect(screen.getByRole("alert").textContent).toBe('Choose one of [\n  "a",\n  "b"\n] for mode.')
   await runTool("webmcp.tools.sendAnyway")
   expect(reply).toHaveBeenCalledWith("echo", { mode: "other" })
+})
+
+test("selected tool forms restore per-view drafts and late manual results stay with the originating view", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  const initial = useWebMcpBrowserStore.getState()
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  let complete!: (result: { ok: boolean; output: string }) => void
+  const tryTool = vi.fn(
+    () =>
+      new Promise<{ ok: boolean; output: string }>((resolve) => {
+        complete = resolve
+      }),
+  )
+  try {
+    for (const session of ["ses_first", "ses_second"]) {
+      store().selectView("/repo", session)
+      store().updateSnapshot({ origin: "https://same.test", catalog })
+    }
+    store().updateView(first, {
+      catalogRejection: { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" },
+      catalogLimit: { total: 65, shown: 1, truncation: "count" },
+    })
+    const view = render(<WebMcpToolPanel viewKey={first} tryTool={tryTool} />)
+    expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).not.toBeNull()
+    expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).not.toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
+    fireEvent.change(a, { target: { value: "2" } })
+    fireEvent.change(b, { target: { value: "3" } })
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
+    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+    view.rerender(<WebMcpToolPanel viewKey={second} tryTool={tryTool} />)
+    expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).toBeNull()
+    expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).toBeNull()
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    expect([...view.container.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value)).toEqual([
+      "",
+      "",
+    ])
+    await act(async () => {
+      complete({ ok: true, output: "First result" })
+    })
+    expect(store().views[first].toolRuns.add_numbers.text).toContain("First result")
+    expect(store().views[second].toolRuns).toEqual({})
+    expect(view.container.querySelector("[data-webmcp-tool-result]")).toBeNull()
+    view.rerender(<WebMcpToolPanel viewKey={first} tryTool={tryTool} />)
+    fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
+    expect([...view.container.querySelectorAll<HTMLInputElement>("input")].map((input) => input.value)).toEqual([
+      "2",
+      "3",
+    ])
+    expect(view.container.querySelector("[data-webmcp-tool-result='completed']")?.textContent).toContain("First result")
+  } finally {
+    cleanup()
+    useWebMcpBrowserStore.setState(initial, true)
+  }
 })

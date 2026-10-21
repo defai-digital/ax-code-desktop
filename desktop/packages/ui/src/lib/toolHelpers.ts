@@ -524,6 +524,11 @@ export function desktopWebMcpResultOutcome(
       result.ok === false ||
       (typeof result.status === "string" && WEBMCP_FAILURE_STATUSES.test(result.status.trim())) ||
       (typeof result.error === "string" && result.error.trim().length > 0) ||
+      // A structured error, as the builder guide recommends: { error: { field, constraint, got } }.
+      (result.error !== null &&
+        typeof result.error === "object" &&
+        !Array.isArray(result.error) &&
+        Object.keys(result.error).length > 0) ||
       (typeof result.errorText === "string" && result.errorText.trim().length > 0))
   )
     return "application-error"

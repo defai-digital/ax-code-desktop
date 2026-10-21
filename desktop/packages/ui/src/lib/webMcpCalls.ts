@@ -3,8 +3,10 @@ import {
   desktopWebMcpResultFailed,
   desktopWebMcpRowTitle,
   isWebMcpToolName,
+  webMcpResultPreview,
   type WebMcpFailureReason,
 } from "./toolHelpers"
+import { truncateToCodeUnits } from "./textTruncate"
 
 /** One page-tool call the agent made through the project browser, as the transcript records it. */
 export interface WebMcpCall {
@@ -17,13 +19,44 @@ export interface WebMcpCall {
   outcome: "running" | "ok" | "failed"
   failureReason: WebMcpFailureReason | null
   at: number | null
+  /** The transcript message holding the call, so a row can open it. */
+  messageId: string
+  /** Milliseconds from start to end, when both are known. */
+  durationMs: number | null
+  /** A short, credential-filtered preview of what a completed call returned. */
+  resultPreview: string | null
+  /** The page document generation the call ran on (from the runtime metadata), to mark calls on an earlier page. */
+  generation: string | null
+}
+
+/** The result a page tool returned, without the runtime's untrusted envelope, as a short filtered line. */
+function resultLine(output: unknown): string | null {
+  let value = output
+  if (typeof output === "string") {
+    try {
+      value = JSON.parse(output)
+    } catch {
+      value = output
+    }
+  }
+  // Unwrap only the runtime's untrusted envelope; a tool's own `result` field stays part of what it returned.
+  const envelope = value as { untrusted?: unknown; result?: unknown } | null
+  const inner = envelope && typeof envelope === "object" && envelope.untrusted === true && "result" in envelope ? envelope.result : value
+  const preview = webMcpResultPreview(inner).replace(/\s+/g, " ").trim()
+  return preview ? truncateToCodeUnits(preview, 140) : null
 }
 
 type PartLike = {
   id?: unknown
   type?: unknown
   tool?: unknown
-  state?: { status?: unknown; input?: unknown; metadata?: unknown; output?: unknown; time?: { start?: unknown } }
+  state?: {
+    status?: unknown
+    input?: unknown
+    metadata?: unknown
+    output?: unknown
+    time?: { start?: unknown; end?: unknown }
+  }
 }
 type MessageLike = { id?: unknown; role?: unknown; info?: { role?: unknown } }
 
@@ -81,6 +114,13 @@ export function collectWebMcpCalls(
         outcome: failed ? "failed" : status === "completed" ? "ok" : "running",
         failureReason: call.failureReason,
         at: typeof state.time?.start === "number" ? state.time.start : null,
+        messageId,
+        durationMs:
+          typeof state.time?.start === "number" && typeof state.time?.end === "number"
+            ? Math.max(0, state.time.end - state.time.start)
+            : null,
+        resultPreview: status === "completed" && !failed ? resultLine(state.output) : null,
+        generation: typeof metadata?.generation === "string" ? metadata.generation : null,
       })
     }
   }

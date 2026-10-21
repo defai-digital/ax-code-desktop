@@ -159,3 +159,54 @@ test("missing native views are pruned and a stale poll cannot resurrect cleared 
   expect(useWebMcpBrowserStore.getState().views).toEqual({})
   expect(useWebMcpBrowserStore.getState().order).toEqual([])
 })
+
+test("polls generation, bounded catalogs and registration rejection into each pooled view", async () => {
+  vi.useFakeTimers()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  const rejection = { code: "invalid-catalog", reason: "duplicate-name", tool: "echo" }
+  let description = "Echo"
+  invoke.mockImplementation(async () => ({
+    views: [
+      {
+        ...native("first", "ses_first"),
+        generation: "gen-first",
+        catalog: [{ name: "echo", description }],
+        catalogTotal: 65,
+        catalogTruncation: "count",
+        catalogRejection: rejection,
+      },
+      {
+        ...native("second", "ses_second"),
+        generation: "gen-second",
+        catalog: [{ name: "other", description: "Other" }],
+        catalogTotal: 1,
+        catalogTruncation: null,
+        catalogRejection: null,
+      },
+    ],
+  }))
+  useWebMcpBrowserStore.getState().selectView("/repo", "ses_second")
+  render(<Harness />)
+  await act(async () => {})
+  expect(useWebMcpBrowserStore.getState().views[first]).toMatchObject({
+    generation: "gen-first",
+    catalogLimit: { total: 65, shown: 1, truncation: "count" },
+    catalogRejection: rejection,
+    registration: [{ kind: "added", name: "echo" }],
+  })
+  const untouched = useWebMcpBrowserStore.getState().views[second]
+  description = "Changed while hidden"
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[first].registration.some((event) => event.kind === "changed")).toBe(
+    true,
+  )
+  expect(useWebMcpBrowserStore.getState().views[second]).toBe(untouched)
+  expect(useWebMcpBrowserStore.getState()).toMatchObject({
+    generation: "gen-second",
+    catalogLimit: { total: 1, shown: 1, truncation: null },
+    catalogRejection: null,
+  })
+})

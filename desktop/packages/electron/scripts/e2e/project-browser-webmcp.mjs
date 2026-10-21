@@ -76,7 +76,45 @@ try {
           throw new Error("Missing the builder guide link")
         await capture("w1-tools")
         if (actions > 8) throw new Error(`W1 took ${actions} actions; the budget is 8`)
-        return { name: "project-browser", ok: true, detail: `W1 discovered ${names.length} page tools in ${actions} actions` }
+        const w1Actions = actions
+
+        // W2: try a tool by hand. Input is sent exactly as typed; the page's own error comes back as an error.
+        actions = 0
+        const tool = `document.querySelector('[data-webmcp-tool="add_task"]')`
+        await act(() => session.evaluate(`${tool}.querySelector('button[aria-expanded]').click()`))
+        // The title field through its label, as a person finds it (field order and other inputs may vary).
+        const titleField = `document.getElementById(Array.from(${tool}.querySelectorAll('label[for]')).find(l => l.textContent.trim().startsWith('title'))?.htmlFor ?? '')`
+        await audit.wait(`Boolean(${titleField})`, "add_task form")
+        const tryWith = async (title) => {
+          await act(() =>
+            session.evaluate(`(() => {
+              const input = ${titleField}
+              const proto = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+              Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, ${JSON.stringify(title)})
+              input.dispatchEvent(new Event('input', { bubbles: true }))
+            })()`),
+          )
+          await session.evaluate(`${tool}.querySelector('[data-webmcp-tool-result]')?.remove()`)
+          await act(() =>
+            session.evaluate(
+              `Array.from(${tool}.querySelectorAll('button')).find(b => b.textContent.trim() === 'Try it').click()`,
+            ),
+          )
+          await audit.wait(`Boolean(${tool}.querySelector('[data-webmcp-tool-result]'))`, `result for ${JSON.stringify(title)}`)
+          return session.evaluate(`(() => { const r = ${tool}.querySelector('[data-webmcp-tool-result]'); return { outcome: r.dataset.webmcpToolResult, text: r.textContent } })()`)
+        }
+        const rejected = await tryWith("   ")
+        if (rejected.outcome === "completed" || rejected.outcome === "ok" || !rejected.text.includes("minLength"))
+          throw new Error(`A title of only spaces must come back as the page's error, got ${JSON.stringify(rejected)}`)
+        const added = await tryWith("Ship the beta")
+        if (!added.text.includes("Ship the beta")) throw new Error(`Valid input must return the new task, got ${JSON.stringify(added)}`)
+        await capture("w2-try")
+        if (actions > 10) throw new Error(`W2 took ${actions} actions; the budget is 10`)
+        return {
+          name: "project-browser",
+          ok: true,
+          detail: `W1 discovered ${names.length} page tools in ${w1Actions} actions; W2 ran add_task by hand (page error "${rejected.outcome}", then success "${added.outcome}") in ${actions} actions`,
+        }
       },
     ],
   })

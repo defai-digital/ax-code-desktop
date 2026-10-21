@@ -1,14 +1,98 @@
-import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
+import { useCurrentWebMcpViewKey, useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import type { I18nKey, I18nParams } from "@/lib/i18n/store"
+import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
 import { toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
 import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview } from "@/lib/toolHelpers"
-import { type WebMcpToolDefinition } from "@/stores/useWebMcpBrowserStore"
+import {
+  useWebMcpBrowserStore,
+  type WebMcpCatalogRejectionReason,
+  type WebMcpRegistrationEvent,
+  type WebMcpToolDefinition,
+} from "@/stores/useWebMcpBrowserStore"
 
 export type TryResult = { ok: boolean; outcome?: string; output?: unknown; reason?: string }
+
+const BADGE_CLASS = "rounded border border-border/60 px-1 typography-micro text-muted-foreground"
+const SCHEMA_TEXT_CAP = 32768
+
+const REJECTION_TEXT: Record<WebMcpCatalogRejectionReason, I18nKey> = {
+  "duplicate-name": "webmcp.tools.rejection.duplicate-name",
+  "invalid-schema": "webmcp.tools.rejection.invalid-schema",
+  "invalid-name": "webmcp.tools.rejection.invalid-name",
+  "invalid-description": "webmcp.tools.rejection.invalid-description",
+  "definition-too-large": "webmcp.tools.rejection.definition-too-large",
+  "catalog-too-large": "webmcp.tools.rejection.catalog-too-large",
+}
+
+const REGISTRATION_TEXT: Record<WebMcpRegistrationEvent["kind"], I18nKey> = {
+  added: "webmcp.tools.registration.added",
+  removed: "webmcp.tools.registration.removed",
+  changed: "webmcp.tools.registration.changed",
+}
+
+type Translate = (key: I18nKey, params?: I18nParams) => string
+
+function storedView(key?: string) {
+  const state = useWebMcpBrowserStore.getState()
+  return key ? state.views[key] : state
+}
+
+function storedDraft(name: string, digest: string, key?: string) {
+  const draft = storedView(key)?.toolDrafts[name]
+  if (!draft || draft.digest !== digest) {
+    return {
+      values: {} as Record<string, string>,
+      sendEmpty: {} as Record<string, boolean>,
+      json: "{}",
+      jsonMode: false,
+    }
+  }
+  return draft
+}
+
+function storedRun(
+  name: string,
+  digest: string,
+  key?: string,
+): { outcome: string; text: string; stale: boolean } | null {
+  const run = storedView(key)?.toolRuns[name]
+  if (!run) return null
+  return { outcome: run.outcome, text: run.text, stale: run.stale || run.digest !== digest }
+}
+
+function schemaDocument(schema: unknown): { text: string; truncated: boolean } | null {
+  if (schema === undefined) return null
+  try {
+    const text = JSON.stringify(schema, null, 2)
+    if (typeof text !== "string") return null
+    if (text.length <= SCHEMA_TEXT_CAP) return { text, truncated: false }
+    return { text: text.slice(0, SCHEMA_TEXT_CAP), truncated: true }
+  } catch {
+    return null
+  }
+}
+
+function lintText(t: Translate, finding: WebMcpLintFinding) {
+  if (finding.code === "name-length") return t("webmcp.tools.lint.nameLength", { length: finding.length ?? 0 })
+  if (finding.code === "description-length") {
+    return t("webmcp.tools.lint.descriptionLength", { length: finding.length ?? 0 })
+  }
+  if (finding.code === "missing-description") return t("webmcp.tools.lint.missingDescription")
+  if (finding.code === "missing-property-description") {
+    return t("webmcp.tools.lint.missingPropertyDescription", { names: finding.names ?? "" })
+  }
+  if (finding.code === "opaque-value") return t("webmcp.tools.lint.opaque", { names: finding.names ?? "" })
+  return t("webmcp.tools.lint.rejectedKeyword", { keyword: finding.keyword ?? "" })
+}
+
+function shortDigest(value: string) {
+  return value.slice(0, 12)
+}
 
 function FieldInput({
   field,
@@ -57,29 +141,139 @@ function FieldInput({
   )
 }
 
-function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryTool }) {
+function ToolBadges({ tool }: { tool: WebMcpToolDefinition }) {
   const { t } = useI18n()
+  const kind = tool.kind === "form" ? "form" : "script"
+  return (
+    <span className="mt-0.5 flex shrink-0 flex-wrap justify-end gap-1">
+      <span data-webmcp-tool-kind={kind} className={BADGE_CLASS}>
+        {t(kind === "form" ? "webmcp.tools.kind.form" : "webmcp.tools.kind.script")}
+      </span>
+      {tool.annotations?.readOnlyHint ? (
+        <span data-webmcp-hint="readOnlyHint" className={BADGE_CLASS}>
+          {t("webmcp.tools.hint.readOnly")}
+        </span>
+      ) : null}
+      {tool.annotations?.untrustedContentHint ? (
+        <span data-webmcp-hint="untrustedContentHint" className={BADGE_CLASS}>
+          {t("webmcp.tools.hint.untrusted")}
+        </span>
+      ) : null}
+      {tool.annotations?.consequentialHint ? (
+        <span data-webmcp-hint="consequentialHint" className={BADGE_CLASS}>
+          {t("webmcp.tools.hint.consequential")}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+function LintNotes({ tool }: { tool: WebMcpToolDefinition }) {
+  const { t } = useI18n()
+  const findings = React.useMemo(
+    () => lintWebMcpTool({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }),
+    [tool.description, tool.inputSchema, tool.name],
+  )
+  if (findings.length === 0) return null
+  return (
+    <div className="space-y-1">
+      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.lint.title")}</p>
+      <ul className="space-y-0.5">
+        {findings.map((finding) => (
+          <li
+            key={`${finding.code}:${finding.keyword ?? ""}:${finding.names ?? ""}`}
+            data-webmcp-lint={finding.code}
+            {...(finding.keyword ? { "data-webmcp-lint-keyword": finding.keyword } : {})}
+            className="typography-micro text-muted-foreground"
+          >
+            {lintText(t, finding)}
+          </li>
+        ))}
+      </ul>
+      <p className="typography-micro text-muted-foreground">{t("webmcp.tools.lint.advice")}</p>
+    </div>
+  )
+}
+
+function SchemaBlock({ schema }: { schema: unknown }) {
+  const { t } = useI18n()
+  const [open, setOpen] = React.useState(false)
+  const rendered = React.useMemo(() => schemaDocument(schema), [schema])
+  return (
+    <div className="space-y-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="typography-micro text-muted-foreground"
+      >
+        {t("webmcp.tools.schema")}
+      </button>
+      {open ? (
+        rendered ? (
+          <>
+            <pre
+              data-webmcp-schema=""
+              data-webmcp-schema-truncated={rendered.truncated ? "true" : undefined}
+              aria-readonly="true"
+              className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded bg-muted/40 p-2 font-mono typography-micro"
+            >
+              {rendered.text}
+            </pre>
+            {rendered.truncated ? (
+              <p className="typography-micro text-muted-foreground">{t("webmcp.tools.schemaTruncated")}</p>
+            ) : null}
+          </>
+        ) : (
+          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.schemaUnavailable")}</p>
+        )
+      ) : null}
+    </div>
+  )
+}
+
+function ToolItem({ tool, tryTool, viewKey }: { tool: WebMcpToolDefinition; tryTool: TryTool; viewKey?: string }) {
+  const { t } = useI18n()
+  const saveToolDraft = useWebMcpBrowserStore((state) => state.saveToolDraft)
+  const recordToolRun = useWebMcpBrowserStore((state) => state.recordToolRun)
+  const clearToolRun = useWebMcpBrowserStore((state) => state.clearToolRun)
+  const digest = tool.digest ?? ""
   const form = React.useMemo(() => toolForm(tool.inputSchema), [tool.inputSchema])
   const [open, setOpen] = React.useState(false)
-  const [values, setValues] = React.useState<Record<string, string>>({})
-  const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>({})
-  const [jsonMode, setJsonMode] = React.useState(false)
+  const [values, setValues] = React.useState<Record<string, string>>(
+    () => storedDraft(tool.name, digest, viewKey).values,
+  )
+  const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>(
+    () => storedDraft(tool.name, digest, viewKey).sendEmpty,
+  )
+  const [jsonMode, setJsonMode] = React.useState(() => storedDraft(tool.name, digest, viewKey).jsonMode)
   const [warnings, setWarnings] = React.useState<{ field: string; constraint: string }[]>([])
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
-  const [json, setJson] = React.useState("{}")
+  const [json, setJson] = React.useState(() => storedDraft(tool.name, digest, viewKey).json)
   const [running, setRunning] = React.useState(false)
-  const [result, setResult] = React.useState<{ outcome: string; text: string } | null>(null)
+  const [result, setResult] = React.useState<{ outcome: string; text: string; stale: boolean } | null>(() =>
+    storedRun(tool.name, digest, viewKey),
+  )
   const baseId = React.useId()
 
+  React.useEffect(() => {
+    saveToolDraft(tool.name, { digest, values, sendEmpty, json, jsonMode }, viewKey)
+  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, tool.name, values, viewKey])
+
   const constraintText = (field: ToolField, constraint: string) =>
-    t(`webmcp.tools.constraint.${constraint}` as Parameters<typeof t>[0], {
+    t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
       field: field.name,
       bound: webMcpResultPreview(field.constraints?.[constraint], constraint === "default" ? field.name : undefined),
     })
+  const showResult = (next: { outcome: string; text: string } | null) => {
+    setResult(next ? { outcome: next.outcome, text: next.text, stale: false } : null)
+    if (next) recordToolRun(tool.name, { digest, outcome: next.outcome, text: next.text, stale: false }, viewKey)
+    else clearToolRun(tool.name, viewKey)
+  }
   const clearFeedback = () => {
     setWarnings([])
     setInputIssue(null)
-    setResult(null)
+    showResult(null)
   }
 
   const run = async () => {
@@ -89,7 +283,7 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
       const built = toolInput(form.fields, values, sendEmpty)
       if (!built.ok) {
         setInputIssue(built)
-        setResult({
+        showResult({
           outcome: "invalid-input",
           text: constraintText(form.fields.find((field) => field.name === built.field)!, built.constraint),
         })
@@ -99,7 +293,7 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
       const issues = toolInputWarnings(form.fields, input)
       if (issues.length && !warnings.length) {
         setWarnings(issues)
-        setResult(null)
+        showResult(null)
         return
       }
     } else {
@@ -108,18 +302,18 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object")
         input = parsed as Record<string, unknown>
       } catch {
-        setResult({ outcome: "invalid-input", text: t("webmcp.tools.invalidJson") })
+        showResult({ outcome: "invalid-input", text: t("webmcp.tools.invalidJson") })
         return
       }
     }
     if (new TextEncoder().encode(JSON.stringify(input)).byteLength > 65536) {
-      setResult({ outcome: "failed", text: t("chat.toolPart.webmcp.reason.input-too-large") })
+      showResult({ outcome: "failed", text: t("chat.toolPart.webmcp.reason.input-too-large") })
       return
     }
     setWarnings([])
     setInputIssue(null)
     setRunning(true)
-    setResult(null)
+    showResult(null)
     try {
       const reply = await tryTool(tool.name, input)
       const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
@@ -133,12 +327,12 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
         outcome === "completed"
           ? t("webmcp.tools.completed")
           : outcome === "uncertain"
-            ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as Parameters<typeof t>[0])}`
-            : t(`chat.toolPart.webmcp.reason.${knownReason}` as Parameters<typeof t>[0])
-      setResult({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
+            ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)}`
+            : t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)
+      showResult({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
     } catch {
       // IPC can disappear after the invocation was sent. Never infer failure or offer an automatic retry.
-      setResult({
+      showResult({
         outcome: "uncertain",
         text: `${t("webmcp.tools.uncertain")} ${t("chat.toolPart.webmcp.reason.provider-gone")}`,
       })
@@ -168,9 +362,20 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
             </span>
           ) : null}
         </span>
+        <ToolBadges tool={tool} />
       </button>
       {open ? (
         <div className="space-y-2 border-t border-border/60 px-2 py-2">
+          {tool.description ? (
+            <p
+              data-webmcp-description=""
+              className="whitespace-pre-wrap break-words typography-micro text-muted-foreground"
+            >
+              {tool.description}
+            </p>
+          ) : null}
+          <LintNotes tool={tool} />
+          <SchemaBlock schema={tool.inputSchema} />
           {form.kind === "fields" && !jsonMode ? (
             form.fields.length === 0 ? (
               <p className="typography-micro text-muted-foreground">{t("webmcp.tools.noInput")}</p>
@@ -309,16 +514,20 @@ function ToolItem({ tool, tryTool }: { tool: WebMcpToolDefinition; tryTool: TryT
           </div>
           <div role="status" aria-live="polite">
             {result ? (
-              <pre
-                data-webmcp-tool-result={result.outcome}
-                className={
-                  result.outcome === "completed"
-                    ? "max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
-                    : "max-h-40 overflow-auto whitespace-pre-wrap rounded p-2 typography-micro text-[var(--status-error)]"
-                }
-              >
-                {result.text}
-              </pre>
+              <>
+                {result.stale ? <p>{t("webmcp.tools.resultStale")}</p> : null}
+                <pre
+                  data-webmcp-tool-result={result.outcome}
+                  data-webmcp-stale={result.stale ? "true" : undefined}
+                  className={
+                    result.outcome === "completed"
+                      ? "max-h-40 overflow-auto whitespace-pre-wrap rounded bg-muted/40 p-2 font-mono typography-micro"
+                      : "max-h-40 overflow-auto whitespace-pre-wrap rounded p-2 typography-micro text-[var(--status-error)]"
+                  }
+                >
+                  {result.text}
+                </pre>
+              </>
             ) : null}
             {result?.outcome === "uncertain" ? (
               <p className="typography-micro">{t("webmcp.tools.inspectPage")}</p>
@@ -335,13 +544,22 @@ type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<Try
 /**
  * The tools the current page registers, visible before the agent is granted anything. "Try it" runs a tool on the page as
  * the user, the same as using the page; it creates no agent grant and adds nothing to the conversation.
+ * Hint badges and authoring notes never approve a call. A rejected registration is named here and does not hide the page.
  */
 export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKey?: string }) {
   const { t } = useI18n()
+  const currentKey = useCurrentWebMcpViewKey()
+  const pooled = useWebMcpBrowserStore((state) => state.activeKey !== null || state.order.length > 0)
+  const toolViewKey = viewKey ?? (pooled ? currentKey : undefined)
   const catalog = useWebMcpBrowserValue((state) => state.catalog, viewKey)
   const origin = useWebMcpBrowserValue((state) => state.origin, viewKey)
+  const catalogLimit = useWebMcpBrowserValue((state) => state.catalogLimit, viewKey)
+  const catalogRejection = useWebMcpBrowserValue((state) => state.catalogRejection, viewKey)
+  const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const [open, setOpen] = React.useState(false)
-  if (!origin || catalog.length === 0) return null
+  if (!origin || (catalog.length === 0 && !catalogRejection && registration.length === 0)) return null
+  const truncated = catalogLimit.truncation !== null || catalogLimit.shown < catalogLimit.total
+  const timeline = [...registration].reverse()
   return (
     <section aria-label={t("webmcp.tools.title")} className="border-b border-border/40" data-webmcp-tool-panel>
       <button
@@ -353,12 +571,62 @@ export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKe
         <Icon name={open ? "arrow-down-s" : "arrow-right-s"} className="h-3.5 w-3.5" aria-hidden="true" />
         {t("webmcp.tools.toggle", { count: catalog.length })}
       </button>
+      {truncated ? (
+        <p
+          data-webmcp-catalog-truncation={catalogLimit.truncation ?? "count"}
+          className="px-2.5 pb-1 typography-micro text-muted-foreground"
+        >
+          {t("webmcp.tools.truncated", { shown: catalogLimit.shown, total: catalogLimit.total })}
+        </p>
+      ) : null}
+      {catalogRejection ? (
+        <p
+          role="alert"
+          data-webmcp-catalog-rejection={catalogRejection.reason}
+          data-webmcp-catalog-rejection-tool={catalogRejection.tool}
+          className="px-2.5 pb-1 typography-micro text-[var(--status-error)]"
+        >
+          {t("webmcp.tools.rejection.title")}{" "}
+          {t(REJECTION_TEXT[catalogRejection.reason], {
+            tool: catalogRejection.tool || t("webmcp.tools.rejection.unnamed"),
+          })}
+        </p>
+      ) : null}
       {open ? (
-        <ul className="max-h-72 space-y-1.5 overflow-auto px-2.5 pb-2">
-          {catalog.map((tool) => (
-            <ToolItem key={tool.name} tool={tool} tryTool={tryTool} />
-          ))}
-        </ul>
+        <div className="space-y-2 px-2.5 pb-2">
+          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.origin", { origin })}</p>
+          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.hintsDoNotApprove")}</p>
+          {timeline.length ? (
+            <div className="space-y-1">
+              <p className="typography-micro text-muted-foreground">{t("webmcp.tools.registration.title")}</p>
+              <ol className="space-y-0.5" data-webmcp-registration="">
+                {timeline.map((event, index) => (
+                  <li
+                    key={`${index}:${event.kind}:${event.name}:${event.digest}`}
+                    data-webmcp-registration-kind={event.kind}
+                    className="font-mono typography-micro text-muted-foreground"
+                  >
+                    {t(REGISTRATION_TEXT[event.kind], {
+                      name: event.name,
+                      digest: shortDigest(event.digest),
+                      previous: shortDigest(event.previousDigest ?? ""),
+                    })}
+                  </li>
+                ))}
+              </ol>
+            </div>
+          ) : null}
+          <ul className="max-h-72 space-y-1.5 overflow-auto">
+            {catalog.map((tool) => (
+              <ToolItem
+                key={`${toolViewKey ?? ""}:${tool.name}:${tool.digest ?? ""}`}
+                tool={tool}
+                tryTool={tryTool}
+                viewKey={toolViewKey}
+              />
+            ))}
+          </ul>
+        </div>
       ) : null}
     </section>
   )

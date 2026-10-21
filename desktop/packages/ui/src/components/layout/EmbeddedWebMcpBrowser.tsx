@@ -41,6 +41,10 @@ type BrowserStatus = {
   page?: WebMcpPageKind
   tools: number
   catalog?: unknown
+  generation?: unknown
+  catalogTotal?: number
+  catalogTruncation?: "count" | "bytes" | null
+  catalogRejection?: unknown
   url?: string
 }
 
@@ -134,6 +138,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         rememberWebMcpAddress(directory, sessionID, result.url)
         if (!sessionID) draftUrl.current = { directory, url: result.url }
       }
+      const catalog = readWebMcpCatalog(result.catalog, {
+        total: result.catalogTotal,
+        truncation: result.catalogTruncation,
+        rejection: result.catalogRejection,
+      })
       updateSnapshot({
         ...(result.error !== undefined ? { error: result.error ?? commandErrorRef.current } : {}),
         ...(result.reason ? { error: result.reason } : {}),
@@ -149,7 +158,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         origin: result.origin,
         page: result.page ?? null,
         tools: result.tools,
-        catalog: readWebMcpCatalog(result.catalog),
+        generation: typeof result.generation === "string" ? result.generation : null,
+        catalog: catalog.catalog,
+        catalogLimit: catalog.catalogLimit,
+        catalogRejection: catalog.catalogRejection,
       })
     },
     [directory, key, sessionID, updateSnapshot],

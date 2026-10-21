@@ -40,8 +40,25 @@ feasibility); synthesis `SYNTHESIS-kimi.md`; verification `VERIFY-glm.md`. PRD s
 | X12: browser recap at landing | WX-13 (Desktop part): each step of the latest turn, how it was done, how it ended, tools never called | Claude | (round 12b review) | done with probes |
 | R10 (carried over) | review rail tree and adjustable width | grok (worktree) | MiniMax-M3 | review: 2 HIGH, 4 MEDIUM being fixed; ships in round 12b |
 
+## Round 13: the steps that did not move (A8, A7, A3, B1, B3)
+
+Round 12 judged at `cbb21705`: supervisor means 5.75 / 6.0 / 6.5, builder 5.0 / 5.4 / 6.0 (`scores/README.md`).
+
+| Package | Requirements | Author | Reviewer | Status |
+| --- | --- | --- | --- | --- |
+| V13: several sessions at once | WX-15 steps 1 to 6 (view pool, per-project storage, additive IPC, hidden-page wait, per-session revocation, keyed store) | codex (worktree `wx15-view-pool`) | deepseek-flash | in progress |
+| I13: inspect and iterate | WX-02 inspectable capabilities and lint, WX-04 registration truth | grok (worktree `wx13-inspect`) | MiniMax-M3 | in progress |
+| C13: page-bound call strip | WX-07: duration, filtered result, earlier-page marker, open the call in the conversation | Claude (worktree `wx13-call-strip`) | glm-5.3 | done with probes |
+| T13: pause and take over | WX-10 after V13 lands (shares the browser pane) | | | next |
+
 ## Decisions
 
 - 2026-10-21: target changed by the user from beating Orca to an excellent WebMCP experience. Round 11 (S10, F10, R10) finishes
   under the competitive record; later rounds follow this plan. The standing push approval carries over; releases and runtime
   pins still need explicit approval.
+- 2026-10-21: the user lowered the rubric bar to 8 ("i can accept if reach 8"): every persona step at least 8 from every
+  judge (PRD section 3, item 1). After round 12 the steps below 8 for at least one judge are A1, A2, A3, A5, A7, A8, B1, B2,
+  B3, B4 (and B5 at 7 from codex); A4 and A6 reach 8 from two judges.
+- 2026-10-21: the user set the pass rule per step to "at least 8 from two of the three judges". Against round 12 this passes
+  A4 (7/8/8) and B5 (7/8/8); every other step is still below it (A6 7/7/8 and B2 6/6/8 have one judge at 8).
+

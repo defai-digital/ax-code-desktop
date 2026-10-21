@@ -90,7 +90,10 @@
     "terminalView.quickKeys.enterAria",
     "terminalView.quickKeys.escape",
     "terminalView.quickKeys.tabAria",
-    "webmcp.browser.addressPlaceholder"
+    "webmcp.browser.addressPlaceholder",
+    "webmcp.browser.explanation",
+    "webmcp.detail.storageClearing",
+    "webmcp.detail.storageCleared"
   ],
   "fr": [
     "supervision.missionControl.pr.label",
@@ -229,7 +232,8 @@
     "githubBoard.tab.pulls",
     "settings.page.hooks.title",
     "settings.hooks.list.badge.protocol",
-    "settings.hooks.list.source.pack"
+    "settings.hooks.list.source.pack",
+    "webmcp.tools.kind.script"
   ],
   "de": [
     "supervision.missionControl.pr.label",
@@ -531,7 +535,8 @@
     "githubBoard.tab.issues",
     "githubBoard.tab.pulls",
     "settings.page.hooks.title",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "webmcp.tools.kind.script"
   ],
   "it": [
     "supervision.missionControl.pr.label",
@@ -617,7 +622,8 @@
     "splitPane.tab.diff",
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "webmcp.tools.kind.script"
   ],
   "ru": [
     "branchPickerDialog.badge.worktree",
@@ -666,7 +672,8 @@
     "splitPane.tab.terminal",
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "webmcp.tools.kind.form"
   ],
   "vi": [
     "app.embeddedSession.terminal",
@@ -788,7 +795,8 @@
     "chat.fileMentionAutocomplete.context.commitLabel",
     "githubBoard.tab.pulls",
     "settings.page.hooks.title",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "webmcp.tools.kind.script"
   ],
   "zh-TW": [
     "settings.hooks.list.badge.protocol"

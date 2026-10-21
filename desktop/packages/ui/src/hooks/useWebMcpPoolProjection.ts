@@ -21,6 +21,10 @@ type NativeView = Pick<
   | "error"
 > & {
   id: string
+  generation?: unknown
+  catalogTotal?: unknown
+  catalogTruncation?: unknown
+  catalogRejection?: unknown
   catalog?: unknown
 }
 
@@ -55,6 +59,11 @@ export function useWebMcpPoolProjection(enabled = true) {
           const store = useWebMcpBrowserStore.getState()
           const current = store.views[key]
           if (current?.busy || current?.phase === "starting") continue
+          const catalog = readWebMcpCatalog(view.catalog, {
+            total: view.catalogTotal,
+            truncation: view.catalogTruncation,
+            rejection: view.catalogRejection,
+          })
           store.updateView(key, {
             phase: "ready",
             browserId: view.id,
@@ -69,7 +78,10 @@ export function useWebMcpPoolProjection(enabled = true) {
             waiting: view.waiting,
             tools: view.tools,
             page: view.page,
-            catalog: readWebMcpCatalog(view.catalog),
+            generation: typeof view.generation === "string" ? view.generation : null,
+            catalog: catalog.catalog,
+            catalogLimit: catalog.catalogLimit,
+            catalogRejection: catalog.catalogRejection,
             error: view.error ?? (current?.error === "operation-failed" ? current.error : null),
             pausedBridgeServers: held.current.get(view.directory) ?? [],
           })
