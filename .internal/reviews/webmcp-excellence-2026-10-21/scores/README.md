@@ -121,3 +121,29 @@ the audit repeated after round 14.
 - R14b merged: manual journal and replay, comparison with the agent's latest call, schema diagnosis naming the property, rule
   and value kind, regression export, guide update. Gates: UI 4498, Electron 881, web 1499, shared 240 tests; build; five
   native journeys and `e2e:desktop` on macOS.
+
+## Round 14 result (HEAD `fc645985`; raw judgments in `round14/`)
+
+| Step | codex | deepseek-flash | MiniMax-M3 | Pass |
+| --- | --- | --- | --- | --- |
+| A1 discover | 8 | 8 | 8 | yes |
+| A2 enable and scope trust | 8 | 8 | 8 | yes (new) |
+| A3 watch live | 7 | 8 | 7 | no |
+| A4 approvals | 7 | 8 | 7 | no |
+| A5 failure recovery | 7 | 8 | 8 | yes |
+| A6 evidence after the task | 7 | 8 | 7 | no |
+| A7 pause and take over | 7 | 8 | 7 | no |
+| A8 several sessions | 8 | 9 | 8 | yes (new) |
+| B1 see registered tools | 8 | 8 | 8 | yes |
+| B2 try and compare | 7 | 9 | 8 | yes (new) |
+| B3 iterate | 7 | 8 | 8 | yes |
+| B4 diagnose misuse | 7 | 8 | 8 | yes (new) |
+| B5 onboarding docs | 8 | 9 | 8 | yes |
+
+Nine of thirteen pass. All four round-14 targets now pass; A3, A4, A6 and A7 fall back to failing because MiniMax scored them
+7 (9 in round 13) with no change to that code. The judges' reasons: A3 a row opens the message, not the exact call or its
+approval; A4 approval arguments are missing until a runtime with ADR-266 is pinned (v7.28.2 contains it; another session's
+pin update is in progress) and approval expiry is not shown as an outcome; A6 no per-call evidence links, receipts, export or
+definition binding; A7 cancellation is checkpoint-only and not awaited. P1 audit after round 14 (glm-5.3,
+`AUDIT-2026-10-21-p1-glm-round14.md`): no P1; two P2s (a second window's pane loops on Reopen; the manual surface shows
+secret-named inputs in clear).

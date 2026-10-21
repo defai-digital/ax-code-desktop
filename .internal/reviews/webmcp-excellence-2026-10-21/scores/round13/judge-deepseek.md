@@ -1,0 +1,27 @@
+## Round 13 judgment at HEAD — source only, no files modified
+
+| Step | Score | Judgment and anchor |
+|---|---|---|
+| A1 discover | **8** | An open tool shows the full description, raw schema with truncation note, hint badges, origin and advisory lint, so a supervisor sees what a page exposes before granting anything; `WebMcpToolPanel.tsx:369-378`, `:198-233`, `:144-169`, `:574-581`, `:597`. |
+| A2 enable and scope trust | **7** | Enable, Pause/Resume and Disconnect are explicit and session-bound with origin and sharing copy, but there is no one trust surface with saved grants or a per-session revoke control; `EmbeddedWebMcpBrowser.tsx:460-499`, `:517-521`; native `revokeSession` exists (`desktop-webmcp-browser.js:810`) yet no UI calls it. |
+| A3 watch live | **8** | A call row carries duration, a filtered result preview, an earlier-page marker and a failure reason, and opens its transcript part; only an approval link is missing; `WebMcpCallStrip.tsx:88-98`, `:94-98`, `:105-117`. |
+| A4 approvals | **8** | The card leads with a call-data-only effect sentence and states a call-only scope, but masked arguments need the unpinned runtime and no WebMCP timeout outcome is shown; `PermissionCard.tsx:386-388`, `:451-461`. |
+| A5 failure recovery | **8** | A page's own structured error is classified as an application error in both the manual panel and the transcript, and a browser fault offers one named fix; `WebMcpToolPanel.tsx:319-332`, `toolHelpers.ts:504-534`, `EmbeddedWebMcpBrowser.tsx:533-544`. |
+| A6 evidence after the task | **8** | The landing recap orders each browser step with how it was done and its outcome and lists never-called tools, with strip rows opening the conversation; it still carries no arguments, results or approvals; `ReviewLandingBrowserEvidence.tsx:73-103`. |
+| A7 pause and take over | **8** | Pause agent is separate from Disconnect, the page and generation are kept, and the stop is acknowledged with "changes stay" wording that never claims rollback; W5 runs idle only; `EmbeddedWebMcpBrowser.tsx:460-479`, `:503-515`, `desktop-webmcp-browser.js:274-281`, `en.ts:2649-2650`. |
+| A8 several sessions | **6** | Real isolation exists — bounded pool, per-project partition, visible-to-act wait, per-session revoke — but there is no page switcher, no per-session revoke control in the UI, and `pool-full` surfaces nowhere; `desktop-webmcp-browser.js:116-121`, `:557-578`, `:434-510`, `useWebMcpBrowserStore.ts:230-264`, `MissionControlRow.tsx:91-100`. |
+| B1 see registered tools | **8** | Raw schema, hint badges, origin, visible catalog truncation and a named rejection reason give a builder the registration truth the runtime keeps; `WebMcpToolPanel.tsx:582-594`, `:599-618`. |
+| B2 try and compare | **7** | Try it sends exact strings, separates absent/empty/zero/false, shows constraints and honest outcomes, but keeps no journal, replay or agent-call comparison; `WebMcpToolPanel.tsx:279-342`, `webMcpToolForm.ts`. |
+| B3 iterate | **8** | A registration timeline with definition digests, a named rejection that keeps accepted tools, stale marking and drafts kept across a same-definition reload make reload iteration trustworthy; `WebMcpToolPanel.tsx:58-66`, `:599-618`, `useWebMcpBrowserStore.ts:295-333`. |
+| B4 diagnose misuse | **6** | The strip shows the agent's own redacted arguments beside the tool's schema and lint, but nothing names the failing property/constraint for that input or the revision used; `WebMcpCallStrip.tsx:100-117`, `WebMcpToolPanel.tsx:171-196`. |
+| B5 onboarding docs | **8** | The guide covers registration through `pnpm run webmcp:check` exit codes, cap limits, rejection and troubleshooting and is linked from the pane; it describes the automatic pause/Resume but never the explicit Pause agent control or pooled sessions; `docs/webmcp-page-tools.md:1-168`, `package.json:40`. |
+
+**Means:** supervisor **A = 7.6** (61/8); builder **B = 7.4** (37/5). At or above 8 on my card: A1, A3, A4, A5, A6, A7, B1, B3, B5. Under the two-of-three rule, my pass set is those nine; A2, A8, B2, B4 need another judge.
+
+**Round 13 verified in source:** pooled views with per-project storage and per-session revoke, projected into keyed per-session snapshots; inspectable tools and registration truth; page-bound strip with duration, filtered result, earlier-page marker and transcript jump; real pause/take-over; structured page errors rendered as errors; W1/W2/W5 in `project-browser-webmcp.mjs` and the three-platform CI job, still `continue-on-error: true` (`desktop-ci.yml:305-316`). Code-level gaps I confirmed: `pool-full` has no user-facing message, the docs are stale on pause and multi-session, and `Needs you` has no browser-waiting reason (`needsYou.ts:41-56`).
+
+**Moved vs round 12 (my scores):** A1 6→8, A3 5→8, A5 7→8, A6 7→8, A7 6→8, A8 3→6, B1 4→8, B3 4→8, B4 5→6, B2 6→7, A2 6→7. Unmoved: A4 (8), B5 (8).
+
+**Three changes that raise the lowest steps most:** (1) a page switcher with per-session revoke and a named "pool full" state, fed by the existing `list`/`revokeSession` IPC — lifts A8 and A2. (2) A manual journal with editable replay and side-by-side comparison against the last agent call, reusing `collectWebMcpCalls` — lifts B2 and B4. (3) A misuse diagnosis naming the failing property, constraint and schema revision for the agent's actual input, plus documenting pause and pooled sessions in the guide — lifts B4 and B5.
+
+ADR-266 optional fields (masked arguments, correlation ids) received no credit.

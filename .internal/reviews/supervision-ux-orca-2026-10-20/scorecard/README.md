@@ -339,3 +339,15 @@ layout is the only surface where Orca leads (AX 8.6 to 8.9, Orca 9.0). Named fli
 Needs you, Mission Control and the grid; the page switcher with per-session revoke; named pool capacity), free arrangement in
 the session grid (drag to split, reorder, pop out), a multi-select PR facet with counts, and inline three-way merge. The brief
 lost the name of the CLI to a shell substitution; the judges read the source and docs.
+
+## Round 14 comparison (HEAD `fc645985`; raw judgments in `round14/`)
+
+| Judge | AX vs Orca | AX vs opencode |
+| --- | --- | --- |
+| codex | AX 9.19, Orca 8.93: +0.26, better | better |
+| deepseek-flash | +0.05, equal | better |
+| MiniMax-M3 | +0.21, better | better (+1.99) |
+
+Two judges now rate AX better than Orca by more than 0.2; deepseek-flash keeps it equal because the session grid offers only
+fixed presets (no drag to split, reorder or pop out), the PR facet is a single toggle without counts, and the palette lacks
+#PR search, project filter and split-open. All three rate AX better than opencode. Round 15 takes these.
