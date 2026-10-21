@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import { EventEmitter } from "node:events"
 import { randomUUID } from "node:crypto"
 import { createRequire } from "node:module"
@@ -260,7 +260,9 @@ test("explicit adapter cancellation retains its outcome and never retries", asyn
   const pending = f.adapter.execute(request)
   const rejected = expect(pending).rejects.toMatchObject({ outcome: "cancelled", reason: "cancelled" })
   await Promise.resolve()
-  f.adapter.cancel(request.requestID)
+  const stopping = f.adapter.cancel(request.requestID)
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Canceled" })
+  expect(await stopping).toEqual({ requestID: request.requestID, state: "stopped" })
   await rejected
   expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
   f.adapter.close()
@@ -395,4 +397,95 @@ test("an unrelated oversized response cannot reject the active invocation", asyn
   f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "ok" })
   expect(await pending).toMatchObject({ output: "ok" })
   f.adapter.close()
+})
+
+// A command acknowledgement alone does not prove the page acknowledged cancellation.
+test("cancellation awaits the matching page response, not the CDP command reply", async () => {
+  const f = await fixture()
+  const request = f.request()
+  const execution = f.adapter.execute(request).catch((error) => error)
+  await Promise.resolve()
+  let returned = false
+  const stopping = f.adapter.cancel(request.requestID).then((result) => {
+    returned = true
+    return result
+  })
+  await new Promise((resolve) => setTimeout(resolve, 20))
+  expect(returned).toBe(false)
+  f.emit("WebMCP.toolResponded", { invocationId: "unrelated", status: "Canceled" })
+  await Promise.resolve()
+  expect(returned).toBe(false)
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Canceled" })
+  expect(await stopping).toMatchObject({ state: "stopped" })
+  expect(await execution).toMatchObject({ outcome: "cancelled" })
+  f.adapter.close()
+})
+
+test("a missing page acknowledgement is bounded and keeps overlapping work blocked", async () => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  try {
+    const request = f.request()
+    const execution = f.adapter.execute(request).catch((error) => error)
+    await Promise.resolve()
+    const stopping = f.adapter.cancel(request.requestID)
+    await vi.advanceTimersByTimeAsync(500)
+    expect(await stopping).toEqual({ requestID: request.requestID, state: "still-finishing" })
+    expect(await execution).toMatchObject({ outcome: "uncertain" })
+    await expect(f.adapter.execute(f.request())).rejects.toThrow("unavailable")
+    f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "late" })
+    expect(f.adapter.pending.size).toBe(0)
+  } finally {
+    f.adapter.close()
+    vi.useRealTimers()
+  }
+})
+
+test.each(["read", "act", "wait"])(
+  "interrupts a running %s through the debugger and awaits script settlement",
+  async (operation) => {
+    const f = await fixture()
+    let interrupt
+    f.contents.executeJavaScriptInIsolatedWorld = () =>
+      new Promise((_resolve, reject) => {
+        interrupt = reject
+      })
+    f.adapter.readId = randomUUID()
+    const request = { ...f.request(), operation, readId: f.adapter.readId, ref: "e1", how: "click", waitText: "ready" }
+    const execution = f.adapter.execute(request).catch((error) => error)
+    const stopping = f.adapter.cancel(request.requestID)
+    expect(f.commands).toContainEqual({ method: "Runtime.terminateExecution", args: undefined })
+    let returned = false
+    void stopping.then(() => {
+      returned = true
+    })
+    await Promise.resolve()
+    expect(returned).toBe(false)
+    interrupt(new Error("Execution terminated"))
+    expect(await stopping).toMatchObject({ state: "stopped" })
+    expect(await execution).toBeInstanceOf(Error)
+    expect(f.adapter.interacting).toBe(false)
+    f.adapter.close()
+  },
+)
+
+test("navigation retires a canceled invocation even when the old page never responds", async () => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  try {
+    const execution = f.adapter.execute(f.request()).catch((error) => error)
+    await Promise.resolve()
+    f.adapter.invalidate()
+    await vi.advanceTimersByTimeAsync(500)
+    expect(await execution).toMatchObject({ outcome: "uncertain" })
+    expect(f.adapter.pending.size).toBe(0)
+    f.emit("WebMCP.toolsAdded", { tools: [fixtureTool] })
+    const next = f.adapter.execute(f.request())
+    await Promise.resolve()
+    f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "new document" })
+    expect(await next).toMatchObject({ output: "new document" })
+  } finally {
+    f.adapter.close()
+    vi.useRealTimers()
+  }
 })

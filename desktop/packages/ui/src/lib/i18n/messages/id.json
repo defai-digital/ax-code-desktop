@@ -5341,5 +5341,10 @@
   "webmcp.tools.export.copyTest": "Salin tes",
   "webmcp.tools.export.copyRun": "Salin argumen --run",
   "webmcp.tools.export.copied": "Tersalin",
-  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor."
+  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor.",
+  "webmcp.detail.ownedByAnotherWindow": "Browser sesi ini terbuka di jendela lain",
+  "webmcp.actions.fix.focusOwner": "Fokuskan jendela tersebut",
+  "webmcp.browser.callStopped": "Panggilan {call}: dihentikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
+  "webmcp.browser.callStillFinishing": "Panggilan {call}: penghentian diminta, masih menyelesaikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
+  "webmcp.browser.stillFinishing": "Penghentian diminta untuk {count} panggilan, masih menyelesaikan. Perubahan yang sudah dilakukan di halaman tetap ada."
 }

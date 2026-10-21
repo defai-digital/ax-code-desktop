@@ -5341,5 +5341,10 @@
   "webmcp.tools.export.copyTest": "Copiar prueba",
   "webmcp.tools.export.copyRun": "Copiar argumento --run",
   "webmcp.tools.export.copied": "Copiado",
-  "webmcp.tools.export.unavailable": "Esta llamada no tiene una entrada de objeto JSON para exportar."
+  "webmcp.tools.export.unavailable": "Esta llamada no tiene una entrada de objeto JSON para exportar.",
+  "webmcp.detail.ownedByAnotherWindow": "El navegador de esta sesi\u00f3n est\u00e1 abierto en otra ventana",
+  "webmcp.actions.fix.focusOwner": "Enfocar esa ventana",
+  "webmcp.browser.callStopped": "Llamada {call}: detenida. Los cambios realizados en la p\u00e1gina se mantienen.",
+  "webmcp.browser.callStillFinishing": "Llamada {call}: detenci\u00f3n solicitada, a\u00fan finalizando. Los cambios realizados en la p\u00e1gina se mantienen.",
+  "webmcp.browser.stillFinishing": "Detenci\u00f3n solicitada para {count} llamada(s), a\u00fan finalizando. Los cambios realizados en la p\u00e1gina se mantienen."
 }

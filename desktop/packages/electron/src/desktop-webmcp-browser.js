@@ -296,7 +296,7 @@ function createDesktopWebMcpBrowser({
     }
     if (visible(entry)) entry.waiting?.wake()
   }
-  const cancellationReply = (entry, connection, request, reason) =>
+  const cancellationReply = (entry, connection, request, reason, state = "stopped") =>
     api(
       entry.directory,
       `/provider/${connection.providerID}/reply`,
@@ -305,20 +305,32 @@ function createDesktopWebMcpBrowser({
         requestID: request.requestID,
         generation: request.generation,
         status: "Error",
-        output: { reason, message: "Agent access stopped. Changes already made on the page stay." },
+        output: { reason, cancellation: state },
       },
       AbortSignal.timeout(2000),
     ).catch(() => {})
 
   function stopAgentWork(entry, connection, reason) {
     const work = [...entry.activeRequests.values()]
-    // Mark and cancel synchronously before any await; late completions cannot report success.
-    for (const item of work) item.cancel()
+    // Withdraw admission synchronously; report completion only after the page acknowledgement.
+    const stops = work.map((item) => item.cancel())
+    const manual = [...entry.adapter.pending.keys()].filter(
+      (id) => !work.some(({ request }) => request.requestID === id),
+    )
+    stops.push(...manual.map((id) => entry.adapter.cancel(id)))
     entry.activeRequests.clear()
-    return {
-      count: work.length,
-      replied: Promise.all(work.map(({ request }) => cancellationReply(entry, connection, request, reason))),
-    }
+    return Promise.all(stops).then(async (cancellations) => {
+      await Promise.all(
+        work.map(({ request }, index) =>
+          cancellationReply(entry, connection, request, reason, cancellations[index].state),
+        ),
+      )
+      return {
+        stoppedCalls: cancellations.filter((call) => call.state === "stopped").length,
+        finishingCalls: cancellations.filter((call) => call.state === "still-finishing").length,
+        cancellations,
+      }
+    })
   }
   async function disconnect(entry) {
     entry.revision = (entry.revision ?? 0) + 1
@@ -331,12 +343,12 @@ function createDesktopWebMcpBrowser({
     entry.controller?.abort()
     entry.controller = null
     entry.waiting?.wake()
-    entry.adapter.revoke({ cancelPageRequest: true })
-    if (stopped.count || held)
-      await Promise.all([
-        stopped.replied,
-        connection && held ? cancellationReply(entry, connection, held, "agent-disconnected") : Promise.resolve(),
-      ])
+    const revoked = entry.adapter.revoke({ cancelPageRequest: true })
+    const [result] = await Promise.all([
+      stopped,
+      revoked,
+      connection && held ? cancellationReply(entry, connection, held, "agent-disconnected") : Promise.resolve(),
+    ])
     // Teardown must not wait on a wedged runtime: quit and pane close both block
     // on this DELETE, and the default 20s timeout reads as a hang. The runtime
     // sweeps orphaned providers on its own, so a short bound is enough.
@@ -349,15 +361,18 @@ function createDesktopWebMcpBrowser({
         AbortSignal.timeout(2000),
       ).catch(() => {})
     // A held call that never ran is failed too, so it counts as stopped for the person's acknowledgement.
-    return stopped.count + (held ? 1 : 0)
+    return {
+      ...result,
+      stoppedCalls: result.stoppedCalls + (held ? 1 : 0),
+      cancellations: [...result.cancellations, ...(held ? [{ requestID: held.requestID, state: "stopped" }] : [])],
+    }
   }
   async function pause(entry) {
     // Keep the provider and document so held requests remain bound to this session/page.
     entry.revision = (entry.revision ?? 0) + 1
     entry.paused = Boolean(entry.connection) || entry.paused || Boolean(entry.enrolling)
     const stopped = stopAgentWork(entry, entry.connection, "agent-paused")
-    await stopped.replied
-    return stopped.count
+    return stopped
   }
 
   async function close(entry) {
@@ -645,7 +660,7 @@ function createDesktopWebMcpBrowser({
           cancel: () => {
             canceled.add(request.requestID)
             entry.navigations.get(request.requestID)?.abort()
-            entry.adapter.cancel(request.requestID)
+            return entry.adapter.cancel(request.requestID)
           },
         }
         entry.activeRequests.set(request.requestID, work)
@@ -688,11 +703,11 @@ function createDesktopWebMcpBrowser({
     const key = viewKey(args.directory, args.sessionID)
     const existing = views.get(key)
     if (existing) {
-      if (existing.sender !== sender) throw new Error("This browser belongs to another window")
+      if (existing.sender !== sender) return { error: "owned-by-another-window", ownerId: existing.id }
       return status(existing)
     }
     const remembered = unloaded.get(key)
-    if (remembered && remembered.sender !== sender) throw new Error("This browser belongs to another window")
+    if (remembered && remembered.sender !== sender) return { error: "owned-by-another-window", ownerId: remembered.id }
     if (views.size >= maxLiveViews) {
       const candidate = [...views.values()]
         .filter((entry) => entry.sender === sender && entry.ready && !visible(entry) && idle(entry))
@@ -967,14 +982,14 @@ function createDesktopWebMcpBrowser({
         if (target) {
           lookup(sender, target.id)
           target.paused = false
-          await disconnect(target)
+          return { revoked: true, ...(await disconnect(target)) }
         }
-        return { revoked: true }
+        return { revoked: true, stoppedCalls: 0, finishingCalls: 0, cancellations: [] }
       })
     }
     if (args.action === "focusOwner") {
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
-      const target = [...views.values()].find((entry) => entry.id === args.id && entry.ready)
+      const target = [...views.values(), ...unloaded.values()].find((entry) => entry.id === args.id)
       if (!target || target.owner.isDestroyed()) throw new Error("The browser owner window is unavailable")
       if (target.owner.isMinimized()) target.owner.restore()
       target.owner.show()
@@ -1037,12 +1052,12 @@ function createDesktopWebMcpBrowser({
       return { closed: true }
     }
     if (args.action === "pause") {
-      const stoppedCalls = await pause(entry)
-      return { ...status(entry), stoppedCalls }
+      const stopped = await pause(entry)
+      return { ...status(entry), ...stopped }
     }
     if (args.action === "disconnect") {
-      const stoppedCalls = await disconnect(entry)
-      return { ...status(entry), stoppedCalls }
+      const stopped = await disconnect(entry)
+      return { ...status(entry), ...stopped }
     }
     if ((args.action === "resume" || args.action === "enable") && entry.connection) {
       const connection = entry.connection

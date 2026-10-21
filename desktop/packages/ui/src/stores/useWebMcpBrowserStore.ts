@@ -57,6 +57,7 @@ export type WebMcpBrowserErrorCode =
   | "ERR_INVALID_URL"
   | "session-required"
   | "start-failed"
+  | "owned-by-another-window"
   | "disconnected"
   | "storage-clearing"
   | "storage-cleared"

@@ -5341,5 +5341,10 @@
   "webmcp.tools.export.copyTest": "Copia test",
   "webmcp.tools.export.copyRun": "Copia argomento --run",
   "webmcp.tools.export.copied": "Copiato",
-  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare."
+  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare.",
+  "webmcp.detail.ownedByAnotherWindow": "Il browser di questa sessione \u00e8 aperto in un'altra finestra",
+  "webmcp.actions.fix.focusOwner": "Metti a fuoco quella finestra",
+  "webmcp.browser.callStopped": "Chiamata {call}: fermata. Le modifiche apportate alla pagina rimangono.",
+  "webmcp.browser.callStillFinishing": "Chiamata {call}: arresto richiesto, ancora in fase di completamento. Le modifiche apportate alla pagina rimangono.",
+  "webmcp.browser.stillFinishing": "Arresto richiesto per {count} chiamata(e), ancora in fase di completamento. Le modifiche apportate alla pagina rimangono."
 }

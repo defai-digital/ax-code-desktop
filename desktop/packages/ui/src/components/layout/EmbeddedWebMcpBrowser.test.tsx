@@ -17,6 +17,9 @@ vi.doMock("@/lib/i18n", () => ({
           "webmcp.browser.waitingForPage",
           "webmcp.browser.stoppedCall",
           "webmcp.browser.stoppedCalls",
+          "webmcp.browser.stillFinishing",
+          "webmcp.detail.ownedByAnotherWindow",
+          "webmcp.actions.fix.focusOwner",
         ].includes(key)
       ) {
         return Object.entries(params ?? {}).reduce(
@@ -166,16 +169,22 @@ describe("agent browser enable request", () => {
       if (call.action === "focusOwner") return { focused: true }
       return call.action === "bounds" ? undefined : browserStatus(false)
     })
-    useWebMcpBrowserStore.setState({ capacity: { liveViews: 2, maxLiveViews: 2, otherWindows: [{ id: "foreign-page", pageCount: 2 }] } })
+    useWebMcpBrowserStore.setState({
+      capacity: { liveViews: 2, maxLiveViews: 2, otherWindows: [{ id: "foreign-page", pageCount: 2 }] },
+    })
     render()
     openAgentMode()
     await flush()
     expect(container.textContent).toContain("webmcp.pages.fullOtherWindows")
     expect(container.textContent).not.toContain("webmcp.pages.blocked")
-    await act(async () => { within(container).getByRole("button", { name: "webmcp.pages.focusWindow" }).click() })
+    await act(async () => {
+      within(container).getByRole("button", { name: "webmcp.pages.focusWindow" }).click()
+    })
     expect(callsFor("focusOwner")[0][1]).toEqual({ action: "focusOwner", id: "foreign-page" })
     full = false
-    await act(async () => { within(container).getByRole("button", { name: "webmcp.actions.fix.reopen" }).click() })
+    await act(async () => {
+      within(container).getByRole("button", { name: "webmcp.actions.fix.reopen" }).click()
+    })
     expect(callsFor("create")).toHaveLength(2)
     expect(useWebMcpBrowserStore.getState().browserId).toBe("browser-1")
     expect(callsFor("enable")).toHaveLength(0)
@@ -191,22 +200,30 @@ describe("agent browser enable request", () => {
     openAgentMode()
     await flush()
     state = { ...state, enabled: false, interrupted: true }
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
     expect(useWebMcpBrowserStore.getState()).toMatchObject({ enabled: false, interrupted: true })
     expect(container.textContent).toContain("webmcp.pages.access.interrupted")
     expect(container.textContent).not.toContain("webmcp.state.on")
     expect(within(container).getByRole("button", { name: "webmcp.actions.disconnect" })).toBeTruthy()
     state = { ...state, enabled: true, interrupted: false }
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
     expect(container.textContent).toContain("webmcp.state.on")
     expect(callsFor("enable")).toHaveLength(0)
     state = { ...state, enabled: false, interrupted: true }
-    await act(async () => { await vi.advanceTimersByTimeAsync(1000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
     invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
       if (call.action === "status") throw new Error("Browser gone")
       return undefined
     })
-    await act(async () => { await vi.advanceTimersByTimeAsync(3000) })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000)
+    })
     expect(useWebMcpBrowserStore.getState()).toMatchObject({ phase: "error", enabled: false, interrupted: false })
     expect(container.textContent).not.toContain("webmcp.pages.access.interrupted")
   })
@@ -304,6 +321,44 @@ describe("agent browser enable request", () => {
     expect(within(container).queryByText("webmcp.detail.disconnected")).toBeNull()
   })
 
+  test("another window offers Focus without a looping Reopen or any owner mutation", async () => {
+    invoke.mockImplementation(async (_channel, call) => {
+      if (call.action === "list") return { views: [] }
+      if (call.action === "create") return { error: "owned-by-another-window", ownerId: "owner-browser" }
+      return { focused: true }
+    })
+    render()
+    openAgentMode()
+    await flush()
+    expect(within(container).getByRole("alert").textContent).toContain(
+      "This session's browser is open in another window",
+    )
+    const focus = within(container).getByRole("button", { name: "Focus that window" })
+    fireEvent.click(focus)
+    await flush()
+    expect(callsFor("focusOwner")[0][1]).toEqual({ action: "focusOwner", id: "owner-browser" })
+    expect(callsFor("create")).toHaveLength(1)
+    expect(callsFor("show")).toHaveLength(0)
+    expect(callsFor("close")).toHaveLength(0)
+    expect(within(container).queryByRole("button", { name: "webmcp.actions.fix.reopen" })).toBeNull()
+  })
+
+  test("an unacknowledged stop says still finishing instead of stopped", async () => {
+    invoke.mockImplementation(async (_channel, call) => ({
+      ...browserStatus(call.action !== "pause"),
+      paused: call.action === "pause",
+      stoppedCalls: 0,
+      finishingCalls: 1,
+    }))
+    render()
+    openAgentMode()
+    await flush()
+    fireEvent.click(within(container).getByRole("button", { name: "Pause agent" }))
+    await flush()
+    expect(container.textContent).toContain("Stop requested for 1 call(s), still finishing")
+    expect(container.textContent).not.toContain("Stopped 1 agent call")
+  })
+
   test.each(["pause", "disconnect"])(
     "acknowledges %s cancellation without claiming rollback and restores keyboard focus",
     async (action) => {
@@ -371,7 +426,9 @@ describe("agent browser enable request", () => {
     await act(async () => {
       finish({ ...browserStatus(false), paused: true, stoppedCalls: 1 })
     })
-    expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).toContain("Stopped 1 agent call.")
+    expect(container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent).toContain(
+      "Stopped 1 agent call.",
+    )
     expect(document.activeElement).toBe(address)
   })
 

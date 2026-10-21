@@ -604,7 +604,7 @@ describe("native project browser integration", () => {
     const closing = f.controller.closeAll()
     await Promise.resolve()
     expect(f.guests.every((contents) => contents.destroyed)).toBe(true)
-    expect(f.revocations).toHaveLength(2)
+    await vi.waitFor(() => expect(f.revocations).toHaveLength(2))
     f.revocations.forEach((resolve) => resolve({}))
     await closing
   })
@@ -1881,7 +1881,11 @@ test.each(["complete", "timeout", "pause", "disconnect", "revokeSession"])(
           : { action: outcome, id: status.id },
       )
       expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "slow-1" })
-      if (outcome !== "revokeSession") expect(stopped.stoppedCalls).toBe(1)
+      expect(stopped).toMatchObject({
+        stoppedCalls: 0,
+        finishingCalls: 1,
+        cancellations: [{ requestID: "slow-call", state: "still-finishing" }],
+      })
       expect(replies(f).map((r) => r.body)).toEqual([
         expect.objectContaining({
           requestID: "slow-call",
@@ -2253,3 +2257,85 @@ test("provider poll deadline interrupts access, retries, recovers and ignores a 
     vi.useRealTimers()
   }
 })
+
+test("second-window create names the owner without disturbing its enabled page", async () => {
+  const f = fixture()
+  const first = await f.create()
+  const second = await f.create()
+  const enabled = await f.controller.command(first.sender, { action: "enable", id: first.status.id })
+  const conflict = await f.controller.command(second.sender, {
+    action: "create",
+    directory: "/tmp/project",
+    sessionID: "ses_fixture",
+    url: "https://wrong.test",
+  })
+  expect(conflict).toEqual({ error: "owned-by-another-window", ownerId: first.status.id })
+  await f.controller.command(second.sender, { action: "focusOwner", id: conflict.ownerId })
+  expect(f.owners.get(first.sender).focus).toHaveBeenCalledOnce()
+  expect(await f.controller.command(first.sender, { action: "status", id: first.status.id })).toMatchObject({
+    enabled: true,
+    generation: enabled.generation,
+    url: enabled.url,
+  })
+  expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+  expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([])
+})
+
+test.each(["pause", "disconnect", "revokeSession"])(
+  "%s waits for the page acknowledgement before reporting a stopped call",
+  async (action) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    const tool = { name: "slow", description: "A slow tool", frameId: "top", inputSchema: { type: "object" } }
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    guest.debugger.sendCommand = vi.fn(async (method) =>
+      method === "WebMCP.invokeTool" ? { invocationId: "awaited" } : {},
+    )
+    f.pushStreamRequest({
+      providerID: "provider-1",
+      epoch: "boot",
+      projectID: "project",
+      sessionID: "ses_fixture",
+      requestID: "awaited-call",
+      operation: "invoke",
+      generation: live.generation,
+      origin: "https://example.com",
+      frameId: "top",
+      deadline: Date.now() + 5000,
+      toolName: "slow",
+      digest: definitionDigest(tool),
+      input: {},
+    })
+    await vi.waitFor(() =>
+      expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.invokeTool", expect.anything()),
+    )
+    let returned = false
+    const stopping = f.controller
+      .command(
+        sender,
+        action === "revokeSession"
+          ? { action, directory: "/tmp/project", sessionID: "ses_fixture" }
+          : { action, id: status.id },
+      )
+      .then((result) => {
+        returned = true
+        return result
+      })
+    await vi.waitFor(() =>
+      expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "awaited" }),
+    )
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    expect(returned).toBe(false)
+    expect(replies(f)).toHaveLength(0)
+    guest.debugger.emit("message", {}, "WebMCP.toolResponded", { invocationId: "awaited", status: "Canceled" })
+    expect(await stopping).toMatchObject({
+      stoppedCalls: 1,
+      finishingCalls: 0,
+      cancellations: [{ requestID: "awaited-call", state: "stopped" }],
+    })
+    expect(replies(f)[0].body.output.cancellation).toBe("stopped")
+    expect(guest.loadedUrls).toEqual(["https://example.com/"])
+  },
+)

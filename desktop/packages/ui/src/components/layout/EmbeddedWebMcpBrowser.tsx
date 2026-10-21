@@ -1,4 +1,5 @@
 import * as React from "react"
+import { WebMcpCancellationStatus, type WebMcpCancellation } from "@/components/mcp/WebMcpCancellationStatus"
 import { WebMcpPageSwitcher, WebMcpTrustSummary } from "@/components/mcp/WebMcpPages"
 import { useWebMcpStorageEvents } from "@/hooks/useWebMcpStorageEvents"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
@@ -38,6 +39,9 @@ type BrowserStatus = {
   waiting?: boolean
   paused?: boolean
   stoppedCalls?: number
+  finishingCalls?: number
+  cancellations?: WebMcpCancellation[]
+  ownerId?: string
   error?: WebMcpBrowserErrorCode | null
   reason?: "runtime-incompatible" | "enable-failed" | "session-required"
   interrupted?: boolean
@@ -101,11 +105,14 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const summary = useWebMcpSummary(key)
   const openProjectBrowser = useOpenProjectBrowser()
   const [url, setUrl] = React.useState(initialUrl || "about:blank")
+  const [ownerId, setOwnerId] = React.useState<string | null>(null)
+  const [finishingCalls, setFinishingCalls] = React.useState(0)
   const [poolFull, setPoolFull] = React.useState(false)
   const [restart, setRestart] = React.useState(0)
   const draftUrl = React.useRef<{ directory: string; url: string } | null>({ directory, url: initialUrl })
   const [pendingAction, setPendingAction] = React.useState<string | null>(null)
   const host = React.useRef<HTMLDivElement>(null)
+  const [cancellations, setCancellations] = React.useState<WebMcpCancellation[]>([])
   const [stoppedCalls, setStoppedCalls] = React.useState(0)
   const accessControlRef = React.useRef<HTMLButtonElement>(null)
   const focusAfterAction = React.useRef<Element | null>(null)
@@ -199,7 +206,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     commandErrorRef.current = null
     setPendingAction(null)
     setStoppedCalls(0)
+    setCancellations([])
     setPoolFull(false)
+    setOwnerId(null)
+    setFinishingCalls(0)
     focusAfterAction.current = null
     useWebMcpBrowserStore.getState().selectView(directory, sessionID)
     updateSnapshot({ directory, sessionID })
@@ -224,6 +234,13 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         sessionID,
         url: restored || "about:blank",
       })
+      if (result.error === "owned-by-another-window" && result.ownerId) {
+        if (!disposed && lifecycleRef.current === lifecycle) {
+          setOwnerId(result.ownerId)
+          updateSnapshot({ phase: "error", error: result.error, browserId: null, enabled: false })
+        }
+        return
+      }
       id = result.id
       if (disposed) {
         await retire(id)
@@ -344,6 +361,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       if (["pause", "resume", "disconnect"].includes(action)) {
         focusAfterAction.current = document.activeElement
         setStoppedCalls(0)
+        setCancellations([])
       }
       setPendingAction(action)
       updateSnapshot({ busy: true, error: null })
@@ -351,7 +369,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         const result = await invoke<BrowserStatus>({ action, id: browserId, ...extra })
         if (lifecycleRef.current !== lifecycle) return
         applyStatus(result, lifecycle)
-        if (action === "pause" || action === "disconnect") setStoppedCalls(result.stoppedCalls ?? 0)
+        if (action === "pause" || action === "disconnect") {
+          setStoppedCalls(result.stoppedCalls ?? 0)
+          setFinishingCalls(result.finishingCalls ?? 0)
+          setCancellations(result.cancellations ?? [])
+        }
         // Access is on but there is no page to grant: the next step is a URL, so offer the address
         // bar unless the user is already typing (the composer chip keeps its own focus).
         if (action === "enable" && !result.origin && !textEntryFocused()) addressRef.current?.focus()
@@ -414,7 +436,9 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const showErrorBanner = error !== null && error !== "session-required"
   const fixAction = webMcpErrorAction(error)
   const fixError = () => {
-    if (fixAction === "address") addressRef.current?.focus()
+    if (fixAction === "focusOwner") {
+      void invoke({ action: "focusOwner", id: ownerId }).catch(() => setRestart((value) => value + 1))
+    } else if (fixAction === "address") addressRef.current?.focus()
     else if (fixAction === "reopen") {
       void (browserId ? invoke({ action: "close", id: browserId }) : Promise.resolve())
         .catch(() => {})
@@ -535,7 +559,13 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             {t(paused ? "webmcp.browser.waitingForResume" : "webmcp.browser.waitingForPage")}
           </p>
         ) : null}
-        {stoppedCalls > 0 ? (
+        <WebMcpCancellationStatus calls={cancellations} />
+        {!cancellations.length && finishingCalls > 0 ? (
+          <p className="px-2.5 py-1.5 typography-micro">
+            {t("webmcp.browser.stillFinishing", { count: finishingCalls })}
+          </p>
+        ) : null}
+        {!cancellations.length && stoppedCalls > 0 ? (
           <p className="px-2.5 py-1.5 typography-micro">
             {t(stoppedCalls === 1 ? "webmcp.browser.stoppedCall" : "webmcp.browser.stoppedCalls", {
               count: stoppedCalls,

@@ -5341,5 +5341,10 @@
   "webmcp.tools.export.copyTest": "Test kopieren",
   "webmcp.tools.export.copyRun": "--run-Argument kopieren",
   "webmcp.tools.export.copied": "Kopiert",
-  "webmcp.tools.export.unavailable": "Dieser Aufruf hat keine JSON-Objekt-Eingabe, die exportiert werden kann."
+  "webmcp.tools.export.unavailable": "Dieser Aufruf hat keine JSON-Objekt-Eingabe, die exportiert werden kann.",
+  "webmcp.detail.ownedByAnotherWindow": "Der Browser dieser Sitzung ist in einem anderen Fenster ge\u00f6ffnet",
+  "webmcp.actions.fix.focusOwner": "Fokus auf dieses Fenster",
+  "webmcp.browser.callStopped": "Aufruf {call}: angehalten. \u00c4nderungen auf der Seite bleiben bestehen.",
+  "webmcp.browser.callStillFinishing": "Aufruf {call}: Stopp angefordert, wird noch abgeschlossen. \u00c4nderungen auf der Seite bleiben bestehen.",
+  "webmcp.browser.stillFinishing": "Stopp f\u00fcr {count} Aufruf(e) angefordert, wird noch abgeschlossen. \u00c4nderungen auf der Seite bleiben bestehen."
 }
