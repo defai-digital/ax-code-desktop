@@ -345,7 +345,8 @@
     "githubBoard.filter.labelPlaceholder",
     "settings.page.hooks.title",
     "settings.hooks.list.badge.protocol",
-    "supervision.missionControl.action.details"
+    "supervision.missionControl.action.details",
+    "webmcp.tools.journal.digest"
   ],
   "id": [
     "supervision.missionControl.pr.label",
@@ -445,7 +446,8 @@
     "chat.fileMentionAutocomplete.context.commitLabel",
     "githubBoard.filter.labelPlaceholder",
     "settings.hooks.file.status.valid",
-    "settings.hooks.list.badge.protocol"
+    "settings.hooks.list.badge.protocol",
+    "webmcp.tools.compare.input"
   ],
   "pt-BR": [
     "supervision.missionControl.pr.label",
@@ -621,7 +623,8 @@
     "chat.fileMentionAutocomplete.context.commit",
     "chat.fileMentionAutocomplete.context.commitLabel",
     "settings.hooks.list.badge.protocol",
-    "webmcp.tools.kind.script"
+    "webmcp.tools.kind.script",
+    "webmcp.tools.compare.input"
   ],
   "ru": [
     "branchPickerDialog.badge.worktree",

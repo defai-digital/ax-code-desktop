@@ -111,8 +111,11 @@ is minimized or hidden. Choose **Resume agent access** to continue. That control
 The project browser keeps one live page for each coding session, and at most four live pages at once. Sessions of one
 project share that project's sign-in. Another project has its own. The agent acts only on the page you are showing. A
 call for a hidden page waits, and the browser says "Agent call waiting for this page to be visible." Switching sessions
-hides a page instead of closing it. A further page is refused while four are open. The app does not show a separate
-label for that refusal.
+hides a page instead of closing it. **Pages** in the browser pane lists every page this window holds, with its project,
+session, origin and access state, and lets you show a page or revoke one session's agent access. A waiting call also
+appears in Needs you, on that session's Mission Control row and in its session-grid slot. When four pages are live, opening
+another unloads the least recently used idle hidden page; it keeps its address in memory and reopens with agent access off.
+If no page can be unloaded, the pane says the browser pool is full and how to free a page.
 
 ## 5. Write tools the agent gets right
 
