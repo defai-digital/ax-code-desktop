@@ -40,9 +40,10 @@ function fixture({
       contents.partition = options.webPreferences.partition
       contents.destroyed = false
       contents.isDestroyed = () => contents.destroyed
-      contents.close = () => {
+      contents.close = vi.fn(() => {
         contents.destroyed = true
-      }
+        contents.emit("destroyed")
+      })
       // Electron throws from the object itself once it is destroyed.
       contents.reload = vi.fn(() => {
         if (contents.destroyed) throw new Error("Object has been destroyed")
@@ -62,7 +63,9 @@ function fixture({
       contents.debugger.detach = vi.fn()
       contents.debugger.isAttached = () => false
       contents.debugger.sendCommand = async (method) =>
-        method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } } : {}
+        method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } }
+          : method === "Runtime.evaluate" ? { result: { value: false, objectId: "window" } }
+          : method === "DOMDebugger.getEventListeners" ? { listeners: [] } : {}
       guests.push(contents)
     }
     setBounds() {}
@@ -1222,7 +1225,9 @@ describe("page tools for the user", () => {
         )
         return { invocationId: "inv-1" }
       }
-      return method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } } : {}
+      return method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } }
+          : method === "Runtime.evaluate" ? { result: { value: false, objectId: "window" } }
+          : method === "DOMDebugger.getEventListeners" ? { listeners: [] } : {}
     }
     const tried = await f.controller.command(sender, {
       action: "tryTool",
@@ -2200,6 +2205,7 @@ describe("Round 14a LRU unload", () => {
       url: "https://third.test/",
     })
     expect(f.guests[0].destroyed).toBe(true)
+    expect(f.guests[0].close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
     expect(f.guests[1].destroyed).toBe(false)
     expect(f.controller.poolStats().liveViews).toBe(2)
     const listing = await f.controller.command(sender, { action: "list" })
@@ -2686,3 +2692,81 @@ test.each(["generation", "origin", "frameId"])(
     })
   },
 )
+
+
+describe("automatic eviction preserves possible unsaved work", () => {
+  test.each(["beforeunload", "editor", "probe-failure", "keyboard", "mouse", "input-during-probe", "navigation-during-probe", "unload-veto"])(
+    "retains a hidden idle page with %s and exposes it in the full pool",
+    async (reason) => {
+      const f = fixture({ maxLiveViews: 1 })
+      const { sender, status } = await f.create({ attach: false })
+      const guest = f.guests[0]
+      const send = guest.debugger.sendCommand
+      guest.debugger.sendCommand = async (method, params) => {
+        if (method === "Runtime.evaluate") {
+          if (reason === "probe-failure") throw new Error("Renderer unavailable")
+          if (reason === "editor") return { result: { value: true } }
+          if (reason === "navigation-during-probe") guest.emit("did-start-navigation", {}, "https://example.com/new", false, true)
+          if (reason === "input-during-probe") guest.emit("before-input-event", {}, { type: "keyDown" })
+        }
+        if (method === "DOMDebugger.getEventListeners" && reason === "beforeunload")
+          return { listeners: [{ type: "beforeunload" }] }
+        return send(method, params)
+      }
+      if (reason === "keyboard") guest.emit("before-input-event", {}, { type: "keyDown" })
+      if (reason === "mouse") guest.emit("before-mouse-event", {}, { type: "mouseDown" })
+      if (reason === "unload-veto") guest.close.mockImplementationOnce(() => guest.emit("will-prevent-unload", {}))
+      await expect(f.controller.command(sender, {
+        action: "create", directory: "/tmp/project", sessionID: "ses_next", url: "about:blank",
+      })).rejects.toThrow("pool-full")
+      expect(guest.destroyed).toBe(false)
+      expect(guest.close.mock.calls).toEqual(reason === "unload-veto" ? [[{ waitForBeforeUnload: true }]] : [])
+      expect((await f.controller.command(sender, { action: "list" })).views).toEqual([
+        expect.objectContaining({ id: status.id, sessionID: "ses_fixture", unloaded: false }),
+      ])
+      expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([])
+    },
+  )
+
+  test("skips a protected oldest page and unloads the next safe hidden page", async () => {
+    const f = fixture({ maxLiveViews: 2 })
+    const { sender } = await f.create({ attach: false })
+    f.guests[0].emit("before-input-event", {}, { type: "keyDown" })
+    await f.controller.command(sender, { action: "create", directory: "/tmp/project", sessionID: "ses_two", url: "about:blank" })
+    await f.controller.command(sender, { action: "create", directory: "/tmp/project", sessionID: "ses_three", url: "about:blank" })
+    expect(f.guests[0].close).not.toHaveBeenCalled()
+    expect(f.guests[1].close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
+  })
+})
+
+
+test.each(["manual", "invoke", "act"])("a completed %s action keeps its possible in-memory draft from eviction", async (operation) => {
+  const f = fixture({ maxLiveViews: 1 })
+  const { sender, status } = await f.create()
+  f.guests[0].debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [{
+    name: "edit", frameId: "top", description: "Edit an in-memory draft", inputSchema: { type: "object" },
+  }] })
+  const execute = vi.spyOn(NativeWebMcp.prototype, "execute").mockImplementationOnce(async (request) => ({
+    requestID: request.requestID, generation: request.generation, status: "Completed", output: {},
+  }))
+  try {
+    if (operation === "manual") {
+      const displayed = await f.controller.command(sender, { action: "status", id: status.id })
+      await f.controller.command(sender, {
+        action: "tryTool", id: status.id, toolName: "edit", input: {},
+        origin: displayed.origin, generation: displayed.generation, definitionDigest: displayed.catalog[0].definitionDigest,
+      })
+    } else {
+      await f.controller.command(sender, { action: "enable", id: status.id })
+      f.pushStreamRequest(f.navigationRequest({ operation, toolName: "edit", input: {} }))
+      await vi.waitFor(() => expect(f.requests.some(request => request.url.endsWith("/reply"))).toBe(true))
+    }
+    expect(execute).toHaveBeenCalledOnce()
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    expect((await f.controller.command(sender, { action: "status", id: status.id })).idle).toBe(true)
+    await expect(f.controller.command(sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_next", url: "about:blank",
+    })).rejects.toThrow("pool-full")
+    expect(f.guests[0].close).not.toHaveBeenCalled()
+  } finally { execute.mockRestore() }
+})

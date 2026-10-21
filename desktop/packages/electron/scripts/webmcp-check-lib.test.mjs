@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto"
-import { runInputReceipt } from "./webmcp-check-receipt.cjs"
+import { runInputReceipt, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
 import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { describe, expect, test } from "vitest"
 import { EXIT, checkableUrl, evaluateReport, parseCheckArgs } from "./webmcp-check-lib.mjs"
@@ -127,4 +127,28 @@ test("disk receipts bind secret inputs and occurrence order without retaining a 
   expect(JSON.stringify(report)).not.toMatch(/first-secret|second-secret/)
   expect(JSON.stringify(report)).not.toContain(receiptKey)
   expect(JSON.stringify(evaluate(report.runs))).not.toContain("inputReceipt")
+})
+
+
+test.each([false, true])("tool and run identities survive diagnostic collisions (disk: %s)", (disk) => {
+  const actual = "ghp_BBBBBBBBBBBBBBBB"
+  const missing = "ghp_AAAAAAAAAAAAAAAA"
+  const key = disk ? randomBytes(32).toString("hex") : undefined
+  const run = { name: actual, input: {} }
+  const raw = {
+    tools: [{ name: actual, ...(key ? { identityReceipt: toolIdentityReceipt(key, actual) } : {}) }],
+    runs: [{ ...run, output: "{}", ...(key ? { inputReceipt: runInputReceipt(key, 0, run) } : {}) }],
+  }
+  const report = disk ? redactWebMcpReport(raw) : raw
+  const evaluate = (name) => evaluateReport(report, { expectTools: [name], runs: [{ name, input: {} }] }, undefined, key)
+  expect(evaluate(actual).exitCode).toBe(EXIT.ok)
+  const result = evaluate(missing)
+  expect(result.exitCode).toBe(EXIT.failed)
+  expect(result.problems).toContain("Expected tool not registered: [redacted]")
+  expect(result.problems).toContain("Requested run 1 ([redacted]) has no matching completed report.")
+  expect(JSON.stringify(result)).not.toMatch(/ghp_[AB]+/)
+  if (disk) {
+    expect(evaluateReport({ ...report, tools: [{ name: "[redacted]" }] }, { expectTools: [actual] }, undefined, key).exitCode).toBe(EXIT.failed)
+    expect(evaluateReport(report, { expectTools: [actual] }, undefined, "wrong-key").exitCode).toBe(EXIT.failed)
+  }
 })

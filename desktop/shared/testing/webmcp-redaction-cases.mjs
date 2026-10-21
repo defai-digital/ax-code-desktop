@@ -41,7 +41,17 @@ credentialTextCases.push(
     `https://${secret}@example.test/`,
     `//u:${secret}@example.test/`,
     `https://example.test/?%74oken=${secret}`,
+    ...["?", "#", "#/route?", "/route;", "/"].flatMap((prefix) =>
+      ["access%5F%74%6f%6b%65%6e", "%2561pi%255fkey", "%ZZ%74oken"].map(
+        (name) => `https://example.test/${prefix}${name}=${secret}`,
+      ),
+    ),
     `https://example.test/?ok=1&%61pi%5fkey=${secret}`,
+    `https://example.test/%74oken=${secret}/../public`,
+    `https://example.test/#safe=1&access%5F%74%6f%6b%65%6e=${secret}`,
+    `https://example.test/#/route;safe=1;%61pi%5fkey=${secret}`,
+    `/#access%5F%74%6f%6b%65%6e=${secret}`,
+    `custom:route?%61pi%5fkey=${secret}`,
     `https://example.test/?%70assword=${secret}#details`,
   ].flatMap((url) => wrappers.map((wrap) => wrap(url))),
 )

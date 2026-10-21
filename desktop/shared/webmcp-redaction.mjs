@@ -16,6 +16,17 @@ const WEBMCP_CREDENTIALS = [
 export const WEBMCP_SENSITIVE_NAME =
   /password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
 
+function sensitiveParameterName(value) {
+  let name = value.replaceAll("+", " ")
+  for (let layer = 0; ; layer++) {
+    const decoded = name.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name)
+    // Unknown deeply encoded names fail closed, as deeply escaped diagnostics do.
+    if (layer >= 31) return true
+    name = decoded
+  }
+}
+
 export function webMcpTextLooksSensitive(value) {
   // Inspect embedded assignments independently of JSON parsing: diagnostics, fences and quoted
   // JSON strings are all text. Decode escape layers only for detection; never return decoded data.
@@ -31,25 +42,34 @@ export function webMcpTextLooksSensitive(value) {
     if (layer >= 31) return true
     text = decoded
   }
-  // URL credentials can occur inside prose, JSON, or diagnostics. URLSearchParams decodes
-  // query names (including percent escapes) without decoding or returning the secret value.
+  // URL credentials can occur inside prose, JSON, or diagnostics. Inspect the raw address
+  // too: URL normalization can remove path segments that contained credential assignments.
   for (const match of text.matchAll(/(?:\b[a-z][a-z0-9+.-]*:)?\/\/[^\s<>"'`]+/gi)) {
     try {
       const url = new URL(match[0], "https://redaction.invalid")
       if (url.username || url.password) return true
-      for (const name of url.searchParams.keys()) {
-        if (WEBMCP_SENSITIVE_NAME.test(name)) return true
+      // Query, hash routes, and path/matrix parameters can all carry credentials.
+      // Decode names only, including nested encodings and malformed escape sequences.
+      for (const part of [match[0], url.search, url.hash, url.pathname]) {
+        for (const pair of part.split(/[?&#/;\\]/)) {
+          const equals = pair.indexOf("=")
+          if (equals < 0) continue
+          if (sensitiveParameterName(pair.slice(0, equals))) return true
+        }
       }
     } catch {
       // Malformed URLs still receive assignment and credential-shape checks below.
     }
+  }
+  for (const pair of text.matchAll(/[?&#/;]([^\s?&#/;=]+)=/g)) {
+    if (sensitiveParameterName(pair[1])) return true
   }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
   // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
   const assignments = /(?:["'`]([^"'`\r\n]+)["'`]|(?<![^\s"'`{}\[\],:=])([^\s"'`{}\[\],:=]+))\s*[:=]/g
   for (const match of text.matchAll(assignments)) {
-    if (!WEBMCP_SENSITIVE_NAME.test(match[1] ?? match[2])) continue
+    if (!sensitiveParameterName(match[1] ?? match[2])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
     // complete quoted placeholder is safe; suffixes or additional assignments still get checked.
     const tail = text.slice(match.index + match[0].length)

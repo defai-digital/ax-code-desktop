@@ -143,6 +143,7 @@ function startCatalogCheck(onEnable) {
       url: "https://example.com",
       profile: "/unused/profile",
       output: "/unused/report",
+      receiptKey: "catalog-test-key",
       settleMs: 3000,
       timeoutMs: 5000,
       runs: [],
@@ -216,4 +217,19 @@ test("identical definitions and iframe changes do not extend the top-level quiet
   })
   await vi.advanceTimersByTimeAsync(750)
   expect(exit).toHaveBeenCalledWith(0)
+})
+
+
+test("catalog receipts distinguish redacted tool names in actual disk reports", async () => {
+  const actual = "ghp_BBBBBBBBBBBBBBBB"
+  const missing = "ghp_AAAAAAAAAAAAAAAA"
+  const { report } = startCatalogCheck((emit) => {
+    emit("WebMCP.toolsAdded", [{ name: actual, frameId: "top" }])
+  })
+  await vi.runAllTimersAsync()
+  expect(report().tools[0].name).toBe("[redacted]")
+  const evaluate = (name) => evaluateReport(report(), { expectTools: [name], runs: [] }, undefined, "catalog-test-key")
+  expect(evaluate(actual).exitCode).toBe(EXIT.ok)
+  expect(evaluate(missing).exitCode).toBe(EXIT.failed)
+  expect(JSON.stringify(evaluate(missing))).not.toContain(missing)
 })

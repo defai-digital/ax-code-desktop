@@ -9,6 +9,7 @@ import { journeyBoot, SHELL_READY_EXPRESSION } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { assertPathInsideDirectory } from "./scenario.mjs"
+import { focusPaletteForEscape, waitForGridReturn } from "./supervision-handoffs.mjs"
 import { STUB_REVIEW_DIFFS } from "./stub-runtime.mjs"
 
 const exec = promisify(execFile)
@@ -280,7 +281,7 @@ const outcome = await runHarness({
       await dispatchKey("Enter", "Enter", 13)
       await audit.wait(`${palette}.querySelector('select').value.startsWith('project:') && ${palette}.querySelectorAll('[cmdk-item]').length === 1`, "project scope narrows PR search to its session")
       await capture(`palette-${theme}`)
-      await audit.wait(`${palette}?.contains(document.activeElement)`, "palette owns keyboard focus")
+      await focusPaletteForEscape(session)
       await dispatchKey("Escape", "Escape", 27)
       await audit.wait(`!${palette}`, "Escape closes the command palette")
       await audit.wait(`document.querySelector('[data-mission-control]')?.checkVisibility() && document.querySelectorAll('.mission-control-row').length === 2`, "board restored after palette dismissal")
@@ -681,6 +682,7 @@ const outcome = await runHarness({
     const popName = await session.evaluate(`document.querySelector('[data-session-grid-popout]')?.getAttribute('aria-label')`)
     if (!popName) throw new Error("Pop out control is missing")
     const sessionsBeforePop = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] iframe')).map(frame => new URL(frame.src).searchParams.get('sessionId'))`)
+    const pagesBeforePop = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] [data-webmcp-session-page]')).map(node => node.getAttribute('data-webmcp-session-page'))`)
     await audit.click(popName)
     const popped = await waitForCondition(async () => {
       const frameIds = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] iframe')).map(frame => new URL(frame.src).searchParams.get('sessionId'))`)
@@ -691,7 +693,7 @@ const outcome = await runHarness({
       if (!sessionId || !sessionsBeforePop.includes(sessionId)) return null
       if (frameIds.includes(sessionId) || pages.includes(sessionId)) return null
       if (!frameIds.some((id) => id && id !== sessionId)) return null
-      return { sessionId, url: target.url, webSocketDebuggerUrl: target.webSocketDebuggerUrl }
+      return { id: target.id, sessionId, hasPage: pagesBeforePop.includes(sessionId), url: target.url, webSocketDebuggerUrl: target.webSocketDebuggerUrl }
     }, { timeoutMs: 45_000, label: "pop out moves one session into its own window" })
     arrangement.popOut = 1
     await writeArrangement()
@@ -705,12 +707,7 @@ const outcome = await runHarness({
       const returnName = await session.evaluate(`document.querySelector('[data-session-grid-return]')?.getAttribute('aria-label')`)
       if (!returnName) throw new Error("Return control is missing")
       await audit.click(returnName)
-      await waitForCondition(async () => {
-        const frameIds = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] iframe')).map(frame => new URL(frame.src).searchParams.get('sessionId'))`)
-        const targets = await listTargets(debuggingPort)
-        const miniGone = !targets.some((entry) => typeof entry.url === "string" && entry.url.includes("mini-chat.html") && entry.url.includes(popped.sessionId))
-        return frameIds.includes(popped.sessionId) && miniGone
-      }, { timeoutMs: 45_000, label: "the popped session returns to the grid" })
+      await waitForGridReturn(session, debuggingPort, popped)
     } finally {
       miniSession.close()
     }

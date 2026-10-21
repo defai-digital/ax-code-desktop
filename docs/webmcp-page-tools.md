@@ -123,8 +123,12 @@ call for a hidden page waits, and the browser says "Agent call waiting for this 
 hides a page instead of closing it. **Pages** in the browser pane lists every page this window holds, with its project,
 session, origin and access state, and lets you show a page or revoke one session's agent access. A waiting call also
 appears in Needs you, on that session's Mission Control row and in its session-grid slot. When four pages are live, opening
-another unloads the least recently used idle hidden page; it keeps its address in memory and reopens with agent access off.
-If no page can be unloaded, the pane says the browser pool is full and how to free a page.
+another may unload the least recently used hidden page only when it is idle and has no detected unsaved-work signal or
+`beforeunload` handler. Pages with editable, custom/shadow, frame or drawing surfaces, prior keyboard/mouse input, or
+manual/agent actions are conservatively retained. An inconclusive probe also retains the page. Automatic closure honors
+`beforeunload`, including a handler installed after the probe. A safely unloaded page keeps its address in memory and
+reopens with agent access off. If no page can be unloaded, the existing pool-full state lists the retained pages so you can
+return to the named page, save your work, and decide which page to close.
 
 ## 5. Write tools the agent gets right
 
@@ -223,3 +227,14 @@ through the page's model context, which is not the path an agent's call takes; c
 | Typed input disappeared | the tool's definition changed, or you opened another page | the same definition keeps what you typed, including across a reload of that page |
 | **Try it** shows an error result | your `execute` returned an error, or threw | prefer returning `{ error: { field, constraint, got } }`; it tells the agent what to fix |
 | The agent picks the wrong tool, or never calls one | overlapping tools or vague descriptions | merge or rename tools; state inputs and results in the description; the landing recap lists tools never called |
+
+### Credential filtering and identity checks
+
+Credential parameter names are decoded before checking query strings, fragments (including hash routes), and path or
+matrix parameters. Nested percent encodings are checked too. Display filtering does not rewrite the address draft used
+for navigation. Checker reports redact diagnostic text, but expected-tool and requested-run checks compare original
+identities using per-check keyed receipts across the disk boundary; different names that display as `[redacted]` cannot
+satisfy each other's checks.
+
+Approval input summaries include every required name even if the schema omits its property definition. Required names
+come first; names beyond the twelve-input display limit count toward the total and omitted-required notice.

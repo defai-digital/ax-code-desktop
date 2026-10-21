@@ -1,5 +1,6 @@
 "use strict"
 
+const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
 
 const { createHash, randomBytes, randomUUID } = require("node:crypto")
@@ -188,9 +189,11 @@ function createDesktopWebMcpBrowser({
       origin: entry.adapter.snapshot().origin,
       lastUsed: entry.lastUsed,
     }
+    if (!(await closeForEviction(entry.view.webContents))) return false
     await close(entry)
     if (record.owner.isDestroyed() || record.sender.isDestroyed?.()) return
     remember(record)
+    return true
   }
   const unloadedStatus = (record) => ({
     id: record.id,
@@ -665,6 +668,7 @@ function createDesktopWebMcpBrowser({
           })
         return
       }
+      if (request.operation === "act" || request.operation === "invoke") entry.possibleUnsavedWork = true
       // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
       void entry.adapter
         .execute(request)
@@ -766,11 +770,21 @@ function createDesktopWebMcpBrowser({
     if (remembered && remembered.sender !== sender)
       return { error: "owned-by-another-window", ownerId: discloseOwner(sender, remembered) }
     if (views.size >= maxLiveViews) {
-      const candidate = [...views.values()]
+      const candidates = [...views.values()]
         .filter((entry) => entry.sender === sender && entry.ready && !visible(entry) && idle(entry))
-        .sort((a, b) => a.lastUsed - b.lastUsed)[0]
-      if (!candidate) throw new Error("pool-full")
-      await unload(candidate)
+        .sort((a, b) => a.lastUsed - b.lastUsed)
+      let unloadedPage = false
+      for (const candidate of candidates) {
+        const generation = candidate.adapter.generation
+        if (candidate.possibleUnsavedWork || !(await canDiscardDocument(candidate.view.webContents))) continue
+        // A call, navigation, or input may arrive while the asynchronous probe runs.
+        if (candidate.possibleUnsavedWork || !idle(candidate) || visible(candidate) || generation !== candidate.adapter.generation) continue
+        if (await unload(candidate)) {
+          unloadedPage = true
+          break
+        }
+      }
+      if (!unloadedPage) throw new Error("pool-full")
     }
     // Electron retains Session objects for the app lifetime. Reuse exactly one
     // hardened, in-memory profile per project, independent of its session count.
@@ -825,6 +839,11 @@ function createDesktopWebMcpBrowser({
       attached: false,
       syncing: Promise.resolve(),
     }
+    // Sticky for the lifetime of this view: even removing an editor after typing does not
+    // establish that its draft was saved. Only the person can discard such a page.
+    const protectWork = () => { entry.possibleUnsavedWork = true }
+    view.webContents.on("before-input-event", protectWork)
+    view.webContents.on("before-mouse-event", protectWork)
     view.webContents.on("did-fail-load", (_event, _code, description, _url, isMainFrame) => {
       // Managed loads report through their sequenced promise. An uncorrelated
       // ERR_ABORTED event must never overwrite a newer page's result.
@@ -1245,6 +1264,7 @@ function createDesktopWebMcpBrowser({
       )
         return { ok: false, outcome: "stale-form", reason: "page-changed" }
       try {
+        entry.possibleUnsavedWork = true
         const result = await entry.adapter.execute({
           operation: "invoke",
           requestID: randomUUID(),

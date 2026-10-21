@@ -14,7 +14,7 @@ test("embedded credential assignments are filtered across every generated shape"
 })
 
 test("ordinary diagnostics and credential labels without values remain readable", () => {
-  for (const text of ["Password", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
+  for (const text of ["Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
     assert.equal(webMcpTextLooksSensitive(text), false)
     assert.equal(redactWebMcpReport(text), text)
   }
@@ -29,4 +29,9 @@ test("repeated filtering preserves redacted diagnostic structure but never place
     'password="[redacted]", token="secret"',
     'password="<fill in>"; token=secret',
   ]) assert.equal(redactWebMcpReport(unsafe), "[redacted]")
+})
+
+
+test("deep percent encodings fail closed without unbounded name decoding", () => {
+  assert.equal(webMcpTextLooksSensitive(`https://example.test/#%${"25".repeat(100)}74oken=value`), true)
 })
