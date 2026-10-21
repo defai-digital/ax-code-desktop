@@ -52,6 +52,8 @@ export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18n
       return "webmcp.detail.enableFailed"
     case "operation-failed":
       return "webmcp.detail.operationFailed"
+    case "owned-by-another-window":
+      return "webmcp.detail.ownedByAnotherWindow"
     case "start-failed":
     default:
       return "webmcp.detail.startFailed"
@@ -185,8 +187,12 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
 }
 
 /** A recovery action repairs browser state only; it never replays an agent call. */
-export function webMcpErrorAction(error: WebMcpBrowserSnapshot["error"]): "address" | "reload" | "enable" | "reopen" {
+export function webMcpErrorAction(
+  error: WebMcpBrowserSnapshot["error"],
+): "address" | "reload" | "enable" | "reopen" | "focusOwner" {
   switch (error) {
+    case "owned-by-another-window":
+      return "focusOwner"
     case "ERR_UNSAFE_PORT":
     case "ERR_NAME_NOT_RESOLVED":
     case "ERR_INVALID_URL":

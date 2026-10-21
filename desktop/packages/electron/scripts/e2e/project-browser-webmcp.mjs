@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // WebMCP task suite W1 (discover) and W2 (try a tool by hand) against the public quickstart page, served on loopback.
 // The page runs in the native project browser; no agent or model is involved.
+import { checkBrowserSecondWindow } from "./project-browser-second-window.mjs"
 import { checkBrowserSessions } from "./project-browser-sessions.mjs"
 import fs from "node:fs/promises"
 import http from "node:http"
@@ -112,14 +113,19 @@ try {
               input.dispatchEvent(new Event('input', { bubbles: true }))
             })()`),
           )
-          await session.evaluate(`${tool}.querySelector('[data-webmcp-tool-result]')?.remove()`)
+          // Observe React's journal rather than deleting a result node that React still owns.
+          const beforeCount = await session.evaluate(`document.querySelectorAll('[data-webmcp-journal-entry]').length`)
+          await audit.wait(
+            `Array.from(${tool}.querySelectorAll('button')).some(b => b.textContent.trim() === 'Try it' && b.getAttribute('aria-disabled') !== 'true')`,
+            "Try it ready",
+          )
           await act(() =>
             session.evaluate(
               `Array.from(${tool}.querySelectorAll('button')).find(b => b.textContent.trim() === 'Try it').click()`,
             ),
           )
           await audit.wait(
-            `Boolean(${tool}.querySelector('[data-webmcp-tool-result]'))`,
+            `document.querySelectorAll('[data-webmcp-journal-entry]').length > ${beforeCount} && Boolean(${tool}.querySelector('[data-webmcp-tool-result]'))`,
             `result for ${JSON.stringify(title)}`,
           )
           return session.evaluate(
@@ -207,6 +213,13 @@ try {
             path.join(args.artifacts, "w5-native-views.json"),
             JSON.stringify({ enrolledView, pausedView, resumedView }, null, 2),
           )
+        const secondWindow = await checkBrowserSecondWindow({
+          session,
+          debuggingPort,
+          primary: scenario.session,
+          owner: resumedView,
+          artifacts: args.artifacts,
+        })
         const w7 = await checkBrowserSessions({
           session,
           debuggingPort,
@@ -219,7 +232,7 @@ try {
         return {
           name: "project-browser",
           ok: true,
-          detail: `W1 discovered ${names.length} page tools in ${w1Actions} actions; W2 ran add_task by hand (page error "${rejected.outcome}", then success "${added.outcome}") in ${w2Actions} actions; W5 idle takeover paused and resumed by keyboard with page/address/result retained; ${w7}`,
+          detail: `W1 discovered ${names.length} page tools in ${w1Actions} actions; W2 ran add_task by hand (page error "${rejected.outcome}", then success "${added.outcome}") in ${w2Actions} actions; W5 idle takeover paused and resumed by keyboard with page/address/result retained; ${secondWindow}; ${w7}`,
         }
       },
     ],

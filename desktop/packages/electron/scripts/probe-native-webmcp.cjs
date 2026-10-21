@@ -249,6 +249,67 @@ async function run() {
       assert.equal(report.checks[check], true, `${check} is required in the Electron 45 candidate`)
     }
   }
+  // Exercise the production adapter, including a renderer busy inside read/act script execution.
+  contents.debugger.detach()
+  const { NativeWebMcp, definitionDigest } = require("../src/native-webmcp.js")
+  const adapter = new NativeWebMcp(contents)
+  await adapter.start()
+  await contents.loadURL(origin)
+  await waitFor(() => adapter.tools.has("probe_slow"), "adapter catalog")
+  const request = (operation, extra = {}) => ({
+    ...adapter.snapshot(),
+    requestID: `probe-${operation}`,
+    operation,
+    deadline: Date.now() + 5000,
+    ...extra,
+  })
+  const tool = adapter.tools.get("probe_slow")
+  const native = request("invoke", { toolName: tool.name, digest: definitionDigest(tool), input: { value: "test" } })
+  const nativeResult = adapter.execute(native).catch((error) => error)
+  await waitFor(() => contents.executeJavaScript("probe.slowStarted"), "adapter native execution")
+  report.adapterNativeStop = await adapter.cancel(native.requestID)
+  assert.equal(report.adapterNativeStop.state, "stopped")
+  assert.equal((await nativeResult).outcome, "cancelled")
+  report.checks.adapterNativeCancellation = true
+
+  await contents.debugger.sendCommand("Runtime.enable")
+  for (const operation of ["read", "act"]) {
+    let started = false
+    const onMessage = (_event, method, params) => {
+      if (method === "Runtime.consoleAPICalled" && params.args?.some((arg) => arg.value === "probe-script-started"))
+        started = true
+    }
+    contents.debugger.on("message", onMessage)
+    let active
+    if (operation === "read") {
+      await contents.executeJavaScriptInIsolatedWorld(1998, [
+        {
+          code: `Object.defineProperty(document, 'title', { configurable: true, get() { console.log('probe-script-started'); while (true) {} } }); true`,
+        },
+      ])
+      active = request("read")
+    } else {
+      await contents.executeJavaScript(`(() => {
+        const button = document.createElement('button'); button.textContent = 'Busy fixture';
+        button.onclick = () => { console.log('probe-script-started'); while (true) {} };
+        document.body.prepend(button);
+      })()`)
+      const read = await adapter.execute(request("read"))
+      const target = read.output.outline.find((entry) => entry.name === "Busy fixture")
+      assert.ok(target)
+      active = request("act", { readId: read.output.readId, ref: target.ref, how: "click" })
+    }
+    const result = adapter.execute(active).catch((error) => error)
+    await waitFor(() => started, `busy ${operation} script`)
+    const stop = await adapter.cancel(active.requestID)
+    assert.equal(stop.state, "stopped", `${operation} termination must settle before reporting stopped`)
+    assert.ok((await result) instanceof Error)
+    assert.equal(await contents.executeJavaScript("1 + 1"), 2)
+    if (operation === "read") await contents.executeJavaScriptInIsolatedWorld(1998, [{ code: "delete document.title" }])
+    contents.debugger.removeListener("message", onMessage)
+    report.checks[`adapterInterrupt${operation}`] = true
+  }
+  adapter.close()
   report.passed = true
 }
 
