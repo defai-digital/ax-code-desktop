@@ -6,6 +6,7 @@ import { useRunTransitionNotifications } from "@/hooks/useRunTransitionNotificat
 import { useSupervisionRowsPublisher } from "@/hooks/useSupervisionRows"
 import { useSessionGoalsLoader } from "@/hooks/useSessionGoalsLoader"
 import { useActivityFeedRecorder } from "@/hooks/useActivityFeedRecorder"
+import { useWebMcpPoolProjection } from "@/hooks/useWebMcpPoolProjection"
 import { useTraySync } from "@/hooks/useTraySync"
 import { useSessionAutoCleanup } from "@/hooks/useSessionAutoCleanup"
 import { useWindowControlsOverlayLayout } from "@/hooks/useWindowControlsOverlayLayout"
@@ -71,6 +72,7 @@ export function SyncRuntimeEffects({
    */
   globalHousekeepingEnabled?: boolean
 }) {
+  useWebMcpPoolProjection(embeddedBackgroundWorkEnabled)
   useSessionAutoCleanup(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
   useQueuedMessageAutoSend(embeddedBackgroundWorkEnabled)
   // Streams the session/approval snapshot to the Electron tray and keeps the dock

@@ -1,6 +1,6 @@
+import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import { useI18n } from "@/lib/i18n"
 import { openExternalUrl } from "@/lib/url"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 
 /** The public guide for making a page agent-usable (docs/webmcp-page-tools.md). */
 export const WEBMCP_PAGE_TOOLS_GUIDE_URL =
@@ -10,13 +10,16 @@ export const WEBMCP_PAGE_TOOLS_GUIDE_URL =
  * Points a builder at the page-tools guide wherever a page is open, and says so plainly when the page registers nothing,
  * which is when the guide is most needed.
  */
-export function WebMcpBuilderHint() {
+export function WebMcpBuilderHint({ viewKey }: { viewKey?: string }) {
   const { t } = useI18n()
-  const origin = useWebMcpBrowserStore((state) => state.origin)
-  const toolCount = useWebMcpBrowserStore((state) => state.catalog.length)
+  const origin = useWebMcpBrowserValue((state) => state.origin, viewKey)
+  const toolCount = useWebMcpBrowserValue((state) => state.catalog.length, viewKey)
   if (!origin) return null
   return (
-    <p className="flex flex-wrap items-center gap-x-2 border-b border-border/40 px-2.5 py-1 typography-micro text-muted-foreground" data-webmcp-builder-hint>
+    <p
+      className="flex flex-wrap items-center gap-x-2 border-b border-border/40 px-2.5 py-1 typography-micro text-muted-foreground"
+      data-webmcp-builder-hint
+    >
       {toolCount === 0 ? <span>{t("webmcp.tools.noneRegistered")}</span> : null}
       <a
         href={WEBMCP_PAGE_TOOLS_GUIDE_URL}

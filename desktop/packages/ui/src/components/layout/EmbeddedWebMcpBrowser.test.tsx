@@ -14,6 +14,7 @@ vi.doMock("@/hooks/useWebMcpBrowser", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/hooks/useWebMcpBrowser")>()
   const { summarizeWebMcpBrowser } = await import("@/lib/webMcpSummary")
   return {
+    ...original,
     useWebMcpCapabilityProbe: () => {},
     useWebMcpSummary: () => {
       const state = useWebMcpBrowserStore()
@@ -87,6 +88,9 @@ describe("agent browser enable request", () => {
       call?.action === "close" || call?.action === "bounds" ? undefined : browserStatus(call?.action === "enable"),
     )
     useWebMcpBrowserStore.setState({
+      views: {},
+      order: [],
+      activeKey: null,
       phase: "idle",
       paused: false,
       error: null,
@@ -142,6 +146,71 @@ describe("agent browser enable request", () => {
       expect(callsFor("enable")).toHaveLength(0)
     },
   )
+
+  test("clear feedback survives a create reply that arrives after its view was cleared", async () => {
+    let finish!: (value: unknown) => void
+    invoke.mockImplementation((_channel: string, call: { action?: string }) => {
+      if (call.action === "list") return Promise.resolve({ views: [] })
+      if (call.action === "create")
+        return new Promise((resolve) => {
+          finish = resolve
+        })
+      return Promise.reject(new Error("view already cleared"))
+    })
+    render()
+    openAgentMode()
+    await flush()
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("openchamber:webmcp-storage", {
+          detail: {
+            views: [{ id: "browser-1", directory: "/repo", sessionID: "ses_one" }],
+            error: "storage-cleared",
+          },
+        }),
+      )
+      finish(browserStatus(false))
+    })
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.storageCleared")
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ browserId: null, views: {}, order: [] })
+  })
+
+  test("a cleared pane shows storage feedback and ignores late status replies and failures", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    let finish!: (value: unknown) => void
+    invoke.mockImplementation((_channel: string, call: { action?: string }) =>
+      call.action === "status"
+        ? new Promise((resolve) => {
+            finish = resolve
+          })
+        : Promise.resolve(browserStatus(false)),
+    )
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1100)
+    })
+    const views = [{ id: "browser-1", directory: "/repo", sessionID: "ses_one" }]
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("openchamber:webmcp-storage", { detail: { views, error: "storage-clearing" } }),
+      )
+      finish(browserStatus(true))
+    })
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.storageClearing")
+    await act(async () => {
+      window.dispatchEvent(
+        new CustomEvent("openchamber:webmcp-storage", { detail: { views, error: "storage-cleared" } }),
+      )
+    })
+    invoke.mockRejectedValue(new Error("closed"))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.storageCleared")
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ browserId: null, enabled: false, views: {}, order: [] })
+    expect(within(container).queryByText("webmcp.detail.disconnected")).toBeNull()
+  })
 
   test("clears a stale native load error when the main process reports a healthy page", async () => {
     render()
@@ -445,5 +514,50 @@ describe("agent browser enable request", () => {
     await flush()
     expect(callsFor("create").at(-1)?.[1]).toMatchObject({ directory: "/two", url: "https://two.test" })
     expect(callsFor("enable")).toHaveLength(0)
+  })
+  test("reuses pooled session pages and enrollment on return, hiding instead of closing them", async () => {
+    const pages = new Map<
+      string,
+      ReturnType<typeof browserStatus> & { sessionID: string; directory: string; url: string }
+    >()
+    invoke.mockImplementation(
+      async (_channel: string, call: { action: string; id?: string; sessionID?: string; url?: string }) => {
+        if (call.action === "list") return { views: [...pages.values()] }
+        if (call.action === "create") {
+          const sessionID = call.sessionID!
+          if (!pages.has(sessionID))
+            pages.set(sessionID, {
+              ...browserStatus(false),
+              id: `view-${sessionID}`,
+              sessionID,
+              directory: "/repo",
+              url: call.url!,
+            })
+          return pages.get(sessionID)
+        }
+        const page = [...pages.values()].find((page) => page.id === call.id)
+        if (call.action === "enable" && page) page.enabled = true
+        return page
+      },
+    )
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.getState().requestAgentMode({ enable: true }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(1)
+    act(() => useSessionUIStore.setState({ currentSessionId: "ses_two" }))
+    await flush()
+    expect(useWebMcpBrowserStore.getState().browserId).toBe("view-ses_two")
+    expect(useWebMcpBrowserStore.getState().enabled).toBe(false)
+    act(() => useSessionUIStore.setState({ currentSessionId: "ses_one" }))
+    await flush()
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ browserId: "view-ses_one", enabled: true })
+    expect(pages.size).toBe(2)
+    expect(callsFor("close")).toHaveLength(0)
+    expect(callsFor("enable")).toHaveLength(1)
+    expect(callsFor("show")).toHaveLength(3)
   })
 })

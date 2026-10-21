@@ -82,7 +82,18 @@ export type DesktopCommandArgs = {
   desktop_ssh_status: Record<string, unknown>
   desktop_toggle_current_window_maximized: Record<string, unknown>
   desktop_tray_update: Record<string, unknown>
-  desktop_webmcp_browser: Record<string, unknown>
+  desktop_webmcp_browser: {
+    action: "capability" | "create" | "status" | "close" | "disconnect" | "enable" | "resume" | "navigate" | "tryTool" | "reload" | "bounds" | "list" | "show" | "clearProject" | "revokeSession" | "pause"
+    id?: string
+    directory?: string
+    sessionID?: string | null
+    url?: string
+    toolName?: string
+    x?: number
+    y?: number
+    width?: number
+    height?: number
+  }
 }
 
 export type DesktopCommandName = keyof DesktopCommandArgs

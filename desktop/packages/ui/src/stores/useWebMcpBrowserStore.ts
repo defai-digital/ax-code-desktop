@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 
 /**
@@ -28,6 +29,8 @@ export type WebMcpBrowserErrorCode =
   | "session-required"
   | "start-failed"
   | "disconnected"
+  | "storage-clearing"
+  | "storage-cleared"
   | "runtime-incompatible"
   | "enable-failed"
   | "operation-failed"
@@ -49,6 +52,8 @@ export interface WebMcpBrowserSnapshot {
   runtimeCompatible: boolean | null
   paused: boolean
   enabled: boolean
+  visible: boolean
+  waiting: boolean
   origin: string | null
   /** null until the browser reports its first status. */
   page: WebMcpPageKind | null
@@ -61,20 +66,30 @@ export interface WebMcpBrowserSnapshot {
   pausedBridgeServers: string[]
 }
 
-interface WebMcpBrowserState extends WebMcpBrowserSnapshot {
-  /** Monotonic counter: each increment asks the browser pane to switch to agent mode. */
+export interface WebMcpViewSnapshot extends WebMcpBrowserSnapshot {
+  /** Monotonic counter for an explicit request to open this session's pane. */
   agentModeRequests: number
   agentModeConsumed: number
-  /** Monotonic counter: the user explicitly asked for agent access to be enabled once the browser is ready. */
+  /** Explicit user requests to enable access; never a standing grant. */
   enableRequests: number
   enableConsumed: number
+}
+
+interface WebMcpBrowserState extends WebMcpViewSnapshot {
+  views: Record<string, WebMcpViewSnapshot>
+  order: string[]
+  activeKey: string | null
+  selectView: (directory: string, sessionID: string | null) => void
+  releaseView: (key: string) => void
+  updateView: (key: string, partial: Partial<WebMcpBrowserSnapshot>) => void
+  resetView: (key: string, error?: WebMcpBrowserErrorCode) => void
   /** Settings → MCP shows the browser-tools card instead of a server page. */
   settingsCardSelected: boolean
   updateSnapshot: (partial: Partial<WebMcpBrowserSnapshot>) => void
   resetSnapshot: () => void
-  requestAgentMode: (options?: { enable?: boolean }) => void
-  consumeAgentModeRequest: () => boolean
-  consumeEnableRequest: () => boolean
+  requestAgentMode: (options?: { enable?: boolean }, key?: string) => void
+  consumeAgentModeRequest: (key?: string) => boolean
+  consumeEnableRequest: (key?: string) => boolean
   setSettingsCardSelected: (selected: boolean) => void
 }
 
@@ -87,6 +102,8 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   runtimeCompatible: null,
   paused: false,
   enabled: false,
+  visible: false,
+  waiting: false,
   origin: null,
   page: null,
   tools: 0,
@@ -96,39 +113,143 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   pausedBridgeServers: [],
 }
 
-export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => ({
-  ...initialSnapshot,
-  agentModeRequests: 0,
-  agentModeConsumed: 0,
-  enableRequests: 0,
-  enableConsumed: 0,
-  settingsCardSelected: false,
-  updateSnapshot: (partial) => set(partial),
-  resetSnapshot: () =>
-    set((state) => ({
-      ...initialSnapshot,
-      // The runtime compatibility answer does not depend on a live browser.
-      runtimeCompatible: state.runtimeCompatible,
-    })),
-  requestAgentMode: (options) =>
-    set((state) => ({
-      agentModeRequests: state.agentModeRequests + 1,
-      enableRequests: options?.enable ? state.enableRequests + 1 : state.enableRequests,
-    })),
-  consumeAgentModeRequest: () => {
-    const { agentModeRequests, agentModeConsumed } = get()
-    if (agentModeRequests <= agentModeConsumed) return false
-    set({ agentModeConsumed: agentModeRequests })
+const requestCounters = { agentModeRequests: 0, agentModeConsumed: 0, enableRequests: 0, enableConsumed: 0 }
+export const emptyWebMcpView: WebMcpViewSnapshot = { ...initialSnapshot, ...requestCounters }
+
+const snapshotOf = (state: WebMcpViewSnapshot): WebMcpViewSnapshot =>
+  Object.fromEntries(
+    Object.keys(emptyWebMcpView).map((field) => [field, state[field as keyof WebMcpViewSnapshot]]),
+  ) as unknown as WebMcpViewSnapshot
+
+// The top-level fields project the selected pane for existing single-pane consumers.
+// Every write also targets an explicit view; switching the pane never resets another session.
+export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => {
+  const write = (key: string, partial: Partial<WebMcpViewSnapshot>) =>
+    set((state) => {
+      const view = {
+        ...(state.activeKey === key ? snapshotOf(state) : (state.views[key] ?? emptyWebMcpView)),
+        ...partial,
+      }
+      const prior = state.views[key]
+      const selected = state.activeKey === key ? snapshotOf(state) : prior
+      if (
+        prior &&
+        Object.keys(view).every((field) => {
+          const name = field as keyof WebMcpViewSnapshot
+          return (
+            (Object.is(prior[name], view[name]) || JSON.stringify(prior[name]) === JSON.stringify(view[name])) &&
+            (Object.is(selected?.[name], view[name]) || JSON.stringify(selected?.[name]) === JSON.stringify(view[name]))
+          )
+        })
+      )
+        return state
+      return {
+        views: { ...state.views, [key]: view },
+        order: state.views[key] ? state.order : [...state.order, key],
+        ...(state.activeKey === key ? view : {}),
+      }
+    })
+  const consume = (
+    requested: "agentModeRequests" | "enableRequests",
+    consumed: "agentModeConsumed" | "enableConsumed",
+    key = get().activeKey,
+  ) => {
+    const state = get()
+    const view = key && state.activeKey !== key ? state.views[key] : state
+    if (!view || view[requested] <= view[consumed]) return false
+    if (key) write(key, { [consumed]: view[requested] })
+    else set({ [consumed]: view[requested] })
     return true
-  },
-  consumeEnableRequest: () => {
-    const { enableRequests, enableConsumed } = get()
-    if (enableRequests <= enableConsumed) return false
-    set({ enableConsumed: enableRequests })
-    return true
-  },
-  setSettingsCardSelected: (selected) => set({ settingsCardSelected: selected }),
-}))
+  }
+  return {
+    ...emptyWebMcpView,
+    views: {},
+    order: [],
+    activeKey: null,
+    settingsCardSelected: false,
+    selectView: (directory, sessionID) => {
+      const key = viewKeyFor(directory, sessionID)
+      const state = get()
+      if (state.activeKey === key) return
+      let view = {
+        ...(state.views[key] ?? { ...emptyWebMcpView, runtimeCompatible: state.runtimeCompatible }),
+        directory,
+        sessionID,
+      }
+      const views = { ...state.views }
+      if (state.activeKey && state.views[state.activeKey]) {
+        views[state.activeKey] = snapshotOf(state)
+        // Carry only an unconsumed explicit draft click into its newly created session.
+        if (
+          !state.sessionID &&
+          sessionID &&
+          state.directory !== null &&
+          viewKeyFor(state.directory, null) === viewKeyFor(directory, null) &&
+          state.enableRequests > state.enableConsumed
+        ) {
+          view = { ...view, enableRequests: view.enableRequests + 1, agentModeRequests: view.agentModeRequests + 1 }
+          views[state.activeKey] = {
+            ...views[state.activeKey],
+            enableConsumed: state.enableRequests,
+            agentModeConsumed: state.agentModeRequests,
+          }
+        }
+      }
+      set({
+        ...view,
+        activeKey: key,
+        views: { ...views, [key]: view },
+        order: state.views[key] ? state.order : [...state.order, key],
+      })
+    },
+    releaseView: (key) => {
+      if (get().views[key]) write(key, { visible: false, busy: false })
+    },
+    updateView: write,
+    resetView: (key, error) =>
+      set((state) => {
+        const views = { ...state.views }
+        delete views[key]
+        return {
+          views,
+          order: state.order.filter((entry) => entry !== key),
+          ...(state.activeKey === key
+            ? {
+                ...emptyWebMcpView,
+                directory: state.directory,
+                sessionID: state.sessionID,
+                phase: error ? ("error" as const) : ("idle" as const),
+                error: error ?? null,
+              }
+            : {}),
+        }
+      }),
+    updateSnapshot: (partial) => {
+      const state = get()
+      if (state.activeKey) write(state.activeKey, partial)
+      else set(partial)
+    },
+    resetSnapshot: () => {
+      const state = get()
+      const partial = { ...initialSnapshot, runtimeCompatible: state.runtimeCompatible }
+      if (state.activeKey) write(state.activeKey, partial)
+      else set(partial)
+    },
+    requestAgentMode: (options, key = get().activeKey ?? undefined) => {
+      const state = get()
+      const view = key && state.activeKey !== key ? (state.views[key] ?? emptyWebMcpView) : state
+      const partial = {
+        agentModeRequests: view.agentModeRequests + 1,
+        enableRequests: options?.enable ? view.enableRequests + 1 : view.enableRequests,
+      }
+      if (key) write(key, partial)
+      else set(partial)
+    },
+    consumeAgentModeRequest: (key) => consume("agentModeRequests", "agentModeConsumed", key),
+    consumeEnableRequest: (key) => consume("enableRequests", "enableConsumed", key),
+    setSettingsCardSelected: (selected) => set({ settingsCardSelected: selected }),
+  }
+})
 
 // Persist only a bounded address history. Access, grants, page references and storage
 // remain ephemeral. Query strings, fragments and user info are never stored.
@@ -215,7 +336,11 @@ export function readWebMcpCatalog(value: unknown): WebMcpToolDefinition[] {
     if (!entry || typeof entry !== "object") continue
     const { name, description, inputSchema } = entry as Record<string, unknown>
     if (typeof name !== "string" || !name || name.length > 256 || typeof description !== "string") continue
-    catalog.push({ name, description: description.slice(0, 4096), ...(inputSchema === undefined ? {} : { inputSchema }) })
+    catalog.push({
+      name,
+      description: description.slice(0, 4096),
+      ...(inputSchema === undefined ? {} : { inputSchema }),
+    })
   }
   return catalog
 }

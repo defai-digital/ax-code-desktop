@@ -70,3 +70,19 @@ describe("contract declarations", () => {
     expect(indexed.size).toBe(contract.commands.length)
   })
 })
+
+test("WebMCP pool commands extend the existing local-only channel without invalidating old pane arguments", () => {
+  const entry = contract.commands.find((command) => command.command === "desktop_webmcp_browser")
+  expect(entry.safeForRemote).toBe(false)
+  for (const args of [
+    { action: "list" },
+    { action: "show", id: "view" },
+    { action: "create", directory: "/repo", sessionID: null, url: "about:blank" },
+    { action: "bounds", id: "view", x: 0, y: 0, width: 100, height: 100 },
+    { action: "tryTool", id: "view", toolName: "echo", input: { message: "test" } },
+    { action: "revokeSession", directory: "/repo", sessionID: "ses_one" },
+    { action: "clearProject", directory: "/repo" },
+  ])
+    expect(validateCommandArgs(entry, args)).toEqual({ ok: true })
+  expect(validateCommandArgs(entry, { action: "unknown" }).ok).toBe(false)
+})

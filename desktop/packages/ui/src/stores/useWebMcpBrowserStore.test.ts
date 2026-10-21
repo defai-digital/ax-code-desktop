@@ -88,3 +88,82 @@ test("bounds the total serialized size and restores after a fresh module load", 
   expect(fresh.restoreWebMcpAddress(directory, "ses_63")).toBe(url)
   expect(fresh.useWebMcpBrowserStore.getState().enabled).toBe(false)
 })
+
+test("isolates keyed snapshots, reset and explicit request counters across projects and sessions", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  const first = viewKeyFor("/repo", "ses_first")
+  const second = viewKeyFor("/repo", "ses_second")
+  const other = viewKeyFor("/other", "ses_first")
+  store().selectView("/repo", "ses_first")
+  store().updateView(first, { enabled: true, origin: "https://first.test", waiting: true })
+  store().requestAgentMode({ enable: true }, first)
+  store().selectView("/repo", "ses_second")
+  store().updateView(second, { browserId: "second", origin: "https://second.test" })
+  store().requestAgentMode(undefined, second)
+  expect(store().consumeEnableRequest(second)).toBe(false)
+  expect(store().consumeEnableRequest(first)).toBe(true)
+  expect(store().consumeEnableRequest(first)).toBe(false)
+  store().updateView(other, { enabled: true, origin: "https://other.test" })
+  store().resetView(first)
+  expect(store().views[first]).toBeUndefined()
+  expect(store().views[second]).toMatchObject({
+    browserId: "second",
+    origin: "https://second.test",
+    agentModeRequests: 1,
+  })
+  expect(store().views[other]).toMatchObject({ enabled: true, origin: "https://other.test" })
+  // A late write to another view cannot overwrite the selected pane.
+  expect(store().browserId).toBe("second")
+  expect(store().origin).toBe("https://second.test")
+  expect(store().order).toHaveLength(2)
+})
+
+test("view keys normalize paths and never confuse draft, sessions or projects", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  expect(viewKeyFor("/repo/a/../", "ses_first")).toBe(viewKeyFor("/repo", "ses_first"))
+  expect(viewKeyFor("c:\\Users\\DEV\\project\\", null)).toBe(viewKeyFor("C:/Users/dev/project", null))
+  expect(viewKeyFor("/repo", null)).not.toBe(viewKeyFor("/repo", "ses_first"))
+  expect(viewKeyFor("/repo", "ses_first")).not.toBe(viewKeyFor("/other", "ses_first"))
+})
+
+test("selecting a view seeded by a capability probe restores its identity", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  store().updateView(viewKeyFor("/repo", "ses_probe"), { runtimeCompatible: true })
+  store().selectView("/repo", "ses_probe")
+  expect(store()).toMatchObject({ directory: "/repo", sessionID: "ses_probe", runtimeCompatible: true })
+})
+
+test("closed views do not accumulate or resurrect on selection and release", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  for (let i = 0; i < 200; i++) {
+    const key = viewKeyFor("/repo", `ses_${i}`)
+    store().selectView("/repo", `ses_${i}`)
+    store().updateView(key, { browserId: `id-${i}`, catalog: [{ name: "tool", description: "test" }] })
+    store().resetView(key)
+    store().releaseView(key)
+    expect(store().views).toEqual({})
+    expect(store().order).toEqual([])
+  }
+})
+
+test("transferred draft requests are consumed for both agent mode and enable", async () => {
+  const { viewKeyFor } = await import("@/lib/webMcpViewKey")
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  const store = () => useWebMcpBrowserStore.getState()
+  store().selectView("/repo/", null)
+  store().requestAgentMode({ enable: true })
+  store().selectView("/repo/child/..", "ses_new")
+  expect(store().consumeAgentModeRequest()).toBe(true)
+  expect(store().consumeEnableRequest()).toBe(true)
+  const draft = viewKeyFor("/repo", null)
+  expect(store().consumeAgentModeRequest(draft)).toBe(false)
+  expect(store().consumeEnableRequest(draft)).toBe(false)
+  store().selectView("/repo", null)
+  expect(store().consumeAgentModeRequest()).toBe(false)
+})

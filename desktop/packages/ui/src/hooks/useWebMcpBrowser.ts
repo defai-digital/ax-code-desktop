@@ -1,11 +1,12 @@
 import React from "react"
 import { useShallow } from "zustand/react/shallow"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useI18n } from "@/lib/i18n"
 import { isElectronShell } from "@/lib/desktop"
 import { getDesktopBridge } from "@/lib/desktopBridge"
 import { summarizeWebMcpBrowser } from "@/lib/webMcpSummary"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { emptyWebMcpView, useWebMcpBrowserStore, type WebMcpViewSnapshot } from "@/stores/useWebMcpBrowserStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
@@ -15,20 +16,48 @@ import { toast } from "@/components/ui"
  * Hooks shared by every WebMCP surface (Services → MCP, Settings → MCP and the
  * project browser pane) so all of them describe the same browser the same way.
  */
-export function useWebMcpSummary() {
+export function useCurrentWebMcpViewKey() {
+  const sessionID = useSessionUIStore((state) => state.currentSessionId)
+  const draftDirectory = useSessionUIStore((state) => state.newSessionDraft?.directoryOverride)
+  const directory = useDirectoryStore((state) => state.currentDirectory)
+  return viewKeyFor((!sessionID && draftDirectory) || directory || "", sessionID)
+}
+
+/** Subscribe to a value of this project/session without following another pane's selection. */
+export function useWebMcpBrowserValue<T>(selector: (view: WebMcpViewSnapshot) => T, key?: string): T {
+  const currentKey = useCurrentWebMcpViewKey()
+  const target = key ?? currentKey
+  return useWebMcpBrowserStore((state) =>
+    selector(
+      state.activeKey === target || (!state.activeKey && state.order.length === 0)
+        ? state
+        : (state.views[target] ?? emptyWebMcpView),
+    ),
+  )
+}
+
+export function useWebMcpSummary(key?: string) {
+  const currentKey = useCurrentWebMcpViewKey()
   const { t } = useI18n()
   const snapshot = useWebMcpBrowserStore(
-    useShallow((state) => ({
-      phase: state.phase,
-      paused: state.paused,
-      nativeAvailable: state.nativeAvailable,
-      runtimeCompatible: state.runtimeCompatible,
-      enabled: state.enabled,
-      origin: state.origin,
-      page: state.page,
-      tools: state.tools,
-      error: state.error,
-    })),
+    useShallow((state) => {
+      const target = key ?? currentKey
+      const view =
+        state.activeKey === target || (!state.activeKey && state.order.length === 0)
+          ? state
+          : (state.views[target] ?? emptyWebMcpView)
+      return {
+        phase: view?.phase ?? "idle",
+        paused: view?.paused ?? false,
+        nativeAvailable: view?.nativeAvailable ?? false,
+        runtimeCompatible: view?.runtimeCompatible ?? state.runtimeCompatible,
+        enabled: view?.enabled ?? false,
+        origin: view?.origin ?? null,
+        page: view?.page ?? null,
+        tools: view?.tools ?? 0,
+        error: view?.error ?? null,
+      }
+    }),
   )
   const summary = React.useMemo(() => summarizeWebMcpBrowser(snapshot, { isElectron: isElectronShell() }), [snapshot])
   return {
@@ -64,15 +93,27 @@ export function useOpenProjectBrowser() {
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
   return React.useCallback(
     (options?: { enable?: boolean }) => {
-      requestAgentMode(options)
+      const ui = useSessionUIStore.getState()
+      const active = useWebMcpBrowserStore.getState()
+      const directory = normalizeProjectPath(
+        active.activeKey && active.sessionID === ui.currentSessionId
+          ? active.directory
+          : (ui.newSessionDraft?.directoryOverride ?? useDirectoryStore.getState().currentDirectory),
+      )
+      if (directory) useWebMcpBrowserStore.getState().selectView(directory, ui.currentSessionId)
+      const requestedKey = directory ? viewKeyFor(directory, ui.currentSessionId) : undefined
+      requestAgentMode(options, requestedKey)
       focusContextBrowser()
       if (options?.enable) {
         const failed = () => {
-          useWebMcpBrowserStore.getState().consumeEnableRequest()
+          useWebMcpBrowserStore.getState().consumeEnableRequest(requestedKey)
           toast.error(t("webmcp.detail.sessionRequired"))
         }
         void ensureSessionForProjectBrowser(t("webmcp.session.title")).then((started) => {
-          if (!started) failed()
+          if (!started) {
+            failed()
+            return
+          }
         }, failed)
       }
     },
@@ -95,7 +136,14 @@ export const webMcpCompatibility = (result: CapabilityProbeResult | null | undef
  * definite answers are cached.
  */
 export function useWebMcpCapabilityProbe(directory: string | null) {
-  const updateSnapshot = useWebMcpBrowserStore((state) => state.updateSnapshot)
+  const sessionID = useSessionUIStore((state) => state.currentSessionId)
+  const key = directory ? viewKeyFor(directory, sessionID) : null
+  const updateSnapshot = React.useCallback(
+    (partial: { runtimeCompatible: boolean | null }) => {
+      if (key) useWebMcpBrowserStore.getState().updateView(key, partial)
+    },
+    [key],
+  )
   React.useEffect(() => {
     if (!isElectronShell() || !directory) return
     const cached = capabilityCache

@@ -1,3 +1,4 @@
+import { useWebMcpBrowserValue } from "@/hooks/useWebMcpBrowser"
 import React from "react"
 
 import { Button } from "@/components/ui/button"
@@ -5,7 +6,7 @@ import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
 import { desktopWebMcpResultOutcome, WEBMCP_FAILURE_REASONS, webMcpResultPreview } from "@/lib/toolHelpers"
-import { useWebMcpBrowserStore, type WebMcpToolDefinition } from "@/stores/useWebMcpBrowserStore"
+import { type WebMcpToolDefinition } from "@/stores/useWebMcpBrowserStore"
 
 export type TryResult = { ok: boolean; outcome?: string; output?: unknown; reason?: string }
 
@@ -335,10 +336,10 @@ type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<Try
  * The tools the current page registers, visible before the agent is granted anything. "Try it" runs a tool on the page as
  * the user, the same as using the page; it creates no agent grant and adds nothing to the conversation.
  */
-export function WebMcpToolPanel({ tryTool }: { tryTool: TryTool }) {
+export function WebMcpToolPanel({ tryTool, viewKey }: { tryTool: TryTool; viewKey?: string }) {
   const { t } = useI18n()
-  const catalog = useWebMcpBrowserStore((state) => state.catalog)
-  const origin = useWebMcpBrowserStore((state) => state.origin)
+  const catalog = useWebMcpBrowserValue((state) => state.catalog, viewKey)
+  const origin = useWebMcpBrowserValue((state) => state.origin, viewKey)
   const [open, setOpen] = React.useState(false)
   if (!origin || catalog.length === 0) return null
   return (

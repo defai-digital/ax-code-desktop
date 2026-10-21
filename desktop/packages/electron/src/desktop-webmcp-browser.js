@@ -2,9 +2,18 @@
 
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
 
-const { randomBytes, randomUUID } = require("node:crypto")
+const { createHash, randomBytes, randomUUID } = require("node:crypto")
 const path = require("node:path")
-const { NativeWebMcp, CAPABILITY, agentOrigin, allowedUrl, pageKind, definitionDigest, byteSize } = require("./native-webmcp")
+const { projectKeyFor: projectKey, viewKeyFor: viewKey } = require("../../../shared/webmcp-view-key.mjs")
+const {
+  NativeWebMcp,
+  CAPABILITY,
+  agentOrigin,
+  allowedUrl,
+  pageKind,
+  definitionDigest,
+  byteSize,
+} = require("./native-webmcp")
 const { DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
@@ -27,6 +36,25 @@ function browserReason(error) {
   return REASON_CODES.has(code) ? code : "operation-failed"
 }
 
+const BROWSER_ACTIONS = Object.freeze([
+  "capability",
+  "create",
+  "status",
+  "close",
+  "disconnect",
+  "enable",
+  "resume",
+  "navigate",
+  "tryTool",
+  "reload",
+  "bounds",
+  "list",
+  "show",
+  "clearProject",
+  "revokeSession",
+  "pause",
+])
+
 function createDesktopWebMcpBrowser({
   BrowserWindow,
   WebContentsView,
@@ -37,20 +65,35 @@ function createDesktopWebMcpBrowser({
   providerToken = DESKTOP_BROWSER_TOKEN,
   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
   attachTimeoutMs = 2000,
+  maxLiveViews = 4,
 }) {
+  if (!Number.isInteger(maxLiveViews) || maxLiveViews < 1 || maxLiveViews > 8) {
+    throw new Error("Browser pool limit must be between 1 and 8")
+  }
+  // A project/session owns one live view; opaque IDs remain the only renderer handle.
   const views = new Map()
+  const shown = new Map()
+  const initializing = new Map()
   // Partitions whose guest session already has the hardened handlers attached.
   const guestSessions = new Set()
-  // window partition -> in-flight storage clear, so a new pane never loads into a
-  // half-cleared profile.
+  // Profile ownership survives closing its last view, until the owning window dies.
+  const profileOwners = new Map()
+  // Diagnostic tracking only; serializePool prevents loading a half-cleared profile.
   const pendingGuestClears = new Map()
-  // sender id -> in-flight create. Two concurrent creates for the same sender
-  // would both pass the `views.has` check before either reaches `views.set`,
-  // and the loser's WebContentsView would stay attached but untracked until the
-  // window closes. Serialize them instead.
+  // Track pending creates by owner; pool mutations are serialized across windows
+  // so asynchronous native setup cannot exceed the live-view bound.
   const pendingCreates = new Map()
+  let poolRevision = 0
+  let poolOperations = Promise.resolve()
+  const serializePool = (task) => {
+    const operation = poolOperations.catch(() => {}).then(task)
+    poolOperations = operation
+    return operation
+  }
+  const partitionFor = (directory) =>
+    `ax-coder-webmcp-${createHash("sha256").update(projectKey(directory)).digest("hex")}`
   let factory
-  async function api(directory, url, method = "GET", body, signal) {
+  async function runtimeApi(directory, url, method = "GET", body, signal) {
     const origin = getRuntime()
     const target = origin && new URL(origin)
     if (
@@ -75,7 +118,7 @@ function createDesktopWebMcpBrowser({
       },
     })
     return client.request({
-      url: `/desktop/browser${url}`,
+      url,
       method,
       query: { directory },
       body,
@@ -86,9 +129,11 @@ function createDesktopWebMcpBrowser({
       signal: signal ?? AbortSignal.timeout(20000),
     })
   }
+  const api = (directory, url, method, body, signal) =>
+    runtimeApi(directory, `/desktop/browser${url}`, method, body, signal)
   function lookup(sender, id) {
-    const entry = views.get(sender.id)
-    if (!entry || entry.id !== id || entry.sender !== sender) throw new Error("This browser belongs to another window")
+    const entry = [...views.values()].find((candidate) => candidate.id === id)
+    if (!entry || entry.sender !== sender) throw new Error("This browser belongs to another window")
     return entry
   }
   // A command that acts on the pane's view: teardown destroys the webContents, which can land
@@ -99,12 +144,38 @@ function createDesktopWebMcpBrowser({
       throw new Error("The project browser is no longer available")
     }
   }
+  const visible = (entry) =>
+    !entry.closed &&
+    entry.attached &&
+    shown.get(entry.sender.id) === entry.key &&
+    entry.owner.isVisible() &&
+    !entry.owner.isMinimized()
+  function hide(entry) {
+    if (entry.attached && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
+    entry.attached = false
+    // Visibility gates new requests only. Already executing work keeps its original deadline.
+  }
+  function show(entry) {
+    assertViewAlive(entry)
+    const previous = views.get(shown.get(entry.sender.id))
+    if (previous && previous !== entry) hide(previous)
+    shown.set(entry.sender.id, entry.key)
+    entry.lastUsed = Date.now()
+    // The first bounds comes from the pane; later shows reuse that view's own bounds.
+    if (!initializing.has(entry.sender.id) && entry.bounds?.width && entry.bounds?.height) {
+      if (!entry.attached) entry.owner.contentView.addChildView(entry.view)
+      entry.view.setBounds(entry.bounds)
+      entry.attached = true
+    }
+    if (visible(entry)) entry.waiting?.wake()
+  }
   async function disconnect(entry) {
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
     entry.connection = null
     entry.controller?.abort()
     entry.controller = null
+    entry.waiting?.wake()
     entry.adapter.revoke({ cancelPageRequest: true })
     // Teardown must not wait on a wedged runtime: quit and pane close both block
     // on this DELETE, and the default 20s timeout reads as a hang. The runtime
@@ -127,31 +198,20 @@ function createDesktopWebMcpBrowser({
   async function close(entry) {
     if (entry.closed) return
     entry.closed = true
-    if (views.get(entry.sender.id) === entry) views.delete(entry.sender.id)
+    for (const abort of entry.loadAborts) abort()
+    if (views.get(entry.key) === entry) views.delete(entry.key)
+    if (shown.get(entry.sender.id) === entry.key) shown.delete(entry.sender.id)
     entry.owner.removeListener("closed", entry.onOwnerClosed)
     entry.owner.removeListener("hide", entry.onOwnerHidden)
     entry.owner.removeListener("minimize", entry.onOwnerHidden)
+    entry.owner.removeListener("show", entry.onOwnerShown)
+    entry.owner.removeListener("restore", entry.onOwnerShown)
     entry.sender.removeListener("destroyed", entry.onOwnerClosed)
     entry.sender.removeListener("render-process-gone", entry.onOwnerClosed)
     const disconnection = disconnect(entry)
     entry.adapter.close()
     if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: false })
-    // Wipe cookies, caches and storage so the reused per-window partition behaves
-    // like the fresh one this pane used to get.
-    const partition = `ax-coder-webmcp-${entry.sender.id}`
-    const clearing = (async () => {
-      try {
-        await session.fromPartition(partition).clearStorageData()
-      } catch {
-        // Best-effort: a failed clear only leaves data for the next pane.
-      }
-    })().finally(() => {
-      if (pendingGuestClears.get(partition) === clearing) {
-        pendingGuestClears.delete(partition)
-      }
-    })
-    pendingGuestClears.set(partition, clearing)
     await disconnection
   }
   // The page's own tool catalog, so the user can see what the page offers before granting the agent anything.
@@ -179,6 +239,11 @@ function createDesktopWebMcpBrowser({
     const url = entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL()
     return {
       id: entry.id,
+      directory: entry.directory,
+      sessionID: entry.sessionID,
+      visible: visible(entry),
+      waiting: Boolean(entry.waiting),
+      lastUsed: entry.lastUsed,
       nativeAvailable: entry.adapter.available,
       enabled: Boolean(entry.connection) && !entry.paused,
       paused: Boolean(entry.paused),
@@ -224,6 +289,7 @@ function createDesktopWebMcpBrowser({
           reject(new Error("Navigation canceled"))
         }
         signal?.addEventListener("abort", abort, { once: true })
+        entry.loadAborts.add(abort)
         timer = setTimeout(() => {
           stop()
           reject(new Error("Navigation timed out"))
@@ -238,6 +304,7 @@ function createDesktopWebMcpBrowser({
     } finally {
       clearTimeout(timer)
       signal?.removeEventListener("abort", abort)
+      entry.loadAborts.delete(abort)
       entry.pendingLoads.delete(sequence)
     }
   }
@@ -294,6 +361,22 @@ function createDesktopWebMcpBrowser({
     }
   }
 
+  async function waitUntilVisible(entry, request, signal) {
+    if (visible(entry)) return true
+    await new Promise((resolve) => {
+      const wake = () => resolve()
+      const timer = setTimeout(wake, Math.max(0, request.deadline - Date.now()))
+      timer.unref?.()
+      entry.waiting = { wake, timer }
+      signal.addEventListener("abort", wake, { once: true })
+    }).finally(() => {
+      clearTimeout(entry.waiting?.timer)
+      if (entry.waiting) signal.removeEventListener("abort", entry.waiting.wake)
+      entry.waiting = null
+    })
+    return !signal.aborted && visible(entry) && Date.now() < request.deadline
+  }
+
   async function run(entry, connection, signal) {
     const canceled = new Set()
     try {
@@ -315,10 +398,36 @@ function createDesktopWebMcpBrowser({
           request.providerID !== connection.providerID ||
           request.epoch !== connection.epoch ||
           request.projectID !== connection.projectID ||
+          request.projectID !== entry.projectID ||
           request.sessionID !== entry.sessionID
         ) {
           throw new Error("Browser request identity mismatch")
         }
+        if (canceled.delete(request.requestID)) continue
+        if (!Number.isFinite(request.deadline)) throw new Error("Browser request requires a deadline")
+        const wasHidden = !visible(entry)
+        while (!visible(entry) && Date.now() < request.deadline && !signal.aborted && entry.connection === connection) {
+          await waitUntilVisible(entry, request, signal)
+        }
+        if (signal.aborted || entry.connection !== connection || entry.paused) return
+        if (Date.now() >= request.deadline) {
+          if (signal.aborted || entry.connection !== connection) return
+          await api(
+            entry.directory,
+            `/provider/${connection.providerID}/reply`,
+            "POST",
+            {
+              requestID: request.requestID,
+              generation: request.generation,
+              status: "Error",
+              output: { reason: wasHidden ? "waiting-for-visible-timeout" : "request-deadline-exceeded" },
+            },
+            signal,
+          )
+          continue
+        }
+        // Awaiting visibility never transfers a request to the newly shown page.
+        if (signal.aborted || entry.connection !== connection || entry.paused) return
         // Navigation is not a native tool call: the pane owns the load, so the
         // bridge performs it and replies with the document it opened.
         if (request.operation === "navigate") {
@@ -328,10 +437,12 @@ function createDesktopWebMcpBrowser({
           continue
         }
         // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
+        entry.activeRequests.add(request.requestID)
         void entry.adapter
           .execute(request)
           .catch(() => ({ requestID: request.requestID, generation: request.generation, status: "Error" }))
           .then(async (reply) => {
+            entry.activeRequests.delete(request.requestID)
             if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
             // An action can change the document; the runtime must hold that snapshot before the reply.
             if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
@@ -349,14 +460,20 @@ function createDesktopWebMcpBrowser({
     }
   }
   async function createView(args, sender, owner) {
-    if (views.has(sender.id)) await close(views.get(sender.id))
-    // One stable, in-memory partition per window instead of a fresh UUID per open:
-    // Electron caches a Session per partition string and offers no way to destroy
-    // one, so a UUID per open leaked a session (cookie jar, caches, network
-    // context) for every pane the user ever opened. `close()` clears the storage
-    // again, so a new pane still starts from a clean profile.
-    const partition = `ax-coder-webmcp-${sender.id}`
-    await (pendingGuestClears.get(partition) ?? Promise.resolve())
+    const key = viewKey(args.directory, args.sessionID)
+    const existing = views.get(key)
+    if (existing) {
+      if (existing.sender !== sender) throw new Error("This browser belongs to another window")
+      return status(existing)
+    }
+    if (views.size >= maxLiveViews) throw new Error("pool-full")
+    // Electron retains Session objects for the app lifetime. Reuse exactly one
+    // hardened, in-memory profile per project, independent of its session count.
+    // Closing a page does not sign the project out; only clearProject does.
+    const partition = partitionFor(args.directory)
+    const owners = profileOwners.get(partition) ?? new Set()
+    owners.add(sender)
+    profileOwners.set(partition, owners)
     const guestSession = session.fromPartition(partition)
     if (!guestSessions.has(partition)) {
       guestSessions.add(partition)
@@ -383,16 +500,23 @@ function createDesktopWebMcpBrowser({
     })
     const entry = {
       id: randomUUID(),
+      key,
+      projectKey: projectKey(args.directory),
+      ready: false,
+      lastUsed: Date.now(),
       sender,
       owner,
       view,
-      directory: args.directory,
+      directory: projectKey(args.directory),
       sessionID: args.sessionID,
       paused: false,
       error: null,
       loadSequence: 0,
       pendingLoads: new Set(),
+      loadAborts: new Set(),
       navigations: new Map(),
+      activeRequests: new Set(),
+      waiting: null,
       connection: null,
       controller: null,
       attached: false,
@@ -409,7 +533,10 @@ function createDesktopWebMcpBrowser({
       if (isMainFrame && !isInPlace && !entry.pendingLoads.has(entry.loadSequence)) ++entry.loadSequence
     })
     view.webContents.on("did-navigate", () => {
-      if (!entry.pendingLoads.has(entry.loadSequence) && (REASON_CODES.has(entry.error) || entry.error === "operation-failed")) {
+      if (
+        !entry.pendingLoads.has(entry.loadSequence) &&
+        (REASON_CODES.has(entry.error) || entry.error === "operation-failed")
+      ) {
         entry.error = null
       }
     })
@@ -432,17 +559,26 @@ function createDesktopWebMcpBrowser({
       void close(entry)
     }
     entry.onOwnerHidden = () => {
-      void pause(entry)
+      hide(entry)
     }
-    views.set(sender.id, entry)
+    entry.onOwnerShown = () => {
+      if (shown.get(sender.id) === entry.key && !entry.closed) show(entry)
+    }
+    views.set(key, entry)
+    if (!shown.has(sender.id)) shown.set(sender.id, key)
     owner.on("closed", entry.onOwnerClosed)
     owner.on("hide", entry.onOwnerHidden)
     owner.on("minimize", entry.onOwnerHidden)
+    owner.on("show", entry.onOwnerShown)
+    owner.on("restore", entry.onOwnerShown)
     sender.on("destroyed", entry.onOwnerClosed)
     sender.on("render-process-gone", entry.onOwnerClosed)
+    const previous = views.get(shown.get(sender.id))
     try {
       // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
       view.setBounds({ x: 0, y: 0, width: 0, height: 0 })
+      initializing.set(sender.id, key)
+      if (previous?.attached) hide(previous)
       owner.contentView.addChildView(view)
       // A page that fails to load (server down, bad certificate) must not kill the
       // pane: closing the entry would leave the renderer without an id, so the
@@ -455,14 +591,20 @@ function createDesktopWebMcpBrowser({
       if (entry.closed) throw new Error("Browser closed during loading")
       await entry.adapter.start()
       owner.contentView.removeChildView(view)
+      entry.ready = true
     } catch {
       await close(entry)
       throw new Error("The native browser could not load this page")
+    } finally {
+      initializing.delete(sender.id)
+      const selected = views.get(shown.get(sender.id))
+      if (selected && !selected.closed && !owner.isDestroyed()) show(selected)
     }
     return status(entry)
   }
   async function command(sender, args) {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid browser command")
+    if (!BROWSER_ACTIONS.includes(args.action)) throw new Error("Native browser command is unavailable")
     if (args.action === "capability") {
       // A read-only compatibility probe so the UI can explain an old runtime before any browser exists.
       if (typeof args.directory !== "string" || !path.isAbsolute(args.directory) || args.directory.includes("\0")) {
@@ -504,9 +646,13 @@ function createDesktopWebMcpBrowser({
       }
       const owner = BrowserWindow.fromWebContents(sender)
       if (!owner) throw new Error("The browser requires a local desktop window")
-      const run = (pendingCreates.get(sender.id) ?? Promise.resolve())
-        .catch(() => {})
-        .then(() => createView(args, sender, owner))
+      const revision = poolRevision
+      const run = serializePool(() => {
+        if (revision !== poolRevision || owner.isDestroyed() || sender.isDestroyed?.()) {
+          throw new Error("The browser window is no longer available")
+        }
+        return createView(args, sender, owner)
+      })
       pendingCreates.set(sender.id, run)
       try {
         return await run
@@ -514,11 +660,97 @@ function createDesktopWebMcpBrowser({
         if (pendingCreates.get(sender.id) === run) pendingCreates.delete(sender.id)
       }
     }
+    if (args.action === "clearProject") {
+      if (typeof args.directory !== "string" || !path.isAbsolute(args.directory) || args.directory.includes("\0")) {
+        throw new Error("Select a project before clearing browser storage")
+      }
+      if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
+      const directory = projectKey(args.directory)
+      const partition = partitionFor(directory)
+      const clearing = serializePool(async () => {
+        const owners = profileOwners.get(partition)
+        for (const owner of owners ?? []) {
+          if (
+            owner.isDestroyed?.() ||
+            !BrowserWindow.fromWebContents(owner) ||
+            BrowserWindow.fromWebContents(owner).isDestroyed()
+          )
+            owners.delete(owner)
+        }
+        const targets = [...views.values()].filter((entry) => entry.projectKey === projectKey(directory))
+        if (
+          !owners?.has(sender) ||
+          [...owners].some((owner) => owner !== sender) ||
+          targets.some((entry) => entry.sender !== sender)
+        )
+          throw new Error("This browser storage belongs to another window")
+        const affected = targets.map(({ id, directory, sessionID }) => ({ id, directory, sessionID }))
+        const notify = (error) => {
+          if (!sender.isDestroyed?.())
+            sender.send("ax-code:dom-event", {
+              event: "openchamber:webmcp-storage",
+              detail: { views: affected, error },
+            })
+        }
+        notify("storage-clearing")
+        try {
+          await Promise.all(targets.map(close))
+          if (guestSessions.has(partition)) await session.fromPartition(partition).clearStorageData()
+          notify("storage-cleared")
+          return { cleared: true }
+        } catch (error) {
+          notify("operation-failed")
+          throw error
+        }
+      })
+      pendingGuestClears.set(partition, clearing)
+      try {
+        return await clearing
+      } finally {
+        if (pendingGuestClears.get(partition) === clearing) pendingGuestClears.delete(partition)
+      }
+    }
+    if (args.action === "revokeSession") {
+      if (
+        typeof args.directory !== "string" ||
+        !path.isAbsolute(args.directory) ||
+        args.directory.includes("\0") ||
+        typeof args.sessionID !== "string" ||
+        !/^ses_[A-Za-z0-9_-]{1,200}$/.test(args.sessionID)
+      ) {
+        throw new Error("Select a coding session before revoking browser access")
+      }
+      if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
+      return serializePool(async () => {
+        const target = views.get(viewKey(args.directory, args.sessionID))
+        if (target) {
+          lookup(sender, target.id)
+          target.paused = false
+          await disconnect(target)
+        }
+        return { revoked: true }
+      })
+    }
+    if (args.action === "list") {
+      if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
+      return { views: [...views.values()].filter((entry) => entry.sender === sender && entry.ready).map(status) }
+    }
     const entry = lookup(sender, args.id)
+    if (args.sessionID !== undefined && args.sessionID !== entry.sessionID) throw new Error("Browser session mismatch")
+    if (args.directory !== undefined && projectKey(args.directory) !== entry.projectKey)
+      throw new Error("Browser project mismatch")
+    if (args.action === "show") {
+      show(entry)
+      return status(entry)
+    }
     if (args.action === "status") return status(entry)
     if (args.action === "close") {
       await close(entry)
       return { closed: true }
+    }
+    if (args.action === "pause") {
+      await pause(entry)
+      return status(entry)
     }
     if (args.action === "disconnect") {
       entry.paused = false
@@ -566,11 +798,25 @@ function createDesktopWebMcpBrowser({
         }
         await entry.syncing
         if (!active()) throw new Error("Browser access changed during enrollment")
+        // Resolve the session from the authenticated runtime rather than trusting
+        // the renderer-supplied pair. Session.directory is the exact coding workspace.
+        const codingSession = await runtimeApi(entry.directory, `/session/${entry.sessionID}`)
+        if (
+          codingSession?.id !== entry.sessionID ||
+          typeof codingSession.directory !== "string" ||
+          projectKey(codingSession.directory) !== entry.projectKey ||
+          typeof codingSession.projectID !== "string" ||
+          !codingSession.projectID ||
+          !active()
+        ) {
+          throw new Error("Browser session does not belong to this project")
+        }
+        entry.projectID = codingSession.projectID
         const connection = await api(entry.directory, "/provider", "POST", {
           sessionID: entry.sessionID,
           snapshot: entry.adapter.snapshot(),
         })
-        if (!active()) {
+        if (!active() || connection.projectID !== entry.projectID) {
           await api(entry.directory, `/provider/${connection.providerID}`, "DELETE").catch(() => {})
           throw new Error("Browser access changed during enrollment")
         }
@@ -654,16 +900,16 @@ function createDesktopWebMcpBrowser({
         width: Math.max(0, Math.min(container.width - left, Math.round(width * zoom))),
         height: Math.max(0, Math.min(container.height - top, Math.round(height * zoom))),
       }
-      if (bounds.width && bounds.height) {
+      entry.bounds = bounds
+      if (bounds.width && bounds.height && shown.get(sender.id) === entry.key && !initializing.has(sender.id)) {
         if (!entry.attached) {
           entry.owner.contentView.addChildView(entry.view)
           entry.attached = true
         }
         entry.view.setBounds(bounds)
+        if (visible(entry)) entry.waiting?.wake()
       } else if (entry.attached) {
-        entry.owner.contentView.removeChildView(entry.view)
-        entry.attached = false
-        await pause(entry)
+        hide(entry)
       }
       return status(entry)
     }
@@ -671,8 +917,20 @@ function createDesktopWebMcpBrowser({
   }
   return {
     command,
+    // Bounded lifecycle counters for deterministic leak checks; never exposed over IPC.
+    poolStats: () => ({
+      liveViews: views.size,
+      shownWindows: shown.size,
+      pendingCreates: pendingCreates.size,
+      pendingGuestClears: pendingGuestClears.size,
+      initializing: initializing.size,
+      partitions: guestSessions.size,
+    }),
     closeAll: async () => {
-      await Promise.allSettled([...views.values()].map(close))
+      ++poolRevision
+      const closing = [...views.values()].map(close)
+      await poolOperations.catch(() => {})
+      await Promise.allSettled([...closing, ...[...views.values()].map(close)])
     },
     runtimeChanged: () => {
       for (const entry of views.values()) {
@@ -683,4 +941,4 @@ function createDesktopWebMcpBrowser({
   }
 }
 
-module.exports = { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN }
+module.exports = { createDesktopWebMcpBrowser, DESKTOP_BROWSER_TOKEN, BROWSER_ACTIONS }

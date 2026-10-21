@@ -1,3 +1,4 @@
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
@@ -24,12 +25,20 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const messages = useSessionMessages(sessionId, directory)
   const requestAgentMode = useWebMcpBrowserStore((state) => state.requestAgentMode)
   // Tools of the page this session's browser shows; another session's page must never be read as "not called" here.
-  const pageTools = useWebMcpBrowserStore((state) => (state.sessionID === sessionId ? state.catalog : null))
+  const pageTools = useWebMcpBrowserStore(
+    (state) =>
+      state.views[viewKeyFor(directory, sessionId)]?.catalog ??
+      (state.order.length === 0 && state.sessionID === sessionId ? state.catalog : null),
+  )
   // A string selector: streamed tokens re-render nothing unless the latest turn's calls change.
   const serialized = useDirectorySync(
     React.useCallback(
       (state: { part: Map<string, unknown[]> }) => {
-        const calls = collectWebMcpCalls(latestTurnMessages(messages) as never, (id) => state.part.get(id) as never, 200)
+        const calls = collectWebMcpCalls(
+          latestTurnMessages(messages) as never,
+          (id) => state.part.get(id) as never,
+          200,
+        )
         const recap: RecapCall[] = calls.map(({ id, title, toolName, operation, outcome, failureReason }) => ({
           id,
           title,
@@ -57,7 +66,7 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
     <div className="min-w-0" data-landing-browser-recap>
       <button
         type="button"
-        onClick={() => requestAgentMode()}
+        onClick={() => requestAgentMode(undefined, viewKeyFor(directory, sessionId))}
         data-landing-browser-evidence={failed > 0 ? "failed" : "ok"}
         className="inline-flex min-w-0 items-center gap-1.5 rounded border border-border/60 px-2 py-1 typography-micro text-muted-foreground hover:text-foreground"
         title={t("diffView.landing.browserEvidenceHint")}
