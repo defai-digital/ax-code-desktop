@@ -156,6 +156,28 @@ describe("webMcpRegressionExport", () => {
       else await expect(execution).rejects.toThrow("expected outcome")
     }
   })
+  test("untrusted tool names and arguments remain data in the exported program", async () => {
+    const toolName = 'echo"); injected(); //\n</script><script>injected()</script>'
+    const input = { text: '"}); injected(); //', nested: ["` ${injected()} "] }
+    const exported = webMcpRegressionExport({ tool: toolName, input, outcome: "completed" })!
+    let injected = false
+    let received: unknown
+    const tool = { name: toolName }
+    await new AsyncFunction("document", "injected", exported.snippet)(
+      { modelContext: {
+        getTools: async () => [tool],
+        executeTool: async (selected: unknown, argumentsJson: string) => {
+          expect(selected).toBe(tool)
+          received = JSON.parse(argumentsJson)
+          return "{}"
+        },
+      } },
+      () => { injected = true },
+    )
+    expect(injected).toBe(false)
+    expect(received).toEqual(input)
+  })
+
   test("calls executeTool with a JSON string and offers the equivalent --run argument", async () => {
     const exported = webMcpRegressionExport({
       tool: "echo",
