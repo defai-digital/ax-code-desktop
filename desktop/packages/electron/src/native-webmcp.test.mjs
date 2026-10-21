@@ -319,6 +319,74 @@ test.each([true, false])("oversized result has its own reason (before native ack
   f.adapter.close()
 })
 
+test("names a rejected catalog and keeps the browser connected", async () => {
+  const f = await fixture()
+  const accepted = [fixtureTool]
+  f.emit("WebMCP.toolsAdded", { tools: [fixtureTool, { ...fixtureTool, description: "other" }] })
+  expect(f.adapter.available).toBe(true)
+  expect(f.adapter.snapshot().tools).toEqual(accepted)
+  expect(f.adapter.snapshot().origin).toBe("https://example.com")
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "duplicate-name", tool: "echo" })
+
+  f.emit("WebMCP.toolsAdded", {
+    tools: [{ name: "bad", description: "Bad", frameId: "top", inputSchema: [] }],
+  })
+  expect(f.adapter.available).toBe(true)
+  expect(f.adapter.snapshot().tools).toEqual(accepted)
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "invalid-schema", tool: "bad" })
+
+  const long = "n".repeat(300)
+  f.emit("WebMCP.toolsAdded", { tools: [{ name: long, description: "Bad", frameId: "top" }] })
+  expect(f.adapter.available).toBe(true)
+  expect(f.adapter.snapshot().tools).toEqual(accepted)
+  expect(f.adapter.catalogRejection).toEqual({
+    code: "invalid-catalog",
+    reason: "invalid-name",
+    tool: long.slice(0, 64),
+  })
+
+  const cycle = { type: "object" }
+  cycle.self = cycle
+  f.emit("WebMCP.toolsAdded", { tools: [{ name: "cycle", description: "Cycle", frameId: "top", inputSchema: cycle }] })
+  expect(f.adapter.available).toBe(true)
+  expect(f.adapter.snapshot().tools).toEqual(accepted)
+  expect(f.adapter.catalogRejection).toMatchObject({ reason: "invalid-schema", tool: "cycle" })
+
+  f.emit("WebMCP.toolsAdded", { tools: [] })
+  expect(f.adapter.catalogRejection).toMatchObject({ reason: "invalid-schema", tool: "cycle" })
+  expect(f.adapter.snapshot().tools).toEqual(accepted)
+
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Updated" }] })
+  expect(f.adapter.catalogRejection).toBeNull()
+  expect(f.adapter.available).toBe(true)
+  expect(f.adapter.snapshot().tools.map((tool) => tool.description)).toEqual(["Updated"])
+  expect(f.adapter.snapshot().tools[0]).not.toHaveProperty("kind")
+
+  f.contents.emit("did-start-navigation", {}, "https://example.com/", false, true)
+  expect(f.adapter.catalogRejection).toBeNull()
+  expect(f.adapter.snapshot().tools).toEqual([])
+  expect(f.adapter.available).toBe(true)
+  f.adapter.close()
+})
+
+test("a form tool is not stored on the invocation digest, and hints do not authorize a call", async () => {
+  const f = await fixture()
+  f.emit("WebMCP.toolsAdded", {
+    tools: [{ ...fixtureTool, backendNodeId: 7, annotations: { readOnly: true, consequentialHint: "yes" } }],
+  })
+  const stored = f.adapter.snapshot().tools[0]
+  expect(stored).toEqual({ ...fixtureTool, annotations: { readOnly: true, consequentialHint: "yes" } })
+  expect(stored).not.toHaveProperty("backendNodeId")
+  expect(stored).not.toHaveProperty("kind")
+  expect(f.adapter.toolKinds.get("echo")).toBe("form")
+  expect(definitionDigest(stored)).toBe(definitionDigest({ ...fixtureTool, annotations: stored.annotations }))
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, backendNodeId: 1.5 }] })
+  expect(f.adapter.toolKinds.get("echo")).toBe("script")
+  expect(f.adapter.catalogRejection).toBeNull()
+  expect(f.adapter.available).toBe(true)
+  f.adapter.close()
+})
+
 test("an unrelated oversized response cannot reject the active invocation", async () => {
   const f = await fixture()
   const pending = f.adapter.execute(f.request())

@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { EventEmitter } from "node:events"
-import { createDesktopWebMcpBrowser } from "./desktop-webmcp-browser.js"
+import { createRequire } from "node:module"
+import { createDesktopWebMcpBrowser, projectToolCatalog } from "./desktop-webmcp-browser.js"
+
+const { catalogDigest } = createRequire(import.meta.url)("./native-webmcp.js")
 
 const controllers = []
 afterEach(async () => {
@@ -904,7 +907,18 @@ describe("page tools for the user", () => {
     guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
     const listed = await f.controller.command(sender, { action: "status", id: status.id })
     expect(listed.enabled).toBe(false)
-    expect(listed.catalog).toEqual([{ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }])
+    expect(listed.catalog).toEqual([
+      {
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        kind: "script",
+        digest: catalogDigest(tool),
+      },
+    ])
+    expect(listed.catalogTotal).toBe(1)
+    expect(listed.catalogTruncation).toBeNull()
+    expect(listed.catalogRejection).toBeNull()
 
     guest.debugger.sendCommand = async (method, params) => {
       if (method === "WebMCP.invokeTool") {
@@ -932,6 +946,91 @@ describe("page tools for the user", () => {
     expect(
       await f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "missing", input: {} }),
     ).toEqual({ ok: false, outcome: "failed", reason: "tool-not-found" })
+  })
+
+  test("projects form tools, hint badges, a 64-of-N catalog, and a named rejection without disconnecting", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests.at(-1)
+    const form = {
+      name: "save_form",
+      description: "Save the form",
+      frameId: "top",
+      backendNodeId: 7,
+      annotations: { readOnly: true, consequentialHint: true },
+    }
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [form] })
+    const listed = await f.controller.command(sender, { action: "status", id: status.id })
+    expect(listed.nativeAvailable).toBe(true)
+    expect(listed.catalog[0]).toEqual({
+      name: form.name,
+      description: form.description,
+      annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: true },
+      kind: "form",
+      digest: catalogDigest({
+        name: form.name,
+        description: form.description,
+        frameId: "top",
+        annotations: form.annotations,
+      }),
+    })
+
+    const many = Array.from({ length: 65 }, (_, index) => ({
+      name: `tool_${index}`,
+      description: "Short",
+      frameId: "top",
+    }))
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: many })
+    const capped = await f.controller.command(sender, { action: "status", id: status.id })
+    expect(capped.nativeAvailable).toBe(true)
+    expect(capped.tools).toBe(66)
+    expect(capped.catalog).toHaveLength(64)
+    expect(capped.catalogTotal).toBe(66)
+    expect(capped.catalogTruncation).toBe("count")
+    expect(capped.catalogRejection).toBeNull()
+
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", {
+      tools: [
+        { name: "echo", description: "One", frameId: "top" },
+        { name: "echo", description: "Two", frameId: "top" },
+      ],
+    })
+    const rejected = await f.controller.command(sender, { action: "status", id: status.id })
+    expect(rejected.nativeAvailable).toBe(true)
+    expect(rejected.error).toBeNull()
+    expect(rejected.enabled).toBe(false)
+    expect(rejected.catalog).toHaveLength(64)
+    expect(rejected.catalogRejection).toEqual({ code: "invalid-catalog", reason: "duplicate-name", tool: "echo" })
+  })
+})
+
+test("the visible catalog stops at 64 tools and at 256 KiB before a later definition", () => {
+  const tools = Array.from({ length: 65 }, (_, index) => ({
+    name: `tool_${index}`,
+    description: "Short",
+    inputSchema: { type: "object" },
+  }))
+  const counted = projectToolCatalog(tools)
+  expect(counted.catalog).toHaveLength(64)
+  expect(counted.total).toBe(65)
+  expect(counted.truncation).toBe("count")
+  expect(counted.catalog[0].kind).toBe("script")
+  expect(counted.catalog[0].digest).toMatch(/^[a-f0-9]{64}$/)
+
+  const small = { name: "small", description: "d", inputSchema: { type: "object" } }
+  const large = { name: "large", description: "d", inputSchema: { pad: "x".repeat(262144) } }
+  const sized = projectToolCatalog([small, large])
+  expect(sized.catalog.map((entry) => entry.name)).toEqual(["small"])
+  expect(sized.total).toBe(2)
+  expect(sized.truncation).toBe("bytes")
+
+  const hints = projectToolCatalog(
+    [{ name: "save", description: "Save", annotations: { readOnly: true, consequential: 1 } }],
+    new Map([["save", "form"]]),
+  )
+  expect(hints.catalog[0]).toMatchObject({
+    kind: "form",
+    annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: false },
   })
 })
 

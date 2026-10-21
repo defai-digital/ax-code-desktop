@@ -75,6 +75,69 @@ test("bounds history and validates persisted data on every restore", () => {
   expect(restoreWebMcpAddress("/repo", "ses_two")).toBe("https://example.org/path")
 })
 
+test("a changed definition marks the previous result stale and the same definition does not", () => {
+  // Mutation probe: clearing the stale flag on a digest mismatch, or setting it when the digest matches, fails.
+  const store = useWebMcpBrowserStore.getState()
+  store.resetSnapshot()
+  const tool = { name: "echo", description: "Echo", inputSchema: { type: "object" } }
+  store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
+  const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
+  store.recordToolRun("echo", { digest, outcome: "completed", text: "5", stale: false })
+  store.updateSnapshot({ catalog: [{ ...tool, description: "Echo revised" }] })
+  expect(useWebMcpBrowserStore.getState().toolRuns.echo).toMatchObject({ stale: true, digest, text: "5" })
+  expect(useWebMcpBrowserStore.getState().registration.some((event) => event.kind === "changed")).toBe(true)
+
+  store.resetSnapshot()
+  store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
+  const same = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
+  store.recordToolRun("echo", { digest: same, outcome: "completed", text: "5", stale: false })
+  const registration = useWebMcpBrowserStore.getState().registration
+  store.updateSnapshot({ catalog: [{ ...tool }] })
+  expect(useWebMcpBrowserStore.getState().toolRuns.echo?.stale).toBe(false)
+  expect(useWebMcpBrowserStore.getState().registration).toBe(registration)
+  store.updateSnapshot({ catalog: [] })
+  expect(useWebMcpBrowserStore.getState().toolRuns.echo?.stale).toBe(false)
+  store.updateSnapshot({ busy: true })
+  expect(useWebMcpBrowserStore.getState().registration.length).toBeGreaterThan(0)
+})
+
+test("keeps drafts for the same definition in memory and drops them with the page", () => {
+  const store = useWebMcpBrowserStore.getState()
+  store.resetSnapshot()
+  const setItem = vi.spyOn(Storage.prototype, "setItem")
+  const tool = { name: "echo", description: "Echo" }
+  store.updateSnapshot({ origin: "https://example.test", catalog: [tool] })
+  const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
+  store.saveToolDraft("echo", { digest, values: { title: "Ship" }, sendEmpty: {}, json: "{}", jsonMode: false })
+  store.updateSnapshot({ catalog: [] })
+  store.updateSnapshot({ catalog: [tool] })
+  expect(useWebMcpBrowserStore.getState().toolDrafts.echo).toMatchObject({ digest, values: { title: "Ship" } })
+  expect(useWebMcpBrowserStore.getState().registration.map((event) => event.kind)).toEqual(["added"])
+  store.updateSnapshot({ origin: "https://other.test", catalog: [tool] })
+  expect(useWebMcpBrowserStore.getState().toolDrafts).toEqual({})
+  expect(useWebMcpBrowserStore.getState().toolRuns).toEqual({})
+  expect(useWebMcpBrowserStore.getState().registration.map((event) => event.kind)).toEqual(["added"])
+  for (let index = 0; index < 65; index += 1) {
+    store.saveToolDraft(`tool_${index}`, { digest: "abcdabcd", values: {}, sendEmpty: {}, json: "{}", jsonMode: false })
+  }
+  const names = Object.keys(useWebMcpBrowserStore.getState().toolDrafts)
+  expect(names).toHaveLength(64)
+  expect(names).not.toContain("tool_0")
+  expect(names).toContain("tool_64")
+  useWebMcpBrowserStore.setState({ runtimeCompatible: true })
+  store.resetSnapshot()
+  expect(useWebMcpBrowserStore.getState()).toMatchObject({
+    runtimeCompatible: true,
+    catalog: [],
+    catalogRejection: null,
+    registration: [],
+    toolDrafts: {},
+    toolRuns: {},
+  })
+  expect(setItem).not.toHaveBeenCalled()
+  setItem.mockRestore()
+})
+
 test("bounds the total serialized size and restores after a fresh module load", async () => {
   const directory = "/" + "d".repeat(2040)
   const url = "https://example.org/" + "p".repeat(2000)

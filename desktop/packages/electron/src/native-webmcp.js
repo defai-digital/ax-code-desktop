@@ -21,6 +21,24 @@ const canonical = (value, depth = 0) => {
   return JSON.stringify(value) ?? "null"
 }
 const definitionDigest = (tool) => createHash("sha256").update(canonical(tool)).digest("hex")
+const plainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
+// Identity of a tool for the builder. Frame ids change on reload, so they are not part of this digest:
+// a same-definition reload must still match drafts and must not look like a schema change.
+const catalogIdentity = (tool) => {
+  const identity = { name: tool.name, description: tool.description }
+  if (tool.inputSchema !== undefined) identity.inputSchema = tool.inputSchema
+  if (tool.annotations !== undefined) identity.annotations = tool.annotations
+  return identity
+}
+const catalogDigest = (tool) =>
+  createHash("sha256")
+    .update(canonical(catalogIdentity(tool)))
+    .digest("hex")
+const catalogRejection = (reason, tool) => ({
+  code: "invalid-catalog",
+  reason,
+  tool: typeof tool === "string" && tool ? tool.slice(0, 64) : "",
+})
 const allowedUrl = (value) => {
   try {
     const url = new URL(value)
@@ -64,6 +82,12 @@ class NativeWebMcp {
     this.generation = randomUUID()
     this.frameId = ""
     this.tools = new Map()
+    // Declarative (form) versus imperative (script). Kept beside the tool so the runtime snapshot,
+    // and the digest an invocation is bound to, stay the qualified definition shape.
+    this.toolKinds = new Map()
+    // A rejected registration is named for the builder. It does not drop tools already accepted
+    // and it does not mark the adapter unavailable: that path disconnects the pane.
+    this.catalogRejection = null
     this.pending = new Map()
     this.closed = false
     this.available = false
@@ -111,6 +135,8 @@ class NativeWebMcp {
   }
   invalidate() {
     this.tools.clear()
+    this.toolKinds.clear()
+    this.catalogRejection = null
     this.revoke()
   }
   revoke({ cancelPageRequest = false } = {}) {
@@ -129,38 +155,16 @@ class NativeWebMcp {
       this.frameId = params.frame.id
       this.invalidate()
     } else if (method === "WebMCP.toolsAdded") {
-      try {
-        for (const tool of params.tools) {
-          if (tool.frameId !== this.frameId) continue
-          if (this.tools.has(tool.name)) throw new Error("Duplicate native tool names are ambiguous")
-          const definition = {
-            name: tool.name,
-            description: tool.description,
-            frameId: tool.frameId,
-            ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
-            ...(tool.annotations ? { annotations: tool.annotations } : {}),
-          }
-          if (
-            typeof tool.name !== "string" ||
-            !tool.name ||
-            tool.name.length > 256 ||
-            typeof tool.description !== "string" ||
-            tool.description.length > 4096 ||
-            byteSize(definition) > 32768
-          ) {
-            throw new Error("Invalid native tool catalog")
-          }
-          this.tools.set(tool.name, definition)
-        }
-        if (this.tools.size > 128 || byteSize([...this.tools.values()]) > 262144)
-          throw new Error("Native catalog exceeds limits")
-        this.changed()
-      } catch {
-        this.available = false
-        this.invalidate()
-      }
+      // Hints on a tool are not read here. They never authorize a call.
+      this.acceptTools(params && params.tools)
     } else if (method === "WebMCP.toolsRemoved") {
-      for (const tool of params.tools) if (tool.frameId === this.frameId) this.tools.delete(tool.name)
+      if (!params || !Array.isArray(params.tools)) return
+      for (const tool of params.tools) {
+        if (tool && tool.frameId === this.frameId && typeof tool.name === "string") {
+          this.tools.delete(tool.name)
+          this.toolKinds.delete(tool.name)
+        }
+      }
       this.changed()
     } else if (method === "WebMCP.toolResponded") {
       // Keep early responses bounded without rejecting an unrelated invocation.
@@ -173,6 +177,97 @@ class NativeWebMcp {
       // Responses that race the invokeTool acknowledgement stay bounded on the active call.
       else for (const entry of this.pending.values()) if (!entry.invocationId) entry.early = response
     }
+  }
+  /**
+   * Apply one toolsAdded batch, or name why it was rejected.
+   * A repeated name is a replacement (the page re-registered that tool). Two copies of one name in the
+   * same batch are ambiguous and the whole batch is refused. Refusal keeps every tool already accepted
+   * and leaves the adapter available, so the pane stays connected and the builder can read the reason.
+   */
+  acceptTools(tools) {
+    if (!Array.isArray(tools)) {
+      this.catalogRejection = catalogRejection("invalid-schema", "")
+      this.changed()
+      return
+    }
+    const prepared = []
+    const seen = new Set()
+    for (const tool of tools) {
+      if (!tool || typeof tool !== "object" || tool.frameId !== this.frameId) continue
+      const name = tool.name
+      if (typeof name !== "string" || !name) {
+        this.catalogRejection = catalogRejection("invalid-name", "")
+        this.changed()
+        return
+      }
+      if (seen.has(name)) {
+        this.catalogRejection = catalogRejection("duplicate-name", name)
+        this.changed()
+        return
+      }
+      seen.add(name)
+      if (name.length > 256) {
+        this.catalogRejection = catalogRejection("invalid-name", name)
+        this.changed()
+        return
+      }
+      if (typeof tool.description !== "string" || tool.description.length > 4096) {
+        this.catalogRejection = catalogRejection("invalid-description", name)
+        this.changed()
+        return
+      }
+      if (tool.inputSchema !== undefined && tool.inputSchema !== null && !plainObject(tool.inputSchema)) {
+        this.catalogRejection = catalogRejection("invalid-schema", name)
+        this.changed()
+        return
+      }
+      if (tool.annotations !== undefined && tool.annotations !== null && !plainObject(tool.annotations)) {
+        this.catalogRejection = catalogRejection("invalid-schema", name)
+        this.changed()
+        return
+      }
+      const definition = {
+        name,
+        description: tool.description,
+        frameId: tool.frameId,
+        ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
+        ...(tool.annotations ? { annotations: tool.annotations } : {}),
+      }
+      try {
+        if (byteSize(definition) > 32768) {
+          this.catalogRejection = catalogRejection("definition-too-large", name)
+          this.changed()
+          return
+        }
+        // Reject schemas that cannot be hashed (cycles, extreme nesting) before they reach an invocation.
+        catalogDigest(definition)
+      } catch {
+        this.catalogRejection = catalogRejection("invalid-schema", name)
+        this.changed()
+        return
+      }
+      prepared.push({ definition, kind: Number.isInteger(tool.backendNodeId) ? "form" : "script" })
+    }
+    if (prepared.length === 0) return
+    const next = new Map(this.tools)
+    for (const entry of prepared) next.set(entry.definition.name, entry.definition)
+    try {
+      if (next.size > 128 || byteSize([...next.values()]) > 262144) {
+        this.catalogRejection = catalogRejection("catalog-too-large", prepared[0].definition.name)
+        this.changed()
+        return
+      }
+    } catch {
+      this.catalogRejection = catalogRejection("invalid-schema", prepared[0].definition.name)
+      this.changed()
+      return
+    }
+    for (const entry of prepared) {
+      this.tools.set(entry.definition.name, entry.definition)
+      this.toolKinds.set(entry.definition.name, entry.kind)
+    }
+    this.catalogRejection = null
+    this.changed()
   }
   snapshot() {
     // A destroyed WebContents throws on getURL(); callers (e.g. the status
@@ -362,4 +457,13 @@ class NativeWebMcp {
   }
 }
 
-module.exports = { NativeWebMcp, definitionDigest, CAPABILITY, agentOrigin, allowedUrl, pageKind, byteSize }
+module.exports = {
+  NativeWebMcp,
+  definitionDigest,
+  catalogDigest,
+  CAPABILITY,
+  agentOrigin,
+  allowedUrl,
+  pageKind,
+  byteSize,
+}
