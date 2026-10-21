@@ -1,6 +1,6 @@
 "use strict"
 
-const { webMcpDisplayText, webMcpDisplayDescription, webMcpDisplayReport, webMcpDisplaySchema } = require("../../../shared/webmcp-redaction.mjs")
+const { webMcpDisplayText, webMcpDisplayReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
@@ -15,9 +15,8 @@ const {
   allowedUrl,
   pageKind,
   definitionDigest,
-  catalogDigest,
-  byteSize,
 } = require("./native-webmcp")
+const { projectToolCatalog, CATALOG_MAX_TOOLS, CATALOG_MAX_BYTES } = require("../../../shared/webmcp-catalog-projection.cjs")
 const { DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
@@ -35,59 +34,6 @@ const REASON_CODES = new Set([
   "ERR_ABORTED",
   "ERR_INVALID_URL",
 ])
-// The panel lists a bounded projection. The adapter may hold more (up to 128 tools); the counts
-// below are what the builder is shown, and a truncation reason says which cap applied.
-const CATALOG_MAX_TOOLS = 64
-const CATALOG_MAX_BYTES = 262144
-const plainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
-
-function publicAnnotations(annotations) {
-  if (!plainObject(annotations)) return undefined
-  const hints = {
-    readOnlyHint: annotations.readOnlyHint === true || annotations.readOnly === true,
-    untrustedContentHint: annotations.untrustedContentHint === true || annotations.untrustedContent === true,
-    consequentialHint: annotations.consequentialHint === true || annotations.consequential === true,
-  }
-  if (!hints.readOnlyHint && !hints.untrustedContentHint && !hints.consequentialHint) return undefined
-  return hints
-}
-
-function projectToolCatalog(tools, kinds = new Map()) {
-  const catalog = []
-  let bytes = 0
-  let truncation = null
-  const list = Array.isArray(tools) ? tools : []
-  for (const tool of list) {
-    if (catalog.length >= CATALOG_MAX_TOOLS) {
-      truncation = "count"
-      break
-    }
-    const annotations = publicAnnotations(tool.annotations)
-    const entry = {
-      name: webMcpDisplayText(tool.name),
-      description: webMcpDisplayDescription(tool.description ?? ""),
-      ...(tool.inputSchema ? {
-        inputSchema: webMcpDisplaySchema(tool.inputSchema),
-        // Input construction and diagnosis use this exact copy; display documents use inputSchema.
-        executionSchema: structuredClone(tool.inputSchema),
-      } : {}),
-      ...(annotations ? { annotations } : {}),
-      kind: kinds.get(tool.name) === "form" ? "form" : "script",
-      digest: catalogDigest(tool),
-      definitionDigest: definitionDigest(tool),
-      invocationID: definitionDigest(tool),
-    }
-    const size = Math.max(byteSize(tool), byteSize(entry))
-    if (bytes + size > CATALOG_MAX_BYTES) {
-      truncation = "bytes"
-      break
-    }
-    bytes += size
-    catalog.push(entry)
-  }
-  return { catalog, total: list.length, truncation }
-}
-
 function browserReason(error) {
   const code = typeof error?.code === "string" ? error.code : String(error?.message ?? "").match(/\bERR_[A-Z_]+\b/)?.[0]
   return REASON_CODES.has(code) ? code : "operation-failed"
@@ -504,7 +450,7 @@ function createDesktopWebMcpBrowser({
   }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
-    const projected = projectToolCatalog(snapshot.tools, entry.adapter.toolKinds)
+    const projected = projectToolCatalog(snapshot.tools, entry.adapter.toolKinds, entry.toolIdentities, snapshot.origin)
     // Shown in the pane's address bar; never logged.
     const url = entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL()
     return {
@@ -911,6 +857,7 @@ function createDesktopWebMcpBrowser({
       if (!allowedUrl(url)) event.preventDefault()
     })
     const entry = {
+      toolIdentities: new Map(),
       id: remembered?.id ?? randomUUID(),
       key,
       projectKey: projectKey(args.directory),
@@ -1402,8 +1349,8 @@ function createDesktopWebMcpBrowser({
       // as an agent invocation. Results go back to this renderer only and are not logged.
       assertViewAlive(entry)
       const snapshot = entry.adapter.snapshot()
-      const tool = snapshot.tools.find((candidate) => definitionDigest(candidate) === args.toolName)
-        ?? snapshot.tools.find((candidate) => webMcpDisplayText(candidate.name) === candidate.name && candidate.name === args.toolName)
+      const tool = snapshot.tools.find((candidate) =>
+        entry.toolIdentities.get(JSON.stringify([snapshot.origin, candidate.name]))?.invocationID === args.toolName)
       if (
         !snapshot.origin ||
         !args.generation ||

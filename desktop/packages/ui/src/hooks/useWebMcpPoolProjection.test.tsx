@@ -1,3 +1,4 @@
+import { nativeWebMcpTool } from "@/test/webMcpCatalog"
 import React from "react"
 import { act } from "react"
 import { afterEach, expect, test, vi } from "vitest"
@@ -171,7 +172,7 @@ test("polls generation, bounded catalogs and registration rejection into each po
       {
         ...native("first", "ses_first"),
         generation: "gen-first",
-        catalog: [{ name: "echo", description }],
+        catalog: [nativeWebMcpTool({ name: "echo", description })],
         catalogTotal: 65,
         catalogTruncation: "count",
         catalogRejection: rejection,

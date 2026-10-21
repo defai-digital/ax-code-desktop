@@ -12,7 +12,7 @@ import {
   type WebMcpToolDefinition,
 } from "./webMcpCatalog"
 
-const tool = (name: string, description = "Describe the tool", extra: Partial<WebMcpToolDefinition> = {}) => ({
+const tool = (name: string, description = "Describe the tool", extra: Partial<WebMcpToolDefinition> = {}) => nativeWebMcpTool({
   name,
   description,
   ...extra,
@@ -67,7 +67,7 @@ test("keeps form tools and exact-true hints, and names only known rejection reas
 test("a same-definition reload is not a registration change, and a different digest is", () => {
   const echo = readWebMcpCatalog([tool("echo")]).catalog
   const added = diffWebMcpRegistration([], echo, [])
-  expect(added).toEqual([{ kind: "added", name: "echo", digest: echo[0]?.digest, definition: echo[0], previousDefinition: undefined }])
+  expect(added).toEqual([{ invocationID: echo[0].invocationID, kind: "added", name: "echo", digest: echo[0]?.digest, definition: echo[0], previousDefinition: undefined }])
   const again = diffWebMcpRegistration(echo, readWebMcpCatalog([tool("echo")]).catalog, added)
   expect(again).toBe(added)
   const removed = diffWebMcpRegistration(echo, [], added)
@@ -77,6 +77,7 @@ test("a same-definition reload is not a registration change, and a different dig
   const revised = readWebMcpCatalog([tool("echo", "Revised")]).catalog
   const changed = diffWebMcpRegistration(echo, revised, added)
   expect(changed[1]).toEqual({
+    invocationID: echo[0].invocationID,
     kind: "changed",
     name: "echo",
     digest: revised[0]?.digest,
@@ -116,7 +117,7 @@ test("preserves native definition identity separately from the frame-independent
   expect(after[0].definitionDigest).not.toBe(before[0].definitionDigest)
   expect(after[0].digest).toBe(before[0].digest)
   expect(diffWebMcpRegistration(before, after, [])).toEqual([expect.objectContaining({ kind: "changed", previousDefinition: before[0], definition: after[0] })])
-  expect(readWebMcpCatalog([tool("echo")]).catalog[0].definitionDigest).toBeUndefined()
+  expect(readWebMcpCatalog([{ name: "echo", description: "Echo" }]).catalog[0].definitionDigest).toBeUndefined()
 })
 
 test("catalog rejects oversized descriptions and redacts rejection labels before truncation", () => {
@@ -126,4 +127,39 @@ test("catalog rejects oversized descriptions and redacts rejection labels before
   })
   expect(result.catalog).toEqual([])
   expect(result.catalogRejection?.tool).toBe("[redacted]")
+})
+
+test("two credential-shaped tools keep separate registration definitions and reveal the second schema edit", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const { propertyDiff } = await import("./webMcpPropertyDiff")
+  const fixture = credentialToolFixture()
+  const before = fixture.project()
+  expect(before.map((tool) => tool.name)).toEqual(["[redacted tool 1]", "[redacted tool 2]"])
+  const added = diffWebMcpRegistration([], before, [])
+  expect(added).toHaveLength(2)
+  for (const [index, event] of added.entries()) {
+    expect(event.definition).toBe(before[index])
+    expect(event.digest).toBe(event.definition?.digest)
+  }
+  const after = fixture.project(true, true)
+  expect(after.map((tool) => tool.name)).toEqual(["[redacted tool 2]", "[redacted tool 1]"])
+  expect(after[0].invocationID).toBe(before[1].invocationID)
+  const events = diffWebMcpRegistration(before, after, added)
+  expect(events).toHaveLength(3)
+  const changed = events[2]
+  expect(changed).toMatchObject({ kind: "changed", invocationID: before[1].invocationID,
+    previousDefinition: before[1], definition: after[0] })
+  const diff = propertyDiff(changed.previousDefinition?.executionSchema, changed.definition?.executionSchema)
+  expect(JSON.stringify(diff)).toContain("boolean")
+  expect(JSON.stringify(diff)).toContain("required")
+  const identity = webMcpToolIdentity(before[1])!
+  expect(markWebMcpRunsStale({ [identity]: { digest: before[1].digest!, stale: false } }, after)[identity].stale).toBe(true)
+  expect(JSON.stringify(events)).not.toMatch(/ghp_/)
+})
+
+test("registration never merges missing identities or colliding display labels", () => {
+  expect(diffWebMcpRegistration([], [{ name: "[redacted]", description: "Unknown" }], [])).toEqual([])
+  const first = nativeWebMcpTool({ name: "one", description: "One" })
+  const second = nativeWebMcpTool({ name: "two", description: "Two" })
+  expect(diffWebMcpRegistration([], [first, second].map((tool) => ({ ...tool, name: "[redacted]" })), [])).toHaveLength(2)
 })

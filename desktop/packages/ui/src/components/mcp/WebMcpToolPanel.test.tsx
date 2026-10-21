@@ -439,6 +439,7 @@ test("shows the full description, raw schema, kind, hints, and advice without bl
     origin: "https://shop.test",
     catalog: [
       {
+        ...nativeWebMcpTool({ name: "add_numbers", description }),
         name: "add_numbers",
         description,
         kind: "form",
@@ -478,7 +479,7 @@ test("shows the full description, raw schema, kind, hints, and advice without bl
   ).toBe("pattern")
   expect(container.textContent).toContain("webmcp.tools.lint.advice")
   await runTool()
-  expect(reply).toHaveBeenCalledWith("add_numbers", {}, expect.objectContaining({ origin: expect.any(String) }))
+  expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, {}, expect.objectContaining({ origin: expect.any(String) }))
   expect(screen.getAllByRole("status")).toHaveLength(1)
 })
 
@@ -706,6 +707,7 @@ function pageCall(overrides: Partial<WebMcpCall>): WebMcpCall {
     id: "call-1",
     title: "add_numbers",
     toolName: "add_numbers",
+    invocationID: catalog[0].invocationID,
     operation: "invoke",
     argumentsText: null,
     outcome: "failed",
@@ -898,9 +900,9 @@ test("recorded empty arguments enable structured comparison and a runnable agent
   const { collectWebMcpCalls } = await import("@/lib/webMcpCalls")
   const calls = collectWebMcpCalls([{ id: "m1" }], () => [{
     type: "tool", tool: "desktop_webmcp", state: {
-      status: "completed", metadata: { operation: "invoke", toolName: "add_numbers", arguments: {} }, output: "{}",
+      status: "completed", metadata: { operation: "invoke", toolName: "add_numbers", definitionDigest: catalog[0].definitionDigest, arguments: {} }, output: "{}",
     },
-  }])
+  }], 20, undefined, catalog)
   const view = openAdd(vi.fn(), calls)
   expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe("{}")
   expect(view.container.querySelector("[data-webmcp-diagnosis-gap='no-arguments']")).toBeNull()
@@ -932,7 +934,7 @@ test("nested JSON credentials stay out of rendered manual results and copied exp
 test("redacted receipt values are uncheckable while ordinary properties still get diagnosis", () => {
   const inputSchema = { type: "object", properties: { password: { type: "string", minLength: 12 }, count: { type: "integer" } } }
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema })] })
-  const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ toolName: "echo", input: { password: "[redacted]", count: "bad" } })]} />)
+  const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ invocationID: nativeWebMcpTool({ name: "echo", description: "" }).invocationID, toolName: "echo", input: { password: "[redacted]", count: "bad" } })]} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
   expect(view.container.querySelector("[data-webmcp-diagnosis-property='password']")).toBeNull()
@@ -1172,7 +1174,7 @@ test.each([false, true])("runtime previews diagnose the digest-named historical 
   const calls = collectWebMcpCalls([{ id: "m1" }], () => [{ type: "tool", tool: "desktop_webmcp", state: {
     status: "completed", metadata: { requireInteractive: false, desktopProvider: true, origin: "https://shop.test", operation: "invoke", toolName: "echo", providerID: "provider-1", generation: "page-1", definitionDigest: old.definitionDigest,
       inputPreview: truncated ? '{"title":"Ship… (4096 bytes, 2048 not shown)' : '{"title":"Ship"}' }, output: "{}",
-  } }])
+  } }], 20, undefined, [old, current])
   const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={calls} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool] button")!)
@@ -1311,4 +1313,31 @@ test("input schema hides values whose sensitive key suffix exceeds the projectio
   const schema = container.querySelector("[data-webmcp-schema]")!.textContent!
   expect(schema).toContain("[redacted secret]")
   expect(schema).not.toContain("synthetic-password")
+})
+
+test("two credential-shaped tools keep agent comparison and changed property evidence on their own keys", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const { collectWebMcpCalls } = await import("@/lib/webMcpCalls")
+  const fixture = credentialToolFixture()
+  const before = fixture.project()
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://tools.test", catalog: before })
+  const after = fixture.project(true)
+  store.updateSnapshot({ catalog: after })
+  const calls = collectWebMcpCalls([{ id: "m" }], () => [{ type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", metadata: { operation: "invoke", toolName: fixture.names[0],
+      definitionDigest: before[0].definitionDigest, arguments: { value: "agent value" } }, output: "{}",
+  } }], 20, undefined, before)
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={calls} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:2" }))
+  const rows = [...container.querySelectorAll<HTMLElement>("[data-webmcp-tool]")]
+  for (const row of rows) fireEvent.click(row.querySelector("button")!)
+  expect(rows[0].querySelector("[data-webmcp-compare-agent]")).not.toBeNull()
+  expect(rows[1].querySelector("[data-webmcp-compare-agent]")).toBeNull()
+  expect(container.querySelectorAll("[data-webmcp-registration-kind='added']")).toHaveLength(2)
+  const changed = container.querySelector("[data-webmcp-registration-kind='changed']")!
+  expect(changed.textContent).toContain("[redacted tool 2]")
+  expect(changed.querySelector("[data-webmcp-property-diff]")?.textContent).toContain("boolean")
+  expect(changed.querySelector("[data-webmcp-property-diff]")?.textContent).toContain("required")
+  expect(container.innerHTML).not.toMatch(/ghp_/)
 })

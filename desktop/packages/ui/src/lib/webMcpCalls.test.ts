@@ -92,3 +92,24 @@ test.each(["checkpointed", "cancelled"])("terminal %s calls retain their outcome
   const calls = collectWebMcpCalls([{ id: "m" }], () => [tool("p", status)] as never)
   expect(calls[0].outcome).toBe(status)
 })
+
+test("agent receipts bind to main-issued keys without retaining real names, including historical definitions", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const { diffWebMcpRegistration, webMcpKnownDefinitions } = await import("./webMcpCatalog")
+  const fixture = credentialToolFixture()
+  const before = fixture.project()
+  const after = fixture.project(true)
+  const definitions = webMcpKnownDefinitions({ catalog: after, registration: diffWebMcpRegistration(before, after, []) })
+  const parts = [{ type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", input: { action: "invoke", toolName: fixture.names[1] },
+    metadata: { operation: "invoke", toolName: fixture.names[1], definitionDigest: before[1].definitionDigest }, output: "{}",
+  } }]
+  const [call] = collectWebMcpCalls([{ id: "m" }], () => parts, 20, undefined, definitions)
+  expect(call).toMatchObject({ outcome: "ok", invocationID: before[1].invocationID,
+    definitionDigest: before[1].definitionDigest, toolName: "[redacted tool 2]", title: "[redacted tool 2]" })
+  expect(call.invocationID).not.toBe(before[0].invocationID)
+  expect(JSON.stringify(call)).not.toMatch(/ghp_/)
+  expect(collectWebMcpCalls([{ id: "m" }], () => parts)[0].invocationID).toBeUndefined()
+  const ambiguous = [before[1], { ...before[1], invocationID: before[0].invocationID }]
+  expect(collectWebMcpCalls([{ id: "m" }], () => parts, 20, undefined, ambiguous)[0].invocationID).toBeUndefined()
+})

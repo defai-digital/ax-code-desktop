@@ -167,3 +167,18 @@ test.each([false, true])("disappearing approval records an outcome unless answer
   expect(Boolean(view.container.querySelector("[data-webmcp-approval-unanswered]"))).toBe(!answered)
   useWebMcpApprovalOutcomes.setState({ calls: new Map() })
 })
+
+test("call strip uses the main label for a credential-shaped runtime call", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const fixture = credentialToolFixture()
+  const catalog = fixture.project()
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", origin: "https://tools.test", catalog })
+  sync.messages = [{ id: "m" }]
+  sync.parts = new Map([["m", [call("called", "gen-1", {
+    input: { action: "invoke", toolName: fixture.names[1] },
+    metadata: { operation: "invoke", toolName: fixture.names[1], definitionDigest: catalog[1].definitionDigest },
+  })]]])
+  const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+  expect(container.querySelector("[data-webmcp-call='ok']")?.textContent).toContain("[redacted tool 2]")
+  expect(container.innerHTML).not.toMatch(/ghp_/)
+})

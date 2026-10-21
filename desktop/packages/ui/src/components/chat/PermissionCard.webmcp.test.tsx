@@ -629,3 +629,31 @@ test.each([false, true])("v7.28.2 permission metadata preserves masked preview a
   expect(details.querySelector("summary")?.textContent).toContain("expandDescription")
   expect(details.querySelector("p")?.textContent).toContain(description)
 })
+
+test("approval resolves only the digest-bound credential tool and keeps its distinct label", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const fixture = credentialToolFixture()
+  const catalog = fixture.project(true)
+  const key = viewKeyFor("/credential-tools", "ses_credentials")
+  useWebMcpBrowserStore.getState().updateView(key, {
+    sessionID: "ses_credentials", directory: "/credential-tools", origin: "https://tools.test", catalog,
+  })
+  const { container } = render(<PermissionCard permission={request({
+    sessionID: "ses_credentials", metadata: {
+      desktopProvider: true, origin: "https://tools.test", operation: "invoke",
+      toolName: fixture.names[1], definitionDigest: catalog[1].definitionDigest,
+    },
+  })} />)
+  expect(container.querySelector("[data-webmcp-approval-inputs]")?.textContent).toContain("value*")
+  expect(container.querySelector("[data-webmcp-approval-description]")?.textContent).toContain("Tool 2")
+  expect(container.querySelector("[data-webmcp-effect]")?.textContent).toContain("[redacted tool 2]")
+  expect(container.innerHTML).not.toMatch(/ghp_/)
+  cleanup()
+  const unknown = render(<PermissionCard permission={request({
+    sessionID: "ses_credentials", metadata: {
+      desktopProvider: true, origin: "https://tools.test", operation: "invoke",
+      toolName: catalog[1].name, definitionDigest: "f".repeat(64),
+    },
+  })} />)
+  expect(unknown.container.querySelector("[data-webmcp-approval-definition-unknown]")).not.toBeNull()
+})

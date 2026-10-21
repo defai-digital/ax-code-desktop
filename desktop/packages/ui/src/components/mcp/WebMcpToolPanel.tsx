@@ -308,7 +308,7 @@ function ToolCompare({
   const { t } = useI18n()
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const historical = [...registration].reverse().flatMap((event) => [event.definition, event.previousDefinition])
-    .find((definition) => definition?.name === tool.name && definition.definitionDigest === agentCall?.definitionDigest)
+    .find((definition) => definition?.invocationID === tool.invocationID && definition?.definitionDigest === agentCall?.definitionDigest)
   const agentDefinition = tool.definitionDigest === agentCall?.definitionDigest ? tool : (historical ?? tool)
   const agentSchema = agentDefinition.executionSchema ?? agentDefinition.inputSchema
   const digest = tool.definitionDigest ?? ""
@@ -636,6 +636,10 @@ function ToolItem({
 
   const run = async () => {
     if (running) return
+    if (!identity) {
+      setResult({ outcome: "stale-form", text: t("webmcp.tools.staleForm"), stale: true })
+      return
+    }
     let input: Record<string, unknown>
     if (form.kind === "fields" && !jsonMode) {
       const built = toolInput(form.fields, values, sendEmpty)
@@ -704,7 +708,7 @@ function ToolItem({
       )
     }
     try {
-      const reply = await tryTool(tool.invocationID ?? tool.name, input, binding)
+      const reply = await tryTool(tool.invocationID!, input, binding)
       const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
       const returnedFailure = returnedOutcome !== "completed" && returnedOutcome !== null
       const outcome = returnedFailure ? returnedOutcome : (reply.outcome ?? (reply.ok ? "completed" : "failed"))
@@ -1032,7 +1036,7 @@ export function WebMcpToolPanel({
               <ol className="space-y-0.5" data-webmcp-registration="">
                 {timeline.map((event, index) => (
                   <li
-                    key={`${index}:${event.kind}:${event.name}:${event.digest}`}
+                    key={`${index}:${event.kind}:${event.invocationID}:${event.digest}`}
                     data-webmcp-registration-kind={event.kind}
                     className="font-mono typography-micro text-muted-foreground"
                   >
@@ -1114,7 +1118,7 @@ export function WebMcpToolPanel({
                 replay={replay && webMcpEvidenceMatchesTool(replay, tool) ? replay : null}
                 agentCall={
                   agentCalls.find(
-                    (call) => call.operation?.toLowerCase() === "invoke" && call.toolName === tool.name,
+                    (call) => call.operation?.toLowerCase() === "invoke" && Boolean(call.invocationID) && call.invocationID === tool.invocationID,
                   ) ?? null
                 }
               />

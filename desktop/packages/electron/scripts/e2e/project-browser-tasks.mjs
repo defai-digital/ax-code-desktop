@@ -200,6 +200,62 @@ try {
         await act("W6", () => audit.click("This session", { role: "radio" }))
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 3 && document.querySelector('[data-landing-browser-recap]')?.textContent.includes('W6 controlled page failure') && document.querySelector('[data-recap-not-called]')?.textContent.includes('complete_task')`, "three-call landing recap with failure and unused tool")
         await capture("W6")
+        // Identity regression, separate from the W3/W4/W6/W8 action budgets above.
+        // Fixture preparation uses real native registrations; the agent call still goes through the runtime bridge.
+        await audit.click("Project browser (WebMCP)", { role: "tab" })
+        const credentialNames = ["ghp_abcdefghijklmnop", "ghp_qrstuvwxyzabcdef"]
+        await guest.evaluate(`(() => {
+          window.credentialRegistrations = [new AbortController(), new AbortController()];
+          ${JSON.stringify(credentialNames)}.forEach((name, index) => document.modelContext.registerTool({
+            name, description: 'Credential identity fixture ' + (index + 1),
+            inputSchema: { type: 'object', properties: { value: { type: index ? 'number' : 'string' } } },
+            execute: async input => ({ echoed: input.value })
+          }, { signal: window.credentialRegistrations[index].signal }));
+        })()`)
+        await waitForCondition(async () => (await view()).catalog.length === 7, { label: "two credential tool bindings" })
+        await wait(`document.querySelector('[data-webmcp-tool-panel] > button')?.textContent.includes('Page tools (7)')`,
+          "renderer observed the original credential catalog")
+        const originalCredentialTools = (await view()).catalog.filter(item => item.name.startsWith("[redacted tool "))
+        if (originalCredentialTools.length !== 2 || originalCredentialTools[0].invocationID === originalCredentialTools[1].invocationID)
+          throw new Error("Credential tools lost distinct main identities")
+        await runtime({ requestID: "credential-first", toolName: credentialNames[0],
+          digest: originalCredentialTools[0].definitionDigest, input: { value: "credential fixture result" }, newTurn: true })
+        await completed("credential-first")
+        await guest.evaluate(`(() => {
+          window.credentialRegistrations[1].abort();
+          document.modelContext.registerTool({
+            name: ${JSON.stringify(credentialNames[1])}, description: 'Credential identity fixture 2',
+            inputSchema: { type: 'object', properties: { value: { type: 'boolean' } }, required: ['value'] },
+            execute: async input => ({ echoed: input.value })
+          });
+        })()`)
+        await waitForCondition(async () => {
+          const current = (await view()).catalog.find(item => item.invocationID === originalCredentialTools[1].invocationID)
+          return current && current.definitionDigest !== originalCredentialTools[1].definitionDigest
+        }, { label: "credential schema version changed on the same tool ID" })
+        await wait(`document.querySelectorAll('[data-recap-outcome]').length === 1 &&
+          document.querySelector('[data-recap-open]')?.textContent.includes('[redacted tool 1]') &&
+          document.querySelector('[data-recap-not-called]')?.textContent.includes('[redacted tool 2]') &&
+          !document.querySelector('[data-recap-not-called]')?.textContent.includes('[redacted tool 1]')`, "credential recap attribution")
+        await wait(`Array.from(document.querySelectorAll('[data-webmcp-call="ok"]')).some(row => row.textContent.includes('[redacted tool 1]'))`, "credential call strip label")
+        await audit.click("Page tools (7)", { role: "button" })
+        await wait(`Array.from(document.querySelectorAll('[data-webmcp-registration-kind="changed"]')).some(row =>
+          row.textContent.includes('[redacted tool 2]') && row.textContent.includes('boolean') && row.textContent.includes('required'))`, "credential property diff")
+        await session.evaluate(`document.querySelector('[data-webmcp-tool="[redacted tool 1]"] button[aria-expanded]').click()`)
+        await wait(`Boolean(document.querySelector('[data-webmcp-tool="[redacted tool 1]"] [data-webmcp-compare-agent]')) &&
+          !document.querySelector('[data-webmcp-tool="[redacted tool 2]"] [data-webmcp-compare-agent]')`, "credential comparison binding")
+        const credentialEvidence = await session.evaluate(`({
+          recap: document.querySelector('[data-landing-browser-recap]')?.innerText,
+          panel: document.querySelector('[data-webmcp-tool-panel]')?.innerText,
+          strip: document.querySelector('[data-webmcp-call-strip]')?.innerText
+        })`)
+        if (credentialNames.some(name => JSON.stringify(credentialEvidence).includes(name)))
+          throw new Error("Credential name leaked into displayed evidence")
+        if (args.artifacts) {
+          await fs.writeFile(path.join(args.artifacts, "credential-identities.json"), JSON.stringify(credentialEvidence, null, 2))
+          const shot = await session.send("Page.captureScreenshot", { format: "png" })
+          await fs.writeFile(path.join(args.artifacts, "credential-identities.png"), Buffer.from(shot.data, "base64"))
+        }
         return { name: "project-browser-tasks", ok: true, detail: `${Object.keys(counts).map(task => `${task} ${counts[task]}/${budgets[task]} actions`).join('; ')}; W4 expiry driven by scripted stub, signed runtime timer not qualified` }
       } finally { guest.close() }
     },

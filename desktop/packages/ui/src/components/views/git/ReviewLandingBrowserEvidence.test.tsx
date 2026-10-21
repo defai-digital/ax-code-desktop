@@ -23,7 +23,7 @@ const call = (id: string, status: string) => ({
   id,
   type: "tool",
   tool: "desktop_webmcp",
-  state: { status, input: { action: "invoke", toolName: "checkout" }, metadata: { operation: "invoke", toolName: "checkout" } },
+  state: { status, input: { action: "invoke", toolName: "checkout" }, metadata: { operation: "invoke", toolName: "checkout", definitionDigest: nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} }).definitionDigest } },
 })
 
 afterEach(() => {
@@ -78,15 +78,15 @@ describe("browser evidence beside landing", () => {
       sessionID: "s1",
       origin: "https://shop.test",
       catalog: [
-        { name: "checkout", description: "Pay", inputSchema: {} },
-        { name: "apply_coupon", description: "Apply a coupon", inputSchema: {} },
+        nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} }),
+        nativeWebMcpTool({ name: "apply_coupon", description: "Apply a coupon", inputSchema: {} }),
       ],
     })
     const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
     const steps = Array.from(container.querySelectorAll("[data-recap-outcome]"), (step) => step.textContent)
     expect(steps).toEqual([
       "read · diffView.landing.browserRecap.kind.read · webmcp.calls.outcome.ok",
-      "checkout · diffView.landing.browserRecap.kind.invoke · webmcp.calls.outcome.ok",
+      `checkout · diffView.landing.browserRecap.kind.invoke · webmcp.calls.outcome.ok · diffView.landing.browserRecap.definition:${nativeWebMcpTool({ name: "checkout", description: "Pay", inputSchema: {} }).definitionDigest!.slice(0, 8)}`,
       "act · diffView.landing.browserRecap.kind.act · webmcp.calls.outcome.failed · chat.toolPart.webmcp.reason.page-changed",
     ])
     expect(container.querySelector("[data-recap-not-called]")?.textContent).toBe(
@@ -126,6 +126,9 @@ describe("browser evidence beside landing", () => {
         ],
       ],
     ])
+    useWebMcpBrowserStore.getState().updateView(viewKeyFor("/repo", "s1"), {
+      sessionID: "s1", directory: "/repo", origin: "https://shop.test", catalog: [original],
+    })
     useWebMcpBrowserStore.getState().updateView(viewKeyFor("/repo", "s1"), {
       sessionID: "s1",
       directory: "/repo",
@@ -196,10 +199,12 @@ test.each([false, true])("whole-turn evidence includes an early failure beyond c
   const early = call("early", "error")
   early.state.input.toolName = "complete_task"
   early.state.metadata.toolName = "complete_task"
+  early.state.metadata.definitionDigest = nativeWebMcpTool({ name: "complete_task", description: "Complete" }).definitionDigest
   const successes = Array.from({ length: 205 }, (_, index) => {
     const part = call(`later-${index}`, "completed")
     part.state.input.toolName = "list_tasks"
     part.state.metadata.toolName = "list_tasks"
+    part.state.metadata.definitionDigest = nativeWebMcpTool({ name: "list_tasks", description: "List" }).definitionDigest
     return part
   })
   sync.messages = [{ id: "previous", role: "assistant" }, { id: "user", role: "user" }, { id: "early", role: "assistant" },
@@ -208,7 +213,7 @@ test.each([false, true])("whole-turn evidence includes an early failure beyond c
     ...(spread ? successes.map((part): [string, unknown[]] => [part.id, [part]]) : [["later", successes] as [string, unknown[]]])])
   useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
   useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", catalog: [
-    { name: "complete_task", description: "Complete" }, { name: "list_tasks", description: "List" },
+    nativeWebMcpTool({ name: "complete_task", description: "Complete" }), nativeWebMcpTool({ name: "list_tasks", description: "List" }),
     { name: "unused", description: "Unused" },
   ] })
   const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
@@ -221,4 +226,29 @@ test.each([false, true])("whole-turn evidence includes an early failure beyond c
 test("an unavailable initial directory snapshot renders no recap", () => {
   sync.unavailable = true
   expect(render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />).container.innerHTML).toBe("")
+})
+
+test("recap and copied evidence distinguish two credential-shaped tools and attribute the agent call by key", async () => {
+  const { credentialToolFixture } = await import("@/test/webMcpCatalog")
+  const fixture = credentialToolFixture()
+  const catalog = fixture.project()
+  sync.messages = [{ id: "u", role: "user" }, { id: "a", role: "assistant" }]
+  sync.parts = new Map([["a", [{ type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", input: { action: "invoke", toolName: fixture.names[0] },
+    metadata: { operation: "invoke", toolName: fixture.names[0], definitionDigest: catalog[0].definitionDigest }, output: "{}",
+  } }]]])
+  useWebMcpBrowserStore.getState().updateView(viewKeyFor("/repo", "s1"), {
+    sessionID: "s1", directory: "/repo", origin: "https://tools.test", catalog,
+  })
+  useWebMcpBrowserStore.getState().updateView(viewKeyFor("/repo", "s1"), { catalog: fixture.project(true) })
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  expect(container.querySelector("[data-landing-browser-evidence]")?.textContent).toBe("diffView.landing.browserEvidence:1|0")
+  expect(container.querySelector("[data-recap-open]")?.textContent).toBe("[redacted tool 1]")
+  expect(container.querySelector("[data-recap-not-called]")?.textContent).toBe("diffView.landing.browserRecap.notCalled:[redacted tool 2]")
+  const writeText = vi.fn<(text: string) => Promise<void>>(async () => undefined)
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+  await act(async () => fireEvent.click(container.querySelector("[data-recap-copy]")!))
+  expect(writeText.mock.calls[0][0]).toContain("1. [redacted tool 1]")
+  expect(writeText.mock.calls[0][0]).toContain("notCalled:[redacted tool 2]")
+  expect(container.innerHTML + writeText.mock.calls[0][0]).not.toMatch(/ghp_/)
 })

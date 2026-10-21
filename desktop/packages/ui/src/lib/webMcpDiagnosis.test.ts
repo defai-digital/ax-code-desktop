@@ -316,7 +316,7 @@ test("manual exports require both native identities and resolve the name from th
     { invocationID: "d".repeat(64) }, { definitionDigest: "d".repeat(64) },
     { invocationID: undefined }, { definitionDigest: undefined },
   ]) expect(webMcpManualRegressionExport({ ...entry, ...mismatch }, tool)).toBeNull()
-  for (const name of ["token=alpha", "token=beta", "[redacted]"]) {
+  for (const name of ["token=alpha", "token=beta", "[redacted]", "[redacted tool 1]", "[redacted tool 2]"]) {
     expect(webMcpManualRegressionExport(entry, { ...tool, name })).toBeNull()
     expect(webMcpRegressionExport({ tool: name, input: entry.input, outcome: entry.outcome })).toBeNull()
   }
