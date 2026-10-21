@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "vitest"
 
 import {
   REVIEW_PROGRESS_MAX_MARKS,
+  reviewContentSignature,
   reviewFileSignature,
   useReviewProgressStore,
   type ReviewProgressFile,
@@ -69,6 +70,20 @@ describe("useReviewProgressStore", () => {
     expect(useReviewProgressStore.getState().isViewed(directory, "all", unstaged.path, reviewFileSignature(unstaged))).toBe(
       false,
     )
+  })
+
+  test("a rewrite with the same line counts changes the content signature", () => {
+    const status = "modified"
+    const first = reviewContentSignature("const value = 1\n", status)
+    const rewritten = reviewContentSignature("const value = 2\n", status)
+    expect(first).not.toBe(rewritten)
+    expect(reviewContentSignature("const value = 1\n", status)).toBe(first)
+    expect(reviewContentSignature("const value = 1\n", "added")).not.toBe(first)
+
+    useReviewProgressStore.getState().setViewed(directory, "session", "src/a.ts", first, true)
+    expect(useReviewProgressStore.getState().isViewed(directory, "session", "src/a.ts", first)).toBe(true)
+    expect(useReviewProgressStore.getState().isViewed(directory, "session", "src/a.ts", rewritten)).toBe(false)
+    expect(useReviewProgressStore.getState().isViewed(directory, "turn:msg_1", "src/a.ts", first)).toBe(false)
   })
 
   test("keeps at most the newest marks", () => {

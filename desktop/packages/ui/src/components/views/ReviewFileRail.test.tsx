@@ -1,6 +1,6 @@
 import React from "react"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
-import { afterEach, beforeEach, describe, expect, test } from "vitest"
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 import { I18nProvider } from "@/lib/i18n"
 import {
@@ -186,5 +186,34 @@ describe("ReviewFileRail", () => {
     expect(toggle.getAttribute("aria-pressed")).toBe("true")
     const b = sampleFiles[1]
     expect(useReviewProgressStore.getState().isViewed(DIRECTORY, SCOPE, b.path, reviewFileSignature(b))).toBe(true)
+  })
+
+  test("open-in-editor opens that file without changing the selection", () => {
+    const onSelectFile = vi.fn()
+    const onOpenFile = vi.fn()
+    render(
+      <I18nProvider>
+        <ReviewFileRail
+          directory={DIRECTORY}
+          scope={SCOPE}
+          files={sampleFiles}
+          selectedFile="src/a.ts"
+          onSelectFile={onSelectFile}
+          onOpenFile={onOpenFile}
+        />
+      </I18nProvider>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Open b.ts in the editor" }))
+    expect(onOpenFile).toHaveBeenCalledWith("src/b.ts")
+    expect(onSelectFile).not.toHaveBeenCalled()
+  })
+
+  test("rows have no open control where nothing can be opened", () => {
+    render(
+      <I18nProvider>
+        <ReviewFileRail directory={DIRECTORY} scope={SCOPE} files={sampleFiles} selectedFile={null} onSelectFile={() => {}} />
+      </I18nProvider>,
+    )
+    expect(screen.queryByRole("button", { name: "Open b.ts in the editor" })).toBeNull()
   })
 })

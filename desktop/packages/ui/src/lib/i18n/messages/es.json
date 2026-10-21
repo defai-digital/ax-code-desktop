@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "Cambios a mostrar",
   "diffView.scope.all": "Todos",
   "diffView.scope.working": "Sin preparar",
-  "diffView.scope.staged": "Preparados"
+  "diffView.scope.staged": "Preparados",
+  "supervision.missionControl.bulk.selectSession": "Seleccionar {context}",
+  "supervision.missionControl.bulk.selectProject": "Seleccionar todo en {project}",
+  "supervision.missionControl.bulk.label": "Sesiones seleccionadas",
+  "supervision.missionControl.bulk.selected": "{count} seleccionadas",
+  "supervision.missionControl.bulk.stop": "Detener {count} en ejecuci\u00f3n",
+  "supervision.missionControl.bulk.archive": "Archivar selecci\u00f3n",
+  "supervision.missionControl.bulk.clear": "Borrar selecci\u00f3n",
+  "supervision.missionControl.bulk.stopConfirm": "\u00bfDetener las sesiones en ejecuci\u00f3n ({count})?",
+  "supervision.missionControl.bulk.archiveConfirm": "\u00bfArchivar las sesiones seleccionadas ({count})?",
+  "supervision.missionControl.bulk.stopSummary": "Detenidas: {succeeded}. Con error: {failed}. Ya no en ejecuci\u00f3n: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Archivadas: {succeeded}. Con error: {failed}.",
+  "diffView.scope.session": "Esta sesi\u00f3n",
+  "diffView.scope.lastTurn": "\u00daltimo turno",
+  "diffView.sessionChanges.emptySession": "El agente no ha cambiado archivos en esta sesi\u00f3n",
+  "diffView.sessionChanges.emptyTurn": "El agente no ha cambiado archivos en su \u00faltimo turno",
+  "diffView.rail.openFile": "Abrir {file} en el editor",
+  "supervision.missionControl.preview.workingOn": "Trabajando en: {content}"
 }

@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "\u8981\u986f\u793a\u7684\u8b8a\u66f4",
   "diffView.scope.all": "\u5168\u90e8",
   "diffView.scope.working": "\u672a\u66ab\u5b58",
-  "diffView.scope.staged": "\u5df2\u66ab\u5b58"
+  "diffView.scope.staged": "\u5df2\u66ab\u5b58",
+  "supervision.missionControl.bulk.selectSession": "\u9078\u64c7{context}",
+  "supervision.missionControl.bulk.selectProject": "\u9078\u64c7{project}\u4e2d\u7684\u5168\u90e8",
+  "supervision.missionControl.bulk.label": "\u5df2\u9078\u5de5\u4f5c\u968e\u6bb5",
+  "supervision.missionControl.bulk.selected": "\u5df2\u9078 {count} \u500b",
+  "supervision.missionControl.bulk.stop": "\u505c\u6b62 {count} \u500b\u57f7\u884c\u4e2d",
+  "supervision.missionControl.bulk.archive": "\u5c01\u5b58\u6240\u9078",
+  "supervision.missionControl.bulk.clear": "\u6e05\u9664\u9078\u53d6",
+  "supervision.missionControl.bulk.stopConfirm": "\u505c\u6b62\u57f7\u884c\u4e2d\u7684\u5de5\u4f5c\u968e\u6bb5\uff08{count}\uff09\uff1f",
+  "supervision.missionControl.bulk.archiveConfirm": "\u5c01\u5b58\u5df2\u9078\u5de5\u4f5c\u968e\u6bb5\uff08{count}\uff09\uff1f",
+  "supervision.missionControl.bulk.stopSummary": "\u5df2\u505c\u6b62\uff1a{succeeded}\u3002\u5931\u6557\uff1a{failed}\u3002\u5df2\u4e0d\u5728\u57f7\u884c\uff1a{skipped}\u3002",
+  "supervision.missionControl.bulk.archiveSummary": "\u5df2\u5c01\u5b58\uff1a{succeeded}\u3002\u5931\u6557\uff1a{failed}\u3002",
+  "diffView.scope.session": "\u6b64\u5de5\u4f5c\u968e\u6bb5",
+  "diffView.scope.lastTurn": "\u4e0a\u4e00\u8f2a",
+  "diffView.sessionChanges.emptySession": "\u4ee3\u7406\u5728\u6b64\u5de5\u4f5c\u968e\u6bb5\u4e2d\u672a\u8b8a\u66f4\u4efb\u4f55\u6a94\u6848",
+  "diffView.sessionChanges.emptyTurn": "\u4ee3\u7406\u5728\u4e0a\u4e00\u8f2a\u4e2d\u672a\u8b8a\u66f4\u4efb\u4f55\u6a94\u6848",
+  "diffView.rail.openFile": "\u5728\u7de8\u8f2f\u5668\u4e2d\u958b\u555f {file}",
+  "supervision.missionControl.preview.workingOn": "\u6b63\u5728\u9032\u884c\uff1a{content}"
 }

@@ -30,6 +30,24 @@ export function reviewFileSignature(file: ReviewProgressFile): string {
   return `${file.insertions}:${file.deletions}:${describeGitChange(file).code}:${file.index}${file.working_dir}`
 }
 
+/**
+ * FNV-1a 32-bit over UTF-16 code units. Session and turn marks use this so a
+ * rewrite with the same line counts still clears "viewed".
+ */
+function fnv1a32(input: string): string {
+  let hash = 0x811c9dc5
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 0x01000193)
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0")
+}
+
+/** Content signature for a session or turn diff: the after text plus the change status. */
+export function reviewContentSignature(after: string, status: string): string {
+  return fnv1a32(`${status.length}:${status}\0${after.length}:${after}`)
+}
+
 /** Marks kept at most; the oldest are dropped first so a long-lived window cannot grow without bound. */
 export const REVIEW_PROGRESS_MAX_MARKS = 2000
 

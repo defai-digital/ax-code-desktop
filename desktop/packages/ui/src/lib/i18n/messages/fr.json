@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "Modifications \u00e0 afficher",
   "diffView.scope.all": "Tout",
   "diffView.scope.working": "Non index\u00e9",
-  "diffView.scope.staged": "Index\u00e9"
+  "diffView.scope.staged": "Index\u00e9",
+  "supervision.missionControl.bulk.selectSession": "S\u00e9lectionner {context}",
+  "supervision.missionControl.bulk.selectProject": "Tout s\u00e9lectionner dans {project}",
+  "supervision.missionControl.bulk.label": "Sessions s\u00e9lectionn\u00e9es",
+  "supervision.missionControl.bulk.selected": "{count} s\u00e9lectionn\u00e9es",
+  "supervision.missionControl.bulk.stop": "Arr\u00eater {count} en cours",
+  "supervision.missionControl.bulk.archive": "Archiver la s\u00e9lection",
+  "supervision.missionControl.bulk.clear": "Effacer la s\u00e9lection",
+  "supervision.missionControl.bulk.stopConfirm": "Arr\u00eater les sessions en cours ({count}) ?",
+  "supervision.missionControl.bulk.archiveConfirm": "Archiver les sessions s\u00e9lectionn\u00e9es ({count}) ?",
+  "supervision.missionControl.bulk.stopSummary": "Arr\u00eat\u00e9es : {succeeded}. \u00c9checs : {failed}. Plus en cours : {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Archiv\u00e9es : {succeeded}. \u00c9checs : {failed}.",
+  "diffView.scope.session": "Cette session",
+  "diffView.scope.lastTurn": "Dernier tour",
+  "diffView.sessionChanges.emptySession": "L'agent n'a modifi\u00e9 aucun fichier dans cette session",
+  "diffView.sessionChanges.emptyTurn": "L'agent n'a modifi\u00e9 aucun fichier lors de son dernier tour",
+  "diffView.rail.openFile": "Ouvrir {file} dans l'\u00e9diteur",
+  "supervision.missionControl.preview.workingOn": "Travaille sur : {content}"
 }

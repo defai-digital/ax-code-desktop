@@ -2,6 +2,7 @@ import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import type { I18nKey } from "@/lib/i18n/store"
 import {
   reviewFileSignature,
   reviewProgressKey,
@@ -10,12 +11,48 @@ import {
 } from "@/stores/useReviewProgressStore"
 import { describeGitChange } from "./git/changeDescriptors"
 
+export interface ReviewRailStatus {
+  code: string
+  color: string
+  descriptionKey: I18nKey
+}
+
+/**
+ * Git rows keep index and working_dir and use the line-count signature.
+ * Session rows pass a content signature and a status letter and omit the git columns.
+ */
+export type ReviewRailFile = {
+  path: string
+  insertions: number
+  deletions: number
+  signature?: string
+  status?: ReviewRailStatus
+  index?: string
+  working_dir?: string
+}
+
 interface ReviewFileRailProps {
   directory: string
   scope: string
-  files: ReviewProgressFile[]
+  files: ReviewRailFile[]
   selectedFile: string | null
   onSelectFile: (path: string) => void
+  /** Opens the file in the editor at its first change; omitted where there is no working-tree file to open. */
+  onOpenFile?: (path: string) => void
+}
+
+function railSignature(file: ReviewRailFile): string {
+  if (file.signature !== undefined) return file.signature
+  return reviewFileSignature(file as ReviewProgressFile)
+}
+
+function railStatus(file: ReviewRailFile): ReviewRailStatus {
+  if (file.status) return file.status
+  return describeGitChange({
+    path: file.path,
+    index: file.index ?? " ",
+    working_dir: file.working_dir ?? " ",
+  })
 }
 
 function splitReviewPath(path: string): { name: string; parent: string } {
@@ -27,7 +64,7 @@ function splitReviewPath(path: string): { name: string; parent: string } {
 }
 
 export const ReviewFileRail = React.memo<ReviewFileRailProps>(
-  ({ directory, scope, files, selectedFile, onSelectFile }) => {
+  ({ directory, scope, files, selectedFile, onSelectFile, onOpenFile }) => {
     const { t } = useI18n()
     const [filter, setFilter] = React.useState("")
     const listRef = React.useRef<HTMLUListElement>(null)
@@ -37,14 +74,14 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
     const rows = React.useMemo(
       () =>
         files.map((file) => {
-          const signature = reviewFileSignature(file)
+          const signature = railSignature(file)
           const parts = splitReviewPath(file.path)
           return {
             file,
             signature,
             name: parts.name,
             parent: parts.parent,
-            descriptor: describeGitChange(file),
+            descriptor: railStatus(file),
             viewed: marks[reviewProgressKey(directory, scope, file.path)] === signature,
           }
         }),
@@ -132,6 +169,20 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
                     ) : null}
                   </span>
                 </button>
+                {onOpenFile ? (
+                  <button
+                    type="button"
+                    className="review-file-rail__open"
+                    aria-label={t("diffView.rail.openFile", { file: row.name })}
+                    title={t("diffView.rail.openFile", { file: row.name })}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      onOpenFile(row.file.path)
+                    }}
+                  >
+                    <Icon name="edit" className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                ) : null}
                 <label className="review-file-rail__viewed">
                   <input
                     type="checkbox"
@@ -156,7 +207,7 @@ ReviewFileRail.displayName = "ReviewFileRail"
 interface ReviewProgressCompactProps {
   directory: string
   scope: string
-  files: ReviewProgressFile[]
+  files: ReviewRailFile[]
   selectedFile: string | null
 }
 
@@ -171,11 +222,11 @@ export const ReviewProgressCompact = React.memo<ReviewProgressCompactProps>(
     const toggleViewed = useReviewProgressStore((state) => state.toggleViewed)
     if (files.length === 0) return null
     const viewedCount = files.reduce(
-      (count, file) => count + (marks[reviewProgressKey(directory, scope, file.path)] === reviewFileSignature(file) ? 1 : 0),
+      (count, file) => count + (marks[reviewProgressKey(directory, scope, file.path)] === railSignature(file) ? 1 : 0),
       0,
     )
     const selected = selectedFile ? files.find((file) => file.path === selectedFile) : undefined
-    const selectedSignature = selected ? reviewFileSignature(selected) : null
+    const selectedSignature = selected ? railSignature(selected) : null
     const selectedViewed =
       selected !== undefined && marks[reviewProgressKey(directory, scope, selected.path)] === selectedSignature
     const name = selected ? splitReviewPath(selected.path).name : ""

@@ -1,5 +1,6 @@
 import React from "react"
 
+import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
@@ -29,7 +30,9 @@ import { needsHuman, summarizeWorkInProgress, type SupervisionState } from "@/li
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useAllPendingRequests } from "@/sync/sync-context"
+import { abortCurrentOperation, archiveSession } from "@/sync/session-actions"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { MissionControlBulkBar } from "./missionControl/MissionControlBulkBar"
 import { MissionControlFilters } from "./missionControl/MissionControlFilters"
 import { MissionControlHeader } from "./missionControl/MissionControlHeader"
 import { MissionControlPeek } from "./missionControl/MissionControlPeek"
@@ -80,6 +83,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     updateSelectedId(sessionId)
     useSupervisionStore.setState({ boardFocusSessionId: sessionId })
   }, [])
+  const [selectedSessionIds, setSelectedSessionIds] = React.useState<Set<string>>(() => new Set())
+  const [bulkBusy, setBulkBusy] = React.useState(false)
+  const bulkBusyRef = React.useRef(false)
   const [peekId, setPeekId] = React.useState<string | null>(null)
   const [creating, setCreating] = React.useState(false)
   const [newSetName, setNewSetName] = React.useState("")
@@ -115,6 +121,29 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         : filtered,
     [boardGroupBy, groups, collapsedGroups, filtered],
   )
+  const bulkRows = visibleRows.filter((row) => selectedSessionIds.has(row.sessionId))
+  const runningCount = bulkRows.filter((row) => row.state === "running").length
+  React.useEffect(() => {
+    const visibleIds = new Set(visibleRows.map((row) => row.sessionId))
+    setSelectedSessionIds((current) => {
+      // Membership, not size: an equal-sized set can still hold ids that left the view.
+      return [...current].every((id) => visibleIds.has(id)) ? current : new Set([...current].filter((id) => visibleIds.has(id)))
+    })
+  }, [visibleRows])
+
+  const toggleSelection = (sessionId: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current)
+      if (next.has(sessionId)) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+  }
+  const clearSelection = () => {
+    setSelectedSessionIds(new Set())
+    boardRef.current?.focus({ preventScroll: true })
+  }
+
   const hiddenNeedsYou = rows.filter(
     (row) => needsHuman(row.state) && !filtered.some((visible) => visible.sessionId === row.sessionId),
   ).length
@@ -198,7 +227,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.nativeEvent.isComposing || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey)
       return
-    if (event.shiftKey && event.key !== "/") return
+    if (event.shiftKey && event.key !== "/" && event.key.toLowerCase() !== "x") return
     const target = event.target as HTMLElement
 
     if (target === searchRef.current && event.key === "Escape") {
@@ -222,7 +251,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       return
     }
 
-    const isInEditable = target.closest("input, textarea, select, [contenteditable='true']") !== null
+    // A selection checkbox is a row control, not a text field: board keys keep working from it (Space still toggles it).
+    const onSelectionCheckbox = target instanceof HTMLInputElement && target.type === "checkbox"
+    const isInEditable = !onSelectionCheckbox && target.closest("input, textarea, select, [contenteditable='true']") !== null
     if (isInEditable) {
       return
     }
@@ -242,6 +273,12 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     }
 
     const lowerKey = event.key.toLowerCase()
+    if (lowerKey === "x") {
+      event.preventDefault()
+      if (event.shiftKey) setSelectedSessionIds(new Set(visibleRows.map((row) => row.sessionId)))
+      else if (effectiveSelectedId) toggleSelection(effectiveSelectedId)
+      return
+    }
     if (lowerKey === "j" || event.key === "ArrowDown") {
       event.preventDefault()
       const nextIndex = moveSelection(selectedIndex, 1, visibleRows.length)
@@ -262,7 +299,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       }
       return
     }
-    if (event.key === " ") {
+    if (event.key === " " && !onSelectionCheckbox) {
       event.preventDefault()
       const row = visibleRows[selectedIndex]
       if (row) {
@@ -365,6 +402,64 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     setPeekNewSetFor(null)
   }
 
+  const handleBulkAction = async (action: "stop" | "archive") => {
+    if (bulkBusyRef.current) return
+    // Freeze the target IDs before asking: later selection changes must not expand consent.
+    const targets = bulkRows.filter((row) => action !== "stop" || row.state === "running")
+    if (!targets.length) return
+    bulkBusyRef.current = true
+    setBulkBusy(true)
+    try {
+      const confirmed = await requestConfirm(
+        t(
+          action === "stop"
+            ? "supervision.missionControl.bulk.stopConfirm"
+            : "supervision.missionControl.bulk.archiveConfirm",
+          {
+            count: targets.length,
+          },
+        ),
+        { destructive: true },
+      )
+      if (!confirmed) return
+      let succeeded = 0
+      let failed = 0
+      let skipped = 0
+      for (const { sessionId } of targets) {
+        try {
+          if (action === "stop") {
+            // A session may finish or request permission while confirmation or another stop is pending.
+            // A row that is momentarily missing (a live refresh) is still stopped as the user confirmed.
+            const current = useSupervisionStore.getState().rows.find((row) => row.sessionId === sessionId)
+            if (current && current.state !== "running") {
+              skipped += 1
+              continue
+            }
+            if (await abortCurrentOperation(sessionId)) succeeded += 1
+            else failed += 1
+          } else if (await archiveSession(sessionId, { notify: false })) {
+            succeeded += 1
+          } else {
+            failed += 1
+          }
+        } catch {
+          failed += 1
+        }
+      }
+      const summary = t(
+        action === "stop"
+          ? "supervision.missionControl.bulk.stopSummary"
+          : "supervision.missionControl.bulk.archiveSummary",
+        { succeeded, failed, skipped },
+      )
+      if (failed) toast.error(summary)
+      else toast.success(summary)
+    } finally {
+      bulkBusyRef.current = false
+      setBulkBusy(false)
+    }
+  }
+
   const renderRow = (row: SupervisionRow) => {
     const selected = row.sessionId === effectiveSelectedId
     const expanded = peekId === row.sessionId
@@ -375,6 +470,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         row={row}
         grouped={boardGroupBy === "project"}
         selected={selected}
+        bulkSelected={selectedSessionIds.has(row.sessionId)}
+        onToggleSelection={toggleSelection}
         expanded={expanded}
         activeWorkingSetId={activeWorkingSetId}
         primaryLabel={primaryLabel(row.state)}
@@ -412,7 +509,27 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       tabIndex={0}
       role="grid"
       aria-label={t("supervision.missionControl.boardLabel")}
+      aria-multiselectable="true"
       aria-activedescendant={effectiveSelectedId ? `mission-row-${effectiveSelectedId}` : undefined}
+      onKeyDownCapture={(event) => {
+        if (
+          event.key === "Escape" &&
+          selectedSessionIds.size > 0 &&
+          // Escape in a field (search, a new working-set name) belongs to that field.
+          !(event.target as HTMLElement).closest("input:not([type='checkbox']), textarea, select, [contenteditable='true']") &&
+          !event.nativeEvent.isComposing &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          boardRef.current?.contains(event.target as Node)
+        ) {
+          event.preventDefault()
+          event.stopPropagation()
+          setSelectedSessionIds(new Set())
+          if ((event.target as HTMLElement).closest('[role="toolbar"]'))
+            boardRef.current?.focus({ preventScroll: true })
+        }
+      }}
       onKeyDown={handleKeyDown}
       className="mission-control-board flex min-h-0 flex-1 flex-col outline-none"
       data-density={density}
@@ -497,6 +614,19 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
                   group={group}
                   label={label}
                   collapsed={collapsed}
+                  selectedCount={group.rows.filter((row) => selectedSessionIds.has(row.sessionId)).length}
+                  onToggleSelection={() => {
+                    if (collapsed) return
+                    setSelectedSessionIds((current) => {
+                      const next = new Set(current)
+                      const allSelected = group.rows.every((row) => current.has(row.sessionId))
+                      for (const row of group.rows) {
+                        if (allSelected) next.delete(row.sessionId)
+                        else next.add(row.sessionId)
+                      }
+                      return next
+                    })
+                  }}
                   onToggle={() => {
                     setCollapsedGroups((current) => {
                       const next = new Set(current)
@@ -514,6 +644,32 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
           visibleRows.map(renderRow)
         )}
       </div>
+      {/* Mounted before any selection so the first change is announced; the bar itself appears with the selection. */}
+      <span className="sr-only" role="status" aria-live="polite">
+        {bulkRows.length > 0 ? t("supervision.missionControl.bulk.selected", { count: bulkRows.length }) : ""}
+      </span>
+      {bulkRows.length > 0 ? (
+        <MissionControlBulkBar
+          count={bulkRows.length}
+          runningCount={runningCount}
+          busy={bulkBusy}
+          workingSets={workingSets}
+          onAddToWorkingSet={(id) => {
+            for (const row of bulkRows) addToWorkingSet(id, row.sessionId)
+          }}
+          onCreateWorkingSet={(name) => {
+            const id = createWorkingSet(
+              name,
+              bulkRows.map((row) => row.sessionId),
+            )
+            setActiveWorkingSet(id)
+            cancelRename()
+          }}
+          onStop={() => void handleBulkAction("stop")}
+          onArchive={() => void handleBulkAction("archive")}
+          onClear={clearSelection}
+        />
+      ) : null}
       {confirmDialog}
     </div>
   )

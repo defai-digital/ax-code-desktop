@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import type { SupervisionRow as SupervisionRowData } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
+import { ACTIVITY_TODO_PREFIX, type ActivityPreview } from "@/lib/supervision/activityPreview"
 import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
 import { SupervisionGoalLine } from "../SupervisionGoalLine"
@@ -19,6 +20,8 @@ export interface MissionControlRowProps {
   row: SupervisionRowData
   grouped?: boolean
   selected: boolean
+  bulkSelected: boolean
+  onToggleSelection: (sessionId: string) => void
   expanded: boolean
   activeWorkingSetId: string | null
   primaryLabel: string
@@ -36,6 +39,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   row,
   grouped = false,
   selected,
+  bulkSelected,
+  onToggleSelection,
   expanded,
   activeWorkingSetId,
   primaryLabel,
@@ -52,6 +57,11 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const branch = useGitBranchLabel(row.directory)
   const formatEvidence = useFormatEvidence()
   const evidenceLabel = formatEvidence(row.evidence)
+  // What the agent is doing is the point of scanning the board, so it shows in every density and next to a goal or
+  // error line (which stay first) rather than being the first thing dropped.
+  const activity = row.activity ?? null
+  const showsGoalOrError = Boolean(row.goal) || (row.state === "error" && Boolean(row.errorMessage))
+  const activityText = activity ? activityLine(activity, t) : null
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
 
@@ -95,7 +105,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
       <div
         id={`mission-row-${row.sessionId}`}
         role="row"
-        aria-selected={selected}
+        aria-selected={bulkSelected}
         aria-expanded={expanded}
         onClick={handleSelectClick}
         onDoubleClick={handleDoubleClick}
@@ -109,6 +119,17 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           selected && "bg-interactive-hover/50",
         )}
       >
+        <span role="gridcell" className="mission-selection">
+          <input
+            type="checkbox"
+            className="mission-selection-checkbox"
+            aria-label={t("supervision.missionControl.bulk.selectSession", { context: actionContext })}
+            checked={bulkSelected}
+            onChange={() => onToggleSelection(row.sessionId)}
+            onClick={(event) => event.stopPropagation()}
+            onDoubleClick={handleActionDoubleClick}
+          />
+        </span>
         <span role="gridcell" className="mission-state">
           <SupervisionStateBadge state={row.state} />
         </span>
@@ -116,8 +137,17 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           <span className="block truncate typography-ui-label text-foreground" title={row.title}>
             {row.title}
           </span>
+          {activity && activityText ? (
+            <span
+              className="mission-activity typography-meta text-muted-foreground"
+              title={activityText}
+              data-activity-preview={activity.kind}
+            >
+              {activityText}
+            </span>
+          ) : null}
         </span>
-        {row.goal || (row.state === "error" && row.errorMessage) ? (
+        {showsGoalOrError ? (
           <span
             role="gridcell"
             className="mission-description min-w-0 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
@@ -218,4 +248,12 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
       ) : null}
     </div>
   )
+}
+
+function activityLine(activity: ActivityPreview, t: ReturnType<typeof useI18n>["t"]): string {
+  if (activity.kind !== "todo") return activity.text
+  const content = activity.text.startsWith(ACTIVITY_TODO_PREFIX)
+    ? activity.text.slice(ACTIVITY_TODO_PREFIX.length)
+    : activity.text
+  return t("supervision.missionControl.preview.workingOn", { content })
 }

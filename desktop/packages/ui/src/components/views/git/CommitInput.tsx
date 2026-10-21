@@ -10,6 +10,8 @@ interface CommitInputProps {
   disabled?: boolean
   hasTouchInput?: boolean
   isMobile?: boolean
+  /** Cmd/Ctrl+Enter commits, like other review tools; omitted or undefined while committing is not allowed. */
+  onSubmit?: () => void
 }
 
 const MIN_HEIGHT = 38 // Single line height
@@ -22,6 +24,7 @@ export const CommitInput: React.FC<CommitInputProps> = ({
   disabled = false,
   hasTouchInput = false,
   isMobile = false,
+  onSubmit,
 }) => {
   const { t } = useI18n()
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
@@ -58,6 +61,14 @@ export const CommitInput: React.FC<CommitInputProps> = ({
       ref={textareaRef}
       value={value}
       onChange={(e) => onChange(e.target.value)}
+      onKeyDown={(event) => {
+        if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.nativeEvent.isComposing) return
+        if (!onSubmit) return
+        event.preventDefault()
+        onSubmit()
+      }}
+      aria-keyshortcuts="Meta+Enter Control+Enter"
+      aria-label={placeholder ?? t("gitView.commit.messagePlaceholder")}
       placeholder={placeholder ?? t("gitView.commit.messagePlaceholder")}
       rows={1}
       disabled={disabled}

@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "Perubahan yang ditampilkan",
   "diffView.scope.all": "Semua",
   "diffView.scope.working": "Belum ditahapkan",
-  "diffView.scope.staged": "Ditahapkan"
+  "diffView.scope.staged": "Ditahapkan",
+  "supervision.missionControl.bulk.selectSession": "Pilih {context}",
+  "supervision.missionControl.bulk.selectProject": "Pilih semua di {project}",
+  "supervision.missionControl.bulk.label": "Sesi yang dipilih",
+  "supervision.missionControl.bulk.selected": "{count} dipilih",
+  "supervision.missionControl.bulk.stop": "Hentikan {count} yang berjalan",
+  "supervision.missionControl.bulk.archive": "Arsipkan yang dipilih",
+  "supervision.missionControl.bulk.clear": "Hapus pilihan",
+  "supervision.missionControl.bulk.stopConfirm": "Hentikan sesi yang berjalan ({count})?",
+  "supervision.missionControl.bulk.archiveConfirm": "Arsipkan sesi yang dipilih ({count})?",
+  "supervision.missionControl.bulk.stopSummary": "Dihentikan: {succeeded}. Gagal: {failed}. Tidak lagi berjalan: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Diarsipkan: {succeeded}. Gagal: {failed}.",
+  "diffView.scope.session": "Sesi ini",
+  "diffView.scope.lastTurn": "Giliran terakhir",
+  "diffView.sessionChanges.emptySession": "Agen belum mengubah berkas apa pun dalam sesi ini",
+  "diffView.sessionChanges.emptyTurn": "Agen belum mengubah berkas apa pun pada giliran terakhirnya",
+  "diffView.rail.openFile": "Buka {file} di editor",
+  "supervision.missionControl.preview.workingOn": "Sedang mengerjakan: {content}"
 }

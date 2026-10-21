@@ -2,6 +2,14 @@ import React from "react"
 
 import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
 import {
+  activitySliceDeps,
+  collectActivityPreviews,
+  retainActivityMap,
+  type ActivityDirectory,
+  type ActivityPreview,
+  type ActivityTarget,
+} from "@/lib/supervision/activityPreview"
+import {
   deriveSupervisionState,
   rankSupervisionRows,
   resolveSupervisionEvidence,
@@ -12,7 +20,8 @@ import { readMultiRunIdentity } from "@/lib/multirun/identity"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
-import { useAllLiveSessions, useAllSessionStatuses } from "@/sync/sync-context"
+import { areSliceDepsEqual } from "@/sync/live-selector-memo"
+import { useAllLiveSessions, useAllSessionStatuses, useChildStoreManager } from "@/sync/sync-context"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { rollUpChildStates } from "@/lib/supervision/rollup"
 import {
@@ -58,6 +67,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const notifications = useSyncNotificationStore((state) => state.list)
   const goals = useSessionGoalStore((state) => state.goals)
+  const activityBySession = useRootActivity(inputs, sessions)
 
   // "Ready to review" comes from git status, so warm it for every session directory.
   const directories = React.useMemo(() => {
@@ -113,10 +123,77 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         updatedAt: goal ? Math.max(input.updatedAt ?? 0, goalRevision(goal)) : (input.updatedAt ?? 0),
         evidence: resolveSupervisionEvidence(session?.summary as SessionSummaryLike | undefined),
         goal,
+        activity: activityBySession.get(input.id) ?? null,
         ...(errorMessage ? { errorMessage } : {}),
         ...(multiRun ? { multiRun } : {}),
       })
     }
     return rankSupervisionRows(rows)
-  }, [goals, homeDirectory, inputs, notifications, projects, sessions, statuses])
+  }, [activityBySession, goals, homeDirectory, inputs, notifications, projects, sessions, statuses])
+}
+
+/**
+ * Root-session previews from the directory stores already in memory. The snapshot keeps its
+ * reference when a part delta does not change the preview text, so the row memo does not
+ * publish a new array on every streamed token.
+ */
+function useRootActivity(
+  inputs: readonly { id: string; directory?: string | null }[],
+  sessions: readonly { id: string; parentID?: string | null }[],
+): ReadonlyMap<string, ActivityPreview> {
+  const childStores = useChildStoreManager()
+  const targets = React.useMemo(() => rootActivityTargets(inputs, sessions), [inputs, sessions])
+  const getSnapshot = React.useMemo(() => {
+    let cachedDeps: readonly unknown[] | null = null
+    let cachedResult: ReadonlyMap<string, ActivityPreview> | null = null
+    return () => {
+      const directories = readActivityDirectories(childStores)
+      const deps = activitySliceDeps(targets, directories)
+      if (cachedDeps && areSliceDepsEqual(cachedDeps, deps)) return cachedResult ?? retainActivityMap(null, new Map())
+      const next = collectActivityPreviews(targets, directories)
+      cachedResult = retainActivityMap(cachedResult, next)
+      cachedDeps = deps
+      return cachedResult
+    }
+  }, [childStores, targets])
+  const subscribe = React.useCallback((notify: () => void) => childStores.subscribeAll(notify), [childStores])
+  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+}
+
+function rootActivityTargets(
+  inputs: readonly { id: string; directory?: string | null }[],
+  sessions: readonly { id: string; parentID?: string | null }[],
+): ActivityTarget[] {
+  const sessionById = new Map(sessions.map((session) => [session.id, session]))
+  const inputIds = new Set(inputs.map((input) => input.id))
+  const targets: ActivityTarget[] = []
+  for (const input of inputs) {
+    const parentId = sessionById.get(input.id)?.parentID ?? null
+    const isChild = typeof parentId === "string" && parentId.length > 0 && inputIds.has(parentId)
+    if (isChild) continue
+    targets.push({ sessionId: input.id, directory: input.directory ?? null })
+  }
+  return targets
+}
+
+function readActivityDirectories(childStores: {
+  children: ReadonlyMap<string, { getState: () => ActivityDirectorySource }>
+}): ActivityDirectory[] {
+  const directories: ActivityDirectory[] = []
+  for (const [directory, store] of childStores.children) {
+    const state = store.getState()
+    directories.push({
+      directory,
+      todo: state.todo,
+      message: state.message,
+      part: state.part,
+    })
+  }
+  return directories
+}
+
+interface ActivityDirectorySource {
+  todo: ActivityDirectory["todo"]
+  message: ActivityDirectory["message"]
+  part: ActivityDirectory["part"]
 }

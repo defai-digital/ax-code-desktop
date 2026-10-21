@@ -2,6 +2,8 @@ import { spawn } from "node:child_process"
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
+import { EventEmitter } from "node:events"
+import { runInNewContext } from "node:vm"
 import { afterEach, describe, expect, test } from "vitest"
 import { allocatePort } from "./launch.mjs"
 import {
@@ -16,7 +18,7 @@ import {
   isPathInsideDirectory,
   parseReplyLog,
 } from "./scenario.mjs"
-import { STUB_REPLIES_ENV, STUB_SCENARIO_ENV, writeStubRuntime } from "./stub-runtime.mjs"
+import { STUB_REPLIES_ENV, STUB_SCENARIO_ENV, buildStubRuntimeScript, writeStubRuntime } from "./stub-runtime.mjs"
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -105,6 +107,82 @@ spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their 
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "reset" }),
   })
   expect(await (await read(`/session/${other.session.id}/goal`, other.session.directory)).json()).toBeNull()
+})
+
+test("review scopes opt in to session diffs and only the latest user message's turn summary", async () => {
+  const scenario = buildE2eScenario({ directory: "/tmp/review/project", portfolio: true })
+  const targets = [scenario.session, scenario.portfolio[0].session]
+  for (const target of targets) {
+    const [latest] = scenario.portfolioMessages[target.id]
+    latest.info.summary = { title: "Preserved summary", diffs: [] }
+    scenario.portfolioMessages[target.id] = [
+      { info: { ...latest.info, id: `${latest.info.id}_earlier`, summary: { diffs: [] } }, parts: [] },
+      latest,
+      { info: { id: `${latest.info.id}_reply`, sessionID: target.id, role: "assistant" }, parts: [] },
+    ]
+  }
+  // Exercise the generated server's real routing even in sandboxes that cannot bind loopback sockets.
+  let routeRequest
+  runInNewContext(buildStubRuntimeScript(), {
+    URL, Buffer,
+    process: { argv: ["node", "stub", "serve"], env: { [STUB_SCENARIO_ENV]: "/tmp/review/scenario.json" }, on() {} },
+    require: name => {
+      if (name === "node:path") return path
+      if (name === "node:fs") return { readFileSync: () => JSON.stringify(scenario) }
+      if (name === "node:http") return { createServer: callback => { routeRequest = callback; return { listen() {} } } }
+      throw new Error(`Unexpected stub dependency: ${name}`)
+    },
+  })
+  const request = (url, { method = "GET", headers = {}, body } = {}) => new Promise(resolve => {
+    const req = Object.assign(new EventEmitter(), { url, method, headers })
+    const res = { statusCode: 200, setHeader() {}, end: data => resolve(new Response(data, { status: res.statusCode })) }
+    routeRequest(req, res)
+    if (body) req.emit("data", Buffer.from(body))
+    req.emit("end")
+  })
+  const read = (target, route, directory = target.directory, method = "GET") => request(
+    `/session/${target.id}/${route}?directory=${encodeURIComponent(directory)}`, { method },
+  )
+  const step = step => request("/__e2e__/step", {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step }),
+  })
+  for (const target of targets) {
+    expect(await (await read(target, "diff")).json()).toEqual({})
+    expect(await (await read(target, "message")).json()).toEqual(scenario.portfolioMessages[target.id])
+  }
+  expect((await step("review-scopes")).ok).toBe(true)
+  for (const target of targets) {
+    const response = await read(target, "diff")
+    expect(response.status).toBe(200)
+    const diffs = await response.json()
+    expect(diffs.map(diff => diff.file)).toEqual(["session/overview.txt", "session/last-turn.txt"])
+    for (const diff of diffs) {
+      expect(diff).toEqual({
+        file: expect.any(String), before: expect.any(String), after: expect.any(String),
+        additions: 1, deletions: 1, status: "modified",
+      })
+      expect(diff.before).not.toBe(diff.after)
+    }
+    const messages = await (await read(target, "message")).json()
+    const original = scenario.portfolioMessages[target.id]
+    expect(messages).toEqual([
+      original[0],
+      { ...original[1], info: { ...original[1].info, summary: { ...original[1].info.summary, diffs: [diffs[1]] } } },
+      original[2],
+    ])
+    const other = targets.find(entry => entry.id !== target.id)
+    expect((await read(target, "diff", other.directory)).status).toBe(404)
+    expect((await read(target, "message", other.directory)).status).toBe(404)
+    const headerScoped = await request(`/session/${target.id}/diff`, { headers: { "x-ax-code-directory": target.directory } })
+    expect(await headerScoped.json()).toEqual(diffs)
+    expect(await (await read(target, "diff", target.directory, "POST")).json()).toEqual({})
+  }
+  expect(await (await read({ ...targets[0], id: "unknown-session" }, "diff")).json()).toEqual({})
+  expect((await step("reset")).ok).toBe(true)
+  for (const target of targets) {
+    expect(await (await read(target, "diff")).json()).toEqual({})
+    expect(await (await read(target, "message")).json()).toEqual(scenario.portfolioMessages[target.id])
+  }
 })
 
 spawnTest("Hooks fixtures isolate directories, preserve default behavior and expose failures", async () => {

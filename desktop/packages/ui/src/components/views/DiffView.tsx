@@ -30,6 +30,7 @@ import type { DiffViewMode } from "@/components/chat/message/types"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
+import { SessionChangesView, type SessionChangesModel } from "./SessionChangesView"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { useDiffHunkRevert } from "./useDiffHunkRevert"
 import { useDiffHunkStage } from "./useDiffHunkStage"
@@ -67,7 +68,48 @@ type FileEntry = GitStatus["files"][number] & {
 }
 
 type DiffData = { original: string; modified: string; isBinary?: boolean }
-type DiffScope = "all" | "staged" | "working"
+type DiffScope = "all" | "staged" | "working" | "session" | "turn"
+
+const REVIEW_SCOPE_OPTIONS: Array<{ scope: DiffScope; labelKey: I18nKey }> = [
+  { scope: "all", labelKey: "diffView.scope.all" },
+  { scope: "working", labelKey: "diffView.scope.working" },
+  { scope: "staged", labelKey: "diffView.scope.staged" },
+]
+
+const SESSION_SCOPE_OPTIONS: Array<{ scope: DiffScope; labelKey: I18nKey }> = [
+  { scope: "session", labelKey: "diffView.scope.session" },
+  { scope: "turn", labelKey: "diffView.scope.lastTurn" },
+]
+
+const EMPTY_SESSION_MODEL: SessionChangesModel = {
+  phase: "loading",
+  progressScope: "session",
+  files: [],
+  selectedLayout: null,
+}
+
+const isSessionReviewScope = (scope: DiffScope): scope is "session" | "turn" => scope === "session" || scope === "turn"
+
+function sessionModelsEqual(left: SessionChangesModel, right: SessionChangesModel): boolean {
+  if (
+    left.phase !== right.phase ||
+    left.progressScope !== right.progressScope ||
+    left.selectedLayout !== right.selectedLayout ||
+    left.files.length !== right.files.length
+  ) {
+    return false
+  }
+  return left.files.every((file, index) => {
+    const other = right.files[index]
+    return (
+      file.path === other.path &&
+      file.signature === other.signature &&
+      file.insertions === other.insertions &&
+      file.deletions === other.deletions &&
+      file.status?.code === other.status?.code
+    )
+  })
+}
 
 const BinaryDiffPlaceholder = React.memo(() => {
   const { t } = useI18n()
@@ -893,17 +935,47 @@ export const DiffView: React.FC<DiffViewProps> = ({
   targetFilePath = null,
 }) => {
   const { t } = useI18n()
+  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   // A caller that pins a scope (the context panel) keeps it; the review pane lets the user choose,
   // like the Unstaged/Staged scopes of other review tools.
   const [chosenScope, setChosenScope] = React.useState<DiffScope>("all")
+  // Session scopes describe one session; switching sessions returns to the git view instead of
+  // silently carrying "This session" over to the next one.
+  const [scopeSessionId, setScopeSessionId] = React.useState(currentSessionId)
+  if (scopeSessionId !== currentSessionId) {
+    setScopeSessionId(currentSessionId)
+    if (isSessionReviewScope(chosenScope)) setChosenScope("all")
+  }
   const scopeSelectable = diffScopeProp === undefined
-  const diffScope: DiffScope = diffScopeProp ?? chosenScope
+  // Session scopes need a live session. A pinned caller (the context panel) keeps its git scope.
+  const diffScope: DiffScope =
+    diffScopeProp ??
+    (currentSessionId || !isSessionReviewScope(chosenScope) ? chosenScope : "all")
+  const sessionReview = isSessionReviewScope(diffScope) && Boolean(currentSessionId)
+  const [sessionModel, setSessionModel] = React.useState<SessionChangesModel>(EMPTY_SESSION_MODEL)
+  const [sessionSelected, setSessionSelected] = React.useState<string | null>(null)
+  const sessionTrackKey = `${diffScope}:${currentSessionId ?? ""}`
+  const [sessionTrack, setSessionTrack] = React.useState(sessionTrackKey)
+  if (sessionTrack !== sessionTrackKey) {
+    setSessionTrack(sessionTrackKey)
+    setSessionModel(EMPTY_SESSION_MODEL)
+    setSessionSelected(null)
+  }
+  const handleSessionModel = React.useCallback((model: SessionChangesModel) => {
+    setSessionModel((current) => (sessionModelsEqual(current, model) ? current : model))
+  }, [])
+  React.useEffect(() => {
+    if (!sessionReview) return
+    setSessionSelected((current) => {
+      if (current && sessionModel.files.some((file) => file.path === current)) return current
+      return sessionModel.files[0]?.path ?? null
+    })
+  }, [sessionModel.files, sessionReview])
   const { git, files } = useRuntimeAPIs()
   const effectiveDirectory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const { isMobile } = useDeviceInfo()
   const { ref: paneRef, width: paneWidth } = useElementWidth<HTMLDivElement>()
-  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const inlineCommentSessionKey = React.useMemo(
     () => buildInlineCommentSessionKey({ sessionId: currentSessionId, draftDirectory: effectiveDirectory ?? null }),
     [currentSessionId, effectiveDirectory],
@@ -1422,8 +1494,9 @@ export const DiffView: React.FC<DiffViewProps> = ({
     paneRef,
     directory: effectiveDirectory,
     scope: diffScope,
-    files: reviewKeyFiles,
-    selectedFile,
+    // SessionChangesView listens on the same pane. An empty list lets its handler own [, ], and v.
+    files: sessionReview ? [] : reviewKeyFiles,
+    selectedFile: sessionReview ? null : selectedFile,
     onSelectFile: handleSelectFileAndScroll,
   })
 
@@ -1454,14 +1527,25 @@ export const DiffView: React.FC<DiffViewProps> = ({
 
   const renderSideBySide = (currentLayoutForSelectedFile ?? "side-by-side") === "side-by-side"
   const showFileRail =
+    !sessionReview &&
     !hideStackedFileSidebar &&
     !isMobile &&
     paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH &&
     isGitRepo !== false &&
     changedFiles.length > 0
-  const showFileSelector = !hideFileSelector && !showFileRail
-  const previousFilePath = adjacentReviewFile(changedFiles, selectedFile, -1)
-  const nextFilePath = adjacentReviewFile(changedFiles, selectedFile, 1)
+  const showSessionRail =
+    sessionReview && !isMobile && paneWidth >= REVIEW_FILE_RAIL_MIN_WIDTH && sessionModel.files.length > 0
+  const showFileSelector = !sessionReview && !hideFileSelector && !showFileRail
+  const navFiles = sessionReview ? sessionModel.files : changedFiles
+  const navSelected = sessionReview ? sessionSelected : selectedFile
+  const previousFilePath = adjacentReviewFile(navFiles, navSelected, -1)
+  const nextFilePath = adjacentReviewFile(navFiles, navSelected, 1)
+  const selectNavFile = sessionReview ? setSessionSelected : handleSelectFileAndScroll
+  const summaryLoading = sessionReview
+    ? sessionModel.phase === "loading" && sessionModel.files.length === 0
+    : isLoadingStatus && !status
+  const summaryCount = sessionReview ? sessionModel.files.length : changedFiles.length
+  const showWrapControl = sessionReview ? Boolean(sessionSelected) && sessionModel.phase === "ready" : Boolean(selectedFileEntry)
 
   const selectedCachedDiff = useGitStore(
     React.useCallback(
@@ -1568,7 +1652,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
   const isCurrentFileLoading = !isStackedView && !!selectedFile && !hasCurrentDiff
 
   React.useEffect(() => {
-    if (isStackedView) {
+    if (sessionReview || isStackedView) {
       return
     }
 
@@ -1627,6 +1711,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
     effectiveDirectory,
     indexRevision,
     isStackedView,
+    sessionReview,
     selectedFile,
     selectedCachedDiff,
     selectedStagedDiffData,
@@ -1808,11 +1893,11 @@ export const DiffView: React.FC<DiffViewProps> = ({
           <div className="flex items-center gap-1 rounded-md px-2 py-1 text-muted-foreground shrink-0">
             <Icon name="git-commit" className="h-4 w-4" />
             <span className="typography-ui-label font-semibold text-foreground">
-              {isLoadingStatus && !status
+              {summaryLoading
                 ? t("diffView.state.loadingChanges")
-                : changedFiles.length === 1
-                  ? t("diffView.summary.changedFilesSingle", { count: changedFiles.length })
-                  : t("diffView.summary.changedFilesPlural", { count: changedFiles.length })}
+                : summaryCount === 1
+                  ? t("diffView.summary.changedFilesSingle", { count: summaryCount })
+                  : t("diffView.summary.changedFilesPlural", { count: summaryCount })}
             </span>
           </div>
         )}
@@ -1826,7 +1911,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
             title={t("diffView.nav.previousFileTitle")}
             disabled={previousFilePath === null}
             onClick={() => {
-              if (previousFilePath) handleSelectFileAndScroll(previousFilePath)
+              if (previousFilePath) selectNavFile(previousFilePath)
             }}
           >
             <Icon name="arrow-left-s" className="size-4" aria-hidden="true" />
@@ -1840,13 +1925,20 @@ export const DiffView: React.FC<DiffViewProps> = ({
             title={t("diffView.nav.nextFileTitle")}
             disabled={nextFilePath === null}
             onClick={() => {
-              if (nextFilePath) handleSelectFileAndScroll(nextFilePath)
+              if (nextFilePath) selectNavFile(nextFilePath)
             }}
           >
             <Icon name="arrow-right-s" className="size-4" aria-hidden="true" />
           </Button>
         </div>
-        {!showFileRail && effectiveDirectory ? (
+        {sessionReview && !showSessionRail && effectiveDirectory ? (
+          <ReviewProgressCompact
+            directory={effectiveDirectory}
+            scope={sessionModel.progressScope}
+            files={sessionModel.files}
+            selectedFile={sessionSelected}
+          />
+        ) : !sessionReview && !showFileRail && effectiveDirectory ? (
           <ReviewProgressCompact
             directory={effectiveDirectory}
             scope={diffScope}
@@ -1861,25 +1953,47 @@ export const DiffView: React.FC<DiffViewProps> = ({
             className="flex shrink-0 items-center rounded-md border border-border p-0.5"
             data-review-scope
           >
-            {(["all", "working", "staged"] as const).map((scope) => (
-              <button
-                key={scope}
-                type="button"
-                role="radio"
-                aria-checked={diffScope === scope}
-                onClick={() => setChosenScope(scope)}
-                className={cn(
-                  "rounded px-2 py-0.5 typography-micro",
-                  diffScope === scope ? "bg-interactive-hover text-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {t(scope === "all" ? "diffView.scope.all" : scope === "working" ? "diffView.scope.working" : "diffView.scope.staged")}
-              </button>
-            ))}
+            {(currentSessionId ? [...REVIEW_SCOPE_OPTIONS, ...SESSION_SCOPE_OPTIONS] : REVIEW_SCOPE_OPTIONS).map(
+              (option, index, options) => (
+                <button
+                  key={option.scope}
+                  type="button"
+                  role="radio"
+                  aria-checked={diffScope === option.scope}
+                  // One tab stop for the group; arrow keys move and select, as radio groups do.
+                  tabIndex={diffScope === option.scope ? 0 : -1}
+                  onClick={() => setChosenScope(option.scope)}
+                  onKeyDown={(event) => {
+                    const step =
+                      event.key === "ArrowRight" || event.key === "ArrowDown"
+                        ? 1
+                        : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                          ? -1
+                          : 0
+                    if (!step) return
+                    event.preventDefault()
+                    const next = options[(index + step + options.length) % options.length]
+                    setChosenScope(next.scope)
+                    const group = event.currentTarget.parentElement
+                    requestAnimationFrame(() =>
+                      group?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"]')?.focus(),
+                    )
+                  }}
+                  className={cn(
+                    "rounded px-2 py-0.5 typography-micro normal-case",
+                    diffScope === option.scope
+                      ? "bg-interactive-hover text-foreground"
+                      : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {t(option.labelKey)}
+                </button>
+              ),
+            )}
           </div>
         ) : null}
         {/* The rail replaces the file selector that carries the mode picker in narrow panes. */}
-        {(!isMobileLayout || showFileRail) && (
+        {!sessionReview && (!isMobileLayout || showFileRail) && (
           <DiffViewModeSelector mode={diffViewMode} onModeChange={handleDiffViewModeChange} />
         )}
         {showFileSelector && (
@@ -1895,7 +2009,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
           />
         )}
         <div className="flex-1" />
-        {selectedFileEntry && (
+        {showWrapControl && (
           <Button
             variant="ghost"
             size="sm"
@@ -1909,7 +2023,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
             <Icon name="text-wrap" className="size-4" />
           </Button>
         )}
-        {showOpenInEditorAction && selectedFileEntry && !isStackedView && (
+        {showOpenInEditorAction && selectedFileEntry && !isStackedView && !sessionReview && (
           <Button
             variant="ghost"
             size="sm"
@@ -1927,7 +2041,13 @@ export const DiffView: React.FC<DiffViewProps> = ({
             )}
           </Button>
         )}
-        {selectedFileEntry && currentLayoutForSelectedFile && (
+        {sessionReview && sessionModel.selectedLayout ? (
+          <DiffViewToggle
+            mode={sessionModel.selectedLayout === "side-by-side" ? "side-by-side" : "unified"}
+            onModeChange={handleHeaderLayoutChange}
+          />
+        ) : null}
+        {!sessionReview && selectedFileEntry && currentLayoutForSelectedFile && (
           <DiffViewToggle
             mode={currentLayoutForSelectedFile === "side-by-side" ? "side-by-side" : "unified"}
             onModeChange={handleHeaderLayoutChange}
@@ -1936,16 +2056,40 @@ export const DiffView: React.FC<DiffViewProps> = ({
       </div>
 
       <div className="flex min-h-0 flex-1">
-        {showFileRail && effectiveDirectory ? (
-          <ReviewFileRail
+        {sessionReview && effectiveDirectory && currentSessionId ? (
+          <SessionChangesView
             directory={effectiveDirectory}
-            scope={diffScope}
-            files={changedFiles}
-            selectedFile={selectedFile}
-            onSelectFile={handleSelectFileAndScroll}
+            sessionID={currentSessionId}
+            scope={diffScope === "turn" ? "turn" : "session"}
+            paneRef={paneRef}
+            paneWidth={paneWidth}
+            allowRail={!isMobile && !hideStackedFileSidebar}
+            selectedFile={sessionSelected}
+            onSelectFile={setSessionSelected}
+            wrapLines={diffWrapLines}
+            onModelChange={handleSessionModel}
           />
-        ) : null}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{renderContent()}</div>
+        ) : (
+          <>
+            {showFileRail && effectiveDirectory ? (
+              <ReviewFileRail
+                directory={effectiveDirectory}
+                scope={diffScope}
+                files={changedFiles}
+                selectedFile={selectedFile}
+                onSelectFile={handleSelectFileAndScroll}
+                onOpenFile={(path) => {
+                  const cached = useGitStore.getState().directories.get(effectiveDirectory)?.diffCache.get(path)
+                  void openFileInEditorAtChange(
+                    path,
+                    cached ? { original: cached.original, modified: cached.modified, isBinary: cached.isBinary } : null,
+                  )
+                }}
+              />
+            ) : null}
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">{renderContent()}</div>
+          </>
+        )}
       </div>
       <DiffCommentSummaryBar
         sessionKey={inlineCommentSessionKey}

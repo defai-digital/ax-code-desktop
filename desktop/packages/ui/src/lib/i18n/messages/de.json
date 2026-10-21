@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "Anzuzeigende \u00c4nderungen",
   "diffView.scope.all": "Alle",
   "diffView.scope.working": "Nicht bereitgestellt",
-  "diffView.scope.staged": "Bereitgestellt"
+  "diffView.scope.staged": "Bereitgestellt",
+  "supervision.missionControl.bulk.selectSession": "{context} ausw\u00e4hlen",
+  "supervision.missionControl.bulk.selectProject": "Alle in {project} ausw\u00e4hlen",
+  "supervision.missionControl.bulk.label": "Ausgew\u00e4hlte Sitzungen",
+  "supervision.missionControl.bulk.selected": "{count} ausgew\u00e4hlt",
+  "supervision.missionControl.bulk.stop": "{count} laufende stoppen",
+  "supervision.missionControl.bulk.archive": "Auswahl archivieren",
+  "supervision.missionControl.bulk.clear": "Auswahl aufheben",
+  "supervision.missionControl.bulk.stopConfirm": "Laufende Sitzungen stoppen ({count})?",
+  "supervision.missionControl.bulk.archiveConfirm": "Ausgew\u00e4hlte Sitzungen archivieren ({count})?",
+  "supervision.missionControl.bulk.stopSummary": "Gestoppt: {succeeded}. Fehlgeschlagen: {failed}. Nicht mehr laufend: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Archiviert: {succeeded}. Fehlgeschlagen: {failed}.",
+  "diffView.scope.session": "Diese Sitzung",
+  "diffView.scope.lastTurn": "Letzter Durchlauf",
+  "diffView.sessionChanges.emptySession": "Der Agent hat in dieser Sitzung keine Dateien ge\u00e4ndert",
+  "diffView.sessionChanges.emptyTurn": "Der Agent hat in seinem letzten Durchlauf keine Dateien ge\u00e4ndert",
+  "diffView.rail.openFile": "{file} im Editor \u00f6ffnen",
+  "supervision.missionControl.preview.workingOn": "Arbeitet an: {content}"
 }

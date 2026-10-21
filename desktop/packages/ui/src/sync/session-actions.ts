@@ -1059,7 +1059,8 @@ async function abortBeforeLocalMutation(
   }
 }
 
-export async function abortCurrentOperation(sessionId: string): Promise<void> {
+/** Resolves true when the runtime accepted the abort; failures are reported to the user and resolve false. */
+export async function abortCurrentOperation(sessionId: string): Promise<boolean> {
   // Every other session call resolves the session's own directory; the current
   // one belongs to another project whenever the user switched projects while a
   // run continues, and the runtime answers an abort for a foreign project with
@@ -1075,12 +1076,14 @@ export async function abortCurrentOperation(sessionId: string): Promise<void> {
   try {
     const result = await sdk().session.abort({ sessionID: sessionId, directory })
     assertSessionCallSucceeded(result, "abortCurrentOperation")
+    return true
   } catch (error) {
     console.error("[session-actions] abort failed", error)
     if (sessionId) {
       useSessionUIStore.getState().clearSessionAbort(sessionId)
     }
     notifySessionActionFailure("abort")
+    return false
   }
 }
 

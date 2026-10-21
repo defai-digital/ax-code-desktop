@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "\ud45c\uc2dc\ud560 \ubcc0\uacbd \uc0ac\ud56d",
   "diffView.scope.all": "\uc804\uccb4",
   "diffView.scope.working": "\uc2a4\ud14c\uc774\uc9d5\ub418\uc9c0 \uc54a\uc74c",
-  "diffView.scope.staged": "\uc2a4\ud14c\uc774\uc9d5\ub428"
+  "diffView.scope.staged": "\uc2a4\ud14c\uc774\uc9d5\ub428",
+  "supervision.missionControl.bulk.selectSession": "{context} \uc120\ud0dd",
+  "supervision.missionControl.bulk.selectProject": "{project}\uc758 \uc804\uccb4 \uc120\ud0dd",
+  "supervision.missionControl.bulk.label": "\uc120\ud0dd\ub41c \uc138\uc158",
+  "supervision.missionControl.bulk.selected": "{count}\uac1c \uc120\ud0dd\ub428",
+  "supervision.missionControl.bulk.stop": "\uc2e4\ud589 \uc911 {count}\uac1c \uc911\uc9c0",
+  "supervision.missionControl.bulk.archive": "\uc120\ud0dd \ud56d\ubaa9 \ubcf4\uad00",
+  "supervision.missionControl.bulk.clear": "\uc120\ud0dd \ud574\uc81c",
+  "supervision.missionControl.bulk.stopConfirm": "\uc2e4\ud589 \uc911\uc778 \uc138\uc158\uc744 \uc911\uc9c0\ud560\uae4c\uc694? ({count})",
+  "supervision.missionControl.bulk.archiveConfirm": "\uc120\ud0dd\ud55c \uc138\uc158\uc744 \ubcf4\uad00\ud560\uae4c\uc694? ({count})",
+  "supervision.missionControl.bulk.stopSummary": "\uc911\uc9c0\ub428: {succeeded}. \uc2e4\ud328: {failed}. \uc2e4\ud589 \uc885\ub8cc\ub428: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "\ubcf4\uad00\ub428: {succeeded}. \uc2e4\ud328: {failed}.",
+  "diffView.scope.session": "\uc774 \uc138\uc158",
+  "diffView.scope.lastTurn": "\ub9c8\uc9c0\ub9c9 \ud134",
+  "diffView.sessionChanges.emptySession": "\uc5d0\uc774\uc804\ud2b8\uac00 \uc774 \uc138\uc158\uc5d0\uc11c \ud30c\uc77c\uc744 \ubcc0\uacbd\ud558\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
+  "diffView.sessionChanges.emptyTurn": "\uc5d0\uc774\uc804\ud2b8\uac00 \ub9c8\uc9c0\ub9c9 \ud134\uc5d0\uc11c \ud30c\uc77c\uc744 \ubcc0\uacbd\ud558\uc9c0 \uc54a\uc558\uc2b5\ub2c8\ub2e4",
+  "diffView.rail.openFile": "\uc5d0\ub514\ud130\uc5d0\uc11c {file} \uc5f4\uae30",
+  "supervision.missionControl.preview.workingOn": "\uc791\uc5c5 \uc911: {content}"
 }

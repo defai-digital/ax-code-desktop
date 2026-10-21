@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "C\u00e1c thay \u0111\u1ed5i c\u1ea7n hi\u1ec3n th\u1ecb",
   "diffView.scope.all": "T\u1ea5t c\u1ea3",
   "diffView.scope.working": "Ch\u01b0a staging",
-  "diffView.scope.staged": "\u0110\u00e3 staging"
+  "diffView.scope.staged": "\u0110\u00e3 staging",
+  "supervision.missionControl.bulk.selectSession": "Ch\u1ecdn {context}",
+  "supervision.missionControl.bulk.selectProject": "Ch\u1ecdn t\u1ea5t c\u1ea3 trong {project}",
+  "supervision.missionControl.bulk.label": "Phi\u00ean \u0111\u00e3 ch\u1ecdn",
+  "supervision.missionControl.bulk.selected": "\u0110\u00e3 ch\u1ecdn {count}",
+  "supervision.missionControl.bulk.stop": "D\u1eebng {count} \u0111ang ch\u1ea1y",
+  "supervision.missionControl.bulk.archive": "L\u01b0u tr\u1eef m\u1ee5c \u0111\u00e3 ch\u1ecdn",
+  "supervision.missionControl.bulk.clear": "B\u1ecf ch\u1ecdn",
+  "supervision.missionControl.bulk.stopConfirm": "D\u1eebng c\u00e1c phi\u00ean \u0111ang ch\u1ea1y ({count})?",
+  "supervision.missionControl.bulk.archiveConfirm": "L\u01b0u tr\u1eef c\u00e1c phi\u00ean \u0111\u00e3 ch\u1ecdn ({count})?",
+  "supervision.missionControl.bulk.stopSummary": "\u0110\u00e3 d\u1eebng: {succeeded}. Th\u1ea5t b\u1ea1i: {failed}. Kh\u00f4ng c\u00f2n ch\u1ea1y: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "\u0110\u00e3 l\u01b0u tr\u1eef: {succeeded}. Th\u1ea5t b\u1ea1i: {failed}.",
+  "diffView.scope.session": "Phi\u00ean n\u00e0y",
+  "diffView.scope.lastTurn": "L\u01b0\u1ee3t g\u1ea7n nh\u1ea5t",
+  "diffView.sessionChanges.emptySession": "Agent ch\u01b0a thay \u0111\u1ed5i t\u1ec7p n\u00e0o trong phi\u00ean n\u00e0y",
+  "diffView.sessionChanges.emptyTurn": "Agent ch\u01b0a thay \u0111\u1ed5i t\u1ec7p n\u00e0o \u1edf l\u01b0\u1ee3t g\u1ea7n nh\u1ea5t",
+  "diffView.rail.openFile": "M\u1edf {file} trong tr\u00ecnh so\u1ea1n th\u1ea3o",
+  "supervision.missionControl.preview.workingOn": "\u0110ang th\u1ef1c hi\u1ec7n: {content}"
 }

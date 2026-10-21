@@ -8,6 +8,7 @@ import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { assertPathInsideDirectory } from "./scenario.mjs"
+import { STUB_REVIEW_DIFFS } from "./stub-runtime.mjs"
 
 const exec = promisify(execFile)
 const args = parseArgs(process.argv.slice(2))
@@ -39,6 +40,10 @@ const outcome = await runHarness({
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "portfolio-goals" }),
     })
     if (!armed.ok) throw new Error("Could not arm portfolio fixture")
+    const reviewArmed = await fetch(`${origin}/__e2e__/step`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ step: "review-scopes" }),
+    })
+    if (!reviewArmed.ok) throw new Error("Could not arm session review fixture")
     await session.send("Page.reload", { ignoreCache: true })
     await journeyBoot({ session })
     await audit.client.enable()
@@ -53,13 +58,19 @@ const outcome = await runHarness({
       const state = await audit.all()
       const layout = await session.evaluate(`(() => {
         const visible = e => e.checkVisibility() && !e.closest('[aria-hidden="true"], [inert]')
-        const roots = Array.from(document.querySelectorAll('[data-mission-control], [data-workspace-navigation], [data-review-changes]')).filter(visible)
+        const roots = Array.from(document.querySelectorAll('[data-mission-control], [data-workspace-navigation], [data-review-changes], [role="dialog"]:has([cmdk-root])')).filter(visible)
         return roots.map(root => ({
-          kind: root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : 'navigation',
+          kind: root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
           width: root.clientWidth, scrollWidth: root.scrollWidth, text: root.innerText,
           groups: Array.from(root.querySelectorAll('[role="rowgroup"]')).map(e => ({ name:e.getAttribute('aria-label'), rows:Array.from(e.querySelectorAll('.mission-control-row')).map(row=>row.id) })),
           files: Array.from(root.querySelectorAll('[data-review-file]')).map(e => ({ path:e.dataset.reviewFile, current:e.getAttribute('aria-current'), viewed:e.querySelector('input[type="checkbox"]')?.checked })),
           progress: root.querySelector('[role="progressbar"]')?.getAttribute('aria-label'),
+          reviewScope: root.querySelector('[data-review-scope] [aria-checked="true"]')?.textContent,
+          sessionScope: root.querySelector('[data-session-changes]')?.dataset.sessionScope,
+          selectedRows: Array.from(root.querySelectorAll('.mission-control-row[aria-selected="true"]')).map(e => e.id),
+          toolbar: root.querySelector('[role="toolbar"]')?.innerText,
+          paletteGroups: Array.from(root.querySelectorAll('[cmdk-group-heading]')).filter(visible).map(e => e.textContent.trim()),
+          paletteSessions: Array.from(root.querySelectorAll('[cmdk-item][data-value^="session:"]')).filter(visible).map(e => ({ value:e.dataset.value, state:e.querySelector('[data-palette-session-state]')?.dataset.paletteSessionState })),
           controls: Array.from(root.querySelectorAll('button,input,select')).filter(visible).map(e => {
             const r=e.getBoundingClientRect(), p=root.getBoundingClientRect()
             return {name:e.getAttribute('aria-label') || e.innerText, left:r.left, right:r.right, outside:r.left<p.left-1 || r.right>p.right+1}
@@ -125,6 +136,99 @@ const outcome = await runHarness({
       await audit.click(await observedControl(groupName))
       await audit.wait(grouped(true), "project grouping restored")
     }
+    const dispatchKey = async (key, code, windowsVirtualKeyCode, modifiers = 0) => {
+      await session.send("Input.dispatchKeyEvent", { type: "keyDown", key, code, windowsVirtualKeyCode, modifiers })
+      await session.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, windowsVirtualKeyCode, modifiers })
+    }
+    const checkBulkSelection = async theme => {
+      const rowIds = targets.map(target => `mission-row-${target.id}`)
+      const selectedRows = ids => `(() => {
+        const board = document.querySelector('[data-mission-control][role="grid"]')
+        const expected = ${JSON.stringify(ids)}
+        const selected = Array.from(board?.querySelectorAll('.mission-control-row[aria-selected="true"]') || []).map(e => e.id)
+        return board?.checkVisibility() && selected.length === expected.length && expected.every(id => selected.includes(id)) &&
+          Array.from(board.querySelectorAll('.mission-control-row')).every(row => row.querySelector('input[type="checkbox"]')?.checked === expected.includes(row.id))
+      })()`
+      // Toolbar/grid are not in WebMCP's control inventory; inspect their roles in the rendered DOM.
+      const toolbar = `document.querySelector('[data-mission-control] [role="toolbar"][aria-label="Selected sessions"]')`
+      const checkCount = count => audit.wait(`${toolbar}?.checkVisibility() && ${toolbar}.textContent.includes('${count} selected') && document.querySelector('[data-mission-control] [role="status"][aria-live="polite"]')?.textContent.trim() === '${count} selected'`, `${count} selected in the bulk toolbar`)
+      await audit.wait(`${selectedRows([])} && !${toolbar}`, "bulk selection starts empty")
+      const labels = await session.evaluate(`(() => {
+        const first = document.getElementById(${JSON.stringify(rowIds[0])})
+        const other = document.getElementById(${JSON.stringify(rowIds[1])})
+        if (!first || !other || first.closest('[role="rowgroup"]') === other.closest('[role="rowgroup"]')) throw new Error('Expected fixture rows in distinct project groups')
+        return {
+          row:first.querySelector('input[type="checkbox"]')?.getAttribute('aria-label'),
+          group:other.closest('[role="rowgroup"]')?.querySelector('.mission-group-header input[type="checkbox"]')?.getAttribute('aria-label')
+        }
+      })()`)
+      const rowName = await observedControl(labels.row, "input")
+      const groupName = await observedControl(labels.group, "input")
+      if (!rowName.startsWith("Select ") || !groupName.startsWith("Select all in ")) throw new Error("Unexpected bulk selection labels")
+      await audit.click(rowName, { role: "input" })
+      await audit.wait(selectedRows([rowIds[0]]), "fixture row checkbox selects only its session")
+      await checkCount(1)
+      await audit.click(await observedControl(groupName, "input"), { role: "input" })
+      await audit.wait(selectedRows(rowIds), "other project checkbox adds its session to the selection")
+      await checkCount(2)
+      const stopName = await observedControl("Stop 0 running")
+      const archiveName = await observedControl("Archive selected")
+      const clearName = await observedControl("Clear selection")
+      await audit.wait(`(() => {
+        const buttons = Array.from(${toolbar}?.querySelectorAll('button') || [])
+        const stop = buttons.find(e => e.textContent.trim() === ${JSON.stringify(stopName)})
+        return stop?.disabled === true && buttons.some(e => e.textContent.trim() === ${JSON.stringify(archiveName)}) &&
+          buttons.some(e => e.textContent.trim() === ${JSON.stringify(clearName)})
+      })()`, "bulk actions exist and Stop is disabled with no running sessions")
+      // Never invoke Stop or Archive: the runtime fixture must remain unchanged.
+      await capture(`board-bulk-${theme}-1280`)
+      await audit.click(clearName)
+      await audit.wait(`${selectedRows([])} && !${toolbar}`, "Clear selection removes the toolbar and unchecks rows")
+      const activeRow = await session.evaluate(`(() => {
+        const board = document.querySelector('[data-mission-control][role="grid"]')
+        board.focus({ preventScroll:true })
+        return board.getAttribute('aria-activedescendant')
+      })()`)
+      if (!rowIds.includes(activeRow)) throw new Error(`Unexpected active fixture row: ${activeRow}`)
+      await audit.wait(`document.activeElement === document.querySelector('[data-mission-control][role="grid"]')`, "board grid owns keyboard focus")
+      await dispatchKey("x", "KeyX", 88)
+      await audit.wait(selectedRows([activeRow]), "x selects the active row")
+      await checkCount(1)
+      await dispatchKey("Escape", "Escape", 27)
+      await audit.wait(`${selectedRows([])} && !${toolbar}`, "Escape clears selection and keeps the board open")
+    }
+    const checkRankedPalette = async theme => {
+      const controls = (await audit.all()).controls
+      const opener = controls.find(control => control.role === "button" && !control.disabled &&
+        ["Command Palette", "Open command palette"].includes(control.name))
+      if (opener) {
+        await audit.click(opener.name, { role: "button" })
+      } else {
+        // shortcuts.ts: open_command_palette defaults to mod+p in this isolated, fresh profile.
+        await dispatchKey("p", "KeyP", 80, process.platform === "darwin" ? 4 : 2)
+      }
+      const palette = `document.querySelector('[role="dialog"]:has([cmdk-root])')`
+      await audit.wait(`${palette}?.checkVisibility() && ${palette}.querySelector('[cmdk-input]')?.value === ''`, "empty command palette opened")
+      await audit.wait(`(() => {
+        const root = ${palette}
+        const headings = Array.from(root.querySelectorAll('[cmdk-group-heading]')).filter(e => e.checkVisibility())
+        const sessions = Array.from(root.querySelectorAll('[cmdk-item][data-value^="session:"]'))
+        const expected = ${JSON.stringify(targets.map(target => `session:${target.id}`))}
+        return headings[0]?.textContent.trim() === 'Sessions' &&
+          sessions.length >= expected.length && expected.every(value => sessions.filter(e => e.dataset.value === value).length === 1) &&
+          sessions.slice(0, expected.length).every(e => expected.includes(e.dataset.value) && e.closest('[cmdk-group]')?.querySelector('[cmdk-group-heading]') === headings[0] &&
+            e.checkVisibility() && e.querySelector('[data-palette-session-state]')?.checkVisibility() &&
+            ['permission', 'question', 'error', 'goal', 'review'].includes(e.querySelector('[data-palette-session-state]')?.dataset.paletteSessionState) &&
+            Boolean(e.querySelector('[data-palette-session-state]')?.textContent.trim()))
+      })()`, "Sessions is the first group; both fixture sessions precede all other sessions and have visible state badges")
+      const names = await session.evaluate(`Array.from(${palette}.querySelectorAll('[cmdk-item][data-value^="session:"]')).slice(0, 2).map(e => e.textContent.replace(/\\s+/g, ' ').trim().slice(0, 160))`)
+      for (const name of names) await observedControl(name, "option")
+      await capture(`palette-${theme}`)
+      await audit.wait(`${palette}?.contains(document.activeElement)`, "palette owns keyboard focus")
+      await dispatchKey("Escape", "Escape", 27)
+      await audit.wait(`!${palette}`, "Escape closes the command palette")
+      await audit.wait(`document.querySelector('[data-mission-control]')?.checkVisibility() && document.querySelectorAll('.mission-control-row').length === 2`, "board restored after palette dismissal")
+    }
     const rowAction = async (prefix, target) => {
       const matches = (await audit.all()).controls.filter(control => control.name.startsWith(prefix) && control.name.includes(target.directory))
       if (matches.length !== 1) throw new Error(`Expected one ${prefix} action for ${target.directory}; got ${matches.length}`)
@@ -148,6 +252,7 @@ const outcome = await runHarness({
         return
       }
       await audit.wait(`JSON.stringify(Array.from(document.querySelectorAll('[data-review-changes] [data-review-file]')).map(e=>e.dataset.reviewFile).sort()) === ${JSON.stringify(JSON.stringify(changedFiles))}`, "one rail row for each of five changed files")
+      await checkRailEditorControls()
       const progress = count => `(() => {
         const rail = document.querySelector('[data-review-changes] .review-file-rail')
         const bar = rail?.querySelector('[role="progressbar"]')
@@ -178,6 +283,72 @@ const outcome = await runHarness({
       await audit.wait(selected(selection.current), "review selection restored")
       await audit.click(await observedControl(markName, "input"), { role: "input" })
       await audit.wait(progress(0), "review progress restored")
+    }
+    const checkRailEditorControls = async () => {
+      await audit.wait(`document.querySelector('[data-review-scope] [aria-checked="true"]')?.textContent === 'All' && document.querySelector('[data-review-changes] .review-file-rail')?.checkVisibility()`, "All scope has a visible file rail")
+      const rows = await session.evaluate(`Array.from(document.querySelectorAll('[data-review-changes] [data-review-file]')).map(row => ({
+        file:row.dataset.reviewFile,
+        buttons:Array.from(row.querySelectorAll('.review-file-rail__open')).map(button => ({
+          name:button.getAttribute('aria-label'), visible:button.checkVisibility(), disabled:button.disabled
+        }))
+      }))`)
+      if (JSON.stringify(rows.map(row => row.file).sort()) !== JSON.stringify(changedFiles)) throw new Error("Expected all git fixture rows for editor controls")
+      for (const row of rows) {
+        const [button] = row.buttons
+        if (row.buttons.length !== 1 || !button.visible || button.disabled) throw new Error(`Missing usable editor control for ${row.file}`)
+        const name = await observedControl(button.name)
+        if (name !== `Open ${path.posix.basename(row.file)} in the editor`) throw new Error(`Unexpected editor control: ${name}`)
+      }
+      // Inventory only: opening an editor would leave the review under test.
+    }
+    const checkSessionReview = async theme => {
+      const selectScope = async label => {
+        const name = await observedControl(label, "radio")
+        await audit.click(name, { role: "radio" })
+        await audit.wait(`document.querySelector('[data-review-scope] [aria-checked="true"]')?.textContent === ${JSON.stringify(name)}`, `${name} scope selected`)
+      }
+      const checkFiles = async (scope, files) => {
+        await audit.wait(`(() => {
+          const root = document.querySelector('[data-session-changes]')
+          const expected = ${JSON.stringify(files.map(file => file.file).sort())}
+          const actual = Array.from(root?.querySelectorAll('[data-review-file]') || []).map(e => e.dataset.reviewFile).sort()
+          return root?.dataset.sessionScope?.split(':')[0] === ${JSON.stringify(scope)} &&
+            root.querySelector('.review-file-rail')?.checkVisibility() && JSON.stringify(actual) === JSON.stringify(expected) &&
+            root.querySelector('[role="progressbar"]')?.getAttribute('aria-valuemax') === String(expected.length)
+        })()`, `${scope} rail contains exactly its fixture files`)
+        await audit.wait(`(() => {
+          const root = document.querySelector('[data-session-changes]')
+          const selected = root?.querySelector('[data-review-file][aria-current="true"]')?.dataset.reviewFile
+          const file = ${JSON.stringify(files)}.find(file => file.file === selected)
+          return file && Array.from(root.querySelectorAll('diffs-container')).some(e => e.shadowRoot?.textContent.includes(file.after.trim()))
+        })()`, `${scope} selected fixture diff rendered`)
+        const mutationControls = await session.evaluate(`(() => {
+          const names = []
+          const inspect = root => {
+            for (const e of root.querySelectorAll('*')) {
+              if (e.matches('button, [role="button"], input[type="button"], input[type="submit"]')) {
+                const name = [e.getAttribute('aria-label'), e.getAttribute('title'), e.textContent, e.value].filter(Boolean).join(' ')
+                if (/stage|revert/i.test(name)) names.push(name)
+              }
+              if (e.shadowRoot) inspect(e.shadowRoot)
+            }
+          }
+          inspect(document.querySelector('[data-session-changes]'))
+          return names
+        })()`)
+        if (mutationControls.length) throw new Error(`${scope} exposes stage/revert controls: ${JSON.stringify(mutationControls)}`)
+      }
+      await selectScope("This session")
+      await checkFiles("session", STUB_REVIEW_DIFFS)
+      await capture(`review-session-${theme}`)
+      await selectScope("Last turn")
+      await checkFiles("turn", [STUB_REVIEW_DIFFS[1]])
+      await capture(`review-session-${theme}-last-turn`)
+      await selectScope("All")
+      await audit.wait(`!document.querySelector('[data-session-changes]') && JSON.stringify(Array.from(document.querySelectorAll('[data-review-changes] [data-review-file]')).map(e => e.dataset.reviewFile).sort()) === ${JSON.stringify(JSON.stringify(changedFiles))}`, "All restores exactly the five git fixture files")
+      await checkDiff(0)
+      await checkRailEditorControls()
+      await capture(`review-session-${theme}-all`)
     }
     // Select the fixture project through its observed session action, then open a fresh draft.
     await openBoard()
@@ -241,6 +412,10 @@ const outcome = await runHarness({
       for (const width of [1280, 1024, 800, 600]) {
         await viewport(width)
         await checkGroupedBoard()
+        if (width === 1280) {
+          await checkBulkSelection(theme)
+          await checkRankedPalette(theme)
+        }
         await capture(`board-grouped-${theme}-${width}`)
         await capture(`board-${theme}-${width}`)
       }
@@ -273,6 +448,7 @@ const outcome = await runHarness({
         })()`, "dynamic layout follows pane width")
         await checkReviewRail(`review-rail-${theme}-${width}`)
         await capture(`review-${theme}-${width}`)
+        if (theme === "dark" && width === 2800) await checkSessionReview(theme)
       }
       await audit.click("Workspace", { role: "button" })
       await audit.wait('document.body.innerText.includes("Fixture conversation for project A") && !document.querySelector("[data-review-changes]")', "return to chat")
@@ -282,7 +458,7 @@ const outcome = await runHarness({
       await openBoard()
     }
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, draft review, two five-file fixture repositories, review progress and keyboard navigation, composer toast clearance, pane resizing and dark/light layouts" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

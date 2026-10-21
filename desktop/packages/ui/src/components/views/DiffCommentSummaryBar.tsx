@@ -99,7 +99,7 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
       className="sticky bottom-0 z-20 flex items-center gap-3 px-3 py-2 border-t border-border/60 bg-[var(--surface-elevated)] shadow-[0_-2px_8px_rgba(0,0,0,0.08)]"
     >
       <Icon name="chat-1" className="h-4 w-4 text-[var(--status-info)] flex-shrink-0" aria-hidden="true" />
-      <span className="typography-ui-label font-medium text-foreground flex-shrink-0">
+      <span role="status" className="typography-ui-label font-medium text-foreground flex-shrink-0">
         {t("diffView.comments.summaryTitle", { count: draftCount })}
       </span>
       <div className="flex-1" />

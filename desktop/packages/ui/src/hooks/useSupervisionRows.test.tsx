@@ -2,15 +2,41 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-const mocks = vi.hoisted(() => ({
-  sessions: [] as Array<Record<string, unknown>>,
-  statuses: {} as Record<string, { type: string }>,
-  inputs: [] as Array<Record<string, unknown>>,
-}))
+const mocks = vi.hoisted(() => {
+  const activity = {
+    todo: {} as Record<string, Array<{ status: string; content: string }>>,
+    message: {} as Record<string, Array<{ id: string; role: string }>>,
+    parts: {} as Record<string, Array<{ type: string; text?: string }>>,
+  }
+  const listeners = new Set<() => void>()
+  const part = { get: (id: string) => activity.parts[id] }
+  const store = {
+    getState: () => ({ todo: activity.todo, message: activity.message, part }),
+    subscribe: (listener: () => void) => {
+      listeners.add(listener)
+      return () => listeners.delete(listener)
+    },
+  }
+  return {
+    sessions: [] as Array<Record<string, unknown>>,
+    statuses: {} as Record<string, { type: string }>,
+    inputs: [] as Array<Record<string, unknown>>,
+    activity,
+    listeners,
+    manager: {
+      children: new Map([["/repo", store]]),
+      subscribeAll: (listener: () => void) => {
+        listeners.add(listener)
+        return () => listeners.delete(listener)
+      },
+    },
+  }
+})
 
 vi.mock("@/sync/sync-context", () => ({
   useAllLiveSessions: () => mocks.sessions,
   useAllSessionStatuses: () => mocks.statuses,
+  useChildStoreManager: () => mocks.manager,
 }))
 
 vi.mock("@/hooks/useNeedsYouSessions", () => ({
@@ -74,6 +100,10 @@ describe("useSupervisionRows goal wiring", () => {
     mocks.sessions = []
     mocks.statuses = {}
     mocks.inputs = []
+    mocks.activity.todo = {}
+    mocks.activity.message = {}
+    mocks.activity.parts = {}
+    mocks.listeners.clear()
     useSessionGoalStore.getState().clear()
     useSupervisionStore.setState({ rows: [] })
     useProjectsStore.setState({ projects: [] })
@@ -198,5 +228,39 @@ describe("useSupervisionRows goal wiring", () => {
     render()
     expect(latest[0]?.goal).toBeNull()
     expect(latest[0]?.state).toBe("idle")
+    expect(latest[0]?.activity).toBeNull()
+  })
+
+  test("publishes the in-progress todo ahead of a loaded assistant message", () => {
+    mocks.sessions = [session("root")]
+    mocks.inputs = [input("root")]
+    mocks.activity.todo = { root: [{ status: "in_progress", content: "Fix the parser" }] }
+    mocks.activity.message = { root: [{ id: "m1", role: "assistant" }] }
+    mocks.activity.parts = { m1: [{ type: "text", text: "older words" }] }
+    render()
+    expect(latest[0]?.activity).toEqual({ kind: "todo", text: "Working on: Fix the parser" })
+  })
+
+  test("keeps the same row array when a part update does not change the preview", () => {
+    const long = "a".repeat(180)
+    mocks.sessions = [session("root")]
+    mocks.inputs = [input("root")]
+    mocks.activity.message = { root: [{ id: "m1", role: "assistant" }] }
+    mocks.activity.parts = { m1: [{ type: "text", text: long }] }
+    render()
+    const published = useSupervisionStore.getState().rows
+    expect(published[0]?.activity?.text.endsWith("…")).toBe(true)
+    act(() => {
+      mocks.activity.parts = { m1: [{ type: "text", text: `${long} more tokens` }] }
+      for (const listener of mocks.listeners) listener()
+    })
+    expect(useSupervisionStore.getState().rows).toBe(published)
+    expect(latest).toBe(published)
+    act(() => {
+      mocks.activity.parts = { m1: [{ type: "text", text: "done now" }] }
+      for (const listener of mocks.listeners) listener()
+    })
+    expect(latest[0]?.activity).toEqual({ kind: "message", text: "done now" })
+    expect(useSupervisionStore.getState().rows).not.toBe(published)
   })
 })

@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "Modifiche da mostrare",
   "diffView.scope.all": "Tutte",
   "diffView.scope.working": "Non indicizzate",
-  "diffView.scope.staged": "Indicizzate"
+  "diffView.scope.staged": "Indicizzate",
+  "supervision.missionControl.bulk.selectSession": "Seleziona {context}",
+  "supervision.missionControl.bulk.selectProject": "Seleziona tutto in {project}",
+  "supervision.missionControl.bulk.label": "Sessioni selezionate",
+  "supervision.missionControl.bulk.selected": "{count} selezionate",
+  "supervision.missionControl.bulk.stop": "Interrompi {count} in esecuzione",
+  "supervision.missionControl.bulk.archive": "Archivia selezionati",
+  "supervision.missionControl.bulk.clear": "Cancella selezione",
+  "supervision.missionControl.bulk.stopConfirm": "Interrompere le sessioni in esecuzione ({count})?",
+  "supervision.missionControl.bulk.archiveConfirm": "Archiviare le sessioni selezionate ({count})?",
+  "supervision.missionControl.bulk.stopSummary": "Interrotte: {succeeded}. Non riuscite: {failed}. Non pi\u00f9 in esecuzione: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Archiviate: {succeeded}. Non riuscite: {failed}.",
+  "diffView.scope.session": "Questa sessione",
+  "diffView.scope.lastTurn": "Ultimo turno",
+  "diffView.sessionChanges.emptySession": "L'agente non ha modificato file in questa sessione",
+  "diffView.sessionChanges.emptyTurn": "L'agente non ha modificato file nel suo ultimo turno",
+  "diffView.rail.openFile": "Apri {file} nell'editor",
+  "supervision.missionControl.preview.workingOn": "Al lavoro su: {content}"
 }

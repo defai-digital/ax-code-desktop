@@ -40,6 +40,8 @@ import { useThemeSystem } from "@/contexts/useThemeSystem"
 import type { ThemeMode } from "@/types/theme"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
+import { SupervisionStateBadge } from "@/components/supervision/SupervisionStateBadge"
+import { paletteHasNeedsYou, rankPaletteSessions } from "@/lib/supervision/paletteRanking"
 import { nextNeedsHumanSession } from "@/lib/supervision/sessionState"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
@@ -523,8 +525,16 @@ export const CommandPalette: React.FC = () => {
     const getUpdated = (s: Session) =>
       (typeof s.time?.updated === "number" ? s.time.updated : 0) ||
       (typeof s.time?.created === "number" ? s.time.created : 0)
-    return [...activeSessions].sort((a, b) => getUpdated(b) - getUpdated(a))
-  }, [activeSessions])
+    return rankPaletteSessions(
+      [...activeSessions].sort((a, b) => getUpdated(b) - getUpdated(a)),
+      supervisionRows,
+    )
+  }, [activeSessions, supervisionRows])
+  const rowBySession = React.useMemo(
+    () => new Map(supervisionRows.map((row) => [row.sessionId, row])),
+    [supervisionRows],
+  )
+  const sessionsFirst = paletteHasNeedsYou(supervisionRows)
 
   const allBranches = useGitAllBranches()
   const worktreeMetadata = useSessionUIStore((s) => s.worktreeMetadata)
@@ -610,12 +620,16 @@ export const CommandPalette: React.FC = () => {
   }, [settingsEntries, liveTrimmed, hasQuery])
 
   const scoredSessions = React.useMemo(() => {
-    if (!hasQuery) return sortedActiveSessions.slice(0, 5).map((item) => ({ item, score: 0 }))
-    return scoreByFuzzyQuery(sortedActiveSessions, liveTrimmed, (s) => s.title || "", {
+    if (!hasQuery) return sortedActiveSessions.slice(0, 8).map((item) => ({ item, score: 0 }))
+    return scoreByFuzzyQuery(
+      sortedActiveSessions,
+      liveTrimmed,
+      (s) => `${s.title || ""} ${rowBySession.get(s.id)?.projectLabel ?? ""}`,
+      {
       limit: 7,
       threshold: 0.2,
     })
-  }, [sortedActiveSessions, liveTrimmed, hasQuery])
+  }, [sortedActiveSessions, liveTrimmed, hasQuery, rowBySession])
 
   const scoredFiles = React.useMemo(() => {
     if (!hasQuery || fileResults.length === 0) return []
@@ -634,7 +648,8 @@ export const CommandPalette: React.FC = () => {
   const visibleFiles = hasQuery ? scoredFiles.map((x) => x.item) : []
 
   const groupOrder = React.useMemo<("supervision" | "commands" | "settings" | "sessions" | "files")[]>(() => {
-    if (!hasQuery) return ["supervision", "commands", "sessions"]
+    // Like a jump palette: when a session waits on the user, the ranked sessions come first.
+    if (!hasQuery) return sessionsFirst ? ["sessions", "supervision", "commands"] : ["supervision", "commands", "sessions"]
     const best = (arr: { score: number }[]): number => (arr.length ? arr[0].score : Infinity)
     const groups: { key: "commands" | "settings" | "sessions" | "files"; score: number }[] = [
       { key: "commands", score: best(scoredCommands) },
@@ -644,7 +659,7 @@ export const CommandPalette: React.FC = () => {
     ]
     groups.sort((a, b) => a.score - b.score)
     return ["supervision", ...groups.map((g) => g.key)]
-  }, [hasQuery, scoredCommands, scoredSettings, scoredSessions, scoredFiles])
+  }, [hasQuery, sessionsFirst, scoredCommands, scoredSettings, scoredSessions, scoredFiles])
 
   const handleOpenSession = React.useCallback(
     (session: Session) => {
@@ -750,6 +765,7 @@ export const CommandPalette: React.FC = () => {
                       const title = session.title || t("commandPalette.session.untitled")
                       const dir = resolveGlobalSessionDirectory(session)
                       const branch = branchForSession(session.id, dir)
+                      const row = rowBySession.get(session.id)
                       return (
                         <CommandItem
                           key={session.id}
@@ -757,7 +773,21 @@ export const CommandPalette: React.FC = () => {
                           onSelect={() => handleOpenSession(session)}
                         >
                           <Icon name="chat-ai-3" className="mr-2 h-4 w-4" />
-                          <span className="truncate">{title}</span>
+                          {/* The title wins the space; a long, disambiguated project label truncates first. */}
+                          <span className="min-w-[8rem] flex-1 truncate">{title}</span>
+                          {row?.projectLabel ? (
+                            <span
+                              className="min-w-0 max-w-[35%] shrink truncate text-muted-foreground typography-meta"
+                              title={row.projectLabel}
+                            >
+                              {row.projectLabel}
+                            </span>
+                          ) : null}
+                          {row && row.state !== "idle" ? (
+                            <span className="shrink-0" data-palette-session-state={row.state}>
+                              <SupervisionStateBadge state={row.state} />
+                            </span>
+                          ) : null}
                           {branch ? (
                             <span className="ml-auto inline-flex items-center gap-1 text-muted-foreground typography-meta">
                               <Icon name="git-branch" className="h-3 w-3" />

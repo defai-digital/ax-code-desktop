@@ -39,6 +39,11 @@ export const STUB_OBJECT_ROUTES = {
 export const STUB_SCENARIO_ENV = "AX_CODE_DESKTOP_E2E_SCENARIO_PATH"
 export const STUB_REPLIES_ENV = "AX_CODE_DESKTOP_E2E_REPLIES_PATH"
 
+export const STUB_REVIEW_DIFFS = [
+  { file: "session/overview.txt", before: "Original session overview\n", after: "Revised session overview\n", additions: 1, deletions: 1, status: "modified" },
+  { file: "session/last-turn.txt", before: "Original last turn\n", after: "Revised last turn\n", additions: 1, deletions: 1, status: "modified" },
+]
+
 export const buildStubRuntimeScript = ({ version = "0.0.0-e2e" } = {}) => `#!/usr/bin/env node
 const http = require('node:http');
 const fs = require('node:fs');
@@ -82,6 +87,8 @@ const pending = scenario && scenario.approveRequest ? [scenario.approveRequest] 
 let currentGoal = null;
 let foreignGoalEmitted = false;
 let portfolioGoalsActive = false;
+let reviewScopesActive = false;
+const reviewDiffs = ${JSON.stringify(STUB_REVIEW_DIFFS)};
 const portfolio = scenario && Array.isArray(scenario.portfolio) ? scenario.portfolio : [];
 let scheduledFixture = [];
 let scheduledWrites = [];
@@ -274,6 +281,7 @@ const server = http.createServer((req, res) => {
             }
           }
           portfolioGoalsActive = false;
+          reviewScopesActive = false;
           foreignGoalEmitted = false;
           json(res, { ok: true, step: step });
           return;
@@ -300,6 +308,11 @@ const server = http.createServer((req, res) => {
           for (const entry of portfolio) {
             broadcast(entry.session.directory, { type: 'session.goal', properties: { sessionID: entry.session.id, goal: entry.goal } });
           }
+          json(res, { ok: true, step: step });
+          return;
+        }
+        if (step === 'review-scopes' && portfolio.length) {
+          reviewScopesActive = true;
           json(res, { ok: true, step: step });
           return;
         }
@@ -350,8 +363,39 @@ const server = http.createServer((req, res) => {
       const sessionID = decodeURIComponent(messagesMatch[1]);
       const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || item.directory === scopedDirectory));
       res.statusCode = entry ? 200 : 404;
-      json(res, entry ? (scenario.portfolioMessages[sessionID] || []) : { error: 'session not found in this directory' });
+      const messages = scenario.portfolioMessages[sessionID] || [];
+      const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
+      json(res, entry ? messages.map((message, index) => index === latestUser ? {
+        ...message, info: { ...message.info, summary: { ...message.info.summary, diffs: [reviewDiffs[1]] } },
+      } : message) : { error: 'session not found in this directory' });
       return;
+    }
+    // One message, as the real runtime returns it: the stored user summary keeps before/after, which the app's
+    // synced copy strips, so the "Last turn" review reads its content here.
+    const messageMatch = pathname.match(/^\\/session\\/([^/]+)\\/message\\/([^/]+)$/);
+    if (messageMatch && req.method === 'GET' && portfolio.length) {
+      const sessionID = decodeURIComponent(messageMatch[1]);
+      const messageID = decodeURIComponent(messageMatch[2]);
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || item.directory === scopedDirectory));
+      const messages = scenario.portfolioMessages[sessionID] || [];
+      const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
+      const index = messages.findIndex(message => message.info.id === messageID);
+      const found = entry && index >= 0 ? messages[index] : null;
+      res.statusCode = found ? 200 : 404;
+      json(res, found ? (index === latestUser ? {
+        ...found, info: { ...found.info, summary: { ...found.info.summary, diffs: [reviewDiffs[1]] } },
+      } : found) : { error: 'message not found in this directory' });
+      return;
+    }
+    const diffMatch = pathname.match(/^\\/session\\/([^/]+)\\/diff$/);
+    if (diffMatch && req.method === 'GET' && reviewScopesActive) {
+      const entry = sessions.find(item => item.id === decodeURIComponent(diffMatch[1]));
+      if (entry) {
+        const inDirectory = !scopedDirectory || entry.directory === scopedDirectory;
+        res.statusCode = inDirectory ? 200 : 404;
+        json(res, inDirectory ? reviewDiffs : { error: 'session not found in this directory' });
+        return;
+      }
     }
     const sessionMatch = pathname.match(/^\\/session\\/([^/]+)$/);
     if (sessionMatch && req.method === 'GET') {

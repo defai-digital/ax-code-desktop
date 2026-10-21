@@ -54,3 +54,26 @@ describe("CommitSection", () => {
     expect(commitButton).toContain('disabled=""')
   })
 })
+
+describe("CommitSection keyboard commit", () => {
+  test("Cmd/Ctrl+Enter in the message commits only when committing is allowed", async () => {
+    const { render: mount, cleanup, fireEvent } = await import("@/test/dom")
+    const onCommit = vi.fn()
+    const view = (commitMessage: string) => (
+      <I18nProvider>
+        <CommitSection {...baseProps} commitMessage={commitMessage} onCommit={onCommit} stagedCount={1} changedCount={1} />
+      </I18nProvider>
+    )
+    const { container, rerender } = mount(view("fix: something"))
+    const textarea = () => container.querySelector("textarea")!
+    fireEvent.keyDown(textarea(), { key: "Enter" })
+    expect(onCommit).not.toHaveBeenCalled()
+    fireEvent.keyDown(textarea(), { key: "Enter", metaKey: true })
+    fireEvent.keyDown(textarea(), { key: "Enter", ctrlKey: true })
+    expect(onCommit).toHaveBeenCalledTimes(2)
+    rerender(view("   "))
+    fireEvent.keyDown(textarea(), { key: "Enter", metaKey: true })
+    expect(onCommit).toHaveBeenCalledTimes(2)
+    cleanup()
+  })
+})

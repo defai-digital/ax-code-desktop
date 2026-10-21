@@ -4969,5 +4969,22 @@
   "diffView.scope.label": "G\u00f6sterilecek de\u011fi\u015fiklikler",
   "diffView.scope.all": "T\u00fcm\u00fc",
   "diffView.scope.working": "Haz\u0131rlanmam\u0131\u015f",
-  "diffView.scope.staged": "Haz\u0131rlanm\u0131\u015f"
+  "diffView.scope.staged": "Haz\u0131rlanm\u0131\u015f",
+  "supervision.missionControl.bulk.selectSession": "{context} se\u00e7",
+  "supervision.missionControl.bulk.selectProject": "{project} i\u00e7indekilerin t\u00fcm\u00fcn\u00fc se\u00e7",
+  "supervision.missionControl.bulk.label": "Se\u00e7ilen oturumlar",
+  "supervision.missionControl.bulk.selected": "{count} se\u00e7ildi",
+  "supervision.missionControl.bulk.stop": "\u00c7al\u0131\u015fan {count} oturumu durdur",
+  "supervision.missionControl.bulk.archive": "Se\u00e7ilenleri ar\u015fivle",
+  "supervision.missionControl.bulk.clear": "Se\u00e7imi temizle",
+  "supervision.missionControl.bulk.stopConfirm": "\u00c7al\u0131\u015fan oturumlar durdurulsun mu? ({count})",
+  "supervision.missionControl.bulk.archiveConfirm": "Se\u00e7ilen oturumlar ar\u015fivlensin mi? ({count})",
+  "supervision.missionControl.bulk.stopSummary": "Durdurulan: {succeeded}. Ba\u015far\u0131s\u0131z: {failed}. Art\u0131k \u00e7al\u0131\u015fm\u0131yor: {skipped}.",
+  "supervision.missionControl.bulk.archiveSummary": "Ar\u015fivlenen: {succeeded}. Ba\u015far\u0131s\u0131z: {failed}.",
+  "diffView.scope.session": "Bu oturum",
+  "diffView.scope.lastTurn": "Son tur",
+  "diffView.sessionChanges.emptySession": "Ajan bu oturumda dosya de\u011fi\u015ftirmedi",
+  "diffView.sessionChanges.emptyTurn": "Ajan son turunda dosya de\u011fi\u015ftirmedi",
+  "diffView.rail.openFile": "Edit\u00f6rde {file} dosyas\u0131n\u0131 a\u00e7",
+  "supervision.missionControl.preview.workingOn": "\u00dczerinde \u00e7al\u0131\u015f\u0131l\u0131yor: {content}"
 }

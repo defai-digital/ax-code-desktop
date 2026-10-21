@@ -3,6 +3,8 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
+import { cleanup, render as renderDom, screen } from "@/test/dom"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
@@ -50,6 +52,8 @@ describe("Mission Control row interaction", () => {
           <MissionControlRow
             row={{ ...row, state, ...overrides }}
             selected
+            bulkSelected={false}
+            onToggleSelection={vi.fn()}
             expanded={false}
             activeWorkingSetId="w1"
             primaryLabel="Review changes"
@@ -75,7 +79,7 @@ describe("Mission Control row interaction", () => {
     act(() => container.querySelector<HTMLElement>('[role="row"]')!.click())
     expect(onSelect).toHaveBeenCalledWith("s1")
     expect(document.activeElement).toBe(container.querySelector('[role="grid"]'))
-    expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(4)
+    expect(container.querySelectorAll('[role="gridcell"]')).toHaveLength(5)
     expect(container.textContent).toContain(row.projectLabel)
   })
   test("details is a separate discoverable action with project context", () => {
@@ -166,5 +170,88 @@ describe("Mission Control row interaction", () => {
     expect(container.querySelector(".mission-evidence")).toBeNull()
     expect(container.querySelector(".mission-age")).toBeNull()
     expect(container.textContent).not.toContain("—")
+  })
+})
+
+describe("Mission Control activity preview", () => {
+  const message = "Checking the migration diff"
+  const openName = "Review changes — Long project name · Fix a long task"
+  const detailsName = "supervision.missionControl.action.details — Long project name · Fix a long task"
+  const selectName = "supervision.missionControl.bulk.selectSession:Long project name · Fix a long task"
+
+  const draw = (overrides: Partial<SupervisionRow> = {}) =>
+    renderDom(
+      <MissionControlRow
+        row={{ ...row, activity: { kind: "message", text: message }, ...overrides }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+
+  beforeEach(() => {
+    useSupervisionStore.setState({ density: "comfortable" })
+  })
+
+  afterEach(() => {
+    cleanup()
+    useSupervisionStore.setState({ density: "comfortable" })
+  })
+
+  test("renders the preview under the title in comfortable density without renaming actions", () => {
+    const { container } = draw()
+    const line = container.querySelector("[data-activity-preview]")
+    expect(line?.textContent).toBe(message)
+    expect(line?.getAttribute("title")).toBe(message)
+    expect(line?.classList.contains("mission-activity")).toBe(true)
+    expect(screen.getByRole("button", { name: openName })).toBeTruthy()
+    expect(screen.getByRole("button", { name: detailsName })).toBeTruthy()
+    expect(screen.getByRole("checkbox", { name: selectName })).toBeTruthy()
+  })
+
+  test("renders a todo preview from the catalog string", () => {
+    const { container } = draw({ activity: { kind: "todo", text: "Working on: Fix the parser" } })
+    expect(container.querySelector("[data-activity-preview]")?.textContent).toBe(
+      "supervision.missionControl.preview.workingOn:Fix the parser",
+    )
+    expect(container.querySelector("[data-activity-preview]")?.getAttribute("title")).toBe(
+      "supervision.missionControl.preview.workingOn:Fix the parser",
+    )
+  })
+
+  test("keeps the preview in compact density", () => {
+    useSupervisionStore.setState({ density: "compact" })
+    const { container } = draw()
+    expect(container.querySelector("[data-activity-preview]")?.textContent).toContain(message)
+  })
+
+  test("shows the preview beside a goal line", () => {
+    const { container } = draw({
+      state: "goal",
+      goal: {
+        sessionId: "s1",
+        objective: "Ship the migration",
+        status: "blocked",
+        tokensUsed: 0,
+        timeUsedSeconds: 0,
+        createdAt: 1000,
+      },
+    })
+    expect(container.querySelector("[data-goal-line]")).toBeTruthy()
+    expect(container.querySelector("[data-activity-preview]")?.textContent).toContain(message)
+  })
+
+  test("shows the preview beside an error line", () => {
+    const { container } = draw({ state: "error", errorMessage: "The run failed" })
+    expect(container.textContent).toContain("The run failed")
+    expect(container.querySelector("[data-activity-preview]")?.textContent).toContain(message)
   })
 })
