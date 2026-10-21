@@ -3,6 +3,10 @@ import { isPlainRecord } from "@/lib/record"
 export const normalizePermissionName = (permission: unknown): string =>
   typeof permission === "string" && permission.trim() ? permission : "unknown"
 
+/** WebMCP names may be qualified by a runtime or provider namespace. */
+export const isWebMcpPermission = (permission: unknown): boolean =>
+  /(?:^|\.)(?:webmcp|desktop_webmcp)(?:\.|$)/.test(normalizePermissionName(permission).trim().toLowerCase())
+
 export const normalizePermissionPatterns = (value: unknown): string[] => {
   if (Array.isArray(value)) {
     return value

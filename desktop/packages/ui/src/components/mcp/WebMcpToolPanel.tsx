@@ -20,6 +20,7 @@ import {
   webMcpDefinitionChanged,
   webMcpDefinitionsDiffer,
   webMcpRegressionExport,
+  webMcpManualRegressionExport,
   type WebMcpDiagnosis,
   type WebMcpDiagnosisFinding,
 } from "@/lib/webMcpDiagnosis"
@@ -39,7 +40,7 @@ import {
   type WebMcpRegistrationEvent,
   type WebMcpToolDefinition,
 } from "@/stores/useWebMcpBrowserStore"
-import { createWebMcpJournalId } from "@/lib/webMcpCatalog"
+import { createWebMcpJournalId, webMcpEvidenceMatchesTool, webMcpToolIdentity } from "@/lib/webMcpCatalog"
 
 export type TryResult = { ok: boolean; outcome?: string; output?: unknown; reason?: string }
 
@@ -142,15 +143,19 @@ function CopyExport({
   input,
   outcome,
   copyId,
+  manual,
 }: {
   tool: string
   input: Record<string, unknown> | null
   outcome: string
   copyId: string
+  manual?: { entry: WebMcpJournalEntry; definition: WebMcpToolDefinition }
 }) {
   const { t } = useI18n()
   const [copied, setCopied] = React.useState<"test" | "run" | null>(null)
-  const exported = input ? webMcpRegressionExport({ tool, input, outcome }) : null
+  const exported = manual
+    ? webMcpManualRegressionExport(manual.entry, manual.definition)
+    : input ? webMcpRegressionExport({ tool, input, outcome }) : null
   const copy = async (kind: "test" | "run", text: string) => {
     const result = await copyTextToClipboard(text)
     if (!result.ok) return
@@ -158,7 +163,6 @@ function CopyExport({
     window.setTimeout(() => setCopied((current) => (current === kind ? null : current)), 1500)
   }
   if (!exported) {
-    if (input) return null
     return <p className="typography-micro text-muted-foreground">{t("webmcp.tools.export.unavailable")}</p>
   }
   return (
@@ -305,7 +309,8 @@ function ToolCompare({
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
   const historical = [...registration].reverse().flatMap((event) => [event.definition, event.previousDefinition])
     .find((definition) => definition?.name === tool.name && definition.definitionDigest === agentCall?.definitionDigest)
-  const agentSchema = tool.definitionDigest === agentCall?.definitionDigest ? tool.inputSchema : (historical?.inputSchema ?? tool.inputSchema)
+  const agentDefinition = tool.definitionDigest === agentCall?.definitionDigest ? tool : (historical ?? tool)
+  const agentSchema = agentDefinition.executionSchema ?? agentDefinition.inputSchema
   const digest = tool.definitionDigest ?? ""
   const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
   if (!journalEntry && !agentCall) return null
@@ -328,16 +333,17 @@ function ToolCompare({
                 {redactWebMcpText(journalEntry.text)}
               </pre>
               <DiagnosisList
-                diagnosis={diagnoseWebMcpInput(tool.inputSchema, journalEntry.input)}
+                diagnosis={diagnoseWebMcpInput(tool.executionSchema ?? tool.inputSchema, journalEntry.input)}
                 digest={journalEntry.definitionDigest ?? null}
                 currentDigest={digest}
                 source="manual"
               />
               <CopyExport
-                tool={journalEntry.tool}
+                tool={tool.name}
                 input={journalEntry.input}
                 outcome={journalEntry.outcome}
                 copyId="manual"
+                manual={{ entry: journalEntry, definition: tool }}
               />
             </>
           ) : (
@@ -554,37 +560,39 @@ function ToolItem({
   const recordToolJournal = useWebMcpBrowserStore((state) => state.recordToolJournal)
   const clearToolRun = useWebMcpBrowserStore((state) => state.clearToolRun)
   const digest = tool.digest ?? ""
-  const form = React.useMemo(() => toolForm(tool.inputSchema), [tool.inputSchema])
+  const identity = webMcpToolIdentity(tool) ?? ""
+  const executionSchema = tool.executionSchema ?? tool.inputSchema
+  const form = React.useMemo(() => toolForm(executionSchema), [executionSchema])
   const [open, setOpen] = React.useState(false)
   const [values, setValues] = React.useState<Record<string, string>>(
-    () => storedDraft(tool.name, digest, viewKey).values,
+    () => storedDraft(identity, digest, viewKey).values,
   )
   const [sendEmpty, setSendEmpty] = React.useState<Record<string, boolean>>(
-    () => storedDraft(tool.name, digest, viewKey).sendEmpty,
+    () => storedDraft(identity, digest, viewKey).sendEmpty,
   )
-  const [jsonMode, setJsonMode] = React.useState(() => storedDraft(tool.name, digest, viewKey).jsonMode)
+  const [jsonMode, setJsonMode] = React.useState(() => storedDraft(identity, digest, viewKey).jsonMode)
   const [warnings, setWarnings] = React.useState<{ field: string; constraint: string }[]>([])
   const [inputIssue, setInputIssue] = React.useState<{ field: string; constraint: string } | null>(null)
-  const [json, setJson] = React.useState(() => storedDraft(tool.name, digest, viewKey).json)
+  const [json, setJson] = React.useState(() => storedDraft(identity, digest, viewKey).json)
   const [jsonRevealed, setJsonRevealed] = React.useState(false)
-  const jsonSensitive = webMcpSchemaLooksSensitive(tool.inputSchema) || webMcpTextLooksSensitive(json)
+  const jsonSensitive = webMcpSchemaLooksSensitive(executionSchema) || webMcpTextLooksSensitive(json)
   React.useEffect(() => setJsonRevealed(false), [tool.inputSchema, replay, jsonMode, viewKey])
   const [running, setRunning] = React.useState(false)
   const [result, setResult] = React.useState<{ outcome: string; text: string; stale: boolean } | null>(() =>
-    storedRun(tool.name, digest, viewKey),
+    storedRun(identity, digest, viewKey),
   )
   const baseId = React.useId()
   const appliedReplay = React.useRef<number | null>(null)
 
   React.useEffect(() => {
-    saveToolDraft(tool.name, { digest, values, sendEmpty, json, jsonMode }, viewKey)
-  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, tool.name, values, viewKey])
+    saveToolDraft(identity, { digest, values, sendEmpty, json, jsonMode }, viewKey)
+  }, [digest, json, jsonMode, saveToolDraft, sendEmpty, identity, values, viewKey])
 
   React.useEffect(() => {
     if (!replay) {
       if (appliedReplay.current !== null) {
         appliedReplay.current = null
-        const draft = storedDraft(tool.name, digest, viewKey)
+        const draft = storedDraft(identity, digest, viewKey)
         setValues(draft.values)
         setSendEmpty(draft.sendEmpty)
         setJson(draft.json)
@@ -597,7 +605,7 @@ function ToolItem({
     // A second click of the same row gets a new nonce and reloads the recorded input. Schema identity changes do not.
     if (appliedReplay.current === replay.nonce) return
     appliedReplay.current = replay.nonce
-    const loaded = draftFromRecordedInput(tool.inputSchema, replay.input)
+    const loaded = draftFromRecordedInput(executionSchema, replay.input)
     setOpen(true)
     setValues(loaded.values)
     setSendEmpty(loaded.sendEmpty)
@@ -605,7 +613,7 @@ function ToolItem({
     setJsonMode(loaded.jsonMode)
     setWarnings([])
     setInputIssue(null)
-  }, [digest, replay, tool.inputSchema, tool.name, viewKey])
+  }, [digest, replay, executionSchema, identity, viewKey])
 
   const constraintText = (field: ToolField, constraint: string) =>
     t(`webmcp.tools.constraint.${constraint}` as I18nKey, {
@@ -617,8 +625,8 @@ function ToolItem({
     })
   const showResult = (next: { outcome: string; text: string } | null) => {
     setResult(next ? { outcome: next.outcome, text: next.text, stale: false } : null)
-    if (next) recordToolRun(tool.name, { digest, outcome: next.outcome, text: next.text, stale: false }, viewKey)
-    else clearToolRun(tool.name, viewKey)
+    if (next) recordToolRun(identity, { digest, outcome: next.outcome, text: next.text, stale: false }, viewKey)
+    else clearToolRun(identity, viewKey)
   }
   const clearFeedback = () => {
     setWarnings([])
@@ -682,6 +690,7 @@ function ToolItem({
         {
           id: createWebMcpJournalId(),
           tool: tool.name,
+          invocationID: tool.invocationID,
           input,
           outcome: next.outcome,
           text: next.text,
@@ -965,7 +974,8 @@ export function WebMcpToolPanel({
   const journal = useWebMcpBrowserValue((state) => state.toolJournal, viewKey)
   const [replay, setReplay] = React.useState<{
     id: string
-    tool: string
+    invocationID?: string
+    definitionDigest?: string
     input: Record<string, unknown>
     nonce: number
   } | null>(null)
@@ -1062,11 +1072,13 @@ export function WebMcpToolPanel({
                       size="xs"
                       variant="ghost"
                       data-webmcp-replay={entry.id}
+                      disabled={!catalog.some((tool) => webMcpEvidenceMatchesTool(entry, tool))}
                       onClick={() => {
                         replayNonce.current += 1
                         setReplay({
                           id: entry.id,
-                          tool: entry.tool,
+                          invocationID: entry.invocationID,
+                          definitionDigest: entry.definitionDigest,
                           input: entry.input,
                           nonce: replayNonce.current,
                         })
@@ -1089,13 +1101,13 @@ export function WebMcpToolPanel({
           <ul className="max-h-72 space-y-1.5 overflow-auto">
             {catalog.map((tool) => (
               <ToolItem
-                key={`${toolViewKey ?? ""}:${origin}:${generation}:${tool.name}:${tool.definitionDigest ?? tool.digest ?? ""}`}
+                key={`${toolViewKey ?? ""}:${origin}:${generation}:${webMcpToolIdentity(tool) ?? tool.digest ?? ""}`}
                 tool={tool}
                 binding={{ origin, generation, definitionDigest: tool.definitionDigest ?? null }}
                 tryTool={tryTool}
                 viewKey={toolViewKey}
-                journalEntry={journal.find((entry) => entry.tool === tool.name) ?? null}
-                replay={replay?.tool === tool.name ? replay : null}
+                journalEntry={journal.find((entry) => webMcpEvidenceMatchesTool(entry, tool)) ?? null}
+                replay={replay && webMcpEvidenceMatchesTool(replay, tool) ? replay : null}
                 agentCall={
                   agentCalls.find(
                     (call) => call.operation?.toLowerCase() === "invoke" && call.toolName === tool.name,

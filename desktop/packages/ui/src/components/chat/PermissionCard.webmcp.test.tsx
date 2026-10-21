@@ -46,6 +46,40 @@ const buttonTexts = (container: ParentNode) =>
 const titleText = (container: ParentNode) => container.querySelector("span.truncate.font-medium")?.textContent ?? ""
 
 describe("WebMCP permission card", () => {
+  test.each(["webmcp", "desktop_webmcp", "desktop.webmcp", "runtime.browser.webmcp", "desktop.webmcp.invoke", "WebMCP.Invoke"])(
+    "uses the redacted WebMCP branch and scope for %s",
+    (permission) => {
+      const { container } = render(<PermissionCard permission={request({
+        permission,
+        patterns: ["token=PATTERN_SECRET"],
+        metadata: {
+          desktopProvider: true,
+          operation: "invoke",
+          toolName: "echo",
+          arguments: { item: "visible", password: "ARGUMENT_SECRET" },
+          text: "token=TEXT_SECRET",
+          origin: "https://example.com/?token=ORIGIN_SECRET",
+        },
+      })} />)
+      expect(container.querySelector("[data-webmcp-effect]")).not.toBeNull()
+      expect(container.textContent).toContain("chat.permissionCard.webmcp.scopeOnce")
+      expect(container.textContent).toContain("visible")
+      for (const secret of ["PATTERN_SECRET", "ARGUMENT_SECRET", "TEXT_SECRET", "ORIGIN_SECRET"])
+        expect(container.innerHTML).not.toContain(secret)
+    },
+  )
+
+  test("redacts metadata in the generic permission branch", () => {
+    const { container } = render(<PermissionCard permission={request({
+      permission: "custom_permission",
+      metadata: { password: "GENERIC_SECRET", nested: { note: "token=NESTED_SECRET", item: "visible" } },
+    })} />)
+    expect(container.textContent).toContain("visible")
+    expect(container.textContent).toContain("[redacted]")
+    expect(container.innerHTML).not.toContain("GENERIC_SECRET")
+    expect(container.innerHTML).not.toContain("NESTED_SECRET")
+  })
+
   test("an invoke approval shows what the page declared about the tool, labelled as the page's claim", () => {
     const key = viewKeyFor("/repo", "ses_1")
     useWebMcpBrowserStore.getState().updateView(key, {

@@ -364,6 +364,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
           entry.tool.length > 256 ||
           entry.digest.length > 64 ||
           (entry.definitionDigest !== undefined && !/^[a-f0-9]{64}$/.test(entry.definitionDigest)) ||
+          (entry.invocationID !== undefined && !/^[a-f0-9]{64}$/.test(entry.invocationID)) ||
           entry.id.length > 64 ||
           !Number.isFinite(entry.durationMs) ||
           !input
@@ -372,7 +373,8 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
         const next = [
           {
             id: entry.id,
-            tool: entry.tool,
+            tool: redactWebMcpText(entry.tool),
+            invocationID: entry.invocationID,
             input,
             outcome: redactWebMcpText(entry.outcome).slice(0, 64),
             text: redactWebMcpText(entry.text).slice(0, 4000),

@@ -1,4 +1,5 @@
 import { webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
+import { webMcpEvidenceMatchesTool, type WebMcpJournalEntry, type WebMcpToolDefinition } from "./webMcpCatalog"
 import { placeholderWebMcpSecrets } from "./toolHelpers"
 import { diagnosisFields, diagnosisOpaqueRequired, toolInputWarnings, type ToolField } from "./webMcpToolForm"
 
@@ -133,7 +134,7 @@ export function webMcpRegressionExport(entry: {
 }): { snippet: string; runArgument: string } | null {
   // Admission, deadline and cancellation outcomes require adapter context that this snippet cannot reproduce.
   if (!["completed", "application-error"].includes(entry.outcome)) return null
-  if (!entry.tool || entry.tool.length > 256 || webMcpTextLooksSensitive(entry.tool)) return null
+  if (!entry.tool || entry.tool.length > 256 || entry.tool.includes("[redacted]") || webMcpTextLooksSensitive(entry.tool)) return null
   if (!entry.input || typeof entry.input !== "object" || Array.isArray(entry.input)) return null
   let encoded: string
   try {
@@ -164,4 +165,10 @@ export function webMcpRegressionExport(entry: {
     `if (outcome !== ${outcome}) throw new Error("expected outcome " + ${outcome})`,
   ].join("\n")
   return { snippet, runArgument: `--run ${shellSingleQuote(`${entry.tool}=${encoded}`)}` }
+}
+
+/** Resolve manual export names only from the exact native definition that owns the evidence. */
+export function webMcpManualRegressionExport(entry: WebMcpJournalEntry, tool: WebMcpToolDefinition) {
+  if (!webMcpEvidenceMatchesTool(entry, tool)) return null
+  return webMcpRegressionExport({ tool: tool.name, input: entry.input, outcome: entry.outcome })
 }

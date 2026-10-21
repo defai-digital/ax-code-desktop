@@ -1,6 +1,6 @@
 "use strict"
 
-const { webMcpDisplayText, webMcpDisplayDescription, webMcpDisplayReport } = require("../../../shared/webmcp-redaction.mjs")
+const { webMcpDisplayText, webMcpDisplayDescription, webMcpDisplayReport, webMcpDisplaySchema } = require("../../../shared/webmcp-redaction.mjs")
 
 const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
@@ -66,7 +66,11 @@ function projectToolCatalog(tools, kinds = new Map()) {
     const entry = {
       name: webMcpDisplayText(tool.name),
       description: webMcpDisplayDescription(tool.description ?? ""),
-      ...(tool.inputSchema ? { inputSchema: structuredClone(tool.inputSchema) } : {}),
+      ...(tool.inputSchema ? {
+        inputSchema: webMcpDisplaySchema(tool.inputSchema),
+        // Input construction and diagnosis use this exact copy; display documents use inputSchema.
+        executionSchema: structuredClone(tool.inputSchema),
+      } : {}),
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),

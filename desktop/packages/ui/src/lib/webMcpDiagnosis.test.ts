@@ -5,6 +5,7 @@ import {
   webMcpDefinitionChanged,
   webMcpDefinitionsDiffer,
   webMcpRegressionExport,
+  webMcpManualRegressionExport,
 } from "./webMcpDiagnosis"
 
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
@@ -300,4 +301,23 @@ test("required names absent from properties are diagnosed", () => {
   const result = diagnoseWebMcpInput({ type: "object", properties: {}, required: ["destination"] }, {})
   expect(JSON.stringify(result)).toContain("destination")
   expect(JSON.stringify(result)).toContain("required")
+})
+
+
+test("manual exports require both native identities and resolve the name from that exact definition", async () => {
+  const tool = { name: "echo", description: "Echo", invocationID: "a".repeat(64), definitionDigest: "b".repeat(64) }
+  const entry = { id: "j1", tool: "wrong displayed label", invocationID: tool.invocationID,
+    definitionDigest: tool.definitionDigest, digest: "c".repeat(64), input: { item: "from A" },
+    outcome: "completed", text: "done", durationMs: 1, at: 1 }
+  const exported = webMcpManualRegressionExport(entry, tool)!
+  expect(exported.runArgument).toBe(`--run 'echo={"item":"from A"}'`)
+  await executeExport(exported.snippet, {}, (input) => expect(input).toEqual(entry.input))
+  for (const mismatch of [
+    { invocationID: "d".repeat(64) }, { definitionDigest: "d".repeat(64) },
+    { invocationID: undefined }, { definitionDigest: undefined },
+  ]) expect(webMcpManualRegressionExport({ ...entry, ...mismatch }, tool)).toBeNull()
+  for (const name of ["token=alpha", "token=beta", "[redacted]"]) {
+    expect(webMcpManualRegressionExport(entry, { ...tool, name })).toBeNull()
+    expect(webMcpRegressionExport({ tool: name, input: entry.input, outcome: entry.outcome })).toBeNull()
+  }
 })
