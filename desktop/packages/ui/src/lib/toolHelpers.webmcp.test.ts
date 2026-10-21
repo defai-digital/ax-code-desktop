@@ -60,6 +60,13 @@ describe("WebMCP invoke arguments", () => {
     expect(formatted).not.toContain("{}")
   })
 
+  test.each(["arguments", "input"])("preserves an explicitly recorded empty %s object", (key) => {
+    const metadata = { operation: "invoke", [key]: {} }
+    expect(readWebMcpInvokeInput(metadata)).toEqual({ kind: "object", input: {} })
+    expect(describeWebMcpCall(undefined, metadata)).toMatchObject({ argumentsMissing: false, argumentsText: "{}" })
+    expect(readWebMcpInvokeInput({})).toEqual({ kind: "missing", input: null })
+  })
+
   test("shows a real arguments object with secrets removed", () => {
     const call = describeWebMcpCall(undefined, {
       operation: "invoke",

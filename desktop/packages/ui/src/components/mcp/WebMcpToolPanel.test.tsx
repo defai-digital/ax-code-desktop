@@ -829,3 +829,39 @@ test("a secret-named field is masked while typed", () => {
   cleanup()
   useWebMcpBrowserStore.getState().resetSnapshot()
 })
+
+test("the rendered manual error regression executes against the unchanged throwing tool", async () => {
+  const reply = vi.fn(async (): Promise<import("./WebMcpToolPanel").TryResult> => ({
+    ok: false, outcome: "application-error", reason: "application-error",
+  }))
+  const view = openTool({ type: "object", properties: {} }, reply)
+  await runTool()
+  expect(view.container.querySelector("[data-webmcp-journal-outcome='application-error']")).not.toBeNull()
+  const snippet = view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-snippet]")!.textContent!
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+  const executeTool = vi.fn(async () => { throw new Error("unchanged failure") })
+  await expect(new AsyncFunction("document", snippet)({ modelContext: {
+    getTools: async () => [{ name: "echo" }], executeTool,
+  } })).resolves.toBeUndefined()
+  expect(executeTool).toHaveBeenCalledTimes(1)
+})
+
+test("recorded empty arguments enable structured comparison and a runnable agent export", async () => {
+  const { collectWebMcpCalls } = await import("@/lib/webMcpCalls")
+  const calls = collectWebMcpCalls([{ id: "m1" }], () => [{
+    type: "tool", tool: "desktop_webmcp", state: {
+      status: "completed", metadata: { operation: "invoke", toolName: "add_numbers", arguments: {} }, output: "{}",
+    },
+  }])
+  const view = openAdd(vi.fn(), calls)
+  expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe("{}")
+  expect(view.container.querySelector("[data-webmcp-diagnosis-gap='no-arguments']")).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-rule='required']")).not.toBeNull()
+  const snippet = view.container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-snippet]")!.textContent!
+  const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+  const executeTool = vi.fn(async () => "{}")
+  await new AsyncFunction("document", snippet)({ modelContext: {
+    getTools: async () => [{ name: "add_numbers" }], executeTool,
+  } })
+  expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: "add_numbers" }), "{}")
+})

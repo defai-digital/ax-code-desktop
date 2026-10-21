@@ -577,6 +577,92 @@ function createDesktopWebMcpBrowser({
   }
   async function run(entry, connection, signal) {
     const canceled = new Set()
+    let dispatching = Promise.resolve()
+    const dispatch = async (request) => {
+      if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+      const wasHidden = !visible(entry)
+      const wasPaused = entry.paused
+      while (
+        (!visible(entry) || entry.paused) &&
+        Date.now() < request.deadline &&
+        !signal.aborted &&
+        !canceled.has(request.requestID) &&
+        entry.connection === connection
+      ) {
+        await waitUntilVisible(entry, request, signal)
+      }
+      if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+      if (Date.now() >= request.deadline) {
+        if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+        await api(
+          entry.directory,
+          `/provider/${connection.providerID}/reply`,
+          "POST",
+          {
+            requestID: request.requestID,
+            generation: request.generation,
+            status: "Error",
+            output: {
+              reason: wasPaused
+                ? "waiting-for-resume-timeout"
+                : wasHidden
+                  ? "waiting-for-visible-timeout"
+                  : "request-deadline-exceeded",
+            },
+          },
+          signal,
+        )
+        return
+      }
+      // Awaiting visibility never transfers a request to the newly shown page.
+      if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+      const work = {
+        request,
+        connection,
+        cancel: () => {
+          canceled.add(request.requestID)
+          entry.navigations.get(request.requestID)?.abort()
+          return entry.adapter.cancel(request.requestID)
+        },
+      }
+      entry.activeRequests.set(request.requestID, work)
+      const finished = () => {
+        if (entry.activeRequests.get(request.requestID) === work) entry.activeRequests.delete(request.requestID)
+      }
+      // Navigation is not a native tool call: the pane owns the load, so the
+      // bridge performs it and replies with the document it opened.
+      if (request.operation === "navigate") {
+        void serveNavigation(entry, connection, request, canceled, signal)
+          .finally(finished)
+          .catch(() => {
+            if (!signal.aborted) void disconnect(entry)
+          })
+        return
+      }
+      // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
+      void entry.adapter
+        .execute(request)
+        .catch((error) => {
+          // Only adapter-owned, allowlisted metadata crosses the bridge; exception text may contain secrets.
+          const { outcome, reason } = manualToolFailure(error)
+          return {
+            requestID: request.requestID,
+            generation: request.generation,
+            status: "Error",
+            output: { outcome, reason },
+          }
+        })
+        .then(async (reply) => {
+          finished()
+          if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
+          // An action can change the document; the runtime must hold that snapshot before the reply.
+          if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
+          return api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", reply, signal)
+        })
+        .catch(() => {
+          if (!signal.aborted) void disconnect(entry)
+        })
+    }
     try {
       while (!signal.aborted && entry.connection === connection) {
         let batch
@@ -605,6 +691,7 @@ function createDesktopWebMcpBrowser({
         entry.interrupted = false
         for (const id of batch.canceled ?? []) {
           canceled.add(id)
+          if (entry.waiting?.request.requestID === id) entry.waiting.wake()
           entry.navigations.get(id)?.abort()
           entry.adapter.cancel(id)
         }
@@ -624,84 +711,9 @@ function createDesktopWebMcpBrowser({
         }
         if (canceled.delete(request.requestID)) continue
         if (!Number.isFinite(request.deadline)) throw new Error("Browser request requires a deadline")
-        const wasHidden = !visible(entry)
-        const wasPaused = entry.paused
-        while (
-          (!visible(entry) || entry.paused) &&
-          Date.now() < request.deadline &&
-          !signal.aborted &&
-          entry.connection === connection
-        ) {
-          await waitUntilVisible(entry, request, signal)
-        }
-        if (signal.aborted || entry.connection !== connection) return
-        if (Date.now() >= request.deadline) {
-          if (signal.aborted || entry.connection !== connection) return
-          await api(
-            entry.directory,
-            `/provider/${connection.providerID}/reply`,
-            "POST",
-            {
-              requestID: request.requestID,
-              generation: request.generation,
-              status: "Error",
-              output: {
-                reason: wasPaused
-                  ? "waiting-for-resume-timeout"
-                  : wasHidden
-                    ? "waiting-for-visible-timeout"
-                    : "request-deadline-exceeded",
-              },
-            },
-            signal,
-          )
-          continue
-        }
-        // Awaiting visibility never transfers a request to the newly shown page.
-        if (signal.aborted || entry.connection !== connection) return
-        const work = {
-          request,
-          connection,
-          cancel: () => {
-            canceled.add(request.requestID)
-            entry.navigations.get(request.requestID)?.abort()
-            return entry.adapter.cancel(request.requestID)
-          },
-        }
-        entry.activeRequests.set(request.requestID, work)
-        const finished = () => {
-          if (entry.activeRequests.get(request.requestID) === work) entry.activeRequests.delete(request.requestID)
-        }
-        // Navigation is not a native tool call: the pane owns the load, so the
-        // bridge performs it and replies with the document it opened.
-        if (request.operation === "navigate") {
-          void serveNavigation(entry, connection, request, canceled, signal)
-            .finally(finished)
-            .catch(() => {
-              if (!signal.aborted) void disconnect(entry)
-            })
-          continue
-        }
-        // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
-        void entry.adapter
-          .execute(request)
-          .catch((error) => {
-            // Only adapter-owned, allowlisted metadata crosses the bridge; exception text may contain secrets.
-            const { outcome, reason } = manualToolFailure(error)
-            return {
-              requestID: request.requestID,
-              generation: request.generation,
-              status: "Error",
-              output: { outcome, reason },
-            }
-          })
-          .then(async (reply) => {
-            finished()
-            if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
-            // An action can change the document; the runtime must hold that snapshot before the reply.
-            if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
-            return api(entry.directory, `/provider/${connection.providerID}/reply`, "POST", reply, signal)
-          })
+        // Serialize held requests, but keep polling so cancellation can reach the visibility gate.
+        dispatching = dispatching
+          .then(() => dispatch(request))
           .catch(() => {
             if (!signal.aborted) void disconnect(entry)
           })

@@ -1,5 +1,6 @@
 // Pure helpers for `pnpm run webmcp:check`: argument parsing, the page origin rule and exit codes.
 import { createRequire } from "node:module"
+import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { isDeepStrictEqual } from "node:util"
 
 const require = createRequire(import.meta.url)
@@ -81,6 +82,10 @@ export function parseCheckArgs(argv) {
  * a run whose tool is missing or that returned an error, or success.
  */
 export function evaluateReport(report, options, termination) {
+  // Reports are already filtered on disk. Apply the same projection to requested occurrences
+  // and defensively filter legacy/raw reports before diagnostics or JSON output can expose them.
+  report = redactWebMcpReport(report)
+  options = redactWebMcpReport(options)
   const problems = []
   if (termination && (termination.timedOut || termination.code !== 0 || termination.signal))
     problems.push(

@@ -1345,7 +1345,7 @@ describe("manual invocation native outcomes", () => {
     ["Completed", { status: "timeout", isError: true }, "timeout", "timeout"],
     ["Completed", JSON.stringify({ untrusted: true, result: { status: "cancelled" } }), "cancelled", "cancelled"],
     ["Completed", "x".repeat(65537), "failed", "result-too-large"],
-    ["replace", "stale", "failed", "definition-changed"],
+    ["replace", "changed once", "completed", undefined],
     ["Error", { error: "password=hunter2" }, "application-error", "application-error"],
     ["Canceled", {}, "cancelled", "cancelled"],
     ["Timeout", {}, "timeout", "timeout"],
@@ -1591,7 +1591,27 @@ describe("WX-15 visible-to-act gate", () => {
     },
   )
 
-  test("a hidden request stops polling and runs only on its own shown page", async () => {
+  test.each(["navigate", "invoke"])("cancels a hidden %s before visibility returns", async (operation) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds, width: 0, height: 0 })
+    const execute = vi.spyOn(NativeWebMcp.prototype, "execute")
+    try {
+      f.pushStreamRequest(request({ operation }))
+      await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }))
+      f.pushStreamRequest({ batch: { canceled: ["hidden-call"] } })
+      await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: false }))
+      await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds })
+      expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+      expect(execute).not.toHaveBeenCalled()
+      expect(replies(f)).toHaveLength(0)
+    } finally {
+      execute.mockRestore()
+    }
+  })
+
+  test("a hidden request keeps polling and runs only on its own shown page", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
@@ -1612,7 +1632,7 @@ describe("WX-15 visible-to-act gate", () => {
         visible: false,
       }),
     )
-    expect(f.requests.filter((r) => r.url.endsWith("/next"))).toHaveLength(polls)
+    expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls)
     expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
     expect(f.guests[1].loadedUrls).toEqual(["https://other.test/"])
     await f.controller.command(sender, { action: "show", id: status.id })
@@ -1755,8 +1775,8 @@ describe("WX-15 bounded lifecycle", () => {
       })
       await vi.advanceTimersByTimeAsync(0)
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true })
-      // A held request replaces this provider's poll deadline with its request deadline.
-      expect(vi.getTimerCount()).toBe(timers)
+      // A held request adds its own deadline while the provider keeps polling for cancellation.
+      expect(vi.getTimerCount()).toBe(timers + 1)
       await f.controller.closeAll()
       await vi.advanceTimersByTimeAsync(0)
       expect(vi.getTimerCount()).toBe(0)
