@@ -1,6 +1,6 @@
 # WebMCP excellence v1: an excellent experience for agents using web apps, and for developers building them
 
-Status: Accepted (direction). On 2026-10-21 the user moved the target "from win Orca to have excellence experience of WebMCP".
+Status: Accepted (direction; definition of done revised 2026-10-21, see section 3). On 2026-10-21 the user moved the target "from win Orca to have excellence experience of WebMCP".
 This PRD replaces the definition of done of PRD-2026-10-21-competitive-supervision-ux-v1 (section 3) for all later rounds. That
 record stays accepted for what it shipped (rounds 3 to 11) and for its constraints, gates and non-goals, which apply here unless
 this record says otherwise. Requirements in section 4 are fixed from the research in section 2 before implementation starts.
@@ -47,8 +47,11 @@ Every requirement in section 4 names the steps it raises and by how much; rounds
 
 ## 3. Definition of done
 
-1. Excellence rubric: every journey step in section 2 scores at least 9 of 10 from each of three independent judges (codex,
-   deepseek-flash, MiniMax-M3), from source and screenshot evidence, with no step below 8 from any judge.
+1. Excellence rubric: every journey step in section 2 scores at least 8 of 10 from each of three independent judges (codex,
+   deepseek-flash, MiniMax-M3), from source and screenshot evidence.
+
+   Revision 2026-10-21 (user decision after round 12: "i can accept if reach 8"): the bar was every step at least 9, with
+   none below 8. It is now every step at least 8 from every judge. Items 2 to 4 are unchanged.
 2. Task suite: the WebMCP tasks in section 6 pass as native journeys with recorded action counts, on macOS locally and in the
    three-platform CI job.
 3. Fresh audit: no P1 finding in an audit run after the last round.

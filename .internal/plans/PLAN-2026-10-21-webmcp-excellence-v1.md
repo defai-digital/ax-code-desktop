@@ -56,3 +56,7 @@ Round 12 judged at `cbb21705`: supervisor means 5.75 / 6.0 / 6.5, builder 5.0 / 
 - 2026-10-21: target changed by the user from beating Orca to an excellent WebMCP experience. Round 11 (S10, F10, R10) finishes
   under the competitive record; later rounds follow this plan. The standing push approval carries over; releases and runtime
   pins still need explicit approval.
+- 2026-10-21: the user lowered the rubric bar to 8 ("i can accept if reach 8"): every persona step at least 8 from every
+  judge (PRD section 3, item 1). After round 12 the steps below 8 for at least one judge are A1, A2, A3, A5, A7, A8, B1, B2,
+  B3, B4 (and B5 at 7 from codex); A4 and A6 reach 8 from two judges.
+
