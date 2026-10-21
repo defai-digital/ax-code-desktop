@@ -373,6 +373,6 @@ and review. Residual Orca edges named: inline three-way merge, an arbitrary comp
 | codex | 9.28 | 8.93 | 6.90 | +0.35, better | better |
 | deepseek-flash | 9.21 | 8.97 | 7.00 | +0.24, better | better (+2.21) |
 | MiniMax-M3 | 9.22 | 8.98 | 6.88 | +0.24, better | better (+2.34) |
-| grok-4.7 | 9.23 | 8.97 | n/a in excerpt | +0.26, better | better |
+| grok-4.7 | 9.23 | 8.97 | 7.07 | +0.26, better | better (+2.16) |
 
 At the final hardening commit all four judges rate AX better than Orca by at least the 0.2 margin and better than opencode.
