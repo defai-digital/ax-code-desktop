@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "Usar campos",
   "chat.toolPart.webmcp.reason.result-too-large": "A ferramenta retornou um resultado maior que 64 KiB. Seus efeitos podem j\u00e1 ter ocorrido.",
   "chat.toolPart.webmcp.reason.input-too-large": "A entrada excede o limite de 64 KiB (65.536 bytes UTF-8 do objeto JSON).",
-  "webmcp.tools.jsonComplex": "Esse esquema est\u00e1 aninhado ou usa tipos ou regras que os campos n\u00e3o podem representar. Edite a entrada completa como JSON."
+  "webmcp.tools.jsonComplex": "Esse esquema est\u00e1 aninhado ou usa tipos ou regras que os campos n\u00e3o podem representar. Edite a entrada completa como JSON.",
+  "diffView.rail.viewMode": "Layout da lista de arquivos",
+  "diffView.rail.viewTree": "\u00c1rvore",
+  "diffView.rail.viewList": "Lista",
+  "diffView.rail.resize": "Redimensionar a lista de arquivos",
+  "diffView.rail.directorySummary": "{name}, {viewed} de {total} visualizados"
 }

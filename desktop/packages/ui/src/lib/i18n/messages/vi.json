@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "S\u1eed d\u1ee5ng c\u00e1c tr\u01b0\u1eddng",
   "chat.toolPart.webmcp.reason.result-too-large": "C\u00f4ng c\u1ee5 \u0111\u00e3 tr\u1ea3 v\u1ec1 k\u1ebft qu\u1ea3 l\u1edbn h\u01a1n 64 KiB. Hi\u1ec7u \u1ee9ng c\u1ee7a n\u00f3 c\u00f3 th\u1ec3 \u0111\u00e3 x\u1ea3y ra.",
   "chat.toolPart.webmcp.reason.input-too-large": "\u0110\u1ea7u v\u00e0o v\u01b0\u1ee3t qu\u00e1 gi\u1edbi h\u1ea1n 64 KiB (65.536 byte UTF-8 c\u1ee7a \u0111\u1ed1i t\u01b0\u1ee3ng JSON).",
-  "webmcp.tools.jsonComplex": "L\u01b0\u1ee3c \u0111\u1ed3 n\u00e0y b\u1ecb l\u1ed3ng ho\u1eb7c s\u1eed d\u1ee5ng c\u00e1c ki\u1ec3u ho\u1eb7c quy t\u1eafc m\u00e0 c\u00e1c tr\u01b0\u1eddng kh\u00f4ng th\u1ec3 bi\u1ec3u di\u1ec5n. Ch\u1ec9nh s\u1eeda \u0111\u1ea7u v\u00e0o \u0111\u1ea7y \u0111\u1ee7 d\u01b0\u1edbi d\u1ea1ng JSON."
+  "webmcp.tools.jsonComplex": "L\u01b0\u1ee3c \u0111\u1ed3 n\u00e0y b\u1ecb l\u1ed3ng ho\u1eb7c s\u1eed d\u1ee5ng c\u00e1c ki\u1ec3u ho\u1eb7c quy t\u1eafc m\u00e0 c\u00e1c tr\u01b0\u1eddng kh\u00f4ng th\u1ec3 bi\u1ec3u di\u1ec5n. Ch\u1ec9nh s\u1eeda \u0111\u1ea7u v\u00e0o \u0111\u1ea7y \u0111\u1ee7 d\u01b0\u1edbi d\u1ea1ng JSON.",
+  "diffView.rail.viewMode": "B\u1ed1 c\u1ee5c danh s\u00e1ch t\u1eadp tin",
+  "diffView.rail.viewTree": "C\u00e2y th\u01b0 m\u1ee5c",
+  "diffView.rail.viewList": "Danh s\u00e1ch",
+  "diffView.rail.resize": "Thay \u0111\u1ed5i k\u00edch th\u01b0\u1edbc danh s\u00e1ch t\u1eadp tin",
+  "diffView.rail.directorySummary": "{name}, \u0110\u00e3 xem {viewed}/{total}"
 }

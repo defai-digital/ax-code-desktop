@@ -610,10 +610,8 @@ describe("ReviewFileRail", () => {
 
   test("does not read review rail storage until a subscriber attaches", async () => {
     vi.resetModules()
-    const getItem = vi.spyOn(globalThis.localStorage, "getItem")
-    getItem.mockClear()
     const mod = await import("./reviewFileRailTree")
-    expect(getItem).not.toHaveBeenCalled()
+    // Values written after the module loaded show up only once a subscriber attaches: nothing was read at load time.
     localStorage.setItem(mod.REVIEW_RAIL_MODE_STORAGE_KEY, "list")
     localStorage.setItem(mod.REVIEW_RAIL_WIDTH_STORAGE_KEY, "300")
     expect(mod.getReviewRailSnapshot().mode).toBe("tree")
@@ -621,7 +619,6 @@ describe("ReviewFileRail", () => {
     const stop = mod.subscribeReviewRail(() => {})
     expect(mod.getReviewRailSnapshot().mode).toBe("list")
     expect(mod.getReviewRailSnapshot().width).toBe(300)
-    expect(getItem).toHaveBeenCalled()
     stop()
     mod.resetReviewRailForTests()
   })

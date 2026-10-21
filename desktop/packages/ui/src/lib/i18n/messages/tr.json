@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "Alanlar\u0131 kullan",
   "chat.toolPart.webmcp.reason.result-too-large": "Ara\u00e7, 64 KiB'tan b\u00fcy\u00fck bir sonu\u00e7 d\u00f6nd\u00fcrd\u00fc. Etkileri zaten meydana gelmi\u015f olabilir.",
   "chat.toolPart.webmcp.reason.input-too-large": "Giri\u015f, 64 KiB s\u0131n\u0131r\u0131n\u0131 a\u015f\u0131yor (JSON nesnesinin 65.536 UTF-8 bayt\u0131).",
-  "webmcp.tools.jsonComplex": "Bu \u015fema i\u00e7 i\u00e7e veya alanlar\u0131n temsil edemeyece\u011fi t\u00fcrleri veya kurallar\u0131 kullan\u0131yor. Tam giri\u015fi JSON olarak d\u00fczenleyin."
+  "webmcp.tools.jsonComplex": "Bu \u015fema i\u00e7 i\u00e7e veya alanlar\u0131n temsil edemeyece\u011fi t\u00fcrleri veya kurallar\u0131 kullan\u0131yor. Tam giri\u015fi JSON olarak d\u00fczenleyin.",
+  "diffView.rail.viewMode": "Dosya listesi d\u00fczeni",
+  "diffView.rail.viewTree": "A\u011fa\u00e7",
+  "diffView.rail.viewList": "Liste",
+  "diffView.rail.resize": "Dosya listesini yeniden boyutland\u0131r",
+  "diffView.rail.directorySummary": "{name}, {total} dosyadan {viewed} g\u00f6r\u00fcnt\u00fclendi"
 }

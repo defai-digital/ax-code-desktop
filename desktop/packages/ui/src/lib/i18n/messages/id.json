@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "Gunakan bidang",
   "chat.toolPart.webmcp.reason.result-too-large": "Alat mengembalikan hasil yang lebih besar dari 64 KiB. Efeknya mungkin sudah terjadi.",
   "chat.toolPart.webmcp.reason.input-too-large": "Input melebihi batas 64 KiB (65.536 byte UTF-8 dari objek JSON).",
-  "webmcp.tools.jsonComplex": "Skema ini bersarang atau menggunakan tipe atau aturan yang tidak dapat direpresentasikan oleh bidang. Edit input lengkap sebagai JSON."
+  "webmcp.tools.jsonComplex": "Skema ini bersarang atau menggunakan tipe atau aturan yang tidak dapat direpresentasikan oleh bidang. Edit input lengkap sebagai JSON.",
+  "diffView.rail.viewMode": "Tata letak daftar berkas",
+  "diffView.rail.viewTree": "Pohon",
+  "diffView.rail.viewList": "Daftar",
+  "diffView.rail.resize": "Ubah ukuran daftar berkas",
+  "diffView.rail.directorySummary": "{name}, {viewed} dari {total} dilihat"
 }

@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "Utiliser les champs",
   "chat.toolPart.webmcp.reason.result-too-large": "L'outil a retourn\u00e9 un r\u00e9sultat d\u00e9passant 64 KiB. Ses effets peuvent d\u00e9j\u00e0 s'\u00eatre produits.",
   "chat.toolPart.webmcp.reason.input-too-large": "L'entr\u00e9e d\u00e9passe la limite de 64 KiB (65 536 octets UTF-8 de l'objet JSON).",
-  "webmcp.tools.jsonComplex": "Ce sch\u00e9ma est imbriqu\u00e9 ou utilise des types ou r\u00e8gles que les champs ne peuvent pas repr\u00e9senter. Modifiez l'entr\u00e9e compl\u00e8te en JSON."
+  "webmcp.tools.jsonComplex": "Ce sch\u00e9ma est imbriqu\u00e9 ou utilise des types ou r\u00e8gles que les champs ne peuvent pas repr\u00e9senter. Modifiez l'entr\u00e9e compl\u00e8te en JSON.",
+  "diffView.rail.viewMode": "Disposition de la liste de fichiers",
+  "diffView.rail.viewTree": "Arborescence",
+  "diffView.rail.viewList": "Liste",
+  "diffView.rail.resize": "Redimensionner la liste de fichiers",
+  "diffView.rail.directorySummary": "{name}, {viewed} sur {total} vus"
 }

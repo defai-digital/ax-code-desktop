@@ -5237,5 +5237,10 @@
   "webmcp.tools.useFields": "Felder verwenden",
   "chat.toolPart.webmcp.reason.result-too-large": "Das Tool gab ein Ergebnis zur\u00fcck, das gr\u00f6\u00dfer als 64 KiB ist. Die Auswirkungen sind m\u00f6glicherweise bereits eingetreten.",
   "chat.toolPart.webmcp.reason.input-too-large": "Die Eingabe \u00fcberschreitet das Limit von 64 KiB (65.536 UTF-8-Bytes des JSON-Objekts).",
-  "webmcp.tools.jsonComplex": "Dieses Schema ist verschachtelt oder verwendet Typen oder Regeln, die die Felder nicht darstellen k\u00f6nnen. Bearbeite die vollst\u00e4ndige Eingabe als JSON."
+  "webmcp.tools.jsonComplex": "Dieses Schema ist verschachtelt oder verwendet Typen oder Regeln, die die Felder nicht darstellen k\u00f6nnen. Bearbeite die vollst\u00e4ndige Eingabe als JSON.",
+  "diffView.rail.viewMode": "Dateilisten-Layout",
+  "diffView.rail.viewTree": "Baum",
+  "diffView.rail.viewList": "Liste",
+  "diffView.rail.resize": "Gr\u00f6\u00dfe der Dateiliste \u00e4ndern",
+  "diffView.rail.directorySummary": "{name}, {viewed} von {total} angesehen"
 }

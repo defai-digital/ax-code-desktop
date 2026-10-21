@@ -95,3 +95,12 @@ I have enough to produce a read-only review. I could not invoke `git diff HEAD` 
 3. **MEDIUM:** Move keyboard focus after toggling a directory (ArrowRight/Left, Enter). Required for the ARIA tree pattern.
 4. **MEDIUM:** Add `Home`/`End` and `aria-label` on file rows for parity with directory rows.
 5. **LOW:** The drag-listener-on-detached-node leak, the orphan collapse keys, the `selectedAncestors` dep churn, and the SSR-time `readStorage` module-init are minor cleanups worth doing in a follow-up but not blocking.
+## Dispositions (fixed by grok on `r11-rail-tree`, details in `HANDOFF-r10-grok.md`)
+
+- HIGH tab stops: roving tabindex; the tree is one tab stop with Up/Down/Home/End/Left/Right/Enter; probe killed (5 stops vs 1).
+- HIGH unmounted rows: collapsed directories keep their file rows mounted and hidden, so `[data-review-file]` selectors and
+  assistive technology still find them; probe killed.
+- MEDIUM items fixed: focus moves with expand and collapse, the separator handles Home/End, the tree structure uses
+  `role="group"`, file rows have accessible names. LOW items fixed: drag listeners removed on unmount, orphan collapse keys,
+  reveal effect churn, no storage read at module load.
+- Translations: the five new strings in all 13 locales (German and Japanese viewed counts reuse the existing wording).
