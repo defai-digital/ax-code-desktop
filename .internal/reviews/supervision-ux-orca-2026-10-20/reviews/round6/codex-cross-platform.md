@@ -1,0 +1,19 @@
+Found five issues. I made no file changes. Validation used source tracing and in-memory reproductions; native Windows/Ubuntu execution was not performed.
+
+1. **P2 — Windows: new CI journeys cannot launch the stub runtime.**  
+   [.github/workflows/desktop-ci.yml:265](.github/workflows/desktop-ci.yml:265) enables Windows, but [stub-runtime.mjs:498](desktop/packages/electron/scripts/e2e/stub-runtime.mjs:498) creates an extensionless `ax-code` Node script. The Electron supervisor only wraps `.cmd`/`.bat`; otherwise it spawns the file directly. Windows cannot execute this shebang script, so runtime readiness fails before the journeys run. **Fix:** generate a Windows `.cmd` launcher invoking Node with the stub script, or provide an explicit interpreter invocation.
+
+2. **P2 — Windows: fixture directory comparisons fail even after fixing launch.**  
+   [stub-runtime.mjs:346](desktop/packages/electron/scripts/e2e/stub-runtime.mjs:346), exposed by the new Windows job. Scenario directories originate from native `path.join`, producing `C:\...\project`, while `DirectoryStore` converts requests to `C:/.../project`. The stub compares these strings literally: session listings become empty and message requests at line 364 return 404. Project-home assertions likewise compare raw fixture paths against normalized UI paths. **Fix:** consistently canonicalize fixture identities, scoped-request comparisons and DOM expectations, including drive-letter case.
+
+3. **P2 — Windows: opening beside can produce a permanently blank pane.**  
+   [App.tsx:162](desktop/packages/ui/src/App.tsx:162), [App.tsx:245](desktop/packages/ui/src/App.tsx:245). A session directory such as `c:\Work\Repo` becomes expected directory `c:/Work/Repo`, but `setDirectory` uses `normalizeProjectPath`, producing `C:/Work/Repo`. The case-sensitive guard never passes, suppressing session initialization and all embedded tabs. This mismatch reproduced in memory. **Fix:** use the same platform-aware directory identity for configuration, initialization and equality checks.
+
+4. **P2 — Windows: equivalent directory spellings lose persisted review state.**  
+   [useReviewThreadStore.ts:81](desktop/packages/ui/src/stores/useReviewThreadStore.ts:81), [useReviewProgressStore.ts:37](desktop/packages/ui/src/stores/useReviewProgressStore.ts:37), [useBranchReviewBaseStore.ts:45](desktop/packages/ui/src/stores/useBranchReviewBaseStore.ts:45). These stores key directly by directory strings. Reviewing through a runtime session reporting `C:\Work\Repo`, then through the normalized project directory `C:/Work/Repo`, accesses different records: threads disappear, viewed marks reset and the selected branch base is forgotten. Case variants and UNC spellings have the same problem. **Fix:** canonicalize every read/write/delete key and migrate existing records; preserve case-sensitive Linux identities.
+
+5. **P2 — Windows/CRLF: unchanged comments can become “outdated.”**  
+   [reanchorThread.ts:20](desktop/packages/ui/src/lib/reanchorThread.ts:20). Exact matching does not normalize line endings. An LF snippet against CRLF content falls through to removing *all* whitespace, including spaces inside strings. With two blocks differing only by `"a b"` versus `"ab"`, that fallback becomes ambiguous: the LF version anchors successfully, while identical content converted to CRLF returns `outdated`, hiding the inline marker. Reproduced in memory. **Fix:** perform an EOL-normalized exact match before whitespace-insensitive matching, preserving line mapping.
+
+The proposed perpetual CRLF viewed-mark failure is **not supported**: signatures retain index and worktree hashes independently; equality between them is unnecessary. Undefined `O_NOFOLLOW` is guarded, and the latest working-tree change adds device/inode verification. No additional platform-specific defect was confirmed in WASM serving, the terminal visibility override, or Ubuntu shortcut handling.
+

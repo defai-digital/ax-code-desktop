@@ -36,4 +36,14 @@ describe("getGhostty", () => {
     await expect(getGhostty()).resolves.toBe(loaded)
     expect(load).toHaveBeenCalledTimes(1)
   })
+
+  test("loads the bundled wasm from the app origin, not the default inline data URL", async () => {
+    load.mockResolvedValueOnce({ id: "ghostty" })
+    const { getGhostty } = await import("./ghosttyLoader")
+    await getGhostty()
+    const [url] = load.mock.calls[0] ?? []
+    expect(typeof url).toBe("string")
+    expect(String(url).startsWith("data:")).toBe(false)
+    expect(String(url)).toContain("ghostty-vt")
+  })
 })

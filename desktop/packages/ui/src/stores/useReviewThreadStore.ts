@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import type { InlineCommentDraft } from "@/lib/messages/inlineCommentDraft"
+import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { getSafeStorage } from "./utils/safeStorage"
 
 export interface ReviewThread extends InlineCommentDraft {
@@ -62,7 +63,18 @@ function restoreThreads(input: unknown): Record<string, ReviewThread[]> {
 }
 
 function restoreBoundedThreads(input: unknown): Record<string, ReviewThread[]> {
-  return boundedDirectories(restoreThreads(input))
+  // Records saved under another spelling of the same directory (C:\Repo and C:/Repo) are merged into one.
+  const merged: Record<string, ReviewThread[]> = {}
+  for (const [directory, threads] of Object.entries(restoreThreads(input))) {
+    const key = reviewDirectoryKey(directory)
+    merged[key] = bounded([...(merged[key] ?? []), ...threads])
+  }
+  return boundedDirectories(merged)
+}
+
+/** Threads of a repository, whichever spelling of its directory the caller has. */
+export function selectReviewThreads(state: { threadsByDirectory: Record<string, ReviewThread[]> }, directory: string | null) {
+  return directory ? (state.threadsByDirectory[reviewDirectoryKey(directory)] ?? EMPTY_REVIEW_THREADS) : EMPTY_REVIEW_THREADS
 }
 
 interface ReviewThreadState {
@@ -76,8 +88,9 @@ export const useReviewThreadStore = create<ReviewThreadState>()(
   persist(
     (set) => ({
       threadsByDirectory: {},
-      recordSent: (directory, drafts, recipientSessionId) =>
+      recordSent: (rawDirectory, drafts, recipientSessionId) =>
         set((state) => {
+          const directory = reviewDirectoryKey(rawDirectory)
           const current = state.threadsByDirectory[directory] ?? []
           const existingIds = new Set(current.map((thread) => thread.id))
           const sentAt = Date.now()
@@ -102,24 +115,30 @@ export const useReviewThreadStore = create<ReviewThreadState>()(
             }),
           }
         }),
-      setStatus: (directory, id, status) =>
-        set((state) => ({
-          threadsByDirectory: {
-            ...state.threadsByDirectory,
-            [directory]: (state.threadsByDirectory[directory] ?? []).map((thread) =>
-              thread.id === id ? { ...thread, status } : thread,
-            ),
-          },
-        })),
-      recordResent: (directory, ids, recipientSessionId) =>
-        set((state) => ({
-          threadsByDirectory: {
-            ...state.threadsByDirectory,
-            [directory]: (state.threadsByDirectory[directory] ?? []).map((thread) =>
-              ids.includes(thread.id) ? { ...thread, recipientSessionId, sentAt: Date.now() } : thread,
-            ),
-          },
-        })),
+      setStatus: (rawDirectory, id, status) =>
+        set((state) => {
+          const directory = reviewDirectoryKey(rawDirectory)
+          return {
+            threadsByDirectory: {
+              ...state.threadsByDirectory,
+              [directory]: (state.threadsByDirectory[directory] ?? []).map((thread) =>
+                thread.id === id ? { ...thread, status } : thread,
+              ),
+            },
+          }
+        }),
+      recordResent: (rawDirectory, ids, recipientSessionId) =>
+        set((state) => {
+          const directory = reviewDirectoryKey(rawDirectory)
+          return {
+            threadsByDirectory: {
+              ...state.threadsByDirectory,
+              [directory]: (state.threadsByDirectory[directory] ?? []).map((thread) =>
+                ids.includes(thread.id) ? { ...thread, recipientSessionId, sentAt: Date.now() } : thread,
+              ),
+            },
+          }
+        }),
     }),
     {
       name: "ax-code-review-threads",

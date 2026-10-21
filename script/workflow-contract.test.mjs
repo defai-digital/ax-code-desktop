@@ -49,6 +49,13 @@ describe("Desktop workflow contracts", () => {
     }
   })
 
+  it("runs the supervision journeys on every desktop platform AX Code Desktop ships for", () => {
+    const job = ci.slice(ci.indexOf("\n  supervision-journeys:"), ci.indexOf("\n  required-checks:"))
+    expect(job).toContain("runner: [macos-15, windows-2022, ubuntu-24.04]")
+    expect(job).toContain("xvfb-run -a")
+    for (const journey of ["supervision-workspace", "portfolio-identity", "project-home"]) expect(job).toContain(journey)
+  })
+
   it("builds Web once before copying assets and rebuilding Electron native modules", () => {
     const require = createRequire(import.meta.url)
     const graph = JSON.parse(

@@ -1,4 +1,7 @@
 import { Ghostty } from "ghostty-web"
+// The library's default first tries an inline data: URL, which the renderer CSP's connect-src blocks. Loading the bundled
+// file from the app's own origin avoids that blocked request and the guessed fallback paths.
+import ghosttyWasmUrl from "ghostty-web/ghostty-vt.wasm?url"
 
 let ghosttyPromise: Promise<Ghostty> | null = null
 
@@ -12,7 +15,7 @@ let ghosttyPromise: Promise<Ghostty> | null = null
  */
 export function getGhostty(): Promise<Ghostty> {
   if (!ghosttyPromise) {
-    ghosttyPromise = Ghostty.load().catch((error) => {
+    ghosttyPromise = Ghostty.load(ghosttyWasmUrl).catch((error) => {
       ghosttyPromise = null
       throw error
     })

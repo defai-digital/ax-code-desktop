@@ -29,4 +29,13 @@ describe("reanchorThread", () => {
   ])("marks %s snippets outdated", (_name, snippet, content) => {
     expect(reanchorThread(snippet, content, 1)).toEqual({ status: "outdated", originalStartLine: 1 })
   })
+
+  test("anchors an LF snippet in CRLF content exactly, even where whitespace-blind matching is ambiguous", () => {
+    const lf = 'const a = "a b"\nconst b = 1\n\nconst a = "ab"\nconst b = 1\n'
+    const crlf = lf.replace(/\n/g, "\r\n")
+    const snippet = 'const a = "a b"\nconst b = 1'
+    expect(reanchorThread(snippet, lf, 1)).toEqual({ status: "anchored", startLine: 1, endLine: 2 })
+    expect(reanchorThread(snippet, crlf, 1)).toEqual({ status: "anchored", startLine: 1, endLine: 2 })
+    expect(reanchorThread(snippet.replace(/\n/g, "\r\n"), lf, 1)).toEqual({ status: "anchored", startLine: 1, endLine: 2 })
+  })
 })

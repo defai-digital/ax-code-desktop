@@ -1,4 +1,5 @@
 import { useEffect, type RefObject } from "react"
+import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
@@ -35,7 +36,7 @@ export type ReviewKeyFile = {
 const TEXT_ENTRY_TYPES = new Set(["", "text", "search", "email", "url", "password", "tel", "number"])
 
 export function reviewProgressKey(directory: string, scope: string, path: string): string {
-  return `${directory}\u0000${scope}\u0000${path}`
+  return `${reviewDirectoryKey(directory)}\u0000${scope}\u0000${path}`
 }
 
 const BLOB_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i

@@ -9,7 +9,7 @@ import type { I18nKey } from "@/lib/i18n/store"
 import { getLanguageFromExtension } from "@/lib/toolHelpers"
 import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { reviewBranchFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
-import { useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
+import { branchReviewBase, useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
 
@@ -150,10 +150,10 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   const { t } = useI18n()
   const { git } = useRuntimeAPIs()
   const [directoryKey, setDirectoryKey] = React.useState(directory)
-  const [baseChoice, setBaseChoice] = React.useState(() => useBranchReviewBaseStore.getState().bases[directory] ?? "")
+  const [baseChoice, setBaseChoice] = React.useState(() => branchReviewBase(directory) ?? "")
   if (directoryKey !== directory) {
     setDirectoryKey(directory)
-    setBaseChoice(useBranchReviewBaseStore.getState().bases[directory] ?? "")
+    setBaseChoice(branchReviewBase(directory) ?? "")
   }
   const displayKey = `${directory}\0${baseChoice}`
   const [retryNonce, setRetryNonce] = React.useState(0)

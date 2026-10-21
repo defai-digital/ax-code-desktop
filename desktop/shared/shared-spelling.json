@@ -91,6 +91,8 @@
     "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
+    "app.embeddedSession.terminal",
+    "diffView.landing.commits",
     "supervision.missionControl.child.countPlural",
     "supervision.missionControl.child.countSingle",
     "aboutDialog.versionLabel",
@@ -224,6 +226,7 @@
     "settings.hooks.list.source.pack"
   ],
   "de": [
+    "app.embeddedSession.terminal",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
     "aboutDialog.versionLabel",
@@ -333,6 +336,7 @@
     "supervision.missionControl.action.details"
   ],
   "id": [
+    "app.embeddedSession.terminal",
     "supervision.evidence.summarySingle",
     "supervision.missionControl.filesSingle",
     "agentManager.detail.header.modelCountSingle",
@@ -429,6 +433,8 @@
     "settings.hooks.list.badge.protocol"
   ],
   "pt-BR": [
+    "app.embeddedSession.terminal",
+    "diffView.landing.commits",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
     "agentManager.empty.prompt.label",
@@ -608,6 +614,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "tr": [
+    "app.embeddedSession.terminal",
     "agentManager.detail.header.modelCountSingle",
     "agentManager.sidebar.item.modelCountSingle",
     "branchPickerDialog.badge.worktree",
@@ -643,6 +650,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "vi": [
+    "app.embeddedSession.terminal",
     "branchPickerDialog.badge.worktree",
     "chat.chatInput.sandbox.title",
     "chat.doneNotCommitted.commit",
@@ -682,6 +690,8 @@
     "settings.hooks.list.badge.protocol"
   ],
   "es": [
+    "app.embeddedSession.terminal",
+    "diffView.landing.commits",
     "app.embeddedSession.chat",
     "branchPickerDialog.badge.worktree",
     "chat.chatInput.executionMode.manual",

@@ -30,7 +30,7 @@ import { RegisterReviewThreadContentContext } from "@/components/comments/Review
 import type { AnchoredReviewThread } from "@/components/comments/PierreDiffCommentUtils"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { reanchorThread } from "@/lib/reanchorThread"
-import { EMPTY_REVIEW_THREADS, useReviewThreadStore } from "@/stores/useReviewThreadStore"
+import { selectReviewThreads, useReviewThreadStore } from "@/stores/useReviewThreadStore"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -213,7 +213,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   }, [fileName, original, modified, registerThreadContent])
   const threadDirectory = useEffectiveDirectory()
   const directoryThreads = useReviewThreadStore((state) =>
-    threadDirectory ? (state.threadsByDirectory[threadDirectory] ?? EMPTY_REVIEW_THREADS) : EMPTY_REVIEW_THREADS,
+    selectReviewThreads(state, threadDirectory ?? null),
   )
   // Open threads on this file follow the code they were written about; outdated ones stay in the thread list.
   const anchoredThreads = useMemo<AnchoredReviewThread[]>(() => {

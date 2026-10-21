@@ -1669,8 +1669,9 @@ const gitBlobId = (bytes) =>
   createHash("sha1").update(`blob ${bytes.length}\0`).update(bytes).digest("hex")
 
 /**
- * Worktree blob ids computed in-process. Each file is opened once without following a final symlink and
- * hashed from that handle, so nothing can swap it between the checks and the read. A symlink is hashed by its
+ * Worktree blob ids computed in-process. Each file is opened once without following a final symlink (where the OS
+ * supports O_NOFOLLOW; elsewhere the handle must match the checked file's device and inode) and hashed from that
+ * handle, so nothing can swap it between the checks and the read. A symlink is hashed by its
  * link text, which is the blob git stores for it; its target is never read. Paths whose parent directories
  * resolve outside the repository are skipped. git hash-object --stdin-paths is not used: it decodes quoted
  * C-style escapes in a path, which let a crafted filename name a file outside the repository.
@@ -1705,6 +1706,8 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout) => {
       handle = await fsp.open(absolute, noFollow)
       const stat = await handle.stat()
       if (!stat.isFile() || stat.size > maxBytes) continue
+      // Windows has no O_NOFOLLOW: the opened file must be the one lstat checked, not a link swapped in since.
+      if (stat.dev !== entry.dev || stat.ino !== entry.ino) continue
       // Read one byte past the cap: a file that grew past it after the stat is skipped, not truncated.
       const buffer = Buffer.alloc(Math.min(stat.size, maxBytes) + 1)
       let length = 0

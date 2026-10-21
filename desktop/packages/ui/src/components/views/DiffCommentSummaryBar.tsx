@@ -14,7 +14,7 @@ import { resolveSessionSendConfig } from "@/hooks/useQueuedMessageAutoSend"
 import { resolveProjectForDirectory } from "@/lib/projectResolution"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 
-import { EMPTY_REVIEW_THREADS, useReviewThreadStore } from "@/stores/useReviewThreadStore"
+import { selectReviewThreads, useReviewThreadStore } from "@/stores/useReviewThreadStore"
 import { ReviewThreadContentsContext } from "@/components/comments/ReviewThreadAnchorContext"
 import { reanchorThread } from "@/lib/reanchorThread"
 import { dict as englishMessages } from "@/lib/i18n/messages/en"
@@ -39,7 +39,7 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
     const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
     const directory = useEffectiveDirectory()
     const threads = useReviewThreadStore((state) =>
-      directory ? (state.threadsByDirectory[directory] ?? EMPTY_REVIEW_THREADS) : EMPTY_REVIEW_THREADS,
+      selectReviewThreads(state, directory ?? null),
     )
     const openCount = threads.filter((thread) => thread.status === "open").length
     const contents = React.useContext(ReviewThreadContentsContext)
@@ -89,7 +89,7 @@ export const DiffCommentSummaryBar: React.FC<DiffCommentSummaryBarProps> = memo(
         // the user's comments away. Clear only after the send succeeds. The ref
         // guards against a double-click re-sending while the first await is pending.
         const openThreads = (
-          useReviewThreadStore.getState().threadsByDirectory[directory] ?? EMPTY_REVIEW_THREADS
+          selectReviewThreads(useReviewThreadStore.getState(), directory)
         ).filter((thread) => thread.status === "open")
         const pending = resend
           ? openThreads

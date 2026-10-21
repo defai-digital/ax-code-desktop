@@ -123,3 +123,37 @@ open threads visible in the diff, session marks bound to both sides with a visib
   cases in the preview cache). All were fixed with regression tests; mutation probes confirmed the timeout and feed-selection tests.
 - Gates: UI 4107, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 239 (+7 skipped) tests; typecheck, lint, boundaries,
   release contract, 14 locales; native WebMCP supervision-workspace, portfolio-identity, project-home and `e2e:desktop` passed.
+
+### Round 5 result
+
+Raw judgments: `round5/` (AX verified in source at `d9f1b29d`).
+
+| Judge | AX | Orca | Claude Code | Codex app | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| codex | 8.65 | 8.93 | 8.73 | 8.17 | 6.90 | worse | better |
+| deepseek-flash | 8.65 | 8.93 | 8.73 | 8.10 | 6.88 | worse | better |
+| MiniMax-M3 | 8.75 | 9.06 | 8.77 | 8.18 | 6.87 | worse | better |
+
+The gap to Orca is about 0.3 for all three judges. All three named Terminal and Files in the beside session; two named a joined
+Stage, Commit and Push flow; one each named change-level F7 navigation, preview freshness, and staging in Branch scope.
+
+## Round 6 (2026-10-21)
+
+- Workspace: the session opened beside the chat has Chat, Changes, Files (tree and editor) and Terminal tabs, all in that session's own
+  directory. Tabs stay mounted once opened. The native journey asserts the Files tree lists the beside repository and never the main one,
+  and that the Terminal tab renders a terminal while Files stays mounted.
+- Review: one progressive action stages the reviewed files, commits the staged set and pushes to the shown upstream, with repository,
+  branch and affected files visible first (codex). Staging unreviewed files needs a second explicit click; staging and committing re-read
+  the repository and stop when files changed after review or the index no longer matches the list on screen; line-count marks never
+  count as reviewed; the Git panel push is pinned to the shown upstream too (deepseek-flash review: one HIGH, three MEDIUM, one LOW, all
+  fixed with tests).
+- Terminal: Ghostty's WebAssembly is loaded from the bundled asset instead of an inline data: URL that the renderer CSP blocks, which
+  also affected the main window's terminal on every platform.
+- Platforms (macOS, Windows, Ubuntu; codex audit in `../reviews/round6/`): Windows directory spellings (`C:\Repo`, `c:/Repo`) now share
+  one key for viewed marks, threads and branch bases, and the embedded session matches its directory with the same identity as the
+  rest of the app (a mismatch left the pane blank). Thread re-anchoring unifies CRLF and LF before the whitespace-blind fallback.
+  Worktree hashing checks the opened file's device and inode where O_NOFOLLOW does not exist. The e2e stub runtime gets a Windows
+  `.cmd` launcher and compares directories canonically. A new advisory CI job runs the supervision, portfolio and project-home
+  journeys on macos-15, windows-2022 and ubuntu-24.04 (xvfb); its first Windows and Ubuntu results come from the next CI run.
+- Gates: UI 4129, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales, actionlint; native WebMCP supervision-workspace, portfolio-identity and project-home passed on macOS.

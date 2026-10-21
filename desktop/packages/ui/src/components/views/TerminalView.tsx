@@ -88,7 +88,15 @@ const getSequenceForKey = (key: MobileKey, modifier: Modifier | null): string | 
   return BASE_KEY_SEQUENCES[key] ?? null
 }
 
-export const TerminalView: React.FC = () => {
+interface TerminalViewProps {
+  /**
+   * Set by a host that is not one of the main window's terminal surfaces (the session opened beside the chat), whose
+   * visibility the main-window flags below cannot describe.
+   */
+  visible?: boolean
+}
+
+export const TerminalView: React.FC<TerminalViewProps> = ({ visible }) => {
   const { t } = useI18n()
   const { terminal, runtime } = useRuntimeAPIs()
   const { currentTheme } = useThemeSystem()
@@ -241,7 +249,7 @@ export const TerminalView: React.FC = () => {
   // Host surfaces only mount this component when open, but keep an explicit
   // visibility check so autofocus/fit still respect which surface is active.
   const isTerminalVisible =
-    isTerminalActive || isBottomTerminalOpen || (splitPaneEnabled && splitPaneRightTab === "terminal")
+    visible ?? (isTerminalActive || isBottomTerminalOpen || (splitPaneEnabled && splitPaneRightTab === "terminal"))
 
   React.useEffect(() => {
     primeTerminalInputTransport()

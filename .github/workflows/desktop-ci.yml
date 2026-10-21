@@ -255,6 +255,86 @@ jobs:
             echo "::warning::Renderer E2E failed; inspect the retained journey results and screenshots."
           fi
 
+  supervision-journeys:
+    needs: changes
+    if: needs.changes.outputs.build == 'true' || needs.changes.outputs.native == 'true'
+    name: Supervision journeys (${{ matrix.runner }})
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, windows-2022, ubuntu-24.04]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup AX Code Desktop toolchain
+        uses: ./.github/actions/setup-ax-coder-toolchain
+
+      - name: Install Linux display and Electron libraries
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y xvfb xauth libgtk-3-0t64
+          libnss3 libasound2t64 libgbm1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rebuild native modules for Electron
+        run: pnpm --filter @ax-code/electron run rebuild:native
+
+      - name: Configure the installed Electron sandbox helper
+        if: runner.os == 'Linux'
+        working-directory: desktop/packages/electron
+        run: |
+          node -e 'require("electron")'
+          sandbox_helper="$(node -e 'const path = require("node:path"); process.stdout.write(path.join(path.dirname(require.resolve("electron/package.json")), "dist", "chrome-sandbox"))')"
+          sudo chown root:root "$sandbox_helper"
+          sudo chmod 4755 "$sandbox_helper"
+
+      - name: Build Desktop
+        env:
+          NODE_OPTIONS: --max-old-space-size=4096
+        run: pnpm run build
+
+      # SPEC-2026-10-19-desktop-e2e-harness-v1: advisory, like the macOS renderer journeys, until flake data on each
+      # platform supports promotion. Mission Control, the session opened beside the chat (Chat, Changes, Files,
+      # Terminal) and review run against real Git fixtures on every desktop platform AX Code Desktop ships for.
+      - name: Supervision, portfolio and project-home journeys
+        id: journeys
+        continue-on-error: true
+        shell: bash
+        run: |
+          run() { if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a "$@"; else "$@"; fi; }
+          status=0
+          for journey in supervision-workspace portfolio-identity project-home; do
+            run node "desktop/packages/electron/scripts/e2e/${journey}-webmcp.mjs" \
+              --artifacts "$RUNNER_TEMP/supervision-journeys/${journey}" || status=1
+          done
+          exit "$status"
+
+      - name: Upload journey artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: supervision-journeys-${{ matrix.runner }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/supervision-journeys
+          if-no-files-found: ignore
+          retention-days: 3
+
+      - name: Summarize advisory journeys
+        if: always()
+        shell: bash
+        env:
+          OUTCOME: ${{ steps.journeys.outcome }}
+        run: |
+          echo "### Supervision journeys on ${RUNNER_OS}: ${OUTCOME:-not run}" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$OUTCOME" = failure ]; then
+            echo "::warning::Supervision journeys failed on ${RUNNER_OS}; inspect the retained results and screenshots."
+          fi
+
   required-checks:
     name: Desktop required checks
     if: always()

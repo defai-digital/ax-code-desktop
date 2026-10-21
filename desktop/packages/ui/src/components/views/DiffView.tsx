@@ -31,6 +31,7 @@ import { PierreDiffViewer } from "./PierreDiffViewer"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { ReviewThreadAnchorProvider } from "@/components/comments/ReviewThreadAnchorProvider"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
+import { ReviewLanding } from "./git/ReviewLanding"
 import { SessionChangesView, type SessionChangesModel } from "./SessionChangesView"
 import { BranchChangesView, type BranchChangesModel } from "./BranchChangesView"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
@@ -2004,6 +2005,15 @@ export const DiffView: React.FC<DiffViewProps> = ({
         >
           {formatPathForDisplay(effectiveDirectory, homeDirectory)}
         </div>
+      ) : null}
+      {effectiveDirectory && isGitRepo && (diffScope === "all" || diffScope === "working" || diffScope === "staged") ? (
+        <ReviewLanding
+          key={effectiveDirectory}
+          directory={effectiveDirectory}
+          scope={diffScope}
+          files={changedFiles}
+          onStaged={scopeSelectable ? () => setChosenScope("staged") : undefined}
+        />
       ) : null}
       <div className="flex shrink-0 flex-wrap items-center gap-3 px-3 py-2 bg-background">
         {!isMobile && (

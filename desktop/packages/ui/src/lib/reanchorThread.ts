@@ -19,6 +19,23 @@ export function reanchorThread(snippet: string, content: string, originalStartLi
   }
   const exact = match(snippet, content)
   if (exact) return exact
+  // Windows checkouts may hold CRLF while the snippet has LF, or the reverse. Matching with line endings unified keeps the
+  // exact match (and its line numbers, which CRLF and LF count the same) before the whitespace-blind fallback.
+  if (content.includes("\r") || snippet.includes("\r")) {
+    const unified = (value: string) => value.replace(/\r\n?/g, "\n")
+    const unifiedContent = unified(content)
+    const unifiedSnippet = unified(snippet)
+    const start = unifiedContent.indexOf(unifiedSnippet)
+    if (start >= 0) {
+      if (unifiedContent.indexOf(unifiedSnippet, start + 1) >= 0) return outdated
+      const unifiedLineAt = (offset: number) => unifiedContent.slice(0, offset).split("\n").length
+      return {
+        status: "anchored",
+        startLine: unifiedLineAt(start),
+        endLine: unifiedLineAt(start + unifiedSnippet.length - 1),
+      }
+    }
+  }
 
   const offsets: number[] = []
   const characters: string[] = []

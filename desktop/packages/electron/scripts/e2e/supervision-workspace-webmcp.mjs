@@ -499,13 +499,36 @@ const outcome = await runHarness({
       return Boolean(doc?.querySelector('[data-embedded-session-changes]')) && rendered.includes('Revised project 1') && !rendered.includes('Revised project 0')
     })()`, "the beside session's Changes tab shows its own repository")
     await capture("open-beside-changes")
+    // Files and Terminal belong to the beside session's own repository too. The stub runtime lists no files, so the check is
+    // that the tree asks for project B's directory and never project A's.
+    await session.evaluate(`${besideFrame}.contentDocument.getElementById('embedded-session-tab-files').click(); true`)
+    await audit.wait(`(() => {
+      const frame = ${besideFrame}
+      const panel = frame?.contentDocument?.querySelector('[data-embedded-session-files]')
+      const listed = frame.contentWindow.performance.getEntriesByType('resource')
+        .filter(e => e.name.includes('/api/fs/list'))
+        .map(e => (new URL(e.name).searchParams.get('path') || '').replace(/\\\\/g, '/').replace(/\\/+$/, ''))
+      return Boolean(panel && panel.checkVisibility()) && listed.some(p => p?.endsWith(${JSON.stringify("/" + path.basename(targets[1].directory))})) &&
+        !listed.some(p => p?.endsWith(${JSON.stringify("/" + path.basename(targets[0].directory))}))
+    })()`, "the beside session's Files tab lists its own repository")
+    await capture("open-beside-files")
+    await session.evaluate(`${besideFrame}.contentDocument.getElementById('embedded-session-tab-terminal').click(); true`)
+    await audit.wait(`(() => {
+      const doc = ${besideFrame}?.contentDocument
+      const panel = doc?.querySelector('[data-embedded-session-terminal]')
+      const viewport = panel?.querySelector('.terminal-viewport-container')
+      const files = doc?.querySelector('[data-embedded-session-files]')
+      return Boolean(panel && panel.checkVisibility() && viewport && viewport.getBoundingClientRect().height > 100 &&
+        files && !files.checkVisibility())
+    })()`, "the beside session's Terminal tab shows a terminal and keeps Files mounted")
+    await capture("open-beside-terminal")
     await session.evaluate(`${besideFrame}.contentDocument.getElementById('embedded-session-tab-chat').click(); true`)
     await audit.wait(`(() => {
       const doc = ${besideFrame}?.contentDocument
       return Boolean(doc?.querySelector('[data-chat-input]')?.checkVisibility()) && !doc.querySelector('[data-embedded-session-changes]')
     })()`, "the beside session returns to its chat")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes tab, pane resizing and dark/light layouts" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

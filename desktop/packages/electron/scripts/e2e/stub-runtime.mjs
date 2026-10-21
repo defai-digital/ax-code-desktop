@@ -119,6 +119,7 @@ const readBody = (req, done) => {
   });
   req.on('error', () => done({}));
 };
+const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').replace(/^([a-z]):/, (_, letter) => letter.toUpperCase() + ':').replace(/(.)\\/+$/, '$1');
 const server = http.createServer((req, res) => {
   const url = new URL(req.url || '/', 'http://127.0.0.1');
   const pathname = url.pathname.replace(/\\/+$/, '') || '/';
@@ -144,7 +145,8 @@ const server = http.createServer((req, res) => {
   }
   if (scenario) {
     const directory = scenario.projectDirectory;
-    const scopedDirectory = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+    // Windows sends C:/Work/Repo while fixtures use C:\Work\Repo: compare one canonical spelling.
+    const scopedDirectory = canonDirectory(url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '');
     const sessions = [scenario.session, ...portfolio.map(entry => entry.session)];
     const projects = [scenario.project, ...portfolio.map(entry => entry.project)];
     if (pathname === '/__e2e__/hooks' && req.method === 'POST') {
@@ -160,8 +162,8 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/hooks' && req.method === 'GET' && hooksFixture !== null) {
-      const entry = projects.some(project => project.worktree === scopedDirectory)
-        ? hooksFixture.find(item => item.directory === scopedDirectory) : null;
+      const entry = projects.some(project => canonDirectory(project.worktree) === scopedDirectory)
+        ? hooksFixture.find(item => canonDirectory(item.directory) === scopedDirectory) : null;
       const read = { directory: scopedDirectory, status: entry ? (entry.status || 200) : 404, completed: false };
       hooksReads.push(read);
       const respond = () => {
@@ -343,7 +345,7 @@ const server = http.createServer((req, res) => {
     }
     if (pathname === '/session' || pathname === '/experimental/session') {
       json(res, url.searchParams.get('archived') === 'true' ? [] :
-        sessions.filter(entry => !scopedDirectory || entry.directory === scopedDirectory));
+        sessions.filter(entry => !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory));
       return;
     }
     if (pathname === '/project') {
@@ -351,7 +353,7 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/project/current') {
-      json(res, projects.find(entry => entry.worktree === scopedDirectory) || scenario.project);
+      json(res, projects.find(entry => canonDirectory(entry.worktree) === scopedDirectory) || scenario.project);
       return;
     }
     if (pathname === '/session/status') {
@@ -361,7 +363,7 @@ const server = http.createServer((req, res) => {
     const messagesMatch = pathname.match(/^\\/session\\/([^/]+)\\/message$/);
     if (messagesMatch && req.method === 'GET' && portfolio.length) {
       const sessionID = decodeURIComponent(messagesMatch[1]);
-      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || item.directory === scopedDirectory));
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
       res.statusCode = entry ? 200 : 404;
       const messages = scenario.portfolioMessages[sessionID] || [];
       const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
@@ -376,7 +378,7 @@ const server = http.createServer((req, res) => {
     if (messageMatch && req.method === 'GET' && portfolio.length) {
       const sessionID = decodeURIComponent(messageMatch[1]);
       const messageID = decodeURIComponent(messageMatch[2]);
-      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || item.directory === scopedDirectory));
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
       const messages = scenario.portfolioMessages[sessionID] || [];
       const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
       const index = messages.findIndex(message => message.info.id === messageID);
@@ -391,7 +393,7 @@ const server = http.createServer((req, res) => {
     if (diffMatch && req.method === 'GET' && reviewScopesActive) {
       const entry = sessions.find(item => item.id === decodeURIComponent(diffMatch[1]));
       if (entry) {
-        const inDirectory = !scopedDirectory || entry.directory === scopedDirectory;
+        const inDirectory = !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory;
         res.statusCode = inDirectory ? 200 : 404;
         json(res, inDirectory ? reviewDiffs : { error: 'session not found in this directory' });
         return;
@@ -400,7 +402,7 @@ const server = http.createServer((req, res) => {
     const sessionMatch = pathname.match(/^\\/session\\/([^/]+)$/);
     if (sessionMatch && req.method === 'GET') {
       const entry = sessions.find(item => item.id === decodeURIComponent(sessionMatch[1]) &&
-        (!scopedDirectory || item.directory === scopedDirectory));
+        (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
       res.statusCode = entry ? 200 : 404;
       json(res, entry || { error: 'session not found in this directory' });
       return;
@@ -456,17 +458,17 @@ const server = http.createServer((req, res) => {
       const goalSessionID = decodeURIComponent(goalMatch[1]);
       const portfolioEntry = portfolio.find(entry => entry.session.id === goalSessionID);
       if (portfolioEntry) {
-        json(res, portfolioGoalsActive && (!scopedDirectory || portfolioEntry.session.directory === scopedDirectory) ? portfolioEntry.goal : null);
+        json(res, portfolioGoalsActive && (!scopedDirectory || canonDirectory(portfolioEntry.session.directory) === scopedDirectory) ? portfolioEntry.goal : null);
         return;
       }
       if (goalSessionID === scenario.session.id) {
-        json(res, !scopedDirectory || scopedDirectory === directory ? currentGoal : null);
+        json(res, !scopedDirectory || scopedDirectory === canonDirectory(directory) ? currentGoal : null);
         return;
       }
       json(res, foreignGoalEmitted && scenario.foreignGoal && goalSessionID === scenario.foreignGoal.sessionID ? scenario.foreignGoal : null);
       return;
     }
-    if (pathname === '/path' && projects.some(entry => entry.worktree === scopedDirectory)) {
+    if (pathname === '/path' && projects.some(entry => canonDirectory(entry.worktree) === scopedDirectory)) {
       json(res, Object.assign({}, OBJECT_ROUTES['/path'], { directory: scopedDirectory, worktree: scopedDirectory }));
       return;
     }
@@ -495,8 +497,12 @@ process.on('SIGTERM', () => server.close(() => process.exit(0)));
 process.on('SIGINT', () => server.close(() => process.exit(0)));
 `
 
-export const writeStubRuntime = async (dir, { version } = {}) => {
+export const writeStubRuntime = async (dir, { version, platform = process.platform } = {}) => {
   const stubPath = path.join(dir, "ax-code")
   await fs.writeFile(stubPath, buildStubRuntimeScript({ version }), { mode: 0o755 })
-  return stubPath
+  if (platform !== "win32") return stubPath
+  // Windows cannot run a shebang script; the runtime supervisor launches .cmd files, so give it one that runs this Node.
+  const launcherPath = path.join(dir, "ax-code.cmd")
+  await fs.writeFile(launcherPath, `@echo off\r\n"${process.execPath}" "%~dp0ax-code" %*\r\n`)
+  return launcherPath
 }

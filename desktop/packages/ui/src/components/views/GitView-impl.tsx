@@ -36,6 +36,7 @@ import { GitHeader } from "./git/GitHeader"
 import { StashesDialog } from "./git/StashesDialog"
 import { ChangesPanel, type ChangesGroupConfig } from "./git/ChangesPanel"
 import { CommitSection } from "./git/CommitSection"
+import { commitChanges, pushChanges } from "./git/landingActions"
 import { GitEmptyState } from "./git/GitEmptyState"
 import { HistorySection } from "./git/HistorySection"
 import { PullRequestSection } from "./git/PullRequestSection"
@@ -1145,20 +1146,22 @@ export const GitView: React.FC = () => {
         if (!remote) {
           throw new Error("No remote available for push")
         }
-        await git.gitFetch(currentDirectory, { remote: remote.name })
-        const afterFetch = await git.getGitStatus(currentDirectory)
-        if ((afterFetch.behind ?? 0) > 0) {
-          toast.error(t("gitView.toast.pullBeforePush", { count: afterFetch.behind, name: remote.name }))
+        try {
+          // Pin the push to the branch and upstream on screen, as the review handoff does.
+          const result = await pushChanges({
+            git,
+            directory: currentDirectory,
+            remote: remote.name,
+            t,
+            ...(status ? { expected: status } : {}),
+          })
+          toast.success(result === "pushed"
+            ? t("gitView.toast.pushedToUpstream", { name: remote.name })
+            : t("gitView.toast.alreadyUpToDate"))
+        } finally {
           await refreshGitState()
-          return
         }
-        if ((afterFetch.ahead ?? 0) === 0 && afterFetch.tracking) {
-          toast.success(t("gitView.toast.alreadyUpToDate"))
-          await refreshGitState()
-          return
-        }
-        await git.gitPush(currentDirectory, { remote: remote.name })
-        toast.success(t("gitView.toast.pushedToUpstream", { name: remote.name }))
+        return
       }
 
       await refreshGitState()
@@ -1210,29 +1213,18 @@ export const GitView: React.FC = () => {
 
   const handleCommit = async () => {
     if (!currentDirectory) return
-    if (!commitMessage.trim()) {
-      toast.error(t("gitView.toast.enterCommitMessage"))
-      return
-    }
-
-    // With nothing staged, commit all pending changes instead of dead-ending —
-    // the "Agent finished with uncommitted files" nudge lands here with only
-    // untracked/unstaged files.
-    const stagedPaths = stagedChangeEntries.map((file) => file.path).sort()
-    const commitAll = stagedPaths.length === 0
-    const filesToCommit = commitAll ? changeEntries.map((file) => file.path).sort() : stagedPaths
-    if (filesToCommit.length === 0) {
-      toast.error(t("gitView.toast.stageFileToCommit"))
-      return
-    }
-
+    if (commitAction !== null || hasPendingIndexMutation) return
     setCommitAction("commit")
     const commitDirectory = currentDirectory
 
     try {
-      await git.createGitCommit(currentDirectory, commitMessage.trim(), {
-        files: filesToCommit,
-        stageFiles: commitAll ? filesToCommit : [],
+      await commitChanges({
+        git,
+        directory: currentDirectory,
+        message: commitMessage,
+        stagedPaths: stagedChangeEntries.map((file) => file.path),
+        changedPaths: changeEntries.map((file) => file.path),
+        t,
       })
       bumpIndexRevision(currentDirectory)
       toast.success(t("gitView.toast.commitCreated"))

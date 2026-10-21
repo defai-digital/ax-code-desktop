@@ -19,6 +19,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { cn, hasModifier } from "@/lib/utils"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { isDesktopLocalOriginActive, isDesktopShell, isTauriShell, restartDesktopApp } from "@/lib/desktop"
 import {
   getInjectedBootOutcome,
@@ -79,6 +80,24 @@ const OnboardingScreen = lazyWithChunkRecovery(() =>
 const DiffView = lazyWithChunkRecovery(() =>
   import("@/components/views/DiffView").then((m) => ({ default: m.DiffView })),
 )
+const FilesView = lazyWithChunkRecovery(() =>
+  import("@/components/views/FilesView").then((m) => ({ default: m.FilesView })),
+)
+const SidebarFilesTree = lazyWithChunkRecovery(() =>
+  import("@/components/layout/SidebarFilesTree").then((m) => ({ default: m.SidebarFilesTree })),
+)
+const TerminalView = lazyWithChunkRecovery(() =>
+  import("@/components/views/TerminalView").then((m) => ({ default: m.TerminalView })),
+)
+
+const EMBEDDED_SESSION_VIEWS = ["chat", "changes", "files", "terminal"] as const
+type EmbeddedSessionView = (typeof EMBEDDED_SESSION_VIEWS)[number]
+const EMBEDDED_SESSION_VIEW_LABELS = {
+  chat: "app.embeddedSession.chat",
+  changes: "app.embeddedSession.changes",
+  files: "app.embeddedSession.files",
+  terminal: "app.embeddedSession.terminal",
+} as const
 
 const AboutDialogWrapper: React.FC = () => {
   const isAboutDialogOpen = useUIStore((s) => s.isAboutDialogOpen)
@@ -141,10 +160,9 @@ type EmbeddedVisibilityPayload = {
   visible?: unknown
 }
 
-const normalizeEmbeddedDirectory = (value: string | null | undefined): string => {
-  if (!value) return ""
-  return value.replace(/\\/g, "/").replace(/\/+$/g, "")
-}
+// The same identity setDirectory stores (drive letter case, separators), or a Windows path never matches and the pane stays blank.
+const normalizeEmbeddedDirectory = (value: string | null | undefined): string =>
+  (normalizeProjectPath(value) ?? "").replace(/(.)\/+$/g, "$1")
 
 const readEmbeddedSessionChatConfig = (): EmbeddedSessionChatConfig | null => {
   if (typeof window === "undefined") {
@@ -190,9 +208,15 @@ const EmbeddedSessionChatContent: React.FC<{
   const sync = useSync()
   const { t } = useI18n()
   const bootstrapKeyRef = React.useRef<string | null>(null)
-  // A session opened beside another one carries its own review, so its changes can be checked without leaving the
-  // pair. The chat stays mounted while hidden, so a half-written message survives the switch.
-  const [embeddedView, setEmbeddedView] = React.useState<"chat" | "changes">("chat")
+  // A session opened beside another one carries its own workspace (review, files, terminal, all in its own directory), so
+  // it can be checked without leaving the pair. A view stays mounted once opened, so a half-written message, an open file
+  // or a running terminal survives switching tabs. Changes is the exception: it reloads to show the current diff.
+  const [embeddedView, setEmbeddedView] = React.useState<EmbeddedSessionView>("chat")
+  const [visitedViews, setVisitedViews] = React.useState<ReadonlySet<EmbeddedSessionView>>(() => new Set(["chat"]))
+  const selectEmbeddedView = (view: EmbeddedSessionView) => {
+    setEmbeddedView(view)
+    setVisitedViews((current) => (current.has(view) ? current : new Set([...current, view])))
+  }
 
   const expectedDirectory = normalizeEmbeddedDirectory(embeddedSessionChat.directory)
   const activeDirectory = normalizeEmbeddedDirectory(currentDirectory)
@@ -234,7 +258,7 @@ const EmbeddedSessionChatContent: React.FC<{
           aria-label={t("app.embeddedSession.views")}
           className="flex h-8 shrink-0 items-center gap-1 border-b border-border/40 px-2"
         >
-          {(["chat", "changes"] as const).map((view) => (
+          {EMBEDDED_SESSION_VIEWS.map((view) => (
             <button
               key={view}
               type="button"
@@ -242,7 +266,7 @@ const EmbeddedSessionChatContent: React.FC<{
               id={`embedded-session-tab-${view}`}
               aria-selected={embeddedView === view}
               aria-controls={`embedded-session-panel-${view}`}
-              onClick={() => setEmbeddedView(view)}
+              onClick={() => selectEmbeddedView(view)}
               className={cn(
                 "rounded px-2 py-0.5 typography-meta",
                 embeddedView === view
@@ -250,7 +274,7 @@ const EmbeddedSessionChatContent: React.FC<{
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {t(view === "chat" ? "app.embeddedSession.chat" : "app.embeddedSession.changes")}
+              {t(EMBEDDED_SESSION_VIEW_LABELS[view])}
             </button>
           ))}
         </div>
@@ -273,6 +297,42 @@ const EmbeddedSessionChatContent: React.FC<{
           >
             <React.Suspense fallback={null}>
               <DiffView showOpenInEditorAction />
+            </React.Suspense>
+          </div>
+        ) : null}
+        {visitedViews.has("files") ? (
+          <div
+            id="embedded-session-panel-files"
+            role="tabpanel"
+            aria-labelledby="embedded-session-tab-files"
+            hidden={embeddedView !== "files"}
+            className="min-h-0 flex-1"
+            data-embedded-session-files
+          >
+            {/* FilesView is the editor only; the tree beside it selects what it shows, as in the main window. */}
+            <React.Suspense fallback={null}>
+              <div className="flex h-full min-h-0">
+                <div className="flex w-56 min-h-0 shrink-0 flex-col border-r border-border/40">
+                  <SidebarFilesTree />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <FilesView />
+                </div>
+              </div>
+            </React.Suspense>
+          </div>
+        ) : null}
+        {visitedViews.has("terminal") ? (
+          <div
+            id="embedded-session-panel-terminal"
+            role="tabpanel"
+            aria-labelledby="embedded-session-tab-terminal"
+            hidden={embeddedView !== "terminal"}
+            className="min-h-0 flex-1"
+            data-embedded-session-terminal
+          >
+            <React.Suspense fallback={null}>
+              <TerminalView visible={embeddedView === "terminal"} />
             </React.Suspense>
           </div>
         ) : null}
