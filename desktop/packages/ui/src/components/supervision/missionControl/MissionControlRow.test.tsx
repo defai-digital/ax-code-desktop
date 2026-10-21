@@ -255,3 +255,56 @@ describe("Mission Control activity preview", () => {
     expect(container.querySelector("[data-activity-preview]")?.textContent).toContain(message)
   })
 })
+
+describe("Mission Control child agent rows", () => {
+  afterEach(() => cleanup())
+
+  const childAt = (sessionId: string, state: SupervisionState, updatedAt: number) => ({
+    sessionId,
+    title: `Agent ${sessionId}`,
+    state,
+    updatedAt,
+  })
+
+  test("lists children that need a person first, opens one without selecting the root, and sends the rest to details", () => {
+    const onOpenChild = vi.fn()
+    const onSelect = vi.fn()
+    const onToggleDetails = vi.fn()
+    const parent: SupervisionRow = {
+      ...row,
+      treeSessionIds: ["s1", "c1", "c2", "c3", "c4"],
+      childSessions: [
+        childAt("c1", "idle", 4000),
+        childAt("c2", "running", 3000),
+        childAt("c3", "permission", 1000),
+        childAt("c4", "idle", 2000),
+      ],
+    }
+    const { container } = renderDom(
+      <MissionControlRow
+        row={parent}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={onToggleDetails}
+        onSelect={onSelect}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onOpenChild={onOpenChild}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    const childRows = [...container.querySelectorAll<HTMLElement>("[data-child-session]")]
+    expect(childRows.map((entry) => entry.dataset.childSession)).toEqual(["c3", "c2", "c1"])
+    screen
+      .getByRole("button", { name: "supervision.missionControl.child.openAria:Agent c3|Fix a long task" })
+      .click()
+    expect(onOpenChild).toHaveBeenCalledWith(parent, "c3")
+    expect(onSelect).not.toHaveBeenCalled()
+    screen.getByRole("button", { name: "supervision.missionControl.child.more:1" }).click()
+    expect(onToggleDetails).toHaveBeenCalledWith("s1")
+  })
+})

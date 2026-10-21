@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
 import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
+import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
 import type { BoardGroupBy, SupervisionDensity, WorkingSet } from "@/stores/useSupervisionStore"
 
 export interface MissionControlHeaderProps {
@@ -39,6 +40,9 @@ export interface MissionControlHeaderProps {
   onClose?: () => void
   /** Opens the board in its own window; only offered by the embedded board in the Electron shell. */
   onPopOut?: () => void
+  /** Whether the cross-session activity column is open. */
+  activityOpen: boolean
+  onToggleActivity: () => void
 }
 
 export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
@@ -70,8 +74,15 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   onDispatch,
   onClose,
   onPopOut,
+  activityOpen,
+  onToggleActivity,
 }) => {
   const { t } = useI18n()
+  const activityUnread = useActivityFeedStore((state) => {
+    let count = 0
+    for (const event of state.events) if (event.at > state.seenAt) count += 1
+    return count
+  })
 
   const handleCreateKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {
@@ -110,6 +121,35 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
           </span>
         ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            aria-pressed={activityOpen}
+            aria-label={
+              activityUnread > 0
+                ? t("supervision.missionControl.feed.toggleUnread", { count: activityUnread })
+                : t("supervision.missionControl.feed.toggle")
+            }
+            onClick={onToggleActivity}
+            data-mission-control-activity=""
+            className={cn(
+              "normal-case inline-flex shrink-0 items-center gap-1.5 rounded-md border px-2 py-1 typography-micro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              activityOpen
+                ? "border-primary/40 bg-interactive-selection text-primary"
+                : "border-border text-muted-foreground hover:text-foreground",
+            )}
+          >
+            <Icon name="history" className="h-3.5 w-3.5" aria-hidden="true" />
+            {t("supervision.missionControl.feed.toggle")}
+            {activityUnread > 0 ? (
+              <span
+                aria-hidden="true"
+                data-activity-unread-count={activityUnread}
+                className="normal-case rounded-full border border-[var(--status-info)]/40 px-1.5 text-[var(--status-info)]"
+              >
+                {activityUnread}
+              </span>
+            ) : null}
+          </button>
           {onDispatch ? (
             <Button size="sm" className="normal-case" onClick={onDispatch}>
               <Icon name="send-plane" className="h-3.5 w-3.5" aria-hidden="true" />

@@ -4,6 +4,7 @@ import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { useConfirmDialog } from "@/components/ui/ConfirmDialog"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
+import { useRemoteActivityPreviews } from "@/hooks/useRemoteActivityPreviews"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import {
@@ -18,6 +19,7 @@ import { groupMissionRows } from "@/lib/supervision/missionGroups"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { MissionControlGroupHeader } from "./missionControl/MissionControlGroupHeader"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import type { ActivityFeedEvent } from "@/lib/supervision/activityFeed"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { openSessionBeside } from "@/lib/supervision/openSessionBeside"
 import {
@@ -33,6 +35,7 @@ import { useUIStore } from "@/stores/useUIStore"
 import { useAllPendingRequests } from "@/sync/sync-context"
 import { abortCurrentOperation, archiveSession } from "@/sync/session-actions"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { MissionControlActivityFeed } from "./missionControl/MissionControlActivityFeed"
 import { MissionControlBulkBar } from "./missionControl/MissionControlBulkBar"
 import { MissionControlFilters } from "./missionControl/MissionControlFilters"
 import { MissionControlHeader } from "./missionControl/MissionControlHeader"
@@ -84,6 +87,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     updateSelectedId(sessionId)
     useSupervisionStore.setState({ boardFocusSessionId: sessionId })
   }, [])
+  const [activityOpen, setActivityOpen] = React.useState(false)
   const [selectedSessionIds, setSelectedSessionIds] = React.useState<Set<string>>(() => new Set())
   const [bulkBusy, setBulkBusy] = React.useState(false)
   const bulkBusyRef = React.useRef(false)
@@ -157,6 +161,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         : filtered,
     [boardGroupBy, groups, collapsedGroups, filtered],
   )
+  const activityRows = useRemoteActivityPreviews(visibleRows)
   const bulkRows = visibleRows.filter((row) => selectedSessionIds.has(row.sessionId))
   const runningCount = bulkRows.filter((row) => row.state === "running").length
   React.useEffect(() => {
@@ -234,12 +239,31 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     [isPopout],
   )
 
+  // A feed item selects its row when the board shows it. A session hidden by filters, the working set or a collapsed group is
+  // opened instead, never substituted by whichever row is visible first; a session that no longer exists does nothing.
+  const selectFromFeed = React.useCallback(
+    (event: ActivityFeedEvent) => {
+      if (visibleRows.some((row) => row.sessionId === event.sessionId)) {
+        setSelectedId(event.sessionId)
+        return
+      }
+      const row = rows.find((candidate) => candidate.sessionId === event.sessionId)
+      if (row) openRow(row)
+    },
+    [openRow, rows, setSelectedId, visibleRows],
+  )
+
   // Cmd/Ctrl+click (or Cmd/Ctrl+Enter) keeps the current chat and shows the row's session beside it.
   const openRowBeside = React.useCallback((row: SupervisionRow) => {
     if (openSessionBeside({ sessionId: row.sessionId, directory: row.directory, title: row.title })) {
       useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
     }
   }, [])
+  // A child agent shares its root's project and directory, so it opens through the same path.
+  const openChild = React.useCallback(
+    (row: SupervisionRow, childSessionId: string) => openRow({ ...row, sessionId: childSessionId }),
+    [openRow],
+  )
   const reviewChangesForRow = React.useCallback(
     (row: SupervisionRow) => {
       openRow(row)
@@ -525,7 +549,8 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
     }
   }
 
-  const renderRow = (row: SupervisionRow) => {
+  const renderRow = (source: SupervisionRow) => {
+    const row = activityRows.get(source.sessionId) ?? source
     const selected = row.sessionId === effectiveSelectedId
     const expanded = peekId === row.sessionId
     const peekRequests = expanded ? requestsForSessionTree(allPending, new Set(row.treeSessionIds)) : []
@@ -548,6 +573,7 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         onOpen={openRow}
         onOpenBeside={isPopout ? undefined : openRowBeside}
         onPrimary={handlePrimary}
+        onOpenChild={openChild}
         onCompare={isPopout ? undefined : setCompareRunGroupKey}
         onRemoveFromSet={removeFromWorkingSet}
       >
@@ -634,8 +660,12 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
         onDispatch={isPopout ? undefined : () => useSupervisionStore.getState().setQuickDispatchOpen(true)}
         onClose={isPopout ? undefined : handleClose}
         onPopOut={!isPopout && canOpenSupervisionPopout() ? () => void openSupervisionPopout() : undefined}
+        activityOpen={activityOpen}
+        onToggleActivity={() => setActivityOpen((open) => !open)}
       />
 
+      <div className="mission-control-body">
+        <div className="mission-control-main">
       <MissionControlFilters
         searchRef={searchRef}
         query={query}
@@ -762,6 +792,9 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
           onClear={clearSelection}
         />
       ) : null}
+        </div>
+        {activityOpen ? <MissionControlActivityFeed onSelectSession={selectFromFeed} /> : null}
+      </div>
       {confirmDialog}
     </div>
   )

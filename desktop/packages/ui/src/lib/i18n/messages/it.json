@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Reinvia i thread aperti",
   "diffView.threads.empty": "Nessun thread di revisione",
   "diffView.threads.originalLine": "{file}:{start}-{end} (posizione originale)",
-  "diffView.threads.originalLocation": "Posizione originale; questo frammento \u00e8 obsoleto o non \u00e8 stato verificato rispetto al diff attuale."
+  "diffView.threads.originalLocation": "Posizione originale; questo frammento \u00e8 obsoleto o non \u00e8 stato verificato rispetto al diff attuale.",
+  "app.embeddedSession.views": "Viste sessione",
+  "app.embeddedSession.chat": "Chat",
+  "app.embeddedSession.changes": "Modifiche",
+  "diffView.rail.viewedFallback": "Lo stato visualizzato si basa sul numero di righe e potrebbe non rilevare le modifiche",
+  "diffView.threads.marker": "Apri thread di revisione sulle righe {start}-{end}",
+  "supervision.missionControl.child.open": "Apri",
+  "supervision.missionControl.child.openAria": "Apri agente figlio {title} di {parent}",
+  "supervision.missionControl.child.more": "+{count} altri nei dettagli",
+  "supervision.missionControl.feed.toggle": "Attivit\u00e0",
+  "supervision.missionControl.feed.toggleUnread": "Attivit\u00e0, {count} non letti",
+  "supervision.missionControl.feed.title": "Attivit\u00e0",
+  "supervision.missionControl.feed.listLabel": "Attivit\u00e0 in tutte le sessioni",
+  "supervision.missionControl.feed.empty": "Nessuna attivit\u00e0 per ora",
+  "supervision.missionControl.feed.markAllRead": "Segna tutto come letto",
+  "supervision.missionControl.feed.unread": "Non letti"
 }

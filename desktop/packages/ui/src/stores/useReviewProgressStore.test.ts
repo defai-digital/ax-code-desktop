@@ -82,23 +82,35 @@ describe("useReviewProgressStore", () => {
     const staged = file({ index: "M", working_dir: " " })
     useReviewProgressStore.getState().setViewed(directory, "all", staged.path, reviewFileSignature(staged), true)
     const unstaged = file({ index: " ", working_dir: "M" })
-    expect(useReviewProgressStore.getState().isViewed(directory, "all", unstaged.path, reviewFileSignature(unstaged))).toBe(
-      false,
-    )
+    expect(
+      useReviewProgressStore.getState().isViewed(directory, "all", unstaged.path, reviewFileSignature(unstaged)),
+    ).toBe(false)
   })
 
   test("a rewrite with the same line counts changes the content signature", () => {
     const status = "modified"
-    const first = reviewContentSignature("const value = 1\n", status)
-    const rewritten = reviewContentSignature("const value = 2\n", status)
+    const first = reviewContentSignature("old\n", "const value = 1\n", status, "src/a.ts")
+    const rewritten = reviewContentSignature("old\n", "const value = 2\n", status, "src/a.ts")
     expect(first).not.toBe(rewritten)
-    expect(reviewContentSignature("const value = 1\n", status)).toBe(first)
-    expect(reviewContentSignature("const value = 1\n", "added")).not.toBe(first)
+    expect(reviewContentSignature("old\n", "const value = 1\n", status, "src/a.ts")).toBe(first)
+    expect(reviewContentSignature("old\n", "const value = 1\n", "added", "src/a.ts")).not.toBe(first)
 
     useReviewProgressStore.getState().setViewed(directory, "session", "src/a.ts", first, true)
     expect(useReviewProgressStore.getState().isViewed(directory, "session", "src/a.ts", first)).toBe(true)
     expect(useReviewProgressStore.getState().isViewed(directory, "session", "src/a.ts", rewritten)).toBe(false)
     expect(useReviewProgressStore.getState().isViewed(directory, "turn:msg_1", "src/a.ts", first)).toBe(false)
+  })
+
+  test("content signatures bind both sides, status and path with bounded persisted size", () => {
+    const signature = reviewContentSignature("before", "after", "modified", "a.ts")
+    expect(reviewContentSignature("Before", "after", "modified", "a.ts")).not.toBe(signature)
+    expect(reviewContentSignature("before", "After", "modified", "a.ts")).not.toBe(signature)
+    expect(reviewContentSignature("before", "after", "added", "a.ts")).not.toBe(signature)
+    expect(reviewContentSignature("before", "after", "modified", "b.ts")).not.toBe(signature)
+    const large = reviewContentSignature("before".repeat(10000), "after".repeat(10000), "modified", "a.ts")
+    useReviewProgressStore.getState().setViewed(directory, "session", "a.ts", large, true)
+    expect(large.length).toBeLessThan(64)
+    expect(getSafeStorage().getItem(REVIEW_PROGRESS_STORAGE_KEY)!.length).toBeLessThan(200)
   })
 
   test("a same-count rewrite clears viewed when the worktree id changes", () => {
@@ -220,7 +232,7 @@ describe("useReviewProgressStore", () => {
       MERGE_BASE,
     )
     expect(fallback.fallback).toBe(true)
-    expect(fallback.signature).toBe(reviewContentSignature("const value = 1\n", "modified"))
+    expect(fallback.signature).toBe(reviewContentSignature("", "const value = 1\n", "modified", "src/a.ts"))
   })
 
   test("reloads persisted marks and leaves a changed signature unviewed", async () => {

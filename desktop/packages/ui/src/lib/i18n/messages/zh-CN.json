@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "\u91cd\u65b0\u53d1\u9001\u6253\u5f00\u7684\u8ba8\u8bba",
   "diffView.threads.empty": "\u6682\u65e0\u8bc4\u5ba1\u8ba8\u8bba",
   "diffView.threads.originalLine": "{file}:{start}-{end}\uff08\u539f\u59cb\u4f4d\u7f6e\uff09",
-  "diffView.threads.originalLocation": "\u539f\u59cb\u4f4d\u7f6e\uff1b\u6b64\u4ee3\u7801\u7247\u6bb5\u5df2\u8fc7\u65f6\uff0c\u6216\u672a\u9488\u5bf9\u5f53\u524d\u5dee\u5f02\u8fdb\u884c\u68c0\u67e5\u3002"
+  "diffView.threads.originalLocation": "\u539f\u59cb\u4f4d\u7f6e\uff1b\u6b64\u4ee3\u7801\u7247\u6bb5\u5df2\u8fc7\u65f6\uff0c\u6216\u672a\u9488\u5bf9\u5f53\u524d\u5dee\u5f02\u8fdb\u884c\u68c0\u67e5\u3002",
+  "app.embeddedSession.views": "\u4f1a\u8bdd\u89c6\u56fe",
+  "app.embeddedSession.chat": "\u804a\u5929",
+  "app.embeddedSession.changes": "\u66f4\u6539",
+  "diffView.rail.viewedFallback": "\u5df2\u8bfb\u72b6\u6001\u57fa\u4e8e\u884c\u6570\u7edf\u8ba1\uff0c\u53ef\u80fd\u9057\u6f0f\u7f16\u8f91",
+  "diffView.threads.marker": "\u6253\u5f00\u7b2c {start}-{end} \u884c\u7684\u8bc4\u5ba1\u5bf9\u8bdd",
+  "supervision.missionControl.child.open": "\u6253\u5f00",
+  "supervision.missionControl.child.openAria": "\u6253\u5f00 {parent} \u7684\u5b50\u4ee3\u7406 {title}",
+  "supervision.missionControl.child.more": "\u8be6\u60c5\u4e2d\u8fd8\u6709 {count} \u4e2a",
+  "supervision.missionControl.feed.toggle": "\u6d3b\u52a8",
+  "supervision.missionControl.feed.toggleUnread": "\u6d3b\u52a8\uff0c{count} \u6761\u672a\u8bfb",
+  "supervision.missionControl.feed.title": "\u6d3b\u52a8",
+  "supervision.missionControl.feed.listLabel": "\u6240\u6709\u4f1a\u8bdd\u7684\u6d3b\u52a8",
+  "supervision.missionControl.feed.empty": "\u6682\u65e0\u6d3b\u52a8",
+  "supervision.missionControl.feed.markAllRead": "\u5168\u90e8\u6807\u4e3a\u5df2\u8bfb",
+  "supervision.missionControl.feed.unread": "\u672a\u8bfb"
 }

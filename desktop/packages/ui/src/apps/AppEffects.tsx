@@ -5,6 +5,7 @@ import { useQueuedMessageAutoSend } from "@/hooks/useQueuedMessageAutoSend"
 import { useRunTransitionNotifications } from "@/hooks/useRunTransitionNotifications"
 import { useSupervisionRowsPublisher } from "@/hooks/useSupervisionRows"
 import { useSessionGoalsLoader } from "@/hooks/useSessionGoalsLoader"
+import { useActivityFeedRecorder } from "@/hooks/useActivityFeedRecorder"
 import { useTraySync } from "@/hooks/useTraySync"
 import { useSessionAutoCleanup } from "@/hooks/useSessionAutoCleanup"
 import { useWindowControlsOverlayLayout } from "@/hooks/useWindowControlsOverlayLayout"
@@ -75,6 +76,10 @@ export function SyncRuntimeEffects({
   // Streams the session/approval snapshot to the Electron tray and keeps the dock
   // badge in step. No-op outside the desktop shell.
   useTraySync(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
+  // Recorded once, in the primary window. The pop-out (supervision.html) and other
+  // realms mount these effects with housekeeping disabled, so they do not write a
+  // second copy of each transition into the shared feed.
+  useActivityFeedRecorder(globalHousekeepingEnabled)
   useSupervisionRowsPublisher()
   useSessionGoalsLoader()
   useRunTransitionNotifications(embeddedBackgroundWorkEnabled)

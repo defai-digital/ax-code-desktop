@@ -16,6 +16,7 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useGitBranchLabel } from "@/stores/useGitStore"
 import { useFormatEvidence } from "../EvidenceText"
 import { updatedSinceViewed } from "@/lib/supervision/missionControl"
+import { inlineChildSessions } from "@/lib/supervision/childSessions"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 
 export interface MissionControlRowProps {
@@ -33,6 +34,8 @@ export interface MissionControlRowProps {
   /** Cmd/Ctrl+click shows the session beside the current chat; omitted where there is no chat. */
   onOpenBeside?: (row: SupervisionRowData) => void
   onPrimary: (row: SupervisionRowData) => void
+  /** Opens one child agent of this row; child rows are listed but not openable when omitted. */
+  onOpenChild?: (row: SupervisionRowData, childSessionId: string) => void
   /** Opens multi-run compare; omitted where compare cannot open (the pop-out window). */
   onCompare?: (groupKey: string) => void
   onRemoveFromSet: (workingSetId: string, sessionId: string) => void
@@ -53,6 +56,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   onOpen,
   onOpenBeside,
   onPrimary,
+  onOpenChild,
   onCompare,
   onRemoveFromSet,
   children,
@@ -70,6 +74,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const activityText = activity ? activityLine(activity, t) : null
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
   const groupSlug = multiRunGroupKeyForRow(row, parseMultiRunSessionTitle)
+  const inlineChildren = inlineChildSessions(row.childSessions)
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && onOpenBeside) {
@@ -272,6 +277,58 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           ) : null}
         </span>
       </div>
+      {inlineChildren.shown.map((child) => (
+        <div
+          key={child.sessionId}
+          role="row"
+          className="mission-child-row flex min-w-0 items-center gap-2 py-1 pl-10 pr-3"
+          data-child-session={child.sessionId}
+        >
+          <span role="gridcell" className="shrink-0">
+            <SupervisionStateBadge state={child.state} />
+          </span>
+          <span role="gridcell" className="min-w-0 flex-1 truncate typography-meta text-foreground" title={child.title}>
+            {child.title}
+          </span>
+          <span role="gridcell" className="shrink-0 typography-micro text-muted-foreground">
+            {child.updatedAt ? formatRelativeAge(Date.now() - child.updatedAt, t) : null}
+          </span>
+          {onOpenChild ? (
+            <span role="gridcell" className="shrink-0">
+              <button
+                type="button"
+                className="normal-case rounded px-1.5 py-0.5 typography-micro text-[var(--status-info)] hover:underline"
+                aria-label={t("supervision.missionControl.child.openAria", { title: child.title, parent: row.title })}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onOpenChild(row, child.sessionId)
+                }}
+                onDoubleClick={handleActionDoubleClick}
+              >
+                {t("supervision.missionControl.child.open")}
+              </button>
+            </span>
+          ) : null}
+        </div>
+      ))}
+      {inlineChildren.hidden > 0 ? (
+        <div role="row" className="mission-child-more py-1 pl-10 pr-3">
+          <span role="gridcell">
+            <button
+              type="button"
+              className="normal-case typography-micro text-muted-foreground hover:text-foreground hover:underline"
+              aria-expanded={expanded}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleDetails(row.sessionId)
+              }}
+              onDoubleClick={handleActionDoubleClick}
+            >
+              {t("supervision.missionControl.child.more", { count: inlineChildren.hidden })}
+            </button>
+          </span>
+        </div>
+      ) : null}
       {expanded ? (
         <div id={`mission-details-${row.sessionId}`} role="row">
           <div role="gridcell">{children}</div>

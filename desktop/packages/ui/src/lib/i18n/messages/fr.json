@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Renvoyer les fils ouverts",
   "diffView.threads.empty": "Aucun fil de revue pour le moment",
   "diffView.threads.originalLine": "{file}:{start}-{end} (emplacement d'origine)",
-  "diffView.threads.originalLocation": "Emplacement d'origine ; cet extrait est obsol\u00e8te ou n'a pas \u00e9t\u00e9 v\u00e9rifi\u00e9 par rapport au diff actuel."
+  "diffView.threads.originalLocation": "Emplacement d'origine ; cet extrait est obsol\u00e8te ou n'a pas \u00e9t\u00e9 v\u00e9rifi\u00e9 par rapport au diff actuel.",
+  "app.embeddedSession.views": "Vues de session",
+  "app.embeddedSession.chat": "Discussion",
+  "app.embeddedSession.changes": "Modifications",
+  "diffView.rail.viewedFallback": "L'\u00e9tat vu est bas\u00e9 sur le nombre de lignes et peut manquer des modifications",
+  "diffView.threads.marker": "Ouvrir le fil de r\u00e9vision sur les lignes {start}-{end}",
+  "supervision.missionControl.child.open": "Ouvrir",
+  "supervision.missionControl.child.openAria": "Ouvrir l'agent enfant {title} de {parent}",
+  "supervision.missionControl.child.more": "+{count} autres dans les d\u00e9tails",
+  "supervision.missionControl.feed.toggle": "Activit\u00e9",
+  "supervision.missionControl.feed.toggleUnread": "Activit\u00e9, {count} non lus",
+  "supervision.missionControl.feed.title": "Activit\u00e9",
+  "supervision.missionControl.feed.listLabel": "Activit\u00e9 sur toutes les sessions",
+  "supervision.missionControl.feed.empty": "Aucune activit\u00e9 pour le moment",
+  "supervision.missionControl.feed.markAllRead": "Tout marquer comme lu",
+  "supervision.missionControl.feed.unread": "Non lus"
 }

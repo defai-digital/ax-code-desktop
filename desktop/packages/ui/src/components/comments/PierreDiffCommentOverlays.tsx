@@ -4,7 +4,8 @@ import type { SelectedLineRange } from "@pierre/diffs"
 import type { InlineCommentDraft } from "@/stores/useInlineCommentDraftStore"
 import { InlineCommentCard } from "./InlineCommentCard"
 import { InlineCommentInput } from "./InlineCommentInput"
-import { toPierreAnnotationId } from "./PierreDiffCommentUtils"
+import { toPierreAnnotationId, type AnchoredReviewThread } from "./PierreDiffCommentUtils"
+import { ReviewThreadMarker } from "./ReviewThreadMarker"
 
 interface PierreDiffCommentOverlaysProps {
   diffRootRef: React.RefObject<HTMLDivElement | null>
@@ -17,7 +18,11 @@ interface PierreDiffCommentOverlaysProps {
   onCancel: () => void
   onEdit: (draft: InlineCommentDraft) => void
   onDelete: (draft: InlineCommentDraft) => void
+  threads?: readonly AnchoredReviewThread[]
+  onResolveThread?: (threadId: string) => void
 }
+
+const NO_THREADS: readonly AnchoredReviewThread[] = []
 
 function parseCssWidth(value: string): number | null {
   const trimmed = value.trim()
@@ -42,8 +47,20 @@ function clampMaxWidth(value: number | null | undefined): number | undefined {
 }
 
 export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps) {
-  const { diffRootRef, drafts, selection, editingDraftId, commentText, fileLabel, onSave, onCancel, onEdit, onDelete } =
-    props
+  const {
+    diffRootRef,
+    drafts,
+    selection,
+    editingDraftId,
+    commentText,
+    fileLabel,
+    onSave,
+    onCancel,
+    onEdit,
+    onDelete,
+    threads = NO_THREADS,
+    onResolveThread,
+  } = props
 
   const [retryTick, setRetryTick] = React.useState(0)
   const [fallbackMaxWidth, setFallbackMaxWidth] = React.useState<number | null>(null)
@@ -60,8 +77,11 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
     if (selectionAnnotationId) {
       ids.push(selectionAnnotationId)
     }
+    if (onResolveThread) {
+      for (const anchored of threads) ids.push(toPierreAnnotationId({ type: "thread", anchored }))
+    }
     return ids
-  }, [drafts, editingDraftId, selectionAnnotationId])
+  }, [drafts, editingDraftId, onResolveThread, selectionAnnotationId, threads])
 
   const resolveTarget = React.useCallback(
     (annotationId: string): HTMLElement | null => {
@@ -167,6 +187,22 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
 
   return (
     <>
+      {onResolveThread
+        ? threads.map((anchored) => {
+            const id = toPierreAnnotationId({ type: "thread", anchored })
+            const target = resolveTarget(id)
+            if (!target) return null
+            return createPortal(
+              <ReviewThreadMarker
+                anchored={anchored}
+                onResolve={onResolveThread}
+                maxWidth={resolveTargetMaxWidth(target)}
+              />,
+              target,
+              id,
+            )
+          })
+        : null}
       {drafts.map((draft) => {
         const id = toPierreAnnotationId({ type: draft.id === editingDraftId ? "edit" : "saved", draft })
         const target = resolveTarget(id)

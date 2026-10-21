@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "A\u00e7\u0131k konular\u0131 yeniden g\u00f6nder",
   "diffView.threads.empty": "Hen\u00fcz inceleme konusu yok",
   "diffView.threads.originalLine": "{file}:{start}-{end} (orijinal konum)",
-  "diffView.threads.originalLocation": "Orijinal konum; bu par\u00e7a g\u00fcncel de\u011fil veya mevcut diff'e g\u00f6re do\u011frulanmad\u0131."
+  "diffView.threads.originalLocation": "Orijinal konum; bu par\u00e7a g\u00fcncel de\u011fil veya mevcut diff'e g\u00f6re do\u011frulanmad\u0131.",
+  "app.embeddedSession.views": "Oturum g\u00f6r\u00fcn\u00fcmleri",
+  "app.embeddedSession.chat": "Sohbet",
+  "app.embeddedSession.changes": "De\u011fi\u015fiklikler",
+  "diffView.rail.viewedFallback": "G\u00f6r\u00fcnt\u00fclendi durumu sat\u0131r say\u0131s\u0131na dayan\u0131r ve d\u00fczenlemeleri g\u00f6zden ka\u00e7\u0131rabilir",
+  "diffView.threads.marker": "{start}-{end} sat\u0131rlar\u0131ndaki inceleme dizisini a\u00e7",
+  "supervision.missionControl.child.open": "A\u00e7",
+  "supervision.missionControl.child.openAria": "{parent} \u00fcst ajan\u0131n\u0131n {title} alt ajan\u0131n\u0131 a\u00e7",
+  "supervision.missionControl.child.more": "Ayr\u0131nt\u0131larda {count} tane daha",
+  "supervision.missionControl.feed.toggle": "Etkinlik",
+  "supervision.missionControl.feed.toggleUnread": "Etkinlik, {count} okunmam\u0131\u015f",
+  "supervision.missionControl.feed.title": "Etkinlik",
+  "supervision.missionControl.feed.listLabel": "Oturumlar aras\u0131 etkinlik",
+  "supervision.missionControl.feed.empty": "Hen\u00fcz etkinlik yok",
+  "supervision.missionControl.feed.markAllRead": "T\u00fcm\u00fcn\u00fc okundu olarak i\u015faretle",
+  "supervision.missionControl.feed.unread": "Okunmam\u0131\u015f"
 }

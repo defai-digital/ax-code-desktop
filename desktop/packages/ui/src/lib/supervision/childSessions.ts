@@ -21,3 +21,29 @@ export function childSessionSummaries(
   }
   return result
 }
+
+/** Child agents shown inline under their root row; the rest stay in the row's details. */
+export const INLINE_CHILD_LIMIT = 3
+
+const INLINE_STATE_ORDER: readonly SupervisionState[] = [
+  "permission",
+  "question",
+  "error",
+  "goal",
+  "review",
+  "running",
+  "idle",
+]
+
+/** Children that need a person come first, then working ones, newest first within a state. */
+export function inlineChildSessions(
+  children: readonly ChildSessionSummary[] | undefined,
+  limit = INLINE_CHILD_LIMIT,
+): { shown: ChildSessionSummary[]; hidden: number } {
+  if (!children?.length) return { shown: [], hidden: 0 }
+  const ordered = [...children].sort(
+    (a, b) =>
+      INLINE_STATE_ORDER.indexOf(a.state) - INLINE_STATE_ORDER.indexOf(b.state) || b.updatedAt - a.updatedAt,
+  )
+  return { shown: ordered.slice(0, limit), hidden: Math.max(0, ordered.length - limit) }
+}

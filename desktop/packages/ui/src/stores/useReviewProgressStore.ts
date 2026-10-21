@@ -136,34 +136,36 @@ export function reviewBranchFileSignature(
     file.binary || file.tooLarge
       ? `\0${file.additions}:${file.deletions}:${file.binary ? "b" : ""}:${file.tooLarge ? "l" : ""}`
       : file.after
-  const content = reviewContentSignature(after, file.status)
+  const content = reviewContentSignature("", after, file.status, file.path)
   const base = normalizeBlobId(mergeBase)
   const before = normalizeBlobId(file.beforeBlobId)
   const beforeExpected = BRANCH_BEFORE_BLOB_STATUSES.has(file.status)
   // Binary or oversized rows carry counts and flags instead of content, so they cannot prove a same-count rewrite.
-  if (!base || (beforeExpected && !before) || file.binary || file.tooLarge) return { signature: content, fallback: true }
+  if (!base || (beforeExpected && !before) || file.binary || file.tooLarge)
+    return { signature: content, fallback: true }
   return {
     signature: `branch:${base}:${before ?? "-"}:${content}:${file.status}:${file.path}`,
     fallback: false,
   }
 }
 
-/**
- * FNV-1a 32-bit over UTF-16 code units. Session and turn marks use this so a
- * rewrite with the same line counts still clears "viewed".
- */
-function fnv1a32(input: string): string {
-  let hash = 0x811c9dc5
+/** Fast synchronous 53-bit hash over UTF-16 code units; never persist diff text. */
+function contentHash(input: string): string {
+  let first = 0xdeadbeef
+  let second = 0x41c6ce57
   for (let index = 0; index < input.length; index += 1) {
-    hash ^= input.charCodeAt(index)
-    hash = Math.imul(hash, 0x01000193)
+    const unit = input.charCodeAt(index)
+    first = Math.imul(first ^ unit, 2654435761)
+    second = Math.imul(second ^ unit, 1597334677)
   }
-  return (hash >>> 0).toString(16).padStart(8, "0")
+  first = Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
+  second = Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
+  return (4294967296 * (second & 0x1fffff) + (first >>> 0)).toString(16)
 }
 
-/** Content signature for a session or turn diff: the after text plus the change status. */
-export function reviewContentSignature(after: string, status: string): string {
-  return fnv1a32(`${status.length}:${status}\0${after.length}:${after}`)
+/** Versioned signature binds both content sides, status and path without retaining their text. */
+export function reviewContentSignature(before: string, after: string, status: string, path: string): string {
+  return `content-v2:${contentHash(before)}:${contentHash(after)}:${contentHash(JSON.stringify([status, path]))}`
 }
 
 /** Marks kept at most; the oldest are dropped first so a long-lived window cannot grow without bound. */
@@ -247,7 +249,8 @@ export const useReviewProgressStore = create<ReviewProgressState>()(
   persist(
     (set, get) => ({
       marks: {},
-      isViewed: (directory, scope, path, signature) => get().marks[reviewProgressKey(directory, scope, path)] === signature,
+      isViewed: (directory, scope, path, signature) =>
+        get().marks[reviewProgressKey(directory, scope, path)] === signature,
       toggleViewed: (directory, scope, path, signature) => {
         const key = reviewProgressKey(directory, scope, path)
         set((state) => {

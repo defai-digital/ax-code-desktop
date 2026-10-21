@@ -103,6 +103,22 @@ describe("ReviewFileRail", () => {
     expect(screen.getByText("a.ts").classList.contains("review-file-rail__name--viewed")).toBe(false)
   })
 
+  test("only viewed fallback rows show an accessible count-confidence marker", () => {
+    const label = "Viewed state is based on line counts and may miss edits"
+    const files = [
+      sampleFiles[0],
+      { ...sampleFiles[1], headBlobId: "a".repeat(40), indexBlobId: "b".repeat(40), worktreeBlobId: "c".repeat(40) },
+    ]
+    render(<ReviewHarness files={files} />)
+    expect(screen.queryByRole("img", { name: label })).toBeNull()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    expect(screen.getByRole("img", { name: label }).getAttribute("title")).toBe(label)
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark b.ts as viewed" }))
+    expect(screen.getAllByRole("img", { name: label })).toHaveLength(1)
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    expect(screen.queryByRole("img", { name: label })).toBeNull()
+  })
+
   test("filter narrows rows by path substring without changing the progress total", () => {
     render(<ReviewHarness files={sampleFiles} />)
     fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
@@ -211,7 +227,13 @@ describe("ReviewFileRail", () => {
   test("rows have no open control where nothing can be opened", () => {
     render(
       <I18nProvider>
-        <ReviewFileRail directory={DIRECTORY} scope={SCOPE} files={sampleFiles} selectedFile={null} onSelectFile={() => {}} />
+        <ReviewFileRail
+          directory={DIRECTORY}
+          scope={SCOPE}
+          files={sampleFiles}
+          selectedFile={null}
+          onSelectFile={() => {}}
+        />
       </I18nProvider>,
     )
     expect(screen.queryByRole("button", { name: "Open b.ts in the editor" })).toBeNull()

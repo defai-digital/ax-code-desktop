@@ -89,3 +89,37 @@ frame the app document.
 Gates: UI 4050, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 239 (+7 skipped) tests; typecheck, lint, boundaries,
 release contract, 14 locales; native WebMCP supervision-workspace (with open-beside), portfolio-identity, project-home and
 `e2e:desktop` journeys passed.
+
+### Round 4 result
+
+Raw judgments: `round4/` (AX verified in source at `13a9161f`).
+
+| Judge | AX | Orca | Claude Code | Codex app | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| codex | 8.35 | 8.90 | 8.73 | 8.05 | 6.89 | worse | better |
+| deepseek-flash | 7.94 | 8.90 | 8.56 | 7.85 | 6.58 | worse | better |
+| MiniMax-M3 | 8.49 | 8.89 | 8.73 | 8.13 | 6.58 | worse | better |
+
+The gap to Orca narrowed (codex 0.75 to 0.55, MiniMax 1.30 to 0.40, deepseek 1.00 to 0.96). Named flips: child agents as rows, a
+cross-session activity feed, previews for sessions that were never opened, the beside session with its own review and more width,
+open threads visible in the diff, session marks bound to both sides with a visible fallback, and a remembered Branch base.
+
+## Round 5 (2026-10-21)
+
+- Mission Control: child agents appear as indented rows under their root (those needing a person first, up to three, the rest in
+  Details) with their own state and Open action. An Activity column lists state transitions across sessions with an unread count and
+  Mark all read; it records in the main window only and other windows follow its writes. Rows never opened in this run get a preview
+  from a bounded read of the latest messages (two concurrent reads, a 20 s timeout, at most one read per session every 10 s, 300
+  entries, never shown for another directory).
+- Workspace: opening a session beside the chat widens a narrow context panel to about half the window, and the beside session has
+  Chat and Changes tabs; its Changes tab shows that session's own repository. The native journey asserts both composers, the width
+  and the beside repository's diff (`open-beside`, `open-beside-changes` captures).
+- Review: open threads are shown in the diff at their re-anchored lines with Resolve. Session and Last turn marks hash both sides,
+  status and path; viewed files whose mark rests on line counts show a warning; the Branch base is remembered per repository.
+- Authors and reviews (raw texts in `../reviews/round5/`): grok wrote the feed, codex the previews and the mark/base package, Claude
+  the rest. deepseek-flash reviewed the previews (one HIGH: a never-settling read blocked all previews; two MEDIUM: refetch on every
+  revision bump, eviction of visible rows). codex reviewed the round (one P1: runtime error text persisted unscrubbed in the feed;
+  four P2: a stale pop-out feed overwriting events, a feed click on a hidden session selecting another row, and two directory-move
+  cases in the preview cache). All were fixed with regression tests; mutation probes confirmed the timeout and feed-selection tests.
+- Gates: UI 4107, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 239 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales; native WebMCP supervision-workspace, portfolio-identity, project-home and `e2e:desktop` passed.

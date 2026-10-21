@@ -67,8 +67,8 @@ const looksLikeCredential = (value: string): boolean => CREDENTIALS.some((patter
 
 const collapsed = (value: string): string => value.replace(/\s+/g, " ").trim()
 
-/** First non-empty line, with whitespace collapsed, capped at the preview limit. */
-const previewLine = (value: string): string | null => {
+/** First non-empty line, with whitespace collapsed, capped at the preview limit. Null when it looks like a credential. */
+export const previewLine = (value: string): string | null => {
   if (looksLikeCredential(value)) return null
   for (const line of value.split(/\r?\n/)) {
     const text = collapsed(line)

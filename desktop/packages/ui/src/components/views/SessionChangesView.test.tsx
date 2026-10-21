@@ -1,3 +1,4 @@
+import { getSafeStorage } from "@/stores/utils/safeStorage"
 import React, { act } from "react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
@@ -7,7 +8,11 @@ import type { RuntimeAPIs } from "@/lib/api/types"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { useGitStore } from "@/stores/useGitStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { reviewContentSignature, useReviewProgressStore } from "@/stores/useReviewProgressStore"
+import {
+  REVIEW_PROGRESS_STORAGE_KEY,
+  reviewContentSignature,
+  useReviewProgressStore,
+} from "@/stores/useReviewProgressStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
 
@@ -168,20 +173,20 @@ function SessionHarness({ scope, paneWidth }: { scope: "session" | "turn"; paneW
   return (
     <I18nProvider>
       <RuntimeAPIContext.Provider value={{ git: gitApi, files: {} } as unknown as RuntimeAPIs}>
-      <div ref={paneRef} tabIndex={0} data-review-changes>
-        <SessionChangesView
-          directory={DIRECTORY}
-          sessionID={SESSION}
-          scope={scope}
-          paneRef={paneRef}
-          paneWidth={paneWidth}
-          allowRail
-          selectedFile={selected}
-          onSelectFile={setSelected}
-          wrapLines={false}
-          onModelChange={onModelChange}
-        />
-      </div>
+        <div ref={paneRef} tabIndex={0} data-review-changes>
+          <SessionChangesView
+            directory={DIRECTORY}
+            sessionID={SESSION}
+            scope={scope}
+            paneRef={paneRef}
+            paneWidth={paneWidth}
+            allowRail
+            selectedFile={selected}
+            onSelectFile={setSelected}
+            wrapLines={false}
+            onModelChange={onModelChange}
+          />
+        </div>
       </RuntimeAPIContext.Provider>
     </I18nProvider>
   )
@@ -564,6 +569,28 @@ describe("session and last-turn review scopes", () => {
       expect(screen.queryByRole("alert")).toBeNull()
     })
 
+    test.each(["before-only", "identical"])("%s content after reload updates viewed state", async (change) => {
+      signal([syncedDiff(changedFile)])
+      request().mockResolvedValue(result([changedFile]))
+      render(renderScope())
+      await flush()
+      fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+      const saved = getSafeStorage().getItem(REVIEW_PROGRESS_STORAGE_KEY)!
+      cleanup()
+      useReviewProgressStore.setState({ marks: {} })
+      getSafeStorage().setItem(REVIEW_PROGRESS_STORAGE_KEY, saved)
+      await useReviewProgressStore.persist.rehydrate()
+
+      const refreshed = { ...changedFile, before: change === "before-only" ? "const value = 0\n" : changedFile.before }
+      request().mockResolvedValue(result([refreshed]))
+      render(renderScope())
+      await flush()
+      expect(screen.getByTestId("session-diff").getAttribute("data-original")).toBe(refreshed.before)
+      expect((screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }) as HTMLInputElement).checked).toBe(
+        change === "identical",
+      )
+    })
+
     test.each(["idle", "Retry"])(
       "viewed resets after a %s refetch changes content with identical counts",
       async (refresh) => {
@@ -575,7 +602,12 @@ describe("session and last-turn review scopes", () => {
         fireEvent.click(checkbox)
         expect(checkbox.checked).toBe(true)
         const progressScope = scope === "session" ? "session" : "turn:msg_last"
-        const signature = reviewContentSignature(changedFile.after, changedFile.status)
+        const signature = reviewContentSignature(
+          changedFile.before,
+          changedFile.after,
+          changedFile.status,
+          changedFile.file,
+        )
         expect(useReviewProgressStore.getState().isViewed(DIRECTORY, progressScope, changedFile.file, signature)).toBe(
           true,
         )
@@ -607,7 +639,7 @@ describe("session and last-turn review scopes", () => {
               DIRECTORY,
               progressScope,
               changedFile.file,
-              reviewContentSignature(rewritten.after, rewritten.status),
+              reviewContentSignature(rewritten.before, rewritten.after, rewritten.status, rewritten.file),
             ),
         ).toBe(false)
         expect(screen.getByTestId("session-diff").getAttribute("data-modified")).toBe(rewritten.after)
@@ -666,7 +698,9 @@ describe("session and last-turn review scopes", () => {
     harness.sessionDiff = [{ file: changedFile.file }]
     harness.messages = [{ id: "msg_last", role: "user", summary: { diffs: [{ file: changedFile.file }] } }] as never
     harness.diff.mockResolvedValue({ data: [changedFile] })
-    harness.message.mockResolvedValue({ data: { info: { id: "msg_last", role: "user", summary: { diffs: [changedFile] } } } })
+    harness.message.mockResolvedValue({
+      data: { info: { id: "msg_last", role: "user", summary: { diffs: [changedFile] } } },
+    })
     useSessionUIStore.setState({ currentSessionId: SESSION })
     renderReview()
     fireEvent.click(screen.getByRole("radio", { name: "This session" }))

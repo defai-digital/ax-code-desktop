@@ -95,7 +95,10 @@ function lastTurnUserMessage(messages: readonly unknown[]): { id: string; diffs:
     const role = info && typeof info === "object" && "role" in info ? info.role : message.role
     const id = info && typeof info === "object" && "id" in info ? info.id : message.id
     if (role === "user" && typeof id === "string" && id.length > 0) {
-      return { id, diffs: (info && typeof info === "object" ? info.summary?.diffs : undefined) ?? message.summary?.diffs }
+      return {
+        id,
+        diffs: (info && typeof info === "object" ? info.summary?.diffs : undefined) ?? message.summary?.diffs,
+      }
     }
   }
   return null
@@ -127,7 +130,8 @@ function normalizeFileDiffs(entries: readonly unknown[]): SessionFileDiff[] {
     if (!entry || typeof entry !== "object") continue
     const row = entry as Partial<SessionFileDiff>
     if (typeof row.file !== "string" || row.file.length === 0) continue
-    const status = row.status === "added" || row.status === "deleted" || row.status === "modified" ? row.status : undefined
+    const status =
+      row.status === "added" || row.status === "deleted" || row.status === "modified" ? row.status : undefined
     files.push({
       file: row.file,
       before: typeof row.before === "string" ? row.before : "",
@@ -267,7 +271,7 @@ export const SessionChangesView: React.FC<SessionChangesViewProps> = ({
         path: file.file,
         insertions: file.additions,
         deletions: file.deletions,
-        signature: reviewContentSignature(file.after, file.status ?? ""),
+        signature: reviewContentSignature(file.before, file.after, file.status ?? "", file.file),
         status: STATUS_PRESENTATION[file.status ?? "modified"],
       })),
     [loadedFiles],

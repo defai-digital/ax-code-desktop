@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Offene Threads erneut senden",
   "diffView.threads.empty": "Noch keine Review-Threads",
   "diffView.threads.originalLine": "{file}:{start}-{end} (urspr\u00fcngliche Position)",
-  "diffView.threads.originalLocation": "Urspr\u00fcngliche Position; dieser Ausschnitt ist veraltet oder wurde nicht mit dem aktuellen Diff abgeglichen."
+  "diffView.threads.originalLocation": "Urspr\u00fcngliche Position; dieser Ausschnitt ist veraltet oder wurde nicht mit dem aktuellen Diff abgeglichen.",
+  "app.embeddedSession.views": "Sitzungsansichten",
+  "app.embeddedSession.chat": "Chat",
+  "app.embeddedSession.changes": "\u00c4nderungen",
+  "diffView.rail.viewedFallback": "Der Status \u201eAngesehen\u201c basiert auf der Zeilenanzahl und kann \u00c4nderungen \u00fcbersehen",
+  "diffView.threads.marker": "Review-Thread in Zeilen {start}-{end} \u00f6ffnen",
+  "supervision.missionControl.child.open": "\u00d6ffnen",
+  "supervision.missionControl.child.openAria": "Untergeordneten Agenten {title} von {parent} \u00f6ffnen",
+  "supervision.missionControl.child.more": "+{count} weitere in Details",
+  "supervision.missionControl.feed.toggle": "Aktivit\u00e4t",
+  "supervision.missionControl.feed.toggleUnread": "Aktivit\u00e4t, {count} ungelesen",
+  "supervision.missionControl.feed.title": "Aktivit\u00e4t",
+  "supervision.missionControl.feed.listLabel": "Aktivit\u00e4t sitzungs\u00fcbergreifend",
+  "supervision.missionControl.feed.empty": "Noch keine Aktivit\u00e4t",
+  "supervision.missionControl.feed.markAllRead": "Alle als gelesen markieren",
+  "supervision.missionControl.feed.unread": "Ungelesen"
 }

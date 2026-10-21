@@ -482,9 +482,30 @@ const outcome = await runHarness({
         (f.contentDocument?.body?.innerText || '').includes('Fixture conversation for project B')
     })`, "project B's conversation renders beside the chat")
     await audit.wait('!document.querySelector("[data-mission-control]") && document.body.innerText.includes("Fixture conversation for project A")', "project A stays the main conversation")
+    const besideFrame = `Array.from(document.querySelectorAll('iframe')).find(f => (f.getAttribute('src') || '').includes(${JSON.stringify(encodeURIComponent(targets[1].id))}))`
+    // Both conversations keep their own composer, and a narrow panel grows so the pair can be compared.
+    await audit.wait(`(() => {
+      const frame = ${besideFrame}
+      const main = document.querySelector('[data-chat-input]')
+      const inner = frame?.contentDocument?.querySelector('[data-chat-input]')
+      return Boolean(main && main.checkVisibility() && inner && inner.checkVisibility() && frame.getBoundingClientRect().width >= 500)
+    })()`, "both sessions show a composer and the beside pane is wide")
     await capture("open-beside")
+    // The beside session carries its own review: its Changes tab shows project B's repository, not project A's.
+    await session.evaluate(`${besideFrame}.contentDocument.getElementById('embedded-session-tab-changes').click(); true`)
+    await audit.wait(`(() => {
+      const doc = ${besideFrame}?.contentDocument
+      const rendered = Array.from(doc?.querySelectorAll('diffs-container') || []).map(e => e.shadowRoot?.textContent || '').join(' ')
+      return Boolean(doc?.querySelector('[data-embedded-session-changes]')) && rendered.includes('Revised project 1') && !rendered.includes('Revised project 0')
+    })()`, "the beside session's Changes tab shows its own repository")
+    await capture("open-beside-changes")
+    await session.evaluate(`${besideFrame}.contentDocument.getElementById('embedded-session-tab-chat').click(); true`)
+    await audit.wait(`(() => {
+      const doc = ${besideFrame}?.contentDocument
+      return Boolean(doc?.querySelector('[data-chat-input]')?.checkVisibility()) && !doc.querySelector('[data-embedded-session-changes]')
+    })()`, "the beside session returns to its chat")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat, pane resizing and dark/light layouts" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes tab, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

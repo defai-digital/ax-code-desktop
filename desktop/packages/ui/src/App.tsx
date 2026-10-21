@@ -18,7 +18,7 @@ import { useWindowTitle } from "@/hooks/useWindowTitle"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { useAgentsStore } from "@/stores/useAgentsStore"
-import { hasModifier } from "@/lib/utils"
+import { cn, hasModifier } from "@/lib/utils"
 import { isDesktopLocalOriginActive, isDesktopShell, isTauriShell, restartDesktopApp } from "@/lib/desktop"
 import {
   getInjectedBootOutcome,
@@ -74,6 +74,10 @@ import {
 // Lazy-loaded heavy views — loaded on demand to reduce initial bundle size.
 const OnboardingScreen = lazyWithChunkRecovery(() =>
   import("@/components/onboarding/OnboardingScreen").then((m) => ({ default: m.OnboardingScreen })),
+)
+
+const DiffView = lazyWithChunkRecovery(() =>
+  import("@/components/views/DiffView").then((m) => ({ default: m.DiffView })),
 )
 
 const AboutDialogWrapper: React.FC = () => {
@@ -184,7 +188,11 @@ const EmbeddedSessionChatContent: React.FC<{
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const setCurrentSession = useSessionUIStore((state) => state.setCurrentSession)
   const sync = useSync()
+  const { t } = useI18n()
   const bootstrapKeyRef = React.useRef<string | null>(null)
+  // A session opened beside another one carries its own review, so its changes can be checked without leaving the
+  // pair. The chat stays mounted while hidden, so a half-written message survives the switch.
+  const [embeddedView, setEmbeddedView] = React.useState<"chat" | "changes">("chat")
 
   const expectedDirectory = normalizeEmbeddedDirectory(embeddedSessionChat.directory)
   const activeDirectory = normalizeEmbeddedDirectory(currentDirectory)
@@ -220,7 +228,55 @@ const EmbeddedSessionChatContent: React.FC<{
           tray snapshot only see this window's sessions. */}
       <SyncAppEffects embeddedBackgroundWorkEnabled={embeddedBackgroundWorkEnabled} globalHousekeepingEnabled={false} />
       <AxCodeUpdateToast />
-      <ChatView readOnly={embeddedSessionChat.readOnly} />
+      <div className="flex h-full min-h-0 flex-col">
+        <div
+          role="tablist"
+          aria-label={t("app.embeddedSession.views")}
+          className="flex h-8 shrink-0 items-center gap-1 border-b border-border/40 px-2"
+        >
+          {(["chat", "changes"] as const).map((view) => (
+            <button
+              key={view}
+              type="button"
+              role="tab"
+              id={`embedded-session-tab-${view}`}
+              aria-selected={embeddedView === view}
+              aria-controls={`embedded-session-panel-${view}`}
+              onClick={() => setEmbeddedView(view)}
+              className={cn(
+                "rounded px-2 py-0.5 typography-meta",
+                embeddedView === view
+                  ? "bg-[var(--interactive-selection)] text-foreground"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {t(view === "chat" ? "app.embeddedSession.chat" : "app.embeddedSession.changes")}
+            </button>
+          ))}
+        </div>
+        <div
+          id="embedded-session-panel-chat"
+          role="tabpanel"
+          aria-labelledby="embedded-session-tab-chat"
+          hidden={embeddedView !== "chat"}
+          className="min-h-0 flex-1"
+        >
+          <ChatView readOnly={embeddedSessionChat.readOnly} />
+        </div>
+        {embeddedView === "changes" ? (
+          <div
+            id="embedded-session-panel-changes"
+            role="tabpanel"
+            aria-labelledby="embedded-session-tab-changes"
+            className="min-h-0 flex-1"
+            data-embedded-session-changes
+          >
+            <React.Suspense fallback={null}>
+              <DiffView showOpenInEditorAction />
+            </React.Suspense>
+          </div>
+        ) : null}
+      </div>
       <Toaster />
     </>
   )

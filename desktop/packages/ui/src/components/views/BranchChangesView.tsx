@@ -9,20 +9,13 @@ import type { I18nKey } from "@/lib/i18n/store"
 import { getLanguageFromExtension } from "@/lib/toolHelpers"
 import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { reviewBranchFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
+import { useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
 import { PierreDiffViewer } from "./PierreDiffViewer"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
 
 /** Matches the review pane's side-by-side minimum. A branch diff also needs both sides. */
 const BRANCH_SIDE_BY_SIDE_MIN_WIDTH = 1100
 const BRANCH_RAIL_MIN_WIDTH = 640
-
-const branchDiffBaseMemory = new Map<string, string>()
-
-/** Drops remembered compare bases. Review choices live only in this process. */
-// eslint-disable-next-line react-refresh/only-export-components -- Test reset for the in-memory compare base, which has to live with this view.
-export function clearBranchDiffBaseMemory(): void {
-  branchDiffBaseMemory.clear()
-}
 
 export interface BranchChangesModel {
   phase: "loading" | "ready" | "error"
@@ -106,7 +99,8 @@ function normalizeBranchFiles(entries: readonly unknown[]): BranchFileDiff[] {
       binary: row.binary === true,
       tooLarge: row.tooLarge === true,
       previousFile: typeof row.previousFile === "string" ? row.previousFile : null,
-      beforeBlobId: typeof row.beforeBlobId === "string" ? row.beforeBlobId : row.beforeBlobId === null ? null : undefined,
+      beforeBlobId:
+        typeof row.beforeBlobId === "string" ? row.beforeBlobId : row.beforeBlobId === null ? null : undefined,
     })
   }
   files.sort((left, right) => left.file.localeCompare(right.file))
@@ -156,10 +150,10 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   const { t } = useI18n()
   const { git } = useRuntimeAPIs()
   const [directoryKey, setDirectoryKey] = React.useState(directory)
-  const [baseChoice, setBaseChoice] = React.useState(() => branchDiffBaseMemory.get(directory) ?? "")
+  const [baseChoice, setBaseChoice] = React.useState(() => useBranchReviewBaseStore.getState().bases[directory] ?? "")
   if (directoryKey !== directory) {
     setDirectoryKey(directory)
-    setBaseChoice(branchDiffBaseMemory.get(directory) ?? "")
+    setBaseChoice(useBranchReviewBaseStore.getState().bases[directory] ?? "")
   }
   const displayKey = `${directory}\0${baseChoice}`
   const [retryNonce, setRetryNonce] = React.useState(0)
@@ -172,10 +166,17 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
     let cancelled = false
     const choice = baseChoice
     void (async () => {
-      const branchPromise = git.getGitBranches(directory).catch(() => null)
+      const branchList = await git.getGitBranches(directory).catch(() => null)
+      if (cancelled || request !== requestSerial.current) return
+      const names = localBranchNames(branchList)
+      setBranchNames(names)
+      if (choice && !names.includes(choice)) {
+        useBranchReviewBaseStore.getState().setBase(directory, null)
+        setBaseChoice("")
+        return
+      }
       try {
         const diff = await git.getGitBranchDiff(directory, { base: choice || undefined })
-        const branchList = await branchPromise
         if (cancelled || request !== requestSerial.current) return
         setBranchNames(localBranchNames(branchList))
         setSnapshot({
@@ -188,7 +189,6 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
           error: null,
         })
       } catch (error) {
-        const branchList = await branchPromise.catch(() => null)
         if (cancelled || request !== requestSerial.current) return
         setBranchNames(localBranchNames(branchList))
         const message = error instanceof Error && error.message ? error.message : "Failed to load diff"
@@ -279,7 +279,7 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
 
   const chooseBase = (next: string) => {
     if (!next || next === baseChoice) return
-    branchDiffBaseMemory.set(directory, next)
+    useBranchReviewBaseStore.getState().setBase(directory, next)
     setBaseChoice(next)
   }
 
@@ -350,7 +350,12 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   const baseLabel: I18nKey = "diffView.branch.base"
 
   return (
-    <div className="session-changes" data-branch-changes data-branch-scope={progressScope} data-branch-base={resolvedBase}>
+    <div
+      className="session-changes"
+      data-branch-changes
+      data-branch-scope={progressScope}
+      data-branch-base={resolvedBase}
+    >
       {showRail ? (
         <ReviewFileRail
           directory={directory}

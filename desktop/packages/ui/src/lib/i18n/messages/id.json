@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Kirim ulang utas terbuka",
   "diffView.threads.empty": "Belum ada utas ulasan",
   "diffView.threads.originalLine": "{file}:{start}-{end} (lokasi asli)",
-  "diffView.threads.originalLocation": "Lokasi asli; cuplikan ini sudah kedaluwarsa atau belum diperiksa terhadap diff saat ini."
+  "diffView.threads.originalLocation": "Lokasi asli; cuplikan ini sudah kedaluwarsa atau belum diperiksa terhadap diff saat ini.",
+  "app.embeddedSession.views": "Tampilan sesi",
+  "app.embeddedSession.chat": "Obrolan",
+  "app.embeddedSession.changes": "Perubahan",
+  "diffView.rail.viewedFallback": "Status dilihat didasarkan pada jumlah baris dan dapat melewatkan penyuntingan",
+  "diffView.threads.marker": "Buka utas ulasan pada baris {start}-{end}",
+  "supervision.missionControl.child.open": "Buka",
+  "supervision.missionControl.child.openAria": "Buka agen turunan {title} dari {parent}",
+  "supervision.missionControl.child.more": "+{count} lainnya di detail",
+  "supervision.missionControl.feed.toggle": "Aktivitas",
+  "supervision.missionControl.feed.toggleUnread": "Aktivitas, {count} belum dibaca",
+  "supervision.missionControl.feed.title": "Aktivitas",
+  "supervision.missionControl.feed.listLabel": "Aktivitas di seluruh sesi",
+  "supervision.missionControl.feed.empty": "Belum ada aktivitas",
+  "supervision.missionControl.feed.markAllRead": "Tandai semua sudah dibaca",
+  "supervision.missionControl.feed.unread": "Belum dibaca"
 }

@@ -475,6 +475,48 @@
 .mission-control-board {
   container: mission-board / inline-size;
 }
+.mission-control-body {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.mission-control-main {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+.mission-activity-feed {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  min-height: 0;
+  max-height: 16rem;
+  overflow: hidden;
+  order: -1;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--sidebar) 30%, transparent);
+}
+.mission-activity-feed-list {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+@container mission-board (min-width: 52rem) {
+  .mission-control-body {
+    flex-direction: row;
+  }
+  .mission-activity-feed {
+    order: 1;
+    width: 22rem;
+    max-height: none;
+    border-bottom: 0;
+    border-left: 1px solid var(--border);
+  }
+}
 .mission-control-row {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) minmax(0, auto);

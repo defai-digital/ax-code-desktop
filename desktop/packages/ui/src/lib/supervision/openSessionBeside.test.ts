@@ -2,13 +2,20 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const harness = vi.hoisted(() => ({
   openContextPanelTab: vi.fn(),
+  setContextPanelWidth: vi.fn(),
+  width: undefined as number | undefined,
   activeMainTab: "chat",
   setState: vi.fn(),
   currentDirectory: "/repo/a" as string | undefined,
 }))
 vi.mock("@/stores/useUIStore", () => ({
   useUIStore: {
-    getState: () => ({ openContextPanelTab: harness.openContextPanelTab, activeMainTab: harness.activeMainTab }),
+    getState: () => ({
+      openContextPanelTab: harness.openContextPanelTab,
+      setContextPanelWidth: harness.setContextPanelWidth,
+      activeMainTab: harness.activeMainTab,
+      contextPanelByDirectory: harness.width === undefined ? {} : { "/repo/a": { width: harness.width } },
+    }),
     setState: harness.setState,
   },
 }))
@@ -20,6 +27,8 @@ describe("openSessionBeside", () => {
   beforeEach(() => {
     harness.openContextPanelTab.mockClear()
     harness.setState.mockClear()
+    harness.setContextPanelWidth.mockClear()
+    harness.width = undefined
     harness.activeMainTab = "chat"
     harness.currentDirectory = "/repo/a"
   })
@@ -46,5 +55,20 @@ describe("openSessionBeside", () => {
     expect(openSessionBeside({ sessionId: "ses_b", directory: null, title: "Other" })).toBe(false)
     expect(openSessionBeside({ sessionId: "", directory: "/repo/b", title: "Other" })).toBe(false)
     expect(harness.openContextPanelTab).not.toHaveBeenCalled()
+  })
+
+  test("widens a narrow panel to half the window and keeps a wider one", () => {
+    vi.stubGlobal("innerWidth", 1600)
+    try {
+      harness.width = 380
+      openSessionBeside({ sessionId: "ses_b", directory: "/repo/b", title: "Other" })
+      expect(harness.setContextPanelWidth).toHaveBeenCalledWith("/repo/a", 800)
+      harness.setContextPanelWidth.mockClear()
+      harness.width = 1000
+      openSessionBeside({ sessionId: "ses_b", directory: "/repo/b", title: "Other" })
+      expect(harness.setContextPanelWidth).not.toHaveBeenCalled()
+    } finally {
+      vi.unstubAllGlobals()
+    }
   })
 })

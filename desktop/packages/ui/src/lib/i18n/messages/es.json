@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Reenviar los hilos abiertos",
   "diffView.threads.empty": "A\u00fan no hay hilos de revisi\u00f3n",
   "diffView.threads.originalLine": "{file}:{start}-{end} (ubicaci\u00f3n original)",
-  "diffView.threads.originalLocation": "Ubicaci\u00f3n original; este fragmento est\u00e1 obsoleto o no se ha comprobado contra el diff actual."
+  "diffView.threads.originalLocation": "Ubicaci\u00f3n original; este fragmento est\u00e1 obsoleto o no se ha comprobado contra el diff actual.",
+  "app.embeddedSession.views": "Vistas de sesi\u00f3n",
+  "app.embeddedSession.chat": "Chat",
+  "app.embeddedSession.changes": "Cambios",
+  "diffView.rail.viewedFallback": "El estado visto se basa en el n\u00famero de l\u00edneas y puede pasar por alto ediciones",
+  "diffView.threads.marker": "Abrir hilo de revisi\u00f3n en las l\u00edneas {start}-{end}",
+  "supervision.missionControl.child.open": "Abrir",
+  "supervision.missionControl.child.openAria": "Abrir agente secundario {title} de {parent}",
+  "supervision.missionControl.child.more": "+{count} m\u00e1s en detalles",
+  "supervision.missionControl.feed.toggle": "Actividad",
+  "supervision.missionControl.feed.toggleUnread": "Actividad, {count} sin leer",
+  "supervision.missionControl.feed.title": "Actividad",
+  "supervision.missionControl.feed.listLabel": "Actividad en todas las sesiones",
+  "supervision.missionControl.feed.empty": "A\u00fan no hay actividad",
+  "supervision.missionControl.feed.markAllRead": "Marcar todo como le\u00eddo",
+  "supervision.missionControl.feed.unread": "Sin leer"
 }

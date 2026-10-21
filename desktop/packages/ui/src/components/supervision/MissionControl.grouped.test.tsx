@@ -3,6 +3,21 @@ import { cleanup, fireEvent, render, screen, within } from "@/test/dom"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 
+const previewSdk = vi.hoisted(() => ({ messages: vi.fn() }))
+vi.mock("@/lib/ax-code/client", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/lib/ax-code/client")>()
+  return {
+    ...original,
+    axCodeClient: new Proxy(original.axCodeClient, {
+      get(target, key) {
+        return key === "getScopedSdkClient"
+          ? () => ({ session: { messages: previewSdk.messages } })
+          : Reflect.get(target, key)
+      },
+    }),
+  }
+})
+
 vi.mock("@/lib/i18n", async () => {
   const { dict } = await import("@/lib/i18n/messages/en")
   return {
@@ -10,6 +25,7 @@ vi.mock("@/lib/i18n", async () => {
       t: (key: keyof typeof dict, params: Record<string, string | number> = {}) =>
         (dict[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) => String(params[name] ?? name)),
       number: (value: number) => String(value),
+      relativeTime: (value: number, unit: string) => `${value} ${unit}`,
     }),
   }
 })
@@ -34,6 +50,7 @@ import { readPersistedSupervision, useSupervisionStore } from "@/stores/useSuper
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { openSessionBeside } from "@/lib/supervision/openSessionBeside"
 import { MissionControl } from "./MissionControl"
+import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
 
 const row = (sessionId: string, projectId: string, state: SupervisionRow["state"]): SupervisionRow => ({
   sessionId,
@@ -51,6 +68,7 @@ const row = (sessionId: string, projectId: string, state: SupervisionRow["state"
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true
   vi.clearAllMocks()
+  previewSdk.messages.mockResolvedValue({ data: [] })
   useDirectoryStore.setState({ homeDirectory: "/home/me" })
   Element.prototype.scrollIntoView = vi.fn()
   useSupervisionStore.setState({
@@ -232,5 +250,76 @@ describe("Mission Control grouped board", () => {
     key(" ")
     fireEvent.click(screen.getByRole("button", { name: "Open beside current chat" }))
     expect(openSessionBeside).toHaveBeenCalledTimes(1)
+  })
+})
+
+test("remote previews reach rendered roots while collapsed and filtered roots stay unfetched", async () => {
+  const roots = [
+    row("preview-a", "alpha", "running"),
+    row("preview-b", "alpha", "running"),
+    row("preview-c", "beta", "running"),
+    row("preview-idle", "beta", "idle"),
+  ]
+  useSupervisionStore.setState({ rows: roots })
+  const resolve: Array<(value: unknown) => void> = []
+  previewSdk.messages.mockImplementation(() => new Promise((done) => resolve.push(done)))
+  render(<MissionControl />)
+  expect(previewSdk.messages.mock.calls.map(([input]) => input.sessionID)).toEqual(["preview-a", "preview-b"])
+  fireEvent.click(screen.getByRole("button", { name: "Collapse Beta" }))
+  await act(async () => {
+    resolve[0]({
+      data: [{ info: { id: "m", role: "assistant" }, parts: [{ type: "text", text: "Remote work summary" }] }],
+    })
+    resolve[1]({ data: [] })
+  })
+  expect(screen.getByText("Remote work summary")).toBeTruthy()
+  expect(previewSdk.messages).toHaveBeenCalledTimes(2)
+  expect(useSupervisionStore.getState().rows).toBe(roots)
+  fireEvent.click(screen.getByRole("button", { name: "Expand Beta" }))
+  expect(previewSdk.messages.mock.calls.map(([input]) => input.sessionID)).toEqual([
+    "preview-a",
+    "preview-b",
+    "preview-c",
+  ])
+  const live = { ...roots[0], activity: { kind: "todo" as const, text: "Working on: live work" } }
+  act(() => useSupervisionStore.setState({ rows: [live, ...roots.slice(1)] }))
+  expect(screen.queryByText("Remote work summary")).toBeNull()
+  expect(screen.getByText("Working on: live work")).toBeTruthy()
+  cleanup()
+  await act(async () => {
+    resolve[2]({ data: [] })
+  })
+  expect(previewSdk.messages).toHaveBeenCalledTimes(3)
+
+})
+
+describe("Mission Control activity feed", () => {
+  test("a feed item selects a visible row, opens a hidden session, and never substitutes another row", () => {
+    const feedEvent = (sessionId: string) => ({
+      id: `e-${sessionId}`,
+      sessionId,
+      title: `Task ${sessionId}`,
+      projectLabel: null,
+      directory: null,
+      from: "running" as const,
+      to: "question" as const,
+      at: 5,
+      preview: null,
+    })
+    useActivityFeedStore.setState({ events: [feedEvent("b1"), feedEvent("a2"), feedEvent("gone")], seenAt: 0 })
+    render(<MissionControl />)
+    fireEvent.click(document.querySelector<HTMLButtonElement>("[data-mission-control-activity]")!)
+    const item = (sessionId: string) =>
+      document.querySelector<HTMLButtonElement>(`[data-activity-session="${sessionId}"]`)!
+    fireEvent.click(item("b1"))
+    expect(selected()).toBe("mission-row-b1")
+    fireEvent.click(screen.getByRole("button", { name: "Collapse Alpha" }))
+    fireEvent.click(item("a2"))
+    expect(openSupervisedSession).toHaveBeenCalledWith(expect.objectContaining({ sessionId: "a2" }))
+    vi.mocked(openSupervisedSession).mockClear()
+    fireEvent.click(item("gone"))
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+    expect(selected()).toBe("mission-row-b1")
+    useActivityFeedStore.setState({ events: [], seenAt: 0 })
   })
 })

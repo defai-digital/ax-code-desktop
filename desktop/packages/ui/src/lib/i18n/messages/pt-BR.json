@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "Reenviar as threads abertas",
   "diffView.threads.empty": "Ainda n\u00e3o h\u00e1 threads de revis\u00e3o",
   "diffView.threads.originalLine": "{file}:{start}-{end} (local original)",
-  "diffView.threads.originalLocation": "Local original; este trecho est\u00e1 desatualizado ou n\u00e3o foi verificado em rela\u00e7\u00e3o ao diff atual."
+  "diffView.threads.originalLocation": "Local original; este trecho est\u00e1 desatualizado ou n\u00e3o foi verificado em rela\u00e7\u00e3o ao diff atual.",
+  "app.embeddedSession.views": "Visualiza\u00e7\u00f5es de sess\u00e3o",
+  "app.embeddedSession.chat": "Chat",
+  "app.embeddedSession.changes": "Altera\u00e7\u00f5es",
+  "diffView.rail.viewedFallback": "O estado visualizado \u00e9 baseado na contagem de linhas e pode n\u00e3o detectar edi\u00e7\u00f5es",
+  "diffView.threads.marker": "Abrir thread de revis\u00e3o nas linhas {start}-{end}",
+  "supervision.missionControl.child.open": "Abrir",
+  "supervision.missionControl.child.openAria": "Abrir agente filho {title} de {parent}",
+  "supervision.missionControl.child.more": "+{count} mais em detalhes",
+  "supervision.missionControl.feed.toggle": "Atividade",
+  "supervision.missionControl.feed.toggleUnread": "Atividade, {count} n\u00e3o lidas",
+  "supervision.missionControl.feed.title": "Atividade",
+  "supervision.missionControl.feed.listLabel": "Atividade em todas as sess\u00f5es",
+  "supervision.missionControl.feed.empty": "Nenhuma atividade ainda",
+  "supervision.missionControl.feed.markAllRead": "Marcar tudo como lido",
+  "supervision.missionControl.feed.unread": "N\u00e3o lidas"
 }

@@ -5022,5 +5022,20 @@
   "diffView.threads.resend": "G\u1eedi l\u1ea1i c\u00e1c lu\u1ed3ng \u0111ang m\u1edf",
   "diffView.threads.empty": "Ch\u01b0a c\u00f3 lu\u1ed3ng \u0111\u00e1nh gi\u00e1 n\u00e0o",
   "diffView.threads.originalLine": "{file}:{start}-{end} (v\u1ecb tr\u00ed g\u1ed1c)",
-  "diffView.threads.originalLocation": "V\u1ecb tr\u00ed g\u1ed1c; \u0111o\u1ea1n n\u00e0y \u0111\u00e3 c\u0169 ho\u1eb7c ch\u01b0a \u0111\u01b0\u1ee3c \u0111\u1ed1i chi\u1ebfu v\u1edbi b\u1ea3n diff hi\u1ec7n t\u1ea1i."
+  "diffView.threads.originalLocation": "V\u1ecb tr\u00ed g\u1ed1c; \u0111o\u1ea1n n\u00e0y \u0111\u00e3 c\u0169 ho\u1eb7c ch\u01b0a \u0111\u01b0\u1ee3c \u0111\u1ed1i chi\u1ebfu v\u1edbi b\u1ea3n diff hi\u1ec7n t\u1ea1i.",
+  "app.embeddedSession.views": "Ch\u1ebf \u0111\u1ed9 xem phi\u00ean",
+  "app.embeddedSession.chat": "Tr\u00f2 chuy\u1ec7n",
+  "app.embeddedSession.changes": "Thay \u0111\u1ed5i",
+  "diffView.rail.viewedFallback": "Tr\u1ea1ng th\u00e1i \u0111\u00e3 xem d\u1ef1a tr\u00ean s\u1ed1 d\u00f2ng v\u00e0 c\u00f3 th\u1ec3 b\u1ecf qua c\u00e1c ch\u1ec9nh s\u1eeda",
+  "diffView.threads.marker": "M\u1edf lu\u1ed3ng xem x\u00e9t tr\u00ean c\u00e1c d\u00f2ng {start}-{end}",
+  "supervision.missionControl.child.open": "M\u1edf",
+  "supervision.missionControl.child.openAria": "M\u1edf t\u00e1c nh\u00e2n con {title} c\u1ee7a {parent}",
+  "supervision.missionControl.child.more": "+{count} n\u1eefa trong chi ti\u1ebft",
+  "supervision.missionControl.feed.toggle": "Ho\u1ea1t \u0111\u1ed9ng",
+  "supervision.missionControl.feed.toggleUnread": "Ho\u1ea1t \u0111\u1ed9ng, {count} ch\u01b0a \u0111\u1ecdc",
+  "supervision.missionControl.feed.title": "Ho\u1ea1t \u0111\u1ed9ng",
+  "supervision.missionControl.feed.listLabel": "Ho\u1ea1t \u0111\u1ed9ng tr\u00ean c\u00e1c phi\u00ean",
+  "supervision.missionControl.feed.empty": "Ch\u01b0a c\u00f3 ho\u1ea1t \u0111\u1ed9ng n\u00e0o",
+  "supervision.missionControl.feed.markAllRead": "\u0110\u00e1nh d\u1ea5u t\u1ea5t c\u1ea3 \u0111\u00e3 \u0111\u1ecdc",
+  "supervision.missionControl.feed.unread": "Ch\u01b0a \u0111\u1ecdc"
 }

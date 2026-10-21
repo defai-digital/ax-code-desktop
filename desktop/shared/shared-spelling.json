@@ -224,6 +224,7 @@
     "settings.hooks.list.source.pack"
   ],
   "de": [
+    "app.embeddedSession.chat",
     "diffView.scope.branch",
     "aboutDialog.versionLabel",
     "agentManager.empty.agent.label",
@@ -428,6 +429,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "pt-BR": [
+    "app.embeddedSession.chat",
     "diffView.scope.branch",
     "agentManager.empty.prompt.label",
     "agentManager.sidebar.relativeTime.days",
@@ -510,6 +512,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "it": [
+    "app.embeddedSession.chat",
     "diffView.scope.branch",
     "supervision.evidence.summarySingle",
     "supervision.missionControl.filesSingle",
@@ -679,6 +682,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "es": [
+    "app.embeddedSession.chat",
     "branchPickerDialog.badge.worktree",
     "chat.chatInput.executionMode.manual",
     "chat.chatInput.sandbox.title",

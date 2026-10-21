@@ -1,5 +1,8 @@
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"
+
+const BESIDE_WIDTH_SHARE = 0.5
 
 /**
  * Shows another session in the context panel beside the current chat, with its own composer, so two sessions can be
@@ -16,6 +19,13 @@ export function openSessionBeside(target: { sessionId: string; directory: string
     label: target.title,
     targetPath: sessionDirectory,
   })
+  // Two sessions need room to be compared, so a narrow panel grows to about half the window. A wider panel the user
+  // dragged stays as it is; the panel itself still keeps the chat's minimum width.
+  const viewportWidth = typeof window === "undefined" ? 0 : window.innerWidth
+  const besideWidth = Math.round(viewportWidth * BESIDE_WIDTH_SHARE)
+  const panelKey = normalizeProjectPath(panelDirectory) ?? panelDirectory
+  const currentWidth = useUIStore.getState().contextPanelByDirectory?.[panelKey]?.width ?? 0
+  if (besideWidth > currentWidth) useUIStore.getState().setContextPanelWidth(panelDirectory, besideWidth)
   // The context panel sits beside the chat itself; the chat must be the visible main view for it to show.
   const ui = useUIStore.getState()
   if (ui.activeMainTab !== "chat") useUIStore.setState({ activeMainTab: "chat" })

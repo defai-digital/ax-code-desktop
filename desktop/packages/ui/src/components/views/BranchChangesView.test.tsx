@@ -10,7 +10,8 @@ import { useUIStore } from "@/stores/useUIStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { cleanup, fireEvent, render, screen } from "@/test/dom"
 
-import { clearBranchDiffBaseMemory } from "./BranchChangesView"
+import { BRANCH_REVIEW_BASE_STORAGE_KEY, useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
+import { getSafeStorage } from "@/stores/utils/safeStorage"
 import { DiffView } from "./DiffView"
 
 const DIRECTORY = "/repo"
@@ -33,12 +34,7 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
 }))
 
 vi.mock("./PierreDiffViewer", () => ({
-  PierreDiffViewer: (props: {
-    original: string
-    modified: string
-    renderSideBySide: boolean
-    fileName?: string
-  }) =>
+  PierreDiffViewer: (props: { original: string; modified: string; renderSideBySide: boolean; fileName?: string }) =>
     React.createElement("div", {
       "data-testid": "branch-diff",
       "data-original": props.original,
@@ -67,12 +63,14 @@ const gitApi = {
   getCurrentGitIdentity: vi.fn(async () => null),
   getGitFileDiff: vi.fn(async () => ({ original: "", modified: "", path: "" })),
   getGitDiff: vi.fn(async () => ({ diff: "" })),
-  getGitBranchDiff: vi.fn(async (_directory: string, options?: { base?: string }): Promise<GitBranchDiffResponse> => ({
-    base: options?.base || "main",
-    mergeBase: "a".repeat(40),
-    truncated: false,
-    files: harness.files,
-  })),
+  getGitBranchDiff: vi.fn(
+    async (_directory: string, options?: { base?: string }): Promise<GitBranchDiffResponse> => ({
+      base: options?.base || "main",
+      mergeBase: "a".repeat(40),
+      truncated: false,
+      files: harness.files,
+    }),
+  ),
 }
 
 const changedFile: GitBranchFileDiff = {
@@ -113,7 +111,9 @@ function seedGit(directory = DIRECTORY, isGitRepo = true) {
 function ReviewHarness({ showOpen = false }: { showOpen?: boolean }) {
   return (
     <I18nProvider>
-      <RuntimeAPIContext.Provider value={{ git: gitApi, files: { readFile: harness.readFile } } as unknown as RuntimeAPIs}>
+      <RuntimeAPIContext.Provider
+        value={{ git: gitApi, files: { readFile: harness.readFile } } as unknown as RuntimeAPIs}
+      >
         <DiffView showOpenInEditorAction={showOpen} />
       </RuntimeAPIContext.Provider>
     </I18nProvider>
@@ -166,7 +166,7 @@ describe("branch review scope", () => {
     gitApi.getGitFileDiff.mockClear()
     gitApi.getGitDiff.mockClear()
     gitApi.checkIsGitRepository.mockResolvedValue(true)
-    clearBranchDiffBaseMemory()
+    useBranchReviewBaseStore.setState({ bases: {} })
     useSessionUIStore.setState({ currentSessionId: null })
     useReviewProgressStore.setState({ marks: {} })
     useUIStore.setState({
@@ -217,7 +217,7 @@ describe("branch review scope", () => {
     expect(select.value).toBe("main")
   })
 
-  test("the compare base is remembered per directory", async () => {
+  test("the compare base is restored from storage per directory", async () => {
     renderReview()
     await openBranch()
     fireEvent.change(screen.getByRole("combobox", { name: "Compare base" }), { target: { value: "feature" } })
@@ -225,6 +225,10 @@ describe("branch review scope", () => {
     expect(gitApi.getGitBranchDiff).toHaveBeenLastCalledWith(DIRECTORY, { base: "feature" })
 
     cleanup()
+    const saved = getSafeStorage().getItem(BRANCH_REVIEW_BASE_STORAGE_KEY)!
+    useBranchReviewBaseStore.setState({ bases: {} })
+    getSafeStorage().setItem(BRANCH_REVIEW_BASE_STORAGE_KEY, saved)
+    await useBranchReviewBaseStore.persist.rehydrate()
     gitApi.getGitBranchDiff.mockClear()
     const view = renderReview()
     await openBranch()
@@ -237,6 +241,35 @@ describe("branch review scope", () => {
     await flush()
     expect(gitApi.getGitBranchDiff).toHaveBeenCalledWith(OTHER_DIRECTORY, { base: undefined })
     expect((screen.getByRole("combobox", { name: "Compare base" }) as HTMLSelectElement).value).toBe("main")
+  })
+
+  test("a restored base missing from the branch list silently uses the default", async () => {
+    getSafeStorage().setItem(
+      BRANCH_REVIEW_BASE_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: { bases: { [DIRECTORY]: "removed-branch" } },
+      }),
+    )
+    await useBranchReviewBaseStore.persist.rehydrate()
+    renderReview()
+    await openBranch()
+    expect(gitApi.getGitBranchDiff).toHaveBeenCalledExactlyOnceWith(DIRECTORY, { base: undefined })
+    expect((screen.getByRole("combobox", { name: "Compare base" }) as HTMLSelectElement).value).toBe("main")
+    expect(screen.queryByRole("alert")).toBeNull()
+    expect(useBranchReviewBaseStore.getState().bases[DIRECTORY]).toBeUndefined()
+  })
+
+  test.each(["binary", "tooLarge"] as const)("viewed %s branch files show the fallback marker", async (flag) => {
+    harness.files = [{ ...changedFile, [flag]: true }]
+    renderReview()
+    await openBranch()
+    const label = "Viewed state is based on line counts and may miss edits"
+    expect(screen.queryByRole("img", { name: label })).toBeNull()
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    expect(screen.getByRole("img", { name: label }).getAttribute("title")).toBe(label)
+    fireEvent.click(screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }))
+    expect(screen.queryByRole("img", { name: label })).toBeNull()
   })
 
   test("empty, error, and loading states", async () => {
@@ -305,7 +338,7 @@ describe("branch review scope", () => {
     expect(screen.getByTestId("branch-diff").getAttribute("data-file")).toBe("src/a.ts")
 
     fireEvent.keyDown(pane, { key: "v" })
-    const signature = reviewContentSignature(changedFile.after, changedFile.status)
+    const signature = reviewContentSignature("", changedFile.after, changedFile.status, changedFile.file)
     expect((screen.getByRole("checkbox", { name: "Mark a.ts as viewed" }) as HTMLInputElement).checked).toBe(true)
     expect(useReviewProgressStore.getState().isViewed(DIRECTORY, "branch:main", changedFile.file, signature)).toBe(true)
     expect(screen.getByTestId("branch-diff").getAttribute("data-file")).toBe("src/b.ts")
@@ -326,7 +359,12 @@ describe("branch review scope", () => {
     expect(
       useReviewProgressStore
         .getState()
-        .isViewed(DIRECTORY, "branch:main", rewritten.file, reviewContentSignature(rewritten.after, rewritten.status)),
+        .isViewed(
+          DIRECTORY,
+          "branch:main",
+          rewritten.file,
+          reviewContentSignature("", rewritten.after, rewritten.status, rewritten.file),
+        ),
     ).toBe(false)
     expect(screen.getByTestId("branch-diff").getAttribute("data-modified")).toBe(rewritten.after)
   })

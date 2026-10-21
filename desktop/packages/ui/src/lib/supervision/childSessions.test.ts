@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { childSessionSummaries, type ChildSessionSummary } from "./childSessions"
+import { childSessionSummaries, inlineChildSessions, type ChildSessionSummary } from "./childSessions"
 
 const child = (sessionId: string, state: ChildSessionSummary["state"], title = sessionId): ChildSessionSummary => ({
   sessionId,
@@ -24,5 +24,21 @@ describe("childSessionSummaries", () => {
     const sessions = new Map([["a", child("a", "review")]])
     expect(childSessionSummaries("root", ["root"], sessions)).toEqual([])
     expect(childSessionSummaries("root", ["missing", "a", "root", "a"], sessions)).toEqual([sessions.get("a")])
+  })
+})
+
+describe("inlineChildSessions", () => {
+  test("puts children that need a person first, newest first within a state, and counts the rest", () => {
+    const children = [
+      { ...child("idle-new", "idle"), updatedAt: 9000 },
+      { ...child("run-old", "running"), updatedAt: 1000 },
+      { ...child("run-new", "running"), updatedAt: 5000 },
+      child("asks", "question"),
+      child("idle-old", "idle"),
+    ]
+    const { shown, hidden } = inlineChildSessions(children)
+    expect(shown.map((entry) => entry.sessionId)).toEqual(["asks", "run-new", "run-old"])
+    expect(hidden).toBe(2)
+    expect(inlineChildSessions(undefined)).toEqual({ shown: [], hidden: 0 })
   })
 })

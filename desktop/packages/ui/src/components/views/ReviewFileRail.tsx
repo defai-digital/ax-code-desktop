@@ -199,6 +199,16 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
                     onClick={(event) => event.stopPropagation()}
                   />
                 </label>
+                {row.viewed && row.fallback ? (
+                  <span
+                    role="img"
+                    aria-label={t("diffView.rail.viewedFallback")}
+                    title={t("diffView.rail.viewedFallback")}
+                    className="mr-1 shrink-0 text-muted-foreground"
+                  >
+                    <Icon name="information" className="h-3 w-3" aria-hidden="true" />
+                  </span>
+                ) : null}
               </li>
             )
           })}
@@ -229,7 +239,8 @@ export const ReviewProgressCompact = React.memo<ReviewProgressCompactProps>(
     if (files.length === 0) return null
     const viewedCount = files.reduce(
       (count, file) =>
-        count + (marks[reviewProgressKey(directory, scope, file.path)] === railSignature(file, scope).signature ? 1 : 0),
+        count +
+        (marks[reviewProgressKey(directory, scope, file.path)] === railSignature(file, scope).signature ? 1 : 0),
       0,
     )
     const selected = selectedFile ? files.find((file) => file.path === selectedFile) : undefined

@@ -27,6 +27,10 @@ import { getDefaultTheme } from "@/lib/theme/themes"
 import { useDeviceInfo } from "@/lib/device"
 import { cn } from "@/lib/utils"
 import { RegisterReviewThreadContentContext } from "@/components/comments/ReviewThreadAnchorContext"
+import type { AnchoredReviewThread } from "@/components/comments/PierreDiffCommentUtils"
+import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { reanchorThread } from "@/lib/reanchorThread"
+import { EMPTY_REVIEW_THREADS, useReviewThreadStore } from "@/stores/useReviewThreadStore"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -207,6 +211,27 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   useEffect(() => {
     if (fileName) return registerThreadContent?.(fileName, { original, modified })
   }, [fileName, original, modified, registerThreadContent])
+  const threadDirectory = useEffectiveDirectory()
+  const directoryThreads = useReviewThreadStore((state) =>
+    threadDirectory ? (state.threadsByDirectory[threadDirectory] ?? EMPTY_REVIEW_THREADS) : EMPTY_REVIEW_THREADS,
+  )
+  // Open threads on this file follow the code they were written about; outdated ones stay in the thread list.
+  const anchoredThreads = useMemo<AnchoredReviewThread[]>(() => {
+    if (!fileName) return []
+    const result: AnchoredReviewThread[] = []
+    for (const thread of directoryThreads) {
+      if (thread.status !== "open" || thread.fileLabel !== fileName) continue
+      const anchor = reanchorThread(thread.code, thread.side === "original" ? original : modified, thread.startLine)
+      if (anchor.status === "anchored") result.push({ thread, startLine: anchor.startLine, endLine: anchor.endLine })
+    }
+    return result
+  }, [directoryThreads, fileName, modified, original])
+  const resolveThread = useCallback(
+    (threadId: string) => {
+      if (threadDirectory) useReviewThreadStore.getState().setStatus(threadDirectory, threadId, "resolved")
+    },
+    [threadDirectory],
+  )
   const themeContext = useOptionalThemeSystem()
 
   const isDark = themeContext?.currentTheme.metadata.variant === "dark"
@@ -499,8 +524,9 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       drafts: fileDrafts,
       editingDraftId,
       selection,
+      threads: anchoredThreads,
     })
-  }, [editingDraftId, fileDrafts, selection])
+  }, [anchoredThreads, editingDraftId, fileDrafts, selection])
 
   const lineAnnotationsRef = useRef(lineAnnotations)
 
@@ -757,6 +783,8 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
         startEdit(draft)
       }}
       onDelete={deleteDraft}
+      threads={anchoredThreads}
+      onResolveThread={resolveThread}
     />
   )
 
