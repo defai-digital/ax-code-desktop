@@ -34,6 +34,7 @@ type BrowserStatus = {
   visible?: boolean
   waiting?: boolean
   paused?: boolean
+  stoppedCalls?: number
   error?: WebMcpBrowserErrorCode | null
   reason?: "runtime-incompatible" | "enable-failed" | "session-required"
   enabled: boolean
@@ -85,6 +86,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const browserId = useWebMcpBrowserValue((state) => state.browserId, key)
   const phase = useWebMcpBrowserValue((state) => state.phase, key)
   const paused = useWebMcpBrowserValue((state) => state.paused, key)
+  const waiting = useWebMcpBrowserValue((state) => state.waiting, key)
   const enabled = useWebMcpBrowserValue((state) => state.enabled, key)
   const origin = useWebMcpBrowserValue((state) => state.origin, key)
   const nativeAvailable = useWebMcpBrowserValue((state) => state.nativeAvailable, key)
@@ -97,6 +99,16 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const draftUrl = React.useRef<{ directory: string; url: string } | null>({ directory, url: initialUrl })
   const [pendingAction, setPendingAction] = React.useState<string | null>(null)
   const host = React.useRef<HTMLDivElement>(null)
+  const [stoppedCalls, setStoppedCalls] = React.useState(0)
+  const accessControlRef = React.useRef<HTMLButtonElement>(null)
+  const focusAfterAction = React.useRef<Element | null>(null)
+  React.useLayoutEffect(() => {
+    if (busy || pendingAction || !focusAfterAction.current) return
+    if (document.activeElement === focusAfterAction.current || document.activeElement === document.body) {
+      ;(accessControlRef.current ?? addressRef.current)?.focus()
+    }
+    focusAfterAction.current = null
+  }, [busy, pendingAction])
   const addressRef = React.useRef<HTMLInputElement>(null)
   // The preview pane persists its URL whenever it unmounts; that must not recreate this browser.
   const initialUrlRef = React.useRef(initialUrl)
@@ -176,6 +188,8 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     const lifecycle = ++lifecycleRef.current
     commandErrorRef.current = null
     setPendingAction(null)
+    setStoppedCalls(0)
+    focusAfterAction.current = null
     useWebMcpBrowserStore.getState().selectView(directory, sessionID)
     updateSnapshot({ directory, sessionID })
     updateSnapshot({ phase: "starting" })
@@ -308,16 +322,24 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   }, [applyStatus, browserId, updateSnapshot])
 
   const command = React.useCallback(
-    async (action: "navigate" | "reload" | "enable" | "resume" | "disconnect", extra: Record<string, unknown> = {}) => {
+    async (
+      action: "navigate" | "reload" | "enable" | "pause" | "resume" | "disconnect",
+      extra: Record<string, unknown> = {},
+    ) => {
       if (!browserId || busy) return
       const lifecycle = lifecycleRef.current
       commandErrorRef.current = null
+      if (["pause", "resume", "disconnect"].includes(action)) {
+        focusAfterAction.current = document.activeElement
+        setStoppedCalls(0)
+      }
       setPendingAction(action)
       updateSnapshot({ busy: true, error: null })
       try {
         const result = await invoke<BrowserStatus>({ action, id: browserId, ...extra })
         if (lifecycleRef.current !== lifecycle) return
         applyStatus(result, lifecycle)
+        if (action === "pause" || action === "disconnect") setStoppedCalls(result.stoppedCalls ?? 0)
         // Access is on but there is no page to grant: the next step is a URL, so offer the address
         // bar unless the user is already typing (the composer chip keeps its own focus).
         if (action === "enable" && !result.origin && !textEntryFocused()) addressRef.current?.focus()
@@ -435,35 +457,63 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             {summary.detail}
           </span>
         </div>
-        {showErrorBanner ? null : paused ? (
-          <Button type="button" size="xs" disabled={!canEnable || busy} onClick={() => void command("resume")}>
-            {t("webmcp.actions.resume")}
-          </Button>
-        ) : sessionID && ready && !origin ? (
-          <Button type="button" size="xs" onClick={() => addressRef.current?.focus()}>
+        {paused || enabled ? (
+          <>
+            <Button
+              ref={accessControlRef}
+              type="button"
+              size="xs"
+              disabled={!ready || busy}
+              onClick={() => void command(paused ? "resume" : "pause")}
+            >
+              {t(paused ? "webmcp.actions.resumeAgent" : "webmcp.actions.pauseAgent")}
+            </Button>
+            <Button
+              type="button"
+              size="xs"
+              variant="outline"
+              disabled={!ready || busy}
+              onClick={() => void command("disconnect")}
+            >
+              {t("webmcp.actions.disconnect")}
+            </Button>
+          </>
+        ) : showErrorBanner ? null : sessionID && ready && !origin ? (
+          <Button ref={accessControlRef} type="button" size="xs" onClick={() => addressRef.current?.focus()}>
             {t("webmcp.actions.fix.address")}
-          </Button>
-        ) : enabled ? (
-          <Button
-            type="button"
-            size="xs"
-            variant="outline"
-            disabled={!ready || busy}
-            onClick={() => void command("disconnect")}
-          >
-            {t("webmcp.actions.disconnect")}
           </Button>
         ) : !sessionID ? (
           <Button type="button" size="xs" onClick={() => openProjectBrowser({ enable: true })}>
             {t("webmcp.actions.startSession")}
           </Button>
         ) : (
-          <Button type="button" size="xs" disabled={!canEnable || busy} onClick={() => void command("enable")}>
+          <Button
+            ref={accessControlRef}
+            type="button"
+            size="xs"
+            disabled={!canEnable || busy}
+            onClick={() => void command("enable")}
+          >
             {pendingAction === "enable" ? t("webmcp.actions.enabling") : t("webmcp.actions.enable")}
           </Button>
         )}
       </div>
 
+      <div role="status" aria-live="polite" aria-atomic="true">
+        {paused ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.browser.takeOver")}</p> : null}
+        {waiting ? (
+          <p className="px-2.5 py-1.5 typography-micro">
+            {t(paused ? "webmcp.browser.waitingForResume" : "webmcp.browser.waitingForPage")}
+          </p>
+        ) : null}
+        {stoppedCalls > 0 ? (
+          <p className="px-2.5 py-1.5 typography-micro">
+            {t(stoppedCalls === 1 ? "webmcp.browser.stoppedCall" : "webmcp.browser.stoppedCalls", {
+              count: stoppedCalls,
+            })}
+          </p>
+        ) : null}
+      </div>
       {!enabled && !paused && ready ? (
         <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
           {t("webmcp.browser.explanation")}

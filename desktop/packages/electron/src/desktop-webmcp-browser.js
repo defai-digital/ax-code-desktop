@@ -217,14 +217,46 @@ function createDesktopWebMcpBrowser({
     }
     if (visible(entry)) entry.waiting?.wake()
   }
+  const cancellationReply = (entry, connection, request, reason) =>
+    api(
+      entry.directory,
+      `/provider/${connection.providerID}/reply`,
+      "POST",
+      {
+        requestID: request.requestID,
+        generation: request.generation,
+        status: "Error",
+        output: { reason, message: "Agent access stopped. Changes already made on the page stay." },
+      },
+      AbortSignal.timeout(2000),
+    ).catch(() => {})
+
+  function stopAgentWork(entry, connection, reason) {
+    const work = [...entry.activeRequests.values()]
+    // Mark and cancel synchronously before any await; late completions cannot report success.
+    for (const item of work) item.cancel()
+    entry.activeRequests.clear()
+    return {
+      count: work.length,
+      replied: Promise.all(work.map(({ request }) => cancellationReply(entry, connection, request, reason))),
+    }
+  }
   async function disconnect(entry) {
     entry.revision = (entry.revision ?? 0) + 1
     const connection = entry.connection
+    const stopped = stopAgentWork(entry, connection, "agent-disconnected")
+    const held = entry.waiting?.request
     entry.connection = null
+    entry.paused = false
     entry.controller?.abort()
     entry.controller = null
     entry.waiting?.wake()
     entry.adapter.revoke({ cancelPageRequest: true })
+    if (stopped.count || held)
+      await Promise.all([
+        stopped.replied,
+        connection && held ? cancellationReply(entry, connection, held, "agent-disconnected") : Promise.resolve(),
+      ])
     // Teardown must not wait on a wedged runtime: quit and pane close both block
     // on this DELETE, and the default 20s timeout reads as a hang. The runtime
     // sweeps orphaned providers on its own, so a short bound is enough.
@@ -236,13 +268,18 @@ function createDesktopWebMcpBrowser({
         undefined,
         AbortSignal.timeout(2000),
       ).catch(() => {})
+    // A held call that never ran is failed too, so it counts as stopped for the person's acknowledgement.
+    return stopped.count + (held ? 1 : 0)
   }
   async function pause(entry) {
-    // Revoke the provider and all document references, but retain the loaded page.
-    // A fresh explicit enrollment is required; old queued requests cannot migrate.
+    // Keep the provider and document so held requests remain bound to this session/page.
+    entry.revision = (entry.revision ?? 0) + 1
     entry.paused = Boolean(entry.connection) || entry.paused || Boolean(entry.enrolling)
-    await disconnect(entry)
+    const stopped = stopAgentWork(entry, entry.connection, "agent-paused")
+    await stopped.replied
+    return stopped.count
   }
+
   async function close(entry) {
     if (entry.closed) return
     entry.closed = true
@@ -395,19 +432,19 @@ function createDesktopWebMcpBrowser({
   }
 
   async function waitUntilVisible(entry, request, signal) {
-    if (visible(entry)) return true
+    if (visible(entry) && !entry.paused) return true
     await new Promise((resolve) => {
       const wake = () => resolve()
       const timer = setTimeout(wake, Math.max(0, request.deadline - Date.now()))
       timer.unref?.()
-      entry.waiting = { wake, timer }
+      entry.waiting = { wake, timer, request }
       signal.addEventListener("abort", wake, { once: true })
     }).finally(() => {
       clearTimeout(entry.waiting?.timer)
       if (entry.waiting) signal.removeEventListener("abort", entry.waiting.wake)
       entry.waiting = null
     })
-    return !signal.aborted && visible(entry) && Date.now() < request.deadline
+    return !signal.aborted && visible(entry) && !entry.paused && Date.now() < request.deadline
   }
 
   async function run(entry, connection, signal) {
@@ -416,7 +453,7 @@ function createDesktopWebMcpBrowser({
       while (!signal.aborted && entry.connection === connection) {
         const batch = await api(entry.directory, `/provider/${connection.providerID}/next`, "GET", undefined, signal)
         // A poll may settle after its abort: never dispatch work from a retired provider.
-        if (signal.aborted || entry.connection !== connection || entry.paused) return
+        if (signal.aborted || entry.connection !== connection) return
         for (const id of batch.canceled ?? []) {
           canceled.add(id)
           entry.navigations.get(id)?.abort()
@@ -439,10 +476,16 @@ function createDesktopWebMcpBrowser({
         if (canceled.delete(request.requestID)) continue
         if (!Number.isFinite(request.deadline)) throw new Error("Browser request requires a deadline")
         const wasHidden = !visible(entry)
-        while (!visible(entry) && Date.now() < request.deadline && !signal.aborted && entry.connection === connection) {
+        const wasPaused = entry.paused
+        while (
+          (!visible(entry) || entry.paused) &&
+          Date.now() < request.deadline &&
+          !signal.aborted &&
+          entry.connection === connection
+        ) {
           await waitUntilVisible(entry, request, signal)
         }
-        if (signal.aborted || entry.connection !== connection || entry.paused) return
+        if (signal.aborted || entry.connection !== connection) return
         if (Date.now() >= request.deadline) {
           if (signal.aborted || entry.connection !== connection) return
           await api(
@@ -453,29 +496,48 @@ function createDesktopWebMcpBrowser({
               requestID: request.requestID,
               generation: request.generation,
               status: "Error",
-              output: { reason: wasHidden ? "waiting-for-visible-timeout" : "request-deadline-exceeded" },
+              output: {
+                reason: wasPaused
+                  ? "waiting-for-resume-timeout"
+                  : wasHidden
+                    ? "waiting-for-visible-timeout"
+                    : "request-deadline-exceeded",
+              },
             },
             signal,
           )
           continue
         }
         // Awaiting visibility never transfers a request to the newly shown page.
-        if (signal.aborted || entry.connection !== connection || entry.paused) return
+        if (signal.aborted || entry.connection !== connection) return
+        const work = {
+          request,
+          cancel: () => {
+            canceled.add(request.requestID)
+            entry.navigations.get(request.requestID)?.abort()
+            entry.adapter.cancel(request.requestID)
+          },
+        }
+        entry.activeRequests.set(request.requestID, work)
+        const finished = () => {
+          if (entry.activeRequests.get(request.requestID) === work) entry.activeRequests.delete(request.requestID)
+        }
         // Navigation is not a native tool call: the pane owns the load, so the
         // bridge performs it and replies with the document it opened.
         if (request.operation === "navigate") {
-          void serveNavigation(entry, connection, request, canceled, signal).catch(() => {
-            if (!signal.aborted) void disconnect(entry)
-          })
+          void serveNavigation(entry, connection, request, canceled, signal)
+            .finally(finished)
+            .catch(() => {
+              if (!signal.aborted) void disconnect(entry)
+            })
           continue
         }
         // Invocation and polling run concurrently so abort can reach a waiting native form/tool.
-        entry.activeRequests.add(request.requestID)
         void entry.adapter
           .execute(request)
           .catch(() => ({ requestID: request.requestID, generation: request.generation, status: "Error" }))
           .then(async (reply) => {
-            entry.activeRequests.delete(request.requestID)
+            finished()
             if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
             // An action can change the document; the runtime must hold that snapshot before the reply.
             if (request.operation === "act" && reply.generation !== request.generation) await synchronize(entry)
@@ -548,7 +610,8 @@ function createDesktopWebMcpBrowser({
       pendingLoads: new Set(),
       loadAborts: new Set(),
       navigations: new Map(),
-      activeRequests: new Set(),
+      activeRequests: new Map(),
+      revision: 0,
       waiting: null,
       connection: null,
       controller: null,
@@ -783,12 +846,25 @@ function createDesktopWebMcpBrowser({
       return { closed: true }
     }
     if (args.action === "pause") {
-      await pause(entry)
-      return status(entry)
+      const stoppedCalls = await pause(entry)
+      return { ...status(entry), stoppedCalls }
     }
     if (args.action === "disconnect") {
+      const stoppedCalls = await disconnect(entry)
+      return { ...status(entry), stoppedCalls }
+    }
+    if ((args.action === "resume" || args.action === "enable") && entry.connection) {
+      const connection = entry.connection
+      const revision = entry.revision
+      const capability = await api(entry.directory, "/capability")
+      if (entry.connection !== connection || entry.revision !== revision) return status(entry)
+      if (capability?.capability !== CAPABILITY || capability?.browserMode !== "embedded") {
+        entry.error = "runtime-incompatible"
+        return { ...status(entry), reason: "runtime-incompatible" }
+      }
       entry.paused = false
-      await disconnect(entry)
+      entry.error = null
+      entry.waiting?.wake()
       return status(entry)
     }
     if (args.action === "enable" || args.action === "resume") {

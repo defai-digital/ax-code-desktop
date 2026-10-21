@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Thay \u0111\u1ed5i cu\u1ed1i c\u00f9ng trong b\u1ea3n xem n\u00e0y",
   "supervision.missionControl.checks.stale": "(c\u00f3 th\u1ec3 \u0111\u00e3 l\u1ed7i th\u1eddi: l\u1ea7n \u0111\u1ecdc cu\u1ed1i th\u1ea5t b\u1ea1i)",
   "webmcp.state.paused": "Truy c\u1eadp \u0111\u1ea1i l\u00fd t\u1ea1m d\u1eebng",
-  "webmcp.detail.paused": "Truy c\u1eadp \u0111\u1ea1i l\u00fd \u0111ang t\u1ea1m d\u1eebng; ti\u1ebfp t\u1ee5c \u0111\u1ec3 x\u00e1c th\u1ef1c l\u1ea1i trang n\u00e0y m\u00e0 kh\u00f4ng t\u1ea3i l\u1ea1i c\u00e1c y\u00eau c\u1ea7u \u0111ang ch\u1edd.",
+  "webmcp.detail.paused": "Truy c\u1eadp \u0111\u1ea1i l\u00fd b\u1ecb t\u1ea1m d\u1eebng. Ti\u1ebfp t\u1ee5c s\u1ebd gi\u1ea3i ph\u00f3ng c\u00e1c cu\u1ed9c g\u1ecdi \u0111ang ch\u1edd.",
   "webmcp.actions.resume": "Ti\u1ebfp t\u1ee5c truy c\u1eadp \u0111\u1ea1i l\u00fd",
   "webmcp.detail.unsafePort": "Tr\u00ecnh duy\u1ec7t \u0111\u00e3 ch\u1eb7n m\u1ed9t c\u1ed5ng kh\u00f4ng an to\u00e0n (ERR_UNSAFE_PORT); h\u00e3y s\u1eed d\u1ee5ng c\u1ed5ng \u0111\u01b0\u1ee3c h\u1ed7 tr\u1ee3 trong \u0111\u1ecba ch\u1ec9.",
   "webmcp.detail.nameNotResolved": "Kh\u00f4ng th\u1ec3 t\u00ecm th\u1ea5y m\u00e1y ch\u1ee7 (ERR_NAME_NOT_RESOLVED); h\u00e3y ki\u1ec3m tra \u0111\u1ecba ch\u1ec9.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} \u0111\u00e3 \u0111\u01b0\u1ee3c th\u00eam ({digest})",
   "webmcp.tools.registration.removed": "{name} \u0111\u00e3 b\u1ecb x\u00f3a ({digest})",
   "webmcp.tools.registration.changed": "{name} \u0111\u00e3 thay \u0111\u1ed5i ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "K\u1ebft qu\u1ea3 n\u00e0y \u0111\u1ebfn t\u1eeb \u0111\u1ecbnh ngh\u0129a tr\u01b0\u1edbc \u0111\u00f3 c\u1ee7a c\u00f4ng c\u1ee5."
+  "webmcp.tools.resultStale": "K\u1ebft qu\u1ea3 n\u00e0y \u0111\u1ebfn t\u1eeb \u0111\u1ecbnh ngh\u0129a tr\u01b0\u1edbc \u0111\u00f3 c\u1ee7a c\u00f4ng c\u1ee5.",
+  "webmcp.actions.pauseAgent": "T\u1ea1m d\u1eebng t\u00e1c nh\u00e2n",
+  "webmcp.actions.resumeAgent": "Ti\u1ebfp t\u1ee5c t\u00e1c nh\u00e2n",
+  "webmcp.browser.takeOver": "B\u1ea1n \u0111ang \u0111i\u1ec1u khi\u1ec3n trang. C\u00e1c cu\u1ed9c g\u1ecdi c\u1ee7a t\u00e1c nh\u00e2n s\u1ebd ch\u1edd cho \u0111\u1ebfn khi b\u1ea1n ti\u1ebfp t\u1ee5c.",
+  "webmcp.browser.waitingForResume": "Cu\u1ed9c g\u1ecdi c\u1ee7a t\u00e1c nh\u00e2n \u0111ang ch\u1edd b\u1ea1n ti\u1ebfp t\u1ee5c.",
+  "webmcp.browser.waitingForPage": "Cu\u1ed9c g\u1ecdi c\u1ee7a t\u00e1c nh\u00e2n \u0111ang ch\u1edd trang n\u00e0y hi\u1ec3n th\u1ecb.",
+  "webmcp.browser.stoppedCall": "1 cu\u1ed9c g\u1ecdi c\u1ee7a t\u00e1c nh\u00e2n \u0111\u00e3 d\u1eebng. Nh\u1eefng thay \u0111\u1ed5i \u0111\u00e3 th\u1ef1c hi\u1ec7n tr\u00ean trang v\u1eabn \u0111\u01b0\u1ee3c gi\u1eef l\u1ea1i.",
+  "webmcp.browser.stoppedCalls": "{count} cu\u1ed9c g\u1ecdi c\u1ee7a t\u00e1c nh\u00e2n \u0111\u00e3 d\u1eebng. Nh\u1eefng thay \u0111\u1ed5i \u0111\u00e3 th\u1ef1c hi\u1ec7n tr\u00ean trang v\u1eabn \u0111\u01b0\u1ee3c gi\u1eef l\u1ea1i."
 }

@@ -199,22 +199,24 @@ function fixture({
   }
 }
 
-describe("desktop WebMCP navigation requests", () => {
-  const navigateRequest = (overrides = {}) => ({
-    providerID: "provider-1",
-    epoch: "boot",
-    projectID: "project",
-    sessionID: "ses_fixture",
-    generation: "generation-1",
-    origin: null,
-    frameId: "",
-    requestID: "req-navigate",
-    operation: "navigate",
-    deadline: Date.now() + 30000,
-    url: "https://example.org/flights",
-    ...overrides,
-  })
+const navigateRequest = (overrides = {}) => ({
+  providerID: "provider-1",
+  epoch: "boot",
+  projectID: "project",
+  sessionID: "ses_fixture",
+  generation: "generation-1",
+  origin: null,
+  frameId: "",
+  requestID: "req-navigate",
+  operation: "navigate",
+  deadline: Date.now() + 30000,
+  url: "https://example.org/flights",
+  ...overrides,
+})
 
+const replies = (f) => f.requests.filter((request) => request.url.endsWith("/reply"))
+
+describe("desktop WebMCP navigation requests", () => {
   test("does not load a navigation canceled in the dispatch batch", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
@@ -268,7 +270,15 @@ describe("desktop WebMCP navigation requests", () => {
       finish()
       await new Promise((resolve) => setTimeout(resolve, 10))
       expect(guest.getURL()).toBe("https://example.com/")
-      expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+      if (action === "cancel") expect(replies(f)).toHaveLength(0)
+      else
+        expect(replies(f).map((r) => r.body)).toEqual([
+          expect.objectContaining({
+            requestID: "req-navigate",
+            status: "Error",
+            output: expect.objectContaining({ reason: action === "pause" ? "agent-paused" : "agent-disconnected" }),
+          }),
+        ])
       if (action === "pause") {
         await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
         await f.controller.command(sender, { action: "resume", id: status.id })
@@ -739,7 +749,6 @@ describe("desktop WebMCP page interaction requests", () => {
     deadline: Date.now() + 30000,
     ...overrides,
   })
-  const replies = (f) => f.requests.filter((request) => request.url.endsWith("/reply"))
 
   test("reads the page and replies with its text and outline", async () => {
     const f = fixture()
@@ -759,6 +768,34 @@ describe("desktop WebMCP page interaction requests", () => {
       status: "Completed",
       output: { title: "Flights", text: "Toronto to Tokyo" },
     })
+  })
+
+  test("holds an action on the same page without discarding its read reference", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    guest.executeJavaScriptInIsolatedWorld = vi.fn(async () => ({ title: "Page", text: "", outline: [{ ref: "e1" }] }))
+    f.pushStreamRequest(boundRequest(live, { requestID: "read-before-pause", operation: "read" }))
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    f.pushStreamRequest(
+      boundRequest(live, {
+        requestID: "held-act",
+        operation: "act",
+        readId: replies(f)[0].body.output.readId,
+        ref: "e1",
+        how: "click",
+      }),
+    )
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
+    )
+    expect(guest.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(1)
+    await f.controller.command(sender, { action: "resume", id: status.id })
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(2))
+    expect(guest.executeJavaScriptInIsolatedWorld).toHaveBeenCalledTimes(2)
+    expect(replies(f)[1].body).toMatchObject({ requestID: "held-act", status: "Completed" })
   })
 
   test("pushes the new document before replying to an action that navigated", async () => {
@@ -813,7 +850,17 @@ describe("desktop WebMCP page interaction requests", () => {
 })
 
 describe("Round 8 browser lifecycle", () => {
-  test("pauses without losing the page and resumes only with a fresh explicit enrollment", async () => {
+  test("pausing before access is ever enabled does not break a later enable or resume", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
+    expect(enabled).toMatchObject({ enabled: true })
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    expect(await f.controller.command(sender, { action: "resume", id: status.id })).toMatchObject({ enabled: true, paused: false })
+  })
+
+  test("pauses without losing the page, storage or enrollment and resumes the same provider", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
@@ -822,7 +869,8 @@ describe("Round 8 browser lifecycle", () => {
       id: status.id,
     })
     expect(paused).toMatchObject({ paused: true, enabled: false, url: enabled.url })
-    expect(paused.generation).not.toBe(enabled.generation)
+    expect(paused.generation).toBe(enabled.generation)
+    expect(paused.stoppedCalls).toBe(0)
     expect(f.guests[0].destroyed).toBe(false)
     const visible = await f.controller.command(sender, {
       action: "bounds",
@@ -836,31 +884,123 @@ describe("Round 8 browser lifecycle", () => {
     expect(f.requests.filter((r) => r.url.endsWith("/provider") && r.method === "POST")).toHaveLength(1)
     const resumed = await f.controller.command(sender, { action: "resume", id: status.id })
     expect(resumed).toMatchObject({ paused: false, enabled: true, url: enabled.url })
-    expect(resumed.generation).not.toBe(paused.generation)
+    expect(resumed.generation).toBe(paused.generation)
+    expect(f.requests.filter((r) => r.method === "DELETE")).toHaveLength(0)
+    expect(f.requests.filter((r) => r.url.endsWith("/provider") && r.method === "POST")).toHaveLength(1)
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    for (const profile of f.partitions.values()) expect(profile.clearStorageData).not.toHaveBeenCalled()
     expect(f.requests.filter((r) => r.url.endsWith("/capability"))).toHaveLength(2)
     expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
   })
 
-  test("drops a late poll before executing a request after pause", async () => {
+  test.each(["before-pause", "after-pause"])(
+    "holds a %s call, exposes waiting and releases it exactly once on resume",
+    async (arrival) => {
+      const f = fixture()
+      const { sender, status } = await f.create()
+      const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
+      const request = { ...navigateRequest(), generation: enabled.generation }
+      if (arrival === "before-pause") f.pushStreamRequest(request)
+      await f.controller.command(sender, { action: "pause", id: status.id })
+      if (arrival === "after-pause") f.pushStreamRequest(request)
+      await vi.waitFor(async () =>
+        expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+          waiting: true,
+          paused: true,
+          visible: true,
+        }),
+      )
+      expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+      expect(replies(f)).toHaveLength(0)
+      // Visibility events must not release a deliberately paused call.
+      await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(f.guests[0].loadedUrls).toHaveLength(1)
+      await f.controller.command(sender, { action: "resume", id: status.id })
+      await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+      expect(replies(f)[0].body).toMatchObject({ requestID: request.requestID, status: "Completed" })
+      expect(f.guests[0].loadedUrls).toEqual(["https://example.com/", request.url])
+      expect(f.requests.filter((r) => r.url.endsWith("/provider") && r.method === "POST")).toHaveLength(1)
+    },
+  )
+
+  test.each([false, true])("held native calls retain their document binding (page changed: %s)", async (changed) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    const tool = { name: "held", frameId: "top", description: "Held tool", inputSchema: { type: "object" } }
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+    const live = await f.controller.command(sender, { action: "enable", id: status.id })
+    guest.debugger.sendCommand = vi.fn(async (method) =>
+      method === "WebMCP.invokeTool" ? { invocationId: "held-native" } : {},
+    )
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    f.pushStreamRequest({
+      ...navigateRequest(),
+      operation: "invoke",
+      requestID: "held-tool",
+      generation: live.generation,
+      origin: "https://example.com",
+      frameId: "top",
+      toolName: "held",
+      digest: definitionDigest(tool),
+      input: {},
+    })
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
+    )
+    expect(guest.debugger.sendCommand).not.toHaveBeenCalledWith("WebMCP.invokeTool", expect.anything())
+    if (changed) guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "new-page" } })
+    await f.controller.command(sender, { action: "resume", id: status.id })
+    if (!changed) {
+      await vi.waitFor(() =>
+        expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.invokeTool", expect.anything()),
+      )
+      guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
+        invocationId: "held-native",
+        status: "Completed",
+        output: "kept",
+      })
+    }
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(replies(f)[0].body.status).toBe(changed ? "Error" : "Completed")
+    expect(guest.debugger.sendCommand.mock.calls.filter(([method]) => method === "WebMCP.invokeTool")).toHaveLength(
+      changed ? 0 : 1,
+    )
+  })
+
+  test("disconnect fails a held call with a reason and never releases it on a later enrollment", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
-    f.pushStreamRequest({
-      providerID: "provider-1",
-      epoch: "boot",
-      projectID: "project",
-      sessionID: "ses_fixture",
-      operation: "navigate",
-      requestID: "retired",
-      url: "https://example.org/must-not-open",
-    })
     await f.controller.command(sender, { action: "pause", id: status.id })
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    f.pushStreamRequest(navigateRequest())
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }),
+    )
+    expect(await f.controller.command(sender, { action: "disconnect", id: status.id })).toMatchObject({
+      paused: false,
+      enabled: false,
+      // The held call never ran, but it was failed: the person is told one call was stopped.
+      stoppedCalls: 1,
+    })
+    expect(replies(f).map((r) => r.body)).toEqual([
+      expect.objectContaining({ status: "Error", output: expect.objectContaining({ reason: "agent-disconnected" }) }),
+    ])
+    await f.controller.command(sender, { action: "enable", id: status.id })
     expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
-    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
+  })
+
+  test("a held call keeps its deadline and times out without executing", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "pause", id: status.id })
+    f.pushStreamRequest({ ...navigateRequest(), deadline: Date.now() + 100 })
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(replies(f)[0].body).toMatchObject({ status: "Error", output: { reason: "waiting-for-resume-timeout" } })
     await f.controller.command(sender, { action: "resume", id: status.id })
-    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
-    expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+    expect(f.guests[0].loadedUrls).toHaveLength(1)
   })
 
   test("revalidates runtime compatibility on resume and leaves access paused on failure", async () => {
@@ -1715,14 +1855,28 @@ test.each(["complete", "timeout", "pause", "disconnect", "revokeSession"])(
       )
       expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "slow-1" })
     } else {
-      await f.controller.command(
+      const stopped = await f.controller.command(
         sender,
         outcome === "revokeSession"
           ? { action: outcome, directory: "/tmp/project", sessionID: "ses_fixture" }
           : { action: outcome, id: status.id },
       )
       expect(guest.debugger.sendCommand).toHaveBeenCalledWith("WebMCP.cancelInvocation", { invocationId: "slow-1" })
-      expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
+      if (outcome !== "revokeSession") expect(stopped.stoppedCalls).toBe(1)
+      expect(replies(f).map((r) => r.body)).toEqual([
+        expect.objectContaining({
+          requestID: "slow-call",
+          status: "Error",
+          output: expect.objectContaining({ reason: outcome === "pause" ? "agent-paused" : "agent-disconnected" }),
+        }),
+      ])
+      guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
+        invocationId: "slow-1",
+        status: "Completed",
+        output: "late success",
+      })
+      await new Promise((resolve) => setTimeout(resolve, 10))
+      expect(replies(f)).toHaveLength(1)
     }
   },
 )

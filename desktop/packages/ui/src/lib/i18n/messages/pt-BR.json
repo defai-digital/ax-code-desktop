@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "\u00daltima altera\u00e7\u00e3o nesta revis\u00e3o",
   "supervision.missionControl.checks.stale": "(pode estar desatualizado: a \u00faltima leitura falhou)",
   "webmcp.state.paused": "Acesso do agente pausado",
-  "webmcp.detail.paused": "O acesso do agente est\u00e1 pausado; retome para revalidar esta p\u00e1gina sem reenviar solicita\u00e7\u00f5es pendentes.",
+  "webmcp.detail.paused": "O acesso do agente est\u00e1 pausado. Retomar libera as chamadas em espera.",
   "webmcp.actions.resume": "Retomar acesso do agente",
   "webmcp.detail.unsafePort": "O navegador bloqueou uma porta insegura (ERR_UNSAFE_PORT); use uma porta suportada no endere\u00e7o.",
   "webmcp.detail.nameNotResolved": "O host n\u00e3o foi encontrado (ERR_NAME_NOT_RESOLVED); verifique o endere\u00e7o.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} adicionado ({digest})",
   "webmcp.tools.registration.removed": "{name} removido ({digest})",
   "webmcp.tools.registration.changed": "{name} alterado ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Este resultado \u00e9 de uma defini\u00e7\u00e3o anterior da ferramenta."
+  "webmcp.tools.resultStale": "Este resultado \u00e9 de uma defini\u00e7\u00e3o anterior da ferramenta.",
+  "webmcp.actions.pauseAgent": "Pausar agente",
+  "webmcp.actions.resumeAgent": "Retomar agente",
+  "webmcp.browser.takeOver": "Voc\u00ea tem controle da p\u00e1gina. As chamadas do agente aguardam at\u00e9 que voc\u00ea retome.",
+  "webmcp.browser.waitingForResume": "Chamada do agente aguardando que voc\u00ea retome.",
+  "webmcp.browser.waitingForPage": "Chamada do agente aguardando que esta p\u00e1gina fique vis\u00edvel.",
+  "webmcp.browser.stoppedCall": "1 chamada do agente parada. As altera\u00e7\u00f5es que j\u00e1 fez na p\u00e1gina permanecem.",
+  "webmcp.browser.stoppedCalls": "{count} chamadas do agente paradas. As altera\u00e7\u00f5es que j\u00e1 fizeram na p\u00e1gina permanecem."
 }

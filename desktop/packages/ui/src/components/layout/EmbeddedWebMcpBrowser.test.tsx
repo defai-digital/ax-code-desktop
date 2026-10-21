@@ -1,10 +1,33 @@
 import React, { act } from "react"
+import { dict } from "@/lib/i18n/messages/en"
 import { render as renderDom, cleanup, fireEvent, within } from "@/test/dom"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const invoke = vi.fn()
 
-vi.doMock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.doMock("@/lib/i18n", () => ({
+  useI18n: () => ({
+    t: (key: string, params?: Record<string, string | number>) => {
+      if (
+        [
+          "webmcp.actions.pauseAgent",
+          "webmcp.actions.resumeAgent",
+          "webmcp.browser.takeOver",
+          "webmcp.browser.waitingForResume",
+          "webmcp.browser.waitingForPage",
+          "webmcp.browser.stoppedCall",
+          "webmcp.browser.stoppedCalls",
+        ].includes(key)
+      ) {
+        return Object.entries(params ?? {}).reduce(
+          (text, [name, value]) => text.replace(`{${name}}`, String(value)),
+          dict[key as keyof typeof dict],
+        )
+      }
+      return key
+    },
+  }),
+}))
 vi.doMock("@/lib/desktopBridge", () => ({ getDesktopBridge: () => ({ invoke }) }))
 vi.doMock("@/lib/webMcpBridgeCoordination", () => ({
   pauseChromeBridgeForProjectBrowser: async () => [],
@@ -212,6 +235,115 @@ describe("agent browser enable request", () => {
     expect(within(container).queryByText("webmcp.detail.disconnected")).toBeNull()
   })
 
+  test.each(["pause", "disconnect"])(
+    "acknowledges %s cancellation without claiming rollback and restores keyboard focus",
+    async (action) => {
+      let state = { ...browserStatus(true), paused: false, waiting: false, stoppedCalls: 0 }
+      invoke.mockImplementation(async (_channel: string, call: { action: string }) => {
+        if (call.action === "pause" || call.action === "disconnect")
+          state = { ...state, enabled: false, paused: call.action === "pause", stoppedCalls: 1 }
+        if (call.action === "resume")
+          state = { ...state, enabled: true, paused: false, waiting: false, stoppedCalls: 0 }
+        return state
+      })
+      render()
+      openAgentMode()
+      await flush()
+      const pause = within(container).getByRole("button", { name: "Pause agent" })
+      const disconnect = within(container).getByRole("button", { name: "webmcp.actions.disconnect" })
+      expect(pause.tabIndex).toBe(0)
+      expect(disconnect.tabIndex).toBe(0)
+      act(() => (action === "pause" ? pause : disconnect).focus())
+      fireEvent.click(document.activeElement!)
+      await flush()
+      expect(callsFor(action)).toHaveLength(1)
+      const feedback = within(container).getByRole("status")
+      expect(feedback.textContent).toContain("Stopped 1 agent call. Changes it already made on the page stay.")
+      expect(feedback.textContent).not.toMatch(/roll.?back|undone|reverted|restored/i)
+      expect(document.activeElement).toBe(
+        within(container).getByRole("button", { name: action === "pause" ? "Resume agent" : "webmcp.actions.enable" }),
+      )
+      expect(callsFor("navigate")).toHaveLength(0)
+      expect(callsFor("close")).toHaveLength(0)
+      if (action === "pause") {
+        expect(feedback.textContent).toContain("You have control of the page. The agent's calls wait until you resume.")
+        state = { ...state, waiting: true }
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(1100)
+        })
+        expect(feedback.textContent).toContain("Agent call waiting for you to resume.")
+        fireEvent.click(within(container).getByRole("button", { name: "Resume agent" }))
+        await flush()
+        expect(document.activeElement).toBe(within(container).getByRole("button", { name: "Pause agent" }))
+        expect(feedback.textContent).toBe("")
+        expect(callsFor("resume")).toHaveLength(1)
+      }
+    },
+  )
+
+  test("waits for cancellation acknowledgement and does not steal focus from a person typing", async () => {
+    invoke.mockResolvedValue(browserStatus(true))
+    render()
+    openAgentMode()
+    await flush()
+    let finish!: (value: unknown) => void
+    invoke.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        }),
+    )
+    const pause = within(container).getByRole("button", { name: "Pause agent" })
+    act(() => pause.focus())
+    fireEvent.click(pause)
+    expect(within(container).getByRole("status").textContent).not.toContain("Stopped")
+    const address = within(container).getByLabelText("webmcp.browser.addressAria")
+    act(() => address.focus())
+    await act(async () => {
+      finish({ ...browserStatus(false), paused: true, stoppedCalls: 1 })
+    })
+    expect(within(container).getByRole("status").textContent).toContain("Stopped 1 agent call.")
+    expect(document.activeElement).toBe(address)
+  })
+
+  test("failed cancellation never shows a successful acknowledgement", async () => {
+    invoke.mockResolvedValue(browserStatus(true))
+    render()
+    openAgentMode()
+    await flush()
+    invoke.mockRejectedValueOnce(new Error("IPC failed"))
+    fireEvent.click(within(container).getByRole("button", { name: "Pause agent" }))
+    await flush()
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.operationFailed")
+    expect(within(container).getByRole("status").textContent).not.toContain("Stopped")
+    expect(within(container).getByRole("button", { name: "Pause agent" })).toBeTruthy()
+  })
+
+  test.each([0, 2])("reports only actual in-flight cancellation counts: %s", async (count) => {
+    invoke.mockImplementation(async (_channel: string, call: { action: string }) => ({
+      ...browserStatus(call.action !== "pause"),
+      paused: call.action === "pause",
+      stoppedCalls: count,
+    }))
+    render()
+    openAgentMode()
+    await flush()
+    fireEvent.click(within(container).getByRole("button", { name: "Pause agent" }))
+    await flush()
+    const feedback = within(container).getByRole("status").textContent
+    if (count === 0) expect(feedback).not.toContain("Stopped")
+    else expect(feedback).toContain("Stopped 2 agent calls. Changes they already made on the page stay.")
+  })
+
+  test("keeps Pause and Disconnect reachable when an enrolled page reports an error", async () => {
+    invoke.mockImplementation(async () => ({ ...browserStatus(true), error: "ERR_ABORTED" }))
+    render()
+    openAgentMode()
+    await flush()
+    expect(within(container).getByRole("button", { name: "Pause agent" }).tabIndex).toBe(0)
+    expect(within(container).getByRole("button", { name: "webmcp.actions.disconnect" }).tabIndex).toBe(0)
+  })
+
   test("clears a stale native load error when the main process reports a healthy page", async () => {
     render()
     openAgentMode()
@@ -253,7 +385,11 @@ describe("agent browser enable request", () => {
     invoke.mockImplementation(async (_channel: string, call: { action?: string }) =>
       call.action === action ? { ...browserStatus(false), reason: "runtime-incompatible" } : browserStatus(false),
     )
-    fireEvent.click(within(container).getByRole("button", { name: `webmcp.actions.${action}` }))
+    fireEvent.click(
+      within(container).getByRole("button", {
+        name: action === "resume" ? "Resume agent" : `webmcp.actions.${action}`,
+      }),
+    )
     await flush()
     expect(callsFor(action)).toHaveLength(1)
     expect(useWebMcpBrowserStore.getState()).toMatchObject({ error: "runtime-incompatible", runtimeCompatible: false })
@@ -400,7 +536,7 @@ describe("agent browser enable request", () => {
       await vi.advanceTimersByTimeAsync(200)
     })
     expect(callsFor("enable")).toHaveLength(0)
-    fireEvent.click(within(container).getByRole("button", { name: "webmcp.actions.resume" }))
+    fireEvent.click(within(container).getByRole("button", { name: "Resume agent" }))
     await flush()
     expect(callsFor("resume")).toHaveLength(1)
     await act(async () => {

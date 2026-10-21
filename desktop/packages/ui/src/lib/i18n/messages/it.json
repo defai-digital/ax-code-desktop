@@ -5116,7 +5116,7 @@
   "diffView.nav.lastChange": "Ultima modifica di questa revisione",
   "supervision.missionControl.checks.stale": "(potrebbe essere obsoleto: l'ultima lettura non \u00e8 riuscita)",
   "webmcp.state.paused": "Accesso agente in pausa",
-  "webmcp.detail.paused": "L'accesso dell'agente \u00e8 in pausa; riprendere per convalidare di nuovo questa pagina senza riprodurre le richieste in attesa.",
+  "webmcp.detail.paused": "Accesso dell'agente in pausa. Riprendendo si rilasciano le chiamate in attesa.",
   "webmcp.actions.resume": "Riprendi accesso agente",
   "webmcp.detail.unsafePort": "Il browser ha bloccato una porta non sicura (ERR_UNSAFE_PORT); usa una porta supportata nell'indirizzo.",
   "webmcp.detail.nameNotResolved": "Host non trovato (ERR_NAME_NOT_RESOLVED); controlla l'indirizzo.",
@@ -5279,5 +5279,12 @@
   "webmcp.tools.registration.added": "{name} aggiunto ({digest})",
   "webmcp.tools.registration.removed": "{name} rimosso ({digest})",
   "webmcp.tools.registration.changed": "{name} modificato ({previous} -> {digest})",
-  "webmcp.tools.resultStale": "Questo risultato proviene da una definizione precedente dello strumento."
+  "webmcp.tools.resultStale": "Questo risultato proviene da una definizione precedente dello strumento.",
+  "webmcp.actions.pauseAgent": "Metti in pausa l\u2019agente",
+  "webmcp.actions.resumeAgent": "Riprendi l\u2019agente",
+  "webmcp.browser.takeOver": "Hai il controllo della pagina. Le chiamate dell\u2019agente attendono che tu lo riattivi.",
+  "webmcp.browser.waitingForResume": "Chiamata dell\u2019agente in attesa che tu la riattivi.",
+  "webmcp.browser.waitingForPage": "Chiamata dell\u2019agente in attesa che questa pagina sia visibile.",
+  "webmcp.browser.stoppedCall": "1 chiamata dell\u2019agente interrotta. Le modifiche gi\u00e0 apportate alla pagina rimangono.",
+  "webmcp.browser.stoppedCalls": "{count} chiamate dell\u2019agente interrotte. Le modifiche gi\u00e0 apportate alla pagina rimangono."
 }
