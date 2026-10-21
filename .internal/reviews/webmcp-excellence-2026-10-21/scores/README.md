@@ -111,3 +111,10 @@ agent's call, misuse diagnosis naming the property and rule, regression export).
 No P1. One P2: the provider's `/next` poll has no independent timeout, so a half-open runtime connection stalls agent calls
 silently while the pane shows access as on; fixed in round 14 (R14a). Three P3 notes recorded. Definition of done item 3 needs
 the audit repeated after round 14.
+
+## Round 14 evidence (in progress)
+
+- R14a merged: page switcher, per-session revoke, trust summary, named capacity with LRU unload, waiting surfaced in Needs you,
+  Mission Control and the session grid, bounded provider poll. Gates: UI 4485, Electron 881, web 1499, shared 240 tests; build;
+  five native journeys including `project-browser-sessions` (W7: two projects, 7 actions of a 12 budget, 50 switches with flat
+  listeners and memory) and `e2e:desktop` on macOS. W7 joins the three-platform CI job.
