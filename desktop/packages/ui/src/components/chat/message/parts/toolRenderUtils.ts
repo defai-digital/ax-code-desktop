@@ -13,6 +13,9 @@ const EXPANDABLE_TOOL_NAMES = new Set<string>([
   "file_write",
   "question",
   "task",
+  // Transcript rows for these tools go through ToolPart so the collapsed title can name the page tool.
+  "desktop_webmcp",
+  "webmcp",
 ])
 
 const STANDALONE_TOOL_NAMES = new Set<string>(["task"])

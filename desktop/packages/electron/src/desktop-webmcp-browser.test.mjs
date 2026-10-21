@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { EventEmitter } from "node:events"
 import { createDesktopWebMcpBrowser } from "./desktop-webmcp-browser.js"
 
@@ -11,7 +11,9 @@ function fixture({
   capability = "desktop.webmcp.v1",
   browserMode = "embedded",
   holdRevocation = false,
+  loadError = null,
   attachTimeoutMs = 200,
+  loadTimeoutMs = 20,
 } = {}) {
   const owners = new Map()
   const guests = []
@@ -34,9 +36,11 @@ function fixture({
       contents.reload = vi.fn(() => {
         if (contents.destroyed) throw new Error("Object has been destroyed")
       })
+      contents.stop = vi.fn()
       contents.setWindowOpenHandler = vi.fn()
       contents.loadedUrls = []
       contents.loadURL = async (url) => {
+        if (loadError) throw loadError
         if (hangLoad) return new Promise(() => {})
         contents.url = url
         contents.loadedUrls.push(url)
@@ -85,7 +89,7 @@ function fixture({
     BrowserWindow: { fromWebContents: (sender) => owners.get(sender) },
     WebContentsView: View,
     // Short deadline so the hang tests stay fast.
-    loadTimeoutMs: 20,
+    loadTimeoutMs,
     attachTimeoutMs,
     session: {
       fromPartition: () =>
@@ -108,14 +112,14 @@ function fixture({
             projectID: "project",
           })
         if (request.url.endsWith("/next"))
-          return nextStreamRequest(request.signal).then((next) => ({ request: next, canceled: [] }))
+          return nextStreamRequest(request.signal).then((next) => next.batch ?? { request: next, canceled: [] })
         if (request.method === "DELETE" && holdRevocation) return new Promise((resolve) => revocations.push(resolve))
         return Promise.resolve({})
       },
     }),
   })
   controllers.push(controller)
-  const create = async ({ attach = true } = {}) => {
+  const create = async ({ attach = true, sessionID = "ses_fixture" } = {}) => {
     const sender = Object.assign(new EventEmitter(), { id: owners.size + 1, getZoomFactor: () => 1 })
     const owner = Object.assign(new EventEmitter(), {
       isDestroyed: () => false,
@@ -128,10 +132,11 @@ function fixture({
     const status = await controller.command(sender, {
       action: "create",
       directory: "/tmp/project",
-      sessionID: "ses_fixture",
+      sessionID,
       url: "https://example.com/",
     })
-    if (attach) await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
+    if (attach)
+      await controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
     return { sender, status }
   }
   return {
@@ -142,6 +147,9 @@ function fixture({
     guests,
     revocations,
     owners,
+    setCapability: (value) => {
+      capability = value
+    },
     hangLoads: (value) => {
       hangLoad = value
     },
@@ -164,7 +172,162 @@ describe("desktop WebMCP navigation requests", () => {
     ...overrides,
   })
 
-  it("loads the requested page and replies with the document it opened", async () => {
+  test("does not load a navigation canceled in the dispatch batch", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    const load = vi.spyOn(guest, "loadURL")
+    const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
+    f.pushStreamRequest({ batch: { request: navigateRequest(), canceled: ["req-navigate"] } })
+    await vi.waitFor(() => expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls))
+    expect(load).not.toHaveBeenCalled()
+    expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+  })
+
+  test.each(["pause", "cancel"])("stops an in-flight agent load on %s without replay", async (action) => {
+    const f = fixture({ loadTimeoutMs: 1000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    let finish
+    guest.loadURL = vi.fn(
+      (url) =>
+        new Promise((resolve, reject) => {
+          let stopped = false
+          guest.stop.mockImplementation(() => {
+            stopped = true
+            reject(Object.assign(new Error("aborted"), { code: "ERR_ABORTED" }))
+          })
+          finish = () => {
+            if (!stopped) {
+              guest.url = url
+              guest.loadedUrls.push(url)
+            }
+            resolve()
+          }
+        }),
+    )
+    f.pushStreamRequest(navigateRequest())
+    await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
+    if (action === "pause") {
+      await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    } else {
+      const polls = f.requests.filter((r) => r.url.endsWith("/next")).length
+      f.pushStreamRequest({ batch: { canceled: ["req-navigate"] } })
+      await vi.waitFor(() => expect(f.requests.filter((r) => r.url.endsWith("/next")).length).toBeGreaterThan(polls))
+    }
+    expect(guest.stop).toHaveBeenCalledTimes(1)
+    finish()
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(guest.getURL()).toBe("https://example.com/")
+    expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+    if (action === "pause") {
+      await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
+      await f.controller.command(sender, { action: "resume", id: status.id })
+    }
+    expect(guest.loadURL).toHaveBeenCalledTimes(1)
+  })
+
+  test("canceling a superseded agent load does not stop the newer user navigation", async () => {
+    const f = fixture({ loadTimeoutMs: 1000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    let finishUser
+    guest.loadURL = vi.fn(
+      (url) =>
+        new Promise((resolve) => {
+          if (url === "https://user.test/") finishUser = resolve
+        }),
+    )
+    f.pushStreamRequest(navigateRequest())
+    await vi.waitFor(() => expect(guest.loadURL).toHaveBeenCalledTimes(1))
+    const userLoad = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://user.test/" })
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    expect(guest.stop).not.toHaveBeenCalled()
+    finishUser()
+    await userLoad
+  })
+
+  test("an agent navigation superseding Go leaves the healthy page free of ERR_ABORTED", async () => {
+    const f = fixture({ loadTimeoutMs: 1000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    let rejectGo
+    guest.loadURL = vi.fn((url) => {
+      if (url === "https://user.test/")
+        return new Promise((_resolve, reject) => {
+          rejectGo = reject
+        })
+      guest.url = url
+      guest.emit("did-navigate", {}, url)
+      guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "top" } })
+      return Promise.resolve()
+    })
+    const go = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://user.test/" })
+    f.pushStreamRequest(navigateRequest())
+    await vi.waitFor(() => expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(true))
+    guest.emit("did-fail-load", {}, -3, "ERR_ABORTED", "https://user.test/", true)
+    rejectGo(Object.assign(new Error("superseded"), { code: "ERR_ABORTED" }))
+    expect(await go).toMatchObject({ error: null, url: "https://example.org/flights" })
+  })
+
+  test("a superseded load cannot write or clear the latest load error", async () => {
+    const f = fixture({ loadTimeoutMs: 1000 })
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    const loads = []
+    guest.loadURL = vi.fn(() => new Promise((resolve, reject) => loads.push({ resolve, reject })))
+    const navigate = () =>
+      f.controller.command(sender, { action: "navigate", id: status.id, url: "https://same.test/" })
+    const old = navigate()
+    const latest = navigate()
+    loads[1].resolve()
+    expect(await latest).toMatchObject({ error: null })
+    guest.emit("did-fail-load", {}, -3, "ERR_ABORTED", "https://same.test/", true)
+    loads[0].reject(Object.assign(new Error("superseded"), { code: "ERR_ABORTED" }))
+    expect(await old).toMatchObject({ error: null })
+    // An event can arrive even after both promises settle.
+    guest.emit("did-fail-load", {}, -3, "ERR_ABORTED", "https://same.test/", true)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ error: null })
+    const oldSuccess = navigate()
+    const latestFailure = navigate()
+    loads[3].reject(Object.assign(new Error("refused"), { code: "ERR_CONNECTION_REFUSED" }))
+    expect(await latestFailure).toMatchObject({ error: "ERR_CONNECTION_REFUSED" })
+    loads[2].resolve()
+    expect(await oldSuccess).toMatchObject({ error: "ERR_CONNECTION_REFUSED" })
+    guest.emit("did-navigate", {}, "https://healthy.test/")
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ error: null })
+  })
+
+  test("a successful main-frame navigation clears the latest failure while an older load is unsettled", async () => {
+    const f = fixture({ loadTimeoutMs: 1000 })
+    const { sender, status } = await f.create()
+    const guest = f.guests[0]
+    let rejectOld
+    guest.loadURL = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((_resolve, reject) => {
+            rejectOld = reject
+          }),
+      )
+      .mockRejectedValueOnce(Object.assign(new Error("refused"), { code: "ERR_CONNECTION_REFUSED" }))
+    const old = f.controller.command(sender, { action: "navigate", id: status.id, url: "https://old.test/" })
+    expect(
+      await f.controller.command(sender, { action: "navigate", id: status.id, url: "https://new.test/" }),
+    ).toMatchObject({ error: "ERR_CONNECTION_REFUSED" })
+    guest.emit("did-start-navigation", {}, "https://healthy.test/", false, true)
+    guest.emit("did-navigate", {}, "https://healthy.test/")
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ error: null })
+    rejectOld(Object.assign(new Error("superseded"), { code: "ERR_ABORTED" }))
+    expect(await old).toMatchObject({ error: null })
+  })
+
+  test("loads the requested page and replies with the document it opened", async () => {
     // The agent could not put a page in front of itself before: the pane had to be
     // filled by hand. The request now arrives over the provider stream.
     const f = fixture()
@@ -190,7 +353,7 @@ describe("desktop WebMCP navigation requests", () => {
     expect(stateIndex).toBeLessThan(replyIndex)
   })
 
-  it("refuses a URL the pane cannot open and replies with an error status", async () => {
+  test("refuses a URL the pane cannot open and replies with an error status", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
@@ -205,7 +368,7 @@ describe("desktop WebMCP navigation requests", () => {
     expect(f.guests.at(-1).loadedUrls).not.toContain("file:///etc/passwd")
   })
 
-  it("mirrors the runtime's navigation rule: loopback http opens, other http does not", async () => {
+  test("mirrors the runtime's navigation rule: loopback http opens, other http does not", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     await f.controller.command(sender, { action: "enable", id: status.id })
@@ -219,9 +382,9 @@ describe("desktop WebMCP navigation requests", () => {
 
     f.pushStreamRequest(navigateRequest({ requestID: "req-lan", url: "http://192.168.1.10:3000/app" }))
     await vi.waitFor(() => {
-      expect(
-        f.requests.some((request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan"),
-      ).toBe(true)
+      expect(f.requests.some((request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan")).toBe(
+        true,
+      )
     })
     const lanReply = f.requests.find(
       (request) => request.url.endsWith("/reply") && request.body.requestID === "req-lan",
@@ -232,7 +395,7 @@ describe("desktop WebMCP navigation requests", () => {
 })
 
 describe("desktop WebMCP capability probe", () => {
-  it("reports a compatible runtime without creating a browser", async () => {
+  test("reports a compatible runtime without creating a browser", async () => {
     const { controller, requests, owners } = fixture()
     const sender = Object.assign(new EventEmitter(), { id: 99, getZoomFactor: () => 1 })
     owners.set(sender, { isDestroyed: () => false })
@@ -247,7 +410,7 @@ describe("desktop WebMCP capability probe", () => {
     expect(requests.map((request) => request.url)).toEqual(["/desktop/browser/capability"])
   })
 
-  it("reports an incompatible runtime as a status, not an error", async () => {
+  test("reports an incompatible runtime as a status, not an error", async () => {
     const { controller, owners } = fixture({ capability: "desktop.webmcp.v0" })
     const sender = Object.assign(new EventEmitter(), { id: 98, getZoomFactor: () => 1 })
     owners.set(sender, { isDestroyed: () => false })
@@ -255,22 +418,25 @@ describe("desktop WebMCP capability probe", () => {
     expect(result).toMatchObject({ compatible: false, runtimeCapability: "desktop.webmcp.v0" })
   })
 
-  it("rejects old or Chrome-mode runtimes before enrolling an embedded provider", async () => {
+  test("rejects old or Chrome-mode runtimes before enrolling an embedded provider", async () => {
     for (const browserMode of [null, "chrome"]) {
       const { controller, owners, requests, create } = fixture({ browserMode })
       const sender = Object.assign(new EventEmitter(), { id: 98, getZoomFactor: () => 1 })
       owners.set(sender, { isDestroyed: () => false })
       const result = await controller.command(sender, { action: "capability", directory: "/tmp/project" })
-      expect(result.compatible).toBe(false)
+      expect(result.compatible).toBe(browserMode === null ? null : false)
       const browser = await create()
-      await expect(controller.command(browser.sender, { action: "enable", id: browser.status.id })).rejects.toThrow(
-        "compatible browser update",
-      )
+      await expect(
+        controller.command(browser.sender, { action: "enable", id: browser.status.id }),
+      ).resolves.toMatchObject({
+        reason: browserMode === null ? "enable-failed" : "runtime-incompatible",
+        enabled: false,
+      })
       expect(requests.some((request) => request.method === "POST")).toBe(false)
     }
   })
 
-  it("reports an unreachable runtime as unknown rather than incompatible", async () => {
+  test("reports an unreachable runtime as unknown rather than incompatible", async () => {
     const { controller, owners } = fixture()
     const sender = Object.assign(new EventEmitter(), { id: 95, getZoomFactor: () => 1 })
     owners.set(sender, { isDestroyed: () => false })
@@ -285,13 +451,13 @@ describe("desktop WebMCP capability probe", () => {
     controllers.push(offline)
     await expect(offline.command(sender, { action: "capability", directory: "/tmp/project" })).resolves.toMatchObject({
       reachable: false,
-      compatible: false,
+      compatible: null,
       runtimeCapability: null,
     })
     expect(controller).toBeTruthy()
   })
 
-  it("refuses the probe for a sender without a desktop window", async () => {
+  test("refuses the probe for a sender without a desktop window", async () => {
     const { controller } = fixture()
     const sender = Object.assign(new EventEmitter(), { id: 96, getZoomFactor: () => 1 })
     await expect(controller.command(sender, { action: "capability", directory: "/tmp/project" })).rejects.toThrow(
@@ -299,7 +465,7 @@ describe("desktop WebMCP capability probe", () => {
     )
   })
 
-  it("rejects relative directories for the probe", async () => {
+  test("rejects relative directories for the probe", async () => {
     const { controller, owners } = fixture()
     const sender = Object.assign(new EventEmitter(), { id: 97, getZoomFactor: () => 1 })
     owners.set(sender, { isDestroyed: () => false })
@@ -310,7 +476,7 @@ describe("desktop WebMCP capability probe", () => {
 })
 
 describe("native project browser integration", () => {
-  it("rejects another window using an enrolled browser ID", async () => {
+  test("rejects another window using an enrolled browser ID", async () => {
     const f = fixture()
     const first = await f.create()
     const second = await f.create()
@@ -319,7 +485,7 @@ describe("native project browser integration", () => {
     )
   })
 
-  it("waits for the pane to attach when enable arrives before the first bounds", async () => {
+  test("waits for the pane to attach when enable arrives before the first bounds", async () => {
     const f = fixture()
     const { sender, status } = await f.create({ attach: false })
     const enabling = f.controller.command(sender, { action: "enable", id: status.id })
@@ -328,36 +494,41 @@ describe("native project browser integration", () => {
     expect((await enabling).enabled).toBe(true)
   })
 
-  it("a disconnect while waiting for the pane cancels the pending enable", async () => {
+  test("a disconnect while waiting for the pane cancels the pending enable", async () => {
     const f = fixture()
     const { sender, status } = await f.create({ attach: false })
     const enabling = f.controller.command(sender, { action: "enable", id: status.id })
     await new Promise((resolve) => setTimeout(resolve, 20))
     await f.controller.command(sender, { action: "disconnect", id: status.id })
     await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 800, height: 600 })
-    await expect(enabling).rejects.toThrow("changed during enrollment")
+    await expect(enabling).resolves.toMatchObject({ reason: "enable-failed", enabled: false })
     expect((await f.controller.command(sender, { action: "status", id: status.id })).enabled).toBe(false)
     expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
 
-  it("still refuses to enable a pane that never becomes visible", async () => {
+  test("still refuses to enable a pane that never becomes visible", async () => {
     const f = fixture({ attachTimeoutMs: 80 })
     const { sender, status } = await f.create({ attach: false })
-    await expect(f.controller.command(sender, { action: "enable", id: status.id })).rejects.toThrow("must be visible")
+    await expect(f.controller.command(sender, { action: "enable", id: status.id })).resolves.toMatchObject({
+      reason: "enable-failed",
+      enabled: false,
+    })
     expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
 
-  it("keeps agent access disabled when the signed runtime lacks the capability", async () => {
+  test("keeps agent access disabled when the signed runtime lacks the capability", async () => {
     const f = fixture({ capability: "unsupported" })
     const { sender, status } = await f.create()
-    await expect(f.controller.command(sender, { action: "enable", id: status.id })).rejects.toThrow(
-      "compatible browser update",
-    )
+    await expect(f.controller.command(sender, { action: "enable", id: status.id })).resolves.toMatchObject({
+      reason: "runtime-incompatible",
+      error: "runtime-incompatible",
+      enabled: false,
+    })
     expect((await f.controller.command(sender, { action: "status", id: status.id })).enabled).toBe(false)
     expect(f.requests.some((request) => request.method === "POST")).toBe(false)
   })
 
-  it("closes every guest before waiting for slow runtime revocation acknowledgments", async () => {
+  test("closes every guest before waiting for slow runtime revocation acknowledgments", async () => {
     const f = fixture({ holdRevocation: true })
     for (let index = 0; index < 2; index++) {
       const { sender, status } = await f.create()
@@ -371,7 +542,7 @@ describe("native project browser integration", () => {
     await closing
   })
 
-  it("serializes concurrent creates for one window so the loser cannot orphan its view", async () => {
+  test("serializes concurrent creates for one window so the loser cannot orphan its view", async () => {
     // Two creates racing before either reached the view registry both passed the
     // "replace the existing pane" check; the loser's WebContentsView stayed
     // attached but untracked until the window closed.
@@ -406,7 +577,7 @@ describe("native project browser integration", () => {
     })
   })
 
-  it("revokes agent access when the page adapter dies", async () => {
+  test("revokes agent access when the page adapter dies", async () => {
     // A debugger detach, a renderer crash or an unusable catalog leaves the
     // adapter unable to run any call. Keeping the provider enrolled made every
     // later agent call time out as unconfirmed instead of failing with the
@@ -426,7 +597,7 @@ describe("native project browser integration", () => {
     expect(after.enabled).toBe(false)
   })
 
-  it("reconciles the tool catalog with the runtime when enrollment completes", async () => {
+  test("reconciles the tool catalog with the runtime when enrollment completes", async () => {
     // A change that lands while enrollment is in flight is dropped (synchronize
     // only pushes with a live connection), so enrollment reconciles once: the
     // runtime must not keep the catalog the POST carried while the adapter has
@@ -445,7 +616,7 @@ describe("native project browser integration", () => {
     expect(f.requests.indexOf(statePuts[0])).toBeGreaterThan(enrollmentPost)
   })
 
-  it("fails a first load that never settles instead of leaving the pane without an id", async () => {
+  test("fails a first load that never settles instead of leaving the pane without an id", async () => {
     // A server that accepts TCP and never answers used to hang the pane in
     // "starting": the renderer never received an id, so every control it offers
     // (address bar, Go, Reload) stayed disabled and the agent saw the browser as
@@ -480,7 +651,7 @@ describe("native project browser integration", () => {
     expect(created.id).toBeTruthy()
   })
 
-  it("refuses a command aimed at a pane whose view is already gone", async () => {
+  test("refuses a command aimed at a pane whose view is already gone", async () => {
     // Teardown destroys the webContents, which can land between the lookup and the command: the
     // raw Electron error ("Object has been destroyed") reached the renderer, while every other
     // branch in this file guards the same object.
@@ -496,7 +667,7 @@ describe("native project browser integration", () => {
     ).rejects.toThrow("no longer available")
   })
 
-  it("fails a navigation that never settles instead of leaving the pane busy", async () => {
+  test("fails a navigation that never settles instead of leaving the pane busy", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
 
@@ -504,7 +675,7 @@ describe("native project browser integration", () => {
 
     await expect(
       f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org/next" }),
-    ).rejects.toThrow("failed to load within")
+    ).resolves.toMatchObject({ error: "operation-failed" })
   })
 })
 
@@ -522,7 +693,7 @@ describe("desktop WebMCP page interaction requests", () => {
   })
   const replies = (f) => f.requests.filter((request) => request.url.endsWith("/reply"))
 
-  it("reads the page and replies with its text and outline", async () => {
+  test("reads the page and replies with its text and outline", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     const live = await f.controller.command(sender, { action: "enable", id: status.id })
@@ -542,7 +713,7 @@ describe("desktop WebMCP page interaction requests", () => {
     })
   })
 
-  it("pushes the new document before replying to an action that navigated", async () => {
+  test("pushes the new document before replying to an action that navigated", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     const live = await f.controller.command(sender, { action: "enable", id: status.id })
@@ -574,7 +745,7 @@ describe("desktop WebMCP page interaction requests", () => {
     expect(lastState).toBeLessThan(f.requests.indexOf(reply))
   })
 
-  it("answers an action on stale references with an error status", async () => {
+  test("answers an action on stale references with an error status", async () => {
     const f = fixture()
     const { sender, status } = await f.create()
     const live = await f.controller.command(sender, { action: "enable", id: status.id })
@@ -590,5 +761,176 @@ describe("desktop WebMCP page interaction requests", () => {
     )
     await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
     expect(replies(f)[0].body).toMatchObject({ requestID: "req-act", status: "Error" })
+  })
+})
+
+describe("Round 8 browser lifecycle", () => {
+  test("pauses without losing the page and resumes only with a fresh explicit enrollment", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
+    const paused = await f.controller.command(sender, {
+      action: "bounds",
+      id: status.id,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+    })
+    expect(paused).toMatchObject({ paused: true, enabled: false, url: enabled.url })
+    expect(paused.generation).not.toBe(enabled.generation)
+    expect(f.guests[0].destroyed).toBe(false)
+    const visible = await f.controller.command(sender, {
+      action: "bounds",
+      id: status.id,
+      x: 0,
+      y: 0,
+      width: 100,
+      height: 100,
+    })
+    expect(visible).toMatchObject({ paused: true, enabled: false })
+    expect(f.requests.filter((r) => r.url.endsWith("/provider") && r.method === "POST")).toHaveLength(1)
+    const resumed = await f.controller.command(sender, { action: "resume", id: status.id })
+    expect(resumed).toMatchObject({ paused: false, enabled: true, url: enabled.url })
+    expect(resumed.generation).not.toBe(paused.generation)
+    expect(f.requests.filter((r) => r.url.endsWith("/capability"))).toHaveLength(2)
+    expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
+  })
+
+  test("drops a late poll before executing a request after pause", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    f.pushStreamRequest({
+      providerID: "provider-1",
+      epoch: "boot",
+      projectID: "project",
+      sessionID: "ses_fixture",
+      operation: "navigate",
+      requestID: "retired",
+      url: "https://example.org/must-not-open",
+    })
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 100, height: 100 })
+    await f.controller.command(sender, { action: "resume", id: status.id })
+    expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+    expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
+  })
+
+  test("revalidates runtime compatibility on resume and leaves access paused on failure", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    f.owners.get(sender).emit("hide")
+    f.setCapability("unsupported")
+    await expect(f.controller.command(sender, { action: "resume", id: status.id })).resolves.toMatchObject({
+      reason: "runtime-incompatible",
+      error: "runtime-incompatible",
+      enabled: false,
+    })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      paused: true,
+      enabled: false,
+    })
+  })
+
+  test("allows draft navigation but refuses draft enrollment", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create({ sessionID: null })
+    expect(
+      await f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org/" }),
+    ).toMatchObject({ enabled: false })
+    await expect(f.controller.command(sender, { action: "enable", id: status.id })).resolves.toMatchObject({
+      reason: "session-required",
+      enabled: false,
+    })
+    expect(f.requests.some((r) => r.method === "POST")).toBe(false)
+  })
+
+  test("returns only fixed native reason codes, never raw error URLs or credentials", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    f.guests[0].loadURL = async () => {
+      throw new Error("ERR_UNSAFE_PORT (-312) https://user:secret@example.org:1/?token=secret")
+    }
+    expect(
+      await f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org:1/" }),
+    ).toMatchObject({ error: "ERR_UNSAFE_PORT" })
+    f.guests[0].loadURL = async () => {
+      throw new Error("ERR_SECRET_CREDENTIAL https://user:secret@example.org/")
+    }
+    expect(
+      await f.controller.command(sender, { action: "navigate", id: status.id, url: "https://example.org/" }),
+    ).toMatchObject({ error: "operation-failed" })
+    f.guests[0].emit("did-fail-load", {}, -102, "ERR_CONNECTION_REFUSED", "https://secret/", false)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      error: "operation-failed",
+    })
+    f.guests[0].emit("did-fail-load", {}, -102, "ERR_CONNECTION_REFUSED", "https://secret/", true)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      error: "ERR_CONNECTION_REFUSED",
+    })
+  })
+
+  test("keeps unreported compatibility unknown", async () => {
+    const f = fixture({ capability: null })
+    const { sender } = await f.create()
+    expect(await f.controller.command(sender, { action: "capability", directory: "/tmp/project" })).toMatchObject({
+      compatible: null,
+    })
+  })
+})
+
+test("preserves the initial native load cause while keeping the address bar usable", async () => {
+  const f = fixture({ loadError: Object.assign(new Error("secret URL"), { code: "ERR_UNSAFE_PORT" }) })
+  const { status } = await f.create()
+  expect(status.id).toBeTruthy()
+  expect(status).toMatchObject({ error: "ERR_UNSAFE_PORT", enabled: false })
+})
+
+describe("page tools for the user", () => {
+  test("lists the page's tools for the user and lets them try one without granting the agent anything", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const guest = f.guests.at(-1)
+    const tool = {
+      name: "add_numbers",
+      description: "Add two integers",
+      frameId: "top",
+      inputSchema: { type: "object", properties: { a: { type: "integer" }, b: { type: "integer" } } },
+    }
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+    const listed = await f.controller.command(sender, { action: "status", id: status.id })
+    expect(listed.enabled).toBe(false)
+    expect(listed.catalog).toEqual([{ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }])
+
+    guest.debugger.sendCommand = async (method, params) => {
+      if (method === "WebMCP.invokeTool") {
+        expect(params).toMatchObject({ toolName: "add_numbers", input: { a: 2, b: 3 } })
+        queueMicrotask(() =>
+          guest.debugger.emit("message", {}, "WebMCP.toolResponded", {
+            invocationId: "inv-1",
+            status: "Completed",
+            output: { content: [{ type: "text", text: "5" }] },
+          }),
+        )
+        return { invocationId: "inv-1" }
+      }
+      return method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } } : {}
+    }
+    const tried = await f.controller.command(sender, {
+      action: "tryTool",
+      id: status.id,
+      toolName: "add_numbers",
+      input: { a: 2, b: 3 },
+    })
+    expect(tried).toEqual({ ok: true, output: { content: [{ type: "text", text: "5" }] } })
+    // Trying a tool is the user acting: no provider enrollment, no grant.
+    expect(f.requests.some((request) => request.method === "POST" && request.url.endsWith("/provider"))).toBe(false)
+    expect(
+      await f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "missing", input: {} }),
+    ).toEqual({ ok: false, reason: "tool-unavailable" })
   })
 })

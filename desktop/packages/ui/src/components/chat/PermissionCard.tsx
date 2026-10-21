@@ -17,6 +17,7 @@ import {
   getPermissionPatterns,
   normalizePermissionName,
 } from "@/lib/permissions/permissionPayload"
+import { describeWebMcpCall } from "@/lib/toolHelpers"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
 import { withTimeout } from "@/lib/asyncTimeout"
 import { RequestRiskBadge } from "./RequestRiskBadge"
@@ -156,11 +157,6 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     return null
   }
 
-  const canSaveWebMcpApproval =
-    normalizePermissionName(permission.permission) === "webmcp" &&
-    Boolean(permission.webmcpAllowlist) &&
-    permission.metadata.requireInteractive !== true
-
   const handleSaveWebMcpApproval = async () => {
     if (submittingRef.current) return
     submittingRef.current = true
@@ -194,6 +190,17 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
   const alwaysPatterns = getPermissionAlwaysPatterns(permission)
   // The runtime refuses an "always" reply to a must-decide request (AX Code ADR-212).
   const canAlways = canAlwaysAllow(permission)
+  // The built-in project browser (desktop provider) has no standing WebMCP grant: unless `always` names a scope, no
+  // "Always allow" is offered. The Chrome bridge keeps its own named scope, the site allowlist record (origin and
+  // capability), so its "Always allow on this site" stays.
+  const isDesktopWebMcp =
+    tool === "desktop_webmcp" || ((tool === "webmcp" || tool.endsWith(".webmcp")) && permission.metadata.desktopProvider === true)
+  const webMcpNamedAlways = !isDesktopWebMcp || alwaysPatterns.length > 0
+  const canSaveWebMcpApproval =
+    normalizePermissionName(permission.permission) === "webmcp" &&
+    Boolean(permission.webmcpAllowlist) &&
+    permission.metadata.requireInteractive !== true &&
+    !isDesktopWebMcp
 
   const getMeta = (key: string, fallback: string = ""): string => {
     const val = permission.metadata[key]
@@ -207,7 +214,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     const val = permission.metadata[key]
     return Boolean(val)
   }
-  const displayToolName = getPermissionToolPresentation(toolName).displayName
+  const displayToolName = getPermissionToolPresentation(toolName, permission.metadata).displayName
 
   const renderToolContent = () => {
     if (tool === "bash" || tool === "shell" || tool === "shell_command") {
@@ -369,6 +376,10 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       const operation = getMeta("operation")
       const webTool = getMeta("toolName")
       const fromDesktopBrowser = permission.metadata.desktopProvider === true
+      const call = describeWebMcpCall(undefined, permission.metadata)
+      const elementLabel = call.element
+        ? [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
+        : ""
       return (
         <>
           <div className="mb-2">
@@ -393,6 +404,51 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
               ) : null}
             </div>
           )}
+          {call.element ? (
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              {elementLabel ? (
+                <span className="inline-flex items-center gap-1 typography-meta">
+                  <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.element")}</span>
+                  <code className="px-1.5 py-0.5 bg-muted/30 rounded">{elementLabel}</code>
+                </span>
+              ) : null}
+              <span className="typography-meta text-muted-foreground">
+                {t(
+                  call.element.submit
+                    ? "chat.permissionCard.webmcp.submit"
+                    : "chat.permissionCard.webmcp.doesNotSubmit",
+                )}
+              </span>
+            </div>
+          ) : null}
+          {call.how ? (
+            <div className="mb-2">
+              <span className="inline-flex items-center gap-1 typography-meta">
+                <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.how")}</span>
+                <code className="px-1.5 py-0.5 bg-muted/30 rounded">{call.how}</code>
+              </span>
+            </div>
+          ) : null}
+          {call.text ? (
+            <div className="mb-2">
+              <span className="inline-flex items-center gap-1 typography-meta">
+                <span className="text-muted-foreground">{t("chat.permissionCard.webmcp.text")}</span>
+                <code className="px-1.5 py-0.5 bg-muted/30 rounded break-all">
+                  {call.text.redacted ? t("chat.permissionCard.webmcp.textRedacted") : call.text.value}
+                </code>
+              </span>
+            </div>
+          ) : null}
+          {call.argumentsMissing ? (
+            <div className="typography-meta text-muted-foreground mb-2">
+              {t("chat.permissionCard.webmcp.argumentsMissing")}
+            </div>
+          ) : null}
+          {call.argumentsText ? (
+            <pre className="typography-meta font-mono px-2 py-1 bg-muted/30 rounded whitespace-pre-wrap break-all mb-2">
+              {call.argumentsText}
+            </pre>
+          ) : null}
           <div className="typography-micro text-muted-foreground">
             {fromDesktopBrowser
               ? t("chat.permissionCard.webmcp.fromProjectBrowser")
@@ -526,7 +582,7 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             {/* The reply API carries only once/always/reject. The runtime applies
                 its own always rule, so do not offer an editable pattern that
                 would be silently discarded; show the server-provided rule. */}
-            {!canAlways ? null : alwaysPatterns.length > 0 ? (
+            {!canAlways || !webMcpNamedAlways ? null : alwaysPatterns.length > 0 ? (
               <button
                 onClick={() => handleResponse("always")}
                 disabled={isResponding}

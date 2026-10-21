@@ -12,6 +12,14 @@ describe("getPermissionToolPresentation", () => {
   test("presents native WebMCP requests as browser tools", () => {
     expect(getPermissionToolPresentation("webmcp")).toEqual({ displayName: "webmcp", icon: "global" })
     expect(getPermissionToolPresentation("desktop_webmcp")).toEqual({ displayName: "webmcp", icon: "global" })
+    expect(getPermissionToolPresentation("webmcp", { toolName: "search-flights", operation: "invoke" })).toEqual({
+      displayName: "search-flights",
+      icon: "global",
+    })
+    expect(getPermissionToolPresentation("desktop_webmcp", { operation: "navigate" })).toEqual({
+      displayName: "navigate",
+      icon: "global",
+    })
   })
 
   test("keeps unknown tools visible by their original name", () => {

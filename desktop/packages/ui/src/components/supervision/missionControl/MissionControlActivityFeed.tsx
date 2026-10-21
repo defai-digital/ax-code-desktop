@@ -87,6 +87,16 @@ export const MissionControlActivityFeed: React.FC<MissionControlActivityFeedProp
                   {event.projectLabel ? (
                     <span className="w-full truncate typography-meta text-muted-foreground">{event.projectLabel}</span>
                   ) : null}
+                  {event.browser ? (
+                    <span className="w-full truncate typography-meta text-muted-foreground" data-activity-browser>
+                      {t(
+                        event.browser.enabled
+                          ? "supervision.missionControl.feed.browserOn"
+                          : "supervision.missionControl.feed.browserOff",
+                        { origin: event.browser.origin },
+                      )}
+                    </span>
+                  ) : null}
                   {event.preview ? (
                     <span className="w-full truncate typography-meta text-muted-foreground" title={event.preview}>
                       {event.preview}

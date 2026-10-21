@@ -4,7 +4,7 @@ import { summarizeWebMcpBrowser } from "./webMcpSummary"
 const base = {
   phase: "idle" as const,
   nativeAvailable: false,
-  runtimeCompatible: null,
+  runtimeCompatible: true,
   enabled: false,
   origin: null,
   page: null as "blank" | "unsupported" | "ready" | null,
@@ -90,7 +90,7 @@ describe("summarizeWebMcpBrowser", () => {
         { isElectron: true },
       ),
     ).toEqual({
-      tone: "success",
+      tone: "default",
       stateKey: "webmcp.state.on",
       detailKey: "webmcp.detail.enabledNoTools",
       detailParams: { origin: "https://trip.com" },
@@ -139,5 +139,32 @@ describe("summarizeWebMcpBrowser", () => {
     expect(
       summarizeWebMcpBrowser({ ...base, phase: "error", error: "enable-failed" }, { isElectron: true }),
     ).toMatchObject({ tone: "error", detailKey: "webmcp.detail.enableFailed" })
+  })
+})
+
+test("shares a bounded error sentence across all surfaces and identifies paused access", () => {
+  expect(
+    summarizeWebMcpBrowser({ ...base, phase: "ready", error: "ERR_UNSAFE_PORT" }, { isElectron: true }),
+  ).toMatchObject({ detailKey: "webmcp.detail.unsafePort", tone: "error" })
+  expect(
+    summarizeWebMcpBrowser({ ...base, phase: "ready", paused: true, enabled: false }, { isElectron: true }),
+  ).toMatchObject({ stateKey: "webmcp.state.paused", tone: "warning" })
+})
+
+test("shows unknown when compatibility has not been reported", () => {
+  expect(
+    summarizeWebMcpBrowser({ ...base, phase: "ready", runtimeCompatible: null }, { isElectron: true }),
+  ).toMatchObject({ stateKey: "webmcp.state.unknown", detailKey: "webmcp.detail.compatibilityUnknown" })
+})
+
+test("uses the native failure sentence even when the runtime is incompatible", () => {
+  expect(
+    summarizeWebMcpBrowser(
+      { ...base, phase: "ready", runtimeCompatible: false, error: "ERR_UNSAFE_PORT" },
+      { isElectron: true },
+    ),
+  ).toMatchObject({ detailKey: "webmcp.detail.unsafePort" })
+  expect(summarizeWebMcpBrowser({ ...base, runtimeCompatible: null }, { isElectron: true })).toMatchObject({
+    stateKey: "webmcp.state.unknown",
   })
 })

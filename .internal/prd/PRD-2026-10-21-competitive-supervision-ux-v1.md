@@ -67,7 +67,8 @@ Until D1 to D3 hold, reports say "not yet better than Orca" with the latest numb
 | CS-03 | 4 | Persisted review threads (re-anchor, resolve, reopen, re-send); viewed marks keyed to blob identities; open a session beside the chat; updated-since-visit facet and Mark as unread | `13a9161f` |
 | CS-04 | 5 | Child agents as rows; cross-session Activity feed; bounded previews for never-opened sessions; beside session with Chat/Changes; inline thread markers; both-sided session marks with fallback warning; remembered Branch base | `d9f1b29d` |
 | CS-05 | 6 | Beside session Files and Terminal tabs; progressive Stage, Commit and Push with fresh-state checks; Windows/CRLF/terminal fixes; three-platform journey CI job | `590da128` |
-| CS-10 to CS-13 | 7 | Change navigation, session grid, runtime verification evidence, batch permission decisions (see round 7 below) | round 7 commit |
+| CS-10 to CS-13 | 7 | Change navigation, session grid, runtime verification evidence, batch permission decisions | `4dc7d52a` |
+| CS-25 to CS-32 | 8 | WebMCP: honest browser lifecycle, truthful failures, informative approvals, page tools with "Try it", named transcript rows, supervision integration, entry flow, naming | round 8 commit |
 
 ### Round 7 (authorized)
 
@@ -94,13 +95,35 @@ before work:
 | CS-23 | WebMCP activity joins supervision: a session using the browser shows it on its Mission Control row and in the Activity feed. |
 | CS-24 | Model robustness stays measured: the WebMCP probe passes with deepseek-flash and one other model on the pinned runtime. |
 
+### Round 8 requirements (accepted 2026-10-21 from the 4a discussion)
+
+Decision record: `../reviews/supervision-ux-orca-2026-10-20/round8-webmcp-design/DECISION.md` (answers, Kimi K3 synthesis, glm-5.3
+verification). These refine CS-20 to CS-23; CS-24 becomes runtime proposal R3. All are Desktop-only.
+
+| ID | Priority | Requirement and acceptance |
+| --- | --- | --- |
+| CS-25 | P0 | Honest browser lifecycle. Reopening restores the last page URL per (normalized project path, session) with agent access off; access is never shown "on" while the runtime rejects the page; a dialog or hidden pane pauses access with a visible "paused" state and a resume action instead of silently disconnecting; each state (no page, page loaded, access offered, granted, paused, disconnected) shows exactly one next action. Restoring a page never restores authority: grants and element references from before are unusable, and nothing pending is executed on resume. |
+| CS-26 | P0 | Truthful copy and actionable failures. Remove "The agent cannot open pages itself" (false since runtime 7.25.8) and the "Update the bundled runtime" message when the runtime simply did not report compatibility (show "unknown"). Failures name the native cause (for example an unsafe port) with one fix action that never expands permissions; the same sentence appears in the pane, tooltip and Services menu. A page with no tools is not shown in the success tone and says the agent can still read and act on the page. |
+| CS-27 | P0 | Informative approvals. WebMCP approval cards show origin, operation, and for act requests the target element, submit flag and redacted text the runtime already sends; the title names the page tool or operation instead of "webmcp"; "Always allow" is not offered when the request carries no named scope (Allow once and Deny remain). |
+| CS-28 | P1 | Live tool panel. The page's registered tools (name, description, input schema) are visible with agent access off, from one panel reachable from every WebMCP entry point; "Try it" lets the user invoke a tool as themselves with a form from the schema, showing the result, and creates no agent grant and no session tool part. |
+| CS-29 | P1 | Transcript rows for desktop_webmcp calls name the page tool or operation and make failure visible when collapsed. |
+| CS-30 | P1 | A session using the project browser shows the page origin on its Mission Control row and the Activity feed records when it starts and stops, from data Desktop already has. |
+| CS-31 | P2 | Entry flow: one primary enable action from a draft; the address bar's Go works independently of enabling. |
+| CS-32 | P2 | Naming: the project browser, the Chrome-bridge allowlist and the MCP server named `webmcp` have distinct titles; the bridge section shows only when that server is connected. |
+
+Runtime contract proposals (need AX Code ADRs; no Desktop dependency until accepted): R1 forward invoke arguments and an always-scope
+in permission metadata; R2 stable structured failure reason codes; R3 model guard rails (invoke templates in list results, schema
+validation before invoke, `nextAction` on errors); R4 per-call WebMCP events for the activity feed and recap; R5 coordinated request
+lifecycle across reconnects; R6 reject a provider enrollment whose session does not belong to the enrolling directory (from the
+package A security review).
+
 ### 4a. Round 8 design discussion: plus, minus, multiply, divide
 
 Question: what does a developer who builds or uses web applications with WebMCP value most, and how should AX Code Desktop's
 WebMCP experience change to deliver it?
 
-- Participants: codex, grok 4.7, Gemini 4 Argon (analysis and ideas), deepseek-flash, MiniMax-M3 (UI/UX) and glm-5.3
-  (verification of others' claims), each
+- Participants: codex, grok 4.7, MiniMax-M3 (UI/UX), Gemini 3.8 Flash (visual comparison), Kimi K3 (synthesis) and glm-5.3
+  (verification of others' claims); Gemini 4 Argon contributed one answer before it was withdrawn for lack of credit. Each
   answering independently first; then one synthesis round where each critiques the merged list.
 - Sources they must use and cite: the WebMCP audit report and screenshots; the current source (path:line); the WebMCP specs
   and explainer and browser documentation (online, official sources only); the accepted WebMCP PRDs and ADRs; earlier user

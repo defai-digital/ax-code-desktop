@@ -14,6 +14,8 @@ export interface ActivityFeedEvent {
   to: SupervisionState
   at: number
   preview: string | null
+  /** Set on project-browser events: agent access to this page origin turned on or off. `from` and `to` are the row's state. */
+  browser?: { origin: string; enabled: boolean }
 }
 
 /**

@@ -1,5 +1,5 @@
 import React, { act } from "react"
-import { createRoot, type Root } from "react-dom/client"
+import { render as renderDom, cleanup, fireEvent, within } from "@/test/dom"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const invoke = vi.fn()
@@ -10,25 +10,29 @@ vi.doMock("@/lib/webMcpBridgeCoordination", () => ({
   pauseChromeBridgeForProjectBrowser: async () => [],
   resumeChromeBridgeForProjectBrowser: async () => {},
 }))
-vi.doMock("@/hooks/useWebMcpBrowser", () => ({
-  useWebMcpCapabilityProbe: () => {},
-  useWebMcpSummary: () => ({
-    tone: "neutral",
-    stateKey: "webmcp.state.off",
-    detailKey: "webmcp.detail.off",
-    canOpen: false,
-    stateLabel: "off",
-    detail: "off",
-  }),
-  useOpenProjectBrowser: () => () => {},
-}))
+vi.doMock("@/hooks/useWebMcpBrowser", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/hooks/useWebMcpBrowser")>()
+  const { summarizeWebMcpBrowser } = await import("@/lib/webMcpSummary")
+  return {
+    useWebMcpCapabilityProbe: () => {},
+    useWebMcpSummary: () => {
+      const state = useWebMcpBrowserStore()
+      const summary = summarizeWebMcpBrowser(state, { isElectron: true })
+      return { ...summary, stateLabel: summary.stateKey, detail: summary.detailKey }
+    },
+    useOpenProjectBrowser: original.useOpenProjectBrowser,
+  }
+})
 vi.doMock("@/components/mcp/WebMcpBrowserTools", () => ({ WebMcpStatusDot: () => null }))
 
 const { EmbeddedBrowserChoice } = await import("./EmbeddedWebMcpBrowser")
 const { useWebMcpBrowserStore } = await import("@/stores/useWebMcpBrowserStore")
 const { useSessionUIStore } = await import("@/sync/session-ui-store")
 
+const sessionSnapshot = useSessionUIStore.getState()
+
 const browserStatus = (enabled: boolean) => ({
+  error: null,
   id: "browser-1",
   nativeAvailable: true,
   enabled,
@@ -38,16 +42,14 @@ const browserStatus = (enabled: boolean) => ({
 
 describe("agent browser enable request", () => {
   let container: HTMLDivElement
-  let root: Root
 
-  const render = () =>
-    act(() =>
-      root.render(
-        <EmbeddedBrowserChoice directory="/repo" initialUrl="https://example.test">
-          <div />
-        </EmbeddedBrowserChoice>,
-      ),
-    )
+  const render = () => {
+    container = renderDom(
+      <EmbeddedBrowserChoice directory="/repo" initialUrl="https://example.test">
+        <div />
+      </EmbeddedBrowserChoice>,
+    ).container
+  }
 
   const openPreviewMode = () =>
     act(() => {
@@ -83,6 +85,8 @@ describe("agent browser enable request", () => {
     )
     useWebMcpBrowserStore.setState({
       phase: "idle",
+      paused: false,
+      error: null,
       browserId: null,
       enabled: false,
       busy: false,
@@ -93,21 +97,95 @@ describe("agent browser enable request", () => {
       enableRequests: 0,
       enableConsumed: 0,
     })
-    useSessionUIStore.setState({ currentSessionId: "session-1" })
+    useSessionUIStore.setState({ currentSessionId: "ses_one" })
 
-    container = document.createElement("div")
-    document.body.appendChild(container)
-    root = createRoot(container)
+    localStorage.clear()
   })
 
   afterEach(() => {
-    act(() => root.unmount())
-    container.remove()
+    cleanup()
+    useSessionUIStore.setState(sessionSnapshot, true)
     document.body.replaceChildren()
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.restoreAllMocks()
     delete (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT
+  })
+
+  test.each(["empty", "reject"])(
+    "retires tab Enable after a %s session start and never enables a later session",
+    async (failure) => {
+      const createSession = vi.fn(async () => {
+        if (failure === "reject") throw new Error("session start failed")
+        return null
+      })
+      useSessionUIStore.setState({
+        currentSessionId: null,
+        newSessionDraft: { ...sessionSnapshot.newSessionDraft, open: true, directoryOverride: "/repo" },
+        createSession: createSession as unknown as typeof sessionSnapshot.createSession,
+      })
+      render()
+      fireEvent.click(within(container).getByRole("button", { name: "webmcp.actions.enable" }))
+      await flush()
+      expect(createSession).toHaveBeenCalledWith("webmcp.session.title", "/repo")
+      expect(callsFor("create")).toHaveLength(1)
+      expect(useWebMcpBrowserStore.getState().enableRequests).toBe(1)
+      expect(useWebMcpBrowserStore.getState().enableConsumed).toBe(1)
+      act(() => useSessionUIStore.setState({ currentSessionId: "ses_unrelated" }))
+      await flush()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1200)
+      })
+      expect(callsFor("enable")).toHaveLength(0)
+    },
+  )
+
+  test("clears a stale native load error when the main process reports a healthy page", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.setState({ error: "ERR_ABORTED" }))
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.aborted")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1100)
+    })
+    expect(useWebMcpBrowserStore.getState().error).toBeNull()
+    expect(within(container).queryByRole("alert")).toBeNull()
+  })
+
+  test("keeps a local command transport failure across healthy status polls", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) => {
+      if (call.action === "navigate") throw new Error("IPC unavailable")
+      return browserStatus(false)
+    })
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.browser.go" }))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1100)
+    })
+    expect(useWebMcpBrowserStore.getState().error).toBe("operation-failed")
+    invoke.mockImplementation(async () => browserStatus(false))
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.browser.go" }))
+    await flush()
+    expect(useWebMcpBrowserStore.getState().error).toBeNull()
+  })
+
+  test.each(["enable", "resume"])("maps the main %s failure even with a cached compatible runtime", async (action) => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.setState({ paused: action === "resume", runtimeCompatible: true }))
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) =>
+      call.action === action ? { ...browserStatus(false), reason: "runtime-incompatible" } : browserStatus(false),
+    )
+    fireEvent.click(within(container).getByRole("button", { name: `webmcp.actions.${action}` }))
+    await flush()
+    expect(callsFor(action)).toHaveLength(1)
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ error: "runtime-incompatible", runtimeCompatible: false })
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.runtimeIncompatible")
   })
 
   test("enables agent access once the browser reports ready", async () => {
@@ -131,9 +209,12 @@ describe("agent browser enable request", () => {
     await flush()
 
     let resolveNavigate: ((value: unknown) => void) | undefined
-    invoke.mockImplementationOnce(async () => new Promise((resolve) => {
-      resolveNavigate = resolve
-    }))
+    invoke.mockImplementationOnce(
+      async () =>
+        new Promise((resolve) => {
+          resolveNavigate = resolve
+        }),
+    )
     act(() => {
       const form = container.querySelector("form")
       form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
@@ -200,5 +281,143 @@ describe("agent browser enable request", () => {
     })
 
     expect(callsFor("enable")).toHaveLength(1)
+  })
+  test("offers one draft enable action and Go navigates without enabling", async () => {
+    useSessionUIStore.setState({ currentSessionId: null })
+    render()
+    openAgentMode()
+    await flush()
+    const ui = within(container)
+    expect(ui.getAllByRole("button", { name: "webmcp.actions.startSession" })).toHaveLength(1)
+    const go = ui.getByRole("button", { name: "webmcp.browser.go" }) as HTMLButtonElement
+    expect(go.disabled).toBe(false)
+    fireEvent.click(go)
+    await flush()
+    expect(callsFor("navigate")).toHaveLength(1)
+    expect(callsFor("enable")).toHaveLength(0)
+    expect(callsFor("create")[0][1]).toMatchObject({ sessionID: null })
+  })
+
+  test("restores session addresses with access off and isolates session switches", async () => {
+    const { rememberWebMcpAddress } = await import("@/stores/useWebMcpBrowserStore")
+    rememberWebMcpAddress("/repo/", "ses_one", "https://example.test/one")
+    rememberWebMcpAddress("/repo", "ses_two", "https://example.test/two")
+    render()
+    openAgentMode()
+    await flush()
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/one" })
+    act(() => useSessionUIStore.setState({ currentSessionId: "ses_two" }))
+    await flush()
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/two" })
+    openPreviewMode()
+    openAgentMode()
+    await flush()
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ url: "https://example.test/two" })
+    expect(callsFor("enable")).toHaveLength(0)
+  })
+
+  test("retires an old enable request while paused and resumes only on click", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => {
+      useWebMcpBrowserStore.setState({ paused: true, enabled: false })
+      useWebMcpBrowserStore.getState().requestAgentMode({ enable: true })
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(0)
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.actions.resume" }))
+    await flush()
+    expect(callsFor("resume")).toHaveLength(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(0)
+    expect(callsFor("navigate")).toHaveLength(0)
+  })
+
+  test("shows the native reason and an address fix that never retries a request", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.setState({ error: "ERR_UNSAFE_PORT" }))
+    expect(within(container).getByRole("alert").textContent).toContain("webmcp.detail.unsafePort")
+    expect(within(container).getByTitle("webmcp.detail.unsafePort").textContent).toBe("webmcp.detail.unsafePort")
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.actions.fix.address" }))
+    expect(document.activeElement).toBe(within(container).getByLabelText("webmcp.browser.addressAria"))
+    expect(callsFor("navigate")).toHaveLength(0)
+    expect(callsFor("enable")).toHaveLength(0)
+  })
+  test("retires pending enable requests when switching sessions or closing the pane", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.getState().requestAgentMode({ enable: true }))
+    act(() => useSessionUIStore.setState({ currentSessionId: "ses_two" }))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(0)
+    act(() => useWebMcpBrowserStore.getState().requestAgentMode({ enable: true }))
+    openPreviewMode()
+    openAgentMode()
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(0)
+  })
+
+  test("offers exactly one next action for an empty page or an error", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.setState({ origin: null, page: "blank", error: null }))
+    expect(within(container).getAllByRole("button", { name: "webmcp.actions.fix.address" })).toHaveLength(1)
+    expect(within(container).getAllByRole("button", { name: "webmcp.actions.enable" })).toHaveLength(0)
+    act(() => useWebMcpBrowserStore.setState({ error: "ERR_UNSAFE_PORT" }))
+    expect(within(container).getAllByRole("button", { name: "webmcp.actions.fix.address" })).toHaveLength(1)
+  })
+
+  test("waits for a draft session before honoring its one explicit enable click", async () => {
+    useSessionUIStore.setState({ currentSessionId: null })
+    render()
+    openAgentMode()
+    await flush()
+    act(() => useWebMcpBrowserStore.getState().requestAgentMode({ enable: true }))
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(0)
+    act(() => useSessionUIStore.setState({ currentSessionId: "ses_created" }))
+    await flush()
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(200)
+    })
+    expect(callsFor("enable")).toHaveLength(1)
+  })
+  test("does not carry a draft page into another project", async () => {
+    useSessionUIStore.setState({ currentSessionId: null })
+    invoke.mockImplementation(async () => ({ ...browserStatus(false), url: "https://draft.test/one" }))
+    const mounted = renderDom(
+      <EmbeddedBrowserChoice directory="/one" initialUrl="https://one.test">
+        <div />
+      </EmbeddedBrowserChoice>,
+    )
+    container = mounted.container
+    openAgentMode()
+    await flush()
+    invoke.mockImplementation(async () => browserStatus(false))
+    mounted.rerender(
+      <EmbeddedBrowserChoice directory="/two" initialUrl="https://two.test">
+        <div />
+      </EmbeddedBrowserChoice>,
+    )
+    await flush()
+    expect(callsFor("create").at(-1)?.[1]).toMatchObject({ directory: "/two", url: "https://two.test" })
+    expect(callsFor("enable")).toHaveLength(0)
   })
 })

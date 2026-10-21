@@ -100,4 +100,24 @@ describe("activity feed persistence", () => {
     expect(useActivityFeedStore.getState().events.map((item) => item.id)).toEqual(["newer"])
     expect(useActivityFeedStore.getState().seenAt).toBe(4)
   })
+
+  test("restores browser events and drops malformed browser fields", async () => {
+    storage.set(
+      ACTIVITY_FEED_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: {
+          events: [
+            { ...event("ok", 3), browser: { origin: "https://shop.test", enabled: true } },
+            { ...event("bad", 2), browser: { origin: 5, enabled: true } },
+          ],
+          seenAt: 0,
+        },
+      }),
+    )
+    await useActivityFeedStore.persist.rehydrate()
+    expect(useActivityFeedStore.getState().events.map((item) => [item.id, item.browser])).toEqual([
+      ["ok", { origin: "https://shop.test", enabled: true }],
+    ])
+  })
 })

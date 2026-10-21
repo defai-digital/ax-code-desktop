@@ -111,3 +111,16 @@ export function sessionGridGeometry(
     rowSplitter: rect(layout === 3 ? left + GRID_GAP : 0, top, layout === 3 ? right : w, GRID_GAP),
   }
 }
+
+/**
+ * Slots for a new layout. Sessions keep their order and fill the remaining panes first, so shrinking only drops a session
+ * when there are more sessions than panes.
+ */
+export function resizeGridSlots(
+  slots: readonly (SessionGridSlot | null)[],
+  layout: SessionGridLayout,
+): (SessionGridSlot | null)[] {
+  if (slots.length <= layout) return Array.from({ length: layout }, (_, i) => slots[i] ?? null)
+  const sessions = slots.filter((slot): slot is SessionGridSlot => slot !== null)
+  return Array.from({ length: layout }, (_, i) => sessions[i] ?? null)
+}

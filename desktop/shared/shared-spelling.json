@@ -92,6 +92,7 @@
     "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
+    "chat.permissionCard.webmcp.how",
     "supervision.missionControl.peek.checksTotal",
     "sessionGrid.focus",
     "app.embeddedSession.terminal",
@@ -229,6 +230,8 @@
     "settings.hooks.list.source.pack"
   ],
   "de": [
+    "chat.permissionCard.webmcp.text",
+    "supervision.missionControl.browser.chip",
     "sessionGrid.layout",
     "app.embeddedSession.terminal",
     "app.embeddedSession.chat",
@@ -340,6 +343,7 @@
     "supervision.missionControl.action.details"
   ],
   "id": [
+    "chat.permissionCard.webmcp.element",
     "supervision.missionControl.peek.checksTotal",
     "app.embeddedSession.terminal",
     "supervision.evidence.summarySingle",
@@ -525,6 +529,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "it": [
+    "supervision.missionControl.browser.chip",
     "sessionGrid.layout",
     "app.embeddedSession.chat",
     "diffView.scope.branch",

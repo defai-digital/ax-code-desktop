@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises"
+import { mentionsPath, pathForms } from "./paths.mjs"
 import path from "node:path"
 import { execFile } from "node:child_process"
 import { promisify } from "node:util"
@@ -230,11 +231,11 @@ const outcome = await runHarness({
       await audit.wait(`document.querySelector('[data-mission-control]')?.checkVisibility() && document.querySelectorAll('.mission-control-row').length === 2`, "board restored after palette dismissal")
     }
     const rowAction = async (prefix, target) => {
-      const matches = (await audit.all()).controls.filter(control => control.name.startsWith(prefix) && control.name.includes(target.directory))
+      const matches = (await audit.all()).controls.filter(control => control.name.startsWith(prefix) && mentionsPath(control.name, target.directory))
       if (matches.length !== 1) throw new Error(`Expected one ${prefix} action for ${target.directory}; got ${matches.length}`)
       await audit.click(matches[0].name)
     }
-    const reviewDirectory = target => audit.wait(`document.querySelector('[data-review-directory]')?.getAttribute('data-review-directory') === ${JSON.stringify(target.directory)}`, "review directory")
+    const reviewDirectory = target => audit.wait(`${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-review-directory]')?.getAttribute('data-review-directory'))`, "review directory")
     const diffText = `Array.from(document.querySelectorAll('diffs-container')).map(e=>e.shadowRoot?.textContent || '').join(' ')`
     const checkDiff = async index => {
       await audit.wait(`${diffText}.includes(${JSON.stringify(`Revised project ${index}`)})`, "rendered fixture diff")
@@ -353,7 +354,7 @@ const outcome = await runHarness({
     // Select the fixture project through its observed session action, then open a fresh draft.
     await openBoard()
     await rowAction("Open —", targets[0])
-    await audit.wait(`document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory') === ${JSON.stringify(targets[0].directory)}`, "selected project")
+    await audit.wait(`${JSON.stringify(pathForms(targets[0].directory))}.includes(document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory'))`, "selected project")
     const newSessionName = await session.evaluate(String.raw`document.querySelector('[data-sidebar-new-session]')?.textContent.replace(/\s+/g,' ').trim()`)
     await audit.click(newSessionName)
     await audit.wait('Boolean(document.querySelector("[data-draft-home]"))', "new session draft")
@@ -391,7 +392,7 @@ const outcome = await runHarness({
       await rowAction("Open —", target)
       const index = targets.indexOf(target)
       await audit.wait(`document.body.innerText.includes(${JSON.stringify(`Fixture conversation for project ${index === 0 ? "A" : "B"}`)})`, "correct conversation")
-      await audit.wait(`document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory') === ${JSON.stringify(target.directory)}`, "workspace context")
+      await audit.wait(`${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory'))`, "workspace context")
       await audit.click("Review changes", { role: "button" })
       await reviewDirectory(target)
       await checkDiff(index)
@@ -539,11 +540,11 @@ const outcome = await runHarness({
     await audit.wait(`(() => {
       const grid = document.querySelector('[data-session-grid]')
       const frames = Array.from(grid?.querySelectorAll('iframe') || [])
-      const targets = ${JSON.stringify(targets.map(target => ({ id: target.id, directory: target.directory })))}
+      const targets = ${JSON.stringify(targets.map(target => ({ id: target.id, directories: pathForms(target.directory) })))}
       return grid?.checkVisibility() && frames.length === 2 && targets.every(target => frames.some(frame => {
         const url = new URL(frame.src)
         const composer = frame.contentDocument?.querySelector('[data-chat-input]')
-        return url.searchParams.get('sessionId') === target.id && url.searchParams.get('directory') === target.directory &&
+        return url.searchParams.get('sessionId') === target.id && target.directories.includes(url.searchParams.get('directory')) &&
           frame.checkVisibility() && frame.getBoundingClientRect().width >= 320 && composer?.checkVisibility()
       }))
     })()`, "two grid sessions visibly render their own composers")

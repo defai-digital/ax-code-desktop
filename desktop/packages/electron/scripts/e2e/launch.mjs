@@ -110,6 +110,11 @@ const waitForExit = (child, timeoutMs) =>
     child.once("exit", onExit)
   })
 
+/** Windows only: end a process and every process it started (taskkill /T), ignoring one that already exited. */
+const killProcessTree = async (pid) => {
+  await execFileAsync("taskkill", ["/PID", String(pid), "/T", "/F"]).catch(() => {})
+}
+
 const killStubProcesses = async (stubRuntime) => {
   if (typeof stubRuntime !== "string" || stubRuntime.length === 0) return
   try {
@@ -217,6 +222,9 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false, portfolio = fa
     child.stderr.on("data", (chunk) => stderr.push(chunk.toString()))
 
     const stop = async () => {
+      // On Windows a signal ends only the Electron main process; its helpers and the stub runtime it started keep the
+      // output pipes open, so the journey process would never exit. End the whole tree and release the pipes.
+      if (process.platform === "win32" && child?.pid) await killProcessTree(child.pid)
       if (child && child.exitCode === null && !child.signalCode) {
         child.kill("SIGTERM")
         if (!(await waitForExit(child, 5000))) {
@@ -225,6 +233,8 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false, portfolio = fa
         }
       }
       await killStubProcesses(stubRuntime)
+      child?.stdout?.destroy()
+      child?.stderr?.destroy()
       await sleep(200)
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})
     }
@@ -243,6 +253,7 @@ export const launchDesktop = async ({ app = "", uiWebMcp = false, portfolio = fa
       projectDir,
     }
   } catch (error) {
+    if (process.platform === "win32" && child?.pid) await killProcessTree(child.pid)
     if (child) child.kill("SIGKILL")
     await killStubProcesses(stubRuntime)
     await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {})

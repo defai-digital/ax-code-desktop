@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from "node:fs/promises"
+import { mentionsPath, pathForms } from "./paths.mjs"
 import path from "node:path"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
@@ -71,7 +72,7 @@ const outcome = await runHarness({
     await capture("portfolio-wide")
     const checkRows = ({ rows }) => {
       for (const target of [e2e.scenario.session, e2e.scenario.portfolio[0].session]) {
-        if (!rows.some(row => row.text.includes(target.directory))) {
+        if (!rows.some(row => mentionsPath(row.text, target.directory))) {
           throw new Error(`Needs You must visibly disambiguate duplicate project labels: ${path.basename(target.directory)}`)
         }
       }
@@ -80,9 +81,9 @@ const outcome = await runHarness({
     const checkLiveRows = ({ liveRows }) => {
       for (const target of [e2e.scenario.session, e2e.scenario.portfolio[0].session]) {
         const row = liveRows.find(row => row.id === target.id)
-        if (!row?.text.includes(target.directory)) throw new Error(`Live row must visibly identify ${target.id}`)
+        if (!mentionsPath(row?.text, target.directory)) throw new Error(`Live row must visibly identify ${target.id}`)
         const button = row.buttons.find(button => button.name.includes(target.title))
-        if (!button?.text.includes(target.directory)) throw new Error(`Live action must identify ${target.id}`)
+        if (!mentionsPath(button?.text, target.directory)) throw new Error(`Live action must identify ${target.id}`)
         if (row.scrollWidth > row.width + 1 || button.scrollWidth > button.width + 1) throw new Error("Live row overflows")
       }
     }
@@ -98,7 +99,7 @@ const outcome = await runHarness({
     ]) {
       const names = (await capture(`needs-you-before-${target.id}`)).rows.map(row => row.fullText.replace(/\s+/g, " ").trim())
       const matches = (await audit.all()).controls.filter(control =>
-        control.role === "button" && control.name.includes(target.title) && control.name.includes(target.directory) &&
+        control.role === "button" && control.name.includes(target.title) && mentionsPath(control.name, target.directory) &&
         names.some(name => name.startsWith(control.name)))
       if (matches.length !== 1) throw new Error(`Expected one unambiguous action for ${target.id}, found ${matches.length}`)
       await audit.click(matches[0].name, { role: "button" })
@@ -128,9 +129,9 @@ const outcome = await runHarness({
         const { liveRows } = await capture(`live-${mode}-before-${target.id}`)
         const row = liveRows.find(row => row.id === target.id)
         const name = row?.buttons.find(button => button.name.includes(target.title))?.name
-        if (!name?.includes(target.directory)) throw new Error(`Missing distinct Live action for ${target.id}`)
+        if (!mentionsPath(name, target.directory)) throw new Error(`Missing distinct Live action for ${target.id}`)
         const matches = (await audit.all()).controls.filter(control =>
-          control.role === "button" && control.name.includes(target.directory) && name.startsWith(control.name))
+          control.role === "button" && mentionsPath(control.name, target.directory) && name.startsWith(control.name))
         if (matches.length !== 1) throw new Error(`Ambiguous Live action for ${target.id}: ${matches.length}`)
         await audit.click(matches[0].name, { role: "button" })
         await audit.wait(`document.body.innerText.includes(${JSON.stringify(marker)})`, `Live ${mode} navigation to ${target.id}`)

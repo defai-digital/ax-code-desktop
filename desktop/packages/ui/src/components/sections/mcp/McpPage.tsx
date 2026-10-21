@@ -1739,8 +1739,10 @@ export const McpPage: React.FC = () => {
           />
         )}
 
+        {/* The Chrome-bridge approvals are only meaningful while that bridge server is connected. */}
         {!isNewServer &&
           selectedServer !== undefined &&
+          isConnected &&
           (selectedServer as unknown as Record<string, unknown>).webmcp !== undefined && (
             <WebMcpAllowlistSection serverName={selectedMcpNameKey} directory={currentDirectory ?? null} />
           )}

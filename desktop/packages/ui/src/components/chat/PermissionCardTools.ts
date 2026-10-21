@@ -1,11 +1,15 @@
 import type { IconName } from "@/components/icon/icons"
+import { desktopWebMcpRowTitle } from "@/lib/toolHelpers"
 
 interface PermissionToolPresentation {
   displayName: string
   icon: IconName
 }
 
-export const getPermissionToolPresentation = (toolName: string): PermissionToolPresentation => {
+export const getPermissionToolPresentation = (
+  toolName: string,
+  metadata?: Record<string, unknown>,
+): PermissionToolPresentation => {
   const tool = toolName.toLowerCase()
 
   if (tool === "edit" || tool === "multiedit" || tool === "str_replace" || tool === "str_replace_based_edit_tool") {
@@ -25,7 +29,7 @@ export const getPermissionToolPresentation = (toolName: string): PermissionToolP
   }
 
   if (tool === "webmcp" || tool === "desktop_webmcp") {
-    return { displayName: "webmcp", icon: "global" }
+    return { displayName: desktopWebMcpRowTitle(undefined, metadata) ?? "webmcp", icon: "global" }
   }
 
   return { displayName: toolName, icon: "tools" }

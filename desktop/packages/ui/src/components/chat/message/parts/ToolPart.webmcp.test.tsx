@@ -1,0 +1,132 @@
+import React from "react"
+import type { ToolPart as ToolPartType } from "@defai-digital/ax-code-sdk/v2"
+import { afterEach, describe, expect, test, vi } from "vitest"
+import { cleanup, render } from "@/test/dom"
+
+vi.mock("@/lib/i18n", () => ({
+  useI18n: () => ({
+    t: (key: string) => key,
+  }),
+}))
+vi.mock("@/sync/sync-context", () => ({
+  useDirectorySync: () => undefined,
+  useSessionMessageRecords: () => [],
+  useEnsureSessionMessages: () => undefined,
+}))
+vi.mock("@/hooks/useSessionActivity", () => ({
+  useSessionActivity: () => ({ phase: "idle", isWorking: false, isBusy: false, isCooldown: false }),
+}))
+
+import ToolPart from "./ToolPart"
+
+afterEach(() => {
+  cleanup()
+})
+
+const part = (tool: string, state: Record<string, unknown>): ToolPartType =>
+  ({
+    id: "part_1",
+    sessionID: "ses_1",
+    messageID: "msg_1",
+    type: "tool",
+    tool,
+    callID: "call_1",
+    state,
+  }) as unknown as ToolPartType
+
+const renderPart = (tool: string, state: Record<string, unknown>, isExpanded = false) =>
+  render(
+    <ToolPart part={part(tool, state)} isExpanded={isExpanded} onToggle={() => undefined} syntaxTheme={{}} isMobile={false} />,
+  )
+
+const outcome = (container: ParentNode) => container.querySelector("[data-webmcp-outcome]")?.getAttribute("data-webmcp-outcome")
+
+describe("desktop_webmcp transcript rows", () => {
+  test("names the page tool and shows an encoded failure while collapsed", () => {
+    const { container } = renderPart("desktop_webmcp", {
+      status: "completed",
+      title: "Desktop WebMCP",
+      input: { action: "invoke", toolName: "search-flights", input: { q: "INVENTED_ARGUMENT" } },
+      metadata: { operation: "invoke", toolName: "search-flights" },
+      output: JSON.stringify({ untrusted: true, result: { isError: true, errorText: "page failed" } }),
+    })
+    expect(outcome(container)).toBe("failed")
+    expect(container.textContent).toContain("search-flights")
+    expect(container.textContent).toContain("chat.toolPart.webmcp.failed")
+    expect(container.textContent).not.toContain("Desktop WebMCP")
+    expect(container.textContent).not.toContain("Desktop webmcp")
+  })
+
+  test("does not mark a completed act or a wait miss as failed", () => {
+    const done = renderPart("desktop_webmcp", {
+      status: "completed",
+      title: "Desktop WebMCP",
+      input: { action: "act" },
+      metadata: { operation: "act" },
+      output: JSON.stringify({ untrusted: true, result: { done: true } }),
+    })
+    expect(outcome(done.container)).toBe("ok")
+    expect(done.container.textContent).toContain("act")
+    expect(done.container.textContent).not.toContain("chat.toolPart.webmcp.failed")
+    expect(done.container.textContent).not.toContain("Desktop WebMCP")
+
+    const missed = renderPart("desktop_webmcp", {
+      status: "completed",
+      title: "Desktop WebMCP",
+      input: { action: "wait" },
+      metadata: { operation: "wait" },
+      output: JSON.stringify({ untrusted: true, result: { found: false } }),
+    })
+    expect(outcome(missed.container)).toBe("ok")
+    expect(missed.container.textContent).not.toContain("chat.toolPart.webmcp.failed")
+  })
+
+  test("shows failure for a thrown tool error and for a completed error status", () => {
+    const thrown = renderPart("desktop_webmcp", {
+      status: "error",
+      title: "Desktop WebMCP",
+      input: { action: "navigate" },
+      metadata: { operation: "navigate" },
+      error: "The page refused the action: stale",
+    })
+    expect(outcome(thrown.container)).toBe("failed")
+    expect(thrown.container.textContent).toContain("navigate")
+    expect(thrown.container.textContent).toContain("chat.toolPart.webmcp.failed")
+
+    const embedded = renderPart("desktop_webmcp", {
+      status: "completed",
+      title: "Desktop WebMCP",
+      input: { action: "invoke", toolName: "search-flights" },
+      metadata: { operation: "invoke" },
+      output: JSON.stringify({ untrusted: true, result: { status: "Error", errorText: "page failed" } }),
+    })
+    expect(outcome(embedded.container)).toBe("failed")
+  })
+
+  test("shows the missing-arguments sentence instead of the model payload", () => {
+    const { container } = renderPart(
+      "desktop_webmcp",
+      {
+        status: "completed",
+        title: "Desktop WebMCP",
+        input: { action: "invoke", toolName: "search-flights", input: { q: "INVENTED_ARGUMENT" } },
+        metadata: { operation: "invoke", toolName: "search-flights" },
+        output: JSON.stringify({ untrusted: true, result: { ok: true } }),
+      },
+      true,
+    )
+    expect(container.textContent).toContain("chat.toolPart.webmcp.argumentsMissing")
+    expect(container.textContent).not.toContain("INVENTED_ARGUMENT")
+    expect(outcome(container)).toBe("ok")
+  })
+
+  test("leaves a bash row unmarked", () => {
+    const { container } = renderPart("bash", {
+      status: "completed",
+      input: { command: "ls" },
+      output: "ok",
+    })
+    expect(container.querySelector("[data-webmcp-outcome]")).toBeNull()
+    expect(container.textContent).not.toContain("chat.toolPart.webmcp.failed")
+  })
+})

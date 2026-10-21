@@ -21,6 +21,9 @@ describe("normalizeToolName", () => {
 describe("tool render classification", () => {
   test("classifies expandable, standalone, and static tools after normalization", () => {
     expect(isExpandableTool("server.bash:1")).toBe(true)
+    expect(isExpandableTool("desktop_webmcp")).toBe(true)
+    expect(isExpandableTool("webmcp")).toBe(true)
+    expect(isStaticTool("desktop_webmcp")).toBe(false)
     expect(isStandaloneTool("task")).toBe(true)
     expect(isStaticTool("grep")).toBe(true)
     expect(getStaticGroupToolName("ripgrep")).toBe("grep")

@@ -1,5 +1,6 @@
 import React from "react"
 import { useShallow } from "zustand/react/shallow"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useI18n } from "@/lib/i18n"
 import { isElectronShell } from "@/lib/desktop"
 import { getDesktopBridge } from "@/lib/desktopBridge"
@@ -19,6 +20,7 @@ export function useWebMcpSummary() {
   const snapshot = useWebMcpBrowserStore(
     useShallow((state) => ({
       phase: state.phase,
+      paused: state.paused,
       nativeAvailable: state.nativeAvailable,
       runtimeCompatible: state.runtimeCompatible,
       enabled: state.enabled,
@@ -44,7 +46,9 @@ export function useWebMcpSummary() {
 export async function ensureSessionForProjectBrowser(title: string): Promise<boolean> {
   const ui = useSessionUIStore.getState()
   if (ui.currentSessionId) return true
-  const directory = ui.newSessionDraft?.directoryOverride ?? useDirectoryStore.getState().currentDirectory ?? null
+  const directory = normalizeProjectPath(
+    ui.newSessionDraft?.directoryOverride ?? useDirectoryStore.getState().currentDirectory,
+  )
   if (!directory) return false
   const session = await ui.createSession(title, directory)
   return Boolean(session)
@@ -63,9 +67,13 @@ export function useOpenProjectBrowser() {
       requestAgentMode(options)
       focusContextBrowser()
       if (options?.enable) {
+        const failed = () => {
+          useWebMcpBrowserStore.getState().consumeEnableRequest()
+          toast.error(t("webmcp.detail.sessionRequired"))
+        }
         void ensureSessionForProjectBrowser(t("webmcp.session.title")).then((started) => {
-          if (!started) toast.error(t("webmcp.detail.sessionRequired"))
-        })
+          if (!started) failed()
+        }, failed)
       }
     },
     [focusContextBrowser, requestAgentMode, t],
@@ -76,7 +84,9 @@ const CAPABILITY_CACHE_MS = 60_000
 // The answer describes the one supervised runtime, not a project, so a single cache entry is enough.
 let capabilityCache: { at: number; compatible: boolean } | null = null
 
-type CapabilityProbeResult = { compatible?: boolean; reachable?: boolean }
+type CapabilityProbeResult = { compatible?: boolean | null; reachable?: boolean }
+export const webMcpCompatibility = (result: CapabilityProbeResult | null | undefined): boolean | null =>
+  result?.reachable === false || typeof result?.compatible !== "boolean" ? null : result.compatible
 
 /**
  * Asks the runtime, at most once a minute, whether it accepts the desktop browser provider.
@@ -98,13 +108,16 @@ export function useWebMcpCapabilityProbe(directory: string | null) {
     let disposed = false
     updateSnapshot({ runtimeCompatible: null })
     void bridge
-      .invoke<CapabilityProbeResult>("desktop_webmcp_browser", { action: "capability", directory })
+      .invoke<CapabilityProbeResult>("desktop_webmcp_browser", {
+        action: "capability",
+        directory: normalizeProjectPath(directory),
+      })
       .then((result) => {
-        if (result?.reachable === false) {
+        if (webMcpCompatibility(result) === null) {
           if (!disposed) updateSnapshot({ runtimeCompatible: null })
           return
         }
-        const compatible = Boolean(result?.compatible)
+        const compatible = webMcpCompatibility(result)!
         capabilityCache = { at: Date.now(), compatible }
         if (!disposed) updateSnapshot({ runtimeCompatible: compatible })
       })

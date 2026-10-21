@@ -110,9 +110,13 @@ class NativeWebMcp {
     this.tools.clear()
     this.revoke()
   }
-  revoke() {
+  revoke({ cancelPageRequest = false } = {}) {
     this.generation = randomUUID()
     this.readId = null
+    // Withdrawing access (pause, disconnect) also stops a read/act/wait that is already running: it cannot be aborted
+    // mid-script, so marking it canceled stops it at the next checkpoint and an act still queued never clicks or types.
+    // A navigation the act itself caused revokes too, but must not cancel that act.
+    if (cancelPageRequest && this.activePageRequestId) this.canceledPageRequests.add(this.activePageRequestId)
     for (const id of [...this.pending.keys()]) this.cancel(id)
     this.changed()
   }
@@ -345,4 +349,4 @@ class NativeWebMcp {
   }
 }
 
-module.exports = { NativeWebMcp, definitionDigest, CAPABILITY, agentOrigin, allowedUrl, pageKind }
+module.exports = { NativeWebMcp, definitionDigest, CAPABILITY, agentOrigin, allowedUrl, pageKind, byteSize }

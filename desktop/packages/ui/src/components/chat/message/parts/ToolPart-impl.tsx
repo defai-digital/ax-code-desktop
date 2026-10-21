@@ -4,7 +4,14 @@ import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import { cn } from "@/lib/utils"
 import { SimpleMarkdownRenderer } from "../../MarkdownRenderer"
 import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
-import { getToolMetadata } from "@/lib/toolHelpers"
+import {
+  describeWebMcpCall,
+  desktopWebMcpResultFailed,
+  desktopWebMcpRowTitle,
+  getToolMetadata,
+  isWebMcpToolName,
+  type WebMcpCallDescription,
+} from "@/lib/toolHelpers"
 import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { toolDisplayStyles } from "@/lib/typography"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
@@ -39,6 +46,7 @@ import { useDurationTickerNow } from "./useDurationTicker"
 import { resolveFallbackTaskSessionId } from "./resolveFallbackTaskSessionId"
 import { areRenderRelevantPartsEqual } from "../renderCompare"
 import { useI18n } from "@/lib/i18n"
+import type { I18nKey } from "@/lib/i18n/messages/en"
 import { getDiffPatchEntries, getPatchText, isRecord } from "./toolDiffUtils"
 import { LazyToolDiffPreview as DiffPreview } from "./LazyToolDiffPreview"
 import { getToolRelativePath, toAbsoluteToolPath } from "./toolPathDisplay"
@@ -187,6 +195,30 @@ const LiveDuration: React.FC<{ start: number; end?: number; active: boolean }> =
   const now = useDurationTickerNow(active, 250)
 
   return <>{formatDuration(start, end, now)}</>
+}
+
+const webMcpExpandedInput = (
+  input: Record<string, unknown> | undefined,
+  metadata: Record<string, unknown> | undefined,
+  t: (key: I18nKey) => string,
+): string => {
+  const call: WebMcpCallDescription = describeWebMcpCall(input, metadata)
+  const lines: string[] = []
+  if (call.toolName) lines.push(`${t("chat.permissionCard.webmcp.tool")} ${call.toolName}`)
+  if (call.operation) lines.push(`${t("chat.permissionCard.webmcp.operation")} ${call.operation}`)
+  if (call.how) lines.push(`${t("chat.permissionCard.webmcp.how")} ${call.how}`)
+  if (call.element) {
+    const label = [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
+    if (label) lines.push(`${t("chat.permissionCard.webmcp.element")} ${label}`)
+    lines.push(
+      t(call.element.submit ? "chat.permissionCard.webmcp.submit" : "chat.permissionCard.webmcp.doesNotSubmit"),
+    )
+  }
+  if (call.text?.redacted) lines.push(t("chat.permissionCard.webmcp.textRedacted"))
+  else if (call.text) lines.push(`${t("chat.permissionCard.webmcp.text")} ${call.text.value}`)
+  if (call.argumentsMissing) lines.push(t("chat.toolPart.webmcp.argumentsMissing"))
+  if (call.argumentsText) lines.push(call.argumentsText)
+  return lines.join("\n")
 }
 
 const EXPANDED_CONTENT_TRANSITION_MS = 0
@@ -645,6 +677,10 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
     )
 
     const inputTextContent = React.useMemo(() => {
+      if (isWebMcpToolName(normalizeToolName(part.tool))) {
+        return webMcpExpandedInput(input, metadata, t)
+      }
+
       if (!input || typeof input !== "object" || Object.keys(input).length === 0) {
         return ""
       }
@@ -658,7 +694,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
       }
 
       return formatInputForDisplay(input, part.tool)
-    }, [input, part.tool])
+    }, [input, metadata, part.tool, t])
     const hasInputText = !hideToolInputPreview && inputTextContent.trim().length > 0
     const isWriteLikeTool = part.tool === "write" || part.tool === "create" || part.tool === "file_write"
     const writeLikeInputPatch = React.useMemo(() => {
@@ -967,6 +1003,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   onShowPopup,
   animateTailText = true,
 }) => {
+  const { t } = useI18n()
   const state = part.state
   const showToolFileIcons = useUIStore((s) => s.showToolFileIcons)
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
@@ -983,7 +1020,9 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
     status === "failed" ||
     status === "timeout" ||
     status === "cancelled"
-  const isError = status === "error" || status === "failed"
+  const webmcp = normalizedPartTool === "desktop_webmcp" || normalizedPartTool === "webmcp"
+  const webmcpFailed = webmcp && desktopWebMcpResultFailed(state)
+  const isError = status === "error" || status === "failed" || webmcpFailed
 
   const [activeLatched, setActiveLatched] = React.useState<boolean>(!isFinalized)
   const previousPartIdRef = React.useRef<string | undefined>(part.id)
@@ -1617,11 +1656,16 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   const normalizedPart =
     normalizedPartTool !== part.tool ? ({ ...part, tool: normalizedPartTool } as ToolPartType) : part
   const descriptionPath = getToolDescriptionPath(normalizedPart, state, currentDirectory)
-  const description = getToolDescription(normalizedPart, state, currentDirectory)
-  const displayName = getToolMetadata(normalizedPartTool || part.tool).displayName
+  const description = webmcp ? "" : getToolDescription(normalizedPart, state, currentDirectory)
+  const displayName = webmcp
+    ? (desktopWebMcpRowTitle(input, metadata) ?? getToolMetadata(normalizedPartTool || part.tool).displayName)
+    : getToolMetadata(normalizedPartTool || part.tool).displayName
 
   // Tool title/description — shown inline as context
   const justificationText = React.useMemo(() => {
+    if (webmcp) {
+      return isError ? t("chat.toolPart.webmcp.failed") : null
+    }
     if (normalizedPartTool === "bash") {
       return null
     }
@@ -1646,7 +1690,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
       return inputDesc
     }
     return null
-  }, [descriptionPath, normalizedPartTool, stateWithData, input])
+  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp])
 
   const runtime = React.useContext(RuntimeAPIContext)
 
@@ -1720,6 +1764,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
         onKeyDown={handleMainKeyDown}
         role="button"
         tabIndex={0}
+        data-webmcp-outcome={webmcp ? (isError ? "failed" : "ok") : undefined}
       >
         <div
           className={cn(
@@ -1966,7 +2011,13 @@ class ToolPartErrorBoundary extends React.Component<
 const ToolPart: React.FC<ToolPartProps> = (props) => {
   const { t } = useI18n()
   const toolName = normalizeToolName(props.part.tool) || "tool"
-  const displayName = getToolMetadata(toolName).displayName
+  const boundaryState = props.part.state as
+    | { input?: Record<string, unknown>; metadata?: Record<string, unknown> }
+    | undefined
+  const displayName = getToolMetadata(toolName, {
+    input: boundaryState?.input,
+    metadata: boundaryState?.metadata,
+  }).displayName
 
   return (
     <ToolPartErrorBoundary

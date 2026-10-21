@@ -43,7 +43,14 @@ function restoreEvent(value: unknown): ActivityFeedEvent | null {
   if (!isActivityFeedState(to)) return null
   if (typeof at !== "number" || !Number.isFinite(at)) return null
   if (preview === undefined) return null
-  return { id, sessionId, title, projectLabel, directory, from, to, at, preview }
+  const restored: ActivityFeedEvent = { id, sessionId, title, projectLabel, directory, from, to, at, preview }
+  const browser = event.browser as { origin?: unknown; enabled?: unknown } | undefined
+  if (browser !== undefined) {
+    if (!browser || typeof browser.origin !== "string" || browser.origin.length > 512 || typeof browser.enabled !== "boolean")
+      return null
+    restored.browser = { origin: browser.origin, enabled: browser.enabled }
+  }
+  return restored
 }
 
 function restoreEvents(input: unknown): ActivityFeedEvent[] {

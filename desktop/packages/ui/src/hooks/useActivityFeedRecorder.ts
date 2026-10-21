@@ -1,8 +1,10 @@
 import React from "react"
 
 import { diffActivityEvents } from "@/lib/supervision/activityFeed"
+import { browserSessionUse, diffBrowserActivity, type BrowserSessionUse } from "@/lib/supervision/browserActivity"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useSupervisionRows } from "./useSupervisionRows"
 
 /**
@@ -23,4 +25,20 @@ export function useActivityFeedRecorder(enabled = true): void {
     const events = diffActivityEvents(prior, rows, Date.now())
     if (events.length > 0) useActivityFeedStore.getState().record(events)
   }, [enabled, rows])
+
+  // Project-browser access joins the same feed: when agent access to a page starts and stops.
+  const sessionID = useWebMcpBrowserStore((state) => state.sessionID)
+  const origin = useWebMcpBrowserStore((state) => state.origin)
+  const browserEnabled = useWebMcpBrowserStore((state) => state.enabled)
+  const ready = useWebMcpBrowserStore((state) => state.phase === "ready")
+  const previousBrowser = React.useRef<BrowserSessionUse | null | undefined>(undefined)
+  const rowsRef = React.useRef(rows)
+  rowsRef.current = rows
+  React.useEffect(() => {
+    if (!enabled) return
+    const next = browserSessionUse({ sessionID, origin, enabled: browserEnabled, ready })
+    const events = diffBrowserActivity(previousBrowser.current, next, rowsRef.current, Date.now())
+    previousBrowser.current = next
+    if (events.length > 0) useActivityFeedStore.getState().record(events)
+  }, [enabled, sessionID, origin, browserEnabled, ready])
 }

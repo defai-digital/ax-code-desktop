@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Native navigation and isolated-profile pin verification; no provider execution.
 import fs from "node:fs/promises"
+import { mentionsPath, pathForms } from "./paths.mjs"
 import path from "node:path"
 import { waitForCondition } from "./cdp.mjs"
 import { journeyBoot } from "./journeys.mjs"
@@ -41,17 +42,17 @@ const outcome = await runHarness({
     const verify = ({ state, rows }) => {
       for (const target of targets) {
         const matches = state.controls.filter(control => control.role === "button" &&
-          control.name.startsWith("Shared project · ") && control.name.includes(target.directory))
+          control.name.startsWith("Shared project · ") && mentionsPath(control.name, target.directory))
         if (matches.length !== 1) throw new Error(`Project card must identify ${target.id}`)
-        const row = rows.find(row => row.directory === target.directory)
-        if (!row?.text.includes(target.directory)) throw new Error("Project path must remain visible")
+        const row = rows.find(row => pathForms(target.directory).includes(row.directory))
+        if (!mentionsPath(row?.text, target.directory)) throw new Error("Project path must remain visible")
         if (row.scrollWidth > row.width + 1 || !row.path || row.path.scrollWidth > row.path.width + 1 ||
           row.controls.some(control => !control.name || control.scrollWidth > control.width + 1)) throw new Error("Project card context or controls overflow")
       }
     }
     const targetControl = async (prefix, directory) => {
       const controls = (await audit.all()).controls.filter(control => control.role === "button" &&
-        control.name.startsWith(prefix) && control.name.includes(directory))
+        control.name.startsWith(prefix) && mentionsPath(control.name, directory))
       if (controls.length !== 1) throw new Error(`Expected one ${prefix} target, found ${controls.length}`)
       return controls[0]
     }

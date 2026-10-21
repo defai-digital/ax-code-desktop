@@ -185,3 +185,27 @@ Controlled by `.internal/prd/PRD-2026-10-21-competitive-supervision-ux-v1.md` (a
 - Gates: UI 4212, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
   release contract, 14 locales, actionlint; native WebMCP supervision-workspace (with the grid), portfolio-identity, project-home and
   `e2e:desktop` passed on macOS.
+
+## Round 8 (2026-10-21): WebMCP
+
+Method: PRD-2026-10-21 section 4a. Five independent answers (codex, grok, MiniMax-M3, Gemini 3.8 Flash visual critique, one Gemini
+4 Argon answer before it was withdrawn), Kimi K3 synthesis, glm-5.3 verification of every cited line; decision record
+`../round8-webmcp-design/DECISION.md`. Accepted CS-25 to CS-32 (Desktop) and runtime proposals R1 to R6.
+
+- CS-25, CS-26, CS-31 (codex): the project browser pauses access when covered instead of silently disconnecting, resumes only on
+  an explicit click with full revalidation and never replays a pending request; the last page is restored per project and
+  session without authority; failures name the native cause with one fix action; false "cannot open pages" and "update the
+  runtime" copy removed; one primary enable action. Reviews: deepseek-flash security (no HIGH; two LOW fixed, one MEDIUM sent to
+  the runtime as R6, one LOW accepted) and Kimi K3 (three MEDIUM, all fixed by codex with tests and mutation probes).
+- CS-27, CS-29 (grok): approval cards show target, submit flag and redacted text, are titled by the page tool, and offer no
+  "Always allow" for the built-in project browser; collapsed transcript rows name the page tool and show failure. Review
+  (deepseek-flash): redaction by key and field name, short secrets, and timeout/cancel as failure fixed; a regression that removed
+  the Chrome bridge's "Always allow on this site" reverted.
+- CS-28, CS-30, CS-32 (Claude): page tools with schemas visible while access is off, "Try it" runs a tool as the user with no
+  grant; Mission Control rows show the page a session's browser is on, and the Activity feed records access starting and
+  stopping; the Chrome-bridge approvals are titled "Chrome bridge site approvals" and shown only while that bridge is connected.
+- Three-platform CI (first run, commit `4dc7d52a`): all supervision journeys passed on macOS and Ubuntu; on Windows the app
+  rendered correctly but the journey matched raw `C:\` paths and the harness did not end Electron's process tree, so the run hung.
+  Fixed here (shared path matching, `taskkill /T` teardown); the next CI run is the Windows evidence.
+- Gates: UI 4266, web 1490 (+2 skipped), Electron 780 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales, actionlint; macOS native journeys and `e2e:desktop` passed.

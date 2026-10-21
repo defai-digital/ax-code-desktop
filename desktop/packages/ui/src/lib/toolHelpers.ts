@@ -1,3 +1,6 @@
+import { isPlainRecord } from "@/lib/record"
+import { truncateToCodeUnits } from "@/lib/textTruncate"
+
 interface ToolMetadata {
   displayName: string
   icon?: string
@@ -202,7 +205,232 @@ function formatUnknownToolDisplayName(toolName: string): string {
     .replace(/^./, (char) => char.toUpperCase())
 }
 
-export function getToolMetadata(toolName: string): ToolMetadata {
+/**
+ * Same credential shapes as the activity preview. Used only to mask text on screen.
+ * Callers must not write the original value, an element ref, or a grant to storage.
+ */
+const WEBMCP_CREDENTIALS: readonly RegExp[] = [
+  /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/,
+  /\b(?:sk|rk)-[A-Za-z0-9][A-Za-z0-9_-]{16,}/,
+  /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{16,}/,
+  /\bxox[baprs]-[A-Za-z0-9-]{10,}/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bBearer\s+\S{16,}/i,
+  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
+  // Any value after a credential keyword, however short (password=hunter2 must not show).
+  /\b(?:api[_-]?key|secret|token|password|passwd|passphrase|access[_-]?key|authorization|cookie)\s*[:=]\s*['"]?\S+/i,
+]
+
+/** Key or field names whose values are never shown, whatever the value looks like. */
+const WEBMCP_SENSITIVE_NAME =
+  /password|passwd|passphrase|secret|token|credential|api.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
+
+const WEBMCP_TEXT_LIMIT = 140
+
+/** Shown when an invoke request has no arguments object. Matches the en catalog verbatim. */
+export const WEBMCP_ARGUMENTS_MISSING = "arguments not provided by the runtime"
+
+const WEBMCP_FAILURE_STATUSES = /^(error|failed|canceled|cancelled|timeout|aborted)$/i
+
+export interface WebMcpElementDetails {
+  ref: string
+  kind: string
+  name: string
+  submit: boolean
+}
+
+export type WebMcpDisplayedText = { redacted: true } | { redacted: false; value: string }
+
+export interface WebMcpCallDescription {
+  toolName: string | null
+  operation: string | null
+  how: string | null
+  element: WebMcpElementDetails | null
+  text: WebMcpDisplayedText | null
+  argumentsMissing: boolean
+  argumentsText: string | null
+}
+
+export interface ToolMetadataContext {
+  input?: Record<string, unknown> | null
+  metadata?: Record<string, unknown> | null
+}
+
+export function isWebMcpToolName(toolName: string): boolean {
+  const tool = toolName.trim().toLowerCase()
+  return tool === "webmcp" || tool === "desktop_webmcp"
+}
+
+function readWebMcpString(record: Record<string, unknown> | null | undefined, key: string): string | null {
+  if (!record) return null
+  const value = record[key]
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function webMcpTextLooksSensitive(value: string): boolean {
+  return WEBMCP_CREDENTIALS.some((pattern) => pattern.test(value))
+}
+
+/** Collapse whitespace, drop credential-like text, and cap the visible remainder. */
+export function redactDisplayedText(value: string): WebMcpDisplayedText | null {
+  const collapsed = value.replace(/\s+/g, " ").trim()
+  if (!collapsed) return null
+  if (webMcpTextLooksSensitive(value) || webMcpTextLooksSensitive(collapsed)) return { redacted: true }
+  return { redacted: false, value: truncateToCodeUnits(collapsed, WEBMCP_TEXT_LIMIT) }
+}
+
+/** Text typed into a field whose name or kind marks it sensitive is never shown, even when the text itself looks ordinary. */
+function redactActText(value: string, element: WebMcpElementDetails | null): WebMcpDisplayedText | null {
+  if (element && WEBMCP_SENSITIVE_NAME.test(`${element.name} ${element.kind}`) && value.trim()) return { redacted: true }
+  return redactDisplayedText(value)
+}
+
+function redactJsonValue(value: unknown): unknown {
+  if (typeof value === "string") {
+    const displayed = redactDisplayedText(value)
+    if (!displayed) return ""
+    return displayed.redacted ? "[redacted]" : displayed.value
+  }
+  if (typeof value === "number" || typeof value === "boolean" || value === null) return value
+  if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry))
+  if (isPlainRecord(value)) {
+    const next: Record<string, unknown> = {}
+    for (const [key, entry] of Object.entries(value))
+      next[key] = WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
+    return next
+  }
+  return null
+}
+
+function readWebMcpElement(record: Record<string, unknown> | null | undefined): WebMcpElementDetails | null {
+  if (!record || !isPlainRecord(record.element)) return null
+  const element = record.element
+  const ref = readWebMcpString(element, "ref") ?? ""
+  const kind = readWebMcpString(element, "kind") ?? ""
+  const name = readWebMcpString(element, "name") ?? ""
+  if (!ref && !kind && !name) return null
+  return { ref, kind, name, submit: element.submit === true }
+}
+
+function readWebMcpArguments(metadata: Record<string, unknown> | null | undefined): Record<string, unknown> | null {
+  if (!metadata) return null
+  for (const candidate of [metadata.arguments, metadata.input]) {
+    if (!isPlainRecord(candidate) || Object.keys(candidate).length === 0) continue
+    return candidate
+  }
+  return null
+}
+
+/**
+ * Fields the runtime already attaches to a WebMCP call. Invoke arguments come only from
+ * `metadata.arguments` or `metadata.input`. The model payload under `input.input` is not a receipt.
+ */
+export function describeWebMcpCall(
+  input?: Record<string, unknown> | null,
+  metadata?: Record<string, unknown> | null,
+): WebMcpCallDescription {
+  const toolName =
+    readWebMcpString(metadata, "toolName") || readWebMcpString(input, "toolName") || readWebMcpString(input, "tool")
+  const operation =
+    readWebMcpString(metadata, "operation") ||
+    readWebMcpString(input, "action") ||
+    readWebMcpString(input, "operation") ||
+    readWebMcpString(metadata, "action")
+  const normalized = operation?.toLowerCase() ?? ""
+  const act = normalized === "act"
+  const rawText = act ? readWebMcpString(metadata, "text") || readWebMcpString(input, "text") : null
+  let argumentsMissing = false
+  let argumentsText: string | null = null
+  if (normalized === "invoke") {
+    const args = readWebMcpArguments(metadata)
+    if (!args) argumentsMissing = true
+    else argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
+  }
+  return {
+    toolName,
+    operation,
+    how: act ? readWebMcpString(metadata, "how") || readWebMcpString(input, "how") : null,
+    element: act ? readWebMcpElement(metadata) ?? readWebMcpElement(input) : null,
+    text: rawText ? redactActText(rawText, act ? readWebMcpElement(metadata) ?? readWebMcpElement(input) : null) : null,
+    argumentsMissing,
+    argumentsText,
+  }
+}
+
+/** Page tool name when the runtime sent one, otherwise the operation. Null when neither is present. */
+export function desktopWebMcpRowTitle(
+  input?: Record<string, unknown> | null,
+  metadata?: Record<string, unknown> | null,
+): string | null {
+  const call = describeWebMcpCall(input, metadata)
+  return call.toolName || call.operation
+}
+
+function webMcpResultRecord(output: unknown): Record<string, unknown> | null {
+  let parsed: unknown = output
+  if (typeof output === "string") {
+    const trimmed = output.trim()
+    if (!trimmed) return null
+    try {
+      parsed = JSON.parse(trimmed) as unknown
+    } catch {
+      return null
+    }
+  }
+  if (!isPlainRecord(parsed)) return null
+  if (parsed.untrusted === true && isPlainRecord(parsed.result)) return parsed.result
+  return parsed
+}
+
+/**
+ * Thrown WebMCP calls arrive as status `error` or `failed`. A completed invoke can still be a page-tool
+ * failure inside `{ untrusted: true, result }`. `found: false` and `done: true` are not failures.
+ */
+export function desktopWebMcpResultFailed(state: { status?: unknown; output?: unknown } | null | undefined): boolean {
+  const status = typeof state?.status === "string" ? state.status : ""
+  // A call that timed out, was cancelled or aborted did not do what was asked: it is a failure for the row too.
+  if (["error", "failed", "timeout", "cancelled", "canceled", "aborted"].includes(status)) return true
+  if (status !== "completed") return false
+  const result = webMcpResultRecord(state?.output)
+  if (!result) return false
+  if (result.isError === true) return true
+  if (result.ok === false) return true
+  if (typeof result.status === "string" && WEBMCP_FAILURE_STATUSES.test(result.status.trim())) return true
+  if (typeof result.error === "string" && result.error.trim().length > 0) return true
+  if (typeof result.errorText === "string" && result.errorText.trim().length > 0) return true
+  return false
+}
+
+function formatWebMcpToolInput(input: Record<string, unknown>): string {
+  const call = describeWebMcpCall(input, undefined)
+  const lines: string[] = []
+  if (call.operation) lines.push(`Operation: ${call.operation}`)
+  if (call.toolName) lines.push(`Tool: ${call.toolName}`)
+  if (call.how) lines.push(`Action: ${call.how}`)
+  if (call.element) {
+    const label = [call.element.ref, call.element.kind, call.element.name].filter(Boolean).join(" ")
+    if (label) lines.push(`Target: ${label}`)
+    lines.push(call.element.submit ? "Submits the form" : "Does not submit")
+  }
+  if (call.text?.redacted) lines.push("Text redacted")
+  else if (call.text) lines.push(`Text: ${call.text.value}`)
+  if (call.argumentsMissing) lines.push(WEBMCP_ARGUMENTS_MISSING)
+  if (call.argumentsText) lines.push(call.argumentsText)
+  return lines.join("\n")
+}
+
+export function getToolMetadata(toolName: string, context?: ToolMetadataContext): ToolMetadata {
+  if (isWebMcpToolName(toolName)) {
+    return {
+      displayName: desktopWebMcpRowTitle(context?.input, context?.metadata) ?? formatUnknownToolDisplayName(toolName),
+      category: "web",
+      outputLanguage: "text",
+      inputFields: [],
+      icon: "global",
+    }
+  }
   return (
     TOOL_METADATA[toolName] || {
       displayName: formatUnknownToolDisplayName(toolName),
@@ -714,6 +942,10 @@ export function formatToolInput(input: Record<string, unknown>, toolName: string
     if (content) {
       return content
     }
+  }
+
+  if (isWebMcpToolName(toolName)) {
+    return formatWebMcpToolInput(input)
   }
 
   if (typeof input === "object") {

@@ -9,7 +9,7 @@ import {
   syncEmbeddedVisibility,
 } from "@/lib/supervision/embeddedSession"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
-import {
+import { resizeGridSlots,
   resolveGridSession,
   sessionGridGeometry,
   type SessionGridLayout,
@@ -80,7 +80,7 @@ export function SessionGrid() {
             value={grid.layout}
             onChange={(event) => {
               const layout = Number(event.target.value) as SessionGridLayout
-              setGrid({ ...grid, layout, slots: Array.from({ length: layout }, (_, i) => grid.slots[i] ?? null) })
+              setGrid({ ...grid, layout, slots: resizeGridSlots(grid.slots, layout) })
             }}
           >
             <option value={1}>{t("sessionGrid.layout.one")}</option>
@@ -153,7 +153,12 @@ export function SessionGrid() {
                   {slot && (
                     <button
                       className="rounded border border-border px-2 py-1 typography-meta"
-                      onClick={() => replace(index, null)}
+                      onClick={(event) => {
+                        // The button disappears with the session; keep keyboard focus in this pane, on its picker.
+                        const pane = event.currentTarget.closest("section")
+                        replace(index, null)
+                        requestAnimationFrame(() => pane?.querySelector<HTMLSelectElement>("select")?.focus())
+                      }}
                     >
                       {t("sessionGrid.close")}
                     </button>

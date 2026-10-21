@@ -5,6 +5,7 @@ import type { SupervisionRow } from "@/lib/supervision/rows"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { cleanup, render as renderDom, screen } from "@/test/dom"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
@@ -364,5 +365,41 @@ describe("Mission Control child agent rows", () => {
     expect(onSelect).not.toHaveBeenCalled()
     screen.getByRole("button", { name: "supervision.missionControl.child.more:1" }).click()
     expect(onToggleDetails).toHaveBeenCalledWith("s1")
+  })
+})
+
+describe("Mission Control project browser chip", () => {
+  afterEach(() => {
+    cleanup()
+    useWebMcpBrowserStore.getState().resetSnapshot()
+  })
+  const draw = () =>
+    renderDom(
+      <MissionControlRow
+        row={row}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Review changes"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+
+  test("names the page the session's browser shows and whether the agent may use it; other sessions show nothing", () => {
+    useWebMcpBrowserStore.getState().updateSnapshot({ phase: "ready", sessionID: "s1", origin: "https://shop.test", enabled: true })
+    const { container } = draw()
+    const chip = container.querySelector<HTMLElement>("[data-browser-origin]")
+    expect(chip?.dataset.browserOrigin).toBe("https://shop.test")
+    expect(chip?.dataset.browserEnabled).toBe("true")
+    expect(chip?.querySelector(".sr-only")?.textContent).toContain("supervision.missionControl.browser.chipAria")
+    cleanup()
+    useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "other" })
+    expect(draw().container.querySelector("[data-browser-origin]")).toBeNull()
   })
 })

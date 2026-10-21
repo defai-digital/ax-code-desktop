@@ -206,6 +206,19 @@ describe("pageKind", () => {
       ).rejects.toThrow("stale")
       f.adapter.close()
     })
+    test("withdrawing access stops an act that is already running before it can type", async () => {
+      let f
+      f = await interactive([
+        { title: "", text: "", outline: [{ ref: "e1" }] },
+        () => f.adapter.revoke({ cancelPageRequest: true }),
+      ])
+      const read = await f.adapter.execute(f.ask("read"))
+      await expect(
+        f.adapter.execute(f.ask("act", { readId: read.output.readId, ref: "e1", how: "type", text: "secret" })),
+      ).rejects.toThrow("canceled")
+      f.adapter.close()
+    })
+
     test("a click that changes the document replies with the new generation", async () => {
       let f
       f = await interactive([{ title: "", text: "", outline: [{ ref: "e1" }] }, () => f.adapter.invalidate()])

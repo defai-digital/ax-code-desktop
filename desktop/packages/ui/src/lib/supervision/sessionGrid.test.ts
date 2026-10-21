@@ -5,6 +5,7 @@ import {
   resolveGridSession,
   restoreSessionGrid,
   sessionGridGeometry,
+  resizeGridSlots,
 } from "./sessionGrid"
 
 describe("session grid geometry", () => {
@@ -77,5 +78,13 @@ describe("session grid restore", () => {
     expect(resolveGridSession(grid.slots[1], rows)).toBe(rows[1])
     const recovered = { sessionId: "missing", directory: "/old" }
     expect(resolveGridSession(grid.slots[0], [...rows, recovered])).toBe(recovered)
+  })
+
+  test("shrinking keeps sessions in order and fills the remaining panes before dropping any", () => {
+    const a = { sessionId: "a", directory: "/a" }
+    const c = { sessionId: "c", directory: "/c" }
+    expect(resizeGridSlots([a, null, c, null], 2)).toEqual([a, c])
+    expect(resizeGridSlots([a, null, c, null], 1)).toEqual([a])
+    expect(resizeGridSlots([a, c], 4)).toEqual([a, c, null, null])
   })
 })

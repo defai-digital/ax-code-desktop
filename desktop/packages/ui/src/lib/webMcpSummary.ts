@@ -17,10 +17,27 @@ export interface WebMcpSummary {
 type SummaryInput = Pick<
   WebMcpBrowserSnapshot,
   "phase" | "nativeAvailable" | "runtimeCompatible" | "enabled" | "origin" | "page" | "tools" | "error"
->
+> & { paused?: boolean }
 
 export const describeWebMcpError = (error: WebMcpBrowserSnapshot["error"]): I18nKey => {
   switch (error) {
+    case "ERR_UNSAFE_PORT":
+      return "webmcp.detail.unsafePort"
+    case "ERR_NAME_NOT_RESOLVED":
+      return "webmcp.detail.nameNotResolved"
+    case "ERR_CONNECTION_REFUSED":
+      return "webmcp.detail.connectionRefused"
+    case "ERR_CONNECTION_TIMED_OUT":
+      return "webmcp.detail.connectionTimedOut"
+    case "ERR_INTERNET_DISCONNECTED":
+      return "webmcp.detail.offline"
+    case "ERR_CERT_AUTHORITY_INVALID":
+    case "ERR_CERT_DATE_INVALID":
+      return "webmcp.detail.certificate"
+    case "ERR_INVALID_URL":
+      return "webmcp.detail.invalidUrl"
+    case "ERR_ABORTED":
+      return "webmcp.detail.aborted"
     case "session-required":
       return "webmcp.detail.sessionRequired"
     case "runtime-incompatible":
@@ -51,14 +68,6 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
       canOpen: false,
     }
   }
-  if (state.runtimeCompatible === false) {
-    return {
-      tone: "error",
-      stateKey: "webmcp.state.unavailable",
-      detailKey: "webmcp.detail.runtimeIncompatible",
-      canOpen: true,
-    }
-  }
   if (state.phase === "error") {
     return {
       tone: state.error === "session-required" ? "default" : "error",
@@ -76,8 +85,27 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
       canOpen: true,
     }
   }
+  if (state.paused) {
+    return { tone: "warning", stateKey: "webmcp.state.paused", detailKey: "webmcp.detail.paused", canOpen: true }
+  }
+  if (state.runtimeCompatible === false) {
+    return {
+      tone: "error",
+      stateKey: "webmcp.state.unavailable",
+      detailKey: "webmcp.detail.runtimeIncompatible",
+      canOpen: true,
+    }
+  }
   if (state.phase === "starting") {
     return { tone: "default", stateKey: "webmcp.state.starting", detailKey: "webmcp.detail.starting", canOpen: true }
+  }
+  if (state.runtimeCompatible === null) {
+    return {
+      tone: "default",
+      stateKey: "webmcp.state.unknown",
+      detailKey: "webmcp.detail.compatibilityUnknown",
+      canOpen: true,
+    }
   }
   if (state.phase === "idle") {
     return { tone: "default", stateKey: "webmcp.state.off", detailKey: "webmcp.detail.closed", canOpen: true }
@@ -112,7 +140,7 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
     // A page that registered nothing is the normal result for most websites, not a fault.
     if (state.tools === 0) {
       return {
-        tone: "success",
+        tone: "default",
         stateKey: "webmcp.state.on",
         detailKey: "webmcp.detail.enabledNoTools",
         detailParams: { origin },
@@ -141,5 +169,25 @@ export function summarizeWebMcpBrowser(state: SummaryInput, env: { isElectron: b
     detailKey: origin ? "webmcp.detail.readyWithOrigin" : "webmcp.detail.readyNoOrigin",
     detailParams: { origin, count: state.tools },
     canOpen: true,
+  }
+}
+
+/** A recovery action repairs browser state only; it never replays an agent call. */
+export function webMcpErrorAction(error: WebMcpBrowserSnapshot["error"]): "address" | "reload" | "enable" | "reopen" {
+  switch (error) {
+    case "ERR_UNSAFE_PORT":
+    case "ERR_NAME_NOT_RESOLVED":
+    case "ERR_INVALID_URL":
+    case "ERR_CERT_AUTHORITY_INVALID":
+    case "ERR_CERT_DATE_INVALID":
+      return "address"
+    case "enable-failed":
+    case "runtime-incompatible":
+      return "enable"
+    case "start-failed":
+    case "disconnected":
+      return "reopen"
+    default:
+      return "reload"
   }
 }

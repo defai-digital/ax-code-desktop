@@ -1,0 +1,46 @@
+I have enough context. Let me draft the structured design answer (English, per the user's explicit task instruction).
+
+# Round 8 WebMCP — independent answer (ax-code-desktop, read‑only)
+
+**Question framing.** A developer who *builds* web apps with WebMCP cares about discoverability, faithful tool registration, and reproducibility of failures across models. A developer who *uses* web apps through the agent cares about transparent calls, trustworthy approvals, and "did it actually work?" evidence. Both care first that the panel is honest about state; second, that state survives; third, that page → chat → mission-control is one continuous trail. Today's evidence (audit + sources) puts honesty and continuity ahead of new features.
+
+## PLUS — high‑value capabilities to add
+
+1. **Resume the last page on panel reopen, with access re‑armed after the same project restart.** What: persist `url`, `origin`, `enabled` per `(project, session)` so closing the preview does not return to about:blank. Value: removes a "re‑enroll every time" tax that audit §P1.2 calls wasted work. Evidence: `EmbeddedWebMcpBrowser.tsx:95‑125`; audit line 13. Improves: **T6** (use a web app). Cost: Desktop only. Check: native journey `supervision-workspace` records 0 of 5 needs‑reenroll steps after restart; `webmcp_persisted_url_*` persists across reload.
+2. **Live per‑page WebMCP tool panel — name, description, schema; show call, arguments, result, decision.** What: render the catalog under the address bar; mirror each `desktop_webmcp` call with its `toolName`, `args`, return and the approval that allowed it. Value: turns "2 tools" into a visible, auditable workflow — the headline PRD value for Use. Evidence: audit §P1.4 (`PermissionCard.tsx:367‑403` drops arguments, no schema; sources render count only); PRD recap §1 "Use." Improves: **T6** and the eventual recap journey. Cost: Desktop only for the panel; full arguments need the runtime to forward metadata (audit idea 1). Check: T6 journey sees tool names + last 5 calls with args/results; `desktop_webmcp_tool_call_*` events visible in DevTools.
+3. **Tool badge + "Try it" form on every page, even when access is off.** What: a small chip shows registered tools; a form lets the user fire `list` themselves. Value: discoverability before any agent acts (CS‑22); zero‑risk education. Evidence: audit §P2 "tool badge on pages that register tools"; PRD embedded §"user experience." Improves: **T6**, builds power. Cost: Desktop only. Check: navigating any fixture page renders a chip with the right count without enabling; the form produces a matching `list` call within 2 actions.
+4. **Plain‑language failures with a "fix it" button per cause.** What: messages like "The agent can't reach the page (ERR_UNSAFE_PORT) — try the development port range". Value: replaces opaque "action could not complete" with a single click. Evidence: `EmbeddedWebMcpBrowser.tsx:211‑219` logged `ERR_UNSAFE_PORT` while the UI hid it (audit §P1.3). Improves: **T6**, brief reliability. Cost: Desktop only if we map known causes; needs runtime taxonomy for stability (audit idea 4). Check: error dictionary covers `runtime-incompatible`, `enable-failed`, `disconnected`, `unsafe-port`; each shows the correct fix affordance.
+5. **WebMCP activity joins Mission Control and the Activity feed.** What: rows show "opened acme.com, listed 4 tools, called `search(query)`"; feed rows of the same shape. Value: "did the agent actually do it" becomes a one‑glance check (CS‑23). Evidence: PRD §"WebMCP activity joins supervision"; embedded PRD §"connection status, pending actions." Improves: **T2**, **T5**. Cost: Desktop only. Check: a session using the browser surfaces a non‑empty activity entry within 2s of the first call.
+6. **Guard rails for weaker models: invoke templates in `list`, schema pre‑check on `invoke`, `nextAction` on errors.** What: client + runtime reject sloppy schema before invoke; failure carries `nextAction`. Value: makes deepseek‑flash and GLM‑5.3 usable without per‑model prompt patching (CS‑24; audit idea 5). Evidence: PRD recap §10; accepted outcomes §"strong acceptance over tool acknowledgement." Improves: **T6**, CS‑24. Cost: needs AX Code runtime. Check: TS schema validators run before each `invoke`; error responses include `nextAction` for the two weakest models in the probe.
+
+## MINUS — remove or stop showing
+
+1. **"The agent cannot open pages itself" copy and the disabled *Go* + editable address‑bar pair.** It is wrong on runtime 7.28 and confuses even at the right version. Replace with the runtime's actual capability (audit §P1.5, lines 27‑28; `en.ts:2660`; `EmbeddedWebMcpBrowser.tsx:283‑302`). Desktop only. Check: zero remaining references; lint rule rejects `"cannot open pages"` phrases.
+2. **The collapsed "0 tools available" / "1 tools" silent state on tool‑less pages.** It reads as failure. Show "No tools on this page; the agent can still read it" (audit §P2; line 14). Desktop only. Check: every tool‑less fixture shows the explanatory copy; screenshot test asserts no "0 tools" badge.
+3. **"Approval needed: webmcp" with the tool name hidden.** Show `toolName` in both the title and the saved‑scope copy. Audit §P2 line 34; `PermissionCard.tsx:367‑403`. Desktop only. Check: every webmcp permission card title contains a tool name.
+4. **Dual "Start a session & enable agent access" buttons stacked in the empty state.** Audit §"Journey today" line 10. Desktop only. Check: a single, named primary action; axe check passes.
+5. **The confusion of three things called "WebMCP" — project browser, Chrome‑bridge allowlist, MCP server `webmcp`.** Audit §P2 line 36. Rename in copy and command palette; keep schemas identical. Desktop only. Check: no surface uses the bare word "webmcp" without qualifier; localization reviews pass in 14 locales.
+
+## MULTIPLY — tangled flows to decompose
+
+1. **Access lifecycle (preview / agent / disabled / reconnect‑on‑Settings) → one state machine with three primary states and two recoveries.** Audit §P1.1 shows any dialog silently turns access off (`desktop-webmcp-browser.js:475‑478`); §P1.5 shows Settings does the same. Decompose: `disabled → ready → enabled(page) → disconnected(error) → ready(resumed)`. Desktop only. Check: opening Settings no longer drops access unless the user is asked; CS‑20 acceptance holds.
+2. **The approval card → call preview + scope preview + decision.** Today the card hides element, submit flag and text and offers three near‑identical buttons. Split: a *What* section (origin, tool, schema values) and a *Decide* section (allow once / always on this site / deny) (audit §P1.4). Desktop only. Check: every card renders the three sections in a screenshot test.
+3. **Tool discovery → per‑origin registry surfaced before the user asks the agent.** Today discovery happens only after enable. Use a small background registry so CS‑22 holds even with access off. Desktop only for the badge; *Try it* form needs an allow‑list read‑only call (could be runtime). Check: badge appears within 1s of `document.modelContext` registering tools.
+4. **Transcript rows "Desktop webmcp" → role + tool + outcome.** Audit §P2 line 33. Render `desktop_webmcp · call · search · ok 312 ms` rather than a flat string. Desktop only. Check: transcript‑diff test asserts distinct rows per tool + status.
+
+## DIVIDE — scattered controls to group
+
+1. **All WebMCP explanations and errors → one place:** a single `WebMcpHealthStrip` next to the address bar replaces the duplicated banner under the panel and the toast (audit lines 11, 23‑24). Desktop only. Check: snapshot grep shows one banner source owns every WebMCP error message.
+2. **Three "enable access" entry points (Agent tab, preview CTA, Services dropdown) → one router inside `EmbeddedBrowserChoice` that decides the canonical entry per context.** Audit §P1.5 + §P2. Desktop only. Check: opening Services → MCP no longer covers the page (`10b`); one entry wins.
+3. **The WebMCP *allowlist* (Settings → MCP), the runtime approval store, and the panel's per‑page grant → one AllowlistSection surfaced from the panel for the *current* origin.** `WebMcpAllowlistSection.tsx:30‑282` already does this for Chrome‑bridge servers; mirror it for the project browser. Desktop only. Check: the panel exposes the same grant/scope UI as the Settings tab; CS‑20 acceptance holds.
+4. **Reset / disconnect / "Update bundled runtime" actions → one *WebMCP status* menu (Health dot → kebab → three actions).** Audit §P1.5 line 28. Desktop only. Check: status dot opens one menu containing all three; locale pass.
+
+## Top three by user value per cost
+
+1. **Persistence of URL + access** (PLUS 1) — fixes the most user‑visible breakage with no runtime change.
+2. **Plain‑language failures with a fix button** (PLUS 4) — same scope, restores trust after every error.
+3. **Decompose approval card** (MULTIPLY 2) — single biggest UX lift per line of code; no runtime contract needed.
+
+## Top risk
+
+We keep adding Desktop‑side affordances that assume the runtime will eventually catch up (full call args, `nextAction`, schema validators). If the runtime ADR stalls, Desktop pays the support cost alone and the WebMCP journey still feels half‑built. Recommendation: lock round 8 to the four Desktop‑only items; defer PLUS 6 and MULTIPLY 3 schema parts until paired ADRs land.
