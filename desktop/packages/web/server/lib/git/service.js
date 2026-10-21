@@ -1723,7 +1723,7 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout, indexModes 
       if (openedParent !== parentReal || !isInsideOrSameDirectory(rootReal, openedParent)) continue
       // Windows has no O_NOFOLLOW: the opened file must be the one lstat checked, not a link swapped in since.
       if (stat.dev !== entry.dev || stat.ino !== entry.ino) continue
-      // Read one byte past the cap: a file that grew past it after the stat is skipped, not truncated.
+      // Probe past the measured size: growth invalidates this snapshot instead of hashing truncated bytes.
       const buffer = Buffer.alloc(Math.min(stat.size, maxBytes) + 1)
       let length = 0
       while (length < buffer.length) {
@@ -1731,7 +1731,7 @@ const hashWorktreeBlobs = async (repoRoot, files, maxBytes, timeout, indexModes 
         if (bytesRead === 0) break
         length += bytesRead
       }
-      if (length > maxBytes) continue
+      if (length > maxBytes || length > stat.size) continue
       ids.set(file.path, gitBlobId(buffer.subarray(0, length)))
       modes.set(file.path, worktreeRegularMode(stat, indexModes.get(file.path)))
     } catch {

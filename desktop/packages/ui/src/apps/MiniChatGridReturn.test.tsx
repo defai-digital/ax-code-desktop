@@ -19,18 +19,19 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 test("pop-in targets the native window's launch identity after switching sessions", async () => {
-  let channel!: { onmessage: ((event: { data: unknown }) => void) | null }
+  const channels: Array<{ onmessage: ((event: { data: unknown }) => void) | null }> = []
   vi.stubGlobal(
     "BroadcastChannel",
     class {
       onmessage: ((event: { data: unknown }) => void) | null = null
       constructor() {
-        channel = this
+        channels.push(this)
       }
       close() {}
     },
   )
   render(<MiniChatGridReturn config={{ sessionId: "ses_a", directory: "/project-a" }} />)
+  const channel = channels[0]
   await act(async () => {
     channel.onmessage?.({ data: { type: "mini-chat-return-to-grid", sessionId: "ses_b", directory: "/project-b" } })
   })

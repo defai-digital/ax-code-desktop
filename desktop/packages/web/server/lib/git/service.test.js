@@ -1385,6 +1385,36 @@ exec ${JSON.stringify(realGit)} "$@"
     }
   })
 
+  it("omits a file identity when the file grows after its handle is measured", async () => {
+    const repo = initRepo()
+    const filename = path.join(fs.realpathSync(repo), "growing.txt")
+    fs.writeFileSync(filename, "before")
+    const originalOpen = fs.promises.open.bind(fs.promises)
+    let grew = false
+    const spy = vi.spyOn(fs.promises, "open").mockImplementation(async (target, ...args) => {
+      const handle = await originalOpen(target, ...args)
+      if (String(target) === filename) {
+        const originalStat = handle.stat.bind(handle)
+        handle.stat = async (...statArgs) => {
+          const stat = await originalStat(...statArgs)
+          if (!grew) {
+            grew = true
+            fs.appendFileSync(filename, "-after-measurement")
+          }
+          return stat
+        }
+      }
+      return handle
+    })
+    try {
+      const status = await getStatus(repo, { mode: "light" })
+      expect(grew).toBe(true)
+      expect(status.files.find((file) => file.path === "growing.txt")?.worktreeBlobId).toBeNull()
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
   it("matches git's own blob id for a regular file", async () => {
     if (!canRunGit()) return
 
