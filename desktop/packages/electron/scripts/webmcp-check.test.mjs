@@ -71,3 +71,48 @@ test.each([
   else expect(result.problems.length).toBeGreaterThan(0)
   expect(mocks.remove).toHaveBeenCalled()
 })
+
+test.each([false, true])("launcher filters runs and problems (json: %s)", async (json) => {
+  vi.resetModules()
+  const child = new EventEmitter()
+  mocks.spawn.mockReturnValue(child)
+  mocks.read.mockReturnValue(
+    JSON.stringify({
+      tools: [{ name: "echo", description: "password=catalog-secret" }],
+      runs: [
+        { name: "echo", input: { password: "input-secret" }, output: '{"access_token":"output-secret","ok":true}' },
+        { name: "echo", input: {}, error: "Error: password=error-secret" },
+      ],
+    }),
+  )
+  vi.spyOn(process, "argv", "get").mockReturnValue([
+    "node",
+    "check",
+    "--url",
+    "https://example.com",
+    "--run",
+    'echo={"password":"input-secret"}',
+    "--run",
+    "echo",
+    ...(json ? ["--json"] : []),
+  ])
+  const log = vi.spyOn(console, "log").mockImplementation(() => {})
+  const error = vi.spyOn(console, "error").mockImplementation(() => {})
+  const exit = vi.spyOn(process, "exit").mockImplementation(() => {
+    throw new Error("fixture exit")
+  })
+  const done = expect(import("./webmcp-check.mjs")).rejects.toThrow("fixture exit")
+  await vi.waitFor(() => expect(child.listenerCount("exit")).toBe(1))
+  child.emit("exit", 0, null)
+  await done
+  const printed = JSON.stringify([...log.mock.calls, ...error.mock.calls])
+  for (const secret of ["input-secret", "output-secret", "error-secret", "catalog-secret"])
+    expect(printed).not.toContain(secret)
+  expect(exit).toHaveBeenCalledWith(3)
+  if (json) {
+    const result = JSON.parse(log.mock.calls.at(-1)[0])
+    expect(result.runs[0].outcome).toBe("completed")
+    expect(result.runs[1].outcome).toBe("failed")
+    expect(result.problems).toHaveLength(1)
+  }
+})

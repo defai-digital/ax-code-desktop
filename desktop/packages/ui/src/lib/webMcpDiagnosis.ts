@@ -138,7 +138,10 @@ export function webMcpRegressionExport(entry: {
   const outcome = JSON.stringify(entry.outcome)
   const snippet = [
     `const tool = (await document.modelContext.getTools()).find((candidate) => candidate.name === ${name})`,
-    `let result = await document.modelContext.executeTool(tool, JSON.stringify(${encoded}))`,
+    'if (!tool) throw new Error("tool not registered")',
+    "let result",
+    "let rejected = false",
+    `try { result = await document.modelContext.executeTool(tool, JSON.stringify(${encoded})) } catch { rejected = true }`,
     'if (typeof result === "string") { try { result = JSON.parse(result) } catch { /* Plain text is a normal output. */ } }',
     'if (result?.untrusted === true && result.result && typeof result.result === "object") result = result.result',
     'const status = typeof result?.status === "string" ? result.status.trim().toLowerCase() : ""',
@@ -148,7 +151,7 @@ export function webMcpRegressionExport(entry: {
     '  (typeof result.error === "string" && result.error.trim().length > 0) ||',
     '  (result.error !== null && typeof result.error === "object" && !Array.isArray(result.error) && Object.keys(result.error).length > 0) ||',
     '  (typeof result.errorText === "string" && result.errorText.trim().length > 0))',
-    'const outcome = status === "timeout" ? "timeout" : /^(canceled|cancelled|aborted)$/.test(status) ? "cancelled" : applicationError ? "application-error" : "completed"',
+    'const outcome = rejected ? "application-error" : status === "timeout" ? "timeout" : /^(canceled|cancelled|aborted)$/.test(status) ? "cancelled" : applicationError ? "application-error" : "completed"',
     `if (outcome !== ${outcome}) throw new Error("expected outcome " + ${outcome})`,
   ].join("\n")
   return { snippet, runArgument: `--run ${shellSingleQuote(`${entry.tool}=${encoded}`)}` }

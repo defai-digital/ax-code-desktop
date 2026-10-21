@@ -142,6 +142,20 @@ describe("webMcpRegressionExport", () => {
     })!
     await expect(executeExport(changed.snippet, output)).rejects.toThrow("expected outcome")
   })
+  test("a copied error regression catches rejection but still detects a changed outcome", async () => {
+    const context = {
+      getTools: async () => [{ name: "echo" }],
+      executeTool: async () => {
+        throw new Error("unchanged tool error")
+      },
+    }
+    for (const outcome of ["application-error", "completed"]) {
+      const exported = webMcpRegressionExport({ tool: "echo", input: {}, outcome })!
+      const execution = new AsyncFunction("document", exported.snippet)({ modelContext: context })
+      if (outcome === "application-error") await expect(execution).resolves.toBeUndefined()
+      else await expect(execution).rejects.toThrow("expected outcome")
+    }
+  })
   test("calls executeTool with a JSON string and offers the equivalent --run argument", async () => {
     const exported = webMcpRegressionExport({
       tool: "echo",
@@ -187,7 +201,12 @@ describe("secrets in exports", () => {
   test("a copied test and --run argument never carry a secret-named value", () => {
     const exported = webMcpRegressionExport({
       tool: "sign_in",
-      input: { user: "ada", password: "hunter22", profile: { apiKey: "sk-live-abc" }, note: "ghp_abcdefghijklmnopqrstuvwxyz0123456789" },
+      input: {
+        user: "ada",
+        password: "hunter22",
+        profile: { apiKey: "sk-live-abc" },
+        note: "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+      },
       outcome: "completed",
     })!
     for (const text of [exported.snippet, exported.runArgument]) {

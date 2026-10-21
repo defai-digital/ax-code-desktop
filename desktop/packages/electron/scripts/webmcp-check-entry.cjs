@@ -4,6 +4,7 @@
 // tools it registers and runs the requested ones through the page's own model context. Never imported by the app.
 const { app, BrowserWindow } = require("electron")
 const fs = require("node:fs")
+const { redactWebMcpReport } = require("../../../shared/webmcp-redaction.mjs")
 
 const config = JSON.parse(process.env.AX_WEBMCP_CHECK ?? "{}")
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -25,7 +26,7 @@ app.setPath("userData", config.profile)
 
 const report = { url: config.url, tools: [], runs: [] }
 // Written after each step, so a crash or a hung page still leaves what was learned.
-const save = () => fs.writeFileSync(config.output, JSON.stringify(report))
+const save = () => fs.writeFileSync(config.output, JSON.stringify(redactWebMcpReport(report)))
 
 async function check() {
   const window = new BrowserWindow({

@@ -1347,7 +1347,7 @@ describe("manual invocation native outcomes", () => {
     ["Completed", { status: "timeout", isError: true }, "timeout", "timeout"],
     ["Completed", JSON.stringify({ untrusted: true, result: { status: "cancelled" } }), "cancelled", "cancelled"],
     ["Completed", "x".repeat(65537), "failed", "result-too-large"],
-    ["replace", "stale", "failed", "definition-changed"],
+    ["replace", "changed once", "completed", undefined],
     ["Error", { error: "password=hunter2" }, "application-error", "application-error"],
     ["Canceled", {}, "cancelled", "cancelled"],
     ["Timeout", {}, "timeout", "timeout"],
@@ -1653,6 +1653,26 @@ describe("WX-15 visible-to-act gate", () => {
       await vi.waitFor(() => expect(revoked).toBe(true), { timeout: 300 })
     } finally {
       await Promise.all([creating, revoking])
+    }
+  })
+
+  test.each(["navigate", "invoke"])("cancels a hidden %s before visibility returns", async (operation) => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds, width: 0, height: 0 })
+    const execute = vi.spyOn(NativeWebMcp.prototype, "execute")
+    try {
+      f.pushStreamRequest(request({ operation }))
+      await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true }))
+      f.pushStreamRequest({ batch: { canceled: ["hidden-call"] } })
+      await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: false }))
+      await f.controller.command(sender, { action: "bounds", id: status.id, ...bounds })
+      expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
+      expect(execute).not.toHaveBeenCalled()
+      expect(replies(f)).toHaveLength(0)
+    } finally {
+      execute.mockRestore()
     }
   })
 

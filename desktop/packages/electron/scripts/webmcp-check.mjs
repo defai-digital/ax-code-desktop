@@ -10,10 +10,12 @@ import { fileURLToPath } from "node:url"
 import { createRequire } from "node:module"
 import { EXIT, evaluateReport, parseCheckArgs } from "./webmcp-check-lib.mjs"
 
+import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
+
 const here = path.dirname(fileURLToPath(import.meta.url))
 const parsed = parseCheckArgs(process.argv.slice(2))
 if (!parsed.ok) {
-  console.error(`webmcp:check: ${parsed.error}`)
+  console.error(`webmcp:check: ${redactWebMcpReport(parsed.error)}`)
   process.exit(EXIT.usage)
 }
 const { options } = parsed
@@ -47,14 +49,14 @@ const timer = setTimeout(() => {
 const termination = await new Promise((resolve) => {
   child.on("exit", (code, signal) => resolve({ code, signal }))
   child.on("error", (error) => {
-    console.error(`webmcp:check: cannot start the bundled browser engine (${error.message}); run pnpm install`)
+    console.error(`webmcp:check: cannot start the bundled browser engine (${redactWebMcpReport(error.message)}); run pnpm install`)
     resolve({ code: null, signal: null })
   })
 })
 clearTimeout(timer)
 let report
 try {
-  report = JSON.parse(fs.readFileSync(output, "utf8"))
+  report = redactWebMcpReport(JSON.parse(fs.readFileSync(output, "utf8")))
 } catch {
   report = { error: `the browser engine exited (${termination.signal ?? termination.code}) without a report` }
 }
@@ -65,9 +67,9 @@ try {
 }
 const result = evaluateReport(report, options, { ...termination, timedOut })
 if (options.json) {
-  console.log(JSON.stringify({ url: options.url, tools: report.tools ?? [], runs: result.runs, problems: result.problems, exitCode: result.exitCode }, null, 2))
+  console.log(JSON.stringify({ url: redactWebMcpReport(options.url), tools: report.tools ?? [], runs: result.runs, problems: result.problems, exitCode: result.exitCode }, null, 2))
 } else {
-  console.log(`${options.url}: ${(report.tools ?? []).length} page tools`)
+  console.log(`${redactWebMcpReport(options.url)}: ${(report.tools ?? []).length} page tools`)
   for (const tool of report.tools ?? []) {
     const hints = Object.entries(tool.annotations ?? {})
       .filter(([, value]) => value === true)

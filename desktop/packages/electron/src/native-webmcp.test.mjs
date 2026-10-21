@@ -79,14 +79,12 @@ describe("native WebMCP adapter", () => {
     expect(f.adapter.snapshot().tools).toEqual([fixtureTool])
     f.adapter.close()
   })
-  test("tool replacement cannot turn an old approval into a successful result", async () => {
+  test("rejects an obsolete definition before dispatch", async () => {
     const f = await fixture()
-    const pending = f.adapter.execute(f.request())
-    const rejected = expect(pending).rejects.toThrow()
-    await Promise.resolve()
+    const request = f.request()
     f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Replaced" }] })
-    f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "stale" })
-    await rejected
+    await expect(f.adapter.execute(request)).rejects.toMatchObject({ reason: "definition-changed" })
+    expect(f.commands.some(({ method }) => method === "WebMCP.invokeTool")).toBe(false)
     f.adapter.close()
   })
   test("cancel reaches CDP even when the native acknowledgement is late", async () => {
@@ -295,15 +293,14 @@ test("the 64 KiB input limit counts serialized UTF-8 bytes and has its own reaso
   f.adapter.close()
 })
 
-test("a definition change after dispatch reports definition-changed while the browser stays connected", async () => {
+test.each(["removed", "replaced"])("reports the executed result after the tool is %s", async (change) => {
   const f = await fixture()
   const pending = f.adapter.execute(f.request())
-  const rejected = expect(pending).rejects.toMatchObject({ outcome: "failed", reason: "definition-changed" })
   await Promise.resolve()
   f.emit("WebMCP.toolsRemoved", { tools: [fixtureTool] })
-  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Updated definition" }] })
-  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "stale" })
-  await rejected
+  if (change === "replaced") f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, description: "Updated" }] })
+  f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "changed once" })
+  expect(await pending).toMatchObject({ status: "Completed", output: "changed once" })
   expect(f.adapter.available).toBe(true)
   expect(f.commands.filter((command) => command.method === "WebMCP.invokeTool")).toHaveLength(1)
   f.adapter.close()
@@ -544,6 +541,91 @@ test("navigation retires a canceled invocation even when the old page never resp
     await Promise.resolve()
     f.emit("WebMCP.toolResponded", { invocationId: "native-call", status: "Completed", output: "new document" })
     expect(await next).toMatchObject({ output: "new document" })
+  } finally {
+    f.adapter.close()
+    vi.useRealTimers()
+  }
+})
+
+// Electron may never settle a script promise when navigation destroys its context.
+test.each(["read", "wait", "act"])("bounds a lost %s script and admits work on the new document", async (operation) => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  try {
+    let settleOld
+    f.contents.executeJavaScriptInIsolatedWorld = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleOld = resolve
+          }),
+      )
+      .mockResolvedValue({ title: "new", text: "ready", outline: [] })
+    f.adapter.readId = randomUUID()
+    const request = { ...f.request(), operation, readId: f.adapter.readId, ref: "e1", how: "click", waitText: "ready" }
+    let settled = false
+    const execution = f.adapter
+      .execute(request)
+      .catch((error) => error)
+      .finally(() => {
+        settled = true
+      })
+    f.adapter.invalidate()
+    await vi.advanceTimersByTimeAsync(1001)
+    expect(settled).toBe(true)
+    expect(await execution).toMatchObject({ outcome: "timeout", reason: "timeout" })
+    expect(f.adapter.interacting).toBe(false)
+    expect(f.adapter.activePageRequestId).toBeNull()
+    expect(f.adapter.executingPageScript).toBeNull()
+    const next = await f.adapter.execute({ ...f.request(), operation: "read" })
+    expect(next.output.title).toBe("new")
+    settleOld({ title: "old", text: "", outline: [] })
+    await Promise.resolve()
+    expect(f.adapter.readId).toBe(next.output.readId)
+    expect(f.commands.some(({ method }) => method === "Runtime.terminateExecution")).toBe(false)
+  } finally {
+    f.adapter.close()
+    vi.useRealTimers()
+  }
+})
+
+test("an interaction deadline keeps the same-document guard until settlement or navigation", async () => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  try {
+    let settleOld
+    let settleNew
+    f.contents.executeJavaScriptInIsolatedWorld = vi
+      .fn()
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleOld = resolve
+          }),
+      )
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            settleNew = resolve
+          }),
+      )
+    const request = { ...f.request(), operation: "read" }
+    const execution = f.adapter.execute(request).catch((error) => error)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(await execution).toMatchObject({ outcome: "timeout", reason: "timeout" })
+    expect(f.commands.filter(({ method }) => method === "Runtime.terminateExecution")).toHaveLength(1)
+    await expect(f.adapter.execute({ ...f.request(), operation: "read" })).rejects.toThrow("in progress")
+    f.adapter.invalidate()
+    const next = f.adapter.execute({ ...f.request(), operation: "read" })
+    const activeId = f.adapter.activePageRequestId
+    settleOld({ title: "old", text: "", outline: [] })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.adapter.activePageRequestId).toBe(activeId)
+    expect(f.adapter.interacting).toBe(true)
+    settleNew({ title: "new", text: "", outline: [] })
+    expect((await next).output.title).toBe("new")
+    expect(f.adapter.interacting).toBe(false)
   } finally {
     f.adapter.close()
     vi.useRealTimers()

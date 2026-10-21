@@ -579,6 +579,7 @@ function createDesktopWebMcpBrowser({
     const canceled = new Set()
     let heldTask = null
     const dispatch = async (request) => {
+      if (signal.aborted || entry.connection !== connection || canceled.delete(request.requestID)) return
       const wasHidden = !visible(entry)
       const wasPaused = entry.paused
       while (

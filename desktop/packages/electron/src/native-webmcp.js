@@ -151,6 +151,7 @@ class NativeWebMcp {
   }
   invalidate() {
     this.documentId = randomUUID()
+    this.retirePageOperation?.()
     this.tools.clear()
     this.toolKinds.clear()
     this.catalogRejection = null
@@ -343,8 +344,6 @@ class NativeWebMcp {
           !this.available
         ) {
           reject(invocationError("uncertain", "provider-gone"))
-        } else if (definitionDigest(this.tools.get(request.toolName) ?? {}) !== request.digest) {
-          reject(invocationError("failed", "definition-changed"))
         } else if (Date.now() >= request.deadline) {
           reject(invocationError("timeout", "timeout"))
         } else if (result.oversized || byteSize(result.output) > MAX_RESULT_BYTES) {
@@ -418,6 +417,37 @@ class NativeWebMcp {
       acknowledge = resolve
     })
     this.pageStop = null
+    const documentId = this.documentId
+    let scriptPending = false
+    let expired = false
+    let released = false
+    const release = () => {
+      if (released) return
+      released = true
+      acknowledge()
+      this.interacting = false
+      this.activePageRequestId = null
+      this.executingPageScript = null
+      this.retirePageOperation = null
+      if (request.requestID) this.canceledPageRequests.delete(request.requestID)
+    }
+    // An unacknowledged script on the same document still owns the busy guard. Navigation
+    // retires that document; a late settlement must never clear a newer operation's state.
+    this.retirePageOperation = () => {
+      if (expired && this.documentId !== documentId) release()
+    }
+    let timer
+    const deadline = new Promise((_, reject) => {
+      timer = setTimeout(
+        () => {
+          expired = true
+          this.readId = null
+          void this.cancel(request.requestID, "timeout", "timeout")
+          reject(invocationError("timeout", "timeout"))
+        },
+        Math.max(0, Math.min(30000, request.deadline - Date.now())),
+      )
+    })
     const assertActive = () => {
       if (request.requestID && this.canceledPageRequests.has(request.requestID)) {
         throw new Error("The browser request was canceled")
@@ -426,15 +456,16 @@ class NativeWebMcp {
     try {
       const run = async (payload) => {
         this.executingPageScript = { requestID: request.requestID, documentId: this.documentId }
-        let result
-        try {
-          // Electron resolves with the script's own value, not a list of results.
-          result = await this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [
-            { code: page.program(payload) },
-          ])
-        } finally {
-          this.executingPageScript = null
+        scriptPending = true
+        const script = this.contents.executeJavaScriptInIsolatedWorld(page.WORLD_ID, [{ code: page.program(payload) }])
+        const settled = () => {
+          scriptPending = false
+          if (expired) release()
         }
+        // Observe both late outcomes even after the deadline has rejected the caller.
+        void script.then(settled, settled)
+        const result = await Promise.race([script, deadline])
+        this.executingPageScript = null
         if (this.closed || Date.now() >= request.deadline) throw new Error("The browser request lifetime changed")
         return result
       }
@@ -466,14 +497,12 @@ class NativeWebMcp {
       assertActive()
       if (result?.error) throw new Error(`The page refused the action: ${result.error}`)
       // Let a navigation the action started surface, so the reply carries the document it landed on.
-      await new Promise((resolve) => setTimeout(resolve, 300))
+      await Promise.race([new Promise((resolve) => setTimeout(resolve, 300)), deadline])
       assertActive()
       return done({ done: true, how: args.how, navigated: this.generation !== request.generation })
     } finally {
-      acknowledge()
-      this.interacting = false
-      if (this.activePageRequestId === request.requestID) this.activePageRequestId = null
-      if (request.requestID) this.canceledPageRequests.delete(request.requestID)
+      clearTimeout(timer)
+      if (!expired || !scriptPending || this.documentId !== documentId) release()
     }
   }
   cancel(requestID, outcome = "cancelled", reason = "cancelled") {
