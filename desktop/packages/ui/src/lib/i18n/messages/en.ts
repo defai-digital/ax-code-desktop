@@ -2719,6 +2719,7 @@ export const dict = {
   "chat.permissionCard.webmcp.hintUntrusted": "Its results may contain text from untrusted sources.",
   "chat.permissionCard.webmcp.inputs": "Inputs (required marked *): {names}",
   "chat.permissionCard.webmcp.pageSays": "The page describes it as: {description}",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "The page's current tool definition may differ from the one requested by this call.",
   "chat.permissionCard.webmcp.how": "Action",
   "chat.permissionCard.webmcp.submit": "Submits the form",
   "chat.permissionCard.webmcp.doesNotSubmit": "Does not submit",

@@ -5389,5 +5389,6 @@
   "chat.permissionCard.webmcp.pageSays": "A p\u00e1gina o descreve como: {description}",
   "webmcp.calls.awaitingApproval": "Aguardando sua aprova\u00e7\u00e3o. Revise-a",
   "sessionGrid.moveSession": "Mover sess\u00e3o: {title}",
-  "sessionGrid.moved": "{title} movido para o painel {count}"
+  "sessionGrid.moved": "{title} movido para o painel {count}",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "A defini\u00e7\u00e3o atual da ferramenta da p\u00e1gina pode diferir da solicitada."
 }

@@ -1,10 +1,27 @@
 import { describe, expect, test } from "vitest"
+import { desktopWebMcpResultOutcome } from "./toolHelpers"
 import {
   diagnoseWebMcpInput,
   webMcpDefinitionChanged,
   webMcpDefinitionsDiffer,
   webMcpRegressionExport,
 } from "./webMcpDiagnosis"
+
+const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
+
+async function executeExport(snippet: string, output: unknown, onInput?: (input: unknown) => void) {
+  const tool = { name: "echo" }
+  await new AsyncFunction("document", snippet)({
+    modelContext: {
+      getTools: async () => [tool],
+      executeTool: async (selected: unknown, input: string) => {
+        expect(selected).toBe(tool)
+        onInput?.(JSON.parse(input))
+        return output
+      },
+    },
+  })
+}
 
 const schema = {
   type: "object",
@@ -95,30 +112,54 @@ describe("definition identity", () => {
 })
 
 describe("webMcpRegressionExport", () => {
-  test("calls executeTool with a JSON string and offers the equivalent --run argument", () => {
+  test.each([
+    { status: "failed" },
+    { status: " ERROR " },
+    { errorText: "Invalid title" },
+    { status: " Timeout ", isError: true },
+    { status: " Cancelled " },
+    { status: "aborted" },
+    { untrusted: true, result: { status: "failed" } },
+    { error: { field: "title" } },
+    { error: {} },
+    { error: [] },
+    { error: "   " },
+    { error: false },
+    { isError: true },
+    { ok: false },
+    { value: 3 },
+    null,
+    "plain text",
+  ])("executes the copied test with the same outcome as Try it for %j", async (value) => {
+    const output = typeof value === "string" ? value : JSON.stringify(value)
+    const outcome = desktopWebMcpResultOutcome({ status: "completed", output })!
+    const exported = webMcpRegressionExport({ tool: "echo", input: {}, outcome })!
+    await executeExport(exported.snippet, output)
+    const changed = webMcpRegressionExport({
+      tool: "echo",
+      input: {},
+      outcome: outcome === "completed" ? "application-error" : "completed",
+    })!
+    await expect(executeExport(changed.snippet, output)).rejects.toThrow("expected outcome")
+  })
+  test("calls executeTool with a JSON string and offers the equivalent --run argument", async () => {
     const exported = webMcpRegressionExport({
-      tool: "add_task",
+      tool: "echo",
       input: { title: "Ship the beta" },
       outcome: "completed",
     })
-    expect(exported?.snippet).toContain(
-      'const tool = (await document.modelContext.getTools()).find((candidate) => candidate.name === "add_task")',
-    )
-    expect(exported?.snippet).toContain(
-      'const result = JSON.parse(await document.modelContext.executeTool(tool, JSON.stringify({"title":"Ship the beta"})))',
-    )
-    expect(exported?.snippet).toContain('if (outcome !== "completed") throw new Error("expected outcome " + "completed")')
-    expect(exported?.runArgument).toBe(`--run 'add_task={"title":"Ship the beta"}'`)
+    await executeExport(exported!.snippet, "{}", (input) => expect(input).toEqual({ title: "Ship the beta" }))
+    expect(exported?.runArgument).toBe(`--run 'echo={"title":"Ship the beta"}'`)
     const spec = exported!.runArgument.slice("--run ".length)
     expect(spec.startsWith("'") && spec.endsWith("'")).toBe(true)
     const inner = spec.slice(1, -1).replaceAll("'\\''", "'")
     const split = inner.indexOf("=")
-    expect(inner.slice(0, split)).toBe("add_task")
+    expect(inner.slice(0, split)).toBe("echo")
     expect(JSON.parse(inner.slice(split + 1))).toEqual({ title: "Ship the beta" })
 
-    const quoted = webMcpRegressionExport({ tool: "add_task", input: { title: "it's" }, outcome: "uncertain" })
-    expect(quoted?.runArgument).toBe(`--run 'add_task={"title":"it'\\''s"}'`)
-    expect(quoted?.snippet).toContain('outcome !== "uncertain"')
+    const quoted = webMcpRegressionExport({ tool: "echo", input: { title: "it's" }, outcome: "completed" })
+    expect(quoted?.runArgument).toBe(`--run 'echo={"title":"it'\\''s"}'`)
+    await executeExport(quoted!.snippet, "{}", (input) => expect(input).toEqual({ title: "it's" }))
     const quotedInner = quoted!.runArgument.slice("--run '".length, -1).replaceAll("'\\''", "'")
     expect(JSON.parse(quotedInner.slice(quotedInner.indexOf("=") + 1))).toEqual({ title: "it's" })
 
@@ -128,6 +169,21 @@ describe("webMcpRegressionExport", () => {
 })
 
 describe("secrets in exports", () => {
+  test("replaces secrets at every array depth while preserving ordinary inputs", async () => {
+    const input = {
+      accounts: [{ password: "synthetic-secret", nested: [[{ apiKey: "nested-secret" }]] }],
+      labels: ["keep", ["password=credential-secret", 2, false, null]],
+    }
+    const expected = {
+      accounts: [{ password: "<fill in>", nested: [[{ apiKey: "<fill in>" }]] }],
+      labels: ["keep", ["<fill in>", 2, false, null]],
+    }
+    const exported = webMcpRegressionExport({ tool: "echo", input, outcome: "completed" })!
+    await executeExport(exported.snippet, "{}", (actual) => expect(actual).toEqual(expected))
+    const spec = exported.runArgument.slice("--run '".length, -1).replaceAll("'\\''", "'")
+    expect(JSON.parse(spec.slice(spec.indexOf("=") + 1))).toEqual(expected)
+    expect(input.accounts[0].password).toBe("synthetic-secret")
+  })
   test("a copied test and --run argument never carry a secret-named value", () => {
     const exported = webMcpRegressionExport({
       tool: "sign_in",

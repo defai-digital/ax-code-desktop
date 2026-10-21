@@ -5389,5 +5389,6 @@
   "chat.permissionCard.webmcp.pageSays": "\ud398\uc774\uc9c0\uc5d0\uc11c \uc774\ub97c \ub2e4\uc74c\uacfc \uac19\uc774 \uc124\uba85\ud569\ub2c8\ub2e4: {description}",
   "webmcp.calls.awaitingApproval": "\uc2b9\uc778\uc744 \uae30\ub2e4\ub9ac\uace0 \uc788\uc2b5\ub2c8\ub2e4. \uac80\ud1a0\ud558\uc138\uc694",
   "sessionGrid.moveSession": "\uc138\uc158 \uc774\ub3d9: {title}",
-  "sessionGrid.moved": "{title}\uc744(\ub97c) \ucc3d {count}\ub85c \uc774\ub3d9\ud568"
+  "sessionGrid.moved": "{title}\uc744(\ub97c) \ucc3d {count}\ub85c \uc774\ub3d9\ud568",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "\ud398\uc774\uc9c0\uc758 \ud604\uc7ac \ub3c4\uad6c \uc815\uc758\ub294 \uc774 \ud638\ucd9c\uc5d0\uc11c \uc694\uccad\ud55c \uac83\uacfc \ub2e4\ub97c \uc218 \uc788\uc2b5\ub2c8\ub2e4."
 }

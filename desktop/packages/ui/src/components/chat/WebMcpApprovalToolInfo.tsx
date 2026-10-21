@@ -25,10 +25,12 @@ export function WebMcpApprovalToolInfo({
   sessionID,
   origin,
   toolName,
+  definitionDigest,
 }: {
   sessionID: string
   origin: string
   toolName: string
+  definitionDigest: string | null
 }) {
   const { t } = useI18n()
   const tool = useWebMcpBrowserStore(
@@ -44,7 +46,12 @@ export function WebMcpApprovalToolInfo({
       [origin, sessionID, toolName],
     ),
   )
-  if (!tool) return null
+  if (!tool || !definitionDigest || tool.digest !== definitionDigest)
+    return (
+      <p className="mb-2 typography-micro text-muted-foreground" data-webmcp-approval-definition-unknown>
+        {t("chat.permissionCard.webmcp.definitionMayDiffer")}
+      </p>
+    )
   const hints = tool.annotations ?? {}
   const inputs = schemaInputs(tool.inputSchema)
   return (

@@ -102,9 +102,10 @@ continue. Pausing one coding session does not pause another.
 
 **Disconnect agent** turns access off. That is separate from **Pause agent**.
 
-Agent access also pauses while the project browser cannot be seen: when it is closed, covered by a dialog, or the window
-is minimized or hidden. Choose **Resume agent access** to continue. That control is the visibility pause. It is not
-**Resume agent**.
+New agent calls wait while the project browser cannot be seen: when its pane is closed or covered by a dialog, or the
+window is minimized or hidden. Show that session's page again to wake eligible waiting calls automatically; there is no
+separate visibility-resume step. Calls whose deadline has passed do not run. Work already executing is not cancelled by
+hiding the page. If you explicitly chose **Pause agent**, showing the page does not resume access: choose **Resume agent**.
 
 ### Several sessions
 
@@ -188,7 +189,8 @@ pnpm run webmcp:check -- --url http://127.0.0.1:4173 \
 | `--json` | Print the tools, their schemas and each run's outcome as JSON |
 | `--verbose` | Show the browser engine's own output |
 
-Exit codes: 0 every check passed, 1 the page did not load, left the allowed origins, or an expected tool is missing, 2 no
+Exit codes: 0 every check passed, 1 the browser engine failed or exceeded its deadline, the report is incomplete, the page
+did not load, left the allowed origins, or an expected tool is missing, 2 no
 page tools, 3 a run failed (the tool is missing, threw, did not answer in time, or returned an error such as
 `{ error: ... }`), 64 usage error. The same origin rules apply as in the project browser, to every redirect and navigation:
 `https://`, or `http://` on `localhost`, `127.0.0.1` or `[::1]`. It needs `pnpm install` in this repository (it uses the
@@ -205,7 +207,7 @@ through the page's model context, which is not the path an agent's call takes; c
 | The page does not load (connection refused) | the server is not running, or it listens on another host than the address bar uses | start it; use the same host in both |
 | "Start a coding session to enable agent access" | no coding session is selected | start or select a session, then enable agent access |
 | "Update the bundled AX Code runtime to let the agent use page tools." | the bundled runtime does not support the project browser | update AX Code Desktop |
-| Agent access stopped by itself | the browser was closed, covered by a dialog, or the window was minimized or hidden | show it again and choose **Resume agent access** |
+| Agent calls wait for the page to be visible | the browser pane was closed, covered by a dialog, or the window was minimized or hidden | show that session's page again; eligible calls continue automatically. An explicit **Pause agent** still requires **Resume agent** |
 | A tool is missing after an action | it was unregistered by its `AbortSignal`, or the panel is showing 64 of N | check **Registration**; a cap leaves later tools off the list and says how many were registered |
 | The panel names a rejected registration | two tools share a name in one update, or a name, description, or schema is outside the limits above | the message names the tool; fix that registration. Tools already accepted stay, and the project browser stays connected |
 | A previous **Try it** result is marked stale | the page registered a different definition for that tool | run it again if you still want a result for the new definition. The journal row still names the digest it ran against, and the schema check says the definition changed |

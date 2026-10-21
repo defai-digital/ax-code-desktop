@@ -5389,5 +5389,6 @@
   "chat.permissionCard.webmcp.pageSays": "Halaman mendeskripsikannya sebagai: {description}",
   "webmcp.calls.awaitingApproval": "Menunggu persetujuan Anda. Tinjau",
   "sessionGrid.moveSession": "Pindahkan sesi: {title}",
-  "sessionGrid.moved": "{title} dipindahkan ke panel {count}"
+  "sessionGrid.moved": "{title} dipindahkan ke panel {count}",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "Definisi alat halaman saat ini mungkin berbeda dari yang diminta."
 }

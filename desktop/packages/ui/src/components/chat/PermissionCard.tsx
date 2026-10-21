@@ -17,7 +17,7 @@ import {
   getPermissionPatterns,
   normalizePermissionName,
 } from "@/lib/permissions/permissionPayload"
-import { describeWebMcpCall, webMcpEffect } from "@/lib/toolHelpers"
+import { describeWebMcpCall, readWebMcpDefinitionDigest, webMcpEffect } from "@/lib/toolHelpers"
 import { WebMcpApprovalToolInfo } from "./WebMcpApprovalToolInfo"
 import { getPermissionToolPresentation } from "./PermissionCardTools"
 import { withTimeout } from "@/lib/asyncTimeout"
@@ -393,7 +393,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
             {t(`chat.permissionCard.webmcp.effect.${effect.key}`, effect.params)}
           </p>
           {fromDesktopBrowser && webTool && origin ? (
-            <WebMcpApprovalToolInfo sessionID={permission.sessionID} origin={origin} toolName={webTool} />
+            <WebMcpApprovalToolInfo
+              sessionID={permission.sessionID}
+              origin={origin}
+              toolName={webTool}
+              definitionDigest={readWebMcpDefinitionDigest(permission.metadata)}
+            />
           ) : null}
           <div className="mb-2">
             <div className="typography-meta text-muted-foreground mb-1">{t("chat.permissionCard.webmcp.origin")}</div>

@@ -5389,5 +5389,6 @@
   "chat.permissionCard.webmcp.pageSays": "Sayfa bunu \u015fu \u015fekilde tan\u0131ml\u0131yor: {description}",
   "webmcp.calls.awaitingApproval": "Onay\u0131n\u0131z bekleniyor. \u0130nceleyin",
   "sessionGrid.moveSession": "Oturumu ta\u015f\u0131: {title}",
-  "sessionGrid.moved": "{title}, b\u00f6lme {count}'e ta\u015f\u0131nd\u0131"
+  "sessionGrid.moved": "{title}, b\u00f6lme {count}'e ta\u015f\u0131nd\u0131",
+  "chat.permissionCard.webmcp.definitionMayDiffer": "Sayfan\u0131n ge\u00e7erli ara\u00e7 tan\u0131m\u0131, bu \u00e7a\u011fr\u0131n\u0131n talep etti\u011finden farkl\u0131 olabilir."
 }
