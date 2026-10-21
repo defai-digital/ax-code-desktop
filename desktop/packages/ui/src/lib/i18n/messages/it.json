@@ -5341,5 +5341,20 @@
   "webmcp.tools.export.copyTest": "Copia test",
   "webmcp.tools.export.copyRun": "Copia argomento --run",
   "webmcp.tools.export.copied": "Copiato",
-  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare."
+  "webmcp.tools.export.unavailable": "Questa chiamata non ha un input di oggetto JSON da esportare.",
+  "commandPalette.scope.label": "Host / progetto",
+  "commandPalette.scope.all": "Tutte le sessioni su questo host",
+  "commandPalette.scope.host": "Host connesso",
+  "commandPalette.scope.project": "Progetto",
+  "commandPalette.session.help": "#123 trova un numero di PR; #PR o #PR open/draft/merged/closed trova sessioni di PR. Tab filtra per host o progetto; Invio torna alla ricerca. Maiusc+Invio apre una sessione accanto a quella corrente.",
+  "supervision.missionControl.facet.states": "Stato PR",
+  "supervision.missionControl.facet.checks": "Controlli PR",
+  "supervision.missionControl.facet.open": "PR aperta",
+  "supervision.missionControl.facet.draft": "PR bozza",
+  "supervision.missionControl.facet.merged": "PR unita",
+  "supervision.missionControl.facet.closed": "PR chiusa",
+  "supervision.missionControl.facet.passed": "Controlli superati",
+  "supervision.missionControl.facet.failed": "Controlli falliti",
+  "supervision.missionControl.facet.pending": "Controlli in attesa",
+  "supervision.missionControl.facet.none": "Nessun controllo"
 }

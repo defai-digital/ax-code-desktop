@@ -5341,5 +5341,20 @@
   "webmcp.tools.export.copyTest": "Salin tes",
   "webmcp.tools.export.copyRun": "Salin argumen --run",
   "webmcp.tools.export.copied": "Tersalin",
-  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor."
+  "webmcp.tools.export.unavailable": "Panggilan ini tidak memiliki input objek JSON untuk diekspor.",
+  "commandPalette.scope.label": "Host / proyek",
+  "commandPalette.scope.all": "Semua sesi di host ini",
+  "commandPalette.scope.host": "Host terhubung",
+  "commandPalette.scope.project": "Proyek",
+  "commandPalette.session.help": "#123 menemukan nomor PR; #PR atau #PR open/draft/merged/closed menemukan sesi PR. Tab menyaring berdasarkan host atau proyek; Enter kembali ke pencarian. Shift+Enter membuka sesi di samping sesi saat ini.",
+  "supervision.missionControl.facet.states": "Status PR",
+  "supervision.missionControl.facet.checks": "Pemeriksaan PR",
+  "supervision.missionControl.facet.open": "PR terbuka",
+  "supervision.missionControl.facet.draft": "PR draft",
+  "supervision.missionControl.facet.merged": "PR digabungkan",
+  "supervision.missionControl.facet.closed": "PR ditutup",
+  "supervision.missionControl.facet.passed": "Pemeriksaan lulus",
+  "supervision.missionControl.facet.failed": "Pemeriksaan gagal",
+  "supervision.missionControl.facet.pending": "Pemeriksaan tertunda",
+  "supervision.missionControl.facet.none": "Tidak ada pemeriksaan"
 }

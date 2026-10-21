@@ -1,3 +1,6 @@
+import { useMissionControlPullRequests } from "@/hooks/useMissionControlPullRequests"
+import { axCodeClient } from "@/lib/ax-code/client"
+import { missionProjectKey } from "@/lib/supervision/missionControl"
 import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import React from "react"
 import {
@@ -97,7 +100,8 @@ export const CommandPalette: React.FC = () => {
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft)
   const setCurrentSession = useSessionUIStore((s) => s.setCurrentSession)
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
-  const supervisionRows = useSupervisionRows()
+  const sourceRows = useSupervisionRows()
+  const { rows: supervisionRows, setVisibleRows: setPrVisibleRows } = useMissionControlPullRequests(sourceRows)
   const projects = useProjectsStore((s) => s.projects)
   const setActiveProject = useProjectsStore((s) => s.setActiveProject)
   const toggleMissionControl = useSupervisionStore((s) => s.toggleMissionControl)
@@ -121,6 +125,27 @@ export const CommandPalette: React.FC = () => {
   )
 
   const [query, setQuery] = React.useState("")
+  const [scope, setScope] = React.useState("")
+  const scopeRef = React.useRef<HTMLSelectElement>(null)
+  const inputRef = React.useRef<HTMLInputElement>(null)
+  const helpId = React.useId()
+  // The global session index belongs to this window's connected host, never to every configured host.
+  const host = new URL(axCodeClient.getBaseUrl(), window.location.href).host
+  const scopeProjects = React.useMemo(
+    () =>
+      Array.from(
+        new Map(
+          supervisionRows.map((row) => [
+            missionProjectKey(row),
+            {
+              key: missionProjectKey(row),
+              label: row.projectLabel ?? row.directory ?? t("supervision.missionControl.noProject"),
+            },
+          ]),
+        ).values(),
+      ),
+    [supervisionRows, t],
+  )
   const debouncedQuery = useDebouncedValue(query, 200)
   const trimmedQuery = debouncedQuery.trim()
   const liveTrimmed = query.trim()
@@ -128,7 +153,10 @@ export const CommandPalette: React.FC = () => {
   // Clear query on open (not close) so content stays visible through the
   // close animation instead of emptying mid-flight.
   React.useEffect(() => {
-    if (isCommandPaletteOpen) setQuery("")
+    if (isCommandPaletteOpen) {
+      setQuery("")
+      setScope("")
+    }
   }, [isCommandPaletteOpen])
 
   // Reset search mode when palette closes
@@ -587,7 +615,7 @@ export const CommandPalette: React.FC = () => {
       setIsSearchingFiles(false)
       return
     }
-    if (!currentRoot || trimmedQuery.length === 0) {
+    if (!currentRoot || trimmedQuery.length === 0 || trimmedQuery.startsWith("#") || scope) {
       setFileResults([])
       setIsSearchingFiles(false)
       return
@@ -614,7 +642,7 @@ export const CommandPalette: React.FC = () => {
     return () => {
       cancelled = true
     }
-  }, [isCommandPaletteOpen, currentRoot, trimmedQuery, searchFiles])
+  }, [isCommandPaletteOpen, currentRoot, trimmedQuery, searchFiles, scope])
 
   // ---------------------------------------------------------------------------
   // Filter visible items
@@ -645,17 +673,39 @@ export const CommandPalette: React.FC = () => {
     })
   }, [settingsEntries, liveTrimmed, hasQuery])
 
+  const sessionSearch = liveTrimmed.startsWith("#") || Boolean(scope)
   const scoredSessions = React.useMemo(() => {
-    if (!hasQuery) return sortedActiveSessions.slice(0, 8).map((item) => ({ item, score: 0 }))
+    const candidates = sortedActiveSessions.filter((session) => {
+      if (!scope || scope === "host") return true
+      const row = rowBySession.get(session.id)
+      return row && `project:${missionProjectKey(row)}` === scope
+    })
+    if (liveTrimmed.startsWith("#")) {
+      const expression = liveTrimmed
+        .slice(1)
+        .trim()
+        .toLowerCase()
+        .replace(/^pr\b\s*/, "")
+      return candidates
+        .filter((session) => {
+          const pr = rowBySession.get(session.id)?.pullRequest
+          if (!pr || pr.stale) return false
+          return expression
+            .split(/\s+/)
+            .filter(Boolean)
+            .every((term) => (/^#?\d+$/.test(term) ? pr.number === Number(term.replace(/^#/, "")) : pr.state === term))
+        })
+        .slice(0, 50)
+        .map((item) => ({ item, score: 0 }))
+    }
+    if (!hasQuery) return candidates.slice(0, 8).map((item) => ({ item, score: 0 }))
     return scoreByFuzzyQuery(
-      sortedActiveSessions,
+      candidates,
       liveTrimmed,
       (s) => `${s.title || ""} ${rowBySession.get(s.id)?.projectLabel ?? ""}`,
-      {
-      limit: 7,
-      threshold: 0.2,
-    })
-  }, [sortedActiveSessions, liveTrimmed, hasQuery, rowBySession])
+      { limit: 7, threshold: 0.2 },
+    )
+  }, [sortedActiveSessions, liveTrimmed, hasQuery, rowBySession, scope])
 
   const scoredFiles = React.useMemo(() => {
     if (!hasQuery || fileResults.length === 0) return []
@@ -667,15 +717,24 @@ export const CommandPalette: React.FC = () => {
     })
   }, [fileResults, liveTrimmed, hasQuery])
 
-  const visibleSupervision = scoredSupervision.map((x) => x.item)
-  const visibleCommands = scoredCommands.map((x) => x.item)
-  const visibleSettings = scoredSettings.map((x) => x.item)
+  const visibleSupervision = (sessionSearch ? [] : scoredSupervision).map((x) => x.item)
+  const visibleCommands = (sessionSearch ? [] : scoredCommands).map((x) => x.item)
+  const visibleSettings = (sessionSearch ? [] : scoredSettings).map((x) => x.item)
   const visibleSessions = scoredSessions.map((x) => x.item)
-  const visibleFiles = hasQuery ? scoredFiles.map((x) => x.item) : []
+  const visibleFiles = hasQuery && !sessionSearch ? scoredFiles.map((x) => x.item) : []
+
+  React.useEffect(() => {
+    setPrVisibleRows(
+      isCommandPaletteOpen
+        ? supervisionRows.filter((row) => scoredSessions.some(({ item }) => item.id === row.sessionId))
+        : [],
+    )
+  }, [isCommandPaletteOpen, supervisionRows, scoredSessions, setPrVisibleRows])
 
   const groupOrder = React.useMemo<("supervision" | "commands" | "settings" | "sessions" | "files")[]>(() => {
     // Like a jump palette: when a session waits on the user, the ranked sessions come first.
-    if (!hasQuery) return sessionsFirst ? ["sessions", "supervision", "commands"] : ["supervision", "commands", "sessions"]
+    if (!hasQuery)
+      return sessionsFirst ? ["sessions", "supervision", "commands"] : ["supervision", "commands", "sessions"]
     const best = (arr: { score: number }[]): number => (arr.length ? arr[0].score : Infinity)
     const groups: { key: "commands" | "settings" | "sessions" | "files"; score: number }[] = [
       { key: "commands", score: best(scoredCommands) },
@@ -694,6 +753,24 @@ export const CommandPalette: React.FC = () => {
     },
     [close, setCurrentSession],
   )
+
+  const handleSplitSession = (session: Session) => {
+    const chosenDirectory = resolveGlobalSessionDirectory(session)
+    const current = activeSessions.find((item) => item.id === currentSessionId)
+    const currentDir =
+      (current && resolveGlobalSessionDirectory(current)) ||
+      rowBySession.get(currentSessionId ?? "")?.directory ||
+      currentDirectory
+    if (!currentSessionId || !currentDir || !chosenDirectory || session.id === currentSessionId) {
+      handleOpenSession(session)
+      return
+    }
+    openSessionGrid([
+      { sessionId: currentSessionId, directory: currentDir },
+      { sessionId: session.id, directory: chosenDirectory },
+    ])
+    close()
+  }
 
   const handleOpenFile = React.useCallback(
     async (filePath: string) => {
@@ -733,15 +810,88 @@ export const CommandPalette: React.FC = () => {
         ) : null}
         <Command
           shouldFilter={false}
+          label={t("commandPalette.input.placeholder")}
+          onKeyDownCapture={(event) => {
+            if (event.nativeEvent.isComposing) return
+            if (event.key === "Tab" && !event.shiftKey && event.target === inputRef.current) {
+              event.preventDefault()
+              scopeRef.current?.focus()
+            }
+            if (event.key === "Enter" && event.shiftKey && event.target === inputRef.current) {
+              event.preventDefault()
+              event.stopPropagation()
+              const value = event.currentTarget
+                .querySelector('[cmdk-item][aria-selected="true"]')
+                ?.getAttribute("data-value")
+              const session = visibleSessions.find((item) => `session:${item.id}` === value)
+              if (session) handleSplitSession(session)
+            }
+          }}
           className="[&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group]]:px-2 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-4 [&_[cmdk-input-wrapper]_svg]:w-4 [&_[cmdk-input]]:h-8 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-1.5 [&_[cmdk-item]_svg]:h-4 [&_[cmdk-item]_svg]:w-4 [&_[cmdk-item]]:typography-meta"
         >
           <CommandInput
+            ref={inputRef}
+            aria-label={t("commandPalette.input.placeholder")}
+            aria-describedby={helpId}
             value={query}
             onValueChange={setQuery}
             placeholder={
               isSearchMode ? t("commandPalette.searchMode.placeholder") : t("commandPalette.input.placeholder")
             }
           />
+          <div className="flex items-center gap-2 border-b px-3 py-2">
+            <label htmlFor={`${helpId}-scope`} className="typography-micro">
+              {t("commandPalette.scope.label")}
+            </label>
+            <select
+              id={`${helpId}-scope`}
+              ref={scopeRef}
+              value={scope}
+              className="min-w-0 flex-1 rounded border bg-background p-1 typography-meta focus-visible:ring-2 focus-visible:ring-ring"
+              onChange={(event) => setScope(event.target.value)}
+              onKeyDown={(event) => {
+                event.stopPropagation()
+                // Native macOS menus defer selection until Enter; commit arrow navigation here so
+                // Enter can consistently return to the search input on every desktop platform.
+                if (!event.altKey && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+                  event.preventDefault()
+                  const select = event.currentTarget
+                  const index =
+                    event.key === "Home"
+                      ? 0
+                      : event.key === "End"
+                        ? select.options.length - 1
+                        : Math.max(
+                            0,
+                            Math.min(
+                              select.options.length - 1,
+                              select.selectedIndex + (event.key === "ArrowDown" ? 1 : -1),
+                            ),
+                          )
+                  setScope(select.options[index].value)
+                }
+                if (event.key === "Enter" || (event.key === "Tab" && event.shiftKey)) {
+                  event.preventDefault()
+                  inputRef.current?.focus()
+                }
+              }}
+            >
+              <option value="">{t("commandPalette.scope.all")}</option>
+              <optgroup label={t("commandPalette.scope.host")}>
+                <option value="host">{host}</option>
+              </optgroup>
+              <optgroup label={t("commandPalette.scope.project")}>
+                {scopeProjects.map((project) => (
+                  <option key={project.key} value={`project:${project.key}`}>
+                    {project.label}
+                  </option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+          <p id={helpId} className="px-3 py-2 typography-micro text-muted-foreground">
+            {t("commandPalette.session.help")}
+          </p>
           <CommandList>
             <CommandEmpty>{t("commandPalette.empty.noResults")}</CommandEmpty>
 
@@ -801,6 +951,11 @@ export const CommandPalette: React.FC = () => {
                           <Icon name="chat-ai-3" className="mr-2 h-4 w-4" />
                           {/* The title wins the space; a long, disambiguated project label truncates first. */}
                           <span className="min-w-[8rem] flex-1 truncate">{title}</span>
+                          {row?.pullRequest && !row.pullRequest.stale ? (
+                            <span className="shrink-0 typography-micro" data-palette-pr={row.pullRequest.number}>
+                              #{row.pullRequest.number} {t(`supervision.missionControl.facet.${row.pullRequest.state}`)}
+                            </span>
+                          ) : null}
                           {row?.projectLabel ? (
                             <span
                               className="min-w-0 max-w-[35%] shrink truncate text-muted-foreground typography-meta"

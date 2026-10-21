@@ -5341,5 +5341,20 @@
   "webmcp.tools.export.copyTest": "\ud14c\uc2a4\ud2b8 \ubcf5\uc0ac",
   "webmcp.tools.export.copyRun": "--run \uc778\uc218 \ubcf5\uc0ac",
   "webmcp.tools.export.copied": "\ubcf5\uc0ac\ub428",
-  "webmcp.tools.export.unavailable": "\uc774 \ud638\ucd9c\uc5d0\ub294 \ub0b4\ubcf4\ub0bc JSON \uac1d\uccb4 \uc785\ub825\uc774 \uc5c6\uc2b5\ub2c8\ub2e4."
+  "webmcp.tools.export.unavailable": "\uc774 \ud638\ucd9c\uc5d0\ub294 \ub0b4\ubcf4\ub0bc JSON \uac1d\uccb4 \uc785\ub825\uc774 \uc5c6\uc2b5\ub2c8\ub2e4.",
+  "commandPalette.scope.label": "\ud638\uc2a4\ud2b8 / \ud504\ub85c\uc81d\ud2b8",
+  "commandPalette.scope.all": "\uc774 \ud638\uc2a4\ud2b8\uc758 \ubaa8\ub4e0 \uc138\uc158",
+  "commandPalette.scope.host": "\uc5f0\uacb0\ub41c \ud638\uc2a4\ud2b8",
+  "commandPalette.scope.project": "\ud504\ub85c\uc81d\ud2b8",
+  "commandPalette.session.help": "#123\uc740 PR \ubc88\ud638\ub97c \ucc3e\uc74c; #PR \ub610\ub294 #PR open/draft/merged/closed\ub294 PR \uc138\uc158\uc744 \ucc3e\uc74c. Tab\uc73c\ub85c \ud638\uc2a4\ud2b8 \ub610\ub294 \ud504\ub85c\uc81d\ud2b8\ub85c \ud544\ud130; Enter\ub294 \uac80\uc0c9\uc73c\ub85c \ub3cc\uc544\uac10. Shift+Enter\ub294 \ud604\uc7ac \uc138\uc158 \uc606\uc5d0 \uc138\uc158 \uc5f4\uae30.",
+  "supervision.missionControl.facet.states": "PR \uc0c1\ud0dc",
+  "supervision.missionControl.facet.checks": "PR \uccb4\ud06c",
+  "supervision.missionControl.facet.open": "\uc5f4\ub9b0 PR",
+  "supervision.missionControl.facet.draft": "\ucd08\uc548 PR",
+  "supervision.missionControl.facet.merged": "\ubcd1\ud569\ub41c PR",
+  "supervision.missionControl.facet.closed": "\ub2eb\ud78c PR",
+  "supervision.missionControl.facet.passed": "\uccb4\ud06c \ud1b5\uacfc",
+  "supervision.missionControl.facet.failed": "\uccb4\ud06c \uc2e4\ud328",
+  "supervision.missionControl.facet.pending": "\uccb4\ud06c \ubcf4\ub958 \uc911",
+  "supervision.missionControl.facet.none": "\uccb4\ud06c \uc5c6\uc74c"
 }

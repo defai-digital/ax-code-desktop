@@ -5341,5 +5341,20 @@
   "webmcp.tools.export.copyTest": "\u30c6\u30b9\u30c8\u3092\u30b3\u30d4\u30fc",
   "webmcp.tools.export.copyRun": "--run \u5f15\u6570\u3092\u30b3\u30d4\u30fc",
   "webmcp.tools.export.copied": "\u30b3\u30d4\u30fc\u6e08\u307f",
-  "webmcp.tools.export.unavailable": "\u3053\u306e\u547c\u3073\u51fa\u3057\u306b\u306f\u30a8\u30af\u30b9\u30dd\u30fc\u30c8\u3067\u304d\u308bJSON\u30aa\u30d6\u30b8\u30a7\u30af\u30c8\u5165\u529b\u304c\u3042\u308a\u307e\u305b\u3093\u3002"
+  "webmcp.tools.export.unavailable": "\u3053\u306e\u547c\u3073\u51fa\u3057\u306b\u306f\u30a8\u30af\u30b9\u30dd\u30fc\u30c8\u3067\u304d\u308bJSON\u30aa\u30d6\u30b8\u30a7\u30af\u30c8\u5165\u529b\u304c\u3042\u308a\u307e\u305b\u3093\u3002",
+  "commandPalette.scope.label": "\u30db\u30b9\u30c8 / \u30d7\u30ed\u30b8\u30a7\u30af\u30c8",
+  "commandPalette.scope.all": "\u3053\u306e\u30db\u30b9\u30c8\u306e\u3059\u3079\u3066\u306e\u30bb\u30c3\u30b7\u30e7\u30f3",
+  "commandPalette.scope.host": "\u63a5\u7d9a\u3055\u308c\u305f\u30db\u30b9\u30c8",
+  "commandPalette.scope.project": "\u30d7\u30ed\u30b8\u30a7\u30af\u30c8",
+  "commandPalette.session.help": "#123 \u306f PR \u756a\u53f7\u3092\u691c\u7d22\uff1b#PR \u307e\u305f\u306f #PR open/draft/merged/closed \u306f PR \u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u691c\u7d22\u3002Tab \u3067\u30db\u30b9\u30c8\u307e\u305f\u306f\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u3067\u30d5\u30a3\u30eb\u30bf\uff1bEnter \u3067\u691c\u7d22\u306b\u623b\u308b\u3002Shift+Enter \u3067\u73fe\u5728\u306e\u30bb\u30c3\u30b7\u30e7\u30f3\u306e\u96a3\u306b\u30bb\u30c3\u30b7\u30e7\u30f3\u3092\u958b\u304f\u3002",
+  "supervision.missionControl.facet.states": "PR \u306e\u72b6\u614b",
+  "supervision.missionControl.facet.checks": "PR \u30c1\u30a7\u30c3\u30af",
+  "supervision.missionControl.facet.open": "\u30aa\u30fc\u30d7\u30f3 PR",
+  "supervision.missionControl.facet.draft": "\u4e0b\u66f8\u304d PR",
+  "supervision.missionControl.facet.merged": "\u30de\u30fc\u30b8\u3055\u308c\u305f PR",
+  "supervision.missionControl.facet.closed": "\u30af\u30ed\u30fc\u30ba\u3055\u308c\u305f PR",
+  "supervision.missionControl.facet.passed": "\u30c1\u30a7\u30c3\u30af\u901a\u904e",
+  "supervision.missionControl.facet.failed": "\u30c1\u30a7\u30c3\u30af\u5931\u6557",
+  "supervision.missionControl.facet.pending": "\u30c1\u30a7\u30c3\u30af\u4fdd\u7559\u4e2d",
+  "supervision.missionControl.facet.none": "\u30c1\u30a7\u30c3\u30af\u306a\u3057"
 }

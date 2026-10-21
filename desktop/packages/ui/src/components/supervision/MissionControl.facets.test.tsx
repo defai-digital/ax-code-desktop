@@ -99,25 +99,6 @@ describe("Mission Control compound filters", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
   })
 
-  test("checks failing keeps the session whose envelopes failed and clears with the other facets", async () => {
-    useSupervisionStore.setState({
-      rows: useSupervisionStore.getState().rows.map((item) => ({
-        ...item,
-        checks:
-          item.sessionId === "b1"
-            ? { state: "failed" as const, passed: 1, failed: 1, total: 2 }
-            : { state: "passed" as const, passed: 1, failed: 0, total: 1 },
-      })),
-    })
-    render(<MissionControl />)
-    fireEvent.click(screen.getByRole("button", { name: "Checks failing" }))
-    expect(screen.getByRole("button", { name: "Checks failing" }).getAttribute("aria-pressed")).toBe("true")
-    expect(visibleIds()).toEqual(["mission-row-b1"])
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
-    expect(visibleIds()).toHaveLength(3)
-    expect(screen.getByRole("button", { name: "Checks failing" }).getAttribute("aria-pressed")).toBe("false")
-  })
-
   test("combines every facet and Clear all restores rows, search and toggle state", async () => {
     useSupervisionStore.setState({
       rows: useSupervisionStore.getState().rows.map((item) => ({
@@ -233,37 +214,135 @@ describe("Mission Control child visibility", () => {
   })
 })
 
-test("PR menu filters structured PRs, exposes a removable chip and resets through Clear all", async () => {
+const seedPrRows = () => {
+  const states = ["open", "draft", "merged", "closed"] as const
   useSupervisionStore.setState({
-    rows: useSupervisionStore.getState().rows.map((item) => ({
-      ...item,
-      pullRequest:
-        item.sessionId === "a1"
-          ? { number: 42, state: "open" as const, checks: "failed" as const }
-          : item.sessionId === "b1"
-            ? { number: 43, state: "draft" as const, checks: "pending" as const }
-            : // A merged PR whose checks failed is not actionable and must not match the failing facet.
-              { number: 44, state: "merged" as const, checks: "failed" as const },
-    })),
+    rows: states.flatMap((state, index) =>
+      ["alpha", "beta"].map((project) => ({
+        ...row(`${project}-${state}`, project, index === 0 ? "permission" : "running"),
+        updatedAt: 10,
+        evidence: project === "alpha" ? { files: 1, additions: 1, deletions: 0 } : null,
+        pullRequest: {
+          number: index + 1,
+          state,
+          checks: state === "draft" ? ("pending" as const) : ("failed" as const),
+        },
+      })),
+    ),
+    lastViewedAt: {},
   })
-  render(<MissionControl />)
-  fireEvent.click(screen.getByRole("button", { name: "PR" }))
-  await settle()
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Has an open PR" }))
-  await settle()
-  expect(visibleIds()).toEqual(["mission-row-a1", "mission-row-b1"])
-  fireEvent.click(screen.getByRole("button", { name: "Remove filter Has an open PR" }))
+}
+const openPr = async () => {
   await act(async () => {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
   })
-  expect(visibleIds()).toHaveLength(3)
   fireEvent.click(screen.getByRole("button", { name: "PR" }))
   await settle()
-  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Checks failing on PR" }))
-  await settle()
-  expect(visibleIds()).toEqual(["mission-row-a1"])
+}
+
+test("PR/CI menu ORs selections, ANDs groups, excludes completed failures and exposes removable chips", async () => {
+  seedPrRows()
+  render(<MissionControl />)
+  await openPr()
+  expect(screen.getByRole("menuitemcheckbox", { name: "Checks failing (2)" })).toBeTruthy()
+  expect(screen.getByRole("menuitemcheckbox", { name: "No checks (0)" })).toBeTruthy()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Open PR (2)" }))
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Draft PR (2)" }))
+  expect(visibleIds()).toHaveLength(4)
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Checks failing (2)" }))
+  expect(visibleIds()).toEqual(["mission-row-alpha-open", "mission-row-beta-open"])
+  expect(screen.getByRole("menuitemcheckbox", { name: "Merged PR (0)" })).toBeTruthy()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Checks pending (2)" }))
+  expect(visibleIds()).toHaveLength(4)
+  await closeProjects()
+  fireEvent.click(screen.getByRole("button", { name: "Remove filter Open PR" }))
+  expect(visibleIds()).toEqual(["mission-row-alpha-draft", "mission-row-beta-draft"])
   fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
+  expect(visibleIds()).toHaveLength(8)
+})
+
+test("PR counts follow project, status, search, changes, updated and working-set filters", async () => {
+  seedPrRows()
+  render(<MissionControl />)
+  await openProjects()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Alpha (4)" }))
+  await closeProjects()
+  fireEvent.click(screen.getByRole("button", { name: "Running (3)" }))
+  fireEvent.change(screen.getByRole("searchbox"), { target: { value: "draft" } })
+  fireEvent.click(screen.getByRole("button", { name: "Has changes" }))
+  await openPr()
+  expect(screen.getByRole("menuitemcheckbox", { name: "Draft PR (1)" })).toBeTruthy()
+  expect(screen.getByRole("menuitemcheckbox", { name: "Open PR (0)" })).toBeTruthy()
+  expect(screen.getByRole("menuitemcheckbox", { name: "Checks pending (1)" })).toBeTruthy()
+  await closeProjects()
+  act(() => useSupervisionStore.setState({ lastViewedAt: { "alpha-draft": 11 } }))
+  fireEvent.click(screen.getByRole("button", { name: "Updated since my last visit (7)" }))
+  await openPr()
+  expect(screen.getByRole("menuitemcheckbox", { name: "Draft PR (0)" })).toBeTruthy()
+  await closeProjects()
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
+  act(() =>
+    useSupervisionStore.setState({
+      workingSets: [{ id: "one", name: "One", sessionIds: ["beta-closed"] }],
+      activeWorkingSetId: "one",
+    }),
+  )
+  await openPr()
+  expect(screen.getAllByRole("menuitemcheckbox").map((e) => e.getAttribute("aria-label"))).toContain("Closed PR (1)")
+  expect(screen.getByRole("menuitemcheckbox", { name: "Open PR (0)" })).toBeTruthy()
+})
+
+test("PR keyboard selection stays open and Escape returns to the trigger without closing the board", async () => {
+  seedPrRows()
+  render(<MissionControl />)
+  const trigger = screen.getByRole("button", { name: "PR" })
+  act(() => trigger.focus())
+  fireEvent.keyDown(trigger, { key: "ArrowDown" })
   await settle()
-  expect(visibleIds()).toHaveLength(3)
-  expect(screen.queryByRole("button", { name: "Remove filter Checks failing on PR" })).toBeNull()
+  const option = screen.getByRole("menuitemcheckbox", { name: "Draft PR (2)" })
+  act(() => option.focus())
+  fireEvent.keyDown(option, { key: "Enter" })
+  await settle()
+  expect(option.getAttribute("aria-checked")).toBe("true")
+  expect(visibleIds()).toHaveLength(2)
+  await closeProjects()
+  expect(trigger.getAttribute("aria-expanded")).toBe("false")
+  expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
+})
+
+for (const facet of ["search", "status", "changes", "project", "updated"] as const) {
+  test(`PR counts independently honor the ${facet} facet`, async () => {
+    seedPrRows()
+    render(<MissionControl />)
+    if (facet === "search") fireEvent.change(screen.getByRole("searchbox"), { target: { value: "beta-open" } })
+    if (facet === "status") fireEvent.click(screen.getByRole("button", { name: "Running (6)" }))
+    if (facet === "changes") fireEvent.click(screen.getByRole("button", { name: "Has changes" }))
+    if (facet === "project") {
+      await openProjects()
+      fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Beta (4)" }))
+      await closeProjects()
+    }
+    if (facet === "updated") {
+      act(() => useSupervisionStore.setState({ lastViewedAt: { "alpha-open": 11 } }))
+      fireEvent.click(screen.getByRole("button", { name: "Updated since my last visit (7)" }))
+    }
+    await openPr()
+    expect(screen.getByRole("menuitemcheckbox", { name: `Open PR (${facet === "status" ? 0 : 1})` })).toBeTruthy()
+  })
+}
+
+test("passing and no-check PRs can be selected while absent and stale data stay unknown", async () => {
+  seedPrRows()
+  act(() => useSupervisionStore.setState({ rows: [
+    { ...row("passed", "alpha", "running"), pullRequest: { number: 11, state: "open", checks: "passed" } },
+    { ...row("none", "alpha", "running"), pullRequest: { number: 12, state: "draft" } },
+    { ...row("stale", "alpha", "running"), pullRequest: { number: 13, state: "open", checks: "passed", stale: true } },
+    row("absent", "alpha", "running"),
+  ] }))
+  render(<MissionControl />)
+  await openPr()
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Checks passing (1)" }))
+  expect(visibleIds()).toEqual(["mission-row-passed"])
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "No checks (1)" }))
+  expect(visibleIds()).toEqual(["mission-row-passed", "mission-row-none"])
 })
