@@ -240,3 +240,16 @@ Approval input summaries include every required name even if the schema omits it
 come first; names beyond the twelve-input display limit count toward the total and omitted-required notice.
 
 Manual calls that were sent retain their outcome when registrations change during execution; the journal marks the definition as changed. Browser eviction probes bound every debugger command, including cleanup, to 250 ms. A timeout conservatively retains the page and releases the pool queue. Credential filtering covers signed download URLs (Azure SAS, AWS, Google Cloud and CloudFront) and OAuth callback codes, across previews and checker reports. Advisory input diagnosis also names required properties missing from the schema's `properties` map.
+
+### Sign-in windows and sign-out
+
+Sign-in popups opened with `window.open()` or `target="_blank"` use the opener project's
+isolated browser profile. They accept only HTTP and HTTPS navigation. These human-only
+windows have no page-tool adapter, preload, Node.js integration, or agent access; downloads
+remain blocked. Agent requests on the opener wait while any sign-in window remains open.
+Finish signing in and close all of its sign-in windows to resume queued requests, subject to
+their original deadline, cancellation, visibility, and pause checks. Closing or revoking the
+opener also closes its sign-in windows. Pages with an open sign-in window are not evicted.
+
+**Sign out of project browser** closes the project's pages and sign-in windows and clears
+that project's browser storage. Closing a page alone keeps its sign-in for other project pages.

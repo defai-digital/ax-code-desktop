@@ -13,6 +13,8 @@ vi.doMock("@/lib/i18n", () => ({
           "webmcp.actions.pauseAgent",
           "webmcp.actions.resumeAgent",
           "webmcp.browser.takeOver",
+          "webmcp.browser.waitingForSignIn",
+          "webmcp.browser.signOut",
           "webmcp.browser.waitingForResume",
           "webmcp.browser.waitingForPage",
           "webmcp.browser.stoppedCall",
@@ -503,6 +505,17 @@ describe("agent browser enable request", () => {
     const feedback = container.querySelector<HTMLElement>("[data-webmcp-access-status]")!.textContent
     if (count === 0) expect(feedback).not.toContain("Stopped")
     else expect(feedback).toContain("Stopped 2 calls. Changes they already made on the page stay.")
+  })
+
+  test("shows sign-in waiting and explicitly clears project storage on sign-out", async () => {
+    invoke.mockImplementation(async () => ({ ...browserStatus(true), waitingForSignIn: true }))
+    render()
+    openAgentMode()
+    await flush()
+    expect(container.querySelector("[data-webmcp-access-status]")?.textContent).toContain(dict["webmcp.browser.waitingForSignIn"])
+    fireEvent.click(within(container).getByRole("button", { name: dict["webmcp.browser.signOut"] }))
+    await flush()
+    expect(invoke).toHaveBeenCalledWith("desktop_webmcp_browser", expect.objectContaining({ action: "clearProject", directory: expect.any(String) }))
   })
 
   test("keeps Pause and Disconnect reachable when an enrolled page reports an error", async () => {

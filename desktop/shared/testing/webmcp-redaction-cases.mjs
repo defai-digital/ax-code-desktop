@@ -1,7 +1,6 @@
 // Synthetic credentials only. Shared by preview, export, and actual checker-entry tests.
 export const secret = "AUDIT_FAKE_PASSWORD"
 const keys = [
-  "code",
   "token",
   "sig",
   "secret",
@@ -89,3 +88,5 @@ credentialTextCases.push(
     `Authorization: Basic ${value}`,
   ]),
 )
+
+credentialTextCases.push(...["code", "state", "%2563ode", "%2573tate"].flatMap((key) => ["?", "#", "#/route?"].map((prefix) => `https://example.test/${prefix}${key}=a`)))

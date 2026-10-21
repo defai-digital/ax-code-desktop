@@ -14,14 +14,14 @@ const WEBMCP_CREDENTIALS = [
 
 /** Key or field names whose values are never shown, whatever the value looks like. */
 export const WEBMCP_SENSITIVE_NAME =
-  /(?:^|[-_])(?:code|sig|signature|policy|key[-_]pair[-_]id)$|password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
+  /(?:^|[-_])(?:sig|signature|policy|key[-_]pair[-_]id)$|password|passwd|passphrase|secret|token|credential|api.?key|access.?key|private.?key|authorization|bearer|cookie|session|otp|one.?time|pin\b|cvv|cvc|card.?number|recovery|seed/i
 
 // Explicit credential names are sensitive regardless of the value length.
-function sensitiveParameterName(value) {
+function sensitiveParameterName(value, urlContext = false) {
   let name = value.replaceAll("+", " ")
   for (let layer = 0; ; layer++) {
     const decoded = name.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
-    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name)
+    if (decoded === name) return WEBMCP_SENSITIVE_NAME.test(name) || (urlContext && /^(?:code|state)$/i.test(name))
     // Unknown deeply encoded names fail closed, as deeply escaped diagnostics do.
     if (layer >= 31) return true
     name = decoded
@@ -55,7 +55,7 @@ export function webMcpTextLooksSensitive(value) {
         for (const pair of part.split(/[?&#/;\\]/)) {
           const equals = pair.indexOf("=")
           if (equals < 0) continue
-          if (pair.slice(equals + 1).trim() && sensitiveParameterName(pair.slice(0, equals))) return true
+          if (pair.slice(equals + 1).trim() && sensitiveParameterName(pair.slice(0, equals), part === url.search || part === url.hash)) return true
         }
       }
     } catch {

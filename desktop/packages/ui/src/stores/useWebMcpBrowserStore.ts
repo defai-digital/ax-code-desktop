@@ -78,6 +78,7 @@ export interface WebMcpBrowserSnapshot {
   interrupted?: boolean
   enabled: boolean
   visible: boolean
+  waitingForSignIn: boolean
   waiting: boolean
   unloaded?: boolean
   idle?: boolean
@@ -156,6 +157,7 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   enabled: false,
   interrupted: false,
   visible: false,
+  waitingForSignIn: false,
   waiting: false,
   unloaded: false,
   idle: false,

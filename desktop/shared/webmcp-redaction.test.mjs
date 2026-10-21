@@ -15,7 +15,7 @@ test("embedded credential assignments are filtered across every generated shape"
 })
 
 test("ordinary diagnostics and credential labels without values remain readable", () => {
-  for (const text of ["Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
+  for (const text of ["code=5", "code=true", "state=ready", "?code=5", "https://example.test/code=5", '{"code":5,"state":true}', "Password", "https://example.test/?%73ort=name#%66ilter=active", "/route;%70age=2", 'Validation failed: {"title":"short"}', "count=3", "a".repeat(65536), '```json\n{"value":true}\n```']) {
     assert.equal(webMcpTextLooksSensitive(text), false)
     assert.equal(redactWebMcpReport(text), text)
   }
@@ -47,7 +47,7 @@ test("signed URL and OAuth shapes are redacted across display and report project
 })
 
 test("short credential keys are filtered in structured reports", () => {
-  for (const key of ["code", "token", "sig", "password", "secret", "api_key", "Authorization"]) {
+  for (const key of ["token", "sig", "password", "secret", "api_key", "Authorization"]) {
     for (const value of ["a", "abc123", 1]) {
       assert.deepEqual(redactWebMcpReport({ [key]: value }), { [key]: "[redacted]" })
     }

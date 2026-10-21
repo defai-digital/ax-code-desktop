@@ -5392,5 +5392,7 @@
   "sessionGrid.moved": "{title} spostato nel riquadro {count}",
   "chat.permissionCard.webmcp.definitionMayDiffer": "La definizione corrente dello strumento della pagina potrebbe differire da quella richiesta.",
   "webmcp.tools.staleForm": "Questo modulo \u00e8 obsoleto perch\u00e9 la pagina o lo strumento di pagina \u00e8 cambiato. Riapri lo strumento e controlla l'input prima di riprovare.",
-  "chat.permissionCard.webmcp.inputsTruncated": "Mostro {shown} di {total} input; {required} input aggiuntivi obbligatori non mostrati."
+  "chat.permissionCard.webmcp.inputsTruncated": "Mostro {shown} di {total} input; {required} input aggiuntivi obbligatori non mostrati.",
+  "webmcp.browser.waitingForSignIn": "L\u2019agente \u00e8 in attesa che tu completi l\u2019accesso e chiuda le finestre di accesso.",
+  "webmcp.browser.signOut": "Disconnetti dal browser del progetto"
 }
