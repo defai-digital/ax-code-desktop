@@ -1389,6 +1389,7 @@ describe("manual invocation native outcomes", () => {
     ["Completed", { text: "token=MANUAL_SECRET" }, "completed", undefined],
     ["Completed", { text: "x".repeat(5000) }, "completed", undefined],
     ["Completed", { isError: true }, "application-error", "application-error"],
+    ["Completed", { error: { field: "password", constraint: "minLength", got: "REJECTED_PRIVATE_VALUE" } }, "application-error", "application-error"],
     ["Completed", { status: "timeout", isError: true }, "timeout", "timeout"],
     ["Completed", JSON.stringify({ untrusted: true, result: { status: "cancelled" } }), "cancelled", "cancelled"],
     ["Completed", "x".repeat(65537), "failed", "result-too-large"],
@@ -1438,6 +1439,10 @@ describe("manual invocation native outcomes", () => {
       input: { text: "  exact  ", zero: 0, off: false, empty: "" },
     })
     expect(result).toMatchObject({ ok: outcome === "completed", outcome, ...(reason ? { reason } : {}) })
+    if (output?.error?.got) {
+      expect(result.output.error.got).toBe("[redacted]")
+      expect(JSON.stringify(result)).not.toContain("REJECTED_PRIVATE_VALUE")
+    }
     if (output?.text === "token=MANUAL_SECRET") expect(result.output.text).toBe("[redacted]")
     if (output?.text?.length === 5000) expect(result.output.text).toHaveLength(4000)
     if (nativeStatus === "Error" || nativeStatus === "command-rejected")

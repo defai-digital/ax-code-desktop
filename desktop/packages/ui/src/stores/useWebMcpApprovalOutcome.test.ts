@@ -46,3 +46,13 @@ test("redacting a truncated approval preview preserves its incompleteness marker
   const receipt = useWebMcpApprovalReceipts.getState().receipts.get(JSON.stringify(["ses_1", "call-1"]))!
   expect(receipt.inputPreview).toBe("[redacted]… (4096 bytes, 2048 not shown)")
 })
+
+test("permission receipt retention propagates shared projection truncation into completed calls", () => {
+  let input: Record<string, unknown> = { unseen: 1 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  recordWebMcpApprovalReceipt("ses_1", { ...request, metadata: { inputPreview: JSON.stringify(input) } })
+  const call = collectWebMcpCalls([{ id: "m1" }], () => [{ type: "tool", tool: "desktop_webmcp", callID: "call-1", state: {
+    status: "completed", metadata: { operation: "invoke" }, output: "{}",
+  } }], 20, undefined, [], useWebMcpApprovalReceipts.getState().receipts, "ses_1")[0]
+  expect(call).toMatchObject({ inputKind: "truncated", input: null })
+})

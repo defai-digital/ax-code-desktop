@@ -396,3 +396,12 @@ test("draft retention preserves every accepted field name and explicit-empty fla
   store.saveToolDraft("echo", { ...saved, json: "x".repeat(65537) })
   expect(useWebMcpBrowserStore.getState().toolDrafts.echo.truncated).toBe(true)
 })
+
+test("bounded manual journal inputs explicitly retain truncation instead of claiming a complete input", () => {
+  const store = useWebMcpBrowserStore.getState()
+  store.resetSnapshot()
+  let input: Record<string, unknown> = { unseen: 1 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  store.recordToolJournal({ id: "deep", tool: "echo", digest: "abc", outcome: "completed", text: "done", input, durationMs: 1, at: 1 })
+  expect(useWebMcpBrowserStore.getState().toolJournal[0]).toMatchObject({ inputTruncated: true, input: {} })
+})

@@ -1,7 +1,7 @@
 import type { WebMcpCall } from "./webMcpCalls"
 import { redactWebMcpReport, webMcpDisplayText, webMcpTextLooksSensitive } from "../../../../shared/webmcp-redaction.mjs"
 import { webMcpEvidenceMatchesTool, type WebMcpJournalEntry, type WebMcpToolDefinition } from "./webMcpCatalog"
-import { placeholderWebMcpSecrets } from "./toolHelpers"
+import type { WebMcpInvokeInputKind } from "./toolHelpers"
 import { diagnosisFields, diagnosisOpaqueRequired, toolInputWarnings, type ToolField } from "./webMcpToolForm"
 
 /**
@@ -135,7 +135,9 @@ export function webMcpRegressionExport(entry: {
   tool: string
   input: Record<string, unknown>
   outcome: string
+  inputKind?: WebMcpInvokeInputKind
 }): { snippet: string; runArgument: string } | null {
+  if (entry.inputKind === "truncated") return null
   // Admission, deadline and cancellation outcomes require adapter context that this snippet cannot reproduce.
   if (!["completed", "application-error"].includes(entry.outcome)) return null
   if (!entry.tool || entry.tool.length > 256 || /\[redacted(?: tool \d+)?\]/.test(entry.tool) || webMcpTextLooksSensitive(entry.tool)) return null
@@ -143,7 +145,9 @@ export function webMcpRegressionExport(entry: {
   let encoded: string
   try {
     // Secret-named fields become a placeholder: a copied test never carries the value that was typed.
-    encoded = JSON.stringify(placeholderWebMcpSecrets(entry.input))
+    let truncated = false
+    encoded = JSON.stringify(redactWebMcpReport(entry.input, "<fill in>", { onTruncate: () => { truncated = true } }))
+    if (truncated) return null
     if (!encoded || encoded === "null" || encoded[0] !== "{") return null
   } catch {
     return null
@@ -173,7 +177,7 @@ export function webMcpRegressionExport(entry: {
 
 /** Resolve manual export names only from the exact native definition that owns the evidence. */
 export function webMcpManualRegressionExport(entry: WebMcpJournalEntry, tool: WebMcpToolDefinition) {
-  if (!webMcpEvidenceMatchesTool(entry, tool)) return null
+  if (entry.inputTruncated || !webMcpEvidenceMatchesTool(entry, tool)) return null
   return webMcpRegressionExport({ tool: tool.name, input: entry.input, outcome: entry.outcome })
 }
 

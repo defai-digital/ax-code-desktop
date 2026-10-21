@@ -301,30 +301,12 @@ export function isWebMcpSensitiveName(name: string): boolean {
 
 /** A copy of a tool input safe to show: secret-named fields and credential-shaped text become "[redacted]". */
 export function redactWebMcpInput(value: unknown): unknown {
-  return redactJsonValue(redactWebMcpReport(value))
+  return redactWebMcpReport(value)
 }
 
 /** A copy for export: secret-named fields become a placeholder to fill in, so a copied test never carries the secret. */
 export function placeholderWebMcpSecrets(value: Record<string, unknown>): Record<string, unknown> {
   return redactWebMcpReport(value, "<fill in>") as Record<string, unknown>
-}
-
-function redactJsonValue(value: unknown): unknown {
-  if (typeof value === "string") {
-    const displayed = redactDisplayedText(value)
-    if (!displayed) return ""
-    return displayed.redacted ? "[redacted]" : displayed.value
-  }
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return value
-  if (Array.isArray(value)) return value.map((entry) => redactJsonValue(entry))
-  if (isPlainRecord(value)) {
-    const next: Record<string, unknown> = Object.create(null)
-    for (const [key, entry] of Object.entries(value))
-      next[webMcpTextLooksSensitive(key) ? "[redacted]" : key] =
-        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactJsonValue(entry)
-    return next
-  }
-  return null
 }
 
 /** Bounded, credential-filtered manual result preview. Results remain inert text, never HTML. */
@@ -413,42 +395,29 @@ export function readWebMcpInvokeInput(metadata: Record<string, unknown> | null |
   input: Record<string, unknown> | null
 } {
   const args = readWebMcpArguments(metadata)
-  if (args) return { kind: "object", input: redactInvokeRecord(args) }
+  if (args) return redactInvokeRecord(args, "object")
+  if (metadata?.inputTruncated === true) return { kind: "truncated", input: null }
   const preview = readWebMcpString(metadata, "inputPreview")
   if (!preview) return { kind: "missing", input: null }
   if (/… \(\d+ bytes, \d+ not shown\)$/.test(preview)) return { kind: "truncated", input: null }
   try {
     const parsed: unknown = JSON.parse(preview)
-    if (isPlainRecord(parsed)) return { kind: "preview", input: redactInvokeRecord(parsed) }
+    if (isPlainRecord(parsed)) return redactInvokeRecord(parsed, "preview")
   } catch {
     /* A truncated or non-JSON preview is not a property bag. */
   }
   return { kind: webMcpTextLooksSensitive(preview) ? "redacted" : "unparsed", input: null }
 }
 
-function redactInvokeRecord(value: Record<string, unknown>): Record<string, unknown> {
-  const budget = { left: 256 }
-  const redacted = redactInvokeValue(redactWebMcpReport(value), budget, 0)
-  return isPlainRecord(redacted) ? redacted : {}
-}
-
-function redactInvokeValue(value: unknown, budget: { left: number }, depth: number): unknown {
-  if (budget.left <= 0 || depth > 8) return "…"
-  budget.left -= 1
-  if (typeof value === "string") return redactWebMcpReport(value)
-  if (typeof value === "number" || typeof value === "boolean" || value === null) return value
-  if (Array.isArray(value)) return value.slice(0, 64).map((entry) => redactInvokeValue(entry, budget, depth + 1))
-  if (isPlainRecord(value)) {
-    const next: Record<string, unknown> = Object.create(null)
-    for (const [key, entry] of Object.entries(value).slice(0, 128)) {
-      next[redactWebMcpText(key)] =
-        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
-          ? "[redacted]"
-          : redactInvokeValue(entry, budget, depth + 1)
-    }
-    return next
-  }
-  return null
+function redactInvokeRecord(value: Record<string, unknown>, kind: "object" | "preview"): {
+  kind: WebMcpInvokeInputKind
+  input: Record<string, unknown> | null
+} {
+  let truncated = false
+  // Keep every property and array entry. Shared safety limits must never yield a seemingly complete input.
+  const redacted = redactWebMcpReport(value, "[redacted]", { onTruncate: () => { truncated = true } })
+  if (truncated) return { kind: "truncated", input: null }
+  return isPlainRecord(redacted) ? { kind, input: redacted } : { kind: "redacted", input: null }
 }
 
 /**
@@ -475,7 +444,7 @@ export function describeWebMcpCall(
     const args = readWebMcpArguments(metadata)
     // Newer runtimes (ADR-266) send `inputPreview`: the exact input, already redacted and capped. It is still filtered here.
     const preview = readWebMcpString(metadata, "inputPreview")
-    if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactJsonValue(args), null, 2), WEBMCP_TEXT_LIMIT)
+    if (args) argumentsText = truncateToCodeUnits(JSON.stringify(redactWebMcpInput(args), null, 2), WEBMCP_TEXT_LIMIT)
     else if (preview) {
       // Filter the untrusted prefix independently so fail-closed redaction cannot swallow the runtime's receipt marker.
       const marker = preview.match(/… \(\d+ bytes, \d+ not shown\)$/)?.[0] ?? ""

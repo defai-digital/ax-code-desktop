@@ -98,3 +98,40 @@ test("entry pairs carry sensitive names to their values across encoded and neste
   }
   assert.deepEqual(redactWebMcpReport([["Accept", "application/json"]]), [["Accept", "application/json"]])
 })
+
+test("field-naming keys redact sibling rejected values at any depth and in JSON strings", async () => {
+  const { fieldContextCases } = await import("./testing/webmcp-redaction-cases.mjs")
+  for (const { input, expected } of fieldContextCases) {
+    assert.deepEqual(redactWebMcpReport(input), expected)
+    assert.deepEqual(redactWebMcpReport({ error: { errors: [input] } }), { error: { errors: [expected] } })
+    assert.deepEqual(JSON.parse(redactWebMcpReport(JSON.stringify({ error: input }))), { error: expected })
+  }
+  for (const path of ["/credentials/title", "account.password.title", ["password", "title"]]) {
+    const input = { path, got: "public", constraint: "minLength" }
+    assert.deepEqual(redactWebMcpReport(input), input)
+  }
+  assert.deepEqual(redactWebMcpReport({ error: { field: "password", constraint: "minLength", got: secret } }),
+    { error: { field: "password", constraint: "minLength", got: "[redacted]" } })
+})
+
+test("input consumers learn about depth, cycle, traversal and redacted-key collision bounds", () => {
+  let deep = { last: 1 }
+  for (let index = 0; index < 40; index++) deep = { nested: deep }
+  const cycle = {}; cycle.self = cycle
+  for (const input of [deep, cycle, { nodes: Array(100001).fill(0) }, { "password=one": 1, "token=two": 2 }]) {
+    let truncated = false
+    redactWebMcpReport(input, "[redacted]", { onTruncate: () => { truncated = true } })
+    assert.equal(truncated, true)
+  }
+  let truncated = false
+  redactWebMcpReport({ error: { field: "password", got: secret } }, "[redacted]", { onTruncate: () => { truncated = true } })
+  assert.equal(truncated, false)
+})
+
+test("compound literal field names keep their existing sensitivity", () => {
+  for (const key of ["name", "key", "field", "property", "param", "parameter"]) {
+    for (const name of ["api.key", "private.key", "client.secret", "sig"]) {
+      assert.deepEqual(redactWebMcpReport({ [key]: name, got: secret }), { [key]: name, got: "[redacted]" })
+    }
+  }
+})

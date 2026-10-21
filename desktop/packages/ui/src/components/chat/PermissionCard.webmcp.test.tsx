@@ -657,3 +657,13 @@ test("approval resolves only the digest-bound credential tool and keeps its dist
   })} />)
   expect(unknown.container.querySelector("[data-webmcp-approval-definition-unknown]")).not.toBeNull()
 })
+
+test.each(["arguments", "input", "inputPreview"])("approval cards filter pair and field-context credentials in %s", (source) => {
+  const input = { headers: [["Authorization", "PAIR_PRIVATE_VALUE"]], fields: [{ name: "password", value: "FIELD_PRIVATE_VALUE" }] }
+  const { container } = render(<PermissionCard permission={request({ metadata: {
+    desktopProvider: true, origin: "https://example.com", operation: "invoke", toolName: "echo",
+    [source]: source === "inputPreview" ? JSON.stringify(input) : input,
+  } })} />)
+  expect(container.textContent).toContain("[redacted]")
+  expect(container.innerHTML).not.toMatch(/PAIR_PRIVATE_VALUE|FIELD_PRIVATE_VALUE/)
+})

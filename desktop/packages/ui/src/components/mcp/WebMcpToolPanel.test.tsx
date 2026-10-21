@@ -19,7 +19,7 @@ vi.mock("@/lib/i18n", async () => {
     }),
   }
 })
-import type { WebMcpCall } from "@/lib/webMcpCalls"
+import { collectWebMcpCalls, type WebMcpCall } from "@/lib/webMcpCalls"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { WebMcpToolPanel, type TryTool } from "./WebMcpToolPanel"
 
@@ -1471,4 +1471,72 @@ test("comparison retains manual runtime validation paths and redacted unknown re
   expect(container.querySelector('[data-webmcp-compare-manual] [data-webmcp-rejection-property="title"]')?.getAttribute("data-webmcp-rejection-rule")).toBe("minLength")
   expect(container.querySelector('[data-webmcp-runtime-rejections]')?.textContent).toContain("[redacted]")
   expect(container.textContent).not.toContain("PRIVATE")
+})
+
+function recordedInputCall(input: Record<string, unknown>, tool = catalog[0]) {
+  return collectWebMcpCalls([{ id: "m1" }], () => [{
+    id: "agent-call", type: "tool", tool: "desktop_webmcp", state: {
+      status: "completed", input: { action: "invoke" }, output: "{}",
+      metadata: { operation: "invoke", toolName: tool.name, definitionDigest: tool.definitionDigest, inputPreview: JSON.stringify(input) },
+    },
+  }], 20, 60, [tool])[0]
+}
+
+test("a complete 129-property receipt diagnoses and exports the supplied final required property", () => {
+  const input = Object.fromEntries(Array.from({ length: 129 }, (_, index) => [`p${index}`, 0]))
+  const tool = nativeWebMcpTool({ name: "wide", description: "Wide input", inputSchema: {
+    type: "object", properties: Object.fromEntries(Object.keys(input).map((key) => [key, { type: "integer" }])), required: ["p128"],
+  } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[recordedInputCall(input, tool)]} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool='wide'] button")!)
+  expect(container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property]")).toBeNull()
+  const run = container.querySelector("[data-webmcp-export='agent'] [data-webmcp-export-run]")?.textContent
+  expect(run).toContain('"p128":0')
+  const encoded = run!.slice(run!.indexOf("={") + 1, -1)
+  expect(JSON.parse(encoded)).toEqual(input)
+})
+
+test("a bounded receipt reports preview truncation and cannot export an incomplete regression", () => {
+  let input: Record<string, unknown> = { unseen: 0 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  const tool = nativeWebMcpTool({ name: "deep", description: "Deep input", inputSchema: {
+    type: "object", properties: { unseen: { type: "integer" } }, required: ["unseen"],
+  } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[recordedInputCall(input, tool)]} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool='deep'] button")!)
+  expect(container.querySelector("[data-webmcp-diagnosis-gap='truncated']")?.textContent).toBe("webmcp.tools.diagnosis.truncated")
+  expect(container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-export='agent']")).toBeNull()
+  expect(container.querySelector("[data-webmcp-compare-agent]")?.textContent).toContain("webmcp.tools.export.unavailable")
+})
+
+test("Try it filters the documented sensitive validation error from the result and retained journal", async () => {
+  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: true, output: {
+    error: { field: "password", constraint: "minLength", got: "REJECTED_PRIVATE_VALUE" },
+  } })))
+  await runTool()
+  expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
+  expect(container.innerHTML).not.toContain("REJECTED_PRIVATE_VALUE")
+  expect(JSON.stringify(useWebMcpBrowserStore.getState().toolJournal)).not.toContain("REJECTED_PRIVATE_VALUE")
+})
+
+test("a bounded manual journal input shows truncation and offers neither replay nor regression export", () => {
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { unseen: { type: "integer" } }, required: ["unseen"] } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  let input: Record<string, unknown> = { unseen: 1 }
+  for (let depth = 0; depth < 40; depth++) input = { nested: input }
+  store.recordToolJournal({ id: "deep-manual", tool: tool.name, invocationID: tool.invocationID, definitionDigest: tool.definitionDigest,
+    digest: tool.digest!, input, outcome: "completed", text: "done", durationMs: 1, at: 1 })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool='echo'] button")!)
+  expect(container.querySelector("[data-webmcp-compare-manual] [data-webmcp-diagnosis-gap='truncated']")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-compare-manual] [data-webmcp-diagnosis-property]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-export='manual']")).toBeNull()
+  expect(container.querySelector<HTMLButtonElement>("[data-webmcp-replay='deep-manual']")?.disabled).toBe(true)
 })
