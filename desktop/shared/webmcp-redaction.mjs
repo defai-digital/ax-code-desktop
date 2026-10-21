@@ -28,14 +28,17 @@ export function webMcpTextLooksSensitive(value) {
  */
 export function redactWebMcpReport(value, replacement = "[redacted]") {
   const ancestors = new WeakSet()
+  let remaining = 100000
   const replaced = () => ({ value: replacement, changed: true })
   const visit = (entry, depth) => {
+    if (--remaining < 0) throw new Error("Redaction traversal budget exceeded")
     if (depth > 32) return replaced()
     if (typeof entry === "string") {
       let parsed
       try {
         parsed = JSON.parse(entry)
-      } catch {
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) return replaced()
         // Embedded or truncated JSON is still checked for quoted credential keys below.
       }
       if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {

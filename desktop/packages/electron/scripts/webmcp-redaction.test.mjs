@@ -1,4 +1,4 @@
-import { expect, test } from "vitest"
+import { expect, test, vi } from "vitest"
 import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 
 test.each([
@@ -37,4 +37,20 @@ test("ordinary encoded data preserves whitespace, large integers and repeated re
   expect(redactWebMcpReport(emptyCredentials)).toBe(emptyCredentials)
   const child = { label: "kept" }
   expect(redactWebMcpReport({ a: child, b: child })).toEqual({ a: child, b: child })
+})
+
+
+test("shared-reference fan-out is bounded before returning an exponential projection", () => {
+  let value = { label: "synthetic-private-value" }
+  for (let index = 0; index < 18; index++) value = { a: value, b: value }
+  expect(redactWebMcpReport(value)).toBe("[redacted]")
+})
+
+test("non-syntax JSON parser failures cannot return the unfiltered source", () => {
+  const parse = vi.spyOn(JSON, "parse").mockImplementation(() => { throw new RangeError("fixture parser failure") })
+  try {
+    expect(redactWebMcpReport("synthetic-private-value")).toBe("[redacted]")
+  } finally {
+    parse.mockRestore()
+  }
 })
