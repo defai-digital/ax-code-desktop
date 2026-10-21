@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "A\u011fa\u00e7",
   "diffView.rail.viewList": "Liste",
   "diffView.rail.resize": "Dosya listesini yeniden boyutland\u0131r",
-  "diffView.rail.directorySummary": "{name}, {total} dosyadan {viewed} g\u00f6r\u00fcnt\u00fclendi"
+  "diffView.rail.directorySummary": "{name}, {total} dosyadan {viewed} g\u00f6r\u00fcnt\u00fclendi",
+  "webmcp.calls.open": "Sohbette {title} a\u00e7",
+  "webmcp.calls.earlierPage": "\u00f6nceki sayfa durumu",
+  "webmcp.calls.result": "D\u00f6n\u00fc\u015f: {preview}"
 }

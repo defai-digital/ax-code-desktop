@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "Pohon",
   "diffView.rail.viewList": "Daftar",
   "diffView.rail.resize": "Ubah ukuran daftar berkas",
-  "diffView.rail.directorySummary": "{name}, {viewed} dari {total} dilihat"
+  "diffView.rail.directorySummary": "{name}, {viewed} dari {total} dilihat",
+  "webmcp.calls.open": "Buka {title} dalam percakapan",
+  "webmcp.calls.earlierPage": "status halaman sebelumnya",
+  "webmcp.calls.result": "Dikembalikan: {preview}"
 }

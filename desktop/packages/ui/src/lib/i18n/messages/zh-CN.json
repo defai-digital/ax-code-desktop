@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "\u6811\u5f62",
   "diffView.rail.viewList": "\u5217\u8868",
   "diffView.rail.resize": "\u8c03\u6574\u6587\u4ef6\u5217\u8868\u5927\u5c0f",
-  "diffView.rail.directorySummary": "{name}\uff0c\u5df2\u67e5\u770b {viewed}/{total}"
+  "diffView.rail.directorySummary": "{name}\uff0c\u5df2\u67e5\u770b {viewed}/{total}",
+  "webmcp.calls.open": "\u5728\u5bf9\u8bdd\u4e2d\u6253\u5f00 {title}",
+  "webmcp.calls.earlierPage": "\u4e4b\u524d\u7684\u9875\u9762\u72b6\u6001",
+  "webmcp.calls.result": "\u8fd4\u56de\uff1a{preview}"
 }

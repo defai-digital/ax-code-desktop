@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "\ud2b8\ub9ac",
   "diffView.rail.viewList": "\ubaa9\ub85d",
   "diffView.rail.resize": "\ud30c\uc77c \ubaa9\ub85d \ud06c\uae30 \uc870\uc808",
-  "diffView.rail.directorySummary": "{name}, {total}\uac1c \uc911 {viewed}\uac1c \ud655\uc778\ud568"
+  "diffView.rail.directorySummary": "{name}, {total}\uac1c \uc911 {viewed}\uac1c \ud655\uc778\ud568",
+  "webmcp.calls.open": "\ub300\ud654\uc5d0\uc11c {title} \uc5f4\uae30",
+  "webmcp.calls.earlierPage": "\uc774\uc804 \ud398\uc774\uc9c0 \uc0c1\ud0dc",
+  "webmcp.calls.result": "\ubc18\ud658: {preview}"
 }

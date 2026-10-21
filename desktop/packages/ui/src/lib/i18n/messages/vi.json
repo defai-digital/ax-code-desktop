@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "C\u00e2y th\u01b0 m\u1ee5c",
   "diffView.rail.viewList": "Danh s\u00e1ch",
   "diffView.rail.resize": "Thay \u0111\u1ed5i k\u00edch th\u01b0\u1edbc danh s\u00e1ch t\u1eadp tin",
-  "diffView.rail.directorySummary": "{name}, \u0110\u00e3 xem {viewed}/{total}"
+  "diffView.rail.directorySummary": "{name}, \u0110\u00e3 xem {viewed}/{total}",
+  "webmcp.calls.open": "M\u1edf {title} trong cu\u1ed9c tr\u00f2 chuy\u1ec7n",
+  "webmcp.calls.earlierPage": "tr\u1ea1ng th\u00e1i trang tr\u01b0\u1edbc",
+  "webmcp.calls.result": "Tr\u1ea3 v\u1ec1: {preview}"
 }

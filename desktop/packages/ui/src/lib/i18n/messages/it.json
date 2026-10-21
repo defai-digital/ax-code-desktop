@@ -5242,5 +5242,8 @@
   "diffView.rail.viewTree": "Albero",
   "diffView.rail.viewList": "Elenco",
   "diffView.rail.resize": "Ridimensiona elenco file",
-  "diffView.rail.directorySummary": "{name}, {viewed} di {total} visualizzati"
+  "diffView.rail.directorySummary": "{name}, {viewed} di {total} visualizzati",
+  "webmcp.calls.open": "Apri {title} nella conversazione",
+  "webmcp.calls.earlierPage": "stato precedente della pagina",
+  "webmcp.calls.result": "Ritorno: {preview}"
 }
