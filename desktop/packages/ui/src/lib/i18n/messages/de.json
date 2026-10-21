@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Sie haben die Kontrolle \u00fcber die Seite. Die Aufrufe des Agents warten, bis Sie ihn fortsetzen.",
   "webmcp.browser.waitingForResume": "Agent-Aufruf wartet darauf, dass Sie ihn fortsetzen.",
   "webmcp.browser.waitingForPage": "Agent-Aufruf wartet darauf, dass diese Seite sichtbar ist.",
-  "webmcp.browser.stoppedCall": "1 Agent-Aufruf angehalten. \u00c4nderungen, die er bereits auf der Seite vorgenommen hat, bleiben bestehen.",
-  "webmcp.browser.stoppedCalls": "{count} Agent-Aufrufe angehalten. \u00c4nderungen, die sie bereits auf der Seite vorgenommen haben, bleiben bestehen.",
+  "webmcp.browser.stoppedCall": "1 Aufruf angehalten. \u00c4nderungen, die bereits auf der Seite vorgenommen wurden, bleiben bestehen.",
+  "webmcp.browser.stoppedCalls": "{count} Aufrufe angehalten. \u00c4nderungen, die bereits auf der Seite vorgenommen wurden, bleiben bestehen.",
   "webmcp.pages.title": "Seiten ({count})",
   "webmcp.pages.fullLabel": "Browser-Pool voll",
   "webmcp.pages.list": "Von diesem Fenster gehaltene Seiten",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "Warten auf Ihre Genehmigung. \u00dcberpr\u00fcfen Sie diese",
   "sessionGrid.moveSession": "Sitzung verschieben: {title}",
   "sessionGrid.moved": "{title} wurde in Bereich {count} verschoben",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "Die aktuelle Tool-Definition der Seite kann von der angeforderten abweichen."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "Die aktuelle Tool-Definition der Seite kann von der angeforderten abweichen.",
+  "webmcp.tools.staleForm": "Dieses Formular ist veraltet, weil sich die Seite oder das Seiten-Tool ge\u00e4ndert hat. \u00d6ffnen Sie das Tool erneut und \u00fcberpr\u00fcfen Sie die Eingaben, bevor Sie es erneut versuchen."
 }

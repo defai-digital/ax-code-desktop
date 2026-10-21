@@ -196,6 +196,11 @@ function DiagnosisList({
   return (
     <div className="space-y-1" data-webmcp-diagnosis={source}>
       <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.title")}</p>
+      {diagnosis.status === "checked" && diagnosis.uncheckable?.length ? (
+        <p className="typography-micro" data-webmcp-diagnosis-gap="redacted">
+          {t("webmcp.tools.diagnosis.redacted")}
+        </p>
+      ) : null}
       {diagnosis.status === "unavailable" ? (
         <p className="typography-micro" data-webmcp-diagnosis-gap={diagnosis.reason}>
           {t(
@@ -213,7 +218,9 @@ function DiagnosisList({
           )}
         </p>
       ) : diagnosis.findings.length === 0 ? (
-        <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.none")}</p>
+        diagnosis.uncheckable?.length ? null : (
+          <p className="typography-micro text-muted-foreground">{t("webmcp.tools.diagnosis.none")}</p>
+        )
       ) : (
         <ul className="space-y-0.5">
           {diagnosis.findings.map((finding) => (
@@ -502,6 +509,7 @@ function SchemaBlock({ schema }: { schema: unknown }) {
 
 function ToolItem({
   tool,
+  binding,
   tryTool,
   viewKey,
   journalEntry,
@@ -509,6 +517,7 @@ function ToolItem({
   agentCall,
 }: {
   tool: WebMcpToolDefinition
+  binding: TryToolBinding
   tryTool: TryTool
   viewKey?: string
   journalEntry: WebMcpJournalEntry | null
@@ -655,7 +664,7 @@ function ToolItem({
       )
     }
     try {
-      const reply = await tryTool(tool.name, input)
+      const reply = await tryTool(tool.name, input, binding)
       const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
       const returnedFailure = returnedOutcome !== "completed" && returnedOutcome !== null
       const outcome = returnedFailure ? returnedOutcome : (reply.outcome ?? (reply.ok ? "completed" : "failed"))
@@ -664,11 +673,13 @@ function ToolItem({
         ? reason
         : "native-failure"
       const label =
-        outcome === "completed"
-          ? t("webmcp.tools.completed")
-          : outcome === "uncertain"
-            ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)}`
-            : t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)
+        outcome === "stale-form"
+          ? t("webmcp.tools.staleForm")
+          : outcome === "completed"
+            ? t("webmcp.tools.completed")
+            : outcome === "uncertain"
+              ? `${t("webmcp.tools.uncertain")} ${t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)}`
+              : t(`chat.toolPart.webmcp.reason.${knownReason}` as I18nKey)
       remember({ outcome, text: [label, webMcpResultPreview(reply.output)].filter(Boolean).join("\n") })
     } catch {
       // IPC can disappear after the invocation was sent. Never infer failure or offer an automatic retry.
@@ -880,7 +891,8 @@ function ToolItem({
   )
 }
 
-export type TryTool = (toolName: string, input: Record<string, unknown>) => Promise<TryResult>
+export type TryToolBinding = { origin: string | null; generation: string | null; definitionDigest: string | null }
+export type TryTool = (toolName: string, input: Record<string, unknown>, binding: TryToolBinding) => Promise<TryResult>
 
 /**
  * The tools the current page registers, visible before the agent is granted anything. "Try it" runs a tool on the page as
@@ -902,6 +914,7 @@ export function WebMcpToolPanel({
   const toolViewKey = viewKey ?? (pooled ? currentKey : undefined)
   const catalog = useWebMcpBrowserValue((state) => state.catalog, viewKey)
   const origin = useWebMcpBrowserValue((state) => state.origin, viewKey)
+  const generation = useWebMcpBrowserValue((state) => state.generation, viewKey)
   const catalogLimit = useWebMcpBrowserValue((state) => state.catalogLimit, viewKey)
   const catalogRejection = useWebMcpBrowserValue((state) => state.catalogRejection, viewKey)
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
@@ -1025,8 +1038,9 @@ export function WebMcpToolPanel({
           <ul className="max-h-72 space-y-1.5 overflow-auto">
             {catalog.map((tool) => (
               <ToolItem
-                key={`${toolViewKey ?? ""}:${origin}:${tool.name}:${tool.digest ?? ""}`}
+                key={`${toolViewKey ?? ""}:${origin}:${generation}:${tool.name}:${tool.definitionDigest ?? tool.digest ?? ""}`}
                 tool={tool}
+                binding={{ origin, generation, definitionDigest: tool.definitionDigest ?? null }}
                 tryTool={tryTool}
                 viewKey={toolViewKey}
                 journalEntry={journal.find((entry) => entry.tool === tool.name) ?? null}

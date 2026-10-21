@@ -24,6 +24,8 @@ export interface WebMcpToolDefinition {
   kind?: WebMcpToolKind
   /** Definition digest. Electron sends sha256; a local fallback covers direct store updates. */
   digest?: string
+  /** Native invocation identity, including the frame. Never synthesized in the renderer. */
+  definitionDigest?: string
 }
 
 export type WebMcpCatalogTruncation = "count" | "bytes"
@@ -174,6 +176,8 @@ const readTool = (entry: unknown): WebMcpToolDefinition | null => {
   const annotations = readWebMcpAnnotations(entry.annotations)
   if (annotations) tool.annotations = annotations
   tool.digest = providedDigest(entry.digest) ?? webMcpDefinitionDigest(tool)
+  const nativeDigest = providedDigest(entry.definitionDigest)
+  if (nativeDigest) tool.definitionDigest = nativeDigest
   return tool
 }
 

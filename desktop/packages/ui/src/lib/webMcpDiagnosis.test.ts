@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { desktopWebMcpResultOutcome } from "./toolHelpers"
+import { desktopWebMcpResultOutcome, readWebMcpInvokeInput } from "./toolHelpers"
 import {
   diagnoseWebMcpInput,
   webMcpDefinitionChanged,
@@ -239,4 +239,18 @@ describe("secrets in exports", () => {
       expect(text).toContain("ada")
     }
   })
+})
+
+test("diagnosis never compares a redacted password with the schema minimum", () => {
+  const receipt = readWebMcpInvokeInput({ arguments: { password: "a-valid-long-password", count: "wrong" } })
+  expect(diagnoseWebMcpInput({ type: "object", properties: { password: { type: "string", minLength: 12 }, count: { type: "integer" } } }, receipt.input!)).toEqual({
+    status: "checked", findings: [{ property: "count", rule: "type", valueKind: "string", expected: "integer" }], uncheckable: ["password"],
+  })
+})
+
+test("regression snippet and checker argument replace nested JSON secrets", async () => {
+  const exported = webMcpRegressionExport({ tool: "echo", input: { payload: '{"password":"AUDIT_FAKE_PASSWORD"}' }, outcome: "completed" })!
+  expect(exported.snippet).not.toContain("AUDIT_FAKE_PASSWORD")
+  expect(exported.runArgument).not.toContain("AUDIT_FAKE_PASSWORD")
+  await executeExport(exported.snippet, {}, (input) => expect(input).toEqual({ payload: '{"password":"<fill in>"}' }))
 })

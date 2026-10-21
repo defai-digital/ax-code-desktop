@@ -50,7 +50,7 @@ describe("WebMCP tool panel", () => {
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
     })
-    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
     expect(container.querySelector("[data-webmcp-tool-result='completed']")?.textContent).toContain('"text": "5"')
   })
 
@@ -115,7 +115,7 @@ test("30 rendered fields send padded property 25, empty, zero and false without 
   fireEvent.change(inputs[24], { target: { value: "  lead  " } })
   fireEvent.change(inputs[29], { target: { value: "last" } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { p1: "", p2: 0, p3: false, p25: "  lead  ", p30: "last" })
+  expect(reply).toHaveBeenCalledWith("echo", { p1: "", p2: 0, p3: false, p25: "  lead  ", p30: "last" }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("constraints appear beside fields and advisory checks allow sending unchanged input", async () => {
@@ -147,7 +147,7 @@ test("constraints appear beside fields and advisory checks allow sending unchang
   expect(container.textContent).toContain("count must be at least 1.")
   expect(container.textContent).toContain("webmcp.tools.advisory")
   await runTool("webmcp.tools.sendAnyway")
-  expect(reply).toHaveBeenCalledWith("echo", { count: 0 })
+  expect(reply).toHaveBeenCalledWith("echo", { count: 0 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(screen.queryByRole("button", { name: "webmcp.tools.sendAnyway" })).toBeNull()
   expect(screen.queryByRole("button", { name: "webmcp.tools.try" })).not.toBeNull()
   expect(container.querySelector("[role=alert]")).toBeNull()
@@ -247,7 +247,7 @@ test.each([
   expect(container.textContent).toContain(reason)
   fireEvent.change(container.querySelector("textarea")!, { target: { value: '{"nested":{"text":"  exact  "}}' } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { nested: { text: "  exact  " } })
+  expect(reply).toHaveBeenCalledWith("echo", { nested: { text: "  exact  " } }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("JSON escape hatch keeps input editable even when primitive conversion fails", async () => {
@@ -255,7 +255,7 @@ test("JSON escape hatch keeps input editable even when primitive conversion fail
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.useJson" }))
   fireEvent.change(container.querySelector("textarea")!, { target: { value: '{"x":1}' } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", { x: 1 })
+  expect(reply).toHaveBeenCalledWith("echo", { x: 1 }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 const descriptions = (input: Element) =>
@@ -371,7 +371,7 @@ test("the JSON editor shows and describes the UTF-8 limit, rejects oversized inp
   expect(screen.getByRole("status").textContent).not.toContain("chat.toolPart.webmcp.reason.invalid-input")
   fireEvent.change(editor, { target: { value: JSON.stringify(input, null, 2) } })
   await runTool()
-  expect(reply).toHaveBeenCalledWith("echo", input)
+  expect(reply).toHaveBeenCalledWith("echo", input, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("panel and tool toggles expose aria-expanded and results update the persistent polite live region", async () => {
@@ -475,7 +475,7 @@ test("shows the full description, raw schema, kind, hints, and advice without bl
   ).toBe("pattern")
   expect(container.textContent).toContain("webmcp.tools.lint.advice")
   await runTool()
-  expect(reply).toHaveBeenCalledWith("add_numbers", {})
+  expect(reply).toHaveBeenCalledWith("add_numbers", {}, expect.objectContaining({ origin: expect.any(String) }))
   expect(screen.getAllByRole("status")).toHaveLength(1)
 })
 
@@ -599,7 +599,7 @@ test("an enum warning names the allowed choices without blocking an explicit ove
   expect(reply).not.toHaveBeenCalled()
   expect(screen.getByRole("alert").textContent).toBe('Choose one of [\n  "a",\n  "b"\n] for mode.')
   await runTool("webmcp.tools.sendAnyway")
-  expect(reply).toHaveBeenCalledWith("echo", { mode: "other" })
+  expect(reply).toHaveBeenCalledWith("echo", { mode: "other" }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
 test("selected tool forms restore per-view drafts and late manual results stay with the originating view", async () => {
@@ -633,7 +633,7 @@ test("selected tool forms restore per-view drafts and late manual results stay w
     fireEvent.change(a, { target: { value: "2" } })
     fireEvent.change(b, { target: { value: "3" } })
     fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" }))
-    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+    expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
     view.rerender(<WebMcpToolPanel viewKey={second} tryTool={tryTool} />)
     expect(view.container.querySelector("[data-webmcp-catalog-rejection]")).toBeNull()
     expect(view.container.querySelector("[data-webmcp-catalog-truncation]")).toBeNull()
@@ -755,7 +755,7 @@ test("a manual journal keeps the sent run and replays it into editable fields wi
   expect([nextA.value, nextB.value]).toEqual(["2", "3"])
   fireEvent.change(nextA, { target: { value: "9" } })
   await runTool()
-  expect(tryTool).toHaveBeenLastCalledWith("add_numbers", { a: 9, b: 3 })
+  expect(tryTool).toHaveBeenLastCalledWith("add_numbers", { a: 9, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(view.container.querySelectorAll("[data-webmcp-journal-entry]")).toHaveLength(2)
   expect(JSON.stringify(localStorage)).not.toContain('"a": 9')
 })
@@ -777,7 +777,7 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   const tryButton = screen.getByRole("button", { name: "webmcp.tools.try" })
   expect(tryButton.getAttribute("aria-disabled")).not.toBe("true")
   await runTool()
-  expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 })
+  expect(tryTool).toHaveBeenCalledWith("add_numbers", { a: 2, b: 3 }, expect.objectContaining({ origin: expect.any(String) }))
   expect(view.container.querySelector("[data-webmcp-compare-manual]")?.textContent).toContain('"a": 2')
   expect(view.container.querySelector("[data-webmcp-compare-agent-arguments]")?.textContent).toBe(transcript)
   // Mutation probe: this attribute is present only when the two known digests differ.
@@ -907,4 +907,30 @@ test("recorded empty arguments enable structured comparison and a runnable agent
     getTools: async () => [{ name: "add_numbers" }], executeTool,
   } })
   expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: "add_numbers" }), "{}")
+})
+
+test("nested JSON credentials stay out of rendered manual results and copied exports", async () => {
+  const secret = "AUDIT_FAKE_PASSWORD"
+  const { container, reply } = openTool({ type: "object", properties: { payload: { type: "string" } } },
+    vi.fn(async () => ({ ok: true, output: { content: [{ type: "text", text: JSON.stringify({ password: secret }) }] } })))
+  fireEvent.change(container.querySelector("input")!, { target: { value: JSON.stringify({ password: secret }) } })
+  await runTool()
+  expect(reply).toHaveBeenCalledOnce()
+  const snippet = container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-snippet]")
+  expect(snippet).not.toBeNull()
+  expect(snippet?.textContent).not.toContain(secret)
+  expect(snippet?.textContent).toContain("<fill in>")
+  expect(container.querySelector("[data-webmcp-tool-result]")?.textContent).not.toContain(secret)
+  expect(container.querySelector("[data-webmcp-tool-result]")?.textContent).toContain("[redacted]")
+})
+
+test("redacted receipt values are uncheckable while ordinary properties still get diagnosis", () => {
+  const inputSchema = { type: "object", properties: { password: { type: "string", minLength: 12 }, count: { type: "integer" } } }
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [{ name: "echo", description: "Echo", inputSchema }] })
+  const view = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[pageCall({ toolName: "echo", input: { password: "[redacted]", count: "bad" } })]} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(view.container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  expect(view.container.querySelector("[data-webmcp-diagnosis-property='password']")).toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis-gap='redacted']")).not.toBeNull()
+  expect(view.container.querySelector("[data-webmcp-diagnosis-property='count']")?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
 })

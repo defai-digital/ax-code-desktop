@@ -1197,6 +1197,7 @@ describe("page tools for the user", () => {
         inputSchema: tool.inputSchema,
         kind: "script",
         digest: catalogDigest(tool),
+        definitionDigest: definitionDigest(tool),
       },
     ])
     expect(listed.catalogTotal).toBe(1)
@@ -1220,6 +1221,9 @@ describe("page tools for the user", () => {
     const tried = await f.controller.command(sender, {
       action: "tryTool",
       id: status.id,
+      origin: listed.origin,
+      generation: listed.generation,
+      definitionDigest: listed.catalog[0].definitionDigest,
       toolName: "add_numbers",
       input: { a: 2, b: 3 },
     })
@@ -1228,7 +1232,7 @@ describe("page tools for the user", () => {
     expect(f.requests.some((request) => request.method === "POST" && request.url.endsWith("/provider"))).toBe(false)
     expect(
       await f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "missing", input: {} }),
-    ).toEqual({ ok: false, outcome: "failed", reason: "tool-not-found" })
+    ).toEqual({ ok: false, outcome: "stale-form", reason: "page-changed" })
   })
 
   test("projects form tools, hint badges, a 64-of-N catalog, and a named rejection without disconnecting", async () => {
@@ -1250,6 +1254,7 @@ describe("page tools for the user", () => {
       description: form.description,
       annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: true },
       kind: "form",
+      definitionDigest: definitionDigest({ name: form.name, description: form.description, frameId: "top", annotations: form.annotations }),
       digest: catalogDigest({
         name: form.name,
         description: form.description,
@@ -1382,7 +1387,11 @@ describe("manual invocation native outcomes", () => {
       })
       return { invocationId: "manual" }
     }
+    const displayed = await f.controller.command(sender, { action: "status", id: status.id })
     const result = await f.controller.command(sender, {
+      origin: displayed.origin,
+      generation: displayed.generation,
+      definitionDigest: displayed.catalog[0].definitionDigest,
       action: "tryTool",
       id: status.id,
       toolName: "echo",
@@ -2302,7 +2311,11 @@ test("LRU does not unload a hidden manual invocation", async () => {
   guest.debugger.sendCommand = vi.fn(async (method) =>
     method === "WebMCP.invokeTool" ? { invocationId: "manual-held" } : {},
   )
-  const invocation = f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "held", input: {} })
+  const displayed = await f.controller.command(sender, { action: "status", id: status.id })
+  const invocation = f.controller.command(sender, {
+    action: "tryTool", id: status.id, toolName: "held", input: {},
+    origin: displayed.origin, generation: displayed.generation, definitionDigest: displayed.catalog[0].definitionDigest,
+  })
   await vi.waitFor(async () =>
     expect((await f.controller.command(sender, { action: "status", id: status.id })).idle).toBe(false),
   )
@@ -2550,3 +2563,51 @@ test.each(["pause", "disconnect", "revokeSession"])(
     expect(guest.loadedUrls).toEqual(["https://example.com/"])
   },
 )
+
+// Round 16: a manual form must authorize exactly the document and definition that were displayed.
+test.each(["origin", "generation", "definition", "missing"])("rejects a stale manual form: %s", async (change) => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  const guest = f.guests[0]
+  const tool = { name: "submit", description: "Submit", frameId: "top" }
+  guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+  const displayed = await f.controller.command(sender, { action: "status", id: status.id })
+  const binding = { origin: displayed.origin, generation: displayed.generation, definitionDigest: displayed.catalog[0].definitionDigest }
+  if (change === "origin") guest.url = "https://replacement.test/"
+  if (change === "generation") {
+    guest.debugger.emit("message", {}, "Page.frameNavigated", { frame: { id: "top" } })
+    guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+  }
+  if (change === "definition") guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [{ ...tool, description: "Replacement" }] })
+  const execute = vi.spyOn(NativeWebMcp.prototype, "execute").mockResolvedValue({ output: "sent" })
+  try {
+    expect(await f.controller.command(sender, {
+      action: "tryTool", id: status.id, toolName: "submit", input: { password: "AUDIT_FAKE_PASSWORD" },
+      ...(change === "missing" ? {} : binding),
+    })).toMatchObject({ ok: false, outcome: "stale-form" })
+    expect(execute).not.toHaveBeenCalled()
+  } finally { execute.mockRestore() }
+})
+
+test("rejects undisclosed cross-window focus while retaining explicit owner recovery", async () => {
+  const f = fixture()
+  const first = await f.create()
+  const second = await f.create()
+  const owner = f.owners.get(first.sender)
+  await expect(f.controller.command(second.sender, { action: "focusOwner", id: first.status.id })).rejects.toThrow("another window")
+  expect(owner.focus).not.toHaveBeenCalled()
+  const listing = await f.controller.command(second.sender, { action: "list" })
+  await f.controller.command(second.sender, { action: "focusOwner", id: listing.otherWindows[0].id })
+  expect(owner.focus).toHaveBeenCalledOnce()
+})
+
+test.each(["invalid-input", "timeout", "native-failure"])("failed agent navigation carries a safe reason: %s", async (reason) => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  await f.controller.command(sender, { action: "enable", id: status.id })
+  if (reason === "timeout") f.hangLoads(true)
+  if (reason === "native-failure") f.guests[0].loadURL = async () => { throw new Error("password=AUDIT_FAKE_PASSWORD") }
+  f.pushStreamRequest(navigateRequest({ url: reason === "invalid-input" ? "http://insecure.test/" : "https://valid.test/" }))
+  await vi.waitFor(() => expect(f.requests.find((r) => r.url.endsWith("/reply"))?.body).toMatchObject({ status: "Error", output: { reason } }))
+  expect(JSON.stringify(f.requests.filter((r) => r.url.endsWith("/reply")))).not.toContain("AUDIT_FAKE_PASSWORD")
+})

@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Voc\u00ea tem controle da p\u00e1gina. As chamadas do agente aguardam at\u00e9 que voc\u00ea retome.",
   "webmcp.browser.waitingForResume": "Chamada do agente aguardando que voc\u00ea retome.",
   "webmcp.browser.waitingForPage": "Chamada do agente aguardando que esta p\u00e1gina fique vis\u00edvel.",
-  "webmcp.browser.stoppedCall": "1 chamada do agente parada. As altera\u00e7\u00f5es que j\u00e1 fez na p\u00e1gina permanecem.",
-  "webmcp.browser.stoppedCalls": "{count} chamadas do agente paradas. As altera\u00e7\u00f5es que j\u00e1 fizeram na p\u00e1gina permanecem.",
+  "webmcp.browser.stoppedCall": "1 chamada parada. As altera\u00e7\u00f5es j\u00e1 feitas na p\u00e1gina permanecem.",
+  "webmcp.browser.stoppedCalls": "{count} chamadas paradas. As altera\u00e7\u00f5es j\u00e1 feitas na p\u00e1gina permanecem.",
   "webmcp.pages.title": "P\u00e1ginas ({count})",
   "webmcp.pages.fullLabel": "Pool de navegadores cheio",
   "webmcp.pages.list": "P\u00e1ginas mantidas por esta janela",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "Aguardando sua aprova\u00e7\u00e3o. Revise-a",
   "sessionGrid.moveSession": "Mover sess\u00e3o: {title}",
   "sessionGrid.moved": "{title} movido para o painel {count}",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "A defini\u00e7\u00e3o atual da ferramenta da p\u00e1gina pode diferir da solicitada."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "A defini\u00e7\u00e3o atual da ferramenta da p\u00e1gina pode diferir da solicitada.",
+  "webmcp.tools.staleForm": "Este formul\u00e1rio est\u00e1 desatualizado porque a p\u00e1gina ou a ferramenta da p\u00e1gina mudou. Reabra a ferramenta e revise a entrada antes de tentar novamente."
 }

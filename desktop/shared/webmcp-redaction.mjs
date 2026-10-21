@@ -26,22 +26,24 @@ export function webMcpTextLooksSensitive(value) {
  * JSON-encoded outputs are decoded before filtering and encoded again to keep their wire type.
  * No truncation: report occurrence checks still need complete non-sensitive inputs.
  */
-export function redactWebMcpReport(value) {
+export function redactWebMcpReport(value, replacement = "[redacted]") {
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value)
-      if (parsed && typeof parsed === "object") return JSON.stringify(redactWebMcpReport(parsed))
+      if (parsed && typeof parsed === "object") return JSON.stringify(redactWebMcpReport(parsed, replacement))
     } catch {
       // Plain text still needs credential filtering.
     }
-    return webMcpTextLooksSensitive(value) ? "[redacted]" : value
+    return webMcpTextLooksSensitive(value) ? replacement : value
   }
-  if (Array.isArray(value)) return value.map(redactWebMcpReport)
+  if (Array.isArray(value)) return value.map((entry) => redactWebMcpReport(entry, replacement))
   if (value && typeof value === "object") {
     return Object.fromEntries(
       Object.entries(value).map(([key, entry]) => [
-        webMcpTextLooksSensitive(key) ? "[redacted]" : key,
-        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "" ? "[redacted]" : redactWebMcpReport(entry),
+        webMcpTextLooksSensitive(key) ? replacement : key,
+        WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
+          ? replacement
+          : redactWebMcpReport(entry, replacement),
       ]),
     )
   }

@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Tienes el control de la p\u00e1gina. Las llamadas del agente esperan hasta que lo reanudes.",
   "webmcp.browser.waitingForResume": "Llamada del agente esperando a que la reanudes.",
   "webmcp.browser.waitingForPage": "Llamada del agente esperando a que esta p\u00e1gina sea visible.",
-  "webmcp.browser.stoppedCall": "1 llamada del agente detenida. Los cambios que ya hizo en la p\u00e1gina permanecen.",
-  "webmcp.browser.stoppedCalls": "{count} llamadas del agente detenidas. Los cambios que ya hicieron en la p\u00e1gina permanecen.",
+  "webmcp.browser.stoppedCall": "1 llamada detenida. Los cambios que ya hizo en la p\u00e1gina permanecen.",
+  "webmcp.browser.stoppedCalls": "{count} llamadas detenidas. Los cambios que ya hicieron en la p\u00e1gina permanecen.",
   "webmcp.pages.title": "P\u00e1ginas ({count})",
   "webmcp.pages.fullLabel": "Grupo de navegadores lleno",
   "webmcp.pages.list": "P\u00e1ginas mantenidas por esta ventana",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "Esperando su aprobaci\u00f3n. Rev\u00edsela",
   "sessionGrid.moveSession": "Mover sesi\u00f3n: {title}",
   "sessionGrid.moved": "{title} movido al panel {count}",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "La definici\u00f3n actual de la herramienta de la p\u00e1gina puede diferir de la solicitada."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "La definici\u00f3n actual de la herramienta de la p\u00e1gina puede diferir de la solicitada.",
+  "webmcp.tools.staleForm": "Este formulario est\u00e1 obsoleto porque la p\u00e1gina o la herramienta de p\u00e1gina cambi\u00f3. Vuelva a abrir la herramienta y revise la entrada antes de intentarlo de nuevo."
 }

@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Sayfan\u0131n kontrol\u00fc sizde. Ajan \u00e7a\u011fr\u0131lar\u0131, devam ettirene kadar bekliyor.",
   "webmcp.browser.waitingForResume": "Ajan \u00e7a\u011fr\u0131s\u0131, devam ettirmenizi bekliyor.",
   "webmcp.browser.waitingForPage": "Ajan \u00e7a\u011fr\u0131s\u0131, bu sayfan\u0131n g\u00f6r\u00fcn\u00fcr olmas\u0131n\u0131 bekliyor.",
-  "webmcp.browser.stoppedCall": "1 ajan \u00e7a\u011fr\u0131s\u0131 durduruldu. Sayfada yapt\u0131\u011f\u0131 de\u011fi\u015fiklikler kal\u0131r.",
-  "webmcp.browser.stoppedCalls": "{count} ajan \u00e7a\u011fr\u0131s\u0131 durduruldu. Sayfada yapt\u0131klar\u0131 de\u011fi\u015fiklikler kal\u0131r.",
+  "webmcp.browser.stoppedCall": "1 \u00e7a\u011fr\u0131 durduruldu. Sayfada zaten yap\u0131lan de\u011fi\u015fiklikler kal\u0131r.",
+  "webmcp.browser.stoppedCalls": "{count} \u00e7a\u011fr\u0131 durduruldu. Sayfada zaten yap\u0131lan de\u011fi\u015fiklikler kal\u0131r.",
   "webmcp.pages.title": "Sayfalar ({count})",
   "webmcp.pages.fullLabel": "Taray\u0131c\u0131 havuzu dolu",
   "webmcp.pages.list": "Bu pencere taraf\u0131ndan tutulan sayfalar",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "Onay\u0131n\u0131z bekleniyor. \u0130nceleyin",
   "sessionGrid.moveSession": "Oturumu ta\u015f\u0131: {title}",
   "sessionGrid.moved": "{title}, b\u00f6lme {count}'e ta\u015f\u0131nd\u0131",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "Sayfan\u0131n ge\u00e7erli ara\u00e7 tan\u0131m\u0131, bu \u00e7a\u011fr\u0131n\u0131n talep etti\u011finden farkl\u0131 olabilir."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "Sayfan\u0131n ge\u00e7erli ara\u00e7 tan\u0131m\u0131, bu \u00e7a\u011fr\u0131n\u0131n talep etti\u011finden farkl\u0131 olabilir.",
+  "webmcp.tools.staleForm": "Sayfa veya sayfa arac\u0131 de\u011fi\u015ftirdi\u011fi i\u00e7in bu form g\u00fcncelli\u011fini yitirmi\u015f durumda. Arac\u0131 yeniden a\u00e7\u0131n ve giri\u015fleri denemeden \u00f6nce g\u00f6zden ge\u00e7irin."
 }

@@ -4,6 +4,8 @@ import {
   WEBMCP_ARGUMENTS_MISSING,
   WEBMCP_FAILURE_REASONS,
   webMcpResultPreview,
+  redactWebMcpInput,
+  placeholderWebMcpSecrets,
   describeWebMcpCall,
   readWebMcpDefinitionDigest,
   readWebMcpInvokeInput,
@@ -275,4 +277,17 @@ test("shown inputs redact secret-named fields and credential-shaped text", async
   })
   expect(isWebMcpSensitiveName("accessToken")).toBe(true)
   expect(isWebMcpSensitiveName("title")).toBe(false)
+})
+
+test("nested JSON strings are credential-filtered in arguments, receipts and regression input", () => {
+  const secret = "AUDIT_FAKE_PASSWORD"
+  const input = { payload: JSON.stringify({ nested: JSON.stringify({ password: secret, public: "kept" }) }) }
+  for (const safe of [redactWebMcpInput(input), placeholderWebMcpSecrets(input), readWebMcpInvokeInput({ arguments: input }),
+    describeWebMcpCall({ action: "invoke" }, { inputPreview: JSON.stringify(input) }),
+    webMcpResultPreview({ content: [{ type: "text", text: input.payload }] })]) {
+    expect(JSON.stringify(safe)).not.toContain(secret)
+  }
+  const exported = placeholderWebMcpSecrets(input)
+  expect(JSON.parse(JSON.parse(exported.payload as string).nested)).toEqual({ password: "<fill in>", public: "kept" })
+  expect(input.payload).toContain(secret)
 })

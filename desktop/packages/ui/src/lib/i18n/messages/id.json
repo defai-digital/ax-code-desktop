@@ -5300,8 +5300,8 @@
   "webmcp.browser.takeOver": "Anda mengontrol halaman. Panggilan agen menunggu hingga Anda melanjutkannya.",
   "webmcp.browser.waitingForResume": "Panggilan agen menunggu Anda melanjutkannya.",
   "webmcp.browser.waitingForPage": "Panggilan agen menunggu halaman ini terlihat.",
-  "webmcp.browser.stoppedCall": "1 panggilan agen dihentikan. Perubahan yang sudah dibuat di halaman tetap ada.",
-  "webmcp.browser.stoppedCalls": "{count} panggilan agen dihentikan. Perubahan yang sudah dibuat di halaman tetap ada.",
+  "webmcp.browser.stoppedCall": "1 panggilan dihentikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
+  "webmcp.browser.stoppedCalls": "{count} panggilan dihentikan. Perubahan yang sudah dilakukan di halaman tetap ada.",
   "webmcp.pages.title": "Halaman ({count})",
   "webmcp.pages.fullLabel": "Pool browser penuh",
   "webmcp.pages.list": "Halaman yang ditahan oleh jendela ini",
@@ -5390,5 +5390,6 @@
   "webmcp.calls.awaitingApproval": "Menunggu persetujuan Anda. Tinjau",
   "sessionGrid.moveSession": "Pindahkan sesi: {title}",
   "sessionGrid.moved": "{title} dipindahkan ke panel {count}",
-  "chat.permissionCard.webmcp.definitionMayDiffer": "Definisi alat halaman saat ini mungkin berbeda dari yang diminta."
+  "chat.permissionCard.webmcp.definitionMayDiffer": "Definisi alat halaman saat ini mungkin berbeda dari yang diminta.",
+  "webmcp.tools.staleForm": "Formulir ini sudah usang karena halaman atau alat halaman berubah. Buka kembali alat dan tinjau input sebelum mencoba lagi."
 }
