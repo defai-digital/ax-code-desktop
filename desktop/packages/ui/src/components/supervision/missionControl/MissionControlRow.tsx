@@ -18,6 +18,7 @@ import { useFormatEvidence } from "../EvidenceText"
 import { updatedSinceViewed } from "@/lib/supervision/missionControl"
 import { inlineChildSessions } from "@/lib/supervision/childSessions"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { ChecksChip, GoalBudgetLeft } from "./MissionControlChecks"
 
 export interface MissionControlRowProps {
   row: SupervisionRowData
@@ -209,6 +210,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               <span className="truncate">{branch}</span>
             </span>
           ) : null}
+          {row.checks ? <ChecksChip checks={row.checks} /> : null}
+          <GoalBudgetLeft goal={row.goal} />
           {evidenceLabel && row.evidence ? (
             <span className="mission-evidence min-w-0">
               <span className="text-[var(--status-success)]">+{row.evidence.additions}</span>{" "}

@@ -13,6 +13,7 @@ interface MissionControlBulkBarProps {
   onCreateWorkingSet: (name: string) => void
   onStop: () => void
   onArchive: () => void
+  onOpenGrid: () => void
   onClear: () => void
 }
 
@@ -25,6 +26,7 @@ export function MissionControlBulkBar({
   onCreateWorkingSet,
   onStop,
   onArchive,
+  onOpenGrid,
   onClear,
 }: MissionControlBulkBarProps) {
   const { t } = useI18n()
@@ -94,6 +96,9 @@ export function MissionControlBulkBar({
           </Button>
         </span>
       ) : null}
+      <Button size="sm" variant="outline" className="normal-case" disabled={busy || count < 2 || count > 4} onClick={onOpenGrid}>
+        {t("sessionGrid.openSelected")}
+      </Button>
       <Button
         size="sm"
         variant="outline"

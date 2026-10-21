@@ -1,3 +1,4 @@
+import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
@@ -16,6 +17,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
+  const grid = useUIStore((s) => s.activeMainTab === "session-grid")
   const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
   const directory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
@@ -36,17 +38,25 @@ export function WorkspaceNavigation() {
     {
       label: t("supervision.navigation.workspace"),
       icon: "chat-3" as const,
-      active: !board && !review,
+      active: !board && !review && !grid,
       disabled: false,
       run: () => {
+        useUIStore.getState().setActiveMainTab("chat")
         if (review) closeBesideChat("diff")
         leaveBoard()
       },
     },
     {
+      label: t("sessionGrid.title"),
+      icon: "window" as const,
+      active: !board && grid,
+      disabled: false,
+      run: () => openSessionGrid(),
+    },
+    {
       label: t("supervision.missionControl.action.reviewChanges"),
       icon: "file-check" as const,
-      active: !board && review,
+      active: !board && review && !grid,
       disabled: !directory,
       run: () => {
         if (openBesideChat("diff")) leaveBoard()
@@ -89,7 +99,7 @@ export function WorkspaceNavigation() {
           <Icon name="window" className="h-4 w-4" aria-hidden="true" />
         </button>
       ) : null}
-      {!board && !review && directory ? (
+      {!board && !review && !grid && directory ? (
         <span
           data-workspace-directory={directory}
           className="ml-auto flex min-w-0 max-w-full items-center gap-1.5 px-3 typography-meta text-muted-foreground"

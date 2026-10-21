@@ -76,8 +76,8 @@ describe("useRemoteActivityPreviews", () => {
     )
     expect(requests).toHaveLength(2)
     expect(requests.map((request) => request.input)).toEqual([
-      { sessionID: "a", directory: "/repo", limit: 6 },
-      { sessionID: "b", directory: "/repo", limit: 6 },
+      { sessionID: "a", directory: "/repo", limit: 6, signal: expect.any(AbortSignal) },
+      { sessionID: "b", directory: "/repo", limit: 6, signal: expect.any(AbortSignal) },
     ])
     await act(async () => {
       requests[1].resolve({ data: page("B") })
@@ -240,7 +240,10 @@ describe("useRemoteActivityPreviews", () => {
     const view = render(<Board />)
     await flush()
     expect(sdk.scoped).toHaveBeenCalledWith("/repo")
-    expect(sdk.messages).toHaveBeenCalledWith({ sessionID: "sdk-session", directory: "/repo", limit: 6 })
+    expect(sdk.messages).toHaveBeenCalledWith(
+      { sessionID: "sdk-session", directory: "/repo", limit: 6 },
+      { signal: expect.any(AbortSignal) },
+    )
     expect(view.container.textContent).toBe("SDK preview")
   })
 
@@ -327,5 +330,25 @@ describe("useRemoteActivityPreviews", () => {
       requests[1].resolve({ error: "failed" })
     })
     expect(latest().get("a")?.activity ?? null).toBeNull()
+  })
+
+  test("a read that times out is aborted, not left running beside the next one", async () => {
+    vi.useFakeTimers()
+    try {
+      const signals: AbortSignal[] = []
+      const fetchPage = vi.fn<FetchActivityPage>((input) => {
+        if (input.signal) signals.push(input.signal)
+        return new Promise(() => {})
+      })
+      const cache = createRemoteActivityCache(fetchPage, { timeoutMs: 1000 })
+      const consumer = cache.mount()
+      consumer.update([row("a")])
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(signals).toHaveLength(1)
+      expect(signals[0].aborted).toBe(true)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

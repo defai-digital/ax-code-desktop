@@ -58,9 +58,9 @@ const outcome = await runHarness({
       const state = await audit.all()
       const layout = await session.evaluate(`(() => {
         const visible = e => e.checkVisibility() && !e.closest('[aria-hidden="true"], [inert]')
-        const roots = Array.from(document.querySelectorAll('[data-mission-control], [data-workspace-navigation], [data-review-changes], [role="dialog"]:has([cmdk-root])')).filter(visible)
+        const roots = Array.from(document.querySelectorAll('[data-session-grid], [data-mission-control], [data-workspace-navigation], [data-review-changes], [role="dialog"]:has([cmdk-root])')).filter(visible)
         return roots.map(root => ({
-          kind: root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
+          kind: root.hasAttribute('data-session-grid') ? 'session-grid' : root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
           width: root.clientWidth, scrollWidth: root.scrollWidth, text: root.innerText,
           groups: Array.from(root.querySelectorAll('[role="rowgroup"]')).map(e => ({ name:e.getAttribute('aria-label'), rows:Array.from(e.querySelectorAll('.mission-control-row')).map(row=>row.id) })),
           files: Array.from(root.querySelectorAll('[data-review-file]')).map(e => ({ path:e.dataset.reviewFile, current:e.getAttribute('aria-current'), viewed:e.querySelector('input[type="checkbox"]')?.checked })),
@@ -528,6 +528,31 @@ const outcome = await runHarness({
       return Boolean(doc?.querySelector('[data-chat-input]')?.checkVisibility()) && !doc.querySelector('[data-embedded-session-changes]')
     })()`, "the beside session returns to its chat")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
+    // Session grid uses two independent embedded realms, each with its own composer.
+    await openBoard()
+    for (const target of targets) {
+      const label = await session.evaluate(`document.getElementById(${JSON.stringify(`mission-row-${target.id}`)})?.querySelector('input[type="checkbox"]')?.getAttribute('aria-label')`)
+      if (!label) throw new Error("Grid fixture selection checkbox is missing")
+      await audit.click(await observedControl(label, "input"), { role: "input" })
+    }
+    await audit.click("Open as grid")
+    await audit.wait(`(() => {
+      const grid = document.querySelector('[data-session-grid]')
+      const frames = Array.from(grid?.querySelectorAll('iframe') || [])
+      const targets = ${JSON.stringify(targets.map(target => ({ id: target.id, directory: target.directory })))}
+      return grid?.checkVisibility() && frames.length === 2 && targets.every(target => frames.some(frame => {
+        const url = new URL(frame.src)
+        const composer = frame.contentDocument?.querySelector('[data-chat-input]')
+        return url.searchParams.get('sessionId') === target.id && url.searchParams.get('directory') === target.directory &&
+          frame.checkVisibility() && frame.getBoundingClientRect().width >= 320 && composer?.checkVisibility()
+      }))
+    })()`, "two grid sessions visibly render their own composers")
+    await capture("session-grid-two")
+    await audit.click("Workspace", { role: "button" })
+    await audit.wait(`!document.querySelector('[data-session-grid]')`, "leave grid")
+    await audit.click("Session grid", { role: "button" })
+    await audit.wait(`document.querySelector('[data-session-grid]')?.querySelectorAll('iframe').length === 2`, "return restores both grid panes")
+
     return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, read-only This session/Last turn scopes and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
   }],
 })

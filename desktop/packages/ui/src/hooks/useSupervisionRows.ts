@@ -23,6 +23,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { areSliceDepsEqual } from "@/sync/live-selector-memo"
 import { useAllLiveSessions, useAllSessionStatuses, useChildStoreManager } from "@/sync/sync-context"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
+import { verificationEvidenceCache } from "@/hooks/useSupervisionVerification"
 import { childSessionSummaries } from "@/lib/supervision/childSessions"
 import { rollUpChildStates } from "@/lib/supervision/rollup"
 import {
@@ -30,6 +31,7 @@ import {
   latestUnseenTreeSessionErrorMessage,
 } from "@/lib/supervision/sessionErrorMessage"
 import { goalNeedsPerson, goalRevision } from "@/lib/supervision/goal"
+import { verificationEvidenceFor } from "@/lib/supervision/verificationEvidenceCache"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
 
@@ -68,6 +70,11 @@ function useComputedSupervisionRows(): SupervisionRow[] {
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const notifications = useSyncNotificationStore((state) => state.list)
   const goals = useSessionGoalStore((state) => state.goals)
+  const verificationEntries = React.useSyncExternalStore(
+    verificationEvidenceCache.subscribe,
+    verificationEvidenceCache.getSnapshot,
+    verificationEvidenceCache.getSnapshot,
+  )
   const activityBySession = useRootActivity(inputs, sessions)
 
   // "Ready to review" comes from git status, so warm it for every session directory.
@@ -141,13 +148,14 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         updatedAt: goal ? Math.max(input.updatedAt ?? 0, goalRevision(goal)) : (input.updatedAt ?? 0),
         evidence: resolveSupervisionEvidence(session?.summary as SessionSummaryLike | undefined),
         goal,
+        checks: verificationEvidenceFor(input.id, input.directory ?? null, verificationEntries),
         activity: activityBySession.get(input.id) ?? null,
         ...(errorMessage ? { errorMessage } : {}),
         ...(multiRun ? { multiRun } : {}),
       })
     }
     return rankSupervisionRows(rows)
-  }, [activityBySession, goals, homeDirectory, inputs, notifications, projects, sessions, statuses])
+  }, [activityBySession, goals, homeDirectory, inputs, notifications, projects, sessions, statuses, verificationEntries])
 }
 
 /**

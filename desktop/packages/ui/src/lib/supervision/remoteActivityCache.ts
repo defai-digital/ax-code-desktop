@@ -103,12 +103,17 @@ export function createRemoteActivityCache(fetchPage: FetchActivityPage, options:
     let preview = previous?.directory === row.directory ? previous.preview : null
     try {
       let timer: ReturnType<typeof setTimeout> | undefined
+      const controller = new AbortController()
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("timeout")), timeoutMs)
+        timer = setTimeout(() => {
+          // Cancel the request itself; the race still frees the slot for a fetch that ignores the signal.
+          controller.abort()
+          reject(new Error("timeout"))
+        }, timeoutMs)
       })
       try {
         const result = await Promise.race([
-          fetchPage({ sessionID: row.sessionId, directory: row.directory!, limit: 6 }),
+          fetchPage({ sessionID: row.sessionId, directory: row.directory!, limit: 6, signal: controller.signal }),
           timeout,
         ])
         if (!result.error) preview = remoteActivityPreview(result.data ?? [])

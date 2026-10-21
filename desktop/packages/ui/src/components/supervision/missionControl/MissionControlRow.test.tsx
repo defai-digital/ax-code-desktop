@@ -171,6 +171,64 @@ describe("Mission Control row interaction", () => {
     expect(container.querySelector(".mission-age")).toBeNull()
     expect(container.textContent).not.toContain("—")
   })
+  test("shows failed checks in the error color and pending checks muted", () => {
+    render("review", { checks: { state: "failed", passed: 1, failed: 2, total: 3 } })
+    const failed = container.querySelector("[data-checks-state='failed']")
+    expect(failed?.getAttribute("data-checks-failed")).toBe("2")
+    expect(failed?.getAttribute("data-checks-passed")).toBe("1")
+    expect(failed?.getAttribute("data-checks-total")).toBe("3")
+    expect(failed?.className).toContain("text-[var(--status-error)]")
+    // The full status is real text for assistive technology; the short chip text is hidden from it.
+    expect(failed?.querySelector(".sr-only")?.textContent).toContain("supervision.missionControl.checks.label")
+    expect(failed?.querySelector("[aria-hidden='true']")?.textContent).toContain("supervision.missionControl.checks.chip")
+    render("running", { checks: { state: "pending", passed: 0, failed: 0, total: 1 } })
+    const pending = container.querySelector("[data-checks-state='pending']")
+    expect(pending?.className).toContain("text-muted-foreground")
+    expect(pending?.className).not.toContain("text-[var(--status-error)]")
+    render("idle", { checks: { state: "passed", passed: 2, failed: 0, total: 2 } })
+    expect(container.querySelector("[data-checks-state='passed']")?.className).toContain("text-[var(--status-success)]")
+    // An older result after a failed read is never shown in the passed or failed color.
+    render("idle", { checks: { state: "passed", passed: 2, failed: 0, total: 2, stale: true } })
+    const stale = container.querySelector("[data-checks-stale]")
+    expect(stale?.className).not.toContain("text-[var(--status-success)]")
+    expect(stale?.querySelector(".sr-only")?.textContent).toContain("supervision.missionControl.checks.stale")
+  })
+  test("shows remaining tokens and seconds verbatim and hides a budget that was not reported that way", () => {
+    render("goal", {
+      goal: {
+        sessionId: "s1",
+        objective: "Ship the migration",
+        status: "blocked",
+        tokensUsed: 1200,
+        timeUsedSeconds: 90,
+        tokenBudget: 99999,
+        timeBudgetSeconds: 99999,
+        remainingTokens: 3800,
+        remainingTimeSeconds: 90,
+        createdAt: 1000,
+      },
+    })
+    expect(container.querySelector("[data-goal-budget-tokens]")?.textContent).toContain("3800")
+    expect(container.querySelector("[data-goal-budget-time]")?.textContent).toContain("90")
+    expect(container.querySelector("[data-goal-budget]")?.textContent).not.toContain("99999")
+    render("idle", {
+      goal: {
+        sessionId: "s1",
+        objective: "Ship the migration",
+        status: "paused",
+        tokensUsed: 10,
+        timeUsedSeconds: 5,
+        tokenBudget: 100,
+        timeBudgetSeconds: 50,
+        createdAt: 1000,
+      },
+    })
+    expect(container.querySelector("[data-goal-budget]")).toBeNull()
+  })
+  test("renders no checks chip when the runtime payload is not on the row", () => {
+    render()
+    expect(container.querySelector("[data-checks-state]")).toBeNull()
+  })
 })
 
 describe("Mission Control activity preview", () => {

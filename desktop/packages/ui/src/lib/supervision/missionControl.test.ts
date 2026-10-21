@@ -174,6 +174,23 @@ describe("compound mission facets", () => {
     expect(filterMissionFacets(rows, { ...facets, hasChanges: true }).map((r) => r.sessionId)).toEqual(["a", "c"])
     expect(filterMissionFacets(rows, { ...facets, projectKeys: ["missing"] })).toEqual([])
   })
+  test("checks failing keeps only a failed envelope state and combines with the other facets", () => {
+    const failed = { state: "failed" as const, passed: 1, failed: 2, total: 3 }
+    const passed = { state: "passed" as const, passed: 2, failed: 0, total: 2 }
+    const withChecks = rows.map((item) => ({
+      ...item,
+      checks: item.sessionId === "c" ? failed : passed,
+    }))
+    expect(filterMissionFacets(withChecks, { ...facets, checksFailing: true }).map((item) => item.sessionId)).toEqual([
+      "c",
+    ])
+    expect(
+      filterMissionFacets(withChecks, { ...facets, checksFailing: true, hasChanges: true }).map(
+        (item) => item.sessionId,
+      ),
+    ).toEqual(["c"])
+    expect(filterMissionFacets(rows, { ...facets, checksFailing: true })).toEqual([])
+  })
   test("uses project identity rather than duplicate labels, with directory and no-project fallbacks", () => {
     expect(filterMissionFacets(rows, { ...facets, projectKeys: ["alpha"] }).map((r) => r.sessionId)).toEqual(["a"])
     expect(missionProjectKey({ projectId: null, directory: "/local" })).toBe("/local")

@@ -1,3 +1,4 @@
+import { buildEmbeddedSessionChatURL, syncEmbeddedTheme, syncEmbeddedVisibility } from "@/lib/supervision/embeddedSession"
 import { EmbeddedBrowserChoice } from "./EmbeddedWebMcpBrowser"
 import { useOpenProjectBrowser } from "@/hooks/useWebMcpBrowser"
 import React from "react"
@@ -283,29 +284,6 @@ const runIframeScript = async <T,>(iframe: HTMLIFrameElement, script: string): P
   const evaluate = (frameWindow as Window & { eval: (code: string) => unknown }).eval
   const result = evaluate.call(frameWindow, script) as unknown
   return (await Promise.resolve(result)) as T
-}
-
-const buildEmbeddedSessionChatURL = (sessionID: string, directory: string | null, readOnly: boolean): string => {
-  if (typeof window === "undefined") {
-    return ""
-  }
-
-  const url = new URL(window.location.pathname, window.location.origin)
-  url.searchParams.set("ocPanel", "session-chat")
-  url.searchParams.set("sessionId", sessionID)
-  if (readOnly) {
-    url.searchParams.set("readOnly", "1")
-  } else {
-    url.searchParams.delete("readOnly")
-  }
-  if (directory && directory.trim().length > 0) {
-    url.searchParams.set("directory", directory)
-  } else {
-    url.searchParams.delete("directory")
-  }
-
-  url.hash = ""
-  return url.toString()
 }
 
 type PreviewPaneProps = {
@@ -2423,83 +2401,14 @@ export const ContextPanel: React.FC = () => {
   const activeChatTabID = activeTab?.mode === "chat" ? activeTab.id : null
 
   const postThemeSyncToEmbeddedChat = React.useCallback(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
-    const payload = {
-      themeMode,
-      lightThemeId,
-      darkThemeId,
-      currentTheme,
-    }
-
     for (const frame of chatFrameRefs.current.values()) {
-      const frameWindow = frame.contentWindow
-      if (!frameWindow) {
-        continue
-      }
-
-      // Reading a property of a frame that is mid-navigation (or not yet same-origin) throws a
-      // SecurityError, so the direct path is attempted only inside the guard; postMessage is the fallback.
-      try {
-        const directThemeSync = (
-          frameWindow as unknown as {
-            __openchamberApplyThemeSync?: (themePayload: typeof payload) => void
-          }
-        ).__openchamberApplyThemeSync
-        if (typeof directThemeSync === "function") {
-          directThemeSync(payload)
-          continue
-        }
-      } catch {
-        // fallback to postMessage below
-      }
-
-      frameWindow.postMessage(
-        {
-          type: "openchamber:theme-sync",
-          payload,
-        },
-        window.location.origin,
-      )
+      syncEmbeddedTheme(frame, { themeMode, lightThemeId, darkThemeId, currentTheme })
     }
   }, [currentTheme, darkThemeId, lightThemeId, themeMode])
 
   const postEmbeddedVisibilityToChats = React.useCallback(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
     for (const [tabID, frame] of chatFrameRefs.current.entries()) {
-      const frameWindow = frame.contentWindow
-      if (!frameWindow) {
-        continue
-      }
-
-      const payload = { visible: activeChatTabID === tabID }
-      // Same guard as the theme sync: a frame that is not same-origin yet throws on property reads.
-      try {
-        const directVisibilitySync = (
-          frameWindow as unknown as {
-            __openchamberSetEmbeddedVisibility?: (visibilityPayload: typeof payload) => void
-          }
-        ).__openchamberSetEmbeddedVisibility
-        if (typeof directVisibilitySync === "function") {
-          directVisibilitySync(payload)
-          continue
-        }
-      } catch {
-        // fallback to postMessage below
-      }
-
-      frameWindow.postMessage(
-        {
-          type: "openchamber:embedded-visibility",
-          payload,
-        },
-        window.location.origin,
-      )
+      syncEmbeddedVisibility(frame, activeChatTabID === tabID)
     }
   }, [activeChatTabID])
 

@@ -1,6 +1,7 @@
+import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
+import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
 import type { ShortcutCombo } from "@/lib/shortcuts"
 import type { DraftStarterRef } from "@/lib/draftStarters"
@@ -16,7 +17,16 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
-export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki" | "board"
+export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki" | "board" | "session-grid"
+// Session storage scopes the grid to this window and survives renderer reloads.
+const SESSION_GRID_KEY = "openchamber.session-grid.v1"
+const readSessionGrid = (): SessionGridState => {
+  try {
+    return restoreSessionGrid(JSON.parse(getSafeSessionStorage().getItem(SESSION_GRID_KEY) ?? "null"))
+  } catch {
+    return emptySessionGrid()
+  }
+}
 type RightSidebarTab = "git" | "files" | "context"
 export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
 
@@ -569,6 +579,8 @@ interface UIStore {
   activeMainTab: MainTab
   isWorkspaceFocus: boolean
   workspaceFocusSnapshot: WorkspaceFocusSnapshot | null
+  sessionGrid: SessionGridState
+  setSessionGrid: (grid: SessionGridState) => void
   mainTabGuard: MainTabGuard | null
   sidebarOpenBeforeFullscreenTab: boolean | null
   pendingDiffFile: string | null
@@ -580,7 +592,7 @@ interface UIStore {
   isCommandPaletteSearchMode: boolean
   splitPaneEnabled: boolean
   splitPaneRatio: number
-  splitPaneRightTab: Exclude<MainTab, "chat">
+  splitPaneRightTab: Exclude<MainTab, "chat" | "session-grid">
   isHelpDialogOpen: boolean
   isAboutDialogOpen: boolean
   isAxCodeStatusDialogOpen: boolean
@@ -726,7 +738,7 @@ interface UIStore {
   toggleSplitPane: () => void
   setSplitPaneEnabled: (enabled: boolean) => void
   setSplitPaneRatio: (ratio: number) => void
-  setSplitPaneRightTab: (tab: Exclude<MainTab, "chat">) => void
+  setSplitPaneRightTab: (tab: Exclude<MainTab, "chat" | "session-grid">) => void
   toggleHelpDialog: () => void
   setHelpDialogOpen: (open: boolean) => void
   setAboutDialogOpen: (open: boolean) => void
@@ -856,6 +868,12 @@ export const useUIStore = create<UIStore>()(
         activeMainTab: "chat",
         isWorkspaceFocus: false,
         workspaceFocusSnapshot: null,
+        sessionGrid: readSessionGrid(),
+        setSessionGrid: (grid) => {
+          const sessionGrid = restoreSessionGrid(grid)
+          getSafeSessionStorage().setItem(SESSION_GRID_KEY, JSON.stringify(sessionGrid))
+          set({ sessionGrid })
+        },
         mainTabGuard: null,
         sidebarOpenBeforeFullscreenTab: null,
         pendingDiffFile: null,
@@ -2469,6 +2487,7 @@ export const useUIStore = create<UIStore>()(
           if (!isPersistedSplitPaneRightTab(merged.splitPaneRightTab)) {
             merged.splitPaneRightTab = currentState.splitPaneRightTab
           }
+          merged.sessionGrid = readSessionGrid()
           return merged
         },
       },

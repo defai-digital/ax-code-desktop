@@ -91,6 +91,8 @@ export interface MissionFacets {
   status: MissionStatusFilter
   projectKeys: readonly string[]
   hasChanges: boolean
+  /** Sessions whose verification envelopes include a failed check. */
+  checksFailing?: boolean
   /** Only sessions updated after the user last viewed them (never-viewed sessions count as updated). */
   updatedOnly?: boolean
   lastViewedAt?: Readonly<Record<string, number>>
@@ -108,7 +110,16 @@ export function updatedSinceViewed(
 export function filterMissionFacets<
   T extends Pick<
     SupervisionRow,
-    "sessionId" | "updatedAt" | "title" | "projectLabel" | "directory" | "projectId" | "state" | "evidence" | "goal"
+    | "sessionId"
+    | "updatedAt"
+    | "title"
+    | "projectLabel"
+    | "directory"
+    | "projectId"
+    | "state"
+    | "evidence"
+    | "goal"
+    | "checks"
   >,
 >(rows: readonly T[], facets: MissionFacets): T[] {
   const projects = new Set(facets.projectKeys)
@@ -117,6 +128,7 @@ export function filterMissionFacets<
       matchesMissionStatus(row.state, facets.status) &&
       (projects.size === 0 || projects.has(missionProjectKey(row))) &&
       (!facets.hasChanges || row.evidence != null) &&
+      (!facets.checksFailing || (row.checks?.state === "failed" && !row.checks.stale)) &&
       (!facets.updatedOnly || updatedSinceViewed(row, facets.lastViewedAt)),
   )
 }

@@ -32,6 +32,9 @@ import { lazyWithChunkRecovery } from "@/lib/chunkLoadRecovery"
 
 import { ChatView } from "@/components/views/ChatView"
 
+const SessionGrid = lazyWithChunkRecovery(() =>
+  import("@/components/sessionGrid/SessionGrid").then((m) => ({ default: m.SessionGrid })),
+)
 const TerminalView = lazyWithChunkRecovery(() =>
   import("@/components/views/TerminalView").then((m) => ({ default: m.TerminalView })),
 )
@@ -349,6 +352,12 @@ export const MainLayout: React.FC = () => {
 
   const secondaryView = React.useMemo(() => {
     switch (activeMainTab) {
+      case "session-grid":
+        return (
+          <React.Suspense fallback={null}>
+            <SessionGrid />
+          </React.Suspense>
+        )
       case "plan":
         return (
           <React.Suspense fallback={null}>
@@ -402,7 +411,8 @@ export const MainLayout: React.FC = () => {
     }
   }, [activeMainTab])
 
-  const isChatActive = !isMobile || activeMainTab === "chat"
+  const isGridActive = activeMainTab === "session-grid"
+  const isChatActive = !isGridActive && (!isMobile || activeMainTab === "chat")
   const visibleSidebarWidth = React.useMemo(() => {
     const rawWidth = sidebarWidth || SIDEBAR_CONTENT_WIDTH
     return Math.min(DESKTOP_SIDEBAR_MAX_WIDTH, Math.max(DESKTOP_SIDEBAR_MIN_WIDTH, rawWidth))
@@ -483,11 +493,11 @@ export const MainLayout: React.FC = () => {
               )}
               data-page-scroll-lock="true"
             >
-              {!isMobile ? <WorkspaceNavigation /> : null}
+              <WorkspaceNavigation />
               <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <SupervisionMainOverlay />
                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <SplitPaneLayout rightContent={splitRightContent}>
+                  <SplitPaneLayout suspended={isGridActive} rightContent={splitRightContent}>
                     <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
                       <div
                         className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"
@@ -499,26 +509,31 @@ export const MainLayout: React.FC = () => {
                               <ChatView />
                             </ErrorBoundary>
                           </div>
-                          {isMobile && secondaryView && (
+                          {(isMobile || isGridActive) && secondaryView && (
                             <div className="absolute inset-0 flex flex-col">
-                              <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setActiveMainTab("chat")}
-                                  aria-label={t("layout.backToChat")}
-                                  className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
-                                >
-                                  <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
-                                  {t("layout.backToChat")}
-                                </button>
-                              </div>
+                              {isMobile && (
+                                <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => setActiveMainTab("chat")}
+                                    aria-label={t("layout.backToChat")}
+                                    className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                                  >
+                                    <Icon name="arrow-left" className="h-3.5 w-3.5" aria-hidden="true" />
+                                    {t("layout.backToChat")}
+                                  </button>
+                                </div>
+                              )}
                               <div className="relative min-h-0 flex-1">
                                 <ErrorBoundary>{secondaryView}</ErrorBoundary>
                               </div>
                             </div>
                           )}
                         </main>
-                        <ContextPanel />
+                        {/* Hidden, not unmounted, under the grid: beside sessions, terminals and unsaved edits survive. */}
+                        <div className={isGridActive ? "hidden" : "contents"}>
+                          <ContextPanel />
+                        </div>
                       </div>
                     </div>
                   </SplitPaneLayout>
@@ -532,7 +547,8 @@ export const MainLayout: React.FC = () => {
                     ) : null}
                   </BottomTerminalDock>
                 </div>
-                <InspectorRail />
+                {/* The rail's tools open beside the chat, which the grid covers; it returns with the workspace. */}
+                {!isGridActive && <InspectorRail />}
               </div>
             </div>
             <RightSidebar isOpen={isRightSidebarOpen} className="border-0">

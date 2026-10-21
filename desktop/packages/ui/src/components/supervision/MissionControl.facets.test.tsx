@@ -99,6 +99,25 @@ describe("Mission Control compound filters", () => {
     expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull()
   })
 
+  test("checks failing keeps the session whose envelopes failed and clears with the other facets", async () => {
+    useSupervisionStore.setState({
+      rows: useSupervisionStore.getState().rows.map((item) => ({
+        ...item,
+        checks:
+          item.sessionId === "b1"
+            ? { state: "failed" as const, passed: 1, failed: 1, total: 2 }
+            : { state: "passed" as const, passed: 1, failed: 0, total: 1 },
+      })),
+    })
+    render(<MissionControl />)
+    fireEvent.click(screen.getByRole("button", { name: "Checks failing" }))
+    expect(screen.getByRole("button", { name: "Checks failing" }).getAttribute("aria-pressed")).toBe("true")
+    expect(visibleIds()).toEqual(["mission-row-b1"])
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }))
+    expect(visibleIds()).toHaveLength(3)
+    expect(screen.getByRole("button", { name: "Checks failing" }).getAttribute("aria-pressed")).toBe("false")
+  })
+
   test("combines every facet and Clear all restores rows, search and toggle state", async () => {
     useSupervisionStore.setState({
       rows: useSupervisionStore.getState().rows.map((item) => ({

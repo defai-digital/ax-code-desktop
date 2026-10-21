@@ -1,5 +1,6 @@
 {
   "all": [
+    "sessionGrid.layout.four",
     "axEngine.download.toast.progressWithMessage",
     "branchPickerDialog.badge.head",
     "chat.chatInput.linked.pr.number",
@@ -91,6 +92,8 @@
     "webmcp.browser.addressPlaceholder"
   ],
   "fr": [
+    "supervision.missionControl.peek.checksTotal",
+    "sessionGrid.focus",
     "app.embeddedSession.terminal",
     "diffView.landing.commits",
     "supervision.missionControl.child.countPlural",
@@ -226,6 +229,7 @@
     "settings.hooks.list.source.pack"
   ],
   "de": [
+    "sessionGrid.layout",
     "app.embeddedSession.terminal",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
@@ -336,6 +340,7 @@
     "supervision.missionControl.action.details"
   ],
   "id": [
+    "supervision.missionControl.peek.checksTotal",
     "app.embeddedSession.terminal",
     "supervision.evidence.summarySingle",
     "supervision.missionControl.filesSingle",
@@ -433,6 +438,8 @@
     "settings.hooks.list.badge.protocol"
   ],
   "pt-BR": [
+    "supervision.missionControl.peek.checksTotal",
+    "sessionGrid.layout",
     "app.embeddedSession.terminal",
     "diffView.landing.commits",
     "app.embeddedSession.chat",
@@ -518,6 +525,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "it": [
+    "sessionGrid.layout",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
     "supervision.evidence.summarySingle",
@@ -690,6 +698,7 @@
     "settings.hooks.list.badge.protocol"
   ],
   "es": [
+    "supervision.missionControl.peek.checksTotal",
     "app.embeddedSession.terminal",
     "diffView.landing.commits",
     "app.embeddedSession.chat",

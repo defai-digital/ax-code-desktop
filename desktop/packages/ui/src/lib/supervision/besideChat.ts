@@ -8,6 +8,6 @@ import type { BesideChatView } from "./openBesideChat"
  */
 export function resolveBesideChatRedirect(tab: MainTab, isMobile: boolean): BesideChatView | null {
   if (isMobile) return null
-  if (tab === "chat") return null
+  if (tab === "chat" || tab === "session-grid") return null
   return tab
 }

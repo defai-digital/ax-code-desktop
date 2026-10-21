@@ -2,7 +2,7 @@ import { useCallback } from "react"
 import { useUIStore } from "@/stores/useUIStore"
 import type { MainTab } from "@/stores/useUIStore-impl"
 
-export type SplitPaneRightTab = Exclude<MainTab, "chat">
+export type SplitPaneRightTab = Exclude<MainTab, "chat" | "session-grid">
 
 const MIN_RATIO = 0.2
 const MAX_RATIO = 0.8

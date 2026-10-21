@@ -11,6 +11,7 @@ import { diffLayoutKey, useUIStore } from "@/stores/useUIStore"
 import { reviewBranchFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
 import { branchReviewBase, useBranchReviewBaseStore } from "@/stores/useBranchReviewBaseStore"
 import { PierreDiffViewer } from "./PierreDiffViewer"
+import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 import { ReviewFileRail, type ReviewRailFile, type ReviewRailStatus } from "./ReviewFileRail"
 
 /** Matches the review pane's side-by-side minimum. A branch diff also needs both sides. */
@@ -320,12 +321,14 @@ export const BranchChangesView: React.FC<BranchChangesViewProps> = ({
   } else if (selected?.binary) {
     body = (
       <div className="session-changes__status" role="status">
+        <ReviewHunkMeasure path={selected.file} original={null} modified={null} />
         <p className="session-changes__title">{t("diffView.binary.unavailable")}</p>
       </div>
     )
   } else if (selected?.tooLarge) {
     body = (
       <div className="session-changes__status" role="status">
+        <ReviewHunkMeasure path={selected.file} original={null} modified={null} />
         <p className="session-changes__title">{t("diffView.branch.tooLarge")}</p>
       </div>
     )

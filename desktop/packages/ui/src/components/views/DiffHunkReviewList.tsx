@@ -2,6 +2,7 @@ import React from "react"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
+import { useReviewHunkFocus } from "@/lib/reviewHunkRegistry"
 import { getFileHunks } from "./diffHunkRevert"
 import type { FileDiffHunk } from "./gitHunkPatch"
 
@@ -32,6 +33,7 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
     staged = false,
   }) => {
     const { t } = useI18n()
+    const hunkFocus = useReviewHunkFocus(fileName)
 
     const hunks = React.useMemo(() => getFileHunks(original, modified, fileName ?? ""), [original, modified, fileName])
 
@@ -65,10 +67,14 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
           const hasStageAction = gitHunkIndexByRow != null && gitHunkIndex !== undefined
           const isStaging = hasStageAction && stagingHunkIndex === gitHunkIndex
           const stageBusy = stagingHunkIndex != null
+          const active = hunkFocus?.hunkIndex === index
           return (
             <div
               key={`${header}-${index}`}
-              className="flex items-center gap-2 px-3 py-1 border-b border-border/40 last:border-b-0"
+              data-review-hunk-index={index}
+              data-review-hunk-focus={active ? "header" : undefined}
+              aria-current={active ? "true" : undefined}
+              className={`flex items-center gap-2 px-3 py-1 border-b border-border/40 last:border-b-0${active ? " ring-2 ring-inset ring-primary bg-primary/10" : ""}`}
             >
               <span className="flex-1 min-w-0 truncate font-mono typography-micro text-muted-foreground">{header}</span>
               <span className="shrink-0 typography-micro">

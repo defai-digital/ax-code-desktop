@@ -456,6 +456,20 @@ const SHORTCUT_ACTIONS: ReadonlyArray<ShortcutAction> = [
     description: "Open the command palette with supervision commands",
     customizable: true,
   },
+  {
+    id: "review_next_hunk",
+    defaultCombo: "f7",
+    label: "Next change hunk",
+    description: "Move to the next change in the review. On macOS, hold Fn with F7. Alt+Down does the same when it is not already a shortcut.",
+    customizable: true,
+  },
+  {
+    id: "review_previous_hunk",
+    defaultCombo: "shift+f7",
+    label: "Previous change hunk",
+    description: "Move to the previous change in the review. On macOS, hold Fn with Shift+F7. Alt+Up does the same when it is not already a shortcut.",
+    customizable: true,
+  },
 ] as const
 
 export function normalizeCombo(combo: ShortcutCombo): ShortcutCombo {
@@ -576,6 +590,18 @@ export function getEffectiveShortcutCombo(actionId: string, overrides?: Record<s
   }
 
   return action.defaultCombo
+}
+
+/** True when some registered action already uses this combo, including user overrides. */
+export function isShortcutComboClaimed(combo: ShortcutCombo, overrides?: Record<string, ShortcutCombo>): boolean {
+  if (isUnassignedShortcut(combo)) return false
+  const normalized = normalizeCombo(combo)
+  if (!normalized || isUnassignedShortcut(normalized)) return false
+  return SHORTCUT_ACTIONS.some((action) => {
+    const effective = getEffectiveShortcutCombo(action.id, overrides)
+    if (!effective || isUnassignedShortcut(effective)) return false
+    return normalizeCombo(effective) === normalized
+  })
 }
 
 export function isRiskyBrowserShortcut(combo: ShortcutCombo): boolean {

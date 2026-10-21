@@ -4,7 +4,12 @@ import { createRemoteActivityCache } from "@/lib/supervision/remoteActivityCache
 import type { SupervisionRow } from "@/lib/supervision/rows"
 
 const remoteActivityCache = createRemoteActivityCache((input) =>
-  axCodeClient.getScopedSdkClient(input.directory).session.messages(input),
+  axCodeClient
+    .getScopedSdkClient(input.directory)
+    .session.messages(
+      { sessionID: input.sessionID, directory: input.directory, limit: input.limit },
+      { signal: input.signal },
+    ),
 )
 
 /** Mount only on the board and pass its rendered roots, after filters and collapsed groups. */

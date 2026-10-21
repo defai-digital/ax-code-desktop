@@ -1,3 +1,4 @@
+import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import React from "react"
 import {
   Command,
@@ -167,6 +168,13 @@ export const CommandPalette: React.FC = () => {
   // ---------------------------------------------------------------------------
   const supervisionCommands = React.useMemo<CommandEntry[]>(() => {
     const list: CommandEntry[] = [
+      {
+        id: "supervision:session-grid",
+        title: t("sessionGrid.open"),
+        icon: <Icon name="window" className="mr-2 h-4 w-4" />,
+        searchText: "session grid panes side by side",
+        onSelect: run(() => openSessionGrid()),
+      },
       {
         id: "supervision:mission-control",
         title: t("supervision.commandPalette.missionControl"),

@@ -157,3 +157,31 @@ Stage, Commit and Push flow; one each named change-level F7 navigation, preview 
   journeys on macos-15, windows-2022 and ubuntu-24.04 (xvfb); its first Windows and Ubuntu results come from the next CI run.
 - Gates: UI 4129, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
   release contract, 14 locales, actionlint; native WebMCP supervision-workspace, portfolio-identity and project-home passed on macOS.
+
+## Round 7 (2026-10-21)
+
+Controlled by `.internal/prd/PRD-2026-10-21-competitive-supervision-ux-v1.md` (accepted this day) and its plan.
+
+- CS-10 change navigation (grok): F7 and Shift+F7 move between change hunks across files in rail order, in every scope and layout,
+  never while typing, with a polite announcement and the first/last change named; rebindable in the shortcut registry. Review
+  (deepseek-flash): one HIGH (the hunk registry was shared by every review pane) and four MEDIUM, all fixed by grok with
+  regression tests and a mutation probe on pane scoping.
+- CS-11 session grid (codex): one to four live sessions side by side in one window, each with Chat, Changes, Files and Terminal;
+  keyboard splitters; opened from Mission Control multi-select and the command palette; restored per window. Review
+  (deepseek-flash, after Kimi K3 hit an upstream rate limit): two HIGH (opening the grid unmounted the context panel and split
+  editor; the picker used list positions) and two MEDIUM, all fixed with tests; one LOW deferred. The native journey opens two
+  fixture sessions as a grid (`session-grid-two` capture).
+- CS-12 runtime verification evidence (grok): rows show the runtime's `session.risk` verification envelopes verbatim as a Checks
+  chip, a peek detail and a "Checks failing" facet, plus the goal's remaining budget. Review (codex): three P2 (a failed read showed an
+  older result as current; the timeout did not cancel the request; the chip's status had no reliable accessible name), all fixed;
+  the same cancellation was added to activity-preview reads.
+- CS-13 batch decisions (Claude): two or more pending requests of one permission and risk class get one explicit "allow once" or
+  "deny" decision, armed and then confirmed, showing every scope; risky and must-decide requests are never batched; no standing
+  grant. Review (deepseek-flash): no HIGH; all findings fixed. Accessibility review (Nemotron): no changes needed after
+  verification (its HIGH misread a translation key as text).
+- Locale loading stays fail-closed: English fallbacks proposed by two implementers were not merged; Mistral Medium 3.5 translated
+  the new strings.
+- WebMCP audit for round 8: `../round8-webmcp-design/AUDIT-2026-10-21-webmcp-ux.md`.
+- Gates: UI 4212, web 1490 (+2 skipped), Electron 762 (+1 skipped), shared 240 (+7 skipped) tests; typecheck, lint, boundaries,
+  release contract, 14 locales, actionlint; native WebMCP supervision-workspace (with the grid), portfolio-identity, project-home and
+  `e2e:desktop` passed on macOS.

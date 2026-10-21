@@ -1,6 +1,7 @@
 import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
+import { cleanup, render as renderDom } from "@/test/dom"
 import type { HookCompleted } from "@defai-digital/ax-code-sdk/v2/client"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import { useHookActivityStore } from "@/stores/useHookActivityStore"
@@ -145,5 +146,49 @@ describe("MissionControlPeek hook runs", () => {
   test("shows no goal line when there is no goal", () => {
     render()
     expect(container.querySelector("[data-goal-line]")).toBeNull()
+  })
+})
+
+describe("Mission Control peek verification detail", () => {
+  afterEach(() => cleanup())
+
+  test("lists the envelope counts and the verbatim remaining budget", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_700_000_060_000)
+    const { container } = renderDom(
+      <MissionControlPeek
+        row={{
+          ...row,
+          checks: { state: "failed", passed: 1, failed: 2, total: 3, updatedAt: 1_700_000_000_000 },
+          goal: {
+            sessionId: "ses_1",
+            objective: "Ship the migration",
+            status: "active",
+            tokensUsed: 4,
+            timeUsedSeconds: 5,
+            remainingTokens: 12,
+            createdAt: 1000,
+          },
+        }}
+        requests={[]}
+        workingSets={[]}
+        isCreatingSetForRow={false}
+        newSetName=""
+        onNewSetNameChange={noop}
+        onOpen={noop}
+        onAddToWorkingSet={noop}
+        onStartCreateSet={noop}
+        onSubmitCreateSet={noop}
+        onCancelCreateSet={noop}
+      />,
+    )
+    const detail = container.querySelector("[data-checks-detail]")
+    expect(detail?.getAttribute("aria-label")).toBe("supervision.missionControl.peek.checksTitle")
+    expect(detail?.querySelector("[data-checks-state]")?.getAttribute("data-checks-state")).toBe("failed")
+    expect(detail?.querySelector("[data-checks-failed]")?.textContent).toBe("2")
+    expect(detail?.textContent).toContain("supervision.missionControl.peek.checksPassed")
+    expect(detail?.textContent).toContain("supervision.missionControl.peek.checksTotal")
+    expect(container.querySelector("[data-goal-budget-tokens]")?.textContent).toContain("12")
+    expect(container.querySelector("[data-goal-budget-time]")).toBeNull()
+    vi.restoreAllMocks()
   })
 })

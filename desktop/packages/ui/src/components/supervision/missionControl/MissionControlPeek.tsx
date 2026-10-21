@@ -15,6 +15,7 @@ import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { EvidenceText } from "../EvidenceText"
 import { RequestActionCard } from "../RequestActionCard"
 import { SupervisionGoalLine } from "../SupervisionGoalLine"
+import { ChecksDetail, GoalBudgetLeft } from "./MissionControlChecks"
 
 export interface MissionControlPeekProps {
   row: SupervisionRow
@@ -130,8 +131,10 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
               <span className="typography-micro text-[var(--status-warning)]">{t("supervision.state.goal")}</span>
             ) : null}
             <SupervisionGoalLine goal={row.goal} className="typography-micro text-muted-foreground" />
+            <GoalBudgetLeft goal={row.goal} />
           </div>
         ) : null}
+        {row.checks ? <ChecksDetail checks={row.checks} /> : null}
         <EvidenceText fallback="none" evidence={row.evidence} className="typography-micro text-muted-foreground" />
         {recentRuns.length ? (
           <div className="flex flex-col gap-1">

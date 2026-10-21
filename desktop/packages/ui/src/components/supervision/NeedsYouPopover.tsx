@@ -18,6 +18,10 @@ import { useUIStore } from "@/stores/useUIStore"
 import { useAllPendingRequests, type PendingRequestEntry } from "@/sync/sync-context"
 import type { SupervisionRow } from "@/hooks/useSupervisionRows"
 
+import { permissionBatches } from "@/lib/supervision/batchRequests"
+import { requestDecisionKey, useRequestDecisionStore } from "@/stores/useRequestDecisionStore"
+
+import { PermissionBatchBar } from "./PermissionBatchBar"
 import { RequestActionCard } from "./RequestActionCard"
 import { SupervisionGoalLine } from "./SupervisionGoalLine"
 
@@ -56,6 +60,17 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
     [groups, rows],
   )
   const empty = groups.length === 0 && unmatched.length === 0 && statusRows.length === 0
+  const decisionRecords = useRequestDecisionStore((state) => state.records)
+  // Batch in the inbox's own order, and leave out requests another surface is already answering.
+  const batches = React.useMemo(() => {
+    const ordered = [...groups.flatMap((group) => group.requests), ...unmatched]
+    return permissionBatches(ordered, (entry) => {
+      const phase = decisionRecords.get(
+        requestDecisionKey({ kind: "permission", sessionId: entry.sessionId, requestId: entry.request.id }),
+      )?.phase
+      return phase === undefined || phase === "idle" || phase === "retry"
+    })
+  }, [decisionRecords, groups, unmatched])
 
   React.useEffect(() => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -107,6 +122,9 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
             </div>
           ) : (
             <div className="flex flex-col gap-1.5">
+              {batches.map((batch) => (
+                <PermissionBatchBar key={`batch:${batch.permission}`} batch={batch} />
+              ))}
               {groups.map((group) =>
                 group.requests.map((entry) => (
                   <RequestActionCard

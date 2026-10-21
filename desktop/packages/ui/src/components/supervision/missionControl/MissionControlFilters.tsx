@@ -24,6 +24,8 @@ interface Props {
   onProjectsChange: (keys: string[]) => void
   hasChanges: boolean
   onHasChangesChange: (value: boolean) => void
+  checksFailing: boolean
+  onChecksFailingChange: (value: boolean) => void
   updatedOnly: boolean
   onUpdatedOnlyChange: (value: boolean) => void
   /** Sessions in scope updated since the user last viewed them. */
@@ -114,6 +116,18 @@ export function MissionControlFilters(props: Props) {
           variant="outline"
           size="sm"
           className={cn(
+            "normal-case min-h-9",
+            props.checksFailing && "border-primary/40 bg-interactive-selection text-primary",
+          )}
+          aria-pressed={props.checksFailing}
+          onClick={() => props.onChecksFailingChange(!props.checksFailing)}
+        >
+          {t("supervision.missionControl.filter.checksFailing")}
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn(
             "normal-case min-h-9 gap-2",
             props.updatedOnly && "border-primary/40 bg-interactive-selection text-primary",
           )}
@@ -182,7 +196,12 @@ export function MissionControlFilters(props: Props) {
             </Button>
           )
         })}
-        {props.query || props.status !== "all" || projectKeys.length > 0 || props.hasChanges || props.updatedOnly ? (
+        {props.query ||
+        props.status !== "all" ||
+        projectKeys.length > 0 ||
+        props.hasChanges ||
+        props.checksFailing ||
+        props.updatedOnly ? (
           <Button
             variant="ghost"
             size="sm"

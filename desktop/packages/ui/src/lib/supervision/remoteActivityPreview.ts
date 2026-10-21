@@ -48,4 +48,6 @@ export type FetchActivityPage = (input: {
   sessionID: string
   directory: string
   limit: number
+  /** Aborted when the read times out, so the request itself stops instead of running beside the next one. */
+  signal?: AbortSignal
 }) => Promise<{ data?: readonly ActivityMessageRecord[]; error?: unknown }>

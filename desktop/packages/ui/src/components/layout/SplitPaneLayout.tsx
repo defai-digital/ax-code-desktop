@@ -22,12 +22,16 @@ const HANDLE_WIDTH = 4
 
 interface SplitPaneLayoutProps {
   children: React.ReactNode
+  suspended?: boolean
   rightContent: React.ReactNode
 }
 
-export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent }) => {
+export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent, suspended = false }) => {
   const { t } = useI18n()
-  const { splitEnabled, splitRatio, splitRightTab, setSplitRatio } = useSplitPane()
+  const { splitEnabled: storedSplitEnabled, splitRatio, splitRightTab, setSplitRatio } = useSplitPane()
+  // Suspension (the session grid covers the workspace) hides the right pane without unmounting it, and keeps the same
+  // element structure, so neither the chat nor the right pane's editor, terminal or drafts are rebuilt or lost.
+  const splitEnabled = storedSplitEnabled
   const [isDragging, setIsDragging] = React.useState(false)
   const containerRef = React.useRef<HTMLDivElement>(null)
   const startXRef = React.useRef(0)
@@ -122,7 +126,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
     return <>{children}</>
   }
 
-  const leftPercent = `${splitRatio * 100}%`
+  const leftPercent = suspended ? "100%" : `${splitRatio * 100}%`
   const rightPercent = `${(1 - splitRatio) * 100}%`
 
   return (
@@ -142,6 +146,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
 
       {/* Drag handle */}
       <div
+        hidden={suspended}
         className={cn(
           "relative flex-shrink-0 cursor-col-resize bg-border/40 transition-colors",
           "hover:bg-[var(--interactive-border)]",
@@ -165,7 +170,12 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       />
 
       {/* Right pane */}
-      <div data-split-inspector className="relative h-full min-w-0 overflow-hidden" style={{ width: rightPercent }}>
+      <div
+        data-split-inspector
+        hidden={suspended}
+        className="relative h-full min-w-0 overflow-hidden"
+        style={{ width: rightPercent }}
+      >
         {/* Tab bar for right pane */}
         <div className="flex h-8 items-center gap-0.5 overflow-x-auto border-b border-border/40 bg-[var(--surface-background)] px-1">
           {SPLIT_TAB_OPTIONS.map((tab) => (

@@ -90,6 +90,18 @@ export const HelpDialog: React.FC = () => {
           descriptionKey: "helpDialog.item.newWindow",
           icon: "window",
         },
+        {
+          id: "review_next_hunk",
+          descriptionKey: "helpDialog.item.nextChange",
+          icon: "arrow-down",
+          keys: "",
+        },
+        {
+          id: "review_previous_hunk",
+          descriptionKey: "helpDialog.item.previousChange",
+          icon: "arrow-up",
+          keys: "",
+        },
       ],
     },
     {

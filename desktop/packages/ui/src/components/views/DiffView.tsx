@@ -6,6 +6,9 @@ import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { useGitStore, useGitStatus, useIsGitRepo, useGitLoadingStatus } from "@/stores/useGitStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { adjacentReviewFile, reviewFileSignature, useReviewPaneFileKeys } from "@/stores/useReviewProgressStore"
+import { useReviewHunkKeys } from "@/hooks/useReviewHunkKeys"
+import { disposeReviewHunkScope, reviewPaneScopeKey, useReviewHunkFocus } from "@/lib/reviewHunkRegistry"
+import { ReviewHunkScopeProvider } from "@/lib/reviewHunkScope"
 import { cn, formatPathForDisplay } from "@/lib/utils"
 import type { GitStatus } from "@/lib/api/types"
 import { combinedDiffStatsForPath, diffStatsForPath } from "@/lib/git/diffStats"
@@ -28,6 +31,8 @@ import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { DiffViewToggle } from "@/components/chat/message/DiffViewToggle"
 import type { DiffViewMode } from "@/components/chat/message/types"
 import { PierreDiffViewer } from "./PierreDiffViewer"
+import { ReviewHunkAnnouncer } from "./ReviewHunkAnnouncer"
+import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 import { DiffCommentSummaryBar } from "./DiffCommentSummaryBar"
 import { ReviewThreadAnchorProvider } from "@/components/comments/ReviewThreadAnchorProvider"
 import { ReviewFileRail, ReviewProgressCompact } from "./ReviewFileRail"
@@ -535,12 +540,17 @@ TextDiffViewer.displayName = "TextDiffViewer"
 
 const InlineDiffViewer = React.memo<InlineDiffViewerProps>(
   ({ directory, filePath, diff, renderSideBySide, wrapLines, staged = false }) => {
-    if (diff.isBinary) {
-      return <BinaryDiffPlaceholder />
-    }
-
-    if (isImageFile(filePath)) {
-      return <InlineImageDiffViewer filePath={filePath} diff={diff} renderSideBySide={renderSideBySide} />
+    if (diff.isBinary || isImageFile(filePath)) {
+      return (
+        <>
+          <ReviewHunkMeasure path={filePath} original={null} modified={null} />
+          {diff.isBinary ? (
+            <BinaryDiffPlaceholder />
+          ) : (
+            <InlineImageDiffViewer filePath={filePath} diff={diff} renderSideBySide={renderSideBySide} />
+          )}
+        </>
+      )
     }
 
     return (
@@ -571,20 +581,22 @@ interface SingleDiffViewerProps {
 
 const SingleDiffViewer = React.memo<SingleDiffViewerProps>(
   ({ directory, filePath, diff, isVisible, renderSideBySide, wrapLines, staged = false }) => {
-    if (diff.isBinary) {
-      return <BinaryDiffPlaceholder />
+    if (diff.isBinary || isImageFile(filePath)) {
+      return (
+        <>
+          <ReviewHunkMeasure path={filePath} original={null} modified={null} />
+          {diff.isBinary ? (
+            <BinaryDiffPlaceholder />
+          ) : (
+            <ImageDiffViewer filePath={filePath} diff={diff} isVisible={isVisible} renderSideBySide={renderSideBySide} />
+          )}
+        </>
+      )
     }
 
     // Don't render if not visible (memory optimization)
     if (!isVisible) {
       return null
-    }
-
-    // Check if this is an image file
-    if (isImageFile(filePath)) {
-      return (
-        <ImageDiffViewer filePath={filePath} diff={diff} isVisible={isVisible} renderSideBySide={renderSideBySide} />
-      )
     }
 
     return (
@@ -667,6 +679,10 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
     const [diffLoadError, setDiffLoadError] = React.useState<string | null>(null)
     const [isLoading, setIsLoading] = React.useState(false)
     const [forceRenderLarge, setForceRenderLarge] = React.useState(false)
+    const hunkFocus = useReviewHunkFocus(file.path)
+    React.useEffect(() => {
+      if (hunkFocus) setForceRenderLarge(true)
+    }, [hunkFocus])
     const [stagedDiffData, setStagedDiffData] = React.useState<DiffData | null>(null)
     const lastDiffRequestRef = React.useRef<string | null>(null)
     const sectionRef = React.useRef<HTMLDivElement | null>(null)
@@ -930,6 +946,11 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
             ) : null}
             {diffData && !forceRenderLarge && file.insertions + file.deletions > LARGE_DIFF_CHANGED_LINES ? (
               <div className="flex flex-col items-center gap-2 px-4 py-8 typography-ui-label text-muted-foreground">
+                <ReviewHunkMeasure
+                  path={file.path}
+                  original={diffData.isBinary || isImageFile(file.path) ? null : diffData.original}
+                  modified={diffData.isBinary || isImageFile(file.path) ? null : diffData.modified}
+                />
                 <div className="typography-ui-label font-semibold text-foreground">
                   Large diff ({file.insertions + file.deletions} changed lines)
                 </div>
@@ -1020,6 +1041,9 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }, [sessionModel.files, sessionReview])
   const { git, files } = useRuntimeAPIs()
   const effectiveDirectory = useEffectiveDirectory()
+  const reviewDirectory = effectiveDirectory ?? ""
+  const reviewPaneId = React.useId()
+  React.useEffect(() => () => disposeReviewHunkScope(reviewPaneId), [reviewPaneId])
   const homeDirectory = useDirectoryStore((state) => state.homeDirectory)
   const { isMobile } = useDeviceInfo()
   const { ref: paneRef, width: paneWidth } = useElementWidth<HTMLDivElement>()
@@ -1616,6 +1640,48 @@ export const DiffView: React.FC<DiffViewProps> = ({
     : branchReview
       ? setBranchSelected
       : handleSelectFileAndScroll
+  const hunkScopeKey = reviewPaneScopeKey(
+    reviewDirectory,
+    sessionReview
+      ? `session:${sessionModel.progressScope}`
+      : branchReview
+        ? `branch:${branchModel.progressScope}`
+        : `git:${diffScope}`,
+  )
+  const hunkKeyFiles = React.useMemo(
+    () =>
+      navFiles.map((file) =>
+        isImageFile(file.path) ? { path: file.path, hunkCount: 0 as const } : { path: file.path },
+      ),
+    [navFiles],
+  )
+  const selectHunkFile = React.useCallback(
+    (path: string) => {
+      if (sessionReview) {
+        setSessionSelected(path)
+        return
+      }
+      if (branchReview) {
+        setBranchSelected(path)
+        return
+      }
+      handleSelectFileAndScroll(path)
+      if (isStackedView) {
+        setStackedExpandTarget(path)
+        setStackedExpandRequestNonce((nonce) => nonce + 1)
+      }
+    },
+    [branchReview, handleSelectFileAndScroll, isStackedView, sessionReview],
+  )
+  useReviewHunkKeys({
+    paneRef,
+    files: hunkKeyFiles,
+    selectedFile: navSelected,
+    onSelectFile: selectHunkFile,
+    scopeKey: hunkScopeKey,
+    scopeId: reviewPaneId,
+    directory: reviewDirectory,
+  })
   const summaryLoading = sessionReview
     ? sessionModel.phase === "loading" && sessionModel.files.length === 0
     : branchReview
@@ -1981,6 +2047,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
   }
 
   return (
+    <ReviewHunkScopeProvider id={reviewPaneId} directory={reviewDirectory}>
     <div
       ref={paneRef}
       tabIndex={-1}
@@ -1995,6 +2062,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
       data-review-changes
       data-review-width={Math.round(paneWidth)}
     >
+      <ReviewHunkAnnouncer />
       <ReviewThreadAnchorProvider scope={JSON.stringify([effectiveDirectory, diffScope, currentSessionId])}>
       {effectiveDirectory ? (
         <div
@@ -2267,5 +2335,6 @@ export const DiffView: React.FC<DiffViewProps> = ({
       />
       </ReviewThreadAnchorProvider>
     </div>
+    </ReviewHunkScopeProvider>
   )
 }

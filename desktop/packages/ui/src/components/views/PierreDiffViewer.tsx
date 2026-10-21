@@ -31,6 +31,10 @@ import type { AnchoredReviewThread } from "@/components/comments/PierreDiffComme
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { reanchorThread } from "@/lib/reanchorThread"
 import { selectReviewThreads, useReviewThreadStore } from "@/stores/useReviewThreadStore"
+import type { ReviewHunkAnchor } from "@/lib/reviewHunkNavigation"
+import { getReviewHunkAnchors, useReviewHunkFocus, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
+import { applyReviewHunkHighlight, clearReviewHunkHighlight, syncReviewHunkHighlightFrame } from "./reviewHunkFocus"
+import { usePublishReviewHunks } from "./usePublishReviewHunks"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -76,7 +80,27 @@ const WEBKIT_SCROLL_FIX_CSS = `
       height: 24px !important;
     }
   }
+
+  [data-review-hunk-focus="line"],
+  [data-review-hunk-focus="header"] {
+    outline: 2px solid var(--color-primary, var(--primary, #2563eb));
+    outline-offset: -2px;
+    background-color: color-mix(in srgb, var(--color-primary, var(--primary, #2563eb)) 16%, transparent);
+  }
   `
+
+function readReviewHunkLineTop(instance: PierreFileDiff<unknown> | null, anchor: ReviewHunkAnchor): number | undefined {
+  const candidate = instance as {
+    getLinePosition?: (line: number, side?: "additions" | "deletions") => { top: number } | undefined
+  } | null
+  if (!candidate || typeof candidate.getLinePosition !== "function") return undefined
+  try {
+    const position = candidate.getLinePosition(anchor.line, anchor.side)
+    return typeof position?.top === "number" ? position.top : undefined
+  } catch {
+    return undefined
+  }
+}
 
 // Fast cache key - use length + samples instead of full hash
 function fnv1a32(input: string): string {
@@ -721,6 +745,50 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     // reaching this handler after a hunk revert or an agent edit.
   }, [diffThemeKey, fileName, language, modified, options, original, handleSelectionChange, resolveClickedSide, workerPool])
 
+  const hunkScope = useReviewHunkScope()
+  const hunkScopeRef = useRef(hunkScope)
+  hunkScopeRef.current = hunkScope
+  const hunkFocus = useReviewHunkFocus(fileName)
+  const hunkFocusRef = useRef(hunkFocus)
+  hunkFocusRef.current = hunkFocus
+  const pendingHunkScrollRef = useRef(false)
+  usePublishReviewHunks(fileName ?? null, original, modified)
+
+  useEffect(() => {
+    const container = diffContainerRef.current
+    if (!container) return
+    if (!hunkFocus || !hunkScope || !fileName) {
+      pendingHunkScrollRef.current = false
+      clearReviewHunkHighlight(container)
+      return
+    }
+    const anchor = getReviewHunkAnchors(hunkScope.id, hunkScope.directory, fileName)?.[hunkFocus.hunkIndex]
+    if (!anchor) return
+    pendingHunkScrollRef.current = true
+    let cancelled = false
+    let frame = 0
+    let raf = 0
+    const tick = () => {
+      if (cancelled) return
+      const line = applyReviewHunkHighlight(container, anchor, {
+        hunkIndex: hunkFocus.hunkIndex,
+        scroll: true,
+        lineTop: readReviewHunkLineTop(diffInstanceRef.current, anchor),
+      })
+      if (line) {
+        pendingHunkScrollRef.current = false
+        return
+      }
+      frame += 1
+      if (frame < 40) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => {
+      cancelled = true
+      cancelAnimationFrame(raf)
+    }
+  }, [fileName, hunkFocus, hunkScope, modified, original])
+
   // MutationObserver to trigger re-renders when annotation DOM nodes are added/removed
   useEffect(() => {
     const container = diffContainerRef.current
@@ -739,6 +807,14 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
         if (rafId) cancelAnimationFrame(rafId)
         rafId = requestAnimationFrame(() => {
           forceUpdate()
+          const focus = hunkFocusRef.current
+          const host = diffContainerRef.current
+          const scope = hunkScopeRef.current
+          const anchor =
+            focus && scope && fileName ? getReviewHunkAnchors(scope.id, scope.directory, fileName)?.[focus.hunkIndex] : undefined
+          if (host && focus && anchor) {
+            syncReviewHunkHighlightFrame(host, { anchor, hunkIndex: focus.hunkIndex }, pendingHunkScrollRef)
+          }
           rafId = null
         })
       })
