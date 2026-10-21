@@ -1,0 +1,32 @@
+## WebMCP excellence rubric — round 21, `15f40f1d`
+
+**Method.** Read-only source review of `desktop/packages/ui/src`, `desktop/packages/electron/src`, `desktop/shared`, `docs/`. No shell is available in this session, so **no `git log 4b7f80db..HEAD`, no test run, no journey**: the round-21 claims below are verified from HEAD source and `desktop/shared/webmcp-redaction.test.mjs`, not by diffing the range. Credit only for fields pinned v7.28.2 sends (`definitionDigest`, redacted `inputPreview`). `UI` = `desktop/packages/ui/src`; `S` = `desktop/shared`.
+
+Round 21 lands as one shared redactor used by every argument/result/error surface (`S/webmcp-redaction.mjs:104`; `UI/components/mcp/WebMcpToolPanel.tsx:6`, `UI/components/chat/PermissionCard.tsx:3`, `UI/lib/webMcpDiagnosis.ts:2`), field-naming keys that now sanitise sibling value keys (`:83-97`, tests `:113`), projections that keep every property and report incompleteness via `onTruncate` (`UI/lib/toolHelpers.ts:412-421`), and truncated projections that suppress missing-property findings and export (`UI/lib/webMcpDiagnosis.ts:235`; `:59-61`; `:149-150`; `UI/stores/useWebMcpBrowserStore.ts:573-587`).
+
+| Step | Score | One sentence and path:line |
+|---|---:|---|
+| A1 discover | **8** | Descriptions, redacted raw schema, hint badges, origin, `shown/total` cap, named rejection and advisory lint are all visible pre-grant, but the surface is still a collapsed technical tree (`UI/components/mcp/WebMcpToolPanel.tsx:917`, `:931`). |
+| A2 enable and scope trust | **9** | One trust surface states origin, project, session, access state and scope, with per-session revoke, explicit Sign out and origin-only persisted history (`UI/components/mcp/WebMcpPages.tsx:157-174`; `UI/components/layout/EmbeddedWebMcpBrowser.tsx:475`, `:485`). |
+| A3 watch live | **8** | The strip is open by default with redacted arguments, duration, digest, generation marker, pending-approval jump and transcript jump, but results are cut to 140 characters and rows are height-capped (`UI/components/mcp/WebMcpCallStrip.tsx:27`, `:101`, `:115`; `UI/lib/webMcpCalls.ts:68`). |
+| A4 approvals | **8** | The effect sentence comes from call data, the preview carries real values, the definition appears only on a digest match and scope is stated, yet a vanished request still becomes "unanswered" with no terminal outcome or time (`UI/components/chat/PermissionCard.tsx:398`, `:488`; `UI/hooks/useWebMcpApprovalOutcome.ts:12`). |
+| A5 failure recovery | **9** | Six outcomes stay distinct, runtime rejections resolve to property plus rule with recovery affordances, and an incomplete projection now reports `truncated` instead of inventing a missing argument (`UI/lib/webMcpDiagnosis.ts:186-229`; `UI/components/mcp/WebMcpCallDiagnosis.tsx:34-43`; `UI/components/chat/message/parts/WebMcpBrowserErrorAction.tsx`). |
+| A6 evidence after the task | **8** | The recap lists steps, outcomes, durations, digests, definition-changed, rejections, never-called tools and honest unknown association with whole-turn copy, but evidence is clipboard text with memory-only receipts (`UI/components/views/git/ReviewLandingBrowserEvidence.tsx:83`, `:98`, `:107`; `UI/stores/useWebMcpApprovalOutcome.ts:56`). |
+| A7 pause and take over | **8** | Pause is separate from Disconnect, preserves the page, acknowledges cancellation in bounded time and never claims rollback (`EmbeddedWebMcpBrowser.tsx:540-557`; `UI/components/mcp/WebMcpCancellationStatus.tsx`). |
+| A8 several sessions at once | **8** | Session-owned pooled views with ownership labels, independent revoke, waiting-page surfaces and an explicit bounded-full state support concurrency (`UI/components/mcp/WebMcpPages.tsx:101-152`, `:198`; `EmbeddedWebMcpBrowser.tsx:467`). |
+| B1 see registered tools | **8** | Kind, hints, origin, schema, advisories and named rejections appear together, but advisory lint still cannot promise runtime-validator parity (`WebMcpToolPanel.tsx:939-951`, `:957`). |
+| B2 try by hand and compare | **8** | Comparison runs against the agent's own receipt with digest-scoped definitions and export now refuses an incomplete projection, but arguments still exist only when an approval preview existed (`WebMcpToolPanel.tsx:270-295`; `toolHelpers.ts:399-402`; `UI/lib/webMcpDiagnosis.ts:149-150`). |
+| B3 iterate | **8** | Drafts keep every accepted name and the timeline records digest changes, but the registration diff is still one JSON blob with no readable rows (`UI/components/mcp/WebMcpToolPanel.tsx:974`; `UI/stores/useWebMcpBrowserStore.ts:589`). |
+| B4 diagnose misuse | **8** | Diagnosis checks a complete retained value against the digest's own definition and refuses to guess when truncated, yet the transcript passes the call's own digest as current, so drift shows only in compare (`UI/components/mcp/WebMcpCallDiagnosis.tsx:91`; `webMcpDiagnosis.ts:235-240`). |
+| B5 onboarding docs | **9** | The guide ties registration, Try it, compare, receipts, truncation semantics and credential filtering into one runnable loop (`docs/webmcp-page-tools.md:305-326`). |
+
+**Means:** A = 66/8 = **8.25**; B = 41/5 = **8.20**. All thirteen reach 8 on this ballot.
+
+**Movement.** No step rose. Round 21 is a correctness round, and its effect is defensive: the sibling-value leak, the silently shortened input and the export of an incomplete receipt would each have justified dropping B2, B4 and A6 to 7, so those three hold at 8 on evidence rather than on the round-20 wording. Versus my round-20 ballot, A2 rises 8→9 (the trust surface now states scope and control in one place) and A3, A6, B2, B4 return 9→8 because I re-read the same caps — 140-character results, 2 KiB previews, memory-only receipts — more strictly; that is recalibration, not regression in code.
+
+**Three changes that would raise the lowest steps most**
+1. Make approval expiry a first-class card outcome (countdown → "timed out unanswered", answered decision retained) — lifts **A4**, and A5's reason vocabulary with it (`PermissionCard.tsx:483`).
+2. Render the registration diff as property · field · before → after rows over nested and root changes, reusing the diagnosis rule names — lifts **B3**, helps B1/B4 (`WebMcpToolPanel.tsx:974`).
+3. Show a one-screen "what this page lets the agent do" summary (name, hint badge, effect verb, input names) above the schema tree — lifts **A1** and **B1** together (`WebMcpToolPanel.tsx:917`).
+
+No files were modified; no checks were executed (shell unavailable).

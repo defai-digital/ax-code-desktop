@@ -329,3 +329,19 @@ round 19 closure note.
 Final audit at `e9555305` (code identical to `4b7f80db`): glm-5.3 and deepseek-flash both report no P1
 (`AUDIT-2026-10-21-p1-glm-final.md`, `AUDIT-2026-10-21-p1-deepseek-final.md`). The three codex P1s at the same code remain open
 follow-ups, accepted by the user.
+
+## Round 21 result and closure (main `15f40f1d`; raw judgments in `round21/`)
+
+Round 21 fixed the three codex P1s from round 20 (one redaction entry point for every WebMCP display, field-context
+propagation to sibling value keys, no silent input shortening). Full gates, seven native journeys and `e2e:desktop` passed;
+Desktop CI run 39694405630 on `15f40f1d` passed on macOS 15, Windows 2022 and Ubuntu 24.04, including W1 to W8.
+
+Rubric at `15f40f1d`: every step scores 8 or more from codex, deepseek-flash and MiniMax-M3 (A2 9/9/8, A5 8/9/8, B5 8/9/8,
+all others 8); grok-4.7 also scores 8 or more except A5 (7). Thirteen of thirteen pass.
+
+P1 audit at `5ef139d8` (same code): glm-5.3 no P1; codex two new narrow P1s (array-indexed credential paths such as
+`["recoveryCodes", 0]`; name/value credential pairs in the JSON input editor are not auto-masked) and one P2 (redaction cost
+on 64 KiB prose). Codex has reported new variants at every pass since round 15. On 2026-10-21 the user chose to close on this
+basis (option B): rubric 13 of 13, CI green with W1 to W8 on three platforms, better than Orca and opencode from all four
+judges, glm and deepseek audits without P1, and the codex findings in `AUDIT-2026-10-21-p1-codex-round21.md` kept as open
+follow-ups.

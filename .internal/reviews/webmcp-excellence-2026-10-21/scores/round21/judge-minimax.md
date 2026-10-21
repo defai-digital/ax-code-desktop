@@ -1,0 +1,35 @@
+I have verified all four round-21 claims in source and confirmed the round-20 blockers that persist. My judgment follows.
+
+## WebMCP excellence rubric: round 21 judgment at `15f40f1d`
+
+**Method.** Read-only source review of `desktop/packages/ui/src`, `desktop/packages/electron/src`, `desktop/shared`, `docs/`. No shell in this turn: **no `git log 4b7f80db..HEAD`, no executed tests, no native journeys** — every claim below is read from source. Credit only for fields pinned runtime **v7.28.2** actually sends (`definitionDigest`, redacted `inputPreview`). Uncommitted `config/`, lockfile and version pins ignored. `UI` = `desktop/packages/ui/src`, `S` = `desktop/shared`.
+
+**Round-21 claims, verified:** one shared redactor is real — `redactWebMcpText`/`redactWebMcpReport` back every display surface I read (`PermissionCard.tsx:3,419`, `ToolPart-impl.tsx:8,216`, `useWebMcpBrowserStore.ts:1,341`). Field-naming keys propagate to sibling value keys at `webmcp-redaction.mjs:146,153,156`. Projections keep every property and downgrade instead of dropping: `toolHelpers.ts:417-419` returns `kind: "truncated", input: null` rather than a partial bag, and `useWebMcpBrowserStore.ts:579` yields `{}` + truncated. Truncation suppresses findings and export: `webMcpDiagnosis.ts:140,235-238`; `WebMcpToolPanel.tsx:252,1002,1009-1011` disables replay. All four hold.
+
+| Step | Score | One sentence and path:line |
+|---|---:|---|
+| A1 discover | 8 | Origin, descriptions, redacted schemas, hint badges, `shown/total` caps, named rejections and advisory lint are inspectable pre-grant, but the whole surface is still one collapsed technical tree (`UI/components/mcp/WebMcpToolPanel.tsx:955`). |
+| A2 enable and scope trust | 8 | Session-scoped enable, per-session revoke, isolated-profile sign-in and Sign out stay legible, but there is still no grant list and no schema-hash binding, so revocation is whole-project (`UI/components/mcp/WebMcpPages.tsx:117`; `UI/stores/useWebMcpBrowserStore.ts:430`). |
+| A3 watch live | 8 | Rows carry the retained redacted preview, digest, duration, result and an unanswered marker, but a truncated projection is reported rather than diagnosed and correlation is call-id, not a runtime id (`UI/components/mcp/WebMcpCallStrip.tsx:63`; `UI/components/chat/message/parts/ToolPart-impl.tsx:1682`). |
+| A4 approvals | 8 | The effect sentence is built from call data, the page description is labelled as the page's claim and the definition shows only on a digest match, but a vanished request still resolves to a bare "unanswered" with no time or expiry outcome (`UI/components/chat/WebMcpApprovalToolInfo.tsx:36,76`; `UI/components/chat/message/parts/ToolPart-impl.tsx:1682`). |
+| A5 failure recovery | 8 | Rejections map to property plus rule and render in transcript, compare and recap under one six-way vocabulary, but the collapsed row still reduces a failure to "failed" text with no property (`UI/lib/webMcpDiagnosis.ts:206-215`; `UI/components/chat/message/parts/ToolPart-impl.tsx:1685`). |
+| A6 evidence after the task | 8 | The recap carries digests, rejections, never-called tools and honest unknown-association text, but it is clipboard prose — no artifact, and receipts are memory-only (`UI/components/views/git/ReviewLandingBrowserEvidence.tsx:98,107,198`). |
+| A7 pause and take over | 8 | Pause stays separate from Disconnect, keeps the page, awaits bounded acknowledgement and never claims rollback (`UI/components/layout/EmbeddedWebMcpBrowser.tsx:545`). |
+| A8 several sessions | 8 | Session-owned pooled pages with independent revoke and waiting surfaces support concurrency, but the bound is a main-process constant and a hidden page still needs the person (`E/desktop-webmcp-browser.js:73`; `UI/components/mcp/WebMcpPages.tsx:200`). |
+| B1 see registered tools | 8 | Kind, hints, origin, raw schema and named rejections are visible before any grant, but advisory lint still cannot predict a runtime rejection, so a builder can still ship a refused schema (`UI/components/mcp/WebMcpToolPanel.tsx:958`). |
+| B2 try by hand and compare | 8 | Compare joins a real completed call and both sides are diagnosed against their own digest, but a truncated projection now correctly suppresses diagnosis and export instead of answering — honest, yet it leaves the builder with nothing (`UI/components/mcp/WebMcpToolPanel.tsx:281,291`). |
+| B3 iterate | 8 | `propertyDiff` now returns real rows — property, change, fields, before, after — and drafts keep every name, but the single renderer still dumps them as one `<pre>` JSON blob (`S/../UI/lib/webMcpPropertyDiff.ts:20`; `UI/components/mcp/WebMcpToolPanel.tsx:974`). |
+| B4 diagnose misuse | 8 | Diagnosis uses the digest's own definition, reports `definition-unavailable`, and attaches the runtime's property and rule, but a call rejected before approval still has no input to check (`UI/lib/webMcpDiagnosis.ts:235-240`; `UI/lib/toolHelpers.ts:393`). |
+| B5 onboarding docs | 8 | The runnable guide covers registration through export and now accurately documents that the "unanswered" state infers neither timeout nor rollback (`docs/webmcp-page-tools.md:326-330`). |
+
+**Means:** A **64/8 = 8.00**; B **40/5 = 8.00**.
+
+**Movement vs round 20 (this ballot's read):** no step moves. Round 21 is a correctness round — it closes credential-integrity defects (B2, A6, B4 hold at 8 rather than falling), and **B3's data layer is fixed but its renderer is not**, so B3 stays 8. The round-20 consensus residual gaps are all still open: B3's JSON blob, A4's expiry wording, B4's pre-approval rejection, A5's collapsed row.
+
+**Three changes that would raise the lowest steps most**
+
+1. **Render the existing `propertyDiff` rows as a table** (`property`, `change`, `fields`, before → after) instead of `JSON.stringify` at `WebMcpToolPanel.tsx:974`. The structured data already exists and is tested; only the presentation is missing. Lifts **B3** alone, and B4 alongside it by joining diff rows to the existing `WebMcpDiagnosisRule` vocabulary.
+2. **Give approval disappearance a first-class outcome** — countdown, then "timed out unanswered", distinct from `unanswered` (`ToolPart-impl.tsx:1682`; `useWebMcpApprovalOutcome.ts:25`). Lifts **A4** and the A3 marker that inherits it.
+3. **Diagnose pre-approval rejections from the redacted input already on the tool part**, keyed to the digest that call names, and surface the property on the collapsed row (`toolHelpers.ts:393`; `ToolPart-impl.tsx:1685`). Lifts **B4** and **A5** together — these two are the only steps still without a failing property attached.
+
+**Validation limits, stated plainly:** no shell, so no `git log 4b7f80db..HEAD` confirmation of the round-21 commit set and no executed checks (typecheck/lint/tests unrun); no native Electron journey and no screenshots; "movement" is established by comparing source read now against the round-20 ballots' cited paths, not by diffing the range. Read-only throughout — no files created, modified or deleted.
