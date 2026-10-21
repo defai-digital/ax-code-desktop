@@ -76,3 +76,6 @@ WX-04. The definition of done (every step 9, none below 8) is not met.
   mutation probes, `reviews/round13/HANDOFF-v13-codex.md`). Gates on the merged tree: UI 4460, Electron 862, web 1499,
   shared 240 tests; build; supervision-workspace, portfolio-identity, project-home and project-browser journeys and
   `e2e:desktop` on macOS.
+- WX-10 pause and take over merged: review by deepseek-flash (no blocking issue; fixes and dispositions in
+  `reviews/round13/REVIEW-t13-deepseek.md`). Gates: UI 4467, Electron 870, web 1499, shared 240 tests; build; four native
+  journeys including W5 keyboard pause and resume (idle), and `e2e:desktop` on macOS. Open: W5 during a long call.
