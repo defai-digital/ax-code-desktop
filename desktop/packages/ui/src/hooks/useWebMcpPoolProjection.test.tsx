@@ -210,3 +210,32 @@ test("polls generation, bounded catalogs and registration rejection into each po
     catalogRejection: null,
   })
 })
+
+test("projects interrupted access and foreign owner recovery while retaining bridge exclusion", async () => {
+  vi.useFakeTimers()
+  let view = { ...native("first", "ses_first"), waiting: false, interrupted: false }
+  const otherWindows = [{ id: "foreign", pageCount: 2 }]
+  invoke.mockImplementation(async () => ({ views: [view], liveViews: 3, maxLiveViews: 3, otherWindows }))
+  render(<Harness />)
+  await act(async () => {})
+  expect(pause).toHaveBeenCalledOnce()
+  expect(useWebMcpBrowserStore.getState().capacity?.otherWindows).toEqual(otherWindows)
+  view = { ...view, enabled: false, interrupted: true }
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[viewKeyFor("/repo", "ses_first")]).toMatchObject({
+    enabled: false,
+    interrupted: true,
+  })
+  expect(resume).not.toHaveBeenCalled()
+  view = { ...view, enabled: true, interrupted: false }
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[viewKeyFor("/repo", "ses_first")]).toMatchObject({
+    enabled: true,
+    interrupted: false,
+  })
+  expect(pause).toHaveBeenCalledOnce()
+})

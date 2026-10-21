@@ -323,3 +323,19 @@ pinning the ADR-266 runtime (MiniMax; needs a signed AX Code release and approva
   boundaries, release contract, 14 locales (5193 keys); build; macOS native journeys (supervision-workspace, portfolio-identity,
   project-home) and `e2e:desktop` passed. R10 (review rail tree, grok) follows in a separate commit.
 
+
+## Interim comparison during round 14 (HEAD `163272bf`; raw judgments in `round14-interim/`)
+
+Same brief and weights as rounds 9 and 10, updated for rounds 11 to 13.
+
+| Judge | AX | Orca | opencode | AX vs Orca | AX vs opencode |
+| --- | --- | --- | --- | --- | --- |
+| codex | 9.05 | 8.93 | 6.90 | +0.12, equal | better |
+| deepseek-flash | about 9.1 | about 8.95 | about 6.9 | +0.16, equal | better |
+| MiniMax-M3 | 9.04 | 8.99 | 6.92 | +0.05, better (below the 0.2 margin) | better |
+
+All three judges rate AX better than opencode and ahead of Orca, but below the competitive PRD's 0.2 margin. Workspace and
+layout is the only surface where Orca leads (AX 8.6 to 8.9, Orca 9.0). Named flips: the round 14a surfaces (waiting calls in
+Needs you, Mission Control and the grid; the page switcher with per-session revoke; named pool capacity), free arrangement in
+the session grid (drag to split, reorder, pop out), a multi-select PR facet with counts, and inline three-way merge. The brief
+lost the name of the CLI to a shell substitution; the judges read the source and docs.

@@ -168,3 +168,13 @@ test("uses the native failure sentence even when the runtime is incompatible", (
     stateKey: "webmcp.state.unknown",
   })
 })
+
+test("runtime interruption never claims access is on and explains automatic recovery", () => {
+  expect(
+    summarizeWebMcpBrowser({ ...base, phase: "ready", enabled: false, interrupted: true }, { isElectron: true }),
+  ).toMatchObject({
+    tone: "warning",
+    stateKey: "webmcp.pages.access.interrupted",
+    detailKey: "webmcp.detail.interrupted",
+  })
+})

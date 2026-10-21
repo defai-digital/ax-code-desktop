@@ -12,6 +12,7 @@ type NativeView = Pick<
   | "sessionID"
   | "nativeAvailable"
   | "enabled"
+  | "interrupted"
   | "origin"
   | "paused"
   | "visible"
@@ -20,6 +21,8 @@ type NativeView = Pick<
   | "page"
   | "error"
 > & {
+  unloaded?: boolean
+  idle?: boolean
   id: string
   generation?: unknown
   catalogTotal?: unknown
@@ -43,8 +46,21 @@ export function useWebMcpPoolProjection(enabled = true) {
       const revision = storageRevision.current
       const before = useWebMcpBrowserStore.getState().views
       try {
-        const result = await invoke<{ views?: NativeView[] }>("desktop_webmcp_browser", { action: "list" })
+        const result = await invoke<{
+          views?: NativeView[]
+          liveViews?: number
+          maxLiveViews?: number
+          otherWindows?: { id: string; pageCount: number }[]
+        }>("desktop_webmcp_browser", { action: "list" })
         if (disposed || revision !== storageRevision.current || !Array.isArray(result?.views)) return
+        if (typeof result.liveViews === "number" && typeof result.maxLiveViews === "number")
+          useWebMcpBrowserStore.setState({
+            capacity: {
+              liveViews: result.liveViews,
+              maxLiveViews: result.maxLiveViews,
+              otherWindows: result.otherWindows,
+            },
+          })
         const ids = new Set<string>()
         for (const view of result.views) {
           if (
@@ -72,10 +88,13 @@ export function useWebMcpPoolProjection(enabled = true) {
             ...(view.enabled ? { runtimeCompatible: true } : {}),
             nativeAvailable: view.nativeAvailable,
             enabled: view.enabled,
+            interrupted: view.interrupted ?? false,
             origin: view.origin,
             paused: view.paused,
             visible: view.visible,
             waiting: view.waiting,
+            unloaded: view.unloaded ?? false,
+            idle: view.idle ?? false,
             tools: view.tools,
             page: view.page,
             generation: typeof view.generation === "string" ? view.generation : null,
@@ -116,7 +135,7 @@ export function useWebMcpPoolProjection(enabled = true) {
       [
         ...new Set(
           Object.values(state.views)
-            .filter((view) => view.enabled && view.directory)
+            .filter((view) => (view.enabled || view.paused || view.interrupted) && view.directory)
             .map((view) => view.directory!),
         ),
       ].sort(),

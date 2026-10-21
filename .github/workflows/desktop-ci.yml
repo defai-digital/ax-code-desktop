@@ -313,6 +313,9 @@ jobs:
             run node "desktop/packages/electron/scripts/e2e/${journey}-webmcp.mjs" \
               --artifacts "$RUNNER_TEMP/supervision-journeys/${journey}" || status=1
           done
+          # Task suite W7: two projects, each with a session and its own page.
+          run node desktop/packages/electron/scripts/e2e/project-browser-sessions.mjs \
+            --artifacts "$RUNNER_TEMP/supervision-journeys/project-browser-sessions" || status=1
           exit "$status"
 
       - name: Upload journey artifacts

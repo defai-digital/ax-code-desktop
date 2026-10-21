@@ -1,4 +1,7 @@
 import React from "react"
+import { countSessionsWithWaitingPages } from "@/lib/webMcpViewKey"
+import { useWebMcpPages } from "@/hooks/useWebMcpPages"
+import { WebMcpWaitingPages } from "@/components/mcp/WebMcpPages"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
@@ -77,7 +80,9 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
     [inputs],
   )
 
-  if (queue.length === 0) return null
+  const waiting = useWebMcpPages().filter((page) => page.waiting && !page.visible)
+  const count = countSessionsWithWaitingPages(queue, waiting)
+  if (count === 0) return null
 
   const visible = expanded ? queue : queue.slice(0, NEEDS_YOU_VISIBLE_ROWS)
 
@@ -90,8 +95,9 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
       <div className="flex items-center gap-2 px-1 pb-1.5">
         <span className="h-1.5 w-1.5 rounded-full bg-[var(--status-warning)]" aria-hidden />
         <h2 className="typography-ui-label font-medium text-foreground">{t("projects.home.needsYou.title")}</h2>
-        <span className="typography-micro text-muted-foreground">{queue.length}</span>
+        <span className="typography-micro text-muted-foreground">{count}</span>
       </div>
+      <WebMcpWaitingPages />
       <div className="surface-inset flex flex-col gap-0.5 p-1">
         {visible.map((entry) => {
           const project = projectLabel(entry.projectId, entry.directory)
@@ -125,11 +131,7 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
               <Icon name={REASON_ICON[entry.reason]} className="h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]" />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate typography-ui-label text-foreground">{entry.title}</span>
-                {project ? (
-                  <span className="break-all typography-micro text-muted-foreground">
-                    {project}
-                  </span>
-                ) : null}
+                {project ? <span className="break-all typography-micro text-muted-foreground">{project}</span> : null}
                 <SupervisionGoalLine goal={entry.goal} className="typography-micro text-muted-foreground" />
               </span>
               <span className="shrink-0 typography-micro text-[var(--status-warning)]">

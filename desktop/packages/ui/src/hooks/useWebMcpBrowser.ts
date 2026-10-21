@@ -52,6 +52,7 @@ export function useWebMcpSummary(key?: string) {
         nativeAvailable: view?.nativeAvailable ?? false,
         runtimeCompatible: view?.runtimeCompatible ?? state.runtimeCompatible,
         enabled: view?.enabled ?? false,
+        interrupted: view?.interrupted ?? false,
         origin: view?.origin ?? null,
         page: view?.page ?? null,
         tools: view?.tools ?? 0,

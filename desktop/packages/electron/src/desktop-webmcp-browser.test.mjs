@@ -19,6 +19,9 @@ function fixture({
   loadTimeoutMs = 20,
   sessionDirectory = null,
   maxLiveViews = 4,
+  pollTimeoutMs,
+  pollRetryMs,
+  nextPoll,
 } = {}) {
   const owners = new Map()
   const guests = []
@@ -106,6 +109,8 @@ function fixture({
     loadTimeoutMs,
     attachTimeoutMs,
     maxLiveViews,
+    pollTimeoutMs,
+    pollRetryMs,
     session: {
       fromPartition: (partition) => {
         if (!partitions.has(partition))
@@ -139,6 +144,7 @@ function fixture({
             epoch: "boot",
             projectID: "project",
           })
+        if (request.url.endsWith("/next") && nextPoll) return nextPoll(request)
         if (request.url.endsWith("/next"))
           return nextStreamRequest(request.url.split("/").at(-2), request.signal).then(
             (next) => next.batch ?? { request: next, canceled: [] },
@@ -158,6 +164,9 @@ function fixture({
       isDestroyed: () => false,
       isVisible: () => true,
       isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
       getContentBounds: () => ({ width: 800, height: 600 }),
       contentView: {
         children: new Set(),
@@ -610,6 +619,9 @@ describe("native project browser integration", () => {
       isDestroyed: () => false,
       isVisible: () => true,
       isMinimized: () => false,
+      restore: vi.fn(),
+      show: vi.fn(),
+      focus: vi.fn(),
       getContentBounds: () => ({ width: 800, height: 600 }),
       contentView: { addChildView() {}, removeChildView() {} },
     })
@@ -689,6 +701,9 @@ describe("native project browser integration", () => {
         isDestroyed: () => false,
         isVisible: () => true,
         isMinimized: () => false,
+        restore: vi.fn(),
+        show: vi.fn(),
+        focus: vi.fn(),
         getContentBounds: () => ({ width: 800, height: 600 }),
         contentView: { addChildView() {}, removeChildView() {} },
       }),
@@ -857,7 +872,10 @@ describe("Round 8 browser lifecycle", () => {
     const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
     expect(enabled).toMatchObject({ enabled: true })
     await f.controller.command(sender, { action: "pause", id: status.id })
-    expect(await f.controller.command(sender, { action: "resume", id: status.id })).toMatchObject({ enabled: true, paused: false })
+    expect(await f.controller.command(sender, { action: "resume", id: status.id })).toMatchObject({
+      enabled: true,
+      paused: false,
+    })
   })
 
   test("pauses without losing the page, storage or enrollment and resumes the same provider", async () => {
@@ -1611,7 +1629,8 @@ describe("WX-15 bounded lifecycle", () => {
       })
       await vi.advanceTimersByTimeAsync(0)
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true })
-      expect(vi.getTimerCount()).toBe(timers + 1)
+      // A held request replaces this provider's poll deadline with its request deadline.
+      expect(vi.getTimerCount()).toBe(timers)
       await f.controller.closeAll()
       await vi.advanceTimersByTimeAsync(0)
       expect(vi.getTimerCount()).toBe(0)
@@ -1925,4 +1944,312 @@ test("pooled status and list preserve each page generation, catalog bounds and r
   firstGuest.emit("did-start-navigation", {}, "https://example.com/new", false, true)
   expect((await f.controller.command(sender, { action: "status", id: first.id })).generation).not.toBe(a.generation)
   expect(await f.controller.command(sender, { action: "status", id: second.id })).toEqual(b)
+})
+
+describe("Round 14a LRU unload", () => {
+  test("unloads the least recently used hidden idle page, keeps its full address only in memory and reloads with access off", async () => {
+    const f = fixture({ maxLiveViews: 2 })
+    const { sender, status: first } = await f.create()
+    const address = "https://example.com/private?ticket=memory-only#section"
+    await f.controller.command(sender, { action: "navigate", id: first.id, url: address })
+    await f.controller.command(sender, { action: "enable", id: first.id })
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/other",
+      sessionID: "ses_other",
+      url: "https://other.test/",
+    })
+    await f.controller.command(sender, { action: "show", id: second.id })
+    await f.controller.command(sender, { action: "bounds", id: second.id, x: 0, y: 0, width: 200, height: 200 })
+    await f.controller.command(sender, { action: "enable", id: second.id })
+    const third = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/third",
+      sessionID: "ses_third",
+      url: "https://third.test/",
+    })
+    expect(f.guests[0].destroyed).toBe(true)
+    expect(f.guests[1].destroyed).toBe(false)
+    expect(f.controller.poolStats().liveViews).toBe(2)
+    const listing = await f.controller.command(sender, { action: "list" })
+    expect(listing).toMatchObject({ maxLiveViews: 2, liveViews: 2 })
+    expect(listing.views.find((view) => view.id === first.id)).toMatchObject({
+      unloaded: true,
+      enabled: false,
+      paused: false,
+      waiting: false,
+    })
+    expect(JSON.stringify(listing)).not.toContain("memory-only")
+    expect(f.requests.filter((r) => r.method === "DELETE").map((r) => r.url)).toEqual([
+      "/desktop/browser/provider/provider-1",
+    ])
+    // The selected second page remains intact; the hidden third page makes room for the first.
+    const restored = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_fixture",
+      url: "https://example.com/private",
+    })
+    await f.controller.command(sender, { action: "show", id: restored.id })
+    expect(restored).toMatchObject({ id: first.id, url: address, unloaded: false, enabled: false, paused: false })
+    expect(f.guests.at(-1).loadedUrls).toEqual([address])
+    expect((await f.controller.command(sender, { action: "status", id: second.id })).enabled).toBe(true)
+    expect((await f.controller.command(sender, { action: "status", id: third.id })).unloaded).toBe(true)
+    expect(await f.controller.command(sender, { action: "show", id: third.id })).toMatchObject({
+      url: "https://third.test/",
+      unloaded: false,
+      enabled: false,
+      paused: false,
+    })
+    expect([...f.partitions.values()].every((partition) => partition.clearStorageData.mock.calls.length === 0)).toBe(
+      true,
+    )
+    await f.controller.closeAll()
+    expect((await f.controller.command(sender, { action: "list" })).views).toEqual([])
+    expect(sender.eventNames()).toEqual([])
+    expect(f.owners.get(sender).eventNames()).toEqual([])
+  })
+
+  test("LRU honors recent shows, never unloads a held call, and rejects a full busy pool", async () => {
+    const f = fixture({ maxLiveViews: 2 })
+    const { sender, status: first } = await f.create()
+    const enabled = await f.controller.command(sender, { action: "enable", id: first.id })
+    const second = await f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_second",
+      url: "https://second.test/",
+    })
+    await f.controller.command(sender, { action: "show", id: second.id })
+    await f.controller.command(sender, { action: "bounds", id: second.id, x: 0, y: 0, width: 200, height: 200 })
+    f.pushStreamRequest(navigateRequest({ generation: enabled.generation }))
+    await vi.waitFor(async () =>
+      expect((await f.controller.command(sender, { action: "status", id: first.id })).waiting).toBe(true),
+    )
+    const createThird = () =>
+      f.controller.command(sender, {
+        action: "create",
+        directory: "/tmp/project",
+        sessionID: "ses_third",
+        url: "https://third.test/",
+      })
+    await expect(createThird()).rejects.toThrow("pool-full")
+    await f.controller.command(sender, { action: "revokeSession", directory: "/tmp/project", sessionID: "ses_fixture" })
+    await f.controller.command(sender, { action: "show", id: first.id })
+    await createThird()
+    expect(f.guests[0].destroyed).toBe(false)
+    expect(f.guests[1].destroyed).toBe(true)
+  })
+})
+
+test("LRU chooses the oldest of multiple hidden pages and cleans unloaded records on window death", async () => {
+  const f = fixture({ maxLiveViews: 3 })
+  const { sender, status: first } = await f.create()
+  const create = (name) =>
+    f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: `ses_${name}`,
+      url: `https://${name}.test/`,
+    })
+  const second = await create("second")
+  const third = await create("third")
+  const now = vi.spyOn(Date, "now")
+  now.mockReturnValue(1000)
+  await f.controller.command(sender, { action: "show", id: second.id })
+  now.mockReturnValue(2000)
+  await f.controller.command(sender, { action: "show", id: first.id })
+  now.mockReturnValue(3000)
+  await f.controller.command(sender, { action: "show", id: third.id })
+  await f.controller.command(sender, { action: "bounds", id: third.id, x: 0, y: 0, width: 200, height: 200 })
+  now.mockRestore()
+  await create("fourth")
+  expect(f.guests[0].destroyed).toBe(false)
+  expect(f.guests[1].destroyed).toBe(true)
+  expect((await f.controller.command(sender, { action: "status", id: second.id })).unloaded).toBe(true)
+  const foreign = Object.assign(new EventEmitter(), { id: 99 })
+  f.owners.set(foreign, f.owners.get(sender))
+  await expect(f.controller.command(foreign, { action: "show", id: second.id })).rejects.toThrow("another window")
+  await expect(
+    f.controller.command(sender, { action: "close", id: second.id, sessionID: "ses_wrong" }),
+  ).rejects.toThrow("session mismatch")
+  sender.emit("render-process-gone")
+  await vi.waitFor(async () => expect((await f.controller.command(sender, { action: "list" })).views).toEqual([]))
+  expect(sender.eventNames()).toEqual([])
+})
+
+test("LRU does not unload a hidden manual invocation", async () => {
+  const f = fixture({ maxLiveViews: 1 })
+  const { sender, status } = await f.create()
+  const guest = f.guests[0]
+  const tool = { name: "held", frameId: "top", description: "Held tool", inputSchema: { type: "object" } }
+  guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [tool] })
+  guest.debugger.sendCommand = vi.fn(async (method) =>
+    method === "WebMCP.invokeTool" ? { invocationId: "manual-held" } : {},
+  )
+  const invocation = f.controller.command(sender, { action: "tryTool", id: status.id, toolName: "held", input: {} })
+  await vi.waitFor(async () =>
+    expect((await f.controller.command(sender, { action: "status", id: status.id })).idle).toBe(false),
+  )
+  await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+  await expect(
+    f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_other",
+      url: "https://other.test/",
+    }),
+  ).rejects.toThrow("pool-full")
+  expect(guest.destroyed).toBe(false)
+  await f.controller.command(sender, { action: "disconnect", id: status.id })
+  await invocation
+})
+
+test.each(["closed", "destroyed", "render-process-gone"])(
+  "dormant cap and owner listeners stay flat after 100 evictions; cleanup on %s",
+  async (event) => {
+    const f = fixture({ maxLiveViews: 1 })
+    const { sender, status: first } = await f.create({ attach: false })
+    const owner = f.owners.get(sender)
+    const ids = [first.id]
+    const counts = () => [
+      owner.listenerCount("closed"),
+      sender.listenerCount("destroyed"),
+      sender.listenerCount("render-process-gone"),
+    ]
+    for (let index = 0; index < 100; index++) {
+      const view = await f.controller.command(sender, {
+        action: "create",
+        directory: "/tmp/project",
+        sessionID: `ses_eviction${index}`,
+        url: "https://example.com/",
+      })
+      ids.push(view.id)
+      // One live entry and one dormant-owner listener, independent of record count.
+      expect(counts()).toEqual([2, 2, 2])
+    }
+    const listing = await f.controller.command(sender, { action: "list" })
+    expect(listing.views.filter((view) => view.unloaded).map((view) => view.id)).toEqual(ids.slice(-33, -1))
+    expect(listing.views).toHaveLength(33)
+    ;(event === "closed" ? owner : sender).emit(event)
+    await vi.waitFor(async () => expect((await f.controller.command(sender, { action: "list" })).views).toEqual([]))
+    expect(counts()).toEqual([0, 0, 0])
+  },
+)
+
+test("a destroyed guest can be unloaded without reading its URL", async () => {
+  const f = fixture({ maxLiveViews: 1 })
+  const { sender, status } = await f.create({ attach: false })
+  f.guests[0].destroyed = true
+  f.guests[0].getURL = vi.fn(() => {
+    throw new Error("Object has been destroyed")
+  })
+  await f.controller.command(sender, {
+    action: "create",
+    directory: "/tmp/project",
+    sessionID: "ses_next",
+    url: "about:blank",
+  })
+  expect(f.guests[0].getURL).not.toHaveBeenCalled()
+  expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+    unloaded: true,
+    enabled: false,
+  })
+})
+
+test("a paused page keeps its connection when capacity is exhausted", async () => {
+  const f = fixture({ maxLiveViews: 1 })
+  const { sender, status } = await f.create()
+  await f.controller.command(sender, { action: "enable", id: status.id })
+  await f.controller.command(sender, { action: "pause", id: status.id })
+  await f.controller.command(sender, { action: "bounds", id: status.id, x: 0, y: 0, width: 0, height: 0 })
+  await expect(
+    f.controller.command(sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_next",
+      url: "about:blank",
+    }),
+  ).rejects.toThrow("pool-full")
+  expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+    paused: true,
+    unloaded: false,
+  })
+  expect(f.requests.filter((request) => request.method === "DELETE")).toEqual([])
+})
+
+test("a full pool exposes a focusable owner to another local window without granting page control", async () => {
+  const f = fixture({ maxLiveViews: 2 })
+  const first = await f.create()
+  const second = await f.create()
+  await expect(
+    f.controller.command(second.sender, {
+      action: "create",
+      directory: "/tmp/project",
+      sessionID: "ses_blocked",
+      url: "about:blank",
+    }),
+  ).rejects.toThrow("pool-full")
+  const listing = await f.controller.command(second.sender, { action: "list" })
+  expect(listing.otherWindows).toEqual([{ id: first.status.id, pageCount: 1 }])
+  expect(listing.views.map((view) => view.id)).toEqual([second.status.id])
+  const owner = f.owners.get(first.sender)
+  owner.isMinimized = () => true
+  await f.controller.command(second.sender, { action: "focusOwner", id: listing.otherWindows[0].id })
+  expect(owner.restore).toHaveBeenCalledOnce()
+  expect(owner.show).toHaveBeenCalledOnce()
+  expect(owner.focus).toHaveBeenCalledOnce()
+  await expect(f.controller.command(second.sender, { action: "close", id: first.status.id })).rejects.toThrow(
+    "another window",
+  )
+  await expect(f.controller.command(new EventEmitter(), { action: "focusOwner", id: first.status.id })).rejects.toThrow(
+    "local desktop window",
+  )
+  await f.controller.command(first.sender, { action: "close", id: first.status.id })
+  await expect(f.controller.command(second.sender, { action: "focusOwner", id: first.status.id })).rejects.toThrow(
+    "unavailable",
+  )
+})
+
+test("provider poll deadline interrupts access, retries, recovers and ignores a late timed-out batch", async () => {
+  vi.useFakeTimers()
+  const polls = []
+  try {
+    const f = fixture({
+      pollTimeoutMs: 200,
+      pollRetryMs: 50,
+      nextPoll: (request) => new Promise((resolve) => polls.push({ request, resolve })),
+    })
+    const { sender, status } = await f.create()
+    const enabled = await f.controller.command(sender, { action: "enable", id: status.id })
+    await vi.advanceTimersByTimeAsync(201)
+    expect(polls[0].request.signal.aborted).toBe(true)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      enabled: false,
+      interrupted: true,
+    })
+    expect((await f.controller.command(sender, { action: "list" })).views[0]).toMatchObject({
+      enabled: false,
+      interrupted: true,
+    })
+    await vi.advanceTimersByTimeAsync(50)
+    expect(polls).toHaveLength(2)
+    polls[0].resolve({ request: navigateRequest({ generation: enabled.generation, url: "https://late.test/" }) })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(f.guests[0].loadedUrls).not.toContain("https://late.test/")
+    polls[1].resolve({ canceled: [] })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+      enabled: true,
+      interrupted: false,
+    })
+    expect(f.requests.filter((request) => request.url.endsWith("/provider"))).toHaveLength(1)
+    expect(polls).toHaveLength(3)
+    await f.controller.command(sender, { action: "disconnect", id: status.id })
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(polls).toHaveLength(3)
+    expect(vi.getTimerCount()).toBe(0)
+  } finally {
+    vi.useRealTimers()
+  }
 })

@@ -73,9 +73,12 @@ export interface WebMcpBrowserSnapshot {
   /** null until the runtime capability probe has answered. */
   runtimeCompatible: boolean | null
   paused: boolean
+  interrupted?: boolean
   enabled: boolean
   visible: boolean
   waiting: boolean
+  unloaded?: boolean
+  idle?: boolean
   origin: string | null
   /** null until the browser reports its first status. */
   page: WebMcpPageKind | null
@@ -115,6 +118,7 @@ interface WebMcpBrowserState extends WebMcpViewSnapshot {
   views: Record<string, WebMcpViewSnapshot>
   order: string[]
   activeKey: string | null
+  capacity: { liveViews: number; maxLiveViews: number; otherWindows?: { id: string; pageCount: number }[] } | null
   selectView: (directory: string, sessionID: string | null) => void
   releaseView: (key: string) => void
   updateView: (key: string, partial: WebMcpSnapshotUpdate) => void
@@ -148,8 +152,11 @@ const initialSnapshot: WebMcpBrowserSnapshot = {
   runtimeCompatible: null,
   paused: false,
   enabled: false,
+  interrupted: false,
   visible: false,
   waiting: false,
+  unloaded: false,
+  idle: false,
   origin: null,
   page: null,
   tools: 0,
@@ -232,6 +239,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
     views: {},
     order: [],
     activeKey: null,
+    capacity: null,
     settingsCardSelected: false,
     selectView: (directory, sessionID) => {
       const key = viewKeyFor(directory, sessionID)

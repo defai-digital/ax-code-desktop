@@ -230,7 +230,8 @@
     "settings.page.hooks.title",
     "settings.hooks.list.badge.protocol",
     "settings.hooks.list.source.pack",
-    "webmcp.tools.kind.script"
+    "webmcp.tools.kind.script",
+    "webmcp.pages.title"
   ],
   "de": [
     "supervision.missionControl.pr.label",

@@ -79,3 +79,42 @@ WX-04. The definition of done (every step 9, none below 8) is not met.
 - WX-10 pause and take over merged: review by deepseek-flash (no blocking issue; fixes and dispositions in
   `reviews/round13/REVIEW-t13-deepseek.md`). Gates: UI 4467, Electron 870, web 1499, shared 240 tests; build; four native
   journeys including W5 keyboard pause and resume (idle), and `e2e:desktop` on macOS. Open: W5 during a long call.
+
+## Round 13 result (HEAD `7cd2d383`; raw judgments in `round13/`)
+
+A step passes with 8 or more from two of the three judges (PRD section 3 as revised by the user).
+
+| Step | codex | deepseek-flash | MiniMax-M3 | Pass |
+| --- | --- | --- | --- | --- |
+| A1 discover | 8 | 8 | 9 | yes |
+| A2 enable and scope trust | 7 | 7 | 9 | no |
+| A3 watch live | 7 | 8 | 9 | yes |
+| A4 approvals | 7 | 8 | 9 | yes |
+| A5 failure recovery | 7 | 8 | 9 | yes |
+| A6 evidence after the task | 7 | 8 | 9 | yes |
+| A7 pause and take over | 7 | 8 | 9 | yes |
+| A8 several sessions | 6 | 6 | 9 | no |
+| B1 see registered tools | 8 | 8 | 9 | yes |
+| B2 try and compare | 6 | 7 | 8 | no |
+| B3 iterate | 7 | 8 | 9 | yes |
+| B4 diagnose misuse | 6 | 6 | 8 | no |
+| B5 onboarding docs | 8 | 8 | 9 | yes |
+
+Nine of thirteen steps pass (round 12: two). Means: supervisor 7.0 / 7.6 / 9.0, builder 7.0 / 7.4 / 8.4. MiniMax's first output
+held only its summary; it was rerun with an instruction to put the full table in its final answer (`brief-minimax.md`).
+Round 14 targets the four failing steps: A8 and A2 (page switcher, per-session revoke, capacity and LRU unload, waiting
+surfaced in Needs you, Mission Control and the grid, task W7) and B2 and B4 (manual journal and replay, comparison with the
+agent's call, misuse diagnosis naming the property and rule, regression export).
+
+## P1 audit after round 13 (glm-5.3, `AUDIT-2026-10-21-p1-glm-round13.md`)
+
+No P1. One P2: the provider's `/next` poll has no independent timeout, so a half-open runtime connection stalls agent calls
+silently while the pane shows access as on; fixed in round 14 (R14a). Three P3 notes recorded. Definition of done item 3 needs
+the audit repeated after round 14.
+
+## Round 14 evidence (in progress)
+
+- R14a merged: page switcher, per-session revoke, trust summary, named capacity with LRU unload, waiting surfaced in Needs you,
+  Mission Control and the session grid, bounded provider poll. Gates: UI 4485, Electron 881, web 1499, shared 240 tests; build;
+  five native journeys including `project-browser-sessions` (W7: two projects, 7 actions of a 12 budget, 50 switches with flat
+  listeners and memory) and `e2e:desktop` on macOS. W7 joins the three-platform CI job.

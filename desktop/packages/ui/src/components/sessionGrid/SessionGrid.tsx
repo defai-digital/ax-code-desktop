@@ -1,4 +1,5 @@
 import React from "react"
+import { WebMcpSessionPage } from "@/components/mcp/WebMcpPages"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
@@ -117,6 +118,7 @@ export function SessionGrid() {
                       </div>
                     )}
                   </div>
+                  {slot && <WebMcpSessionPage directory={slot.directory} sessionID={slot.sessionId} />}
                   {row && <SupervisionStateBadge state={row.state} />}
                   {row && (
                     <button

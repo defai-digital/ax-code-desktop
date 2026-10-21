@@ -83,7 +83,7 @@ export type DesktopCommandArgs = {
   desktop_toggle_current_window_maximized: Record<string, unknown>
   desktop_tray_update: Record<string, unknown>
   desktop_webmcp_browser: {
-    action: "capability" | "create" | "status" | "close" | "disconnect" | "enable" | "resume" | "navigate" | "tryTool" | "reload" | "bounds" | "list" | "show" | "clearProject" | "revokeSession" | "pause"
+    action: "capability" | "create" | "status" | "close" | "disconnect" | "enable" | "resume" | "navigate" | "tryTool" | "reload" | "bounds" | "list" | "show" | "clearProject" | "revokeSession" | "pause" | "focusOwner"
     id?: string
     directory?: string
     sessionID?: string | null
