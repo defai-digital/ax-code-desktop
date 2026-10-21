@@ -668,6 +668,21 @@ describe("agent browser enable request", () => {
     expect(localStorage.getItem(WEBMCP_HISTORY_KEY)).not.toContain(secret)
   })
 
+  test("sensitive address drafts remain editable and navigate with the exact user input", async () => {
+    render()
+    openAgentMode()
+    await flush()
+    const address = within(container).getByRole("textbox", { name: "webmcp.browser.addressAria" }) as HTMLInputElement
+    address.focus()
+    fireEvent.change(address, { target: { value: "https://example.test/?api_key=" } })
+    fireEvent.change(address, { target: { value: address.value + "synthetic-entry" } })
+    expect(address.value).toBe("https://example.test/?api_key=synthetic-entry")
+    expect(address.type).toBe("password")
+    fireEvent.click(within(container).getByRole("button", { name: "webmcp.browser.go" }))
+    await flush()
+    expect(callsFor("navigate").at(-1)?.[1]).toMatchObject({ url: "https://example.test/?api_key=synthetic-entry" })
+  })
+
   test("restores session addresses with access off and isolates session switches", async () => {
     const { rememberWebMcpAddress } = await import("@/stores/useWebMcpBrowserStore")
     rememberWebMcpAddress("/repo/", "ses_one", "https://example.test/one")

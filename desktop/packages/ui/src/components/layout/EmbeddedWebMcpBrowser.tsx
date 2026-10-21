@@ -106,6 +106,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   const summary = useWebMcpSummary(key)
   const openProjectBrowser = useOpenProjectBrowser()
   const [url, setUrl] = React.useState(initialUrl || "about:blank")
+  const [urlIsDraft, setUrlIsDraft] = React.useState(false)
   const [ownerId, setOwnerId] = React.useState<string | null>(null)
   const [finishingCalls, setFinishingCalls] = React.useState(0)
   const [poolFull, setPoolFull] = React.useState(false)
@@ -160,6 +161,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       // Follow in-page navigation unless the user is editing the address.
       if (result.url && result.url !== "about:blank" && document.activeElement !== addressRef.current) {
         setUrl(result.url)
+        setUrlIsDraft(false)
       }
       if (result.url) {
         rememberWebMcpAddress(directory, sessionID, result.url)
@@ -219,6 +221,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       restoreWebMcpAddress(directory, sessionID) ??
       (draftUrl.current?.directory === directory ? draftUrl.current.url : initialUrlRef.current)
     setUrl(restored || "about:blank")
+    setUrlIsDraft(false)
     draftUrl.current = null
     let pooled = false
     const retire = (id: string) =>
@@ -481,8 +484,13 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             aria-label={t("webmcp.browser.addressAria")}
             placeholder={t("webmcp.browser.addressPlaceholder")}
             className="h-7 w-full rounded-md border border-transparent bg-[var(--surface-elevated)] pl-7 pr-2 font-mono typography-meta text-foreground outline-none transition-colors focus-visible:border-[var(--interactive-border-focus)]"
-            value={redactWebMcpText(url)}
-            onChange={(event) => setUrl(event.target.value)}
+            // Preserve explicit edits; masking a controlled value would corrupt the next keystroke.
+            type={urlIsDraft && redactWebMcpText(url) !== url ? "password" : "text"}
+            value={urlIsDraft ? url : redactWebMcpText(url)}
+            onChange={(event) => {
+              setUrl(event.target.value)
+              setUrlIsDraft(true)
+            }}
             spellCheck={false}
             autoComplete="off"
           />
