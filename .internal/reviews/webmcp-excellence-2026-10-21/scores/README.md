@@ -187,3 +187,22 @@ P1 audit after round 15: glm-5.3 was cut off by an upstream error; codex ran the
 (`AUDIT-2026-10-21-p1-codex-round15.md`) and found three P1s: secrets nested in arrays survive regression export, the headless
 checker exits 0 when the Electron child dies before requested runs finish, and exported tests misclassify a recorded
 `status: "failed"` outcome. Definition of done item 3 is not met until these are fixed and an audit run reports no P1.
+
+## Rounds 16 and 17: P1 audit hardening
+
+Fresh audits after round 15 kept finding P1s, so rounds 16 and 17 alternated fix, full gates and a fresh audit (codex with
+glm-5.3 or deepseek-flash as the second auditor) until both auditors reported no P1. Seventeen audit passes in all. Fixed
+classes: credential redaction (arrays, nested and embedded JSON, key-value text with any separators, URL userinfo, encoded
+parameter names in query, fragment and path, signed URLs and OAuth callbacks, short values in explicit contexts, every main to
+renderer response and display site, page titles), origin-only address history, binding of manual Try it and queued
+navigation to the displayed document and definition, one definition-digest vocabulary, retirement of replaced or rejected
+definitions, receipts kept for self-unregistering tools and mid-call generation changes, regression exports limited to
+reproducible outcomes, `webmcp:check` exit codes, keyed identity receipts, top-level-only tools and contamination after a
+timeout, sign-in popups in the isolated profile with the agent waiting (WX-14) and Sign out, unsaved-work protection for
+eviction, close, sign-out, quit, restart and update with a bounded confirmation, masked sensitive and JSON inputs, and a
+landing recap that counts and copies the whole turn. Every merged step passed typecheck, lint, boundaries, locales, all tests,
+build, six native journeys and `e2e:desktop` on macOS.
+
+Final audit at `5b0bc8a6` (`AUDIT-2026-10-21-p1-codex-round17.md`, `AUDIT-2026-10-21-p1-deepseek-round17.md`): no P1 from
+either auditor. Two P2s remain: a tool whose name is itself credential-shaped cannot be tried by hand (shown as a stale form),
+and approval cards shorten page descriptions to 200 characters. Definition of done item 3 is met at this commit.
