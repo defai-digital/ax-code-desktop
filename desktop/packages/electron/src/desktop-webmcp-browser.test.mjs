@@ -1373,6 +1373,8 @@ describe("manual invocation native outcomes", () => {
   )
   test.each([
     ["Completed", { value: 5 }, "completed", undefined],
+    ["Completed", { text: "token=MANUAL_SECRET" }, "completed", undefined],
+    ["Completed", { text: "x".repeat(5000) }, "completed", undefined],
     ["Completed", { isError: true }, "application-error", "application-error"],
     ["Completed", { status: "timeout", isError: true }, "timeout", "timeout"],
     ["Completed", JSON.stringify({ untrusted: true, result: { status: "cancelled" } }), "cancelled", "cancelled"],
@@ -1423,6 +1425,8 @@ describe("manual invocation native outcomes", () => {
       input: { text: "  exact  ", zero: 0, off: false, empty: "" },
     })
     expect(result).toMatchObject({ ok: outcome === "completed", outcome, ...(reason ? { reason } : {}) })
+    if (output?.text === "token=MANUAL_SECRET") expect(result.output.text).toBe("[redacted]")
+    if (output?.text?.length === 5000) expect(result.output.text).toHaveLength(4000)
     if (nativeStatus === "Error" || nativeStatus === "command-rejected")
       expect(JSON.stringify(result)).not.toContain("hunter2")
     expect(f.requests.some((request) => request.method === "POST")).toBe(false)
@@ -2830,12 +2834,18 @@ test.each(["close", "disconnect", "revokeSession"])("%s preserves sign-in window
   result.createWindow({})
   f.popups[0].webContents.emit("before-input-event", {}, { type: "keyDown" })
   const args = { action, id: status.id, directory: "/tmp/project", sessionID: "ses_fixture" }
+  f.guests[0].getTitle = () => "token=FAKE_AUDIT_SECRET"
+  f.popups[0].webContents.getTitle = () => "x".repeat(5000) + " token=POPUP_SECRET"
   const reply = await f.controller.command(sender, args)
   expect(f.popups[0].isDestroyed()).toBe(false)
   if (action === "close") {
     expect(reply.confirmationRequired).toBe(true)
     expect(reply.pages).toHaveLength(2)
-    await f.controller.command(sender, { ...args, closeConfirmation: reply.closeConfirmation })
+    expect(reply.pages.map((page) => page.title)).toEqual(["[redacted]", "[redacted]"])
+    f.guests[0].getTitle = () => "x".repeat(5000)
+    const bounded = await f.controller.command(sender, args)
+    expect(bounded.pages[0].title).toHaveLength(4000)
+    await f.controller.command(sender, { ...args, closeConfirmation: bounded.closeConfirmation })
     expect(f.popups[0].isDestroyed()).toBe(true)
   }
 })
@@ -2874,4 +2884,19 @@ describe("explicit destructive page confirmation", () => {
     await f.controller.command(sender, { ...args, closeConfirmation: reply.closeConfirmation })
     expect(f.guests.every((guest) => guest.destroyed)).toBe(true)
   })
+})
+
+test("main status and catalog project bounded redacted page text", async () => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  f.guests[0].url = "https://example.com/?token=URL_SECRET"
+  const reply = await f.controller.command(sender, { action: "status", id: status.id })
+  expect(reply.url).toBe("[redacted]")
+  f.guests[0].url = "https://example.com/" + "x".repeat(5000)
+  expect((await f.controller.command(sender, { action: "status", id: status.id })).url.length).toBe(4000)
+  const projection = projectToolCatalog([{ name: "token=NAME_SECRET", description: "x".repeat(5000), inputSchema: { type: "object", description: "token=SCHEMA_SECRET", properties: { password: { type: "string" } } } }])
+  expect(projection.catalog[0].name).toBe("[redacted]")
+  expect(projection.catalog[0].description.length).toBe(4000)
+  expect(projection.catalog[0].inputSchema.description).toBe("[redacted]")
+  expect(projection.catalog[0].inputSchema.properties.password).toEqual({ type: "string" })
 })

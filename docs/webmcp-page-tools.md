@@ -248,8 +248,8 @@ isolated browser profile. They accept only HTTP and HTTPS navigation. These huma
 windows have no page-tool adapter, preload, Node.js integration, or agent access; downloads
 remain blocked. Agent requests on the opener wait while any sign-in window remains open.
 Finish signing in and close all of its sign-in windows to resume queued requests, subject to
-their original deadline, cancellation, visibility, and pause checks. Closing or revoking the
-opener also closes its sign-in windows. Pages with an open sign-in window are not evicted.
+their original deadline, cancellation, visibility, and pause checks. Closing the opener also closes its sign-in windows after any required unsaved-work
+confirmation. Revoking agent access preserves the opener and its sign-in windows. Pages with an open sign-in window are not evicted.
 
 **Sign out of project browser** closes the project's pages and sign-in windows and clears
 that project's browser storage. Closing a page alone keeps its sign-in for other project pages.

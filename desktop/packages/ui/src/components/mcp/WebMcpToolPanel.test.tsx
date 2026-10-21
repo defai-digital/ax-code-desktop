@@ -1067,3 +1067,12 @@ test.each([['pin', 'integer', '1234', 1234], ['cvv', 'number', '123.5', 123.5]])
     expect(reply).toHaveBeenCalledWith("echo", { [name]: expected }, expect.any(Object))
   },
 )
+
+ test("page descriptions are bounded again at the display boundary", () => {
+  const description = "d".repeat(4096)
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [nativeWebMcpTool({ name: "echo", description, inputSchema: {} })] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  expect(container.querySelector("[title]")?.getAttribute("title")).toHaveLength(4000)
+  expect(container.innerHTML).not.toContain(description)
+})

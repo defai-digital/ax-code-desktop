@@ -1,5 +1,7 @@
 "use strict"
 
+const { webMcpDisplayText, webMcpDisplayReport, webMcpDisplaySchema } = require("../../../shared/webmcp-redaction.mjs")
+
 const { canDiscardDocument, closeForEviction } = require("./browser-eviction")
 const { manualToolResult, manualToolFailure } = require("./webmcp-manual-outcome")
 
@@ -62,15 +64,15 @@ function projectToolCatalog(tools, kinds = new Map()) {
     }
     const annotations = publicAnnotations(tool.annotations)
     const entry = {
-      name: tool.name,
-      description: tool.description,
-      ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
+      name: webMcpDisplayText(tool.name),
+      description: webMcpDisplayText(tool.description ?? ""),
+      ...(tool.inputSchema ? { inputSchema: webMcpDisplaySchema(tool.inputSchema) } : {}),
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),
       definitionDigest: definitionDigest(tool),
     }
-    const size = byteSize(entry)
+    const size = Math.max(byteSize(tool), byteSize(entry))
     if (bytes + size > CATALOG_MAX_BYTES) {
       truncation = "bytes"
       break
@@ -200,7 +202,7 @@ function createDesktopWebMcpBrowser({
     id: record.id,
     directory: record.directory,
     sessionID: record.sessionID,
-    origin: record.origin,
+    origin: record.origin ? webMcpDisplayText(record.origin) : null,
     lastUsed: record.lastUsed,
     unloaded: true,
     idle: true,
@@ -423,7 +425,7 @@ function createDesktopWebMcpBrowser({
     const token = randomUUID()
     closeApprovals.set(sender, { token, action: args.action, identity })
     return { confirmationRequired: true, closeConfirmation: token, pages: documents.map(({ entry, contents, id }) => ({
-      id, sessionID: entry.sessionID, title: contents.getTitle?.() || pageKind(contents.getURL(), null),
+      id, sessionID: entry.sessionID, title: webMcpDisplayText(contents.getTitle?.() || pageKind(contents.getURL(), null)),
     })) }
   }
   async function close(entry, confirmed = false) {
@@ -471,17 +473,17 @@ function createDesktopWebMcpBrowser({
       enabled: Boolean(entry.connection) && !entry.paused && !entry.interrupted,
       interrupted: Boolean(entry.interrupted),
       paused: Boolean(entry.paused),
-      error: entry.error ?? null,
-      origin: snapshot.origin,
+      error: entry.error ? webMcpDisplayText(entry.error) : null,
+      origin: snapshot.origin ? webMcpDisplayText(snapshot.origin) : null,
       tools: snapshot.tools.length,
       catalog: projected.catalog,
       catalogTotal: projected.total,
       catalogTruncation: projected.truncation,
-      catalogRejection: entry.adapter.catalogRejection,
+      catalogRejection: webMcpDisplayReport(entry.adapter.catalogRejection),
       generation: entry.adapter.generation,
       // Lets the renderer say whether the pane is blank or shows a page the agent cannot be granted.
       page: pageKind(url, snapshot.origin),
-      url,
+      url: webMcpDisplayText(url ?? ""),
     }
   }
   async function synchronize(entry) {
@@ -1366,7 +1368,7 @@ function createDesktopWebMcpBrowser({
           input: args.input,
           deadline: Date.now() + 30000,
         })
-        return manualToolResult(result)
+        return webMcpDisplayReport(manualToolResult(result))
       } catch (error) {
         if (error?.outcome === "failed" && ["page-changed", "definition-changed"].includes(error.reason))
           return { ok: false, outcome: "stale-form", reason: error.reason }

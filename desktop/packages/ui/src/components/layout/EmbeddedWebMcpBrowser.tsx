@@ -1,4 +1,4 @@
-import { redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
+import { webMcpDisplayText as redactWebMcpText } from "../../../../../shared/webmcp-redaction.mjs"
 import { useWebMcpCloseConfirmation } from "@/hooks/useWebMcpCloseConfirmation"
 import * as React from "react"
 import { WebMcpCancellationStatus, type WebMcpCancellation } from "@/components/mcp/WebMcpCancellationStatus"

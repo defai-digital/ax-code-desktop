@@ -145,3 +145,27 @@ export function redactWebMcpReport(value, replacement = "[redacted]") {
 export function redactWebMcpText(value) {
   return redactWebMcpReport(value)
 }
+
+/** Bounded page-authored text at IPC and display boundaries. Filter before truncating. */
+export function webMcpDisplayText(value) {
+  return redactWebMcpText(value).slice(0, 4000)
+}
+
+/** Preserve structure while bounding every string in a page-authored display projection. */
+export function webMcpDisplaySchema(value) {
+  let remaining = 100000
+  const bound = (entry, depth = 0) => {
+    if (--remaining < 0 || depth > 32) return "[redacted]"
+    if (typeof entry === "string") return webMcpDisplayText(entry)
+    if (Array.isArray(entry)) return entry.map((child) => bound(child, depth + 1))
+    if (entry && typeof entry === "object")
+      return Object.fromEntries(Object.entries(entry).map(([key, child]) => [webMcpDisplayText(key), bound(child, depth + 1)]))
+    return entry
+  }
+  return bound(value)
+}
+
+/** Tool output and diagnostics also redact values identified by sensitive field names. */
+export function webMcpDisplayReport(value) {
+  return webMcpDisplaySchema(redactWebMcpReport(value))
+}

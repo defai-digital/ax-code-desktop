@@ -101,14 +101,18 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
         if (call.durationMs !== null) parts.push(formatWebMcpDuration(call.durationMs))
         if (call.outcome === "failed" && call.failureReason)
           parts.push(t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey))
-        if (call.definitionDigest) parts.push(`definition ${shortDigest(call.definitionDigest)}`)
+        if (call.definitionDigest) {
+          parts.push(t("diffView.landing.browserRecap.definition", { digest: shortDigest(call.definitionDigest) }))
+          if (call.toolName && currentDigest.has(call.toolName) && currentDigest.get(call.toolName) !== call.definitionDigest)
+            parts.push(t("diffView.landing.browserRecap.definitionChanged"))
+        }
         if (call.resultPreview) parts.push(call.resultPreview)
         return parts.join(" · ")
       })
       .join("\n")
   const copyRecap = async () => {
     try {
-      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), ...(calls.length > RECAP_LIMIT ? [t("diffView.landing.browserRecap.capped", { shown: RECAP_LIMIT, total: calls.length })] : []), recapText()].join("\n"))
+      await navigator.clipboard.writeText([t("diffView.landing.browserRecap.title"), t(failed > 0 ? "diffView.landing.browserEvidenceFailed" : "diffView.landing.browserEvidence", { count: calls.length, failed }), ...(calls.length > RECAP_LIMIT ? [t("diffView.landing.browserRecap.capped", { shown: RECAP_LIMIT, total: calls.length })] : []), recapText(), ...(notCalled.length ? [t("diffView.landing.browserRecap.notCalled", { names: notCalled.map(redactWebMcpText).join(", ") })] : [])].join("\n"))
       setCopied(true)
       window.setTimeout(() => setCopied(false), 1500)
     } catch {
