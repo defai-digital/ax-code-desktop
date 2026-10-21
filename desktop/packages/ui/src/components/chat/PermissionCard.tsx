@@ -384,7 +384,12 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
       const effect = webMcpEffect(call, origin)
       return (
         <>
-          <p className="mb-2 typography-ui-label text-foreground" data-webmcp-effect={effect.key}>
+          {/* Tool and element names come from the page: isolated so bidirectional text cannot reorder the sentence. */}
+          <p
+            className="mb-2 typography-ui-label text-foreground"
+            style={{ unicodeBidi: "isolate" }}
+            data-webmcp-effect={effect.key}
+          >
             {t(`chat.permissionCard.webmcp.effect.${effect.key}`, effect.params)}
           </p>
           {fromDesktopBrowser && webTool && origin ? (

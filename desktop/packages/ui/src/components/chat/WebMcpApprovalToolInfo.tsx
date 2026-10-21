@@ -60,7 +60,7 @@ export function WebMcpApprovalToolInfo({
         <p data-webmcp-approval-hint="untrusted">{t("chat.permissionCard.webmcp.hintUntrusted")}</p>
       ) : null}
       {inputs.length > 0 ? (
-        <p data-webmcp-approval-inputs>
+        <p style={{ unicodeBidi: "isolate" }} data-webmcp-approval-inputs>
           {t("chat.permissionCard.webmcp.inputs", {
             names: inputs.map((input) => (input.required ? `${input.name}*` : input.name)).join(", "),
           })}

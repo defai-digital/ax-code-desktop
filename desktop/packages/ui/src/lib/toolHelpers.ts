@@ -325,7 +325,9 @@ export function placeholderWebMcpSecrets(value: Record<string, unknown>): Record
   const next: Record<string, unknown> = {}
   for (const [key, entry] of Object.entries(value))
     next[key] =
-      WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== ""
+      (WEBMCP_SENSITIVE_NAME.test(key) && entry !== null && entry !== "") ||
+      // A credential-shaped value under an ordinary name is a secret too.
+      (typeof entry === "string" && webMcpTextLooksSensitive(entry))
         ? "<fill in>"
         : entry && typeof entry === "object" && !Array.isArray(entry)
           ? placeholderWebMcpSecrets(entry as Record<string, unknown>)
