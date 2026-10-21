@@ -1,6 +1,10 @@
 // Synthetic credentials only. Shared by preview, export, and actual checker-entry tests.
 export const secret = "AUDIT_FAKE_PASSWORD"
 const keys = [
+  "code",
+  "token",
+  "sig",
+  "secret",
   "password",
   "passwd",
   "passphrase",
@@ -71,3 +75,17 @@ export const credentialUrlShapes = [
   ["OAuth callback", `https://example.test/callback?code=${secret}&state=example`],
 ]
 credentialTextCases.push(...credentialUrlShapes.flatMap(([, url]) => wrappers.map((wrap) => wrap(url))))
+
+// Explicit contexts protect even a single-character credential.
+credentialTextCases.push(
+  ...["a", "abc123"].flatMap((value) => [
+    ...["Bearer", "Basic"].flatMap((scheme) => wrappers.map((wrap) => wrap(`${scheme} ${value}`))),
+    ...keys.flatMap((key) => [
+      ...wrappers.map((wrap) => wrap(`"${key}":"${value}"`)),
+      ...["?", "#", "#/route?", "/route;", "/"].map((prefix) => `https://example.test/${prefix}${key}=${value}`),
+    ]),
+    `Authorization: ${value}`,
+    `Authorization: Bearer ${value}`,
+    `Authorization: Basic ${value}`,
+  ]),
+)

@@ -11,7 +11,7 @@ import { useUIStore } from "@/stores/useUIStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
 
-/** Steps listed in the recap. The counts cover what the scan reads: the latest turn within its message window, up to 200 calls. */
+/** Only the displayed steps are capped; counts and called-tool sets cover the whole latest turn. */
 const RECAP_LIMIT = 50
 const RECAP_KINDS = new Set(["invoke", "act", "read", "navigate", "list"])
 
@@ -53,9 +53,10 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
     React.useCallback(
       (state: { part: Map<string, unknown[]> }) => {
         const calls = collectWebMcpCalls(
-          latestTurnMessages(messages) as never,
+          latestTurnMessages(messages, Infinity) as never,
           (id) => state.part.get(id) as never,
-          200,
+          Infinity,
+          Infinity,
         )
         const recap: RecapCall[] = calls.map(
           ({ id, title, toolName, operation, outcome, failureReason, messageId, partId, durationMs, resultPreview, definitionDigest }) => ({

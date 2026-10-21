@@ -221,3 +221,13 @@ path search, status filters, hidden-attention recovery, Details disclosures, dra
 It checks the rendered diff and effective directory, then captures populated light/dark layouts from 600 to 2800 CSS
 pixels. The narrow Review layout preserves the mounted chat while giving the inspector the full workspace. No model
 prompt is submitted and no user's repository is modified; fixture commits and files are removed with the harness profile.
+
+### Credential filtering and landing evidence
+
+Explicit credential contexts (Bearer and Basic schemes, Authorization headers, and credential-named
+parameters or keys including `code`, `token`, `sig`, `password`, `secret`, and `api_key`) are filtered
+regardless of value length. Use `status` rather than `code` for diagnostics that need a visible status value.
+
+The landing browser recap computes call totals, failures, and uncalled page tools over all messages
+and calls in the latest turn held by the transcript. Only the displayed step list is capped at the latest
+50 calls; this presentation limit does not exclude earlier calls from the evidence.

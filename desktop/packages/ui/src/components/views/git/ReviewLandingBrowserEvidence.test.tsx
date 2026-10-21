@@ -179,3 +179,29 @@ test("uncalled tool names and structured failures are redacted in the recap and 
   expect(writeText.mock.calls[0][0]).toContain("required")
   expect(writeText.mock.calls[0][0]).not.toContain(secret)
 })
+
+test.each([false, true])("whole-turn evidence includes an early failure beyond call and message caps (spread: %s)", (spread) => {
+  const early = call("early", "error")
+  early.state.input.toolName = "complete_task"
+  early.state.metadata.toolName = "complete_task"
+  const successes = Array.from({ length: 205 }, (_, index) => {
+    const part = call(`later-${index}`, "completed")
+    part.state.input.toolName = "list_tasks"
+    part.state.metadata.toolName = "list_tasks"
+    return part
+  })
+  sync.messages = [{ id: "previous", role: "assistant" }, { id: "user", role: "user" }, { id: "early", role: "assistant" },
+    ...(spread ? successes.map((part) => ({ id: part.id, role: "assistant" })) : [{ id: "later", role: "assistant" }])]
+  sync.parts = new Map([["previous", [call("previous-turn", "error")]], ["early", [early]],
+    ...(spread ? successes.map((part): [string, unknown[]] => [part.id, [part]]) : [["later", successes] as [string, unknown[]]])])
+  useWebMcpBrowserStore.setState({ views: {}, order: [], activeKey: null })
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", catalog: [
+    { name: "complete_task", description: "Complete" }, { name: "list_tasks", description: "List" },
+    { name: "unused", description: "Unused" },
+  ] })
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  expect(container.querySelector("[data-landing-browser-evidence]")?.textContent).toBe("diffView.landing.browserEvidenceFailed:206|1")
+  expect(container.querySelectorAll("[data-recap-outcome]")).toHaveLength(50)
+  expect(container.querySelector("[data-recap-capped]")?.textContent).toBe("diffView.landing.browserRecap.capped:50|206")
+  expect(container.querySelector("[data-recap-not-called]")?.textContent).toBe("diffView.landing.browserRecap.notCalled:unused")
+})

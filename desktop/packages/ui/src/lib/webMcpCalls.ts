@@ -76,7 +76,7 @@ type PartLike = {
 }
 type MessageLike = { id?: unknown; role?: unknown; info?: { role?: unknown } }
 
-/** How far back the strip and the landing evidence look, so a long session is never rescanned in full. */
+/** Default scan window for the recent-call strip. Landing evidence explicitly scans the whole turn. */
 export const WEBMCP_CALL_SCAN_MESSAGES = 60
 
 /** The message role, wherever the message shape keeps it. */
@@ -85,9 +85,9 @@ export const messageRole = (message: MessageLike | undefined): string | null => 
   return typeof role === "string" ? role : null
 }
 
-/** Messages of the latest turn: from the person's last message on, within the scan window. */
-export function latestTurnMessages<T extends MessageLike>(messages: readonly T[]): readonly T[] {
-  const floor = Math.max(0, messages.length - WEBMCP_CALL_SCAN_MESSAGES)
+/** Messages of the latest turn: from the person's last message on, within the requested scan window (Infinity covers the whole turn). */
+export function latestTurnMessages<T extends MessageLike>(messages: readonly T[], scanMessages = WEBMCP_CALL_SCAN_MESSAGES): readonly T[] {
+  const floor = Math.max(0, messages.length - scanMessages)
   for (let index = messages.length - 1; index >= floor; index -= 1) {
     if (messageRole(messages[index]) === "user") return messages.slice(index)
   }
@@ -105,9 +105,10 @@ export function collectWebMcpCalls(
   messages: readonly MessageLike[],
   partsOf: (messageId: string) => readonly PartLike[] | undefined,
   limit = 20,
+  scanMessages = WEBMCP_CALL_SCAN_MESSAGES,
 ): WebMcpCall[] {
   const calls: WebMcpCall[] = []
-  const floor = Math.max(0, messages.length - WEBMCP_CALL_SCAN_MESSAGES)
+  const floor = Math.max(0, messages.length - scanMessages)
   for (let m = messages.length - 1; m >= floor && calls.length < limit; m -= 1) {
     const messageId = messages[m]?.id
     if (typeof messageId !== "string") continue
