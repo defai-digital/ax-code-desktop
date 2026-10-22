@@ -45,7 +45,7 @@ export function webMcpTextLooksSensitive(value) {
   }
   // URL credentials can occur inside prose, JSON, or diagnostics. Inspect the raw address
   // too: URL normalization can remove path segments that contained credential assignments.
-  for (const match of text.matchAll(/(?:\b[a-z][a-z0-9+.-]*:)?\/\/[^\s<>"'`]+/gi)) {
+  for (const match of text.matchAll(/(?:(?<![a-z0-9+.-])[a-z][a-z0-9+.-]*:)?\/\/[^\s<>"'`]+/gi)) {
     try {
       const url = new URL(match[0], "https://redaction.invalid")
       if (url.username || url.password) return true

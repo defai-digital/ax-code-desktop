@@ -148,7 +148,7 @@ test("array element diagnostics inherit the final named container's sensitivity"
 
 test("long plain prose and whitespace do not trigger repeated assignment rescanning", () => {
   const started = performance.now()
-  for (const text of ["ab ".repeat(22000), " ".repeat(66000)]) {
+  for (const text of ["ab ".repeat(22000), " ".repeat(66000), "ab-".repeat(22000), "a.".repeat(33000)]) {
     assert.equal(webMcpTextLooksSensitive(text), false)
     assert.equal(webMcpTextLooksSensitive(`${text}api key=private-value`), true)
   }
