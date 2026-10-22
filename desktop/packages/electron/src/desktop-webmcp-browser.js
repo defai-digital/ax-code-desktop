@@ -100,7 +100,6 @@ function createDesktopWebMcpBrowser({
     if (group.keys.size) return
     record.owner.removeListener("closed", group.onClosed)
     record.sender.removeListener("destroyed", group.onClosed)
-    record.sender.removeListener("render-process-gone", group.onClosed)
     unloadedOwners.delete(record.sender)
   }
   function remember(record) {
@@ -115,7 +114,6 @@ function createDesktopWebMcpBrowser({
       unloadedOwners.set(record.sender, group)
       record.owner.on("closed", group.onClosed)
       record.sender.on("destroyed", group.onClosed)
-      record.sender.on("render-process-gone", group.onClosed)
     }
     unloaded.set(record.key, record)
     group.keys.add(record.key)
@@ -438,19 +436,115 @@ function createDesktopWebMcpBrowser({
     for (const abort of entry.loadAborts) abort()
     if (views.get(entry.key) === entry) views.delete(entry.key)
     if (shown.get(entry.sender.id) === entry.key) shown.delete(entry.sender.id)
+    entry.owner.removeListener("close", entry.onOwnerClosing)
     entry.owner.removeListener("closed", entry.onOwnerClosed)
     entry.owner.removeListener("hide", entry.onOwnerHidden)
     entry.owner.removeListener("minimize", entry.onOwnerHidden)
     entry.owner.removeListener("show", entry.onOwnerShown)
     entry.owner.removeListener("restore", entry.onOwnerShown)
     entry.sender.removeListener("destroyed", entry.onOwnerClosed)
-    entry.sender.removeListener("render-process-gone", entry.onOwnerClosed)
+    entry.sender.removeListener("render-process-gone", entry.onSenderGone)
     const disconnection = disconnect(entry)
     closePopups(entry, confirmed)
     entry.adapter.close()
     if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: !confirmed })
     await disconnection
+  }
+  // Recovery must not fail because a guest or window was destroyed concurrently.
+  function revealQuietly(entry) {
+    try {
+      reveal(entry)
+    } catch {
+      // Nothing left to show; the caller's outcome is unchanged.
+    }
+  }
+  // The one confirmation path for closing a page on the person's behalf: shutdown and an
+  // owner window's close request both use it. Concurrent requests for the same entry share
+  // one prompt, so a window close racing shutdown cannot ask twice. Resolves true once the
+  // entry is closed and false when the person (or a guest) refused; never rejects.
+  function closeConfirmed(entry, approvals) {
+    if (entry.closed) return Promise.resolve(true)
+    if (entry.confirming) return entry.confirming
+    const run = (async () => {
+      const previous = approvals.get(entry.sender) ?? Promise.resolve()
+      let release
+      approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
+      await previous
+      try {
+        const args = { action: "close" }
+        let approval = await authorizeClose(entry.sender, args, [entry])
+        if (approval.confirmationRequired) {
+          revealQuietly(entry)
+          if (!(await confirmClose(entry.owner, approval.pages))) throw new Error("Browser closure cancelled")
+          approval = await authorizeClose(
+            entry.sender,
+            { ...args, closeConfirmation: approval.closeConfirmation },
+            [entry],
+          )
+          if (approval.confirmationRequired) {
+            if (!(await confirmClose(entry.owner, approval.pages, { closeAnyway: true }))) throw new Error("Browser closure cancelled")
+            approval = { approved: true }
+          }
+        }
+        release()
+        await close(entry, approval.approved)
+        return true
+      } catch {
+        release()
+        revealQuietly(entry)
+        return false
+      }
+    })().finally(() => {
+      if (entry.confirming === run) entry.confirming = null
+    })
+    entry.confirming = run
+    return run
+  }
+  // An owner window's close request is vetoed until each of its pages is closed with the
+  // same confirmation shutdown uses; only then is the window closed for real. A refusal
+  // leaves the window, its pages and their session ownership intact.
+  const ownerCloseGates = new WeakMap()
+  const approvedOwnerCloses = new WeakSet()
+  async function gateOwnerClose(owner) {
+    const approvals = new Map()
+    const processed = new Set()
+    for (;;) {
+      const entry = [...views.values()].find((candidate) => candidate.owner === owner && !processed.has(candidate))
+      if (!entry) break
+      processed.add(entry)
+      if (!(await closeConfirmed(entry, approvals))) return
+    }
+    if (owner.isDestroyed()) return
+    approvedOwnerCloses.add(owner)
+    try {
+      owner.close()
+    } finally {
+      approvedOwnerCloses.delete(owner)
+    }
+  }
+  function onOwnerCloseRequested(entry, event) {
+    const owner = entry.owner
+    if (entry.closed || approvedOwnerCloses.has(owner)) return
+    event?.preventDefault?.()
+    if (ownerCloseGates.has(owner)) return
+    const gate = gateOwnerClose(owner)
+      .catch(() => {})
+      .finally(() => {
+        ownerCloseGates.delete(owner)
+      })
+    ownerCloseGates.set(owner, gate)
+  }
+  // The owner window or host webContents is actually destroyed: nothing can show a prompt
+  // and the page can no longer be reached, so it is released. Pages still get their normal
+  // chance to refuse first; only a refusal falls back to discarding. A lost host renderer
+  // is not this case (see onSenderGone).
+  async function releaseOrphan(entry) {
+    try {
+      await close(entry)
+    } catch {
+      await close(entry, true)
+    }
   }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
@@ -975,8 +1069,18 @@ function createDesktopWebMcpBrowser({
       }
       entry.syncing = entry.syncing.then(() => synchronize(entry))
     })
+    entry.onOwnerClosing = (event) => {
+      onOwnerCloseRequested(entry, event)
+    }
     entry.onOwnerClosed = () => {
-      void close(entry)
+      releaseOrphan(entry).catch(() => {})
+    }
+    // A lost host renderer is recoverable: the window and its guest survive and the host can
+    // reload. Keep the page and its ownership (an unsaved draft must not be discarded) and
+    // stop agent work until the person resumes it.
+    entry.onSenderGone = () => {
+      if (entry.closed) return
+      pause(entry).catch(() => {})
     }
     entry.onOwnerHidden = () => {
       hide(entry)
@@ -986,13 +1090,14 @@ function createDesktopWebMcpBrowser({
     }
     views.set(key, entry)
     if (!shown.has(sender.id)) shown.set(sender.id, key)
+    owner.on("close", entry.onOwnerClosing)
     owner.on("closed", entry.onOwnerClosed)
     owner.on("hide", entry.onOwnerHidden)
     owner.on("minimize", entry.onOwnerHidden)
     owner.on("show", entry.onOwnerShown)
     owner.on("restore", entry.onOwnerShown)
     sender.on("destroyed", entry.onOwnerClosed)
-    sender.on("render-process-gone", entry.onOwnerClosed)
+    sender.on("render-process-gone", entry.onSenderGone)
     const previous = views.get(shown.get(sender.id))
     try {
       // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
@@ -1442,33 +1547,7 @@ function createDesktopWebMcpBrowser({
       const closeEntries = () => Promise.all(
         [...views.values()].filter((entry) => !processed.has(entry)).map(async (entry) => {
           processed.add(entry)
-          const previous = approvals.get(entry.sender) ?? Promise.resolve()
-          let release
-          approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
-          await previous
-          try {
-            const args = { action: "close" }
-            let approval = await authorizeClose(entry.sender, args, [entry])
-            if (approval.confirmationRequired) {
-              reveal(entry)
-              if (!(await confirmClose(entry.owner, approval.pages))) throw new Error("Browser closure cancelled")
-              approval = await authorizeClose(
-                entry.sender,
-                { ...args, closeConfirmation: approval.closeConfirmation },
-                [entry],
-              )
-              if (approval.confirmationRequired) {
-                if (!(await confirmClose(entry.owner, approval.pages, { closeAnyway: true }))) throw new Error("Browser closure cancelled")
-                approval = { approved: true }
-              }
-            }
-            release()
-            await close(entry, approval.approved)
-          } catch {
-            release()
-            refused.push(entry.id)
-            reveal(entry)
-          }
+          if (!(await closeConfirmed(entry, approvals))) refused.push(entry.id)
         }),
       )
       const closing = closeEntries()
