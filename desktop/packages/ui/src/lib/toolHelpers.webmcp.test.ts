@@ -356,3 +356,12 @@ test.each(["arguments", "input", "inputPreview"])("marks a bounded %s projection
     kind: "truncated", input: null,
   })
 })
+
+test("typed compound field metadata retains combined and structured sensitivity", () => {
+  for (const [name, kind] of [["card", "number"], ['auth["sig"]', "text"], ["field", "password"]]) {
+    const call = describeWebMcpCall({ action: "type", text: "PRIVATE_TYPED" }, {
+      operation: "act", text: "PRIVATE_TYPED", element: { ref: "e1", kind, name },
+    })
+    expect(call.text).toEqual({ redacted: true })
+  }
+})

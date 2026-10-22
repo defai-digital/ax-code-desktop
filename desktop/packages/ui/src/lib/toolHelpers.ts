@@ -289,7 +289,7 @@ export function redactDisplayedText(value: string): WebMcpDisplayedText | null {
 
 /** Text typed into a field whose name or kind marks it sensitive is never shown, even when the text itself looks ordinary. */
 function redactActText(value: string, element: WebMcpElementDetails | null): WebMcpDisplayedText | null {
-  if (element && (webMcpFieldLooksSensitive(element.name) || webMcpFieldLooksSensitive(element.kind)) && value.trim())
+  if (element && (webMcpFieldLooksSensitive(element.name) || webMcpFieldLooksSensitive(element.kind) || webMcpFieldLooksSensitive(`${element.name} ${element.kind}`)) && value.trim())
     return { redacted: true }
   return redactDisplayedText(value)
 }

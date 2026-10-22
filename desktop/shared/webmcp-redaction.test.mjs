@@ -228,3 +228,8 @@ test("descendant diagnostic declarations cannot clear inherited credential sensi
     }
   }
 })
+
+test("diagnostic entry pairs retain inherited sensitive value context", () => {
+  const input = { field: "api_key", details: [["received", secret], ["constraint", "minLength"]] }
+  assert.deepEqual(redactWebMcpReport(input).details, [["received", "[redacted]"], ["constraint", "minLength"]])
+})

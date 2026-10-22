@@ -147,7 +147,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
     let changed = false
     try {
       if (Array.isArray(entry)) {
-        const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && webMcpFieldLooksSensitive(entry[0])
+        const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && (webMcpFieldLooksSensitive(entry[0]) || (inheritedField && FIELD_VALUE_KEYS.has(entry[0])))
         const safe = entry.map((child, index) => {
           const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1, false, inheritedField)
           changed ||= result.changed
