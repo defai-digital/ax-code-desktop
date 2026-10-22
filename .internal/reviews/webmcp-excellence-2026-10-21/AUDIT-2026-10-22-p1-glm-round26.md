@@ -1,0 +1,26 @@
+All previously-unread files are now covered. Final audit result:
+
+## WebMCP audit — HEAD 96f74a34 (read-only, complete)
+
+**Verdict: no P1.** Full coverage of every file named in the request plus supporting modules: all three Electron sources and their shared helpers (`browser-eviction.js`, `webmcp-page.js`, `load-url-timeout.js`, `webmcp-view-key.mjs`, `webmcp-catalog-projection.cjs`, `webmcp-digests.cjs`, `webmcp-manual-outcome.cjs`), all of `desktop/shared/webmcp-redaction.mjs`, every `components/mcp/*` component, the chat/git/layout components, all WebMCP libs and hooks and stores, `SessionGrid.tsx` (full) + `sessionGridPopout.ts`, `docs/webmcp-page-tools.md`, and all four `webmcp-check*` scripts.
+
+**Fix verification — all present at HEAD:**
+- **Redaction**: single entry point (`webmcp-redaction.mjs`) with field-context propagation (naming/value key sets, inherited sensitivity through nested objects, `[name, value]` pairs, quoted compound names like `auth["api.key"]`, indexed path segments), bracketed-assignment detection, bounded decode (31 layers, fail-closed), redact-before-truncate on every display site (status, unloaded status, close-confirm titles, catalog projection, forms, runs, journal, strip, approvals, recap, checker reports/console), URL credentials + query/hash/path/matrix credential names, signed-URL and OAuth `code|state` handling.
+- **Identity**: opaque main-issued `invocationID` + native `definitionDigest` used consistently across catalog, registration timeline, journal, replay gating, approvals (`WebMcpApprovalToolInfo` requires the exact digest, else "definitionMayDiffer"), compare, stale marks, call strip; unknown associations never produce "not called" claims.
+- **Unsaved work / closing**: sticky `possibleUnsavedWork`, input hooks on view and popups, deadline-bounded probes (250 ms/command incl. cleanup) with post-probe revalidation, `beforeunload` honored on close/clearProject/closeAll/quit, one-use confirmation bound to action + view + webContents identities with at most one reprompt (self-changing pages cannot loop).
+- **Honest outcomes**: shared vocabulary (`webmcp-manual-outcome.cjs`) across panel, transcript, exports; uncertain ≠ failed (IPC loss records "uncertain/provider-gone", never auto-retry); approval unanswered gap never claims timeout/rollback; permission reply bounded (20 s) with retry on failure.
+- **Checker**: launcher watchdog kills the whole process tree on budget; random 32-byte receipt key lives only in launcher+child env (never on disk); reports redacted before write and before console; identity checks compare originals via receipts; contamination after an unconfirmed timeout; distinct exit codes 0/1/2/3/64 as documented.
+- **Round 26**: collapsed-row failure reasons (`webMcpFailureSummary.ts` on strip rows), off-list enum replay with explicit confirmation (`WebMcpToolPanel.tsx:361-375, 874-886`), waiting-page chip (`WebMcpWaitingPages`), grid-pane compact page switcher (`SessionGrid.tsx:289`) with `keepGrid` selection; pop-out hides the embedded pane, and main-side `createView` returns `owned-by-another-window` to any second window, so pop-out keeps exactly one browser owner.
+- **Docs**: every cross-checked claim in `docs/webmcp-page-tools.md` matches implementation (masking incl. numeric PIN/CVV, enum submits by index, `__proto__` draft retention via null-prototype records, origin-only persisted history with scrub-on-read, receipts cache bounds).
+
+**Findings (no P1):**
+
+1. **[P2] `clearProject` storage clear has no deadline** — `desktop/packages/electron/src/desktop-webmcp-browser.js:1244`. Reproduction: choose "Sign out of project browser" on a project whose guest profile is large or storage I/O stalls; `session.fromPartition(partition).clearStorageData()` runs inside `serializePool` with no timeout, so the reply — and every queued pool operation (create/show/close) behind it — waits on Chromium indefinitely. Impact: Sign out appears hung and the pool is serialized until storage settles; recoverable, no data loss or wrong-page action. Fix: race it against a bounded deadline like the provider `DELETE` at `:337-344` and report `operation-failed` on expiry.
+
+2. **[P3] Approval definition lookup not scoped by directory** — `hooks/useWebMcpApprovalDefinition.ts:7` matches views by `sessionID` + `origin` only. Harmless while session ids are runtime-unique; harden by also matching `view.directory`.
+
+3. **[P3] Surrogate pair can split at the display cap** — `shared/webmcp-redaction.mjs:196,201,209` use `slice(0, N)`, which can split a UTF-16 surrogate at the boundary and render one replacement character. Cosmetic; use code-unit-safe truncation (`lib/textTruncate.ts` already provides one).
+
+4. **[P3] Legacy checker name matching after redaction** — `scripts/webmcp-check-lib.mjs:122-124`: without `receiptKey`, `--expect-tools` compares redacted names, so a credential-shaped tool name can only fail closed ("Expected tool not registered"), never pass wrongly. Receipt-keyed runs (the shipped path) are unaffected.
+
+**Conclusion for DoD item 3:** no P1 finding at HEAD 96f74a34 in the audited surface; one P2 (bounded deadline on `clearStorageData`) and three P3s are the complete finding list.

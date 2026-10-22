@@ -359,3 +359,18 @@ Rubric 13 of 13 under the two-of-three rule (codex B2 7; MiniMax A5 7; grok A5 7
 r24 code: glm and deepseek no P1; codex two new variants (owner-renderer crash closes a page without an unload handler; bracketed
 `auth["sig"]` property names). Another session has since pushed fixes to main (`185e35f6`, `a1d05f68`), so Desktop CI for
 `5193b0c8` and `185e35f6` was cancelled by newer pushes and this judgment is not at the newest commit.
+
+## Rounds 25 to 27 (stable main, CI first, then judges and audits on the same commit)
+
+| Round | Commit | CI | Rubric | Orca margins (codex/deepseek/MiniMax/grok) | P1 audit (codex/glm/deepseek) |
+| --- | --- | --- | --- | --- | --- |
+| 25 | `0fb2203e` | green | 11 of 13 (A5, B2) | +0.25 / +0.15 / +0.31 / +0.32 | 3 / none / none |
+| 26 | `96f74a34` | green | 13 of 13, all four judges 8 or more on every step | +0.31 / +0.27 / +0.33 / +0.31 | 1 / none / none |
+| 27 | `1442693e` | green | 13 of 13, all four judges 8 or more on every step | +0.31 / +0.26 / +0.27 / +0.36 | 3 / none / none |
+
+Round 26 added collapsed-row failure reasons, off-list replay confirmation, a Mission Control waiting-page chip and page access in
+grid panes; round 27 masks repeated sensitive values in diagnostic prose. At `1442693e` every judge and every UX criterion holds
+and CI is green on macOS, Windows and Ubuntu with W1 to W8; glm-5.3 and deepseek-flash report no P1. Codex reports three new
+variants (`AUDIT-2026-10-22-p1-codex-round27.md`: diagnostic echoes under non-value keys, cancelled window closure leaving a page
+and its controls bound to different sessions, and recognizable credentials in primitive inputs under ordinary names); codex has
+reported new variants at every pass since round 15.

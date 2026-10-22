@@ -1,0 +1,27 @@
+**Round 25 at `0fb2203e` (source at `92775899`): A 8.00/10; B 8.00/10.** Read-only; no files modified. No shell this turn, so no `git log 15f40f1d..HEAD`, no executed tests, no native journeys or screenshots; every claim is read from source. Uncommitted `config/`, lockfile and version pins ignored. Runtime credit limited to v7.28.2's permission-only `definitionDigest` and `inputPreview`, retained memory-only at most 256 receipts / 65,536 characters (`UI/stores/useWebMcpApprovalOutcome.ts:32`). `UI` = `desktop/packages/ui/src`; `E` = `desktop/packages/electron/src`; `S` = `desktop/shared`.
+
+| Step | Score | Judgment and source |
+|---|---:|---|
+| A1 discover | 8 | Descriptions, hints, redacted schema, origin, shown/total truncation and a named rejection are inspectable, but the surface is one collapsed technical tree with no grouping or search (`UI/components/mcp/WebMcpToolPanel.tsx:930`). |
+| A2 enable and scope trust | 8 | Origin, project, session, access state, per-session revoke and project sign-out apply to the next call, but revocation is whole-enrollment with no per-tool or schema-hash scope (`UI/components/mcp/WebMcpPages.tsx:157`). |
+| A3 watch live | 8 | The open strip gives outcome, duration, redacted arguments, an 8-character digest, result preview, failure reason and an approval jump, but arguments stop at 140 code units and no in-flight step streams (`UI/components/mcp/WebMcpCallStrip.tsx:109`). |
+| A4 approvals | 8 | The effect sentence is built from call data with origin, tool, element and a digest-gated page claim, yet a vanished ask collapses to a bare "unanswered" with no expiry, timestamp or terminal state (`UI/components/chat/PermissionCard.tsx:398`; `UI/stores/useWebMcpApprovalOutcome.ts:6`). |
+| A5 failure recovery | 7 | Outcomes are distinct and rejections name property and rule, but the collapsed transcript row still says only "failed" and diagnosis appears only after expanding (`UI/components/chat/message/parts/ToolPart-impl.tsx:1685`; `:2068`). |
+| A6 evidence after task | 8 | The recap lists ordered steps, kinds, outcomes, durations, digests, rejections, never-called tools and copies the turn, but carries no inputs and no durable artifact (`UI/components/views/git/ReviewLandingBrowserEvidence.tsx:83`). |
+| A7 pause and take over | 8 | Pause is separate from Disconnect, keeps the page and reports stopped versus still-finishing without claiming rollback (`UI/components/layout/EmbeddedWebMcpBrowser.tsx:545`). |
+| A8 several sessions | 9 | A bounded 1–8 pool of per-project-partitioned, per-session views with independent revoke, waiting surfaces in Mission Control, grid and popover, gated owner close and page re-adoption makes concurrent supervision genuinely operable (`E/desktop-webmcp-browser.js:74`; `:481`; `:529`). |
+| B1 registered tools | 8 | Kind, hints, origin, redacted schema, advisory lint, named rejections and truncation are visible, but lint cannot predict the runtime validator and the 300-character field-description cap is silent (`UI/lib/webMcpToolForm.ts:30`). |
+| B2 try and compare | 8 | Full forms, explicit-empty flags, masked JSON with reveal, journal replay, manual-versus-agent comparison with a definition-difference notice, and export that refuses non-reproducible outcomes are real, though agent-side input still depends on receipts (`UI/components/mcp/WebMcpToolPanel.tsx:815`; `UI/lib/webMcpDiagnosis.ts:140`). |
+| B3 iterate | 8 | Registration history, retained drafts and stale marks support iteration, but `propertyDiff`'s rows are still dumped as one JSON blob (`UI/components/mcp/WebMcpToolPanel.tsx:982`). |
+| B4 diagnose misuse | 8 | Diagnosis checks the digest's own definition, names property, rule and value kind, attaches runtime `instancePath` rejections and honestly refuses truncated or receipt-less input (`UI/lib/webMcpDiagnosis.ts:235`; `UI/lib/toolHelpers.ts:400`). |
+| B5 onboarding docs | 8 | The guide is runnable end to end and linked wherever a page is open, but onboarding stays documentation-led through an external URL (`docs/webmcp-page-tools.md:12`; `UI/components/mcp/WebMcpBuilderHint.tsx:24`). |
+
+**Means:** A 64/8 = **8.00**; B 40/5 = **8.00**.
+
+**Movement versus round 24.** A8 moves 8→9: the owner-close gate, recovery window and re-adoption are verified (`E/desktop-webmcp-browser.js:481`, `:529`, `:1145`). A5 8→7 and A2 9→8 are reassessments, not regressions — the collapsed failure row and whole-enrollment revocation are unchanged since round 21. Rounds 22–24 verify as correctness hardening rather than new surface: quoted/bracketed/inherited redaction (`S/webmcp-redaction.mjs:102`, `:72`, `:161`), JSON drafts that mask when the redactor would change them (`UI/components/mcp/WebMcpToolPanel.tsx:500`), bounded native start (`E/native-webmcp.js:114`). The remaining gaps in A2, A4, A5 and A6 are all receipt-side.
+
+**Three changes that raise the lowest steps most**
+
+1. Put the persisted failure and its failing property and rule on the collapsed row and in the strip, with a retry where the receipt is complete (**A5, A3**).
+2. Give approval disappearance an authoritative outcome — countdown, then expired / denied / cancelled with a timestamp — in card, strip and recap (**A4, A6, B4**).
+3. Render `propertyDiff` as rows, drop the silent 300-character description cap, and show the executable schema on demand (**B3, B1**).

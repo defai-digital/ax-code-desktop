@@ -431,3 +431,13 @@ At the final code commit all four judges rate AX better than Orca and opencode; 
 | grok-4.7 | better | better |
 
 All four rate AX better than Orca and opencode; MiniMax's margin falls just below 0.2 at this commit.
+
+## Rounds 25 to 27 comparison
+
+| Round | Commit | codex | deepseek-flash | MiniMax-M3 | grok-4.7 |
+| --- | --- | --- | --- | --- | --- |
+| 25 | `0fb2203e` | +0.25 | +0.15 | +0.31 | +0.32 |
+| 26 | `96f74a34` | +0.31 | +0.27 | +0.33 | +0.31 |
+| 27 | `1442693e` | +0.31 | +0.26 | +0.27 | +0.36 (AX 9.33, Orca 8.97) |
+
+All four judges rate AX better than opencode by about +2.2 in every round. At `1442693e` all four exceed the 0.2 Orca margin.
