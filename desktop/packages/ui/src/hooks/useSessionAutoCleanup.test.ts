@@ -72,6 +72,24 @@ describe("buildAutoDeleteCandidates", () => {
 })
 
 describe("applySessionRetentionAction", () => {
+  test("rechecks eligibility after a rate-limit wait before retrying a delete", async () => {
+    vi.useFakeTimers()
+    try {
+      let eligible = true
+      const remove = vi.fn()
+        .mockResolvedValueOnce({ error: { message: "Rate limited" }, response: { status: 429 } })
+        .mockResolvedValue({ data: true, response: { status: 200 } })
+      const pending = applySessionRetentionAction(scopedSdk({ delete: remove }), "ses_1", "/repo", "delete", () => eligible)
+      await Promise.resolve()
+      eligible = false
+      await vi.advanceTimersByTimeAsync(1000)
+      const result = await pending
+      expect(remove).toHaveBeenCalledTimes(1)
+      expect(result).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
   test("reports a rejected archive as not completed", async () => {
     // The generated SDK resolves with `{ error }` instead of throwing, so a
     // rejected cleanup used to be counted as completed.
@@ -111,6 +129,63 @@ describe("applySessionRetentionAction", () => {
     })
 
     await expect(applySessionRetentionAction(sdk, "ses_1", "/repo", "delete")).rejects.toThrow("offline")
+  })
+})
+
+describe("live retention safety", () => {
+  test.each(["activity", "child", "pending", "pending-before"])("rechecks %s changes before deleting the next candidate", async (change) => {
+    vi.resetModules()
+    const now = Date.now()
+    const session = (id: string, age: number, parentID?: string) =>
+      ({ id, parentID, directory: "/repo", time: { created: now - age, updated: now - age } }) as never
+    const activeSessions = [
+      ...Array.from({ length: 5 }, (_, index) => session(`recent-${index}`, 1000)),
+      session("first", 40 * 86400000), session("second", 41 * 86400000),
+    ]
+    vi.doMock("@/stores/useGlobalSessionsStore", async () => {
+      const actual = await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>("@/stores/useGlobalSessionsStore")
+      return { ...actual, ensureGlobalSessionsLoaded: vi.fn(async () => ({ activeSessions, archivedSessions: [] })) }
+    })
+    const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
+    const { useUIStore } = await import("@/stores/useUIStore")
+    const { useSessionUIStore } = await import("@/sync/session-ui-store")
+    const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+    const { axCodeClient } = await import("@/lib/ax-code/client")
+    const remove = vi.fn(async () => {
+      if (change === "activity") {
+        useGlobalSessionsStore.getState().applySessionEvent({ type: "session.updated", properties: { info: session("second", 0) } })
+      } else if (change === "child") {
+        useGlobalSessionsStore.getState().applySessionEvent({ type: "session.created", properties: { info: session("new-child", 0, "second") } })
+      } else {
+        useGlobalSessionsStore.getState().markPendingRemoval([{ session: session("hidden-child", 0, "second"), kind: "archive" }])
+      }
+      return { data: true }
+    })
+    const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue(scopedSdk({ delete: remove }))
+    useUIStore.setState({ autoDeleteEnabled: true, autoDeleteAfterDays: 30, sessionRetentionAction: "delete", autoDeleteLastRunAt: 0 })
+    useSessionUIStore.setState({ currentSessionId: null, isLoading: false })
+    useGlobalSessionsStore.setState({ activeSessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
+    if (change === "pending-before") {
+      useGlobalSessionsStore.getState().markPendingRemoval([{ session: session("hidden-child", 0, "second"), kind: "archive" }])
+    }
+    let hook: ReturnType<typeof useSessionAutoCleanup> | null = null
+    const Probe = () => { hook = useSessionAutoCleanup({ autoRun: false }); return null }
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement("div")
+    const root = createRoot(container)
+    try {
+      await React.act(async () => { root.render(React.createElement(Probe)) })
+      const result = await React.act(async () => hook!.runCleanup({ force: true }))
+      expect(remove.mock.calls).toEqual(change === "pending-before" ? [] : [[{ sessionID: "first", directory: "/repo" }]])
+      expect(result.completedIds).toEqual(change === "pending-before" ? [] : ["first"])
+      expect(useUIStore.getState().autoDeleteLastRunAt).toBe(0)
+    } finally {
+      await React.act(async () => { root.unmount() })
+      scoped.mockRestore()
+      useGlobalSessionsStore.setState({ activeSessions: [], archivedSessions: [], pendingRemoval: new Map(), hasLoaded: false, status: "idle" })
+      vi.doUnmock("@/stores/useGlobalSessionsStore")
+      vi.resetModules()
+    }
   })
 })
 

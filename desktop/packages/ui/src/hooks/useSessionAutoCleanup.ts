@@ -11,6 +11,7 @@ import {
 } from "@/stores/useGlobalSessionsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getAllSyncSessions } from "@/sync/sync-refs"
+import { hasPendingSessionRemovals } from "@/sync/soft-removal"
 import { useUIStore } from "@/stores/useUIStore"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -119,14 +120,22 @@ export const applySessionRetentionAction = async (
   id: string,
   directory: string,
   action: "archive" | "delete",
-): Promise<boolean> => {
+  shouldApply?: () => boolean,
+): Promise<boolean | undefined> => {
+  let skipped = false
   // A cleanup run sends one request per expired session and can exceed the runtime's rate limit.
   const result = await retryWhenRateLimited(
-    (): Promise<{ error?: unknown; response?: Response }> =>
-      action === "archive"
+    (): Promise<{ error?: unknown; response?: Response } | null> => {
+      if (shouldApply && !shouldApply()) {
+        skipped = true
+        return Promise.resolve(null)
+      }
+      return action === "archive"
         ? scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
-        : scopedSdk.session.delete({ sessionID: id, directory }),
+        : scopedSdk.session.delete({ sessionID: id, directory })
+    },
   )
+  if (skipped) return undefined
   // A 404 means the session is already gone: deleting an expired parent cascades
   // to its children, which are usually candidates in the same run.
   return !result?.error || result.response?.status === 404
@@ -213,7 +222,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
 
           // A failed active or archived listing leaves only a partial preserved snapshot.
           // Do not infer safe cascading deletion (or recent-session protection) from it.
-          if (useGlobalSessionsStore.getState().status === "error") {
+          if (useGlobalSessionsStore.getState().status === "error" || hasPendingSessionRemovals()) {
             return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "loading" }
           }
 
@@ -235,23 +244,32 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
           }
 
-          const sessionMap = new Map(sessions.map((session) => [session.id, session]))
           const completedIds: string[] = []
           const failedIds: string[] = []
           let failureReason: string | undefined
           let globalArchiveAvailable = true
           let archiveUpgradeReason: string | undefined
+          let skippedChangedCandidate = false
 
           for (const id of candidateIds) {
-            // Selection can change while loading or awaiting a prior action.
-            // Deleting a session also deletes its descendants, so skip the open session's ancestors too.
-            const openSessionId = useSessionUIStore.getState().currentSessionId
-            if (id === openSessionId) continue
-            if (
-              sessionRetentionAction === "delete" &&
-              openSessionId &&
-              collectAncestorIds([...sessions, ...archived], [openSessionId]).has(id)
-            ) {
+            // A run can wait minutes for rate limits. Recheck the live graph,
+            // activity and selection before every request, including retries.
+            const stillEligible = () => {
+              const live = useGlobalSessionsStore.getState()
+              return live.status !== "error" &&
+                !useSessionUIStore.getState().isLoading &&
+                !hasPendingSessionRemovals() &&
+                buildAutoDeleteCandidates({
+                  sessions: live.activeSessions,
+                  archivedSessions: live.archivedSessions,
+                  action: sessionRetentionAction,
+                  currentSessionId: useSessionUIStore.getState().currentSessionId,
+                  cutoffDays: autoDeleteAfterDays,
+                  now,
+                }).includes(id)
+            }
+            if (!stillEligible()) {
+              skippedChangedCandidate = true
               continue
             }
             if (sessionRetentionAction === "archive" && globalArchiveAvailable) {
@@ -272,7 +290,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
                 }
               }
             }
-            const session = sessionMap.get(id)
+            const session = useGlobalSessionsStore.getState().activeSessions.find((session) => session.id === id)
             const directory = session ? resolveGlobalSessionDirectory(session) : null
             if (!directory) {
               failedIds.push(id)
@@ -283,8 +301,10 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             const scopedSdk = axCodeClient.getScopedSdkClient(directory)
 
             try {
-              const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction)
-              if (completed) {
+              const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction, stillEligible)
+              if (completed === undefined) {
+                skippedChangedCandidate = true
+              } else if (completed) {
                 completedIds.push(id)
               } else {
                 failedIds.push(id)
@@ -302,7 +322,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           // (The delete event also funnels through removeSessions, so the
           // per-session client-state cleanup there still runs.)
           // Failed work must remain eligible for the next non-forced retry.
-          if (failedIds.length === 0) setAutoDeleteLastRunAt(Date.now())
+          if (failedIds.length === 0 && !skippedChangedCandidate) setAutoDeleteLastRunAt(Date.now())
           return {
             completedIds,
             failedIds,
