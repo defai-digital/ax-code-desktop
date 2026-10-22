@@ -345,3 +345,10 @@ on 64 KiB prose). Codex has reported new variants at every pass since round 15. 
 basis (option B): rubric 13 of 13, CI green with W1 to W8 on three platforms, better than Orca and opencode from all four
 judges, glm and deepseek audits without P1, and the codex findings in `AUDIT-2026-10-21-p1-codex-round21.md` kept as open
 follow-ups.
+
+## Audit at `dff149ee` (after another session merged r22 and fixed its two P1s)
+
+Full gates passed (seven native journeys, `e2e:desktop`). deepseek-flash: no P1. glm-5.3: cut off by an upstream error.
+codex: three new P1 variants (bracketed `auth["api.key"] = value` text, field context lost across a nested `details`
+object, a vetoed guest stranded when its owner window closes on macOS), in `AUDIT-2026-10-21-p1-codex-round23.md`. Codex has
+reported new variants at every pass since round 15; these are open follow-ups.
