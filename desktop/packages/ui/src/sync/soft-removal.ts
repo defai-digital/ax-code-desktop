@@ -57,16 +57,18 @@ function clearTimers(ids: string[]): void {
   }
 }
 
-function writeOwnSlot(entries: PersistedRemoval[]): void {
-  if (typeof window === "undefined") return
+function writeOwnSlot(entries: PersistedRemoval[]): boolean {
+  if (typeof window === "undefined") return false
   try {
     if (entries.length === 0) {
       window.localStorage.removeItem(OWN_STORAGE_KEY)
-      return
+      return true
     }
     window.localStorage.setItem(OWN_STORAGE_KEY, JSON.stringify(entries))
+    return true
   } catch {
     // Storage unavailable — quit-recovery degrades to best-effort flush.
+    return false
   }
 }
 
@@ -92,16 +94,20 @@ const toPersistedRemoval = (entry: PendingRemovalEntry): PersistedRemoval => ({
  * without them, and the next launch resurrected those sessions.
  */
 const keptForRecovery = new Map<string, PersistedRemoval>()
+// Committing entries have left pendingRemoval so runtime events can apply, but
+// every storage write must retain them until the runtime confirms the outcome.
+const inFlightRemovals = new Map<string, PersistedRemoval>()
 
-function persistPending(alsoPersist: PendingRemovalEntry[] = []): void {
+function persistPending(alsoPersist: PendingRemovalEntry[] = []): boolean {
   const byId = new Map<string, PersistedRemoval>(keptForRecovery)
+  for (const [id, entry] of inFlightRemovals) byId.set(id, entry)
   for (const entry of useGlobalSessionsStore.getState().pendingRemoval.values()) {
     byId.set(entry.session.id, toPersistedRemoval(entry))
   }
   for (const entry of alsoPersist) {
     byId.set(entry.session.id, toPersistedRemoval(entry))
   }
-  writeOwnSlot(Array.from(byId.values()))
+  return writeOwnSlot(Array.from(byId.values()))
 }
 
 /**
@@ -239,6 +245,9 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
     .filter((entry): entry is PendingRemovalEntry => Boolean(entry))
   if (entries.length === 0) return
 
+  for (const entry of entries) inFlightRemovals.set(entry.session.id, toPersistedRemoval(entry))
+  persistPending()
+
   // Release the pending flags before the API calls so the resulting
   // session.updated/deleted events (suppressed inside the undo window) apply
   // cleanly once they arrive.
@@ -258,23 +267,13 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
     // pending flag was released above, so the session.updated(time.archived)
     // event adds the session to the archived bucket as the writer of record.
     if (!ok) failed.push(entry)
+    inFlightRemovals.delete(entry.session.id)
+    // Unload failures remain recoverable. A visible timer failure is reported
+    // and restored below, so it must not be retried behind the user's back.
+    if (!ok && keepFailuresInSlot) keptForRecovery.set(entry.session.id, toPersistedRemoval(entry))
+    else keptForRecovery.delete(entry.session.id)
+    persistPending()
   }
-  // Only the entries this commit confirmed may leave the slot. The unload flush keeps its failures
-  // there because its requests are fire-and-forget and nobody can see the outcome (the slot's whole
-  // purpose); the undo-window timer runs while the user is looking, reports the failure and puts the
-  // session back, so retrying it behind their back on the next launch is not what they asked for.
-  if (keepFailuresInSlot) {
-    for (const entry of failed) {
-      keptForRecovery.set(entry.session.id, toPersistedRemoval(entry))
-    }
-  }
-  for (const entry of entries) {
-    if (!failed.includes(entry)) {
-      keptForRecovery.delete(entry.session.id)
-    }
-  }
-  persistPending()
-
   if (failed.length > 0) {
     for (const entry of failed) {
       // Rollback restore (load-bearing): a FAILED removal emits no event, so
@@ -305,7 +304,9 @@ function undoRemovals(ids: string[]): void {
 
 function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void {
   const store = useGlobalSessionsStore.getState()
-  const fresh = sessions.filter((session) => session?.id && !store.pendingRemoval.has(session.id))
+  const fresh = sessions.filter(
+    (session) => session?.id && !store.pendingRemoval.has(session.id) && !inFlightRemovals.has(session.id),
+  )
   if (fresh.length === 0) return
 
   store.markPendingRemoval(fresh.map((session) => ({ session, kind })))
@@ -346,10 +347,16 @@ export function softBulkArchive(sessions: Session[]): void {
 /** Test seam: forget the removals kept for the next launch's recovery. */
 export function resetSoftRemovalForTests(): void {
   keptForRecovery.clear()
+  inFlightRemovals.clear()
 }
 
 export function softBulkDelete(sessions: Session[]): void {
   softRemoveSessions(sessions, "delete")
+}
+
+/** Retention must not infer a complete ancestry while removal snapshots are hidden. */
+export function hasPendingSessionRemovals(): boolean {
+  return useGlobalSessionsStore.getState().pendingRemoval.size > 0 || inFlightRemovals.size > 0 || keptForRecovery.size > 0
 }
 
 /**
@@ -378,7 +385,9 @@ export function flushPendingRemovals(): void {
  */
 export async function recoverPendingRemovals(): Promise<void> {
   const now = Date.now()
-  const ownedSlots = listPendingSlots().filter(({ ownerId }) => ownerId === null || !isOwnerAlive(ownerId, now))
+  const ownedSlots = listPendingSlots().filter(
+    ({ ownerId }) => ownerId !== WINDOW_STORAGE_ID && (ownerId === null || !isOwnerAlive(ownerId, now)),
+  )
   if (ownedSlots.length === 0) return
   const persisted = readPersisted(ownedSlots.map(({ key }) => key))
   if (persisted.length === 0) {
@@ -391,8 +400,14 @@ export async function recoverPendingRemovals(): Promise<void> {
     }
     return
   }
-  // Take over the orphaned slots up front so a crash mid-recovery cannot
-  // double-apply an entry; the failures are written back at the end.
+  const sdkClient = axCodeClient.getSdkClient()
+  // Copy all unconfirmed work durably before removing its orphaned source.
+  // A crash or an unrelated undo during a long rate-limit wait must not lose it.
+  for (const entry of persisted) inFlightRemovals.set(entry.id, entry)
+  if (!persistPending()) {
+    for (const entry of persisted) inFlightRemovals.delete(entry.id)
+    return
+  }
   try {
     for (const { key } of ownedSlots) {
       window.localStorage.removeItem(key)
@@ -401,12 +416,11 @@ export async function recoverPendingRemovals(): Promise<void> {
     // ignore
   }
 
-  const sdkClient = axCodeClient.getSdkClient()
-  const failed: PersistedRemoval[] = []
   // One request at a time for the same reason as commitRemovals: a fan-out
   // exceeds the /session bucket and every 429 retry wakes in the same instant.
   for (const entry of persisted) {
     const { id, kind, directory } = entry
+    let confirmed = false
     try {
       const result = await retryWhenRateLimited(
         (): Promise<{ error?: unknown; response?: Response }> =>
@@ -419,20 +433,16 @@ export async function recoverPendingRemovals(): Promise<void> {
               }),
       )
       // The generated SDK resolves with `{ error }` instead of throwing.
-      if (result?.error && !isAlreadyGoneError(result.error)) {
+      if (result?.error && result.response?.status !== 404 && !isAlreadyGoneError(result.error)) {
         throw new Error(formatSdkError(result.error))
       }
+      confirmed = true
     } catch (error) {
       console.warn("[soft-removal] failed to recover pending removal", { id, kind }, error)
-      failed.push(entry)
     }
+    inFlightRemovals.delete(id)
+    if (!confirmed) keptForRecovery.set(id, entry)
+    else keptForRecovery.delete(id)
+    persistPending()
   }
-  // Kept entries plus the leftovers, written the way every other write in this window is: the recovery
-  // used to write its own failures over the whole slot (or remove the key when it had none), which
-  // dropped a removal the user made while its requests were in flight — the next launch no longer
-  // committed that session.
-  for (const entry of failed) {
-    keptForRecovery.set(entry.id, entry)
-  }
-  persistPending()
 }

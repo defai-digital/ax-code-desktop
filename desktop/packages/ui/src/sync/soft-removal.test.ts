@@ -328,6 +328,56 @@ describe("soft-removal S4.5 contract", () => {
     expect(maxInFlight).toBe(1)
   })
 
+  test("keeps every unconfirmed bulk removal durable across another removal and undo", async () => {
+    const sessions = [makeSession("ses_waiting_1"), makeSession("ses_waiting_2")]
+    let release: (ok: boolean) => void = () => {}
+    deleteSessionMock.mockImplementationOnce(() => new Promise<boolean>((resolve) => { release = resolve }))
+    deleteSessionMock.mockResolvedValue(true)
+    softBulkDelete(sessions)
+    flushPendingRemovals()
+
+    softDeleteSession(makeSession("ses_unrelated"))
+    const action = toastSuccessMock.mock.calls.at(-1)?.[1]?.action as unknown as { onClick: () => void }
+    action.onClick()
+    const ids = storedSlots().flatMap((key) =>
+      (JSON.parse(window.localStorage.getItem(key) ?? "[]") as { id: string }[]).map((entry) => entry.id),
+    )
+    release(true)
+    await vi.waitFor(() => expect(deleteSessionMock).toHaveBeenCalledTimes(2))
+    expect(ids.sort()).toEqual(["ses_waiting_1", "ses_waiting_2"])
+  })
+
+  test("persists adopted recovery work before sending its first request", async () => {
+    let release: (value: object) => void = () => {}
+    const sdkDelete = vi.fn(() => new Promise<object>((resolve) => { release = resolve }))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({ session: { delete: sdkDelete, update: vi.fn() } } as never)
+    window.localStorage.setItem(pendingKey("crashed-window"), JSON.stringify([
+      { id: "ses_adopted", kind: "delete", directory: "/repo" },
+    ]))
+
+    const recovering = recoverPendingRemovals()
+    const records = storedSlots().flatMap((key) => JSON.parse(window.localStorage.getItem(key) ?? "[]"))
+    release({})
+    await recovering
+    expect(records).toContainEqual({ id: "ses_adopted", kind: "delete", directory: "/repo" })
+    expect(storedSlots()).toEqual([])
+  })
+
+  test("preserves orphaned recovery work when its durable takeover write fails", async () => {
+    const key = pendingKey("crashed-window")
+    window.localStorage.setItem(key, JSON.stringify([{ id: "ses_retry", kind: "delete", directory: null }]))
+    const sdkDelete = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({ session: { delete: sdkDelete, update: vi.fn() } } as never)
+    const write = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => { throw new Error("quota exceeded") })
+    try {
+      await recoverPendingRemovals()
+      expect(window.localStorage.getItem(key)).not.toBeNull()
+      expect(sdkDelete).not.toHaveBeenCalled()
+    } finally {
+      write.mockRestore()
+    }
+  })
+
   test("recovers orphaned removals one request at a time so rate-limit retries cannot stampede", async () => {
     let inFlight = 0
     let maxInFlight = 0
