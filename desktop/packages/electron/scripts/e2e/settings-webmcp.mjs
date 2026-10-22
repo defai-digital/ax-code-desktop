@@ -152,6 +152,8 @@ export const createSettingsJourney = (artifacts = "") =>
     await audit.page("Shortcuts")
     const shortcuts = await audit.all()
     if (shortcuts.controls.length <= 100) throw new Error("Shortcuts did not exercise paginated control discovery")
+    const shortcutRows = `JSON.stringify(Array.from(document.querySelectorAll('[data-settings-view] input[readonly]')).map(input => [input.getAttribute('aria-label'), input.value]))`
+    const shortcutsBeforeSearch = await session.evaluate(shortcutRows)
     await audit.click("Open command palette (alternate)", { role: "input" })
     await audit.wait(
       'document.activeElement?.getAttribute("aria-label") === "Open command palette (alternate)"',
@@ -169,7 +171,7 @@ export const createSettingsJourney = (artifacts = "") =>
     )
     await audit.click("Clear search")
     await audit.wait(
-      `document.querySelectorAll('[data-settings-view] input[readonly]').length === 33`,
+      `${shortcutRows} === ${JSON.stringify(shortcutsBeforeSearch)}`,
       "shortcut search restored",
     )
     await audit.capture("Shortcuts after search")
