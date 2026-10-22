@@ -18,16 +18,22 @@ interface MessageModelRefSource {
   modelOrigin?: string
 }
 
-const SERVER_CHOSEN_MODEL_ORIGINS = new Set(["agent", "complexity", "hybrid", "session-or-config", "fallback"])
-
 /**
  * The runtime can record a model it chose (the agent's pin, a complexity or
- * hybrid route, the session default, or a fallback) on the user message.
- * That record is not the model the user selected in the composer.
+ * hybrid route, the session default, a fallback, or a future origin) on the
+ * user message. Only an explicit request is the model the user selected.
  * Messages written before `modelOrigin` existed stay eligible for restore.
  */
 export const isServerChosenModelOrigin = (origin: string | undefined): boolean =>
-  origin !== undefined && SERVER_CHOSEN_MODEL_ORIGINS.has(origin)
+  origin !== undefined && origin.trim() !== "request"
+
+/**
+ * User message ids are ascending. A failed send removes the optimistic message
+ * and reveals the previous one. That older id must not be treated as a new
+ * choice, or the composer snaps back to the model from before the send.
+ */
+export const isOlderUserMessage = (observedMessageId: string, nextMessageId: string): boolean =>
+  observedMessageId.length > 0 && nextMessageId < observedMessageId
 
 const nonEmptyText = (value: unknown): string | undefined =>
   typeof value === "string" && value.trim().length > 0 ? value : undefined

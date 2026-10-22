@@ -199,6 +199,7 @@ export function routeMessage(params: {
           providerID: params.providerID,
           modelID: params.modelID,
           agent: params.agent,
+          variant: params.variant,
           files: params.files,
           send: (messageID) =>
             axCodeClient
@@ -229,6 +230,7 @@ export function routeMessage(params: {
           providerID: params.providerID,
           modelID: params.modelID,
           agent: params.agent,
+          variant: params.variant,
           files: params.files,
           send: (messageID) =>
             axCodeClient
@@ -256,6 +258,7 @@ export function routeMessage(params: {
       providerID: params.providerID,
       modelID: params.modelID,
       agent: params.agent,
+      variant: params.variant,
       files: params.files,
       send: (messageID) =>
         axCodeClient
@@ -562,6 +565,43 @@ const resolveSessionDirectory = (
 
 const activateConfigForDirectory = async (directory: string | null | undefined): Promise<void> => {
   await useConfigStore.getState().activateDirectory(normalizePath(directory))
+}
+
+/** True when the composer still belongs to the directory activation just finished. */
+export const composerOwnsActivatedDirectory = (
+  activeDirectoryKey: string,
+  activatedDirectory: string | null,
+): boolean => {
+  const activatedKey =
+    activatedDirectory && activatedDirectory.trim().length > 0 ? activatedDirectory.trim() : "__global__"
+  return activeDirectoryKey === activatedKey
+}
+
+/**
+ * Put the provider, model, and agent from a submitted prompt back after
+ * directory activation. Activation can load another project's snapshot, or
+ * clear the provider list while offline. A model is written only once its
+ * provider is actually current, so a failed provider switch cannot leave a
+ * model id with no provider.
+ */
+export const restoreSubmittedComposerSelection = (
+  submittedProviderID: string,
+  submittedModelID: string,
+  submittedAgent: string | undefined,
+): void => {
+  if (!submittedProviderID || !submittedModelID) return
+
+  const config = useConfigStore.getState()
+  if (config.currentProviderId !== submittedProviderID) {
+    config.setProvider(submittedProviderID)
+  }
+  const afterProvider = useConfigStore.getState()
+  if (afterProvider.currentProviderId === submittedProviderID && afterProvider.currentModelId !== submittedModelID) {
+    afterProvider.setModel(submittedModelID)
+  }
+  if (submittedAgent && useConfigStore.getState().currentAgentName !== submittedAgent) {
+    useConfigStore.getState().setAgent(submittedAgent, { preserveModel: true })
+  }
 }
 
 const DEFAULT_DRAFT: NewSessionDraftState = {
@@ -1091,19 +1131,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       const submittedProviderID = providerID
       const submittedModelID = modelID
       const submittedAgent = trimmedAgent
-      await activateConfigForDirectory(draftDirectoryOverride ?? created.directory ?? null)
-
-      const configAfterActivation = useConfigStore.getState()
-      if (submittedProviderID && submittedModelID) {
-        if (configAfterActivation.currentProviderId !== submittedProviderID) {
-          configAfterActivation.setProvider(submittedProviderID)
-        }
-        if (useConfigStore.getState().currentModelId !== submittedModelID) {
-          useConfigStore.getState().setModel(submittedModelID)
-        }
-      }
-      if (submittedAgent && useConfigStore.getState().currentAgentName !== submittedAgent) {
-        useConfigStore.getState().setAgent(submittedAgent, { preserveModel: true })
+      const activatedDirectory = normalizePath(draftDirectoryOverride ?? created.directory ?? null)
+      await activateConfigForDirectory(activatedDirectory)
+      // Activation awaits provider loading. If the user moved to another project
+      // during that wait, the setters would write this prompt's model into it.
+      if (composerOwnsActivatedDirectory(useConfigStore.getState().activeDirectoryKey, activatedDirectory)) {
+        restoreSubmittedComposerSelection(submittedProviderID, submittedModelID, submittedAgent)
       }
 
       const configState = useConfigStore.getState()

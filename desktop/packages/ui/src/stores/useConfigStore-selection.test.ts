@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { ProviderWithModelList } from "@/types/providerModels"
 import { registerAgentsSource } from "@/lib/agents"
+import { composerOwnsActivatedDirectory, restoreSubmittedComposerSelection } from "@/sync/session-ui-store"
 import { keepsManualSelection, shouldKeepCurrentSelection, useConfigStore } from "./useConfigStore-impl"
 
 const providers = [
@@ -205,5 +206,50 @@ describe("selection source tracking", () => {
     useConfigStore.getState().setAgent("plan")
     expect(useConfigStore.getState().currentProviderId).toBe("claude-code")
     expect(useConfigStore.getState().currentModelId).toBe("claude-sonnet")
+  })
+})
+
+describe("restoreSubmittedComposerSelection", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  test("puts the submitted model back after activation replaced it", () => {
+    seedProject("manual")
+    useConfigStore.setState({
+      currentProviderId: "claude-code",
+      currentModelId: "claude-sonnet",
+      currentAgentName: "plan",
+    })
+
+    restoreSubmittedComposerSelection("defai", "deepseek-flash", "build")
+
+    const state = useConfigStore.getState()
+    expect(state.currentProviderId).toBe("defai")
+    expect(state.currentModelId).toBe("deepseek-flash")
+    expect(state.currentAgentName).toBe("build")
+  })
+
+  test("does not attach a model id when the submitted provider is not loaded", () => {
+    seedProject("manual")
+    useConfigStore.setState({
+      providers: [],
+      currentProviderId: "",
+      currentModelId: "",
+      currentAgentName: undefined,
+    })
+
+    restoreSubmittedComposerSelection("defai", "deepseek-flash", "build")
+
+    const state = useConfigStore.getState()
+    expect(state.currentProviderId).toBe("")
+    expect(state.currentModelId).toBe("")
+    expect(state.currentAgentName).toBe("build")
+  })
+
+  test("a prompt submitted in one project does not own a directory the user has since opened", () => {
+    expect(composerOwnsActivatedDirectory("/proj-b", "/proj-b")).toBe(true)
+    expect(composerOwnsActivatedDirectory("/proj-c", "/proj-b")).toBe(false)
+    expect(composerOwnsActivatedDirectory("__global__", null)).toBe(true)
   })
 })

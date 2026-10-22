@@ -28,7 +28,7 @@ import { getAgentColor } from "@/lib/agentColors"
 import { mergeModelMetadataWithLiveModel } from "@/lib/modelMetadata"
 import { getEditModeColors } from "@/lib/permissions/editModeColors"
 import { isProviderModelSelectable } from "@/lib/providerModelAvailability"
-import { extractMessageModelRef, isServerChosenModelOrigin } from "@/lib/messageModelRef"
+import { extractMessageModelRef, isOlderUserMessage, isServerChosenModelOrigin } from "@/lib/messageModelRef"
 import { cn, fuzzyMatch } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -501,12 +501,21 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   // with the render's old agent, then again after the store update.
   const keptModelAgentRef = React.useRef<string | null>(null)
   const latestLoadedUserChoiceRestoreRef = React.useRef<string | null>(null)
+  // Newest user message seen in this session view. A rollback must not restore
+  // an older message's model over the one the user just picked.
+  const latestObservedUserRef = React.useRef<{ sessionId: string | null; messageId: string }>({
+    sessionId: null,
+    messageId: "",
+  })
   const adoptAgentKeepingModel = React.useCallback((agentName: string) => {
-    keptModelAgentRef.current = agentName
     prevAgentNameRef.current = agentName
-    if (useConfigStore.getState().currentAgentName !== agentName) {
-      setAgent(agentName, { preserveModel: true })
+    if (useConfigStore.getState().currentAgentName === agentName) {
+      // Nothing will re-render to clear a kept flag, so do not leave one set.
+      keptModelAgentRef.current = null
+      return
     }
+    keptModelAgentRef.current = agentName
+    setAgent(agentName, { preserveModel: true })
   }, [setAgent])
 
   const currentSessionDirectory = currentSessionId ? getDirectoryForSession(currentSessionId) : undefined
@@ -562,9 +571,13 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
       // from the last commit. Treating that stale match as "already applied"
       // left the agent's pin on screen after the user had selected another model.
       const live = useConfigStore.getState()
-      const alreadyApplied = live.currentProviderId === providerId && live.currentModelId === modelId
-      if (!alreadyApplied) {
+      // setProvider always selects that provider's first model and drops a
+      // variant the first model does not expose. Skip it when the provider is
+      // already current, then set the model only if it still differs.
+      if (live.currentProviderId !== providerId) {
         setProvider(providerId)
+      }
+      if (useConfigStore.getState().currentModelId !== modelId) {
         setModel(modelId)
       }
 
@@ -658,7 +671,13 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   React.useEffect(() => {
     if (!currentSessionId) {
       latestLoadedUserChoiceRestoreRef.current = null
+      latestObservedUserRef.current = { sessionId: null, messageId: "" }
       return
+    }
+
+    if (latestObservedUserRef.current.sessionId !== currentSessionId) {
+      latestObservedUserRef.current = { sessionId: currentSessionId, messageId: "" }
+      latestLoadedUserChoiceRestoreRef.current = null
     }
 
     if (
@@ -670,6 +689,11 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     ) {
       return
     }
+
+    if (isOlderUserMessage(latestObservedUserRef.current.messageId, latestLoadedUserChoice.id)) {
+      return
+    }
+    latestObservedUserRef.current = { sessionId: currentSessionId, messageId: latestLoadedUserChoice.id }
 
     const restoreKey = [
       currentSessionId,

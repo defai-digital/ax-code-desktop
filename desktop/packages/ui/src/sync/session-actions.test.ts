@@ -1501,6 +1501,7 @@ describe("optimisticSend responsiveness", () => {
       content: "hello",
       providerID: "provider",
       modelID: "model",
+      variant: "high",
       send: (messageID) => {
         const state = store.getState()
         sendSawOptimistic = state.message["session-a"]?.some((message: Message) => message.id === messageID) ?? false
@@ -1513,9 +1514,14 @@ describe("optimisticSend responsiveness", () => {
     expect(sendSawOptimistic).toBe(true)
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
     const optimistic = store.getState().message["session-a"]?.[0] as
-      | (Message & { model?: { providerID?: string; modelID?: string }; modelOrigin?: string })
+      | (Message & {
+          model?: { providerID?: string; modelID?: string; variant?: string }
+          modelOrigin?: string
+          variant?: string
+        })
       | undefined
-    expect(optimistic?.model).toEqual({ providerID: "provider", modelID: "model" })
+    expect(optimistic?.model).toEqual({ providerID: "provider", modelID: "model", variant: "high" })
+    expect(optimistic?.variant).toBe("high")
     expect(optimistic?.modelOrigin).toBe("request")
   })
 

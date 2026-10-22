@@ -930,6 +930,8 @@ export async function optimisticSend(input: {
   providerID: string
   modelID: string
   agent?: string
+  /** Effort the user had selected. The composer restore reads it off the message. */
+  variant?: string
   files?: Array<Pick<FilePartInput, "type" | "mime" | "url" | "filename" | "source">>
   /**
    * The session's own directory when the caller already resolved it. Sends can
@@ -988,7 +990,9 @@ export async function optimisticSend(input: {
     model: {
       providerID: input.providerID,
       modelID: input.modelID,
+      ...(input.variant ? { variant: input.variant } : {}),
     },
+    ...(input.variant ? { variant: input.variant } : {}),
     modelOrigin: "request" as const,
   } as unknown as Message
 

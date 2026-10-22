@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { extractMessageModelRef, isServerChosenModelOrigin } from "./messageModelRef"
+import { extractMessageModelRef, isOlderUserMessage, isServerChosenModelOrigin } from "./messageModelRef"
 
 describe("extractMessageModelRef", () => {
   test("reads the provider, model and variant recorded on the message", () => {
@@ -54,9 +54,25 @@ describe("isServerChosenModelOrigin", () => {
     expect(isServerChosenModelOrigin("request")).toBe(false)
   })
 
-  test("agent, route, session, and fallback origins are not the user's pick", () => {
-    for (const origin of ["agent", "complexity", "hybrid", "session-or-config", "fallback"]) {
+  test("agent, route, session, fallback, and unknown origins are not the user's pick", () => {
+    for (const origin of ["agent", "complexity", "hybrid", "session-or-config", "fallback", "future-route"]) {
       expect(isServerChosenModelOrigin(origin)).toBe(true)
     }
+  })
+
+  test("treats a padded request label as the user's model", () => {
+    expect(isServerChosenModelOrigin(" request ")).toBe(false)
+  })
+})
+
+describe("isOlderUserMessage", () => {
+  test("restores when nothing has been observed yet, including an equal id", () => {
+    expect(isOlderUserMessage("", "msg_b")).toBe(false)
+    expect(isOlderUserMessage("msg_b", "msg_b")).toBe(false)
+    expect(isOlderUserMessage("msg_a", "msg_b")).toBe(false)
+  })
+
+  test("ignores the previous message revealed when a failed send rolls back", () => {
+    expect(isOlderUserMessage("msg_b", "msg_a")).toBe(true)
   })
 })
