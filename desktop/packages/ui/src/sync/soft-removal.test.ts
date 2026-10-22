@@ -375,9 +375,10 @@ describe("soft-removal S4.5 contract", () => {
     window.localStorage.setItem(key, JSON.stringify([{ id: "ses_retry", kind: "delete", directory: null }]))
     const sdkDelete = vi.fn(async () => ({}))
     vi.mocked(axCodeClient.getSdkClient).mockReturnValue({ session: { delete: sdkDelete, update: vi.fn() } } as never)
-    const write = vi.spyOn(window.localStorage, "setItem").mockImplementation(() => { throw new Error("quota exceeded") })
+    const write = vi.spyOn(Object.getPrototypeOf(window.localStorage), "setItem").mockImplementation(() => { throw new Error("quota exceeded") })
     try {
       await recoverPendingRemovals()
+      expect(write).toHaveBeenCalled()
       expect(window.localStorage.getItem(key)).not.toBeNull()
       expect(sdkDelete).not.toHaveBeenCalled()
     } finally {
