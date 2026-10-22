@@ -246,18 +246,19 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
   clearTimers(ids)
 
   const failed: PendingRemovalEntry[] = []
-  await Promise.all(
-    entries.map(async (entry) => {
-      const ok =
-        entry.kind === "delete"
-          ? await sessionActions.deleteSession(entry.session.id)
-          : await sessionActions.archiveSession(entry.session.id)
-      // No manual archived-bucket write on archive success (S4.5): the
-      // pending flag was released above, so the session.updated(time.archived)
-      // event adds the session to the archived bucket as the writer of record.
-      if (!ok) failed.push(entry)
-    }),
-  )
+  // One request at a time: every session mutation shares the runtime's
+  // 120-per-minute /session bucket, and a fan-out makes all 429 retries wake in
+  // the same instant, so only the first 120 could ever succeed.
+  for (const entry of entries) {
+    const ok =
+      entry.kind === "delete"
+        ? await sessionActions.deleteSession(entry.session.id)
+        : await sessionActions.archiveSession(entry.session.id)
+    // No manual archived-bucket write on archive success (S4.5): the
+    // pending flag was released above, so the session.updated(time.archived)
+    // event adds the session to the archived bucket as the writer of record.
+    if (!ok) failed.push(entry)
+  }
   // Only the entries this commit confirmed may leave the slot. The unload flush keeps its failures
   // there because its requests are fire-and-forget and nobody can see the outcome (the slot's whole
   // purpose); the undo-window timer runs while the user is looking, reports the failure and puts the
@@ -402,31 +403,30 @@ export async function recoverPendingRemovals(): Promise<void> {
 
   const sdkClient = axCodeClient.getSdkClient()
   const failed: PersistedRemoval[] = []
-  await Promise.all(
-    persisted.map(async (entry) => {
-      const { id, kind, directory } = entry
-      try {
-        // Recovery sends every pending removal at once and can exceed the runtime's rate limit.
-        const result = await retryWhenRateLimited(
-          (): Promise<{ error?: unknown; response?: Response }> =>
-            kind === "delete"
-              ? sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
-              : sdkClient.session.update({
-                  sessionID: id,
-                  directory: directory ?? undefined,
-                  time: { archived: Date.now() },
-                }),
-        )
-        // The generated SDK resolves with `{ error }` instead of throwing.
-        if (result?.error && !isAlreadyGoneError(result.error)) {
-          throw new Error(formatSdkError(result.error))
-        }
-      } catch (error) {
-        console.warn("[soft-removal] failed to recover pending removal", { id, kind }, error)
-        failed.push(entry)
+  // One request at a time for the same reason as commitRemovals: a fan-out
+  // exceeds the /session bucket and every 429 retry wakes in the same instant.
+  for (const entry of persisted) {
+    const { id, kind, directory } = entry
+    try {
+      const result = await retryWhenRateLimited(
+        (): Promise<{ error?: unknown; response?: Response }> =>
+          kind === "delete"
+            ? sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
+            : sdkClient.session.update({
+                sessionID: id,
+                directory: directory ?? undefined,
+                time: { archived: Date.now() },
+              }),
+      )
+      // The generated SDK resolves with `{ error }` instead of throwing.
+      if (result?.error && !isAlreadyGoneError(result.error)) {
+        throw new Error(formatSdkError(result.error))
       }
-    }),
-  )
+    } catch (error) {
+      console.warn("[soft-removal] failed to recover pending removal", { id, kind }, error)
+      failed.push(entry)
+    }
+  }
   // Kept entries plus the leftovers, written the way every other write in this window is: the recovery
   // used to write its own failures over the whole slot (or remove the key when it had none), which
   // dropped a removal the user made while its requests were in flight — the next launch no longer

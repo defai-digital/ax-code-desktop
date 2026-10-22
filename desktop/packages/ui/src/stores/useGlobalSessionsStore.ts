@@ -576,8 +576,13 @@ export const useGlobalSessionsStore = create<GlobalSessionsState>((set, get) => 
           new Set(live.archivedSessions.map((session) => session.id)),
         )
         const nextActiveSessions = activeResult.status === "fulfilled" ? activeResult.value : fallbackSnapshot
+        // `archived: true` means "include archived", so this response also carries
+        // every active session. Keeping it unfiltered put active sessions in the
+        // archived bucket, where retention read them as children to protect.
         const nextArchivedSessions =
-          archivedResult.status === "fulfilled" ? archivedResult.value : live.archivedSessions
+          archivedResult.status === "fulfilled"
+            ? archivedResult.value.filter((session) => Boolean(session.time?.archived))
+            : live.archivedSessions
 
         if (activeResult.status === "rejected") {
           console.warn(

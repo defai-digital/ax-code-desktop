@@ -789,11 +789,15 @@ export async function unarchiveSession(sessionId: string, options?: { notify?: b
   try {
     // No manual global-store write: the session.updated(time.archived=null)
     // event restores the session to the active list (S4.5 single writer).
-    const result = await scopedClientForDirectory(sessionDirectory).session.update({
-      sessionID: sessionId,
-      directory: sessionDirectory,
-      time: { archived: null },
-    })
+    // Unarchive shares the runtime's PATCH /session bucket with archive, so an
+    // immediate undo of a bulk archive can be the request that hits the cap.
+    const result = await retryWhenRateLimited(() =>
+      scopedClientForDirectory(sessionDirectory).session.update({
+        sessionID: sessionId,
+        directory: sessionDirectory,
+        time: { archived: null },
+      }),
+    )
     assertSessionCallSucceeded(result, "unarchiveSession")
     return true
   } catch (error) {
@@ -807,12 +811,15 @@ export async function updateSessionTitle(sessionId: string, title: string): Prom
   const sessionDirectory = getSessionDirectory(sessionId)
   try {
     // No manual global-store write: the session.updated event applies the new
-    // title to the global index (S4.5 single writer).
-    const result = await scopedClientForDirectory(sessionDirectory).session.update({
-      sessionID: sessionId,
-      directory: sessionDirectory,
-      title,
-    })
+    // title to the global index (S4.5 single writer). Rename shares the PATCH
+    // /session bucket with bulk archive/unarchive.
+    const result = await retryWhenRateLimited(() =>
+      scopedClientForDirectory(sessionDirectory).session.update({
+        sessionID: sessionId,
+        directory: sessionDirectory,
+        title,
+      }),
+    )
     assertSessionCallSucceeded(result, "updateSessionTitle")
   } catch (error) {
     console.error("[session-actions] updateSessionTitle failed", error)

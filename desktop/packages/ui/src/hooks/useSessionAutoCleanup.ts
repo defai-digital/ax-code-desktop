@@ -80,9 +80,14 @@ export const buildAutoDeleteCandidates = ({
   }
   const keptIds = sorted.filter((session) => session?.id && !isExpired(session)).map((session) => session.id)
   if (currentSessionId) keptIds.push(currentSessionId)
-  // Archived sessions are outside retention, but deleting an active ancestor still cascades to them.
-  if (action === "delete") keptIds.push(...archivedSessions.map((session) => session.id))
-  const keptAncestorIds = collectAncestorIds([...sorted, ...archivedSessions], keptIds)
+  // Delete cascades to descendants, so a kept child protects every ancestor.
+  // Archive updates one session's metadata and has no descendants to protect.
+  let keptAncestorIds = new Set<string>()
+  if (action === "delete") {
+    // Archived sessions are outside retention, but deleting an active ancestor still cascades to them.
+    keptIds.push(...archivedSessions.map((session) => session.id))
+    keptAncestorIds = collectAncestorIds([...sorted, ...archivedSessions], keptIds)
+  }
 
   return sorted.filter((session) => isExpired(session) && !keptAncestorIds.has(session.id)).map((session) => session.id)
 }
@@ -242,7 +247,13 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             // Deleting a session also deletes its descendants, so skip the open session's ancestors too.
             const openSessionId = useSessionUIStore.getState().currentSessionId
             if (id === openSessionId) continue
-            if (openSessionId && collectAncestorIds([...sessions, ...archived], [openSessionId]).has(id)) continue
+            if (
+              sessionRetentionAction === "delete" &&
+              openSessionId &&
+              collectAncestorIds([...sessions, ...archived], [openSessionId]).has(id)
+            ) {
+              continue
+            }
             if (sessionRetentionAction === "archive" && globalArchiveAvailable) {
               try {
                 await archiveGlobalSession(id, Date.now())

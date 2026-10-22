@@ -540,6 +540,27 @@ describe("loadSessions recovers from a wedged request", () => {
   })
 })
 
+describe("loadSessions archived bucket", () => {
+  test("keeps active sessions out of the archived bucket", async () => {
+    // The runtime's archived=true query means "include archived", so it also
+    // returns every active session; only the archived flag separates the buckets.
+    const active = makeSession("ses_active", { directory: "/repo" })
+    const archived = makeSession("ses_archived", {
+      directory: "/repo",
+      time: { created: 1, updated: 2, archived: 3 },
+    })
+    // loadSessions requests active first, then the archived-inclusive list.
+    listGlobalSessionPagesMock
+      .mockResolvedValueOnce([active] as never[])
+      .mockResolvedValueOnce([active, archived] as never[])
+
+    await useGlobalSessionsStore.getState().loadSessions()
+
+    expect(useGlobalSessionsStore.getState().activeSessions.map((session) => session.id)).toEqual(["ses_active"])
+    expect(useGlobalSessionsStore.getState().archivedSessions.map((session) => session.id)).toEqual(["ses_archived"])
+  })
+})
+
 describe("applySnapshot cross-bucket freshness", () => {
   test("a stale snapshot cannot resurrect a session into the bucket it was moved out of", () => {
     // X was archived at t=200 (so its active entry is gone); a slow load started before

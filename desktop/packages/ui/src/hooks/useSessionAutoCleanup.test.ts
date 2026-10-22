@@ -55,6 +55,13 @@ describe("buildAutoDeleteCandidates", () => {
     expect(buildAutoDeleteCandidates({ sessions, archivedSessions, action: "archive", currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(["parent"])
   })
 
+  test("archive retention archives an expired parent whose child is kept", () => {
+    // Archiving does not cascade (only delete does), so a kept child must not
+    // pin its expired parent in the active list forever.
+    const sessions = [session("parent", 40), session("child", 1, "parent"), session("old", 40)]
+    expect(buildAutoDeleteCandidates({ sessions, action: "archive", currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(["parent", "old"])
+  })
+
   test("still cleans up an expired parent with expired children", () => {
     const sessions = [session("parent", 40), session("child", 41, "parent")]
 

@@ -58,6 +58,7 @@ const { axCodeClient } = await import("@/lib/ax-code/client")
 const {
   softDeleteSession,
   softArchiveSession,
+  softBulkDelete,
   flushPendingRemovals,
   recoverPendingRemovals,
   resetSoftRemovalForTests,
@@ -302,6 +303,57 @@ describe("soft-removal S4.5 contract", () => {
     useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", archived))
     expect(useGlobalSessionsStore.getState().activeSessions).toHaveLength(0)
     expect(useGlobalSessionsStore.getState().archivedSessions.map((s) => s.id)).toEqual(["ses_c"])
+  })
+
+  test("commits a bulk removal one request at a time so rate-limit retries cannot stampede", async () => {
+    const sessions = [makeSession("ses_serial_1"), makeSession("ses_serial_2")]
+    for (const session of sessions) {
+      useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    }
+
+    let inFlight = 0
+    let maxInFlight = 0
+    deleteSessionMock.mockImplementation(async () => {
+      inFlight += 1
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      inFlight -= 1
+      return true
+    })
+
+    softBulkDelete(sessions)
+    flushPendingRemovals()
+
+    await vi.waitFor(() => expect(deleteSessionMock).toHaveBeenCalledTimes(2))
+    expect(maxInFlight).toBe(1)
+  })
+
+  test("recovers orphaned removals one request at a time so rate-limit retries cannot stampede", async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    const sdkDelete = vi.fn(async () => {
+      inFlight += 1
+      maxInFlight = Math.max(maxInFlight, inFlight)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      inFlight -= 1
+      return {}
+    })
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: sdkDelete, update: vi.fn(async () => ({})) },
+    } as never)
+
+    window.localStorage.setItem(
+      pendingKey("window-a"),
+      JSON.stringify([
+        { id: "ses_r1", kind: "delete", directory: null },
+        { id: "ses_r2", kind: "delete", directory: null },
+      ]),
+    )
+
+    await recoverPendingRemovals()
+
+    expect(sdkDelete).toHaveBeenCalledTimes(2)
+    expect(maxInFlight).toBe(1)
   })
 
   test("an undo in one window does not erase another window's persisted pending removals", async () => {

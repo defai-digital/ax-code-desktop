@@ -566,6 +566,31 @@ describe("unarchiveSession", () => {
     // event is the writer of record that restores the session to active.
     expect(upsertSessionMock).not.toHaveBeenCalled()
   })
+
+  test("waits out the runtime rate limit instead of reporting a failure", async () => {
+    // Archive and unarchive share the runtime's PATCH /session bucket: a bulk
+    // archive that fills the window must not make the immediate undo fail.
+    vi.useFakeTimers()
+    try {
+      mockScopedClient.session.update
+        .mockResolvedValueOnce({
+          error: { name: "ServiceUnavailableError", message: "Too many requests", status: 429 },
+          response: { status: 429 },
+        } as never)
+        .mockResolvedValueOnce({ data: {}, response: { status: 200 } } as never)
+
+      const { setActionRefs, unarchiveSession } = await import("./session-actions")
+      setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/current/project")
+
+      const pending = unarchiveSession("session-a")
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(pending).resolves.toBe(true)
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
 
 describe("session mutations treat an SDK error response as a failure", () => {
@@ -721,6 +746,33 @@ describe("session mutations treat an SDK error response as a failure", () => {
     expect(toastErrorMock).toHaveBeenCalledWith("Failed to rename session", {
       id: "session-action-rename-failed",
     })
+  })
+
+  test("updateSessionTitle waits out the runtime rate limit instead of surfacing a failure", async () => {
+    vi.useFakeTimers()
+    try {
+      mockScopedClient.session.update
+        .mockResolvedValueOnce({
+          error: { name: "ServiceUnavailableError", message: "Too many requests", status: 429 },
+          response: { status: 429 },
+        } as never)
+        .mockResolvedValueOnce({ data: {}, response: { status: 200 } } as never)
+
+      const { setActionRefs, updateSessionTitle } = await import("./session-actions")
+      setActionRefs(
+        mockSdk as unknown as AxCodeClient,
+        createChildStores([["/test/project", createStore({})]]),
+        () => "/test/project",
+      )
+
+      const pending = updateSessionTitle("session-a", "new title")
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(pending).resolves.toBeUndefined()
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("a rejected abort clears the stop marker it armed", async () => {
