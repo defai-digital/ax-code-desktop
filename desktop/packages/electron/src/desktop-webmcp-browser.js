@@ -1009,7 +1009,7 @@ function createDesktopWebMcpBrowser({
       // command it offers can be used.
       await loadPage(entry, remembered?.url || args.url).catch(() => {})
       if (entry.closed) throw new Error("Browser closed during loading")
-      await entry.adapter.start()
+      await entry.adapter.start({ timeoutMs: attachTimeoutMs })
       owner.contentView.removeChildView(view)
       entry.ready = true
     } catch {

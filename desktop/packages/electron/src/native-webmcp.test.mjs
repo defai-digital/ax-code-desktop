@@ -43,6 +43,46 @@ async function fixture() {
 }
 
 describe("native WebMCP adapter", () => {
+  test.each(["Page.enable", "Page.getFrameTree", "WebMCP.enable"])("bounds stalled initialization at %s and ignores late completion", async (stalled) => {
+    const contents = new EventEmitter()
+    contents.debugger = new EventEmitter()
+    contents.debugger.attach = vi.fn()
+    contents.debugger.isAttached = () => true
+    contents.debugger.detach = vi.fn()
+    let complete
+    contents.debugger.sendCommand = vi.fn(async (method) => {
+      if (method === stalled) return new Promise((resolve) => { complete = resolve })
+      return { frameTree: { frame: { id: "top" } } }
+    })
+    const adapter = new NativeWebMcp(contents)
+    await expect(adapter.start({ timeoutMs: 20 })).rejects.toThrow(/does not provide native WebMCP/)
+    const calls = contents.debugger.sendCommand.mock.calls.length
+    complete({ frameTree: { frame: { id: "late" } } })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(adapter.available).toBe(false)
+    expect(adapter.closed).toBe(true)
+    expect(contents.debugger.sendCommand).toHaveBeenCalledTimes(calls)
+    expect(contents.listenerCount("destroyed")).toBe(0)
+    expect(contents.debugger.listenerCount("detach")).toBe(0)
+  })
+
+  test.each(["destroyed", "render-process-gone", "detach", "close"])("interrupts initialization immediately on %s", async (event) => {
+    const contents = new EventEmitter()
+    contents.debugger = new EventEmitter()
+    contents.debugger.attach = vi.fn()
+    contents.debugger.isAttached = () => true
+    contents.debugger.detach = vi.fn()
+    contents.debugger.sendCommand = () => new Promise(() => {})
+    const adapter = new NativeWebMcp(contents)
+    const starting = adapter.start({ timeoutMs: 10000 })
+    const rejected = expect(starting).rejects.toThrow(/does not provide native WebMCP/)
+    if (event === "close") adapter.close()
+    else (event === "detach" ? contents.debugger : contents).emit(event)
+    await rejected
+    expect(adapter.available).toBe(false)
+    expect(adapter.closed).toBe(true)
+  })
+
   test("uses only the exact native guest and discovers top-level tools", async () => {
     const f = await fixture()
     f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, frameId: "other-frame", name: "hidden" }] })

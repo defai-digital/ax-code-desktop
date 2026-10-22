@@ -26,6 +26,7 @@ function fixture({
   replyPost,
   confirmClose,
   capabilityResponse,
+  stalledInitialization = false,
 } = {}) {
   const owners = new Map()
   const guests = []
@@ -66,7 +67,8 @@ function fixture({
       contents.debugger.detach = vi.fn()
       contents.debugger.isAttached = () => false
       contents.debugger.sendCommand = async (method) =>
-        method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } }
+        stalledInitialization && guests[0] === contents && method === "Page.enable" ? new Promise(() => {})
+          : method === "Page.getFrameTree" ? { frameTree: { frame: { id: "top" } } }
           : method === "Runtime.evaluate" ? { result: { value: false, objectId: "window" } }
           : method === "DOMDebugger.getEventListeners" ? { listeners: [] } : {}
       guests.push(contents)
@@ -3146,4 +3148,17 @@ test("assigning a placeholder ordinal never scans retained identity values", () 
   const values = vi.spyOn(identities, "values").mockImplementation(() => { throw new Error("linear ordinal scan") })
   expect(projectToolCatalog([{ name: "token=second" }], new Map(), identities).catalog[0].name).toBe("[redacted tool 2]")
   expect(values).not.toHaveBeenCalled()
+})
+
+test("stalled native initialization releases queued page creation and shutdown", async () => {
+  const f = fixture({ stalledInitialization: true, attachTimeoutMs: 20 })
+  const failed = expect(f.create({ attach: false })).rejects.toThrow(/could not load/)
+  const next = f.create({ attach: false })
+  await failed
+  const { status } = await next
+  expect(status.id).toBeTruthy()
+  expect(f.guests[0].destroyed).toBe(true)
+  expect(f.guests[1].destroyed).toBe(false)
+  expect(await f.controller.closeAll()).toEqual([])
+  expect(f.controller.poolStats().liveViews).toBe(0)
 })

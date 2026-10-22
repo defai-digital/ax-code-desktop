@@ -109,22 +109,50 @@ class NativeWebMcp {
       this.invalidate()
     }
   }
-  async start() {
+  async start({ timeoutMs = 2000 } = {}) {
     const contents = this.contents
+    if (this.closed) throw new Error("The bundled browser does not provide native WebMCP")
     contents.on("did-start-navigation", this.navigation)
     contents.on("render-process-gone", this.gone)
     contents.debugger.on("message", this.message)
     contents.debugger.on("detach", this.detached)
+    let timer
+    let aborted = false
+    const interrupted = new Promise((_, reject) => {
+      this.abortStart = () => {
+        aborted = true
+        reject(new Error("Native WebMCP initialization interrupted"))
+      }
+      timer = setTimeout(this.abortStart, timeoutMs)
+    })
+    // Synchronous attach failures can close the adapter before its first command is awaited.
+    void interrupted.catch(() => {})
+    const stop = () => this.abortStart?.()
+    contents.once("destroyed", stop)
+    contents.once("render-process-gone", stop)
+    contents.debugger.once("detach", stop)
+    const command = async (method) => {
+      if (aborted || this.closed) throw new Error("Native WebMCP initialization interrupted")
+      const result = await Promise.race([contents.debugger.sendCommand(method), interrupted])
+      if (aborted || this.closed) throw new Error("Native WebMCP initialization interrupted")
+      return result
+    }
     try {
       contents.debugger.attach("1.3")
-      await contents.debugger.sendCommand("Page.enable")
-      const { frameTree } = await contents.debugger.sendCommand("Page.getFrameTree")
+      await command("Page.enable")
+      const { frameTree } = await command("Page.getFrameTree")
       this.frameId = frameTree.frame.id
-      await contents.debugger.sendCommand("WebMCP.enable")
+      await command("WebMCP.enable")
       this.available = true
     } catch {
       this.close()
       throw new Error("The bundled browser does not provide native WebMCP")
+    } finally {
+      clearTimeout(timer)
+      this.abortStart = null
+      contents.removeListener("destroyed", stop)
+      contents.removeListener("render-process-gone", stop)
+      contents.debugger.removeListener("detach", stop)
     }
   }
   invalidate() {
@@ -544,6 +572,7 @@ class NativeWebMcp {
   close() {
     if (this.closed) return
     this.closed = true
+    this.abortStart?.()
     this.available = false
     for (const id of [...this.pending.keys()]) this.cancel(id, "uncertain", "provider-gone")
     this.contents.removeListener("did-start-navigation", this.navigation)
