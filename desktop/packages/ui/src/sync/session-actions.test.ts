@@ -1512,6 +1512,11 @@ describe("optimisticSend responsiveness", () => {
     expect(sawOptimisticBeforeProbe).toBe(true)
     expect(sendSawOptimistic).toBe(true)
     expect(store.getState().session_status["session-a"]).toEqual({ type: "busy" })
+    const optimistic = store.getState().message["session-a"]?.[0] as
+      | (Message & { model?: { providerID?: string; modelID?: string }; modelOrigin?: string })
+      | undefined
+    expect(optimistic?.model).toEqual({ providerID: "provider", modelID: "model" })
+    expect(optimistic?.modelOrigin).toBe("request")
   })
 
   test("stamps a session's status events without tracking ids forever", async () => {

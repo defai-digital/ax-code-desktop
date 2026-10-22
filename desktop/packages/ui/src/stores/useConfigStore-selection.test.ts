@@ -181,4 +181,29 @@ describe("selection source tracking", () => {
     expect(snapshot.currentAgentName).toBe("plan")
     expect(snapshot.selectionSource).toBe("manual")
   })
+
+  test("adopting the agent named on a prompt keeps the model the user picked", () => {
+    // The prompt can be auto-routed to another agent. setAgent used to apply
+    // that agent's pinned model, so the composer left the model just selected.
+    seedProject("manual")
+    registerAgentsSource({
+      getAgents: () =>
+        [
+          { name: "build" },
+          { name: "plan", model: { providerID: "claude-code", modelID: "claude-sonnet" } },
+        ] as never,
+      loadAgents: async () => true,
+    })
+
+    useConfigStore.getState().setAgent("plan", { preserveModel: true })
+
+    const preserved = useConfigStore.getState()
+    expect(preserved.currentAgentName).toBe("plan")
+    expect(preserved.currentProviderId).toBe("defai")
+    expect(preserved.currentModelId).toBe("deepseek-flash")
+
+    useConfigStore.getState().setAgent("plan")
+    expect(useConfigStore.getState().currentProviderId).toBe("claude-code")
+    expect(useConfigStore.getState().currentModelId).toBe("claude-sonnet")
+  })
 })

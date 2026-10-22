@@ -976,14 +976,20 @@ export async function optimisticSend(input: {
     id: messageID,
     role: "user" as const,
     sessionID: input.sessionId,
-    parentID: "",
-    modelID: input.modelID,
-    providerID: input.providerID,
-    system: "",
-    agent: input.agent ?? "",
-    model: `${input.providerID}/${input.modelID}`,
-    metadata: {} as Record<string, unknown>,
     time: { created: Date.now(), completed: 0 },
+    agent: input.agent ?? "",
+    // Kept for readers that still look at the assistant-style top-level fields
+    // (retry). The canonical user-message location is the object below.
+    providerID: input.providerID,
+    modelID: input.modelID,
+    // UserMessage.model is a provider/model object. A "provider/model" string
+    // cannot be read back, so the composer treated the sent turn as having no
+    // model and then adopted whatever the server echo recorded.
+    model: {
+      providerID: input.providerID,
+      modelID: input.modelID,
+    },
+    modelOrigin: "request" as const,
   } as unknown as Message
 
   // Insert into store + register in shadow Map (for mergeOptimisticPage cleanup)

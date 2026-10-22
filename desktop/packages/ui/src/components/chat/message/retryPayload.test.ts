@@ -104,6 +104,24 @@ describe("buildAssistantRetryPayload", () => {
     expect(payload?.variant).toBe("high")
   })
 
+  test("retries with the model object recorded on the user message", () => {
+    const payload = buildAssistantRetryPayload({
+      messages: [
+        makeMessage("u1", "user", {
+          model: { providerID: "defai", modelID: "deepseek-flash" },
+        }),
+        makeMessage("a1", "assistant", { providerID: "claude-code", modelID: "claude-sonnet" }),
+      ],
+      partsByMessage: { u1: [textPart("fix the bug")] },
+      failedAssistantMessage: makeMessage("a1", "assistant", {
+        providerID: "claude-code",
+        modelID: "claude-sonnet",
+      }),
+    })
+
+    expect(payload).toEqual({ text: "fix the bug", providerID: "defai", modelID: "deepseek-flash" })
+  })
+
   test("reads a nested model.variant from pre-1.4.0 histories", () => {
     const payload = buildAssistantRetryPayload({
       messages: [

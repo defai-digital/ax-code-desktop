@@ -513,7 +513,12 @@ interface ConfigStore {
   setCurrentVariant: (variant: string | undefined) => void
   cycleCurrentVariant: () => void
   getCurrentModelVariants: () => string[]
-  setAgent: (agentName: string | undefined) => void
+  /**
+   * `preserveModel` keeps the current provider and model. Restoring the agent
+   * named on a submitted prompt must not replace the model the user picked
+   * with the agent's pinned model.
+   */
+  setAgent: (agentName: string | undefined, options?: { preserveModel?: boolean }) => void
   setSelectedProvider: (providerId: string) => void
   setSettingsDefaultModel: (model: string | undefined) => void
   setSettingsDefaultVariant: (variant: string | undefined) => void
@@ -1632,7 +1637,7 @@ export const useConfigStore = create<ConfigStore>()(
           set({ modelsMetadata: new Map<string, ModelMetadata>() })
         },
 
-        setAgent: (agentName: string | undefined) => {
+        setAgent: (agentName: string | undefined, options?: { preserveModel?: boolean }) => {
           const { providers, settingsDefaultModel, settingsDefaultVariant, currentProviderId, currentModelId } = get()
 
           set((state) => {
@@ -1673,7 +1678,7 @@ export const useConfigStore = create<ConfigStore>()(
             }
           }
 
-          if (agentName) {
+          if (agentName && !options?.preserveModel) {
             const { currentSessionId } = useSessionUIStore.getState()
 
             const applyResolvedModelSelection = (providerId: string, modelId: string, variant?: string) => {

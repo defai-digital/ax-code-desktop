@@ -60,10 +60,15 @@ export const buildAssistantRetryPayload = (input: {
     return null
   }
 
+  const userModel = (userMessage as { model?: unknown }).model
   const providerID =
-    readNonEmptyString(userMessage, "providerID") ?? readNonEmptyString(input.failedAssistantMessage, "providerID")
+    readNonEmptyString(userModel, "providerID") ??
+    readNonEmptyString(userMessage, "providerID") ??
+    readNonEmptyString(input.failedAssistantMessage, "providerID")
   const modelID =
-    readNonEmptyString(userMessage, "modelID") ?? readNonEmptyString(input.failedAssistantMessage, "modelID")
+    readNonEmptyString(userModel, "modelID") ??
+    readNonEmptyString(userMessage, "modelID") ??
+    readNonEmptyString(input.failedAssistantMessage, "modelID")
   if (!providerID || !modelID) {
     return null
   }

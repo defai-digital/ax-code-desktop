@@ -28,7 +28,7 @@ import { getAgentColor } from "@/lib/agentColors"
 import { mergeModelMetadataWithLiveModel } from "@/lib/modelMetadata"
 import { getEditModeColors } from "@/lib/permissions/editModeColors"
 import { isProviderModelSelectable } from "@/lib/providerModelAvailability"
-import { extractMessageModelRef } from "@/lib/messageModelRef"
+import { extractMessageModelRef, isServerChosenModelOrigin } from "@/lib/messageModelRef"
 import { cn, fuzzyMatch } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -496,7 +496,18 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
 
   const prevAgentNameRef = React.useRef<string | undefined>(undefined)
   const explicitAgentSwitchRef = React.useRef<string | null>(null)
+  // Agent adopted from a submitted prompt or a saved session. The agent-switch
+  // effect must not replace the model for this name: that effect runs once
+  // with the render's old agent, then again after the store update.
+  const keptModelAgentRef = React.useRef<string | null>(null)
   const latestLoadedUserChoiceRestoreRef = React.useRef<string | null>(null)
+  const adoptAgentKeepingModel = React.useCallback((agentName: string) => {
+    keptModelAgentRef.current = agentName
+    prevAgentNameRef.current = agentName
+    if (useConfigStore.getState().currentAgentName !== agentName) {
+      setAgent(agentName, { preserveModel: true })
+    }
+  }, [setAgent])
 
   const currentSessionDirectory = currentSessionId ? getDirectoryForSession(currentSessionId) : undefined
   const hasRenderableCurrentSessionSnapshot = useDirectorySync(
@@ -546,14 +557,16 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         return "model-missing"
       }
 
-      const providerMatches = currentProviderId === providerId
-      const modelMatches = currentModelId === modelId
-      if (providerMatches && modelMatches) {
-        return "applied"
+      // Read the live store. setAgent can replace the model synchronously
+      // before this runs, and the render closure would still show the model
+      // from the last commit. Treating that stale match as "already applied"
+      // left the agent's pin on screen after the user had selected another model.
+      const live = useConfigStore.getState()
+      const alreadyApplied = live.currentProviderId === providerId && live.currentModelId === modelId
+      if (!alreadyApplied) {
+        setProvider(providerId)
+        setModel(modelId)
       }
-
-      setProvider(providerId)
-      setModel(modelId)
 
       if (currentSessionId) {
         saveSessionModelSelection(currentSessionId, providerId, modelId)
@@ -566,8 +579,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     },
     [
       providers,
-      currentProviderId,
-      currentModelId,
       setProvider,
       setModel,
       currentSessionId,
@@ -667,14 +678,23 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
       latestLoadedUserChoice.providerID,
       latestLoadedUserChoice.modelID,
       latestLoadedUserChoice.variant ?? "",
+      latestLoadedUserChoice.modelOrigin ?? "",
     ].join("|")
 
     if (latestLoadedUserChoiceRestoreRef.current === restoreKey) {
       return
     }
 
+    // A complexity route, agent pin, hybrid placement, session default, or
+    // fallback recorded on the user message is not the model the user picked.
+    // Adopting it is what swapped the composer after the prompt was sent.
+    if (isServerChosenModelOrigin(latestLoadedUserChoice.modelOrigin)) {
+      latestLoadedUserChoiceRestoreRef.current = restoreKey
+      return
+    }
+
     if (latestLoadedUserChoice.agent && currentAgentName !== latestLoadedUserChoice.agent) {
-      setAgent(latestLoadedUserChoice.agent)
+      adoptAgentKeepingModel(latestLoadedUserChoice.agent)
     }
 
     const applyResult = tryApplyModelSelection(
@@ -705,7 +725,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     providers,
     hasRenderableCurrentSessionSnapshot,
     latestLoadedUserChoice,
-    setAgent,
+    adoptAgentKeepingModel,
     tryApplyModelSelection,
     saveSessionAgentSelection,
     saveAgentModelVariantForSession,
@@ -722,6 +742,22 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
       return
     }
 
+    // The latest turn can name a model the runtime chose (agent pin, route,
+    // fallback). Per-agent memory may still hold that pin from before the
+    // user picked a model. Replaying it is the swap after send. Keep the
+    // session-level pick, which is what the composer selection writes.
+    if (isServerChosenModelOrigin(latestLoadedUserChoice?.modelOrigin)) {
+      const savedSessionModel = getSessionModelSelection(currentSessionId)
+      if (savedSessionModel) {
+        tryApplyModelSelection(
+          savedSessionModel.providerId,
+          savedSessionModel.modelId,
+          currentAgentName || undefined,
+        )
+      }
+      return
+    }
+
     const applySavedSelections = (): "resolved" | "waiting" | "continue" => {
       const savedSessionModel = getSessionModelSelection(currentSessionId)
       const savedAgentName = currentSessionId
@@ -729,7 +765,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         : null
       if (savedAgentName) {
         if (currentAgentName !== savedAgentName) {
-          setAgent(savedAgentName)
+          adoptAgentKeepingModel(savedAgentName)
         }
 
         const savedModel = getAgentModelForSession(currentSessionId, savedAgentName)
@@ -765,7 +801,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         }
 
         if (currentAgentName !== agent.name) {
-          setAgent(agent.name)
+          adoptAgentKeepingModel(agent.name)
         }
 
         const existingSelection =
@@ -851,6 +887,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     currentAgentName,
     getSessionModelSelection,
     getAgentModelForSession,
+    adoptAgentKeepingModel,
     setAgent,
     tryApplyModelSelection,
     saveSessionAgentSelection,
@@ -867,6 +904,16 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
 
     const handleAgentSwitch = async () => {
       try {
+        if (keptModelAgentRef.current) {
+          const liveAgent = useConfigStore.getState().currentAgentName
+          if (liveAgent && liveAgent === keptModelAgentRef.current) {
+            prevAgentNameRef.current = liveAgent
+            if (currentAgentName === liveAgent) keptModelAgentRef.current = null
+            return
+          }
+          keptModelAgentRef.current = null
+        }
+
         if (currentAgentName !== prevAgentNameRef.current) {
           prevAgentNameRef.current = currentAgentName
 
@@ -1043,6 +1090,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     (agentName: string, options?: { closeModelSelector?: boolean }) => {
       try {
         explicitAgentSwitchRef.current = agentName
+        keptModelAgentRef.current = null
         setAgent(agentName)
         addRecentAgent(agentName)
         if (options?.closeModelSelector ?? true) {

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { extractMessageModelRef } from "./messageModelRef"
+import { extractMessageModelRef, isServerChosenModelOrigin } from "./messageModelRef"
 
 describe("extractMessageModelRef", () => {
   test("reads the provider, model and variant recorded on the message", () => {
@@ -40,5 +40,23 @@ describe("extractMessageModelRef", () => {
 
   test("returns the raw value without trimming it", () => {
     expect(extractMessageModelRef({ model: { modelID: " claude-sonnet " } }).modelID).toBe(" claude-sonnet ")
+  })
+
+  test("keeps a request origin and ignores a blank one", () => {
+    expect(extractMessageModelRef({ modelOrigin: "request" }).modelOrigin).toBe("request")
+    expect(extractMessageModelRef({ modelOrigin: "  " }).modelOrigin).toBeUndefined()
+  })
+})
+
+describe("isServerChosenModelOrigin", () => {
+  test("a missing origin or an explicit request is the user's model", () => {
+    expect(isServerChosenModelOrigin(undefined)).toBe(false)
+    expect(isServerChosenModelOrigin("request")).toBe(false)
+  })
+
+  test("agent, route, session, and fallback origins are not the user's pick", () => {
+    for (const origin of ["agent", "complexity", "hybrid", "session-or-config", "fallback"]) {
+      expect(isServerChosenModelOrigin(origin)).toBe(true)
+    }
   })
 })

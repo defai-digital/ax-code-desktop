@@ -1085,36 +1085,50 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       })
 
       const draftSyntheticParts = draft.syntheticParts
+      // Directory activation loads that project's saved model and can replace
+      // the one the user just picked. The prompt was submitted with these
+      // values; put them back before anything records the session selection.
+      const submittedProviderID = providerID
+      const submittedModelID = modelID
+      const submittedAgent = trimmedAgent
       await activateConfigForDirectory(draftDirectoryOverride ?? created.directory ?? null)
+
+      const configAfterActivation = useConfigStore.getState()
+      if (submittedProviderID && submittedModelID) {
+        if (configAfterActivation.currentProviderId !== submittedProviderID) {
+          configAfterActivation.setProvider(submittedProviderID)
+        }
+        if (useConfigStore.getState().currentModelId !== submittedModelID) {
+          useConfigStore.getState().setModel(submittedModelID)
+        }
+      }
+      if (submittedAgent && useConfigStore.getState().currentAgentName !== submittedAgent) {
+        useConfigStore.getState().setAgent(submittedAgent, { preserveModel: true })
+      }
 
       const configState = useConfigStore.getState()
       const draftAgentName = configState.currentAgentName
-      const effectiveDraftAgent = trimmedAgent ?? draftAgentName
+      const effectiveDraftAgent = submittedAgent ?? draftAgentName
+      const sessionProviderID = submittedProviderID || configState.currentProviderId
+      const sessionModelID = submittedModelID || configState.currentModelId
 
-      if (configState.currentProviderId && configState.currentModelId) {
-        useSelectionStore
-          .getState()
-          .saveSessionModelSelection(created.id, configState.currentProviderId, configState.currentModelId)
+      if (sessionProviderID && sessionModelID) {
+        useSelectionStore.getState().saveSessionModelSelection(created.id, sessionProviderID, sessionModelID)
       }
 
       if (effectiveDraftAgent) {
         useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveDraftAgent)
-        if (configState.currentProviderId && configState.currentModelId) {
+        if (sessionProviderID && sessionModelID) {
           useSelectionStore
             .getState()
-            .saveAgentModelForSession(
-              created.id,
-              effectiveDraftAgent,
-              configState.currentProviderId,
-              configState.currentModelId,
-            )
+            .saveAgentModelForSession(created.id, effectiveDraftAgent, sessionProviderID, sessionModelID)
           useSelectionStore
             .getState()
             .saveAgentModelVariantForSession(
               created.id,
               effectiveDraftAgent,
-              configState.currentProviderId,
-              configState.currentModelId,
+              sessionProviderID,
+              sessionModelID,
               variant,
             )
         }
