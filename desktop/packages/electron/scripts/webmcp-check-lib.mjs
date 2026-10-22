@@ -4,9 +4,7 @@ import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 import { isDeepStrictEqual } from "node:util"
 
 const require = createRequire(import.meta.url)
-const { runInputReceipt, toolIdentityReceipt } = require("./webmcp-check-receipt.cjs")
-// The same mapping the project browser's Try it panel uses, so a CI check and a person agree on what failed.
-const { manualToolResult } = require("../src/webmcp-manual-outcome.js")
+const { runInputReceipt, toolIdentityReceipt, runOutcomeReceipt, redactCheckReport, CHECK_RUN_OUTCOMES } = require("./webmcp-check-receipt.cjs")
 
 export const EXIT = Object.freeze({ ok: 0, failed: 1, noTools: 2, toolError: 3, usage: 64 })
 
@@ -94,7 +92,9 @@ export function evaluateReport(report, options, termination, receiptKey) {
   const identities = new Set((report.tools ?? []).map((tool) => receiptKey ? tool.identityReceipt : tool.name))
   const missingTools = options.expectTools.map((name) =>
     !identities.has(receiptKey ? toolIdentityReceipt(receiptKey, name) : name))
-  report = redactWebMcpReport(report)
+  const validOutcomes = (report.runs ?? []).map((run, index) => CHECK_RUN_OUTCOMES.includes(run.outcome) &&
+    (!receiptKey || run.outcomeReceipt === runOutcomeReceipt(receiptKey, index, run)))
+  report = redactCheckReport(report)
   options = redactWebMcpReport(options)
   const problems = []
   if (termination && (termination.timedOut || termination.code !== 0 || termination.signal))
@@ -122,13 +122,14 @@ export function evaluateReport(report, options, termination, receiptKey) {
   const names = new Set((report.tools ?? []).map((tool) => tool.name))
   if (names.size === 0) problems.push("The page registered no page tools.")
   for (const [index, name] of options.expectTools.entries()) if (missingTools[index]) problems.push(`Expected tool not registered: ${name}`)
-  const runs = recorded.map((recordedRun) => {
+  const runs = recorded.map((recordedRun, index) => {
     const run = { ...recordedRun }
     delete run.inputReceipt
-    if (run.error) return { ...run, outcome: "failed", detail: run.error }
+    delete run.outcomeReceipt
+    if (!validOutcomes[index]) return { ...run, outcome: "failed", detail: "The run has no verified original-result outcome." }
+    if (run.error) return { ...run, detail: run.error }
     if (!Object.hasOwn(run, "output")) return { ...run, outcome: "failed", detail: "The run has no result." }
-    const mapped = manualToolResult({ output: run.output })
-    return { ...run, outcome: mapped.outcome }
+    return run
   })
   for (const run of runs)
     if (run.outcome !== "completed") problems.push(`${run.name}: ${run.outcome}${run.detail ? ` (${run.detail})` : ""}`)

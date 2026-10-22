@@ -1411,6 +1411,9 @@ describe("manual invocation native outcomes", () => {
     ["Completed", { error: { field: "password", details: { password: "AUDIT_DEMO_VALUE" },
       arbitrary: "Rejected audit_demo_value", nested: [{ other: "Rejected %41UDIT_DEMO_VALUE" }],
       message: "Rejected AUDIT_DEMO_VALUE" } }, "application-error", "application-error"],
+    ...["failed", "timeout", "cancelled"].map((status) => ["Completed", { field: "password", got: status, status },
+      status === "failed" ? "application-error" : status, status === "failed" ? "application-error" : status]),
+    ["Completed", { error: { field: "pin", got: 731924, observed: 731924, nested: [[731924, "731924"]] } }, "application-error", "application-error"],
     ["Completed", { value: 5 }, "completed", undefined],
     ["Completed", { text: "token=MANUAL_SECRET" }, "completed", undefined],
     ["Completed", { text: "x".repeat(5000) }, "completed", undefined],
@@ -1469,6 +1472,10 @@ describe("manual invocation native outcomes", () => {
       expect(result.output.error).toEqual({ field: "password", details: { password: "[redacted]" },
         arbitrary: "[redacted]", nested: [{ other: "[redacted]" }], message: "[redacted]" })
     }
+    if (output?.error?.field === "pin") {
+      expect(result.output.error).toEqual({ field: "pin", got: "[redacted]", observed: "[redacted]", nested: [["[redacted]", "[redacted]"]] })
+    }
+    if (output?.field === "password") expect(result.output).toEqual({ field: "password", got: "[redacted]", status: "[redacted]" })
     if (output?.error?.got) {
       expect(result.output.error.got).toBe("[redacted]")
       expect(JSON.stringify(result)).not.toContain("REJECTED_PRIVATE_VALUE")
@@ -3148,7 +3155,7 @@ test("catalog redacts original sensitive keys before truncation and renderer fil
 })
 
 
-test("view identities expire, remain capped under churn, and keep live labels stable", () => {
+test("view identities expire only under capacity pressure and keep live labels stable", () => {
   const identities = new Map()
   const project = (names, origin = "https://tools.test") => projectToolCatalog(
     names.map((name) => ({ name, description: "Tool", frameId: "top" })), new Map(), identities, origin,
@@ -3164,10 +3171,10 @@ test("view identities expire, remain capped under churn, and keep live labels st
   }
   expect(identities.has(JSON.stringify(["https://tools.test", "token=recent"]))).toBe(false)
   for (let revision = 0; revision < 33; revision++) project(["token=live"])
-  expect(identities.size).toBe(1)
-  for (let revision = 0; revision < 33; revision++) project([], "https://other.test")
-  expect(identities.size).toBe(0)
-  expect(project(["token=live"])[0].invocationID).not.toBe(live.invocationID)
+  expect(identities.size).toBe(256)
+  for (let revision = 0; revision < 100; revision++) project([], "https://other.test")
+  expect(identities.size).toBe(256)
+  expect(project(["token=live"])[0]).toEqual(live)
 })
 
 test("assigning a placeholder ordinal never scans retained identity values", () => {
@@ -3495,4 +3502,16 @@ test.each(["person", "beforeunload"])("quit cancellation keeps the selected docu
   expect(f.guests[1].reload).not.toHaveBeenCalled()
   f.guests[1].close.mockImplementation(() => { f.guests[1].destroyed = true; f.guests[1].emit("destroyed") })
   confirmClose.mockResolvedValue(true)
+})
+
+
+test("identical definition re-registration retains its invocation ID after arbitrarily many absent projections", () => {
+  const identities = new Map()
+  const tool = { name: "validate", frameId: "top", inputSchema: { type: "object" } }
+  const project = (tools) => projectToolCatalog(tools, new Map(), identities, "https://tools.test").catalog
+  const original = project([tool])[0]
+  for (let revision = 0; revision < 100; revision++) project([])
+  const registered = project([{ ...tool }])[0]
+  expect(registered.definitionDigest).toBe(original.definitionDigest)
+  expect(registered.invocationID).toBe(original.invocationID)
 })

@@ -365,3 +365,11 @@ test("typed compound field metadata retains combined and structured sensitivity"
     expect(call.text).toEqual({ redacted: true })
   }
 })
+
+
+test.each([731924, true, false, 9876543210123456789n, "731924", "true", "false", "9876543210123456789"])("preview masks scalar echoes at every depth: %s", (secret) => {
+  const preview = webMcpResultPreview({ error: { field: "pin", got: secret,
+    observed: secret, nested: [[secret, String(secret)], { echo: String(secret) }] } })
+  expect(preview).not.toContain(String(secret))
+  expect(preview.match(/\[redacted\]/g)).toHaveLength(5)
+})

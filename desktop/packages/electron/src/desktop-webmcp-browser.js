@@ -1502,7 +1502,8 @@ function createDesktopWebMcpBrowser({
           input: args.input,
           deadline: Date.now() + 30000,
         })
-        return webMcpDisplayReport(manualToolResult(result))
+        const classified = manualToolResult(result)
+        return { ...classified, output: webMcpDisplayReport(classified.output) }
       } catch (error) {
         if (error?.outcome === "failed" && ["page-changed", "definition-changed"].includes(error.reason))
           return { ok: false, outcome: "stale-form", reason: error.reason }

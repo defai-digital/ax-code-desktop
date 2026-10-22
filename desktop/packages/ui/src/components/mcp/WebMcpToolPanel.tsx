@@ -29,7 +29,6 @@ import {
 import { lintWebMcpTool, type WebMcpLintFinding } from "@/lib/webMcpToolLint"
 import { draftFromRecordedInput, toolFieldDisplayValue, toolForm, toolInput, toolInputWarnings, type ToolField } from "@/lib/webMcpToolForm"
 import {
-  desktopWebMcpResultOutcome,
   WEBMCP_FAILURE_REASONS,
   webMcpResultPreview,
   isWebMcpSensitiveName,
@@ -681,10 +680,9 @@ function ToolItem({
     }
     try {
       const reply = await tryTool(tool.invocationID!, input, binding)
-      const returnedOutcome = desktopWebMcpResultOutcome({ status: "completed", output: reply.output })
-      const returnedFailure = returnedOutcome !== "completed" && returnedOutcome !== null
-      const outcome = returnedFailure ? returnedOutcome : (reply.outcome ?? (reply.ok ? "completed" : "failed"))
-      const reason = returnedFailure ? returnedOutcome : reply.reason
+      // Main classified the original result before projecting its payload for display.
+      const outcome = reply.outcome ?? "uncertain"
+      const reason = reply.outcome ? reply.reason : "provider-gone"
       const knownReason = (WEBMCP_FAILURE_REASONS as readonly string[]).includes(reason ?? "")
         ? reason
         : "native-failure"

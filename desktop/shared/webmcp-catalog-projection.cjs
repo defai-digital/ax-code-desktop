@@ -11,7 +11,6 @@ const byteSize = (value) => Buffer.byteLength(JSON.stringify(value) ?? "", "utf8
 const CATALOG_MAX_TOOLS = 64
 const CATALOG_MAX_BYTES = 262144
 const IDENTITY_MAX_ENTRIES = 256
-const IDENTITY_RECENT_CATALOGS = 32
 const identityStates = new WeakMap()
 const plainObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value)
 
@@ -86,7 +85,7 @@ function projectToolCatalog(tools, kinds = new Map(), identities = new Map(), or
   }
   for (const key of identities.keys()) {
     const seen = state.seen.get(key) ?? 0
-    if (seen !== revision && (revision - seen > IDENTITY_RECENT_CATALOGS || identities.size > IDENTITY_MAX_ENTRIES)) {
+    if (seen !== revision && identities.size > IDENTITY_MAX_ENTRIES) {
       identities.delete(key)
       state.seen.delete(key)
     }
@@ -94,4 +93,4 @@ function projectToolCatalog(tools, kinds = new Map(), identities = new Map(), or
   return { catalog, total: list.length, truncation }
 }
 
-module.exports = { projectToolCatalog, CATALOG_MAX_TOOLS, CATALOG_MAX_BYTES, IDENTITY_MAX_ENTRIES, IDENTITY_RECENT_CATALOGS }
+module.exports = { projectToolCatalog, CATALOG_MAX_TOOLS, CATALOG_MAX_BYTES, IDENTITY_MAX_ENTRIES }

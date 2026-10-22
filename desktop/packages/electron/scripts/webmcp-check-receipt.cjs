@@ -1,6 +1,10 @@
 "use strict"
 
 const { createHmac } = require("node:crypto")
+const { manualToolResult } = require("../../../shared/webmcp-manual-outcome.cjs")
+const { redactWebMcpReport } = require("../../../shared/webmcp-redaction.mjs")
+
+const CHECK_RUN_OUTCOMES = Object.freeze(["completed", "application-error", "timeout", "cancelled", "failed"])
 
 const canonical = (value) => {
   if (Array.isArray(value)) return value.map(canonical)
@@ -21,4 +25,33 @@ function toolIdentityReceipt(key, name) {
   return createHmac("sha256", key).update(JSON.stringify(["catalog-tool", name])).digest("hex")
 }
 
-module.exports = { runInputReceipt, toolIdentityReceipt }
+// Bind the fixed original-result classification to the same requested occurrence as its input.
+function runOutcomeReceipt(key, index, run) {
+  return createHmac("sha256", key)
+    .update(JSON.stringify(["run-outcome", index, run.inputReceipt, run.outcome]))
+    .digest("hex")
+}
+
+function recordCheckRun(key, index, run) {
+  const outcome = run.error || !Object.hasOwn(run, "output")
+    ? "failed"
+    : manualToolResult({ output: run.output }).outcome
+  const recorded = { ...run, outcome, inputReceipt: runInputReceipt(key, index, run) }
+  return { ...recorded, outcomeReceipt: runOutcomeReceipt(key, index, recorded) }
+}
+
+// Project diagnostics only. Trusted classification and receipts never participate in echo matching.
+// This helper is also safe to apply to an already projected disk report; it never classifies a payload.
+function redactCheckReport(report) {
+  const { runs, ...rest } = report
+  return {
+    ...redactWebMcpReport(rest),
+    runs: (runs ?? []).map((run) => {
+      const { outcome, inputReceipt, outcomeReceipt, ...payload } = run
+      return { ...redactWebMcpReport(payload),
+        ...(CHECK_RUN_OUTCOMES.includes(outcome) ? { outcome } : {}), inputReceipt, outcomeReceipt }
+    }),
+  }
+}
+
+module.exports = { runInputReceipt, toolIdentityReceipt, runOutcomeReceipt, recordCheckRun, redactCheckReport, CHECK_RUN_OUTCOMES }

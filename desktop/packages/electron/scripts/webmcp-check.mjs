@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url"
 import { createRequire } from "node:module"
 import { EXIT, evaluateReport, parseCheckArgs } from "./webmcp-check-lib.mjs"
 
+import { redactCheckReport } from "./webmcp-check-receipt.cjs"
 import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -63,7 +64,7 @@ const termination = await new Promise((resolve) => {
 clearTimeout(timer)
 let report
 try {
-  report = redactWebMcpReport(JSON.parse(fs.readFileSync(output, "utf8")))
+  report = redactCheckReport(JSON.parse(fs.readFileSync(output, "utf8")))
 } catch {
   report = { error: `the browser engine exited (${termination.signal ?? termination.code}) without a report` }
 }

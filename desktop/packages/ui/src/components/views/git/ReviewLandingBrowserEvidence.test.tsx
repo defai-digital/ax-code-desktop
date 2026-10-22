@@ -299,3 +299,18 @@ test("recap resolves approval-only receipts and shows structured runtime rejecti
   expect(container.querySelector('[data-recap-definition]')?.getAttribute("title")).toBe(definition.definitionDigest)
   useWebMcpApprovalReceipts.setState({ receipts: new Map() })
 })
+
+
+test.each(["read", "act", "navigate", "list", "none"])("registered tools are listed as never called with only %s operations", async (operation) => {
+  sync.messages = [{ id: "u", role: "user" }, { id: "a", role: "assistant" }]
+  sync.parts = new Map([["a", operation === "none" ? [] : [{ id: "step", type: "tool", tool: "desktop_webmcp",
+    state: { status: "completed", input: { action: operation }, metadata: { operation }, output: "{}" } }]]])
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "s1", origin: "https://tools.test",
+    catalog: [nativeWebMcpTool({ name: "validate", description: "Validate", inputSchema: {} })] })
+  const { container } = render(<ReviewLandingBrowserEvidence directory="/repo" sessionId="s1" />)
+  expect(container.querySelector("[data-recap-not-called]")?.textContent).toBe("diffView.landing.browserRecap.notCalled:validate")
+  const writeText = vi.fn(async () => {})
+  Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true })
+  await act(async () => fireEvent.click(container.querySelector("[data-recap-copy]")!))
+  expect(writeText).toHaveBeenCalledWith(expect.stringContaining("diffView.landing.browserRecap.notCalled:validate"))
+})
