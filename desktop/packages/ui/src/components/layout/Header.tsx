@@ -1846,7 +1846,15 @@ export const Header: React.FC = () => {
         />
       ) : null}
 
-      {/* Order: session title → open sessions → project actions */}
+      {/* Order: open sessions → session title → project actions */}
+      <HeaderIconActionButton
+        title={t("header.actions.openSessionsWithShortcut", { shortcut: shortcutLabel("toggle_sidebar") })}
+        ariaLabel={t("header.actions.openSessionsAria")}
+        onClick={handleOpenSessionSwitcher}
+        className={`${desktopHeaderIconButtonClass} shrink-0`}
+        Icon={"layout-left"}
+      />
+
       <div className="flex min-w-0 items-center pl-1">
         <SessionSwitcherDropdown>
           <button
@@ -1898,14 +1906,6 @@ export const Header: React.FC = () => {
           <SessionIdChip sessionId={currentSessionId} className="shrink-0" />
         ) : null}
       </div>
-
-      <HeaderIconActionButton
-        title={t("header.actions.openSessionsWithShortcut", { shortcut: shortcutLabel("toggle_sidebar") })}
-        ariaLabel={t("header.actions.openSessionsAria")}
-        onClick={handleOpenSessionSwitcher}
-        className={`${desktopHeaderIconButtonClass} shrink-0`}
-        Icon={"layout-left"}
-      />
 
       {projectActionsContext ? (
         <ProjectActionsButton
