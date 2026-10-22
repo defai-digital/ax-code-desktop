@@ -147,7 +147,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         return { value: safe, changed }
       }
       const entries = Object.entries(entry)
-      const sensitiveField = entries.some(([key, child]) => FIELD_NAMING_KEYS.has(key) && sensitiveFieldName(child, key))
+      const sensitiveField = entries.some(([key, child]) => FIELD_NAMING_KEYS.has(key) && sensitiveFieldName(child))
       const safeKeys = new Set()
       const safe = Object.fromEntries(entries.map(([key, child]) => {
         const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
