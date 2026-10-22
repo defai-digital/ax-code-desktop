@@ -83,7 +83,26 @@ export function webMcpTextLooksSensitive(value) {
 
 const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"])
 const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
-const FIELD_PROSE_KEYS = new Set(["message", "detail", "description"])
+// Normalize only for comparison. Display and executable values never receive decoded text.
+function normalizedEcho(value) {
+  let text = value
+  for (let layer = 0; layer < 32; layer++) {
+    const decoded = text.replace(
+      /\\(?:u([0-9a-f]{4})|x([0-9a-f]{2})|(["'`\\/])|([nrtbf]))/gi,
+      (_match, unicode, hex, literal, control) =>
+        literal ?? (unicode || hex ? String.fromCharCode(parseInt(unicode || hex, 16))
+          : ({ n: "\n", r: "\r", t: "\t", b: "\b", f: "\f" })[control.toLowerCase()]),
+    ).replaceAll("+", " ").replace(/(?:%[0-9a-f]{2})+/gi, (part) => {
+      try { return decodeURIComponent(part) } catch {
+        return part.replace(/%([0-9a-f]{2})/gi, (_match, hex) => String.fromCharCode(parseInt(hex, 16)))
+      }
+    })
+    if (decoded === text) return text.trim().toLowerCase()
+    text = decoded
+  }
+  // Unknown deeply encoded echoes fail closed.
+  return null
+}
 
 // Trim closing diagnostic syntax in linear time, even for long whitespace before an assignment.
 function trimFieldDecorations(value) {
@@ -131,7 +150,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
     const collect = (entry, level, masked = false, fieldPath = false) => {
       if (--remaining < 0 || level > 32) throw new Error("Redaction collection budget exceeded")
       if (typeof entry === "string") {
-        if (masked && entry && entry !== replacement) values.add(entry)
+        if ((masked || webMcpTextLooksSensitive(entry)) && entry && entry !== replacement) values.add(entry)
         let parsed
         try {
           parsed = JSON.parse(entry)
@@ -152,23 +171,33 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
           entry.forEach((child, index) => collect(child, level + 1, masked || (pair && index === 1)))
         } else {
           for (const [key, child] of Object.entries(entry))
-            collect(child, level + 1, masked || FIELD_VALUE_KEYS.has(key), FIELD_NAMING_KEYS.has(key))
+            collect(child, level + 1, masked || FIELD_VALUE_KEYS.has(key) || webMcpFieldLooksSensitive(key), FIELD_NAMING_KEYS.has(key))
         }
       } finally {
         seen.delete(entry)
       }
     }
     collect(root, depth)
-    // One literal replacement pass avoids treating inserted placeholders as rejected values.
-    return values.size ? new RegExp([...values].sort((a, b) => b.length - a.length)
-      .map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g") : null
+    const patternFor = (texts) => texts.length ? new RegExp(texts.sort((a, b) => b.length - a.length)
+      .map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")) : null
+    const literal = patternFor([...values])
+    const normalized = new Set([...values].map(normalizedEcho))
+    const unknown = normalized.has(null)
+    normalized.delete(null)
+    normalized.delete("")
+    const pattern = patternFor([...normalized])
+    return (text) => {
+      if (text === replacement) return false
+      // Keep whitespace-only rejected values covered without matching every trimmed string.
+      if (literal?.test(text)) return true
+      const candidate = normalizedEcho(text)
+      return candidate === null || unknown || Boolean(pattern?.test(candidate))
+    }
   }
-  const visit = (entry, depth, fieldPath = false, inheritedField = false, echoes = null, wholeProse = false) => {
+  const visit = (entry, depth, fieldPath = false, inheritedField = false, echoes = null) => {
     if (--remaining < 0) throw new Error("Redaction traversal budget exceeded")
     if (depth > 32) return incomplete()
     if (typeof entry === "string") {
-      const echoed = echoes ? entry.replace(echoes, () => replacement) : entry
-      if (wholeProse && echoed !== entry) return replaced()
       let parsed
       try {
         parsed = JSON.parse(entry)
@@ -176,14 +205,16 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         if (!(error instanceof SyntaxError)) return incomplete()
         // Embedded or truncated JSON is still checked for quoted credential keys below.
       }
+      // Preserve structured envelopes; every free-text echo is masked as a whole string.
+      if (!(parsed && typeof parsed === "object") && echoes?.(entry)) return replaced()
       if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
-        const safe = visit(parsed, depth + 1, fieldPath, inheritedField, echoes, wholeProse)
+        const safe = visit(parsed, depth + 1, fieldPath, inheritedField, echoes)
         return safe.changed
           ? { value: JSON.stringify(safe.value), changed: true }
           : { value: entry, changed: false }
       }
       if (webMcpTextLooksSensitive(entry)) return replaced()
-      return echoed !== entry ? { value: echoed, changed: true } : { value: entry, changed: false }
+      return { value: entry, changed: false }
     }
     if (!entry || typeof entry !== "object") return { value: entry, changed: false }
     if (ancestors.has(entry)) return incomplete()
@@ -206,14 +237,14 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
       if (sensitiveField && !inheritedField) echoes = collectEchoes(entry, depth)
       const safeKeys = new Set()
       const safe = Object.fromEntries(entries.map(([key, child]) => {
-        const safeKey = webMcpTextLooksSensitive(key) ? replacement : echoes ? key.replace(echoes, () => replacement) : key
+        const safeKey = webMcpTextLooksSensitive(key) || echoes?.(key) ? replacement : key
         // Redacted keys can collide. An input consumer must not mistake the resulting property bag for a full receipt.
         if (safeKeys.has(safeKey)) options.onTruncate?.()
         safeKeys.add(safeKey)
         const namedValue = sensitiveField && FIELD_VALUE_KEYS.has(key)
         const result = (namedValue || webMcpFieldLooksSensitive(key)) && child !== null && child !== ""
           ? replaced()
-          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField, echoes, FIELD_PROSE_KEYS.has(key))
+          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField, echoes)
         changed ||= safeKey !== key || result.changed
         return [safeKey, result.value]
       }))

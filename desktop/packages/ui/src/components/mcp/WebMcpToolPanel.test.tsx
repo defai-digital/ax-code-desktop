@@ -1663,3 +1663,38 @@ test.each(["missingDefinition", "unmatchedDefinition", "missingInput"])("agent c
   if (gap !== "missingInput") expect(agent.textContent).toContain("lookup")
   expect(container.innerHTML).not.toContain(secret)
 })
+
+
+test.each(["string", "number", "integer"])("primitive %s inputs mask credential values and restored drafts", async (type) => {
+  const schema = { type: "object", properties: { headers: { type } } }
+  const view = openTool(schema)
+  const input = view.container.querySelector("input")!
+  for (const value of ["Authorization: Bearer AUDIT_DEMO_1234567890", "ghp_12345678901234567890", '{"field":"password","got":"ordinary-value"}', 'password=ordinary-value']) {
+    fireEvent.change(input, { target: { value } })
+    expect(input.type).toBe("password")
+    expect(input.autocomplete).toBe("off")
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.showJson" }))
+    expect(input.type).toBe("text")
+    expect(input.value).toBe(value)
+    fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.hideJson" }))
+    expect(input.type).toBe("password")
+  }
+  if (type === "string") {
+    await runTool()
+    expect(view.reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID,
+      { headers: "password=ordinary-value" }, expect.anything())
+  }
+  cleanup()
+  const restored = openTool(schema).container.querySelector("input")!
+  expect(restored.value).toBe("password=ordinary-value")
+  expect(restored.type).toBe("password")
+})
+
+test("manual nested password echoes stay out of previews and retained diagnostics", async () => {
+  const output = { error: { field: "password", details: { password: "AUDIT_DEMO_VALUE" },
+    arbitrary: "Rejected audit_demo_value", message: "Rejected %41UDIT_DEMO_VALUE" } }
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: true, output })))
+  await runTool()
+  expect(container.innerHTML).not.toMatch(/audit_demo_value|%41UDIT_DEMO_VALUE/i)
+  expect(JSON.stringify(useWebMcpBrowserStore.getState().toolJournal)).not.toMatch(/audit_demo_value|%41UDIT_DEMO_VALUE/i)
+})

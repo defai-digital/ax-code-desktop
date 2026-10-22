@@ -352,7 +352,9 @@ function FieldInput({
   explicitEmpty?: boolean
 }) {
   const { t } = useI18n()
-  const className = "h-7 w-full rounded border border-border bg-background px-2 typography-meta"
+  const [revealed, setRevealed] = React.useState(false)
+  const sensitive = isWebMcpSensitiveName(field.name) || webMcpTextLooksSensitive(value) || redactWebMcpReport(value) !== value
+  const className = "h-7 min-w-0 w-full rounded border border-border bg-background px-2 typography-meta"
   if (field.kind === "enum" || field.kind === "boolean") {
     const options = (field.kind === "enum" ? (field.options ?? []) : ["true", "false"]).filter(
       (option) => option !== "",
@@ -382,17 +384,23 @@ function FieldInput({
     )
   }
   return (
-    <input
-      id={id}
-      aria-describedby={describedBy}
-      className={className}
-      // A secret-named field is masked while typed, like any password field.
-      type={isWebMcpSensitiveName(field.name) ? "password" : undefined}
-      autoComplete={isWebMcpSensitiveName(field.name) ? "off" : undefined}
-      inputMode={field.kind === "string" ? undefined : "decimal"}
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-    />
+    <div className="flex items-center gap-1">
+      <input
+        id={id}
+        aria-describedby={describedBy}
+        className={className}
+        type={sensitive && !revealed ? "password" : "text"}
+        autoComplete={sensitive ? "off" : undefined}
+        inputMode={field.kind === "string" ? undefined : "decimal"}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
+      {sensitive ? (
+        <Button type="button" size="xs" variant="ghost" aria-controls={id} aria-pressed={revealed} onClick={() => setRevealed((shown) => !shown)}>
+          {t(revealed ? "webmcp.tools.hideJson" : "webmcp.tools.showJson")}
+        </Button>
+      ) : null}
+    </div>
   )
 }
 

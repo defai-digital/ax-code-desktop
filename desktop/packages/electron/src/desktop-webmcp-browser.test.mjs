@@ -59,6 +59,7 @@ function fixture({
         if (contents.destroyed) throw new Error("Object has been destroyed")
       })
       contents.stop = vi.fn()
+      contents.focus = vi.fn()
       contents.setWindowOpenHandler = vi.fn()
       contents.loadedUrls = []
       contents.loadURL = async (url) => {
@@ -1407,6 +1408,9 @@ describe("manual invocation native outcomes", () => {
     },
   )
   test.each([
+    ["Completed", { error: { field: "password", details: { password: "AUDIT_DEMO_VALUE" },
+      arbitrary: "Rejected audit_demo_value", nested: [{ other: "Rejected %41UDIT_DEMO_VALUE" }],
+      message: "Rejected AUDIT_DEMO_VALUE" } }, "application-error", "application-error"],
     ["Completed", { value: 5 }, "completed", undefined],
     ["Completed", { text: "token=MANUAL_SECRET" }, "completed", undefined],
     ["Completed", { text: "x".repeat(5000) }, "completed", undefined],
@@ -1461,6 +1465,10 @@ describe("manual invocation native outcomes", () => {
       input: { text: "  exact  ", zero: 0, off: false, empty: "" },
     })
     expect(result).toMatchObject({ ok: outcome === "completed", outcome, ...(reason ? { reason } : {}) })
+    if (output?.error?.details?.password) {
+      expect(result.output.error).toEqual({ field: "password", details: { password: "[redacted]" },
+        arbitrary: "[redacted]", nested: [{ other: "[redacted]" }], message: "[redacted]" })
+    }
     if (output?.error?.got) {
       expect(result.output.error.got).toBe("[redacted]")
       expect(JSON.stringify(result)).not.toContain("REJECTED_PRIVATE_VALUE")
@@ -3229,7 +3237,7 @@ describe("owner-window close authorization and recovery", () => {
     expect(owner.isDestroyed()).toBe(false)
     await vi.waitFor(() => expect(owner.isDestroyed()).toBe(true))
     expect(confirmClose).toHaveBeenCalledTimes(replaceContents ? 3 : 2)
-    if (replaceContents) expect(confirmClose.mock.calls[1][2]).toEqual({ closeAnyway: true })
+    if (replaceContents) expect(confirmClose.mock.calls.filter((call) => call[2]?.closeAnyway)).toHaveLength(1)
     for (const contents of f.guests) expect(contents.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
     expect(f.controller.poolStats().liveViews).toBe(0)
     expect(owner.eventNames()).toEqual([])
@@ -3412,3 +3420,79 @@ test("native guest destruction clears view accessors without interrupting owner 
     })
     expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
   })
+
+for (const selectedIndex of [0, 1]) {
+  for (const cancelledIndex of [0, 1]) {
+    test.each(["person", "dialog failure", "beforeunload", "replacement prompt"])(
+      `owner cancellation at page ${cancelledIndex} (${selectedIndex} selected): %s`, async (reason) => {
+        let calls = 0
+        let target
+        let pagesSelected
+        const confirmClose = vi.fn(async (_owner, pages, options) => {
+          const live = (await f.controller.command(_owner.webContents, { action: "list" })).views
+          expect(live.filter((page) => page.visible).map((page) => page.id)).toEqual([pagesSelected.id])
+          if (pages[0].id !== target.id) return true
+          calls++
+          if (reason === "dialog failure") throw new Error("dialog failed")
+          if (reason === "replacement prompt" && !options?.closeAnyway) {
+            f.guests[cancelledIndex].id = 999
+            return true
+          }
+          return false
+        })
+        const f = fixture({ confirmClose })
+        const { sender, status } = await f.create()
+        const other = await f.controller.command(sender, {
+          action: "create", directory: "/tmp/project", sessionID: "ses_other", url: "https://other.test/",
+        })
+        const pages = [status, other]
+        target = pages[cancelledIndex]
+        const selected = pages[selectedIndex]
+        pagesSelected = selected
+        await f.controller.command(sender, { action: "bounds", id: other.id, x: 0, y: 0, width: 800, height: 600 })
+        await f.controller.command(sender, { action: "show", id: selected.id })
+        if (reason === "beforeunload")
+          f.guests[cancelledIndex].close.mockImplementation(() => f.guests[cancelledIndex].emit("will-prevent-unload", {}))
+        else f.guests[cancelledIndex].emit("before-input-event")
+        const owner = f.owners.get(sender)
+        owner.close()
+        await vi.waitFor(() => expect(owner.focus).toHaveBeenCalled())
+        expect(owner.isDestroyed()).toBe(false)
+        const live = (await f.controller.command(sender, { action: "list" })).views
+        expect(live.find((page) => page.id === selected.id)).toMatchObject({ visible: true, sessionID: selected.sessionID })
+        expect(live.filter((page) => page.visible).map((page) => page.id)).toEqual([selected.id])
+        expect(f.guests[selectedIndex].isDestroyed()).toBe(false)
+        expect(sender.send).not.toHaveBeenCalled()
+        await f.controller.command(sender, { action: "navigate", id: selected.id, sessionID: selected.sessionID, url: "https://selected.test/" })
+        expect(f.guests[selectedIndex].getURL()).toBe("https://selected.test/")
+        expect((await f.controller.command(sender, { action: "status", id: selected.id })).visible).toBe(true)
+        expect(calls).toBe(reason === "beforeunload" ? 0 : reason === "replacement prompt" ? 2 : 1)
+        for (const guest of f.guests) guest.close.mockImplementation(() => { guest.destroyed = true; guest.emit("destroyed") })
+        confirmClose.mockResolvedValue(true)
+      },
+    )
+  }
+}
+
+
+test.each(["person", "beforeunload"])("quit cancellation keeps the selected document and bindings: %s", async (reason) => {
+  const confirmClose = vi.fn(async () => false)
+  const f = fixture({ confirmClose })
+  const { sender, status } = await f.create()
+  const hidden = await f.controller.command(sender, {
+    action: "create", directory: "/tmp/project", sessionID: "ses_hidden", url: "https://hidden.test/",
+  })
+  if (reason === "person") f.guests[1].emit("before-input-event")
+  else f.guests[1].close.mockImplementation(() => f.guests[1].emit("will-prevent-unload", {}))
+  const refused = await f.controller.closeAll()
+  expect(new Set(refused)).toEqual(new Set([status.id, hidden.id]))
+  const live = (await f.controller.command(sender, { action: "list" })).views
+  expect(live.filter((page) => page.visible).map((page) => page.id)).toEqual([status.id])
+  expect(f.guests[0].close).not.toHaveBeenCalled()
+  expect(f.guests[1].focus).not.toHaveBeenCalled()
+  await f.controller.command(sender, { action: "reload", id: status.id, sessionID: status.sessionID })
+  expect(f.guests[0].reload).toHaveBeenCalledOnce()
+  expect(f.guests[1].reload).not.toHaveBeenCalled()
+  f.guests[1].close.mockImplementation(() => { f.guests[1].destroyed = true; f.guests[1].emit("destroyed") })
+  confirmClose.mockResolvedValue(true)
+})
