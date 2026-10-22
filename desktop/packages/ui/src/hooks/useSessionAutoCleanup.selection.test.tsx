@@ -1,6 +1,7 @@
 import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { expect, test, vi } from "vitest"
+import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 for (const stage of ["loading", "deleting", "failure"] as const) {
   test(
@@ -12,13 +13,12 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
       let releaseLoad!: () => void
       let releaseDelete!: () => void
       const now = Date.now()
+      const session = (id: string, created: number): Session => ({
+        id, slug: id, projectID: "project", title: id, version: "1.0.0", directory: "/repo", time: { created, updated: created },
+      })
       const sessions = [
-        ...Array.from({ length: 5 }, (_, i) => ({ id: `recent-${i}`, directory: "/repo", time: { created: now - i } })),
-        ...["old-1", "old-2", "old-3"].map((id) => ({
-          id,
-          directory: "/repo",
-          time: { created: now - 100 * 86400000 },
-        })),
+        ...Array.from({ length: 5 }, (_, i) => session(`recent-${i}`, now - i)),
+        ...["old-1", "old-2", "old-3"].map((id) => session(id, now - 100 * 86400000)),
       ]
       const loaded = new Promise<{ activeSessions: typeof sessions }>((resolve) => {
         releaseLoad = () => resolve({ activeSessions: sessions })
