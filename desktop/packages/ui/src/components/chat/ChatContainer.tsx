@@ -28,6 +28,8 @@ import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useDeviceInfo } from "@/lib/device"
 import { Button } from "@/components/ui/button"
 import { OverlayScrollbar } from "@/components/ui/OverlayScrollbar"
+import { TimelineRail } from "./TimelineRail"
+import { collectRailTurns, type RailTurn } from "./lib/timelineRail/timelineRailModel"
 import { Icon } from "@/components/icon/Icon"
 import type { SessionMessageRecord } from "@/types/sessionMessages"
 import { cn, formatDirectoryName } from "@/lib/utils"
@@ -166,6 +168,11 @@ type ChatViewportProps = {
   handleHistoryScroll: () => void
   scrollToBottom: () => void
   isProgrammaticFollowActive: boolean
+  railTurns: readonly RailTurn[]
+  activeTurnId: string | null
+  railAtBottom: boolean
+  onRailJumpToTurn: (turnId: string) => void
+  onRailStepTurn: (offset: -1 | 1) => void
 }
 
 const ChatViewport = React.memo(
@@ -191,6 +198,11 @@ const ChatViewport = React.memo(
     handleHistoryScroll,
     scrollToBottom,
     isProgrammaticFollowActive,
+    railTurns,
+    activeTurnId,
+    railAtBottom,
+    onRailJumpToTurn,
+    onRailStepTurn,
   }: ChatViewportProps) => {
     const focusScrollContainer = React.useCallback(
       (event: React.MouseEvent<HTMLElement>) => {
@@ -266,6 +278,16 @@ const ChatViewport = React.memo(
             userIntentOnly
             observeMutations={false}
           />
+          {isMobile ? null : (
+            <TimelineRail
+              turns={railTurns}
+              scrollRef={scrollRef}
+              activeTurnId={activeTurnId}
+              atBottom={railAtBottom}
+              onJumpToTurn={onRailJumpToTurn}
+              onStepTurn={onRailStepTurn}
+            />
+          )}
         </div>
       </div>
     )
@@ -292,7 +314,12 @@ const ChatViewport = React.memo(
       prev.handleLoadOlder === next.handleLoadOlder &&
       prev.handleHistoryScroll === next.handleHistoryScroll &&
       prev.scrollToBottom === next.scrollToBottom &&
-      prev.isProgrammaticFollowActive === next.isProgrammaticFollowActive
+      prev.isProgrammaticFollowActive === next.isProgrammaticFollowActive &&
+      prev.railTurns === next.railTurns &&
+      prev.activeTurnId === next.activeTurnId &&
+      prev.railAtBottom === next.railAtBottom &&
+      prev.onRailJumpToTurn === next.onRailJumpToTurn &&
+      prev.onRailStepTurn === next.onRailStepTurn
     )
   },
 )
@@ -736,6 +763,44 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     resumeToBottom: resumeToLatestFromReader,
   })
 
+  // A prompt does not change after it is sent, so its preview is scanned once per session and reused while replies stream.
+  const railPreviewCacheRef = React.useRef<{ sessionId: string | null; previews: Map<string, string> }>({
+    sessionId: null,
+    previews: new Map(),
+  })
+  const railTurns = React.useMemo(() => {
+    if (railPreviewCacheRef.current.sessionId !== currentSessionId) {
+      railPreviewCacheRef.current = { sessionId: currentSessionId, previews: new Map() }
+    }
+    return collectRailTurns(sessionMessages, timelineController.turnIds, railPreviewCacheRef.current.previews)
+  }, [currentSessionId, sessionMessages, timelineController.turnIds])
+  const railTurnsRef = React.useRef(railTurns)
+  const stableRailTurns = React.useMemo(() => {
+    const previous = railTurnsRef.current
+    const same =
+      previous.length === railTurns.length &&
+      previous.every((turn, index) => {
+        const next = railTurns[index]
+        return next && turn.id === next.id && turn.created === next.created && turn.preview === next.preview
+      })
+    const value = same ? previous : railTurns
+    railTurnsRef.current = value
+    return value
+  }, [railTurns])
+  const { scrollToTurnId: navigateToTurnId, scrollByTurnOffset: navigateByTurnOffset } = navigation
+  const handleRailJumpToTurn = React.useCallback(
+    (turnId: string) => {
+      void navigateToTurnId(turnId, { behavior: "auto" })
+    },
+    [navigateToTurnId],
+  )
+  const handleRailStepTurn = React.useCallback(
+    (offset: -1 | 1) => {
+      void navigateByTurnOffset(offset, { resumePastEnd: false })
+    },
+    [navigateByTurnOffset],
+  )
+
   React.useEffect(() => {
     if (typeof window === "undefined" || !currentSessionId) return
 
@@ -1088,6 +1153,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
         handleHistoryScroll={timelineController.handleHistoryScroll}
         scrollToBottom={resumeToLatestInstant}
         isProgrammaticFollowActive={isFollowingProgrammatically}
+        railTurns={stableRailTurns}
+        activeTurnId={timelineController.activeTurnId}
+        railAtBottom={!timelineController.showScrollToBottom}
+        onRailJumpToTurn={handleRailJumpToTurn}
+        onRailStepTurn={handleRailStepTurn}
       />
 
       <div
