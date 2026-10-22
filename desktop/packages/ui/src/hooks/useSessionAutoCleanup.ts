@@ -22,6 +22,7 @@ const getSessionLastActivity = (session: Session): number => {
 
 type BuildAutoDeleteCandidatesOptions = {
   sessions: Session[]
+  archivedSessions?: Session[]
   currentSessionId: string | null
   cutoffDays: number
   keepRecent?: number
@@ -51,6 +52,7 @@ const collectAncestorIds = (sessions: Session[], keptIds: Iterable<string>): Set
 
 export const buildAutoDeleteCandidates = ({
   sessions,
+  archivedSessions = [],
   currentSessionId,
   cutoffDays,
   keepRecent = AUTO_DELETE_KEEP_RECENT,
@@ -75,7 +77,9 @@ export const buildAutoDeleteCandidates = ({
   }
   const keptIds = sorted.filter((session) => session?.id && !isExpired(session)).map((session) => session.id)
   if (currentSessionId) keptIds.push(currentSessionId)
-  const keptAncestorIds = collectAncestorIds(sorted, keptIds)
+  // Archived sessions are outside retention, but deleting an active ancestor still cascades to them.
+  keptIds.push(...archivedSessions.map((session) => session.id))
+  const keptAncestorIds = collectAncestorIds([...sorted, ...archivedSessions], keptIds)
 
   return sorted.filter((session) => isExpired(session) && !keptAncestorIds.has(session.id)).map((session) => session.id)
 }
@@ -129,6 +133,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const isLoading = useSessionUIStore((state) => state.isLoading)
   const globalSessions = useGlobalSessionsStore((state) => state.activeSessions)
+  const archivedSessions = useGlobalSessionsStore((state) => state.archivedSessions)
   const hasLoadedGlobalSessions = useGlobalSessionsStore((state) => state.hasLoaded)
 
   const autoDeleteEnabled = useUIStore((state) => state.autoDeleteEnabled)
@@ -149,10 +154,11 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
     }
     return buildAutoDeleteCandidates({
       sessions: globalSessions,
+      archivedSessions,
       currentSessionId,
       cutoffDays: autoDeleteAfterDays,
     })
-  }, [autoDeleteAfterDays, currentSessionId, globalSessions])
+  }, [autoDeleteAfterDays, currentSessionId, globalSessions, archivedSessions])
 
   const runCleanup = React.useCallback(
     async ({ force = false }: { force?: boolean } = {}): Promise<CleanupResult> => {
@@ -190,7 +196,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "cooldown" }
           }
 
-          const { activeSessions: sessions } = await ensureGlobalSessionsLoaded(getAllSyncSessions())
+          const { activeSessions: sessions, archivedSessions: archived = [] } = await ensureGlobalSessionsLoaded(getAllSyncSessions())
 
           if (sessions.length === 0) {
             return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "no-candidates" }
@@ -198,6 +204,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
 
           const candidateIds = buildAutoDeleteCandidates({
             sessions,
+            archivedSessions: archived,
             currentSessionId: useSessionUIStore.getState().currentSessionId,
             cutoffDays: autoDeleteAfterDays,
             now,
@@ -220,7 +227,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             // Deleting a session also deletes its descendants, so skip the open session's ancestors too.
             const openSessionId = useSessionUIStore.getState().currentSessionId
             if (id === openSessionId) continue
-            if (openSessionId && collectAncestorIds(sessions, [openSessionId]).has(id)) continue
+            if (openSessionId && collectAncestorIds([...sessions, ...archived], [openSessionId]).has(id)) continue
             if (sessionRetentionAction === "archive" && globalArchiveAvailable) {
               try {
                 await archiveGlobalSession(id, Date.now())

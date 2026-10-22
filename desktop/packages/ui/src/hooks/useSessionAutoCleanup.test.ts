@@ -37,6 +37,18 @@ describe("buildAutoDeleteCandidates", () => {
     ).toEqual(["old"])
   })
 
+  test("retains an expired active parent of an archived child", () => {
+    const sessions = [session("parent", 40), session("old", 40)]
+    const archivedSessions = [session("archived-child", 50, "parent")]
+    expect(buildAutoDeleteCandidates({ sessions, archivedSessions, currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(["old"])
+  })
+
+  test("follows archived intermediates to protect every active ancestor", () => {
+    const sessions = [session("root", 40), session("leaf", 1, "archived-mid"), session("old", 40)]
+    const archivedSessions = [session("archived-mid", 50, "root")]
+    expect(buildAutoDeleteCandidates({ sessions, archivedSessions, currentSessionId: "leaf", cutoffDays: 30, keepRecent: 0, now })).toEqual(["old"])
+  })
+
   test("still cleans up an expired parent with expired children", () => {
     const sessions = [session("parent", 40), session("child", 41, "parent")]
 
@@ -86,6 +98,53 @@ describe("applySessionRetentionAction", () => {
     })
 
     await expect(applySessionRetentionAction(sdk, "ses_1", "/repo", "delete")).rejects.toThrow("offline")
+  })
+})
+
+describe("archived descendant retention", () => {
+  test("the preview and executed cleanup both preserve an archived child's parent", async () => {
+    vi.resetModules()
+    const now = Date.now()
+    const session = (id: string, age: number, parentID?: string) =>
+      ({ id, parentID, directory: "/repo", time: { created: now - age, updated: now - age } }) as never
+    const activeSessions = [
+      ...Array.from({ length: 5 }, (_, index) => session(`recent-${index}`, 1000)),
+      session("parent", 40 * 86400000),
+    ]
+    const archivedSessions = [session("archived-child", 50 * 86400000, "parent")]
+    vi.doMock("@/stores/useGlobalSessionsStore", async () => {
+      const actual = await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>("@/stores/useGlobalSessionsStore")
+      return { ...actual, ensureGlobalSessionsLoaded: vi.fn(async () => ({ activeSessions, archivedSessions })) }
+    })
+    const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
+    const { useUIStore } = await import("@/stores/useUIStore")
+    const { useSessionUIStore } = await import("@/sync/session-ui-store")
+    const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+    const { axCodeClient } = await import("@/lib/ax-code/client")
+    const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient")
+    useUIStore.setState({ autoDeleteEnabled: true, autoDeleteAfterDays: 30, sessionRetentionAction: "delete", autoDeleteLastRunAt: 0 })
+    useSessionUIStore.setState({ currentSessionId: null, isLoading: false })
+    useGlobalSessionsStore.setState({ activeSessions, archivedSessions, hasLoaded: true })
+    let hook: ReturnType<typeof useSessionAutoCleanup> | null = null
+    const Probe = () => { hook = useSessionAutoCleanup({ autoRun: false }); return null }
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    try {
+      await React.act(async () => { root.render(React.createElement(Probe)) })
+      expect(hook!.candidates).toEqual([])
+      const result = await React.act(async () => hook!.runCleanup({ force: true }))
+      expect(result).toMatchObject({ completedIds: [], failedIds: [], skippedReason: "no-candidates" })
+      expect(scoped).not.toHaveBeenCalled()
+    } finally {
+      await React.act(async () => { root.unmount() })
+      container.remove()
+      scoped.mockRestore()
+      useGlobalSessionsStore.setState({ activeSessions: [], archivedSessions: [], hasLoaded: false })
+      vi.doUnmock("@/stores/useGlobalSessionsStore")
+      vi.resetModules()
+    }
   })
 })
 
