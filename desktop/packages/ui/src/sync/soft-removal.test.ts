@@ -62,6 +62,9 @@ const {
   flushPendingRemovals,
   recoverPendingRemovals,
   resetSoftRemovalForTests,
+  getPendingSessionRemovalCount,
+  subscribeSessionRemovals,
+  hasPendingSessionRemovals,
 } = await import("./soft-removal")
 
 const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
@@ -375,6 +378,56 @@ describe("soft-removal S4.5 contract", () => {
       expect(sdkDelete).not.toHaveBeenCalled()
     } finally {
       write.mockRestore()
+    }
+  })
+
+  test("reports a rejected commit and releases its in-flight protection", async () => {
+    vi.useFakeTimers()
+    try {
+      const session = makeSession("ses_throw")
+      deleteSessionMock.mockRejectedValue(new Error("unexpected transport rejection"))
+      softDeleteSession(session)
+      await vi.advanceTimersByTimeAsync(7000)
+      expect(toastErrorMock).toHaveBeenCalled()
+      expect(useGlobalSessionsStore.getState().activeSessions.map((entry) => entry.id)).toContain("ses_throw")
+      expect(hasPendingSessionRemovals()).toBe(false)
+      expect(storedSlots()).toEqual([])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("retains a failed delete when another orphaned slot also requested archive", async () => {
+    const sdkDelete = vi.fn(async () => ({ error: { message: "offline" } }))
+    const sdkUpdate = vi.fn(async () => ({}))
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({ session: { delete: sdkDelete, update: sdkUpdate } } as never)
+    window.localStorage.setItem(pendingKey("delete-window"), JSON.stringify([{ id: "ses_conflict", kind: "delete", directory: null }]))
+    window.localStorage.setItem(pendingKey("archive-window"), JSON.stringify([{ id: "ses_conflict", kind: "archive", directory: null }]))
+    await recoverPendingRemovals()
+    expect(sdkDelete).toHaveBeenCalledTimes(1)
+    expect(sdkUpdate).not.toHaveBeenCalled()
+    const records = storedSlots().flatMap((key) => JSON.parse(window.localStorage.getItem(key) ?? "[]"))
+    expect(records).toEqual([{ id: "ses_conflict", kind: "delete", directory: null }])
+  })
+
+  test("notifies retention when recovery drains even if a failed record remains durable", async () => {
+    let release: (value: object) => void = () => {}
+    vi.mocked(axCodeClient.getSdkClient).mockReturnValue({
+      session: { delete: vi.fn(() => new Promise<object>((resolve) => { release = resolve })), update: vi.fn() },
+    } as never)
+    window.localStorage.setItem(pendingKey("crashed-window"), JSON.stringify([{ id: "ses_wait", kind: "delete", directory: null }]))
+    const counts: number[] = []
+    const unsubscribe = subscribeSessionRemovals(() => counts.push(getPendingSessionRemovalCount()))
+    try {
+      const recovering = recoverPendingRemovals()
+      expect(hasPendingSessionRemovals()).toBe(true)
+      release({ error: { message: "offline" } })
+      await recovering
+      expect(counts).toEqual([1, 0])
+      expect(hasPendingSessionRemovals()).toBe(false)
+      expect(storedSlots()).toHaveLength(1)
+    } finally {
+      unsubscribe()
     }
   })
 

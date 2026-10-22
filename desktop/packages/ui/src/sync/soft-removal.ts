@@ -97,6 +97,23 @@ const keptForRecovery = new Map<string, PersistedRemoval>()
 // Committing entries have left pendingRemoval so runtime events can apply, but
 // every storage write must retain them until the runtime confirms the outcome.
 const inFlightRemovals = new Map<string, PersistedRemoval>()
+const removalListeners = new Set<() => void>()
+const notifyRemovalListeners = () => {
+  for (const listener of removalListeners) listener()
+}
+
+export function subscribeSessionRemovals(listener: () => void): () => void {
+  removalListeners.add(listener)
+  const unsubscribe = useGlobalSessionsStore.subscribe(listener)
+  return () => {
+    removalListeners.delete(listener)
+    unsubscribe()
+  }
+}
+
+export function getPendingSessionRemovalCount(): number {
+  return useGlobalSessionsStore.getState().pendingRemoval.size + inFlightRemovals.size
+}
 
 function persistPending(alsoPersist: PendingRemovalEntry[] = []): boolean {
   const byId = new Map<string, PersistedRemoval>(keptForRecovery)
@@ -252,6 +269,7 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
   // session.updated/deleted events (suppressed inside the undo window) apply
   // cleanly once they arrive.
   store.commitPendingRemoval(entries.map((entry) => entry.session.id))
+  notifyRemovalListeners()
   clearTimers(ids)
 
   const failed: PendingRemovalEntry[] = []
@@ -259,10 +277,15 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
   // 120-per-minute /session bucket, and a fan-out makes all 429 retries wake in
   // the same instant, so only the first 120 could ever succeed.
   for (const entry of entries) {
-    const ok =
-      entry.kind === "delete"
-        ? await sessionActions.deleteSession(entry.session.id)
-        : await sessionActions.archiveSession(entry.session.id)
+    let ok = false
+    try {
+      ok =
+        entry.kind === "delete"
+          ? await sessionActions.deleteSession(entry.session.id)
+          : await sessionActions.archiveSession(entry.session.id)
+    } catch (error) {
+      console.warn("[soft-removal] failed to commit pending removal", { id: entry.session.id, kind: entry.kind }, error)
+    }
     // No manual archived-bucket write on archive success (S4.5): the
     // pending flag was released above, so the session.updated(time.archived)
     // event adds the session to the archived bucket as the writer of record.
@@ -273,6 +296,7 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
     if (!ok && keepFailuresInSlot) keptForRecovery.set(entry.session.id, toPersistedRemoval(entry))
     else keptForRecovery.delete(entry.session.id)
     persistPending()
+    notifyRemovalListeners()
   }
   if (failed.length > 0) {
     for (const entry of failed) {
@@ -348,6 +372,7 @@ export function softBulkArchive(sessions: Session[]): void {
 export function resetSoftRemovalForTests(): void {
   keptForRecovery.clear()
   inFlightRemovals.clear()
+  notifyRemovalListeners()
 }
 
 export function softBulkDelete(sessions: Session[]): void {
@@ -356,7 +381,7 @@ export function softBulkDelete(sessions: Session[]): void {
 
 /** Retention must not infer a complete ancestry while removal snapshots are hidden. */
 export function hasPendingSessionRemovals(): boolean {
-  return useGlobalSessionsStore.getState().pendingRemoval.size > 0 || inFlightRemovals.size > 0 || keptForRecovery.size > 0
+  return getPendingSessionRemovalCount() > 0
 }
 
 /**
@@ -389,7 +414,13 @@ export async function recoverPendingRemovals(): Promise<void> {
     ({ ownerId }) => ownerId !== WINDOW_STORAGE_ID && (ownerId === null || !isOwnerAlive(ownerId, now)),
   )
   if (ownedSlots.length === 0) return
-  const persisted = readPersisted(ownedSlots.map(({ key }) => key))
+  // The same session may occur in several crashed windows. Delete subsumes
+  // archive; a failed delete must not be discarded after a weaker archive succeeds.
+  const byId = new Map<string, PersistedRemoval>()
+  for (const entry of readPersisted(ownedSlots.map(({ key }) => key))) {
+    if (byId.get(entry.id)?.kind !== "delete") byId.set(entry.id, entry)
+  }
+  const persisted = Array.from(byId.values())
   if (persisted.length === 0) {
     // Nothing readable in the orphaned slots: drop them so they stop being
     // rescanned, but leave live windows' slots untouched.
@@ -408,6 +439,7 @@ export async function recoverPendingRemovals(): Promise<void> {
     for (const entry of persisted) inFlightRemovals.delete(entry.id)
     return
   }
+  notifyRemovalListeners()
   try {
     for (const { key } of ownedSlots) {
       window.localStorage.removeItem(key)
@@ -444,5 +476,6 @@ export async function recoverPendingRemovals(): Promise<void> {
     if (!confirmed) keptForRecovery.set(id, entry)
     else keptForRecovery.delete(id)
     persistPending()
+    notifyRemovalListeners()
   }
 }

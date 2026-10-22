@@ -11,7 +11,7 @@ import {
 } from "@/stores/useGlobalSessionsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getAllSyncSessions } from "@/sync/sync-refs"
-import { hasPendingSessionRemovals } from "@/sync/soft-removal"
+import { getPendingSessionRemovalCount, hasPendingSessionRemovals, subscribeSessionRemovals } from "@/sync/soft-removal"
 import { useUIStore } from "@/stores/useUIStore"
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -124,17 +124,15 @@ export const applySessionRetentionAction = async (
 ): Promise<boolean | undefined> => {
   let skipped = false
   // A cleanup run sends one request per expired session and can exceed the runtime's rate limit.
-  const result = await retryWhenRateLimited(
-    (): Promise<{ error?: unknown; response?: Response } | null> => {
-      if (shouldApply && !shouldApply()) {
-        skipped = true
-        return Promise.resolve(null)
-      }
-      return action === "archive"
-        ? scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
-        : scopedSdk.session.delete({ sessionID: id, directory })
-    },
-  )
+  const result = await retryWhenRateLimited((): Promise<{ error?: unknown; response?: Response } | null> => {
+    if (shouldApply && !shouldApply()) {
+      skipped = true
+      return Promise.resolve(null)
+    }
+    return action === "archive"
+      ? scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
+      : scopedSdk.session.delete({ sessionID: id, directory })
+  })
   if (skipped) return undefined
   // A 404 means the session is already gone: deleting an expired parent cascades
   // to its children, which are usually candidates in the same run.
@@ -155,6 +153,11 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
   const globalSessions = useGlobalSessionsStore((state) => state.activeSessions)
   const archivedSessions = useGlobalSessionsStore((state) => state.archivedSessions)
   const hasLoadedGlobalSessions = useGlobalSessionsStore((state) => state.hasLoaded)
+  const pendingRemovalCount = React.useSyncExternalStore(
+    subscribeSessionRemovals,
+    getPendingSessionRemovalCount,
+    () => 0,
+  )
 
   const autoDeleteEnabled = useUIStore((state) => state.autoDeleteEnabled)
   const autoDeleteAfterDays = useUIStore((state) => state.autoDeleteAfterDays)
@@ -250,23 +253,57 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
           let globalArchiveAvailable = true
           let archiveUpgradeReason: string | undefined
           let skippedChangedCandidate = false
+          let eligibilityCache:
+            | {
+                active: Session[]
+                archived: Session[]
+                open: string | null
+                cutoff: number
+                ids: Set<string>
+              }
+            | undefined
 
           for (const id of candidateIds) {
             // A run can wait minutes for rate limits. Recheck the live graph,
             // activity and selection before every request, including retries.
             const stillEligible = () => {
               const live = useGlobalSessionsStore.getState()
-              return live.status !== "error" &&
-                !useSessionUIStore.getState().isLoading &&
-                !hasPendingSessionRemovals() &&
-                buildAutoDeleteCandidates({
-                  sessions: live.activeSessions,
-                  archivedSessions: live.archivedSessions,
-                  action: sessionRetentionAction,
-                  currentSessionId: useSessionUIStore.getState().currentSessionId,
-                  cutoffDays: autoDeleteAfterDays,
-                  now,
-                }).includes(id)
+              const settings = useUIStore.getState()
+              const selection = useSessionUIStore.getState()
+              if (
+                live.status === "error" ||
+                selection.isLoading ||
+                hasPendingSessionRemovals() ||
+                (!force && !settings.autoDeleteEnabled) ||
+                settings.autoDeleteAfterDays <= 0 ||
+                settings.sessionRetentionAction !== sessionRetentionAction
+              )
+                return false
+              if (
+                !eligibilityCache ||
+                eligibilityCache.active !== live.activeSessions ||
+                eligibilityCache.archived !== live.archivedSessions ||
+                eligibilityCache.open !== selection.currentSessionId ||
+                eligibilityCache.cutoff !== settings.autoDeleteAfterDays
+              ) {
+                eligibilityCache = {
+                  active: live.activeSessions,
+                  archived: live.archivedSessions,
+                  open: selection.currentSessionId,
+                  cutoff: settings.autoDeleteAfterDays,
+                  ids: new Set(
+                    buildAutoDeleteCandidates({
+                      sessions: live.activeSessions,
+                      archivedSessions: live.archivedSessions,
+                      action: sessionRetentionAction,
+                      currentSessionId: selection.currentSessionId,
+                      cutoffDays: settings.autoDeleteAfterDays,
+                      now,
+                    }),
+                  ),
+                }
+              }
+              return eligibilityCache.ids.has(id)
             }
             if (!stillEligible()) {
               skippedChangedCandidate = true
@@ -301,7 +338,13 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             const scopedSdk = axCodeClient.getScopedSdkClient(directory)
 
             try {
-              const completed = await applySessionRetentionAction(scopedSdk, id, directory, sessionRetentionAction, stillEligible)
+              const completed = await applySessionRetentionAction(
+                scopedSdk,
+                id,
+                directory,
+                sessionRetentionAction,
+                stillEligible,
+              )
               if (completed === undefined) {
                 skippedChangedCandidate = true
               } else if (completed) {
@@ -327,6 +370,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             completedIds,
             failedIds,
             action: sessionRetentionAction,
+            ...(skippedChangedCandidate ? { skippedReason: "loading" as const } : {}),
             ...(failureReason ? { failureReason } : {}),
           }
         } finally {
@@ -369,7 +413,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
     if (!autoDeleteEnabled || autoDeleteAfterDays <= 0) {
       return
     }
-    if (isLoading || !hasLoadedGlobalSessions || globalSessions.length === 0) {
+    if (isLoading || pendingRemovalCount > 0 || !hasLoadedGlobalSessions || globalSessions.length === 0) {
       return
     }
     const now = Date.now()
@@ -386,6 +430,7 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
     hasLoadedGlobalSessions,
     globalSessions.length,
     isLoading,
+    pendingRemovalCount,
     runCleanup,
   ])
 

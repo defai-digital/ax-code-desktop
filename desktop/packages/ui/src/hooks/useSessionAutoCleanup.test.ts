@@ -133,7 +133,7 @@ describe("applySessionRetentionAction", () => {
 })
 
 describe("live retention safety", () => {
-  test.each(["activity", "child", "pending", "pending-before"])("rechecks %s changes before deleting the next candidate", async (change) => {
+  test.each(["activity", "child", "pending", "pending-before", "cutoff", "action", "disabled"])("rechecks %s changes before deleting the next candidate", async (change) => {
     vi.resetModules()
     const now = Date.now()
     const session = (id: string, age: number, parentID?: string) =>
@@ -156,6 +156,12 @@ describe("live retention safety", () => {
         useGlobalSessionsStore.getState().applySessionEvent({ type: "session.updated", properties: { info: session("second", 0) } })
       } else if (change === "child") {
         useGlobalSessionsStore.getState().applySessionEvent({ type: "session.created", properties: { info: session("new-child", 0, "second") } })
+      } else if (change === "cutoff") {
+        useUIStore.setState({ autoDeleteAfterDays: 90 })
+      } else if (change === "action") {
+        useUIStore.setState({ sessionRetentionAction: "archive" })
+      } else if (change === "disabled") {
+        useUIStore.setState({ autoDeleteEnabled: false })
       } else {
         useGlobalSessionsStore.getState().markPendingRemoval([{ session: session("hidden-child", 0, "second"), kind: "archive" }])
       }
@@ -175,10 +181,11 @@ describe("live retention safety", () => {
     const root = createRoot(container)
     try {
       await React.act(async () => { root.render(React.createElement(Probe)) })
-      const result = await React.act(async () => hook!.runCleanup({ force: true }))
+      const result = await React.act(async () => hook!.runCleanup({ force: change !== "disabled" }))
       expect(remove.mock.calls).toEqual(change === "pending-before" ? [] : [[{ sessionID: "first", directory: "/repo" }]])
       expect(result.completedIds).toEqual(change === "pending-before" ? [] : ["first"])
       expect(useUIStore.getState().autoDeleteLastRunAt).toBe(0)
+      expect(result.skippedReason).toBe("loading")
     } finally {
       await React.act(async () => { root.unmount() })
       scoped.mockRestore()
