@@ -1,5 +1,5 @@
 import {
-  WEBMCP_SENSITIVE_NAME,
+  webMcpFieldLooksSensitive,
   webMcpTextLooksSensitive,
   redactWebMcpReport,
   redactWebMcpText,
@@ -289,14 +289,14 @@ export function redactDisplayedText(value: string): WebMcpDisplayedText | null {
 
 /** Text typed into a field whose name or kind marks it sensitive is never shown, even when the text itself looks ordinary. */
 function redactActText(value: string, element: WebMcpElementDetails | null): WebMcpDisplayedText | null {
-  if (element && WEBMCP_SENSITIVE_NAME.test(`${element.name} ${element.kind}`) && value.trim())
+  if (element && (webMcpFieldLooksSensitive(element.name) || webMcpFieldLooksSensitive(element.kind)) && value.trim())
     return { redacted: true }
   return redactDisplayedText(value)
 }
 
 /** True for a field or key whose value is never shown (password, token, card number and the like). */
 export function isWebMcpSensitiveName(name: string): boolean {
-  return WEBMCP_SENSITIVE_NAME.test(name)
+  return webMcpFieldLooksSensitive(name)
 }
 
 /** A copy of a tool input safe to show: secret-named fields and credential-shaped text become "[redacted]". */
@@ -312,7 +312,7 @@ export function placeholderWebMcpSecrets(value: Record<string, unknown>): Record
 /** Bounded, credential-filtered manual result preview. Results remain inert text, never HTML. */
 export function webMcpResultPreview(output: unknown, fieldName?: string): string {
   if (output === undefined) return ""
-  if (fieldName && WEBMCP_SENSITIVE_NAME.test(fieldName)) return "[redacted]"
+  if (fieldName && webMcpFieldLooksSensitive(fieldName)) return "[redacted]"
   let remaining = 256
   const seen = new WeakSet<object>()
   const visit = (value: unknown, depth: number): unknown => {
@@ -331,7 +331,7 @@ export function webMcpResultPreview(output: unknown, fieldName?: string): string
         .slice(0, 64)
         .map(([key, entry]) => [
           webMcpTextLooksSensitive(key) ? "[redacted]" : truncateToCodeUnits(key, 140),
-          WEBMCP_SENSITIVE_NAME.test(key) ? "[redacted]" : visit(entry, depth + 1),
+          webMcpFieldLooksSensitive(key) ? "[redacted]" : visit(entry, depth + 1),
         ]),
     )
   }

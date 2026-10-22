@@ -1592,3 +1592,16 @@ test("a wide schema diagnoses a wrong primitive type after the form's 128-proper
   fireEvent.click(container.querySelector("[data-webmcp-tool='wide'] button")!)
   expect(container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property='p128']")?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
 })
+
+test.each(['auth["sig"]', 'signature[0]', 'auth.sig.value', 'auth["key.pair.id"]'])("structured credential field %s is masked and schema values are redacted", (key) => {
+  const tool = projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: {
+    type: "object", properties: { [key]: { type: "string", default: "PRIVATE_DIAGNOSTIC" } },
+  } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='echo'] button")!)
+  expect(container.querySelector('input[type="password"]')).not.toBeNull()
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
+  expect(container.querySelector("[data-webmcp-schema]")!.textContent!).not.toContain("PRIVATE_DIAGNOSTIC")
+})

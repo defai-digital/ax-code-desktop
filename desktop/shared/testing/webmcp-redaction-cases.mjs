@@ -120,7 +120,7 @@ credentialTextCases.push(...[
   wrappers.map((wrap) => wrap(`${lhs}${operator}"${secret}"`)),
 )))
 
-// Inheritance crosses containers, arrays and JSON text, and a local declaration replaces it.
+// Inheritance crosses containers, arrays and JSON text, and cannot be reset by descendant declarations.
 for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
   for (const container of ["details", "context", "meta", "errors"]) {
     for (const valueKey of ["value", "got", "actual", "received", "input", "given", "provided", "data"]) {
@@ -138,3 +138,18 @@ fieldContextCases.push({
   input: { error: { field: "api_key", details: { got: secret } } },
   expected: { error: { field: "api_key", details: { got: "[redacted]" } } },
 })
+
+for (const declaration of ["", [], ["title"], "title", null]) {
+  fieldContextCases.push({
+    fieldKey: "path", fieldName: "api_key", valueKey: "received",
+    input: { path: ["api_key"], issues: [{ path: declaration, received: secret }] },
+    expected: { path: ["api_key"], issues: [{ path: declaration, received: "[redacted]" }] },
+  })
+}
+
+export const structuredCredentialPaths = ['auth["sig"]', 'signature[0]', 'auth.sig.value', 'auth["key.pair.id"]', '/auth/sig/0']
+for (const key of structuredCredentialPaths) {
+  fieldContextCases.push({ fieldKey: "key", fieldName: key, valueKey: key,
+    input: { [key]: secret }, expected: { [key]: "[redacted]" },
+  })
+}

@@ -167,7 +167,7 @@ test("long plain prose and whitespace do not trigger repeated assignment rescann
 })
 
 
-test("sensitive context crosses encoded containers and local declarations replace it without leaking to siblings", () => {
+test("sensitive context crosses encoded containers and descendant declarations without leaking to siblings", () => {
   for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
     const input = {
       error: {
@@ -187,7 +187,7 @@ test("sensitive context crosses encoded containers and local declarations replac
         [fieldKey]: "api_key",
         details: JSON.stringify({ meta: [{ got: "[redacted]" }] }),
         errors: [
-          { [fieldKey]: "title", context: { got: "public" } },
+          { [fieldKey]: "title", context: { got: "[redacted]" } },
           { context: { received: "[redacted]" } },
           { [fieldKey]: "title", context: { [fieldKey]: "token", got: "[redacted]" } },
         ],
@@ -218,4 +218,13 @@ test("sensitive diagnostic context survives nested containers and JSON strings",
   }
   const ordinary = { field: "title", details: { got: "public" } }
   assert.deepEqual(redactWebMcpReport(ordinary), ordinary)
+})
+
+test("descendant diagnostic declarations cannot clear inherited credential sensitivity", () => {
+  for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
+    for (const declaration of ["", [], ["title"], "title", null]) {
+      const input = { path: ["api_key"], issues: [{ [fieldKey]: declaration, received: secret }] }
+      assert.equal(redactWebMcpReport(input).issues[0].received, "[redacted]")
+    }
+  }
 })

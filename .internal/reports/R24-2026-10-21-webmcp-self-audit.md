@@ -96,3 +96,9 @@ The first added native secondary-owner close check exposed destroyed native acce
 The release merge retains the stable native handles, real owner-loss adoption and shared field parser from r24. Recoverable host renderer loss now pauses agent work while preserving the live owner, guest and dormant addresses. Only actual owner/sender destruction invokes owner recovery. Additional regression tests retain the earlier bracketed-assignment and nested-diagnostic cases.
 
 The integrated source passed 18 shared redaction tests and 257 focused browser/native tests. A real Electron probe passed host renderer crash and reload without guest loss, cancelled and approved owner close, and forced owner destruction with vetoed-guest adoption and focus recovery. The probe injects confirmation decisions and does not claim OS dialog interaction. Final release-wide qualification is recorded separately.
+
+### Final credential-context correction
+
+The subsequent Claude Code release-delta review identified that empty or relative descendant declarations could reset inherited credential context. Release integration supersedes the local-reset rule described in the original r24 audit: inherited sensitivity now remains set through all descendants, including empty paths and unrelated names. Ordinary siblings outside that diagnostic subtree remain visible. The regression reproduced the leak before repair and covers all naming keys with empty, relative, null and ordinary declarations.
+
+The round-24 Codex audit also reproduced inconsistent treatment of structured property keys such as `auth["sig"]`. The same exported field parser now governs diagnostic paths, direct object keys, entry pairs, schema sensitivity, truncated display keys and UI field masking. Shared checker/UI fixtures and mounted form regressions cover this boundary. Its host-renderer-loss finding is already closed by the release integration described above.

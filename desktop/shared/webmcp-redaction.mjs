@@ -71,7 +71,7 @@ export function webMcpTextLooksSensitive(value) {
   // or backtracking over two overlapping whitespace matches makes plain prose quadratic.
   const assignments = /(?<![^,:=])([^,:=]+)[:=]/g
   for (const match of text.matchAll(assignments)) {
-    if (!sensitiveFieldName(match[1])) continue
+    if (!webMcpFieldLooksSensitive(match[1])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
     // complete quoted placeholder is safe; suffixes or additional assignments still get checked.
     const tail = text.slice(match.index + match[0].length)
@@ -94,7 +94,7 @@ function trimFieldDecorations(value) {
 }
 
 /** Every path segment carries sensitivity through descendants, including numeric indexes. */
-function sensitiveFieldName(value) {
+export function webMcpFieldLooksSensitive(value) {
   const parts = Array.isArray(value) ? value : [value]
   return parts.some((part) => {
     if (typeof part !== "string") return false
@@ -147,7 +147,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
     let changed = false
     try {
       if (Array.isArray(entry)) {
-        const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && sensitiveParameterName(entry[0])
+        const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && webMcpFieldLooksSensitive(entry[0])
         const safe = entry.map((child, index) => {
           const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1, false, inheritedField)
           changed ||= result.changed
@@ -156,11 +156,9 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         return { value: safe, changed }
       }
       const entries = Object.entries(entry)
-      // A local field declaration replaces inherited context. Conflicting local declarations fail closed.
+      // Relative, empty or unrelated descendant declarations cannot clear inherited sensitivity.
       const declarations = entries.filter(([key]) => FIELD_NAMING_KEYS.has(key))
-      const sensitiveField = declarations.length
-        ? declarations.some(([, child]) => sensitiveFieldName(child))
-        : inheritedField
+      const sensitiveField = inheritedField || declarations.some(([, child]) => webMcpFieldLooksSensitive(child))
       const safeKeys = new Set()
       const safe = Object.fromEntries(entries.map(([key, child]) => {
         const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
@@ -168,7 +166,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         if (safeKeys.has(safeKey)) options.onTruncate?.()
         safeKeys.add(safeKey)
         const namedValue = sensitiveField && FIELD_VALUE_KEYS.has(key)
-        const result = (namedValue || WEBMCP_SENSITIVE_NAME.test(key)) && child !== null && child !== ""
+        const result = (namedValue || webMcpFieldLooksSensitive(key)) && child !== null && child !== ""
           ? replaced()
           : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField)
         changed ||= safeKey !== key || result.changed
@@ -207,7 +205,7 @@ export function webMcpDisplayDescription(value) {
 export function webMcpDisplayKey(key) {
   const safe = redactWebMcpText(key)
   const marker = "[redacted secret]"
-  return safe.length > 4000 && WEBMCP_SENSITIVE_NAME.test(key)
+  return safe.length > 4000 && webMcpFieldLooksSensitive(key)
     ? safe.slice(0, 4000 - marker.length) + marker
     : safe.slice(0, 4000)
 }
@@ -237,7 +235,7 @@ export function webMcpSchemaLooksSensitive(schema) {
   const visit = (value) => {
     if (!value || typeof value !== "object" || seen.has(value)) return false
     seen.add(value)
-    if (value.properties && Object.keys(value.properties).some((key) => WEBMCP_SENSITIVE_NAME.test(key))) return true
+    if (value.properties && Object.keys(value.properties).some((key) => webMcpFieldLooksSensitive(key))) return true
     return Object.values(value).some(visit)
   }
   return visit(schema)
