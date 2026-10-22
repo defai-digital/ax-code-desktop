@@ -64,3 +64,15 @@ test.each(["timeout", "canceled", "cancelled", "aborted"])(
       expect(manualToolResult({ output })).toEqual({ ok: false, outcome, reason: outcome, output })
   },
 )
+
+
+test("manual IPC display masks bracket assignments and inherited diagnostic context", async () => {
+  const { webMcpDisplayReport } = await import("../../../shared/webmcp-redaction.mjs")
+  const { credentialTextCases, fieldContextCases, secret } = await import("../../../shared/testing/webmcp-redaction-cases.mjs")
+  for (const output of [...credentialTextCases.map((error) => ({ error })), ...fieldContextCases.map(({ input }) => input)]) {
+    const original = JSON.stringify(output)
+    const safe = webMcpDisplayReport(manualToolResult({ output }))
+    expect(JSON.stringify(safe).includes(secret)).toBe(false)
+    expect(JSON.stringify(output)).toBe(original)
+  }
+})

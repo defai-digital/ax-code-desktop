@@ -110,3 +110,31 @@ export const fieldContextCases = [
   input: { [valueKey]: secret, [fieldKey]: fieldName, constraint: "minLength" },
   expected: { [valueKey]: "[redacted]", [fieldKey]: fieldName, constraint: "minLength" },
 }))))
+
+// Text diagnostics use the same path parser as structured field declarations.
+credentialTextCases.push(...[
+  'auth["api.key"]', "auth['token']", 'x.password', '{"password"}',
+  'auth["sig"]', 'auth["key.pair.id"]', 'auth["api.key"][0]',
+  'payload["credentials"][0].title', '"api.key"}]}', "'token']}}]",
+].flatMap((lhs) => [":", " = "].flatMap((operator) =>
+  wrappers.map((wrap) => wrap(`${lhs}${operator}"${secret}"`)),
+)))
+
+// Inheritance crosses containers, arrays and JSON text, and a local declaration replaces it.
+for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
+  for (const container of ["details", "context", "meta", "errors"]) {
+    for (const valueKey of ["value", "got", "actual", "received", "input", "given", "provided", "data"]) {
+      const nested = (value) => ({ [container]: [{ deeper: { [valueKey]: value } }] })
+      fieldContextCases.push({
+        fieldKey, fieldName: "api_key", valueKey,
+        input: { error: { [fieldKey]: "api_key", ...nested(secret) } },
+        expected: { error: { [fieldKey]: "api_key", ...nested("[redacted]") } },
+      })
+    }
+  }
+}
+fieldContextCases.push({
+  fieldKey: "field", fieldName: "api_key", valueKey: "got",
+  input: { error: { field: "api_key", details: { got: secret } } },
+  expected: { error: { field: "api_key", details: { got: "[redacted]" } } },
+})

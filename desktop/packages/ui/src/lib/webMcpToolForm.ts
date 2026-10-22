@@ -81,13 +81,13 @@ export function toolForm(schema: unknown): ToolForm {
 
 /**
  * Primitive properties an advisory diagnosis can name. One nested property does not hide the others, and root
- * composition does not hide a simple sibling. At most 128 properties, matching the field form.
+ * composition does not hide a simple sibling. Check every property, including schemas too wide for the field form.
  */
 export function diagnosisFields(schema: unknown): ToolField[] {
   if (!isRecord(schema) || schema.type !== "object" || !isRecord(schema.properties)) return []
   const required = requiredNames(schema)
   const fields: ToolField[] = []
-  for (const [name, property] of Object.entries(schema.properties).slice(0, 128)) {
+  for (const [name, property] of Object.entries(schema.properties)) {
     const field = readToolField(name, property, required.has(name))
     if (field) fields.push(field)
   }

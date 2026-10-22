@@ -67,6 +67,7 @@ function createDesktopWebMcpBrowser({
   getAuthorization,
   clientFactory,
   confirmClose = async () => false,
+  recoverOwner = async () => null,
   providerToken = DESKTOP_BROWSER_TOKEN,
   loadTimeoutMs = DEFAULT_LOAD_URL_TIMEOUT_MS,
   attachTimeoutMs = 2000,
@@ -140,11 +141,11 @@ function createDesktopWebMcpBrowser({
       sessionID: entry.sessionID,
       sender: entry.sender,
       owner: entry.owner,
-      url: entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL(),
+      url: entry.contents.isDestroyed() ? "" : entry.contents.getURL(),
       origin: entry.adapter.snapshot().origin,
       lastUsed: entry.lastUsed,
     }
-    if (!(await closeForEviction(entry.view.webContents))) return false
+    if (!(await closeForEviction(entry.contents))) return false
     await close(entry)
     if (record.owner.isDestroyed() || record.sender.isDestroyed?.()) return
     remember(record)
@@ -236,7 +237,7 @@ function createDesktopWebMcpBrowser({
   // while the command is being dispatched. `status()` reads a destroyed pane deliberately (it
   // reports a blank address), so only the acting commands check.
   function assertViewAlive(entry) {
-    if (entry.closed || entry.view.webContents.isDestroyed()) {
+    if (entry.closed || entry.contents.isDestroyed()) {
       throw new Error("The project browser is no longer available")
     }
   }
@@ -244,10 +245,10 @@ function createDesktopWebMcpBrowser({
     !entry.closed &&
     entry.attached &&
     shown.get(entry.sender.id) === entry.key &&
-    entry.owner.isVisible() &&
+    entry.owner?.isVisible() &&
     !entry.owner.isMinimized()
   function hide(entry) {
-    if (entry.attached && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
+    if (entry.attached && entry.owner && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     entry.attached = false
     // Visibility gates new requests only. Already executing work keeps its original deadline.
   }
@@ -360,7 +361,7 @@ function createDesktopWebMcpBrowser({
   async function authorizeClose(sender, args, targets) {
     const documents = targets
       .flatMap((entry) => [
-        { entry, contents: entry.view.webContents, id: entry.id },
+        { entry, contents: entry.contents, id: entry.id },
         ...[...entry.popups].map((popup, index) => ({
           entry,
           contents: popup.webContents,
@@ -412,25 +413,34 @@ function createDesktopWebMcpBrowser({
     }
   }
   function reveal(entry) {
-    if (!entry.owner.isDestroyed()) {
-      entry.owner.restore?.()
-      entry.owner.show?.()
-      show(entry)
-      entry.owner.focus?.()
-      entry.view.webContents.focus?.()
-      for (const popup of entry.popups) {
-        if (!popup.isDestroyed()) {
-          popup.show?.()
-          popup.focus?.()
+    try {
+      if (entry.owner && !entry.owner.isDestroyed()) {
+        entry.owner.restore?.()
+        entry.owner.show?.()
+        show(entry)
+        entry.owner.focus?.()
+        entry.contents.focus?.()
+        for (const popup of entry.popups) {
+          if (!popup.isDestroyed()) {
+            popup.show?.()
+            popup.focus?.()
+          }
         }
       }
+    } catch {
+      // Native teardown can race focus. Retained entries remain available through the page switcher.
     }
   }
   async function close(entry, confirmed = false) {
+    if (entry.closing) return entry.closing
+    entry.closing = closeEntry(entry, confirmed).finally(() => { entry.closing = null })
+    return entry.closing
+  }
+  async function closeEntry(entry, confirmed) {
     if (entry.closed) return
     if (!confirmed) {
       // A handler can be installed after the probe. Preserve ownership and storage if Chromium vetoes.
-      for (const contents of [...entry.popups].map((popup) => popup.webContents).concat(entry.view.webContents)) {
+      for (const contents of [...entry.popups].map((popup) => popup.webContents).concat(entry.contents)) {
         if (!(await closeForEviction(contents))) throw new Error("Browser page refused closure")
       }
     }
@@ -438,6 +448,23 @@ function createDesktopWebMcpBrowser({
     for (const abort of entry.loadAborts) abort()
     if (views.get(entry.key) === entry) views.delete(entry.key)
     if (shown.get(entry.sender.id) === entry.key) shown.delete(entry.sender.id)
+    unbindOwner(entry)
+    const disconnection = disconnect(entry)
+    closePopups(entry, confirmed)
+    entry.adapter.close()
+    if (entry.owner && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
+    if (!entry.contents.isDestroyed()) entry.contents.close({ waitForBeforeUnload: !confirmed })
+    await disconnection
+  }
+  const ownerClosures = new WeakMap()
+  function unbindOwner(entry) {
+    if (!entry.owner) return
+    const group = ownerClosures.get(entry.owner)
+    group?.entries.delete(entry)
+    if (group && !group.entries.size) {
+      entry.owner.removeListener("close", group.onClose)
+      ownerClosures.delete(entry.owner)
+    }
     entry.owner.removeListener("closed", entry.onOwnerClosed)
     entry.owner.removeListener("hide", entry.onOwnerHidden)
     entry.owner.removeListener("minimize", entry.onOwnerHidden)
@@ -445,18 +472,100 @@ function createDesktopWebMcpBrowser({
     entry.owner.removeListener("restore", entry.onOwnerShown)
     entry.sender.removeListener("destroyed", entry.onOwnerClosed)
     entry.sender.removeListener("render-process-gone", entry.onOwnerClosed)
-    const disconnection = disconnect(entry)
-    closePopups(entry, confirmed)
-    entry.adapter.close()
-    if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
-    if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: !confirmed })
-    await disconnection
+  }
+  function bindOwner(entry) {
+    const { owner, sender } = entry
+    let group = ownerClosures.get(owner)
+    if (!group) {
+      group = { entries: new Set(), pending: null }
+      group.onClose = (event) => {
+        // Electron close is synchronous: keep the owner alive until bounded authorization settles.
+        event.preventDefault()
+        if (group.pending) return
+        group.pending = (async () => {
+          await poolOperations.catch(() => {})
+          for (const page of [...group.entries]) await confirmAndClose(page)
+          if (!owner.isDestroyed()) owner.close()
+        })().catch(() => {
+          for (const page of group.entries) reveal(page)
+        }).finally(() => { group.pending = null })
+      }
+      ownerClosures.set(owner, group)
+      owner.on("close", group.onClose)
+    }
+    group.entries.add(entry)
+    owner.on("closed", entry.onOwnerClosed)
+    owner.on("hide", entry.onOwnerHidden)
+    owner.on("minimize", entry.onOwnerHidden)
+    owner.on("show", entry.onOwnerShown)
+    owner.on("restore", entry.onOwnerShown)
+    sender.on("destroyed", entry.onOwnerClosed)
+    sender.on("render-process-gone", entry.onOwnerClosed)
+  }
+  function adopt(entry, owner, sender = owner.webContents) {
+    if (entry.closed || !owner || owner.isDestroyed() || sender.isDestroyed?.()) return
+    // Recovery grants control to one local owner; other windows still use disclosed focus handles.
+    entry.owner = owner
+    entry.sender = sender
+    const partition = partitionFor(entry.directory)
+    const owners = profileOwners.get(partition) ?? new Set()
+    owners.add(sender)
+    profileOwners.set(partition, owners)
+    bindOwner(entry)
+    for (const popup of entry.popups) {
+      if (!popup.isDestroyed()) popup.setParentWindow?.(owner)
+    }
+    if (!shown.has(sender.id)) shown.set(sender.id, entry.key)
+  }
+  function ownerGone(entry) {
+    if (entry.closed || !entry.owner) return
+    hide(entry)
+    unbindOwner(entry)
+    if (shown.get(entry.sender.id) === entry.key) shown.delete(entry.sender.id)
+    profileOwners.get(partitionFor(entry.directory))?.delete(entry.sender)
+    entry.owner = null
+    // No live page remains owned by a dead window. If recovery cannot create a window,
+    // the next local browser list/create/focus adopts the retained page through the switcher.
+    entry.recovery = close(entry).catch(async () => {
+      await disconnect(entry)
+      const owner = await recoverOwner()
+      if (owner && !entry.owner) {
+        adopt(entry, owner)
+        reveal(entry)
+      }
+    }).catch(() => {
+      // A failed recovery window must not become an unhandled event-listener rejection.
+      // Keep the document and its opaque identity for the next local window's recovery.
+    }).finally(() => { entry.recovery = null })
+  }
+  async function confirmAndClose(entry, authorized = () => {}) {
+    if (entry.closed) return
+    const owner = entry.owner
+    const sender = entry.sender
+    const sameOwner = () => owner && !owner.isDestroyed() && entry.owner === owner && entry.sender === sender && !sender.isDestroyed?.()
+    if (!sameOwner()) throw new Error("The browser owner window is unavailable")
+    const args = { action: "close" }
+    let approval = await authorizeClose(sender, args, [entry])
+    if (!sameOwner()) throw new Error("Browser ownership changed during closure")
+    if (approval.confirmationRequired) {
+      reveal(entry)
+      if (!(await confirmClose(owner, approval.pages))) throw new Error("Browser closure cancelled")
+      if (!sameOwner()) throw new Error("Browser ownership changed during closure")
+      approval = await authorizeClose(sender, { ...args, closeConfirmation: approval.closeConfirmation }, [entry])
+      if (approval.confirmationRequired) {
+        if (!(await confirmClose(owner, approval.pages, { closeAnyway: true }))) throw new Error("Browser closure cancelled")
+        approval = { approved: true }
+      }
+    }
+    if (!sameOwner()) throw new Error("Browser ownership changed during closure")
+    authorized()
+    await close(entry, approval.approved)
   }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
     const projected = projectToolCatalog(snapshot.tools, entry.adapter.toolKinds, entry.toolIdentities, snapshot.origin)
     // Shown in the pane's address bar; never logged.
-    const url = entry.view.webContents.isDestroyed() ? "" : entry.view.webContents.getURL()
+    const url = entry.contents.isDestroyed() ? "" : entry.contents.getURL()
     return {
       id: entry.id,
       directory: entry.directory,
@@ -501,7 +610,7 @@ function createDesktopWebMcpBrowser({
   async function loadPage(entry, url, signal) {
     if (signal?.aborted) throw new Error("Navigation canceled")
     const sequence = ++entry.loadSequence
-    const contents = entry.view.webContents
+    const contents = entry.contents
     entry.pendingLoads.add(sequence)
     entry.error = null
     let timer
@@ -817,7 +926,7 @@ function createDesktopWebMcpBrowser({
       let unloadedPage = false
       for (const candidate of candidates) {
         const generation = candidate.adapter.generation
-        if (candidate.possibleUnsavedWork || !(await canDiscardDocument(candidate.view.webContents))) continue
+        if (candidate.possibleUnsavedWork || !(await canDiscardDocument(candidate.contents))) continue
         // A call, navigation, or input may arrive while the asynchronous probe runs.
         if (
           candidate.possibleUnsavedWork ||
@@ -854,10 +963,11 @@ function createDesktopWebMcpBrowser({
         allowRunningInsecureContent: false,
       },
     })
-    view.webContents.on("will-navigate", (event, url) => {
+    const contents = view.webContents
+    contents.on("will-navigate", (event, url) => {
       if (!allowedUrl(url)) event.preventDefault()
     })
-    view.webContents.on("will-redirect", (event, url) => {
+    contents.on("will-redirect", (event, url) => {
       if (!allowedUrl(url)) event.preventDefault()
     })
     const entry = {
@@ -870,6 +980,7 @@ function createDesktopWebMcpBrowser({
       sender,
       owner,
       view,
+      contents,
       directory: projectKey(args.directory),
       sessionID: args.sessionID,
       paused: false,
@@ -900,15 +1011,15 @@ function createDesktopWebMcpBrowser({
       preload: undefined,
     }
     const popupUrlAllowed = (url) => /^https?:\/\//i.test(url) && allowedUrl(url)
-    view.webContents.setWindowOpenHandler(({ url }) => {
-      if (entry.closed || !popupUrlAllowed(url)) return { action: "deny" }
+    contents.setWindowOpenHandler(({ url }) => {
+      if (entry.closed || !entry.owner || !popupUrlAllowed(url)) return { action: "deny" }
       return {
         action: "allow",
         createWindow: (options) => {
-          if (entry.closed) throw new Error("The browser is closed")
+          if (entry.closed || !entry.owner) throw new Error("The browser is closed")
           const popup = new BrowserWindow({
             ...options,
-            parent: owner,
+            parent: entry.owner,
             webPreferences: popupPreferences,
           })
           entry.popups.add(popup)
@@ -939,19 +1050,19 @@ function createDesktopWebMcpBrowser({
     const protectWork = () => {
       entry.possibleUnsavedWork = true
     }
-    view.webContents.on("before-input-event", protectWork)
-    view.webContents.on("before-mouse-event", protectWork)
-    view.webContents.on("did-fail-load", (_event, _code, description, _url, isMainFrame) => {
+    contents.on("before-input-event", protectWork)
+    contents.on("before-mouse-event", protectWork)
+    contents.on("did-fail-load", (_event, _code, description, _url, isMainFrame) => {
       // Managed loads report through their sequenced promise. An uncorrelated
       // ERR_ABORTED event must never overwrite a newer page's result.
       if (isMainFrame && !entry.pendingLoads.has(entry.loadSequence) && description !== "ERR_ABORTED") {
         entry.error = browserReason({ code: description })
       }
     })
-    view.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
+    contents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
       if (isMainFrame && !isInPlace && !entry.pendingLoads.has(entry.loadSequence)) ++entry.loadSequence
     })
-    view.webContents.on("did-navigate", () => {
+    contents.on("did-navigate", () => {
       if (
         !entry.pendingLoads.has(entry.loadSequence) &&
         (REASON_CODES.has(entry.error) || entry.error === "operation-failed")
@@ -959,7 +1070,7 @@ function createDesktopWebMcpBrowser({
         entry.error = null
       }
     })
-    entry.adapter = new NativeWebMcp(view.webContents, () => {
+    entry.adapter = new NativeWebMcp(contents, () => {
       // A dead adapter (debugger detach or renderer crash) can no longer run a call,
       // so agent access must be revoked: syncing an empty catalog would leave the
       // runtime holding a live provider and turn every later call into an unconfirmed
@@ -975,24 +1086,16 @@ function createDesktopWebMcpBrowser({
       }
       entry.syncing = entry.syncing.then(() => synchronize(entry))
     })
-    entry.onOwnerClosed = () => {
-      void close(entry)
-    }
+    entry.onOwnerClosed = () => ownerGone(entry)
     entry.onOwnerHidden = () => {
       hide(entry)
     }
     entry.onOwnerShown = () => {
-      if (shown.get(sender.id) === entry.key && !entry.closed) show(entry)
+      if (shown.get(entry.sender.id) === entry.key && !entry.closed) show(entry)
     }
     views.set(key, entry)
     if (!shown.has(sender.id)) shown.set(sender.id, key)
-    owner.on("closed", entry.onOwnerClosed)
-    owner.on("hide", entry.onOwnerHidden)
-    owner.on("minimize", entry.onOwnerHidden)
-    owner.on("show", entry.onOwnerShown)
-    owner.on("restore", entry.onOwnerShown)
-    sender.on("destroyed", entry.onOwnerClosed)
-    sender.on("render-process-gone", entry.onOwnerClosed)
+    bindOwner(entry)
     const previous = views.get(shown.get(sender.id))
     try {
       // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
@@ -1030,6 +1133,14 @@ function createDesktopWebMcpBrowser({
   async function command(sender, args) {
     if (!args || typeof args !== "object" || Array.isArray(args)) throw new Error("Invalid browser command")
     if (!BROWSER_ACTIONS.includes(args.action)) throw new Error("Native browser command is unavailable")
+    const localOwner = BrowserWindow.fromWebContents(sender)
+    if (localOwner && !localOwner.isDestroyed() && !sender.isDestroyed?.()) {
+      for (const entry of views.values()) {
+        if (entry.owner) continue
+        await entry.recovery
+        if (!entry.owner && !entry.closed) adopt(entry, localOwner, sender)
+      }
+    }
     if (args.action === "capability") {
       // A read-only compatibility probe so the UI can explain an old runtime before any browser exists.
       if (typeof args.directory !== "string" || !path.isAbsolute(args.directory) || args.directory.includes("\0")) {
@@ -1076,6 +1187,7 @@ function createDesktopWebMcpBrowser({
         if (revision !== poolRevision || owner.isDestroyed() || sender.isDestroyed?.()) {
           throw new Error("The browser window is no longer available")
         }
+        if (ownerClosures.get(owner)?.pending) throw new Error("The browser owner window is closing")
         return createView(args, sender, owner)
       })
       pendingCreates.set(sender.id, run)
@@ -1166,7 +1278,7 @@ function createDesktopWebMcpBrowser({
     if (args.action === "focusOwner") {
       if (!BrowserWindow.fromWebContents(sender)) throw new Error("The browser requires a local desktop window")
       const target = [...views.values(), ...unloaded.values()].find((entry) => entry.id === args.id)
-      if (!target || target.owner.isDestroyed()) throw new Error("The browser owner window is unavailable")
+      if (!target || !target.owner || target.owner.isDestroyed()) throw new Error("The browser owner window is unavailable")
       if (target.sender !== sender && !focusTargets.get(sender)?.has(target))
         throw new Error("This browser belongs to another window")
       if (target.owner.isMinimized()) target.owner.restore()
@@ -1180,7 +1292,7 @@ function createDesktopWebMcpBrowser({
         maxLiveViews,
         liveViews: views.size,
         otherWindows: [
-          ...new Set([...views.values()].filter((entry) => entry.sender !== sender).map((entry) => entry.owner)),
+          ...new Set([...views.values()].filter((entry) => entry.owner && entry.sender !== sender).map((entry) => entry.owner)),
         ]
           .map((owner) => {
             const pages = [...views.values()].filter((entry) => entry.owner === owner && entry.ready)
@@ -1265,7 +1377,7 @@ function createDesktopWebMcpBrowser({
         // The view attaches on its first non-empty bounds, a frame or two after the pane reports ready,
         // and a transient dialog sends empty bounds. An enable click in that window used to fail outright
         // and read as a runtime refusal, so wait briefly for the pane to be shown before giving up.
-        const shown = () => !entry.closed && entry.attached && entry.owner.isVisible() && !entry.owner.isMinimized()
+        const shown = () => !entry.closed && entry.attached && entry.owner?.isVisible() && !entry.owner.isMinimized()
         // A disconnect or runtime change while waiting revokes this request; it must not re-enable access.
         const requested = entry.revision
         for (const deadline = Date.now() + attachTimeoutMs; !shown() && Date.now() < deadline; ) {
@@ -1282,7 +1394,7 @@ function createDesktopWebMcpBrowser({
           // A dead adapter (detached debugger, crashed renderer) enrolls a
           // connection whose every later call fails on a stale lifetime.
           entry.adapter.available &&
-          entry.owner.isVisible() &&
+          entry.owner?.isVisible() &&
           !entry.owner.isMinimized() &&
           entry.revision === revision
         if (!active()) throw new Error("Browser access changed during enrollment")
@@ -1389,7 +1501,7 @@ function createDesktopWebMcpBrowser({
       assertViewAlive(entry)
       ++entry.loadSequence
       entry.error = null
-      entry.view.webContents.reload()
+      entry.contents.reload()
       return status(entry)
     }
     if (args.action === "bounds") {
@@ -1447,23 +1559,8 @@ function createDesktopWebMcpBrowser({
           approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
           await previous
           try {
-            const args = { action: "close" }
-            let approval = await authorizeClose(entry.sender, args, [entry])
-            if (approval.confirmationRequired) {
-              reveal(entry)
-              if (!(await confirmClose(entry.owner, approval.pages))) throw new Error("Browser closure cancelled")
-              approval = await authorizeClose(
-                entry.sender,
-                { ...args, closeConfirmation: approval.closeConfirmation },
-                [entry],
-              )
-              if (approval.confirmationRequired) {
-                if (!(await confirmClose(entry.owner, approval.pages, { closeAnyway: true }))) throw new Error("Browser closure cancelled")
-                approval = { approved: true }
-              }
-            }
-            release()
-            await close(entry, approval.approved)
+            await entry.recovery
+            await confirmAndClose(entry, release)
           } catch {
             release()
             refused.push(entry.id)

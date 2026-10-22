@@ -71,6 +71,8 @@ const pageKind = (url, origin) => {
 class NativeWebMcp {
   constructor(contents, changed = () => {}) {
     this.contents = contents
+    // Electron clears the view's webContents/debugger accessors after native destruction.
+    this.debugger = contents.debugger
     this.changed = changed
     this.generation = randomUUID()
     this.revocationId = randomUUID()
@@ -535,6 +537,10 @@ class NativeWebMcp {
     }
   }
   cancel(requestID, outcome = "cancelled", reason = "cancelled") {
+    if (this.contents.isDestroyed?.()) {
+      this.pending.get(requestID)?.reject("uncertain", "provider-gone")
+      return Promise.resolve({ requestID, state: "stopped" })
+    }
     if (typeof requestID === "string" && this.activePageRequestId === requestID) {
       this.canceledPageRequests.add(requestID)
       if (!this.pageStop) {
@@ -577,9 +583,9 @@ class NativeWebMcp {
     for (const id of [...this.pending.keys()]) this.cancel(id, "uncertain", "provider-gone")
     this.contents.removeListener("did-start-navigation", this.navigation)
     this.contents.removeListener("render-process-gone", this.gone)
-    this.contents.debugger.removeListener("message", this.message)
-    this.contents.debugger.removeListener("detach", this.detached)
-    if (this.contents.debugger.isAttached()) this.contents.debugger.detach()
+    this.debugger.removeListener("message", this.message)
+    this.debugger.removeListener("detach", this.detached)
+    if (!this.contents.isDestroyed?.() && this.debugger.isAttached()) this.debugger.detach()
   }
 }
 

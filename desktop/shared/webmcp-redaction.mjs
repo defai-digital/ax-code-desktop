@@ -69,9 +69,9 @@ export function webMcpTextLooksSensitive(value) {
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
   // Scan each delimiter-free span once, including spaces. Restarting at every word
   // or backtracking over two overlapping whitespace matches makes plain prose quadratic.
-  const assignments = /(?:["'`]([^"'`]+)["'`]\s*|(?<![^"'`{}\[\],:=])([^"'`{}\[\],:=]+))[:=]/g
+  const assignments = /(?<![^,:=])([^,:=]+)[:=]/g
   for (const match of text.matchAll(assignments)) {
-    if (!sensitiveParameterName(match[1] ?? match[2])) continue
+    if (!sensitiveFieldName(match[1])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
     // complete quoted placeholder is safe; suffixes or additional assignments still get checked.
     const tail = text.slice(match.index + match[0].length)
@@ -84,17 +84,26 @@ export function webMcpTextLooksSensitive(value) {
 const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"])
 const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
 
+// Trim closing diagnostic syntax in linear time, even for long whitespace before an assignment.
+function trimFieldDecorations(value) {
+  let start = 0
+  let end = value.length
+  while (start < end && /[\s"'`{(]/.test(value[start])) start++
+  while (end > start && /[\s"'`\]})]/.test(value[end - 1])) end--
+  return value.slice(start, end)
+}
+
 /** Every path segment carries sensitivity through descendants, including numeric indexes. */
 function sensitiveFieldName(value) {
   const parts = Array.isArray(value) ? value : [value]
   return parts.some((part) => {
     if (typeof part !== "string") return false
     // Preserve quoted compound property names before splitting paths or pointer segments.
-    if (sensitiveParameterName(part)) return true
+    if (part.split(/[{}"'`]/).some((fragment) => sensitiveParameterName(trimFieldDecorations(fragment)))) return true
     // JSON Pointer components may contain literal dots; decode their escapes after splitting.
-    const segments = part.includes("/") ? part.split("/") : part.split(/[.[\]\\]/)
+    const segments = part.includes("/") ? part.split("/") : part.split(/[.[\]\\{}"'`]/)
     return segments.some((segment) => {
-      const name = segment.replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
+      const name = trimFieldDecorations(segment).replaceAll("~1", "/").replaceAll("~0", "~")
       return sensitiveParameterName(name.replaceAll("/", "_"))
     })
   })
@@ -113,7 +122,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
     options.onTruncate?.()
     return replaced()
   }
-  const visit = (entry, depth, fieldPath = false) => {
+  const visit = (entry, depth, fieldPath = false, inheritedField = false) => {
     if (--remaining < 0) throw new Error("Redaction traversal budget exceeded")
     if (depth > 32) return incomplete()
     if (typeof entry === "string") {
@@ -125,7 +134,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         // Embedded or truncated JSON is still checked for quoted credential keys below.
       }
       if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
-        const safe = visit(parsed, depth + 1)
+        const safe = visit(parsed, depth + 1, fieldPath, inheritedField)
         return safe.changed
           ? { value: JSON.stringify(safe.value), changed: true }
           : { value: entry, changed: false }
@@ -140,14 +149,18 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
       if (Array.isArray(entry)) {
         const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && sensitiveParameterName(entry[0])
         const safe = entry.map((child, index) => {
-          const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1)
+          const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1, false, inheritedField)
           changed ||= result.changed
           return result.value
         })
         return { value: safe, changed }
       }
       const entries = Object.entries(entry)
-      const sensitiveField = entries.some(([key, child]) => FIELD_NAMING_KEYS.has(key) && sensitiveFieldName(child))
+      // A local field declaration replaces inherited context. Conflicting local declarations fail closed.
+      const declarations = entries.filter(([key]) => FIELD_NAMING_KEYS.has(key))
+      const sensitiveField = declarations.length
+        ? declarations.some(([, child]) => sensitiveFieldName(child))
+        : inheritedField
       const safeKeys = new Set()
       const safe = Object.fromEntries(entries.map(([key, child]) => {
         const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
@@ -157,7 +170,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         const namedValue = sensitiveField && FIELD_VALUE_KEYS.has(key)
         const result = (namedValue || WEBMCP_SENSITIVE_NAME.test(key)) && child !== null && child !== ""
           ? replaced()
-          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key))
+          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField)
         changed ||= safeKey !== key || result.changed
         return [safeKey, result.value]
       }))
