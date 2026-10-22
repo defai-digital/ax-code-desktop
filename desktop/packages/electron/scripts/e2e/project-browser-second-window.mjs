@@ -1,6 +1,6 @@
 import fs from "node:fs/promises"
 import path from "node:path"
-import { CdpSession, isAppPageTarget, listTargets, waitForTarget } from "./cdp.mjs"
+import { CdpSession, isAppPageTarget, listTargets, waitForCondition, waitForTarget } from "./cdp.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 
 export async function checkBrowserSecondWindow({ session, debuggingPort, primary, owner, artifacts }) {
@@ -8,6 +8,7 @@ export async function checkBrowserSecondWindow({ session, debuggingPort, primary
   await session.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_new_window', {})`)
   const target = await waitForTarget(debuggingPort, (target) => !before.has(target.id) && isAppPageTarget(target))
   const second = await CdpSession.connect(target.webSocketDebuggerUrl)
+  let closedByJourney = false
   try {
     const audit = new SettingsWebMcpAudit(second)
     await audit.client.enable()
@@ -42,9 +43,26 @@ export async function checkBrowserSecondWindow({ session, debuggingPort, primary
     )
     if (!live.enabled || live.generation !== owner.generation || live.url !== owner.url)
       throw new Error("Second-window focus disturbed the owner page")
-    return "Second window names the owner and focuses it without Reopen; owner enrollment/document preserved"
+    // A disposable blank page exercises the real owner's close event without an OS confirmation dialog.
+    const blank = await second.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_webmcp_browser', {
+      action: 'create', directory: ${JSON.stringify(owner.directory)}, sessionID: null, url: 'about:blank'
+    })`)
+    if (!blank.id) throw new Error("Second-window blank page was not created")
+    await second.evaluate(`void window.__AX_CODE_DESKTOP__.invoke('desktop_close_current_window', {})`)
+    await waitForCondition(async () => !(await listTargets(debuggingPort)).some((item) => item.id === target.id), {
+      label: "authorized second-window close",
+    }).catch(async (error) => {
+      const state = await second.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_webmcp_browser', { action: 'list' })`)
+      if (artifacts) await fs.writeFile(path.join(artifacts, "second-window-close-failure.json"), JSON.stringify(state, null, 2))
+      throw error
+    })
+    closedByJourney = true
+    const remaining = await session.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_webmcp_browser', { action: 'list' })`)
+    if (remaining.otherWindows.length || remaining.views.some((page) => page.id === blank.id))
+      throw new Error("Closed secondary owner retained a browser page")
+    return "Second window names/focuses the owner without Reopen; owner enrollment/document preserved; clean owner close releases its guest"
   } finally {
-    await second.send("Page.close").catch(() => {})
+    if (!closedByJourney) await second.send("Page.close").catch(() => {})
     second.close()
   }
 }

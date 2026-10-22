@@ -1566,3 +1566,29 @@ test("a bounded manual journal input shows truncation and offers neither replay 
   expect(container.querySelector("[data-webmcp-export='manual']")).toBeNull()
   expect(container.querySelector<HTMLButtonElement>("[data-webmcp-replay='deep-manual']")?.disabled).toBe(true)
 })
+
+
+test.each([
+  { error: 'auth["api.key"] = PRIVATE_DIAGNOSTIC' },
+  { error: "auth['token']: PRIVATE_DIAGNOSTIC" },
+  { error: 'x.password = PRIVATE_DIAGNOSTIC' },
+  { error: '{"password"} = PRIVATE_DIAGNOSTIC' },
+  { error: { field: "api_key", details: { got: "PRIVATE_DIAGNOSTIC" } } },
+  { error: { path: ["api.key"], context: { meta: { errors: [{ received: "PRIVATE_DIAGNOSTIC" }] } } } },
+])("Try it masks assignment and inherited credentials in mounted results and journal: %j", async (output) => {
+  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: true, output })))
+  await runTool()
+  expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
+  expect(container.innerHTML).not.toContain("PRIVATE_DIAGNOSTIC")
+  expect(JSON.stringify(useWebMcpBrowserStore.getState().toolJournal)).not.toContain("PRIVATE_DIAGNOSTIC")
+})
+
+test("a wide schema diagnoses a wrong primitive type after the form's 128-property limit", () => {
+  const properties = Object.fromEntries(Array.from({ length: 129 }, (_, index) => [`p${index}`, { type: "integer" }]))
+  const tool = nativeWebMcpTool({ name: "wide", description: "Wide input", inputSchema: { type: "object", properties } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={[recordedInputCall({ p128: "wrong-type" }, tool)]} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector("[data-webmcp-tool='wide'] button")!)
+  expect(container.querySelector("[data-webmcp-diagnosis='agent'] [data-webmcp-diagnosis-property='p128']")?.getAttribute("data-webmcp-diagnosis-rule")).toBe("type")
+})

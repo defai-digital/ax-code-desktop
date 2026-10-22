@@ -340,6 +340,14 @@ let loginShellEnvEncoded = null
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
 const desktopWebMcpBrowser = createDesktopWebMcpBrowser({
+  recoverOwner: async () => {
+    const survivor = BrowserWindow.getAllWindows().find((win) =>
+      !win.isDestroyed() && !win.webContents.isDestroyed() && isTrustedRendererNavigation(win.webContents.getURL()),
+    )
+    if (survivor) return survivor
+    await createWindow()
+    return mainWindow
+  },
   confirmClose: async (owner, pages, { closeAnyway = false } = {}) => {
     const result = await localizedDialog.showMessageBox(owner, {
       type: "warning",

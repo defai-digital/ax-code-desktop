@@ -755,3 +755,21 @@ test("catalog rejection redacts the full tool name before shortening it", async 
   expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "duplicate-name", tool: "[redacted]" })
   f.adapter.close()
 })
+
+
+test("closing a destroyed native guest retires calls and removes captured debugger listeners", async () => {
+  const f = await fixture()
+  const debuggerHandle = f.contents.debugger
+  const request = f.request()
+  const pending = f.adapter.execute(request)
+  const rejected = expect(pending).rejects.toMatchObject({ outcome: "uncertain", reason: "provider-gone" })
+  await Promise.resolve()
+  f.contents.isDestroyed = () => true
+  Object.defineProperty(f.contents, "debugger", { get: () => { throw new Error("Object has been destroyed") } })
+  expect(() => f.adapter.close()).not.toThrow()
+  await rejected
+  expect(f.adapter.pending.size).toBe(0)
+  expect(debuggerHandle.listenerCount("message")).toBe(0)
+  expect(debuggerHandle.listenerCount("detach")).toBe(0)
+  expect(f.contents.listenerCount("did-start-navigation")).toBe(0)
+})

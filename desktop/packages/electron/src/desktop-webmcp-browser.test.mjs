@@ -25,8 +25,10 @@ function fixture({
   nextPoll,
   replyPost,
   confirmClose,
+  recoverOwner,
   capabilityResponse,
   stalledInitialization = false,
+  destroyedNativeAccessors = false,
 } = {}) {
   const owners = new Map()
   const guests = []
@@ -46,6 +48,10 @@ function fixture({
       contents.isDestroyed = () => contents.destroyed
       contents.close = vi.fn(() => {
         contents.destroyed = true
+        if (destroyedNativeAccessors) {
+          this.webContents = undefined
+          Object.defineProperty(contents, "debugger", { get: () => { throw new Error("Object has been destroyed") } })
+        }
         contents.emit("destroyed")
       })
       // Electron throws from the object itself once it is destroyed.
@@ -148,6 +154,7 @@ function fixture({
       },
     },
     confirmClose,
+    recoverOwner,
     getRuntime: () => "http://127.0.0.1:31418",
     getAuthorization: () => "Basic fixture",
     providerToken: "fixture-only-token",
@@ -186,18 +193,8 @@ function fixture({
   } = {}) => {
     const sender = Object.assign(new EventEmitter(), { id: owners.size + 1, getZoomFactor: () => 1, send: vi.fn() })
     const owner = Object.assign(new EventEmitter(), {
-      destroyed: false,
-      isDestroyed: () => owner.destroyed,
-      // Like BrowserWindow: "close" is cancelable; "closed" follows only when nothing prevented it.
-      close: vi.fn(() => {
-        const event = { defaultPrevented: false, preventDefault: vi.fn(() => { event.defaultPrevented = true }) }
-        owner.emit("close", event)
-        if (!event.defaultPrevented) {
-          owner.destroyed = true
-          owner.emit("closed")
-        }
-        return event
-      }),
+      webContents: sender,
+      isDestroyed: () => Boolean(owner.destroyed),
       isVisible: () => true,
       isMinimized: () => false,
       restore: vi.fn(),
@@ -214,6 +211,17 @@ function fixture({
           this.children.delete(view)
         },
       },
+    })
+    sender.isDestroyed = () => Boolean(sender.destroyed)
+    owner.close = vi.fn(() => {
+      const event = { preventDefault: vi.fn() }
+      owner.emit("close", event)
+      if (!event.preventDefault.mock.calls.length) {
+        owner.destroyed = true
+        owner.emit("closed")
+        sender.destroyed = true
+        sender.emit("destroyed")
+      }
     })
     owners.set(sender, owner)
     const status = await controller.command(sender, {
@@ -658,7 +666,8 @@ describe("native project browser integration", () => {
     const f = fixture()
     const sender = Object.assign(new EventEmitter(), { id: 1, getZoomFactor: () => 1 })
     const owner = Object.assign(new EventEmitter(), {
-      isDestroyed: () => false,
+      webContents: sender,
+      isDestroyed: () => Boolean(owner.destroyed),
       isVisible: () => true,
       isMinimized: () => false,
       restore: vi.fn(),
@@ -3174,201 +3183,181 @@ test("stalled native initialization releases queued page creation and shutdown",
   expect(f.controller.poolStats().liveViews).toBe(0)
 })
 
-describe("owner window close lifecycle", () => {
-  const closeRequest = (owner) => {
-    const event = { defaultPrevented: false, preventDefault: vi.fn(() => { event.defaultPrevented = true }) }
+
+describe("owner-window close authorization and recovery", () => {
+  test.each(["cancel", "reject", "late guest veto"])("close keeps the owner and page reachable on %s", async (reason) => {
+    const confirmClose = vi.fn(async () => {
+      if (reason === "reject") throw new Error("dialog failed")
+      return false
+    })
+    const f = fixture({ confirmClose })
+    const { sender, status } = await f.create()
+    const owner = f.owners.get(sender)
+    const guest = f.guests[0]
+    if (reason === "late guest veto") guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    else guest.emit("before-input-event", {}, { type: "keyDown" })
+    const event = { preventDefault: vi.fn() }
     owner.emit("close", event)
-    return event
-  }
-  const deferred = () => {
-    let resolve
-    const promise = new Promise((done) => { resolve = done })
-    return { promise, resolve }
-  }
-  const unsaved = (guest) => guest.emit("before-input-event", {}, { type: "keyDown" })
-  const listing = async (f, sender) => (await f.controller.command(sender, { action: "list" })).views
-
-  test("a guest veto keeps a live owner and an accessible page", async () => {
-    const f = fixture()
-    const { sender, status } = await f.create()
-    const owner = f.owners.get(sender)
-    f.guests[0].close.mockImplementation(() => f.guests[0].emit("will-prevent-unload", {}))
-    const event = closeRequest(owner)
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(f.guests[0].close).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(owner.listenerCount("close")).toBe(1))
-    expect(f.guests[0].close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
-    expect(owner.destroyed).toBe(false)
-    expect(owner.close).not.toHaveBeenCalled()
-    expect(f.guests[0].destroyed).toBe(false)
-    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ id: status.id })
-    expect(f.controller.poolStats().liveViews).toBe(1)
-    // A later request is a fresh attempt, not a stuck gate.
-    f.guests[0].close.mockImplementation(() => f.guests[0].emit("destroyed"))
-    owner.close()
-    await vi.waitFor(() => expect(owner.destroyed).toBe(true))
-    expect(f.controller.poolStats().liveViews).toBe(0)
-  })
-
-  test("a cancelled confirmation retains the owner and page without closing the guest", async () => {
-    const confirmClose = vi.fn(async () => false)
-    const f = fixture({ confirmClose })
-    const { sender, status } = await f.create()
-    const owner = f.owners.get(sender)
-    unsaved(f.guests[0])
-    const event = closeRequest(owner)
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
+    owner.emit("close", event)
+    expect(event.preventDefault).toHaveBeenCalledTimes(2)
     await vi.waitFor(() => expect(owner.focus).toHaveBeenCalled())
-    expect(confirmClose.mock.calls[0][0]).toBe(owner)
-    expect(f.guests[0].close).not.toHaveBeenCalled()
-    expect(owner.destroyed).toBe(false)
+    expect(confirmClose).toHaveBeenCalledTimes(reason === "late guest veto" ? 0 : 1)
     expect(owner.close).not.toHaveBeenCalled()
-    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ id: status.id })
-    expect(owner.listenerCount("close")).toBe(1)
+    expect(owner.isDestroyed()).toBe(false)
+    expect(guest.isDestroyed()).toBe(false)
+    expect((await f.controller.command(sender, { action: "list" })).views.map((view) => view.id)).toContain(status.id)
+    await expect(f.controller.command(sender, { action: "focusOwner", id: status.id })).resolves.toEqual({ focused: true })
+    guest.close.mockImplementation(() => { guest.destroyed = true; guest.emit("destroyed") })
+    confirmClose.mockResolvedValue(true)
   })
 
-  test("a confirmed close discards the page once and then closes the owner", async () => {
-    const confirmClose = vi.fn(async () => true)
+  test.each([false, true])("close authorizes all owner pages with at most one replacement prompt (%s)", async (replaceContents) => {
+    let guest
+    const confirmClose = vi.fn(async () => {
+      if (replaceContents) guest.id = (guest.id ?? 0) + 1
+      return true
+    })
     const f = fixture({ confirmClose })
-    const { sender } = await f.create()
+    const { sender, status } = await f.create()
+    const other = await f.controller.command(sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_other", url: "about:blank",
+    })
+    guest = f.guests[0]
+    for (const contents of f.guests) contents.emit("before-input-event", {}, { type: "keyDown" })
     const owner = f.owners.get(sender)
-    unsaved(f.guests[0])
-    const event = closeRequest(owner)
-    expect(event.preventDefault).toHaveBeenCalledOnce()
-    await vi.waitFor(() => expect(owner.destroyed).toBe(true))
-    expect(confirmClose).toHaveBeenCalledOnce()
-    expect(f.guests[0].close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
-    expect(f.guests[0].destroyed).toBe(true)
-    expect(owner.close).toHaveBeenCalledOnce()
+    owner.close()
+    expect(owner.isDestroyed()).toBe(false)
+    await vi.waitFor(() => expect(owner.isDestroyed()).toBe(true))
+    expect(confirmClose).toHaveBeenCalledTimes(replaceContents ? 3 : 2)
+    if (replaceContents) expect(confirmClose.mock.calls[1][2]).toEqual({ closeAnyway: true })
+    for (const contents of f.guests) expect(contents.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: false })
     expect(f.controller.poolStats().liveViews).toBe(0)
     expect(owner.eventNames()).toEqual([])
-    expect(sender.eventNames()).toEqual([])
+    expect([status.id, other.id]).toHaveLength(2)
   })
 
-  test("a page that needs no confirmation is closed gently before the owner", async () => {
-    const confirmClose = vi.fn(async () => false)
-    const f = fixture({ confirmClose })
-    const { sender } = await f.create()
-    const owner = f.owners.get(sender)
-    closeRequest(owner)
-    await vi.waitFor(() => expect(owner.destroyed).toBe(true))
-    expect(confirmClose).not.toHaveBeenCalled()
-    expect(f.guests[0].close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
-  })
-
-  test("another owner's pages and listeners are untouched", async () => {
-    const confirmClose = vi.fn(async () => true)
-    const f = fixture({ confirmClose })
+  test.each(["closed", "destroyed"])("%s transfers a vetoing page and focus to a surviving owner", async (event) => {
+    let survivor
+    const recoverOwner = vi.fn(async () => survivor)
+    const f = fixture({ recoverOwner })
     const first = await f.create()
     const second = await f.create()
-    const [firstOwner, secondOwner] = [f.owners.get(first.sender), f.owners.get(second.sender)]
-    const secondListeners = secondOwner.eventNames().map((name) => [name, secondOwner.listenerCount(name)])
-    unsaved(f.guests[0])
-    closeRequest(firstOwner)
-    await vi.waitFor(() => expect(firstOwner.destroyed).toBe(true))
-    expect(f.guests[0].destroyed).toBe(true)
-    expect(f.guests[1].destroyed).toBe(false)
-    expect(f.guests[1].close).not.toHaveBeenCalled()
-    expect(secondOwner.destroyed).toBe(false)
-    expect(secondOwner.close).not.toHaveBeenCalled()
-    expect(secondOwner.eventNames().map((name) => [name, secondOwner.listenerCount(name)])).toEqual(secondListeners)
-    expect((await listing(f, second.sender)).map((view) => view.id)).toEqual([second.status.id])
-    expect(await f.controller.command(second.sender, { action: "status", id: second.status.id })).toMatchObject({
-      id: second.status.id,
+    survivor = f.owners.get(second.sender)
+    const originalOwner = f.owners.get(first.sender)
+    const guest = f.guests[0]
+    guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    const conflict = await f.controller.command(second.sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_fixture", url: "about:blank",
     })
+    expect(conflict.error).toBe("owned-by-another-window")
+    if (event === "closed") originalOwner.destroyed = true
+    if (event === "destroyed") first.sender.destroyed = true
+    ;(event === "closed" ? originalOwner : first.sender).emit(event)
+    await vi.waitFor(() => expect(recoverOwner).toHaveBeenCalledOnce())
+    const pages = await f.controller.command(second.sender, { action: "list" })
+    expect(pages.views.map((view) => view.id)).toContain(first.status.id)
+    expect(pages.liveViews).toBe(2)
+    await expect(f.controller.command(second.sender, { action: "focusOwner", id: conflict.ownerId })).resolves.toEqual({ focused: true })
+    expect(survivor.focus).toHaveBeenCalled()
+    expect(originalOwner.eventNames()).toEqual([])
+    expect(first.sender.eventNames()).toEqual([])
+    expect((await f.controller.command(second.sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_fixture", url: "about:blank",
+    })).id).toBe(first.status.id)
+    survivor.emit("hide")
+    survivor.emit("show")
+    expect(guest.isDestroyed()).toBe(false)
+    guest.close.mockImplementation(() => { guest.destroyed = true; guest.emit("destroyed") })
   })
 
-  test("close requests while confirmation is pending share one prompt and do not reenter", async () => {
-    const answer = deferred()
-    const confirmClose = vi.fn(() => answer.promise)
-    const f = fixture({ confirmClose })
-    const { sender } = await f.create()
-    const owner = f.owners.get(sender)
-    unsaved(f.guests[0])
-    const events = [closeRequest(owner), closeRequest(owner), closeRequest(owner)]
-    await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
-    for (const event of events) expect(event.preventDefault).toHaveBeenCalledOnce()
-    expect(owner.close).not.toHaveBeenCalled()
-    answer.resolve(true)
-    await vi.waitFor(() => expect(owner.destroyed).toBe(true))
-    expect(confirmClose).toHaveBeenCalledOnce()
-    expect(owner.close).toHaveBeenCalledOnce()
-    expect(f.guests[0].close).toHaveBeenCalledOnce()
-    expect(owner.eventNames()).toEqual([])
-    expect(sender.eventNames()).toEqual([])
-  })
-
-  test("shutdown joins an owner close prompt instead of asking again", async () => {
-    const answer = deferred()
-    const confirmClose = vi.fn(() => answer.promise)
-    const f = fixture({ confirmClose })
-    const { sender } = await f.create()
-    const owner = f.owners.get(sender)
-    unsaved(f.guests[0])
-    closeRequest(owner)
-    await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
-    const shutdown = f.controller.closeAll()
-    answer.resolve(false)
-    expect(await shutdown).toHaveLength(1)
-    expect(confirmClose).toHaveBeenCalledOnce()
-    expect(f.guests[0].destroyed).toBe(false)
-    expect(owner.destroyed).toBe(false)
-  })
-
-  test("a window with several pages stops at the first refusal", async () => {
-    const confirmClose = vi.fn(async () => false)
-    const f = fixture({ confirmClose, maxLiveViews: 2 })
-    const { sender } = await f.create()
-    const owner = f.owners.get(sender)
-    await f.controller.command(sender, {
-      action: "create", directory: "/tmp/other", sessionID: "ses_other", url: "https://other.test/",
+  test.each(["no window", "recovery failure"])("%s retains a vetoed page for adoption by the next local window", async (reason) => {
+    const recoverOwner = vi.fn(async () => {
+      if (reason === "recovery failure") throw new Error("window unavailable")
+      return null
     })
-    for (const guest of f.guests) unsaved(guest)
-    closeRequest(owner)
-    await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
-    await vi.waitFor(() => expect(owner.focus).toHaveBeenCalled())
-    expect(confirmClose).toHaveBeenCalledOnce()
-    expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
-    expect(owner.destroyed).toBe(false)
+    const f = fixture({ recoverOwner })
+    const first = await f.create()
+    const guest = f.guests[0]
+    guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    const oldOwner = f.owners.get(first.sender)
+    oldOwner.destroyed = true
+    oldOwner.emit("closed")
+    await vi.waitFor(() => expect(recoverOwner).toHaveBeenCalledOnce())
+    const recovered = await f.create({ sessionID: "ses_fixture" })
+    expect(recovered.status.id).toBe(first.status.id)
+    expect(f.guests).toHaveLength(1)
+    const pages = await f.controller.command(recovered.sender, { action: "list" })
+    expect(pages.views.map((view) => view.id)).toEqual([first.status.id])
+    expect(pages.otherWindows).toEqual([])
+    await expect(f.controller.command(recovered.sender, { action: "focusOwner", id: first.status.id })).resolves.toEqual({ focused: true })
+    expect(oldOwner.eventNames()).toEqual([])
+    guest.close.mockImplementation(() => { guest.destroyed = true; guest.emit("destroyed") })
   })
+})
 
-  test.each(["closed", "destroyed"])(
-    "forced destruction (%s) releases a vetoing page without an unhandled rejection",
-    async (event) => {
-      const f = fixture()
-      const { sender } = await f.create()
-      const owner = f.owners.get(sender)
-      f.guests[0].close.mockImplementation((options) => {
-        if (options?.waitForBeforeUnload) f.guests[0].emit("will-prevent-unload", {})
-        else f.guests[0].emit("destroyed")
-      })
-      ;(event === "closed" ? owner : sender).emit(event)
-      await vi.waitFor(() => expect(f.guests[0].close).toHaveBeenCalledTimes(2))
-      await vi.waitFor(() => expect(f.controller.poolStats().liveViews).toBe(0))
-      expect(f.guests[0].close.mock.calls.map(([options]) => options.waitForBeforeUnload)).toEqual([true, false])
-      expect(owner.eventNames()).toEqual([])
-      expect(sender.eventNames()).toEqual([])
-    },
-  )
 
-  test("destroying the owner while its close prompt is pending cleans up once", async () => {
-    const answer = deferred()
-    const confirmClose = vi.fn(() => answer.promise)
-    const f = fixture({ confirmClose })
-    const { sender } = await f.create()
-    const owner = f.owners.get(sender)
-    unsaved(f.guests[0])
-    closeRequest(owner)
-    await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
-    owner.destroyed = true
-    owner.emit("closed")
-    await vi.waitFor(() => expect(f.controller.poolStats().liveViews).toBe(0))
-    answer.resolve(false)
-    await vi.waitFor(() => expect(owner.eventNames()).toEqual([]))
-    expect(owner.close).not.toHaveBeenCalled()
-    expect(f.guests[0].destroyed).toBe(true)
-  })
+test("an owner lost during confirmation cannot authorize closure under its replacement", async () => {
+  let complete
+  let survivor
+  const confirmClose = vi.fn(() => new Promise((resolve) => { complete = resolve }))
+  const f = fixture({ confirmClose, recoverOwner: async () => survivor })
+  const first = await f.create()
+  const second = await f.create()
+  survivor = f.owners.get(second.sender)
+  const owner = f.owners.get(first.sender)
+  const guest = f.guests[0]
+  guest.emit("before-input-event", {}, { type: "keyDown" })
+  guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+  owner.close()
+  await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
+  owner.destroyed = true
+  owner.emit("closed")
+  await vi.waitFor(async () => expect((await f.controller.command(second.sender, { action: "list" })).views.some((page) => page.id === first.status.id)).toBe(true))
+  complete(true)
+  await new Promise((resolve) => setImmediate(resolve))
+  expect(guest.isDestroyed()).toBe(false)
+  expect(guest.close).toHaveBeenCalledExactlyOnceWith({ waitForBeforeUnload: true })
+  expect(survivor.close).not.toHaveBeenCalled()
+  guest.close.mockImplementation(() => { guest.destroyed = true; guest.emit("destroyed") })
+  confirmClose.mockResolvedValue(true)
+})
+
+test("a retained sign-in popup follows the recovered owner after its close veto", async () => {
+  let survivor
+  const f = fixture({ recoverOwner: async () => survivor })
+  const first = await f.create()
+  const second = await f.create()
+  survivor = f.owners.get(second.sender)
+  const handler = f.guests[0].setWindowOpenHandler.mock.calls[0][0]
+  const popup = handler({ url: "https://login.example.com/" }).createWindow({})
+  // Electron's handler returns WebContents, while the fixture records the native popup window.
+  const popupWindow = f.popups[0]
+  popupWindow.setParentWindow = vi.fn()
+  const originalClose = popup.close.getMockImplementation()
+  popup.close.mockImplementation(() => popup.emit("will-prevent-unload", {}))
+  const owner = f.owners.get(first.sender)
+  owner.destroyed = true
+  owner.emit("closed")
+  await vi.waitFor(() => expect(popupWindow.setParentWindow).toHaveBeenCalledWith(survivor))
+  expect(popup.isDestroyed()).toBe(false)
+  expect(f.guests[0].isDestroyed()).toBe(false)
+  expect((await f.controller.command(second.sender, { action: "list" })).views.some((page) => page.id === first.status.id)).toBe(true)
+  popup.close.mockImplementation(originalClose)
+})
+
+
+test("native guest destruction clears view accessors without interrupting owner close", async () => {
+  const f = fixture({ destroyedNativeAccessors: true })
+  const { sender } = await f.create()
+  const owner = f.owners.get(sender)
+  const guest = f.guests[0]
+  owner.close()
+  await vi.waitFor(() => expect(owner.isDestroyed()).toBe(true))
+  expect(guest.isDestroyed()).toBe(true)
+  expect(f.controller.poolStats().liveViews).toBe(0)
+  expect(owner.eventNames()).toEqual([])
+  expect(sender.eventNames()).toEqual([])
+})
 
   test("a lost host renderer keeps a vetoing guest and a live owner and pauses the agent", async () => {
     const f = fixture()
@@ -3377,7 +3366,7 @@ describe("owner window close lifecycle", () => {
     expect(await f.controller.command(sender, { action: "enable", id: status.id })).toMatchObject({ enabled: true })
     const guest = f.guests[0]
     guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
-    unsaved(guest)
+    guest.emit("before-input-event", {}, { type: "keyDown" })
     sender.emit("render-process-gone", {}, { reason: "crashed" })
     await vi.waitFor(async () =>
       expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
@@ -3387,7 +3376,7 @@ describe("owner window close lifecycle", () => {
     )
     expect(guest.close).not.toHaveBeenCalled()
     expect(guest.destroyed).toBe(false)
-    expect(owner.destroyed).toBe(false)
+    expect(owner.isDestroyed()).toBe(false)
     expect(f.controller.poolStats().liveViews).toBe(1)
     expect(sender.listenerCount("render-process-gone")).toBe(1)
     // The reloaded host can still address the page, and another crash is harmless.
@@ -3402,12 +3391,12 @@ describe("owner window close lifecycle", () => {
     const guest = f.guests[0]
     guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
     sender.emit("render-process-gone", {})
-    const event = closeRequest(owner)
+    const event = { preventDefault: vi.fn() }; owner.emit("close", event)
     expect(event.preventDefault).toHaveBeenCalledOnce()
     await vi.waitFor(() => expect(guest.close).toHaveBeenCalledOnce())
     await vi.waitFor(() => expect(owner.listenerCount("close")).toBe(1))
     expect(guest.destroyed).toBe(false)
-    expect(owner.destroyed).toBe(false)
+    expect(owner.isDestroyed()).toBe(false)
     expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ id: status.id })
   })
 
@@ -3423,29 +3412,3 @@ describe("owner window close lifecycle", () => {
     })
     expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
   })
-
-  test.each(["closeAll", "owner close"])(
-    "a guest destroyed concurrently with %s recovery does not reject",
-    async (path) => {
-      const confirmClose = vi.fn(async () => false)
-      const f = fixture({ confirmClose })
-      const { sender } = await f.create()
-      const owner = f.owners.get(sender)
-      unsaved(f.guests[0])
-      // Recovery runs against a window or guest that can no longer be shown or focused.
-      owner.show.mockImplementation(() => { throw new Error("Object has been destroyed") })
-      owner.focus.mockImplementation(() => { throw new Error("Object has been destroyed") })
-      f.guests[0].focus = vi.fn(() => { throw new Error("Object has been destroyed") })
-      if (path === "closeAll") {
-        expect(await f.controller.closeAll()).toHaveLength(1)
-      } else {
-        closeRequest(owner)
-        await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
-        await vi.waitFor(() => expect(owner.listenerCount("close")).toBe(1))
-        expect(owner.destroyed).toBe(false)
-        expect(f.controller.poolStats().liveViews).toBe(1)
-      }
-      expect(f.guests[0].destroyed).toBe(false)
-    },
-  )
-})

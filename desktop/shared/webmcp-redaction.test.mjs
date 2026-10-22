@@ -166,6 +166,38 @@ test("long plain prose and whitespace do not trigger repeated assignment rescann
   assert.ok(performance.now() - started < 1000, "Credential scanning must remain bounded for long prose")
 })
 
+
+test("sensitive context crosses encoded containers and local declarations replace it without leaking to siblings", () => {
+  for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
+    const input = {
+      error: {
+        [fieldKey]: "api_key",
+        details: JSON.stringify({ meta: [{ got: secret }] }),
+        errors: [
+          { [fieldKey]: "title", context: { got: "public" } },
+          { context: { received: secret } },
+          { [fieldKey]: "title", context: { [fieldKey]: "token", got: secret } },
+        ],
+      },
+      sibling: { got: "public" },
+    }
+    const safe = redactWebMcpReport(input)
+    assert.deepEqual(safe, {
+      error: {
+        [fieldKey]: "api_key",
+        details: JSON.stringify({ meta: [{ got: "[redacted]" }] }),
+        errors: [
+          { [fieldKey]: "title", context: { got: "public" } },
+          { context: { received: "[redacted]" } },
+          { [fieldKey]: "title", context: { [fieldKey]: "token", got: "[redacted]" } },
+        ],
+      },
+      sibling: { got: "public" },
+    })
+    assert.ok(JSON.stringify(input).includes(secret))
+  }
+})
+
 test("bracketed textual assignment paths retain sensitive compound names and indexes", () => {
   for (const name of ['auth["api.key"]', "auth['private.key'][0]", "auth[api_key][0]", "auth[`sig`][0]"]) {
     for (const separator of ["=", " = ", ": "]) {

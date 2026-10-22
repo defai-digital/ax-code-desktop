@@ -111,18 +111,30 @@ export const fieldContextCases = [
   expected: { [valueKey]: "[redacted]", [fieldKey]: fieldName, constraint: "minLength" },
 }))))
 
-// Text and structured diagnostic paths must agree at every preview/checker boundary.
+// Text diagnostics use the same path parser as structured field declarations.
 credentialTextCases.push(...[
-  'auth["api.key"]', "auth['private.key'][0]", "auth[api_key][0]", "auth[`sig`][0]",
-].flatMap((name) => wrappers.map((wrap) => wrap(`${name} = ${secret}`))))
+  'auth["api.key"]', "auth['token']", 'x.password', '{"password"}',
+  'auth["sig"]', 'auth["key.pair.id"]', 'auth["api.key"][0]',
+  'payload["credentials"][0].title', '"api.key"}]}', "'token']}}]",
+].flatMap((lhs) => [":", " = "].flatMap((operator) =>
+  wrappers.map((wrap) => wrap(`${lhs}${operator}"${secret}"`)),
+)))
 
-fieldContextCases.push(...[
-  [{ got: secret }, { got: "[redacted]" }],
-  [[{ received: secret }], [{ received: "[redacted]" }]],
-  [{ nested: { actual: secret } }, { nested: { actual: "[redacted]" } }],
-  [JSON.stringify({ got: secret }), JSON.stringify({ got: "[redacted]" })],
-].map(([details, expected]) => ({
+// Inheritance crosses containers, arrays and JSON text, and a local declaration replaces it.
+for (const fieldKey of ["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"]) {
+  for (const container of ["details", "context", "meta", "errors"]) {
+    for (const valueKey of ["value", "got", "actual", "received", "input", "given", "provided", "data"]) {
+      const nested = (value) => ({ [container]: [{ deeper: { [valueKey]: value } }] })
+      fieldContextCases.push({
+        fieldKey, fieldName: "api_key", valueKey,
+        input: { error: { [fieldKey]: "api_key", ...nested(secret) } },
+        expected: { error: { [fieldKey]: "api_key", ...nested("[redacted]") } },
+      })
+    }
+  }
+}
+fieldContextCases.push({
   fieldKey: "field", fieldName: "api_key", valueKey: "got",
-  input: { field: "api_key", details, constraint: "minLength" },
-  expected: { field: "api_key", details: expected, constraint: "minLength" },
-})))
+  input: { error: { field: "api_key", details: { got: secret } } },
+  expected: { error: { field: "api_key", details: { got: "[redacted]" } } },
+})

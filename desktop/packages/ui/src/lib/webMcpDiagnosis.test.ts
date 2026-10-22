@@ -340,3 +340,14 @@ test("regression export rejects explicit truncation and its own shared traversal
   for (let depth = 0; depth < 40; depth++) input = { nested: input }
   expect(webMcpRegressionExport({ tool: "echo", input, outcome: "completed" })).toBeNull()
 })
+
+
+test("advisory primitive checks cover properties beyond the field form limit", () => {
+  const properties = Object.fromEntries(Array.from({ length: 129 }, (_, index) => [`p${index}`, { type: "integer", minimum: 0 }]))
+  expect(diagnoseWebMcpInput({ type: "object", properties }, { p128: "wrong-type" })).toEqual({
+    status: "checked", findings: [{ property: "p128", rule: "type", valueKind: "string", expected: "integer" }],
+  })
+  expect(diagnoseWebMcpInput({ type: "object", properties }, { p128: -1 })).toEqual({
+    status: "checked", findings: [{ property: "p128", rule: "minimum", valueKind: "integer" }],
+  })
+})
