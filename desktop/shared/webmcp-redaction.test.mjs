@@ -340,3 +340,13 @@ test("null, undefined and symbol echoes are scalars too", () => {
       { field: "pin", got: "[redacted]", values: ["[redacted]", "[redacted]"] })
   }
 })
+
+
+test("excessive sensitive echo sets fail closed before compiling a large matcher", () => {
+  for (const data of [Array.from({ length: 257 }, (_, index) => `value-${index}`), ["x".repeat(16385)]]) {
+    let truncated = false
+    const safe = redactWebMcpReport({ field: "password", data, message: "echo " + data[0] }, "[redacted]", { onTruncate() { truncated = true } })
+    assert.equal(safe, "[redacted]")
+    assert.equal(truncated, true)
+  }
+})

@@ -146,11 +146,20 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
   // sibling or ancestor. Keep this lookup local to the object declaring the sensitive field.
   const collectEchoes = (root, depth) => {
     const values = new Set()
+    let echoLength = 0
+    const addEcho = (text) => {
+      if (values.has(text)) return
+      echoLength += text.length
+      // Bound regex construction and repeated matching on the Electron main thread.
+      // The outer handler marks the whole projection incomplete and fails closed.
+      if (values.size >= 256 || echoLength > 16384) throw new Error("Redaction echo budget exceeded")
+      values.add(text)
+    }
     const seen = new WeakSet()
     const collect = (entry, level, masked = false, fieldPath = false) => {
       if (--remaining < 0 || level > 32) throw new Error("Redaction collection budget exceeded")
       if (typeof entry === "string") {
-        if ((masked || webMcpTextLooksSensitive(entry)) && entry && entry !== replacement) values.add(entry)
+        if ((masked || webMcpTextLooksSensitive(entry)) && entry && entry !== replacement) addEcho(entry)
         let parsed
         try {
           parsed = JSON.parse(entry)
@@ -161,7 +170,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         return
       }
       if (masked && (entry === null || ["number", "boolean", "bigint", "undefined", "symbol"].includes(typeof entry)))
-        values.add(String(entry))
+        addEcho(String(entry))
       if (!entry || typeof entry !== "object") return
       if (seen.has(entry)) throw new Error("Redaction collection cycle")
       seen.add(entry)

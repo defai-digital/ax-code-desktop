@@ -43,9 +43,13 @@ function recordCheckRun(key, index, run) {
 // Project diagnostics only. Trusted classification and receipts never participate in echo matching.
 // This helper is also safe to apply to an already projected disk report; it never classifies a payload.
 function redactCheckReport(report) {
-  const { runs, ...rest } = report
+  const { runs, tools, ...rest } = report
   return {
     ...redactWebMcpReport(rest),
+    ...(tools ? { tools: tools.map((tool) => {
+      const { identityReceipt, ...payload } = tool
+      return { ...redactWebMcpReport(payload), ...(identityReceipt !== undefined ? { identityReceipt } : {}) }
+    }) } : {}),
     runs: (runs ?? []).map((run) => {
       const { outcome, inputReceipt, outcomeReceipt, ...payload } = run
       return { ...redactWebMcpReport(payload),

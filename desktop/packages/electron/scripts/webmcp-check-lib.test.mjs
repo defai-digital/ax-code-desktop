@@ -135,6 +135,21 @@ test("disk receipts bind secret inputs and occurrence order without retaining a 
 })
 
 
+test("sensitive tool catalog receipts survive repeated echo redaction", () => {
+  const name = "set_password"
+  const key = "fixed-receipt-regression-key"
+  const identityReceipt = toolIdentityReceipt(key, name)
+  // Use a digit present in this fixed receipt so the regression is deterministic.
+  const minLength = Number(identityReceipt.match(/[1-9]/)[0])
+  let report = { tools: [{ name, identityReceipt, inputSchema: { type: "object", properties: { password: { type: "string", minLength } } } }], runs: [] }
+  for (let pass = 0; pass < 3; pass++) {
+    report = JSON.parse(JSON.stringify(redactCheckReport(report)))
+    expect(report.tools[0].identityReceipt).toBe(identityReceipt)
+    expect(evaluateReport(report, { expectTools: [name], runs: [] }, undefined, key).exitCode).toBe(EXIT.ok)
+  }
+  expect(redactCheckReport({ error: "closed" })).not.toHaveProperty("tools")
+})
+
 test.each([false, true])("tool and run identities survive diagnostic collisions (disk: %s)", (disk) => {
   const actual = "ghp_BBBBBBBBBBBBBBBB"
   const missing = "ghp_AAAAAAAAAAAAAAAA"
