@@ -19,3 +19,6 @@ export function countSessionsWithWaitingPages(
     ).length
   )
 }
+
+/** The same waiting-page attention rule used by Needs you and per-session supervision chips. */
+export const webMcpPageNeedsYou = (page: { waiting: boolean; visible: boolean }) => page.waiting && !page.visible

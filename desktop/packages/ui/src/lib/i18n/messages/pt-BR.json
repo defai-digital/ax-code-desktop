@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Algumas chamadas gravadas t\u00eam associa\u00e7\u00f5es de ferramentas desconhecidas. Uma chamada para esta ferramenta pode estar entre elas.",
   "webmcp.tools.diagnosis.definitionUnavailable": "A definição não está mais disponível; o esquema atual não foi utilizado.",
   "webmcp.tools.diagnosis.runtimeRejection": "Rejeição do runtime: {reason}",
-  "webmcp.tools.draftLimit": "Limite de retenção do rascunho atingido (128 campos, 65.536 caracteres por valor ou entrada JSON). Apenas o rascunho dentro do limite pode ser restaurado."
+  "webmcp.tools.draftLimit": "Limite de retenção do rascunho atingido (128 campos, 65.536 caracteres por valor ou entrada JSON). Apenas o rascunho dentro do limite pode ser restaurado.",
+  "webmcp.tools.offListOption": "{value} \u2014 valor fora da lista (n\u00e3o est\u00e1 no esquema)",
+  "webmcp.tools.offListConfirm": "Escolha um valor da lista ou confirme o envio do valor fora da lista para a p\u00e1gina.",
+  "webmcp.tools.sendOffList": "Confirmar envio do valor fora da lista",
+  "webmcp.tools.compare.receiptMissing": "Comprovante de execu\u00e7\u00e3o indispon\u00edvel: {reason}",
+  "webmcp.tools.compare.missingDefinition": "O runtime n\u00e3o forneceu um resumo da defini\u00e7\u00e3o, portanto esta chamada n\u00e3o pode ser associada a um esquema.",
+  "webmcp.tools.compare.unmatchedDefinition": "O resumo da defini\u00e7\u00e3o do runtime n\u00e3o tem uma defini\u00e7\u00e3o retida, portanto esta chamada n\u00e3o pode ser associada a esta ferramenta.",
+  "webmcp.tools.compare.missingInput": "O runtime n\u00e3o forneceu um comprovante de entrada; a solicita\u00e7\u00e3o do agente n\u00e3o comprova o que a p\u00e1gina recebeu."
 }

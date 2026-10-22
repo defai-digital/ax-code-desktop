@@ -120,12 +120,14 @@ class NativeWebMcp {
     contents.debugger.on("detach", this.detached)
     let timer
     let aborted = false
+    let stage = "debugger attach"
+    let failure = "failed"
     const interrupted = new Promise((_, reject) => {
       this.abortStart = () => {
         aborted = true
         reject(new Error("Native WebMCP initialization interrupted"))
       }
-      timer = setTimeout(this.abortStart, timeoutMs)
+      timer = setTimeout(() => { failure = "timed out"; this.abortStart() }, timeoutMs)
     })
     // Synchronous attach failures can close the adapter before its first command is awaited.
     void interrupted.catch(() => {})
@@ -134,6 +136,7 @@ class NativeWebMcp {
     contents.once("render-process-gone", stop)
     contents.debugger.once("detach", stop)
     const command = async (method) => {
+      stage = method
       if (aborted || this.closed) throw new Error("Native WebMCP initialization interrupted")
       const result = await Promise.race([contents.debugger.sendCommand(method), interrupted])
       if (aborted || this.closed) throw new Error("Native WebMCP initialization interrupted")
@@ -147,8 +150,9 @@ class NativeWebMcp {
       await command("WebMCP.enable")
       this.available = true
     } catch {
+      const reason = `Native WebMCP initialization ${aborted && failure !== "timed out" ? "was interrupted" : failure} at ${stage}`
       this.close()
-      throw new Error("The bundled browser does not provide native WebMCP")
+      throw new Error(`The bundled browser does not provide native WebMCP: ${reason}`)
     } finally {
       clearTimeout(timer)
       this.abortStart = null

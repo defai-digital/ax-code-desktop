@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Certains appels enregistr\u00e9s ont des associations d'outils inconnues. Un appel \u00e0 cet outil peut en faire partie.",
   "webmcp.tools.diagnosis.definitionUnavailable": "La définition n’est plus disponible ; le schéma actuel n’a pas été utilisé.",
   "webmcp.tools.diagnosis.runtimeRejection": "Rejet du moteur d’exécution : {reason}",
-  "webmcp.tools.draftLimit": "Limite de conservation du brouillon atteinte (128 champs, 65 536 caractères par valeur ou saisie JSON). Seul le brouillon limité peut être restauré."
+  "webmcp.tools.draftLimit": "Limite de conservation du brouillon atteinte (128 champs, 65 536 caractères par valeur ou saisie JSON). Seul le brouillon limité peut être restauré.",
+  "webmcp.tools.offListOption": "{value} \u2014 valeur hors liste (absente du sch\u00e9ma)",
+  "webmcp.tools.offListConfirm": "Choisissez une valeur de la liste ou confirmez l\u2019envoi de la valeur hors liste \u00e0 la page.",
+  "webmcp.tools.sendOffList": "Confirmer l\u2019envoi de la valeur hors liste",
+  "webmcp.tools.compare.receiptMissing": "Re\u00e7u d\u2019ex\u00e9cution indisponible : {reason}",
+  "webmcp.tools.compare.missingDefinition": "Le moteur n\u2019a pas fourni d\u2019empreinte de d\u00e9finition ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 un sch\u00e9ma.",
+  "webmcp.tools.compare.unmatchedDefinition": "Aucune d\u00e9finition conserv\u00e9e ne correspond \u00e0 l\u2019empreinte du moteur ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 cet outil.",
+  "webmcp.tools.compare.missingInput": "Le moteur n\u2019a pas fourni de re\u00e7u d\u2019entr\u00e9e ; la requ\u00eate de l\u2019agent ne prouve pas ce que la page a re\u00e7u."
 }

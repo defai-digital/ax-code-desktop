@@ -1,9 +1,12 @@
+import { webMcpFailureSummary } from "@/lib/webMcpFailureSummary"
+import { webMcpKnownDefinitions, type WebMcpToolDefinition } from "@/lib/webMcpCatalog"
+import type { WebMcpCall } from "@/lib/webMcpCalls"
 import { useWebMcpApprovalOutcome } from "@/hooks/useWebMcpApprovalOutcome"
 import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
-import { useI18n, type I18nKey } from "@/lib/i18n"
+import { useI18n } from "@/lib/i18n"
 import { useWebMcpTranscriptCalls } from "@/hooks/useWebMcpTranscriptCalls"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { cn } from "@/lib/utils"
@@ -29,6 +32,8 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
     (state) => (state.sessionID === sessionID ? state.generation : null),
     viewKeyFor(directory, sessionID),
   )
+  const definitionView = useWebMcpBrowserValue((state) => state, viewKeyFor(directory, sessionID))
+  const definitions = webMcpKnownDefinitions(definitionView)
   const openInTranscript = useUIStore((state) => state.setPendingMessageNavigation)
   // A running call whose approval is still pending names that approval, so the person can answer it from here.
   const permissions = useSessionPermissions(sessionID, directory)
@@ -120,11 +125,7 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
                       {t("webmcp.calls.result", { preview: call.resultPreview })}
                     </span>
                   ) : null}
-                  {call.failureReason ? (
-                    <span className="block typography-micro text-[var(--status-error)]">
-                      {t(`chat.toolPart.webmcp.reason.${call.failureReason}` as I18nKey)}
-                    </span>
-                  ) : null}
+                  <CallFailure call={call} definitions={definitions} />
                 </span>
               </button>
               {call.outcome === "running" && call.callId && pendingByCall.has(call.callId) ? (
@@ -143,4 +144,10 @@ export function WebMcpCallStrip({ sessionID, directory }: { sessionID: string; d
       ) : null}
     </section>
   )
+}
+
+function CallFailure({ call, definitions }: { call: WebMcpCall; definitions: readonly WebMcpToolDefinition[] }) {
+  const { t } = useI18n()
+  const summary = webMcpFailureSummary(call, definitions, t)
+  return summary ? <span data-webmcp-call-failure className="block typography-micro text-[var(--status-error)]">{summary}</span> : null
 }

@@ -1,5 +1,6 @@
 import React from "react"
-import { WebMcpSessionPage } from "@/components/mcp/WebMcpPages"
+import { WebMcpPageSwitcher } from "@/components/mcp/WebMcpPages"
+import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
@@ -285,7 +286,7 @@ export function SessionGrid() {
                       </div>
                     )}
                   </div>
-                  {slot && !popped && <WebMcpSessionPage directory={slot.directory} sessionID={slot.sessionId} />}
+                  {slot && !popped && <WebMcpPageSwitcher selectedKey={viewKeyFor(slot.directory, slot.sessionId)} compact onRetry={() => {}} />}
                   {row && <SupervisionStateBadge state={row.state} />}
                   {MOVE_CONTROLS.map((control) => (
                     <button

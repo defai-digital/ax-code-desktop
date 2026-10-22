@@ -193,6 +193,22 @@ try {
         await run("w6-last", "three calls complete")
         await completed("w6-last")
         await wait(`document.body.textContent.includes('three calls complete')`, "third call")
+        await wait(`(() => {
+          const row = document.querySelector('[data-tool-part-id="part_w6-failure"] [data-webmcp-outcome="failed"]')
+          const strip = document.querySelector('[data-webmcp-call="failed"] [data-webmcp-call-failure]')
+          return row?.textContent.includes('W6 controlled page failure') && row.textContent.includes('text · minLength') &&
+            strip?.textContent.includes('W6 controlled page failure') && strip.textContent.includes('text · minLength') &&
+            !document.querySelector('[data-tool-part-id="part_w6-failure"] [data-webmcp-diagnosis]')
+        })()`, "collapsed failure and strip name the reason, property and rule")
+        await wait(`(() => {
+          const summary = document.querySelector('[data-tool-part-id="part_w6-failure"] [data-webmcp-failure-summary]')
+          return summary?.checkVisibility() && getComputedStyle(summary).whiteSpace !== 'nowrap' &&
+            summary.scrollWidth <= summary.clientWidth + 1
+        })()`, "collapsed failure remains readable in a narrow transcript")
+        if (args.artifacts) {
+          const { data } = await session.send("Page.captureScreenshot", { format: "png" })
+          await fs.writeFile(path.join(args.artifacts, "r26-collapsed-failure.png"), Buffer.from(data, "base64"))
+        }
         await click("W6", '[data-webmcp-call="failed"] button')
         await wait(`Boolean(document.querySelector('[data-tool-part-id="part_w6-failure"][data-attention]'))`, "strip opens exact transcript tool part")
         await act("W6", () => audit.click("Review changes", { role: "button" }))

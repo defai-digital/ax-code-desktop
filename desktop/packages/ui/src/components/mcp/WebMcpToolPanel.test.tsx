@@ -602,7 +602,7 @@ test("an enum warning names the allowed choices without blocking an explicit ove
   await runTool()
   expect(reply).not.toHaveBeenCalled()
   expect(screen.getByRole("alert").textContent).toBe('Choose one of [\n  "a",\n  "b"\n] for mode.')
-  await runTool("webmcp.tools.sendAnyway")
+  await runTool("webmcp.tools.sendOffList")
   expect(reply).toHaveBeenCalledWith(useWebMcpBrowserStore.getState().catalog[0].invocationID, { mode: "other" }, expect.objectContaining({ origin: expect.any(String) }))
 })
 
@@ -1412,7 +1412,7 @@ test("every rendered schema-derived text retains original sensitive property con
   await runTool() // Numeric and length warnings.
   expect(container.querySelector('[role="alert"]')).not.toBeNull()
   inspectEveryText()
-  await act(async () => fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.sendAnyway" }))) // Preserve the executable enum.
+  await act(async () => fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.sendOffList" }))) // Preserve the executable enum.
   expect(tryTool).toHaveBeenCalledWith(tool.invocationID, { pin: 7, apiKey: secret }, expect.anything())
   expect(container.querySelector('[data-webmcp-diagnosis="manual"]')).not.toBeNull()
   inspectEveryText()
@@ -1604,4 +1604,51 @@ test.each(['auth["sig"]', 'signature[0]', 'auth.sig.value', 'auth["key.pair.id"]
   expect(container.querySelector('input[type="password"]')).not.toBeNull()
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.schema" }))
   expect(container.querySelector("[data-webmcp-schema]")!.textContent!).not.toContain("PRIVATE_DIAGNOSTIC")
+})
+
+test.each(["confirm", "replace", "json", "empty"])("off-list enum replay stays visible and requires %s before sending", async (decision) => {
+  const tool = nativeWebMcpTool({ name: "choose", description: "Choose", inputSchema: {
+    type: "object", properties: { size: { type: "string", enum: ["small", "large"] } }, required: ["size"],
+  } })
+  const store = useWebMcpBrowserStore.getState()
+  store.updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
+  store.recordToolJournal({ id: "off-list", tool: tool.name, invocationID: tool.invocationID, definitionDigest: tool.definitionDigest,
+    digest: tool.digest!, input: { size: decision === "empty" ? "" : "retired" }, outcome: "application-error", text: "Unknown size", durationMs: 5, at: 1 })
+  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector('[data-webmcp-replay="off-list"]')!)
+  const select = container.querySelector("select")!
+  expect(select.selectedOptions[0].textContent).toBe(`webmcp.tools.offListOption:${decision === "empty" ? '""' : "retired"}`)
+  expect(select.value).toBe("off-list")
+  if (decision === "json") fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.useJson" }))
+  await runTool()
+  expect(tryTool).not.toHaveBeenCalled()
+  expect(container.textContent).toContain("webmcp.tools.offListConfirm")
+  if (decision !== "replace") await runTool("webmcp.tools.sendOffList")
+  else {
+    fireEvent.change(select, { target: { value: "option-1" } })
+    await runTool()
+  }
+  expect(tryTool).toHaveBeenCalledOnce()
+  expect(tryTool).toHaveBeenCalledWith(tool.invocationID, { size: decision === "empty" ? "" : decision === "replace" ? "large" : "retired" }, expect.anything())
+})
+
+test.each(["missingDefinition", "unmatchedDefinition", "missingInput"])("agent comparison explains %s receipt gap and retains the redacted call summary", (gap) => {
+  const tool = catalog[0]
+  const secret = "ghp_" + "v".repeat(36)
+  useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog })
+  const calls = collectWebMcpCalls([{ id: "m" }], () => [{ id: "gap", type: "tool", tool: "desktop_webmcp", state: {
+    status: "completed", input: { action: "invoke", toolName: "lookup" },
+    metadata: { operation: "invoke", toolName: "lookup",
+      ...(gap !== "missingDefinition" ? { definitionDigest: gap === "missingInput" ? tool.definitionDigest : "f".repeat(64) } : {}),
+      ...(gap !== "missingInput" ? { arguments: { q: `query ${secret}` } } : {}) }, output: "{}",
+  } }], 20, undefined, catalog)
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn()} agentCalls={calls} />)
+  fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
+  fireEvent.click(container.querySelector('[data-webmcp-tool] button')!)
+  const agent = container.querySelector('[data-webmcp-compare-agent]')!
+  expect(agent.querySelector(`[data-webmcp-receipt-missing="${gap}"]`)?.textContent).toContain(`webmcp.tools.compare.${gap}`)
+  if (gap !== "missingInput") expect(agent.textContent).toContain("lookup")
+  expect(container.innerHTML).not.toContain(secret)
 })

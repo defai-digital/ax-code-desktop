@@ -346,7 +346,7 @@ test("return receiver retains ownership through pending, rejected and vetoed clo
   expect(container.querySelector("iframe")).not.toBeNull()
   await pop()
   expect(container.querySelector("iframe")).toBeNull()
-  expect(container.querySelector("[data-webmcp-session-page]")).toBeNull()
+  expect(container.querySelector("[data-webmcp-pages-compact]")).toBeNull()
   let rejectClose!: (error: Error) => void
   live.closeWindow.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectClose = reject }))
   fireEvent.click(screen.getByRole("button", { name: "sessionGrid.popIn Task a" }))
@@ -365,7 +365,7 @@ test("return receiver retains ownership through pending, rejected and vetoed clo
   await closeNativeWindow()
   act(() => vi.runAllTimers())
   expect(container.querySelector("iframe")).not.toBeNull()
-  expect(container.querySelector("[data-webmcp-session-page]")).not.toBeNull()
+  expect(container.querySelector("[data-webmcp-pages-compact]")).not.toBeNull()
 })
 
 test("failed return messaging and inventory keep the live window exclusive", async () => {

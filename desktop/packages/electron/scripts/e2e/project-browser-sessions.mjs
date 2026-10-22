@@ -218,7 +218,49 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
         await fs.writeFile(path.join(artifacts, `w7-page-${name}.png`), Buffer.from(shot.data, "base64"))
       }
     }
-    return `W7 two projects retain independent pages/storage; hidden call waits; scoped revoke leaves a working provider; ${actions}/12 actions plus 50 switches with bounded heaps/listeners`
+    // Round 26: the waiting chip belongs to its row; each grid pane can reveal its own native page.
+    await switchTo(primary.id, false)
+    await runtime({ sessionID: secondary.id, requestID: "r26-grid-waiting" })
+    await waitForCondition(async () => (await state(secondary.id))?.waiting, { label: "R26 hidden secondary page waits" })
+    await audit.click("Mission Control", { role: "button" })
+    // These fixture sessions are idle; Recent includes them without changing the board's Live policy.
+    await audit.click("Recent", { role: "button" })
+    await audit.wait(`Boolean(document.querySelector('#mission-row-${secondary.id} [data-webmcp-waiting-session]')) &&
+      !document.querySelector('#mission-row-${primary.id} [data-webmcp-waiting-session]')`, "R26 per-row waiting page chip")
+    for (const target of [primary, secondary]) {
+      await session.evaluate(`(() => {
+        const checkbox = document.querySelector('#mission-row-${target.id} input[type="checkbox"]')
+        if (!checkbox.checked) checkbox.click()
+      })()`)
+    }
+    await audit.click("Open as grid", { role: "button" })
+    await audit.wait(`document.querySelectorAll('[data-session-grid] [data-webmcp-pages-compact]').length === 2`, "R26 compact switcher in each grid pane")
+    await session.evaluate(`(() => {
+      const pane = document.querySelector('[data-session-grid-session="${secondary.id}"]')
+      pane.querySelector('[data-webmcp-pages-compact] summary').click()
+      pane.querySelector('[data-webmcp-page] button').click()
+    })()`)
+    await audit.wait(`document.querySelector('[data-session-grid]')?.checkVisibility() &&
+      document.querySelector('[aria-label="Project browser address"]')?.checkVisibility()`, "R26 page reachable while grid remains visible")
+    await waitForCondition(async () => (await state(secondary.id))?.visible &&
+      (await runtime()).replies.some(reply => reply.requestID === "r26-grid-waiting" && reply.status === "Completed"),
+      { label: "R26 grid page resumes its own waiting call" })
+    await audit.wait(`(() => {
+      const switcher = document.querySelector('[data-session-grid-session="${secondary.id}"] [data-webmcp-pages-compact]')
+      return switcher && !switcher.open && switcher.querySelector('summary').textContent.includes('Access on') &&
+        !switcher.querySelector('summary').textContent.includes('Access waiting')
+    })()`, "R26 grid pane acknowledges completed page call with a fresh state read")
+    await audit.wait(`(() => {
+      const frames = Array.from(document.querySelectorAll('[data-session-grid] iframe'))
+      return frames.length === 2 && frames.every(frame => frame.contentDocument?.querySelector('[data-chat-input]')?.checkVisibility())
+    })()`, "R26 both grid composers remain reachable after page selection")
+    if (artifacts) {
+      const { data } = await session.send("Page.captureScreenshot", { format: "png" })
+      await fs.writeFile(path.join(artifacts, "r26-grid-page.png"), Buffer.from(data, "base64"))
+      await fs.writeFile(path.join(artifacts, "r26-grid-page.json"), JSON.stringify(await listing(), null, 2))
+    }
+    return `W7 two projects retain independent pages/storage; hidden call waits; scoped revoke leaves a working provider; ${actions}/12 actions plus 50 switches with bounded heaps/listeners; R26 row waiting chip and pane page switching retain the grid`
+
   } finally {
     guestA.close()
     guestB.close()

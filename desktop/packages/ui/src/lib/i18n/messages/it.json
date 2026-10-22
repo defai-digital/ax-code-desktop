@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Alcune chiamate registrate hanno associazioni di strumenti sconosciute. Una chiamata a questo strumento potrebbe essere tra queste.",
   "webmcp.tools.diagnosis.definitionUnavailable": "La definizione non è più disponibile; lo schema attuale non è stato utilizzato.",
   "webmcp.tools.diagnosis.runtimeRejection": "Rifiuto del runtime: {reason}",
-  "webmcp.tools.draftLimit": "Limite di conservazione della bozza raggiunto (128 campi, 65.536 caratteri per valore o input JSON). È possibile ripristinare solo la bozza entro tale limite."
+  "webmcp.tools.draftLimit": "Limite di conservazione della bozza raggiunto (128 campi, 65.536 caratteri per valore o input JSON). È possibile ripristinare solo la bozza entro tale limite.",
+  "webmcp.tools.offListOption": "{value} \u2014 valore fuori elenco (non presente nello schema)",
+  "webmcp.tools.offListConfirm": "Scegli un valore dall\u2019elenco o conferma l\u2019invio del valore fuori elenco alla pagina.",
+  "webmcp.tools.sendOffList": "Conferma l\u2019invio del valore fuori elenco",
+  "webmcp.tools.compare.receiptMissing": "Ricevuta di esecuzione non disponibile: {reason}",
+  "webmcp.tools.compare.missingDefinition": "Il runtime non ha fornito un digest della definizione, quindi questa chiamata non pu\u00f2 essere associata a uno schema.",
+  "webmcp.tools.compare.unmatchedDefinition": "Il digest della definizione del runtime non ha una definizione conservata, quindi questa chiamata non pu\u00f2 essere associata a questo strumento.",
+  "webmcp.tools.compare.missingInput": "Il runtime non ha fornito una ricevuta di input; la richiesta dell\u2019agente non dimostra cosa ha ricevuto la pagina."
 }

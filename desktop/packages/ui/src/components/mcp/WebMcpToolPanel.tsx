@@ -1,3 +1,5 @@
+import { webMcpFailureSummary } from "@/lib/webMcpFailureSummary"
+import { webMcpCallOutcomeKey } from "@/lib/webMcpCalls"
 import { DiagnosisList, WebMcpRuntimeRejections } from "./WebMcpCallDiagnosis"
 import { propertyDiff } from "@/lib/webMcpPropertyDiff"
 import {
@@ -212,13 +214,13 @@ function ToolCompare({
   journalEntry,
   agentCall,
   viewKey,
-  associationUnknown,
+  unassociatedCalls,
 }: {
   viewKey?: string
   tool: WebMcpToolDefinition
   journalEntry: WebMcpJournalEntry | null
   agentCall: WebMcpCall | null
-  associationUnknown: boolean
+  unassociatedCalls: readonly WebMcpCall[]
 }) {
   const { t } = useI18n()
   const registration = useWebMcpBrowserValue((state) => state.registration, viewKey)
@@ -229,7 +231,7 @@ function ToolCompare({
   const manualDefinition = definitionFor(journalEntry?.definitionDigest)
   const digest = tool.definitionDigest ?? ""
   const differ = webMcpDefinitionsDiffer(journalEntry?.definitionDigest, agentCall?.definitionDigest)
-  if (!journalEntry && !agentCall && !associationUnknown) return null
+  if (!journalEntry && !agentCall && !unassociatedCalls.length) return null
   return (
     <div className="space-y-2" data-webmcp-compare="">
       <p className="typography-micro text-muted-foreground">{t("webmcp.tools.compare.title")}</p>
@@ -278,6 +280,7 @@ function ToolCompare({
               >
                 {agentCall.argumentsText ?? (agentCall.argumentsMissing ? t("webmcp.tools.diagnosis.noArguments") : "")}
               </pre>
+              <AgentReceiptGap call={agentCall} />
               <DiagnosisList
                 diagnosis={agentDiagnosis(agentCall, agentDefinition)}
                 digest={agentCall.definitionDigest}
@@ -294,7 +297,14 @@ function ToolCompare({
               />
             </>
           ) : (
-            <p className="typography-micro text-muted-foreground">{t(associationUnknown ? "webmcp.tools.compare.unknownAgent" : "webmcp.tools.compare.noAgent")}</p>
+            <>
+              <p className="typography-micro text-muted-foreground">{t(unassociatedCalls.length ? "webmcp.tools.compare.unknownAgent" : "webmcp.tools.compare.noAgent")}</p>
+              {unassociatedCalls.map((call) => <div key={call.id} data-webmcp-unassociated-call={call.id}>
+                <AgentReceiptGap call={call} />
+                <pre className="max-h-32 overflow-auto whitespace-pre-wrap typography-micro">{redactWebMcpText(call.argumentsText ?? "")}</pre>
+                <WebMcpRuntimeRejections rejections={call.rejections} />
+              </div>)}
+            </>
           )}
         </div>
       </div>
@@ -310,38 +320,59 @@ function ToolCompare({
   )
 }
 
+function AgentReceiptGap({ call }: { call: WebMcpCall }) {
+  const { t } = useI18n()
+  const reason = !call.definitionDigest ? "missingDefinition" : !call.invocationID ? "unmatchedDefinition" : call.inputKind === "missing" ? "missingInput" : null
+  const failure = webMcpFailureSummary(call, [], t)
+  return reason ? <div className="space-y-1">
+    <p data-webmcp-receipt-missing={reason} className="typography-micro text-muted-foreground">
+      {t("webmcp.tools.compare.receiptMissing", { reason: t(`webmcp.tools.compare.${reason}`) })}
+    </p>
+    <p data-webmcp-receipt-summary className="typography-micro break-all">
+      {redactWebMcpText(call.title)} · {t(webMcpCallOutcomeKey(call.outcome))}
+      {call.resultPreview ? ` · ${redactWebMcpText(call.resultPreview)}` : ""}
+      {failure ? ` · ${failure}` : ""}
+    </p>
+  </div> : null
+}
+
 function FieldInput({
   field,
   value,
   onChange,
   id,
   describedBy,
+  explicitEmpty,
 }: {
   field: ToolField
   value: string
   onChange: (value: string) => void
   id: string
   describedBy?: string
+  explicitEmpty?: boolean
 }) {
+  const { t } = useI18n()
   const className = "h-7 w-full rounded border border-border bg-background px-2 typography-meta"
   if (field.kind === "enum" || field.kind === "boolean") {
     const options = (field.kind === "enum" ? (field.options ?? []) : ["true", "false"]).filter(
       (option) => option !== "",
     )
     const optionValue = (_option: string, index: number) => `option-${index}`
+    const offList = !options.includes(value) && (value !== "" || (explicitEmpty === true && !field.options?.includes("")))
     return (
       <select
         id={id}
         aria-describedby={describedBy}
         className={className}
-        value={value === "" ? "" : optionValue(value, options.indexOf(value))}
+        value={offList ? "off-list" : value === "" ? "" : optionValue(value, options.indexOf(value))}
         onChange={(event) =>
           onChange(
-            options.find((option, index) => optionValue(option, index) === event.target.value) ?? event.target.value,
+            event.target.value === "off-list" ? value : options.find((option, index) => optionValue(option, index) === event.target.value) ?? event.target.value,
           )
         }
       >
         <option value="">—</option>
+        {offList ? <option value="off-list">{t("webmcp.tools.offListOption", { value: value === "" ? '""' : String(toolFieldDisplayValue(field.name, value)) })}</option> : null}
         {options.map((option, index) => (
           <option key={index} value={optionValue(option, index)}>
             {String(toolFieldDisplayValue(field.name, option))}
@@ -464,7 +495,7 @@ function ToolItem({
   journalEntry,
   replay,
   agentCall,
-  associationUnknown,
+  unassociatedCalls,
 }: {
   tool: WebMcpToolDefinition
   binding: TryToolBinding
@@ -473,7 +504,7 @@ function ToolItem({
   journalEntry: WebMcpJournalEntry | null
   replay: { id: string; input: Record<string, unknown>; nonce: number } | null
   agentCall: WebMcpCall | null
-  associationUnknown: boolean
+  unassociatedCalls: readonly WebMcpCall[]
 }) {
   const { t } = useI18n()
   const saveToolDraft = useWebMcpBrowserStore((state) => state.saveToolDraft)
@@ -581,12 +612,6 @@ function ToolItem({
         return
       }
       input = built.input
-      const issues = toolInputWarnings(form.fields, input)
-      if (issues.length && !warnings.length) {
-        setWarnings(issues)
-        showResult(null)
-        return
-      }
     } else {
       try {
         const parsed: unknown = JSON.parse(json)
@@ -594,6 +619,15 @@ function ToolItem({
         input = parsed as Record<string, unknown>
       } catch {
         showResult({ outcome: "invalid-input", text: t("webmcp.tools.invalidJson") })
+        return
+      }
+    }
+    // JSON editing must retain the same explicit override as the field editor.
+    if (form.kind === "fields") {
+      const issues = toolInputWarnings(form.fields, input)
+      if (issues.length && !warnings.length) {
+        setWarnings(issues)
+        showResult(null)
         return
       }
     }
@@ -738,6 +772,7 @@ function ToolItem({
                   <FieldInput
                     id={`${baseId}-field-${index}`}
                     field={field}
+                    explicitEmpty={sendEmpty[field.name]}
                     describedBy={
                       [
                         field.constraints ? `${baseId}-hint-${index}` : "",
@@ -836,19 +871,19 @@ function ToolItem({
               {t(jsonMode ? "webmcp.tools.useFields" : "webmcp.tools.useJson")}
             </Button>
           ) : null}
-          {warnings.length ? <p className="typography-micro">{t("webmcp.tools.advisory")}</p> : null}
-          <div className="flex items-center gap-2">
+          {warnings.length ? <p className="typography-micro">{t(warnings.some((warning) => warning.constraint === "enum") ? "webmcp.tools.offListConfirm" : "webmcp.tools.advisory")}</p> : null}
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="xs"
               variant="outline"
               aria-disabled={running}
-              className="aria-disabled:opacity-50"
+              className="h-auto max-w-full whitespace-normal break-words aria-disabled:opacity-50"
               onClick={() => void run()}
             >
               {running
                 ? t("webmcp.tools.running")
-                : t(warnings.length ? "webmcp.tools.sendAnyway" : "webmcp.tools.try")}
+                : t(warnings.some((warning) => warning.constraint === "enum") ? "webmcp.tools.sendOffList" : warnings.length ? "webmcp.tools.sendAnyway" : "webmcp.tools.try")}
             </Button>
             <span className="typography-micro text-muted-foreground">{t("webmcp.tools.tryHint")}</span>
           </div>
@@ -874,7 +909,7 @@ function ToolItem({
               <p className="typography-micro">{t("webmcp.tools.inspectPage")}</p>
             ) : null}
           </div>
-          <ToolCompare associationUnknown={associationUnknown} viewKey={viewKey} tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
+          <ToolCompare unassociatedCalls={unassociatedCalls} viewKey={viewKey} tool={tool} journalEntry={journalEntry} agentCall={agentCall} />
         </div>
       ) : null}
     </li>
@@ -1051,7 +1086,7 @@ export function WebMcpToolPanel({
                 viewKey={toolViewKey}
                 journalEntry={journal.find((entry) => webMcpEvidenceMatchesTool(entry, tool)) ?? null}
                 replay={replay && webMcpEvidenceMatchesTool(replay, tool) ? replay : null}
-                associationUnknown={agentCalls.some((call) => call.operation?.toLowerCase() === "invoke" && !call.invocationID)}
+                unassociatedCalls={agentCalls.filter((call) => call.operation?.toLowerCase() === "invoke" && !call.invocationID)}
                 agentCall={
                   agentCalls.find(
                     (call) => call.operation?.toLowerCase() === "invoke" && Boolean(call.invocationID) && call.invocationID === tool.invocationID,

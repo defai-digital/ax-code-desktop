@@ -207,13 +207,13 @@ export function webMcpRuntimeRejections(...sources: unknown[]): WebMcpRuntimeRej
     const property = typeof path === "string" ? path : Array.isArray(path) ? path.join(".") : undefined
     const keyword = item.keyword ?? item.rule ?? (typeof item.constraint === "string" ? item.constraint.split(":")[0] : undefined) ?? item.code
     const rule = typeof keyword === "string" && RULES.has(keyword as WebMcpDiagnosisRule) ? keyword as WebMcpDiagnosisRule : undefined
-    const message = item.message ?? item.reason ?? item.error ?? item.constraint ?? item.code
+    const message = item.message ?? item.reason ?? item.errorText ?? item.error ?? item.constraint ?? item.code
     if (property !== undefined || rule) add({
       ...(property !== undefined ? { property: webMcpDisplayText(property) } : {}),
       ...(rule ? { rule } : {}),
       text: typeof message === "string" ? webMcpDisplayText(message) : "",
     })
-    for (const key of ["error", "errors", "validationErrors", "validationError", "reason", "failureReason", "result", "content"]) {
+    for (const key of ["error", "errorText", "errors", "validationErrors", "validationError", "reason", "failureReason", "result", "content"]) {
       if (Object.hasOwn(item, key) && !(typeof item[key] === "string" && item[key] === message && (property !== undefined || rule)))
         visit(item[key], depth + 1, true)
     }

@@ -3776,6 +3776,13 @@ export const dict = {
   "webmcp.tools.diagnosis.definitionUnavailable": "Definition no longer available; the current schema was not used.",
   "webmcp.tools.diagnosis.runtimeRejection": "Runtime rejection: {reason}",
   "webmcp.tools.draftLimit": "Draft retention limit reached (128 fields, 65,536 characters per value or JSON input). Only the bounded draft can be restored.",
+  "webmcp.tools.offListOption": "{value} — off-list value (not in the schema)",
+  "webmcp.tools.offListConfirm": "Pick a listed value, or confirm sending the off-list value to the page.",
+  "webmcp.tools.sendOffList": "Confirm sending off-list value",
+  "webmcp.tools.compare.receiptMissing": "Runtime receipt unavailable: {reason}",
+  "webmcp.tools.compare.missingDefinition": "The runtime did not supply a definition digest, so this call cannot be associated with a schema.",
+  "webmcp.tools.compare.unmatchedDefinition": "The runtime's definition digest has no retained definition, so this call cannot be associated with this tool.",
+  "webmcp.tools.compare.missingInput": "The runtime did not supply an input receipt; the agent's request is not evidence of what the page received.",
 } as const
 
 export type I18nKey = keyof typeof dict
