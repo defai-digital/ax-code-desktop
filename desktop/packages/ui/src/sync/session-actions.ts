@@ -757,6 +757,12 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
         time: { archived: archivedAt },
       }),
     )
+    // Another delete may already have removed this session. Do not restore it
+    // as a ghost row or manufacture an archived record for a missing session.
+    if (result?.response?.status === 404) {
+      useGlobalSessionsStore.getState().removeSessions([sessionId])
+      return true
+    }
     assertSessionCallSucceeded(result, "archiveSession")
     // Optimistic bucket move (load-bearing): hard-archive callers (confirm
     // dialog, bulk archive) have no pendingRemoval undo window, so this

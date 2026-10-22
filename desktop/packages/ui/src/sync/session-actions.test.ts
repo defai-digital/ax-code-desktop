@@ -701,6 +701,20 @@ describe("session mutations treat an SDK error response as a failure", () => {
     }
   })
 
+  test("archiveSession removes an already-gone session without restoring a ghost row", async () => {
+    const store = createStore({})
+    store.setState({ session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session] })
+    mockScopedClient.session.update.mockImplementationOnce(() => Promise.resolve({
+      error: { name: "NotFoundError", data: { message: "Session not found: session-a" } }, response: { status: 404 },
+    } as never))
+    const { archiveSession, setActionRefs } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([["/test/project", store]]), () => "/test/project")
+    await expect(archiveSession("session-a")).resolves.toBe(true)
+    expect(store.getState().session).toEqual([])
+    expect(removeSessionsMock).toHaveBeenCalledWith(["session-a"])
+    expect(toastErrorMock).not.toHaveBeenCalled()
+  })
+
   test("archiveSession rolls back and reports failure when the SDK answers with an error", async () => {
     const store = createStore({})
     store.setState({

@@ -360,6 +360,10 @@ describe("soft-removal S4.5 contract", () => {
 
     const recovering = recoverPendingRemovals()
     const records = storedSlots().flatMap((key) => JSON.parse(window.localStorage.getItem(key) ?? "[]"))
+    // Recovery is already committing this id; a new Undo promise would be false.
+    softDeleteSession(makeSession("ses_adopted"))
+    expect(toastSuccessMock).not.toHaveBeenCalled()
+    expect(useGlobalSessionsStore.getState().pendingRemoval.size).toBe(0)
     release({})
     await recovering
     expect(records).toContainEqual({ id: "ses_adopted", kind: "delete", directory: "/repo" })

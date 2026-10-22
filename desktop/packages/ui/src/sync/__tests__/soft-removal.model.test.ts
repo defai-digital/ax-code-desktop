@@ -268,8 +268,10 @@ describe("soft-removal model", () => {
             await recoverPendingRemovals()
             // Recovery settles only the dead window's entry: a failure is
             // written back into this window's slot, while a confirmed/gone
-            // entry leaves this window's own kept/pending entries untouched.
+            // entry confirms any older same-id kept record too. Unrelated
+            // pending removals remain untouched.
             if (op.outcome === "fail") kept.add(op.id)
+            else kept.delete(op.id)
           } else if (op.kind === "recoverRace") {
             // In-flight-removal-during-recovery race (commit 031e86b5):
             // recovery starts and is NOT awaited while the user removes
@@ -287,7 +289,9 @@ describe("soft-removal model", () => {
             recoverUpdateMock.mockResolvedValue({ data: {} })
             const recovery = recoverPendingRemovals()
             await vi.advanceTimersByTimeAsync(0)
-            const target = SESSION_IDS.find((id) => present.has(id) && !pending.has(id))
+            // An already committing recovery cannot offer another undo window
+            // for the same id. This scenario removes a different session.
+            const target = SESSION_IDS.find((id) => id !== op.id && present.has(id) && !pending.has(id))
             if (target) {
               softDeleteSession(makeSession(target))
               lastUndoable = [target]
@@ -296,6 +300,7 @@ describe("soft-removal model", () => {
             }
             releaseRecovery({})
             await recovery
+            kept.delete(op.id)
             recoverDeleteMock.mockReset()
           } else {
             // renameDuringFailedCommit: a newer event lands mid-commit and

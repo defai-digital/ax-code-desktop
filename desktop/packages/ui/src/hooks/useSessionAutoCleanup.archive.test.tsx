@@ -23,6 +23,9 @@ test.each([true, false])("retention archive supports the global API: %s", async 
   const { useSessionUIStore } = await import("@/sync/session-ui-store")
   const { useUIStore } = await import("@/stores/useUIStore")
   const { axCodeClient } = await import("@/lib/ax-code/client")
+  const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+  // The loader publishes this inventory to the store before resolving.
+  useGlobalSessionsStore.setState({ activeSessions: sessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
   const update = vi.fn(async () => ({ data: {} }))
   const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ session: { update } } as never)
   const fetch = vi.fn(async () =>

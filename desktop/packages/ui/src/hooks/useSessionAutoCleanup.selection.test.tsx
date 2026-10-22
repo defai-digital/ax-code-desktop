@@ -34,6 +34,9 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
       const { useSessionUIStore } = await import("@/sync/session-ui-store")
       const { useUIStore } = await import("@/stores/useUIStore")
       const { axCodeClient } = await import("@/lib/ax-code/client")
+      const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+      // Keep the real store consistent with the inventory returned by the loader.
+      useGlobalSessionsStore.setState({ activeSessions: sessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
       const remove = vi.fn(async ({ sessionID }: { sessionID: string }) => {
         if (stage === "deleting" && sessionID === "old-1") await firstDelete
         return stage === "failure" ? { error: new Error("unavailable") } : { data: true }
