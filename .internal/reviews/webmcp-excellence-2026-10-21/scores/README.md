@@ -352,3 +352,10 @@ Full gates passed (seven native journeys, `e2e:desktop`). deepseek-flash: no P1.
 codex: three new P1 variants (bracketed `auth["api.key"] = value` text, field context lost across a nested `details`
 object, a vetoed guest stranded when its owner window closes on macOS), in `AUDIT-2026-10-21-p1-codex-round23.md`. Codex has
 reported new variants at every pass since round 15; these are open follow-ups.
+
+## Round 24 judgment (`5193b0c8`; raw judgments in `round24/`)
+
+Rubric 13 of 13 under the two-of-three rule (codex B2 7; MiniMax A5 7; grok A5 7; every other score 8 or 9). P1 audit of the
+r24 code: glm and deepseek no P1; codex two new variants (owner-renderer crash closes a page without an unload handler; bracketed
+`auth["sig"]` property names). Another session has since pushed fixes to main (`185e35f6`, `a1d05f68`), so Desktop CI for
+`5193b0c8` and `185e35f6` was cancelled by newer pushes and this judgment is not at the newest commit.
