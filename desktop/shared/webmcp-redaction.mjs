@@ -160,7 +160,8 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         if (typeof parsed === "string" || (parsed && typeof parsed === "object")) collect(parsed, level + 1, masked, fieldPath)
         return
       }
-      if (typeof entry === "number" && masked) values.add(String(entry))
+      if (masked && (entry === null || ["number", "boolean", "bigint", "undefined", "symbol"].includes(typeof entry)))
+        values.add(String(entry))
       if (!entry || typeof entry !== "object") return
       if (seen.has(entry)) throw new Error("Redaction collection cycle")
       seen.add(entry)
@@ -216,7 +217,9 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
       if (webMcpTextLooksSensitive(entry)) return replaced()
       return { value: entry, changed: false }
     }
-    if (!entry || typeof entry !== "object") return { value: entry, changed: false }
+    // Scalars share the string echo matcher, including array leaves and cross-type echoes.
+    if (!entry || typeof entry !== "object")
+      return echoes?.(String(entry)) ? replaced() : { value: entry, changed: false }
     if (ancestors.has(entry)) return incomplete()
     ancestors.add(entry)
     let changed = false

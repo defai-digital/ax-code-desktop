@@ -43,7 +43,7 @@ const catalog = [
 describe("WebMCP tool panel", () => {
   test("shows the page's tools while agent access is off and runs one as the user", async () => {
     useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", enabled: false, catalog })
-    const tryTool = vi.fn(async () => ({ ok: true, output: { content: [{ type: "text", text: "5" }] } }))
+    const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: { content: [{ type: "text", text: "5" }] } }))
     const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
     fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
     fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
@@ -59,7 +59,7 @@ describe("WebMCP tool panel", () => {
 
   test("an invalid value is reported before anything runs, and a failed run says so", async () => {
     useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog })
-    const tryTool = vi.fn(async () => ({ ok: false, reason: "invoke-failed" }))
+    const tryTool = vi.fn(async () => ({ ok: false, outcome: "failed", reason: "invoke-failed" }))
     const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
     fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
     fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool='add_numbers'] button")!)
@@ -87,7 +87,7 @@ describe("WebMCP tool panel", () => {
 
 function openTool(
   inputSchema: unknown,
-  reply = vi.fn(async (): Promise<import("./WebMcpToolPanel").TryResult> => ({ ok: true })),
+  reply = vi.fn(async (): Promise<import("./WebMcpToolPanel").TryResult> => ({ ok: true, outcome: "completed" })),
 ) {
   useWebMcpBrowserStore
     .getState()
@@ -105,7 +105,7 @@ const runTool = async (name = "webmcp.tools.try") => {
 
 test("Try it masks rejected passwords in both the result and runtime diagnosis", async () => {
   const output = { error: { field: "password", message: "Rejected value: DEMO_PRIVATE_VALUE", got: "DEMO_PRIVATE_VALUE" } }
-  const { container } = openTool(undefined, vi.fn(async () => ({ ok: true, output })))
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output })))
   await runTool()
   expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
   const diagnosis = container.querySelector("[data-webmcp-runtime-rejections]")
@@ -178,16 +178,16 @@ test.each([
     "application-error",
     "chat.toolPart.webmcp.reason.application-error",
   ],
-  [{ ok: true, output: { isError: true } }, "application-error", "chat.toolPart.webmcp.reason.application-error"],
-  [{ ok: true, output: { status: "timeout", isError: true } }, "timeout", "chat.toolPart.webmcp.reason.timeout"],
-  [{ ok: true, output: { status: "canceled" } }, "cancelled", "chat.toolPart.webmcp.reason.cancelled"],
+  [{ ok: false, outcome: "application-error", reason: "application-error", output: { isError: true } }, "application-error", "chat.toolPart.webmcp.reason.application-error"],
+  [{ ok: false, outcome: "timeout", reason: "timeout", output: { status: "timeout", isError: true } }, "timeout", "chat.toolPart.webmcp.reason.timeout"],
+  [{ ok: false, outcome: "cancelled", reason: "cancelled", output: { status: "canceled" } }, "cancelled", "chat.toolPart.webmcp.reason.cancelled"],
   [
-    { ok: true, output: { untrusted: true, result: { status: "cancelled", ok: false } } },
+    { ok: false, outcome: "cancelled", reason: "cancelled", output: { untrusted: true, result: { status: "cancelled", ok: false } } },
     "cancelled",
     "chat.toolPart.webmcp.reason.cancelled",
   ],
   [
-    { ok: true, output: JSON.stringify({ untrusted: true, result: { status: "aborted" } }) },
+    { ok: false, outcome: "cancelled", reason: "cancelled", output: JSON.stringify({ untrusted: true, result: { status: "aborted" } }) },
     "cancelled",
     "chat.toolPart.webmcp.reason.cancelled",
   ],
@@ -231,7 +231,7 @@ test("untrusted results are bounded, credential-filtered and rendered as inert t
   const { container } = openTool(
     undefined,
     vi.fn(async () => ({
-      ok: true,
+      ok: true, outcome: "completed",
       output: {
         password: "hunter2",
         text: "token=short",
@@ -390,7 +390,7 @@ test("the JSON editor shows and describes the UTF-8 limit, rejects oversized inp
 
 test("panel and tool toggles expose aria-expanded and results update the persistent polite live region", async () => {
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog })
-  const reply = vi.fn(async () => ({ ok: true, output: "done" }))
+  const reply = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={reply} />)
   const toggle = screen.getByRole("button", { name: "webmcp.tools.toggle:1" })
   expect(toggle.getAttribute("aria-expanded")).toBe("false")
@@ -435,13 +435,13 @@ test("running keeps the send button focused and aria-disabled, guards repeat act
   fireEvent.click(button)
   fireEvent.click(button)
   expect(reply).toHaveBeenCalledTimes(1)
-  await act(async () => resolve({ ok: true, output: "done" }))
+  await act(async () => resolve({ ok: true, outcome: "completed", output: "done" }))
   expect(document.activeElement).toBe(button)
   expect(button.getAttribute("aria-disabled")).toBe("false")
   expect(button.textContent).toBe("webmcp.tools.try")
   fireEvent.click(button)
   expect(reply).toHaveBeenCalledTimes(2)
-  await act(async () => resolve({ ok: true }))
+  await act(async () => resolve({ ok: true, outcome: "completed" }))
 })
 
 test("shows the full description, raw schema, kind, hints, and advice without blocking try", async () => {
@@ -465,7 +465,7 @@ test("shows the full description, raw schema, kind, hints, and advice without bl
       },
     ],
   })
-  const reply = vi.fn(async () => ({ ok: true, output: "done" }))
+  const reply = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={reply} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   expect(container.querySelector("[data-webmcp-tool-kind='form']")?.textContent).toContain("webmcp.tools.kind.form")
@@ -567,7 +567,7 @@ test("keeps drafts for the same identity and leaves previous results behind on a
     inputSchema: { type: "object", properties: { title: { type: "string", description: "Title" } } },
   })
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
-  const reply = vi.fn(async () => ({ ok: true, output: "done" }))
+  const reply = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={reply} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   const added = container.querySelector("[data-webmcp-registration-kind='added']")
@@ -623,10 +623,10 @@ test("selected tool forms restore per-view drafts and late manual results stay w
   const store = () => useWebMcpBrowserStore.getState()
   const first = viewKeyFor("/repo", "ses_first")
   const second = viewKeyFor("/repo", "ses_second")
-  let complete!: (result: { ok: boolean; output: string }) => void
+  let complete!: (result: { ok: boolean; outcome: string; output: string }) => void
   const tryTool = vi.fn(
     () =>
-      new Promise<{ ok: boolean; output: string }>((resolve) => {
+      new Promise<{ ok: boolean; outcome: string; output: string }>((resolve) => {
         complete = resolve
       }),
   )
@@ -658,7 +658,7 @@ test("selected tool forms restore per-view drafts and late manual results stay w
       "",
     ])
     await act(async () => {
-      complete({ ok: true, output: "First result" })
+      complete({ ok: true, outcome: "completed", output: "First result" })
     })
     expect(store().views[first].toolRuns[webMcpToolIdentity(catalog[0])!].text).toContain("First result")
     expect(store().views[second].toolRuns).toEqual({})
@@ -681,10 +681,10 @@ test("a late manual result cannot repopulate the journal after navigating to ano
   const initial = useWebMcpBrowserStore.getState()
   const store = () => useWebMcpBrowserStore.getState()
   const key = viewKeyFor("/repo", "ses_first")
-  let complete!: (result: { ok: boolean; output: string }) => void
+  let complete!: (result: { ok: boolean; outcome: string; output: string }) => void
   const tryTool = vi.fn(
     () =>
-      new Promise<{ ok: boolean; output: string }>((resolve) => {
+      new Promise<{ ok: boolean; outcome: string; output: string }>((resolve) => {
         complete = resolve
       }),
   )
@@ -702,7 +702,7 @@ test("a late manual result cannot repopulate the journal after navigating to ano
       store().updateView(key, { origin: "https://production.test", generation: "second", catalog })
     })
     await act(async () => {
-      complete({ ok: true, output: "staging result" })
+      complete({ ok: true, outcome: "completed", output: "staging result" })
     })
     expect(store().views[key].toolRuns).toEqual({})
     expect(store().views[key].toolJournal).toEqual([])
@@ -747,7 +747,7 @@ const openAdd = (tryTool: TryTool, agentCalls?: readonly WebMcpCall[]) => {
 }
 
 test("a manual journal keeps the sent run and replays it into editable fields without running", async () => {
-  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "5" }))
   const view = openAdd(tryTool)
   expect(view.container.querySelector("[data-webmcp-journal-count]")?.getAttribute("data-webmcp-journal-count")).toBe(
     "0",
@@ -777,7 +777,7 @@ test("a manual journal keeps the sent run and replays it into editable fields wi
 })
 
 test("compare shows the transcript arguments beside the manual run and flags different definitions", async () => {
-  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "5" }))
   const transcript = "CITY [redacted]"
   const view = openAdd(tryTool, [
     pageCall({ argumentsText: transcript, input: { a: 1, b: "nope" }, inputKind: "object" }),
@@ -814,7 +814,7 @@ test("the same definition digest is not flagged, and a missing runtime input is 
     origin: "https://shop.test",
     catalog,
   })
-  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "5" }))
   const view = render(
     <WebMcpToolPanel
       tryTool={tryTool}
@@ -850,7 +850,7 @@ test("the same definition digest is not flagged, and a missing runtime input is 
 })
 
 test("a changed definition cannot claim or replay the earlier manual evidence", async () => {
-  const tryTool = vi.fn(async () => ({ ok: true, output: "5" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "5" }))
   const view = openAdd(tryTool)
   const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
   fireEvent.change(a, { target: { value: "2" } })
@@ -930,7 +930,7 @@ test("recorded empty arguments enable structured comparison and a runnable agent
 test("nested JSON credentials stay out of rendered manual results and copied exports", async () => {
   const secret = "AUDIT_FAKE_PASSWORD"
   const { container, reply } = openTool({ type: "object", properties: { payload: { type: "string" } } },
-    vi.fn(async () => ({ ok: true, output: { content: [{ type: "text", text: JSON.stringify({ password: secret }) }] } })))
+    vi.fn(async () => ({ ok: true, outcome: "completed", output: { content: [{ type: "text", text: JSON.stringify({ password: secret }) }] } })))
   fireEvent.change(container.querySelector("input")!, { target: { value: JSON.stringify({ password: secret }) } })
   await runTool()
   expect(reply).toHaveBeenCalledOnce()
@@ -982,7 +982,7 @@ test.each([
 ])("embedded diagnostics stay out of rendered previews and exports: %s", async (text) => {
   const { container } = openTool(
     { type: "object", properties: { payload: { type: "string" } } },
-    vi.fn(async () => ({ ok: true, output: { error: text } })),
+    vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output: { error: text } })),
   )
   fireEvent.change(container.querySelector("input")!, { target: { value: text } })
   await runTool()
@@ -1000,7 +1000,7 @@ test.each(["frame", "missing-current", "missing-agent"])("comparison uses only k
   expect(current.digest).toBe(original.digest)
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [current] })
   const view = render(<WebMcpToolPanel
-    tryTool={vi.fn(async () => ({ ok: true, output: "5" }))}
+    tryTool={vi.fn(async () => ({ ok: true, outcome: "completed", output: "5" }))}
     agentCalls={[pageCall({ definitionDigest: change === "missing-agent" ? null : original.definitionDigest! })]}
   />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
@@ -1035,7 +1035,7 @@ test.each([
     },
   })
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
-  const tryTool = vi.fn(async () => ({ ok: true }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed" }))
   const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   expect(container.querySelector("[title]")?.getAttribute("title")).toBe("[redacted]")
@@ -1059,15 +1059,15 @@ test.each([
 })
 
 test("a sent manual call survives registration retirement during execution", async () => {
-  let finish!: (value: { ok: boolean; output: string }) => void
-  const tryTool = vi.fn(() => new Promise<{ ok: boolean; output: string }>((resolve) => { finish = resolve }))
+  let finish!: (value: { ok: boolean; outcome: string; output: string }) => void
+  const tryTool = vi.fn(() => new Promise<{ ok: boolean; outcome: string; output: string }>((resolve) => { finish = resolve }))
   const view = openAdd(tryTool)
   const [a, b] = [...view.container.querySelectorAll<HTMLInputElement>("input")]
   fireEvent.change(a, { target: { value: "2" } })
   fireEvent.change(b, { target: { value: "3" } })
   await act(async () => { fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.try" })) })
   act(() => { useWebMcpBrowserStore.getState().updateSnapshot({ generation: "retired", catalog: [] }) })
-  await act(async () => { finish({ ok: true, output: "done" }) })
+  await act(async () => { finish({ ok: true, outcome: "completed", output: "done" }) })
   expect(useWebMcpBrowserStore.getState().toolJournal[0]).toMatchObject({ outcome: "completed", definitionChanged: true, text: expect.stringContaining("done") })
   expect(view.container.querySelector("[data-webmcp-journal-definition-changed='true']")).not.toBeNull()
 })
@@ -1184,7 +1184,7 @@ test("registration retains accepted definitions and renders property changes acr
 test("credential-shaped tool names use the opaque invocation id and display redacted results", async () => {
   const tool = nativeWebMcpTool({ name: "token=TOOL_NAME_SECRET", description: "Echo", inputSchema: { type: "object", properties: {} } })
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", generation: "page-1", catalog: [{ ...tool, invocationID: "a".repeat(64) }] })
-  const tryTool = vi.fn(async () => ({ ok: true, output: { name: tool.name } }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: { name: tool.name } }))
   const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(container.querySelector<HTMLButtonElement>("[data-webmcp-tool] button")!)
@@ -1242,7 +1242,7 @@ test("redacted tool labels keep manual evidence, drafts and replay bound to thei
   expect(tools.map((tool: { name: string }) => tool.name)).toEqual(["[redacted]", "[redacted]"])
   expect(tools[0].invocationID).not.toBe(tools[1].invocationID)
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: tools })
-  const tryTool = vi.fn(async (id: string) => ({ ok: true, output: id === tools[0].invocationID ? "effect A" : "effect B" }))
+  const tryTool = vi.fn(async (id: string) => ({ ok: true, outcome: "completed", output: id === tools[0].invocationID ? "effect A" : "effect B" }))
   const view = render(<WebMcpToolPanel tryTool={tryTool} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:2" }))
   const [first, second] = [...view.container.querySelectorAll<HTMLElement>("[data-webmcp-tool]")]
@@ -1300,7 +1300,7 @@ test("the bounded catalog schema never changes executable keys or colliding enum
   const projected = [projectedWebMcpTool({ name: "echo", description: "Echo", inputSchema: schema })]
   expect(projected[0].inputSchema).toEqual({ type: "object", properties: { [key.slice(0, 4000)]: { type: "string", enum: [first.slice(0, 4000), second.slice(0, 4000)], description: "[redacted]" } } })
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: projected })
-  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
@@ -1396,7 +1396,7 @@ test("every rendered schema-derived text retains original sensitive property con
   const tool = projectToolCatalog([{ name: "echo", description: "Echo", frameId: "top", inputSchema: schema }], new Map(), new Map(), "https://shop.test").catalog[0]
   expect((tool.inputSchema as { properties: { pin: unknown } }).properties.pin).toBe("[redacted]")
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
-  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
   const inspectEveryText = () => {
     const walker = document.createTreeWalker(container, 4)
@@ -1452,7 +1452,7 @@ test.each(["maxLength", "minLength"])("manual and agent diagnosis use complete v
   const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: schema })
   const input = { text: "x".repeat(5000) }
   useWebMcpBrowserStore.getState().updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
-  const { container } = render(<WebMcpToolPanel tryTool={vi.fn(async () => ({ ok: true, output: "done" }))}
+  const { container } = render(<WebMcpToolPanel tryTool={vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))}
     agentCalls={[pageCall({ invocationID: tool.invocationID, definitionDigest: tool.definitionDigest!, toolName: tool.name, input, inputKind: "preview" })]} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(container.querySelector("[data-webmcp-tool] button")!)
@@ -1496,7 +1496,7 @@ test("draft truncation is visible after restoration", () => {
 
 test("comparison retains manual runtime validation paths and redacted unknown reasons", async () => {
   const { container } = openTool({ type: "object", properties: { title: { type: "string" } } }, vi.fn(async () => ({
-    ok: false, reason: "Unknown rejection password=PRIVATE", output: { error: { field: "title", constraint: "minLength: 1", message: "must not be blank" } },
+    ok: false, outcome: "application-error", reason: "Unknown rejection password=PRIVATE", output: { error: { field: "title", constraint: "minLength: 1", message: "must not be blank" } },
   })))
   await runTool()
   expect(container.querySelector('[data-webmcp-compare-manual] [data-webmcp-rejection-property="title"]')?.getAttribute("data-webmcp-rejection-rule")).toBe("minLength")
@@ -1552,7 +1552,7 @@ test.each([
   { path: "recoveryCodes[0]" },
   { path: "a.b.password.0" },
 ])("Try it filters sensitive validation paths from the result and retained journal: %j", async (field) => {
-  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: true, output: {
+  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output: {
     error: { ...field, constraint: "minLength", got: "REJECTED_PRIVATE_VALUE" },
   } })))
   await runTool()
@@ -1587,7 +1587,7 @@ test.each([
   { error: { field: "api_key", details: { got: "PRIVATE_DIAGNOSTIC" } } },
   { error: { path: ["api.key"], context: { meta: { errors: [{ received: "PRIVATE_DIAGNOSTIC" }] } } } },
 ])("Try it masks assignment and inherited credentials in mounted results and journal: %j", async (output) => {
-  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: true, output })))
+  const { container } = openTool({ type: "object", properties: {} }, vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output })))
   await runTool()
   expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
   expect(container.innerHTML).not.toContain("PRIVATE_DIAGNOSTIC")
@@ -1625,7 +1625,7 @@ test.each(["confirm", "replace", "json", "empty"])("off-list enum replay stays v
   store.updateSnapshot({ origin: "https://shop.test", catalog: [tool] })
   store.recordToolJournal({ id: "off-list", tool: tool.name, invocationID: tool.invocationID, definitionDigest: tool.definitionDigest,
     digest: tool.digest!, input: { size: decision === "empty" ? "" : "retired" }, outcome: "application-error", text: "Unknown size", durationMs: 5, at: 1 })
-  const tryTool = vi.fn(async () => ({ ok: true, output: "done" }))
+  const tryTool = vi.fn(async () => ({ ok: true, outcome: "completed", output: "done" }))
   const { container } = render(<WebMcpToolPanel tryTool={tryTool} />)
   fireEvent.click(screen.getByRole("button", { name: "webmcp.tools.toggle:1" }))
   fireEvent.click(container.querySelector('[data-webmcp-replay="off-list"]')!)
@@ -1693,8 +1693,37 @@ test.each(["string", "number", "integer"])("primitive %s inputs mask credential 
 test("manual nested password echoes stay out of previews and retained diagnostics", async () => {
   const output = { error: { field: "password", details: { password: "AUDIT_DEMO_VALUE" },
     arbitrary: "Rejected audit_demo_value", message: "Rejected %41UDIT_DEMO_VALUE" } }
-  const { container } = openTool(undefined, vi.fn(async () => ({ ok: true, output })))
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output })))
   await runTool()
   expect(container.innerHTML).not.toMatch(/audit_demo_value|%41UDIT_DEMO_VALUE/i)
   expect(JSON.stringify(useWebMcpBrowserStore.getState().toolJournal)).not.toMatch(/audit_demo_value|%41UDIT_DEMO_VALUE/i)
+})
+
+
+test.each(["application-error", "timeout", "cancelled", "completed"])("manual display and journal consume the stored %s outcome even when payload signals disagree", async (outcome) => {
+  // The payload is a display projection, and cannot be used to classify the original result.
+  const output = outcome === "completed" ? { isError: true } : { field: "password", got: "[redacted]", status: "[redacted]" }
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: outcome === "completed", outcome,
+    ...(outcome === "completed" ? {} : { reason: outcome }), output })))
+  await runTool()
+  expect(container.querySelector(`[data-webmcp-tool-result='${outcome}']`)).not.toBeNull()
+  expect(useWebMcpBrowserStore.getState().toolJournal.at(-1)?.outcome).toBe(outcome)
+  expect(Object.values(useWebMcpBrowserStore.getState().toolRuns)[0]?.outcome).toBe(outcome)
+})
+
+test("a manual result without a stored outcome stays uncertain even if its payload looks successful", async () => {
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: true, output: { status: "completed" } })))
+  await runTool()
+  expect(container.querySelector("[data-webmcp-tool-result='uncertain']")).not.toBeNull()
+  expect(useWebMcpBrowserStore.getState().toolJournal.at(-1)?.outcome).toBe("uncertain")
+})
+
+
+test.each([731924, true, false, 9876543210123456789n, "731924", "true", "false", "9876543210123456789"])("manual result and retained journal mask every scalar echo: %s", async (secret) => {
+  const output = { error: { field: "pin", got: secret, observed: secret, nested: [[secret, String(secret)]] } }
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: false, outcome: "application-error", reason: "application-error", output })))
+  await runTool()
+  expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
+  expect(container.querySelector("[data-webmcp-tool-result] pre")?.textContent ?? container.querySelector("[data-webmcp-tool-result]")?.textContent).not.toContain(String(secret))
+  expect(useWebMcpBrowserStore.getState().toolJournal.at(-1)?.text).not.toContain(String(secret))
 })

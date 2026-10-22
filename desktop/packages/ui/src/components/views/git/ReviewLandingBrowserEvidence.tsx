@@ -65,14 +65,14 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   const calls = React.useMemo(() => JSON.parse(serialized ?? "[]") as RecapCall[], [serialized])
   const openCall = useUIStore((state) => state.setPendingMessageNavigation)
   const [copied, setCopied] = React.useState(false)
-  if (calls.length === 0) return null
+  if (calls.length === 0 && !pageTools?.length) return null
   const failed = calls.filter((call) => call.outcome === "failed").length
   // A known earlier version was still called; its digest change is reported separately below.
   const called = new Set(calls.filter((call) => call.operation?.toLowerCase() === "invoke" &&
     webMcpToolIdentity({ invocationID: call.invocationID, definitionDigest: call.definitionDigest ?? undefined }))
     .map((call) => call.invocationID))
   const associationUnknown = calls.some((call) => call.operation?.toLowerCase() === "invoke" && !call.invocationID)
-  const notCalled = !associationUnknown && calls.some((call) => call.operation?.toLowerCase() === "invoke")
+  const notCalled = !associationUnknown
     ? (pageTools ?? []).filter((tool) => tool.invocationID && !called.has(tool.invocationID)).map((tool) => tool.name)
     : []
   // Oldest first reads as the order the agent worked in.

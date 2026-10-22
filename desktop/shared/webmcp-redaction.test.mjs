@@ -309,3 +309,34 @@ test("echo normalization follows JSON control escapes and UTF-8 URL encoding", (
     }
   }
 })
+
+test("sensitive scalar echoes match every scalar type and string form through nested arrays", () => {
+  for (const secret of [731924, -42, 0, 1.25, true, false, 9876543210123456789n, "731924", "true", "false", "9876543210123456789"]) {
+    const text = String(secret)
+    const equivalent = text === "true" ? true : text === "false" ? false
+      : text === "9876543210123456789" ? 9876543210123456789n : Number(text)
+    const input = { error: { field: "pin", got: secret,
+      observed: equivalent, nested: [[secret, text], { deeper: [equivalent, { echo: text }] }] },
+      unrelated: equivalent }
+    const expected = { error: { field: "pin", got: "[redacted]", observed: "[redacted]",
+      nested: [["[redacted]", "[redacted]"], { deeper: ["[redacted]", { echo: "[redacted]" }] }] }, unrelated: equivalent }
+    assert.deepEqual(redactWebMcpReport(input), expected)
+    assert.deepEqual(webMcpDisplayReport(input), expected)
+  }
+})
+
+
+test("masked numeric scalars at arbitrary descendant keys redact equal numeric and textual echoes", () => {
+  for (const details of [{ pin: 731924 }, { received: [731924] }, [["pin", 731924]], { child: { data: [731924] } }]) {
+    const safe = redactWebMcpReport({ field: "pin", details, observed: 731924, array: ["731924", { echo: 731924 }] })
+    assert.equal(safe.observed, "[redacted]")
+    assert.deepEqual(safe.array, ["[redacted]", { echo: "[redacted]" }])
+  }
+})
+
+test("null, undefined and symbol echoes are scalars too", () => {
+  for (const secret of [null, undefined, Symbol("synthetic"), NaN, Infinity]) {
+    assert.deepEqual(redactWebMcpReport({ field: "pin", got: secret, values: [secret, String(secret)] }),
+      { field: "pin", got: "[redacted]", values: ["[redacted]", "[redacted]"] })
+  }
+})

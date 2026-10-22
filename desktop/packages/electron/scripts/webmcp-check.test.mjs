@@ -1,5 +1,4 @@
-import { runInputReceipt, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
-import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
+import { recordCheckRun, redactCheckReport, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
 import { EventEmitter } from "node:events"
 import { afterEach, expect, test, vi } from "vitest"
 
@@ -48,8 +47,8 @@ test.each([
       runs: complete ? [{ name: "echo", input: {}, output: "{}" }] : [],
     }
     report.tools = report.tools.map((tool) => ({ ...tool, identityReceipt: toolIdentityReceipt(config.receiptKey, tool.name) }))
-    report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
-    return JSON.stringify(redactWebMcpReport(report))
+    report.runs = report.runs.map((run, index) => recordCheckRun(config.receiptKey, index, run))
+    return JSON.stringify(redactCheckReport(report))
   })
   vi.spyOn(process, "argv", "get").mockReturnValue([
     "node",
@@ -84,7 +83,7 @@ test.each([
   expect(mocks.remove).toHaveBeenCalled()
 })
 
-test.each([false, true])("launcher filters runs and problems (json: %s)", async (json) => {
+test.each([false, true].flatMap((json) => [null, "failed", "timeout", "cancelled", "completed"].map((status) => [json, status])))("launcher filters runs and problems while preserving original outcomes (json: %s, status: %s)", async (json, status) => {
   vi.resetModules()
   const child = new EventEmitter()
   mocks.spawn.mockReturnValue(child)
@@ -93,13 +92,13 @@ test.each([false, true])("launcher filters runs and problems (json: %s)", async 
     const report = {
       tools: [{ name: "echo", description: "password=catalog-secret" }],
       runs: [
-        { name: "echo", input: { password: "input-secret" }, output: '{"access_token":"output-secret","ok":true}' },
+        { name: "echo", input: { password: "input-secret" }, output: status ? { field: "password", got: status, status } : '{"access_token":"output-secret","ok":true}' },
         { name: "echo", input: {}, error: "Error: password=error-secret" },
       ],
     }
     report.tools = report.tools.map((tool) => ({ ...tool, identityReceipt: toolIdentityReceipt(config.receiptKey, tool.name) }))
-    report.runs = report.runs.map((run, index) => ({ ...run, inputReceipt: runInputReceipt(config.receiptKey, index, run) }))
-    return JSON.stringify(redactWebMcpReport(report))
+    report.runs = report.runs.map((run, index) => recordCheckRun(config.receiptKey, index, run))
+    return JSON.stringify(redactCheckReport(report))
   })
   vi.spyOn(process, "argv", "get").mockReturnValue([
     "node",
@@ -127,8 +126,10 @@ test.each([false, true])("launcher filters runs and problems (json: %s)", async 
   expect(exit).toHaveBeenCalledWith(3)
   if (json) {
     const result = JSON.parse(log.mock.calls.at(-1)[0])
-    expect(result.runs[0].outcome).toBe("completed")
+    const expected = status === "failed" ? "application-error" : status ?? "completed"
+    expect(result.runs[0].outcome).toBe(expected)
+    if (status) expect(result.runs[0].output.status).toBe("[redacted]")
     expect(result.runs[1].outcome).toBe("failed")
-    expect(result.problems).toHaveLength(1)
+    expect(result.problems).toHaveLength(expected === "completed" ? 1 : 2)
   }
 })

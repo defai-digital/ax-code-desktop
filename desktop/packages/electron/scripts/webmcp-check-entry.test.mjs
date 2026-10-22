@@ -247,3 +247,15 @@ test("an unconfirmed timeout contaminates remaining runs without invoking them",
   expect(report().runs.slice(1).every((run) => run.notRun && run.error.includes("contaminated"))).toBe(true)
   expect(evaluateReport(report(), { expectTools: [], runs }, undefined, "catalog-test-key").exitCode).toBe(EXIT.toolError)
 })
+
+test.each(["failed", "timeout", "cancelled", "completed"])("actual entry persists original %s classification before redacting result signals", async (status) => {
+  const requested = { name: "validate", input: { password: status } }
+  const { report, contents } = startCatalogCheck((emit) => emit("WebMCP.toolsAdded", [{ name: "validate", frameId: "top" }]), [requested])
+  contents.executeJavaScript.mockResolvedValue({ output: { field: "password", got: status, status } })
+  await vi.runAllTimersAsync()
+  const outcome = status === "failed" ? "application-error" : status
+  expect(report().runs[0]).toMatchObject({ outcome, output: { field: "password", got: "[redacted]", status: "[redacted]" } })
+  const result = evaluateReport(report(), { expectTools: ["validate"], runs: [requested] }, undefined, "catalog-test-key")
+  expect(result.runs[0].outcome).toBe(outcome)
+  expect(result.exitCode).toBe(outcome === "completed" ? EXIT.ok : EXIT.toolError)
+})

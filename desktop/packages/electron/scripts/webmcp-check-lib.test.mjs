@@ -1,8 +1,12 @@
 import { randomBytes } from "node:crypto"
-import { runInputReceipt, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
-import { redactWebMcpReport } from "../../../shared/webmcp-redaction.mjs"
+import { recordCheckRun, redactCheckReport, runOutcomeReceipt, toolIdentityReceipt } from "./webmcp-check-receipt.cjs"
 import { describe, expect, test } from "vitest"
 import { EXIT, checkableUrl, evaluateReport, parseCheckArgs } from "./webmcp-check-lib.mjs"
+
+// Raw fixtures enter at the recording boundary, before any diagnostic projection.
+const evaluateRawFixture = (report, options) => evaluateReport({
+  ...report, runs: (report.runs ?? []).map((run, index) => recordCheckRun("fixture", index, run)),
+}, options)
 
 describe("webmcp:check arguments", () => {
   test("accepts https and loopback http only, without credentials", () => {
@@ -55,13 +59,13 @@ describe("webmcp:check exit codes", () => {
       [{ ...requested[0], output: "{}" }, { ...requested[1] }],
     ].map((runs) => [runs]),
   )("rejects unfinished or mismatched requested runs: %j", (runs) => {
-    const result = evaluateReport({ tools, runs }, { ...options, runs: requested })
+    const result = evaluateRawFixture({ tools, runs }, { ...options, runs: requested })
     expect(result.exitCode).toBe(EXIT.failed)
     expect(result.problems.length).toBeGreaterThan(0)
   })
   test("accepts every requested occurrence in order, including repeated names", () => {
     expect(
-      evaluateReport(
+      evaluateRawFixture(
         { tools, runs: requested.map((run) => ({ ...run, output: "{}" })) },
         { ...options, runs: requested },
       ).exitCode,
@@ -75,18 +79,18 @@ describe("webmcp:check exit codes", () => {
         { name: "add_task", output: JSON.stringify({ error: { field: "title", constraint: "minLength: 1", got: "" } }) },
       ],
     }
-    const result = evaluateReport(report, options)
+    const result = evaluateRawFixture(report, options)
     expect(result.exitCode).toBe(EXIT.toolError)
     expect(result.runs.map((run) => run.outcome)).toEqual(["completed", "application-error"])
   })
 
   test("no tools, a missing expected tool, a tool that is not registered, and a load failure each fail", () => {
-    expect(evaluateReport({ tools: [], runs: [] }, options).exitCode).toBe(EXIT.noTools)
-    expect(evaluateReport({ tools: [], runs: [] }, { expectTools: ["required"] }).exitCode).toBe(EXIT.failed)
-    expect(evaluateReport({ tools, runs: [] }, { expectTools: ["complete_task"] }).exitCode).toBe(EXIT.failed)
-    expect(evaluateReport({ tools, runs: [{ name: "x", error: "tool not registered" }] }, options).exitCode).toBe(EXIT.toolError)
-    expect(evaluateReport({ error: "the page did not load in time" }, options).exitCode).toBe(EXIT.failed)
-    expect(evaluateReport({ tools, runs: [{ name: "list_tasks", output: "{}" }] }, options).exitCode).toBe(EXIT.ok)
+    expect(evaluateRawFixture({ tools: [], runs: [] }, options).exitCode).toBe(EXIT.noTools)
+    expect(evaluateRawFixture({ tools: [], runs: [] }, { expectTools: ["required"] }).exitCode).toBe(EXIT.failed)
+    expect(evaluateRawFixture({ tools, runs: [] }, { expectTools: ["complete_task"] }).exitCode).toBe(EXIT.failed)
+    expect(evaluateRawFixture({ tools, runs: [{ name: "x", error: "tool not registered" }] }, options).exitCode).toBe(EXIT.toolError)
+    expect(evaluateRawFixture({ error: "the page did not load in time" }, options).exitCode).toBe(EXIT.failed)
+    expect(evaluateRawFixture({ tools, runs: [{ name: "list_tasks", output: "{}" }] }, options).exitCode).toBe(EXIT.ok)
   })
 })
 
@@ -96,7 +100,7 @@ test.each([
   [{ nested: { apiKey: "first-key" } }, { nested: { apiKey: "second-key" } }],
   [{ text: "password=first-secret" }, { text: "password=second-secret" }],
 ])("run matching compares original inputs before redaction", (requested, actual) => {
-  const result = evaluateReport(
+  const result = evaluateRawFixture(
     { tools: [{ name: "echo" }], runs: [{ name: "echo", input: actual, output: "{}" }] },
     { expectTools: [], runs: [{ name: "echo", input: requested }] },
   )
@@ -111,9 +115,9 @@ test("disk receipts bind secret inputs and occurrence order without retaining a 
     { name: "echo", input: { nested: { password: "first-secret" }, count: 1 } },
     { name: "echo", input: { nested: { password: "second-secret" }, count: 1 } },
   ]
-  const report = redactWebMcpReport({
+  const report = redactCheckReport({
     tools: [{ name: "echo" }],
-    runs: runs.map((run, index) => ({ ...run, output: "{}", inputReceipt: runInputReceipt(receiptKey, index, run) })),
+    runs: runs.map((run, index) => recordCheckRun(receiptKey, index, { ...run, output: "{}" })),
   })
   const evaluate = (recorded, requested = runs, key = receiptKey) =>
     evaluateReport({ ...report, runs: recorded }, { expectTools: [], runs: requested }, undefined, key)
@@ -138,9 +142,9 @@ test.each([false, true])("tool and run identities survive diagnostic collisions 
   const run = { name: actual, input: {} }
   const raw = {
     tools: [{ name: actual, ...(key ? { identityReceipt: toolIdentityReceipt(key, actual) } : {}) }],
-    runs: [{ ...run, output: "{}", ...(key ? { inputReceipt: runInputReceipt(key, 0, run) } : {}) }],
+    runs: [recordCheckRun(key ?? "fixture", 0, { ...run, output: "{}" })],
   }
-  const report = disk ? redactWebMcpReport(raw) : raw
+  const report = disk ? redactCheckReport(raw) : raw
   const evaluate = (name) => evaluateReport(report, { expectTools: [name], runs: [{ name, input: {} }] }, undefined, key)
   expect(evaluate(actual).exitCode).toBe(EXIT.ok)
   const result = evaluate(missing)
@@ -152,4 +156,39 @@ test.each([false, true])("tool and run identities survive diagnostic collisions 
     expect(evaluateReport({ ...report, tools: [{ name: "[redacted]" }] }, { expectTools: [actual] }, undefined, key).exitCode).toBe(EXIT.failed)
     expect(evaluateReport(report, { expectTools: [actual] }, undefined, "wrong-key").exitCode).toBe(EXIT.failed)
   }
+})
+
+
+test.each(["failed", "timeout", "cancelled", "completed"])("checker consumes the original %s outcome across keyed disk projection and repeated redaction", (status) => {
+  const key = randomBytes(32).toString("hex")
+  const requested = { name: "validate", input: { password: status } }
+  const recorded = recordCheckRun(key, 0, { ...requested, output: { field: "password", got: status, status } })
+  const expected = status === "failed" ? "application-error" : status
+  expect(recorded.outcome).toBe(expected)
+  let report = { tools: [{ name: "validate", identityReceipt: toolIdentityReceipt(key, "validate") }], runs: [recorded] }
+  for (let pass = 0; pass < 3; pass++) {
+    report = JSON.parse(JSON.stringify(redactCheckReport(report)))
+    expect(report.runs[0].output.status).toBe("[redacted]")
+    expect(report.runs[0].outcome).toBe(expected)
+    const result = evaluateReport(report, { expectTools: ["validate"], runs: [requested] }, undefined, key)
+    expect(result.exitCode).toBe(expected === "completed" ? EXIT.ok : EXIT.toolError)
+    expect(result.runs[0].outcome).toBe(expected)
+    expect(JSON.stringify(result)).not.toContain("outcomeReceipt")
+  }
+  const changed = { ...report.runs[0], outcome: expected === "completed" ? "application-error" : "completed" }
+  expect(evaluateReport({ ...report, runs: [changed] }, { expectTools: [], runs: [requested] }, undefined, key).exitCode).toBe(EXIT.toolError)
+  const missing = { ...report.runs[0], outcome: undefined }
+  expect(evaluateReport({ ...report, runs: [missing] }, { expectTools: [], runs: [requested] }, undefined, key).exitCode).toBe(EXIT.toolError)
+  // A valid stored outcome is authoritative even when the payload contains contradictory display signals.
+  const contrary = { ...report.runs[0], output: { isError: expected === "completed" } }
+  contrary.outcomeReceipt = runOutcomeReceipt(key, 0, contrary)
+  expect(evaluateReport({ ...report, runs: [contrary] }, { expectTools: [], runs: [requested] }, undefined, key).runs[0].outcome).toBe(expected)
+})
+
+test("evaluation never reconstructs an absent outcome from a successful-looking raw or redacted result", () => {
+  const report = { tools: [{ name: "validate" }], runs: [{ name: "validate", output: { status: "completed" } }] }
+  const result = evaluateReport(report, { expectTools: [] })
+  expect(result.exitCode).toBe(EXIT.toolError)
+  expect(result.runs[0].outcome).toBe("failed")
+  expect(result.problems[0]).toContain("no verified original-result outcome")
 })
