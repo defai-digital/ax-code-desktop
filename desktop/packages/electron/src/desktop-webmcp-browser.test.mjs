@@ -2373,7 +2373,7 @@ test("LRU chooses the oldest of multiple hidden pages and cleans unloaded record
   await expect(
     f.controller.command(sender, { action: "close", id: second.id, sessionID: "ses_wrong" }),
   ).rejects.toThrow("session mismatch")
-  sender.emit("render-process-gone")
+  sender.emit("destroyed")
   await vi.waitFor(async () => expect((await f.controller.command(sender, { action: "list" })).views).toEqual([]))
   expect(sender.eventNames()).toEqual([])
 })
@@ -2409,7 +2409,7 @@ test("LRU does not unload a hidden manual invocation", async () => {
   await invocation
 })
 
-test.each(["closed", "destroyed", "render-process-gone"])(
+test.each(["closed", "destroyed"])(
   "dormant cap and owner listeners stay flat after 100 evictions; cleanup on %s",
   async (event) => {
     const f = fixture({ maxLiveViews: 1 })
@@ -2430,7 +2430,7 @@ test.each(["closed", "destroyed", "render-process-gone"])(
       })
       ids.push(view.id)
       // One live entry and one dormant-owner listener, independent of record count.
-      expect(counts()).toEqual([2, 2, 2])
+      expect(counts()).toEqual([2, 2, 1])
     }
     const listing = await f.controller.command(sender, { action: "list" })
     expect(listing.views.filter((view) => view.unloaded).map((view) => view.id)).toEqual(ids.slice(-33, -1))
@@ -3333,7 +3333,7 @@ describe("owner window close lifecycle", () => {
     expect(owner.destroyed).toBe(false)
   })
 
-  test.each(["closed", "destroyed", "render-process-gone"])(
+  test.each(["closed", "destroyed"])(
     "forced destruction (%s) releases a vetoing page without an unhandled rejection",
     async (event) => {
       const f = fixture()
@@ -3369,4 +3369,83 @@ describe("owner window close lifecycle", () => {
     expect(owner.close).not.toHaveBeenCalled()
     expect(f.guests[0].destroyed).toBe(true)
   })
+
+  test("a lost host renderer keeps a vetoing guest and a live owner and pauses the agent", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const owner = f.owners.get(sender)
+    expect(await f.controller.command(sender, { action: "enable", id: status.id })).toMatchObject({ enabled: true })
+    const guest = f.guests[0]
+    guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    unsaved(guest)
+    sender.emit("render-process-gone", {}, { reason: "crashed" })
+    await vi.waitFor(async () =>
+      expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({
+        paused: true,
+        enabled: false,
+      }),
+    )
+    expect(guest.close).not.toHaveBeenCalled()
+    expect(guest.destroyed).toBe(false)
+    expect(owner.destroyed).toBe(false)
+    expect(f.controller.poolStats().liveViews).toBe(1)
+    expect(sender.listenerCount("render-process-gone")).toBe(1)
+    // The reloaded host can still address the page, and another crash is harmless.
+    sender.emit("render-process-gone", {}, { reason: "crashed" })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ id: status.id })
+  })
+
+  test("after a host renderer crash an owner close still honors the guest veto", async () => {
+    const f = fixture()
+    const { sender, status } = await f.create()
+    const owner = f.owners.get(sender)
+    const guest = f.guests[0]
+    guest.close.mockImplementation(() => guest.emit("will-prevent-unload", {}))
+    sender.emit("render-process-gone", {})
+    const event = closeRequest(owner)
+    expect(event.preventDefault).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(guest.close).toHaveBeenCalledOnce())
+    await vi.waitFor(() => expect(owner.listenerCount("close")).toBe(1))
+    expect(guest.destroyed).toBe(false)
+    expect(owner.destroyed).toBe(false)
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ id: status.id })
+  })
+
+  test("a host renderer crash leaves other owners untouched", async () => {
+    const f = fixture()
+    const first = await f.create()
+    const second = await f.create()
+    await f.controller.command(second.sender, { action: "enable", id: second.status.id })
+    first.sender.emit("render-process-gone", {})
+    expect(await f.controller.command(second.sender, { action: "status", id: second.status.id })).toMatchObject({
+      enabled: true,
+      paused: false,
+    })
+    expect(f.guests.every((guest) => !guest.destroyed)).toBe(true)
+  })
+
+  test.each(["closeAll", "owner close"])(
+    "a guest destroyed concurrently with %s recovery does not reject",
+    async (path) => {
+      const confirmClose = vi.fn(async () => false)
+      const f = fixture({ confirmClose })
+      const { sender } = await f.create()
+      const owner = f.owners.get(sender)
+      unsaved(f.guests[0])
+      // Recovery runs against a window or guest that can no longer be shown or focused.
+      owner.show.mockImplementation(() => { throw new Error("Object has been destroyed") })
+      owner.focus.mockImplementation(() => { throw new Error("Object has been destroyed") })
+      f.guests[0].focus = vi.fn(() => { throw new Error("Object has been destroyed") })
+      if (path === "closeAll") {
+        expect(await f.controller.closeAll()).toHaveLength(1)
+      } else {
+        closeRequest(owner)
+        await vi.waitFor(() => expect(confirmClose).toHaveBeenCalledOnce())
+        await vi.waitFor(() => expect(owner.listenerCount("close")).toBe(1))
+        expect(owner.destroyed).toBe(false)
+        expect(f.controller.poolStats().liveViews).toBe(1)
+      }
+      expect(f.guests[0].destroyed).toBe(false)
+    },
+  )
 })

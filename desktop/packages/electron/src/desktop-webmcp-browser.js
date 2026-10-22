@@ -100,7 +100,6 @@ function createDesktopWebMcpBrowser({
     if (group.keys.size) return
     record.owner.removeListener("closed", group.onClosed)
     record.sender.removeListener("destroyed", group.onClosed)
-    record.sender.removeListener("render-process-gone", group.onClosed)
     unloadedOwners.delete(record.sender)
   }
   function remember(record) {
@@ -115,7 +114,6 @@ function createDesktopWebMcpBrowser({
       unloadedOwners.set(record.sender, group)
       record.owner.on("closed", group.onClosed)
       record.sender.on("destroyed", group.onClosed)
-      record.sender.on("render-process-gone", group.onClosed)
     }
     unloaded.set(record.key, record)
     group.keys.add(record.key)
@@ -445,13 +443,21 @@ function createDesktopWebMcpBrowser({
     entry.owner.removeListener("show", entry.onOwnerShown)
     entry.owner.removeListener("restore", entry.onOwnerShown)
     entry.sender.removeListener("destroyed", entry.onOwnerClosed)
-    entry.sender.removeListener("render-process-gone", entry.onOwnerClosed)
+    entry.sender.removeListener("render-process-gone", entry.onSenderGone)
     const disconnection = disconnect(entry)
     closePopups(entry, confirmed)
     entry.adapter.close()
     if (!entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     if (!entry.view.webContents.isDestroyed()) entry.view.webContents.close({ waitForBeforeUnload: !confirmed })
     await disconnection
+  }
+  // Recovery must not fail because a guest or window was destroyed concurrently.
+  function revealQuietly(entry) {
+    try {
+      reveal(entry)
+    } catch {
+      // Nothing left to show; the caller's outcome is unchanged.
+    }
   }
   // The one confirmation path for closing a page on the person's behalf: shutdown and an
   // owner window's close request both use it. Concurrent requests for the same entry share
@@ -469,7 +475,7 @@ function createDesktopWebMcpBrowser({
         const args = { action: "close" }
         let approval = await authorizeClose(entry.sender, args, [entry])
         if (approval.confirmationRequired) {
-          reveal(entry)
+          revealQuietly(entry)
           if (!(await confirmClose(entry.owner, approval.pages))) throw new Error("Browser closure cancelled")
           approval = await authorizeClose(
             entry.sender,
@@ -486,7 +492,7 @@ function createDesktopWebMcpBrowser({
         return true
       } catch {
         release()
-        reveal(entry)
+        revealQuietly(entry)
         return false
       }
     })().finally(() => {
@@ -529,9 +535,10 @@ function createDesktopWebMcpBrowser({
       })
     ownerCloseGates.set(owner, gate)
   }
-  // The owner is already gone (destroyed window, dead renderer): nothing can show a prompt
+  // The owner window or host webContents is actually destroyed: nothing can show a prompt
   // and the page can no longer be reached, so it is released. Pages still get their normal
-  // chance to refuse first; only a refusal falls back to discarding.
+  // chance to refuse first; only a refusal falls back to discarding. A lost host renderer
+  // is not this case (see onSenderGone).
   async function releaseOrphan(entry) {
     try {
       await close(entry)
@@ -1068,6 +1075,13 @@ function createDesktopWebMcpBrowser({
     entry.onOwnerClosed = () => {
       releaseOrphan(entry).catch(() => {})
     }
+    // A lost host renderer is recoverable: the window and its guest survive and the host can
+    // reload. Keep the page and its ownership (an unsaved draft must not be discarded) and
+    // stop agent work until the person resumes it.
+    entry.onSenderGone = () => {
+      if (entry.closed) return
+      pause(entry).catch(() => {})
+    }
     entry.onOwnerHidden = () => {
       hide(entry)
     }
@@ -1083,7 +1097,7 @@ function createDesktopWebMcpBrowser({
     owner.on("show", entry.onOwnerShown)
     owner.on("restore", entry.onOwnerShown)
     sender.on("destroyed", entry.onOwnerClosed)
-    sender.on("render-process-gone", entry.onOwnerClosed)
+    sender.on("render-process-gone", entry.onSenderGone)
     const previous = views.get(shown.get(sender.id))
     try {
       // Attach a zero-sized view so Chromium creates its renderer before native CDP setup.
