@@ -67,8 +67,9 @@ export function webMcpTextLooksSensitive(value) {
   }
   if (WEBMCP_CREDENTIALS.some((pattern) => pattern.test(text))) return true
   // Use the same sensitive-name vocabulary as object fields, including prefixed keys.
-  // Anchor unquoted keys at token boundaries to avoid rescanning long plain-text tokens.
-  const assignments = /(?:["'`]([^"'`]+)["'`]|(?<![^\s"'`{}\[\],:=])([^"'`{}\[\],:=]+))\s*[:=]/g
+  // Scan each delimiter-free span once, including spaces. Restarting at every word
+  // or backtracking over two overlapping whitespace matches makes plain prose quadratic.
+  const assignments = /(?:["'`]([^"'`]+)["'`]\s*|(?<![^"'`{}\[\],:=])([^"'`{}\[\],:=]+))[:=]/g
   for (const match of text.matchAll(assignments)) {
     if (!sensitiveParameterName(match[1] ?? match[2])) continue
     // A second display/storage boundary must preserve already filtered diagnostics. Only a
@@ -86,12 +87,16 @@ const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input",
 
 /** Paths identify the final field, not a sensitive ancestor. JSON Pointer escapes belong to that final name. */
 function sensitiveFieldName(value, key) {
-  const last = Array.isArray(value) ? value.at(-1) : value
+  const segments = Array.isArray(value) ? [...value] : [value]
+  while (segments.length > 1 && /^(?:0|[1-9]\d*)$/.test(String(segments.at(-1)))) segments.pop()
+  const last = segments.at(-1)
   if (typeof last !== "string") return false
   // Ordinary names retain the full sensitive-name vocabulary, including compound names such as api.key.
-  if (!FIELD_PATH_KEYS.has(key) && sensitiveParameterName(last)) return true
+  if ((!FIELD_PATH_KEYS.has(key) || Array.isArray(value)) && sensitiveParameterName(last)) return true
   // A slash-delimited pointer can itself contain dots in its final property name.
-  const segment = last.includes("/") ? last.split("/").at(-1) : last.split(/[.[\]\\]/).filter(Boolean).at(-1)
+  const path = last.includes("/") ? last.split("/") : last.split(/[.[\]\\]/).filter(Boolean)
+  while (path.length > 1 && /^(?:0|[1-9]\d*)$/.test(path.at(-1))) path.pop()
+  const segment = path.at(-1)
   const name = (segment ?? "").replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
   return sensitiveParameterName(name.replaceAll("/", "_"))
 }

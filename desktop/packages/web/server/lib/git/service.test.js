@@ -327,7 +327,7 @@ describe("revertFile", () => {
     }
   })
 
-  it("preserves a directory replacing a staged addition and leaves the index intact", async () => {
+  it.each(["all", "working"])("preserves a directory replacing a staged addition with %s scope", async (scope) => {
     const { tmpDir, git } = await repoWithFile()
     const addedPath = path.join(tmpDir, "new.txt")
     await fs.promises.writeFile(addedPath, "staged\n")
@@ -336,10 +336,23 @@ describe("revertFile", () => {
     await fs.promises.mkdir(addedPath)
     await fs.promises.writeFile(path.join(addedPath, "keep.txt"), "untracked sentinel\n")
 
-    await expect(revertFile(tmpDir, "new.txt", { scope: "all" })).rejects.toThrow(/directory/)
+    await expect(revertFile(tmpDir, "new.txt", { scope })).rejects.toThrow(/directory/)
 
     expect(await fs.promises.readFile(path.join(addedPath, "keep.txt"), "utf8")).toBe("untracked sentinel\n")
     expect(await git.raw(["show", ":new.txt"])).toBe("staged\n")
+  })
+
+  it.each(["all", "working"])("preserves a directory replacing a committed file with %s scope", async (scope) => {
+    const { tmpDir, git } = await repoWithFile()
+    const file = path.join(tmpDir, "file.txt")
+    await fs.promises.unlink(file)
+    await fs.promises.mkdir(file)
+    await fs.promises.writeFile(path.join(file, "keep.txt"), "untracked sentinel\n")
+
+    await expect(revertFile(tmpDir, "file.txt", { scope })).rejects.toThrow(/directory/)
+
+    expect(await fs.promises.readFile(path.join(file, "keep.txt"), "utf8")).toBe("untracked sentinel\n")
+    expect(await git.raw(["show", ":file.txt"])).toBe("base\n")
   })
 
   it("removes a staged addition before the first commit without leaving an index entry", async () => {

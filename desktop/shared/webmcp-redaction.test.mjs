@@ -135,3 +135,22 @@ test("compound literal field names keep their existing sensitivity", () => {
     }
   }
 })
+
+test("array element diagnostics inherit the final named container's sensitivity", () => {
+  for (const path of [["passwords", 0], ["api.key", 0, 1], "/passwords/0", "passwords[0]", "/api.key/0/1"]) {
+    assert.deepEqual(redactWebMcpReport({ path, received: secret }), { path, received: "[redacted]" })
+  }
+  for (const path of [["passwords", 0, "title"], "/passwords/0/title", "passwords[0].title", ["titles", 0]]) {
+    const input = { path, received: "public" }
+    assert.deepEqual(redactWebMcpReport(input), input)
+  }
+})
+
+test("long plain prose and whitespace do not trigger repeated assignment rescanning", () => {
+  const started = performance.now()
+  for (const text of ["ab ".repeat(22000), " ".repeat(66000)]) {
+    assert.equal(webMcpTextLooksSensitive(text), false)
+    assert.equal(webMcpTextLooksSensitive(`${text}api key=private-value`), true)
+  }
+  assert.ok(performance.now() - started < 1000, "Credential scanning must remain bounded for long prose")
+})

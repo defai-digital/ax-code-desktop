@@ -2845,23 +2845,27 @@ export async function revertFile(directory, filePath, options = {}) {
 
     // A lexical repository path can traverse a replaced parent into unrelated files.
     // Reject it before changing the index, even when the path is still staged.
-    const rootReal = await fsp.realpath(repoRoot)
-    let parent = path.dirname(absolutePath)
-    while (parent !== repoRoot) {
-      const parentReal = await fsp.realpath(parent).catch((error) => {
+    let parent = repoRoot
+    for (const segment of path.relative(repoRoot, path.dirname(absolutePath)).split(path.sep).filter(Boolean)) {
+      parent = path.join(parent, segment)
+      const parentEntry = await fsp.lstat(parent).catch((error) => {
         if (error?.code === "ENOENT") return null
         throw error
       })
-      if (parentReal) {
-        if (parentReal !== path.resolve(rootReal, path.relative(repoRoot, parent))) {
-          throw new Error("Refusing to revert a file through a symbolic-link parent")
-        }
-        break
-      }
       // A deleted tracked file may have missing ancestors that Git must restore.
-      parent = path.dirname(parent)
+      if (!parentEntry) break
+      if (parentEntry.isSymbolicLink()) {
+        throw new Error("Refusing to revert a file through a symbolic-link parent")
+      }
     }
     const directoryExclude = `/${repoPath.replace(/[\\*?\[\]]/g, "\\$&")}/`
+    const worktreeEntry = await fsp.lstat(absolutePath).catch((error) => {
+      if (error?.code === "ENOENT") return null
+      throw error
+    })
+    if (worktreeEntry?.isDirectory()) {
+      throw new Error("Refusing to revert a file replaced by a directory")
+    }
 
     const isTracked = await git
       .raw(["ls-files", "--error-unmatch", "--", literalPathspec(repoPath)])
@@ -2884,18 +2888,6 @@ export async function revertFile(directory, filePath, options = {}) {
     }
 
     if (scope === "all") {
-      if (!existsInHead) {
-        // The type check runs before the index is touched: a directory that
-        // replaced a staged addition aborts the revert with the index intact.
-        const worktreeEntry = await fsp.lstat(absolutePath).catch((error) => {
-          if (error?.code === "ENOENT") return null
-          throw error
-        })
-        if (worktreeEntry?.isDirectory()) {
-          throw new Error("Refusing to revert a staged file replaced by a directory")
-        }
-      }
-
       try {
         await git.raw(["restore", "--staged", "--", literalPathspec(repoPath)])
       } catch (error) {
