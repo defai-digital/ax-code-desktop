@@ -159,7 +159,6 @@ for (const value of ["DEMO_PRIVATE_VALUE", "x", "ab", "a.b[$]", "1234", 1234, 0]
   for (const valueKey of ["value", "got", "actual", "received", "input", "given", "provided", "data"]) {
     for (const quote of ["", '"', "'", "`"]) {
       const echo = `${quote}${value}${quote}`
-      const filtered = `${quote}[redacted]${quote}`
       fieldContextCases.push({
         fieldKey: "field", fieldName: "password", valueKey,
         input: { error: { field: "password", message: `Rejected value: ${echo}`, [valueKey]: value } },
@@ -170,11 +169,21 @@ for (const value of ["DEMO_PRIVATE_VALUE", "x", "ab", "a.b[$]", "1234", 1234, 0]
           { field: "title", message: `Rejected ${echo}`, detail: `Bad ${echo}`, description: `Invalid ${echo}` },
           { [valueKey]: value, constraint: `Rule ${echo}`, details: `Echo ${echo}`, hint: `Retry ${echo}` },
         ] },
-        expected: { path: "pin", hint: `Again: ${filtered}/${filtered}`, details: [
+        expected: { path: "pin", hint: "[redacted]", details: [
           { field: "title", message: "[redacted]", detail: "[redacted]", description: "[redacted]" },
-          { [valueKey]: "[redacted]", constraint: `Rule ${filtered}`, details: `Echo ${filtered}`, hint: `Retry ${filtered}` },
+          { [valueKey]: "[redacted]", constraint: "[redacted]", details: "[redacted]", hint: "[redacted]" },
         ] },
       })
     }
   }
+}
+
+// Sensitive-key values and encoded echoes exercise UI, manual IPC, and checker disk projections.
+for (const echo of ["AUDIT_DEMO_VALUE", "audit_demo_value", "%41UDIT_DEMO_VALUE", String.raw`\u0041UDIT_DEMO_VALUE`]) {
+  fieldContextCases.push({ fieldKey: "field", fieldName: "password", valueKey: "details",
+    input: { field: "password", details: { password: "AUDIT_DEMO_VALUE" },
+      arbitrary: `Rejected ${echo}`, nested: [{ other: `Rejected ${echo}` }], message: `Rejected ${echo}` },
+    expected: { field: "password", details: { password: "[redacted]" },
+      arbitrary: "[redacted]", nested: [{ other: "[redacted]" }], message: "[redacted]" },
+  })
 }

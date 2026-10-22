@@ -412,14 +412,14 @@ function createDesktopWebMcpBrowser({
       })),
     }
   }
-  function reveal(entry) {
+  function reveal(entry, select = true) {
     try {
       if (entry.owner && !entry.owner.isDestroyed()) {
         entry.owner.restore?.()
         entry.owner.show?.()
-        show(entry)
+        if (select) show(entry)
         entry.owner.focus?.()
-        entry.contents.focus?.()
+        if (select || shown.get(entry.sender.id) === entry.key) entry.contents.focus?.()
         for (const popup of entry.popups) {
           if (!popup.isDestroyed()) {
             popup.show?.()
@@ -431,13 +431,13 @@ function createDesktopWebMcpBrowser({
       // Native teardown can race focus. Retained entries remain available through the page switcher.
     }
   }
-  async function close(entry, confirmed = false) {
-    if (entry.closing) return entry.closing
-    entry.closing = closeEntry(entry, confirmed).finally(() => { entry.closing = null })
+  async function close(entry, confirmed = false, onClosed = () => {}) {
+    if (entry.closing) return entry.closing.then(onClosed)
+    entry.closing = closeEntry(entry, confirmed, onClosed).finally(() => { entry.closing = null })
     return entry.closing
   }
-  async function closeEntry(entry, confirmed) {
-    if (entry.closed) return
+  async function closeEntry(entry, confirmed, onClosed) {
+    if (entry.closed) return onClosed()
     if (!confirmed) {
       // A handler can be installed after the probe. Preserve ownership and storage if Chromium vetoes.
       for (const contents of [...entry.popups].map((popup) => popup.webContents).concat(entry.contents)) {
@@ -454,6 +454,8 @@ function createDesktopWebMcpBrowser({
     entry.adapter.close()
     if (entry.owner && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(entry.view)
     if (!entry.contents.isDestroyed()) entry.contents.close({ waitForBeforeUnload: !confirmed })
+    // Other pages may proceed once closure is certain, without waiting for runtime revocation.
+    onClosed()
     await disconnection
   }
   const ownerClosures = new WeakMap()
@@ -484,10 +486,16 @@ function createDesktopWebMcpBrowser({
         if (group.pending) return
         group.pending = (async () => {
           await poolOperations.catch(() => {})
-          for (const page of [...group.entries]) await confirmAndClose(page)
+          // Keep the renderer-selected document alive until every other page has closed.
+          const selected = views.get(shown.get(owner.webContents.id))
+          const pages = [...group.entries].sort((a, b) => Number(a === selected) - Number(b === selected))
+          for (const page of pages) await confirmAndClose(page)
           if (!owner.isDestroyed()) owner.close()
         })().catch(() => {
-          for (const page of group.entries) reveal(page)
+          // Prompts may concern a hidden session. Restore only the current renderer binding.
+          const selected = views.get(shown.get(owner.webContents.id))
+          if (selected && group.entries.has(selected) && !selected.closed) reveal(selected)
+          else for (const page of group.entries) reveal(page, false)
         }).finally(() => { group.pending = null })
       }
       ownerClosures.set(owner, group)
@@ -548,7 +556,8 @@ function createDesktopWebMcpBrowser({
     let approval = await authorizeClose(sender, args, [entry])
     if (!sameOwner()) throw new Error("Browser ownership changed during closure")
     if (approval.confirmationRequired) {
-      reveal(entry)
+      // Focusing the owner must not switch its native page behind another session's controls.
+      reveal(entry, false)
       if (!(await confirmClose(owner, approval.pages))) throw new Error("Browser closure cancelled")
       if (!sameOwner()) throw new Error("Browser ownership changed during closure")
       approval = await authorizeClose(sender, { ...args, closeConfirmation: approval.closeConfirmation }, [entry])
@@ -558,8 +567,7 @@ function createDesktopWebMcpBrowser({
       }
     }
     if (!sameOwner()) throw new Error("Browser ownership changed during closure")
-    authorized()
-    await close(entry, approval.approved)
+    await close(entry, approval.approved, authorized)
   }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
@@ -1555,22 +1563,27 @@ function createDesktopWebMcpBrowser({
       const refused = []
       const processed = new Set()
       const approvals = new Map()
+      const cancelledOwners = new WeakSet()
       const closeEntries = () => Promise.all(
-        [...views.values()].filter((entry) => !processed.has(entry)).map(async (entry) => {
-          processed.add(entry)
-          const previous = approvals.get(entry.sender) ?? Promise.resolve()
-          let release
-          approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
-          await previous
-          try {
-            await entry.recovery
-            await confirmAndClose(entry, release)
-          } catch {
-            release()
-            refused.push(entry.id)
-            reveal(entry)
-          }
-        }),
+        [...views.values()].filter((entry) => !processed.has(entry))
+          .sort((a, b) => Number(shown.get(a.sender.id) === a.key) - Number(shown.get(b.sender.id) === b.key))
+          .map(async (entry) => {
+            processed.add(entry)
+            const previous = approvals.get(entry.sender) ?? Promise.resolve()
+            let release
+            approvals.set(entry.sender, new Promise((resolve) => { release = resolve }))
+            await previous
+            try {
+              await entry.recovery
+              if (cancelledOwners.has(entry.sender)) throw new Error("Browser closure cancelled")
+              await confirmAndClose(entry, release)
+            } catch {
+              release()
+              cancelledOwners.add(entry.sender)
+              refused.push(entry.id)
+              reveal(entry, shown.get(entry.sender.id) === entry.key)
+            }
+          }),
       )
       const closing = closeEntries()
       await poolOperations.catch(() => {})

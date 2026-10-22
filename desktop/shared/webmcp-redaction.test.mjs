@@ -254,8 +254,8 @@ test("diagnostic echoes cross encoded descendants while remaining local and idem
       error: {
         field: "password",
         message: replacement,
-        hint: `${replacement}/${replacement}/${replacement}`,
-        details: JSON.stringify({ field: "title", received: replacement, hint: `(${replacement})` }),
+        hint: replacement,
+        details: JSON.stringify({ field: "title", received: replacement, hint: replacement }),
         context: [["got", replacement], ["hint", replacement]],
       },
       sibling: input.sibling,
@@ -269,9 +269,43 @@ test("single-character echoes and replacement substrings never rewrite inserted 
   for (const value of ["a", "red", "redacted", "$&", "\\", "\n"]) {
     for (const replacement of ["[redacted]", "<fill in>"]) {
       const input = { field: "pin", got: value, hint: `${value}${value}` }
-      const expected = { field: "pin", got: replacement, hint: replacement + replacement }
+      const expected = { field: "pin", got: replacement, hint: replacement }
       assert.deepEqual(redactWebMcpReport(input, replacement), expected)
       assert.deepEqual(redactWebMcpReport(expected, replacement), expected)
+    }
+  }
+})
+
+
+test("sensitive-key and shape-masked values filter echoes under every descendant key", () => {
+  const secret = "AUDIT_DEMO_VALUE"
+  const variants = [secret, secret.toLowerCase(), `  ${secret}  `,
+    "%41UDIT%5FDEMO%5FVALUE", "\\u0041UDIT_DEMO_VALUE", "%2541UDIT_DEMO_VALUE"]
+  for (const source of [{ password: secret }, [["password", secret]], { received: secret },
+    { received: `  ${secret}  ` }, { password: "%41UDIT_DEMO_VALUE" },
+    JSON.stringify({ password: secret })]) {
+    for (const echo of variants) {
+      const input = { error: { field: "password", details: source,
+        arbitrary: `Rejected ${echo}`, nested: [{ other: `Rejected ${echo}` }],
+        message: `Rejected ${echo}` }, sibling: { arbitrary: echo } }
+      const safe = redactWebMcpReport(input)
+      assert.equal(safe.error.arbitrary, "[redacted]")
+      assert.equal(safe.error.nested[0].other, "[redacted]")
+      assert.equal(safe.error.message, "[redacted]")
+      assert.deepEqual(safe.sibling, input.sibling)
+      assert.deepEqual(redactWebMcpReport(safe), safe)
+    }
+  }
+  const shape = { field: "password", details: { arbitrary: "Bearer ShapeValue" }, echo: "Rejected bearer shapevalue" }
+  assert.equal(redactWebMcpReport(shape).echo, "[redacted]")
+})
+
+
+test("echo normalization follows JSON control escapes and UTF-8 URL encoding", () => {
+  for (const value of ["Line\nValue", "Tab\tValue", "Return\rValue", "Back\bValue", "Form\fValue", "Sëcret🔐"]) {
+    for (const echo of [JSON.stringify(value).slice(1, -1), encodeURIComponent(value), encodeURIComponent(encodeURIComponent(value))]) {
+      const safe = redactWebMcpReport({ field: "password", details: { password: value }, arbitrary: `Rejected ${echo}` })
+      assert.equal(safe.arbitrary, "[redacted]")
     }
   }
 })
