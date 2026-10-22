@@ -702,7 +702,12 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
       sessionID: sessionId,
       directory: sessionDirectory,
     })
-    assertSessionCallSucceeded(result, "deleteSession")
+    // A 404 means the session is already gone, which is the outcome the user
+    // asked for: deleting a parent cascades to its children, so a bulk delete
+    // that also selected a child would otherwise report that child as failed.
+    if (result?.response?.status !== 404) {
+      assertSessionCallSucceeded(result, "deleteSession")
+    }
     // Optimistic removal (load-bearing): hard-delete callers (confirm dialog,
     // bulk delete) have no pendingRemoval undo window, so this post-success
     // write is the only guaranteed instant sidebar update — a dropped
