@@ -2,7 +2,7 @@ import React from "react"
 import { createRoot } from "react-dom/client"
 import { describe, expect, test, vi } from "vitest"
 
-import { applySessionRetentionAction } from "./useSessionAutoCleanup"
+import { applySessionRetentionAction, buildAutoDeleteCandidates } from "./useSessionAutoCleanup"
 
 const scopedSdk = (overrides: { update?: unknown; delete?: unknown } = {}) =>
   ({
@@ -12,6 +12,39 @@ const scopedSdk = (overrides: { update?: unknown; delete?: unknown } = {}) =>
       ...overrides,
     },
   }) as never
+
+describe("buildAutoDeleteCandidates", () => {
+  const DAY = 24 * 60 * 60 * 1000
+  const now = 100 * DAY
+  const session = (id: string, daysAgo: number, parentID?: string) =>
+    ({ id, parentID, time: { created: now - daysAgo * DAY, updated: now - daysAgo * DAY } }) as never
+
+  test("keeps an expired parent whose child is still kept", () => {
+    // Deleting a session cascades to its children on the runtime, so cleaning up
+    // the parent would also delete the recent child.
+    const sessions = [session("parent", 40), session("child", 1, "parent"), session("old", 40)]
+
+    expect(buildAutoDeleteCandidates({ sessions, currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(
+      ["old"],
+    )
+  })
+
+  test("keeps every ancestor of the open session", () => {
+    const sessions = [session("root", 40), session("mid", 40, "root"), session("leaf", 40, "mid"), session("old", 40)]
+
+    expect(
+      buildAutoDeleteCandidates({ sessions, currentSessionId: "leaf", cutoffDays: 30, keepRecent: 0, now }),
+    ).toEqual(["old"])
+  })
+
+  test("still cleans up an expired parent with expired children", () => {
+    const sessions = [session("parent", 40), session("child", 41, "parent")]
+
+    expect(buildAutoDeleteCandidates({ sessions, currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(
+      ["parent", "child"],
+    )
+  })
+})
 
 describe("applySessionRetentionAction", () => {
   test("reports a rejected archive as not completed", async () => {

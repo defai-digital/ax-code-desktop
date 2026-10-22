@@ -28,7 +28,28 @@ type BuildAutoDeleteCandidatesOptions = {
   now?: number
 }
 
-const buildAutoDeleteCandidates = ({
+/**
+ * Deleting a session cascades to its descendants on the runtime, so cleaning up
+ * a session also removes every child below it. Returns the ancestors of the
+ * given sessions so a session with a descendant that must be kept is kept too.
+ */
+const collectAncestorIds = (sessions: Session[], keptIds: Iterable<string>): Set<string> => {
+  const parentOf = new Map<string, string | undefined>()
+  for (const session of sessions) {
+    if (session?.id) parentOf.set(session.id, session.parentID)
+  }
+  const ancestors = new Set<string>()
+  for (const id of keptIds) {
+    let parent = parentOf.get(id)
+    while (parent && !ancestors.has(parent)) {
+      ancestors.add(parent)
+      parent = parentOf.get(parent)
+    }
+  }
+  return ancestors
+}
+
+export const buildAutoDeleteCandidates = ({
   sessions,
   currentSessionId,
   cutoffDays,
@@ -43,17 +64,20 @@ const buildAutoDeleteCandidates = ({
   const sorted = [...sessions].sort((a, b) => getSessionLastActivity(b) - getSessionLastActivity(a))
   const protectedIds = new Set(sorted.slice(0, keepRecent).map((session) => session.id))
 
-  return sorted
-    .filter((session) => {
-      if (!session?.id) return false
-      if (protectedIds.has(session.id)) return false
-      if (session.id === currentSessionId) return false
-      if (session.share) return false
-      const lastActivity = getSessionLastActivity(session)
-      if (!lastActivity) return false
-      return lastActivity < cutoffTime
-    })
-    .map((session) => session.id)
+  const isExpired = (session: Session): boolean => {
+    if (!session?.id) return false
+    if (protectedIds.has(session.id)) return false
+    if (session.id === currentSessionId) return false
+    if (session.share) return false
+    const lastActivity = getSessionLastActivity(session)
+    if (!lastActivity) return false
+    return lastActivity < cutoffTime
+  }
+  const keptIds = sorted.filter((session) => session?.id && !isExpired(session)).map((session) => session.id)
+  if (currentSessionId) keptIds.push(currentSessionId)
+  const keptAncestorIds = collectAncestorIds(sorted, keptIds)
+
+  return sorted.filter((session) => isExpired(session) && !keptAncestorIds.has(session.id)).map((session) => session.id)
 }
 
 type CleanupResult = {
@@ -193,7 +217,10 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
 
           for (const id of candidateIds) {
             // Selection can change while loading or awaiting a prior action.
-            if (id === useSessionUIStore.getState().currentSessionId) continue
+            // Deleting a session also deletes its descendants, so skip the open session's ancestors too.
+            const openSessionId = useSessionUIStore.getState().currentSessionId
+            if (id === openSessionId) continue
+            if (openSessionId && collectAncestorIds(sessions, [openSessionId]).has(id)) continue
             if (sessionRetentionAction === "archive" && globalArchiveAvailable) {
               try {
                 await archiveGlobalSession(id, Date.now())
