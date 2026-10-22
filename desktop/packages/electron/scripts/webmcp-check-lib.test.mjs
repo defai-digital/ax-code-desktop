@@ -135,8 +135,7 @@ test("disk receipts bind secret inputs and occurrence order without retaining a 
 })
 
 
-test("sensitive tool catalog receipts survive repeated echo redaction", () => {
-  const name = "set_password"
+test.each(["set_password", "set_password_string"])("sensitive tool catalog receipts survive repeated echo redaction: %s", (name) => {
   const key = "fixed-receipt-regression-key"
   const identityReceipt = toolIdentityReceipt(key, name)
   // Use a digit present in this fixed receipt so the regression is deterministic.

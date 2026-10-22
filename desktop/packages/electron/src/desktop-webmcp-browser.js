@@ -419,11 +419,13 @@ function createDesktopWebMcpBrowser({
         entry.owner.show?.()
         if (select) show(entry)
         entry.owner.focus?.()
-        if (select || shown.get(entry.sender.id) === entry.key) entry.contents.focus?.()
-        for (const popup of entry.popups) {
-          if (!popup.isDestroyed()) {
-            popup.show?.()
-            popup.focus?.()
+        if (select || shown.get(entry.sender.id) === entry.key) {
+          entry.contents.focus?.()
+          for (const popup of entry.popups) {
+            if (!popup.isDestroyed()) {
+              popup.show?.()
+              popup.focus?.()
+            }
           }
         }
       }

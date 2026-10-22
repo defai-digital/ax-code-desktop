@@ -3515,3 +3515,30 @@ test("identical definition re-registration retains its invocation ID after arbit
   expect(registered.definitionDigest).toBe(original.definitionDigest)
   expect(registered.invocationID).toBe(original.invocationID)
 })
+
+
+test("cancelled owner close does not reveal hidden-page popups when no page is selected", async () => {
+  const confirmClose = vi.fn(async () => false)
+  const f = fixture({ confirmClose })
+  const { sender, status } = await f.create()
+  const other = await f.controller.command(sender, {
+    action: "create", directory: "/tmp/project", sessionID: "ses_hidden", url: "https://hidden.test/",
+  })
+  const handler = f.guests[1].setWindowOpenHandler.mock.calls[0][0]
+  handler({ url: "https://login.test/" }).createWindow({})
+  const popup = f.popups[0]
+  popup.show = vi.fn()
+  popup.focus = vi.fn()
+  popup.webContents.emit("before-input-event", {}, { type: "keyDown" })
+  await f.controller.command(sender, { action: "show", id: status.id })
+  await f.controller.command(sender, { action: "close", id: status.id })
+  const owner = f.owners.get(sender)
+  owner.close()
+  await vi.waitFor(() => expect(owner.focus).toHaveBeenCalled())
+  expect(confirmClose).toHaveBeenCalled()
+  expect(owner.isDestroyed()).toBe(false)
+  expect((await f.controller.command(sender, { action: "status", id: other.id })).visible).toBe(false)
+  expect(popup.show).not.toHaveBeenCalled()
+  expect(popup.focus).not.toHaveBeenCalled()
+  confirmClose.mockResolvedValue(true)
+})

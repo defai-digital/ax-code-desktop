@@ -49,6 +49,12 @@ describe("buildAutoDeleteCandidates", () => {
     expect(buildAutoDeleteCandidates({ sessions, archivedSessions, currentSessionId: "leaf", cutoffDays: 30, keepRecent: 0, now })).toEqual(["old"])
   })
 
+  test("archive retention still archives an expired parent of an archived child", () => {
+    const sessions = [session("parent", 40)]
+    const archivedSessions = [session("archived-child", 50, "parent")]
+    expect(buildAutoDeleteCandidates({ sessions, archivedSessions, action: "archive", currentSessionId: null, cutoffDays: 30, keepRecent: 0, now })).toEqual(["parent"])
+  })
+
   test("still cleans up an expired parent with expired children", () => {
     const sessions = [session("parent", 40), session("child", 41, "parent")]
 
@@ -102,7 +108,7 @@ describe("applySessionRetentionAction", () => {
 })
 
 describe("archived descendant retention", () => {
-  test("the preview and executed cleanup both preserve an archived child's parent", async () => {
+  test.each([false, true])("preserves archived descendants and refuses an incomplete inventory (unavailable: %s)", async (unavailable) => {
     vi.resetModules()
     const now = Date.now()
     const session = (id: string, age: number, parentID?: string) =>
@@ -111,7 +117,7 @@ describe("archived descendant retention", () => {
       ...Array.from({ length: 5 }, (_, index) => session(`recent-${index}`, 1000)),
       session("parent", 40 * 86400000),
     ]
-    const archivedSessions = [session("archived-child", 50 * 86400000, "parent")]
+    const archivedSessions = unavailable ? [] : [session("archived-child", 50 * 86400000, "parent")]
     vi.doMock("@/stores/useGlobalSessionsStore", async () => {
       const actual = await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>("@/stores/useGlobalSessionsStore")
       return { ...actual, ensureGlobalSessionsLoaded: vi.fn(async () => ({ activeSessions, archivedSessions })) }
@@ -121,10 +127,10 @@ describe("archived descendant retention", () => {
     const { useSessionUIStore } = await import("@/sync/session-ui-store")
     const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
     const { axCodeClient } = await import("@/lib/ax-code/client")
-    const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient")
+    const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue(scopedSdk())
     useUIStore.setState({ autoDeleteEnabled: true, autoDeleteAfterDays: 30, sessionRetentionAction: "delete", autoDeleteLastRunAt: 0 })
     useSessionUIStore.setState({ currentSessionId: null, isLoading: false })
-    useGlobalSessionsStore.setState({ activeSessions, archivedSessions, hasLoaded: true })
+    useGlobalSessionsStore.setState({ activeSessions, archivedSessions, hasLoaded: true, status: unavailable ? "error" : "ready" })
     let hook: ReturnType<typeof useSessionAutoCleanup> | null = null
     const Probe = () => { hook = useSessionAutoCleanup({ autoRun: false }); return null }
     ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
@@ -133,15 +139,15 @@ describe("archived descendant retention", () => {
     const root = createRoot(container)
     try {
       await React.act(async () => { root.render(React.createElement(Probe)) })
-      expect(hook!.candidates).toEqual([])
+      expect(hook!.candidates).toEqual(unavailable ? ["parent"] : [])
       const result = await React.act(async () => hook!.runCleanup({ force: true }))
-      expect(result).toMatchObject({ completedIds: [], failedIds: [], skippedReason: "no-candidates" })
+      expect(result).toMatchObject({ completedIds: [], failedIds: [], skippedReason: unavailable ? "loading" : "no-candidates" })
       expect(scoped).not.toHaveBeenCalled()
     } finally {
       await React.act(async () => { root.unmount() })
       container.remove()
       scoped.mockRestore()
-      useGlobalSessionsStore.setState({ activeSessions: [], archivedSessions: [], hasLoaded: false })
+      useGlobalSessionsStore.setState({ activeSessions: [], archivedSessions: [], hasLoaded: false, status: "idle" })
       vi.doUnmock("@/stores/useGlobalSessionsStore")
       vi.resetModules()
     }
