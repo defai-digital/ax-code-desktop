@@ -110,3 +110,19 @@ export const fieldContextCases = [
   input: { [valueKey]: secret, [fieldKey]: fieldName, constraint: "minLength" },
   expected: { [valueKey]: "[redacted]", [fieldKey]: fieldName, constraint: "minLength" },
 }))))
+
+// Text and structured diagnostic paths must agree at every preview/checker boundary.
+credentialTextCases.push(...[
+  'auth["api.key"]', "auth['private.key'][0]", "auth[api_key][0]", "auth[`sig`][0]",
+].flatMap((name) => wrappers.map((wrap) => wrap(`${name} = ${secret}`))))
+
+fieldContextCases.push(...[
+  [{ got: secret }, { got: "[redacted]" }],
+  [[{ received: secret }], [{ received: "[redacted]" }]],
+  [{ nested: { actual: secret } }, { nested: { actual: "[redacted]" } }],
+  [JSON.stringify({ got: secret }), JSON.stringify({ got: "[redacted]" })],
+].map(([details, expected]) => ({
+  fieldKey: "field", fieldName: "api_key", valueKey: "got",
+  input: { field: "api_key", details, constraint: "minLength" },
+  expected: { field: "api_key", details: expected, constraint: "minLength" },
+})))

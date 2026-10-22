@@ -165,3 +165,25 @@ test("long plain prose and whitespace do not trigger repeated assignment rescann
   }
   assert.ok(performance.now() - started < 1000, "Credential scanning must remain bounded for long prose")
 })
+
+test("bracketed textual assignment paths retain sensitive compound names and indexes", () => {
+  for (const name of ['auth["api.key"]', "auth['private.key'][0]", "auth[api_key][0]", "auth[`sig`][0]"]) {
+    for (const separator of ["=", " = ", ": "]) {
+      const text = `${name}${separator}${secret}`
+      assert.equal(redactWebMcpReport({ error: text }).error, "[redacted]", text)
+    }
+  }
+  assert.equal(redactWebMcpReport('auth["title"][0] = public'), 'auth["title"][0] = public')
+})
+
+test("sensitive diagnostic context survives nested containers and JSON strings", () => {
+  for (const details of [{ got: secret }, [{ received: secret }], { nested: { actual: secret } }, JSON.stringify({ got: secret })]) {
+    const input = { error: { field: "api_key", constraint: "minLength", details } }
+    for (const value of [input, JSON.stringify(input), { envelope: [input] }]) {
+      assert.ok(!JSON.stringify(redactWebMcpReport(value)).includes(secret))
+    }
+    assert.equal(redactWebMcpReport(input).error.constraint, "minLength")
+  }
+  const ordinary = { field: "title", details: { got: "public" } }
+  assert.deepEqual(redactWebMcpReport(ordinary), ordinary)
+})
