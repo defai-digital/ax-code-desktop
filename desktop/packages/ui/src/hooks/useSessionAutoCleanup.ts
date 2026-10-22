@@ -88,7 +88,9 @@ export const applySessionRetentionAction = async (
     action === "archive"
       ? await scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
       : await scopedSdk.session.delete({ sessionID: id, directory })
-  return !result?.error
+  // A 404 means the session is already gone: deleting an expired parent cascades
+  // to its children, which are usually candidates in the same run.
+  return !result?.error || result.response?.status === 404
 }
 
 // The cleanup run that is in flight, shared by every instance of the hook (see runCleanup). It is

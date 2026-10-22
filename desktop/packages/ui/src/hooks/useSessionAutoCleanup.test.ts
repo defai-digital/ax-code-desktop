@@ -28,6 +28,19 @@ describe("applySessionRetentionAction", () => {
     await expect(applySessionRetentionAction(sdk, "ses_1", "/repo", "delete")).resolves.toBe(false)
   })
 
+  test("reports an already-deleted session as completed", async () => {
+    // Deleting an expired parent cascades to its children on the runtime, so the
+    // same run gets 404 for those children.
+    const sdk = scopedSdk({
+      delete: vi.fn(async () => ({
+        error: { name: "SessionNotFoundError", message: "Session not found", status: 404 },
+        response: { status: 404 },
+      })),
+    })
+
+    await expect(applySessionRetentionAction(sdk, "ses_1", "/repo", "delete")).resolves.toBe(true)
+  })
+
   test("reports a confirmed cleanup as completed", async () => {
     await expect(applySessionRetentionAction(scopedSdk(), "ses_1", "/repo", "delete")).resolves.toBe(true)
   })
