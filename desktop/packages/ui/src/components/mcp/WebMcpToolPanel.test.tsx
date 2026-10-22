@@ -103,6 +103,17 @@ const runTool = async (name = "webmcp.tools.try") => {
   })
 }
 
+test("Try it masks rejected passwords in both the result and runtime diagnosis", async () => {
+  const output = { error: { field: "password", message: "Rejected value: DEMO_PRIVATE_VALUE", got: "DEMO_PRIVATE_VALUE" } }
+  const { container } = openTool(undefined, vi.fn(async () => ({ ok: true, output })))
+  await runTool()
+  expect(container.querySelector("[data-webmcp-tool-result='application-error']")?.textContent).toContain("[redacted]")
+  const diagnosis = container.querySelector("[data-webmcp-runtime-rejections]")
+  expect(diagnosis?.textContent).toContain("password")
+  expect(diagnosis?.textContent).toContain("[redacted]")
+  expect(container.innerHTML).not.toContain("DEMO_PRIVATE_VALUE")
+})
+
 test("30 rendered fields send padded property 25, empty, zero and false without an absent field", async () => {
   const properties = Object.fromEntries(
     Array.from({ length: 30 }, (_, i) => [`p${i + 1}`, { type: i === 1 ? "number" : i === 2 ? "boolean" : "string" }]),

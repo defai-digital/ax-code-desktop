@@ -153,3 +153,28 @@ for (const key of structuredCredentialPaths) {
     input: { [key]: secret }, expected: { [key]: "[redacted]" },
   })
 }
+
+// Rejected values also occur in diagnostic prose, without credential-shaped prefixes.
+for (const value of ["DEMO_PRIVATE_VALUE", "x", "ab", "a.b[$]", "1234", 1234, 0]) {
+  for (const valueKey of ["value", "got", "actual", "received", "input", "given", "provided", "data"]) {
+    for (const quote of ["", '"', "'", "`"]) {
+      const echo = `${quote}${value}${quote}`
+      const filtered = `${quote}[redacted]${quote}`
+      fieldContextCases.push({
+        fieldKey: "field", fieldName: "password", valueKey,
+        input: { error: { field: "password", message: `Rejected value: ${echo}`, [valueKey]: value } },
+        expected: { error: { field: "password", message: "[redacted]", [valueKey]: "[redacted]" } },
+      }, {
+        fieldKey: "path", fieldName: "pin", valueKey,
+        input: { path: "pin", hint: `Again: ${echo}/${echo}`, details: [
+          { field: "title", message: `Rejected ${echo}`, detail: `Bad ${echo}`, description: `Invalid ${echo}` },
+          { [valueKey]: value, constraint: `Rule ${echo}`, details: `Echo ${echo}`, hint: `Retry ${echo}` },
+        ] },
+        expected: { path: "pin", hint: `Again: ${filtered}/${filtered}`, details: [
+          { field: "title", message: "[redacted]", detail: "[redacted]", description: "[redacted]" },
+          { [valueKey]: "[redacted]", constraint: `Rule ${filtered}`, details: `Echo ${filtered}`, hint: `Retry ${filtered}` },
+        ] },
+      })
+    }
+  }
+}

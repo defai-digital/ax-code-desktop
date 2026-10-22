@@ -83,6 +83,7 @@ export function webMcpTextLooksSensitive(value) {
 
 const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"])
 const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
+const FIELD_PROSE_KEYS = new Set(["message", "detail", "description"])
 
 // Trim closing diagnostic syntax in linear time, even for long whitespace before an assignment.
 function trimFieldDecorations(value) {
@@ -122,10 +123,52 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
     options.onTruncate?.()
     return replaced()
   }
-  const visit = (entry, depth, fieldPath = false, inheritedField = false) => {
+  // Collect before projecting: a descendant's rejected value can be echoed by an earlier
+  // sibling or ancestor. Keep this lookup local to the object declaring the sensitive field.
+  const collectEchoes = (root, depth) => {
+    const values = new Set()
+    const seen = new WeakSet()
+    const collect = (entry, level, masked = false, fieldPath = false) => {
+      if (--remaining < 0 || level > 32) throw new Error("Redaction collection budget exceeded")
+      if (typeof entry === "string") {
+        if (masked && entry && entry !== replacement) values.add(entry)
+        let parsed
+        try {
+          parsed = JSON.parse(entry)
+        } catch (error) {
+          if (!(error instanceof SyntaxError)) throw error
+        }
+        if (typeof parsed === "string" || (parsed && typeof parsed === "object")) collect(parsed, level + 1, masked, fieldPath)
+        return
+      }
+      if (typeof entry === "number" && masked) values.add(String(entry))
+      if (!entry || typeof entry !== "object") return
+      if (seen.has(entry)) throw new Error("Redaction collection cycle")
+      seen.add(entry)
+      try {
+        if (Array.isArray(entry)) {
+          const pair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" &&
+            (FIELD_VALUE_KEYS.has(entry[0]) || webMcpFieldLooksSensitive(entry[0]))
+          entry.forEach((child, index) => collect(child, level + 1, masked || (pair && index === 1)))
+        } else {
+          for (const [key, child] of Object.entries(entry))
+            collect(child, level + 1, masked || FIELD_VALUE_KEYS.has(key), FIELD_NAMING_KEYS.has(key))
+        }
+      } finally {
+        seen.delete(entry)
+      }
+    }
+    collect(root, depth)
+    // One literal replacement pass avoids treating inserted placeholders as rejected values.
+    return values.size ? new RegExp([...values].sort((a, b) => b.length - a.length)
+      .map((text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|"), "g") : null
+  }
+  const visit = (entry, depth, fieldPath = false, inheritedField = false, echoes = null, wholeProse = false) => {
     if (--remaining < 0) throw new Error("Redaction traversal budget exceeded")
     if (depth > 32) return incomplete()
     if (typeof entry === "string") {
+      const echoed = echoes ? entry.replace(echoes, () => replacement) : entry
+      if (wholeProse && echoed !== entry) return replaced()
       let parsed
       try {
         parsed = JSON.parse(entry)
@@ -134,12 +177,13 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
         // Embedded or truncated JSON is still checked for quoted credential keys below.
       }
       if (typeof parsed === "string" || (parsed && typeof parsed === "object")) {
-        const safe = visit(parsed, depth + 1, fieldPath, inheritedField)
+        const safe = visit(parsed, depth + 1, fieldPath, inheritedField, echoes, wholeProse)
         return safe.changed
           ? { value: JSON.stringify(safe.value), changed: true }
           : { value: entry, changed: false }
       }
-      return webMcpTextLooksSensitive(entry) ? replaced() : { value: entry, changed: false }
+      if (webMcpTextLooksSensitive(entry)) return replaced()
+      return echoed !== entry ? { value: echoed, changed: true } : { value: entry, changed: false }
     }
     if (!entry || typeof entry !== "object") return { value: entry, changed: false }
     if (ancestors.has(entry)) return incomplete()
@@ -149,7 +193,7 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
       if (Array.isArray(entry)) {
         const sensitivePair = !fieldPath && entry.length === 2 && typeof entry[0] === "string" && (webMcpFieldLooksSensitive(entry[0]) || (inheritedField && FIELD_VALUE_KEYS.has(entry[0])))
         const safe = entry.map((child, index) => {
-          const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1, false, inheritedField)
+          const result = sensitivePair && index === 1 ? replaced() : visit(child, depth + 1, false, inheritedField, echoes)
           changed ||= result.changed
           return result.value
         })
@@ -159,16 +203,17 @@ export function redactWebMcpReport(value, replacement = "[redacted]", options = 
       // Relative, empty or unrelated descendant declarations cannot clear inherited sensitivity.
       const declarations = entries.filter(([key]) => FIELD_NAMING_KEYS.has(key))
       const sensitiveField = inheritedField || declarations.some(([, child]) => webMcpFieldLooksSensitive(child))
+      if (sensitiveField && !inheritedField) echoes = collectEchoes(entry, depth)
       const safeKeys = new Set()
       const safe = Object.fromEntries(entries.map(([key, child]) => {
-        const safeKey = webMcpTextLooksSensitive(key) ? replacement : key
+        const safeKey = webMcpTextLooksSensitive(key) ? replacement : echoes ? key.replace(echoes, () => replacement) : key
         // Redacted keys can collide. An input consumer must not mistake the resulting property bag for a full receipt.
         if (safeKeys.has(safeKey)) options.onTruncate?.()
         safeKeys.add(safeKey)
         const namedValue = sensitiveField && FIELD_VALUE_KEYS.has(key)
         const result = (namedValue || webMcpFieldLooksSensitive(key)) && child !== null && child !== ""
           ? replaced()
-          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField)
+          : visit(child, depth + 1, FIELD_NAMING_KEYS.has(key), sensitiveField, echoes, FIELD_PROSE_KEYS.has(key))
         changed ||= safeKey !== key || result.changed
         return [safeKey, result.value]
       }))

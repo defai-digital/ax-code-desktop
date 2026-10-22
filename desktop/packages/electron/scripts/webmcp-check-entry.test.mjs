@@ -102,6 +102,8 @@ test("the actual Electron entry redacts every disk write without altering the in
   expect(report.runs[0].input).toEqual({ password: "[redacted]" })
   expect(JSON.parse(report.runs[0].output)).toMatchObject({ access_token: "[redacted]", value: "kept" })
   expect(report.runs[1].error).not.toContain("thrown-secret")
+  const diagnostics = report.runs[2].output.errors.slice(credentialTextCases.length)
+  expect(diagnostics).toEqual(fieldContextCases.map(({ expected }) => ({ error: expected })))
   expect(JSON.stringify(report)).not.toContain(secret)
 })
 
