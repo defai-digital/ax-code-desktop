@@ -1,5 +1,6 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
+import { performance } from "node:perf_hooks"
 import {
   WEBMCP_SENSITIVE_NAME,
   webMcpSchemaLooksSensitive,
@@ -54,6 +55,16 @@ test("repeated filtering preserves redacted diagnostic structure but never place
     assert.equal(redactWebMcpReport(unsafe), "[redacted]")
 })
 
+test("64 KiB prose and whitespace redact within a generous main-thread budget", () => {
+  for (const text of ["a ".repeat(32768), " ".repeat(65536)]) {
+    assert.equal(Buffer.byteLength(text), 65536)
+    const start = performance.now()
+    assert.equal(redactWebMcpReport(text), text)
+    const elapsed = performance.now() - start
+    assert.ok(elapsed < 500, `64 KiB redaction took ${elapsed.toFixed(1)} ms (budget: 500 ms)`)
+  }
+})
+
 test("deep percent encodings fail closed without unbounded name decoding", () => {
   assert.equal(webMcpTextLooksSensitive(`https://example.test/#%${"25".repeat(100)}74oken=value`), true)
 })
@@ -106,7 +117,7 @@ test("field-naming keys redact sibling rejected values at any depth and in JSON 
     assert.deepEqual(redactWebMcpReport({ error: { errors: [input] } }), { error: { errors: [expected] } })
     assert.deepEqual(JSON.parse(redactWebMcpReport(JSON.stringify({ error: input }))), { error: expected })
   }
-  for (const path of ["/credentials/title", "account.password.title", ["password", "title"]]) {
+  for (const path of ["/items/0/title", "account.profile.title", ["items", 0, "title"], [0, 1]]) {
     const input = { path, got: "public", constraint: "minLength" }
     assert.deepEqual(redactWebMcpReport(input), input)
   }
@@ -136,11 +147,11 @@ test("compound literal field names keep their existing sensitivity", () => {
   }
 })
 
-test("array element diagnostics inherit the final named container's sensitivity", () => {
-  for (const path of [["passwords", 0], ["api.key", 0, 1], "/passwords/0", "passwords[0]", "/api.key/0/1"]) {
+test("array element diagnostics inherit sensitive ancestor context", () => {
+  for (const path of [["passwords", 0], ["api.key", 0, 1], "/passwords/0", "passwords[0]", "/api.key/0/1", ["passwords", 0, "title"], "/passwords/0/title", "passwords[0].title", 'auth["api.key"]', 'auth["private.key"]']) {
     assert.deepEqual(redactWebMcpReport({ path, received: secret }), { path, received: "[redacted]" })
   }
-  for (const path of [["passwords", 0, "title"], "/passwords/0/title", "passwords[0].title", ["titles", 0]]) {
+  for (const path of [["titles", 0], "/account/title", "account.title"]) {
     const input = { path, received: "public" }
     assert.deepEqual(redactWebMcpReport(input), input)
   }

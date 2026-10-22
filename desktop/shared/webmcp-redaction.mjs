@@ -82,23 +82,22 @@ export function webMcpTextLooksSensitive(value) {
 }
 
 const FIELD_NAMING_KEYS = new Set(["name", "key", "field", "property", "path", "param", "parameter", "instancePath", "pointer"])
-const FIELD_PATH_KEYS = new Set(["path", "instancePath", "pointer"])
 const FIELD_VALUE_KEYS = new Set(["value", "got", "actual", "received", "input", "given", "provided", "data"])
 
-/** Paths identify the final field, not a sensitive ancestor. JSON Pointer escapes belong to that final name. */
-function sensitiveFieldName(value, key) {
-  const segments = Array.isArray(value) ? [...value] : [value]
-  while (segments.length > 1 && /^(?:0|[1-9]\d*)$/.test(String(segments.at(-1)))) segments.pop()
-  const last = segments.at(-1)
-  if (typeof last !== "string") return false
-  // Ordinary names retain the full sensitive-name vocabulary, including compound names such as api.key.
-  if ((!FIELD_PATH_KEYS.has(key) || Array.isArray(value)) && sensitiveParameterName(last)) return true
-  // A slash-delimited pointer can itself contain dots in its final property name.
-  const path = last.includes("/") ? last.split("/") : last.split(/[.[\]\\]/).filter(Boolean)
-  while (path.length > 1 && /^(?:0|[1-9]\d*)$/.test(path.at(-1))) path.pop()
-  const segment = path.at(-1)
-  const name = (segment ?? "").replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
-  return sensitiveParameterName(name.replaceAll("/", "_"))
+/** Every path segment carries sensitivity through descendants, including numeric indexes. */
+function sensitiveFieldName(value) {
+  const parts = Array.isArray(value) ? value : [value]
+  return parts.some((part) => {
+    if (typeof part !== "string") return false
+    // Preserve quoted compound property names before splitting paths or pointer segments.
+    if (sensitiveParameterName(part)) return true
+    // JSON Pointer components may contain literal dots; decode their escapes after splitting.
+    const segments = part.includes("/") ? part.split("/") : part.split(/[.[\]\\]/)
+    return segments.some((segment) => {
+      const name = segment.replace(/^["']|["']$/g, "").replaceAll("~1", "/").replaceAll("~0", "~")
+      return sensitiveParameterName(name.replaceAll("/", "_"))
+    })
+  })
 }
 
 /** Preserve report structure while filtering the same keys and credential shapes as the UI.
