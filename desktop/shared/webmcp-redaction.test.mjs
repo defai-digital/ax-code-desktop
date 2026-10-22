@@ -8,6 +8,7 @@ import {
   redactWebMcpReport,
   webMcpTextLooksSensitive,
   webMcpDisplayDescription,
+  webMcpDisplayReport,
 } from "./webmcp-redaction.mjs"
 import { compoundKeys, credentialTextCases, credentialUrlShapes, secret } from "./testing/webmcp-redaction-cases.mjs"
 
@@ -114,6 +115,8 @@ test("field-naming keys redact sibling rejected values at any depth and in JSON 
   const { fieldContextCases } = await import("./testing/webmcp-redaction-cases.mjs")
   for (const { input, expected } of fieldContextCases) {
     assert.deepEqual(redactWebMcpReport(input), expected)
+    assert.deepEqual(redactWebMcpReport(expected), expected)
+    assert.deepEqual(webMcpDisplayReport(input), expected)
     assert.deepEqual(redactWebMcpReport({ error: { errors: [input] } }), { error: { errors: [expected] } })
     assert.deepEqual(JSON.parse(redactWebMcpReport(JSON.stringify({ error: input }))), { error: expected })
   }
@@ -232,4 +235,43 @@ test("descendant diagnostic declarations cannot clear inherited credential sensi
 test("diagnostic entry pairs retain inherited sensitive value context", () => {
   const input = { field: "api_key", details: [["received", secret], ["constraint", "minLength"]] }
   assert.deepEqual(redactWebMcpReport(input).details, [["received", "[redacted]"], ["constraint", "minLength"]])
+})
+
+test("diagnostic echoes cross encoded descendants while remaining local and idempotent", () => {
+  for (const replacement of ["[redacted]", "<fill in>"]) {
+    const input = {
+      error: {
+        field: "password",
+        message: '"DEMO_PRIVATE_VALUE"',
+        hint: "DEMO_PRIVATE_VALUE/1234/DEMO_PRIVATE_VALUE",
+        details: JSON.stringify({ field: "title", received: "DEMO_PRIVATE_VALUE", hint: "(DEMO_PRIVATE_VALUE)" }),
+        context: [["got", 1234], ["hint", "1234"]],
+      },
+      sibling: { message: "DEMO_PRIVATE_VALUE", got: 1234 },
+    }
+    const safe = redactWebMcpReport(input, replacement)
+    assert.deepEqual(safe, {
+      error: {
+        field: "password",
+        message: replacement,
+        hint: `${replacement}/${replacement}/${replacement}`,
+        details: JSON.stringify({ field: "title", received: replacement, hint: `(${replacement})` }),
+        context: [["got", replacement], ["hint", replacement]],
+      },
+      sibling: input.sibling,
+    })
+    assert.deepEqual(redactWebMcpReport(safe, replacement), safe)
+    assert.deepEqual(JSON.parse(redactWebMcpReport(JSON.stringify(input), replacement)), safe)
+  }
+})
+
+test("single-character echoes and replacement substrings never rewrite inserted placeholders", () => {
+  for (const value of ["a", "red", "redacted", "$&", "\\", "\n"]) {
+    for (const replacement of ["[redacted]", "<fill in>"]) {
+      const input = { field: "pin", got: value, hint: `${value}${value}` }
+      const expected = { field: "pin", got: replacement, hint: replacement + replacement }
+      assert.deepEqual(redactWebMcpReport(input, replacement), expected)
+      assert.deepEqual(redactWebMcpReport(expected, replacement), expected)
+    }
+  }
 })

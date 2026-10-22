@@ -323,6 +323,13 @@ test("manual exports require both native identities and resolve the name from th
 })
 
 import { webMcpRuntimeRejections } from "./webMcpDiagnosis"
+test("sensitive-field diagnostic prose is redacted before extracting runtime rejections", () => {
+  const output = { error: { field: "password", message: "Rejected value: DEMO_PRIVATE_VALUE", got: "DEMO_PRIVATE_VALUE" } }
+  for (const source of [output, JSON.stringify(output)]) {
+    expect(webMcpRuntimeRejections(source)).toEqual([{ property: "password", text: "[redacted]" }])
+  }
+})
+
 test("runtime and page validation failures map property paths to shared rules", () => {
   expect(webMcpRuntimeRejections({ validationErrors: [{ instancePath: "/count", keyword: "minimum", message: "must be >= 1" }] })).toEqual([
     { property: "/count", rule: "minimum", text: "must be >= 1" },
