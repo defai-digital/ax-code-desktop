@@ -18,6 +18,7 @@ import { useInputStore } from "./input-store"
 import type { ChildStoreManager } from "./child-store"
 import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
+import { retryWhenRateLimited } from "@/lib/ax-code/rateLimitRetry"
 // NOTE (SPEC-2026-08-30, S4.5): the session lifecycle event stream
 // (`session.created/updated/deleted` applied via sync/global-session-events.ts)
 // is the sole writer of record for `useGlobalSessionsStore`. The few remaining
@@ -698,10 +699,13 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
     ui.setCurrentSession(null)
   }
   try {
-    const result = await scopedClientForDirectory(sessionDirectory).session.delete({
-      sessionID: sessionId,
-      directory: sessionDirectory,
-    })
+    // Bulk delete sends one request per session and can exceed the runtime's rate limit.
+    const result = await retryWhenRateLimited(() =>
+      scopedClientForDirectory(sessionDirectory).session.delete({
+        sessionID: sessionId,
+        directory: sessionDirectory,
+      }),
+    )
     // A 404 means the session is already gone, which is the outcome the user
     // asked for: deleting a parent cascades to its children, so a bulk delete
     // that also selected a child would otherwise report that child as failed.
@@ -745,11 +749,14 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
   }
   try {
     const archivedAt = Date.now()
-    const result = await scopedClientForDirectory(sessionDirectory).session.update({
-      sessionID: sessionId,
-      directory: sessionDirectory,
-      time: { archived: archivedAt },
-    })
+    // Bulk archive sends one request per session and can exceed the runtime's rate limit.
+    const result = await retryWhenRateLimited(() =>
+      scopedClientForDirectory(sessionDirectory).session.update({
+        sessionID: sessionId,
+        directory: sessionDirectory,
+        time: { archived: archivedAt },
+      }),
+    )
     assertSessionCallSucceeded(result, "archiveSession")
     // Optimistic bucket move (load-bearing): hard-archive callers (confirm
     // dialog, bulk archive) have no pendingRemoval undo window, so this

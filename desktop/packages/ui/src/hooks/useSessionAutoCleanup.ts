@@ -3,6 +3,7 @@ import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { archiveGlobalSession, GlobalSessionArchiveUnavailableError } from "@/lib/ax-code/sessionArchiveApi"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
+import { retryWhenRateLimited } from "@/lib/ax-code/rateLimitRetry"
 import {
   ensureGlobalSessionsLoaded,
   useGlobalSessionsStore,
@@ -114,10 +115,13 @@ export const applySessionRetentionAction = async (
   directory: string,
   action: "archive" | "delete",
 ): Promise<boolean> => {
-  const result =
-    action === "archive"
-      ? await scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
-      : await scopedSdk.session.delete({ sessionID: id, directory })
+  // A cleanup run sends one request per expired session and can exceed the runtime's rate limit.
+  const result = await retryWhenRateLimited(
+    (): Promise<{ error?: unknown; response?: Response }> =>
+      action === "archive"
+        ? scopedSdk.session.update({ sessionID: id, directory, time: { archived: Date.now() } })
+        : scopedSdk.session.delete({ sessionID: id, directory }),
+  )
   // A 404 means the session is already gone: deleting an expired parent cascades
   // to its children, which are usually candidates in the same run.
   return !result?.error || result.response?.status === 404
@@ -199,7 +203,8 @@ export const useSessionAutoCleanup = (enabledOrOptions?: boolean | CleanupOption
             return { completedIds: [], failedIds: [], action: sessionRetentionAction, skippedReason: "cooldown" }
           }
 
-          const { activeSessions: sessions, archivedSessions: archived = [] } = await ensureGlobalSessionsLoaded(getAllSyncSessions())
+          const { activeSessions: sessions, archivedSessions: archived = [] } =
+            await ensureGlobalSessionsLoaded(getAllSyncSessions())
 
           // A failed active or archived listing leaves only a partial preserved snapshot.
           // Do not infer safe cascading deletion (or recent-session protection) from it.

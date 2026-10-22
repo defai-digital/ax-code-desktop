@@ -1,6 +1,7 @@
 import { toast } from "@/components/ui"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
+import { retryWhenRateLimited } from "@/lib/ax-code/rateLimitRetry"
 import {
   useGlobalSessionsStore,
   resolveGlobalSessionDirectory,
@@ -376,9 +377,7 @@ export function flushPendingRemovals(): void {
  */
 export async function recoverPendingRemovals(): Promise<void> {
   const now = Date.now()
-  const ownedSlots = listPendingSlots().filter(
-    ({ ownerId }) => ownerId === null || !isOwnerAlive(ownerId, now),
-  )
+  const ownedSlots = listPendingSlots().filter(({ ownerId }) => ownerId === null || !isOwnerAlive(ownerId, now))
   if (ownedSlots.length === 0) return
   const persisted = readPersisted(ownedSlots.map(({ key }) => key))
   if (persisted.length === 0) {
@@ -407,14 +406,17 @@ export async function recoverPendingRemovals(): Promise<void> {
     persisted.map(async (entry) => {
       const { id, kind, directory } = entry
       try {
-        const result =
-          kind === "delete"
-            ? await sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
-            : await sdkClient.session.update({
-                sessionID: id,
-                directory: directory ?? undefined,
-                time: { archived: Date.now() },
-              })
+        // Recovery sends every pending removal at once and can exceed the runtime's rate limit.
+        const result = await retryWhenRateLimited(
+          (): Promise<{ error?: unknown; response?: Response }> =>
+            kind === "delete"
+              ? sdkClient.session.delete({ sessionID: id, directory: directory ?? undefined })
+              : sdkClient.session.update({
+                  sessionID: id,
+                  directory: directory ?? undefined,
+                  time: { archived: Date.now() },
+                }),
+        )
         // The generated SDK resolves with `{ error }` instead of throwing.
         if (result?.error && !isAlreadyGoneError(result.error)) {
           throw new Error(formatSdkError(result.error))

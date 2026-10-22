@@ -638,6 +638,44 @@ describe("session mutations treat an SDK error response as a failure", () => {
     expect(toastErrorMock).not.toHaveBeenCalled()
   })
 
+  test("deleteSession waits out the runtime rate limit instead of failing", async () => {
+    // The runtime allows 120 mutating session requests a minute; a bulk delete of
+    // hundreds of sessions used to fail every request after the cap.
+    vi.useFakeTimers()
+    try {
+      const store = createStore({})
+      store.setState({
+        session: [
+          { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+        ],
+      })
+      mockScopedClient.session.delete
+        .mockImplementationOnce(() =>
+          Promise.resolve({
+            error: { name: "ServiceUnavailableError", message: "Too many requests", status: 429 },
+            response: { status: 429 },
+          } as never),
+        )
+        .mockImplementationOnce(() => Promise.resolve({ data: true, response: { status: 200 } } as never))
+
+      const { deleteSession, setActionRefs } = await import("./session-actions")
+      setActionRefs(
+        mockSdk as unknown as AxCodeClient,
+        createChildStores([["/test/project", store]]),
+        () => "/test/project",
+      )
+
+      const pending = deleteSession("session-a")
+      await vi.advanceTimersByTimeAsync(1_000)
+
+      await expect(pending).resolves.toBe(true)
+      expect(store.getState().session).toEqual([])
+      expect(toastErrorMock).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("archiveSession rolls back and reports failure when the SDK answers with an error", async () => {
     const store = createStore({})
     store.setState({
