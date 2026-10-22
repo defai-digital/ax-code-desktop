@@ -19,7 +19,7 @@ import type { SupervisionRow } from "@/lib/supervision/rows"
 const { invoke, openSession } = vi.hoisted(() => ({ invoke: vi.fn(), openSession: vi.fn() }))
 vi.mock("@/lib/desktopBridge", () => ({ getDesktopBridge: () => ({ invoke }) }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: openSession }))
-vi.mock("@/sync/sync-context", () => ({ useAllPendingRequests: () => [] }))
+vi.mock("@/sync/sync-context", () => ({ useAllPendingRequests: () => [], setActiveSession: vi.fn() }))
 vi.mock("@/contexts/useThemeSystem", () => ({ useThemeSystem: () => ({ themeMode: "dark" }) }))
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
@@ -190,8 +190,9 @@ test("Needs you surfaces a hidden waiting page even without a runtime approval",
   expect(openSession).toHaveBeenCalledWith(expect.objectContaining({ directory: "/project-a" }))
 })
 
-test("session grid shows waiting on only the owning slot and opens its page", () => {
+test("session grid's compact switchers keep each page scoped and reachable without leaving the grid", () => {
   useUIStore.setState({
+    activeMainTab: "session-grid",
     sessionGrid: {
       layout: 2,
       ratios: { columns: 0.5, rows: 0.5 },
@@ -202,12 +203,22 @@ test("session grid shows waiting on only the owning slot and opens its page", ()
     },
   })
   const { container } = render(<SessionGrid />)
-  const controls = container.querySelectorAll("[data-webmcp-session-page]")
+  const controls = container.querySelectorAll("[data-webmcp-pages-compact]")
   expect(controls).toHaveLength(2)
-  expect(controls[0].textContent).toContain("Access waiting")
-  expect(controls[1].textContent).toContain("Access on")
-  fireEvent.click(controls[0])
-  expect(openSession).toHaveBeenCalledWith(expect.objectContaining({ directory: "/project-a" }))
+  expect(controls[0].querySelector("summary")?.textContent).toContain("https://a.test · Access waiting")
+  expect(controls[1].querySelector("summary")?.textContent).toContain("https://b.test · Access on")
+  expect(controls[0].querySelectorAll("[data-webmcp-page]")).toHaveLength(1)
+  expect(controls[0].querySelector('[data-webmcp-page]')?.getAttribute('data-webmcp-page')).toBe(a)
+  fireEvent.click(controls[0].querySelector("summary")!)
+  fireEvent.click(controls[0].querySelector('[data-webmcp-page] button')!)
+  expect(openSession).not.toHaveBeenCalled()
+  expect((controls[0] as HTMLDetailsElement).open).toBe(false)
+  expect(controls[0].querySelectorAll("[data-webmcp-page] button")).toHaveLength(1)
+  expect(controls[0].querySelector("[data-webmcp-page] button")?.textContent).toBe("Show page · Access waiting")
+  expect(useUIStore.getState().activeMainTab).toBe("session-grid")
+  expect(useUIStore.getState().browserPanel).toMatchObject({ isOpen: true, focused: true })
+  expect(useWebMcpBrowserStore.getState().activeKey).toBe(a)
+  expect(useWebMcpBrowserStore.getState().views[a].enabled).toBe(true)
 })
 
 test("Mission Control row exposes its own waiting page without selecting the row", () => {
@@ -394,4 +405,20 @@ test("page identities redact agent titles and origins in visible and accessible 
   </>)
   expect(container.innerHTML).not.toContain(secret)
   expect(container.textContent).toContain("[redacted]")
+})
+
+test("Mission Control waiting chip uses the Needs you rule and reacts only to its project/session page", () => {
+  const props = { selected: false, bulkSelected: false, onToggleSelection: vi.fn(), expanded: false,
+    activeWorkingSetId: null, primaryLabel: "Open", onToggleDetails: vi.fn(), onSelect: vi.fn(),
+    onOpen: vi.fn(), onPrimary: vi.fn(), onRemoveFromSet: vi.fn() }
+  const { container } = render(<div><MissionControlRow {...props} row={row("/project-a", "Task A")} />
+    <MissionControlRow {...props} row={row("/project-b", "Task B")} /></div>)
+  const rows = container.querySelectorAll('.mission-control-row')
+  expect(rows[0].querySelector('[data-webmcp-waiting-session]')?.textContent).toBe(dict["webmcp.pages.waiting"])
+  expect(rows[1].querySelector('[data-webmcp-waiting-session]')).toBeNull()
+  act(() => useWebMcpBrowserStore.getState().updateView(a, { visible: true }))
+  expect(container.querySelector('[data-webmcp-waiting-session]')).toBeNull()
+  act(() => useWebMcpBrowserStore.getState().updateView(b, { waiting: true, visible: false }))
+  expect(rows[0].querySelector('[data-webmcp-waiting-session]')).toBeNull()
+  expect(rows[1].querySelector('[data-webmcp-waiting-session]')).not.toBeNull()
 })

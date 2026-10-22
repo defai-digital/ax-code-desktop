@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Einige aufgezeichnete Aufrufe haben unbekannte Tool-Zuordnungen. Ein Aufruf dieses Tools k\u00f6nnte darunter sein.",
   "webmcp.tools.diagnosis.definitionUnavailable": "Die Definition ist nicht mehr verfügbar; das aktuelle Schema wurde nicht verwendet.",
   "webmcp.tools.diagnosis.runtimeRejection": "Ablehnung durch die Laufzeit: {reason}",
-  "webmcp.tools.draftLimit": "Speichergrenze für den Entwurf erreicht (128 Felder, 65.536 Zeichen je Wert oder JSON-Eingabe). Nur der begrenzte Entwurf kann wiederhergestellt werden."
+  "webmcp.tools.draftLimit": "Speichergrenze für den Entwurf erreicht (128 Felder, 65.536 Zeichen je Wert oder JSON-Eingabe). Nur der begrenzte Entwurf kann wiederhergestellt werden.",
+  "webmcp.tools.offListOption": "{value} \u2014 Wert au\u00dferhalb der Liste (nicht im Schema)",
+  "webmcp.tools.offListConfirm": "W\u00e4hlen Sie einen Listenwert oder best\u00e4tigen Sie das Senden des Werts au\u00dferhalb der Liste an die Seite.",
+  "webmcp.tools.sendOffList": "Senden des Werts au\u00dferhalb der Liste best\u00e4tigen",
+  "webmcp.tools.compare.receiptMissing": "Laufzeitbeleg nicht verf\u00fcgbar: {reason}",
+  "webmcp.tools.compare.missingDefinition": "Die Laufzeit hat keinen Definitionsdigest geliefert; dieser Aufruf kann daher keinem Schema zugeordnet werden.",
+  "webmcp.tools.compare.unmatchedDefinition": "Zum Definitionsdigest der Laufzeit ist keine Definition gespeichert; dieser Aufruf kann daher diesem Werkzeug nicht zugeordnet werden.",
+  "webmcp.tools.compare.missingInput": "Die Laufzeit hat keinen Eingabebeleg geliefert; die Anfrage des Agenten belegt nicht, was die Seite empfangen hat."
 }

@@ -61,6 +61,7 @@ describe("desktop_webmcp transcript rows", () => {
     expect(outcome(container)).toBe("failed")
     expect(container.textContent).toContain("search-flights")
     expect(container.textContent).toContain("chat.toolPart.webmcp.failed")
+    expect(container.textContent).toContain("page failed")
     expect(container.textContent).not.toContain("Desktop WebMCP")
     expect(container.textContent).not.toContain("Desktop webmcp")
   })
@@ -241,5 +242,21 @@ test("expanded transcript diagnoses a completed permission-only receipt and show
   expect(container.querySelector('[data-webmcp-rejection-property="/count"]')?.getAttribute("data-webmcp-rejection-rule")).toBe("type")
   expect(container.textContent).not.toContain("PRIVATE")
   useWebMcpApprovalReceipts.setState({ receipts: new Map() })
+  useWebMcpBrowserStore.getState().resetSnapshot()
+})
+
+test("collapsed failure shows the redacted reason and first retained diagnosis without expansion", () => {
+  const secret = "ghp_" + "z".repeat(36)
+  const definition = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { count: { type: "integer" } } } })
+  useWebMcpBrowserStore.getState().updateSnapshot({ sessionID: "ses_1", catalog: [definition] })
+  const { container } = renderPart("desktop_webmcp", {
+    status: "error", input: { action: "invoke", toolName: "echo" },
+    metadata: { operation: "invoke", definitionDigest: definition.definitionDigest, arguments: { count: "wrong" } },
+    error: `Count rejected ${secret}`,
+  })
+  expect(container.textContent).toContain("[redacted]")
+  expect(container.textContent).toContain("count · type:integer")
+  expect(container.querySelector('[data-webmcp-diagnosis]')).toBeNull()
+  expect(container.innerHTML).not.toContain(secret)
   useWebMcpBrowserStore.getState().resetSnapshot()
 })

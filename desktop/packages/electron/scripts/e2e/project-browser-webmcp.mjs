@@ -74,12 +74,23 @@ try {
         await act(() => audit.client.call("ax_desktop_click", { ref: header.ref }))
         await audit.wait(`Boolean(document.querySelector('#webmcp-mode-tab-agent'))`, "project browser pane")
         await act(() => audit.click("Project browser (WebMCP)", { role: "tab" }))
+        // Exercise the rendered recovery control if cold native initialization reaches its bounded deadline.
+        // Keep both the application's deadline and the W1 action budget; record every recovery action.
+        let startupRecoveries = 0
+        const ready = `Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim() === 'Go' && !b.disabled)`
+        const canReopen = `Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim().toLowerCase() === 'reopen browser')`
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await audit.wait(`(${ready}) || (${canReopen})`, "project browser ready or recovery offered")
+          if (await session.evaluate(ready)) break
+          if (attempt === 2) throw new Error("Native initialization failed after two rendered recovery attempts")
+          const reopen = (await audit.all()).controls.find(control => control.name.toLowerCase() === "reopen browser")
+          if (!reopen) throw new Error("Missing native browser recovery control")
+          await act(() => audit.click(reopen.name, { role: "button" }))
+          startupRecoveries++
+          await audit.wait(`(${ready}) || !(${canReopen})`, "native browser recovery started")
+        }
+        await audit.wait(ready, "project browser ready")
         await act(() => audit.fill("Project browser address", pageUrl))
-        // The native view starts asynchronously; Go stays disabled until it is ready.
-        await audit.wait(
-          `Array.from(document.querySelectorAll('button')).some(b => b.textContent.trim() === 'Go' && !b.disabled)`,
-          "project browser ready",
-        )
         await act(() => audit.click("Go", { role: "button" }))
         // W1: the page's tools are listed before any agent access is granted.
         await audit.wait(
@@ -232,7 +243,7 @@ try {
         return {
           name: "project-browser",
           ok: true,
-          detail: `W1 discovered ${names.length} page tools in ${w1Actions} actions; W2 ran add_task by hand (page error "${rejected.outcome}", then success "${added.outcome}") in ${w2Actions} actions; W5 idle takeover paused and resumed by keyboard with page/address/result retained; ${secondWindow}; ${w7}`,
+          detail: `W1 discovered ${names.length} page tools in ${w1Actions} actions (${startupRecoveries} rendered startup recoveries); W2 ran add_task by hand (page error "${rejected.outcome}", then success "${added.outcome}") in ${w2Actions} actions; W5 idle takeover paused and resumed by keyboard with page/address/result retained; ${secondWindow}; ${w7}`,
         }
       },
     ],

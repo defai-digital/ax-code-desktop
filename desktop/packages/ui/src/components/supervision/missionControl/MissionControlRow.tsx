@@ -1,5 +1,5 @@
 import { WebMcpSessionPage } from "@/components/mcp/WebMcpPages"
-import { viewKeyFor } from "@/lib/webMcpViewKey"
+import { viewKeyFor, webMcpPageNeedsYou } from "@/lib/webMcpViewKey"
 import { MissionControlPullRequest } from "./MissionControlPullRequest"
 import React from "react"
 
@@ -102,6 +102,11 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
       state.views[viewKeyFor(row.directory ?? "", row.sessionId)]?.enabled ??
       (state.order.length === 0 && state.sessionID === row.sessionId && state.enabled),
   )
+
+  const waitingPage = useWebMcpBrowserStore((state) => {
+    const page = state.views[viewKeyFor(row.directory ?? "", row.sessionId)]
+    return page?.browserId && webMcpPageNeedsYou(page) ? true : false
+  })
 
   const handleSelectClick = (event: React.MouseEvent<HTMLDivElement>) => {
     if ((event.metaKey || event.ctrlKey) && onOpenBeside) {
@@ -275,6 +280,10 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               </span>
             </span>
           ) : null}
+          {waitingPage ? <span data-webmcp-waiting-session={row.sessionId}
+            className="rounded border border-[var(--status-warning)]/50 px-1.5 py-0.5 typography-micro text-[var(--status-warning)]">
+            {t("webmcp.pages.waiting")}
+          </span> : null}
           {branch ? (
             <span className="mission-branch inline-flex min-w-0 items-center gap-1" title={branch}>
               <Icon name="git-branch" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />

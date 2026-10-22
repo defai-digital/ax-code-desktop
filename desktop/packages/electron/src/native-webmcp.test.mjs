@@ -55,7 +55,7 @@ describe("native WebMCP adapter", () => {
       return { frameTree: { frame: { id: "top" } } }
     })
     const adapter = new NativeWebMcp(contents)
-    await expect(adapter.start({ timeoutMs: 20 })).rejects.toThrow(/does not provide native WebMCP/)
+    await expect(adapter.start({ timeoutMs: 20 })).rejects.toThrow(`initialization timed out at ${stalled}`)
     const calls = contents.debugger.sendCommand.mock.calls.length
     complete({ frameTree: { frame: { id: "late" } } })
     await new Promise((resolve) => setImmediate(resolve))
@@ -75,7 +75,7 @@ describe("native WebMCP adapter", () => {
     contents.debugger.sendCommand = () => new Promise(() => {})
     const adapter = new NativeWebMcp(contents)
     const starting = adapter.start({ timeoutMs: 10000 })
-    const rejected = expect(starting).rejects.toThrow(/does not provide native WebMCP/)
+    const rejected = expect(starting).rejects.toThrow("initialization was interrupted at Page.enable")
     if (event === "close") adapter.close()
     else (event === "detach" ? contents.debugger : contents).emit(event)
     await rejected
@@ -772,4 +772,18 @@ test("closing a destroyed native guest retires calls and removes captured debugg
   expect(debuggerHandle.listenerCount("message")).toBe(0)
   expect(debuggerHandle.listenerCount("detach")).toBe(0)
   expect(f.contents.listenerCount("did-start-navigation")).toBe(0)
+})
+
+test.each(["Page.enable", "Page.getFrameTree", "WebMCP.enable"])("native initialization identifies failed %s without exposing debugger payloads", async (stage) => {
+  const contents = new EventEmitter()
+  contents.debugger = new EventEmitter()
+  contents.debugger.attach = vi.fn()
+  contents.debugger.isAttached = () => true
+  contents.debugger.detach = vi.fn()
+  contents.debugger.sendCommand = async (method) => {
+    if (method === stage) throw new Error("PRIVATE_DEBUGGER_PAYLOAD")
+    return { frameTree: { frame: { id: "top" } } }
+  }
+  const adapter = new NativeWebMcp(contents)
+  await expect(adapter.start()).rejects.toEqual(new Error(`The bundled browser does not provide native WebMCP: Native WebMCP initialization failed at ${stage}`))
 })

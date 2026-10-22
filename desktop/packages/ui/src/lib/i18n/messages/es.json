@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Algunas llamadas grabadas tienen asociaciones de herramientas desconocidas. Una llamada a esta herramienta puede estar entre ellas.",
   "webmcp.tools.diagnosis.definitionUnavailable": "La definición ya no está disponible; no se utilizó el esquema actual.",
   "webmcp.tools.diagnosis.runtimeRejection": "Rechazo del entorno de ejecución: {reason}",
-  "webmcp.tools.draftLimit": "Se alcanzó el límite de retención del borrador (128 campos, 65.536 caracteres por valor o entrada JSON). Solo se puede restaurar el borrador dentro del límite."
+  "webmcp.tools.draftLimit": "Se alcanzó el límite de retención del borrador (128 campos, 65.536 caracteres por valor o entrada JSON). Solo se puede restaurar el borrador dentro del límite.",
+  "webmcp.tools.offListOption": "{value} \u2014 valor fuera de la lista (no est\u00e1 en el esquema)",
+  "webmcp.tools.offListConfirm": "Elige un valor de la lista o confirma el env\u00edo del valor fuera de la lista a la p\u00e1gina.",
+  "webmcp.tools.sendOffList": "Confirmar env\u00edo del valor fuera de la lista",
+  "webmcp.tools.compare.receiptMissing": "Recibo de ejecuci\u00f3n no disponible: {reason}",
+  "webmcp.tools.compare.missingDefinition": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un resumen de la definici\u00f3n, por lo que esta llamada no puede asociarse a un esquema.",
+  "webmcp.tools.compare.unmatchedDefinition": "El resumen de la definici\u00f3n del entorno de ejecuci\u00f3n no tiene una definici\u00f3n conservada, por lo que esta llamada no puede asociarse a esta herramienta.",
+  "webmcp.tools.compare.missingInput": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un recibo de entrada; la solicitud del agente no demuestra lo que recibi\u00f3 la p\u00e1gina."
 }

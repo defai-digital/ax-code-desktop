@@ -5406,5 +5406,12 @@
   "webmcp.tools.compare.unknownAgent": "Beberapa panggilan yang direkam memiliki asosiasi alat yang tidak diketahui. Panggilan ke alat ini mungkin salah satunya.",
   "webmcp.tools.diagnosis.definitionUnavailable": "Definisi tidak lagi tersedia; skema saat ini tidak digunakan.",
   "webmcp.tools.diagnosis.runtimeRejection": "Penolakan runtime: {reason}",
-  "webmcp.tools.draftLimit": "Batas penyimpanan draf tercapai (128 bidang, 65.536 karakter per nilai atau masukan JSON). Hanya draf dalam batas tersebut yang dapat dipulihkan."
+  "webmcp.tools.draftLimit": "Batas penyimpanan draf tercapai (128 bidang, 65.536 karakter per nilai atau masukan JSON). Hanya draf dalam batas tersebut yang dapat dipulihkan.",
+  "webmcp.tools.offListOption": "{value} \u2014 nilai di luar daftar (tidak ada dalam skema)",
+  "webmcp.tools.offListConfirm": "Pilih nilai dalam daftar, atau konfirmasikan pengiriman nilai di luar daftar ke halaman.",
+  "webmcp.tools.sendOffList": "Konfirmasi pengiriman nilai di luar daftar",
+  "webmcp.tools.compare.receiptMissing": "Bukti runtime tidak tersedia: {reason}",
+  "webmcp.tools.compare.missingDefinition": "Runtime tidak memberikan digest definisi, sehingga panggilan ini tidak dapat dikaitkan dengan skema.",
+  "webmcp.tools.compare.unmatchedDefinition": "Digest definisi runtime tidak memiliki definisi yang tersimpan, sehingga panggilan ini tidak dapat dikaitkan dengan alat ini.",
+  "webmcp.tools.compare.missingInput": "Runtime tidak memberikan bukti input; permintaan agen bukan bukti tentang apa yang diterima halaman."
 }

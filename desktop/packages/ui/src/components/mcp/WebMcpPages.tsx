@@ -6,15 +6,16 @@ import { getDesktopBridge } from "@/lib/desktopBridge"
 import { useWebMcpCloseConfirmation } from "@/hooks/useWebMcpCloseConfirmation"
 import { pageAccess, showWebMcpPage, useWebMcpPages } from "@/hooks/useWebMcpPages"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
-import { viewKeyFor } from "@/lib/webMcpViewKey"
+import { viewKeyFor, webMcpPageNeedsYou } from "@/lib/webMcpViewKey"
 
 const buttonClass =
   "rounded border border-border px-2 py-1 typography-micro hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
 
-export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: string; onRetry: () => void }) {
+export function WebMcpPageSwitcher({ selectedKey, onRetry, compact = false }: { selectedKey: string; onRetry: () => void; compact?: boolean }) {
   const { t } = useI18n()
   const { invoke, confirmDialog } = useWebMcpCloseConfirmation()
-  const pages = useWebMcpPages()
+  const allPages = useWebMcpPages()
+  const pages = compact ? allPages.filter((page) => page.key === selectedKey) : allPages
   const capacity = useWebMcpBrowserStore((state) => state.capacity)
   const [pending, setPending] = React.useState<string | null>(null)
   const [cancellations, setCancellations] = React.useState<Record<string, WebMcpCancellation[]>>({})
@@ -65,20 +66,21 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
     .map(
       (page) => `${page.title} · ${page.sessionID} · ${page.project}: ${t(`webmcp.pages.access.${pageAccess(page)}`)}`,
     )
+  if (compact && !pages.length) return null
   return (
     <>
       {confirmDialog}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-webmcp-pages-status>
         {[poolMessage, ...announcements].filter(Boolean).join(". ")}
       </div>
-      <details ref={disclosure} className="shrink-0 border-b border-border p-2 typography-meta" data-webmcp-pages>
-        <summary className="cursor-pointer focus-visible:outline-none focus-visible:ring-2">
-          {t("webmcp.pages.title", { count: pages.length })}
+      <details ref={disclosure} className={compact ? "min-w-0 max-w-full rounded border border-border px-1.5 py-0.5 typography-micro" : "shrink-0 border-b border-border p-2 typography-meta"} data-webmcp-pages data-webmcp-pages-compact={compact || undefined} data-webmcp-session-page={compact ? pages[0]?.sessionID : undefined}>
+        <summary className="cursor-pointer break-all focus-visible:outline-none focus-visible:ring-2">
+          {compact ? `${pages[0].origin || t("webmcp.pages.blank")} · ${t(`webmcp.pages.access.${pageAccess(pages[0])}`)}` : t("webmcp.pages.title", { count: pages.length })}
           {full ? ` · ${t("webmcp.pages.fullLabel")}` : ""}
-          {pages.some((page) => page.waiting) ? ` · ${t("webmcp.pages.waiting")}` : ""}
+          {!compact && pages.some((page) => page.waiting) ? ` · ${t("webmcp.pages.waiting")}` : ""}
         </summary>
-        {full && <p className="py-1">{poolMessage}</p>}
-        {full &&
+        {!compact && full && <p className="py-1">{poolMessage}</p>}
+        {!compact && full &&
           otherWindows.map((owner, index) => (
             <button
               key={owner.id}
@@ -108,20 +110,23 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
                 key={page.key}
                 data-webmcp-page={page.key}
                 data-webmcp-session={page.sessionID}
-                className="flex flex-wrap items-center gap-2"
+                className={compact ? "min-w-0" : "flex flex-wrap items-center gap-2"}
               >
                 <button
                   type="button"
-                  className={`${buttonClass} min-w-0 flex-1 text-left break-all`}
+                  className={`${buttonClass} min-w-0 ${compact ? "w-full" : "flex-1"} text-left break-all`}
                   aria-current={selectedKey === page.key ? "page" : undefined}
                   aria-label={`${t("webmcp.pages.showNamed", { page: accessibleIdentity })} · ${t(`webmcp.pages.access.${pageAccess(page)}`)}${page.unloaded ? ` · ${t("webmcp.pages.unloaded")}` : ""}`}
-                  onClick={() => showWebMcpPage(page)}
+                  onClick={() => {
+                    showWebMcpPage(page, { keepGrid: compact })
+                    if (compact && disclosure.current) disclosure.current.open = false
+                  }}
                 >
-                  {identity} · {t(`webmcp.pages.access.${pageAccess(page)}`)}
+                  {compact ? t("webmcp.pages.show") : identity} · {t(`webmcp.pages.access.${pageAccess(page)}`)}
                   {page.unloaded ? ` · ${t("webmcp.pages.unloaded")}` : ""}
                 </button>
-                {page.waiting && <span className="text-[var(--status-warning)]">{t("webmcp.pages.waiting")}</span>}
-                {page.sessionID && (
+                {!compact && page.waiting && <span className="text-[var(--status-warning)]">{t("webmcp.pages.waiting")}</span>}
+                {!compact && page.sessionID && (
                   <button
                     type="button"
                     className={buttonClass}
@@ -132,7 +137,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: stri
                     {t("webmcp.pages.revoke")}
                   </button>
                 )}
-                {page.idle && !page.visible && selectedKey !== page.key && (
+                {!compact && page.idle && !page.visible && selectedKey !== page.key && (
                   <button
                     type="button"
                     className={buttonClass}
@@ -197,7 +202,7 @@ export function WebMcpSessionPage({ directory, sessionID }: { directory: string 
 
 export function WebMcpWaitingPages() {
   const { t } = useI18n()
-  const pages = useWebMcpPages().filter((page) => page.waiting && !page.visible)
+  const pages = useWebMcpPages().filter(webMcpPageNeedsYou)
   if (!pages.length) return null
   return (
     <section aria-label={t("webmcp.pages.waiting")} className="space-y-2 p-2" data-webmcp-waiting>

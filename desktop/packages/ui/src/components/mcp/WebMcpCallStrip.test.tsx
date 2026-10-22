@@ -182,3 +182,22 @@ test("call strip uses the main label for a credential-shaped runtime call", asyn
   expect(container.querySelector("[data-webmcp-call='ok']")?.textContent).toContain("[redacted tool 2]")
   expect(container.innerHTML).not.toMatch(/ghp_/)
 })
+
+test("failed strip calls show the same short redacted reason and first diagnosis property/rule", async () => {
+  const { nativeWebMcpTool } = await import("@/test/webMcpCatalog")
+  const definition = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object", properties: { count: { type: "integer" } } } })
+  const secret = "ghp_" + "x".repeat(36)
+  useWebMcpBrowserStore.getState().selectView("/repo", "s1")
+  useWebMcpBrowserStore.getState().updateSnapshot({ catalog: [definition] })
+  sync.messages = [{ id: "m1" }]
+  sync.parts = new Map([["m1", [call("bad", "gen-1", {
+    status: "completed",
+    metadata: { operation: "invoke", definitionDigest: definition.definitionDigest, arguments: { count: "wrong" } },
+    output: JSON.stringify({ untrusted: true, result: { isError: true, errorText: `Count rejected ${secret}` } }),
+  })]]])
+  const { container } = render(<WebMcpCallStrip sessionID="s1" directory="/repo" />)
+  const summary = container.querySelector("[data-webmcp-call-failure]")!
+  expect(summary.textContent).toContain("[redacted]")
+  expect(summary.textContent).toContain("count · type:integer")
+  expect(container.innerHTML).not.toContain(secret)
+})

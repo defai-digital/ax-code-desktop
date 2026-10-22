@@ -1119,9 +1119,9 @@ function createDesktopWebMcpBrowser({
       await entry.adapter.start({ timeoutMs: attachTimeoutMs })
       owner.contentView.removeChildView(view)
       entry.ready = true
-    } catch {
+    } catch (error) {
       await close(entry)
-      throw new Error("The native browser could not load this page")
+      throw new Error(`Native browser initialization failed: ${webMcpDisplayText(error instanceof Error ? error.message : "Unknown initialization failure")}`)
     } finally {
       initializing.delete(sender.id)
       const selected = views.get(shown.get(sender.id))

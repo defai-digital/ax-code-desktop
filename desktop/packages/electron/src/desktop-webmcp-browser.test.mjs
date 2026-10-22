@@ -1975,7 +1975,7 @@ test("closing the pool aborts an unfinished first load and drains its create and
     const f = fixture({ loadTimeoutMs: 30000 })
     f.hangLoads(true)
     const creating = f.create({ attach: false })
-    const rejected = expect(creating).rejects.toThrow("could not load")
+    const rejected = expect(creating).rejects.toThrow("Native browser initialization failed: Browser closed during loading")
     await vi.waitFor(() => expect(f.guests).toHaveLength(1))
     await f.controller.closeAll()
     await rejected
@@ -2703,7 +2703,7 @@ test("a failed first create does not retain ownership of another window's profil
   const first = await f.create()
   const start = vi.spyOn(NativeWebMcp.prototype, "start").mockRejectedValueOnce(new Error("fixture setup failure"))
   try {
-    await expect(f.create()).rejects.toThrow("could not load")
+    await expect(f.create()).rejects.toThrow("Native browser initialization failed: fixture setup failure")
     expect(f.owners.size).toBe(2)
     await expect(f.controller.command(first.sender, { action: "clearProject", directory: "/tmp/project" }))
       .resolves.toEqual({ cleared: true })
@@ -2722,7 +2722,7 @@ test("a failed later create preserves a window's earlier profile ownership", asy
   try {
     await expect(f.controller.command(first.sender, {
       action: "create", directory: "/tmp/project", sessionID: "ses_retry", url: "https://example.com",
-    })).rejects.toThrow("could not load")
+    })).rejects.toThrow("Native browser initialization failed: fixture setup failure")
     await expect(f.controller.command(second.sender, { action: "clearProject", directory: "/tmp/project" }))
       .rejects.toThrow("another window")
   } finally {
@@ -3172,7 +3172,7 @@ test("assigning a placeholder ordinal never scans retained identity values", () 
 
 test("stalled native initialization releases queued page creation and shutdown", async () => {
   const f = fixture({ stalledInitialization: true, attachTimeoutMs: 20 })
-  const failed = expect(f.create({ attach: false })).rejects.toThrow(/could not load/)
+  const failed = expect(f.create({ attach: false })).rejects.toThrow(/Native WebMCP initialization timed out at Page.enable/)
   const next = f.create({ attach: false })
   await failed
   const { status } = await next

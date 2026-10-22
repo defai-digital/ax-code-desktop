@@ -34,12 +34,15 @@ export function useWebMcpPages() {
 }
 
 /** Showing is navigation only. It never requests enrollment, including after an unload. */
-export function showWebMcpPage(view: Pick<WebMcpViewSnapshot, "directory" | "sessionID">) {
+export function showWebMcpPage(view: Pick<WebMcpViewSnapshot, "directory" | "sessionID">, options?: { keepGrid?: boolean }) {
   if (!view.directory) return
   const project = useProjectsStore
     .getState()
     .projects.find((project) => projectKeyFor(project.path) === projectKeyFor(view.directory!))
-  if (view.sessionID)
+  if (view.sessionID && options?.keepGrid) {
+    if (project) useProjectsStore.getState().setActiveProject(project.id)
+    useSessionUIStore.getState().setCurrentSession(view.sessionID, view.directory)
+  } else if (view.sessionID)
     openSupervisedSession({ sessionId: view.sessionID, directory: view.directory, projectId: project?.id })
   else {
     if (project) useProjectsStore.getState().setActiveProject(project.id)

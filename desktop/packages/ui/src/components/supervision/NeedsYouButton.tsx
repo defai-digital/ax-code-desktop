@@ -1,5 +1,5 @@
 import React from "react"
-import { countSessionsWithWaitingPages } from "@/lib/webMcpViewKey"
+import { countSessionsWithWaitingPages, webMcpPageNeedsYou } from "@/lib/webMcpViewKey"
 import { useWebMcpPages } from "@/hooks/useWebMcpPages"
 
 import { Icon } from "@/components/icon/Icon"
@@ -24,7 +24,7 @@ export const NeedsYouButton: React.FC = () => {
   const rows = useSupervisionRows()
   const open = useSupervisionStore((state) => state.needsYouPopoverOpen)
   const setOpen = useSupervisionStore((state) => state.setNeedsYouPopoverOpen)
-  const waiting = useWebMcpPages().filter((page) => page.waiting && !page.visible)
+  const waiting = useWebMcpPages().filter(webMcpPageNeedsYou)
   const count = countSessionsWithWaitingPages(
     rows.filter((row) => needsHuman(row.state)),
     waiting,

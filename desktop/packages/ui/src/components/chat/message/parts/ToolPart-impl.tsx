@@ -3,6 +3,7 @@ import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { webMcpKnownDefinitions } from "@/lib/webMcpCatalog"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { collectWebMcpCalls } from "@/lib/webMcpCalls"
+import { webMcpFailureSummary } from "@/lib/webMcpFailureSummary"
 import { WebMcpCallDiagnosis } from "@/components/mcp/WebMcpCallDiagnosis"
 import { useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
@@ -1005,7 +1006,7 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
 
 ToolExpandedContent.displayName = "ToolExpandedContent"
 
-const ToolPartContent: React.FC<ToolPartProps> = ({
+const ToolPartContent: React.FC<ToolPartProps & { failureSummary?: string | null }> = ({
   part,
   isExpanded,
   onToggle,
@@ -1015,6 +1016,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
   onContentChange,
   onShowPopup,
   animateTailText = true,
+  failureSummary,
 }) => {
   const { t } = useI18n()
   const state = part.state
@@ -1682,7 +1684,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
       if (approvalOutcome === "unanswered") return t("chat.permissionCard.webmcp.unanswered")
       if (webmcpOutcome === "timeout" || webmcpOutcome === "cancelled")
         return t(`chat.toolPart.webmcp.reason.${webmcpOutcome}`)
-      return isError ? t("chat.toolPart.webmcp.failed") : null
+      return isError ? [t("chat.toolPart.webmcp.failed"), failureSummary].filter(Boolean).join(" · ") : null
     }
     if (normalizedPartTool === "bash") {
       return null
@@ -1708,7 +1710,7 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
       return inputDesc
     }
     return null
-  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp, webmcpOutcome, approvalOutcome])
+  }, [descriptionPath, isError, normalizedPartTool, stateWithData, input, t, webmcp, webmcpOutcome, approvalOutcome, failureSummary])
 
   const runtime = React.useContext(RuntimeAPIContext)
 
@@ -1881,7 +1883,8 @@ const ToolPartContent: React.FC<ToolPartProps> = ({
             <div className="flex items-center gap-1 flex-1 min-w-0">
               {justificationText && (
                 <span
-                  className={cn("min-w-0 truncate", TOOL_ROW_DESCRIPTION_CLASS)}
+                  data-webmcp-failure-summary={webmcp && isError && failureSummary ? "" : undefined}
+                  className={cn("min-w-0", webmcp && isError && failureSummary ? "whitespace-normal break-words" : "truncate", TOOL_ROW_DESCRIPTION_CLASS)}
                   style={{ color: "var(--tools-description)", opacity: 0.8 }}
                   title={justificationText}
                 >
@@ -2049,6 +2052,7 @@ const ToolPart: React.FC<ToolPartProps> = (props) => {
     (state.order.length === 0 && state.sessionID === sessionID ? state : null)) : null)
   const definitions = webMcpKnownDefinitions(view)
   const call = isWebMcpToolName(toolName) ? collectWebMcpCalls([{ id: "part" }], () => [part], 1, 1, definitions)[0] : undefined
+  const failureSummary = webMcpFailureSummary(call, definitions, t)
   const boundaryState = part.state as
     | { input?: Record<string, unknown>; metadata?: Record<string, unknown> }
     | undefined
@@ -2064,7 +2068,7 @@ const ToolPart: React.FC<ToolPartProps> = (props) => {
       resetKey={props.part}
       toolName={toolName}
     >
-      <ToolPartContent {...props} part={part} />
+      <ToolPartContent {...props} part={part} failureSummary={failureSummary} />
       {props.isExpanded && call ? <WebMcpCallDiagnosis call={call} definitions={definitions} /> : null}
     </ToolPartErrorBoundary>
   )

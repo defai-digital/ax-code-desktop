@@ -84,6 +84,7 @@ export const MainLayout: React.FC = () => {
   const setSidebarOpen = useUIStore((state) => state.setSidebarOpen)
   const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
   const setBottomTerminalOpen = useUIStore((state) => state.setBottomTerminalOpen)
+  const gridBrowserOpen = useUIStore((state) => state.browserPanel.isOpen && state.browserPanel.focused)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
@@ -530,8 +531,8 @@ export const MainLayout: React.FC = () => {
                             </div>
                           )}
                         </main>
-                        {/* Hidden, not unmounted, under the grid: beside sessions, terminals and unsaved edits survive. */}
-                        <div className={isGridActive ? "hidden" : "contents"}>
+                        {/* Keep the context panel mounted under the grid; a pane can reveal its page without leaving the grid. */}
+                        <div className={isGridActive && !gridBrowserOpen ? "hidden" : "contents"}>
                           <ContextPanel />
                         </div>
                       </div>
