@@ -374,3 +374,4 @@ and CI is green on macOS, Windows and Ubuntu with W1 to W8; glm-5.3 and deepseek
 variants (`AUDIT-2026-10-22-p1-codex-round27.md`: diagnostic echoes under non-value keys, cancelled window closure leaving a page
 and its controls bound to different sessions, and recognizable credentials in primitive inputs under ordinary names); codex has
 reported new variants at every pass since round 15.
+| 28 | `e36aad55` | green | 13 of 13 (MiniMax A4, A5, A6 at 7; all others 8 or more) | +0.31 / +0.26 / +0.30 / +0.36 | 2 / none / none |

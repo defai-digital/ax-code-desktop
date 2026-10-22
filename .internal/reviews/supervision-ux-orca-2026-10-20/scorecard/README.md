@@ -441,3 +441,4 @@ All four rate AX better than Orca and opencode; MiniMax's margin falls just belo
 | 27 | `1442693e` | +0.31 | +0.26 | +0.27 | +0.36 (AX 9.33, Orca 8.97) |
 
 All four judges rate AX better than opencode by about +2.2 in every round. At `1442693e` all four exceed the 0.2 Orca margin.
+| 28 | `e36aad55` | +0.31 | +0.26 | +0.30 | +0.36 (AX 9.33, Orca 8.97) |
