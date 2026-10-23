@@ -94,3 +94,20 @@ test("a later manual agent switch does not rewrite the previous agent's model me
   expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")).toEqual(priorPlan)
   expect(useConfigStore.getState().currentAgentName).toBe("build")
 })
+
+test("a manual agent switch restores that agent's model without stamping the prior session pick over it", async () => {
+  useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "picked")
+  useSelectionStore.getState().saveAgentModelForSession("session-imported", "build", "test", "routed")
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  await act(async () => {
+    useSelectionStore.getState().saveSessionAgentSelection("session-imported", "build")
+    useConfigStore.getState().setAgent("build")
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  })
+  expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "build")?.modelId).toBe("routed")
+  expect(useConfigStore.getState().currentModelId).toBe("routed")
+})

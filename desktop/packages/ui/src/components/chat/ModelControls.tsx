@@ -501,6 +501,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   // with the render's old agent, then again after the store update.
   const keptModelAgentRef = React.useRef<string | null>(null)
   const latestLoadedUserChoiceRestoreRef = React.useRef<string | null>(null)
+  const routedSessionModelRestoreRef = React.useRef<string | null>(null)
   // Newest user message seen in this session view. A rollback must not restore
   // an older message's model over the one the user just picked.
   const latestObservedUserRef = React.useRef<{ sessionId: string | null; messageId: string }>({
@@ -676,6 +677,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     }
 
     if (latestObservedUserRef.current.sessionId !== currentSessionId) {
+      routedSessionModelRestoreRef.current = null
       latestObservedUserRef.current = { sessionId: currentSessionId, messageId: "" }
       latestLoadedUserChoiceRestoreRef.current = null
     }
@@ -761,6 +763,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   React.useEffect(() => {
     if (!currentSessionId) {
       latestLoadedUserChoiceRestoreRef.current = null
+      routedSessionModelRestoreRef.current = null
       return
     }
 
@@ -775,11 +778,15 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     if (isServerChosenModelOrigin(latestLoadedUserChoice?.modelOrigin)) {
       const savedSessionModel = getSessionModelSelection(currentSessionId)
       if (savedSessionModel) {
-        tryApplyModelSelection(
-          savedSessionModel.providerId,
-          savedSessionModel.modelId,
-          useSelectionStore.getState().getSessionAgentSelection(currentSessionId) || currentAgentName || undefined,
-        )
+        const restoreKey = JSON.stringify([
+          currentSessionId, latestLoadedUserChoice?.id, savedSessionModel.providerId, savedSessionModel.modelId,
+        ])
+        // Restore a session pick once, without assigning it to an agent. Replaying it during a manual
+        // agent switch would overwrite that agent's own memory before the switch effect can read it.
+        if (routedSessionModelRestoreRef.current !== restoreKey) {
+          const result = tryApplyModelSelection(savedSessionModel.providerId, savedSessionModel.modelId)
+          if (result === "applied") routedSessionModelRestoreRef.current = restoreKey
+        }
       }
       // A routed turn must not replay a different agent's old pin when no session pick exists.
       return
