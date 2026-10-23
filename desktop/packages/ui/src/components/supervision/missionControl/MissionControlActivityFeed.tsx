@@ -4,6 +4,7 @@ import { useI18n } from "@/lib/i18n"
 import { isUnreadActivity, type ActivityFeedEvent } from "@/lib/supervision/activityFeed"
 import { sinceYouLeftRelativeParts } from "@/lib/supervision/sinceYouLeft"
 import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { useNow } from "@/hooks/useNow"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
 
 export interface MissionControlActivityFeedProps {
@@ -20,7 +21,8 @@ export const MissionControlActivityFeed = React.memo(function MissionControlActi
   const seenAt = useActivityFeedStore((state) => state.seenAt)
   const sessionSeenAt = useActivityFeedStore((state) => state.sessionSeenAt)
   const markAllSeen = useActivityFeedStore((state) => state.markAllSeen)
-  const now = Date.now()
+  // The feed is memoized, so its "since you left" labels need their own reactive clock.
+  const now = useNow()
 
   const handleMarkAllRead = () => {
     markAllSeen(Date.now())

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { MultiRunFusionDialog } from "@/components/multirun/MultiRunFusionDialog"
 import { RequestActionCard } from "@/components/supervision/RequestActionCard"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
+import { useNow } from "@/hooks/useNow"
 import { useI18n } from "@/lib/i18n"
 import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
@@ -15,9 +16,9 @@ import { SupervisionStateBadge } from "./SupervisionStateBadge"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useAllLiveSessions, useAllPendingRequests } from "@/sync/sync-context"
 
-const formatAge = (updatedAt: number, t: ReturnType<typeof useI18n>["t"]): string | null => {
+const formatAge = (updatedAt: number, t: ReturnType<typeof useI18n>["t"], now: number): string | null => {
   if (!updatedAt) return null
-  const elapsed = Math.max(0, Date.now() - updatedAt)
+  const elapsed = Math.max(0, now - updatedAt)
   if (elapsed < 60_000) return t("notificationCenter.time.justNow")
   const minutes = Math.floor(elapsed / 60_000)
   if (minutes < 60) return t("notificationCenter.time.minutesAgo", { count: minutes })
@@ -129,7 +130,9 @@ const LaneCard: React.FC<{
   onReview: () => void
 }> = ({ lane, requests, onOpen, onReview }) => {
   const { t } = useI18n()
-  const age = formatAge(lane.updatedAt, t)
+  // Relative age follows the shared clock so it cannot be memoized at mount.
+  const now = useNow()
+  const age = formatAge(lane.updatedAt, t, now)
   const evidence = lane.evidence
     ? `+${lane.evidence.additions} −${lane.evidence.deletions} · ${t("supervision.compare.files", { count: lane.evidence.files })}`
     : null

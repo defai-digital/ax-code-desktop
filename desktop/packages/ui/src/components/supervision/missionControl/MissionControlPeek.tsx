@@ -3,6 +3,7 @@ import React from "react"
 
 import { Button } from "@/components/ui/button"
 import type { SupervisionRow } from "@/hooks/useSupervisionRows"
+import { useNow } from "@/hooks/useNow"
 import { formatPathForDisplay } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
@@ -52,6 +53,8 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
   onCancelCreateSet,
 }) => {
   const { t } = useI18n()
+  // Child ages are relative to the shared clock, so they keep advancing while peeked.
+  const now = useNow()
   const updated = useSupervisionStore((state) => updatedSinceViewed(row, state.lastViewedAt))
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const recentRuns = recentHookRuns(useSessionHookRuns(row.sessionId))
@@ -119,7 +122,7 @@ export const MissionControlPeek: React.FC<MissionControlPeekProps> = ({
                 <SupervisionStateBadge state={child.state} />
                 {child.updatedAt ? (
                   <span className="typography-micro text-muted-foreground">
-                    {formatRelativeAge(Date.now() - child.updatedAt, t)}
+                    {formatRelativeAge(now - child.updatedAt, t)}
                   </span>
                 ) : null}
               </li>

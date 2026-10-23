@@ -27,11 +27,11 @@ vi.mock("@/stores/useMcpStore", () => ({ useMcpStore: (selector: (state: typeof 
 vi.mock("@/hooks/useWebMcpBrowser", () => ({ useWebMcpSummary: () => ({ tone: "idle", detail: "Fixture browser" }) }))
 vi.mock("@/components/mcp/WebMcpBrowserTools", () => ({ WebMcpStatusDot: () => null }))
 vi.mock("@/components/sections/shared/SettingsProjectSelector", () => ({ SettingsProjectSelector: () => null }))
-vi.mock("@/lib/device", () => ({ isMobileDeviceViaCSS: () => false }))
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string, params?: { name?: string }) => params?.name ? `${key}:${params.name}` : key }) }))
 vi.mock("@/components/ui", () => ({ toast: { success: vi.fn(), error: vi.fn(), warning: vi.fn() } }))
 vi.mock("@/components/ui/ScrollableOverlay", () => ({ ScrollableOverlay: ({ children }: React.PropsWithChildren) => <div>{children}</div> }))
 import { McpSidebar } from "./McpSidebar"
+import { useUIStore } from "@/stores/useUIStore"
 
 let container: HTMLDivElement
 let root: Root
@@ -39,6 +39,7 @@ let finishDelete: (value: { ok: boolean }) => void
 beforeEach(async () => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.clearAllMocks()
+  useUIStore.setState({ isMobile: false })
   fixtures.remove.mockImplementation(() => new Promise(resolve => { finishDelete = resolve }))
   directory.setState({ currentDirectory: "/alpha", projectPath: null })
   configs.setState({ mcpServers: [server("https://alpha.invalid")], loadedDirectory: "/alpha", isLoading: false })
@@ -136,4 +137,27 @@ test("a worktree session deletes against the active project's inventory", async 
   await act(async () => confirm().click())
   expect(fixtures.remove).toHaveBeenCalledWith("review", "/alpha", 0)
   await act(async () => finishDelete({ ok: true }))
+})
+
+const serverRow = () =>
+  Array.from(container.querySelectorAll("span"))
+    .find(element => element.textContent === "review")!
+    .closest("div.group")!
+const deleteMenuItem = () =>
+  Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(element =>
+    element.textContent?.includes("settings.common.actions.delete"),
+  )
+
+test("a server row's context menu follows the store's mobile flag, not the mount-time breakpoint", async () => {
+  await act(async () => useUIStore.setState({ isMobile: true }))
+  await act(async () => {
+    serverRow().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))
+  })
+  expect(deleteMenuItem()).toBeUndefined()
+
+  await act(async () => useUIStore.setState({ isMobile: false }))
+  await act(async () => {
+    serverRow().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, cancelable: true }))
+  })
+  expect(deleteMenuItem()).toBeDefined()
 })

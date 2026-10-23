@@ -2,6 +2,7 @@ import type { I18nKey } from "@/lib/i18n"
 import { useI18n } from "@/lib/i18n"
 import type { SessionGoalSnapshot } from "@/lib/supervision/goal"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { useNow } from "@/hooks/useNow"
 import type { VerificationEvidence, VerificationEvidenceState } from "@/lib/supervision/verificationEvidence"
 import { cn } from "@/lib/utils"
 
@@ -81,6 +82,8 @@ export function GoalBudgetLeft({ goal }: { goal: SessionGoalSnapshot | null | un
 
 export function ChecksDetail({ checks }: { checks: VerificationEvidence }) {
   const { t, number } = useI18n()
+  // Relative label: derive from the shared clock so React Compiler keeps it live.
+  const now = useNow()
   return (
     <dl
       data-checks-detail
@@ -98,7 +101,7 @@ export function ChecksDetail({ checks }: { checks: VerificationEvidence }) {
       {checks.updatedAt !== undefined ? (
         <>
           <dt>{t("supervision.missionControl.peek.checksUpdated")}</dt>
-          <dd>{formatRelativeAge(Date.now() - checks.updatedAt, t)}</dd>
+          <dd>{formatRelativeAge(now - checks.updatedAt, t)}</dd>
         </>
       ) : null}
     </dl>

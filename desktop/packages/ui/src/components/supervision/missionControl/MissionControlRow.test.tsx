@@ -484,6 +484,38 @@ describe("Mission Control stale preview", () => {
     expect(onOpen).not.toHaveBeenCalled()
   })
 
+  test("the age label recomputes when the shared clock ticks", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date("2026-10-23T12:00:00.000Z"))
+    try {
+      const { container } = renderDom(
+        <MissionControlRow
+          row={{ ...row, updatedAt: Date.now() - 61 * 60_000 }}
+          selected={false}
+          bulkSelected={false}
+          onToggleSelection={vi.fn()}
+          expanded={false}
+          activeWorkingSetId={null}
+          primaryLabel="Review changes"
+          onToggleDetails={vi.fn()}
+          onSelect={vi.fn()}
+          onOpen={vi.fn()}
+          onPrimary={vi.fn()}
+          onRemoveFromSet={vi.fn()}
+        />,
+      )
+      expect(container.querySelector(".mission-age")?.textContent).toBe("notificationCenter.time.hoursAgo:1")
+
+      act(() => {
+        vi.setSystemTime(new Date("2026-10-23T14:01:00.000Z"))
+        vi.advanceTimersByTime(30_000)
+      })
+      expect(container.querySelector(".mission-age")?.textContent).toBe("notificationCenter.time.hoursAgo:3")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("a fresh preview offers no Retry", () => {
     const { container } = renderDom(
       <MissionControlRow

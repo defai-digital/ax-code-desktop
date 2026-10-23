@@ -2,7 +2,6 @@ import React from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui"
-import { isMobileDeviceViaCSS } from "@/lib/device"
 import {
   Dialog,
   DialogContent,
@@ -15,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useCommandsStore, isCommandBuiltIn, type Command } from "@/stores/useCommandsStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useUIStore } from "@/stores/useUIStore"
 import { useShallow } from "zustand/react/shallow"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { cn } from "@/lib/utils"
@@ -429,7 +429,9 @@ const CommandListItem: React.FC<CommandListItemProps> = ({
   onMenuOpenChange,
 }) => {
   const { t } = useI18n()
-  const isMobile = isMobileDeviceViaCSS()
+  // Reactive, not the --is-mobile CSS variable: React Compiler caches a bare CSS read
+  // with no dependencies, which froze long-press behavior at the mount-time breakpoint.
+  const isMobile = useUIStore((state) => state.isMobile)
   return (
     <div
       className={cn(

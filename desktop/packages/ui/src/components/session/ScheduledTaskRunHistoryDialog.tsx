@@ -4,6 +4,7 @@ import { Icon } from "@/components/icon/Icon"
 import { useI18n, type I18nKey } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { fetchScheduledTaskRuns, type ScheduledTaskRun } from "@/lib/scheduledTasksApi"
+import { useNow } from "@/hooks/useNow"
 import { formatRunMoment } from "./scheduledTaskFormat"
 import {
   SCHEDULED_TASK_RUN_HISTORY_LIMIT,
@@ -97,7 +98,8 @@ export function ScheduledTaskRunHistoryDialog({ target, onOpenChange }: Props): 
     }
   }, [target, reloadToken, t])
 
-  const now = Date.now()
+  // Run moments ("today" vs a date) must follow a reactive clock, not a memoized mount read.
+  const now = useNow()
   const runs = state.kind === "loaded" ? state.runs : []
   const summary = summarizeScheduledTaskRuns(runs)
   // Oldest to newest, so the strip reads left to right like a timeline.

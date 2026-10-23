@@ -11,8 +11,8 @@ import {
 import { useMcpConfigStore, type McpDraft, type McpServerConfig } from "@/stores/useMcpConfigStore"
 import { useShallow } from "zustand/react/shallow"
 import { useMcpStore } from "@/stores/useMcpStore"
+import { useUIStore } from "@/stores/useUIStore"
 import { useActiveConfigDirectory } from "@/hooks/useActiveConfigDirectory"
-import { isMobileDeviceViaCSS } from "@/lib/device"
 import { cn } from "@/lib/utils"
 import { toast } from "@/components/ui"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
@@ -61,6 +61,9 @@ const StatusDot: React.FC<{ tone: McpStatusTone; enabled: boolean }> = ({ tone, 
 export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
   const { t } = useI18n()
   const bgClass = "bg-background"
+  // Reactive, not the --is-mobile CSS variable: React Compiler caches a bare CSS read
+  // with no dependencies, which froze long-press behavior at the mount-time breakpoint.
+  const isMobile = useUIStore((state) => state.isMobile)
 
   const { mcpServers, loadedDirectory, isLoading, selectedMcpName, selectionRevision, mcpDraft, setSelectedMcp, refreshSelectedMcp, setMcpDraft, loadMcpConfigs, deleteMcp } = useMcpConfigStore(
     useShallow((s) => ({
@@ -282,7 +285,6 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                   const runtimeStatus = mcpStatus[server.name]
                   const tone = statusToneFromMcp(runtimeStatus?.status)
                   const isSelected = selectedMcpName === server.name
-                  const isMobile = isMobileDeviceViaCSS()
 
                   return (
                     <div
@@ -377,7 +379,6 @@ export const McpSidebar: React.FC<McpSidebarProps> = ({ onItemSelect }) => {
                   const runtimeStatus = mcpStatus[server.name]
                   const tone = statusToneFromMcp(runtimeStatus?.status)
                   const isSelected = selectedMcpName === server.name
-                  const isMobile = isMobileDeviceViaCSS()
 
                   return (
                     <div

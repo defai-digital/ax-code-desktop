@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
 import { toast } from "@/components/ui"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
+import { useNow } from "@/hooks/useNow"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import type {
   GitHubChecksSummary,
@@ -97,16 +98,18 @@ function LabelChips({ labels }: { labels: GitHubIssueLabel[] }) {
   )
 }
 
-function updatedLabel(iso: string | undefined, t: ReturnType<typeof useI18n>["t"]): string {
+function updatedLabel(iso: string | undefined, t: ReturnType<typeof useI18n>["t"], now: number): string {
   if (!iso) return ""
   const parsed = Date.parse(iso)
   if (!Number.isFinite(parsed)) return ""
-  return t("githubBoard.meta.updated", { when: formatRelativeAge(Date.now() - parsed, t) })
+  return t("githubBoard.meta.updated", { when: formatRelativeAge(now - parsed, t) })
 }
 
 export function GitHubBoardView() {
   const { t } = useI18n()
   const directory = useEffectiveDirectory()
+  // Labels are relative to a reactive clock; React Compiler would freeze a bare Date.now().
+  const now = useNow()
   const { github } = useRuntimeAPIs()
   const githubAuthStatus = useGitHubAuthStore((state) => state.status)
   const githubAuthChecked = useGitHubAuthStore((state) => state.hasChecked)
@@ -622,7 +625,7 @@ export function GitHubBoardView() {
                       <LabelChips labels={row.labels} />
                       <span className="flex flex-wrap items-center gap-x-2 typography-micro text-muted-foreground">
                         <span>{row.author || t("githubBoard.author.unknown")}</span>
-                        {row.updatedAt ? <span>{updatedLabel(row.updatedAt, t)}</span> : null}
+                        {row.updatedAt ? <span>{updatedLabel(row.updatedAt, t, now)}</span> : null}
                         {row.draft ? <span>{t("githubBoard.badge.draft")}</span> : null}
                         {row.reviewRequested ? (
                           <span>{t("githubBoard.badge.reviewRequested", { count: row.reviewRequested })}</span>
@@ -671,7 +674,7 @@ export function GitHubBoardView() {
                   <LabelChips labels={detail.labels} />
                   <p className="typography-micro text-muted-foreground">
                     {detail.author || t("githubBoard.author.unknown")}
-                    {detail.updatedAt ? ` · ${updatedLabel(detail.updatedAt, t)}` : ""}
+                    {detail.updatedAt ? ` · ${updatedLabel(detail.updatedAt, t, now)}` : ""}
                   </p>
                   {detail.checks ? (
                     <p className="typography-micro text-muted-foreground">
@@ -733,7 +736,7 @@ export function GitHubBoardView() {
                   {detail.comments.length === 0 ? (
                     <p className="typography-meta text-muted-foreground">{t("githubBoard.empty.noComments")}</p>
                   ) : (
-                    detail.comments.map((comment) => <CommentCard key={comment.id} comment={comment} />)
+                    detail.comments.map((comment) => <CommentCard key={comment.id} comment={comment} now={now} />)
                   )}
                   <Textarea
                     simple
@@ -790,13 +793,13 @@ function EmptyMessage({
   )
 }
 
-function CommentCard({ comment }: { comment: BoardComment }) {
+function CommentCard({ comment, now }: { comment: BoardComment; now: number }) {
   const { t } = useI18n()
   return (
     <div className="rounded-lg border border-border/50 px-3 py-2">
       <p className="mb-1 typography-micro text-muted-foreground">
         {comment.authorLogin || t("githubBoard.author.unknown")}
-        {comment.createdAt ? ` · ${updatedLabel(comment.createdAt, t)}` : ""}
+        {comment.createdAt ? ` · ${updatedLabel(comment.createdAt, t, now)}` : ""}
       </p>
       {comment.body.trim() ? <SimpleMarkdownRenderer content={comment.body} /> : null}
     </div>

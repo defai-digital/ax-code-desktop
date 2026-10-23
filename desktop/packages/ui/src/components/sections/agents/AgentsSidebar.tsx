@@ -2,7 +2,6 @@ import React, { useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui"
-import { isMobileDeviceViaCSS } from "@/lib/device"
 import {
   Dialog,
   DialogContent,
@@ -20,6 +19,7 @@ import {
   type AgentDraft,
 } from "@/stores/useAgentsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useUIStore } from "@/stores/useUIStore"
 import { useShallow } from "zustand/react/shallow"
 import { cn } from "@/lib/utils"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
@@ -490,7 +490,9 @@ const AgentListItem: React.FC<AgentListItemProps> = ({
 }) => {
   const { t } = useI18n()
   const extAgent = agent as Agent & { scope?: AgentScope }
-  const isMobile = isMobileDeviceViaCSS()
+  // Reactive, not the --is-mobile CSS variable: React Compiler caches a bare CSS read
+  // with no dependencies, which froze long-press behavior at the mount-time breakpoint.
+  const isMobile = useUIStore((state) => state.isMobile)
 
   return (
     <div

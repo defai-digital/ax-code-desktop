@@ -11,6 +11,7 @@ import { parseMultiRunSessionTitle } from "@/lib/multirun/title"
 import { ACTIVITY_TODO_PREFIX, type ActivityPreview } from "@/lib/supervision/activityPreview"
 import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { useNow } from "@/hooks/useNow"
 import { SupervisionGoalLine } from "../SupervisionGoalLine"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
 import { cn, formatPathForDisplay } from "@/lib/utils"
@@ -69,6 +70,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
 }) => {
   const { t } = useI18n()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
+  // Relative labels must follow a reactive clock; a bare Date.now() is memoized at mount.
+  const now = useNow()
   const branch = useGitBranchLabel(row.directory)
   const formatEvidence = useFormatEvidence()
   const evidenceLabel = formatEvidence(row.evidence)
@@ -82,7 +85,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const staleLabel =
     activity?.stale && activity.lastSuccessAt !== undefined
       ? t("supervision.missionControl.preview.staleSince", {
-          age: formatRelativeAge(Date.now() - activity.lastSuccessAt, t),
+          age: formatRelativeAge(now - activity.lastSuccessAt, t),
         })
       : t("supervision.missionControl.preview.stale")
   const actionContext = [row.projectLabel ?? row.directory, row.title].filter(Boolean).join(" · ")
@@ -307,7 +310,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             </span>
           ) : null}
           {row.updatedAt ? (
-            <span className="mission-age">{formatRelativeAge(Date.now() - row.updatedAt, t)}</span>
+            <span className="mission-age">{formatRelativeAge(now - row.updatedAt, t)}</span>
           ) : null}
         </span>
         <span role="gridcell" className="mission-actions flex min-w-0 flex-wrap items-center gap-2">
@@ -375,7 +378,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             {child.title}
           </span>
           <span role="gridcell" className="shrink-0 typography-micro text-muted-foreground">
-            {child.updatedAt ? formatRelativeAge(Date.now() - child.updatedAt, t) : null}
+            {child.updatedAt ? formatRelativeAge(now - child.updatedAt, t) : null}
           </span>
           {onOpenChild ? (
             <span role="gridcell" className="shrink-0">
