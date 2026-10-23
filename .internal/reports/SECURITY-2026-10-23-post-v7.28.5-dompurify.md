@@ -25,7 +25,7 @@ Raise the workspace override from `dompurify@<3.4.16: 3.4.16` to `dompurify@<3.4
 - Both direct UI and Mermaid dependency resolution, and the built web bundle, contain only DOMPurify 3.4.17.
 - Actual bounded Grok CLI and Claude Code CLI reviews found no lock/override compatibility blocker. Their configuration-reachability reporting caveat is incorporated above.
 
-Evidence is retained under `.internal/releases/v7.28.5-post-release-dompurify/` with the reviewed diff and log hashes. This record and the dependency fix are committed together. This validation does not qualify a new public release version.
+Evidence is retained under `.internal/releases/v7.28.5-post-release-dompurify/` with the reviewed diff and log hashes. The dependency fix is committed at `47993fd3379cec95cd5abde4ebcd7d92f8b8975b`; this supporting record is a separate documentation commit. The committed dependency diff matches the exact diff tested and reviewed. This validation does not qualify a new public release version.
 
 ## Publication boundary
 
