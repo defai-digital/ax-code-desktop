@@ -155,8 +155,12 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
     }
   })
 
+  // Every session, not only the root rows: an approval's directory fallback must also cover a child
+  // session (a subagent asking for a tool) or an archived one with a lingering request, mirroring
+  // sessionTitleById above — the tray's "Open in app" action needs a directory either way.
   const directoryBySession = new Map<string, string>()
-  for (const session of ordered) {
+  for (const session of input.sessions) {
+    if (!session?.id) continue
     directoryBySession.set(session.id, typeof session.directory === "string" ? session.directory : "")
   }
 

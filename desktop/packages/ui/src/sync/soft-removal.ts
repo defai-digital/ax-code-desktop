@@ -337,6 +337,7 @@ function undoRemovals(ids: string[]): void {
 
 /** Reverse only successful requests from this archive action, once and without trusting local row state. */
 async function undoCommittedArchives(ids: string[], generation: symbol, commit: Promise<Set<string>>): Promise<void> {
+  let anyUndoFailed = false
   try {
     const succeeded = await commit
     for (const id of ids) {
@@ -345,8 +346,14 @@ async function undoCommittedArchives(ids: string[], generation: symbol, commit: 
       keptForRecovery.delete(id)
       const operation = { promise: sessionActions.unarchiveSession(id) }
       archiveUndoById.set(id, operation)
+      // Undo each id on its own: one rejected (or refused) unarchive must not strand the
+      // sessions after it in the batch — the rest still get reversed, one toast reports it.
       try {
-        await operation.promise
+        const ok = await operation.promise
+        if (!ok) anyUndoFailed = true
+      } catch (error) {
+        anyUndoFailed = true
+        console.warn("[soft-removal] archive undo failed", { id }, error)
       } finally {
         if (archiveUndoById.get(id) === operation) archiveUndoById.delete(id)
       }
@@ -355,6 +362,7 @@ async function undoCommittedArchives(ids: string[], generation: symbol, commit: 
     console.warn("[soft-removal] archive undo failed", error)
     toast.error(tr("sessions.sidebar.session.unarchive.error"))
   } finally {
+    if (anyUndoFailed) toast.error(tr("sessions.sidebar.session.unarchive.error"))
     for (const id of ids) if (archiveGenerationById.get(id) === generation) archiveGenerationById.delete(id)
     persistPending()
   }

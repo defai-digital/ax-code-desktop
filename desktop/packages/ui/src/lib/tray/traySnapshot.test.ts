@@ -88,6 +88,20 @@ describe("buildTraySnapshot", () => {
     expect(withPatterns.approvals[0].canSave).toBe(true)
   })
 
+  test("resolves an approval's directory from any session, child and archived ones included", () => {
+    // A child's or an archived session's request can lack its own directory; the fallback must not
+    // be limited to the root menu rows, or the tray's "Open in app" action gets an empty directory.
+    const snapshot = buildTraySnapshot({
+      ...baseInput,
+      approvals: [
+        { kind: "permission" as const, id: "perm-child", sessionId: "child-1", title: "Bash" },
+        { kind: "question" as const, id: "q-archived", sessionId: "root-2", title: "Which branch?" },
+      ],
+    })
+
+    expect(snapshot.approvals.map((approval) => approval.directory)).toEqual(["/repo/app", "/repo/other"])
+  })
+
   test("the dock badge counts every pending decision, child sessions and requests past the menu limit included", () => {
     const decisions = Array.from({ length: 7 }, (_, index) => ({
       kind: (index % 2 ? "question" : "permission") as "question" | "permission",

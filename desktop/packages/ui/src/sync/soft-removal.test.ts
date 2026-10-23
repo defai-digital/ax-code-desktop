@@ -60,6 +60,7 @@ const { axCodeClient } = await import("@/lib/ax-code/client")
 const {
   softDeleteSession,
   softArchiveSession,
+  softBulkArchive,
   softBulkDelete,
   flushPendingRemovals,
   recoverPendingRemovals,
@@ -415,6 +416,27 @@ describe("soft-removal S4.5 contract", () => {
     expect(archiveSessionMock).toHaveBeenCalledTimes(1)
     release(true)
     await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledTimes(2))
+  })
+
+  test("bulk undo keeps reversing later sessions when one unarchive fails", async () => {
+    const sessions = [makeSession("ses_undo_fail_a"), makeSession("ses_undo_fail_b")]
+    for (const session of sessions) {
+      useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    }
+    archiveSessionMock.mockResolvedValue(true)
+    unarchiveSessionMock.mockImplementation(async (id: string) => {
+      if (id === "ses_undo_fail_a") throw new Error("unarchive refused")
+      return true
+    })
+    softBulkArchive(sessions)
+    await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
+    options.action.onClick()
+
+    // The failed unarchive must not stop the batch: the second session is still reversed,
+    // and the failure is reported once instead of silently swallowing the remaining undos.
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledTimes(2))
+    await vi.waitFor(() => expect(toastErrorMock).toHaveBeenCalledWith("sessions.sidebar.session.unarchive.error"))
   })
 
   test("commits a bulk removal one request at a time so rate-limit retries cannot stampede", async () => {
