@@ -31,6 +31,7 @@ import {
   useWebMcpSummary,
   useWebMcpBrowserValue,
 } from "@/hooks/useWebMcpBrowser"
+import { BOUNDS_MUTATION_INTERVAL_MS, createThrottledRun } from "./embeddedBrowserBounds"
 
 type BrowserStatus = {
   id: string
@@ -75,6 +76,10 @@ const invoke = <T,>(args: Record<string, unknown>): Promise<T> => {
   if (!bridge?.invoke) return Promise.reject(new Error("The desktop browser is unavailable"))
   return bridge.invoke<T>("desktop_webmcp_browser", args)
 }
+
+// Base UI popups carry `role="dialog"` and no `aria-modal`. A native `dialog[open]` and an
+// `aria-modal` overlay count too: the native view must not stay above them and take their clicks.
+const MODAL_SELECTOR = '[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]'
 
 const TOOLBAR_BUTTON_CLASS =
   "inline-flex h-7 items-center gap-1 rounded-md px-2 typography-meta text-muted-foreground transition-colors hover:bg-interactive-hover hover:text-foreground disabled:opacity-50 disabled:hover:bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
@@ -292,19 +297,26 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     let frame = 0
     let previous = ""
     let pollFailures = 0
+    const readModal = () => Boolean(document.querySelector(MODAL_SELECTOR))
+    let scheduleBounds = () => {}
+    // Transcript streaming mutates the body on every frame, and a panel can move without resizing (a
+    // sidebar drag changes only its style). The mutation observer therefore requests a re-measure, but
+    // at most once per interval; resize, scroll and visibility changes still measure on the next frame.
+    const mutationBounds = createThrottledRun({
+      intervalMs: BOUNDS_MUTATION_INTERVAL_MS,
+      now: () => Date.now(),
+      schedule: (run, delayMs) => {
+        const timer = window.setTimeout(run, delayMs)
+        return () => window.clearTimeout(timer)
+      },
+      run: () => scheduleBounds(),
+    })
     const updateBounds = () => {
       frame = 0
       const element = host.current
       if (!element || disposed) return
       const box = element.getBoundingClientRect()
-      // The app's dialogs are Base UI popups: they carry `role="dialog"` and no `aria-modal`, so testing for
-      // `[role="dialog"][aria-modal="true"]` alone did not see the settings window, the command palette or a
-      // confirm dialog — the native view stayed over them and swallowed every click inside its rectangle. A native
-      // `dialog[open]` and an `aria-modal`-only overlay are matched too.
-      const hidden =
-        document.hidden ||
-        !element.checkVisibility() ||
-        Boolean(document.querySelector('[role="dialog"], [role="alertdialog"], [aria-modal="true"], dialog[open]'))
+      const hidden = document.hidden || !element.checkVisibility() || readModal()
       const bounds = hidden
         ? { x: 0, y: 0, width: 0, height: 0 }
         : { x: Math.max(0, box.x), y: Math.max(0, box.y), width: box.width, height: box.height }
@@ -317,22 +329,24 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         })
         .catch(() => {})
     }
-    const schedule = () => {
+    scheduleBounds = () => {
       if (!frame) frame = requestAnimationFrame(updateBounds)
     }
-    const resize = new ResizeObserver(schedule)
+    const resize = new ResizeObserver(scheduleBounds)
     resize.observe(host.current)
-    const modal = new MutationObserver(schedule)
+    const modal = new MutationObserver(() => {
+      mutationBounds.request()
+    })
     modal.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["open", "aria-modal", "inert", "style"],
     })
-    window.addEventListener("resize", schedule)
-    window.addEventListener("scroll", schedule, true)
-    document.addEventListener("visibilitychange", schedule)
-    schedule()
+    window.addEventListener("resize", scheduleBounds)
+    window.addEventListener("scroll", scheduleBounds, true)
+    document.addEventListener("visibilitychange", scheduleBounds)
+    scheduleBounds()
     const interval = setInterval(() => {
       void invoke<BrowserStatus>({ action: "status", id })
         .then((result) => {
@@ -353,9 +367,10 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       clearInterval(interval)
       resize.disconnect()
       modal.disconnect()
-      window.removeEventListener("resize", schedule)
-      window.removeEventListener("scroll", schedule, true)
-      document.removeEventListener("visibilitychange", schedule)
+      mutationBounds.dispose()
+      window.removeEventListener("resize", scheduleBounds)
+      window.removeEventListener("scroll", scheduleBounds, true)
+      document.removeEventListener("visibilitychange", scheduleBounds)
     }
   }, [applyStatus, browserId, updateSnapshot])
 

@@ -183,6 +183,32 @@ const snapshotOf = (state: WebMcpViewSnapshot): WebMcpViewSnapshot =>
     Object.keys(emptyWebMcpView).map((field) => [field, state[field as keyof WebMcpViewSnapshot]]),
   ) as unknown as WebMcpViewSnapshot
 
+// Reference equality first, so an unrelated write does not serialize the draft map it kept.
+// JSON is only the fallback for a new object with the same contents, and each object is
+// serialized once per write: the selected pane and its stored view share nested values.
+const sameView = (
+  prior: WebMcpViewSnapshot,
+  selected: WebMcpViewSnapshot | undefined,
+  view: WebMcpViewSnapshot,
+) => {
+  const jsonText = new Map<object, string | undefined>()
+  const textOf = (value: unknown) => {
+    if (typeof value === "object" && value !== null) {
+      if (jsonText.has(value)) return jsonText.get(value)
+      const text = JSON.stringify(value)
+      jsonText.set(value, text)
+      return text
+    }
+    return JSON.stringify(value)
+  }
+  const sameValue = (left: unknown, right: unknown) => Object.is(left, right) || textOf(left) === textOf(right)
+  return (Object.keys(view) as (keyof WebMcpViewSnapshot)[]).every((name) => {
+    if (!sameValue(prior[name], view[name])) return false
+    if (!selected || Object.is(prior[name], selected[name])) return true
+    return sameValue(selected[name], view[name])
+  })
+}
+
 // The top-level fields project the selected pane for existing single-pane consumers.
 // Every write also targets an explicit view; switching the pane never resets another session.
 export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => {
@@ -194,17 +220,7 @@ export const useWebMcpBrowserStore = create<WebMcpBrowserState>()((set, get) => 
       }
       const prior = state.views[key]
       const selected = state.activeKey === key ? snapshotOf(state) : prior
-      if (
-        prior &&
-        Object.keys(view).every((field) => {
-          const name = field as keyof WebMcpViewSnapshot
-          return (
-            (Object.is(prior[name], view[name]) || JSON.stringify(prior[name]) === JSON.stringify(view[name])) &&
-            (Object.is(selected?.[name], view[name]) || JSON.stringify(selected?.[name]) === JSON.stringify(view[name]))
-          )
-        })
-      )
-        return state
+      if (prior && sameView(prior, selected, view)) return state
       return {
         views: { ...state.views, [key]: view },
         order: state.views[key] ? state.order : [...state.order, key],
@@ -562,9 +578,11 @@ function observeCatalog(
     if ("catalogRejection" in partial) next.catalogRejection = read.catalogRejection
   }
   if (originChanged || "catalog" in partial) {
-    next.registration = registration
-    next.toolDrafts = toolDrafts
-    next.toolRuns = toolRuns
+    // Keep the stored map when this update did not replace it, so an unrelated write does not
+    // deep-compare drafts. A new reference (origin change, or runs marked stale) is still written.
+    if (registration !== state.registration) next.registration = registration
+    if (toolDrafts !== state.toolDrafts) next.toolDrafts = toolDrafts
+    if (toolRuns !== state.toolRuns) next.toolRuns = toolRuns
     if (originChanged) next.toolJournal = toolJournal
   }
   return next

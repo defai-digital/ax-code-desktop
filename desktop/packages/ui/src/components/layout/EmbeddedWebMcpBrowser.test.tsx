@@ -657,6 +657,74 @@ describe("agent browser enable request", () => {
     expect(lastBounds()?.height).toBe(0)
   })
 
+  test("document mutations re-measure at most once per interval and still catch moves and dialogs", async () => {
+    const box = { x: 5, y: 5, width: 100, height: 100, top: 5, left: 5, right: 105, bottom: 105, toJSON: () => box }
+    let reads = 0
+    const previous = Element.prototype.getBoundingClientRect
+    Object.defineProperty(Element.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value: () => {
+        reads += 1
+        return box
+      },
+    })
+    try {
+      render()
+      openAgentMode()
+      await flush()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50)
+      })
+      const baseline = reads
+      const lastBounds = () =>
+        callsFor("bounds").at(-1)?.[1] as { x?: number; width?: number; height?: number } | undefined
+      expect(lastBounds()?.width).toBe(100)
+
+      // 40 mutations over 640 ms: one measure per 150 ms window, not one per frame.
+      for (let i = 0; i < 40; i++) {
+        act(() => {
+          document.body.appendChild(document.createElement("span"))
+        })
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(16)
+        })
+      }
+      expect(reads - baseline).toBeLessThanOrEqual(6)
+
+      // A move without a resize reaches no ResizeObserver; only a mutation can reveal it.
+      box.x = 50
+      act(() => {
+        document.body.style.paddingLeft = "10px"
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200)
+      })
+      expect(lastBounds()?.x).toBe(50)
+
+      const dialog = document.createElement("div")
+      dialog.setAttribute("role", "dialog")
+      act(() => {
+        document.body.appendChild(dialog)
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200)
+      })
+      expect(lastBounds()?.width).toBe(0)
+      expect(lastBounds()?.height).toBe(0)
+
+      act(() => {
+        dialog.remove()
+      })
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200)
+      })
+      expect(lastBounds()?.width).toBe(100)
+    } finally {
+      Object.defineProperty(Element.prototype, "getBoundingClientRect", { configurable: true, value: previous })
+      document.body.style.paddingLeft = ""
+    }
+  })
+
   test("still enables after a dependency changes inside the delay", async () => {
     // The request used to be consumed when the timer was armed, so a `busy` flip in the 150 ms
     // window cancelled the timer and left the request consumed: the user's enable never landed.

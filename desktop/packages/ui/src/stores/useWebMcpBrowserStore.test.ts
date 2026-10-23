@@ -397,6 +397,37 @@ test("draft retention preserves every accepted field name and explicit-empty fla
   expect(useWebMcpBrowserStore.getState().toolDrafts.echo.truncated).toBe(true)
 })
 
+test("an identical snapshot write does not publish a new state object or serialize untouched drafts", () => {
+  const store = useWebMcpBrowserStore.getState()
+  store.resetSnapshot()
+  store.selectView("/repo", "ses_one")
+  const tool = nativeWebMcpTool({ name: "echo", description: "Echo", inputSchema: { type: "object" } })
+  store.updateSnapshot({
+    origin: "https://example.test",
+    catalog: [tool],
+    enabled: true,
+    pausedBridgeServers: ["bridge"],
+  })
+  const digest = useWebMcpBrowserStore.getState().catalog[0]?.digest ?? ""
+  store.saveToolDraft("echo", { digest, values: { title: "Ship" }, sendEmpty: {}, json: "{}", jsonMode: false })
+  const before = useWebMcpBrowserStore.getState()
+  const drafts = before.toolDrafts
+  const storedCatalog = before.catalog
+  const seen: unknown[] = []
+  const unsubscribe = useWebMcpBrowserStore.subscribe((state) => {
+    seen.push(state)
+  })
+  const stringify = vi.spyOn(JSON, "stringify")
+  store.updateSnapshot({ catalog: [tool], enabled: true, pausedBridgeServers: ["bridge"] })
+  expect(useWebMcpBrowserStore.getState()).toBe(before)
+  expect(seen).toEqual([])
+  expect(stringify.mock.calls.filter(([value]) => value === drafts).length).toBe(0)
+  // The stored catalog is shared by the pane and its view. One serialization covers both comparisons.
+  expect(stringify.mock.calls.filter(([value]) => value === storedCatalog).length).toBe(1)
+  stringify.mockRestore()
+  unsubscribe()
+})
+
 test("bounded manual journal inputs explicitly retain truncation instead of claiming a complete input", () => {
   const store = useWebMcpBrowserStore.getState()
   store.resetSnapshot()

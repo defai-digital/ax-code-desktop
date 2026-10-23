@@ -5,6 +5,13 @@ import { getDesktopBridge } from "@/lib/desktopBridge"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { pauseChromeBridgeForProjectBrowser, resumeChromeBridgeForProjectBrowser } from "@/lib/webMcpBridgeCoordination"
 import { readWebMcpCatalog, useWebMcpBrowserStore, type WebMcpBrowserSnapshot } from "@/stores/useWebMcpBrowserStore"
+import {
+  nativeCatalogKey,
+  nativeGeneration,
+  projectedNativeError,
+  samePoolCapacity,
+  shouldApplyNativeView,
+} from "./webMcpPoolProjection"
 
 type NativeView = Pick<
   WebMcpBrowserSnapshot,
@@ -34,14 +41,21 @@ type NativeView = Pick<
 /** One window-level projection, including hidden pages; it never enrolls or shows a view. */
 export function useWebMcpPoolProjection(enabled = true) {
   const storageRevision = useWebMcpStorageEvents()
+  // What this poll last wrote per view: the raw payload key and the stored catalog it produced. The pane's
+  // own status writer also writes catalogs, so a key only counts while the store still holds what we wrote.
+  const catalogKeys = React.useRef(
+    new Map<string, { key: string; catalog: unknown; limit: unknown; rejection: unknown }>(),
+  )
   React.useEffect(() => {
     const bridge = getDesktopBridge()
     if (!enabled || !isElectronShell() || !bridge?.invoke) return
     const invoke = bridge.invoke
+    const knownCatalogs = catalogKeys.current
     let disposed = false
     let polling = false
     const poll = async () => {
-      if (polling) return
+      // A hidden document keeps streaming elsewhere; skip the IPC and the catalog walk until shown.
+      if (polling || disposed || document.hidden) return
       polling = true
       const revision = storageRevision.current
       const before = useWebMcpBrowserStore.getState().views
@@ -53,15 +67,17 @@ export function useWebMcpPoolProjection(enabled = true) {
           otherWindows?: { id: string; pageCount: number }[]
         }>("desktop_webmcp_browser", { action: "list" })
         if (disposed || revision !== storageRevision.current || !Array.isArray(result?.views)) return
-        if (typeof result.liveViews === "number" && typeof result.maxLiveViews === "number")
-          useWebMcpBrowserStore.setState({
-            capacity: {
-              liveViews: result.liveViews,
-              maxLiveViews: result.maxLiveViews,
-              otherWindows: result.otherWindows,
-            },
-          })
+        if (typeof result.liveViews === "number" && typeof result.maxLiveViews === "number") {
+          const capacity = {
+            liveViews: result.liveViews,
+            maxLiveViews: result.maxLiveViews,
+            otherWindows: result.otherWindows,
+          }
+          if (!samePoolCapacity(useWebMcpBrowserStore.getState().capacity, capacity))
+            useWebMcpBrowserStore.setState({ capacity })
+        }
         const ids = new Set<string>()
+        const polledKeys = new Set<string>()
         for (const view of result.views) {
           if (
             !view ||
@@ -72,14 +88,34 @@ export function useWebMcpPoolProjection(enabled = true) {
             continue
           ids.add(view.id)
           const key = viewKeyFor(view.directory, view.sessionID)
+          polledKeys.add(key)
           const store = useWebMcpBrowserStore.getState()
           const current = store.views[key]
+          // An in-flight command owns the view until it finishes; a poll must not clobber it.
           if (current?.busy || current?.phase === "starting") continue
-          const catalog = readWebMcpCatalog(view.catalog, {
-            total: view.catalogTotal,
-            truncation: view.catalogTruncation,
-            rejection: view.catalogRejection,
-          })
+          const pausedBridgeServers = held.current.get(view.directory) ?? []
+          const catalogKey = nativeCatalogKey(view)
+          const written = catalogKeys.current.get(key)
+          const writtenIsCurrent =
+            !!written &&
+            current?.catalog === written.catalog &&
+            current?.catalogLimit === written.limit &&
+            current?.catalogRejection === written.rejection
+          const decision = shouldApplyNativeView(
+            current,
+            view,
+            pausedBridgeServers,
+            writtenIsCurrent ? written.key : undefined,
+            catalogKey,
+          )
+          if (!decision.apply) continue
+          const catalog = decision.normalizeCatalog
+            ? readWebMcpCatalog(view.catalog, {
+                total: view.catalogTotal,
+                truncation: view.catalogTruncation,
+                rejection: view.catalogRejection,
+              })
+            : null
           store.updateView(key, {
             phase: "ready",
             browserId: view.id,
@@ -97,14 +133,30 @@ export function useWebMcpPoolProjection(enabled = true) {
             idle: view.idle ?? false,
             tools: view.tools,
             page: view.page,
-            generation: typeof view.generation === "string" ? view.generation : null,
-            catalog: catalog.catalog,
-            catalogLimit: catalog.catalogLimit,
-            catalogRejection: catalog.catalogRejection,
-            error: view.error ?? (current?.error === "operation-failed" ? current.error : null),
-            pausedBridgeServers: held.current.get(view.directory) ?? [],
+            generation: nativeGeneration(view.generation),
+            ...(catalog
+              ? {
+                  catalog: catalog.catalog,
+                  catalogLimit: catalog.catalogLimit,
+                  catalogRejection: catalog.catalogRejection,
+                }
+              : {}),
+            error: projectedNativeError(view.error, current?.error),
+            pausedBridgeServers,
           })
+          if (catalog && catalogKey !== undefined) {
+            const stored = useWebMcpBrowserStore.getState().views[key]
+            if (stored)
+              catalogKeys.current.set(key, {
+                key: catalogKey,
+                catalog: stored.catalog,
+                limit: stored.catalogLimit,
+                rejection: stored.catalogRejection,
+              })
+          }
         }
+        // A view that left the pool must not keep its serialized catalog for the life of the window.
+        for (const key of catalogKeys.current.keys()) if (!polledKeys.has(key)) catalogKeys.current.delete(key)
         for (const [key, prior] of Object.entries(before)) {
           const current = useWebMcpBrowserStore.getState().views[key]
           if (
@@ -124,9 +176,15 @@ export function useWebMcpPoolProjection(enabled = true) {
     }
     void poll()
     const timer = setInterval(() => void poll(), 1000)
+    const onVisibility = () => {
+      if (!document.hidden) void poll()
+    }
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
       disposed = true
       clearInterval(timer)
+      document.removeEventListener("visibilitychange", onVisibility)
+      knownCatalogs.clear()
     }
   }, [enabled, storageRevision])
 

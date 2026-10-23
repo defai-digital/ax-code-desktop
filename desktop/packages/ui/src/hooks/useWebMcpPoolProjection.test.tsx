@@ -3,7 +3,7 @@ import React from "react"
 import { act } from "react"
 import { afterEach, expect, test, vi } from "vitest"
 import { cleanup, render } from "@/test/dom"
-import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
+import { readWebMcpCatalog, useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { useWebMcpPoolProjection } from "./useWebMcpPoolProjection"
 
@@ -12,6 +12,10 @@ const { invoke, pause, resume } = vi.hoisted(() => ({
   pause: vi.fn(async () => ["webmcp"]),
   resume: vi.fn(async () => {}),
 }))
+vi.mock("@/stores/useWebMcpBrowserStore", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@/stores/useWebMcpBrowserStore")>()
+  return { ...original, readWebMcpCatalog: vi.fn(original.readWebMcpCatalog) }
+})
 vi.mock("@/lib/desktop", () => ({ isElectronShell: () => true }))
 vi.mock("@/lib/desktopBridge", () => ({ getDesktopBridge: () => ({ invoke }) }))
 vi.mock("@/lib/webMcpBridgeCoordination", () => ({
@@ -209,6 +213,117 @@ test("polls generation, bounded catalogs and registration rejection into each po
     generation: "gen-second",
     catalogLimit: { total: 1, shown: 1, truncation: null },
     catalogRejection: null,
+  })
+})
+
+test("an identical poll does not publish a new state object or renormalize the catalog", async () => {
+  vi.useFakeTimers()
+  const tool = { name: "echo", description: "Echo", inputSchema: { type: "object" } }
+  const otherWindows = [{ id: "foreign", pageCount: 1 }]
+  invoke.mockImplementation(async () => ({
+    views: [{ ...native("first", "ses_first"), catalog: [tool], generation: "gen-1" }],
+    liveViews: 1,
+    maxLiveViews: 4,
+    otherWindows: otherWindows.map((entry) => ({ ...entry })),
+  }))
+  render(<Harness />)
+  await act(async () => {})
+  const before = useWebMcpBrowserStore.getState()
+  const normalizations = vi.mocked(readWebMcpCatalog).mock.calls.length
+  expect(normalizations).toBeGreaterThan(0)
+  const writes = vi.fn()
+  const unsubscribe = useWebMcpBrowserStore.subscribe(writes)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000)
+  })
+  expect(useWebMcpBrowserStore.getState()).toBe(before)
+  expect(writes).not.toHaveBeenCalled()
+  expect(before.capacity).toEqual({ liveViews: 1, maxLiveViews: 4, otherWindows })
+  expect(vi.mocked(readWebMcpCatalog).mock.calls.length).toBe(normalizations)
+  unsubscribe()
+})
+
+test("a catalog rewritten by the pane is repaired by the next poll even when the native payload is unchanged", async () => {
+  vi.useFakeTimers()
+  const key = viewKeyFor("/repo", "ses_first")
+  const tool = { name: "echo", description: "Echo", inputSchema: { type: "object" } }
+  invoke.mockImplementation(async () => ({
+    views: [{ ...native("first", "ses_first"), catalog: [tool], generation: "gen-1" }],
+    liveViews: 1,
+    maxLiveViews: 4,
+  }))
+  render(<Harness />)
+  await act(async () => {})
+  const polled = useWebMcpBrowserStore.getState().views[key].catalog
+  expect(polled).toHaveLength(1)
+
+  // The pane's status writer stores a different catalog for the same view.
+  act(() => useWebMcpBrowserStore.getState().updateView(key, { catalog: [] }))
+  expect(useWebMcpBrowserStore.getState().views[key].catalog).toHaveLength(0)
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[key].catalog).toHaveLength(1)
+})
+
+test("skips pool polls while the document is hidden and catches up when it is shown", async () => {
+  vi.useFakeTimers()
+  invoke.mockImplementation(async () => ({
+    views: [native("first", "ses_first")],
+    liveViews: 1,
+    maxLiveViews: 4,
+  }))
+  const hidden = Object.getOwnPropertyDescriptor(document, "hidden")
+  const prototype = Object.getOwnPropertyDescriptor(Document.prototype, "hidden")
+  Object.defineProperty(document, "hidden", { configurable: true, get: () => false })
+  try {
+    render(<Harness />)
+    await act(async () => {})
+    const calls = invoke.mock.calls.length
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(invoke.mock.calls.length).toBe(calls)
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => false })
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(invoke.mock.calls.length).toBe(calls + 1)
+  } finally {
+    if (hidden) Object.defineProperty(document, "hidden", hidden)
+    else if (prototype) Object.defineProperty(document, "hidden", prototype)
+    else delete (document as { hidden?: boolean }).hidden
+  }
+})
+
+test("pool polls leave a starting or busy view untouched", async () => {
+  vi.useFakeTimers()
+  const key = viewKeyFor("/repo", "ses_first")
+  useWebMcpBrowserStore.getState().selectView("/repo", "ses_first")
+  useWebMcpBrowserStore.getState().updateView(key, {
+    phase: "starting",
+    busy: true,
+    browserId: "local",
+    enabled: false,
+  })
+  invoke.mockImplementation(async () => ({
+    views: [{ ...native("first", "ses_first"), enabled: true, tools: 9 }],
+    liveViews: 1,
+    maxLiveViews: 2,
+  }))
+  render(<Harness />)
+  await act(async () => {})
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[key]).toMatchObject({
+    phase: "starting",
+    busy: true,
+    enabled: false,
+    tools: 0,
+    browserId: "local",
   })
 })
 
