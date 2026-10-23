@@ -12,6 +12,7 @@ import {
   windowMessagesByTurn,
   type TurnWindowModel,
 } from "../lib/turns/windowTurns"
+import { recallTurnModel, rememberTurnModel } from "./turnModelCache"
 import type { TurnHistorySignals } from "../lib/turns/historySignals"
 import { getMemoryLimits } from "@/stores/types/sessionTypes"
 import type { GoToBottomOptions } from "@/hooks/useChatAutoFollow"
@@ -69,21 +70,9 @@ interface UseChatTimelineControllerResult {
   handleActiveTurnChange: (turnId: string | null) => void
 }
 
-const TURN_MODEL_CACHE_MAX = 30
 const HISTORY_SCROLL_THRESHOLD = 200
 const HISTORY_RENDER_WAIT_TIMEOUT_MS = 250
 const HISTORY_INTERACTION_GUARD_MS = 2000
-const turnModelCache = new Map<string, { messages: ChatMessageEntry[]; model: TurnWindowModel }>()
-
-const rememberTurnModel = (key: string, value: { messages: ChatMessageEntry[]; model: TurnWindowModel }) => {
-  turnModelCache.delete(key)
-  while (turnModelCache.size >= TURN_MODEL_CACHE_MAX) {
-    const oldest = turnModelCache.keys().next().value
-    if (typeof oldest !== "string") break
-    turnModelCache.delete(oldest)
-  }
-  turnModelCache.set(key, value)
-}
 
 export const useChatTimelineController = ({
   sessionId,
@@ -107,12 +96,11 @@ export const useChatTimelineController = ({
   const displayMessages = React.useMemo(() => projectDisplayMessages(messages), [messages])
   const turnWindowModel = React.useMemo(() => {
     const key = sessionId ?? ""
-    const cached = key ? turnModelCache.get(key) : undefined
-    if (cached && cached.messages === displayMessages) {
-      rememberTurnModel(key, cached)
-      previousTurnWindowModelRef.current = cached.model
+    const cached = key ? recallTurnModel(key, displayMessages) : undefined
+    if (cached) {
+      previousTurnWindowModelRef.current = cached
       previousMessagesRef.current = displayMessages
-      return cached.model
+      return cached
     }
 
     const incrementalModel = updateTurnWindowModelIncremental(
@@ -125,7 +113,7 @@ export const useChatTimelineController = ({
     previousMessagesRef.current = displayMessages
 
     if (key && displayMessages.length > 0) {
-      rememberTurnModel(key, { messages: displayMessages, model: nextModel })
+      rememberTurnModel(key, displayMessages, nextModel)
     }
 
     return nextModel

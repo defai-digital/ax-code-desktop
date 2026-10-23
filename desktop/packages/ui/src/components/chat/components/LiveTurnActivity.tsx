@@ -90,7 +90,7 @@ export function LiveTurnActivity({
   )
   const hiddenRows = trim?.hiddenRows ?? 0
   const rowsRef = React.useRef<HTMLDivElement>(null)
-  useActivityRowGlide(rowsRef, hiddenRows, !settled && !expanded)
+  useActivityRowGlide(rowsRef, hiddenRows, !settled && !expanded, shownMessages.length)
   const previouslySettled = React.useRef(settled)
   const animateFinalCollapse = settled && !previouslySettled.current
   React.useLayoutEffect(() => {

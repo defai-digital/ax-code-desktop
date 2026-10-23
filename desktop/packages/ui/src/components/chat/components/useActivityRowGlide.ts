@@ -20,11 +20,17 @@ const currentTranslateY = (element: HTMLElement): number => {
  * so layout, scroll following and the reader's position stay as they are. The
  * last element of the rows is the reference: it is the one that grows, and it
  * stays mounted between steps.
+ *
+ * The effect measures only when the row structure can have changed (`rowsKey`
+ * is the number of mounted top-level rows, `hiddenRows` the trimmed count) or
+ * the glide switches on or off. A streamed token grows the last row without
+ * moving anything above it, so it must not force a layout.
  */
 export const useActivityRowGlide = (
   rowsRef: React.RefObject<HTMLElement | null>,
   hiddenRows: number,
   active: boolean,
+  rowsKey: number,
 ): void => {
   const previousRef = React.useRef<{ anchor: Element; top: number; hiddenRows: number } | null>(null)
 
@@ -52,5 +58,5 @@ export const useActivityRowGlide = (
       duration: GLIDE_MS,
       easing: GLIDE_EASING,
     })
-  })
+  }, [rowsRef, hiddenRows, active, rowsKey])
 }
