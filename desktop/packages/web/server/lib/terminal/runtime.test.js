@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events"
 import fs from "node:fs"
 import path from "node:path"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import {
   TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES,
@@ -993,6 +993,71 @@ describe("terminal body parsing tolerance", () => {
       expect(res.statusCode).toBe(200)
       expect(res.body).toEqual({ success: true, killedCount: 0 })
     } finally {
+      await runtime.shutdown()
+    }
+  })
+})
+
+describe("terminal close escalation", () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  async function createClosableTerminal() {
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const signals = []
+    let exitListener = null
+    const ptyProcess = {
+      pid: 0,
+      onData: () => ({ dispose() {} }),
+      onExit(callback) {
+        exitListener = callback
+        return { dispose() {} }
+      },
+      kill: (signal) => signals.push(signal ?? "SIGTERM"),
+    }
+    const runtime = createRuntime(server, {
+      app,
+      fs: { promises: { stat: async () => ({ isDirectory: () => true }) } },
+      uiAuthController: { enabled: false },
+      isExecutable: () => true,
+      validateCwd: async (cwd) => ({ ok: true, cwd }),
+      getPtyProvider: async () => ({ backend: "test-mock", spawn: () => ptyProcess }),
+    })
+    const createRes = createMockResponse()
+    await getRoute("POST", "/api/terminal/create")({ body: { cwd: process.cwd(), cols: 80, rows: 24 } }, createRes)
+    return { runtime, getRoute, signals, sessionId: createRes.body.sessionId, emitExit: () => exitListener?.({ exitCode: 0 }) }
+  }
+
+  it("force-kills a shell that ignores SIGTERM after the session entry is gone", async () => {
+    const { runtime, getRoute, signals, sessionId } = await createClosableTerminal()
+    try {
+      vi.useFakeTimers()
+      const res = createMockResponse()
+      getRoute("DELETE", "/api/terminal/:sessionId")({ params: { sessionId } }, res)
+      expect(res.statusCode).toBe(200)
+      expect(signals).toEqual(["SIGTERM"])
+
+      vi.advanceTimersByTime(1_000)
+      expect(signals).toEqual(["SIGTERM", "SIGKILL"])
+    } finally {
+      vi.useRealTimers()
+      await runtime.shutdown()
+    }
+  })
+
+  it("does not signal again once the shell exited on SIGTERM", async () => {
+    const { runtime, getRoute, signals, sessionId, emitExit } = await createClosableTerminal()
+    try {
+      vi.useFakeTimers()
+      getRoute("DELETE", "/api/terminal/:sessionId")({ params: { sessionId } }, createMockResponse())
+      emitExit()
+
+      vi.advanceTimersByTime(5_000)
+      expect(signals).toEqual(["SIGTERM"])
+    } finally {
+      vi.useRealTimers()
       await runtime.shutdown()
     }
   })

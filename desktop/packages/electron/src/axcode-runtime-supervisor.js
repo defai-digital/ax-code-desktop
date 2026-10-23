@@ -533,6 +533,7 @@ function createAxCodeRuntimeSupervision(options = {}) {
         done = true
         if (termTimer) clearTimeout(termTimer)
         if (killTimer) clearTimeout(killTimer)
+        child.off("exit", finish)
         resolve()
       }
       child.once("exit", finish)

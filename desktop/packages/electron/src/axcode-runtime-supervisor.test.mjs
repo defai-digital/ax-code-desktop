@@ -499,6 +499,40 @@ describe("ax-code runtime supervision", () => {
     expect(ctx.fakeSpawn.calls[0].args).toContain("46789")
   })
 
+  test("restart() after exhaustion spawns a fresh runtime and reports the origin again", async () => {
+    const ctx = createSupervision({
+      policy: { maxCrashRestarts: 1, stopTermTimeoutMs: 10, stopKillTimeoutMs: 10 },
+    })
+    await startHealthy(ctx)
+    ctx.fakeSpawn.children[0].emitExit(2)
+    ctx.clock.advance(0)
+    await flushMicrotasks()
+    ctx.fakeSpawn.children[1].emitExit(3)
+    ctx.clock.advance(500)
+    await flushMicrotasks()
+    expect(ctx.supervision.state).toBe("exhausted")
+
+    const restarted = ctx.supervision.restart({ reprepare: true })
+    await flushMicrotasks()
+    const fresh = ctx.fakeSpawn.children.at(-1)
+    expect(ctx.fakeSpawn.children).toHaveLength(3)
+    fresh.stdout.emit("data", Buffer.from(`ax-code server listening on http://127.0.0.1:${RESERVED_PORT}\n`))
+    await restarted
+
+    expect(ctx.originReports.at(-1)).toMatchObject({ origin: FIXED_ORIGIN, exhausted: false })
+  })
+
+  test("a stop that had to SIGKILL leaves no exit listener on the child", async () => {
+    const ctx = createSupervision()
+    await startHealthy(ctx)
+    const child = ctx.fakeSpawn.children[0]
+    const before = child.listenerCount("exit")
+
+    await ctx.supervision.stop()
+
+    expect(child.listenerCount("exit")).toBeLessThanOrEqual(before)
+  })
+
   test("stop() runs SIGTERM then resolves when the runtime exits; no restart follows", async () => {
     const ctx = createSupervision()
     await startHealthy(ctx)

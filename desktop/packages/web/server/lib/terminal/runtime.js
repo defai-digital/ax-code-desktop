@@ -350,8 +350,23 @@ export function createTerminalRuntime({
     },
   }
 
+  // A shell that ignores SIGTERM (a foreground dev server, `trap '' TERM`) would otherwise outlive its session entry, which is
+  // deleted right after the signal, and keep its port with no UI path left to reach it.
+  const TERMINAL_KILL_ESCALATION_MS = 1_000
+  const exitedPtyProcesses = new WeakSet()
+
   const killTerminalProcess = (ptyProcess, mode = "term") => {
     if (!ptyProcess) return
+    if (mode === "term" && !exitedPtyProcesses.has(ptyProcess)) {
+      // Cancelled by the exit event: a pid that already exited may be reused by an unrelated process group.
+      const timer = setTimeout(() => killTerminalProcess(ptyProcess, "kill"), TERMINAL_KILL_ESCALATION_MS)
+      timer.unref?.()
+      try {
+        ptyProcess.onExit?.(() => clearTimeout(timer))
+      } catch {
+        // A pty without exit events keeps the escalation, which is the safe direction.
+      }
+    }
 
     // Best-effort: try killing the process group first so child processes
     // started by shells (e.g. preview dev servers) don't orphan.
@@ -647,6 +662,7 @@ export function createTerminalRuntime({
     })
 
     session.ptyProcess.onExit(({ exitCode, signal }) => {
+      exitedPtyProcesses.add(session.ptyProcess)
       console.log(`Terminal session ${sessionId} exited with code ${exitCode}, signal ${signal}`)
       for (const wsConnection of terminalWsConnections) {
         if (wsConnection.boundSessionId !== sessionId) {

@@ -445,9 +445,17 @@ async function showRuntimeRecoveryFailure(diagnostics = {}) {
       title: "AX Code runtime stopped",
       message: "The local ax-code runtime could not be restarted.",
       detail: `${lines.join("\n")}\n\n${nativeT("Quit and reopen AX Code. If the problem continues, check the application logs.")}`,
-      buttons: ["OK"],
+      buttons: ["Restart", "OK"],
+      defaultId: 0,
+      cancelId: 1,
     })
-    .catch((dialogError) => console.error("[electron] failed to show runtime recovery dialog:", dialogError))
+    .then(async ({ response }) => {
+      // Exhaustion leaves the app-wide runtime route answering 503 until relaunch; the supervisor's restart() resets the
+      // crash budget, so offering it here saves a full app relaunch. A user quit that lands meanwhile still wins.
+      if (response !== 0 || isQuitting || !runtimeSupervision) return
+      await runtimeSupervision.restart({ reprepare: true })
+    })
+    .catch((dialogError) => console.error("[electron] runtime recovery dialog or restart failed:", dialogError))
 }
 
 // Spawn the web-server utilityProcess and route its lifecycle events into the
