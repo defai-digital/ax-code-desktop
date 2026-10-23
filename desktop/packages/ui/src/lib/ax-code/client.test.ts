@@ -424,14 +424,17 @@ describe("archived-history deletion transport", () => {
   afterEach(() => vi.unstubAllGlobals())
 
   test("uses a directory-independent route with the standard request deadline", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response("true", { status: 200 }))
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response("true", { status: 200, headers: { "content-type": "application/json" } }))
     vi.stubGlobal("fetch", fetchMock)
     axCodeClient.setDirectory("/retired/project")
     await expect(axCodeClient.deleteArchivedSession("ses_history")).resolves.toMatchObject({ data: true })
-    const [url, options] = fetchMock.mock.calls[0]
-    expect(url).toContain("/global/session/ses_history/archived")
-    expect(url).not.toContain("directory=")
-    expect(options).toMatchObject({ method: "DELETE", signal: expect.any(AbortSignal) })
+    const [request, options] = fetchMock.mock.calls[0]
+    expect(request.url).toContain("/global/session/ses_history/archived")
+    expect(request.url).not.toContain("directory=")
+    expect(request.method).toBe("DELETE")
+    expect(options).toMatchObject({ signal: expect.any(AbortSignal) })
   })
 
   test("preserves a conflict response instead of turning it into success", async () => {
@@ -443,6 +446,11 @@ describe("archived-history deletion transport", () => {
       error: { message: "Active descendant" },
       response: { status: 409 },
     })
+  })
+
+  test("preserves transport failure as a rejected operation", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Network unavailable")))
+    await expect(axCodeClient.deleteArchivedSession("ses_history")).rejects.toThrow("Network unavailable")
   })
 
   test("rejects a malformed success acknowledgement", async () => {

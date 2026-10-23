@@ -709,18 +709,14 @@ class AxCodeService {
 
   /** Adapter for the runtime's archived-history maintenance route. */
   async deleteArchivedSession(id: string): Promise<{ data?: boolean; error?: unknown; response: Response }> {
-    const response = await createSdkFetch()(
-      buildAxCodeApiUrl(this.baseUrl, `/global/session/${encodeURIComponent(id)}/archived`),
-      {
-        method: "DELETE",
-        headers: { Accept: "application/json" },
-      },
-    )
-    const payload: unknown = await response.json().catch(() => undefined)
-    if (!response.ok)
-      return { error: payload ?? { message: `Archived deletion failed (${response.status})` }, response }
-    if (payload !== true) throw new Error("Archived deletion returned no success acknowledgement")
-    return { data: true, response }
+    const result = await this.client.global.deleteArchivedSession({ sessionID: id })
+    if (!result.response) {
+      if (result.error) throw result.error
+      throw new Error("Archived deletion returned no HTTP response")
+    }
+    if (result.error) return { error: result.error, response: result.response }
+    if (result.data !== true) throw new Error("Archived deletion returned no success acknowledgement")
+    return { data: true, response: result.response }
   }
 
   async deleteSession(id: string): Promise<boolean> {
