@@ -334,14 +334,26 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     }
     const resize = new ResizeObserver(scheduleBounds)
     resize.observe(host.current)
-    const modal = new MutationObserver(() => {
-      mutationBounds.request()
+    const modal = new MutationObserver((records) => {
+      // Native views sit above the renderer. Modal transitions must bypass streaming's throttle
+      // so clicks cannot reach the page through a newly opened confirmation dialog.
+      const containsModal = (node: Node) =>
+        node instanceof Element && (node.matches(MODAL_SELECTOR) || Boolean(node.querySelector(MODAL_SELECTOR)))
+      const modalChanged = records.some((record) =>
+        record.type === "attributes"
+          ? record.target instanceof Element &&
+            (record.target.matches(MODAL_SELECTOR) ||
+              ["open", "aria-modal", "inert", "role"].includes(record.attributeName ?? ""))
+          : [...record.addedNodes, ...record.removedNodes].some(containsModal),
+      )
+      if (modalChanged) scheduleBounds()
+      else mutationBounds.request()
     })
     modal.observe(document.body, {
       childList: true,
       subtree: true,
       attributes: true,
-      attributeFilter: ["open", "aria-modal", "inert", "style"],
+      attributeFilter: ["open", "aria-modal", "inert", "style", "role"],
     })
     window.addEventListener("resize", scheduleBounds)
     window.addEventListener("scroll", scheduleBounds, true)
@@ -466,7 +478,9 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     else if (fixAction === "reopen") {
       void (browserId ? confirmClose({ action: "close", id: browserId }) : Promise.resolve(true))
         .catch(() => {})
-        .then((result) => { if (result !== null) setRestart((value) => value + 1) })
+        .then((result) => {
+          if (result !== null) setRestart((value) => value + 1)
+        })
     } else void command(fixAction === "enable" && paused ? "resume" : fixAction)
   }
 
@@ -494,7 +508,9 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
         variant="outline"
         disabled={busy}
         onClick={() =>
-          void confirmClose({ action: "clearProject", directory }).catch(() => updateSnapshot({ error: "operation-failed" }))
+          void confirmClose({ action: "clearProject", directory }).catch(() =>
+            updateSnapshot({ error: "operation-failed" }),
+          )
         }
       >
         {t("webmcp.browser.signOut")}
@@ -673,7 +689,11 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       <div
         ref={host}
         role="region"
-        aria-label={origin ? t("webmcp.browser.pageRegion", { origin: redactWebMcpText(origin) }) : t("webmcp.browser.pageRegionEmpty")}
+        aria-label={
+          origin
+            ? t("webmcp.browser.pageRegion", { origin: redactWebMcpText(origin) })
+            : t("webmcp.browser.pageRegionEmpty")
+        }
         className="relative min-h-0 flex-1 bg-background"
       >
         {!browserId ? (

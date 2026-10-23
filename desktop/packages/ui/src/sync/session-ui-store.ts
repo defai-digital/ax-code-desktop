@@ -588,6 +588,7 @@ export const restoreSubmittedComposerSelection = (
   submittedProviderID: string,
   submittedModelID: string,
   submittedAgent: string | undefined,
+  submittedVariant?: string,
 ): void => {
   if (!submittedProviderID || !submittedModelID) return
 
@@ -601,6 +602,10 @@ export const restoreSubmittedComposerSelection = (
   }
   if (submittedAgent && useConfigStore.getState().currentAgentName !== submittedAgent) {
     useConfigStore.getState().setAgent(submittedAgent, { preserveModel: true })
+  }
+  const restored = useConfigStore.getState()
+  if (restored.currentProviderId === submittedProviderID && restored.currentModelId === submittedModelID) {
+    restored.setCurrentVariant(submittedVariant)
   }
 }
 
@@ -1136,7 +1141,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       // Activation awaits provider loading. If the user moved to another project
       // during that wait, the setters would write this prompt's model into it.
       if (composerOwnsActivatedDirectory(useConfigStore.getState().activeDirectoryKey, activatedDirectory)) {
-        restoreSubmittedComposerSelection(submittedProviderID, submittedModelID, submittedAgent)
+        restoreSubmittedComposerSelection(submittedProviderID, submittedModelID, submittedAgent, variant)
       }
 
       const configState = useConfigStore.getState()

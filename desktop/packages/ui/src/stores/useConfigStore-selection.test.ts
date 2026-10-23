@@ -189,10 +189,7 @@ describe("selection source tracking", () => {
     seedProject("manual")
     registerAgentsSource({
       getAgents: () =>
-        [
-          { name: "build" },
-          { name: "plan", model: { providerID: "claude-code", modelID: "claude-sonnet" } },
-        ] as never,
+        [{ name: "build" }, { name: "plan", model: { providerID: "claude-code", modelID: "claude-sonnet" } }] as never,
       loadAgents: async () => true,
     })
 
@@ -228,6 +225,22 @@ describe("restoreSubmittedComposerSelection", () => {
     expect(state.currentProviderId).toBe("defai")
     expect(state.currentModelId).toBe("deepseek-flash")
     expect(state.currentAgentName).toBe("build")
+  })
+
+  test("restores the submitted effort after a provider change resets it", () => {
+    seedProject("manual")
+    useConfigStore.setState({
+      providers: providers.map((provider) => ({
+        ...provider,
+        models: provider.models.map((model) => ({ ...model, variants: { high: {} } })),
+      })) as unknown as ProviderWithModelList[],
+      currentProviderId: "claude-code",
+      currentModelId: "claude-sonnet",
+      currentVariant: undefined,
+    })
+    restoreSubmittedComposerSelection("defai", "deepseek-flash", "build", "high")
+    expect(useConfigStore.getState().currentModelId).toBe("deepseek-flash")
+    expect(useConfigStore.getState().currentVariant).toBe("high")
   })
 
   test("does not attach a model id when the submitted provider is not loaded", () => {

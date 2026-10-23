@@ -54,7 +54,6 @@ const scrollRef = { current: null as HTMLDivElement | null }
 
 const render = (props: Partial<React.ComponentProps<typeof TimelineRail>> = {}) => {
   const onJumpToTurn = vi.fn()
-  const onStepTurn = vi.fn()
   act(() => {
     root.render(
       <TimelineRail
@@ -63,12 +62,11 @@ const render = (props: Partial<React.ComponentProps<typeof TimelineRail>> = {}) 
         activeTurnId="turn-1"
         atBottom={false}
         onJumpToTurn={onJumpToTurn}
-        onStepTurn={onStepTurn}
         {...props}
       />,
     )
   })
-  return { onJumpToTurn, onStepTurn }
+  return { onJumpToTurn }
 }
 
 const ticks = () =>
@@ -95,12 +93,43 @@ describe("TimelineRail", () => {
   })
 
   test("steps with the arrows and disables the one that has nowhere to go", () => {
-    const { onStepTurn } = render({ activeTurnId: "turn-0" })
+    const { onJumpToTurn } = render({ activeTurnId: "turn-0" })
     const previous = container.querySelector<HTMLButtonElement>("button[aria-label='chat.timelineRail.previous']")
     const next = container.querySelector<HTMLButtonElement>("button[aria-label='chat.timelineRail.next']")
     expect(previous?.disabled).toBe(true)
     act(() => next?.click())
-    expect(onStepTurn).toHaveBeenCalledWith(1)
+    expect(onJumpToTurn).toHaveBeenCalledWith("turn-1")
+  })
+
+  test("steps from the rail's reached turn when the transcript reports a later visible turn", () => {
+    const scroller = document.createElement("div")
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect
+    for (const [index, top] of [-400, 2, 180, 360].entries()) {
+      const node = document.createElement("div")
+      node.dataset.turnId = turns[index].id
+      node.getBoundingClientRect = () => ({ top }) as DOMRect
+      scroller.appendChild(node)
+    }
+    scrollRef.current = scroller
+    const { onJumpToTurn } = render({ activeTurnId: "turn-2" })
+    const next = container.querySelector<HTMLButtonElement>("button[aria-label='chat.timelineRail.next']")
+    act(() => next?.click())
+    expect(onJumpToTurn).toHaveBeenCalledWith("turn-2")
+  })
+
+  test("remeasures when a different session has the same turn count", () => {
+    const scroller = document.createElement("div")
+    scroller.getBoundingClientRect = () => ({ top: 0 }) as DOMRect
+    const node = document.createElement("div")
+    node.dataset.turnId = "turn-1"
+    node.getBoundingClientRect = () => ({ top: 2 }) as DOMRect
+    scroller.appendChild(node)
+    scrollRef.current = scroller
+    render()
+    const nextTurns = turns.map((turn) => ({ ...turn, id: `next-${turn.id}` }))
+    node.dataset.turnId = "next-turn-1"
+    render({ turns: nextTurns, activeTurnId: "next-turn-1" })
+    expect(container.querySelector("[aria-current='location']")?.getAttribute("aria-label")).toContain("2|4")
   })
 
   test("shows the prompt preview while a tick is hovered", () => {

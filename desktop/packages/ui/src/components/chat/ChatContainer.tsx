@@ -172,7 +172,6 @@ type ChatViewportProps = {
   activeTurnId: string | null
   railAtBottom: boolean
   onRailJumpToTurn: (turnId: string) => void
-  onRailStepTurn: (offset: -1 | 1) => void
 }
 
 const ChatViewport = React.memo(
@@ -202,7 +201,6 @@ const ChatViewport = React.memo(
     activeTurnId,
     railAtBottom,
     onRailJumpToTurn,
-    onRailStepTurn,
   }: ChatViewportProps) => {
     const focusScrollContainer = React.useCallback(
       (event: React.MouseEvent<HTMLElement>) => {
@@ -285,7 +283,6 @@ const ChatViewport = React.memo(
               activeTurnId={activeTurnId}
               atBottom={railAtBottom}
               onJumpToTurn={onRailJumpToTurn}
-              onStepTurn={onRailStepTurn}
             />
           )}
         </div>
@@ -318,8 +315,7 @@ const ChatViewport = React.memo(
       prev.railTurns === next.railTurns &&
       prev.activeTurnId === next.activeTurnId &&
       prev.railAtBottom === next.railAtBottom &&
-      prev.onRailJumpToTurn === next.onRailJumpToTurn &&
-      prev.onRailStepTurn === next.onRailStepTurn
+      prev.onRailJumpToTurn === next.onRailJumpToTurn
     )
   },
 )
@@ -787,20 +783,13 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
     railTurnsRef.current = value
     return value
   }, [railTurns])
-  const { scrollToTurnId: navigateToTurnId, scrollByTurnOffset: navigateByTurnOffset } = navigation
+  const { scrollToTurnId: navigateToTurnId } = navigation
   const handleRailJumpToTurn = React.useCallback(
     (turnId: string) => {
       void navigateToTurnId(turnId, { behavior: "auto" })
     },
     [navigateToTurnId],
   )
-  const handleRailStepTurn = React.useCallback(
-    (offset: -1 | 1) => {
-      void navigateByTurnOffset(offset, { resumePastEnd: false })
-    },
-    [navigateByTurnOffset],
-  )
-
   React.useEffect(() => {
     if (typeof window === "undefined" || !currentSessionId) return
 
@@ -1157,7 +1146,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
         activeTurnId={timelineController.activeTurnId}
         railAtBottom={!timelineController.showScrollToBottom}
         onRailJumpToTurn={handleRailJumpToTurn}
-        onRailStepTurn={handleRailStepTurn}
       />
 
       <div

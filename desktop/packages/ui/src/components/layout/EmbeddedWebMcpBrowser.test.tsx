@@ -701,13 +701,16 @@ describe("agent browser enable request", () => {
       })
       expect(lastBounds()?.x).toBe(50)
 
+      // Streaming has just armed the throttle. A modal must still hide the native view on the next frame.
+      act(() => { document.body.appendChild(document.createElement("span")) })
+      await act(async () => { await vi.advanceTimersByTimeAsync(16) })
       const dialog = document.createElement("div")
       dialog.setAttribute("role", "dialog")
       act(() => {
         document.body.appendChild(dialog)
       })
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(200)
+        await vi.advanceTimersByTimeAsync(32)
       })
       expect(lastBounds()?.width).toBe(0)
       expect(lastBounds()?.height).toBe(0)

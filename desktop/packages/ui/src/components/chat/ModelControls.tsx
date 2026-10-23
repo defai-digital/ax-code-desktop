@@ -709,16 +709,18 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
       return
     }
 
+    if (latestLoadedUserChoice.agent && currentAgentName !== latestLoadedUserChoice.agent) {
+      adoptAgentKeepingModel(latestLoadedUserChoice.agent)
+    }
+
     // A complexity route, agent pin, hybrid placement, session default, or
     // fallback recorded on the user message is not the model the user picked.
     // Adopting it is what swapped the composer after the prompt was sent.
     if (isServerChosenModelOrigin(latestLoadedUserChoice.modelOrigin)) {
+      // The runtime still owns the agent identity even when it routed the model.
+      if (latestLoadedUserChoice.agent) saveSessionAgentSelection(currentSessionId, latestLoadedUserChoice.agent)
       latestLoadedUserChoiceRestoreRef.current = restoreKey
       return
-    }
-
-    if (latestLoadedUserChoice.agent && currentAgentName !== latestLoadedUserChoice.agent) {
-      adoptAgentKeepingModel(latestLoadedUserChoice.agent)
     }
 
     const applyResult = tryApplyModelSelection(
@@ -776,10 +778,10 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         tryApplyModelSelection(
           savedSessionModel.providerId,
           savedSessionModel.modelId,
-          currentAgentName || undefined,
+          latestLoadedUserChoice?.agent || currentAgentName || undefined,
         )
+        return
       }
-      return
     }
 
     const applySavedSelections = (): "resolved" | "waiting" | "continue" => {

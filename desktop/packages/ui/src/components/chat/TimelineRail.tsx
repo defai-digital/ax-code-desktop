@@ -21,7 +21,6 @@ type TimelineRailProps = {
   activeTurnId: string | null
   atBottom: boolean
   onJumpToTurn: (turnId: string) => void
-  onStepTurn: (offset: -1 | 1) => void
 }
 
 /**
@@ -32,7 +31,11 @@ type TimelineRailProps = {
  * The last rendered turn whose top has reached the viewport top, as the TUI rail does. The transcript's own active
  * turn is the most visible one near the top, which after a jump is often the turn below the one that was clicked.
  */
-function useReachedTurnId(scrollRef: React.RefObject<HTMLDivElement | null>, enabled: boolean, turnCount: number) {
+function useReachedTurnId(
+  scrollRef: React.RefObject<HTMLDivElement | null>,
+  enabled: boolean,
+  turns: readonly RailTurn[],
+) {
   const [reachedId, setReachedId] = React.useState<string | null>(null)
 
   React.useEffect(() => {
@@ -70,7 +73,7 @@ function useReachedTurnId(scrollRef: React.RefObject<HTMLDivElement | null>, ena
       container.removeEventListener("scroll", schedule)
       if (frame !== null) cancelAnimationFrame(frame)
     }
-  }, [enabled, scrollRef, turnCount])
+  }, [enabled, scrollRef, turns])
 
   return reachedId
 }
@@ -81,7 +84,6 @@ export const TimelineRail: React.FC<TimelineRailProps> = ({
   activeTurnId,
   atBottom,
   onJumpToTurn,
-  onStepTurn,
 }) => {
   const { t, formatLocale } = useI18n()
   const rootRef = React.useRef<HTMLDivElement | null>(null)
@@ -100,7 +102,7 @@ export const TimelineRail: React.FC<TimelineRailProps> = ({
     return () => observer.disconnect()
   }, [])
 
-  const reachedTurnId = useReachedTurnId(scrollRef, !atBottom && turns.length > 1, turns.length)
+  const reachedTurnId = useReachedTurnId(scrollRef, !atBottom && turns.length > 1, turns)
   const activeIndex = React.useMemo(() => {
     if (turns.length === 0) return 0
     if (atBottom) return turns.length - 1
@@ -160,7 +162,10 @@ export const TimelineRail: React.FC<TimelineRailProps> = ({
           tabIndex={-1}
           aria-label={t("chat.timelineRail.previous")}
           disabled={!canStepBack}
-          onClick={() => onStepTurn(-1)}
+          onClick={() => {
+            const previous = turns[activeIndex - 1]
+            if (previous) onJumpToTurn(previous.id)
+          }}
           className="flex w-6 items-center justify-center text-[8px] leading-none text-muted-foreground transition-colors hover:text-foreground disabled:text-muted-foreground/30"
           style={{ height: ARROW_PX }}
         >
@@ -208,7 +213,10 @@ export const TimelineRail: React.FC<TimelineRailProps> = ({
           tabIndex={-1}
           aria-label={t("chat.timelineRail.next")}
           disabled={!canStepForward}
-          onClick={() => onStepTurn(1)}
+          onClick={() => {
+            const next = turns[activeIndex + 1]
+            if (next) onJumpToTurn(next.id)
+          }}
           className="flex w-6 items-center justify-center text-[8px] leading-none text-muted-foreground transition-colors hover:text-foreground disabled:text-muted-foreground/30"
           style={{ height: ARROW_PX }}
         >
