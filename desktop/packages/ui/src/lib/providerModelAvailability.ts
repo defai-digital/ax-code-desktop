@@ -112,3 +112,16 @@ export const hasSelectableProviderModel = (
   providerId: string,
   modelId: string,
 ): boolean => Boolean(findSelectableProviderModel(providers, providerId, modelId))
+
+// Providers that drive a separate command-line program on the user's machine. They are real choices
+// when picked or configured, but they depend on a binary Desktop cannot see from the provider list,
+// so an automatic last-resort default must never land on one.
+const EXTERNAL_CLI_PROVIDER_IDS: ReadonlySet<string> = new Set([
+  "claude-code",
+  "codex-cli",
+  "muse-cli",
+  "grok-build-cli",
+])
+
+export const isExternalCliProvider = (providerId: string | undefined): boolean =>
+  typeof providerId === "string" && EXTERNAL_CLI_PROVIDER_IDS.has(providerId)

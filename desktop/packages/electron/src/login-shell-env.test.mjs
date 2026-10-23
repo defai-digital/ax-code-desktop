@@ -10,6 +10,8 @@ const {
   resolveForwardedLoginShellEnv,
   startLoginShellEnvCapture,
   modelDownloadRuntimeEnv,
+  mergeRuntimePath,
+  runtimeExecutionEnv,
 } = require("./login-shell-env.js")
 
 function fakeExecFile(outputs) {
@@ -173,4 +175,88 @@ test("model env drops incomplete entries, invalid workers and control-bearing va
     {},
   )
   expect(modelDownloadRuntimeEnv({}, "AX_ENGINE_HF_MAX_WORKERS=4\0")).toEqual({ AX_ENGINE_HF_MAX_WORKERS: "4" })
+})
+
+describe("runtime search path", () => {
+  const launcherPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+
+  test("a Dock launch gains the login-shell directories without losing the launcher ones", () => {
+    const env = runtimeExecutionEnv(
+      { PATH: launcherPath, HOME: "/Users/a" },
+      "PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin\0",
+      "darwin",
+    )
+    expect(env.PATH).toBe("/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
+    expect(env.HOME).toBe("/Users/a")
+  })
+
+  test("orders shell, inherited and system directories and removes duplicates", () => {
+    expect(mergeRuntimePath({ shellPath: "/shell/a:/shared:/shell/b", inheritedPath: "/shared:/launcher" })).toBe(
+      "/shell/a:/shared:/shell/b:/launcher:/usr/bin:/bin:/usr/sbin:/sbin",
+    )
+  })
+
+  test("drops relative, empty and control-bearing segments", () => {
+    expect(mergeRuntimePath({ shellPath: "bin::./tools:/ok:/bad\ndir:/also ok", inheritedPath: "relative/path" })).toBe(
+      "/ok:/also ok:/usr/bin:/bin:/usr/sbin:/sbin",
+    )
+  })
+
+  test("system directories stay reachable when the launcher PATH is empty", () => {
+    expect(mergeRuntimePath({ shellPath: "/opt/homebrew/bin", inheritedPath: undefined })).toBe(
+      "/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin",
+    )
+  })
+
+  test("a failed capture on macOS appends Homebrew directories after every existing entry", () => {
+    const base = { PATH: launcherPath }
+    for (const raw of [null, undefined, "HOME=/h\0", "PATH=/partial", "X=" + "x".repeat(10 * 1024 * 1024)]) {
+      expect(runtimeExecutionEnv(base, raw, "darwin").PATH).toBe(`${launcherPath}:/opt/homebrew/bin:/usr/local/bin`)
+    }
+    // A launcher that already lists them keeps its own order.
+    expect(runtimeExecutionEnv({ PATH: "/usr/local/bin:/usr/bin" }, null, "darwin").PATH).toBe(
+      "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin",
+    )
+    expect(base).toEqual({ PATH: launcherPath })
+  })
+
+  test("a capture whose every PATH entry is rejected counts as failed", () => {
+    const base = { PATH: launcherPath }
+    expect(runtimeExecutionEnv(base, "PATH=relative/bin:./tools\0", "darwin").PATH).toBe(
+      `${launcherPath}:/opt/homebrew/bin:/usr/local/bin`,
+    )
+    expect(runtimeExecutionEnv(base, "PATH=/bad\ndir\0", "darwin").PATH).toBe(
+      `${launcherPath}:/opt/homebrew/bin:/usr/local/bin`,
+    )
+    expect(runtimeExecutionEnv(base, "PATH=relative/bin\0", "linux")).toEqual(base)
+  })
+
+  test("a successful capture is authoritative and gets no guessed directories", () => {
+    expect(runtimeExecutionEnv({ PATH: launcherPath }, "PATH=/nix/bin\0", "darwin").PATH).toBe(
+      `/nix/bin:${launcherPath}`,
+    )
+  })
+
+  test("a failed capture on Linux leaves the launcher PATH untouched", () => {
+    const base = { PATH: launcherPath }
+    for (const raw of [null, undefined, "HOME=/h\0", "PATH=/partial"]) {
+      expect(runtimeExecutionEnv(base, raw, "linux")).toEqual(base)
+    }
+  })
+
+  test("Windows keeps its own search path", () => {
+    const base = { Path: "C:\\Windows" }
+    expect(runtimeExecutionEnv(base, "PATH=/opt/homebrew/bin\0", "win32")).toEqual(base)
+  })
+
+  test("only PATH is imported from the shell besides the model settings, and the input is not mutated", () => {
+    const base = { PATH: launcherPath }
+    const env = runtimeExecutionEnv(
+      base,
+      "PATH=/opt/homebrew/bin\0OPENAI_API_KEY=unrelated-secret\0NODE_OPTIONS=--inspect\0HF_HOME=/cache\0",
+      "linux",
+    )
+    expect(Object.keys(env).sort()).toEqual(["HF_HOME", "PATH"])
+    expect(base).toEqual({ PATH: launcherPath })
+  })
 })

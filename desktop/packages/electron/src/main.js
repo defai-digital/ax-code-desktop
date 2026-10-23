@@ -46,7 +46,7 @@ const {
   LOGIN_SHELL_ENV_VAR,
   resolveForwardedLoginShellEnv,
   startLoginShellEnvCapture,
-  modelDownloadRuntimeEnv,
+  runtimeExecutionEnv,
 } = require("./login-shell-env")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 const { requireBrowserClosure, restartDesktop } = require("./browser-shutdown")
@@ -60,7 +60,7 @@ const wikiViewer = createWikiViewer({
     // to report the runtime as unavailable there even though the app was
     // talking to a PATH-installed ax-code the whole time.
     const resolved = resolveRuntimeBinary({
-      env: applyBundledAxCodeEnv(process.env, bundledAxCodeEnv),
+      env: applyBundledAxCodeEnv(runtimeSearchEnv || process.env, bundledAxCodeEnv),
       settings: readSettingsRoot(),
     })
     if (!resolved) return null
@@ -336,6 +336,9 @@ const bundledAxCodeEnv = buildBundledAxCodeEnv({
 // itself never applies it. POSIX only: Windows has no login shell to capture.
 const loginShellEnvCapture = startLoginShellEnvCapture()
 let loginShellEnvEncoded = null
+// Runtime environment with the merged search path; set once the login-shell capture settles so a
+// PATH-installed runtime resolves for the wiki viewer exactly as it does for the supervisor.
+let runtimeSearchEnv = null
 // Created unless the S2.5 escape hatch is set; the supervision owns the
 // runtime origin/exhausted state in that mode.
 let runtimeSupervision = null
@@ -3765,11 +3768,12 @@ app.whenReady().then(async () => {
     if (isQuitting) return
     loginShellEnvEncoded = resolveForwardedLoginShellEnv(loginShellEnv)
     recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
+    runtimeSearchEnv = runtimeExecutionEnv(process.env, loginShellEnv)
     if (isMainSupervisedRuntimeEnabled()) {
       recordStartupEvent("runtime.supervision.start", {}, { once: false })
       runtimeSupervision = createAxCodeRuntimeSupervision({
         env: desktopBrowserRuntimeEnv(
-          applyBundledAxCodeEnv(modelDownloadRuntimeEnv(process.env, loginShellEnv), bundledAxCodeEnv),
+          applyBundledAxCodeEnv(runtimeSearchEnv, bundledAxCodeEnv),
           DESKTOP_BROWSER_TOKEN,
         ),
         settingsReader: readSettingsRoot,

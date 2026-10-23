@@ -2,7 +2,12 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 import type { ProviderWithModelList } from "@/types/providerModels"
 import { registerAgentsSource } from "@/lib/agents"
 import { composerOwnsActivatedDirectory, restoreSubmittedComposerSelection } from "@/sync/session-ui-store"
-import { keepsManualSelection, shouldKeepCurrentSelection, useConfigStore } from "./useConfigStore-impl"
+import {
+  keepsManualSelection,
+  resolveFirstSelectableSelection,
+  shouldKeepCurrentSelection,
+  useConfigStore,
+} from "./useConfigStore-impl"
 
 const providers = [
   {
@@ -60,6 +65,51 @@ describe("keepsManualSelection", () => {
 
   test("does not keep an empty pick", () => {
     expect(keepsManualSelection("manual", providers, "", "")).toBe(false)
+  })
+})
+
+describe("resolveFirstSelectableSelection and external-CLI providers", () => {
+  const model = (id: string) => ({ id, limit: { context: 200_000, output: 8_000 } })
+  const catalogue = [
+    { id: "claude-code", models: [model("claude-code")] },
+    { id: "codex-cli", models: [model("codex")] },
+    { id: "grok-build-cli", models: [model("grok")] },
+    { id: "muse-cli", models: [model("muse")] },
+    { id: "defai", models: [model("deepseek-flash"), model("mimo")] },
+  ] as unknown as ProviderWithModelList[]
+
+  test("never lands on an external CLI even when it is listed first", () => {
+    // Regression: a project with no selection fell to the alphabetically first provider,
+    // claude-code, whose binary was not on the runtime PATH, so every prompt failed.
+    expect(resolveFirstSelectableSelection(catalogue)).toMatchObject({
+      currentProviderId: "defai",
+      currentModelId: "deepseek-flash",
+    })
+  })
+
+  test("does not promote a preferred external CLI", () => {
+    expect(resolveFirstSelectableSelection(catalogue, "codex-cli")).toMatchObject({ currentProviderId: "defai" })
+  })
+
+  test("still promotes a preferred ordinary provider", () => {
+    const two = [
+      { id: "alpha", models: [model("a")] },
+      { id: "defai", models: [model("deepseek-flash")] },
+    ] as unknown as ProviderWithModelList[]
+    expect(resolveFirstSelectableSelection(two, "defai")).toMatchObject({ currentProviderId: "defai" })
+    expect(resolveFirstSelectableSelection(two)).toMatchObject({ currentProviderId: "alpha" })
+  })
+
+  test("returns nothing when only external CLIs are offered, so the user must choose", () => {
+    expect(resolveFirstSelectableSelection(catalogue.slice(0, 4))).toBeNull()
+  })
+
+  test("skips ordinary providers whose models are all blocked", () => {
+    const blocked = [
+      { id: "tiny", models: [{ id: "t", limit: { context: 1_000, output: 100 } }] },
+      ...catalogue,
+    ] as unknown as ProviderWithModelList[]
+    expect(resolveFirstSelectableSelection(blocked)).toMatchObject({ currentProviderId: "defai" })
   })
 })
 

@@ -13,7 +13,11 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { parseModelIdentifier } from "@/lib/modelIdentifier"
 import { isPrimaryMode } from "@/lib/modelControlUtils"
-import { hasSelectableProviderModel, isProviderModelSelectable } from "@/lib/providerModelAvailability"
+import {
+  hasSelectableProviderModel,
+  isExternalCliProvider,
+  isProviderModelSelectable,
+} from "@/lib/providerModelAvailability"
 import type { ProviderModel, ProviderWithModelList } from "@/types/providerModels"
 import { API_ENDPOINTS } from "@/lib/http"
 import { withTimeout } from "@/lib/asyncTimeout"
@@ -595,7 +599,7 @@ const resolveSettingsDefaultSelection = (
   }
 }
 
-const resolveFirstSelectableSelection = (
+export const resolveFirstSelectableSelection = (
   providers: ProviderWithModelList[],
   preferredProviderId?: string,
 ): {
@@ -604,13 +608,16 @@ const resolveFirstSelectableSelection = (
   currentVariant?: string
   selectedProviderId: string
 } | null => {
+  // External-CLI providers are skipped even when preferred: an automatic default that lands on a
+  // program that may not be installed fails every prompt, while no default asks the user to pick.
+  const candidates = providers.filter((provider) => !isExternalCliProvider(provider.id))
   const orderedProviders =
-    preferredProviderId && providers.some((provider) => provider.id === preferredProviderId)
+    preferredProviderId && candidates.some((provider) => provider.id === preferredProviderId)
       ? [
-          ...providers.filter((provider) => provider.id === preferredProviderId),
-          ...providers.filter((provider) => provider.id !== preferredProviderId),
+          ...candidates.filter((provider) => provider.id === preferredProviderId),
+          ...candidates.filter((provider) => provider.id !== preferredProviderId),
         ]
-      : providers
+      : candidates
 
   for (const provider of orderedProviders) {
     const model = provider.models.find((item) => isProviderModelSelectable(item, provider.id))

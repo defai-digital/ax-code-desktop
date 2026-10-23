@@ -162,6 +162,67 @@ function modelDownloadRuntimeEnv(env, raw) {
   return result
 }
 
+// Directories every POSIX runtime keeps reachable even when neither the login shell nor the
+// launcher supplied them, so a degraded capture can never leave the runtime without `sh` tools.
+const POSIX_SYSTEM_PATH_DIRS = ["/usr/bin", "/bin", "/usr/sbin", "/sbin"]
+// Appended last, and only on macOS when the login-shell capture produced no PATH (slow shell init,
+// timeout), so a Dock-launched app still finds Homebrew tools. They never outrank any other entry.
+const DARWIN_FALLBACK_PATH_DIRS = ["/opt/homebrew/bin", "/usr/local/bin"]
+
+function loginShellPathValue(raw) {
+  if (typeof raw !== "string" || Buffer.byteLength(raw) > MAX_STDOUT_BYTES) return ""
+  // env -0 terminates every entry; ignore an incomplete final value like modelDownloadRuntimeEnv does.
+  for (const entry of raw.split("\0").slice(0, -1)) {
+    if (entry.startsWith("PATH=")) return entry.slice("PATH=".length)
+  }
+  return ""
+}
+
+// Keeps absolute, control-free segments in first-seen order. Relative segments resolve against
+// whatever directory the runtime later runs in, which would let a project shadow a tool.
+function pathSegments(value) {
+  if (typeof value !== "string" || value.length === 0) return []
+  return value.split(":").filter((segment) => segment.startsWith("/") && !/[\r\n\x00-\x1f\x7f]/.test(segment))
+}
+
+// Merge order: login-shell PATH, then the inherited launcher PATH, then the system directories.
+// A Finder or Dock launch hands the app `/usr/bin:/bin:/usr/sbin:/sbin`, so without the shell's
+// PATH the runtime cannot find Homebrew or version-manager tools (`claude`, `node`, `git`).
+function mergeRuntimePath({ shellPath, inheritedPath, fallbackDirs = [] }) {
+  const seen = new Set()
+  const merged = []
+  for (const segment of [
+    ...pathSegments(shellPath),
+    ...pathSegments(inheritedPath),
+    ...POSIX_SYSTEM_PATH_DIRS,
+    ...fallbackDirs,
+  ]) {
+    if (seen.has(segment)) continue
+    seen.add(segment)
+    merged.push(segment)
+  }
+  return merged.join(":")
+}
+
+// Environment for the main-supervised runtime: the model-download allowlist plus a merged search
+// path. This is the only login-shell variable forwarded besides that allowlist; the rest of the
+// shell environment stays out of main and out of the runtime. Windows keeps its own PATH handling.
+function runtimeExecutionEnv(env, raw, platform = process.platform) {
+  const result = modelDownloadRuntimeEnv(env, raw)
+  if (platform === "win32") return result
+  // Usability is judged on the validated segments: a capture whose every entry was rejected
+  // (relative, control-bearing) is as unusable as a missing one.
+  const shellPath = pathSegments(loginShellPathValue(raw)).join(":")
+  if (!shellPath && platform !== "darwin") return result
+  const merged = mergeRuntimePath({
+    shellPath,
+    inheritedPath: result.PATH,
+    fallbackDirs: shellPath ? [] : DARWIN_FALLBACK_PATH_DIRS,
+  })
+  if (merged) result.PATH = merged
+  return result
+}
+
 module.exports = {
   LOGIN_SHELL_ENV_UNAVAILABLE,
   LOGIN_SHELL_ENV_VAR,
@@ -170,4 +231,6 @@ module.exports = {
   resolveForwardedLoginShellEnv,
   startLoginShellEnvCapture,
   modelDownloadRuntimeEnv,
+  mergeRuntimePath,
+  runtimeExecutionEnv,
 }
