@@ -29,13 +29,6 @@ export function WorkspaceNavigation() {
   const leaveBoard = () => useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
   const items = [
     {
-      label: t("supervision.missionControl.title"),
-      icon: "equalizer-2" as const,
-      active: board,
-      disabled: false,
-      run: () => useSupervisionStore.setState({ missionControlOpen: true, compareRunGroupKey: null }),
-    },
-    {
       label: t("supervision.navigation.workspace"),
       icon: "chat-3" as const,
       active: !board && !review && !grid,
@@ -45,6 +38,13 @@ export function WorkspaceNavigation() {
         if (review) closeBesideChat("diff")
         leaveBoard()
       },
+    },
+    {
+      label: t("supervision.missionControl.title"),
+      icon: "equalizer-2" as const,
+      active: board,
+      disabled: false,
+      run: () => useSupervisionStore.setState({ missionControlOpen: true, compareRunGroupKey: null }),
     },
     {
       label: t("sessionGrid.title"),

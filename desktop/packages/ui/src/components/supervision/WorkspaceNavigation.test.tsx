@@ -48,6 +48,14 @@ describe("workspace navigation", () => {
         .find((b) => b.textContent?.includes(text))!
         .click(),
     )
+  test("lists Workspace first, then Mission Control, the session grid and review", () => {
+    const labels = Array.from(container.querySelectorAll("nav button[aria-pressed]")).map((b) => b.textContent ?? "")
+    expect(labels).toHaveLength(4)
+    expect(labels[0]).toContain("navigation.workspace")
+    expect(labels[1]).toContain("missionControl.title")
+    expect(labels[2]).toContain("sessionGrid.title")
+    expect(labels[3]).toContain("action.reviewChanges")
+  })
   test("moves from comparison to the board, opens review beside chat and returns to workspace", () => {
     act(() => useSupervisionStore.setState({ compareRunGroupKey: "group" }))
     click("missionControl.title")
