@@ -4,6 +4,7 @@ import {
   deriveSupervisionState,
   isHighTouchState,
   isLiveState,
+  needsFollowUp,
   needsHuman,
   nextNeedsHumanSession,
   rankSupervisionRows,
@@ -59,9 +60,10 @@ describe("deriveSupervisionState", () => {
     expect(deriveSupervisionState(input({ goalNeedsPerson: true, statusType: "retry" }))).toBe("running")
   })
 
-  test("an error outranks a goal, and a goal outranks uncommitted work", () => {
-    expect(deriveSupervisionState(input({ goalNeedsPerson: true, hasError: true }))).toBe("error")
+  test("a goal holds a decision, so it outranks an error and uncommitted work, which are only follow-ups", () => {
+    expect(deriveSupervisionState(input({ goalNeedsPerson: true, hasError: true }))).toBe("goal")
     expect(deriveSupervisionState(input({ goalNeedsPerson: true, finishedWithUncommitted: true }))).toBe("goal")
+    expect(deriveSupervisionState(input({ hasError: true, finishedWithUncommitted: true }))).toBe("error")
   })
 
   test("a goal that does not need a person does not change the state", () => {
@@ -77,19 +79,35 @@ describe("goal state classification", () => {
     expect(isHighTouchState("goal")).toBe(false)
   })
 
-  test("urgency and tree precedence place goal between error and review", () => {
-    expect(supervisionUrgency("error")).toBeLessThan(supervisionUrgency("goal"))
-    expect(supervisionUrgency("goal")).toBeLessThan(supervisionUrgency("review"))
+  test("urgency and tree precedence place a goal decision ahead of the error and review follow-ups", () => {
+    expect(supervisionUrgency("question")).toBeLessThan(supervisionUrgency("goal"))
+    expect(supervisionUrgency("goal")).toBeLessThan(supervisionUrgency("error"))
+    expect(supervisionUrgency("error")).toBeLessThan(supervisionUrgency("review"))
     expect(supervisionUrgency("goal")).toBeLessThan(supervisionUrgency("running"))
-    expect(treeStatePrecedence("running")).toBeLessThan(treeStatePrecedence("error"))
-    expect(treeStatePrecedence("error")).toBeLessThan(treeStatePrecedence("goal"))
-    expect(treeStatePrecedence("goal")).toBeLessThan(treeStatePrecedence("review"))
-    expect(treeStatePrecedence("goal")).toBeLessThan(treeStatePrecedence("idle"))
+    expect(treeStatePrecedence("running")).toBeLessThan(treeStatePrecedence("goal"))
+    expect(treeStatePrecedence("goal")).toBeLessThan(treeStatePrecedence("error"))
+    expect(treeStatePrecedence("error")).toBeLessThan(treeStatePrecedence("review"))
+    expect(treeStatePrecedence("review")).toBeLessThan(treeStatePrecedence("idle"))
+  })
+
+  test("only a stopped runtime interrupts: failures and finished work are follow-ups, not needs-you", () => {
+    for (const state of ["permission", "question", "goal"] as const) {
+      expect(needsHuman(state)).toBe(true)
+      expect(needsFollowUp(state)).toBe(false)
+    }
+    for (const state of ["error", "review"] as const) {
+      expect(needsHuman(state)).toBe(false)
+      expect(needsFollowUp(state)).toBe(true)
+    }
+    for (const state of ["running", "idle"] as const) {
+      expect(needsHuman(state)).toBe(false)
+      expect(needsFollowUp(state)).toBe(false)
+    }
   })
 
   test("work in progress counts a goal as needing you, not as running or high-touch", () => {
     const summary = summarizeWorkInProgress([{ state: "goal" as const }, { state: "running" as const }])
-    expect(summary).toEqual({ running: 1, needsYou: 1, highTouch: 1, overSoftLimit: false })
+    expect(summary).toEqual({ running: 1, needsYou: 1, followUp: 0, highTouch: 1, overSoftLimit: false })
   })
 })
 
@@ -144,15 +162,16 @@ describe("ranking and navigation", () => {
     expect(nextNeedsHumanSession(rows, "run")).toBe("perm-old")
   })
 
-  test("ranks a goal between an error and a review, and navigates to it", () => {
+  test("ranks a goal ahead of an error and a review, and navigation skips the follow-ups", () => {
     const withGoal = [
       { sessionId: "rev", state: "review" as const, updatedAt: 30 },
       { sessionId: "goal", state: "goal" as const, updatedAt: 20 },
       { sessionId: "err", state: "error" as const, updatedAt: 10 },
       { sessionId: "run", state: "running" as const, updatedAt: 40 },
     ]
-    expect(rankSupervisionRows(withGoal).map((row) => row.sessionId)).toEqual(["err", "goal", "rev", "run"])
-    expect(nextNeedsHumanSession(withGoal, null)).toBe("err")
+    expect(rankSupervisionRows(withGoal).map((row) => row.sessionId)).toEqual(["goal", "err", "rev", "run"])
+    expect(nextNeedsHumanSession(withGoal, null)).toBe("goal")
+    expect(nextNeedsHumanSession(withGoal, "goal")).toBe("goal")
     expect(nextNeedsHumanSession(withGoal, "err")).toBe("goal")
   })
 
@@ -161,7 +180,7 @@ describe("ranking and navigation", () => {
   })
 
   test("summarizes work in progress with a soft limit", () => {
-    expect(summarizeWorkInProgress(rows)).toEqual({ running: 1, needsYou: 4, highTouch: 3, overSoftLimit: false })
+    expect(summarizeWorkInProgress(rows)).toEqual({ running: 1, needsYou: 2, followUp: 2, highTouch: 3, overSoftLimit: false })
     const busy = Array.from({ length: 5 }, (_, index) => ({ state: "running" as const, sessionId: `${index}` }))
     expect(summarizeWorkInProgress(busy).overSoftLimit).toBe(true)
   })

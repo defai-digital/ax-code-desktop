@@ -162,7 +162,7 @@ describe("Mission Control row interaction", () => {
     ["permission", "border-l-[var(--status-warning)]"],
     ["question", "border-l-[var(--status-warning)]"],
     ["goal", "border-l-[var(--status-warning)]"],
-    ["review", "border-l-[var(--status-warning)]"],
+    ["review", "border-l-transparent"],
     ["error", "border-l-[var(--status-error)]"],
     ["running", "border-l-transparent"],
     ["idle", "border-l-transparent"],

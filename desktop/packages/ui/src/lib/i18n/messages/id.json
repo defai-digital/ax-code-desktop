@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Kesalahan sesi",
   "projects.home.needsYou.showAll": "Tampilkan semua ({count})",
   "projects.home.needsYou.showFewer": "Tampilkan lebih sedikit",
+  "projects.home.followUp.title": "Tindak lanjut",
   "sessions.sidebar.session.menu.more": "Lainnya",
   "chat.commandAutocomplete.badge.snippet": "Cuplikan",
   "chat.commandAutocomplete.badge.magicPrompt": "Prompt ajaib",

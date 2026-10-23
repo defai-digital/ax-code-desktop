@@ -57,14 +57,15 @@ export function groupRequestsBySupervisionRoot<TRow extends SupervisionRequestRo
   return { groups: ranked, unmatched: orderRequestsByRisk(unmatched) }
 }
 
-/** Error, goal and review rows that are not already represented by a pending-request group. */
+/**
+ * Goal rows that are not already represented by a pending-request group. A goal is the only decision that is not
+ * a request; errors and finished work are follow-ups and are not listed under Needs you.
+ */
 export function supervisionStatusRows<TRow extends { sessionId: string; state: SupervisionState }>(
   rows: readonly TRow[],
   requestRootIds: ReadonlySet<string>,
 ): TRow[] {
-  return rows.filter(
-    (row) => (row.state === "error" || row.state === "goal" || row.state === "review") && !requestRootIds.has(row.sessionId),
-  )
+  return rows.filter((row) => row.state === "goal" && !requestRootIds.has(row.sessionId))
 }
 
 /** "Session title · Project" for a cross-session request card. Either half may be missing. */

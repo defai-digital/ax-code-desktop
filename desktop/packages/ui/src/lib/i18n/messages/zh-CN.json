@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "会话错误",
   "projects.home.needsYou.showAll": "显示全部（{count}）",
   "projects.home.needsYou.showFewer": "收起",
+  "projects.home.followUp.title": "\u540e\u7eed\u8ddf\u8fdb",
   "sessions.sidebar.session.menu.more": "更多",
   "chat.commandAutocomplete.badge.snippet": "片段",
   "chat.commandAutocomplete.badge.magicPrompt": "魔法提示",

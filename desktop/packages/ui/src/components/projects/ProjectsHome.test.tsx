@@ -28,7 +28,7 @@ vi.mock("@/sync/sync-context", () => ({
 vi.mock("@/hooks/useNeedsYouSessions", () => ({
   useNeedsYouSessionInputs: () => fixtures.projects.map(project => ({
     id: `session-${project.id}`, projectId: project.id, directory: project.path,
-    permissionCount: 0, questionCount: 0, hasError: true, finishedWithUncommitted: false,
+    permissionCount: 0, questionCount: 1, hasError: false, finishedWithUncommitted: false,
   })),
   useEnsureDirectoriesGitStatus: () => {},
 }))

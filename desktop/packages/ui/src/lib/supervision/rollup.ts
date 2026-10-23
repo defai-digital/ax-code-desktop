@@ -1,4 +1,4 @@
-import { needsHuman, treeStatePrecedence, type SupervisionState } from "./sessionState"
+import { needsFollowUp, needsHuman, treeStatePrecedence, type SupervisionState } from "./sessionState"
 
 export interface RollupInput {
   sessionId: string
@@ -54,7 +54,7 @@ export function rollUpChildStates(rows: readonly RollupInput[]): Map<string, Rol
   }
   for (const root of orphanRoots) {
     const rolled = result.get(root)
-    if (rolled && !needsHuman(rolled.state)) result.delete(root)
+    if (rolled && !needsHuman(rolled.state) && !needsFollowUp(rolled.state)) result.delete(root)
   }
   return result
 }

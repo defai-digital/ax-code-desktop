@@ -1,7 +1,7 @@
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 
-import { isLiveState, type SupervisionState } from "@/lib/supervision/sessionState"
+import { needsHuman, type SupervisionState } from "@/lib/supervision/sessionState"
 
 const ACTIVE_NOW_STORAGE_KEY = "oc.sessions.activeNow"
 const ACTIVE_NOW_MAX_AGE_MS = 36 * 60 * 60 * 1000
@@ -154,9 +154,13 @@ export interface PlannedLiveSidebarItem<TSession, TNode> {
   }
 }
 
-/** Live supervision rows, in the order given. Idle history stays out of the section. */
+/**
+ * Live supervision rows, in the order given: sessions that hold a decision or are working. Failures and finished
+ * work are follow-ups; they stay out so they cannot crowd working sessions out of the section while they wait.
+ * Mission Control still lists them.
+ */
 export function selectLiveSidebarRows<T extends { state: SupervisionState }>(rows: readonly T[]): T[] {
-  return rows.filter((row) => isLiveState(row.state))
+  return rows.filter((row) => needsHuman(row.state) || row.state === "running")
 }
 
 /**

@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "工作階段錯誤",
   "projects.home.needsYou.showAll": "顯示全部（{count}）",
   "projects.home.needsYou.showFewer": "收合",
+  "projects.home.followUp.title": "\u5f8c\u7e8c\u8ddf\u9032",
   "sessions.sidebar.session.menu.more": "更多",
   "chat.commandAutocomplete.badge.snippet": "片段",
   "chat.commandAutocomplete.badge.magicPrompt": "魔法提示",

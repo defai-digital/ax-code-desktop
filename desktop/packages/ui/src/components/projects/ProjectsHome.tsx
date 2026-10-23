@@ -12,6 +12,7 @@ import { sortProjectsForDisplay } from "@/lib/projectOrdering"
 import { formatProjectLastUsed } from "@/lib/projectLastUsed"
 import { deriveProjectActivity, type ProjectActivity } from "@/lib/projectStatus"
 import { attentionSessionForProject, needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
+import { FollowUpList } from "@/components/projects/FollowUpList"
 import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { openProjectFolder } from "@/lib/projectOpen"
@@ -279,8 +280,10 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
 
   return (
     <div className={cn("flex w-full flex-col", compact ? "gap-2" : "gap-3", className)}>
-      {/* Sessions waiting on a person lead the home, as their own section above Projects. */}
+      {/* Sessions waiting on a person's decision lead the home, as their own section above Projects. */}
       {variant === "home" && !compact ? <NeedsYouQueue className="mb-2" /> : null}
+      {/* Failures and finished work hold no decision: listed quietly below, never counted as needing a person. */}
+      {variant === "home" && !compact ? <FollowUpList className="mb-2" /> : null}
       <div className="flex flex-wrap items-center justify-between gap-2" data-projects-home-header>
         <div className="min-w-0">
           <h2 className={cn("font-medium text-foreground", compact ? "typography-ui-label" : "typography-ui-header")}>

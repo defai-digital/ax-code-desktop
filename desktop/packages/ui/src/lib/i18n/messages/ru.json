@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Ошибка сессии",
   "projects.home.needsYou.showAll": "Показать все ({count})",
   "projects.home.needsYou.showFewer": "Показать меньше",
+  "projects.home.followUp.title": "\u0414\u043b\u044f \u043f\u0440\u043e\u0441\u043c\u043e\u0442\u0440\u0430",
   "sessions.sidebar.session.menu.more": "Ещё",
   "chat.commandAutocomplete.badge.snippet": "Фрагмент",
   "chat.commandAutocomplete.badge.magicPrompt": "Волшебный запрос",

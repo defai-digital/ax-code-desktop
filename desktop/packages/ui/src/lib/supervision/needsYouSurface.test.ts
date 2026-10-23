@@ -78,7 +78,7 @@ describe("groupRequestsBySupervisionRoot", () => {
 })
 
 describe("supervisionStatusRows", () => {
-  test("keeps error and review rows that have no request, in order", () => {
+  test("leaves out error and review rows: they are follow-ups, not decisions", () => {
     const rows = [
       { sessionId: "perm", state: "permission" as const },
       { sessionId: "err", state: "error" as const },
@@ -86,7 +86,7 @@ describe("supervisionStatusRows", () => {
       { sessionId: "review", state: "review" as const },
       { sessionId: "claimed", state: "error" as const },
     ]
-    expect(supervisionStatusRows(rows, new Set(["claimed"])).map((row) => row.sessionId)).toEqual(["err", "review"])
+    expect(supervisionStatusRows(rows, new Set(["claimed"])).map((row) => row.sessionId)).toEqual([])
   })
 
   test("keeps goal rows that have no request", () => {

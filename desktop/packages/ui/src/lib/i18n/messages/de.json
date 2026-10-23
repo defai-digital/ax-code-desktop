@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Sitzungsfehler",
   "projects.home.needsYou.showAll": "Alle anzeigen ({count})",
   "projects.home.needsYou.showFewer": "Weniger anzeigen",
+  "projects.home.followUp.title": "Nachverfolgen",
   "sessions.sidebar.session.menu.more": "Mehr",
   "chat.commandAutocomplete.badge.snippet": "Textbaustein",
   "chat.commandAutocomplete.badge.magicPrompt": "Magische Eingabe",

@@ -479,6 +479,7 @@ export const dict = {
   "projects.home.needsYou.goal": "Goal needs you",
   "projects.home.needsYou.showAll": "Show all ({count})",
   "projects.home.needsYou.showFewer": "Show fewer",
+  "projects.home.followUp.title": "Follow up",
   "projects.import.title": "Import projects",
   "projects.import.description": "Bring in workspace folders already registered by Codex or Kimi Code on this machine.",
   "projects.import.empty": "No external workspaces found. Add a project folder instead.",

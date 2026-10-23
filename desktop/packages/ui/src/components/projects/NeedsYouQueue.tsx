@@ -6,7 +6,6 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
-import type { IconName } from "@/components/icon/icons"
 import { cn } from "@/lib/utils"
 import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
 import {
@@ -14,9 +13,8 @@ import {
   listNeedsYouSessions,
   rankNeedsYouEntries,
   selectNeedsYouSession,
-  type NeedsYouReason,
 } from "@/lib/needsYou"
-import { needsYouReasonLabel } from "@/lib/needsYouLabels"
+import { ATTENTION_REASON_ICON, needsYouReasonLabel } from "@/lib/needsYouLabels"
 import { useEnsureDirectoriesGitStatus, useNeedsYouSessionInputs } from "@/hooks/useNeedsYouSessions"
 import { requestsForSessionTree } from "@/lib/supervision/requests"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
@@ -25,22 +23,15 @@ import { useAllPendingRequests } from "@/sync/sync-context"
 import { RequestActionCard } from "@/components/supervision/RequestActionCard"
 import { SupervisionGoalLine } from "@/components/supervision/SupervisionGoalLine"
 
-const REASON_ICON: Record<NeedsYouReason, IconName> = {
-  permission: "shield-warning",
-  question: "question",
-  error: "error-warning",
-  goal: "record-circle",
-  uncommitted: "git-commit",
-}
-
 type NeedsYouQueueProps = {
   className?: string
 }
 
 /**
- * Sessions across the portfolio that are waiting on a person: a permission or a question, an error,
- * or finished work that is not committed. A permission or a question can be answered here; other
- * reasons open the session. Most urgent first, each row names its project, and the list stays bounded.
+ * Sessions across the portfolio that are waiting on a person's decision: a permission, a question, or a goal
+ * that cannot progress. A permission or a question can be answered here; a goal opens the session. Failures and
+ * finished work are not decisions and live in FollowUpList. Most urgent first, each row names its project, and the
+ * list stays bounded.
  * Renders nothing when no session needs anyone.
  */
 export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
@@ -128,7 +119,10 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
               className="surface-inset-row flex w-full min-w-0 items-center gap-2.5 px-2.5 py-1.5 text-left hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
               onClick={() => open(entry.sessionId)}
             >
-              <Icon name={REASON_ICON[entry.reason]} className="h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]" />
+              <Icon
+                name={ATTENTION_REASON_ICON[entry.reason]}
+                className="h-3.5 w-3.5 shrink-0 text-[var(--status-warning)]"
+              />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate typography-ui-label text-foreground">{entry.title}</span>
                 {project ? <span className="break-all typography-micro text-muted-foreground">{project}</span> : null}

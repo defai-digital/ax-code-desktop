@@ -22,7 +22,9 @@ import {
   sessionNeedsSwitcherAttention,
   type NeedsYouSessionInput,
 } from "@/lib/needsYou"
+import { useGitStore } from "@/stores/useGitStore"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
+import { useRunStateStore } from "@/sync/run-state-store"
 import { useNeedsYouSessionInputs } from "./useNeedsYouSessions"
 
 const session = (id: string, parentID?: string) => ({
@@ -138,5 +140,77 @@ describe("useNeedsYouSessionInputs goal wiring", () => {
     // An orphan whose parent is not loaded is the top of its loaded tree.
     expect(byId.get("orphan")?.goalNeedsPerson).toBe(true)
     expect(listNeedsYouSessions(latest).map((entry) => entry.sessionId)).toEqual(["root", "orphan"])
+  })
+})
+
+describe("useNeedsYouSessionInputs finished work", () => {
+  let container: HTMLDivElement
+  let root: Root
+  let latest: NeedsYouSessionInput[] = []
+
+  const Harness: React.FC = () => {
+    latest = useNeedsYouSessionInputs()
+    return null
+  }
+
+  const withChanges = (id: string) => ({ ...session(id), summary: { additions: 4, deletions: 1, files: 2 } })
+  const setDirty = (dirtyTree: boolean) =>
+    useGitStore.setState({ directories: new Map([["/repo", { status: { isClean: !dirtyTree } }]]) as never })
+  const uncommitted = (id: string) => latest.find((input) => input.id === id)?.finishedWithUncommitted
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    mocks.sessions = []
+    mocks.statuses = {}
+    mocks.pendingPermissions = new Set()
+    mocks.pendingQuestions = new Set()
+    useSessionGoalStore.getState().clear()
+    useRunStateStore.setState({ runEndedAt: { done: 2000, quiet: 2000, other: 2000 }, nudgeDismissedAt: {} })
+    setDirty(false)
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    useRunStateStore.setState({ runEndedAt: {}, nudgeDismissedAt: {} })
+    useGitStore.setState({ directories: new Map() })
+  })
+
+  test("finished work counts only when the session reported changes of its own and the directory is dirty", () => {
+    mocks.sessions = [withChanges("done"), session("quiet")]
+    setDirty(false)
+    act(() => root.render(<Harness />))
+    expect(uncommitted("done")).toBe(false)
+
+    setDirty(true)
+    act(() => root.render(<Harness />))
+    expect(uncommitted("done")).toBe(true)
+    // A dirty directory says nothing about a session that never reported a change: the user's own edits or a
+    // sibling session may have made it dirty.
+    expect(uncommitted("quiet")).toBe(false)
+  })
+
+  test("a session whose run never ended is not finished work", () => {
+    mocks.sessions = [withChanges("fresh")]
+    setDirty(true)
+    act(() => root.render(<Harness />))
+    expect(uncommitted("fresh")).toBe(false)
+  })
+
+  test("a dismissal holds until the next run ends", () => {
+    mocks.sessions = [withChanges("done")]
+    setDirty(true)
+    act(() => root.render(<Harness />))
+    expect(uncommitted("done")).toBe(true)
+
+    act(() => useRunStateStore.setState({ nudgeDismissedAt: { done: 3000 } }))
+    expect(uncommitted("done")).toBe(false)
+
+    // The same run-ended rule the in-session nudge follows: a later run ending shows it again.
+    act(() => useRunStateStore.setState({ runEndedAt: { done: 4000 } }))
+    expect(uncommitted("done")).toBe(true)
   })
 })

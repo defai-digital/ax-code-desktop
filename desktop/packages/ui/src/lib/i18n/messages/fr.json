@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Erreur de session",
   "projects.home.needsYou.showAll": "Tout afficher ({count})",
   "projects.home.needsYou.showFewer": "Afficher moins",
+  "projects.home.followUp.title": "\u00c0 suivre",
   "sessions.sidebar.session.menu.more": "Plus d'actions",
   "chat.commandAutocomplete.badge.snippet": "Extrait",
   "chat.commandAutocomplete.badge.magicPrompt": "Invite magique",

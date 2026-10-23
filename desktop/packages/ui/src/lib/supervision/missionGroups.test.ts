@@ -34,14 +34,14 @@ describe("groupMissionRows", () => {
     expect(groups[0].label).toBe("Beta")
   })
 
-  test("counts all needs-human states and sums only reported evidence", () => {
+  test("counts only the decision states as needing you and sums only reported evidence", () => {
     const rows = (["permission", "question", "error", "goal", "review", "running", "idle"] as const).map((state) =>
       row(state, { state }),
     )
     rows[0].evidence = { additions: 3, deletions: 1, files: 2 }
     rows[5].evidence = { additions: 7, deletions: 4, files: 3 }
     expect(groupMissionRows(rows, null)[0]).toMatchObject({
-      needsYou: 5,
+      needsYou: 3,
       running: 1,
       evidence: { additions: 10, deletions: 5, files: 5 },
     })

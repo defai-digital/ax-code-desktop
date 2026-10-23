@@ -90,12 +90,12 @@ describe("NeedsYouPopover", () => {
     expect(line?.textContent).toContain("supervision.goal.remainingTokens:3800")
   })
 
-  test("shows no goal line for a review entry without a goal", () => {
+  test("shows no goal line for a goal decision without a goal snapshot", () => {
     popoverMocks.rows = [
       {
         sessionId: "s-review",
         title: "Review session",
-        state: "review",
+        state: "goal",
         treeSessionIds: ["s-review"],
         projectId: "p1",
         projectLabel: "Project",

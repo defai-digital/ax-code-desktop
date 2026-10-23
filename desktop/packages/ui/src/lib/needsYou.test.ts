@@ -8,7 +8,10 @@ const sourcePath = (relativePath: string) =>
 
 import {
   attentionSessionForProject,
+  followUpReason,
+  listFollowUpSessions,
   needsYouReason,
+  rankFollowUpEntries,
   rankNeedsYouEntries,
   listNeedsYouSessions,
   orderSwitcherSessionIds,
@@ -38,7 +41,7 @@ const session = (overrides: Partial<NeedsYouSessionInput> & Pick<NeedsYouSession
 })
 
 describe("needs-you queue", () => {
-  test("lists only sessions that need a human and selecting one returns that id", () => {
+  test("lists only sessions that wait on a decision and selecting one returns that id", () => {
     const sessions = [
       session({ id: "perm", permissionCount: 1, title: "Approve write" }),
       session({ id: "question", questionCount: 1, title: "Which file?" }),
@@ -49,10 +52,9 @@ describe("needs-you queue", () => {
     ]
 
     const queue = listNeedsYouSessions(sessions)
-    expect(queue.map((entry) => entry.sessionId)).toEqual(["perm", "question", "dirty", "err"])
-    expect(queue.map((entry) => entry.reason)).toEqual(["permission", "question", "uncommitted", "error"])
+    expect(queue.map((entry) => entry.sessionId)).toEqual(["perm", "question"])
+    expect(queue.map((entry) => entry.reason)).toEqual(["permission", "question"])
     expect(selectNeedsYouSession(queue[1]!.sessionId)).toBe("question")
-    expect(selectNeedsYouSession(queue[3]!.sessionId)).toBe("err")
   })
 
   test("project attention opens a waiting session in that project", () => {
@@ -67,16 +69,17 @@ describe("needs-you queue", () => {
     expect(attentionSessionForProject("missing", sessions)).toBeNull()
   })
 
-  test("project attention opens an error-only session in that project", () => {
+  test("project attention ignores a failure or finished work, which hold no decision", () => {
     const sessions = [
       session({ id: "idle", projectId: "app", updatedAt: 1 }),
       session({ id: "err", projectId: "app", hasError: true, updatedAt: 9 }),
+      session({ id: "dirty", projectId: "app", finishedWithUncommitted: true, updatedAt: 10 }),
     ]
 
-    expect(attentionSessionForProject("app", sessions)).toBe("err")
+    expect(attentionSessionForProject("app", sessions)).toBeNull()
   })
 
-  test("project attention prefers a permission over an older error", () => {
+  test("project attention opens the decision even when a newer failure exists", () => {
     const sessions = [
       session({ id: "old-err", projectId: "app", hasError: true, updatedAt: 1 }),
       session({ id: "perm", projectId: "app", permissionCount: 1, updatedAt: 20 }),
@@ -107,8 +110,8 @@ describe("needs-you queue", () => {
     expect(switcher).toContain("orderSwitcherSessionIds")
   })
 
-  test("ranks blocked sessions before errors before uncommitted work, keeping order within a tier", () => {
-    const entry = (sessionId: string, reason: "permission" | "question" | "uncommitted" | "error" | "goal") => ({
+  test("ranks blocked requests before a goal that needs a person, keeping order within a tier", () => {
+    const entry = (sessionId: string, reason: "permission" | "question" | "goal") => ({
       sessionId,
       projectId: null,
       reason,
@@ -117,39 +120,26 @@ describe("needs-you queue", () => {
       goal: null,
     })
     const ranked = rankNeedsYouEntries([
-      entry("a", "uncommitted"),
-      entry("b", "error"),
-      entry("c", "question"),
-      entry("d", "uncommitted"),
-      entry("e", "permission"),
+      entry("a", "goal"),
+      entry("b", "question"),
+      entry("c", "goal"),
+      entry("d", "permission"),
     ])
-    expect(ranked.map((item) => item.sessionId)).toEqual(["c", "e", "b", "a", "d"])
+    expect(ranked.map((item) => item.sessionId)).toEqual(["b", "d", "a", "c"])
   })
 
-  test("a goal that needs a person ranks after an error and before uncommitted work", () => {
-    expect(
-      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: true, goalNeedsPerson: true }),
-    ).toBe("goal")
-    expect(
-      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: true, finishedWithUncommitted: true, goalNeedsPerson: true }),
-    ).toBe("error")
-    expect(
-      needsYouReason({ permissionCount: 1, questionCount: 0, hasError: true, finishedWithUncommitted: true, goalNeedsPerson: true }),
-    ).toBe("permission")
-    const ranked = rankNeedsYouEntries([
-      { sessionId: "dirty", projectId: null, reason: "uncommitted", directory: null, title: "dirty", goal: null },
-      { sessionId: "goal", projectId: null, reason: "goal", directory: null, title: "goal", goal: null },
-      { sessionId: "err", projectId: null, reason: "error", directory: null, title: "err", goal: null },
-    ])
-    expect(ranked.map((entry) => entry.sessionId)).toEqual(["err", "goal", "dirty"])
+  test("a goal that needs a person is a decision, and a pending request outranks it", () => {
+    const base = { permissionCount: 0, questionCount: 0, goalNeedsPerson: true }
+    expect(needsYouReason(base)).toBe("goal")
+    expect(needsYouReason({ ...base, permissionCount: 1 })).toBe("permission")
+    expect(needsYouReason({ ...base, questionCount: 1 })).toBe("question")
   })
 
   test("a busy or retry session does not need a person for its blocked goal", () => {
-    const base = { permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false, goalNeedsPerson: true }
+    const base = { permissionCount: 0, questionCount: 0, goalNeedsPerson: true }
     expect(needsYouReason({ ...base, statusType: "busy" })).toBeNull()
     expect(needsYouReason({ ...base, statusType: "retry" })).toBeNull()
     expect(needsYouReason({ ...base, statusType: "idle" })).toBe("goal")
-    expect(needsYouReason({ ...base, statusType: "busy", finishedWithUncommitted: true })).toBe("uncommitted")
     expect(
       listNeedsYouSessions([
         session({ id: "busy-goal", goalNeedsPerson: true, statusType: "busy", goal: goalSnapshot() }),
@@ -158,14 +148,56 @@ describe("needs-you queue", () => {
     ).toEqual(["idle-goal"])
   })
 
-  test("callers that do not pass goalNeedsPerson behave as before", () => {
-    expect(needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: true })).toBe(
-      "uncommitted",
-    )
-    expect(needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false })).toBeNull()
-    expect(
-      needsYouReason({ permissionCount: 0, questionCount: 0, hasError: false, finishedWithUncommitted: false, goalNeedsPerson: false }),
-    ).toBeNull()
+  test("callers that do not pass goalNeedsPerson see no goal decision", () => {
+    expect(needsYouReason({ permissionCount: 0, questionCount: 0 })).toBeNull()
+    expect(needsYouReason({ permissionCount: 0, questionCount: 0, goalNeedsPerson: false })).toBeNull()
+  })
+
+  test("a failure or uncommitted work is a follow-up, never a decision", () => {
+    expect(followUpReason({ hasError: true, finishedWithUncommitted: true })).toBe("error")
+    expect(followUpReason({ hasError: false, finishedWithUncommitted: true })).toBe("uncommitted")
+    expect(followUpReason({ hasError: false, finishedWithUncommitted: false })).toBeNull()
+    expect(needsYouReason({ permissionCount: 0, questionCount: 0 })).toBeNull()
+  })
+
+  test("a working session has no follow-up, because its unseen-error flag can be stale", () => {
+    const base = { hasError: true, finishedWithUncommitted: true }
+    expect(followUpReason({ ...base, statusType: "busy" })).toBeNull()
+    expect(followUpReason({ ...base, statusType: "retry" })).toBeNull()
+    expect(followUpReason({ ...base, statusType: "idle" })).toBe("error")
+  })
+
+  test("lists one follow-up row per session and none for a session that holds a decision", () => {
+    const entries = listFollowUpSessions([
+      session({ id: "dirty", finishedWithUncommitted: true, title: "Land the patch" }),
+      session({ id: "err", hasError: true, title: "Build failed" }),
+      session({ id: "both", hasError: true, finishedWithUncommitted: true }),
+      session({ id: "perm-and-err", permissionCount: 1, hasError: true }),
+      session({ id: "running-err", hasError: true, statusType: "busy" }),
+      session({ id: "idle" }),
+    ])
+    expect(entries.map((entry) => [entry.sessionId, entry.reason])).toEqual([
+      ["dirty", "uncommitted"],
+      ["err", "error"],
+      ["both", "error"],
+    ])
+  })
+
+  test("ranks failures before finished work, keeping order within a tier", () => {
+    const entry = (sessionId: string, reason: "error" | "uncommitted") => ({
+      sessionId,
+      projectId: null,
+      reason,
+      directory: null,
+      title: sessionId,
+    })
+    const ranked = rankFollowUpEntries([
+      entry("a", "uncommitted"),
+      entry("b", "error"),
+      entry("c", "uncommitted"),
+      entry("d", "error"),
+    ])
+    expect(ranked.map((item) => item.sessionId)).toEqual(["b", "d", "a", "c"])
   })
 
   test("lists a goal session with its snapshot for the objective line", () => {

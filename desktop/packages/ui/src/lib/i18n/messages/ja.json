@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "セッションエラー",
   "projects.home.needsYou.showAll": "すべて表示 ({count})",
   "projects.home.needsYou.showFewer": "表示を減らす",
+  "projects.home.followUp.title": "\u78ba\u8a8d\u4e8b\u9805",
   "sessions.sidebar.session.menu.more": "その他",
   "chat.commandAutocomplete.badge.snippet": "スニペット",
   "chat.commandAutocomplete.badge.magicPrompt": "マジックプロンプト",

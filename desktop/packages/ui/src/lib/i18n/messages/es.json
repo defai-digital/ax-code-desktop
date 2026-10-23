@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Error de sesión",
   "projects.home.needsYou.showAll": "Mostrar todo ({count})",
   "projects.home.needsYou.showFewer": "Mostrar menos",
+  "projects.home.followUp.title": "Seguimiento",
   "sessions.sidebar.session.menu.more": "Más",
   "chat.commandAutocomplete.badge.snippet": "Fragmento",
   "chat.commandAutocomplete.badge.magicPrompt": "Indicación mágica",

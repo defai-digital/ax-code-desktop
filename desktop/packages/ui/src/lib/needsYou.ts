@@ -1,22 +1,31 @@
 import type { SessionGoalSnapshot } from "@/lib/supervision/goal"
 
 /**
- * Sessions that need a human. The project activity tone consumes these same
- * reasons through needsAttentionSessionIds, so question waits, errors, and
- * finished-but-uncommitted runs light attention alongside pending approvals.
+ * Sessions that need a human decision. "Needs you" means the runtime is stopped and only a person can let it
+ * continue: a pending approval, a pending question, or a goal that cannot progress. Everything else a person may
+ * still want to look at (an unseen failure, finished work with changes) is a follow-up: it is listed quietly and
+ * can be dismissed, but it never lights the titlebar, the project tone, or the next-needs-you walk. The project
+ * activity tone consumes the decision reasons through needsAttentionSessionIds.
  */
 
 /** Rows a needs-you list shows before "Show all": enough to act on, not enough to bury the page. */
 export const NEEDS_YOU_VISIBLE_ROWS = 3
 
-export type NeedsYouReason = "permission" | "question" | "uncommitted" | "error" | "goal"
+export type NeedsYouReason = "permission" | "question" | "goal"
+
+/** Passive reasons a person may want to look at. No decision is pending, so they never interrupt. */
+export type FollowUpReason = "error" | "uncommitted"
+
+export type AttentionReason = NeedsYouReason | FollowUpReason
 
 export interface NeedsYouSessionInput {
   id: string
   projectId: string | null
   permissionCount: number
   questionCount: number
+  /** An unseen failure the user has not looked at yet. */
   hasError: boolean
+  /** The run ended, the session produced changes, and the directory is still dirty. Already net of any dismissal. */
   finishedWithUncommitted: boolean
   /** The runtime goal cannot progress without a person (blocked or budget-limited). */
   goalNeedsPerson?: boolean
@@ -38,19 +47,39 @@ export interface NeedsYouEntry {
   goal: SessionGoalSnapshot | null
 }
 
+export interface FollowUpEntry {
+  sessionId: string
+  projectId: string | null
+  reason: FollowUpReason
+  directory: string | null
+  title: string
+}
+
+function isRunning(statusType: string | null | undefined): boolean {
+  return statusType === "busy" || statusType === "retry"
+}
+
+/** The decision a session is waiting on, or null. Only a person can resolve these. */
 export function needsYouReason(
-  session: Pick<
-    NeedsYouSessionInput,
-    "permissionCount" | "questionCount" | "hasError" | "finishedWithUncommitted" | "goalNeedsPerson" | "statusType"
-  >,
+  session: Pick<NeedsYouSessionInput, "permissionCount" | "questionCount" | "goalNeedsPerson" | "statusType">,
 ): NeedsYouReason | null {
   if (session.permissionCount > 0) return "permission"
   if (session.questionCount > 0) return "question"
-  if (session.hasError) return "error"
   // A session that is working again does not need a person for its blocked
   // goal, matching deriveSupervisionState where running outranks goal.
-  const running = session.statusType === "busy" || session.statusType === "retry"
-  if (session.goalNeedsPerson && !running) return "goal"
+  if (session.goalNeedsPerson && !isRunning(session.statusType)) return "goal"
+  return null
+}
+
+/**
+ * Why a session is worth a look although nothing is blocked. A working session has no follow-up: the unseen-error
+ * flag is only cleared when the user views the session, so it can be stale while the run is already recovering.
+ */
+export function followUpReason(
+  session: Pick<NeedsYouSessionInput, "hasError" | "finishedWithUncommitted" | "statusType">,
+): FollowUpReason | null {
+  if (isRunning(session.statusType)) return null
+  if (session.hasError) return "error"
   if (session.finishedWithUncommitted) return "uncommitted"
   return null
 }
@@ -72,17 +101,49 @@ export function listNeedsYouSessions(sessions: readonly NeedsYouSessionInput[]):
   return entries
 }
 
+/** One row per session: a session that waits on a decision is listed there, not again as a follow-up. */
+export function listFollowUpSessions(sessions: readonly NeedsYouSessionInput[]): FollowUpEntry[] {
+  const entries: FollowUpEntry[] = []
+  for (const session of sessions) {
+    if (needsYouReason(session)) continue
+    const reason = followUpReason(session)
+    if (!reason) continue
+    entries.push({
+      sessionId: session.id,
+      projectId: session.projectId,
+      reason,
+      directory: session.directory ?? null,
+      title: session.title?.trim() || session.id,
+    })
+  }
+  return entries
+}
+
 const NEEDS_YOU_URGENCY: Record<NeedsYouReason, number> = {
   permission: 0,
   question: 0,
-  error: 1,
-  goal: 2,
-  uncommitted: 3,
+  goal: 1,
+}
+
+const FOLLOW_UP_URGENCY: Record<FollowUpReason, number> = {
+  error: 0,
+  uncommitted: 1,
+}
+
+/** Failures first, then finished work to review. Order inside each tier is preserved. */
+export function rankFollowUpEntries(entries: readonly FollowUpEntry[]): FollowUpEntry[] {
+  return entries
+    .map((entry, index) => ({ entry, index }))
+    .sort(
+      (left, right) =>
+        FOLLOW_UP_URGENCY[left.entry.reason] - FOLLOW_UP_URGENCY[right.entry.reason] || left.index - right.index,
+    )
+    .map(({ entry }) => entry)
 }
 
 /**
- * Most urgent first: a session blocked on a permission or a question, then an error, then a goal
- * that needs a person, then finished work that is not committed. Order inside each tier is preserved.
+ * Most urgent first: a session blocked on a permission or a question, then a goal that needs a person.
+ * Order inside each tier is preserved.
  */
 export function rankNeedsYouEntries(entries: readonly NeedsYouEntry[]): NeedsYouEntry[] {
   return entries
@@ -101,8 +162,8 @@ export function selectNeedsYouSession(sessionId: string): string {
 
 /**
  * The session a project's attention status should open.
- * Any session with a needs-you reason is eligible: lowest urgency first
- * (permission and question, then error, then uncommitted), then oldest.
+ * Any session waiting on a decision is eligible: lowest urgency first
+ * (permission and question, then goal), then oldest.
  */
 export function attentionSessionForProject(
   projectId: string,
@@ -124,7 +185,7 @@ export function attentionSessionForProject(
 }
 
 /**
- * Stable order: sessions that need a human, including errors, come first.
+ * Stable order: sessions that wait on a decision come first.
  * Relative order inside each group is preserved.
  */
 export function orderSwitcherSessionIds(ids: readonly string[], needsAttention: ReadonlySet<string>): string[] {

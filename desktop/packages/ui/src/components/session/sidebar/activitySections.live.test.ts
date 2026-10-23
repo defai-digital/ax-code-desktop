@@ -21,7 +21,7 @@ const row = (
 })
 
 describe("selectLiveSidebarRows", () => {
-  test("keeps every live state in urgency order and drops idle", () => {
+  test("keeps decisions and working sessions in urgency order, and drops follow-ups and idle", () => {
     const rows = [
       row("perm", "permission"),
       row("question", "question"),
@@ -33,8 +33,6 @@ describe("selectLiveSidebarRows", () => {
     expect(selectLiveSidebarRows(rows).map((item) => item.sessionId)).toEqual([
       "perm",
       "question",
-      "err",
-      "review",
       "run",
     ])
   })

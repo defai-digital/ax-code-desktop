@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "세션 오류",
   "projects.home.needsYou.showAll": "모두 보기 ({count})",
   "projects.home.needsYou.showFewer": "간단히 보기",
+  "projects.home.followUp.title": "\ud6c4\uc18d \ud655\uc778",
   "sessions.sidebar.session.menu.more": "더보기",
   "chat.commandAutocomplete.badge.snippet": "스니펫",
   "chat.commandAutocomplete.badge.magicPrompt": "매직 프롬프트",

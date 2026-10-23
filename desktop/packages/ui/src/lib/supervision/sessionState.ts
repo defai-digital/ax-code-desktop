@@ -1,4 +1,4 @@
-import { needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
+import { followUpReason, needsYouReason, type NeedsYouSessionInput } from "@/lib/needsYou"
 
 /**
  * One supervision state per session, shared by the titlebar, the sidebar Live section, Mission Control
@@ -14,23 +14,25 @@ export interface SupervisionStateInput extends NeedsYouSessionInput {
 /**
  * A blocked request wins. A session that is working again outranks an error the user has not looked at yet:
  * the unseen-error flag is only cleared when the user views the session, so it can be stale.
+ * A blocked goal outranks a follow-up: it holds a decision, the others are only worth a look.
  */
 export function deriveSupervisionState(input: SupervisionStateInput): SupervisionState {
   const reason = needsYouReason(input)
   if (reason === "permission" || reason === "question") return reason
   const running = input.statusType === "busy" || input.statusType === "retry"
   if (running) return "running"
-  if (reason === "error") return "error"
   if (reason === "goal") return "goal"
-  if (reason === "uncommitted") return "review"
+  const followUp = followUpReason(input)
+  if (followUp === "error") return "error"
+  if (followUp === "uncommitted") return "review"
   return "idle"
 }
 
 const URGENCY: Record<SupervisionState, number> = {
   permission: 0,
   question: 0,
-  error: 1,
-  goal: 2,
+  goal: 1,
+  error: 2,
   review: 3,
   running: 4,
   idle: 5,
@@ -48,8 +50,8 @@ const TREE_PRECEDENCE: Record<SupervisionState, number> = {
   permission: 0,
   question: 0,
   running: 1,
-  error: 2,
-  goal: 3,
+  goal: 2,
+  error: 3,
   review: 4,
   idle: 5,
 }
@@ -58,9 +60,14 @@ export function treeStatePrecedence(state: SupervisionState): number {
   return TREE_PRECEDENCE[state]
 }
 
-/** States that ask a person to do something. */
+/** States where the runtime is stopped and only a person can let it continue. These are the only ones that interrupt. */
 export function needsHuman(state: SupervisionState): boolean {
-  return state === "permission" || state === "question" || state === "error" || state === "goal" || state === "review"
+  return state === "permission" || state === "question" || state === "goal"
+}
+
+/** States worth a look that hold no decision: a failure, or finished work with changes. Never interrupting. */
+export function needsFollowUp(state: SupervisionState): boolean {
+  return state === "error" || state === "review"
 }
 
 /** States that belong in a live view: anything that needs a person or is still working. */
@@ -147,6 +154,7 @@ export function nextNeedsHumanSession(
 export interface WorkInProgressSummary {
   running: number
   needsYou: number
+  followUp: number
   highTouch: number
   overSoftLimit: boolean
 }
@@ -157,11 +165,13 @@ export const HIGH_TOUCH_SOFT_LIMIT = 4
 export function summarizeWorkInProgress(rows: readonly Pick<SupervisionRowLike, "state">[]): WorkInProgressSummary {
   let running = 0
   let needsYou = 0
+  let followUp = 0
   let highTouch = 0
   for (const row of rows) {
     if (row.state === "running") running += 1
     if (needsHuman(row.state)) needsYou += 1
+    if (needsFollowUp(row.state)) followUp += 1
     if (isHighTouchState(row.state)) highTouch += 1
   }
-  return { running, needsYou, highTouch, overSoftLimit: highTouch > HIGH_TOUCH_SOFT_LIMIT }
+  return { running, needsYou, followUp, highTouch, overSoftLimit: highTouch > HIGH_TOUCH_SOFT_LIMIT }
 }

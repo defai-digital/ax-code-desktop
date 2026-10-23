@@ -10,6 +10,7 @@ import { useSyncNotificationStore } from "@/sync/notification-store"
 import { useRunStateStore } from "@/sync/run-state-store"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { goalNeedsPerson } from "@/lib/supervision/goal"
+import { resolveSupervisionEvidence, type SessionSummaryLike } from "@/lib/supervision/sessionState"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import {
   useAllLiveSessions,
@@ -27,6 +28,7 @@ export function useNeedsYouSessionInputs(): NeedsYouSessionInput[] {
   const pendingQuestions = usePendingQuestionSessionIds()
   const unseenHasError = useSyncNotificationStore((state) => state.index.session.unseenHasError)
   const runEndedAt = useRunStateStore((state) => state.runEndedAt)
+  const nudgeDismissedAt = useRunStateStore((state) => state.nudgeDismissedAt)
   const gitDirectories = useGitStore((state) => state.directories)
   const worktreeMetadata = useSessionUIStore((state) => state.worktreeMetadata)
   const goals = useSessionGoalStore((state) => state.goals)
@@ -42,7 +44,18 @@ export function useNeedsYouSessionInputs(): NeedsYouSessionInput[] {
       const directory = resolveGlobalSessionDirectory(session)
       const projectDirectory = worktreeMetadata.get(session.id)?.projectDirectory ?? null
       const gitStatus = directory ? gitDirectories.get(directory)?.status : null
-      const finishedWithUncommitted = runEndedAt[session.id] != null && gitStatus != null && gitStatus.isClean === false
+      // Finished work is only worth a look when this session reported changes of its own: a directory that is dirty
+      // for another reason (the user's edits, a sibling session) says nothing about this run. A dismissal holds
+      // until the next run ends, the same rule the in-session "done, not committed" nudge follows.
+      const endedAt = runEndedAt[session.id] ?? null
+      const dismissedAt = nudgeDismissedAt[session.id] ?? null
+      const hasOwnChanges = resolveSupervisionEvidence(session.summary as SessionSummaryLike | undefined) !== null
+      const finishedWithUncommitted =
+        endedAt !== null &&
+        (dismissedAt === null || dismissedAt < endedAt) &&
+        hasOwnChanges &&
+        gitStatus != null &&
+        gitStatus.isClean === false
       const goal = goals[session.id] ?? null
       const statusType = statuses[session.id]?.type ?? null
       const running = statusType === "busy" || statusType === "retry"
@@ -72,6 +85,7 @@ export function useNeedsYouSessionInputs(): NeedsYouSessionInput[] {
   }, [
     gitDirectories,
     goals,
+    nudgeDismissedAt,
     pendingPermissions,
     pendingQuestions,
     projects,

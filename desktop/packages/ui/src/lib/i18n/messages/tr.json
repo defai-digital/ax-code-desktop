@@ -4476,6 +4476,7 @@
   "projects.home.needsYou.error": "Oturum hatası",
   "projects.home.needsYou.showAll": "Tümünü göster ({count})",
   "projects.home.needsYou.showFewer": "Daha az göster",
+  "projects.home.followUp.title": "Takip",
   "sessions.sidebar.session.menu.more": "Daha fazla",
   "chat.commandAutocomplete.badge.snippet": "Parça",
   "chat.commandAutocomplete.badge.magicPrompt": "Sihirli istem",
