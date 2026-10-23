@@ -892,3 +892,38 @@ describe("message.part.delta offset reconciliation", () => {
     })
   })
 })
+
+
+test("a fully covered offset replay preserves part identity and reports no change", () => {
+  const part = { id: "prt_1", type: "text", text: "hello world" } as Part
+  const parts = [part]
+  const draft = state({ part: PartMap.from({ msg_1: parts }) })
+  const result = applyDirectoryEvent(draft, {
+    type: "message.part.delta",
+    properties: { messageID: "msg_1", partID: "prt_1", field: "text", offset: 0, delta: "hello" },
+  } as Event)
+  expect(result).toBe(false)
+  expect(draft.part.get("msg_1")).toBe(parts)
+  expect(draft.part.get("msg_1")?.[0]).toBe(part)
+})
+
+
+test.each(["session.idle", "session.error"])("%s stamps even an equal idle status", (type) => {
+  const draft = state({ session_status: { ses_idle_stamp: { type: "idle" } } })
+  const before = serverSessionStatusStamp("ses_idle_stamp")
+  expect(applyDirectoryEvent(draft, { type, properties: { sessionID: "ses_idle_stamp" } } as Event)).toBe(false)
+  expect(serverSessionStatusStamp("ses_idle_stamp")).toBeGreaterThan(before)
+})
+
+test("a legacy overlapping delta consumes its dedupe marker before the next delta", () => {
+  const part = {
+    id: "prt_1", sessionID: "ses_1", messageID: "msg_1", type: "text", text: "hello",
+    __dedupeNextDeltaFields: ["text"],
+  } as Part
+  const draft = state({ part: PartMap.from({ msg_1: [part] }) })
+  const event = deltaEvent()
+  expect(applyDirectoryEvent(draft, event)).toBe(true)
+  expect((draft.part.get("msg_1")?.[0] as { text: string }).text).toBe("hello")
+  applyDirectoryEvent(draft, event)
+  expect((draft.part.get("msg_1")?.[0] as { text: string }).text).toBe("hellohello")
+})

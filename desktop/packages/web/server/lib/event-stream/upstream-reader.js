@@ -222,12 +222,14 @@ export function createUpstreamSseReader({
 
           // Cleared per attempt: a fetch that throws must not be judged by the uptime of an earlier connection.
           connectedAt = 0
+          resetStallTimer()
           const response = await fetchImpl(url.toString(), {
             headers,
             signal: controller.signal,
           })
 
           if (!response?.ok || !response.body) {
+            clearStallTimer()
             onError?.({
               type: "upstream_unavailable",
               status: response?.status ?? 0,

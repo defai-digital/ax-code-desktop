@@ -29,3 +29,5 @@ export const noteServerSessionStatus = (sessionID: string): void => {
 }
 
 export const serverSessionStatusStamp = (sessionID: string): number => statusEventsBySession.get(sessionID) ?? 0
+
+export const serverSessionStatusStampFloor = (): number => statusEventStamp

@@ -2,6 +2,7 @@ import type { SessionStatus, Message } from "@defai-digital/ax-code-sdk/v2/clien
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { getSessionMaterializationStatus } from "./materialization"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
+import { serverSessionStatusStamp } from "./session-status-events"
 import { PartMap } from "./part-map"
 
 type ReconnectMaterializationState = {
@@ -120,18 +121,23 @@ export function getReconnectCandidateSessionIds(
  * scheduled task, another client — sends `session.status{busy}` while the answer, computed before it,
  * carries `idle`, and applying that showed an idle session (no working indicator, no Stop) until the
  * next poll. Entries whose status moved in the meantime are dropped; the next poll's "before" is the
- * newer state, so it is still free to correct them.
+ * newer state, so it is still free to correct them. The event stamp also catches a status that
+ * changed away and back, or an equal status the server explicitly confirmed during the request.
  *
  * Exposed for unit testing, like the resolver above.
  */
 export function pickApplicableResyncedStatuses(input: {
   relevantStatuses: Record<string, SessionStatus>
+  beforeStatusStamp: number
   beforeStatuses: Record<string, SessionStatus | undefined>
   currentStatuses: Record<string, SessionStatus | undefined>
 }): Record<string, SessionStatus> {
   const applicable: Record<string, SessionStatus> = {}
   for (const [sessionId, status] of Object.entries(input.relevantStatuses)) {
-    if (!haveEquivalentSyncSnapshots(input.currentStatuses[sessionId], input.beforeStatuses[sessionId])) {
+    if (
+      serverSessionStatusStamp(sessionId) > input.beforeStatusStamp ||
+      !haveEquivalentSyncSnapshots(input.currentStatuses[sessionId], input.beforeStatuses[sessionId])
+    ) {
       continue
     }
     applicable[sessionId] = status

@@ -19,6 +19,7 @@ type MaterializedState = {
 type MaterializeSessionSnapshotsOptions = {
   skipPartTypes?: ReadonlySet<string>
   mode?: "merge" | "prepend"
+  before?: MaterializedState
 }
 
 type MaterializeSessionSnapshotsResult = {
@@ -207,8 +208,18 @@ export function materializeSessionSnapshots(
   options: MaterializeSessionSnapshotsOptions = {},
 ): MaterializeSessionSnapshotsResult {
   const skipPartTypes = options.skipPartTypes ?? new Set<string>()
+  const beforeMessages = options.before
+    ? new Map((options.before.message[sessionID] ?? []).map((message) => [message.id, message]))
+    : undefined
+  const currentByID = new Map((state.message[sessionID] ?? []).map((message) => [message.id, message]))
   const snapshots = records
-    .filter((record) => !!record?.info?.id)
+    .filter((record) => {
+      if (!record?.info?.id) return false
+      const id = record.info.id
+      // A message removed by a live event while this snapshot was in flight must stay removed.
+      if (beforeMessages?.has(id) && !currentByID.has(id)) return false
+      return true
+    })
     .sort((left, right) => compareIds(left.info.id, right.info.id))
   const nextMessages = snapshots.map((record) => record.info)
   const currentMessages = state.message[sessionID] ?? []
@@ -229,9 +240,23 @@ export function materializeSessionSnapshots(
     // kept a running timer and held the message open until the view was thrown away.
     const completedAt = isAssistant ? getCompletedAt(record.info) : undefined
     const existing = nextPartState.get(messageID)
+    const beforeParts = options.before?.part.get(messageID)
+    const beforePartIDs = options.before ? new Set((beforeParts ?? []).map((part) => part.id)) : undefined
+    const currentPartIDs = new Set((existing ?? []).map((part) => part.id))
+    // Membership changes during the request belong to live events. Other parts keep the normal
+    // snapshot/streaming merge rules, so deltas never prevent a gap-lost part from being repaired.
+    const snapshotParts = sortPartsById(record.parts ?? [], skipPartTypes).filter(
+      (part) => !beforePartIDs?.has(part.id) || currentPartIDs.has(part.id),
+    )
+    const snapshotPartIDs = new Set(snapshotParts.map((part) => part.id))
+    const liveAddedParts = beforePartIDs
+      ? (existing ?? []).filter(
+        (part) => !beforePartIDs.has(part.id) && !snapshotPartIDs.has(part.id) && !skipPartTypes.has(part.type),
+      )
+      : []
     const mergedParts = mergeMaterializedParts(
       existing,
-      sortPartsById(record.parts ?? [], skipPartTypes),
+      sortPartsById([...snapshotParts, ...liveAddedParts], skipPartTypes),
       skipPartTypes,
       isAssistant,
     )

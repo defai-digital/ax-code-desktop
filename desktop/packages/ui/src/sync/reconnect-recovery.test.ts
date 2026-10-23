@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest"
 import type { Message, Part, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { serverSessionStatusStampFloor, noteServerSessionStatus } from "./session-status-events"
 import {
   getReconnectCandidateSessionIds,
   pickApplicableResyncedStatuses,
@@ -116,6 +117,7 @@ describe("pickApplicableResyncedStatuses", () => {
   test("applies the answer where the status did not move while it was in flight", () => {
     expect(
       pickApplicableResyncedStatuses({
+        beforeStatusStamp: serverSessionStatusStampFloor(),
         relevantStatuses: { ses_1: idle },
         beforeStatuses: { ses_1: busy },
         currentStatuses: { ses_1: busy },
@@ -129,6 +131,7 @@ describe("pickApplicableResyncedStatuses", () => {
     // an idle session (no working indicator, no Stop) until the next poll.
     expect(
       pickApplicableResyncedStatuses({
+        beforeStatusStamp: serverSessionStatusStampFloor(),
         relevantStatuses: { ses_1: idle },
         beforeStatuses: { ses_1: idle },
         currentStatuses: { ses_1: busy },
@@ -139,6 +142,7 @@ describe("pickApplicableResyncedStatuses", () => {
   test("decides each session on its own", () => {
     expect(
       pickApplicableResyncedStatuses({
+        beforeStatusStamp: serverSessionStatusStampFloor(),
         relevantStatuses: { ses_1: idle, ses_2: busy },
         beforeStatuses: { ses_1: idle, ses_2: idle },
         currentStatuses: { ses_1: busy, ses_2: idle },
@@ -227,4 +231,18 @@ describe("hasCompletedAssistantReply", () => {
     expect(hasCompletedAssistantReply([])).toBe(false)
     expect(hasCompletedAssistantReply(undefined)).toBe(false)
   })
+})
+
+
+test("status event ABA invalidates a snapshot even when the final status is equivalent", () => {
+  const idle = { type: "idle" } as const
+  const beforeStatusStamp = serverSessionStatusStampFloor()
+  noteServerSessionStatus("ses_aba")
+  noteServerSessionStatus("ses_aba")
+  expect(pickApplicableResyncedStatuses({
+    beforeStatusStamp,
+    relevantStatuses: { ses_aba: { type: "busy" } },
+    beforeStatuses: { ses_aba: idle },
+    currentStatuses: { ses_aba: { type: "idle" } },
+  })).toEqual({})
 })

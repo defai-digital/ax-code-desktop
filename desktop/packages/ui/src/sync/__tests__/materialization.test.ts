@@ -341,3 +341,46 @@ describe("getSessionMaterializationStatus", () => {
     })
   })
 })
+
+
+test.each(["message removal", "completed tool addition", "part removal"] as const)(
+  "snapshot applies membership changes and repairs gap-lost parts after %s",
+  (change) => {
+    const info = message("msg_1")
+    const removed = message("msg_removed")
+    const text = part("prt_text", info.id, "text", "live")
+    const gap = part("prt_gap", info.id)
+    const tool = { id: "prt_tool", messageID: info.id, sessionID: "ses_1", type: "tool",
+      state: { status: "completed", input: {}, output: "done", time: { start: 1, end: 2 } },
+    } as Extract<Part, { type: "tool" }>
+    const before: State = { ...INITIAL_STATE, message: { ses_1: [info, removed] },
+      part: PartMap.from({ [info.id]: change === "part removal" ? [text, tool] : [text] }),
+    }
+    const current: State = { ...before, message: { ...before.message }, part: before.part.fork() }
+    applyDirectoryEvent(current, { type: "message.part.delta", properties: {
+      sessionID: "ses_1", messageID: info.id, partID: text.id, field: "text", delta: " delta",
+    } } as Event)
+    if (change === "message removal") {
+      applyDirectoryEvent(current, { type: "message.removed", properties: {
+        sessionID: "ses_1", messageID: removed.id,
+      } } as Event)
+    } else if (change === "completed tool addition") {
+      applyDirectoryEvent(current, { type: "message.part.updated", properties: { part: tool } } as Event)
+    } else {
+      applyDirectoryEvent(current, { type: "message.part.removed", properties: {
+        sessionID: "ses_1", messageID: info.id, partID: tool.id,
+      } } as Event)
+    }
+    const result = materializeSessionSnapshots(current, "ses_1", [
+      { info, parts: change === "part removal" ? [text, gap, tool] : [text, gap] },
+      { info: removed, parts: [] },
+    ], { before })
+    expect(result.messages.map((entry) => entry.id)).toEqual(
+      change === "message removal" ? [info.id] : [info.id, removed.id],
+    )
+    expect(result.part.get(info.id)).toEqual([
+      gap, { ...text, text: "live delta" }, ...(change === "completed tool addition" ? [tool] : []),
+    ])
+    if (change === "message removal") expect(result.part.has(removed.id)).toBe(false)
+  },
+)

@@ -556,3 +556,64 @@ describe("createUpstreamSseReader", () => {
     expect(tracked.getListenerCount()).toBe(0)
   })
 })
+
+
+test("aborts a fetch stalled before headers and reconnects", async () => {
+  vi.useFakeTimers()
+  const disconnects = []
+  const fetchImpl = vi.fn((_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true })
+  }))
+  const reader = createUpstreamSseReader({
+    buildUrl: () => "http://localhost/event",
+    fetchImpl,
+    stallTimeoutMs: 100,
+    reconnectDelayMs: 10,
+    onDisconnect: (event) => disconnects.push(event.reason),
+  })
+  const running = reader.start()
+  try {
+    await vi.advanceTimersByTimeAsync(110)
+    expect(disconnects).toEqual(["upstream_stalled"])
+    expect(fetchImpl).toHaveBeenCalledTimes(2)
+  } finally {
+    reader.stop()
+    await running
+    expect(vi.getTimerCount()).toBe(0)
+    vi.useRealTimers()
+  }
+})
+
+
+test.each(["non-ok", "missing body"])("clears the stall timer during %s response backoff", async (kind) => {
+  vi.useFakeTimers()
+  let attemptSignal
+  const fetchImpl = vi.fn(async (_url, { signal }) => {
+    attemptSignal = signal
+    return kind === "non-ok"
+      ? { ok: false, status: 503, body: { cancel: async () => {} } }
+      : { ok: true, status: 200, body: null }
+  })
+  const onError = vi.fn()
+  const reader = createUpstreamSseReader({
+    buildUrl: () => "http://localhost/event",
+    fetchImpl,
+    stallTimeoutMs: 100,
+    reconnectDelayMs: 1000,
+    onError,
+  })
+  const running = reader.start()
+  try {
+    await vi.advanceTimersByTimeAsync(999)
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(attemptSignal.aborted).toBe(false)
+    expect(vi.getTimerCount()).toBe(1)
+  } finally {
+    reader.stop()
+    await vi.advanceTimersByTimeAsync(1)
+    await running
+    expect(vi.getTimerCount()).toBe(0)
+    vi.useRealTimers()
+  }
+})

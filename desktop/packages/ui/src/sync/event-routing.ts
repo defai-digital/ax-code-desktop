@@ -327,6 +327,10 @@ export const resolveDirectoryFromRoutingIndex = (
 
   const sessionID = getSessionIdFromPayload(payload)
   if (sessionID) {
+    const indexedDirectory = routingIndex.sessionDirectoryById.get(sessionID)
+    if (indexedDirectory === normalizedDirectory && childStores.getChild(indexedDirectory)) {
+      return indexedDirectory
+    }
     if (
       normalizedDirectory &&
       normalizedDirectory !== "global" &&
@@ -336,7 +340,6 @@ export const resolveDirectoryFromRoutingIndex = (
       return normalizedDirectory
     }
 
-    const indexedDirectory = routingIndex.sessionDirectoryById.get(sessionID)
     if (indexedDirectory && childStores.getChild(indexedDirectory)) {
       return indexedDirectory
     }

@@ -591,6 +591,7 @@ export function applyDirectoryEvent(
 
     case "session.idle": {
       const props = event.properties as { sessionID: string }
+      noteServerSessionStatus(props.sessionID)
       const status = { type: "idle" } as const
       if (areSessionStatusesEqual(draft.session_status[props.sessionID], status)) {
         return false
@@ -601,6 +602,7 @@ export function applyDirectoryEvent(
 
     case "session.error": {
       const props = event.properties as { sessionID: string }
+      noteServerSessionStatus(props.sessionID)
       const status = { type: "idle" } as const
       if (areSessionStatusesEqual(draft.session_status[props.sessionID], status)) {
         return false
@@ -795,6 +797,7 @@ export function applyDirectoryEvent(
           }
         }
         nextValue = current + props.delta.slice(current.length - props.offset)
+        if (nextValue === current) return false
       } else {
         const dedupeFields = (existing as DedupeMetadata).__dedupeNextDeltaFields ?? []
         const shouldDedupe = dedupeFields.includes(props.field)

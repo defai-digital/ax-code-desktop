@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import type { Event, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { ChildStoreManager } from "./child-store"
@@ -416,4 +416,35 @@ describe("updateRoutingIndexFromEvent", () => {
     expect(index.messageSessionById.has("m1")).toBe(false)
     expect(index.sessionMessageIdsById.has("s1")).toBe(false)
   })
+})
+
+
+test("an agreeing normalized session index routes without scanning session state", () => {
+  const manager = createManagerWithStore("C:/repo", { session: [createSession("s1")] })
+  const index = createEventRoutingIndex()
+  setIndexedSessionDirectory(index, "s1", "C:/repo")
+  const store = manager.getChild("C:/repo")!
+  const read = vi.spyOn(store, "getState")
+  expect(resolveDirectoryFromRoutingIndex(index, "c:\\repo\\", createEvent("session.status", { sessionID: "s1" }), manager))
+    .toBe("C:/repo")
+  expect(read).not.toHaveBeenCalled()
+  read.mockRestore()
+})
+
+test("a stale index yields to session state in a different event directory", () => {
+  const manager = createManagerWithStore("/old")
+  manager.ensureChild("/new", { bootstrap: false }).setState({ session: [createSession("s1")] })
+  const index = createEventRoutingIndex()
+  setIndexedSessionDirectory(index, "s1", "/old")
+  expect(resolveDirectoryFromRoutingIndex(index, "/new", createEvent("session.status", { sessionID: "s1" }), manager))
+    .toBe("/new")
+  expect(index.sessionDirectoryById.get("s1")).toBe("/new")
+})
+
+test("a disposed indexed directory falls back to the surviving session store", () => {
+  const manager = createManagerWithStore("/live", { session: [createSession("s1")] })
+  const index = createEventRoutingIndex()
+  setIndexedSessionDirectory(index, "s1", "/disposed")
+  expect(resolveDirectoryFromRoutingIndex(index, "/disposed", createEvent("session.status", { sessionID: "s1" }), manager))
+    .toBe("/live")
 })

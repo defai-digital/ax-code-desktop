@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest"
 import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
+import { serverSessionStatusStampFloor } from "../session-status-events"
 import {
   getReconnectCandidateSessionIds,
   pickApplicableResyncedStatuses,
@@ -99,6 +100,7 @@ describe("reconnect-recovery model", () => {
       }),
       check: ({ before, current, snapshot }) => {
         const applicable = pickApplicableResyncedStatuses({
+          beforeStatusStamp: serverSessionStatusStampFloor(),
           relevantStatuses: snapshot,
           beforeStatuses: before,
           currentStatuses: current,
@@ -155,6 +157,7 @@ describe("reconnect-recovery model", () => {
             hasCompletedAssistantReply: true,
           })
           const applicable = pickApplicableResyncedStatuses({
+            beforeStatusStamp: serverSessionStatusStampFloor(),
             relevantStatuses: { [id]: relevant },
             beforeStatuses: { [id]: capturedAgainst },
             currentStatuses: { [id]: currentAtArrival },

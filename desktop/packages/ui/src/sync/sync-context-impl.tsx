@@ -31,7 +31,7 @@ import {
 } from "./event-routing"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { mergeSessionListPage } from "./session-list-merge"
-import { noteServerSessionStatus } from "./session-status-events"
+import { noteServerSessionStatus, serverSessionStatusStampFloor } from "./session-status-events"
 import { ingestSessionGoalEvent, noteSessionGoalRecovery } from "./session-goal-ingress"
 
 // A rebuilt directory store holds root sessions only; when a child session record is missing at
@@ -338,6 +338,7 @@ export async function materializeSessionFromServer(
   store: StoreApi<DirectoryStore>,
   isStillCurrent: () => boolean,
 ) {
+  const before = store.getState()
   // The server answers 409 when the request directory is not the session's own project, and a
   // session can be listed under a parent or sibling directory's store. The session record carries
   // the directory it was created in, so prefer it over the caller's guess.
@@ -381,8 +382,9 @@ export async function materializeSessionFromServer(
         info: stripMessageDiffSnapshots(record.info),
         parts: record.parts ?? [],
       })),
-      { skipPartTypes: RECONNECT_SKIP_PARTS },
+      { skipPartTypes: RECONNECT_SKIP_PARTS, before },
     )
+    if (!materialized.messagesChanged && !materialized.partsChanged) return state
     return { message: materialized.message, part: materialized.part }
   })
 }
@@ -592,14 +594,21 @@ async function resyncDirectorySessionStatuses(
   directory: string,
   store: StoreApi<DirectoryStore>,
   candidateSessionIds: string[],
+  includeServerActive = false,
 ): Promise<Record<string, SessionStatus> | null> {
   // What the candidates looked like when the request went out, so an entry the event stream changed
   // while it was in flight is not overwritten with the answer's older view.
-  const beforeStatuses = Object.fromEntries(
-    candidateSessionIds.map((sessionId) => [sessionId, store.getState().session_status?.[sessionId]]),
-  )
+  const beforeStatusStamp = serverSessionStatusStampFloor()
+  const beforeStatuses = store.getState().session_status ?? {}
 
   const nextStatuses = await axCodeClient.getSessionStatusForDirectory(directory)
+  if (includeServerActive && nextStatuses) {
+    // Reconnect must discover work started while this client was disconnected.
+    const candidates = new Set(candidateSessionIds)
+    for (const [sessionId, status] of Object.entries(nextStatuses)) {
+      if (status && status.type !== "idle" && !candidates.has(sessionId)) candidateSessionIds.push(sessionId)
+    }
+  }
   // null = fetch failed; preserve existing state. {} or populated = authoritative
   // snapshot of active sessions — candidates not listed are idle now (unless a
   // prompt was just accepted and hasn't started streaming; see
@@ -608,6 +617,7 @@ async function resyncDirectorySessionStatuses(
   if (relevantStatuses === null) return null
   const applicableStatuses = pickApplicableResyncedStatuses({
     relevantStatuses,
+    beforeStatusStamp,
     beforeStatuses,
     currentStatuses: store.getState().session_status ?? {},
   })
@@ -848,25 +858,27 @@ async function resyncDirectoryAfterReconnect(
   directory: string,
   store: StoreApi<DirectoryStore>,
   routingIndex: EventRoutingIndex,
+  childStores: ChildStoreManager,
 ) {
   const current = store.getState()
   const candidateSessionIds = getActiveSessionCandidateIds(directory, current)
-  if (candidateSessionIds.length === 0) return
-
   // The per-session fetches below race live events: an archive/rename that
   // lands while a `session.get` is in flight must not be overwritten by the
   // stale answer. Remember who was here before they started.
   const sessionIdsBeforeFetch = new Set(current.session.map((session) => session.id))
 
-  await resyncDirectorySessionStatuses(directory, store, candidateSessionIds)
+  await resyncDirectorySessionStatuses(directory, store, candidateSessionIds, true)
+  if (candidateSessionIds.length === 0 || childStores.getChild(directory) !== store) return
 
   const scopedClient = axCodeClient.getScopedSdkClient(directory)
   await Promise.all(
     candidateSessionIds.map(async (sessionId) => {
+      const before = store.getState()
       const [sessionResponse, messageResponse] = await Promise.all([
         scopedClient.session.get({ sessionID: sessionId }).catch(() => null),
         scopedClient.session.messages({ sessionID: sessionId, limit: RECONNECT_MESSAGE_LIMIT }).catch(() => null),
       ])
+      if (childStores.getChild(directory) !== store) return
       const session = sessionResponse?.data
       const records = messageResponse?.data
       if (!session || !records) return
@@ -880,10 +892,6 @@ async function resyncDirectoryAfterReconnect(
       })
 
       const nextSession = stripSessionDiffSnapshots(session)
-      const nextMessages = records
-        .filter((record: { info: Message; parts?: Part[] }) => !!record?.info?.id)
-        .map((record: { info: Message; parts?: Part[] }) => stripMessageDiffSnapshots(record.info))
-        .sort((a: Message, b: Message) => cmp(a.id, b.id))
 
       store.setState((state: DirectoryStore) => {
         const sessionIndex = Binary.findIndex(state.session, nextSession.id, (item) => item.id)
@@ -934,7 +942,7 @@ async function resyncDirectoryAfterReconnect(
             info: stripMessageDiffSnapshots(record.info),
             parts: record.parts ?? [],
           })),
-          { skipPartTypes: RECONNECT_SKIP_PARTS },
+          { skipPartTypes: RECONNECT_SKIP_PARTS, before },
         )
         const messagesChanged = materialized.messagesChanged
         const partsChanged = materialized.partsChanged
@@ -949,13 +957,16 @@ async function resyncDirectoryAfterReconnect(
         }
       })
 
+      if (childStores.getChild(directory) !== store) return
       setIndexedSessionDirectory(routingIndex, nextSession.id, directory)
-      setIndexedSessionMessages(routingIndex, sessionId, directory, nextMessages)
+      setIndexedSessionMessages(routingIndex, sessionId, directory, store.getState().message[sessionId] ?? EMPTY_MESSAGES)
     }),
   )
 
+  if (childStores.getChild(directory) !== store) return
   await resyncBlockingRequestsForDirectory(directory, store, candidateSessionIds)
 
+  if (childStores.getChild(directory) !== store) return
   ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())
 }
 
@@ -1027,26 +1038,45 @@ const reloadCommandsAfterGap = () => {
   void useCommandsStore.getState().loadCommands()
 }
 
-// A directory with a snapshot pass in flight. Replay gaps can arrive in a burst
+// A directory store with a snapshot pass in flight. Replay gaps can arrive in a burst
 // and a gap can land while a reconnect pass runs, and two overlapping passes could
 // write an older snapshot over newer state, so both entry points share this guard.
-const snapshotRecoveryInFlight = new Set<string>()
+// A new store for a disposed/reopened directory has its own recovery claim.
+const snapshotRecoveryInFlight = new WeakMap<StoreApi<DirectoryStore>, { dirty: boolean }>()
+
+type DirectorySnapshotRecovery = (
+  directory: string,
+  store: StoreApi<DirectoryStore>,
+  routingIndex: EventRoutingIndex,
+) => Promise<void>
 
 export function triggerDirectorySnapshotRecovery(
   directory: string,
   store: StoreApi<DirectoryStore>,
   routingIndex: EventRoutingIndex,
-  recover: typeof resyncDirectoryAfterReconnect = resyncDirectoryAfterReconnect,
+  recover: DirectorySnapshotRecovery,
 ) {
-  if (snapshotRecoveryInFlight.has(directory)) return
-  snapshotRecoveryInFlight.add(directory)
-  void recover(directory, store, routingIndex)
-    .catch(() => {
-      // Transient failure — the watchdog, next SSE event, or reconnect will catch up.
-    })
-    .finally(() => {
-      snapshotRecoveryInFlight.delete(directory)
-    })
+  const inFlight = snapshotRecoveryInFlight.get(store)
+  if (inFlight) {
+    inFlight.dirty = true
+    return
+  }
+  const recovery = { dirty: false }
+  snapshotRecoveryInFlight.set(store, recovery)
+  void (async () => {
+    try {
+      do {
+        recovery.dirty = false
+        try {
+          await recover(directory, store, routingIndex)
+        } catch {
+          // A queued gap still needs its trailing pass even if this pass failed.
+        }
+      } while (recovery.dirty)
+    } finally {
+      snapshotRecoveryInFlight.delete(store)
+    }
+  })()
 }
 
 /**
@@ -1060,12 +1090,15 @@ export function triggerDirectorySnapshotRecovery(
 export function recoverSessionSnapshotsAfterGap(
   childStores: ChildStoreManager,
   routingIndex: EventRoutingIndex,
-  recover?: typeof resyncDirectoryAfterReconnect,
+  recover?: DirectorySnapshotRecovery,
 ) {
   for (const directory of childStores.children.keys()) {
     const store = childStores.getChild(directory)
     if (!store) continue
-    triggerDirectorySnapshotRecovery(directory, store, routingIndex, recover)
+    triggerDirectorySnapshotRecovery(
+      directory, store, routingIndex,
+      recover ?? (() => resyncDirectoryAfterReconnect(directory, store, routingIndex, childStores)),
+    )
   }
 }
 
@@ -1468,7 +1501,10 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       if (!store) return
       // The in-flight guard is shared with the replay-gap recovery, so a gap and a
       // reconnect cannot run two passes over the same directory at once.
-      triggerDirectorySnapshotRecovery(directory, store, routingIndex)
+      triggerDirectorySnapshotRecovery(
+        directory, store, routingIndex,
+        () => resyncDirectoryAfterReconnect(directory, store, routingIndex, childStores),
+      )
     },
     [childStores, routingIndex],
   )

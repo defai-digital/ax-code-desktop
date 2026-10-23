@@ -275,3 +275,22 @@ test("an uncontested empty permission resync records the vanished call without a
   expect(useWebMcpApprovalOutcomes.getState().calls.get(JSON.stringify(["ses_expired", "call-expired"]))).toBe("unanswered")
   useWebMcpApprovalOutcomes.setState({ calls: new Map() })
 })
+
+
+test.each(["session.idle", "session.error"])("bootstrap preserves a live ABA ending in %s", async (type) => {
+  wasPromptRecentlyAcceptedMock.mockReturnValue(false)
+  const harness = makeHarness({ session_status: { ses_aba_boot: { type: "idle" } } })
+  const sdk = makeBaseSdk({ session: { status: vi.fn(async () => {
+    const draft = { ...harness.getState(), session_status: { ...harness.getState().session_status } }
+    applyDirectoryEvent(draft, {
+      type: "session.status", properties: { sessionID: "ses_aba_boot", status: { type: "busy" } },
+    } as Event)
+    applyDirectoryEvent(draft, { type, properties: { sessionID: "ses_aba_boot" } } as Event)
+    harness.set({ session_status: draft.session_status })
+    return { data: { ses_aba_boot: { type: "busy" } } }
+  }) } })
+  await bootstrapDirectory({ directory: "/repo", sdk, ...harness,
+    global: { projects: [{ id: "proj_1", worktree: "/repo" } as never] }, loadSessions: () => undefined })
+  expect(harness.getState().session_status.ses_aba_boot).toEqual({ type: "idle" })
+  await flush()
+})

@@ -9,6 +9,7 @@ import type {
 import { retry } from "./retry"
 import type { GlobalState, State } from "./types"
 import { hasCompletedAssistantReply, resolveResyncedSessionStatus } from "./reconnect-recovery"
+import { serverSessionStatusStamp, serverSessionStatusStampFloor } from "./session-status-events"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 import { blockingRequestStamp, blockingRequestStampFloor } from "./blocking-request-events"
 import { wasPromptRecentlyAccepted } from "./session-actions"
@@ -164,6 +165,7 @@ export async function bootstrapDirectory(input: {
       // What the statuses looked like when the request went out. The snapshot is computed before it is
       // sent, so an entry the event stream changed while it was in flight is newer than the answer: the
       // poll path drops those, and applying them here flipped a running turn back to idle.
+      const beforeStatusStamp = serverSessionStatusStampFloor()
       const beforeStatuses = getState().session_status ?? {}
       return retry(() =>
         sdk.session.status(directory ? { directory } : undefined).then((x) => {
@@ -177,7 +179,10 @@ export async function bootstrapDirectory(input: {
           const existing = current.session_status ?? {}
           const merged: Record<string, SessionStatus> = { ...existing }
           for (const sessionId of new Set([...Object.keys(existing), ...Object.keys(snapshot)])) {
-            if (!haveEquivalentSyncSnapshots(existing[sessionId], beforeStatuses[sessionId])) {
+            if (
+              serverSessionStatusStamp(sessionId) > beforeStatusStamp ||
+              !haveEquivalentSyncSnapshots(existing[sessionId], beforeStatuses[sessionId])
+            ) {
               continue
             }
             merged[sessionId] = resolveResyncedSessionStatus({
