@@ -101,6 +101,7 @@ test("a manual agent switch restores that agent's model without stamping the pri
   await act(async () => {
     root.render(<ModelControls />)
   })
+  expect(useConfigStore.getState().currentModelId).toBe("picked")
   await act(async () => {
     useSelectionStore.getState().saveSessionAgentSelection("session-imported", "build")
     useConfigStore.getState().setAgent("build")
@@ -110,4 +111,19 @@ test("a manual agent switch restores that agent's model without stamping the pri
   })
   expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "build")?.modelId).toBe("routed")
   expect(useConfigStore.getState().currentModelId).toBe("routed")
+})
+
+test("mounting with the routed turn's agent retains the session pick after the agent-switch delay", async () => {
+  useConfigStore.setState({ currentAgentName: "plan" })
+  useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "picked")
+  useSelectionStore.getState().saveAgentModelForSession("session-imported", "plan", "test", "routed")
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  })
+  expect(useConfigStore.getState().currentModelId).toBe("picked")
+  expect(useSelectionStore.getState().getSessionModelSelection("session-imported")?.modelId).toBe("picked")
+  expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")
 })

@@ -785,7 +785,11 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         // agent switch would overwrite that agent's own memory before the switch effect can read it.
         if (routedSessionModelRestoreRef.current !== restoreKey) {
           const result = tryApplyModelSelection(savedSessionModel.providerId, savedSessionModel.modelId)
-          if (result === "applied") routedSessionModelRestoreRef.current = restoreKey
+          if (result === "applied") {
+            routedSessionModelRestoreRef.current = restoreKey
+            // Initial hydration is a restore, not a manual agent switch that should replay a pin.
+            prevAgentNameRef.current = useConfigStore.getState().currentAgentName
+          }
         }
       }
       // A routed turn must not replay a different agent's old pin when no session pick exists.
