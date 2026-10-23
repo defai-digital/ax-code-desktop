@@ -3,13 +3,24 @@ import { afterEach, describe, expect, test, vi } from "vitest"
 const importStore = async () => {
   vi.resetModules()
 
-  const getIsolationMock = vi.fn(async () => ({ mode: "workspace-write" }))
-  const setIsolationMock = vi.fn(async (mode: string) => ({ mode }))
+  // The directory argument is recorded by vi.fn for assertions; the mocks ignore it.
+  const getIsolationMock = vi.fn(async (directory?: string | null) => {
+    void directory
+    return { mode: "workspace-write" }
+  })
+  const setIsolationMock = vi.fn(async (mode: string, directory?: string | null) => {
+    void directory
+    return { mode }
+  })
   const toastErrorMock = vi.fn()
+
+  // A stalled directory-scoped request elsewhere holds withDirectory's queue; the sandbox calls
+  // must never wait on it.
+  const withDirectoryMock = vi.fn(async (_directory: string | null, run: () => Promise<unknown>) => run())
 
   vi.doMock("@/lib/ax-code/client", () => ({
     axCodeClient: {
-      withDirectory: async (_directory: string | null, run: () => Promise<unknown>) => run(),
+      withDirectory: withDirectoryMock,
       getIsolation: getIsolationMock,
       setIsolation: setIsolationMock,
     },
@@ -28,6 +39,7 @@ const importStore = async () => {
     getIsolationMock,
     setIsolationMock,
     toastErrorMock,
+    withDirectoryMock,
   }
 }
 
@@ -74,10 +86,10 @@ describe("useSandboxStore", () => {
     expect(useSandboxStore.getState().isSandbox("/repo")).toBe(true)
 
     await useSandboxStore.getState().setSandbox("/repo", false)
-    expect(setIsolationMock).toHaveBeenLastCalledWith("full-access")
+    expect(setIsolationMock).toHaveBeenLastCalledWith("full-access", "/repo")
 
     await useSandboxStore.getState().setSandbox("/repo", true)
-    expect(setIsolationMock).toHaveBeenLastCalledWith("read-only")
+    expect(setIsolationMock).toHaveBeenLastCalledWith("read-only", "/repo")
   })
 
   test("re-fetches on every load so out-of-band changes propagate", async () => {
@@ -106,29 +118,68 @@ describe("useSandboxStore", () => {
   })
 })
 
-  test("a timed-out write reloads the real server state instead of staying reverted", async () => {
-    const { useSandboxStore, getIsolationMock, setIsolationMock } = await importStore()
-    useSandboxStore.setState({
-      sandboxByDirectory: { "/repo": true },
-      pendingByDirectory: {},
-      restrictedModeByDirectory: {},
-    })
+test("a timed-out write reloads the real server state instead of staying reverted", async () => {
+  const { useSandboxStore, getIsolationMock, setIsolationMock } = await importStore()
+  useSandboxStore.setState({
+    sandboxByDirectory: { "/repo": true },
+    pendingByDirectory: {},
+    restrictedModeByDirectory: {},
+  })
 
-    // The write is accepted by the server but its response never arrives.
-    setIsolationMock.mockImplementationOnce(() => new Promise(() => {}))
-    // The follow-up reload reads the server's actual mode (the write did land).
+  // The write is accepted by the server but its response never arrives.
+  setIsolationMock.mockImplementationOnce(() => new Promise(() => {}))
+  // The follow-up reload reads the server's actual mode (the write did land).
+  getIsolationMock.mockResolvedValue({ mode: "full-access" })
+
+  vi.useFakeTimers()
+  try {
+    const write = useSandboxStore.getState().setSandbox("/repo", false)
+    await vi.advanceTimersByTimeAsync(12_500)
+    await write
+
+    // Without the reload the toggle would sit on the pre-write value while the
+    // server holds the other: the desync is invisible until a reload.
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+describe("useSandboxStore independence from the directory-context queue", () => {
+  afterEach(() => {
+    vi.doUnmock("@/lib/ax-code/client")
+    vi.doUnmock("@/components/ui")
+    vi.resetModules()
+  })
+
+  test("a toggle is written even while another directory-scoped call holds the queue", async () => {
+    const { useSandboxStore, setIsolationMock, getIsolationMock, withDirectoryMock, toastErrorMock } =
+      await importStore()
+    withDirectoryMock.mockImplementation(() => new Promise(() => {}))
     getIsolationMock.mockResolvedValue({ mode: "full-access" })
 
-    vi.useFakeTimers()
-    try {
-      const write = useSandboxStore.getState().setSandbox("/repo", false)
-      await vi.advanceTimersByTimeAsync(12_500)
-      await write
+    await useSandboxStore.getState().loadSandbox("/repo")
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
 
-      // Without the reload the toggle would sit on the pre-write value while the
-      // server holds the other: the desync is invisible until a reload.
-      expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
-    } finally {
-      vi.useRealTimers()
-    }
+    await useSandboxStore.getState().setSandbox("/repo", true)
+
+    expect(setIsolationMock).toHaveBeenCalledWith("workspace-write", "/repo")
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(true)
+    expect(toastErrorMock).not.toHaveBeenCalled()
+    expect(withDirectoryMock).not.toHaveBeenCalled()
   })
+
+  test("each directory is addressed explicitly so concurrent projects cannot cross", async () => {
+    const { useSandboxStore, setIsolationMock, getIsolationMock } = await importStore()
+    getIsolationMock.mockResolvedValue({ mode: "full-access" })
+    await Promise.all([useSandboxStore.getState().loadSandbox("/a"), useSandboxStore.getState().loadSandbox("/b")])
+
+    await Promise.all([
+      useSandboxStore.getState().setSandbox("/a", true),
+      useSandboxStore.getState().setSandbox("/b", true),
+    ])
+
+    expect(setIsolationMock).toHaveBeenCalledWith("workspace-write", "/a")
+    expect(setIsolationMock).toHaveBeenCalledWith("workspace-write", "/b")
+  })
+})

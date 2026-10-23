@@ -57,13 +57,7 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
 
     let isolation: Awaited<ReturnType<typeof axCodeClient.getIsolation>> | null = null
     try {
-      isolation = await withTimeout(
-        axCodeClient.withDirectory(directory ?? null, async () => {
-          return axCodeClient.getIsolation()
-        }),
-        SANDBOX_REQUEST_TIMEOUT_MS,
-        () => null,
-      )
+      isolation = await withTimeout(axCodeClient.getIsolation(directory), SANDBOX_REQUEST_TIMEOUT_MS, () => null)
     } catch {
       isolation = null
     }
@@ -99,13 +93,7 @@ export const useSandboxStore = create<SandboxStore>()((set, get) => ({
     const mode = enabled ? (get().restrictedModeByDirectory[key] ?? "workspace-write") : "full-access"
     let result: Awaited<ReturnType<typeof axCodeClient.setIsolation>> | null = null
     try {
-      result = await withTimeout(
-        axCodeClient.withDirectory(directory ?? null, async () => {
-          return axCodeClient.setIsolation(mode)
-        }),
-        SANDBOX_REQUEST_TIMEOUT_MS,
-        () => null,
-      )
+      result = await withTimeout(axCodeClient.setIsolation(mode, directory), SANDBOX_REQUEST_TIMEOUT_MS, () => null)
     } catch {
       result = null
     }

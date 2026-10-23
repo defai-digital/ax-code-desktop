@@ -1473,29 +1473,50 @@ class AxCodeService {
   // Isolation / sandbox mode. The server persists isolation to ax-code.json
   // scoped by directory. Sandbox is considered "on" when mode is not
   // "full-access" (i.e. "read-only" or "workspace-write").
-  async getIsolation(): Promise<{ mode: string; network: boolean } | null> {
+  //
+  // The directory is passed explicitly instead of read from the shared `currentDirectory`, so a
+  // caller does not need withDirectory's one-at-a-time queue: a stalled directory-scoped request
+  // elsewhere used to hold that queue past the toggle's own deadline and the write was never sent.
+  // Failures are logged with their cause; callers only receive null.
+  private resolveIsolationDirectory(directory?: string | null): string | undefined {
+    const candidate = typeof directory === "string" && directory.trim().length > 0 ? directory : this.currentDirectory
+    return candidate ? (this.normalizeCandidatePath(candidate) ?? candidate) : undefined
+  }
+
+  async getIsolation(directory?: string | null): Promise<{ mode: string; network: boolean } | null> {
+    const scoped = this.resolveIsolationDirectory(directory)
     try {
-      const result = await this.client.isolation.get(
-        this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-      )
-      if (result.error || !result.data) return null
+      const result = await this.client.isolation.get(scoped ? { directory: scoped } : undefined)
+      if (result.error || !result.data) {
+        console.warn(`[ax-code client] isolation.get failed: ${formatSdkError(result.error)}`)
+        return null
+      }
       return { mode: result.data.mode, network: result.data.network }
-    } catch {
+    } catch (error) {
+      console.warn(`[ax-code client] isolation.get threw: ${error instanceof Error ? error.message : String(error)}`)
       return null
     }
   }
 
   async setIsolation(
     mode: "read-only" | "workspace-write" | "full-access",
+    directory?: string | null,
   ): Promise<{ mode: string; network: boolean } | null> {
+    const scoped = this.resolveIsolationDirectory(directory)
     try {
       const result = await this.client.isolation.set({
         mode,
-        ...(this.currentDirectory ? { directory: this.currentDirectory } : {}),
+        ...(scoped ? { directory: scoped } : {}),
       })
-      if (result.error || !result.data) return null
+      if (result.error || !result.data) {
+        console.warn(`[ax-code client] isolation.set(${mode}) failed: ${formatSdkError(result.error)}`)
+        return null
+      }
       return { mode: result.data.mode, network: result.data.network }
-    } catch {
+    } catch (error) {
+      console.warn(
+        `[ax-code client] isolation.set(${mode}) threw: ${error instanceof Error ? error.message : String(error)}`,
+      )
       return null
     }
   }
