@@ -1,4 +1,4 @@
-import React from "react"
+import React, { act } from "react"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { ActivityFeedEvent } from "@/lib/supervision/activityFeed"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
@@ -10,7 +10,8 @@ vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
       params ? `${key}:${Object.values(params).join("|")}` : key,
-    relativeTime: (value: number, unit: string) => `${value} ${unit}`,
+    relativeTime: (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+      new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(value, unit),
   }),
 }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => useSupervisionStore((state) => state.rows) }))
@@ -62,6 +63,32 @@ describe("MissionControlActivityFeed", () => {
     expect(screen.queryByRole("list")).toBeNull()
   })
 
+  test("does not show a just-recorded event as future activity while the shared clock is between ticks", () => {
+    render(<MissionControlActivityFeed onSelectSession={vi.fn()} />)
+
+    act(() => {
+      vi.setSystemTime(NOW + 20_000)
+      useActivityFeedStore.setState({ events: [feedEvent({ at: Date.now() })] })
+    })
+
+    expect(screen.getByRole("list").querySelector("time")?.textContent).toBe("now")
+  })
+
+  test("refreshes relative times while the memoized feed stays mounted", () => {
+    render(<MissionControlActivityFeed onSelectSession={vi.fn()} />)
+
+    act(() => {
+      useActivityFeedStore.setState({ events: [feedEvent({ at: NOW })] })
+    })
+    expect(screen.getByRole("list").querySelector("time")?.textContent).toBe("now")
+
+    act(() => {
+      vi.advanceTimersByTime(30_000)
+    })
+
+    expect(screen.getByRole("list").querySelector("time")?.textContent).toBe("30 seconds ago")
+  })
+
   test("lists newest first, marks unread events, and marks them read", () => {
     useActivityFeedStore.setState({
       events: [
@@ -83,7 +110,7 @@ describe("MissionControlActivityFeed", () => {
     expect(buttons[0]?.textContent).toContain("Newer task")
     expect(buttons[0]?.textContent).toContain("Desktop")
     expect(buttons[0]?.textContent).toContain("Working on: the parser")
-    expect(buttons[0]?.textContent).toContain("-1 minute")
+    expect(buttons[0]?.textContent).toContain("1 minute ago")
     expect(buttons[0]?.textContent).toContain("supervision.state.running")
 
     fireEvent.click(buttons[0]!)
