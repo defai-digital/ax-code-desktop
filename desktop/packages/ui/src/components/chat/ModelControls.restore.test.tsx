@@ -32,6 +32,7 @@ const { ModelControls } = await import("./ModelControls")
 let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
+  messages[0].agent = "plan"
   useConfigStore.setState({
     providers: [
       {
@@ -147,6 +148,33 @@ test("delayed hydration retains the session pick while the agent catalog is load
   expect(useSelectionStore.getState().getSessionModelSelection("session-imported")?.modelId).toBe("picked")
   await act(async () => {
     useAgentsStore.setState({ agents: [{ name: "plan", mode: "primary" }] as never })
+  })
+  expect(useConfigStore.getState().currentModelId).toBe("picked")
+  expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")
+})
+
+test("a late agent name waits for discovery instead of replaying a pin from legacy history", async () => {
+  delete (messages[0] as { agent?: string }).agent
+  useConfigStore.setState({ currentAgentName: undefined })
+  useAgentsStore.setState({ agents: [] })
+  useSelectionStore.getState().saveSessionAgentSelection("session-imported", "plan")
+  useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "picked")
+  useSelectionStore.getState().saveAgentModelForSession("session-imported", "plan", "test", "routed")
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  await act(async () => {
+    useConfigStore.setState({ currentAgentName: "plan" })
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  })
+  expect(useSelectionStore.getState().getSessionModelSelection("session-imported")?.modelId).toBe("picked")
+  await act(async () => {
+    useAgentsStore.setState({ agents: [{ name: "plan", mode: "primary" }] as never })
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
   })
   expect(useConfigStore.getState().currentModelId).toBe("picked")
   expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")

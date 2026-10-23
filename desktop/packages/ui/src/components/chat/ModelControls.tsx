@@ -936,7 +936,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   ])
 
   React.useEffect(() => {
-    if (!selectionHydrated) {
+    if (!selectionHydrated || providers.length === 0 || agents.length === 0) {
       return
     }
     const abortController = new AbortController()
@@ -944,6 +944,8 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     const handleAgentSwitch = async () => {
       try {
         if (!agentSwitchObservedRef.current) {
+          const liveAgent = useConfigStore.getState().currentAgentName
+          if (!liveAgent || currentAgentName !== liveAgent) return
           agentSwitchObservedRef.current = true
           // Hydration can finish before agent discovery. The first observation restores state;
           // only a real picker action before hydration should replay an agent's model here.
@@ -1034,6 +1036,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     }
   }, [
     agents,
+    providers,
     currentAgentName,
     currentSessionId,
     getAgentModelForSession,
