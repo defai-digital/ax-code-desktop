@@ -14,6 +14,7 @@ import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSessionMultiSelectStore } from "@/stores/useSessionMultiSelectStore"
 import { useSessionRollbackStore } from "@/stores/useSessionRollbackStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useInputStore } from "@/sync/input-store"
 
 let dropSessionGoalReadClaims: ((ids: ReadonlySet<string>) => void) | null = null
 
@@ -29,6 +30,7 @@ export function cleanupRemovedSessions(ids: Iterable<string>): void {
   // persisted; without pruning both maps grow forever and the auto-accept one
   // re-broadcasts a server POST per dead session on every startup.
   useMessageQueueStore.getState().clearSessions(idSet)
+  useInputStore.getState().clearSessionDrafts(idSet)
   usePermissionStore.getState().pruneAutoAccept(idSet)
   // Cached rollback points for dead sessions are unreachable and would
   // otherwise accumulate per (directory, session, tool) key.

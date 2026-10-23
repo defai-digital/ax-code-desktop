@@ -10,6 +10,7 @@ import {
   getSessionIdFromPayload,
   ingestDirectoryStateIntoRoutingIndex,
   normalizeEventDirectory,
+  removeIndexedDirectory,
   resolveDirectoryFromRoutingIndex,
   setIndexedSessionDirectory,
   setIndexedSessionMessages,
@@ -145,6 +146,48 @@ describe("getMessageIdFromPayload", () => {
 })
 
 describe("routing index maintenance", () => {
+  test("directory disposal prunes all of its session and message entries while live sessions still route", () => {
+    const manager = new ChildStoreManager()
+    const index = createEventRoutingIndex()
+    manager.configure({ onDispose: (directory) => removeIndexedDirectory(index, directory) })
+    for (const [directory, sessionID, messageID] of [
+      ["/retired", "s1", "m1"],
+      ["/live", "s2", "m2"],
+    ]) {
+      const store = manager.ensureChild(directory, { bootstrap: false })
+      store.setState({
+        session: [createSession(sessionID)],
+        message: { [sessionID]: [createMessage(messageID, sessionID)] },
+      })
+      ingestDirectoryStateIntoRoutingIndex(index, directory, store.getState())
+    }
+    updateRoutingIndexFromEvent(
+      index,
+      "/retired",
+      createEvent("message.updated", { info: { id: "m3", sessionID: "s3" } }),
+    )
+    setIndexedSessionDirectory(index, "moved", "/retired")
+    setIndexedSessionMessages(index, "moved", "/live", [createMessage("moved-message", "moved")])
+    expect(manager.disposeDirectory("/retired")).toBe(true)
+    expect([...index.sessionDirectoryById]).toEqual([
+      ["s2", "/live"],
+      ["moved", "/live"],
+    ])
+    expect([...index.messageSessionById]).toEqual([
+      ["m2", "s2"],
+      ["moved-message", "moved"],
+    ])
+    expect([...index.sessionMessageIdsById.keys()]).toEqual(["s2", "moved"])
+    expect(
+      resolveDirectoryFromRoutingIndex(index, "", createEvent("session.status", { sessionID: "s2" }), manager),
+    ).toBe("/live")
+    expect(
+      resolveDirectoryFromRoutingIndex(index, "", createEvent("message.part.delta", { messageID: "m2" }), manager),
+    ).toBe("/live")
+    removeIndexedDirectory(index, "/retired")
+    expect(index.sessionDirectoryById.size).toBe(2)
+  })
+
   test("setIndexedSessionDirectory skips empty and global directories", () => {
     const index = createEventRoutingIndex()
     setIndexedSessionDirectory(index, "s1", "")

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { ACTIVITY_PREVIEW_LIMIT, activityPreview, type ActivityParts } from "./activityPreview"
+import { ACTIVITY_PREVIEW_LIMIT, activityPreview, previewLine, type ActivityParts } from "./activityPreview"
 
 const partsOf = (records: Record<string, Array<Record<string, unknown>>>): ActivityParts => ({
   get: (messageId) => records[messageId],
@@ -110,5 +110,11 @@ describe("activityPreview", () => {
       { type: "text", text: "Reset the password flow" },
     ])
     expect(activityPreview({ messages, parts })).toEqual({ kind: "message", text: "Reset the password flow" })
+  })
+
+  test("redacts credentials after the visible preview and across line boundaries", () => {
+    expect(previewLine("Safe first line\napi_key=abcd1234efgh5678")).toBeNull()
+    expect(previewLine(`${"a".repeat(ACTIVITY_PREVIEW_LIMIT + 1)} token=abcd1234efgh5678`)).toBeNull()
+    expect(previewLine("Safe first line\nBearer\nabcdefghijklmnop")).toBeNull()
   })
 })

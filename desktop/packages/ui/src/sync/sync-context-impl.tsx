@@ -22,6 +22,7 @@ import {
   getMessageIdFromPayload,
   getSessionIdFromPayload,
   ingestDirectoryStateIntoRoutingIndex,
+  removeIndexedDirectory,
   resolveDirectoryFromRoutingIndex,
   setIndexedSessionDirectory,
   setIndexedSessionMessages,
@@ -1532,6 +1533,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       },
       onDispose: (directory) => {
         bootingDirs.delete(directory)
+        removeIndexedDirectory(routingIndex, directory)
       },
       isBooting: (directory) => bootingDirs.has(directory),
       isLoadingSessions: () => false,

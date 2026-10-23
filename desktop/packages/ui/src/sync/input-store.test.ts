@@ -106,6 +106,39 @@ describe("input-store attachments", () => {
     expect(useInputStore.getState().attachedFiles.map((file) => file.filename)).toEqual(["restored.txt"])
   })
 
+  testWithMockFileReader("drops the stash of a removed draft and discards a read still in flight for it", async () => {
+    const store = useInputStore.getState()
+    store.setActiveAttachmentDraft("removed")
+    const addPromise = store.addAttachedFile(new File(["hello"], "hello.txt", { type: "text/plain" }))
+    store.setActiveAttachmentDraft("other")
+    expect(useInputStore.getState().attachmentsByDraft).toHaveProperty("removed")
+
+    useInputStore.getState().clearSessionDrafts(["removed"])
+    resolveReader(pendingReaders[0], "data:text/plain;base64,aGVsbG8=")
+    await addPromise
+
+    expect(useInputStore.getState().attachmentsByDraft).not.toHaveProperty("removed")
+  })
+
+  testWithMockFileReader("a removed active draft empties the composer and discards its pending read", async () => {
+    const store = useInputStore.getState()
+    store.setActiveAttachmentDraft("removed")
+    const addPromise = store.addAttachedFile(new File(["hello"], "hello.txt", { type: "text/plain" }))
+
+    useInputStore.getState().clearSessionDrafts(["removed"])
+    resolveReader(pendingReaders[0], "data:text/plain;base64,aGVsbG8=")
+    await addPromise
+
+    expect(useInputStore.getState().attachedFiles).toEqual([])
+  })
+
+  test("clearing drafts for sessions without a draft changes nothing", () => {
+    const before = useInputStore.getState()
+    before.clearSessionDrafts(["unknown"])
+    expect(useInputStore.getState().attachmentsByDraft).toBe(before.attachmentsByDraft)
+    expect(useInputStore.getState().attachedFiles).toBe(before.attachedFiles)
+  })
+
   test("does not leave local file reads pending after a reader error", async () => {
     const addPromise = useInputStore
       .getState()

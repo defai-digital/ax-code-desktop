@@ -236,6 +236,12 @@ const removeIndexedSession = (routingIndex: EventRoutingIndex, sessionID: string
   dropIndexedSessionMessages(routingIndex, sessionID)
 }
 
+export const removeIndexedDirectory = (routingIndex: EventRoutingIndex, directory: string) => {
+  for (const [sessionID, indexedDirectory] of routingIndex.sessionDirectoryById) {
+    if (indexedDirectory === directory) removeIndexedSession(routingIndex, sessionID)
+  }
+}
+
 export const ingestDirectoryStateIntoRoutingIndex = (
   routingIndex: EventRoutingIndex,
   directory: string,

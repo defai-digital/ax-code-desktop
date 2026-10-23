@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => {
     listeners,
     manager: {
       children: new Map([["/repo", store]]),
+      subscribeRegistry: () => () => {},
       subscribeAll: (listener: () => void) => {
         listeners.add(listener)
         return () => listeners.delete(listener)

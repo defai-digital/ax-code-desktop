@@ -70,6 +70,8 @@ type InputState = {
   clearAttachedFiles: () => void
   /** Make a draft's attachment list the active one, stashing the list being left behind. */
   setActiveAttachmentDraft: (key: string | null) => void
+  /** Drop the stashed attachments of hard-deleted sessions; a read still in flight for them is discarded. */
+  clearSessionDrafts: (ids: Iterable<string>) => void
   /** Add attachments restored from a reverted message (file already on server) */
   addRestoredAttachment: (file: { url: string; mimeType: string; filename: string }) => void
   addMcpResourceAttachment: (resource: { client: string; name: string; uri: string; mimeType?: string }) => void
@@ -186,6 +188,20 @@ export const useInputStore = create<InputState>()((set, get) => ({
       attachmentsByDraft: nextByDraft,
       attachedFiles: nextByDraft[nextKey] ?? [],
     })
+  },
+
+  clearSessionDrafts: (ids) => {
+    const removed = new Set(ids)
+    const { activeAttachmentDraftKey, attachedFiles, attachmentsByDraft } = get()
+    const activeRemoved = removed.has(activeAttachmentDraftKey)
+    const stashed = Object.keys(attachmentsByDraft).filter((key) => removed.has(key))
+    if (!activeRemoved && stashed.length === 0) return
+    // A read for the removed active draft would otherwise land in the composer; one for a removed stash is
+    // already dropped because the stash is gone.
+    if (activeRemoved) attachmentReadGeneration += 1
+    const nextByDraft = { ...attachmentsByDraft }
+    for (const key of stashed) delete nextByDraft[key]
+    set({ attachmentsByDraft: nextByDraft, attachedFiles: activeRemoved ? [] : attachedFiles })
   },
 
   addRestoredAttachment: ({ url, mimeType, filename }) => {

@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => {
         listeners.add(listener)
         return () => listeners.delete(listener)
       },
+      subscribeRegistry: () => () => {},
     },
   }
 })

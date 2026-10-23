@@ -100,6 +100,27 @@ describe("cleanupRemovedSessions", () => {
     expect(useSessionGoalStore.getState().goals.ses_b?.sessionId).toBe("ses_b")
   })
 
+  test("hard deletion drops attachment stashes and preserves active and archived session drafts", async () => {
+    const { helper } = await importHelper()
+    const { useInputStore } = await import("@/sync/input-store")
+    const store = useInputStore.getState()
+    for (const id of ["removed", "archived", "active"]) {
+      store.setActiveAttachmentDraft(id)
+      store.addRestoredAttachment({ url: `data:,${id}`, filename: `${id}.txt`, mimeType: "text/plain" })
+    }
+    const before = useInputStore.getState()
+    helper.cleanupRemovedSessions(["removed"])
+    const after = useInputStore.getState()
+    expect(after.attachmentsByDraft.removed).toBeUndefined()
+    expect(after.attachmentsByDraft.archived).toBe(before.attachmentsByDraft.archived)
+    expect(after.attachedFiles).toBe(before.attachedFiles)
+    expect(after.activeAttachmentDraftKey).toBe("active")
+
+    helper.cleanupRemovedSessions(["active"])
+    expect(useInputStore.getState().attachedFiles).toEqual([])
+    expect(useInputStore.getState().attachmentsByDraft.archived).toBe(before.attachmentsByDraft.archived)
+  })
+
   test("drops the in-flight goal-read claim for each removed session", async () => {
     const { helper } = await importHelper()
     const dropped: string[][] = []

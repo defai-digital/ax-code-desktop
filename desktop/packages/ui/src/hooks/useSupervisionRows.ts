@@ -1,6 +1,7 @@
 import React from "react"
 
 import { supervisionProjectLabel } from "@/lib/supervision/projectContext"
+import { createCoalescedNotify } from "@/lib/supervision/coalescedNotify"
 import {
   activitySliceDeps,
   collectActivityPreviews,
@@ -169,10 +170,13 @@ function useRootActivity(
 ): ReadonlyMap<string, ActivityPreview> {
   const childStores = useChildStoreManager()
   const targets = React.useMemo(() => rootActivityTargets(inputs, sessions), [inputs, sessions])
-  const getSnapshot = React.useMemo(() => {
+  const activity = React.useMemo(() => {
     let cachedDeps: readonly unknown[] | null = null
     let cachedResult: ReadonlyMap<string, ActivityPreview> | null = null
-    return () => {
+    let dirty = true
+    const getSnapshot = () => {
+      if (!dirty && cachedResult) return cachedResult
+      dirty = false
       const directories = readActivityDirectories(childStores)
       const deps = activitySliceDeps(targets, directories)
       if (cachedDeps && areSliceDepsEqual(cachedDeps, deps)) return cachedResult ?? retainActivityMap(null, new Map())
@@ -181,9 +185,25 @@ function useRootActivity(
       cachedDeps = deps
       return cachedResult
     }
+    const subscribe = (notify: () => void) => {
+      const invalidate = () => {
+        dirty = true
+        notify()
+      }
+      const coalesced = createCoalescedNotify(invalidate, setTimeout, clearTimeout)
+      const unsubscribe = childStores.subscribeAll(coalesced.notify)
+      const unsubscribeRegistry = childStores.subscribeRegistry(coalesced.flush)
+      // Cover a store change between render and subscription. Target changes create a fresh snapshot.
+      dirty = true
+      return () => {
+        unsubscribe()
+        unsubscribeRegistry()
+        coalesced.dispose()
+      }
+    }
+    return { getSnapshot, subscribe }
   }, [childStores, targets])
-  const subscribe = React.useCallback((notify: () => void) => childStores.subscribeAll(notify), [childStores])
-  return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  return React.useSyncExternalStore(activity.subscribe, activity.getSnapshot, activity.getSnapshot)
 }
 
 function rootActivityTargets(
