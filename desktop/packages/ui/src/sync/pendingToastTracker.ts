@@ -45,5 +45,7 @@ export const createPendingToastTracker = ({ onDismiss }: PendingToastTrackerOpti
       }
     },
     size: (kind: PendingToastKind) => keys[kind].size,
+    /** Requests waiting across both kinds. */
+    total: () => keys.permission.size + keys.question.size,
   }
 }

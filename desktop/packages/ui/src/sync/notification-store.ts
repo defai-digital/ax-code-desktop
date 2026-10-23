@@ -96,6 +96,8 @@ interface NotificationStore {
   append: (notification: Notification) => void
   markSessionViewed: (sessionId: string) => void
   markProjectViewed: (directory: string) => void
+  /** Marks a session's error notifications older than `cutoff` viewed: a later run completed, so they are superseded. */
+  clearSessionErrorsBefore: (sessionId: string, cutoff: number) => void
 
   // Selectors
   sessionUnseenCount: (sessionId: string) => number
@@ -129,6 +131,16 @@ export const useSyncNotificationStore = defineStore(
       set({ list: next, index: buildIndex(next) })
     },
 
+    clearSessionErrorsBefore: (sessionId, cutoff) => {
+      const current = get()
+      if (!current.index.session.unseenHasError[sessionId]) return
+
+      const next = current.list.map((n) =>
+        n.session === sessionId && n.type === "error" && !n.viewed && n.time < cutoff ? { ...n, viewed: true } : n,
+      )
+      set({ list: next, index: buildIndex(next) })
+    },
+
     markProjectViewed: (directory) => {
       const current = get()
       const count = current.index.project.unseenCount[directory] ?? 0
@@ -151,6 +163,10 @@ export const useSyncNotificationStore = defineStore(
 
 export function appendNotification(notification: Notification) {
   useSyncNotificationStore.getState().append(notification)
+}
+
+export function clearSessionErrorsBefore(sessionId: string, cutoff: number) {
+  useSyncNotificationStore.getState().clearSessionErrorsBefore(sessionId, cutoff)
 }
 
 export function markSessionViewed(sessionId: string) {

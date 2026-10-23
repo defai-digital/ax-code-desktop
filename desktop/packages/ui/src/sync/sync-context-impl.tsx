@@ -84,7 +84,10 @@ import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useTodosPersistStore } from "@/stores/useTodosPersistStore"
 import { toast } from "@/components/ui"
-import { appendNotification } from "./notification-store"
+import { appendNotification, clearSessionErrorsBefore } from "./notification-store"
+import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { noteSessionRunStatus, takeSessionRunStartedAt } from "./run-start-tracker"
 import { markSessionRunEnded } from "./run-state-store"
 import type { State } from "./types"
 import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
@@ -403,8 +406,42 @@ function pruneExternallyViewedSessions(now = Date.now()) {
 // The pending "an agent needs you" toasts. A key is dropped when its request is answered and when its session goes
 // away, which a session deleted with a request outstanding never reports as an answer.
 const pendingToasts = createPendingToastTracker({
-  onDismiss: (kind, key) => toast.dismiss(pendingToastId(kind, key)),
+  onDismiss: (kind, key) => {
+    toast.dismiss(pendingToastId(kind, key))
+    refreshPendingSummaryToast()
+  },
 })
+
+// Past this many waiting requests a person cannot act on each toast, and a new one only adds noise: the rest are
+// stood for by one summary toast whose count follows the queue, and which opens the Needs you list.
+const PENDING_TOAST_LIMIT = HIGH_TOUCH_SOFT_LIMIT
+const PENDING_SUMMARY_TOAST_ID = "pending-summary"
+
+function refreshPendingSummaryToast() {
+  const total = pendingToasts.total()
+  if (total <= PENDING_TOAST_LIMIT) {
+    toast.dismiss(PENDING_SUMMARY_TOAST_ID)
+    return
+  }
+  const dictionary = useI18nStore.getState().dictionary
+  toast.info(formatMessage(dictionary, "chat.pendingToast.summary.title", { count: total }), {
+    id: PENDING_SUMMARY_TOAST_ID,
+    description: formatMessage(dictionary, "chat.pendingToast.summary.description"),
+    action: {
+      label: formatMessage(dictionary, "chat.pendingToast.summary.action"),
+      onClick: () => useSupervisionStore.getState().setNeedsYouPopoverOpen(true),
+    },
+  })
+}
+
+/** The request toast while the queue is short; past the limit, only the summary toast. */
+const notifyPendingToast = (...args: Parameters<typeof toast.info>) => {
+  if (pendingToasts.total() > PENDING_TOAST_LIMIT) {
+    refreshPendingSummaryToast()
+    return
+  }
+  toast.info(...args)
+}
 
 // A session that goes away — deleted, or archived, which `event-reducer` treats the same way — while a request is
 // outstanding never reports the reply, so its keys stay for the life of the renderer and the toast points at a
@@ -664,7 +701,7 @@ export async function resyncBlockingRequestsForDirectory(
         const firstQuestion = question.questions?.[0]
         const title = firstQuestion?.header?.trim() || "Input needed"
         const description = firstQuestion?.question?.trim() || "Agent is waiting for your response"
-        toast.info(title, {
+        notifyPendingToast(title, {
           id: `question-${toastKey}`,
           description,
           action: {
@@ -770,7 +807,7 @@ export async function resyncBlockingRequestsForDirectory(
           typeof permission.permission === "string" && permission.permission.trim().length > 0
             ? permission.permission
             : formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.fallbackDescription")
-        toast.info(formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.title"), {
+        notifyPendingToast(formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.title"), {
           id: `permission-${toastKey}`,
           description,
           action: {
@@ -1188,7 +1225,7 @@ export function handleEvent(
         typeof permission.permission === "string" && permission.permission.trim().length > 0
           ? permission.permission
           : formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.fallbackDescription")
-      toast.info(formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.title"), {
+      notifyPendingToast(formatMessage(useI18nStore.getState().dictionary, "chat.permissionToast.needed.title"), {
         id: `permission-${toastKey}`,
         description,
         action: {
@@ -1217,7 +1254,7 @@ export function handleEvent(
       const firstQuestion = question.questions?.[0]
       const title = firstQuestion?.header?.trim() || "Input needed"
       const description = firstQuestion?.question?.trim() || "Agent is waiting for your response"
-      toast.info(title, {
+      notifyPendingToast(title, {
         id: `question-${toastKey}`,
         description,
         action: {
@@ -1234,6 +1271,11 @@ export function handleEvent(
     if (toastKey) {
       pendingToasts.clear("question", toastKey)
     }
+  }
+
+  if (payload.type === "session.status") {
+    const props = payload.properties as { sessionID?: string; status?: { type?: string } }
+    if (props.sessionID) noteSessionRunStatus(props.sessionID, props.status?.type)
   }
 
   // Notification dispatch for session turn-complete and error events.
@@ -1256,6 +1298,10 @@ export function handleEvent(
         // Record the run-ended transition so "finished with uncommitted
         // changes" UI only fires for sessions whose agent actually ran.
         markSessionRunEnded(sessionID)
+        // A run that began after an unseen error and completed supersedes it: the failure is no longer the session's
+        // state. An error raised inside this run is newer than its start and stays.
+        const startedAt = takeSessionRunStartedAt(sessionID)
+        if (startedAt !== null) clearSessionErrorsBefore(sessionID, startedAt)
       }
       appendNotification({
         directory: resolvedDirectory,

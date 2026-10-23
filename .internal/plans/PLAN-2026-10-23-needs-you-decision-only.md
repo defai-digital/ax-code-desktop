@@ -40,11 +40,16 @@ Cons removed: amber count that included non-decisions, stale entries that never 
 - Dismissing a follow-up clears both the failure and the finished-work flag, so one click removes the row.
 - A codex review of the diff found these three surfaces (popover, dismissal, sidebar Live); all are fixed above.
 
+## Follow-up round (same day)
+
+- An unseen error is superseded by a later run: the renderer records when a run began (`run-start-tracker`), and when
+  that run goes idle it marks the session's error notifications older than the start as viewed. An error raised inside
+  the run that just ended stays, and a run not observed from its start never clears anything.
+- Past `HIGH_TOUCH_SOFT_LIMIT` waiting requests, new permission and question toasts are replaced by one summary toast
+  whose count follows the queue, and whose action opens the Needs you list. It is removed when the queue drops back.
+
 ## Not done (open)
 
-- Merging bursts of permission/question toasts above `HIGH_TOUCH_SOFT_LIMIT` into one toast.
-- Clearing `unseenHasError` when a later run succeeds, so a failure that was never viewed leaves the follow-up list by
-  itself. Today it leaves on view or dismissal.
 - Snapshotting the directory's changed files at run start, to attribute changes exactly when siblings share a worktree.
 - The tray menu and the dock badge already count only requests; their two writers should share one count.
 
