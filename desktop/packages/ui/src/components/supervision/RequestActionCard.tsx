@@ -2,6 +2,7 @@ import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
+import { useAutoOnceSeconds } from "@/hooks/useAutoOnceSeconds"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import {
@@ -42,6 +43,11 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
   const { t } = useI18n()
   const identity = { kind: entry.kind, sessionId: entry.sessionId, requestId: entry.request.id }
   const requestKey = requestDecisionKey(identity)
+  // The runtime answers an unattended ask "once" itself; the label counts down to it, as in the session's own card.
+  const autoOnceSeconds = useAutoOnceSeconds(
+    entry.kind === "permission" ? entry.request.autoOnceAt : undefined,
+    entry.request.id,
+  )
   const phase = useRequestDecisionStore((state) => state.records.get(requestKey)?.phase ?? "idle")
   const busy = phase !== "idle" && phase !== "retry"
   const [expandedRequest, setExpandedRequest] = React.useState<string | null>(null)
@@ -154,7 +160,9 @@ export const RequestActionCard: React.FC<RequestActionCardProps> = ({
               disabled={busy}
               onClick={() => void submitRequestDecision(identity, "once")}
             >
-              {t("supervision.request.allowOnce")}
+              {autoOnceSeconds === null
+                ? t("supervision.request.allowOnce")
+                : t("chat.permissionCard.actions.allowOnceCountdown", { seconds: autoOnceSeconds })}
             </Button>
             <Button
               size="sm"

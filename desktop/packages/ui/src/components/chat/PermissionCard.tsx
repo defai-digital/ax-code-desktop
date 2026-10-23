@@ -1,4 +1,5 @@
 import { useWebMcpApprovalDefinition } from "@/hooks/useWebMcpApprovalDefinition"
+import { useAutoOnceSeconds } from "@/hooks/useAutoOnceSeconds"
 import { recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import { redactWebMcpText, redactWebMcpReport } from "../../../../../shared/webmcp-redaction.mjs"
 import React from "react"
@@ -150,21 +151,8 @@ export const PermissionCard: React.FC<PermissionCardProps> = ({ permission, onRe
     }
   }
 
-  // Idle "Allow once": the runtime stamps autoOnceAt on asks it will answer itself after a
-  // deadline. Show the remaining seconds on the button; the runtime timer stays authoritative and
-  // its reply removes this card, so the client never submits on its own.
-  const autoOnceAt = permission.autoOnceAt
-  const [autoOnceSeconds, setAutoOnceSeconds] = React.useState<number | null>(null)
-  React.useEffect(() => {
-    if (!autoOnceAt) {
-      setAutoOnceSeconds(null)
-      return
-    }
-    const update = () => setAutoOnceSeconds(Math.max(0, Math.ceil((autoOnceAt - Date.now()) / 1000)))
-    update()
-    const interval = window.setInterval(update, 1000)
-    return () => window.clearInterval(interval)
-  }, [autoOnceAt, permission.id])
+  // Idle "Allow once": the runtime stamps autoOnceAt on asks it will answer itself after a deadline.
+  const autoOnceSeconds = useAutoOnceSeconds(permission.autoOnceAt, permission.id)
 
   if (hasResponded) {
     return null

@@ -49,6 +49,30 @@ describe("cross-session request decisions", () => {
   const button = (label: string) =>
     Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes(label))!
 
+  test("counts down on Allow once when the runtime will answer the ask itself, and a click still sends once", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(new Date("2026-10-23T00:00:00Z"))
+      const entry = permission(["npm test"])
+      if (entry.kind !== "permission") throw new Error("fixture must be a permission")
+      render({ ...entry, request: { ...entry.request, autoOnceAt: Date.now() + 15_000 } })
+      expect(button("allowOnceCountdown").textContent).toContain('"seconds":15')
+      act(() => void vi.advanceTimersByTime(4_000))
+      expect(button("allowOnceCountdown").textContent).toContain('"seconds":11')
+      // The countdown is only a label: answering early still goes through the normal decision path.
+      await act(async () => button("allowOnceCountdown").click())
+      expect(source.respond).toHaveBeenCalledWith("once")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("offers the plain Allow once label when the runtime stamped no deadline", () => {
+    render(permission(["npm test"]))
+    expect(button("supervision.request.allowOnce").textContent).toBe("supervision.request.allowOnce")
+    expect(container.textContent).not.toContain("allowOnceCountdown")
+  })
+
   test("reveals every scope verbatim, excludes blank patterns, and resets disclosure for a new request", () => {
     const patterns = ["git status", "", "git diff", `/workspace/${"long-path-".repeat(40)}*`]
     render(permission(patterns))

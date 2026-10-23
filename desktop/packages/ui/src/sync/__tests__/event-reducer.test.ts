@@ -283,6 +283,27 @@ describe("applyDirectoryEvent", () => {
     expect(blockingRequestStamp("ses_unknown")).toBeGreaterThan(unknownBefore)
   })
 
+  test("a permission re-published with the idle allow-once deadline updates in place, and one without removes it", () => {
+    // The runtime re-sends an ask under the same id to add autoOnceAt (a queued ask was promoted) and to remove it
+    // (the mode changed). A second row for the same request, or a deadline that outlives the cancel, would show a
+    // countdown for an approval the runtime will not give.
+    // Its own permission map: the default one is shared, and a request left on ses_1 would protect that session from
+    // the eviction test that follows.
+    const draft = state({ permission: {} })
+    const ask = (extra: Record<string, unknown> = {}) =>
+      applyDirectoryEvent(draft, {
+        type: "permission.asked",
+        properties: { id: "perm_1", sessionID: "ses_1", permission: "hook", patterns: [], always: [], metadata: {}, ...extra },
+      } as Event)
+    ask()
+    ask({ autoOnceAt: 1_800_000_015_000 })
+    expect(draft.permission["ses_1"]).toHaveLength(1)
+    expect(draft.permission["ses_1"]?.[0]).toMatchObject({ id: "perm_1", autoOnceAt: 1_800_000_015_000 })
+    ask()
+    expect(draft.permission["ses_1"]).toHaveLength(1)
+    expect(draft.permission["ses_1"]?.[0]?.autoOnceAt).toBeUndefined()
+  })
+
   test("replaces an optimistic part the server echo did not land in front of", () => {
     // The replacement scanned only when the *first* slot lacks a sessionID ("optimistic parts are
     // always inserted first"), but insertions are by sorted id and the server echoes a prompt's parts
