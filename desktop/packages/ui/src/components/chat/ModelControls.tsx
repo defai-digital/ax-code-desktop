@@ -778,10 +778,11 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
         tryApplyModelSelection(
           savedSessionModel.providerId,
           savedSessionModel.modelId,
-          latestLoadedUserChoice?.agent || currentAgentName || undefined,
+          useSelectionStore.getState().getSessionAgentSelection(currentSessionId) || currentAgentName || undefined,
         )
-        return
       }
+      // A routed turn must not replay a different agent's old pin when no session pick exists.
+      return
     }
 
     const applySavedSelections = (): "resolved" | "waiting" | "continue" => {

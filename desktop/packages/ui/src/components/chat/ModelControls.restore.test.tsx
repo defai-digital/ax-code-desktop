@@ -79,3 +79,18 @@ test("adopts the loaded session's agent without replacing the picked model with 
   expect(useSelectionStore.getState().getSessionAgentSelection("session-imported")).toBe("plan")
   expect(useConfigStore.getState().currentModelId).toBe("picked")
 })
+
+test("a later manual agent switch does not rewrite the previous agent's model memory", async () => {
+  useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "picked")
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  const priorPlan = useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")
+  await act(async () => {
+    useSelectionStore.getState().saveSessionAgentSelection("session-imported", "build")
+    useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "routed")
+    useConfigStore.getState().setAgent("build", { preserveModel: true })
+  })
+  expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")).toEqual(priorPlan)
+  expect(useConfigStore.getState().currentAgentName).toBe("build")
+})
