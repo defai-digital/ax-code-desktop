@@ -22,16 +22,22 @@ describe("AX Code layout", () => {
     expect(footer).toMatch(/onClick=\{onOpenAbout\}[\s\S]*?name="ax-mark"[\s\S]*?PRODUCT_DISPLAY_NAME/)
   })
 
-  test("header panel toggles are one framed group of independent pressed toggles", () => {
+  test("the header repeats no tool that the Tools rail already offers", () => {
     const header = source("layout/Header.tsx")
     const group = header.slice(
       header.indexOf("data-header-panels"),
       header.indexOf("</div>", header.indexOf("data-header-panels")),
     )
-    expect(group).toContain("pressed={isBottomTerminalOpen}")
-    expect(group).toContain("pressed={splitPaneEnabled}")
+    // What stays up here has no rail entry: the browser panel and the right sidebar.
     expect(group).toContain("<WebMcpHeaderButton")
     expect(group).toContain("pressed={isRightSidebarOpen}")
+    // Terminal, split pane and plan each had a second button beside the rail's. Two buttons for one feature made
+    // people wonder which to press; the rail keeps them and their shortcuts still work.
+    for (const duplicate of ["toggleBottomTerminal", "toggleSplitPane", "isBottomTerminalOpen", "splitPaneEnabled", "showPlanTab"]) {
+      expect(header).not.toContain(duplicate)
+    }
+    const rail = source("layout/InspectorRail.tsx")
+    for (const view of ['view: "terminal"', 'view: "plan"', 'view: "context"']) expect(rail).toContain(view)
   })
 
   test("the header tracks the configured model and the canonical directory key", () => {

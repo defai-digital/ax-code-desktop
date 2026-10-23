@@ -775,10 +775,6 @@ export const Header: React.FC = () => {
   const missionControlOpen = useSupervisionStore((state) => state.missionControlOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
   const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
-  const toggleBottomTerminal = useUIStore((state) => state.toggleBottomTerminal)
-  const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
-  const toggleSplitPane = useUIStore((state) => state.toggleSplitPane)
-  const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar)
   const openContextOverview = useUIStore((state) => state.openContextOverview)
   const openContextPlan = useUIStore((state) => state.openContextPlan)
@@ -1297,7 +1293,6 @@ export const Header: React.FC = () => {
   const planModeEnabled = useFeatureFlagsStore((state) => state.planModeEnabled)
   const isSessionPlanAvailable = useSessionUIStore((state) => state.isSessionPlanAvailable)
   const planTabAvailable = planModeEnabled && currentSessionId ? isSessionPlanAvailable(currentSessionId) : false
-  const showPlanTab = planTabAvailable
   const lastPlanSessionKeyRef = React.useRef<string>("")
 
   // Reset plan tab availability when session changes
@@ -1414,15 +1409,6 @@ export const Header: React.FC = () => {
 
     openContextPlan(directory)
   }, [closeContextPanel, contextPanelByDirectory, openContextPlan, openDirectory])
-
-  const isContextPlanActive = React.useMemo(() => {
-    const directory = normalize(openDirectory || "")
-    if (!directory) {
-      return false
-    }
-    const panelState = contextPanelByDirectory[directory]
-    return getActiveContextMode(panelState) === "plan"
-  }, [contextPanelByDirectory, openDirectory])
 
   const desktopHeaderIconButtonClass = DESKTOP_HEADER_ICON_BUTTON_CLASS
 
@@ -1700,23 +1686,8 @@ export const Header: React.FC = () => {
 
   const desktopSidebarActions = (
     <>
-      {showPlanTab ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              aria-label={t("header.actions.openPlanAria")}
-              onClick={handleOpenContextPlan}
-              className={cn(desktopHeaderIconButtonClass, isContextPlanActive && "bg-[var(--interactive-hover)]")}
-            >
-              <Icon name="file-text" className="h-[18px] w-[18px]" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <p>{t("header.actions.planWithShortcut", { shortcut: shortcutLabel("toggle_context_plan") })}</p>
-          </TooltipContent>
-        </Tooltip>
-      ) : null}
+      {/* The plan, terminal and split-pane toggles live in the Tools rail beside the chat (InspectorRail), where each
+          opens the same panel. A second copy up here made people wonder which one to press. Their shortcuts stay. */}
       <OpenInAppButton directory={actionDirectory} className="mr-1" />
       <DesktopServicesMenu
         isDesktopApp={isDesktopApp}
@@ -1778,22 +1749,6 @@ export const Header: React.FC = () => {
       <ConnectedNotificationCenter />
       <div className={HEADER_ACTION_SEPARATOR_CLASS} aria-hidden />
       <div role="group" data-header-panels className={HEADER_PANEL_GROUP_CLASS}>
-        <HeaderIconActionButton
-          title={t("header.actions.terminalPanelWithShortcut", { shortcut: shortcutLabel("toggle_terminal") })}
-          ariaLabel={t("header.actions.toggleTerminalPanelAria")}
-          onClick={toggleBottomTerminal}
-          pressed={isBottomTerminalOpen}
-          className={HEADER_PANEL_BUTTON_CLASS}
-          Icon={"terminal-box"}
-        />
-        <HeaderIconActionButton
-          title={t("splitPane.toggle.title")}
-          ariaLabel={t("splitPane.toggle.title")}
-          onClick={toggleSplitPane}
-          pressed={splitPaneEnabled}
-          className={HEADER_PANEL_BUTTON_CLASS}
-          Icon={"layout-column"}
-        />
         <WebMcpHeaderButton className="h-7" />
         <HeaderIconActionButton
           title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
