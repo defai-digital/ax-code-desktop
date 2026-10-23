@@ -127,3 +127,27 @@ test("mounting with the routed turn's agent retains the session pick after the a
   expect(useSelectionStore.getState().getSessionModelSelection("session-imported")?.modelId).toBe("picked")
   expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")
 })
+
+test("delayed hydration retains the session pick while the agent catalog is loading", async () => {
+  useConfigStore.setState({ currentAgentName: "plan" })
+  useAgentsStore.setState({ agents: [] })
+  useSelectionStore.setState({ hasHydrated: false })
+  useSelectionStore.getState().saveSessionModelSelection("session-imported", "test", "picked")
+  useSelectionStore.getState().saveAgentModelForSession("session-imported", "plan", "test", "routed")
+  useSelectionStore.getState().saveSessionAgentSelection("session-imported", "plan")
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  await act(async () => {
+    useSelectionStore.setState({ hasHydrated: true })
+  })
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  })
+  expect(useSelectionStore.getState().getSessionModelSelection("session-imported")?.modelId).toBe("picked")
+  await act(async () => {
+    useAgentsStore.setState({ agents: [{ name: "plan", mode: "primary" }] as never })
+  })
+  expect(useConfigStore.getState().currentModelId).toBe("picked")
+  expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")
+})

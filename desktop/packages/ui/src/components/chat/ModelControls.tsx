@@ -495,6 +495,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   ]
 
   const prevAgentNameRef = React.useRef<string | undefined>(undefined)
+  const agentSwitchObservedRef = React.useRef(false)
   const explicitAgentSwitchRef = React.useRef<string | null>(null)
   // Agent adopted from a submitted prompt or a saved session. The agent-switch
   // effect must not replace the model for this name: that effect runs once
@@ -942,6 +943,15 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
 
     const handleAgentSwitch = async () => {
       try {
+        if (!agentSwitchObservedRef.current) {
+          agentSwitchObservedRef.current = true
+          // Hydration can finish before agent discovery. The first observation restores state;
+          // only a real picker action before hydration should replay an agent's model here.
+          if (explicitAgentSwitchRef.current !== currentAgentName) {
+            prevAgentNameRef.current = useConfigStore.getState().currentAgentName
+            return
+          }
+        }
         if (keptModelAgentRef.current) {
           const liveAgent = useConfigStore.getState().currentAgentName
           if (liveAgent && liveAgent === keptModelAgentRef.current) {
