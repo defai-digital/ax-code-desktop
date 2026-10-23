@@ -4,8 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { StreamingMarkdownBlock } from "./StreamingMarkdownBlock"
 import { useEnteredBlockCount } from "./useEnteredBlockCount"
 
-// Mirrors MarkdownRenderer: wrappers keyed by index, each child keyed by its
-// (changing) block key, as the live tail re-keys on every token.
+// Wrappers stay keyed by index. Re-keying a child (a live block whose mode
+// becomes full) must not replay the enter animation.
 const Harness = ({ blocks, placeholder = false }: { blocks: string[]; placeholder?: boolean }) => {
   const entered = useEnteredBlockCount(blocks.length, true, placeholder)
   return (
