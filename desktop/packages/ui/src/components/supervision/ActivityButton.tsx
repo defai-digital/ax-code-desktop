@@ -88,7 +88,7 @@ export const ActivityButton: React.FC = () => {
       </Tooltip>
       {open ? (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="app-region-no-drag fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             ref={panelRef}
             tabIndex={-1}

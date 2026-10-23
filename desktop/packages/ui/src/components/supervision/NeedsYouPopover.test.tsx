@@ -15,6 +15,7 @@ vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => popover
 vi.mock("@/sync/sync-context", () => ({ useAllPendingRequests: () => [] }))
 
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import { NeedsYouPopover } from "./NeedsYouPopover"
 
 describe("NeedsYouPopover", () => {
@@ -107,5 +108,24 @@ describe("NeedsYouPopover", () => {
     act(() => root.render(<NeedsYouPopover onClose={vi.fn()} />))
     expect(container.textContent).toContain("Review session")
     expect(container.querySelector("[data-goal-line]")).toBeNull()
+  })
+
+  test("a press on the backdrop is not a window drag, so the click that closes it lands", () => {
+    const onClose = vi.fn()
+    const starts: boolean[] = []
+    act(() =>
+      root.render(
+        <div onMouseDown={(event) => starts.push(shouldStartWindowDrag(event.target as Element, event.button))}>
+          <NeedsYouPopover onClose={onClose} />
+        </div>,
+      ),
+    )
+    const backdrop = container.querySelector<HTMLElement>(".fixed.inset-0")!
+    act(() => {
+      backdrop.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+      backdrop.click()
+    })
+    expect(starts).toEqual([false])
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 })

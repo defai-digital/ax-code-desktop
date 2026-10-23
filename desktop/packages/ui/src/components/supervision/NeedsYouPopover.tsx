@@ -109,7 +109,7 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
 
   return (
     <>
-      <div className="fixed inset-0 z-40" onClick={onClose} />
+      <div className="app-region-no-drag fixed inset-0 z-40" onClick={onClose} />
       <div
         ref={panelRef}
         tabIndex={-1}

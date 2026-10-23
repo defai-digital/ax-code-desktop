@@ -32,6 +32,7 @@ vi.mock("@/components/ui/tooltip", () => ({
 }))
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import { ActivityButton } from "./ActivityButton"
 
 const event = (sessionId: string, at: number) => ({
@@ -106,5 +107,23 @@ describe("titlebar Activity button", () => {
     fireEvent.keyDown(document.body, { key: "Escape" })
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(document.activeElement).toBe(button)
+  })
+
+  test("a press on the open feed's backdrop is not a window drag, so the click that closes it lands", () => {
+    rows.value = []
+    const starts: boolean[] = []
+    const { container } = render(
+      <div onMouseDown={(event) => starts.push(shouldStartWindowDrag(event.target as Element, event.button))}>
+        <ActivityButton />
+      </div>,
+    )
+    fireEvent.click(screen.getByRole("button", { name: "supervision.missionControl.feed.toggle" }))
+    const backdrop = container.querySelector<HTMLElement>(".fixed.inset-0")!
+    act(() => {
+      backdrop.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, button: 0 }))
+    })
+    expect(starts).toEqual([false])
+    fireEvent.click(backdrop)
+    expect(screen.queryByRole("dialog")).toBeNull()
   })
 })

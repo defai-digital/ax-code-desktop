@@ -183,7 +183,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = React.memo(
   return (
     <>
       {/* Backdrop */}
-      <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+      <div className="app-region-no-drag fixed inset-0 z-40" onClick={() => setOpen(false)} />
 
       {/* Panel */}
       <div
@@ -191,7 +191,7 @@ export const NotificationCenter: React.FC<NotificationCenterProps> = React.memo(
         tabIndex={-1}
         role="dialog"
         aria-label={t("notificationCenter.title")}
-        className="absolute right-0 top-12 z-50 flex w-80 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-lg outline-none"
+        className="app-region-no-drag absolute right-0 top-12 z-50 flex w-80 flex-col overflow-hidden rounded-lg border border-border bg-background shadow-lg outline-none"
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-3 py-2">

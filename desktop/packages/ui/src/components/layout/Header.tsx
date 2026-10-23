@@ -78,6 +78,7 @@ import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
 import { ActivityButton } from "@/components/supervision/ActivityButton"
+import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
 import { normalizeContextPanelDirectoryKey as normalize } from "./contextPanelTabs"
@@ -1522,16 +1523,7 @@ export const Header: React.FC = () => {
 
   const handleDragStart = React.useCallback(
     async (e: React.MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (target.closest(".app-region-no-drag")) {
-        return
-      }
-      if (target.closest("button, a, input, select, textarea")) {
-        return
-      }
-      if (e.button !== 0) {
-        return
-      }
+      if (!shouldStartWindowDrag(e.target as HTMLElement, e.button)) return
       if (isDesktopApp) {
         await startDesktopWindowDrag()
       }
