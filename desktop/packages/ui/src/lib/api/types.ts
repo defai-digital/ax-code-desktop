@@ -143,6 +143,8 @@ export interface GitRemoteComparison {
 }
 
 export interface GitStatus {
+  /** Canonical root for the worktree-relative status and runtime snapshot paths. */
+  worktreeRoot?: string
   /** Commit at HEAD; null for an unborn branch, omitted by older status providers. */
   headOid?: string | null
   current: string

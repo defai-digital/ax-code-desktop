@@ -8,136 +8,162 @@ Guidance for coding agents operating in the AX Code Desktop repository.
 2. Write all repository files, source, documentation, comments, configuration, commit messages, and release text in English.
 3. Send network and external-service payloads in English.
 
-## Product
+There is no `.cursor/`, `.cursorrules`, or `.github/copilot-instructions.md` in this repository, so this file plus
+`desktop/CONTRIBUTING.md` are the complete agent rule set.
 
-The product is AX Code and this desktop app is AX Code Desktop (ADR-015). Do not write "AX Coder" in new text;
-older records use that name for this repository.
+## Product and boundaries
 
-AX Code Desktop is the persistent desktop experience for supervising multiple coding projects. It owns the
-portfolio UI, human-added project registry, desired-state controls, exception inbox, and project-management
-experience. It does not own a second coding runtime.
+The product is AX Code and this desktop app is AX Code Desktop (ADR-015). Do not write "AX Coder" in new text; older
+records use that name for this repository. AX Code Desktop owns the portfolio UI, human-added project registry,
+desired-state controls, exception inbox, and project-management experience. It does not own a second coding runtime.
 
-Canonical boundaries:
+- The AX Code runtime owns coding tools, repository intelligence, goal contracts, verification, and worktree execution.
+- AX Agent owns durable agent runs, workflows, approvals, leases, and recovery once those are released for consumption.
+- AX Trust owns enterprise policy, credentials, grants, and immutable audit.
+- AX Telemetry owns platform observability; Desktop may display bounded local health projections.
 
-- The AX Code runtime owns coding tools, repository intelligence, coding UX, goal contracts, verification, worktree
-  execution, and the worker-facing runtime contract.
-- AX Agent owns domain-neutral durable agent runs, tool lifecycle, workflows, approvals, leases, and recovery
-  after those capabilities are ready for consumption.
-- AX Trust owns enterprise policy, credentials, approvals, grants, and immutable audit.
-- AX Telemetry owns the platform observability product. AX Code Desktop may display bounded local health projections.
+Layout: `desktop/packages/ui` (shared React library `@openchamber/ui`), `desktop/packages/web` (`ax-code-desktop`,
+Express server + Vite renderer), `desktop/packages/electron` (`@ax-code/electron`, main/preload/packaging),
+`script/` (root checks), `config/` (runtime, SDK, identity, release-policy pins), `.internal/` (governance records).
 
-## Current phase
+## Toolchain
 
-Extraction phases 1 to 3 are complete. The reviewed Desktop source and its filtered history live under `desktop/`, and
-the independent workspace consumes the published SDK from GitHub Packages (ADR-022) with a frozen lockfile and a pinned signed AX Code runtime.
-Independent CI, CodeQL and the signed shadow workflow are implemented. The local source-ownership cutover is complete under ADR-008: AX Code removed its Desktop
-tree at `6a2e03d90411ddd7141047baa59d4a754f1c4107`, and AX Code Desktop is the sole current GUI source owner.
+- Node.js >= 26. pnpm 10.33.4 through Corepack. Never npm or Yarn; `preinstall` enforces pnpm.
+- `pnpm install` locally; CI must use `pnpm install --frozen-lockfile`.
+- The SDK comes from GitHub Packages (`.npmrc` sets `@defai-digital:registry`). Installing needs a user-level
+  `//npm.pkg.github.com/:_authToken=...` line. Never commit a token (ADR-022).
 
-The repository has an active public remote at `defai-digital/ax-code-desktop`, and public releases ship from it under
-ADR-012. 7.27.3 was published on 2026-10-19 after signed shadow qualification and native install, upgrade, rollback and
-profile/configuration continuity receipts (`.internal/reports/RELEASE-2026-10-19-v7.27.3-publication.md`). ADR-012
-does not pre-qualify later versions: every release needs its own exact-inventory signed qualification and explicit
-publication approval. Do not change the compatibility identity or move GUI source back into the AX Code runtime
-repository.
+## Commands
 
-The active improvement plan is `.internal/prd/PRD-2026-10-19-competitive-quality-v1.md` (renderer security baseline,
-end-to-end harness, structure and supervision work). Settled decisions and their records are indexed in
-`.internal/prd/README.md`, `.internal/adr/README.md` and `.internal/spec/README.md`.
+Run every gate from the repository root. `pnpm run typecheck`, `pnpm run lint`, `pnpm run test`, and
+`pnpm run check:boundaries` must pass before you report work as done; add `pnpm run build` when you touched bundling,
+packaging, Vite config, or the electron main process.
 
-## Environment and commands
+| Task | Command |
+| --- | --- |
+| Typecheck | `pnpm run typecheck` |
+| Lint | `pnpm run lint` |
+| Tests (all) | `pnpm run test` |
+| Root script/tool tests | `pnpm run test:scripts` |
+| Build shell | `pnpm run build` |
+| Boundaries and contracts | `pnpm run check:boundaries` |
+| Locale catalogs | `pnpm run check:locales` |
+| Release identity contract | `pnpm run check:release-contract` |
+| Workflow syntax | `actionlint .github/workflows/*.yml` |
+| Development app | `pnpm run dev` |
+| Release readiness (read-only) | `pnpm run release:preflight` |
+| End-to-end journeys (after build) | `pnpm run e2e:desktop` (`-- --app <path>.app` for packaged) |
+| Harness self-test | `pnpm run e2e:desktop:self-test` |
+| Interactive UI WebMCP lab | `pnpm run dev:webmcp` |
 
-- Node.js 26 or newer.
-- pnpm 10.33.4 through Corepack. Do not use npm or Yarn for this workspace.
-- Install with `pnpm install`; committed CI must use `pnpm install --frozen-lockfile`.
-- The SDK comes from GitHub Packages (`@defai-digital:registry` in `.npmrc`; package page: <https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk>). Installing needs a user-level
-  `//npm.pkg.github.com/:_authToken=<token with read:packages>` line; never commit a token (ADR-022).
+`pnpm run test` runs `test:scripts` first, then each package serially (`--workspace-concurrency=1`). `pnpm run build`
+is `turbo run build:shell --filter=@ax-code/electron`, not the dev app.
 
-| Task                          | Command                                                            |
-| ----------------------------- | ------------------------------------------------------------------ |
-| Typecheck                     | `pnpm run typecheck`                                               |
-| Lint                          | `pnpm run lint`                                                    |
-| Tests                         | `pnpm run test`                                                    |
-| Desktop build                 | `pnpm run build`                                                   |
-| Contract and ownership checks | `pnpm run check:boundaries`                                        |
-| Release identity contract     | `pnpm run check:release-contract`                                  |
-| Workflow syntax               | `actionlint .github/workflows/*.yml`                               |
-| Development app               | `pnpm run dev`                                                     |
-| Release readiness (read-only)  | `pnpm run release:preflight`                                       |
-| End-to-end journeys (after build) | `pnpm run e2e:desktop` (`-- --app <path>.app` for packaged)     |
-| Interactive UI WebMCP lab (after build) | `pnpm run dev:webmcp` (isolated profile and stub runtime) |
-| Native UI WebMCP verification (after build) | `pnpm run e2e:desktop:webmcp` |
-| Settings UI WebMCP audit (after build) | `pnpm run e2e:desktop:settings-webmcp -- --artifacts <dir>` |
-| Harness failure-detection self-test (after build) | `pnpm run e2e:desktop:self-test` (also accepts `-- --app <path>.app`) |
-| Source-text test ratchet       | `pnpm run check:source-text-tests` (part of `check:boundaries`)    |
-| Local unsigned package        | `pnpm run package:desktop -- <platform flags> --publish=never ...` |
+### Running a single test
 
-Public distribution commands require signed exact-inventory qualification; user publication approval is recorded under ADR-012.
+```bash
+# Root script/ and tools/ tests (Vitest 4, node env)
+pnpm exec vitest run --config vitest.config.ts script/check-desktop-boundaries.test.ts
 
-For agent-driven UI development checks, see `docs/development-webmcp.md`. This opt-in development surface exposes Desktop's
-own rendered controls through native WebMCP; it is separate from the project browser consuming website tools. Packaged apps
-disable it. Verify asynchronous UI changes with fresh state reads and DOM/screenshot evidence, not action acknowledgements.
+# UI package: one file. Pass vitest args directly; a bare `--` makes it run the whole suite.
+pnpm --dir desktop/packages/ui run test src/stores/useProjectsStore.test.ts
 
-## Analysis outputs and diagrams
+# UI package: one test by name
+pnpm --dir desktop/packages/ui run test src/stores/useProjectsStore.test.ts -t "pins a project"
 
-- The AX Code runtime owns the canonical `analysis-output` skill and routing between static artifacts,
-  governed analytics through AX BI MCP, and ordinary project development. Do not copy that skill into Desktop.
-- AX BI owns datasets, SQL, charts, dashboards and its existing authorization model. A BI connection is optional;
-  one-off findings, Mermaid and static exports must not require a BI service, credentials or Docker.
-- Historical `ax-code-app` fences render as ordinary inert code. Desktop has no dedicated Streamlit Run/Prepare
-  control, Python installer, framework discovery or progress protocol. Legacy saved recipes migrate to ordinary
-  project actions without executing, installing, deleting user files or stopping existing servers.
-- The general project runner owns the terminal, preview and explicit Stop. Closing a preview leaves its server
-  running. Explicit framework development uses these ordinary project tools.
-- Mermaid's machine-readable capability contract is
-  `desktop/packages/ui/src/components/chat/mermaidCapabilities.json`. It distinguishes the pinned worker renderer's
-  SVG/ASCII types from the lazily loaded official renderer's SVG-only types. Consult it and the global
-  `desktop-mermaid-capability` skill before claiming a diagram type. Changes require matching fixtures, rendered
-  verification, and a versioned capability-contract record; do not duplicate the list here or in a project skill.
-- Static analysis results belong in the conversation or actual artifacts. Return AX BI result links through the
-  existing browser flow; do not recreate analytics runtime ownership inside Desktop.
-- Verify UI-only changes with `pnpm --dir desktop/packages/ui run type-check` and the focused Vitest files. Changes
-  that touch analysis-app rendering or project actions must also pass the full UI test suite.
+# Web package (vitest run, no config flag needed)
+pnpm --dir desktop/packages/web run test vite-api-ws-proxy.test.ts
 
-## Documents and governance
+# Electron package
+pnpm --dir desktop/packages/electron run test src/api-prefix-router.test.mjs
 
-- Product requirements: `.internal/prd/`
-- Architecture decisions: `.internal/adr/`
-- Locked technical behavior and migration mechanics: `.internal/spec/`
-- Public operator and user documentation: `docs/` after a released surface exists
+# Optional unified runner: all three projects from one config
+pnpm exec vitest run --config desktop/vitest.config.ts --project ui desktop/packages/ui/src/stores/useProjectsStore.test.ts
+```
 
-Product-boundary or source-ownership work requires, in order:
+UI tests need the `--no-experimental-webstorage` NODE_OPTIONS that `desktop/packages/ui/scripts/run-tests.mjs`
+injects; always go through `pnpm --dir desktop/packages/ui run test` rather than calling `vitest` there directly.
 
-1. Accepted PRD.
-2. Accepted ADRs in every affected repository.
-3. Technical specs for source extraction, contracts, data, release, and rollback.
-4. Implementation with recorded cross-repository commit and verification evidence.
+## Code style
 
-## Hard rules
+Formatting (root `package.json` prettier block, `.editorconfig`): 2-space indent, LF, final newline, no semicolons,
+print width 120, single quotes are not enforced — match the file. No format script and no CI format gate exist, so do
+not reformat untouched lines; CI runs typecheck, lint, tests, and the contract checks only. File naming: components
+`PascalCase.tsx`, stores `useXStore.ts`, library modules `camelCase.ts`, electron `kebab-case.js`/`.mjs`, web server
+modules `kebab-case.js` with a sibling `.test.js`.
 
-- Never fork or duplicate the AX Code or AX Agent canonical runtime.
-- Consume the public AX Code SDK as an exact `@defai-digital/ax-code-sdk` GitHub Packages version and the worker as a pinned signed
-  runtime artifact. Local workspace links are development-only and must not enter CI or release manifests.
-- Keep AX Code Desktop's portfolio desired state separate from AX Code execution state and AX Agent run history.
-- Never store raw credentials in project records, prompts, events, logs, metrics, or artifacts.
-- Never mutate an accepted PRD, ADR, or technical spec silently. Create a versioned proposal; accepted ADRs are
-  superseded, not rewritten as though the prior decision never existed.
-- Never auto-merge, auto-release, expand permissions, or raise budgets without an explicit policy and approval.
-- Parallel reads are allowed. Parallel writers require isolated Git worktrees or deterministic serialization.
-- Preserve user changes in sibling repositories. Never stash, reset, clean, or delete sibling worktrees as part
-  of extraction automation.
-- Preserve source history, license, notice, provenance, signing, updater, bundle identity, and user-data
-  continuity during the Desktop move.
-- Do not import ignored build output, dependencies, caches, credentials, or local data from `../ax-code/desktop/`.
+TypeScript: `strict: true` with `verbatimModuleSyntax`, `noEmit`, `moduleResolution: bundler`, target ES2022. Use
+`import type` for type-only imports. Path aliases are per package: `@/*` inside UI, `@web/*` and `@openchamber/ui*`
+in web. No `any` without a written justification; prefer `unknown` plus narrowing, or a named type alias. Express
+handlers in `web/server` are plain JS and are not type-checked, but they must stay lint-clean (`no-undef`).
 
-## Initial implementation record
+Imports: external packages first, then `@/`-aliased internal modules, then relative paths, then side-effect imports.
+Use `import x from "node:path"` for Node builtins in `script/`, `desktop/scripts/`, and electron `.mjs` tooling;
+`web/server` files use bare `"fs"`/`"path"` to match their neighbours.
 
-The extraction umbrella plan is `.internal/prd/PRD-2026-09-02-ax-coder-product-and-desktop-extraction.md`.
+Naming: hooks are `useX`, stores export `useXStore`; constants are `SCREAMING_SNAKE_CASE`. Two modules under
+`src/stores/` or `src/sync/` may not export the same `useX` name (rule R4).
 
-Phase 1 evidence is in `.internal/reports/extraction/`. Phase 2 completion evidence is in
-`.internal/reports/PHASE-2-2026-09-02-independent-workspace-candidate.md`. Phase 3 local implementation evidence is
-in `.internal/reports/PHASE-3-2026-09-02-shadow-release-implementation.md`. Local source-cutover evidence is in
-`.internal/reports/PHASE-4A-2026-09-02-local-source-cutover.md`. The workspace consumes the SDK pin in
-`config/ax-code-sdk.json`, the signed runtime pin in `config/ax-code-runtime.json`, and the compatibility identity and
-release state in `config/desktop-identity.json` and `config/desktop-release-policy.json`. Public release commands
-publish only an exact candidate that passed signed shadow, update, rollback and continuity qualification, with explicit
-user approval for that version.
+Types and data: declare an `interface` or `type` for store shapes and API payloads instead of inline object literals;
+export shared payload types from one module. Prefer early returns and `if`/`switch` over nested ternaries. Functional
+React components only, hooks called unconditionally at the top level, `react-refresh` compatible exports.
+
+UI and localization: use existing theme tokens from `desktop/packages/ui/src/lib/theme/` and typography from
+`src/lib/typography.ts`; do not add new color or typography primitives. Every component must render correctly in both
+light and dark themes. User-facing strings go through `t("settings.…")` from `src/lib/i18n`; English lives in
+`src/lib/i18n/messages/en.ts` and `en.settings.ts`, other locales in `messages/<locale>.json`. Run
+`pnpm run check:locales` after touching catalogs.
+
+Error handling: handle errors at boundaries (user input, filesystem, network, IPC, child processes). Validate and
+reject path-like input before filesystem work — see `assertSafeResourceName` in `web/server/lib/ax-code/shared.js`.
+In Express routes always `return res.status(4xx|5xx).json({ error })`; do not swallow errors silently, and never log
+credentials or raw tokens.
+
+Comments: explain non-obvious rationale, invariants, and spec references (for example `SPEC-2026-08-29 … S2.4`). Match
+the surrounding comment density; do not narrate obvious code. Tests describe behavior, not implementation.
+
+## Architecture rules enforced by checks
+
+`pnpm run check:boundaries` runs twelve checks; treat them as build failures and fix the cause, not the baseline.
+
+- No Desktop package may import a sibling package's source tree. Cross-package access goes through documented
+  `@openchamber/ui/*` entrypoints or the `@defai-digital/ax-code-sdk` public exports. Dev-only exceptions are
+  individually reviewed in `script/check-desktop-boundaries.ts`.
+- The UI package must not depend on `electron`, `express`, `node-pty`, `simple-git`, or other server/shell packages.
+- The web package must not use the `@/` alias, which resolves directly into UI source.
+- Store boundary rules: `src/stores/` top-level modules may not import each other except through a frozen allowlist
+  that may only shrink; files outside `src/sync/` must not import sync internals; the unified transport client and the
+  connection-state writers have registered consumers only.
+- IPC: every `desktop_*` command must be declared in `desktop/packages/electron/src/desktop-ipc-contract.json`, have a
+  main-process handler, and declare `none` or `object` params. `src/lib/desktopIpcContract.gen.ts` is generated; never
+  edit it by hand.
+- Renderer security baseline (ADR-018): sandboxed, context-isolated renderer, hashed inline scripts, no `unsafe-eval`
+  for app documents, and external navigation served with a restrictive CSP.
+- Tests must assert behavior, not source text. `pnpm run check:source-text-tests` fails any new test that reads a sibling
+  source file with `readFile`.
+- No sibling-repository dependency on `../ax-code`, and never import ignored build output, caches, or credentials from it.
+
+## Testing expectations
+
+- Put a test next to the code as `<module>.test.ts|.tsx|.js|.mjs`; UI tests live under `desktop/packages/ui/src/**` and
+  use the jsdom setup in `src/test/setup.ts`.
+- Cover the changed behavior plus the failure path. Add a test that fails before a fix and passes after.
+- Renderer changes: run the focused Vitest files and `pnpm --dir desktop/packages/ui run type-check`; changes touching
+  analysis-app rendering or project actions must also pass the full UI suite.
+- Verify asynchronous UI changes with fresh state reads and DOM/screenshot evidence through
+  `docs/development-webmcp.md`, not action acknowledgements. Packaged builds disable that surface.
+
+## Governance
+
+Product requirements live in `.internal/prd/`, architecture decisions in `.internal/adr/`, locked technical behavior in
+`.internal/spec/`, and evidence in `.internal/reports/`; each directory has a `README.md` index. Boundary or
+source-ownership work requires, in order: accepted PRD, accepted ADRs, technical specs, then implementation with recorded
+commit and verification evidence. Never mutate an accepted PRD, ADR, or spec silently — add a versioned proposal;
+accepted ADRs are superseded, not rewritten.
+
+Hard rules: never fork or duplicate the AX Code or AX Agent canonical runtime; keep Desktop portfolio desired state
+separate from AX Code execution state; never store raw credentials in records, prompts, events, logs, metrics, or
+artifacts; never auto-merge, auto-release, expand permissions, or raise budgets without explicit policy and approval;
+parallel readers are fine but parallel writers need isolated Git worktrees; preserve user changes in sibling
+repositories and never stash, reset, or clean them. Keep upstream OpenChamber attribution in `NOTICE` and update it in
+the same change when importing third-party code.

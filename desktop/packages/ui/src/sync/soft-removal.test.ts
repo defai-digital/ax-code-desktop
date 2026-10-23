@@ -16,10 +16,11 @@ import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 const deleteSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
 const archiveSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
+const unarchiveSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
 const setCurrentSessionMock = vi.fn()
 
 vi.doMock("@/components/ui", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() },
 }))
 
 vi.doMock("@/lib/ax-code/client", () => ({
@@ -41,6 +42,7 @@ vi.doMock("@/sync/session-ui-store", () => ({
 vi.doMock("@/sync/session-actions", () => ({
   deleteSession: deleteSessionMock,
   archiveSession: archiveSessionMock,
+  unarchiveSession: unarchiveSessionMock,
 }))
 
 vi.doMock("@/lib/i18n/store", () => ({
@@ -123,6 +125,7 @@ describe("soft-removal S4.5 contract", () => {
     resetSoftRemovalForTests()
     deleteSessionMock.mockReset()
     archiveSessionMock.mockReset()
+    unarchiveSessionMock.mockReset()
     setCurrentSessionMock.mockClear()
     // The failure toasts are asserted as "the rollback finished" signals, so a
     // call left over from an earlier test must not satisfy the wait.
@@ -288,7 +291,7 @@ describe("soft-removal S4.5 contract", () => {
     expect((entry?.time as { updated?: number } | undefined)?.updated).toBe(99)
   })
 
-  test("archive commit releases the pending flag so the session.updated event fills the archived bucket", async () => {
+  test("archive is sent immediately and the session.updated event fills the archived bucket", async () => {
     const session = makeSession("ses_c")
     useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
 
@@ -296,8 +299,9 @@ describe("soft-removal S4.5 contract", () => {
     softArchiveSession(session)
     expect(useGlobalSessionsStore.getState().activeSessions).toHaveLength(0)
 
-    await flushAndSettle()
-    expect(archiveSessionMock).toHaveBeenCalledWith("ses_c")
+    // No undo window: the request goes out without flushing or waiting for a timer.
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledWith("ses_c"))
+    await vi.waitFor(() => expect(useGlobalSessionsStore.getState().pendingRemoval.size).toBe(0))
     // No manual archived-bucket write happened — the bucket is still empty
     // until the event arrives.
     expect(useGlobalSessionsStore.getState().archivedSessions).toHaveLength(0)
@@ -306,6 +310,111 @@ describe("soft-removal S4.5 contract", () => {
     useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", archived))
     expect(useGlobalSessionsStore.getState().activeSessions).toHaveLength(0)
     expect(useGlobalSessionsStore.getState().archivedSessions.map((s) => s.id)).toEqual(["ses_c"])
+  })
+
+  test("undo after an archive was sent waits for it, then unarchives", async () => {
+    const session = makeSession("ses_u")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+
+    let releaseArchive: (ok: boolean) => void = () => {}
+    archiveSessionMock.mockImplementation(() => new Promise<boolean>((resolve) => { releaseArchive = resolve }))
+    unarchiveSessionMock.mockResolvedValue(true)
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalled())
+
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as { action?: { onClick?: () => void } } | undefined
+    options?.action?.onClick?.()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The unarchive must not overtake the archive it reverses.
+    expect(unarchiveSessionMock).not.toHaveBeenCalled()
+
+    releaseArchive(true)
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith("ses_u"))
+  })
+
+  test("undo after a failed archive does not unarchive; the rollback already restored the session", async () => {
+    const session = makeSession("ses_f")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+
+    let releaseArchive: (ok: boolean) => void = () => {}
+    archiveSessionMock.mockImplementation(() => new Promise<boolean>((resolve) => { releaseArchive = resolve }))
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalled())
+
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as { action?: { onClick?: () => void } } | undefined
+    options?.action?.onClick?.()
+    releaseArchive(false)
+
+    await vi.waitFor(() => expect(toastErrorMock).toHaveBeenCalled())
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(unarchiveSessionMock).not.toHaveBeenCalled()
+    expect(useGlobalSessionsStore.getState().activeSessions.map((s) => s.id)).toEqual(["ses_f"])
+  })
+
+  test("undo reverses a successful archive even if an active snapshot arrived before acknowledgement", async () => {
+    const session = makeSession("ses_active_snapshot")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    archiveSessionMock.mockImplementation(async () => {
+      useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", session))
+      return true
+    })
+    unarchiveSessionMock.mockResolvedValue(true)
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
+    options.action.onClick()
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith(session.id))
+  })
+
+  test("an archive event before acknowledgement is accepted", async () => {
+    const session = makeSession("ses_early_event")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    archiveSessionMock.mockImplementation(async () => {
+      useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", {
+        ...session, time: { ...session.time, updated: 3, archived: 3 },
+      }))
+      return true
+    })
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
+    expect(useGlobalSessionsStore.getState().archivedSessions.map((item) => item.id)).toContain(session.id)
+  })
+
+  test("an archive Undo is one-shot and cannot reverse a later archive", async () => {
+    const session = makeSession("ses_epoch")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    archiveSessionMock.mockResolvedValue(true)
+    unarchiveSessionMock.mockResolvedValue(true)
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
+    const first = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledTimes(2))
+    first.action.onClick()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(unarchiveSessionMock).not.toHaveBeenCalled()
+    const second = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
+    second.action.onClick()
+    second.action.onClick()
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledTimes(1))
+  })
+
+  test("a new archive waits for the previous unarchive acknowledgement", async () => {
+    const session = makeSession("ses_undo_then_archive")
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    archiveSessionMock.mockResolvedValue(true)
+    let release: (ok: boolean) => void = () => {}
+    unarchiveSessionMock.mockImplementation(() => new Promise<boolean>((resolve) => { release = resolve }))
+    softArchiveSession(session)
+    await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
+    options.action.onClick()
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalled())
+    useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.updated", session))
+    softArchiveSession(session)
+    expect(archiveSessionMock).toHaveBeenCalledTimes(1)
+    release(true)
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledTimes(2))
   })
 
   test("commits a bulk removal one request at a time so rate-limit retries cannot stampede", async () => {

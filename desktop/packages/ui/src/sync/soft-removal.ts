@@ -13,6 +13,8 @@ import * as sessionActions from "@/sync/session-actions"
 import { formatMessage, useI18nStore, type I18nKey, type I18nParams } from "@/lib/i18n/store"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
+// Only delete waits out the undo window: it cannot be taken back once sent. Archive is reversible
+// (undo unarchives), so it is sent at once and the toast offers a compensating unarchive.
 const UNDO_DURATION_MS = 7000
 const STORAGE_KEY_PREFIX = "axcode.pending-session-removals"
 
@@ -46,6 +48,10 @@ type PersistedRemoval = {
 }
 
 const timerBySession = new Map<string, ReturnType<typeof setTimeout>>()
+// Archive requests already sent for a toast whose Undo may still be pressed. Undo awaits the request
+// so the unarchive always follows the archive it reverses.
+const archiveGenerationById = new Map<string, symbol>()
+const archiveUndoById = new Map<string, Promise<boolean>>()
 
 const tr = (key: I18nKey, params?: I18nParams): string => formatMessage(useI18nStore.getState().dictionary, key, params)
 
@@ -255,12 +261,13 @@ function failureMessage(kind: PendingRemovalKind, count: number): string {
   )
 }
 
-async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}): Promise<void> {
+async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}): Promise<Set<string>> {
   const store = useGlobalSessionsStore.getState()
   const entries = ids
     .map((id) => store.pendingRemoval.get(id))
     .filter((entry): entry is PendingRemovalEntry => Boolean(entry))
-  if (entries.length === 0) return
+  const succeeded = new Set<string>()
+  if (entries.length === 0) return succeeded
 
   for (const entry of entries) inFlightRemovals.set(entry.session.id, toPersistedRemoval(entry))
   persistPending()
@@ -290,6 +297,7 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
     // pending flag was released above, so the session.updated(time.archived)
     // event adds the session to the archived bucket as the writer of record.
     if (!ok) failed.push(entry)
+    else succeeded.add(entry.session.id)
     inFlightRemovals.delete(entry.session.id)
     // Unload failures remain recoverable. A visible timer failure is reported
     // and restored below, so it must not be retried behind the user's back.
@@ -314,6 +322,7 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
       }
     }
   }
+  return succeeded
 }
 
 function undoRemovals(ids: string[]): void {
@@ -326,9 +335,42 @@ function undoRemovals(ids: string[]): void {
   persistPending()
 }
 
+/** Reverse only successful requests from this archive action, once and without trusting local row state. */
+async function undoCommittedArchives(ids: string[], generation: symbol, commit: Promise<Set<string>>): Promise<void> {
+  try {
+    const succeeded = await commit
+    for (const id of ids) {
+      if (!succeeded.has(id) || archiveGenerationById.get(id) !== generation) continue
+      archiveGenerationById.delete(id)
+      keptForRecovery.delete(id)
+      const undo = sessionActions.unarchiveSession(id)
+      archiveUndoById.set(id, undo)
+      try {
+        await undo
+      } finally {
+        if (archiveUndoById.get(id) === undo) archiveUndoById.delete(id)
+      }
+    }
+  } catch (error) {
+    console.warn("[soft-removal] archive undo failed", error)
+    toast.error(tr("sessions.sidebar.session.unarchive.error"))
+  } finally {
+    for (const id of ids) if (archiveGenerationById.get(id) === generation) archiveGenerationById.delete(id)
+    persistPending()
+  }
+}
+
 function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void {
   const store = useGlobalSessionsStore.getState()
-  const fresh = sessions.filter(
+  // A row can reappear from the unarchive event before its HTTP acknowledgement. A new removal
+  // must follow that compensation rather than race it.
+  const ready: Session[] = []
+  for (const session of sessions) {
+    const undo = archiveUndoById.get(session.id)
+    if (undo) void undo.then(() => softRemoveSessions([session], kind), () => softRemoveSessions([session], kind))
+    else ready.push(session)
+  }
+  const fresh = ready.filter(
     (session) => session?.id && !store.pendingRemoval.has(session.id) && !inFlightRemovals.has(session.id),
   )
   if (fresh.length === 0) return
@@ -337,9 +379,38 @@ function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void
   persistPending()
 
   const ids = fresh.map((session) => session.id)
+  for (const id of ids) archiveGenerationById.delete(id)
   const ui = useSessionUIStore.getState()
   if (ui.currentSessionId && ids.includes(ui.currentSessionId)) {
     ui.setCurrentSession(null)
+  }
+
+  if (kind === "archive") {
+    const generation = Symbol("archive")
+    for (const id of ids) archiveGenerationById.set(id, generation)
+    const commit = commitRemovals(ids)
+    // Observe unexpected failures even when the user never clicks Undo.
+    void commit.catch((error) => console.warn("[soft-removal] archive commit failed", error))
+    let undoRequested = false
+    const expire = () => setTimeout(() => {
+      toast.dismiss(toastId)
+      if (!undoRequested) {
+        for (const id of ids) if (archiveGenerationById.get(id) === generation) archiveGenerationById.delete(id)
+      }
+    }, UNDO_DURATION_MS)
+    void commit.then(expire, expire)
+    const toastId = toast.success(successMessage(kind, ids.length), {
+      duration: UNDO_DURATION_MS,
+      action: {
+        label: tr("sessions.sidebar.softRemoval.undo"),
+        onClick: () => {
+          if (undoRequested) return
+          undoRequested = true
+          void undoCommittedArchives(ids, generation, commit)
+        },
+      },
+    })
+    return
   }
 
   const timer = setTimeout(() => {
@@ -370,6 +441,8 @@ export function softBulkArchive(sessions: Session[]): void {
 
 /** Test seam: forget the removals kept for the next launch's recovery. */
 export function resetSoftRemovalForTests(): void {
+  archiveGenerationById.clear()
+  archiveUndoById.clear()
   keptForRecovery.clear()
   inFlightRemovals.clear()
   notifyRemovalListeners()

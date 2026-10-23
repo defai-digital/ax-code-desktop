@@ -6,6 +6,8 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
+Implementation addendum: [Session removal and isolation v2](SPEC-2026-10-23-session-removal-and-isolation-v2.md) records immediate archive with compensating Undo, explicit ordered isolation writes, and exact changed-file attribution for the v7.28.6 candidate. Earlier accepted records are preserved.
+
 Current additive development observation: [Desktop UI WebMCP v4](SPEC-2026-10-20-desktop-ui-webmcp-v4.md) reports
 configuration-overlay visibility without claiming runtime state or physical pointer access. It preserves v1-v3.
 

@@ -22,7 +22,7 @@ describe("sessionChangesStillUncommitted", () => {
   test("path spelling differences do not hide a match", () => {
     expect(sessionChangesStillUncommitted(named("./src/a.ts"), tree("src/a.ts"))).toBe(true)
     expect(sessionChangesStillUncommitted(named("src\\a.ts"), tree("src/a.ts"))).toBe(true)
-    expect(sessionChangesStillUncommitted(named("/work/app/src/a.ts"), tree("src/a.ts"))).toBe(true)
+    expect(sessionChangesStillUncommitted(named("/work/app/src/a.ts"), { ...tree("src/a.ts"), worktreeRoot: "/work/app" })).toBe(true)
   })
 
   test("a file whose name merely ends the same way is not a match", () => {
@@ -33,4 +33,13 @@ describe("sessionChangesStillUncommitted", () => {
   test("counts without file names fall back to a reported change in a dirty tree", () => {
     expect(sessionChangesStillUncommitted({ additions: 4, deletions: 1, files: 2 }, tree("anything.ts"))).toBe(true)
   })
+})
+
+test("relative paths cannot match by suffix and absolute paths use the actual worktree root", () => {
+  expect(sessionChangesStillUncommitted(named("src/a.ts"), tree("a.ts"))).toBe(false)
+  const status = { ...tree("a.ts"), worktreeRoot: "/work/app" }
+  expect(sessionChangesStillUncommitted(named("/work/app/src/a.ts"), status)).toBe(false)
+  expect(sessionChangesStillUncommitted(named("/work/app/a.ts"), status)).toBe(true)
+  expect(sessionChangesStillUncommitted(named("/other/app/a.ts"), status)).toBe(false)
+  expect(sessionChangesStillUncommitted(named("pkg/src/a.ts"), { ...tree("pkg/src/a.ts"), worktreeRoot: "/work/app" })).toBe(true)
 })

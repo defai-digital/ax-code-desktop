@@ -183,3 +183,49 @@ describe("useSandboxStore independence from the directory-context queue", () => 
     expect(setIsolationMock).toHaveBeenCalledWith("workspace-write", "/b")
   })
 })
+
+test("a late write completion refreshes state after the deadline reload", async () => {
+  const { useSandboxStore, getIsolationMock, setIsolationMock } = await importStore()
+  useSandboxStore.setState({ sandboxByDirectory: { "/repo": true } })
+  let release: (result: { mode: string }) => void = () => {}
+  setIsolationMock.mockImplementationOnce(() => new Promise((resolve) => { release = resolve }))
+  getIsolationMock.mockResolvedValue({ mode: "workspace-write" })
+  vi.useFakeTimers()
+  try {
+    const write = useSandboxStore.getState().setSandbox("/repo", false)
+    await vi.advanceTimersByTimeAsync(12_500)
+    await write
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(true)
+    getIsolationMock.mockResolvedValue({ mode: "full-access" })
+    release({ mode: "full-access" })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
+  } finally {
+    vi.useRealTimers()
+  }
+})
+
+test("late completion queues a fresh read when the deadline reload is still pending", async () => {
+  const { useSandboxStore, getIsolationMock, setIsolationMock } = await importStore()
+  useSandboxStore.setState({ sandboxByDirectory: { "/repo": true } })
+  let releaseWrite: (value: { mode: string }) => void = () => {}
+  let releaseRead: (value: { mode: string }) => void = () => {}
+  setIsolationMock.mockImplementationOnce(() => new Promise((resolve) => { releaseWrite = resolve }))
+  getIsolationMock.mockImplementationOnce(() => new Promise((resolve) => { releaseRead = resolve }))
+  getIsolationMock.mockResolvedValue({ mode: "full-access" })
+  vi.useFakeTimers()
+  try {
+    const write = useSandboxStore.getState().setSandbox("/repo", false)
+    await vi.advanceTimersByTimeAsync(12_500)
+    releaseWrite({ mode: "full-access" })
+    await vi.advanceTimersByTimeAsync(0)
+    releaseRead({ mode: "workspace-write" })
+    await vi.advanceTimersByTimeAsync(0)
+    await write
+    expect(getIsolationMock).toHaveBeenCalledTimes(2)
+    expect(useSandboxStore.getState().isSandbox("/repo")).toBe(false)
+    expect(useSandboxStore.getState().isPending("/repo")).toBe(false)
+  } finally {
+    vi.useRealTimers()
+  }
+})

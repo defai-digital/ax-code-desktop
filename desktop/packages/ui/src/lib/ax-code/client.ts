@@ -334,6 +334,7 @@ const createSdkFetch = () => (input: RequestInfo | URL, init?: RequestInit) => {
 class AxCodeService {
   private client: AxCodeClient
   private baseUrl: string
+  private isolationWrites = new Map<string, Promise<{ mode: string; network: boolean } | null>>()
   private scopedClients: Map<string, AxCodeClient> = new Map()
   private currentDirectory: string | undefined = undefined
   private directoryContextBusy = false
@@ -1479,12 +1480,12 @@ class AxCodeService {
   // elsewhere used to hold that queue past the toggle's own deadline and the write was never sent.
   // Failures are logged with their cause; callers only receive null.
   private resolveIsolationDirectory(directory?: string | null): string | undefined {
-    const candidate = typeof directory === "string" && directory.trim().length > 0 ? directory : this.currentDirectory
-    return candidate ? (this.normalizeCandidatePath(candidate) ?? candidate) : undefined
+    return this.normalizeCandidatePath(directory) ?? undefined
   }
 
   async getIsolation(directory?: string | null): Promise<{ mode: string; network: boolean } | null> {
     const scoped = this.resolveIsolationDirectory(directory)
+    if (!scoped) return null
     try {
       const result = await this.client.isolation.get(scoped ? { directory: scoped } : undefined)
       if (result.error || !result.data) {
@@ -1503,21 +1504,29 @@ class AxCodeService {
     directory?: string | null,
   ): Promise<{ mode: string; network: boolean } | null> {
     const scoped = this.resolveIsolationDirectory(directory)
-    try {
-      const result = await this.client.isolation.set({
-        mode,
-        ...(scoped ? { directory: scoped } : {}),
-      })
-      if (result.error || !result.data) {
-        console.warn(`[ax-code client] isolation.set(${mode}) failed: ${formatSdkError(result.error)}`)
+    if (!scoped) return null
+    // A UI deadline does not cancel a server mutation. Keep writes to the same project ordered,
+    // while allowing unrelated projects to proceed independently.
+    const previous = this.isolationWrites.get(scoped)
+    const write = (async () => {
+      if (previous) await previous
+      try {
+        const result = await this.client.isolation.set({ mode, directory: scoped })
+        if (result.error || !result.data) {
+          console.warn(`[ax-code client] isolation.set(${mode}) failed: ${formatSdkError(result.error)}`)
+          return null
+        }
+        return { mode: result.data.mode, network: result.data.network }
+      } catch (error) {
+        console.warn(`[ax-code client] isolation.set(${mode}) threw: ${error instanceof Error ? error.message : String(error)}`)
         return null
       }
-      return { mode: result.data.mode, network: result.data.network }
-    } catch (error) {
-      console.warn(
-        `[ax-code client] isolation.set(${mode}) threw: ${error instanceof Error ? error.message : String(error)}`,
-      )
-      return null
+    })()
+    this.isolationWrites.set(scoped, write)
+    try {
+      return await write
+    } finally {
+      if (this.isolationWrites.get(scoped) === write) this.isolationWrites.delete(scoped)
     }
   }
 

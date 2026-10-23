@@ -19,7 +19,7 @@ const recoverDeleteMock = vi.fn()
 const recoverUpdateMock = vi.fn()
 
 vi.doMock("@/components/ui", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
+  toast: { success: vi.fn(), error: vi.fn(), dismiss: vi.fn() },
 }))
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
@@ -49,7 +49,6 @@ import { createRng, runPropertyAsync, type Rng } from "../../test/prng"
 const { toast } = await import("@/components/ui")
 const {
   softDeleteSession,
-  softArchiveSession,
   flushPendingRemovals,
   recoverPendingRemovals,
   resetSoftRemovalForTests,
@@ -89,7 +88,7 @@ function slotIds(): string[] {
 }
 
 type Op =
-  | { kind: "remove"; id: string; removal: "delete" | "archive" }
+  | { kind: "remove"; id: string; removal: "delete" }
   | { kind: "undo" }
   | { kind: "flush"; ok: boolean }
   | { kind: "recover"; id: string; outcome: "ok" | "fail" | "gone" }
@@ -102,7 +101,7 @@ function generateTrace(rng: Rng): Op[] {
     const id = rng.pick(SESSION_IDS)
     switch (rng.int(6)) {
       case 0:
-        ops.push({ kind: "remove", id, removal: rng.chance(0.5) ? "delete" : "archive" })
+        ops.push({ kind: "remove", id, removal: "delete" })
         break
       case 1:
         ops.push({ kind: "undo" })
@@ -217,8 +216,8 @@ describe("soft-removal model", () => {
         for (const op of trace) {
           if (op.kind === "remove") {
             if (!present.has(op.id) || pending.has(op.id)) continue
-            if (op.removal === "delete") softDeleteSession(makeSession(op.id))
-            else softArchiveSession(makeSession(op.id))
+            // Only delete waits in an undo window; archive is sent at once and is covered in soft-removal.test.ts.
+            softDeleteSession(makeSession(op.id))
             lastUndoable = [op.id]
             pending.add(op.id)
             present.delete(op.id)

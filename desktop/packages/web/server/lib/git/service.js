@@ -2083,6 +2083,7 @@ export async function getStatus(directory, options = {}) {
 
     return {
       current: status.current,
+      worktreeRoot: repoRoot.replace(/\\/g, "/"),
       headOid,
       tracking,
       ahead,

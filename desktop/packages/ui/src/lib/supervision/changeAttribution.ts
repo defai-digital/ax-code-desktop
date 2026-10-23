@@ -2,6 +2,7 @@ import { resolveSupervisionEvidence, type SessionSummaryLike } from "./sessionSt
 
 /** The part of a git status that attribution reads. */
 export interface DirtyTreeLike {
+  worktreeRoot?: string
   isClean: boolean
   files: ReadonlyArray<{ path: string }>
 }
@@ -24,9 +25,16 @@ function summaryFilePaths(summary: SessionSummaryLike | null | undefined): strin
   return paths
 }
 
-/** A git status path matches a summary path when equal, or when the summary path is absolute and ends with it. */
-const samePath = (statusPath: string, summaryPath: string): boolean =>
-  statusPath === summaryPath || summaryPath.endsWith(`/${statusPath}`)
+const absolutePath = (path: string): boolean => path.startsWith("/") || /^[A-Za-z]:\//.test(path)
+
+/** Runtime snapshot paths and Git status paths are worktree-relative. Never infer a root from a suffix. */
+function samePath(statusPath: string, summaryPath: string, root?: string): boolean {
+  if (!absolutePath(summaryPath)) return statusPath === summaryPath
+  if (absolutePath(statusPath)) return statusPath === summaryPath
+  if (!root) return false
+  const normalizedRoot = normalizePath(root).replace(/\/+$/, "")
+  return summaryPath === `${normalizedRoot}/${statusPath}`
+}
 
 /**
  * Whether changes this session reported are still uncommitted. A dirty directory alone says nothing about a session:
@@ -45,5 +53,5 @@ export function sessionChangesStillUncommitted(
   const named = summaryFilePaths(summary)
   if (named.length === 0) return true
   const dirty = status.files.map((file) => normalizePath(file.path))
-  return named.some((path) => dirty.some((statusPath) => samePath(statusPath, path)))
+  return named.some((path) => dirty.some((statusPath) => samePath(statusPath, path, status.worktreeRoot)))
 }

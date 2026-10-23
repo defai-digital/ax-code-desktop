@@ -458,3 +458,36 @@ describe("archived-history deletion transport", () => {
     await expect(axCodeClient.deleteArchivedSession("ses_history")).rejects.toThrow("no success acknowledgement")
   })
 })
+
+describe("explicit isolation scope and write ordering", () => {
+  afterEach(() => vi.restoreAllMocks())
+
+  test("missing directory cannot inherit a temporary directory context", async () => {
+    const write = vi.spyOn(axCodeClient.getSdkClient().isolation, "set")
+    axCodeClient.setDirectory("/other-project")
+    await expect(axCodeClient.setIsolation("full-access", null)).resolves.toBeNull()
+    await expect(axCodeClient.setIsolation("full-access", "  ")).resolves.toBeNull()
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  test("same-directory writes serialize while other directories proceed", async () => {
+    let release = () => {}
+    const gate = new Promise<void>((resolve) => { release = resolve })
+    const calls: string[] = []
+    const sdk = axCodeClient.getSdkClient()
+    const write = vi.spyOn(sdk.isolation, "set").mockImplementation((async (input: Parameters<typeof sdk.isolation.set>[0]) => {
+      calls.push(`${input?.directory}:${input?.mode}`)
+      if (input?.directory === "/a" && input.mode === "full-access") await gate
+      return { data: { mode: input?.mode ?? "workspace-write", network: true } } as Awaited<ReturnType<typeof sdk.isolation.set>>
+    }) as typeof sdk.isolation.set)
+    const first = axCodeClient.setIsolation("full-access", "/a")
+    const second = axCodeClient.setIsolation("read-only", "/a")
+    await axCodeClient.setIsolation("workspace-write", "/b")
+    const beforeRelease = [...calls]
+    release()
+    await Promise.all([first, second])
+    expect(beforeRelease).toEqual(["/a:full-access", "/b:workspace-write"])
+    expect(write).toHaveBeenCalledTimes(3)
+    expect(calls.at(-1)).toBe("/a:read-only")
+  })
+})

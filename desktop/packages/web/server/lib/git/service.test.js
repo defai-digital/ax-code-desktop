@@ -1189,6 +1189,17 @@ describe("getStatus diff stats", () => {
     expect(keys.filter((key) => key.startsWith('"'))).toEqual([])
   })
 
+  it("identifies the worktree root when status is requested from a nested directory", async () => {
+    if (!canRunGit()) return
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    fs.mkdirSync(path.join(repo, "pkg", "src"), { recursive: true })
+    fs.writeFileSync(path.join(repo, "pkg", "src", "a.ts"), "changed\n")
+    const status = await getStatus(path.join(repo, "pkg"), { mode: "light" })
+    expect(status.worktreeRoot).toBe(fs.realpathSync(repo).replace(/\\/g, "/"))
+    expect(status.files.map((file) => file.path)).toContain("pkg/src/a.ts")
+  })
+
   it("keeps a partially staged file's staged and working counts apart", async () => {
     if (!canRunGit()) return
 
