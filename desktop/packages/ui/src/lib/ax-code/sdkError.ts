@@ -21,3 +21,21 @@ export function formatSdkError(error: unknown): string {
     return String(error)
   }
 }
+
+/** Only a session-specific 404 proves that deleting it is already complete. */
+export function isMissingSessionResponse(
+  result: { error?: unknown; response?: { status: number } } | null | undefined,
+  sessionId: string,
+): boolean {
+  if (result?.response?.status !== 404 || !result.error || typeof result.error !== "object") return false
+  const error = result.error as {
+    name?: unknown
+    data?: { message?: unknown }
+    message?: unknown
+    details?: { resource?: unknown }
+  }
+  return (
+    (error.name === "SessionNotFoundError" && error.details?.resource === "session") ||
+    (error.name === "NotFoundError" && (error.data?.message ?? error.message) === `Session not found: ${sessionId}`)
+  )
+}

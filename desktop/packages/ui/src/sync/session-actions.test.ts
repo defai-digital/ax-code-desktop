@@ -18,6 +18,7 @@ const clearSessionAbortMock = vi.fn()
 const upsertSessionMock = vi.fn()
 const removeSessionsMock = vi.fn()
 const archiveSessionsMock = vi.fn()
+const deleteArchivedSessionMock = vi.fn()
 const registeredSessionDirectories: Array<{ sessionID: string; directory: string }> = []
 const inputCalls: Array<{ method: string; params?: Record<string, unknown> }> = []
 const inheritSessionAutoAcceptMock = vi.fn()
@@ -254,6 +255,7 @@ vi.doMock("@/components/ui", () => ({
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
     getScopedSdkClient: () => mockScopedClient,
+    deleteArchivedSession: deleteArchivedSessionMock,
     getDirectory: () => "/test/project",
     checkHealth: () => Promise.resolve(true),
   },
@@ -632,6 +634,89 @@ describe("session mutations treat an SDK error response as a failure", () => {
     })
   })
 
+  test.each(["delete", "archive"] as const)(
+    "%s does not treat a missing project route as a missing session",
+    async (action) => {
+      const session = { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as Session
+      const store = createStore({})
+      store.setState({ session: [session] })
+      const method = action === "delete" ? mockScopedClient.session.delete : mockScopedClient.session.update
+      method.mockResolvedValueOnce({
+        error: { name: "NotFoundError", data: { message: "Project directory not found: /test/project" } },
+        response: { status: 404 },
+      } as never)
+      const actions = await import("./session-actions")
+      actions.setActionRefs(
+        mockSdk as unknown as AxCodeClient,
+        createChildStores([["/test/project", store]]),
+        () => "/test/project",
+      )
+      await expect(
+        action === "delete" ? actions.deleteSession(session.id) : actions.archiveSession(session.id),
+      ).resolves.toBe(false)
+      expect(store.getState().session).toEqual([session])
+      expect(removeSessionsMock).not.toHaveBeenCalled()
+      expect(archiveSessionsMock).not.toHaveBeenCalled()
+    },
+  )
+
+  test.each([200, 409, 404])("archived deletion uses maintenance and handles status %s safely", async (status) => {
+    const session = {
+      id: "session-a",
+      directory: "/test/project",
+      time: { created: 1, updated: 1, archived: 2 },
+    } as Session
+    const store = createStore({})
+    store.setState({ session: [session] })
+    deleteArchivedSessionMock.mockResolvedValueOnce(
+      status === 200
+        ? { data: true, response: { status } }
+        : { error: { message: status === 409 ? "Active descendant" : "Unknown route" }, response: { status } },
+    )
+    const scopedCalls = mockScopedClient.session.delete.mock.calls.length
+    const actions = await import("./session-actions")
+    actions.setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
+    await expect(actions.deleteSession(session.id)).resolves.toBe(status === 200)
+    expect(deleteArchivedSessionMock).toHaveBeenLastCalledWith(session.id)
+    expect(mockScopedClient.session.delete.mock.calls.length - scopedCalls).toBe(0)
+    expect(store.getState().session).toEqual(status === 200 ? [] : [session])
+  })
+
+  test.each(["delete", "archive"] as const)(
+    "%s recognizes the runtime's normalized session-specific 404",
+    async (action) => {
+      const store = createStore({})
+      store.setState({
+        session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as Session],
+      })
+      const method = action === "delete" ? mockScopedClient.session.delete : mockScopedClient.session.update
+      method.mockResolvedValueOnce({
+        error: {
+          name: "SessionNotFoundError",
+          message: "Session not found",
+          status: 404,
+          details: { resource: "session" },
+        },
+        response: { status: 404 },
+      } as never)
+      const actions = await import("./session-actions")
+      actions.setActionRefs(
+        mockSdk as unknown as AxCodeClient,
+        createChildStores([["/test/project", store]]),
+        () => "/test/project",
+      )
+      await expect(
+        action === "delete" ? actions.deleteSession("session-a") : actions.archiveSession("session-a"),
+      ).resolves.toBe(true)
+      expect(removeSessionsMock).toHaveBeenCalledWith(["session-a"])
+      expect(store.getState().session).toEqual([])
+    },
+  )
+
   test("deleteSession treats an already-deleted session as deleted", async () => {
     // Deleting a parent cascades to its children on the runtime, so a bulk
     // delete that also selected a child gets 404 for it.
@@ -703,12 +788,23 @@ describe("session mutations treat an SDK error response as a failure", () => {
 
   test("archiveSession removes an already-gone session without restoring a ghost row", async () => {
     const store = createStore({})
-    store.setState({ session: [{ id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session] })
-    mockScopedClient.session.update.mockImplementationOnce(() => Promise.resolve({
-      error: { name: "NotFoundError", data: { message: "Session not found: session-a" } }, response: { status: 404 },
-    } as never))
+    store.setState({
+      session: [
+        { id: "session-a", directory: "/test/project", time: { created: 1, updated: 1 } } as unknown as Session,
+      ],
+    })
+    mockScopedClient.session.update.mockImplementationOnce(() =>
+      Promise.resolve({
+        error: { name: "NotFoundError", data: { message: "Session not found: session-a" } },
+        response: { status: 404 },
+      } as never),
+    )
     const { archiveSession, setActionRefs } = await import("./session-actions")
-    setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([["/test/project", store]]), () => "/test/project")
+    setActionRefs(
+      mockSdk as unknown as AxCodeClient,
+      createChildStores([["/test/project", store]]),
+      () => "/test/project",
+    )
     await expect(archiveSession("session-a")).resolves.toBe(true)
     expect(store.getState().session).toEqual([])
     expect(removeSessionsMock).toHaveBeenCalledWith(["session-a"])

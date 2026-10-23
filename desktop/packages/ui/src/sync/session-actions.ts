@@ -17,7 +17,7 @@ import { useSessionUIStore } from "./session-ui-store"
 import { useInputStore } from "./input-store"
 import type { ChildStoreManager } from "./child-store"
 import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
-import { formatSdkError } from "@/lib/ax-code/sdkError"
+import { formatSdkError, isMissingSessionResponse } from "@/lib/ax-code/sdkError"
 import { retryWhenRateLimited } from "@/lib/ax-code/rateLimitRetry"
 // NOTE (SPEC-2026-08-30, S4.5): the session lifecycle event stream
 // (`session.created/updated/deleted` applied via sync/global-session-events.ts)
@@ -663,11 +663,12 @@ function notifySessionActionFailure(kind: SessionActionFailureKind): void {
  * the optimistic removal stays, the persisted per-session state is dropped, and
  * the session reappears on the next load with no error shown.
  */
-function assertSessionCallSucceeded(result: { error?: unknown } | null | undefined, action: string): void {
-  if (!result || typeof result !== "object" || !result.error) {
-    return
-  }
-  throw new Error(`${action} failed: ${formatSdkError(result.error)}`)
+function assertSessionCallSucceeded(
+  result: { error?: unknown; response?: { status: number } } | null | undefined,
+  action: string,
+): void {
+  if (result?.error) throw new Error(`${action} failed: ${formatSdkError(result.error)}`)
+  if (result?.response && result.response.status >= 400) throw new Error(`${action} failed (${result.response.status})`)
 }
 
 export async function deleteSession(sessionId: string, options?: { notify?: boolean }): Promise<boolean> {
@@ -700,16 +701,25 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
   }
   try {
     // Bulk delete sends one request per session and can exceed the runtime's rate limit.
-    const result = await retryWhenRateLimited(() =>
-      scopedClientForDirectory(sessionDirectory).session.delete({
-        sessionID: sessionId,
-        directory: sessionDirectory,
-      }),
-    )
+    const deleteScoped = () =>
+      retryWhenRateLimited(() =>
+        scopedClientForDirectory(sessionDirectory).session.delete({
+          sessionID: sessionId,
+          directory: sessionDirectory,
+        }),
+      )
+    const archived =
+      Boolean(removed?.time?.archived) ||
+      useGlobalSessionsStore.getState().archivedSessions?.some((session) => session.id === sessionId)
+    // Never fall back to ordinary cascading deletion for archived history:
+    // older runtimes cannot promise that active children will be retained.
+    const result = archived
+      ? await retryWhenRateLimited(() => axCodeClient.deleteArchivedSession(sessionId))
+      : await deleteScoped()
     // A 404 means the session is already gone, which is the outcome the user
     // asked for: deleting a parent cascades to its children, so a bulk delete
     // that also selected a child would otherwise report that child as failed.
-    if (result?.response?.status !== 404) {
+    if (!isMissingSessionResponse(result, sessionId)) {
       assertSessionCallSucceeded(result, "deleteSession")
     }
     // Optimistic removal (load-bearing): hard-delete callers (confirm dialog,
@@ -759,7 +769,7 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
     )
     // Another delete may already have removed this session. Do not restore it
     // as a ghost row or manufacture an archived record for a missing session.
-    if (result?.response?.status === 404) {
+    if (isMissingSessionResponse(result, sessionId)) {
       useGlobalSessionsStore.getState().removeSessions([sessionId])
       return true
     }

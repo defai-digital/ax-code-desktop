@@ -109,7 +109,8 @@ const ID_RANDOM_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrs
 const MESSAGE_ID_PREFIX = "msg"
 const PART_ID_PREFIX = "prt"
 const isValidPartId = (id: unknown): id is string => typeof id === "string" && id.startsWith(`${PART_ID_PREFIX}_`)
-export const isValidMessageId = (id: unknown): id is string => typeof id === "string" && id.startsWith(`${MESSAGE_ID_PREFIX}_`)
+export const isValidMessageId = (id: unknown): id is string =>
+  typeof id === "string" && id.startsWith(`${MESSAGE_ID_PREFIX}_`)
 
 let lastIdTimestamp = 0
 let idCounter = 0
@@ -319,8 +320,7 @@ const MAX_SCOPED_CLIENTS = 100
 export const isStreamingSdkRequestUrl = (url: string): boolean => STREAMING_REQUEST_PATH.test(url)
 
 const createSdkFetch = () => (input: RequestInfo | URL, init?: RequestInit) => {
-  const url =
-    typeof input === "string" ? input : input instanceof URL ? input.href : ((input as Request)?.url ?? "")
+  const url = typeof input === "string" ? input : input instanceof URL ? input.href : ((input as Request)?.url ?? "")
   if (isStreamingSdkRequestUrl(url)) {
     return fetch(input, init)
   }
@@ -705,6 +705,22 @@ class AxCodeService {
     })
     if (!response.data) throw new Error("Session not found")
     return response.data
+  }
+
+  /** Adapter for the runtime's archived-history maintenance route. */
+  async deleteArchivedSession(id: string): Promise<{ data?: boolean; error?: unknown; response: Response }> {
+    const response = await createSdkFetch()(
+      buildAxCodeApiUrl(this.baseUrl, `/global/session/${encodeURIComponent(id)}/archived`),
+      {
+        method: "DELETE",
+        headers: { Accept: "application/json" },
+      },
+    )
+    const payload: unknown = await response.json().catch(() => undefined)
+    if (!response.ok)
+      return { error: payload ?? { message: `Archived deletion failed (${response.status})` }, response }
+    if (payload !== true) throw new Error("Archived deletion returned no success acknowledgement")
+    return { data: true, response }
   }
 
   async deleteSession(id: string): Promise<boolean> {

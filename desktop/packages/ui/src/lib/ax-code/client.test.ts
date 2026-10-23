@@ -337,9 +337,7 @@ describe("withDirectory queue resilience", () => {
       })
       // Attach the rejection expectation before the timer fires so the refusal is
       // never an unhandled rejection.
-      const secondRejected = expect(second).rejects.toThrow(
-        /Timed out waiting for another directory-scoped request/,
-      )
+      const secondRejected = expect(second).rejects.toThrow(/Timed out waiting for another directory-scoped request/)
 
       // Before the safety timeout the second call is still queued behind the hang.
       await Promise.resolve()
@@ -419,5 +417,36 @@ describe("directory listing cache", () => {
     // An entry expiring exactly at the cutoff counts as expired, matching the cache read.
     pruneExpiredListDirectoryEntries(cache, 5_000)
     expect(cache.size).toBe(0)
+  })
+})
+
+describe("archived-history deletion transport", () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  test("uses a directory-independent route with the standard request deadline", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("true", { status: 200 }))
+    vi.stubGlobal("fetch", fetchMock)
+    axCodeClient.setDirectory("/retired/project")
+    await expect(axCodeClient.deleteArchivedSession("ses_history")).resolves.toMatchObject({ data: true })
+    const [url, options] = fetchMock.mock.calls[0]
+    expect(url).toContain("/global/session/ses_history/archived")
+    expect(url).not.toContain("directory=")
+    expect(options).toMatchObject({ method: "DELETE", signal: expect.any(AbortSignal) })
+  })
+
+  test("preserves a conflict response instead of turning it into success", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response(JSON.stringify({ message: "Active descendant" }), { status: 409 })),
+    )
+    await expect(axCodeClient.deleteArchivedSession("ses_history")).resolves.toMatchObject({
+      error: { message: "Active descendant" },
+      response: { status: 409 },
+    })
+  })
+
+  test("rejects a malformed success acknowledgement", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })))
+    await expect(axCodeClient.deleteArchivedSession("ses_history")).rejects.toThrow("no success acknowledgement")
   })
 })
