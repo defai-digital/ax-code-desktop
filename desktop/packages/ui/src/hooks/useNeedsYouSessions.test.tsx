@@ -155,7 +155,7 @@ describe("useNeedsYouSessionInputs finished work", () => {
 
   const withChanges = (id: string) => ({ ...session(id), summary: { additions: 4, deletions: 1, files: 2 } })
   const setDirty = (dirtyTree: boolean) =>
-    useGitStore.setState({ directories: new Map([["/repo", { status: { isClean: !dirtyTree } }]]) as never })
+    useGitStore.setState({ directories: new Map([["/repo", { status: { isClean: !dirtyTree, files: [] } }]]) as never })
   const uncommitted = (id: string) => latest.find((input) => input.id === id)?.finishedWithUncommitted
 
   beforeEach(() => {
@@ -190,6 +190,18 @@ describe("useNeedsYouSessionInputs finished work", () => {
     expect(uncommitted("done")).toBe(true)
     // A dirty directory says nothing about a session that never reported a change: the user's own edits or a
     // sibling session may have made it dirty.
+    expect(uncommitted("quiet")).toBe(false)
+  })
+
+  test("when the runtime names the files, a dirty tree of other files does not count", () => {
+    const named = (id: string, file: string) => ({ ...session(id), summary: { files: 1, diffs: [{ file, additions: 2 }] } })
+    mocks.sessions = [named("done", "src/mine.ts"), named("quiet", "src/other.ts")]
+    useGitStore.setState({
+      directories: new Map([["/repo", { status: { isClean: false, files: [{ path: "src/mine.ts" }] } }]]) as never,
+    })
+    act(() => root.render(<Harness />))
+    expect(uncommitted("done")).toBe(true)
+    // Its own file was committed; the tree is dirty only because of someone else's change.
     expect(uncommitted("quiet")).toBe(false)
   })
 

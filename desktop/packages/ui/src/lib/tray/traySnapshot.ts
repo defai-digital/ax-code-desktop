@@ -104,6 +104,22 @@ const toStatus = (value: string | undefined): TraySessionStatus => {
   return "idle"
 }
 
+/**
+ * Requests waiting on a person, each counted once. The dock badge, the tray menu and the window title all use this
+ * rule: two writers that count differently (sessions against requests) fight over one badge, and the last one wins.
+ * A session can linger in two directory stores after a move, so a request is identified by kind, session and id.
+ */
+export function countPendingApprovals(
+  approvals: ReadonlyArray<{ kind: string; sessionId?: string | null; id?: string | null } | null | undefined>,
+): number {
+  const seen = new Set<string>()
+  for (const approval of approvals) {
+    if (!approval?.id || !approval.sessionId) continue
+    seen.add(`${approval.kind}\u0000${approval.sessionId}\u0000${approval.id}`)
+  }
+  return seen.size
+}
+
 export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot => {
   const maxSessions = Math.max(0, input.maxSessions ?? DEFAULT_MAX_SESSIONS)
   const maxApprovals = Math.max(0, input.maxApprovals ?? DEFAULT_MAX_APPROVALS)
@@ -181,11 +197,7 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
       }
     })
 
-  const dockBadgeCount = new Set(
-    input.approvals
-      .filter((approval) => Boolean(approval?.id) && Boolean(approval?.sessionId))
-      .map((approval) => `${approval.kind}\u0000${approval.sessionId}\u0000${approval.id}`),
-  ).size
+  const dockBadgeCount = countPendingApprovals(input.approvals)
 
   return {
     sessions,

@@ -92,7 +92,7 @@ export interface SessionSummaryLike {
   additions?: SummaryCount
   deletions?: SummaryCount
   files?: number | null
-  diffs?: Array<{ additions?: SummaryCount; deletions?: SummaryCount }>
+  diffs?: Array<{ file?: string; additions?: SummaryCount; deletions?: SummaryCount }>
 }
 
 const toCount = (value: SummaryCount): number => {

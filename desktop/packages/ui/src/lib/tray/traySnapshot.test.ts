@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { buildTraySnapshot } from "./traySnapshot"
+import { buildTraySnapshot, countPendingApprovals } from "./traySnapshot"
 
 const baseInput = {
   sessions: [
@@ -104,6 +104,20 @@ describe("buildTraySnapshot", () => {
     expect(twice.dockBadgeCount).toBe(1)
     // Unread activity alone no longer raises the badge; it has its own titlebar count.
     expect(buildTraySnapshot({ ...baseInput, approvals: [] }).dockBadgeCount).toBe(0)
+  })
+
+  test("countPendingApprovals counts a request once and ignores rows without an identity", () => {
+    expect(
+      countPendingApprovals([
+        { kind: "permission", sessionId: "a", id: "1" },
+        { kind: "permission", sessionId: "a", id: "1" },
+        { kind: "question", sessionId: "a", id: "1" },
+        { kind: "permission", sessionId: "b", id: "1" },
+        { kind: "permission", sessionId: "", id: "2" },
+        { kind: "permission", sessionId: "a", id: null },
+        null,
+      ]),
+    ).toBe(3)
   })
 
   test("caps the menu rows and defaults the instance label", () => {

@@ -48,10 +48,18 @@ Cons removed: amber count that included non-decisions, stale entries that never 
 - Past `HIGH_TOUCH_SOFT_LIMIT` waiting requests, new permission and question toasts are replaced by one summary toast
   whose count follows the queue, and whose action opens the Needs you list. It is removed when the queue drops back.
 
+- Change attribution no longer needs a run-start snapshot. The runtime names the files it changed in the session
+  summary (`diffs[].file`), so finished work counts while one of those files is still dirty
+  (`sessionChangesStillUncommitted`). A session whose files were all committed stops counting although the tree is dirty
+  for another reason. A summary with counts only falls back to "reported changes in a dirty directory".
+- The dock badge, the tray menu and the web window title count with one rule, `countPendingApprovals`: permission and
+  question requests, each once. `AttentionBadgeSync` previously counted sessions with a permission and overwrote the tray's
+  request count. Both writers stay because the tray sync is gated by background-work settings.
+
 ## Not done (open)
 
-- Snapshotting the directory's changed files at run start, to attribute changes exactly when siblings share a worktree.
-- The tray menu and the dock badge already count only requests; their two writers should share one count.
+- Nothing from the review remains open. A summary that carries counts only still cannot separate two sessions that share
+  a worktree; that needs the runtime to always send file names.
 
 ## Verification
 
