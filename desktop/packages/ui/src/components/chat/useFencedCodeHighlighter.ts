@@ -19,9 +19,18 @@ export function useFencedCodeHighlighter(message: string, inputMode: string): Fe
     () => noFencedCodeHighlight,
   )
   const fenced = draftContainsFence(message)
+  const [failedMessage, setFailedMessage] = React.useState<string | null>(null)
+  const loadedRef = React.useRef(false)
+  const messageRef = React.useRef(message)
+  React.useEffect(() => {
+    messageRef.current = message
+  })
+  // After a failed load, a keystroke that changes the draft retries it. Settling (success or the failure
+  // itself) does not change this key, so the effect does not re-enter the loader on its own.
+  const retryKey = failedMessage !== null && failedMessage !== message ? message : null
 
   React.useEffect(() => {
-    if (inputMode === "shell" || !fenced) {
+    if (inputMode === "shell" || !fenced || loadedRef.current) {
       return
     }
 
@@ -29,17 +38,19 @@ export function useFencedCodeHighlighter(message: string, inputMode: string): Fe
     void importWithChunkRecovery(() => import("./composerCodeHighlight"))
       .then((module) => {
         if (!cancelled) {
+          loadedRef.current = true
           setFencedCodeHighlighter(() => module.highlightFencedCode)
         }
       })
       .catch((error) => {
         console.warn("[ChatInput] Failed to load fenced code highlighter:", error)
+        if (!cancelled) setFailedMessage(messageRef.current)
       })
 
     return () => {
       cancelled = true
     }
-  }, [inputMode, fenced])
+  }, [inputMode, fenced, retryKey])
 
   return fencedCodeHighlighter
 }

@@ -110,10 +110,11 @@ const useExternalLinkInteractions = ({
 }
 
 const ExternalLinkFavicon: React.FC<{ href: string }> = ({ href }) => {
-  const [failed, setFailed] = React.useState(false)
+  // The streaming tail updates this link in place, so a failure belongs to the URL it was reported for.
+  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
   const faviconUrl = React.useMemo(() => getExternalFaviconUrl(href), [href])
 
-  if (!faviconUrl || failed) {
+  if (!faviconUrl || failedUrl === faviconUrl) {
     return null
   }
 
@@ -126,7 +127,7 @@ const ExternalLinkFavicon: React.FC<{ href: string }> = ({ href }) => {
         loading="lazy"
         decoding="async"
         className="size-3.5 rounded-sm"
-        onError={() => setFailed(true)}
+        onError={() => setFailedUrl(faviconUrl)}
       />
     </span>
   )
@@ -1525,7 +1526,11 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         {isLiveBlocks
           ? markdownBlocks.map((block, index) => (
               <StreamingMarkdownBlock key={index} index={index} enteredBlockCount={enteredBlockCount}>
-                <PreparedMarkdown key={`${index}:${block.mode}`} block={block} components={markdownComponents} />
+                <PreparedMarkdown
+                  key={block.mode === "live" ? `${index}:live` : block.key}
+                  block={block}
+                  components={markdownComponents}
+                />
               </StreamingMarkdownBlock>
             ))
           : markdownBlocks.map((block) => (

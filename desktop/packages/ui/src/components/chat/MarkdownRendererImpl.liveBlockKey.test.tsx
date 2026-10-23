@@ -96,4 +96,13 @@ describe("live markdown block identity", () => {
     expect(paragraphs()[0]).not.toBe(finalized[0])
     expect(paragraphs()[1]?.textContent).toBe("Next!!")
   })
+  test("a non-append rewrite does not hand a finished block the previous block's instance", () => {
+    renderMarkdown("first\n\nsecond\n\ntail", true)
+    const firstParagraph = paragraphs()[0]
+
+    renderMarkdown("second\n\ntail plus more", true)
+
+    expect(paragraphs()[0]?.textContent).toBe("second")
+    expect(paragraphs()[0]).not.toBe(firstParagraph)
+  })
 })

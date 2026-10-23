@@ -38,6 +38,29 @@ afterEach(() => {
 })
 
 describe("webmcp recap fingerprint", () => {
+  test("an update to a call that keeps its callID, status and output still changes the fingerprint", () => {
+    const messages = [
+      { id: "u", role: "user" },
+      { id: "a", role: "assistant" },
+    ]
+    const original = tool("checkout", "completed", outputOf("paid"))
+    const retimed = { ...original, state: { ...original.state, metadata: { operation: "invoke", toolName: "updated-name" } } }
+    const before = fingerprintWebMcpRecap(messages, (id) => (id === "a" ? [original] : undefined))
+    const after = fingerprintWebMcpRecap(messages, (id) => (id === "a" ? [retimed] : undefined))
+    expect(sameWebMcpRecapFingerprint(before, after)).toBe(false)
+  })
+
+  test("the same part object under another message is a different fingerprint", () => {
+    const call = tool("checkout", "completed", outputOf("paid"))
+    const turn = (assistantId: string) => [
+      { id: "u", role: "user" },
+      { id: assistantId, role: "assistant" },
+    ]
+    const before = fingerprintWebMcpRecap(turn("a"), () => [call])
+    const after = fingerprintWebMcpRecap(turn("a2"), () => [call])
+    expect(sameWebMcpRecapFingerprint(before, after)).toBe(false)
+  })
+
   test("an assistant text part does not change the fingerprint", () => {
     const call = tool("checkout", "completed", outputOf("paid"))
     const messages = [
@@ -49,7 +72,7 @@ describe("webmcp recap fingerprint", () => {
     const before = fingerprintWebMcpRecap(messages, parts("Hel"))
     const after = fingerprintWebMcpRecap(messages, parts("Hello"))
     expect(sameWebMcpRecapFingerprint(before, after)).toBe(true)
-    expect(before).toEqual([["checkout", "completed", outputOf("paid")]])
+    expect(before).toEqual([["a", call]])
   })
 
   test("a call completing changes the fingerprint and still includes that call", () => {
@@ -65,8 +88,8 @@ describe("webmcp recap fingerprint", () => {
     const after = fingerprintWebMcpRecap(messages, (id) => (id === "a" ? [older, completed] : undefined))
     expect(sameWebMcpRecapFingerprint(before, after)).toBe(false)
     expect(after).toEqual([
-      ["older-tool", "completed", outputOf("kept")],
-      ["newest-tool", "completed", outputOf("newest-done")],
+      ["a", older],
+      ["a", completed],
     ])
   })
 })

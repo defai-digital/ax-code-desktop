@@ -2,12 +2,12 @@ import { isWebMcpToolName } from "@/lib/toolHelpers"
 import { latestTurnMessages } from "@/lib/webMcpCalls"
 
 /**
- * callID, status, and output identity for each webmcp part in the latest turn.
- * Text parts and other tools are omitted. Output is compared with `===`: object
- * outputs by reference, string outputs by value, so a text token does not look
- * like a new tool result.
+ * Message id and part object of each webmcp part in the latest turn. Text parts and other tools are
+ * omitted. The reducer replaces a part object on every update, so reference equality covers every
+ * field the recap reads (input, metadata, timing, error) without listing them, while a text token
+ * leaves these parts untouched.
  */
-export type WebMcpRecapFingerprint = ReadonlyArray<readonly [callID: unknown, status: unknown, output: unknown]>
+export type WebMcpRecapFingerprint = ReadonlyArray<readonly [messageId: string, part: unknown]>
 
 type WebMcpRecapPart = {
   type?: unknown
@@ -28,7 +28,7 @@ export function fingerprintWebMcpRecap(
   messages: readonly { id?: unknown; role?: unknown; info?: { role?: unknown } }[],
   partsOf: (messageId: string) => readonly unknown[] | undefined,
 ): WebMcpRecapFingerprint {
-  const entries: Array<readonly [unknown, unknown, unknown]> = []
+  const entries: Array<readonly [string, unknown]> = []
   for (const message of latestTurnMessages(messages, Infinity)) {
     const messageId = message.id
     if (typeof messageId !== "string") continue
@@ -37,7 +37,7 @@ export function fingerprintWebMcpRecap(
     for (const value of parts) {
       const part = webMcpRecapPart(value)
       if (!part) continue
-      entries.push([part.callID, part.state?.status, part.state?.output])
+      entries.push([messageId, value])
     }
   }
   return entries
@@ -51,7 +51,7 @@ export function sameWebMcpRecapFingerprint(
   for (let index = 0; index < left.length; index += 1) {
     const a = left[index]
     const b = right[index]
-    if (!a || !b || a[0] !== b[0] || a[1] !== b[1] || a[2] !== b[2]) return false
+    if (!a || !b || a[0] !== b[0] || a[1] !== b[1]) return false
   }
   return true
 }
