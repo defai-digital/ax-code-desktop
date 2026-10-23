@@ -51,7 +51,7 @@ const timerBySession = new Map<string, ReturnType<typeof setTimeout>>()
 // Archive requests already sent for a toast whose Undo may still be pressed. Undo awaits the request
 // so the unarchive always follows the archive it reverses.
 const archiveGenerationById = new Map<string, symbol>()
-const archiveUndoById = new Map<string, Promise<boolean>>()
+const archiveUndoById = new Map<string, { promise: Promise<boolean> }>()
 
 const tr = (key: I18nKey, params?: I18nParams): string => formatMessage(useI18nStore.getState().dictionary, key, params)
 
@@ -343,12 +343,12 @@ async function undoCommittedArchives(ids: string[], generation: symbol, commit: 
       if (!succeeded.has(id) || archiveGenerationById.get(id) !== generation) continue
       archiveGenerationById.delete(id)
       keptForRecovery.delete(id)
-      const undo = sessionActions.unarchiveSession(id)
-      archiveUndoById.set(id, undo)
+      const operation = { promise: sessionActions.unarchiveSession(id) }
+      archiveUndoById.set(id, operation)
       try {
-        await undo
+        await operation.promise
       } finally {
-        if (archiveUndoById.get(id) === undo) archiveUndoById.delete(id)
+        if (archiveUndoById.get(id) === operation) archiveUndoById.delete(id)
       }
     }
   } catch (error) {
@@ -367,7 +367,7 @@ function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void
   const ready: Session[] = []
   for (const session of sessions) {
     const undo = archiveUndoById.get(session.id)
-    if (undo) void undo.then(() => softRemoveSessions([session], kind), () => softRemoveSessions([session], kind))
+    if (undo) void undo.promise.then(() => softRemoveSessions([session], kind), () => softRemoveSessions([session], kind))
     else ready.push(session)
   }
   const fresh = ready.filter(

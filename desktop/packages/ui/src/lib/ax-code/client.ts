@@ -334,7 +334,7 @@ const createSdkFetch = () => (input: RequestInfo | URL, init?: RequestInit) => {
 class AxCodeService {
   private client: AxCodeClient
   private baseUrl: string
-  private isolationWrites = new Map<string, Promise<{ mode: string; network: boolean } | null>>()
+  private isolationWrites = new Map<string, { promise: Promise<{ mode: string; network: boolean } | null> }>()
   private scopedClients: Map<string, AxCodeClient> = new Map()
   private currentDirectory: string | undefined = undefined
   private directoryContextBusy = false
@@ -1509,7 +1509,7 @@ class AxCodeService {
     // while allowing unrelated projects to proceed independently.
     const previous = this.isolationWrites.get(scoped)
     const write = (async () => {
-      if (previous) await previous
+      if (previous) await previous.promise
       try {
         const result = await this.client.isolation.set({ mode, directory: scoped })
         if (result.error || !result.data) {
@@ -1522,11 +1522,12 @@ class AxCodeService {
         return null
       }
     })()
-    this.isolationWrites.set(scoped, write)
+    const operation = { promise: write }
+    this.isolationWrites.set(scoped, operation)
     try {
-      return await write
+      return await operation.promise
     } finally {
-      if (this.isolationWrites.get(scoped) === write) this.isolationWrites.delete(scoped)
+      if (this.isolationWrites.get(scoped) === operation) this.isolationWrites.delete(scoped)
     }
   }
 
