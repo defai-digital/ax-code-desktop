@@ -9,7 +9,10 @@ const react = (await import(pathToFileURL(requireFromWeb.resolve("@vitejs/plugin
 const uiSrc = path.resolve(__dirname, "src")
 
 export default defineConfig({
-  plugins: [react()],
+  // Compile tests exactly like the production renderer (web/vite.config.ts). Without the compiler,
+  // memoization regressions stay invisible here and only show up in a shipped build, where the app
+  // freezes values the compiler captured and the suite still passes.
+  plugins: [react({ babel: { plugins: ["babel-plugin-react-compiler"] } })],
   resolve: {
     alias: [
       { find: "@openchamber/ui", replacement: uiSrc },

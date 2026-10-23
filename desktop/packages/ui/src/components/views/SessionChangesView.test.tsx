@@ -165,6 +165,12 @@ function turnResult(files: Array<typeof changedFile>) {
   return { data: { info: { id: "msg_last", role: "user", summary: { diffs: files } }, parts: [] } }
 }
 
+// React Compiler reuses a child element whose props did not change, so re-rendering the harness
+// with static props no longer pushes new mock values into the view. Bump a real prop on every
+// explicit re-render to deliver the update the production hook's subscription would.
+let rerenderCount = 0
+const rerenderPaneWidth = (width: number) => width + ++rerenderCount
+
 function SessionHarness({ scope, paneWidth }: { scope: "session" | "turn"; paneWidth: number }) {
   const paneRef = React.useRef<HTMLDivElement>(null)
   const [selected, setSelected] = React.useState<string | null>(null)
@@ -314,7 +320,7 @@ describe("session and last-turn review scopes", () => {
     expect(screen.getByTestId("session-diff").getAttribute("data-original")).toBe(changedFile.before)
     expect(screen.getByTestId("session-diff").getAttribute("data-modified")).toBe(changedFile.after)
 
-    view.rerender(<SessionHarness scope="session" paneWidth={1200} />)
+    view.rerender(<SessionHarness scope="session" paneWidth={rerenderPaneWidth(1200)} />)
     await flush()
     expect(harness.diff).toHaveBeenCalledTimes(1)
   })
@@ -348,14 +354,14 @@ describe("session and last-turn review scopes", () => {
       expect(harness.diff).not.toHaveBeenCalled()
 
       harness.sessionDiff = []
-      view.rerender(<SessionHarness scope="turn" paneWidth={1200} />)
+      view.rerender(<SessionHarness scope="turn" paneWidth={rerenderPaneWidth(1200)} />)
       await flush()
       expect(harness.message).toHaveBeenCalledTimes(1)
 
       harness.message.mockResolvedValue(turnResult([changedFile]))
       // A user with no synced summary must still fetch its full runtime message.
       harness.messages = [...harness.messages, message({ id: "msg_next", role: "user" })]
-      view.rerender(<SessionHarness scope="turn" paneWidth={1200} />)
+      view.rerender(<SessionHarness scope="turn" paneWidth={rerenderPaneWidth(1200)} />)
       await flush()
       expect(harness.message).toHaveBeenLastCalledWith({
         sessionID: SESSION,
@@ -411,7 +417,7 @@ describe("session and last-turn review scopes", () => {
       expect(harness.message).not.toHaveBeenCalled()
 
       harness.messagesResolved = true
-      view.rerender(<SessionHarness scope="turn" paneWidth={1200} />)
+      view.rerender(<SessionHarness scope="turn" paneWidth={rerenderPaneWidth(1200)} />)
       await flush()
       if (hasUser) {
         expect(harness.message).toHaveBeenCalledExactlyOnceWith({
@@ -498,7 +504,7 @@ describe("session and last-turn review scopes", () => {
   })
 
   describe.each(["session", "turn"] as const)("%s refresh and recovery", (scope) => {
-    const renderScope = () => <SessionHarness scope={scope} paneWidth={1200} />
+    const renderScope = () => <SessionHarness scope={scope} paneWidth={rerenderPaneWidth(1200)} />
     const request = () => (scope === "session" ? harness.diff : harness.message)
     const result = (files: Array<typeof changedFile>) => (scope === "session" ? { data: files } : turnResult(files))
     const signal = (files: SyncedDiff[]) => {

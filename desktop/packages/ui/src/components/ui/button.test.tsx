@@ -1,23 +1,31 @@
-import { describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test } from "vitest"
+
+import { cleanup, render } from "@/test/dom"
 
 import { Button } from "./button"
 
 describe("Button", () => {
-  test("defaults native buttons to type button", () => {
-    const element = Button({ children: "Cancel" })
+  afterEach(cleanup)
 
-    expect(element.props.type).toBe("button")
+  test("defaults native buttons to type button", () => {
+    const { container } = render(<Button>Cancel</Button>)
+
+    expect(container.querySelector("button")?.getAttribute("type")).toBe("button")
   })
 
   test("preserves explicit native button types", () => {
-    const element = Button({ children: "Save", type: "submit" })
+    const { container } = render(<Button type="submit">Save</Button>)
 
-    expect(element.props.type).toBe("submit")
+    expect(container.querySelector("button")?.getAttribute("type")).toBe("submit")
   })
 
   test("does not default asChild buttons", () => {
-    const element = Button({ asChild: true, children: "Link" })
+    const { container } = render(
+      <Button asChild>
+        <a href="/link">Link</a>
+      </Button>,
+    )
 
-    expect(element.props.type).toBe(undefined)
+    expect(container.querySelector("a")?.getAttribute("type")).toBeNull()
   })
 })

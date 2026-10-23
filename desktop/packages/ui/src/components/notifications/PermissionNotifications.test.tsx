@@ -2,16 +2,38 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 
-const mocks = vi.hoisted(() => ({
-  pending: [] as Array<{ kind: "permission" | "question"; sessionId: string; request: { id: string } }>,
-  setBadge: vi.fn<(count: number) => Promise<void>>(async () => undefined),
-}))
+type PendingRequest = { kind: "permission" | "question"; sessionId: string; request: { id: string } }
 
-vi.mock("@/sync/sync-context", () => ({
-  useAllLiveSessions: () => [],
-  useAllPendingRequests: () => mocks.pending,
-  useSessionPermissions: () => [],
-}))
+const mocks = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let pending: PendingRequest[] = []
+  return {
+    get pending() {
+      return pending
+    },
+    set pending(next: PendingRequest[]) {
+      pending = next
+      for (const listener of listeners) listener()
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    setBadge: vi.fn<(count: number) => Promise<void>>(async () => undefined),
+  }
+})
+
+vi.mock("@/sync/sync-context", async () => {
+  const React = await import("react")
+  const usePendingRequests = () => React.useSyncExternalStore(mocks.subscribe, () => mocks.pending)
+  return {
+    useAllLiveSessions: () => [],
+    useAllPendingRequests: usePendingRequests,
+    useSessionPermissions: () => [],
+  }
+})
 vi.mock("@/lib/desktop", () => ({ isDesktopShell: () => true }))
 vi.mock("@/lib/desktopNative", () => ({ setDesktopBadgeCount: mocks.setBadge }))
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
@@ -50,8 +72,10 @@ test("clears the badge when the requests are answered", () => {
   mocks.pending = [{ kind: "question", sessionId: "a", request: { id: "1" } }]
   act(() => root.render(<PermissionNotifications />))
   expect(mocks.setBadge).toHaveBeenLastCalledWith(1)
-  mocks.pending = []
-  act(() => root.render(<PermissionNotifications />))
+  act(() => {
+    mocks.pending = []
+    root.render(<PermissionNotifications />)
+  })
   expect(mocks.setBadge).toHaveBeenLastCalledWith(0)
   expect(useAttentionStore.getState().pendingApprovalCount).toBe(0)
 })

@@ -17,13 +17,29 @@ import { DiffView } from "./DiffView"
 const DIRECTORY = "/repo"
 const OTHER_DIRECTORY = "/other"
 
-const harness = vi.hoisted(() => ({
-  width: 1280,
-  directory: "/repo",
-  paneRef: { current: null as HTMLDivElement | null },
-  files: [] as GitBranchFileDiff[],
-  readFile: vi.fn(async () => ({ content: "const value = 2\n" })),
-}))
+const harness = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let directory = "/repo"
+  return {
+    width: 1280,
+    get directory() {
+      return directory
+    },
+    set directory(next: string) {
+      directory = next
+      for (const listener of listeners) listener()
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    paneRef: { current: null as HTMLDivElement | null },
+    files: [] as GitBranchFileDiff[],
+    readFile: vi.fn(async () => ({ content: "const value = 2\n" })),
+  }
+})
 
 // Browser evidence reads the session transcript from sync state; it has its own tests.
 vi.mock("@/components/views/git/ReviewLandingBrowserEvidence", () => ({ ReviewLandingBrowserEvidence: () => null }))
@@ -31,9 +47,11 @@ vi.mock("@/hooks/useElementWidth", () => ({
   useElementWidth: () => ({ ref: harness.paneRef, width: harness.width }),
 }))
 
-vi.mock("@/hooks/useEffectiveDirectory", () => ({
-  useEffectiveDirectory: () => harness.directory,
-}))
+vi.mock("@/hooks/useEffectiveDirectory", async () => {
+  const React = await import("react")
+  const useEffectiveDirectory = () => React.useSyncExternalStore(harness.subscribe, () => harness.directory)
+  return { useEffectiveDirectory }
+})
 
 vi.mock("@/sync/sync-context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/sync/sync-context")>()),
@@ -263,8 +281,10 @@ describe("branch review scope", () => {
     expect((screen.getByRole("combobox", { name: "Compare base" }) as HTMLSelectElement).value).toBe("feature")
     expect(gitApi.getGitBranchDiff).toHaveBeenCalledWith(DIRECTORY, { base: "feature" })
 
-    harness.directory = OTHER_DIRECTORY
-    seedGit(OTHER_DIRECTORY)
+    act(() => {
+      seedGit(OTHER_DIRECTORY)
+      harness.directory = OTHER_DIRECTORY
+    })
     view.rerender(<ReviewHarness />)
     await flush()
     expect(gitApi.getGitBranchDiff).toHaveBeenCalledWith(OTHER_DIRECTORY, { base: undefined })

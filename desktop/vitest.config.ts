@@ -11,8 +11,8 @@ const uiSrc = path.resolve(__dirname, "packages/ui/src")
 // Single root config that runs every workspace's tests under Vitest across
 // three projects:
 //  - ui:   React/zustand units, jsdom (SUT reads window.location, tests touch
-//          localStorage/timers). Components are exercised via renderToStaticMarkup
-//          or called directly, but jsdom keeps browser globals available.
+//          localStorage/timers). Compiles with the same React Compiler plugin as
+//          the production renderer, so compiler-only regressions fail here too.
 //  - web:  Express/server units, node env. Reuses packages/web/vite.config.ts so
 //          its aliases + react plugin match the build exactly.
 //  - node: plain Node scripts (scripts/**, packages/electron/**) as .mjs, node env.
@@ -20,7 +20,7 @@ export default defineConfig({
   test: {
     projects: [
       {
-        plugins: [react()],
+        plugins: [react({ babel: { plugins: ["babel-plugin-react-compiler"] } })],
         resolve: {
           alias: [
             { find: "@openchamber/ui", replacement: uiSrc },

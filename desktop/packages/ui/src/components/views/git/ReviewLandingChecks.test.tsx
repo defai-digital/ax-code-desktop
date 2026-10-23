@@ -7,23 +7,43 @@ import { cleanup, fireEvent, render, screen } from "@/test/dom"
 import type { VerificationEvidenceTarget } from "@/lib/supervision/verificationEvidenceCache"
 import { ReviewLanding } from "./ReviewLanding"
 
-const mocks = vi.hoisted(() => ({
-  risk: vi.fn(),
-  session: { time: { updated: 1 } },
-  git: {
-    getGitStatus: vi.fn(),
-    createGitCommit: vi.fn(),
-    gitPush: vi.fn(),
-    gitFetch: vi.fn(),
-    checkIsGitRepository: vi.fn(async () => true),
-    getGitBranches: vi.fn(async () => ({ all: [], current: "topic", branches: {} })),
-    getGitLog: vi.fn(async () => ({ all: [], total: 0, latest: null })),
-  },
-}))
+const mocks = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let session = { time: { updated: 1 } }
+  return {
+    risk: vi.fn(),
+    get session() {
+      return session
+    },
+    set session(next: { time: { updated: number } }) {
+      session = next
+      for (const listener of listeners) listener()
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+    git: {
+      getGitStatus: vi.fn(),
+      createGitCommit: vi.fn(),
+      gitPush: vi.fn(),
+      gitFetch: vi.fn(),
+      checkIsGitRepository: vi.fn(async () => true),
+      getGitBranches: vi.fn(async () => ({ all: [], current: "topic", branches: {} })),
+      getGitLog: vi.fn(async () => ({ all: [], total: 0, latest: null })),
+    },
+  }
+})
 // Browser evidence reads the session transcript from sync state; it has its own tests.
 vi.mock("@/components/views/git/ReviewLandingBrowserEvidence", () => ({ ReviewLandingBrowserEvidence: () => null }))
 vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => ({ git: mocks.git }) }))
-vi.mock("@/sync/sync-context", () => ({ useSession: () => mocks.session }))
+vi.mock("@/sync/sync-context", async () => {
+  const React = await import("react")
+  const useSession = () => React.useSyncExternalStore(mocks.subscribe, () => mocks.session)
+  return { useSession }
+})
 vi.mock("@/lib/ax-code/client", () => ({
   axCodeClient: { getScopedSdkClient: () => ({ session: { risk: mocks.risk } }) },
 }))
@@ -118,7 +138,9 @@ describe("runtime checks beside landing", () => {
       .mockResolvedValue({ error: "offline" })
     const { container, rerender } = render(<Harness />)
     await flush()
-    mocks.session = { time: { updated: 2 } }
+    act(() => {
+      mocks.session = { time: { updated: 2 } }
+    })
     rerender(<Harness />)
     await flush()
     expect(container.querySelector("[data-checks-stale]")).not.toBeNull()

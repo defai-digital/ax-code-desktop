@@ -4,8 +4,27 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const t = (key: string) => key
 
+const directoryStore = vi.hoisted(() => {
+  const listeners = new Set<() => void>()
+  let current = "/project"
+  return {
+    get current() {
+      return current
+    },
+    set current(next: string) {
+      current = next
+      for (const listener of listeners) listener()
+    },
+    subscribe(listener: () => void) {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    },
+  }
+})
+
 let skillsState: Record<string, unknown>
-let currentDirectory = "/project"
 
 const getSkillByName = vi.fn<() => { name: string; path: string } | null>(() => null)
 const getSkillDetail = vi.fn()
@@ -31,10 +50,15 @@ vi.doMock("@/components/ui/ScrollableOverlay", () => ({
 vi.doMock("@/components/views/PreviewToggleButton", () => ({ PreviewToggleButton: () => null }))
 vi.doMock("@/components/chat/MarkdownRenderer", () => ({ SimpleMarkdownRenderer: () => null }))
 vi.doMock("./catalog/SkillsCatalogPage", () => ({ SkillsCatalogPage: () => null }))
-vi.doMock("@/stores/useDirectoryStore", () => ({
-  useDirectoryStore: (selector: (state: { currentDirectory: string }) => unknown) =>
-    selector({ currentDirectory }),
-}))
+vi.doMock("@/stores/useDirectoryStore", async () => {
+  const React = await import("react")
+  const useDirectoryStore = (selector: (state: { currentDirectory: string }) => unknown) => {
+    const currentDirectory = React.useSyncExternalStore(directoryStore.subscribe, () => directoryStore.current)
+    return selector({ currentDirectory })
+  }
+  const getState = () => ({ currentDirectory: directoryStore.current })
+  return { useDirectoryStore: Object.assign(useDirectoryStore, { getState }) }
+})
 vi.doMock("@/stores/useSkillsStore", () => ({
   useSkillsStore: (selector: (state: Record<string, unknown>) => unknown) => selector(skillsState),
 }))
@@ -74,7 +98,7 @@ describe("SkillsPage new-skill draft", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getSkillByName.mockReturnValue(null)
-    currentDirectory = "/project"
+    directoryStore.current = "/project"
     skillsState = {
       selectedSkillName: "new-skill",
       getSkillByName,
@@ -129,8 +153,10 @@ describe("SkillsPage new-skill draft", () => {
       ["settings.skills.page.actions.createSkill", "settings.common.actions.saveChanges", "settings.common.actions.saving"].includes(button.textContent ?? ""))!
     await act(async () => saveButton().click())
     expect(createSkill).toHaveBeenCalledTimes(1)
-    currentDirectory = "/other"
     skillsState.skillDraft = { name: "new-skill", scope: "user", source: "ax-code", description: "Beta description" }
+    act(() => {
+      directoryStore.current = "/other"
+    })
     render()
     await settle()
     await act(async () => finish(true))
@@ -169,9 +195,11 @@ describe("SkillsPage new-skill draft", () => {
     await act(async () => typeInto(editor(), "---\ndescription: Description\n---\nAlpha saved"))
     await act(async () => save().click())
     expect(updateSkill).toHaveBeenCalledTimes(1)
-    currentDirectory = "/other"
     getSkillByName.mockReturnValue({ name: "review", path: "/other/review/SKILL.md" })
     getSkillDetail.mockResolvedValue({ sources: { md: { description: "Description", instructions: "Beta" } } })
+    act(() => {
+      directoryStore.current = "/other"
+    })
     render()
     await settle()
     await act(async () => finish(true))

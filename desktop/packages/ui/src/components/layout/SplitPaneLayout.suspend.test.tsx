@@ -8,6 +8,24 @@ vi.mock("@/hooks/useSplitPane", () => ({
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 import { SplitPaneLayout } from "./SplitPaneLayout"
 
+// Module scope: React Compiler hoists memoized callbacks out of the components it
+// compiles, so components declared inside the test body would lose the counters.
+const mounts = { chat: 0, editor: 0 }
+
+function Chat() {
+  React.useEffect(() => {
+    mounts.chat += 1
+  }, [])
+  return <div data-chat />
+}
+
+function Editor() {
+  React.useEffect(() => {
+    mounts.editor += 1
+  }, [])
+  return <div data-editor />
+}
+
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
@@ -22,20 +40,8 @@ describe("SplitPaneLayout suspension", () => {
         disconnect() {}
       },
     )
-    let chatMounts = 0
-    let editorMounts = 0
-    const Chat = () => {
-      React.useEffect(() => {
-        chatMounts += 1
-      }, [])
-      return <div data-chat />
-    }
-    const Editor = () => {
-      React.useEffect(() => {
-        editorMounts += 1
-      }, [])
-      return <div data-editor />
-    }
+    mounts.chat = 0
+    mounts.editor = 0
     const view = render(
       <SplitPaneLayout rightContent={<Editor />}>
         <Chat />
@@ -55,6 +61,6 @@ describe("SplitPaneLayout suspension", () => {
       </SplitPaneLayout>,
     )
     expect(right.hidden).toBe(false)
-    expect([chatMounts, editorMounts]).toEqual([1, 1])
+    expect([mounts.chat, mounts.editor]).toEqual([1, 1])
   })
 })
