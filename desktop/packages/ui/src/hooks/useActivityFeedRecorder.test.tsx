@@ -3,7 +3,8 @@ import { act } from "react"
 import { afterEach, beforeEach, describe, expect, test } from "vitest"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
-import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { selectUnreadActivityCount, useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { cleanup, render } from "@/test/dom"
 import { useActivityFeedRecorder } from "./useActivityFeedRecorder"
@@ -30,14 +31,16 @@ function Harness({ enabled = true }: { enabled?: boolean }) {
 
 describe("useActivityFeedRecorder", () => {
   beforeEach(() => {
-    useSupervisionStore.setState({ rows: [] })
-    useActivityFeedStore.setState({ events: [], seenAt: 0 })
+    useSupervisionStore.setState({ rows: [], missionControlOpen: false })
+    useSessionUIStore.setState({ currentSessionId: null })
+    useActivityFeedStore.setState({ events: [], seenAt: 0, sessionSeenAt: {} })
   })
 
   afterEach(() => {
     cleanup()
-    useSupervisionStore.setState({ rows: [] })
-    useActivityFeedStore.setState({ events: [], seenAt: 0 })
+    useSessionUIStore.setState({ currentSessionId: null })
+    useSupervisionStore.setState({ rows: [], missionControlOpen: false })
+    useActivityFeedStore.setState({ events: [], seenAt: 0, sessionSeenAt: {} })
   })
 
   test("does not record sessions that appear after an empty baseline", () => {
@@ -71,5 +74,41 @@ describe("useActivityFeedRecorder", () => {
       useSupervisionStore.setState({ rows: [row("review")] })
     })
     expect(useActivityFeedStore.getState().events).toMatchObject([{ sessionId: "s1", from: "running", to: "review" }])
+  })
+
+  const finishSession = (sessionId: string) => {
+    useSupervisionStore.setState({ rows: [row("running", sessionId)] })
+    return () => act(() => useSupervisionStore.setState({ rows: [row("review", sessionId)] }))
+  }
+  const unread = () => selectUnreadActivityCount(useActivityFeedStore.getState())
+
+  test("a run that finishes in the session being watched leaves no unread ticket", () => {
+    useSessionUIStore.setState({ currentSessionId: "s1" })
+    const finish = finishSession("s1")
+    render(<Harness />)
+    finish()
+    expect(useActivityFeedStore.getState().events).toHaveLength(1)
+    expect(unread()).toBe(0)
+  })
+
+  test("a run that finishes in another session stays unread until that session is opened", () => {
+    useSessionUIStore.setState({ currentSessionId: "s1" })
+    const finish = finishSession("s2")
+    render(<Harness />)
+    finish()
+    expect(unread()).toBe(1)
+    act(() => useSessionUIStore.setState({ currentSessionId: "s2" }))
+    expect(unread()).toBe(0)
+  })
+
+  test("the board covering the chat is not looking at the session", () => {
+    useSessionUIStore.setState({ currentSessionId: "s1" })
+    useSupervisionStore.setState({ missionControlOpen: true })
+    const finish = finishSession("s1")
+    render(<Harness />)
+    finish()
+    expect(unread()).toBe(1)
+    act(() => useSupervisionStore.setState({ missionControlOpen: false }))
+    expect(unread()).toBe(0)
   })
 })

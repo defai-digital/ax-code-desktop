@@ -19,15 +19,8 @@ export interface ActivityFeedEvent {
 }
 
 /**
- * Destination states worth a supervisor's attention. The names come from sessionState.ts:
- *
- * - permission, question: the session is blocked on the person
- * - goal, error: it needs a person because a goal or a failure is waiting (needsHuman)
- * - review, idle: done-like finishes (a run that settled, with or without changes to review)
- * - running: a run starting, so work that began while the supervisor was away is visible
- *
- * A state added to the SupervisionState union later stays out of the feed until it is listed
- * here. Startup is not a transition: the first observation of a session emits nothing.
+ * Every state a stored event may name. Browser events carry the row's state at the time, whatever it was, so restoring
+ * a record accepts the whole vocabulary. Which transitions the feed emits is ACTIVITY_FEED_OUTCOME_STATES.
  */
 export const ACTIVITY_FEED_STATES: readonly SupervisionState[] = [
   "permission",
@@ -40,6 +33,25 @@ export const ACTIVITY_FEED_STATES: readonly SupervisionState[] = [
 ]
 
 const ACTIVITY_FEED_STATE_SET: ReadonlySet<string> = new Set(ACTIVITY_FEED_STATES)
+
+/**
+ * The destinations a transition is recorded for: how a run ended, not how it got there.
+ *
+ * - goal, error: the run stopped on a blocked goal or a failure
+ * - review, idle: a run settled, with or without changes to review
+ *
+ * A session passes through running, permission and question many times inside one run. Those are live state: Needs you,
+ * the toasts and the dock badge already carry a pending request, and it is answered or stale within minutes, so a
+ * ticket for it only teaches people to press "Mark all read". Startup is not a transition either: the first
+ * observation of a session emits nothing.
+ */
+export const ACTIVITY_FEED_OUTCOME_STATES: readonly SupervisionState[] = ["goal", "error", "review", "idle"]
+
+const ACTIVITY_FEED_OUTCOME_SET: ReadonlySet<string> = new Set(ACTIVITY_FEED_OUTCOME_STATES)
+
+export function isActivityOutcomeState(value: unknown): value is SupervisionState {
+  return typeof value === "string" && ACTIVITY_FEED_OUTCOME_SET.has(value)
+}
 
 /** Preview text stored on an event: one line, credential-filtered, then shortened. */
 export const ACTIVITY_FEED_PREVIEW_LIMIT = 140
@@ -82,7 +94,7 @@ export function diffActivityEvents(
   for (const row of rows) {
     if (!row.sessionId || !previous.has(row.sessionId)) continue
     const from = previous.get(row.sessionId) ?? null
-    if (from === row.state || !isActivityFeedState(row.state)) continue
+    if (from === row.state || !isActivityOutcomeState(row.state)) continue
     events.push({
       id: crypto.randomUUID(),
       sessionId: row.sessionId,
@@ -113,4 +125,44 @@ export function mergeActivityEvents(
     if (merged.length === MAX_ACTIVITY_FEED_EVENTS) break
   }
   return merged
+}
+
+/** Per-session "seen" marks: the time the person last had that session in front of them. */
+export type SessionSeenAt = Readonly<Record<string, number>>
+
+/** An event is unread until the whole feed was marked read, or its session was looked at, after it happened. */
+export function isUnreadActivity(event: ActivityFeedEvent, seenAt: number, sessionSeenAt: SessionSeenAt): boolean {
+  return event.at > seenAt && event.at > (sessionSeenAt[event.sessionId] ?? 0)
+}
+
+export function countUnreadActivity(
+  events: readonly ActivityFeedEvent[],
+  seenAt: number,
+  sessionSeenAt: SessionSeenAt,
+): number {
+  let count = 0
+  for (const event of events) if (isUnreadActivity(event, seenAt, sessionSeenAt)) count += 1
+  return count
+}
+
+/**
+ * One unread ticket per session: the newest outcome replaces older unread ones for the same session, so a session that
+ * ran, failed and ran again leaves one ticket rather than three. Read events stay as history, and project-browser
+ * events are a separate stream that is never merged. Expects newest first, as mergeActivityEvents returns it.
+ */
+export function coalesceUnreadActivity(
+  events: readonly ActivityFeedEvent[],
+  seenAt: number,
+  sessionSeenAt: SessionSeenAt,
+): ActivityFeedEvent[] {
+  const unreadSessions = new Set<string>()
+  const result: ActivityFeedEvent[] = []
+  for (const event of events) {
+    if (!event.browser && isUnreadActivity(event, seenAt, sessionSeenAt)) {
+      if (unreadSessions.has(event.sessionId)) continue
+      unreadSessions.add(event.sessionId)
+    }
+    result.push(event)
+  }
+  return result
 }

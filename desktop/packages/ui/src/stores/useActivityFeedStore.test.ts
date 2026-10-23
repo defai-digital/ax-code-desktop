@@ -1,19 +1,19 @@
 import { beforeEach, describe, expect, test } from "vitest"
 import { createJSONStorage } from "zustand/middleware"
 import { MAX_ACTIVITY_FEED_EVENTS, type ActivityFeedEvent } from "@/lib/supervision/activityFeed"
-import { ACTIVITY_FEED_STORAGE_KEY, useActivityFeedStore } from "./useActivityFeedStore"
+import { ACTIVITY_FEED_STORAGE_KEY, selectUnreadActivityCount, useActivityFeedStore } from "./useActivityFeedStore"
 
 const ACTIVITY_FEED_PREVIEW_TOO_LONG = 400
 
 function event(id: string, at: number, overrides: Partial<ActivityFeedEvent> = {}): ActivityFeedEvent {
   return {
     id,
-    sessionId: "s1",
+    sessionId: id,
     title: "Parser",
     projectLabel: "Desktop",
     directory: "/repo",
-    from: "idle",
-    to: "running",
+    from: "running",
+    to: "review",
     at,
     preview: "working",
     ...overrides,
@@ -36,7 +36,7 @@ describe("activity feed persistence", () => {
         },
       })),
     })
-    useActivityFeedStore.setState({ events: [], seenAt: 0 })
+    useActivityFeedStore.setState({ events: [], seenAt: 0, sessionSeenAt: {} })
   })
 
   test("keeps the newest events and caps the recorded list", () => {
@@ -50,6 +50,76 @@ describe("activity feed persistence", () => {
     expect(useActivityFeedStore.getState().seenAt).toBe(80)
     useActivityFeedStore.getState().clear()
     expect(useActivityFeedStore.getState()).toMatchObject({ events: [], seenAt: 0 })
+  })
+
+  test("one unread ticket per session: a newer outcome replaces an older unread one", () => {
+    const { record } = useActivityFeedStore.getState()
+    record([event("first", 10, { sessionId: "s1", to: "error" })])
+    record([event("second", 20, { sessionId: "s1", to: "review" }), event("other", 15, { sessionId: "s2" })])
+    expect(useActivityFeedStore.getState().events.map((item) => item.id)).toEqual(["second", "other"])
+  })
+
+  test("a read ticket stays as history when the session produces a new outcome", () => {
+    const { record, markAllSeen } = useActivityFeedStore.getState()
+    record([event("old", 10, { sessionId: "s1" })])
+    markAllSeen(15)
+    record([event("new", 20, { sessionId: "s1" })])
+    expect(useActivityFeedStore.getState().events.map((item) => item.id)).toEqual(["new", "old"])
+  })
+
+  test("looking at a session reads its tickets and no others", () => {
+    const { record, markSessionSeen } = useActivityFeedStore.getState()
+    record([event("a", 10, { sessionId: "s1" }), event("b", 12, { sessionId: "s2" })])
+    expect(selectUnreadActivityCount(useActivityFeedStore.getState())).toBe(2)
+    markSessionSeen("s1", 30)
+    expect(selectUnreadActivityCount(useActivityFeedStore.getState())).toBe(1)
+    // A later outcome for the same session is unread again.
+    record([event("c", 40, { sessionId: "s1" })])
+    expect(selectUnreadActivityCount(useActivityFeedStore.getState())).toBe(2)
+    // A session with nothing unread is not written.
+    const before = useActivityFeedStore.getState().sessionSeenAt
+    markSessionSeen("nobody", 50)
+    expect(useActivityFeedStore.getState().sessionSeenAt).toBe(before)
+  })
+
+  test("drops the run starts and pending requests an older version recorded, but keeps browser events", async () => {
+    storage.set(
+      ACTIVITY_FEED_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: {
+          events: [
+            event("started", 5, { to: "running" }),
+            event("asked", 6, { to: "permission" }),
+            event("asked-q", 7, { to: "question" }),
+            event("done", 8, { to: "review" }),
+            { ...event("browser", 4, { to: "running" }), browser: { origin: "https://x.test", enabled: true } },
+          ],
+          seenAt: 0,
+        },
+      }),
+    )
+    await useActivityFeedStore.persist.rehydrate()
+    expect(useActivityFeedStore.getState().events.map((item) => item.id)).toEqual(["done", "browser"])
+  })
+
+  test("restoring collapses a pile of unread tickets for one session to the newest", async () => {
+    storage.set(
+      ACTIVITY_FEED_STORAGE_KEY,
+      JSON.stringify({
+        version: 1,
+        state: {
+          events: [1, 2, 3, 4].map((n) => event(`e${n}`, n, { sessionId: "same" })),
+          seenAt: 0,
+          sessionSeenAt: { gone: 5, same: "bad" },
+        },
+      }),
+    )
+    await useActivityFeedStore.persist.rehydrate()
+    const state = useActivityFeedStore.getState()
+    expect(state.events.map((item) => item.id)).toEqual(["e4"])
+    // Marks for sessions with no stored event, and malformed marks, do not come back.
+    expect(state.sessionSeenAt).toEqual({})
   })
 
   test("drops malformed records, caps restored events, and keeps the actions", async () => {

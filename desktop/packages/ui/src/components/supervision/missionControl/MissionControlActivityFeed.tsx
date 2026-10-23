@@ -1,7 +1,7 @@
 import React from "react"
 
 import { useI18n } from "@/lib/i18n"
-import type { ActivityFeedEvent } from "@/lib/supervision/activityFeed"
+import { isUnreadActivity, type ActivityFeedEvent } from "@/lib/supervision/activityFeed"
 import { sinceYouLeftRelativeParts } from "@/lib/supervision/sinceYouLeft"
 import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
 import { SupervisionStateBadge } from "../SupervisionStateBadge"
@@ -18,6 +18,7 @@ export const MissionControlActivityFeed = React.memo(function MissionControlActi
   const { t, relativeTime } = useI18n()
   const events = useActivityFeedStore((state) => state.events)
   const seenAt = useActivityFeedStore((state) => state.seenAt)
+  const sessionSeenAt = useActivityFeedStore((state) => state.sessionSeenAt)
   const markAllSeen = useActivityFeedStore((state) => state.markAllSeen)
   const now = Date.now()
 
@@ -52,7 +53,7 @@ export const MissionControlActivityFeed = React.memo(function MissionControlActi
           className="mission-activity-feed-list"
         >
           {events.map((event) => {
-            const unread = event.at > seenAt
+            const unread = isUnreadActivity(event, seenAt, sessionSeenAt)
             const parts = sinceYouLeftRelativeParts(event.at, now)
             const stamp = new Date(event.at)
             const dateTime = Number.isNaN(stamp.getTime()) ? undefined : stamp.toISOString()

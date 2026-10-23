@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
 import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
-import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { selectUnreadActivityCount, useActivityFeedStore } from "@/stores/useActivityFeedStore"
 import type { BoardGroupBy, SupervisionDensity, WorkingSet } from "@/stores/useSupervisionStore"
 
 export interface MissionControlHeaderProps {
@@ -78,11 +78,7 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
   onToggleActivity,
 }) => {
   const { t } = useI18n()
-  const activityUnread = useActivityFeedStore((state) => {
-    let count = 0
-    for (const event of state.events) if (event.at > state.seenAt) count += 1
-    return count
-  })
+  const activityUnread = useActivityFeedStore(selectUnreadActivityCount)
 
   const handleCreateKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key === "Enter") {

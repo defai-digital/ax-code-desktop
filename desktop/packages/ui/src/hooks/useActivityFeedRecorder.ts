@@ -1,9 +1,11 @@
 import React from "react"
 
-import { diffActivityEvents } from "@/lib/supervision/activityFeed"
+import { diffActivityEvents, isUnreadActivity } from "@/lib/supervision/activityFeed"
 import { browserSessionUse, diffBrowserActivity, type BrowserSessionUse } from "@/lib/supervision/browserActivity"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { useActivityFeedStore } from "@/stores/useActivityFeedStore"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useSupervisionRows } from "./useSupervisionRows"
 
@@ -25,6 +27,26 @@ export function useActivityFeedRecorder(enabled = true): void {
     const events = diffActivityEvents(prior, rows, Date.now())
     if (events.length > 0) useActivityFeedStore.getState().record(events)
   }, [enabled, rows])
+
+  // A session the person is looking at needs no ticket for what happened in front of them, so opening it (or a run
+  // finishing while it is open) reads its tickets. A hidden window, or the board covering the chat, is not looking.
+  const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
+  const boardOpen = useSupervisionStore((state) => state.missionControlOpen)
+  const hasUnreadForCurrent = useActivityFeedStore((state) =>
+    currentSessionId
+      ? state.events.some((event) => event.sessionId === currentSessionId && isUnreadActivity(event, state.seenAt, state.sessionSeenAt))
+      : false,
+  )
+  React.useEffect(() => {
+    if (!enabled || !currentSessionId || boardOpen || !hasUnreadForCurrent) return
+    const markSeen = () => {
+      if (document.hidden) return
+      useActivityFeedStore.getState().markSessionSeen(currentSessionId, Date.now())
+    }
+    markSeen()
+    document.addEventListener("visibilitychange", markSeen)
+    return () => document.removeEventListener("visibilitychange", markSeen)
+  }, [enabled, currentSessionId, boardOpen, hasUnreadForCurrent])
 
   // Project-browser access joins the same feed: when agent access to a page starts and stops.
   const sessionID = useWebMcpBrowserStore((state) => state.sessionID)

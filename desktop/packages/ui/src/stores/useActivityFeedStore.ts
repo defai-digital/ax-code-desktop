@@ -2,10 +2,14 @@ import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 import {
   ACTIVITY_FEED_PREVIEW_LIMIT,
+  coalesceUnreadActivity,
+  countUnreadActivity,
   isActivityFeedState,
+  isActivityOutcomeState,
   MAX_ACTIVITY_FEED_EVENTS,
   mergeActivityEvents,
   type ActivityFeedEvent,
+  type SessionSeenAt,
 } from "@/lib/supervision/activityFeed"
 import { previewLine } from "@/lib/supervision/activityPreview"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
@@ -16,10 +20,17 @@ export const ACTIVITY_FEED_STORAGE_KEY = "ax-code-activity-feed"
 interface ActivityFeedState {
   events: ActivityFeedEvent[]
   seenAt: number
+  /** When each session was last looked at; an event older than its session's mark is read. */
+  sessionSeenAt: SessionSeenAt
   record: (events: readonly ActivityFeedEvent[]) => void
   markAllSeen: (now: number) => void
+  markSessionSeen: (sessionId: string, now: number) => void
   clear: () => void
 }
+
+/** Unread events, with the same rule the feed list and the titlebar use. */
+export const selectUnreadActivityCount = (state: Pick<ActivityFeedState, "events" | "seenAt" | "sessionSeenAt">): number =>
+  countUnreadActivity(state.events, state.seenAt, state.sessionSeenAt)
 
 function restorePreview(value: unknown): string | null | undefined {
   if (value === null) return null
@@ -53,18 +64,38 @@ function restoreEvent(value: unknown): ActivityFeedEvent | null {
   return restored
 }
 
-function restoreEvents(input: unknown): ActivityFeedEvent[] {
+function restoreEvents(input: unknown, seenAt: number, sessionSeenAt: SessionSeenAt): ActivityFeedEvent[] {
   if (!Array.isArray(input)) return []
   const events: ActivityFeedEvent[] = []
   for (const value of input) {
     const event = restoreEvent(value)
-    if (event) events.push(event)
+    // Records written before the feed kept outcomes only include run starts and pending requests; they were noise
+    // then and would still count as unread, so they are dropped. Project-browser events are a separate stream.
+    if (event && (event.browser || isActivityOutcomeState(event.to))) events.push(event)
   }
-  return mergeActivityEvents(events, []).slice(0, MAX_ACTIVITY_FEED_EVENTS)
+  const ordered = mergeActivityEvents(events, []).slice(0, MAX_ACTIVITY_FEED_EVENTS)
+  return coalesceUnreadActivity(ordered, seenAt, sessionSeenAt)
 }
 
 function restoreSeenAt(input: unknown): number {
   return typeof input === "number" && Number.isFinite(input) ? input : 0
+}
+
+function restoreSessionSeenAt(input: unknown): SessionSeenAt {
+  if (!input || typeof input !== "object" || Array.isArray(input)) return {}
+  const restored: Record<string, number> = {}
+  for (const [sessionId, at] of Object.entries(input as Record<string, unknown>)) {
+    if (sessionId.length > 0 && typeof at === "number" && Number.isFinite(at)) restored[sessionId] = at
+  }
+  return restored
+}
+
+/** A mark only matters while an event of its session is stored: drop the rest so the map stays bounded. */
+function pruneSessionSeenAt(sessionSeenAt: SessionSeenAt, events: readonly ActivityFeedEvent[]): SessionSeenAt {
+  const live = new Set(events.map((event) => event.sessionId))
+  const pruned: Record<string, number> = {}
+  for (const [sessionId, at] of Object.entries(sessionSeenAt)) if (live.has(sessionId)) pruned[sessionId] = at
+  return pruned
 }
 
 export const useActivityFeedStore = create<ActivityFeedState>()(
@@ -72,28 +103,42 @@ export const useActivityFeedStore = create<ActivityFeedState>()(
     (set) => ({
       events: [],
       seenAt: 0,
+      sessionSeenAt: {},
       record: (events) => {
         if (events.length === 0) return
-        set((state) => ({ events: mergeActivityEvents(state.events, events) }))
+        set((state) => ({
+          events: coalesceUnreadActivity(mergeActivityEvents(state.events, events), state.seenAt, state.sessionSeenAt),
+        }))
       },
       markAllSeen: (now) => {
         if (typeof now !== "number" || !Number.isFinite(now)) return
         set({ seenAt: now })
       },
-      clear: () => set({ events: [], seenAt: 0 }),
+      markSessionSeen: (sessionId, now) => {
+        if (!sessionId || typeof now !== "number" || !Number.isFinite(now)) return
+        set((state) => {
+          if ((state.sessionSeenAt[sessionId] ?? 0) >= now) return state
+          if (!state.events.some((event) => event.sessionId === sessionId && event.at > state.seenAt)) return state
+          return { sessionSeenAt: { ...state.sessionSeenAt, [sessionId]: now } }
+        })
+      },
+      clear: () => set({ events: [], seenAt: 0, sessionSeenAt: {} }),
     }),
     {
       name: ACTIVITY_FEED_STORAGE_KEY,
       version: 1,
       storage: createJSONStorage(() => getSafeStorage()),
-      partialize: (state) => ({ events: state.events, seenAt: state.seenAt }),
+      partialize: (state) => ({
+        events: state.events,
+        seenAt: state.seenAt,
+        sessionSeenAt: pruneSessionSeenAt(state.sessionSeenAt, state.events),
+      }),
       merge: (persisted, current) => {
         const stored = persisted as Partial<ActivityFeedState> | null
-        return {
-          ...current,
-          events: restoreEvents(stored?.events),
-          seenAt: restoreSeenAt(stored?.seenAt),
-        }
+        const seenAt = restoreSeenAt(stored?.seenAt)
+        const sessionSeenAt = restoreSessionSeenAt(stored?.sessionSeenAt)
+        const events = restoreEvents(stored?.events, seenAt, sessionSeenAt)
+        return { ...current, events, seenAt, sessionSeenAt: pruneSessionSeenAt(sessionSeenAt, events) }
       },
     },
   ),
