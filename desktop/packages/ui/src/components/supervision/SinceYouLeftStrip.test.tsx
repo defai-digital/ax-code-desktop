@@ -10,7 +10,8 @@ vi.doMock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
       params ? `${key}:${Object.values(params).join("|")}` : key,
-    relativeTime: (value: number, unit: string) => `${value} ${unit}`,
+    relativeTime: (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+      new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(value, unit),
   }),
 }))
 
@@ -75,6 +76,23 @@ describe("SinceYouLeftStrip hook blocks chip", () => {
     render()
 
     expect(chip()?.textContent).toBe("supervision.sinceYouLeft.hookBlocks:2")
+  })
+
+  test("updates its relative age while the strip stays mounted", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(LEFT_AT + 59_000)
+    try {
+      render()
+      expect(container.textContent).toContain("now")
+
+      act(() => {
+        vi.advanceTimersByTime(30_000)
+      })
+
+      expect(container.textContent).toContain("29 seconds ago")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("shows for a goal-only change after the last visit", () => {

@@ -63,12 +63,14 @@ export interface RelativeTimeParts {
 
 /** Relative-time parts for `updatedAt` as seen from `now`, for Intl.RelativeTimeFormat via i18n. */
 export function sinceYouLeftRelativeParts(updatedAt: number, now: number): RelativeTimeParts {
-  const diffMs = updatedAt - now
-  const absSeconds = Math.abs(diffMs) / 1000
-  if (absSeconds < 60) return { value: Math.round(diffMs / 1000), unit: "second" }
-  const absMinutes = absSeconds / 60
-  if (absMinutes < 60) return { value: Math.round(diffMs / 60000), unit: "minute" }
-  const absHours = absMinutes / 60
-  if (absHours < 24) return { value: Math.round(diffMs / 3600000), unit: "hour" }
+  // The hook clock may trail a just-recorded event by up to one tick. These labels describe elapsed activity, so do not
+  // render a recent event as though it will happen in the future.
+  const diffMs = Math.min(0, updatedAt - now)
+  const seconds = Math.round(diffMs / 1000)
+  if (Math.abs(seconds) < 60) return { value: seconds, unit: "second" }
+  const minutes = Math.round(diffMs / 60000)
+  if (Math.abs(minutes) < 60) return { value: minutes, unit: "minute" }
+  const hours = Math.round(diffMs / 3600000)
+  if (Math.abs(hours) < 24) return { value: hours, unit: "hour" }
   return { value: Math.round(diffMs / 86400000), unit: "day" }
 }

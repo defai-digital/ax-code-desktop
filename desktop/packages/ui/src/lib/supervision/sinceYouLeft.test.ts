@@ -87,4 +87,14 @@ describe("sinceYouLeftRelativeParts", () => {
     expect(sinceYouLeftRelativeParts(now - 2 * 3_600_000, now)).toEqual({ value: -2, unit: "hour" })
     expect(sinceYouLeftRelativeParts(now - 3 * 86_400_000, now)).toEqual({ value: -3, unit: "day" })
   })
+
+  test("clamps newer timestamps to now instead of reporting future activity", () => {
+    expect(sinceYouLeftRelativeParts(now + 20_000, now)).toEqual({ value: 0, unit: "second" })
+  })
+
+  test("rounds into the next unit instead of producing a full-unit overflow", () => {
+    expect(sinceYouLeftRelativeParts(now - 59_600, now)).toEqual({ value: -1, unit: "minute" })
+    expect(sinceYouLeftRelativeParts(now - 59.6 * 60_000, now)).toEqual({ value: -1, unit: "hour" })
+    expect(sinceYouLeftRelativeParts(now - 23.6 * 3_600_000, now)).toEqual({ value: -1, unit: "day" })
+  })
 })

@@ -1,5 +1,6 @@
 import React from "react"
 import { Icon } from "@/components/icon/Icon"
+import { useNow } from "@/hooks/useNow"
 import { useI18n } from "@/lib/i18n"
 import { sinceYouLeftRelativeParts } from "@/lib/supervision/sinceYouLeft"
 import { useSessionHookRuns } from "@/stores/useHookActivityStore"
@@ -20,6 +21,7 @@ type HookActivityRowsProps = {
  */
 export const HookActivityRows: React.FC<HookActivityRowsProps> = ({ sessionId, className }) => {
   const { t, relativeTime } = useI18n()
+  const now = useNow()
   const runs = useSessionHookRuns(sessionId)
   const [dismissedIds, setDismissedIds] = React.useState<ReadonlySet<string>>(EMPTY_DISMISSED)
 
@@ -43,7 +45,7 @@ export const HookActivityRows: React.FC<HookActivityRowsProps> = ({ sessionId, c
               ? t("chat.hookActivity.sourcePack", { pack: run.pack })
               : null
             : t("chat.hookActivity.sourceProject")
-        const parts = sinceYouLeftRelativeParts(run.receivedAt, Date.now())
+        const parts = sinceYouLeftRelativeParts(run.receivedAt, now)
         return (
           <div
             key={run.id}

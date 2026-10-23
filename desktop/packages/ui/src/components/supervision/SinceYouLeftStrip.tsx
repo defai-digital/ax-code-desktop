@@ -2,6 +2,7 @@ import React from "react"
 
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
+import { useNow } from "@/hooks/useNow"
 import { useSupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
@@ -27,6 +28,7 @@ type SinceYouLeftStripProps = {
  */
 export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId }) => {
   const { t, relativeTime } = useI18n()
+  const now = useNow()
   const [dismissedFor, setDismissedFor] = React.useState<string | null>(null)
   const snapshot = React.useMemo(() => useSupervisionStore.getState().lastViewedAt[sessionId] ?? null, [sessionId])
 
@@ -39,7 +41,7 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   const label = sinceYouLeftStateLabel(row.state)
   if (!label) return null
 
-  const parts = sinceYouLeftRelativeParts(activityAt, Date.now())
+  const parts = sinceYouLeftRelativeParts(activityAt, now)
   const hookBlocks = sinceYouLeftHookBlocks(hookCounters.blocked)
 
   const handleDismiss = () => {

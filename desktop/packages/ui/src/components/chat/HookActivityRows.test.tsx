@@ -8,7 +8,8 @@ vi.doMock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, string | number>) =>
       params ? `${key}:${Object.values(params).join("|")}` : key,
-    relativeTime: (value: number, unit: string) => `${value} ${unit}`,
+    relativeTime: (value: number, unit: Intl.RelativeTimeFormatUnit) =>
+      new Intl.RelativeTimeFormat("en", { numeric: "auto" }).format(value, unit),
   }),
 }))
 
@@ -68,6 +69,7 @@ describe("visibleHookRows", () => {
 })
 
 describe("HookActivityRows", () => {
+  const NOW = 1_000_000
   let container: HTMLDivElement
   let root: Root
 
@@ -118,7 +120,25 @@ describe("HookActivityRows", () => {
       span.textContent?.includes("Destructive command"),
     )
     expect(reason?.getAttribute("title")).toBe("Destructive command refused by policy")
-    expect(row.textContent).toMatch(/-1 minute/)
+    expect(row.textContent).toContain("1 minute ago")
+  })
+
+  test("updates the relative age while the rows stay mounted", () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW - 1_000)
+    try {
+      seed(completed(), NOW)
+      render()
+      expect(rows()[0]?.textContent).toContain("now")
+
+      act(() => {
+        vi.advanceTimersByTime(30_000)
+      })
+
+      expect(rows()[0]?.textContent).toContain("29 seconds ago")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("falls back to the generic title when the run has no tool", () => {
