@@ -1525,7 +1525,7 @@ const MarkdownRendererImpl: React.FC<MarkdownRendererProps> = ({
         {isLiveBlocks
           ? markdownBlocks.map((block, index) => (
               <StreamingMarkdownBlock key={index} index={index} enteredBlockCount={enteredBlockCount}>
-                <PreparedMarkdown key={block.key} block={block} components={markdownComponents} />
+                <PreparedMarkdown key={`${index}:${block.mode}`} block={block} components={markdownComponents} />
               </StreamingMarkdownBlock>
             ))
           : markdownBlocks.map((block) => (

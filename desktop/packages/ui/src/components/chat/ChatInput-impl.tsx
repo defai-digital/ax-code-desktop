@@ -144,7 +144,7 @@ import {
 } from "./chatInputMentions"
 import { removeMentionQueryAtCursor } from "./contextMention"
 import { useChatInputDraftPersistence } from "./hooks/useChatInputDraftPersistence"
-import { importWithChunkRecovery } from "@/lib/chunkLoadRecovery"
+import { useFencedCodeHighlighter } from "./useFencedCodeHighlighter"
 import {
   assignImageAttachmentFilenames,
   buildAttachmentCitationText,
@@ -155,8 +155,6 @@ import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 const MAX_VISIBLE_TEXTAREA_LINES = 8
 const EMPTY_QUEUE: QueuedMessage[] = []
 const EMPTY_MESSAGES: Message[] = []
-type FencedCodeHighlighter = (text: string) => HighlightRange[]
-const noFencedCodeHighlight: FencedCodeHighlighter = () => []
 // Single-line URL pasted over a selection becomes a markdown link.
 const PASTE_LINK_URL_PATTERN = /^(https?:\/\/|mailto:)\S+$/i
 const INLINE_SKILL_TOKEN_PATTERN = /(^|\s)\/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)/g
@@ -1208,30 +1206,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     }))
   }, [inputMode, message, sendableAttachedFiles])
 
-  const [fencedCodeHighlighter, setFencedCodeHighlighter] = React.useState<FencedCodeHighlighter>(
-    () => noFencedCodeHighlight,
-  )
-
-  React.useEffect(() => {
-    if (inputMode === "shell" || (!message.includes("```") && !message.includes("~~~"))) {
-      return
-    }
-
-    let cancelled = false
-    void importWithChunkRecovery(() => import("./composerCodeHighlight"))
-      .then((module) => {
-        if (!cancelled) {
-          setFencedCodeHighlighter(() => module.highlightFencedCode)
-        }
-      })
-      .catch((error) => {
-        console.warn("[ChatInput] Failed to load fenced code highlighter:", error)
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [inputMode, message])
+  const fencedCodeHighlighter = useFencedCodeHighlighter(message, inputMode)
 
   // Combined source-mode highlight: markdown syntax + @mentions. Returns null
   // when there's nothing to highlight so the overlay stays off for plain text.

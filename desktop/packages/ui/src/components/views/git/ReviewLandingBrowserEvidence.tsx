@@ -14,6 +14,7 @@ import { collectWebMcpCalls, formatWebMcpDuration, latestTurnMessages, type WebM
 import { useUIStore } from "@/stores/useUIStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useDirectorySync, useSessionMessages } from "@/sync/sync-context"
+import { fingerprintWebMcpRecap, sameWebMcpRecapFingerprint } from "./reviewLandingBrowserRecap"
 
 /** Only the displayed steps are capped; counts and called-tool sets cover the whole latest turn. */
 const RECAP_LIMIT = 50
@@ -42,12 +43,33 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
   )
   const pageTools = pageView?.catalog
   const definitions = React.useMemo(() => webMcpKnownDefinitions(pageView), [pageView])
-  // A string selector: streamed tokens re-render nothing unless the latest turn's calls change.
+  // Directory updates run this selector even for a text token. The same webmcp
+  // callID, status, and output identity returns the previous string, so those
+  // tokens do not parse or redact the tool outputs again.
+  const recapCacheRef = React.useRef<{
+    fingerprint: ReturnType<typeof fingerprintWebMcpRecap>
+    serialized: string
+    definitions: typeof definitions
+    receipts: typeof receipts
+    sessionId: string
+  } | null>(null)
   const serialized = useDirectorySync(
     React.useCallback(
       (state: { part: Map<string, unknown[]> }) => {
+        const turn = latestTurnMessages(messages, Infinity)
+        const fingerprint = fingerprintWebMcpRecap(turn, (id) => state.part.get(id))
+        const cached = recapCacheRef.current
+        if (
+          cached &&
+          cached.definitions === definitions &&
+          cached.receipts === receipts &&
+          cached.sessionId === sessionId &&
+          sameWebMcpRecapFingerprint(cached.fingerprint, fingerprint)
+        ) {
+          return cached.serialized
+        }
         const calls = collectWebMcpCalls(
-          latestTurnMessages(messages, Infinity) as never,
+          turn as never,
           (id) => state.part.get(id) as never,
           Infinity,
           Infinity,
@@ -55,8 +77,9 @@ export function ReviewLandingBrowserEvidence({ directory, sessionId }: { directo
           receipts,
           sessionId,
         )
-        const recap = calls
-        return JSON.stringify(recap)
+        const next = JSON.stringify(calls)
+        recapCacheRef.current = { fingerprint, serialized: next, definitions, receipts, sessionId }
+        return next
       },
       [messages, definitions, receipts, sessionId],
     ) as never,
