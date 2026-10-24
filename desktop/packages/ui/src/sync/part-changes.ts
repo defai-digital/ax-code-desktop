@@ -1,3 +1,4 @@
+import { weakRef } from "@/lib/weakRef"
 import type { State } from "./types"
 
 // Ephemeral hints, outside persisted state. Unknown snapshot writers fall back
@@ -5,7 +6,7 @@ import type { State } from "./types"
 const changes = new WeakMap<State["part"], { previous: WeakRef<State["part"]>; messageIds: ReadonlySet<string> }>()
 
 export function recordPartChanges(previous: State["part"], next: State["part"], messageIds: ReadonlySet<string>) {
-  changes.set(next, { previous: new WeakRef(previous), messageIds })
+  changes.set(next, { previous: weakRef(previous), messageIds })
 }
 
 export function getPartChanges(previous: State["part"], next: State["part"]): ReadonlySet<string> | undefined {

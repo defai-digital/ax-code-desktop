@@ -163,7 +163,8 @@ describe("webMcpRegressionExport", () => {
   })
   test("untrusted tool names and arguments remain data in the exported program", async () => {
     const toolName = 'echo"); injected(); //\n</script><script>injected()</script>'
-    const input = { text: '"}); injected(); //', nested: ["` ${injected()} "] }
+    const templateLookalike = "` ${" + "injected()} "
+    const input = { text: '"}); injected(); //', nested: [templateLookalike] }
     const exported = webMcpRegressionExport({ tool: toolName, input, outcome: "completed" })!
     let injected = false
     let received: unknown

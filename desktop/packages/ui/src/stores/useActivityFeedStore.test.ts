@@ -5,6 +5,12 @@ import { ACTIVITY_FEED_STORAGE_KEY, selectUnreadActivityCount, useActivityFeedSt
 
 const ACTIVITY_FEED_PREVIEW_TOO_LONG = 400
 
+function storageEvent(key: string): StorageEvent {
+  const event = new StorageEvent("storage")
+  Object.defineProperty(event, "key", { value: key })
+  return event
+}
+
 function event(id: string, at: number, overrides: Partial<ActivityFeedEvent> = {}): ActivityFeedEvent {
   return {
     id,
@@ -165,7 +171,7 @@ describe("activity feed persistence", () => {
     await useActivityFeedStore.persist.rehydrate()
     expect(useActivityFeedStore.getState().events[0]?.preview).toBeNull()
     storage.set(ACTIVITY_FEED_STORAGE_KEY, JSON.stringify({ version: 1, state: { events: [event("newer", 9)], seenAt: 4 } }))
-    window.dispatchEvent(new StorageEvent("storage", { key: ACTIVITY_FEED_STORAGE_KEY }))
+    window.dispatchEvent(storageEvent(ACTIVITY_FEED_STORAGE_KEY))
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(useActivityFeedStore.getState().events.map((item) => item.id)).toEqual(["newer"])
     expect(useActivityFeedStore.getState().seenAt).toBe(4)

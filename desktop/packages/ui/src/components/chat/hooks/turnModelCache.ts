@@ -1,3 +1,4 @@
+import { weakRef } from "@/lib/weakRef"
 import type { ChatMessageEntry } from "../lib/turns/types"
 import type { TurnWindowModel } from "../lib/turns/windowTurns"
 
@@ -14,7 +15,7 @@ export const rememberTurnModel = (key: string, messages: ChatMessageEntry[], mod
     if (typeof oldest !== "string") break
     turnModelCache.delete(oldest)
   }
-  turnModelCache.set(key, { messages: new WeakRef(messages), model })
+  turnModelCache.set(key, { messages: weakRef(messages), model })
 }
 
 /** The remembered model when it was built from exactly this message array. */

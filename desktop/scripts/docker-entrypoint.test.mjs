@@ -31,7 +31,6 @@ function createFixture() {
   const chmod = path.join(bin, "chmod")
   const sshKeygen = path.join(bin, "ssh-keygen")
   const node = path.join(bin, "node")
-  const sshDir = path.join(dir, "home", ".ssh")
 
   fs.writeFileSync(mkdir, `#!/bin/sh\nexit 0\n`)
   fs.writeFileSync(chmod, `#!/bin/sh\nexit 0\n`)

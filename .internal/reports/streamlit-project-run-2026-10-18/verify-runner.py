@@ -81,7 +81,8 @@ try:
     started = time.monotonic()
     p, events, first_url = start(project)
     assert [e["stage"] for e in events] == ["preparing", "launching"]
-    assert freeze == subprocess.check_output([str(python), "-m", "pip", "freeze"])
+    repeated = subprocess.check_output([str(python), "-m", "pip", "freeze"])
+    assert freeze == repeated
     RESULTS["repeat_run_seconds"] = round(time.monotonic() - started, 2)
     second = ROOT / "second-project"
     second.mkdir()

@@ -222,7 +222,10 @@ describe("goal read rules", () => {
   })
 
   test("a successful read is not repeated", async () => {
-    const fetchGoal = viFetch(async () => rawGoal())
+    const fetchGoal = viFetch(async (target) => {
+      expect(target.sessionId).toBe("ses_1")
+      return rawGoal()
+    })
     const runtime = {
       state: createGoalLoadState(),
       targets: [target("ses_1")],

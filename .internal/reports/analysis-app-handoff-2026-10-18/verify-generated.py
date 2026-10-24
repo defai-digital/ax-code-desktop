@@ -66,7 +66,8 @@ try:
             try:
                 with urllib.request.urlopen(url.rstrip('/') + '/_stcore/health', timeout=1) as response:
                     if response.status == 200: break
-            except OSError: pass
+            except OSError:
+                pass  # Connection refused until the server accepts; retry until the deadline.
         if process.poll() is not None: raise RuntimeError('Runner exited before ready')
     else: raise RuntimeError('Readiness timeout')
 finally:

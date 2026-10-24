@@ -3632,6 +3632,11 @@ handleCommand("desktop_get_app_version", async () => app.getVersion(), { safeFor
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
 let startupFailurePromise = null
+
+function startupWasAborted() {
+  return isQuitting
+}
+
 function handleStartupFailure(err) {
   if (startupFailurePromise) return startupFailurePromise
   const alreadyQuitting = isQuitting
@@ -3810,7 +3815,10 @@ app.whenReady().then(async () => {
     // startup-failure path — only a prepare() failure (no usable binary, a
     // configuration error) still fails startup here.
     const loginShellEnv = await loginShellEnvCapture.promise
-    if (isQuitting) return
+    // This promise started at process load. While it settles, the background
+    // integrity scan and the quit coordinator can set isQuitting. Re-read the
+    // flag through a call so an abort during this await still stops startup.
+    if (startupWasAborted()) return
     loginShellEnvEncoded = resolveForwardedLoginShellEnv(loginShellEnv)
     recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
     runtimeSearchEnv = runtimeExecutionEnv(process.env, loginShellEnv)

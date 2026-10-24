@@ -2,6 +2,12 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import { mergePersistedSelectionState, touchCappedMruEntry, useSelectionStore } from "./selection-store"
 
+function storageEvent(key: string): StorageEvent {
+  const event = new StorageEvent("storage")
+  Object.defineProperty(event, "key", { value: key })
+  return event
+}
+
 beforeEach(() => {
   useSelectionStore.setState({
     sessionModelSelections: new Map(),
@@ -183,7 +189,7 @@ describe("selection-store cross-window sync", () => {
 
     // Only the listener may rehydrate the store: calling persist.rehydrate myself
     // would make this test pass even without the listener.
-    window.dispatchEvent(new StorageEvent("storage", { key: "selection-store" }))
+    window.dispatchEvent(storageEvent("selection-store"))
     await vi.waitFor(() => {
       expect(useSelectionStore.getState().getSessionModelSelection("ses_a")).toEqual({
         providerId: "defai",
