@@ -4,6 +4,11 @@ import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
+import {
+  createMenuDialogRequest,
+  type MenuDialogRequest,
+  type MenuDialogOpenOptions,
+} from "@/lib/menuDialogRequest"
 import type { ShortcutCombo } from "@/lib/shortcuts"
 import type { DraftStarterRef } from "@/lib/draftStarters"
 import {
@@ -601,10 +606,12 @@ interface UIStore {
   splitPaneRightTab: Exclude<MainTab, "chat" | "session-grid">
   isHelpDialogOpen: boolean
   isAboutDialogOpen: boolean
+  aboutDialogMenuRequest?: MenuDialogRequest
   isAxCodeStatusDialogOpen: boolean
   axCodeStatusText: string
   isSessionCreateDialogOpen: boolean
   isSettingsDialogOpen: boolean
+  settingsDialogMenuRequest?: MenuDialogRequest
   isModelSelectorOpen: boolean
 
   // Settings IA (new shell)
@@ -747,11 +754,11 @@ interface UIStore {
   setSplitPaneRightTab: (tab: Exclude<MainTab, "chat" | "session-grid">) => void
   toggleHelpDialog: () => void
   setHelpDialogOpen: (open: boolean) => void
-  setAboutDialogOpen: (open: boolean) => void
+  setAboutDialogOpen: (open: boolean, options?: MenuDialogOpenOptions) => void
   setAxCodeStatusDialogOpen: (open: boolean) => void
   setAxCodeStatusText: (text: string) => void
   setSessionCreateDialogOpen: (open: boolean) => void
-  setSettingsDialogOpen: (open: boolean) => void
+  setSettingsDialogOpen: (open: boolean, options?: MenuDialogOpenOptions) => void
   setModelSelectorOpen: (open: boolean) => void
   applyTheme: () => void
   setSettingsPage: (slug: string) => void
@@ -899,10 +906,12 @@ export const useUIStore = create<UIStore>()(
         splitPaneRightTab: "files",
         isHelpDialogOpen: false,
         isAboutDialogOpen: false,
+        aboutDialogMenuRequest: undefined,
         isAxCodeStatusDialogOpen: false,
         axCodeStatusText: "",
         isSessionCreateDialogOpen: false,
         isSettingsDialogOpen: false,
+        settingsDialogMenuRequest: undefined,
         isModelSelectorOpen: false,
         settingsPage: "home",
         settingsHasOpenedOnce: false,
@@ -1632,8 +1641,11 @@ export const useUIStore = create<UIStore>()(
           set({ isHelpDialogOpen: open })
         },
 
-        setAboutDialogOpen: (open) => {
-          set({ isAboutDialogOpen: open })
+        setAboutDialogOpen: (open, options) => {
+          set({
+            isAboutDialogOpen: open,
+            aboutDialogMenuRequest: open && options?.fromMenu === true ? createMenuDialogRequest() : undefined,
+          })
         },
 
         setAxCodeStatusDialogOpen: (open) => {
@@ -1649,16 +1661,12 @@ export const useUIStore = create<UIStore>()(
         },
 
 
-        setSettingsDialogOpen: (open) => {
-          set((state) => {
-            if (!open) {
-              return { isSettingsDialogOpen: false }
-            }
-            if (state.settingsHasOpenedOnce) {
-              return { isSettingsDialogOpen: true }
-            }
-            return { isSettingsDialogOpen: true, settingsHasOpenedOnce: true }
-          })
+        setSettingsDialogOpen: (open, options) => {
+          set((state) => ({
+            isSettingsDialogOpen: open,
+            settingsHasOpenedOnce: state.settingsHasOpenedOnce || open,
+            settingsDialogMenuRequest: open && options?.fromMenu === true ? createMenuDialogRequest() : undefined,
+          }))
         },
 
         setModelSelectorOpen: (open) => {
@@ -2425,7 +2433,7 @@ export const useUIStore = create<UIStore>()(
           settingsHasOpenedOnce: state.settingsHasOpenedOnce,
           settingsProjectsSelectedId: state.settingsProjectsSelectedId,
           isSessionCreateDialogOpen: state.isSessionCreateDialogOpen,
-          // Note: isSettingsDialogOpen intentionally NOT persisted
+          // Dialog open flags and menu requests are intentionally not persisted
           showReasoningTraces: state.showReasoningTraces,
           collapsibleThinkingBlocks: state.collapsibleThinkingBlocks,
           activityRenderMode: state.activityRenderMode,

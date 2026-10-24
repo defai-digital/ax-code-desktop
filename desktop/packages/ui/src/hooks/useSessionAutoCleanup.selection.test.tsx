@@ -2,6 +2,19 @@ import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { useSessionAutoCleanup } from "./useSessionAutoCleanup"
+import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useUIStore } from "@/stores/useUIStore"
+import { axCodeClient } from "@/lib/ax-code/client"
+import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+
+const { loadSessions } = vi.hoisted(() => ({ loadSessions: vi.fn() }))
+vi.mock("@/stores/useGlobalSessionsStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/stores/useGlobalSessionsStore")>()),
+  ensureGlobalSessionsLoaded: loadSessions,
+}))
+// Load the real dependency graph during module setup, outside the behavior's
+// five-second budget. Keep the real stores and mock only the inventory loader.
 
 for (const stage of ["loading", "deleting", "failure"] as const) {
   test(
@@ -9,7 +22,6 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
       ? "does not impose a daily cooldown after failed retention"
       : `protects a session selected while cleanup is ${stage}`,
     async () => {
-      vi.resetModules()
       let releaseLoad!: () => void
       let releaseDelete!: () => void
       const now = Date.now()
@@ -26,15 +38,7 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
       const firstDelete = new Promise<void>((resolve) => {
         releaseDelete = resolve
       })
-      vi.doMock("@/stores/useGlobalSessionsStore", async () => ({
-        ...(await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>("@/stores/useGlobalSessionsStore")),
-        ensureGlobalSessionsLoaded: vi.fn(() => loaded),
-      }))
-      const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
-      const { useSessionUIStore } = await import("@/sync/session-ui-store")
-      const { useUIStore } = await import("@/stores/useUIStore")
-      const { axCodeClient } = await import("@/lib/ax-code/client")
-      const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+      loadSessions.mockImplementation(() => loaded)
       // Keep the real store consistent with the inventory returned by the loader.
       useGlobalSessionsStore.setState({ activeSessions: sessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
       const remove = vi.fn(async ({ sessionID }: { sessionID: string }) => {
@@ -113,8 +117,6 @@ for (const stage of ["loading", "deleting", "failure"] as const) {
       } finally {
         act(() => root.unmount())
         vi.restoreAllMocks()
-        vi.doUnmock("@/stores/useGlobalSessionsStore")
-        vi.resetModules()
       }
     },
   )

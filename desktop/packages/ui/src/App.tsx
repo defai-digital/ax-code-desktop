@@ -105,13 +105,15 @@ const EMBEDDED_SESSION_VIEW_LABELS = {
 const AboutDialogWrapper: React.FC = () => {
   const isAboutDialogOpen = useUIStore((s) => s.isAboutDialogOpen)
   const setAboutDialogOpen = useUIStore((s) => s.setAboutDialogOpen)
-  return <AboutDialog open={isAboutDialogOpen} onOpenChange={setAboutDialogOpen} />
+  const menuRequest = useUIStore((s) => s.aboutDialogMenuRequest)
+  return <AboutDialog open={isAboutDialogOpen} onOpenChange={setAboutDialogOpen} menuRequest={menuRequest} />
 }
 
 const UpdateDialogWrapper: React.FC = () => {
   const update = useUpdateStore(
     useShallow((state) => ({
       open: state.updateDialogOpen,
+      menuRequest: state.updateDialogMenuRequest,
       setUpdateDialogOpen: state.setUpdateDialogOpen,
       info: state.info,
       downloading: state.downloading,
@@ -125,6 +127,7 @@ const UpdateDialogWrapper: React.FC = () => {
   return (
     <UpdateDialog
       open={update.open}
+      menuRequest={update.menuRequest}
       onOpenChange={update.setUpdateDialogOpen}
       info={update.info}
       downloading={update.downloading}

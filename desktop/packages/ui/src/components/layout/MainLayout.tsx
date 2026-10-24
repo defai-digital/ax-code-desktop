@@ -91,6 +91,7 @@ export const MainLayout: React.FC = () => {
   const splitPaneRightTab = useUIStore((state) => state.splitPaneRightTab)
   const setIsMobile = useUIStore((state) => state.setIsMobile)
   const isSettingsDialogOpen = useUIStore((state) => state.isSettingsDialogOpen)
+  const settingsMenuRequest = useUIStore((state) => state.settingsDialogMenuRequest)
   const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen)
   const isMultiRunLauncherOpen = useUIStore((state) => state.isMultiRunLauncherOpen)
   const setMultiRunLauncherOpen = useUIStore((state) => state.setMultiRunLauncherOpen)
@@ -562,7 +563,11 @@ export const MainLayout: React.FC = () => {
 
         {/* Desktop settings: windowed dialog with blur */}
         <React.Suspense fallback={null}>
-          <SettingsWindow open={isSettingsDialogOpen} onOpenChange={setSettingsDialogOpen} />
+          <SettingsWindow
+            open={isSettingsDialogOpen}
+            onOpenChange={setSettingsDialogOpen}
+            menuRequest={settingsMenuRequest}
+          />
         </React.Suspense>
         <React.Suspense fallback={null}>
           <MultiRunWindow

@@ -1,60 +1,59 @@
 import React from "react"
+import type { MenuDialogRequest } from "./menuDialogRequest"
 
-/**
- * A native menu click finishes after the dialog is already open. The rest of
- * that click lands on the full-window backdrop (`outside-press`), and the menu
- * can also move focus out of the document (`focus-out`). Base UI then closes
- * the dialog before it is visible. Ignore only those two dismissals, and only
- * briefly, so Escape and a later backdrop click still close it.
- */
 export const MENU_DIALOG_DISMISSAL_GRACE_MS = 500
+export const MenuDialogTimingContext = React.createContext<{ open: boolean; request?: MenuDialogRequest }>({
+  open: false,
+})
+const committedAt = new WeakMap<MenuDialogRequest, number>()
 
-let menuDismissalGuardUntil = 0
-
-export function armMenuDialogDismissalGuard(now = Date.now(), graceMs = MENU_DIALOG_DISMISSAL_GRACE_MS): void {
-  menuDismissalGuardUntil = now + graceMs
+export function deferMenuDialogOpen(open: () => void): number {
+  return window.setTimeout(open, 0)
 }
 
-export function resetMenuDialogDismissalGuard(): void {
-  menuDismissalGuardUntil = 0
+// Mount this inside the visible popup, including portals and lazy-loaded
+// dialogs. A reconnect/rerender of the same request must not extend its window.
+export function useMenuDialogCommit(): void {
+  const { open, request } = React.useContext(MenuDialogTimingContext)
+  React.useLayoutEffect(() => {
+    if (open && request && !committedAt.has(request)) committedAt.set(request, Date.now())
+  }, [open, request])
 }
 
 export function isTransientMenuDismissal(
   reason: string | undefined,
   openedAtMs: number,
   nowMs: number,
+  fromMenu: boolean,
   graceMs = MENU_DIALOG_DISMISSAL_GRACE_MS,
 ): boolean {
-  const justOpened = openedAtMs > 0 && nowMs >= openedAtMs && nowMs - openedAtMs < graceMs
-  if (!justOpened) return false
-  if (reason === "focus-out") return true
-  return reason === "outside-press" && nowMs < menuDismissalGuardUntil
+  return (
+    fromMenu &&
+    openedAtMs > 0 &&
+    nowMs >= openedAtMs &&
+    nowMs - openedAtMs < graceMs &&
+    (reason === "focus-out" || reason === "outside-press")
+  )
 }
 
-type CancelableOpenChange = {
-  reason: string
-  cancel: () => void
-}
+type CancelableOpenChange = { reason: string; cancel: () => void }
 
 export function useCancelTransientMenuFocusOut<Details extends CancelableOpenChange>(
   open: boolean | undefined,
   onOpenChange: ((next: boolean, details: Details) => void) | undefined,
+  request?: MenuDialogRequest,
 ): (next: boolean, details: Details) => void {
-  const openedAtRef = React.useRef(0)
-  const wasOpenRef = React.useRef(false)
-  if (open && !wasOpenRef.current) {
-    openedAtRef.current = Date.now()
-  }
-  wasOpenRef.current = open === true
-
   return React.useCallback(
     (next, details) => {
-      if (!next && isTransientMenuDismissal(details.reason, openedAtRef.current, Date.now())) {
+      // Protect the initial native event before a lazy popup mounts, then anchor
+      // the full visible grace period at its first commit. There is no global guard.
+      const start = request ? (committedAt.get(request) ?? request.requestedAt) : 0
+      if (!next && open && isTransientMenuDismissal(details.reason, start, Date.now(), request?.fromMenu === true)) {
         details.cancel()
         return
       }
       onOpenChange?.(next, details)
     },
-    [onOpenChange],
+    [open, onOpenChange, request],
   )
 }

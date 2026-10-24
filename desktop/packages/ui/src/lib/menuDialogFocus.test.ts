@@ -1,34 +1,27 @@
-import { afterEach, describe, expect, test } from "vitest"
-import {
-  armMenuDialogDismissalGuard,
-  isTransientMenuDismissal,
-  MENU_DIALOG_DISMISSAL_GRACE_MS,
-  resetMenuDialogDismissalGuard,
-} from "./menuDialogFocus"
+import { describe, expect, test } from "vitest"
+import { isTransientMenuDismissal, MENU_DIALOG_DISMISSAL_GRACE_MS } from "./menuDialogFocus"
 import { manualUpdateCheckOutcome } from "./manualUpdateCheckOutcome"
 
 describe("isTransientMenuDismissal", () => {
-  afterEach(() => {
-    resetMenuDialogDismissalGuard()
+  test("ignores a menu focus-out while the dialog has just opened", () => {
+    expect(isTransientMenuDismissal("focus-out", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS - 1, true)).toBe(true)
   })
 
-  test("ignores a focus-out while the dialog has just opened", () => {
-    expect(isTransientMenuDismissal("focus-out", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS - 1)).toBe(true)
+  test("ignores a menu backdrop event only inside the grace period", () => {
+    expect(isTransientMenuDismissal("outside-press", 1_000, 1_100, false)).toBe(false)
+    expect(isTransientMenuDismissal("outside-press", 1_000, 1_100, true)).toBe(true)
+    expect(isTransientMenuDismissal("outside-press", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS, true)).toBe(false)
   })
 
-  test("ignores the menu click that lands on the backdrop, and only while the guard is armed", () => {
-    expect(isTransientMenuDismissal("outside-press", 1_000, 1_100)).toBe(false)
-    armMenuDialogDismissalGuard(1_000)
-    expect(isTransientMenuDismissal("outside-press", 1_000, 1_100)).toBe(true)
-    expect(isTransientMenuDismissal("outside-press", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS)).toBe(false)
+  test("allows focus-out for an ordinary dialog", () => {
+    expect(isTransientMenuDismissal("focus-out", 1_000, 1_100, false)).toBe(false)
   })
 
-  test("allows a later focus-out, and never swallows Escape or the close button", () => {
-    armMenuDialogDismissalGuard(1_000)
-    expect(isTransientMenuDismissal("focus-out", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS)).toBe(false)
-    expect(isTransientMenuDismissal("escape-key", 1_000, 1_100)).toBe(false)
-    expect(isTransientMenuDismissal("close-press", 1_000, 1_100)).toBe(false)
-    expect(isTransientMenuDismissal("focus-out", 0, 1_100)).toBe(false)
+  test("allows expired focus-out, Escape and the close button", () => {
+    expect(isTransientMenuDismissal("focus-out", 1_000, 1_000 + MENU_DIALOG_DISMISSAL_GRACE_MS, true)).toBe(false)
+    expect(isTransientMenuDismissal("escape-key", 1_000, 1_100, true)).toBe(false)
+    expect(isTransientMenuDismissal("close-press", 1_000, 1_100, true)).toBe(false)
+    expect(isTransientMenuDismissal("focus-out", 0, 1_100, true)).toBe(false)
   })
 })
 

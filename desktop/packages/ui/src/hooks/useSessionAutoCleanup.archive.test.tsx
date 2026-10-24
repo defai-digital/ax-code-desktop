@@ -2,9 +2,21 @@ import React, { act } from "react"
 import { createRoot } from "react-dom/client"
 import { expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { useSessionAutoCleanup } from "./useSessionAutoCleanup"
+import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useUIStore } from "@/stores/useUIStore"
+import { axCodeClient } from "@/lib/ax-code/client"
+import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
+
+const { loadSessions } = vi.hoisted(() => ({ loadSessions: vi.fn() }))
+vi.mock("@/stores/useGlobalSessionsStore", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/stores/useGlobalSessionsStore")>()),
+  ensureGlobalSessionsLoaded: loadSessions,
+}))
+// Load the real dependency graph during module setup, outside the behavior's
+// five-second budget. Keep the real stores and mock only the inventory loader.
 
 test.each([true, false])("retention archive supports the global API: %s", async (supportsGlobalArchive) => {
-  vi.resetModules()
   const now = Date.now()
   const sessions = [
     ...Array.from({ length: 5 }, (_, i) => ({ id: `recent-${i}`, time: { created: now - i } })),
@@ -15,15 +27,7 @@ test.each([true, false])("retention archive supports the global API: %s", async 
       time: { created: now - 100 * 86400000 },
     })),
   ] as Session[]
-  vi.doMock("@/stores/useGlobalSessionsStore", async () => ({
-    ...(await vi.importActual<typeof import("@/stores/useGlobalSessionsStore")>("@/stores/useGlobalSessionsStore")),
-    ensureGlobalSessionsLoaded: vi.fn(async () => ({ activeSessions: sessions })),
-  }))
-  const { useSessionAutoCleanup } = await import("./useSessionAutoCleanup")
-  const { useSessionUIStore } = await import("@/sync/session-ui-store")
-  const { useUIStore } = await import("@/stores/useUIStore")
-  const { axCodeClient } = await import("@/lib/ax-code/client")
-  const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
+  loadSessions.mockResolvedValue({ activeSessions: sessions })
   // The loader publishes this inventory to the store before resolving.
   useGlobalSessionsStore.setState({ activeSessions: sessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
   const update = vi.fn(async () => ({ data: {} }))
@@ -68,6 +72,5 @@ test.each([true, false])("retention archive supports the global API: %s", async 
     act(() => root.unmount())
     vi.restoreAllMocks()
     vi.unstubAllGlobals()
-    vi.doUnmock("@/stores/useGlobalSessionsStore")
   }
 })

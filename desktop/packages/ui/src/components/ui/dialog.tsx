@@ -4,14 +4,22 @@ import { Dialog as BaseDialog } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
-import { useCancelTransientMenuFocusOut } from "@/lib/menuDialogFocus"
+import { useCancelTransientMenuFocusOut, MenuDialogTimingContext, useMenuDialogCommit } from "@/lib/menuDialogFocus"
+import type { MenuDialogRequest } from "@/lib/menuDialogRequest"
 import { renderFromAsChild, type AsChildProps } from "./asChild"
 
 let openDialogCount = 0
 
-function Dialog({ open, onOpenChange, ...props }: React.ComponentProps<typeof BaseDialog.Root>) {
-  const handleOpenChange = useCancelTransientMenuFocusOut(open, onOpenChange)
-  return <BaseDialog.Root open={open} onOpenChange={handleOpenChange} {...props} />
+type DialogProps = React.ComponentProps<typeof BaseDialog.Root> & { menuRequest?: MenuDialogRequest }
+
+function Dialog({ open, onOpenChange, menuRequest, ...props }: DialogProps) {
+  const handleOpenChange = useCancelTransientMenuFocusOut(open, onOpenChange, menuRequest)
+  const timing = React.useMemo(() => ({ open: open === true, request: menuRequest }), [open, menuRequest])
+  return (
+    <MenuDialogTimingContext.Provider value={timing}>
+      <BaseDialog.Root open={open} onOpenChange={handleOpenChange} {...props} />
+    </MenuDialogTimingContext.Provider>
+  )
 }
 
 function DialogTrigger({
@@ -67,6 +75,11 @@ type DialogContentProps = Omit<React.ComponentProps<typeof BaseDialog.Popup>, "c
   children?: React.ReactNode
 }
 
+function DialogCommit() {
+  useMenuDialogCommit()
+  return null
+}
+
 function DialogContent({ className, children, showCloseButton = true, ...props }: DialogContentProps) {
   const { t } = useI18n()
 
@@ -86,6 +99,7 @@ function DialogContent({ className, children, showCloseButton = true, ...props }
           )}
           {...props}
         >
+          <DialogCommit />
           {children}
           {showCloseButton && (
             <BaseDialog.Close

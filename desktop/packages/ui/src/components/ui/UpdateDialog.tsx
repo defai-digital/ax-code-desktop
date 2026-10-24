@@ -1,4 +1,5 @@
 import React, { useCallback, useMemo } from "react"
+import type { MenuDialogRequest } from "@/lib/menuDialogRequest"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { SimpleMarkdownRenderer } from "@/components/chat/MarkdownRenderer"
@@ -15,6 +16,7 @@ import {
 
 interface UpdateDialogProps {
   open: boolean
+  menuRequest?: MenuDialogRequest
   onOpenChange: (open: boolean) => void
   info: UpdateInfo | null
   downloading: boolean
@@ -28,6 +30,7 @@ interface UpdateDialogProps {
 export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   open,
   onOpenChange,
+  menuRequest,
   info,
   downloading,
   downloaded,
@@ -60,7 +63,7 @@ export const UpdateDialog: React.FC<UpdateDialogProps> = ({
   }, [info?.body, t])
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog menuRequest={menuRequest} open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-5 bg-background border-[var(--interactive-border)]" showCloseButton={true}>
         {/* Header Section */}
         <div className="flex items-center mb-1">

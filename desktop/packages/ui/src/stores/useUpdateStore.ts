@@ -8,6 +8,11 @@ import {
   isDesktopShell,
   isWebRuntime,
 } from "@/lib/desktop"
+import {
+  createMenuDialogRequest,
+  type MenuDialogRequest,
+  type MenuDialogOpenOptions,
+} from "@/lib/menuDialogRequest"
 import { withTimeout } from "@/lib/asyncTimeout"
 
 // Bound the native update check so a hung updater IPC cannot latch
@@ -31,6 +36,7 @@ type UpdateState = {
   lastChecked: number | null
   nextCheckInSec: number | null
   updateDialogOpen: boolean
+  updateDialogMenuRequest?: MenuDialogRequest
 }
 
 interface UpdateStore extends UpdateState {
@@ -45,7 +51,7 @@ interface UpdateStore extends UpdateState {
   restartToUpdate: () => Promise<void>
   dismiss: () => void
   reset: () => void
-  setUpdateDialogOpen: (open: boolean) => void
+  setUpdateDialogOpen: (open: boolean, options?: MenuDialogOpenOptions) => void
 }
 
 const UPDATE_FAILED_MESSAGE = "Update failed. Please try again or open the release page."
@@ -76,6 +82,7 @@ const initialState: UpdateState = {
   lastChecked: null,
   nextCheckInSec: null,
   updateDialogOpen: false,
+  updateDialogMenuRequest: undefined,
 }
 
 export const useUpdateStore = create<UpdateStore>()((set, get) => ({
@@ -224,7 +231,10 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
   },
 
   dismiss: () => {
-    set({ available: false, downloaded: false, info: null, updateDialogOpen: false })
+    set({
+      available: false, downloaded: false, info: null,
+      updateDialogOpen: false, updateDialogMenuRequest: undefined,
+    })
   },
 
   reset: () => {
@@ -233,7 +243,10 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
     set(initialState)
   },
 
-  setUpdateDialogOpen: (open) => {
-    set({ updateDialogOpen: open })
+  setUpdateDialogOpen: (open, options) => {
+    set({
+      updateDialogOpen: open,
+      updateDialogMenuRequest: open && options?.fromMenu === true ? createMenuDialogRequest() : undefined,
+    })
   },
 }))

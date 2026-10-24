@@ -1,4 +1,5 @@
 import React from "react"
+import type { MenuDialogRequest } from "@/lib/menuDialogRequest"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
 import { debugUtils } from "@/lib/debug"
@@ -12,10 +13,11 @@ import { aboutVersionRows } from "./aboutVersionRows"
 
 interface AboutDialogProps {
   open: boolean
+  menuRequest?: MenuDialogRequest
   onOpenChange: (open: boolean) => void
 }
 
-export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange }) => {
+export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange, menuRequest }) => {
   const { t } = useI18n()
   const showDiagnostics = import.meta.env.DEV
   const [version, setVersion] = React.useState<string | null>(null)
@@ -157,7 +159,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange }) 
   const versionRows = aboutVersionRows(displayVersion, axCodeVersion)
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog menuRequest={menuRequest} open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xs p-6">
         <div className="flex flex-col items-center text-center space-y-4">
           <AxCodeIcon width={64} height={64} />

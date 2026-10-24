@@ -6,6 +6,7 @@ import { cleanup, render } from "@/test/dom"
 import { readWebMcpCatalog, useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { useWebMcpPoolProjection } from "./useWebMcpPoolProjection"
+import { useActivityFeedRecorder } from "./useActivityFeedRecorder"
 
 const { invoke, pause, resume } = vi.hoisted(() => ({
   invoke: vi.fn(),
@@ -91,7 +92,6 @@ test("an old main without list leaves the pane projection intact", async () => {
 })
 
 test("unchanged polls preserve snapshots and do not render the activity recorder", async () => {
-  const { useActivityFeedRecorder } = await import("./useActivityFeedRecorder")
   vi.useFakeTimers()
   let views = [
     {

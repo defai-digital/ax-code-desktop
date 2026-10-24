@@ -13,7 +13,7 @@ import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
 import { showAxCodeStatus } from "@/lib/axCodeStatus"
 import { isDesktopLocalOriginActive } from "@/lib/desktop"
 import { manualUpdateCheckOutcome } from "@/lib/manualUpdateCheckOutcome"
-import { armMenuDialogDismissalGuard } from "@/lib/menuDialogFocus"
+import { deferMenuDialogOpen } from "@/lib/menuDialogFocus"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
 import { listenToTauriEvent } from "@/lib/tauriEventListener"
 import { useI18n } from "@/lib/i18n"
@@ -112,32 +112,31 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
   const { setThemeMode } = useThemeSystem()
   const { t } = useI18n()
   const checkUpdatesInFlightRef = React.useRef(false)
-  const aboutOpenTimerRef = React.useRef<number | null>(null)
+  const dialogOpenTimerRef = React.useRef<number | null>(null)
 
   const openDialogFromMenu = React.useCallback((open: () => void) => {
-    if (aboutOpenTimerRef.current != null) {
-      window.clearTimeout(aboutOpenTimerRef.current)
+    if (dialogOpenTimerRef.current != null) {
+      window.clearTimeout(dialogOpenTimerRef.current)
     }
     // The menu click's pointer event arrives in a later turn and hits the
     // backdrop. Open after this turn, and ignore that one dismissal.
-    armMenuDialogDismissalGuard()
-    aboutOpenTimerRef.current = window.setTimeout(() => {
-      aboutOpenTimerRef.current = null
+    dialogOpenTimerRef.current = deferMenuDialogOpen(() => {
+      dialogOpenTimerRef.current = null
       open()
-    }, 0)
+    })
   }, [])
 
   React.useEffect(() => {
     return () => {
-      if (aboutOpenTimerRef.current != null) {
-        window.clearTimeout(aboutOpenTimerRef.current)
+      if (dialogOpenTimerRef.current != null) {
+        window.clearTimeout(dialogOpenTimerRef.current)
       }
     }
   }, [])
 
   const handleCheckForUpdates = React.useCallback(() => {
     if (!isDesktopLocalOriginActive()) {
-      openDialogFromMenu(() => setAboutDialogOpen(true))
+      openDialogFromMenu(() => setAboutDialogOpen(true, { fromMenu: true }))
       return
     }
 
@@ -152,8 +151,7 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
         const state = useUpdateStore.getState()
         const outcome = manualUpdateCheckOutcome(state)
         if (outcome === "open-update") {
-          armMenuDialogDismissalGuard()
-          state.setUpdateDialogOpen(true)
+          openDialogFromMenu(() => state.setUpdateDialogOpen(true, { fromMenu: true }))
           return
         }
         if (outcome === "failed") {
@@ -220,11 +218,11 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
     (action: MenuAction) => {
       switch (action) {
         case "about":
-          openDialogFromMenu(() => setAboutDialogOpen(true))
+          openDialogFromMenu(() => setAboutDialogOpen(true, { fromMenu: true }))
           break
 
         case "settings":
-          openDialogFromMenu(() => setSettingsDialogOpen(true))
+          openDialogFromMenu(() => setSettingsDialogOpen(true, { fromMenu: true }))
           break
 
         case "command-palette":
