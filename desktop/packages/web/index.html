@@ -69,11 +69,12 @@
 
     <!-- Inline CSS for loading screen and Nerd Fonts (before Tailwind loads) -->
     <style>
-      /* Nerd Font @font-face declarations for terminal icon support. Local installs only:
-         font-src allows 'self' and data:, so remote files would be blocked anyway. */
+      /* Terminal private-use glyphs. local() prefers an installed face; both
+         families otherwise use the bundled Symbols Nerd Font Mono on this
+         origin. font-src stays 'self', the packaged app origin, and data:. */
       @font-face {
         font-family: "JetBrainsMono Nerd Font";
-        src: local("JetBrainsMono Nerd Font");
+        src: local("JetBrainsMono Nerd Font"), url("/fonts/symbols-nerd-font-mono.woff2") format("woff2");
         font-weight: normal;
         font-style: normal;
         font-display: swap;
@@ -82,7 +83,7 @@
 
       @font-face {
         font-family: "FiraCode Nerd Font";
-        src: local("FiraCode Nerd Font");
+        src: local("FiraCode Nerd Font"), url("/fonts/symbols-nerd-font-mono.woff2") format("woff2");
         font-weight: normal;
         font-style: normal;
         font-display: swap;
@@ -166,8 +167,8 @@
       }, 10000)
     </script>
 
-    <!-- Terminal font stack: locally installed Nerd Fonts apply through .fonts-loaded.
-         Remote font files are not fetched: font-src allows only 'self' and data:. -->
+    <!-- .fonts-loaded applies the terminal font stack. Icon glyphs come from the
+         bundled same-origin face, or from a Nerd Font installed locally. -->
     <script>
       document.documentElement.classList.add("fonts-loaded")
     </script>

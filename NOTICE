@@ -26,6 +26,14 @@ widgets because this project includes derived code. Those accounts are credited
 for upstream work and are not necessarily maintainers of, or direct contributors
 to, AX Code Desktop.
 
+The terminal icon face at desktop/packages/web/public/fonts/symbols-nerd-font-mono.woff2
+is Symbols Nerd Font Mono from the Nerd Fonts v3.5.1 symbols-only archive
+(https://github.com/ryanoasis/nerd-fonts/releases/tag/v3.5.1), Copyright (c) 2014
+Ryan L McIntyre, under the MIT License. The upstream LICENSE and README ship
+beside that file as symbols-nerd-font-mono.LICENSE and
+symbols-nerd-font-mono.README.md. The README lists the icon-set licenses,
+including Apache-2.0, CC BY 4.0, MIT, and OFL 1.1.
+
 See LICENSE for the full text of the Apache License, Version 2.0, and LICENSE-MIT
 for the MIT License as it applies to the OpenChamber-derived portions of this
 project.
