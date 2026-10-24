@@ -1,7 +1,12 @@
 import React, { act } from "react"
 import { afterEach, describe, expect, test, vi } from "vitest"
 import { cleanup, fireEvent, render, screen, within } from "@/test/dom"
-import { SessionDeleteConfirmDialog, type DeleteSessionConfirmState } from "./ConfirmDialogs"
+import {
+  BulkSessionDeleteConfirmDialog,
+  SessionDeleteConfirmDialog,
+  type BulkDeleteSessionsConfirmState,
+  type DeleteSessionConfirmState,
+} from "./ConfirmDialogs"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
 vi.mock("@/lib/i18n", async () => {
@@ -81,5 +86,40 @@ describe("SessionDeleteConfirmDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "open" }))
 
     expect(screen.getByRole("dialog").textContent).toContain('"Session ses_a" will be archived.')
+  })
+})
+
+function BulkHarness({ count, projectName }: { count: number; projectName: string }) {
+  const [value, setValue] = React.useState<BulkDeleteSessionsConfirmState>({
+    sessionCount: count,
+    archivedBucket: false,
+  })
+  return (
+    <BulkSessionDeleteConfirmDialog
+      value={value}
+      setValue={setValue}
+      showDeletionDialog
+      setShowDeletionDialog={() => {}}
+      projectName={projectName}
+      onConfirm={() => {}}
+    />
+  )
+}
+
+describe("BulkSessionDeleteConfirmDialog project copy", () => {
+  afterEach(() => cleanup())
+
+  test("uses a singular description for the last session in a project", () => {
+    render(<BulkHarness count={1} projectName="Shared (/repo)" />)
+
+    const text = screen.getByRole("dialog").textContent
+    expect(text).toContain('The session in "Shared (/repo)" will be archived.')
+    expect(text).not.toContain("All 1 sessions")
+  })
+
+  test("keeps the project count in the plural description", () => {
+    render(<BulkHarness count={3} projectName="Shared (/repo)" />)
+
+    expect(screen.getByRole("dialog").textContent).toContain('All 3 sessions in "Shared (/repo)" will be archived.')
   })
 })

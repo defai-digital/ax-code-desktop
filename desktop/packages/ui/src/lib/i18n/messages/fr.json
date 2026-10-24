@@ -2087,6 +2087,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sessions seront d\u00e9finitivement supprim\u00e9es.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} session sera archiv\u00e9e.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sessions seront archiv\u00e9es.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "La session de \u00ab {projectName} \u00bb sera archiv\u00e9e.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "Les {count} sessions de \u00ab {projectName} \u00bb seront toutes archiv\u00e9es.",
   "sessions.sidebar.dialogs.deleteFolder.title": "Supprimer le dossier\u00a0?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\u00ab\u00a0{folderName}\u00a0\u00bb sera supprim\u00e9 avec {count} sous-dossier. Les sessions qu\u2019il contient ne seront pas supprim\u00e9es.",

@@ -2087,6 +2087,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sesiones se eliminar\u00e1n permanentemente.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} sesi\u00f3n se archivar\u00e1.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sesiones se archivar\u00e1n.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "Se archivar\u00e1 la sesi\u00f3n de \u00ab{projectName}\u00bb.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "Se archivar\u00e1n todas las sesiones ({count}) de \u00ab{projectName}\u00bb.",
   "sessions.sidebar.dialogs.deleteFolder.title": "\u00bfEliminar carpeta?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\"{folderName}\" se eliminar\u00e1 junto con {count} subcarpeta. Las sesiones dentro no se eliminar\u00e1n.",

@@ -2093,6 +2093,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} oturum kal\u0131c\u0131 olarak silinecek.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} oturum ar\u015fivlenecek.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} oturum ar\u015fivlenecek.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "\"{projectName}\" i\u00e7indeki oturum ar\u015fivlenecek.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "\"{projectName}\" i\u00e7indeki {count} oturumun t\u00fcm\u00fc ar\u015fivlenecek.",
   "sessions.sidebar.dialogs.deleteFolder.title": "Klas\u00f6r silinsin mi?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\"{folderName}\", {count} alt klas\u00f6rle birlikte silinecek. \u0130\u00e7indeki oturumlar silinmeyecek.",

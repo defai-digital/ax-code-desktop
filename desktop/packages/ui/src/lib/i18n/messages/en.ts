@@ -584,6 +584,8 @@ export const dict = {
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sessions will be permanently deleted.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} session will be archived.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sessions will be archived.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription":
+    'The session in "{projectName}" will be archived.',
   "sessions.sidebar.dialogs.archiveProjectSessions.description":
     'All {count} sessions in "{projectName}" will be archived.',
   "sessions.sidebar.dialogs.deleteFolder.title": "Delete folder?",

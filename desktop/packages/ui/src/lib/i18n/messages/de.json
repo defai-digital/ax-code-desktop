@@ -2093,6 +2093,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} Sitzungen werden dauerhaft gel\u00f6scht.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} Sitzung wird archiviert.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} Sitzungen werden archiviert.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "Die Sitzung in \u201e{projectName}\u201c wird archiviert.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "Alle {count} Sitzungen in \u201e{projectName}\u201c werden archiviert.",
   "sessions.sidebar.dialogs.deleteFolder.title": "Ordner l\u00f6schen?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\u201e{folderName}\u201c wird zusammen mit {count} Unterordner gel\u00f6scht. Sitzungen darin bleiben erhalten.",

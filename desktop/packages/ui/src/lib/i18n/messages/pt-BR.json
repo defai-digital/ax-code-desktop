@@ -2087,6 +2087,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sess\u00f5es ser\u00e3o exclu\u00eddas permanentemente.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} sess\u00e3o ser\u00e1 arquivada.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sess\u00f5es ser\u00e3o arquivadas.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "A sess\u00e3o em \"{projectName}\" ser\u00e1 arquivada.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "Todas as {count} sess\u00f5es em \"{projectName}\" ser\u00e3o arquivadas.",
   "sessions.sidebar.dialogs.deleteFolder.title": "Excluir pasta?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\"{folderName}\" ser\u00e1 exclu\u00edda com {count} subpasta. Sess\u00f5es dentro n\u00e3o ser\u00e3o exclu\u00eddas.",

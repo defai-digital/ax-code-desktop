@@ -2093,6 +2093,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sessioni verranno eliminate definitivamente.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} sessione verr\u00e0 archiviata.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sessioni verranno archiviate.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "La sessione in \"{projectName}\" verr\u00e0 archiviata.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "Tutte le {count} sessioni in \"{projectName}\" verranno archiviate.",
   "sessions.sidebar.dialogs.deleteFolder.title": "Eliminare la cartella?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\"{folderName}\" verr\u00e0 eliminata insieme a {count} sottocartella. Le sessioni al suo interno non verranno eliminate.",

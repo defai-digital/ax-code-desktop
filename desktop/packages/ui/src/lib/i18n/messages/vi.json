@@ -2093,6 +2093,7 @@
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} phi\u00ean s\u1ebd b\u1ecb x\u00f3a v\u0129nh vi\u1ec5n.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} phi\u00ean s\u1ebd \u0111\u01b0\u1ee3c l\u01b0u tr\u1eef.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} phi\u00ean s\u1ebd \u0111\u01b0\u1ee3c l\u01b0u tr\u1eef.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.singleDescription": "Phi\u00ean trong \"{projectName}\" s\u1ebd \u0111\u01b0\u1ee3c l\u01b0u tr\u1eef.",
   "sessions.sidebar.dialogs.archiveProjectSessions.description": "T\u1ea5t c\u1ea3 {count} phi\u00ean trong \"{projectName}\" s\u1ebd \u0111\u01b0\u1ee3c l\u01b0u tr\u1eef.",
   "sessions.sidebar.dialogs.deleteFolder.title": "X\u00f3a th\u01b0 m\u1ee5c?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder": "\"{folderName}\" s\u1ebd b\u1ecb x\u00f3a c\u00f9ng {count} th\u01b0 m\u1ee5c con. C\u00e1c phi\u00ean b\u00ean trong s\u1ebd kh\u00f4ng b\u1ecb x\u00f3a.",

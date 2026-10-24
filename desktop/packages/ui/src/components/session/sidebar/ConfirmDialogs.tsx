@@ -139,7 +139,9 @@ export function BulkSessionDeleteConfirmDialog(props: {
       ? t("sessions.sidebar.dialogs.archiveSession.title")
       : t("sessions.sidebar.dialogs.archiveSessions.title")
   const description = props.projectName && !archived
-    ? t("sessions.sidebar.dialogs.archiveProjectSessions.description", { count: n, projectName: props.projectName })
+    ? n === 1
+      ? t("sessions.sidebar.dialogs.archiveProjectSessions.singleDescription", { projectName: props.projectName })
+      : t("sessions.sidebar.dialogs.archiveProjectSessions.description", { count: n, projectName: props.projectName })
     : archived
     ? n === 1
       ? t("sessions.sidebar.dialogs.deleteSessions.singleDescription", { count: n })
