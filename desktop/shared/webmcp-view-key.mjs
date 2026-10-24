@@ -1,6 +1,12 @@
-/** Lexical absolute-path identity shared by Electron and the renderer; no filesystem access. */
+/** Lexical absolute-path identity shared by Electron and the renderer; no filesystem access.
+ * @param {unknown} directory
+ * @returns {string}
+ */
 export function projectKeyFor(directory) {
-  let value = directory.replace(/\\/g, "/")
+  // Session-shaped data can arrive before its directory resolves. Treat a
+  // missing directory as the empty project key instead of throwing while a
+  // titlebar or sidebar renders runtime-derived rows.
+  let value = typeof directory === "string" ? directory.replace(/\\/g, "/") : ""
   const windows = /^[a-z]:\//i.test(value) || value.startsWith("//")
   if (windows) value = value.toLowerCase()
   const drive = value.match(/^[a-z]:\//)?.[0] ?? ""
@@ -16,6 +22,11 @@ export function projectKeyFor(directory) {
   return prefix + parts.join("/")
 }
 
+/**
+ * @param {unknown} directory
+ * @param {unknown} [sessionID]
+ * @returns {string}
+ */
 export function viewKeyFor(directory, sessionID) {
   return `${projectKeyFor(directory)}\0${sessionID ?? "draft"}`
 }

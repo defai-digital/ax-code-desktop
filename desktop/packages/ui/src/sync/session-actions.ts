@@ -585,6 +585,12 @@ export async function createSession(
     if (result.error) throw new Error(`Failed to create session: ${formatSdkError(result.error)}`)
     const session = result.data
     if (!session) throw new Error("Failed to create session: response did not include session data")
+    // A proxy or an older runtime can answer with something that is not a
+    // session. Reject it at the boundary: continuing would seed stores with an
+    // undefined id, and the next render would fail far from the request.
+    if (typeof (session as { id?: unknown }).id !== "string" || session.id.length === 0) {
+      throw new Error("Failed to create session: response did not include a session id")
+    }
 
     // A new root session records the composer's auto-accept default now, so
     // sessions that existed before the change stay off and a later default

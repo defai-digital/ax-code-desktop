@@ -106,6 +106,7 @@ const reviewDiffs = ${JSON.stringify(STUB_REVIEW_DIFFS)};
 const portfolio = scenario && Array.isArray(scenario.portfolio) ? scenario.portfolio : [];
 let scheduledFixture = [];
 let scheduledWrites = [];
+const createdSessions = [];
 let scheduledCreateAttempts = 0;
 let scheduledFailCreateAt = 0;
 let scheduledFixtureModel = false;
@@ -166,7 +167,7 @@ const server = http.createServer((req, res) => {
     const directory = scenario.projectDirectory;
     // Windows sends C:/Work/Repo while fixtures use C:\Work\Repo: compare one canonical spelling.
     const scopedDirectory = canonDirectory(url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '');
-    const sessions = [scenario.session, ...portfolio.map(entry => entry.session)];
+    const sessions = [scenario.session, ...portfolio.map(entry => entry.session), ...createdSessions];
     // Native project-browser journey: provider enrollment without a model or agent calls.
     if (pathname === '/desktop/browser/capability') {
       json(res, { capability: 'desktop.webmcp.v1', browserMode: 'embedded' });
@@ -477,8 +478,26 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/session' || pathname === '/experimental/session') {
+      if (req.method === 'POST') {
+        readBody(req, (body) => {
+          const sequence = createdSessions.length + 1;
+          const created = {
+            id: 'ses_e2e_created_' + sequence,
+            slug: 'e2e-created-' + sequence,
+            projectID: scenario.project.id,
+            directory: scopedDirectory || directory,
+            title: typeof body.title === 'string' && body.title.trim() ? body.title : 'E2E created session',
+            version: '0.0.0-e2e',
+            time: { created: Date.now(), updated: Date.now() },
+          };
+          createdSessions.push(created);
+          json(res, created);
+        });
+        return;
+      }
       json(res, url.searchParams.get('archived') === 'true' ? [] :
-        sessions.filter(entry => !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory));
+        sessions.filter(entry =>
+          !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory));
       return;
     }
     if (pathname === '/project') {
@@ -534,7 +553,8 @@ const server = http.createServer((req, res) => {
     }
     const sessionMatch = pathname.match(/^\\/session\\/([^/]+)$/);
     if (sessionMatch && req.method === 'GET') {
-      const entry = sessions.find(item => item.id === decodeURIComponent(sessionMatch[1]) &&
+      const sessionID = decodeURIComponent(sessionMatch[1]);
+      const entry = sessions.find(item => item.id === sessionID &&
         (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
       res.statusCode = entry ? 200 : 404;
       json(res, entry || { error: 'session not found in this directory' });

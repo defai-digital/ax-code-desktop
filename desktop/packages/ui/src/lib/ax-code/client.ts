@@ -695,8 +695,17 @@ class AxCodeService {
       title: params?.title,
     })
     if (response.error) throw new Error(`Failed to create session: ${formatSdkError(response.error)}`)
-    if (!response.data) throw new Error("Failed to create session: response did not include session data")
-    return response.data
+    const session = response.data as unknown
+    if (!session) throw new Error("Failed to create session: response did not include session data")
+    if (
+      typeof session !== "object" ||
+      Array.isArray(session) ||
+      typeof (session as { id?: unknown }).id !== "string" ||
+      (session as { id: string }).id.length === 0
+    ) {
+      throw new Error("Failed to create session: response did not include a session id")
+    }
+    return session as Session
   }
 
   async getSession(id: string): Promise<Session> {

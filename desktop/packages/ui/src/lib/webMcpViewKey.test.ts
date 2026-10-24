@@ -18,3 +18,10 @@ test("retains POSIX case and distinguishes drive and project roots", () => {
   expect(viewKeyFor("C:/", null)).not.toBe(viewKeyFor("D:/", null))
   expect(viewKeyFor("//server/share", null)).not.toBe(viewKeyFor("//server/other", null))
 })
+
+test("treats a missing directory as an empty project key", () => {
+  expect(projectKeyFor(undefined)).toBe("")
+  expect(projectKeyFor(null)).toBe("")
+  expect(viewKeyFor(undefined, "ses_one")).toBe("\0ses_one")
+  expect(viewKeyFor(null, undefined)).toBe("\0draft")
+})

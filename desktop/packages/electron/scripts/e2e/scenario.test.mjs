@@ -91,6 +91,24 @@ spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their 
   expect(await (await read("/experimental/session")).json()).toHaveLength(2)
   expect(await (await read("/session", other.session.directory)).json()).toEqual([other.session])
   expect(await (await read("/session", "/unknown")).json()).toEqual([])
+  const createdResponse = await fetch(
+    `${handle.base}/session?directory=${encodeURIComponent(other.session.directory)}`,
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ title: "Created browser session" }) },
+  )
+  const created = await createdResponse.json()
+  expect(created).toMatchObject({
+    id: "ses_e2e_created_1",
+    title: "Created browser session",
+    directory: other.session.directory,
+  })
+  expect(await (await read("/session", other.session.directory)).json()).toEqual([other.session, created])
+  expect(await (await read(`/session/${created.id}`, other.session.directory)).json()).toEqual(created)
+  expect(await (await read(`/session/${created.id}/message`, other.session.directory)).json()).toEqual([])
+  const enrolled = await (await fetch(
+    `${handle.base}/desktop/browser/provider?directory=${encodeURIComponent(other.session.directory)}`,
+    { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ sessionID: created.id, snapshot: {} }) },
+  )).json()
+  expect(enrolled).toMatchObject({ epoch: "e2e", projectID: scenario.project.id })
   expect(await (await read("/session/status", other.session.directory)).json()).toEqual({})
   expect((await read(`/session/${other.session.id}`, scenario.projectDirectory)).status).toBe(404)
   expect(await (await read(`/session/${other.session.id}`, other.session.directory)).json()).toEqual(other.session)

@@ -547,6 +547,24 @@ describe("createSession passes directory", () => {
       "Failed to create session: Project directory is not accessible",
     )
   })
+
+  test("rejects a response that carries no session id", async () => {
+    mockScopedClient.session.create.mockImplementationOnce((params: Record<string, unknown>) => {
+      createSessionCalls.push({ client: "scoped", params })
+      return Promise.resolve({ data: [] }) as unknown as Promise<MockSessionCreateResult>
+    })
+
+    const { createSession, setActionRefs } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/current/project")
+    setCurrentSessionMock.mockClear()
+    upsertSessionMock.mockClear()
+
+    await expect(createSession("Desktop session", "/selected/project", null)).rejects.toThrow(
+      "Failed to create session: response did not include a session id",
+    )
+    expect(setCurrentSessionMock).not.toHaveBeenCalled()
+    expect(upsertSessionMock).not.toHaveBeenCalled()
+  })
 })
 
 describe("unarchiveSession", () => {
