@@ -102,6 +102,7 @@ const { createRendererCrashPolicy } = require("./renderer-crash-policy")
 const { createSettingsWriteHandler } = require("./settings-write-handler")
 const { indexContract, validateCommandArgs } = require("./ipc-args")
 const { loadUrlWithTimeout } = require("./load-url-timeout")
+const { readRendererConsoleWarning } = require("./renderer-console-message")
 const { createSupervisionWindowController } = require("./supervision-window")
 const { shouldCheckForUpdatesOnStartup } = require("./startup-update-policy")
 const { sendUpdateProgressToWindows } = require("./update-progress")
@@ -817,25 +818,10 @@ function createMainWindowShell() {
     onBlocked: safeOpenExternal,
   })
 
-  mainWindow.webContents.on("console-message", (_event, details) => {
-    // Electron 32+ passes one MessageDetails object with a numeric level
-    // (0 verbose, 1 info, 2 warning, 3 error). The old positional
-    // (level, message, line, sourceId) shape is gone, and the previous
-    // dual-signature read fell back to the details object itself, so
-    // `level >= 2` never matched and renderer console errors went unlogged.
-    const level = typeof details?.level === "number" ? details.level : -1
-    const message = typeof details?.message === "string" ? details.message : ""
-    if (level >= 2 && message) {
-      recordStartupEvent(
-        "renderer.console",
-        {
-          level,
-          message,
-          line: details?.lineNumber,
-          source: details?.sourceUrl,
-        },
-        { once: false },
-      )
+  mainWindow.webContents.on("console-message", (event, ...legacyArgs) => {
+    const warning = readRendererConsoleWarning(event, ...legacyArgs)
+    if (warning) {
+      recordStartupEvent("renderer.console", warning, { once: false })
     }
   })
 

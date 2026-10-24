@@ -1133,6 +1133,50 @@ const rejectSettingsWaiters = (waiters: typeof _pendingSettingsWaiters, error: u
 // while the server held the newer value.
 let _settingsFlushSequence = 0
 
+// The flush that last carried each key, so a retried flush only re-sends the keys no later flush
+// has taken over: re-sending an older value after a newer save landed would put it back on disk.
+const _settingsKeySequence = new Map<string, number>()
+
+const recordSettingsKeys = (changes: Partial<DesktopSettings>, sequence: number) => {
+  for (const key of Object.keys(changes)) _settingsKeySequence.set(key, sequence)
+}
+
+// A write that never reached the settings route — the desktop proxy answering 502/503 while the web
+// server is starting or its connection drops, a fetch that fails outright, the rate limiter — is
+// retried instead of reported. The PUT merges a partial change, so sending it again is safe. Without
+// this, one dropped request discarded the change and showed "Failed to save settings" although the
+// same write succeeded a moment later.
+const SETTINGS_RETRY_DELAYS_MS = [500, 1500, 4000]
+const TRANSIENT_SETTINGS_STATUSES = new Set([408, 429, 502, 503, 504])
+let _settingsRetryAttempt = 0
+
+class TransientSettingsSaveError extends Error {}
+
+// Puts a transiently failed flush back in the queue behind a backoff. Returns false once the retry
+// budget is spent, and the caller reports the failure.
+const requeueTransientSettingsFailure = (
+  changes: Partial<DesktopSettings>,
+  waiters: typeof _pendingSettingsWaiters,
+  sequence: number,
+): boolean => {
+  const delay = SETTINGS_RETRY_DELAYS_MS[_settingsRetryAttempt]
+  if (delay === undefined) {
+    _settingsRetryAttempt = 0
+    return false
+  }
+  _settingsRetryAttempt += 1
+  const retained = Object.fromEntries(
+    Object.entries(changes).filter(([key]) => _settingsKeySequence.get(key) === sequence),
+  ) as Partial<DesktopSettings>
+  // Values queued since this flush started are newer and win.
+  _pendingSettingsChanges = { ...retained, ...(_pendingSettingsChanges ?? {}) }
+  _pendingSettingsWaiters = [...waiters, ..._pendingSettingsWaiters]
+  if (!_settingsFlushTimer) {
+    _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), delay)
+  }
+  return true
+}
+
 const _flushSettingsUpdate = async (): Promise<void> => {
   const sequence = ++_settingsFlushSequence
   const changes = _pendingSettingsChanges
@@ -1144,6 +1188,7 @@ const _flushSettingsUpdate = async (): Promise<void> => {
     resolveSettingsWaiters(waiters)
     return
   }
+  recordSettingsKeys(changes, sequence)
 
   try {
     const runtimeSettings = getRuntimeSettingsAPI()
@@ -1167,6 +1212,7 @@ const _flushSettingsUpdate = async (): Promise<void> => {
             _settingsCache = { value: effective, at: Date.now() }
           }
         }
+        _settingsRetryAttempt = 0
         resolveSettingsWaiters(waiters)
         return
       } catch (error) {
@@ -1174,16 +1220,25 @@ const _flushSettingsUpdate = async (): Promise<void> => {
       }
     }
 
-    const response = await fetch(API_ENDPOINTS.config.settings, {
-      method: HTTP_DEFAULTS.method.put,
-      headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
-      body: JSON.stringify(changes),
-    })
+    let response: Response
+    try {
+      response = await fetch(API_ENDPOINTS.config.settings, {
+        method: HTTP_DEFAULTS.method.put,
+        headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
+        body: JSON.stringify(changes),
+      })
+    } catch (error) {
+      throw new TransientSettingsSaveError(error instanceof Error ? error.message : String(error), { cause: error })
+    }
 
     if (!response.ok) {
-      const error = new Error(`Failed to update shared settings via API: ${response.status} ${response.statusText}`)
-      console.warn(error.message)
-      rejectSettingsWaiters(waiters, error)
+      const message = `Failed to update shared settings via API: ${response.status} ${response.statusText}`
+      if (TRANSIENT_SETTINGS_STATUSES.has(response.status)) {
+        throw new TransientSettingsSaveError(message)
+      }
+      console.warn(message)
+      _settingsRetryAttempt = 0
+      rejectSettingsWaiters(waiters, new Error(message))
       return
     }
 
@@ -1200,8 +1255,13 @@ const _flushSettingsUpdate = async (): Promise<void> => {
         _settingsCache = null
       }
     }
+    _settingsRetryAttempt = 0
     resolveSettingsWaiters(waiters)
   } catch (error) {
+    if (error instanceof TransientSettingsSaveError && requeueTransientSettingsFailure(changes, waiters, sequence)) {
+      console.warn("Settings save did not reach the server, retrying:", error.message)
+      return
+    }
     console.warn("Failed to update shared settings via API:", error)
     rejectSettingsWaiters(waiters, error)
   }
@@ -1255,6 +1315,7 @@ const _flushSettingsUpdateOnUnload = (): void => {
   // lands and puts its stale payload back in the store (and the auto-save
   // watchers then write that stale value back to the server).
   _settingsFlushSequence += 1
+  recordSettingsKeys(changes, _settingsFlushSequence)
   try {
     const runtimeSettings = getRuntimeSettingsAPI()
     const write = runtimeSettings

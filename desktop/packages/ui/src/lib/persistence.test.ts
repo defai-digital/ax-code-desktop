@@ -80,8 +80,91 @@ describe("updateDesktopSettings", () => {
     const update = updateDesktopSettings({ themeId: "dark" })
     const rejection = expect(update).rejects.toThrow("Failed to parse URL from /api/config/settings")
 
+    // The first attempt and three backed-off retries.
+    await vi.advanceTimersByTimeAsync(200 + 500 + 1500 + 4000)
+    await rejection
+    expect(fetch).toHaveBeenCalledTimes(4)
+  })
+
+  test("retries a save that never reached the settings route instead of reporting it", async () => {
+    // The desktop proxy answers 502/503 while the web server is unreachable for a moment. That one
+    // dropped request used to discard the change and show "Failed to save settings".
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => null,
+    }))
+    const fetch = vi
+      .fn()
+      .mockResolvedValueOnce(new Response("Bad Gateway", { status: 502, statusText: "Bad Gateway" }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ fontSize: 16 }), { status: 200 }))
+    vi.stubGlobal("fetch", fetch)
+
+    const { updateDesktopSettings } = await import("./persistence")
+    let settled: "resolved" | "rejected" | null = null
+    const update = updateDesktopSettings({ fontSize: 16 }).then(
+      () => (settled = "resolved"),
+      () => (settled = "rejected"),
+    )
+
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(settled).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(500 + 1500)
+    await update
+    expect(settled).toBe("resolved")
+    expect(fetch).toHaveBeenCalledTimes(3)
+    expect(JSON.parse(fetch.mock.calls[2]?.[1]?.body as string)).toEqual({ fontSize: 16 })
+  })
+
+  test("does not retry over a value a later save already sent", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => null,
+    }))
+    const gateways: Array<(response: Response) => void> = []
+    const fetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>(
+      () =>
+        new Promise<Response>((resolve) => {
+          gateways.push(resolve)
+        }),
+    )
+    vi.stubGlobal("fetch", fetch)
+
+    const { updateDesktopSettings } = await import("./persistence")
+    const first = updateDesktopSettings({ fontSize: 14, showReasoningTraces: true })
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ fontSize: 15 })
+    await vi.advanceTimersByTimeAsync(200)
+    expect(fetch).toHaveBeenCalledTimes(2)
+
+    gateways[1]?.(new Response(JSON.stringify({ fontSize: 15 }), { status: 200 }))
+    await second
+    gateways[0]?.(new Response("Service Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    // Only the key no later flush took over goes out again.
+    expect(JSON.parse(fetch.mock.calls[2]?.[1]?.body as string)).toEqual({ showReasoningTraces: true })
+
+    gateways[2]?.(new Response("{}", { status: 200 }))
+    await expect(first).resolves.toBeUndefined()
+  })
+
+  test("reports a save the server rejected without retrying it", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => null,
+    }))
+    const fetch = vi
+      .fn()
+      .mockResolvedValue(new Response("{}", { status: 500, statusText: "Internal Server Error" }))
+    vi.stubGlobal("fetch", fetch)
+
+    const { updateDesktopSettings } = await import("./persistence")
+    const update = updateDesktopSettings({ fontSize: 16 })
+    const rejection = expect(update).rejects.toThrow("500 Internal Server Error")
+
     await vi.advanceTimersByTimeAsync(200)
     await rejection
+    await vi.advanceTimersByTimeAsync(10_000)
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
