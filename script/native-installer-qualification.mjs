@@ -65,11 +65,32 @@ export function assertHostedRunner(env, target) {
 }
 const command = (tool, args, env = process.env) =>
   execFileSync(tool, args, { encoding: "utf8", timeout: 600000, stdio: "pipe", shell: false, env })
-// Apple ticket lookups can lose the connection even after notarization and
-// stapling succeed. Every retry still has to pass the original validation.
-export function validateAppleTicket(app, { run = command } = {}) {
-  return run("bash", [fileURLToPath(new URL("../desktop/scripts/ci-retry.sh", import.meta.url)),
-    "xcrun", "stapler", "validate", app])
+// Apple ticket lookups can lose the connection after successful notarization.
+// Invoke xcrun directly: the app path is data, never an interpreter argument.
+const ticketRetryClock = new Int32Array(new SharedArrayBuffer(4))
+const waitForTicketRetry = (ms) => Atomics.wait(ticketRetryClock, 0, 0, ms)
+const runTicketCommand = (tool, args, options) =>
+  execFileSync(tool, args, { encoding: "utf8", stdio: "pipe", shell: false, ...options })
+export function validateAppleTicket(
+  app,
+  { run = runTicketCommand, wait = waitForTicketRetry, now = () => performance.now() } = {},
+) {
+  // Preserve the old wrapper's ten-minute total budget across commands/backoff.
+  const deadline = now() + 600000
+  let lastError
+  for (let attempt = 0; ; attempt++) {
+    const remainingMs = Math.floor(deadline - now())
+    if (remainingMs <= 0) throw lastError ?? new Error("Apple ticket validation deadline expired")
+    try {
+      return run("xcrun", ["stapler", "validate", app], { timeout: remainingMs })
+    } catch (error) {
+      const delayMs = 20000 * 2 ** attempt
+      if (attempt === 2 || deadline - now() <= delayMs) throw error
+      lastError = error
+      console.warn(`::warning::Apple ticket validation failed (attempt ${attempt + 1}/3); retrying in ${delayMs / 1000}s`)
+      wait(delayMs)
+    }
+  }
 }
 
 export function prepareCanonicalAuthFixture(

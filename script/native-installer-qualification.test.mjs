@@ -210,25 +210,79 @@ if (attempts.length <= ${failures}) {
 } else console.log("Ticket validated")
 `, { mode: 0o755 })
   vi.stubEnv("PATH", `${root}${path.delimiter}${process.env.PATH ?? ""}`)
-  vi.stubEnv("CI_RETRY_ATTEMPTS", "3")
-  vi.stubEnv("CI_RETRY_DELAY_SECONDS", "0")
   return { app, attempts: () => JSON.parse(fs.readFileSync(counter, "utf8")) }
 }
 
 test.skipIf(process.platform === "win32")("ticket validation recovers lost connections without changing the app or validation arguments", () => {
   const fixture = ticketLookupFixture(2)
-  expect(validateAppleTicket(fixture.app)).toBe("Ticket validated\n")
+  const wait = vi.fn()
+  expect(validateAppleTicket(fixture.app, { wait })).toBe("Ticket validated\n")
   expect(fixture.attempts()).toEqual(Array.from({ length: 3 }, () => ["stapler", "validate", fixture.app]))
+  expect(wait.mock.calls).toEqual([[20000], [40000]])
 })
 
 test.skipIf(process.platform === "win32")("ticket validation fails closed when every bounded attempt fails", () => {
   const fixture = ticketLookupFixture(10)
-  expect(() => validateAppleTicket(fixture.app)).toThrow()
+  const wait = vi.fn()
+  expect(() => validateAppleTicket(fixture.app, { wait })).toThrow()
   expect(fixture.attempts()).toHaveLength(3)
+  expect(wait.mock.calls).toEqual([[20000], [40000]])
 })
 
 test.skipIf(process.platform === "win32")("ticket validation stops after the first successful attempt", () => {
   const fixture = ticketLookupFixture(0)
-  expect(validateAppleTicket(fixture.app)).toBe("Ticket validated\n")
+  const wait = vi.fn()
+  expect(validateAppleTicket(fixture.app, { wait })).toBe("Ticket validated\n")
   expect(fixture.attempts()).toHaveLength(1)
+  expect(wait).not.toHaveBeenCalled()
+})
+
+
+test("ticket validation invokes only the fixed xcrun command and preserves terminal errors", () => {
+  const app = path.resolve("AX Code.app")
+  const error = new Error("Ticket lookup rejected")
+  const run = vi.fn(() => { throw error })
+  const wait = vi.fn()
+  vi.stubEnv("CI_RETRY_ATTEMPTS", "100")
+  vi.stubEnv("CI_RETRY_DELAY_SECONDS", "0")
+  expect(() => validateAppleTicket(app, { run, wait })).toThrow(error)
+  expect(run.mock.calls.map(([tool, args]) => [tool, args])).toEqual(Array.from({ length: 3 }, () => ["xcrun", ["stapler", "validate", app]]))
+  expect(run.mock.calls.every(([, , options]) => options.timeout > 0 && options.timeout <= 600000)).toBe(true)
+  expect(wait.mock.calls).toEqual([[20000], [40000]])
+})
+
+test.skipIf(process.platform === "win32")("ticket validation passes shell metacharacters as literal app path data", () => {
+  const fixture = ticketLookupFixture(0)
+  const marker = path.join(path.dirname(fixture.app), "must-not-execute")
+  const app = `${fixture.app}; touch "${marker}"; $(touch "${marker}")`
+  expect(validateAppleTicket(app, { wait: vi.fn() })).toBe("Ticket validated\n")
+  expect(fixture.attempts()).toEqual([["stapler", "validate", app]])
+  expect(fs.existsSync(marker)).toBe(false)
+})
+
+
+test("ticket retries share the original total deadline instead of restarting ten minutes each time", () => {
+  let clock = 0
+  const error = new Error("Ticket lookup timed out")
+  const budgets = []
+  const run = vi.fn((_tool, _args, { timeout }) => {
+    budgets.push(timeout)
+    clock += Math.min(200000, timeout)
+    throw error
+  })
+  const wait = vi.fn((ms) => { clock += ms })
+  expect(() => validateAppleTicket(path.resolve("AX Code.app"), { run, wait, now: () => clock })).toThrow(error)
+  expect(budgets).toEqual([600000, 380000, 140000])
+  expect(clock).toBe(600000)
+  expect(wait.mock.calls).toEqual([[20000], [40000]])
+})
+
+test("ticket validation never sleeps or retries beyond its remaining total deadline", () => {
+  let clock = 0
+  const error = new Error("Apple lookup failed near the deadline")
+  const run = vi.fn(() => { clock = 590000; throw error })
+  const wait = vi.fn()
+  expect(() => validateAppleTicket(path.resolve("AX Code.app"), { run, wait, now: () => clock })).toThrow(error)
+  expect(run).toHaveBeenCalledTimes(1)
+  expect(wait).not.toHaveBeenCalled()
 })
