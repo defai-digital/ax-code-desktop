@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "Halaman berubah setelah alat dicantumkan.",
   "chat.toolPart.webmcp.reason.provider-gone": "Browser proyek tidak lagi terhubung.",
   "chat.toolPart.webmcp.reason.timeout": "Alat halaman tidak menanggapi tepat waktu.",
+  "chat.toolPart.webmcp.reason.session-rejected": "Pendaftaran browser ditolak untuk sesi ini.",
   "chat.toolPart.webmcp.reason.tool-not-found": "Halaman tidak menawarkan alat ini.",
   "diffView.landing.browserEvidence": "Dicoba di browser pada giliran ini: {count} langkah",
   "diffView.landing.browserEvidenceFailed": "Dicoba di browser pada giliran ini: {count} langkah, {failed} gagal",

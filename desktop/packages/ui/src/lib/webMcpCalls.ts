@@ -10,6 +10,7 @@ import {
   readWebMcpDefinitionDigest,
   readWebMcpInvokeInput,
   webMcpResultPreview,
+  withoutNextActionLine,
   type WebMcpFailureReason,
   type WebMcpInvokeInputKind,
 } from "./toolHelpers"
@@ -94,6 +95,18 @@ export const messageRole = (message: MessageLike | undefined): string | null => 
 }
 
 /** Messages of the latest turn: from the person's last message on, within the requested scan window (Infinity covers the whole turn). */
+/**
+ * The runtime persists a failure's closed `reason` and `nextAction` on the error state. They render as
+ * the translated reason and the next step, so they must not also appear as raw rejection text.
+ */
+function withoutFailureSignal(metadata: unknown): unknown {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return metadata
+  const rest: Record<string, unknown> = { ...(metadata as Record<string, unknown>) }
+  delete rest.reason
+  delete rest.nextAction
+  return rest
+}
+
 export function latestTurnMessages<T extends MessageLike>(messages: readonly T[], scanMessages = WEBMCP_CALL_SCAN_MESSAGES): readonly T[] {
   const floor = Math.max(0, messages.length - scanMessages)
   for (let index = messages.length - 1; index >= floor; index -= 1) {
@@ -156,7 +169,7 @@ export function collectWebMcpCalls(
               ? "failed"
               : status === "completed" ? "ok" : "running",
         failureReason: call.failureReason,
-        rejections: failed ? webMcpRuntimeRejections(state.metadata, state.output, state.error) : [],
+        rejections: failed ? webMcpRuntimeRejections(withoutFailureSignal(state.metadata), state.output, withoutNextActionLine(state.error)) : [],
         at: typeof state.time?.start === "number" ? state.time.start : null,
         messageId,
         partId: typeof part.id === "string" ? part.id : null,

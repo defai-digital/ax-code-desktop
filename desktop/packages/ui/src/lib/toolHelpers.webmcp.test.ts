@@ -11,6 +11,7 @@ import {
   readWebMcpInvokeInput,
   desktopWebMcpResultFailed,
   desktopWebMcpResultOutcome,
+  withoutNextActionLine,
   desktopWebMcpRowTitle,
   formatToolInput,
   getToolMetadata,
@@ -372,4 +373,12 @@ test.each([731924, true, false, 9876543210123456789n, "731924", "true", "false",
     observed: secret, nested: [[secret, String(secret)], { echo: String(secret) }] } })
   expect(preview).not.toContain(String(secret))
   expect(preview.match(/\[redacted\]/g)).toHaveLength(5)
+})
+
+test("the runtime's appended next-step line is dropped from displayed error text, other lines kept", () => {
+  expect(
+    withoutNextActionLine("Browser request timed out\nnextAction: Call action=read.\n\n<system-reminder>\nx\n</system-reminder>"),
+  ).toBe("Browser request timed out\n\n<system-reminder>\nx\n</system-reminder>")
+  expect(withoutNextActionLine("plain failure")).toBe("plain failure")
+  expect(withoutNextActionLine(undefined)).toBeUndefined()
 })

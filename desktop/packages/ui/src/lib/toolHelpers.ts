@@ -250,6 +250,7 @@ export const WEBMCP_FAILURE_REASONS = [
   "input-too-large",
   "result-too-large",
   "provider-gone",
+  "session-rejected",
   "timeout",
   "native-failure",
   "application-error",
@@ -473,6 +474,14 @@ export function describeWebMcpCall(
     failureReason,
     nextAction,
   }
+}
+
+/**
+ * The runtime appends a failure's next step to the model-visible error as a `nextAction:` line. Desktop
+ * renders that step from metadata, so displays drop the line instead of showing it twice.
+ */
+export function withoutNextActionLine(error: unknown): unknown {
+  return typeof error === "string" ? error.replace(/\nnextAction: [^\n]*/, "") : error
 }
 
 export type WebMcpEffectKey = "invoke" | "click" | "clickSubmit" | "type" | "select" | "navigate" | "other"

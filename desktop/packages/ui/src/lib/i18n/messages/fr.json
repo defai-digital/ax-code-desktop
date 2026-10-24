@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "La page a chang\u00e9 apr\u00e8s que les outils ont \u00e9t\u00e9 list\u00e9s.",
   "chat.toolPart.webmcp.reason.provider-gone": "Le navigateur de projet n'est plus connect\u00e9.",
   "chat.toolPart.webmcp.reason.timeout": "L'outil de page n'a pas r\u00e9pondu \u00e0 temps.",
+  "chat.toolPart.webmcp.reason.session-rejected": "L\u2019inscription du navigateur a \u00e9t\u00e9 refus\u00e9e pour cette session.",
   "chat.toolPart.webmcp.reason.tool-not-found": "La page ne propose pas cet outil.",
   "diffView.landing.browserEvidence": "Essay\u00e9 dans le navigateur ce tour : {count} \u00e9tapes",
   "diffView.landing.browserEvidenceFailed": "Essay\u00e9 dans le navigateur ce tour : {count} \u00e9tapes, {failed} \u00e9chou\u00e9es",

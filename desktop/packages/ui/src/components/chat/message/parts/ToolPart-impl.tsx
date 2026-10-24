@@ -20,6 +20,7 @@ import {
   desktopWebMcpRowTitle,
   getToolMetadata,
   isWebMcpToolName,
+  withoutNextActionLine,
   type WebMcpCallDescription,
 } from "@/lib/toolHelpers"
 import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
@@ -992,7 +993,9 @@ const ToolExpandedContent: React.FC<ToolExpandedContentProps> = React.memo(
                     borderColor: "var(--status-error-border)",
                   }}
                 >
-                  {isWebMcpToolName(normalizeToolName(part.tool)) ? redactWebMcpText(String(state.error)) : state.error}
+                  {isWebMcpToolName(normalizeToolName(part.tool))
+                    ? redactWebMcpText(String(withoutNextActionLine(state.error)))
+                    : state.error}
                 </div>
                 {normalizeToolName(part.tool) === "desktop_webmcp" ? <WebMcpBrowserErrorAction /> : null}
               </div>

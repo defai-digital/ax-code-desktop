@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "Die Seite wurde ge\u00e4ndert, nachdem die Tools aufgelistet wurden.",
   "chat.toolPart.webmcp.reason.provider-gone": "Der Projektbrowser ist nicht mehr verbunden.",
   "chat.toolPart.webmcp.reason.timeout": "Das Seitentool hat nicht rechtzeitig geantwortet.",
+  "chat.toolPart.webmcp.reason.session-rejected": "Die Browser-Anmeldung wurde f\u00fcr diese Sitzung abgelehnt.",
   "chat.toolPart.webmcp.reason.tool-not-found": "Die Seite bietet dieses Tool nicht an.",
   "diffView.landing.browserEvidence": "Im Browser in diesem Durchlauf versucht: {count} Schritte",
   "diffView.landing.browserEvidenceFailed": "Im Browser in diesem Durchlauf versucht: {count} Schritte, {failed} fehlgeschlagen",

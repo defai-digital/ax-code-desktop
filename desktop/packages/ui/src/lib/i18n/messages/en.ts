@@ -2755,6 +2755,7 @@ export const dict = {
   "chat.toolPart.webmcp.reason.invalid-input": "The input does not match the tool's schema.",
   "chat.toolPart.webmcp.reason.provider-gone": "The project browser is no longer connected.",
   "chat.toolPart.webmcp.reason.timeout": "The page tool did not answer in time.",
+  "chat.toolPart.webmcp.reason.session-rejected": "The browser enrollment was rejected for this session.",
   "chat.toolPart.webmcp.reason.native-failure": "The project browser operation failed.",
   "chat.toolPart.webmcp.argumentsMissing": "arguments not provided by the runtime",
   "webmcp.calls.title": "Agent calls on this page",

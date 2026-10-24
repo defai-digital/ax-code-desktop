@@ -291,6 +291,32 @@ describe("desktop WebMCP navigation requests", () => {
     expect(f.requests.some((r) => r.url.endsWith("/reply"))).toBe(false)
   })
 
+  test("a navigation with too little time left reports the timeout without starting a load", async () => {
+    const f = fixture({ loadTimeoutMs: 20000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    const load = vi.spyOn(guest, "loadURL")
+    f.pushStreamRequest(f.navigationRequest({ deadline: Date.now() + 1200 }))
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1))
+    expect(load).not.toHaveBeenCalled()
+    expect(replies(f)[0].body).toMatchObject({ status: "Error", output: { reason: "timeout" } })
+  })
+
+  test("a hanging agent load times out inside the request deadline and reports the timeout", async () => {
+    // The fixed load timeout is far longer than the request has left.
+    const f = fixture({ loadTimeoutMs: 20000 })
+    const { sender, status } = await f.create()
+    await f.controller.command(sender, { action: "enable", id: status.id })
+    const guest = f.guests[0]
+    guest.loadURL = vi.fn(() => new Promise(() => {}))
+    const deadline = Date.now() + 2500
+    f.pushStreamRequest(f.navigationRequest({ deadline }))
+    await vi.waitFor(() => expect(replies(f)).toHaveLength(1), { timeout: 3000 })
+    expect(Date.now()).toBeLessThan(deadline)
+    expect(replies(f)[0].body).toMatchObject({ status: "Error", output: { reason: "timeout" } })
+  })
+
   test.each(["pause", "disconnect", "revokeSession", "cancel"])(
     "stops an in-flight agent load on %s without replay",
     async (action) => {
@@ -1602,7 +1628,8 @@ describe("WX-15 visible-to-act gate", () => {
     sessionID: "ses_fixture",
     requestID: "hidden-call",
     operation: "navigate",
-    deadline: Date.now() + 2000,
+    // Long enough that a held navigation still has load time left when it is released.
+    deadline: Date.now() + 5000,
     url: "https://agent.test/",
     ...partial,
   })
@@ -2887,7 +2914,7 @@ test("sign-in popups share the hardened profile, hold agent work, and resume aft
   const preventDefault = vi.fn()
   f.partitions.values().next().value.emit("will-download", { preventDefault })
   expect(preventDefault).toHaveBeenCalled()
-  f.pushStreamRequest(f.navigationRequest({ requestID: "popup-held", deadline: Date.now() + 2000 }))
+  f.pushStreamRequest(f.navigationRequest({ requestID: "popup-held", deadline: Date.now() + 5000 }))
   await vi.waitFor(async () => expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ waiting: true, waitingForSignIn: true }))
   expect(f.requests.filter((r) => r.url.endsWith("/reply"))).toHaveLength(0)
   f.popups[0].destroy()

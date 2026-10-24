@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "A p\u00e1gina foi alterada ap\u00f3s as ferramentas serem listadas.",
   "chat.toolPart.webmcp.reason.provider-gone": "O navegador do projeto n\u00e3o est\u00e1 mais conectado.",
   "chat.toolPart.webmcp.reason.timeout": "A ferramenta da p\u00e1gina n\u00e3o respondeu a tempo.",
+  "chat.toolPart.webmcp.reason.session-rejected": "O registro do navegador foi recusado para esta sess\u00e3o.",
   "chat.toolPart.webmcp.reason.tool-not-found": "A p\u00e1gina n\u00e3o oferece esta ferramenta.",
   "diffView.landing.browserEvidence": "Tentado no navegador nesta vez: {count} etapas",
   "diffView.landing.browserEvidenceFailed": "Tentado no navegador nesta vez: {count} etapas, {failed} falharam",

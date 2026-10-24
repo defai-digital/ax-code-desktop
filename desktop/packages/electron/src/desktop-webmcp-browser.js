@@ -18,6 +18,9 @@ const {
 } = require("./native-webmcp")
 const { projectToolCatalog, CATALOG_MAX_TOOLS, CATALOG_MAX_BYTES } = require("../../../shared/webmcp-catalog-projection.cjs")
 const { DEFAULT_LOAD_URL_TIMEOUT_MS } = require("./load-url-timeout")
+// Left of a navigate request's deadline for synchronizing and posting the reply.
+const NAVIGATION_REPLY_RESERVE_MS = 1500
+const MIN_NAVIGATION_LOAD_MS = 500
 
 // This secret goes only to the supervised runtime child, never to a renderer or project config.
 const DESKTOP_BROWSER_TOKEN = randomBytes(32).toString("base64url")
@@ -617,7 +620,7 @@ function createDesktopWebMcpBrowser({
   }
   // Promise completions identify their load; did-fail-load does not. In particular,
   // Chromium can emit an old ERR_ABORTED after the replacement page has loaded.
-  async function loadPage(entry, url, signal) {
+  async function loadPage(entry, url, signal, timeoutMs = loadTimeoutMs) {
     if (signal?.aborted) throw new Error("Navigation canceled")
     const sequence = ++entry.loadSequence
     const contents = entry.contents
@@ -639,7 +642,7 @@ function createDesktopWebMcpBrowser({
         timer = setTimeout(() => {
           stop()
           reject(Object.assign(new Error("Navigation timed out"), { reason: "timeout" }))
-        }, loadTimeoutMs)
+        }, timeoutMs)
         timer.unref?.()
         contents.loadURL(url).then(resolve, reject)
       })
@@ -686,7 +689,15 @@ function createDesktopWebMcpBrowser({
       if (typeof request.url !== "string" || !agentOrigin(request.url))
         throw Object.assign(new Error("Only ordinary web page URLs can be opened"), { reason: "invalid-input" })
       const before = entry.adapter.generation
-      await loadPage(entry, request.url, controller.signal)
+      // The runtime gives up on the request at its deadline. Visibility and pause waits
+      // may already have used part of it, so the load gets what is left minus time to
+      // synchronize and reply; a full fresh timeout would outlive the request and its
+      // timeout reason would never reach the model.
+      const remaining = request.deadline - Date.now() - NAVIGATION_REPLY_RESERVE_MS
+      // Too little left to load and still answer in time: report the timeout without loading.
+      if (remaining < MIN_NAVIGATION_LOAD_MS)
+        throw Object.assign(new Error("Navigation timed out before it could start"), { reason: "timeout" })
+      await loadPage(entry, request.url, controller.signal, Math.min(loadTimeoutMs, remaining))
       if (controller.signal.aborted) return
       // The adapter observes the new document asynchronously; give it a brief
       // moment so the reply carries the generation the runtime will hold. The

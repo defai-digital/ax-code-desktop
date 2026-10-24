@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "Trang \u0111\u00e3 thay \u0111\u1ed5i sau khi c\u00f4ng c\u1ee5 \u0111\u01b0\u1ee3c li\u1ec7t k\u00ea.",
   "chat.toolPart.webmcp.reason.provider-gone": "Tr\u00ecnh duy\u1ec7t d\u1ef1 \u00e1n kh\u00f4ng c\u00f2n k\u1ebft n\u1ed1i.",
   "chat.toolPart.webmcp.reason.timeout": "C\u00f4ng c\u1ee5 trang kh\u00f4ng tr\u1ea3 l\u1eddi k\u1ecbp th\u1eddi.",
+  "chat.toolPart.webmcp.reason.session-rejected": "\u0110\u0103ng k\u00fd tr\u00ecnh duy\u1ec7t cho phi\u00ean n\u00e0y \u0111\u00e3 b\u1ecb t\u1eeb ch\u1ed1i.",
   "chat.toolPart.webmcp.reason.tool-not-found": "Trang kh\u00f4ng cung c\u1ea5p c\u00f4ng c\u1ee5 n\u00e0y.",
   "diffView.landing.browserEvidence": "\u0110\u00e3 th\u1eed tr\u00ean tr\u00ecnh duy\u1ec7t trong l\u01b0\u1ee3t n\u00e0y: {count} b\u01b0\u1edbc",
   "diffView.landing.browserEvidenceFailed": "\u0110\u00e3 th\u1eed tr\u00ean tr\u00ecnh duy\u1ec7t trong l\u01b0\u1ee3t n\u00e0y: {count} b\u01b0\u1edbc, {failed} th\u1ea5t b\u1ea1i",

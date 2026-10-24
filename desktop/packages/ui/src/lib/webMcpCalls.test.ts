@@ -24,6 +24,20 @@ describe("collectWebMcpCalls", () => {
     expect(calls[2].argumentsText).toBe('{"a":2,"b":3}')
   })
 
+  test("a persisted failure reason and next step are not repeated as raw rejection text", () => {
+    const failed = tool("p1", "error", {
+      // The runtime appends the next step to the model-visible error text as well.
+      error:
+        "No project browser is enrolled for this coding session.\nnextAction: Ask the user to enable agent access in the project browser pane.",
+      metadata: { reason: "provider-gone", nextAction: "Ask the user to enable agent access in the project browser pane." },
+    })
+    const [call] = collectWebMcpCalls([{ id: "m1" }], () => [failed] as never)
+    expect(call.failureReason).toBe("provider-gone")
+    const texts = (call.rejections ?? []).map((rejection) => rejection.text)
+    expect(texts).not.toContain("provider-gone")
+    expect(texts.join(" ")).not.toContain("Ask the user to enable agent access")
+  })
+
   test("caps the list", () => {
     const parts = new Map([["m", Array.from({ length: 30 }, (_, index) => tool(`p${index}`, "completed"))]])
     expect(collectWebMcpCalls([{ id: "m" }], (id) => parts.get(id) as never, 5)).toHaveLength(5)

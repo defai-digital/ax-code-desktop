@@ -5193,6 +5193,7 @@
   "chat.toolPart.webmcp.reason.page-changed": "Sayfa, ara\u00e7lar listelendikten sonra de\u011fi\u015ftirildi.",
   "chat.toolPart.webmcp.reason.provider-gone": "Proje taray\u0131c\u0131s\u0131 art\u0131k ba\u011fl\u0131 de\u011fil.",
   "chat.toolPart.webmcp.reason.timeout": "Sayfa arac\u0131 zaman\u0131nda yan\u0131t vermedi.",
+  "chat.toolPart.webmcp.reason.session-rejected": "Bu oturum i\u00e7in taray\u0131c\u0131 kayd\u0131 reddedildi.",
   "chat.toolPart.webmcp.reason.tool-not-found": "Sayfa bu arac\u0131 sunmuyor.",
   "diffView.landing.browserEvidence": "Bu turda taray\u0131c\u0131da denendi: {count} ad\u0131m",
   "diffView.landing.browserEvidenceFailed": "Bu turda taray\u0131c\u0131da denendi: {count} ad\u0131m, {failed} ba\u015far\u0131s\u0131z",
