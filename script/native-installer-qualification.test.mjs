@@ -1,12 +1,13 @@
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { expect, test } from "vitest"
+import { afterEach, expect, test, vi } from "vitest"
 import { createRequire } from "node:module"
 import { finished } from "node:stream/promises"
 import { spawnSync } from "node:child_process"
 import {
   readInstalledVersion,
+  validateAppleTicket,
   assertHostedRunner,
   digest,
   verifyPreserved,
@@ -184,4 +185,50 @@ test("reads replaced installer archives without retaining the previous ASAR head
     asar.uncache(archive)
     fs.rmSync(root, { recursive: true, force: true })
   }
+})
+
+const ticketFixtures = []
+afterEach(() => {
+  vi.unstubAllEnvs()
+  for (const root of ticketFixtures.splice(0)) fs.rmSync(root, { recursive: true, force: true })
+})
+
+function ticketLookupFixture(failures) {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "apple ticket lookup "))
+  ticketFixtures.push(root)
+  const counter = path.join(root, "attempts.json")
+  const app = path.join(root, "AX Code.app")
+  fs.writeFileSync(path.join(root, "xcrun"), `#!${process.execPath}
+const fs = require("node:fs")
+const file = ${JSON.stringify(counter)}
+const attempts = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : []
+attempts.push(process.argv.slice(2))
+fs.writeFileSync(file, JSON.stringify(attempts))
+if (attempts.length <= ${failures}) {
+  console.error("Ticket lookup connection lost")
+  process.exitCode = 68
+} else console.log("Ticket validated")
+`, { mode: 0o755 })
+  vi.stubEnv("PATH", `${root}${path.delimiter}${process.env.PATH ?? ""}`)
+  vi.stubEnv("CI_RETRY_ATTEMPTS", "3")
+  vi.stubEnv("CI_RETRY_DELAY_SECONDS", "0")
+  return { app, attempts: () => JSON.parse(fs.readFileSync(counter, "utf8")) }
+}
+
+test.skipIf(process.platform === "win32")("ticket validation recovers lost connections without changing the app or validation arguments", () => {
+  const fixture = ticketLookupFixture(2)
+  expect(validateAppleTicket(fixture.app)).toBe("Ticket validated\n")
+  expect(fixture.attempts()).toEqual(Array.from({ length: 3 }, () => ["stapler", "validate", fixture.app]))
+})
+
+test.skipIf(process.platform === "win32")("ticket validation fails closed when every bounded attempt fails", () => {
+  const fixture = ticketLookupFixture(10)
+  expect(() => validateAppleTicket(fixture.app)).toThrow()
+  expect(fixture.attempts()).toHaveLength(3)
+})
+
+test.skipIf(process.platform === "win32")("ticket validation stops after the first successful attempt", () => {
+  const fixture = ticketLookupFixture(0)
+  expect(validateAppleTicket(fixture.app)).toBe("Ticket validated\n")
+  expect(fixture.attempts()).toHaveLength(1)
 })

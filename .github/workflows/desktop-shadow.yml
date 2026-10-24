@@ -301,7 +301,7 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           AX_CODE_STAGE_REQUIRED: "true"
           CSC_IDENTITY_AUTO_DISCOVERY: "true"
-        run: pnpm run package:desktop -- --mac --arm64 --publish=never
+        run: bash desktop/scripts/ci-retry.sh pnpm run package:desktop -- --mac --arm64 --publish=never
 
       - name: Sign, notarize, and audit macOS disk image
         if: inputs.signing_mode == 'required'
@@ -320,7 +320,7 @@ jobs:
           grep -F "TeamIdentifier=${APPLE_TEAM_ID}" <<< "$dmg_details"
           xcrun notarytool submit "$dmg" --keychain-profile "$APPLE_KEYCHAIN_PROFILE" --keychain "$APPLE_KEYCHAIN" --wait
           bash desktop/scripts/ci-retry.sh xcrun stapler staple "$dmg"
-          xcrun stapler validate "$dmg"
+          bash desktop/scripts/ci-retry.sh xcrun stapler validate "$dmg"
           spctl --assess --type open --context context:primary-signature --verbose=2 "$dmg"
           codesign --verify --deep --strict --verbose=2 "$app"
           app_details="$(codesign -dv --verbose=4 "$app" 2>&1)"

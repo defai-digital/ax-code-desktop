@@ -65,6 +65,13 @@ export function assertHostedRunner(env, target) {
 }
 const command = (tool, args, env = process.env) =>
   execFileSync(tool, args, { encoding: "utf8", timeout: 600000, stdio: "pipe", shell: false, env })
+// Apple ticket lookups can lose the connection even after notarization and
+// stapling succeed. Every retry still has to pass the original validation.
+export function validateAppleTicket(app, { run = command } = {}) {
+  return run("bash", [fileURLToPath(new URL("../desktop/scripts/ci-retry.sh", import.meta.url)),
+    "xcrun", "stapler", "validate", app])
+}
+
 export function prepareCanonicalAuthFixture(
   runtimeRoot,
   authFile,
@@ -245,7 +252,7 @@ async function qualify(target, artifacts, output) {
         if (selection === "candidate") {
           command("codesign", ["--verify", "--deep", "--strict", app])
           command("spctl", ["--assess", "--type", "execute", app])
-          command("xcrun", ["stapler", "validate", app])
+          validateAppleTicket(app)
         }
         const stage = path.join(root, "AX Code.app")
         command("ditto", [app, stage])

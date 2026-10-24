@@ -1909,7 +1909,6 @@ describe("WX-15 session enrollment and revocation", () => {
       generation: before.generation,
       operation: "navigate",
       url: "https://survivor.test/",
-      deadline: Date.now() + 2000,
     })
     await vi.waitFor(() => expect(f.guests[1].loadedUrls).toContain("https://survivor.test/"))
     expect(f.guests[0].loadedUrls).toEqual(["https://example.com/"])
