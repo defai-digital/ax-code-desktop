@@ -16,6 +16,12 @@ const scriptSrcOf = (csp) =>
     .find((part) => part.startsWith("script-src ")) || ""
 
 describe("response security headers", () => {
+  it("allows self-hosted fonts without permitting a font CDN", () => {
+    const csp = buildWebServerCsp({ path: "/" }, () => [])
+    const fontSrc = csp.split(";").map((part) => part.trim()).find((part) => part.startsWith("font-src "))
+    expect(fontSrc).toBe("font-src 'self' data:")
+    expect(fontSrc).not.toContain("jsdelivr")
+  })
   it("sets X-Frame-Options for ordinary routes", () => {
     const res = createMockResponse()
     applySecurityHeaders({ path: "/" }, res)

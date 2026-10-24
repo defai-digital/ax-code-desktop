@@ -313,6 +313,7 @@ module.exports = {
   createRuntimeManifest,
   createRuntimeManifestAsync,
   isNativeBinary,
+  parseExpectedManifest,
   verifyRuntimeManifest,
   verifyRuntimeManifestAsync,
   walkEntries,

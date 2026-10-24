@@ -1,4 +1,5 @@
 import crypto from "node:crypto"
+import path from "path"
 import { WebSocketServer } from "ws"
 import {
   TERMINAL_INPUT_WS_MAX_PAYLOAD_BYTES,
@@ -116,6 +117,32 @@ export const sanitizeTerminalEnv = (env) => {
   return next
 }
 
+export const getTerminalShellCandidates = ({ platform, env, searchPathFor, isExecutable }) => {
+  const candidates = platform === "win32"
+    ? [
+        env.AX_CODE_DESKTOP_TERMINAL_SHELL,
+        "pwsh.exe",
+        path.win32.join(env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+        "powershell.exe",
+        env.ComSpec,
+        "cmd.exe",
+      ]
+    : [env.AX_CODE_DESKTOP_TERMINAL_SHELL, env.SHELL, "/bin/zsh", "/bin/bash", "/bin/sh", "zsh", "bash", "sh"]
+  const resolved = []
+  const seen = new Set()
+  for (const candidateRaw of candidates) {
+    const candidate = String(candidateRaw || "").trim()
+    if (!candidate) continue
+    const hasPathSeparator = candidate.includes("/") || (platform === "win32" && candidate.includes("\\"))
+    const lookedUp = hasPathSeparator ? candidate : searchPathFor(candidate)
+    const executable = lookedUp && isExecutable(lookedUp) ? lookedUp : isExecutable(candidate) ? candidate : null
+    if (!executable || seen.has(executable)) continue
+    seen.add(executable)
+    resolved.push(executable)
+  }
+  return resolved
+}
+
 export function createTerminalRuntime({
   app,
   server,
@@ -167,54 +194,6 @@ export function createTerminalRuntime({
     return ptyProviderPromise
   }
 
-  const resolveExecutableCandidates = (candidates, hasPathSeparator) => {
-    const resolved = []
-    const seen = new Set()
-    for (const candidateRaw of candidates) {
-      const candidate = String(candidateRaw || "").trim()
-      if (!candidate) continue
-
-      const lookedUp = hasPathSeparator(candidate) ? candidate : searchPathFor(candidate)
-      const executable = lookedUp && isExecutable(lookedUp) ? lookedUp : isExecutable(candidate) ? candidate : null
-      if (!executable || seen.has(executable)) continue
-      seen.add(executable)
-      resolved.push(executable)
-    }
-    return resolved
-  }
-
-  const getTerminalShellCandidates = () => {
-    if (process.platform === "win32") {
-      const windowsCandidates = [
-        process.env.AX_CODE_DESKTOP_TERMINAL_SHELL,
-        process.env.SHELL,
-        process.env.ComSpec,
-        path.join(process.env.SystemRoot || "C:\\Windows", "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
-        "pwsh.exe",
-        "powershell.exe",
-        "cmd.exe",
-      ]
-
-      return resolveExecutableCandidates(
-        windowsCandidates,
-        (candidate) => candidate.includes("\\") || candidate.includes("/"),
-      )
-    }
-
-    const unixCandidates = [
-      process.env.AX_CODE_DESKTOP_TERMINAL_SHELL,
-      process.env.SHELL,
-      "/bin/zsh",
-      "/bin/bash",
-      "/bin/sh",
-      "zsh",
-      "bash",
-      "sh",
-    ]
-
-    return resolveExecutableCandidates(unixCandidates, (candidate) => candidate.includes("/"))
-  }
-
   const utf8LocaleFallback = process.platform === "darwin" ? "en_US.UTF-8" : "C.UTF-8"
   const lcCtypeFallback = process.platform === "darwin" ? "UTF-8" : "C.UTF-8"
 
@@ -224,7 +203,12 @@ export function createTerminalRuntime({
   // can print a banner and exit before it becomes a usable interactive session.
   // Startup output is buffered so the prompt isn't lost.
   const spawnTerminalPtyWithFallback = async (pty, { cols, rows, cwd, env }) => {
-    const shellCandidates = getTerminalShellCandidates()
+    const shellCandidates = getTerminalShellCandidates({
+      platform: process.platform,
+      env: process.env,
+      searchPathFor,
+      isExecutable,
+    })
     if (shellCandidates.length === 0) {
       throw new Error("No executable shell found for terminal session")
     }

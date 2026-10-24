@@ -193,13 +193,13 @@ export function useTraySync(enabled = true): void {
         })
         // The dock badge is its own command so it keeps working when the menu bar
         // item is disabled by the user. Only mark the count as delivered once the
-        // invoke resolves — a rejected invoke must not suppress every later retry
+        // invoke succeeds — a rejected or unsupported invoke must not suppress every later retry
         // while the count is unchanged.
         if (snapshot.dockBadgeCount !== lastBadge) {
           const count = snapshot.dockBadgeCount
           void invokeDesktop("desktop_set_badge_count", { count }).then(
-            () => {
-              lastBadge = count
+            (result) => {
+              if (result !== false) lastBadge = count
             },
             (error) => {
               console.warn("[tray-sync] failed to set the dock badge", error)

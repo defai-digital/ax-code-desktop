@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
@@ -9,10 +9,12 @@ const {
   createRuntimeManifest,
   createRuntimeManifestAsync,
   writeRuntimeManifest,
+  verifyRuntimeManifestAsync,
 } = require("../../../../script/runtime-manifest.cjs")
 const {
   EMBEDDED_MANIFEST_NAME,
   PLACEHOLDER_SCHEMA,
+  RECEIPT_SCHEMA,
   verifyBundledAxCodeIntegrity,
   verifyBundledAxCodeIntegrityAsync,
 } = require("./bundled-ax-code-integrity.js")
@@ -122,6 +124,135 @@ describe("bundled ax-code runtime integrity (async)", () => {
     isPackaged: true,
     appPath: paths.appPath,
     resourcesPath: paths.resourcesPath,
+  })
+
+  const cachedOptions = (paths) => ({
+    ...options(paths),
+    appVersion: "1.0.0",
+    receiptFile: path.join(paths.resourcesPath, "receipts", "integrity.json"),
+  })
+
+  test("fully verifies a cache miss and writes a versioned, manifest-bound receipt", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    const verifyFull = vi.fn(verifyRuntimeManifestAsync)
+    await expect(verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })).resolves.toMatchObject({
+      status: "verified", cache: "miss", entries: 3, durationMs: expect.any(Number),
+    })
+    expect(verifyFull).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(fs.readFileSync(config.receiptFile, "utf8"))).toEqual({
+      schema: RECEIPT_SCHEMA,
+      appVersion: "1.0.0",
+      manifestDigest: expect.stringMatching(/^[a-f0-9]{64}$/),
+      runtimeRealpath: fs.realpathSync(paths.runtimeRoot),
+    })
+  })
+
+  test("resolves a hit after checking only startup files while the full scan is pending", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    let release
+    const gate = new Promise((resolve) => { release = resolve })
+    const verifyFull = vi.fn(async (...args) => {
+      await gate
+      return verifyRuntimeManifestAsync(...args)
+    })
+    const read = vi.spyOn(fs.promises, "readFile")
+    const open = vi.spyOn(fs.promises, "open")
+    let hit
+    try {
+      hit = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
+      expect(hit).toMatchObject({ status: "verified", cache: "hit", entries: 3 })
+      expect(verifyFull).toHaveBeenCalledTimes(1)
+      expect(read.mock.calls.map(([file]) => file)).toEqual([
+        config.receiptFile, path.join(paths.runtimeRoot, "bin", "ax-code"), path.join(paths.runtimeRoot, "package.json"),
+      ])
+      expect(open).not.toHaveBeenCalled()
+    } finally {
+      read.mockRestore()
+      open.mockRestore()
+      release()
+      await hit?.backgroundVerification
+    }
+    expect(fs.existsSync(config.receiptFile)).toBe(true)
+  })
+
+  test("rejects a changed package.json on a hit by falling through to the full verifier", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    fs.writeFileSync(path.join(paths.runtimeRoot, "package.json"), "[]\n")
+    const verifyFull = vi.fn(verifyRuntimeManifestAsync)
+    await expect(verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })).rejects.toThrow(
+      "Runtime manifest mismatch: package.json",
+    )
+    expect(verifyFull).toHaveBeenCalledTimes(1)
+    expect(fs.existsSync(config.receiptFile)).toBe(false)
+  })
+
+  test("revokes the receipt and reports a background runtime mismatch", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    fs.appendFileSync(path.join(paths.runtimeRoot, "lib", "index-node-tui.js"), "tampered\n")
+    const onIntegrityFailure = vi.fn(() => {
+      expect(fs.existsSync(config.receiptFile)).toBe(false)
+    })
+    const hit = await verifyBundledAxCodeIntegrityAsync({ ...config, onIntegrityFailure })
+    expect(hit.cache).toBe("hit")
+    await hit.backgroundVerification
+    expect(onIntegrityFailure).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: "Runtime manifest mismatch: lib/index-node-tui.js" }),
+    )
+    expect(fs.existsSync(config.receiptFile)).toBe(false)
+  })
+
+  test("fully verifies again when the app version changes", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    const verifyFull = vi.fn(verifyRuntimeManifestAsync)
+    await expect(verifyBundledAxCodeIntegrityAsync({ ...config, appVersion: "2.0.0", verifyFull }))
+      .resolves.toMatchObject({ cache: "miss" })
+    expect(verifyFull).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(fs.readFileSync(config.receiptFile, "utf8")).appVersion).toBe("2.0.0")
+  })
+
+  test("fully verifies changed manifest digests and runtime realpaths", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    const manifestFile = path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME)
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"))
+    manifest.files.reverse()
+    fs.writeFileSync(manifestFile, JSON.stringify(manifest))
+    await expect(verifyBundledAxCodeIntegrityAsync(config)).resolves.toMatchObject({ cache: "miss" })
+    const movedResources = `${paths.resourcesPath}-moved`
+    fs.renameSync(paths.resourcesPath, movedResources)
+    await expect(verifyBundledAxCodeIntegrityAsync({
+      ...config, resourcesPath: movedResources, receiptFile: path.join(movedResources, "receipts", "integrity.json"),
+    })).resolves.toMatchObject({ cache: "miss" })
+  })
+
+  test("uses canonical manifest JSON regardless of object key order", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    const manifestFile = path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME)
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"))
+    fs.writeFileSync(manifestFile, JSON.stringify({ files: manifest.files, algorithm: manifest.algorithm, schema: manifest.schema }))
+    const hit = await verifyBundledAxCodeIntegrityAsync(config)
+    expect(hit.cache).toBe("hit")
+    await hit.backgroundVerification
+  })
+
+  test("never writes a receipt for a failed full scan", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    fs.appendFileSync(path.join(paths.runtimeRoot, "lib", "index-node-tui.js"), "tampered\n")
+    await expect(verifyBundledAxCodeIntegrityAsync(config)).rejects.toThrow("Runtime manifest mismatch")
+    expect(fs.existsSync(config.receiptFile)).toBe(false)
   })
 
   test("verifies the external runtime against the ASAR-trusted manifest", async () => {

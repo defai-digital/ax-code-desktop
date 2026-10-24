@@ -13,6 +13,7 @@ const {
   utilityProcess,
   Menu,
   nativeTheme,
+  nativeImage,
   Notification,
   screen,
   net: electronNet,
@@ -42,6 +43,7 @@ const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
 const { verifyBundledAxCodeIntegrityAsync } = require("./bundled-ax-code-integrity")
+const { setDesktopBadgeCount } = require("./desktop-badge")
 const {
   LOGIN_SHELL_ENV_VAR,
   resolveForwardedLoginShellEnv,
@@ -1174,14 +1176,23 @@ handleCommand("desktop_download_and_install_update", async () => {
 
 // Only the local web server is active; remote background services are disabled.
 // Shutdown order (S2.5): the web server first (it may still be proxying to
-// the runtime), then the main-supervised runtime.
-const stopBackgroundServices = async () => {
-  await requireBrowserClosure(desktopWebMcpBrowser)
+// the runtime), then the main-supervised runtime. Fatal shutdown stops both immediately.
+const stopBackgroundServices = async ({ force = false } = {}) => {
+  const browserClosure = requireBrowserClosure(desktopWebMcpBrowser)
+  if (force) {
+    // An integrity failure must stop the runtime even if a browser page refuses closure.
+    browserClosure.catch((error) => console.warn("[electron] browser closure during fatal shutdown failed:", error))
+  } else {
+    await browserClosure
+  }
   loginShellEnvCapture.cancel()
   // Revoke browser access while the runtime can still acknowledge enrollment
   // teardown. This also covers restart/update paths that bypass normal quit.
-  await Promise.allSettled([wikiViewer.closeAll(), stopServer()])
-  if (runtimeSupervision) {
+  await Promise.allSettled([
+    wikiViewer.closeAll(), stopServer(),
+    ...(force && runtimeSupervision ? [runtimeSupervision.stop()] : []),
+  ])
+  if (runtimeSupervision && !force) {
     await runtimeSupervision.stop().catch((error) => {
       console.error("[electron] failed to stop runtime supervision:", error)
     })
@@ -1267,10 +1278,7 @@ handleCommand("desktop_tray_update", async (args) => {
 })
 
 handleCommand("desktop_set_badge_count", async (args) => {
-  const { count } = args ?? {}
-  const value = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
-  // macOS dock and Linux launchers; returns false where unsupported (Windows).
-  return app.setBadgeCount(value)
+  return setDesktopBadgeCount({ platform: process.platform, app, window: mainWindow, nativeImage, count: args?.count })
 })
 
 handleCommand("desktop_dialog_open", async (args, event) => {
@@ -3623,6 +3631,31 @@ handleCommand(
 handleCommand("desktop_get_app_version", async () => app.getVersion(), { safeForRemote: true })
 
 // ── App lifecycle ───────────────────────────────────────────────────────────
+let startupFailurePromise = null
+function handleStartupFailure(err) {
+  if (startupFailurePromise) return startupFailurePromise
+  const alreadyQuitting = isQuitting
+  // Revoke runtime access and block every remaining startup continuation before awaiting cleanup.
+  isQuitting = true
+  runtimeOrigin = null
+  runtimeRetryExhausted = true
+  loginShellEnvCapture.cancel()
+  launchAnimations?.dispose()
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
+  mainWindow = null
+  startupFailurePromise = (async () => {
+    await stopBackgroundServices({ force: true })
+    if (alreadyQuitting) return
+    console.error("[electron] startup failed:", err)
+    localizedDialog.showErrorBox(
+      "AX Code failed to start",
+      `${nativeT("The application could not start.")}\n\n${err instanceof Error ? err.message : String(err)}\n\n${nativeT("Check the application logs for details.")}`,
+    )
+    app.exit(1)
+  })()
+  return startupFailurePromise
+}
+
 app.whenReady().then(async () => {
   if (!hasSingleInstanceLock || isQuitting) {
     return
@@ -3702,15 +3735,16 @@ app.whenReady().then(async () => {
   browserSession.setPermissionCheckHandler((_webContents, permission) => WEBVIEW_ALLOWED_PERMISSIONS.has(permission))
 
   try {
-    // Hash the staged runtime off the main thread while the shell and opening
-    // artwork come up. The result is awaited below, before anything can execute
-    // the bundled runtime (the supervisor's prepare() runs `--version` on it) or
-    // fork the web server, so a modified tree still fails closed before use.
+    // A receipt miss fully verifies before use. A hit checks the trusted launch
+    // files here, then continues the full scan in the background with fatal teardown.
     const bundledIntegrityCheck = verifyBundledAxCodeIntegrityAsync({
       platform: process.platform,
       isPackaged: app.isPackaged,
       appPath: app.getAppPath(),
       resourcesPath: process.resourcesPath,
+      receiptFile: path.join(app.getPath("userData"), "runtime-integrity-receipt.json"),
+      appVersion: app.getVersion(),
+      onIntegrityFailure: handleStartupFailure,
     })
     // The rejection is surfaced where it is awaited; this only keeps an early
     // failure from being reported as unhandled while the shell is created.
@@ -3743,12 +3777,15 @@ app.whenReady().then(async () => {
     // hidden until the renderer is ready, as before.
     if (launchAnimations.enabled()) mainWindow.show()
     openingAnimation = launchAnimations.playOpening()
-    // Settle integrity before anything else touches persistent state or the
-    // runtime, so a tampered tree still fails before any side effect.
+    // Settle the foreground integrity gate before the runtime or server starts.
     const bundledIntegrity = await bundledIntegrityCheck
     if (bundledIntegrity.status === "verified") {
       console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
-      recordStartupEvent("runtime.integrity.verified", { entries: bundledIntegrity.entries })
+      recordStartupEvent("runtime.integrity.verified", {
+        entries: bundledIntegrity.entries,
+        cache: bundledIntegrity.cache,
+        durationMs: bundledIntegrity.durationMs,
+      })
     }
     if (isQuitting) return
     await purgeDisabledRemoteAccessSettings().catch((error) => {
@@ -3806,6 +3843,7 @@ app.whenReady().then(async () => {
           ;({ port: runtimePort } = await runtimeSupervision.prepare())
           break
         } catch (error) {
+          if (isQuitting) return
           if (error?.code !== RUNTIME_NOT_FOUND_CODE) throw error
           recordStartupEvent("runtime.supervision.binary-missing", {}, { once: false })
           const outcome = await recoverFromMissingRuntime({
@@ -3855,6 +3893,7 @@ app.whenReady().then(async () => {
       return
     }
     await createWindow()
+    if (isQuitting) return
     syncQuickDispatchGlobalShortcutFromSettings(readSettingsRoot())
     desktopStartupComplete = true
     // Best-effort update check — failures must not crash the app. With
@@ -3874,25 +3913,7 @@ app.whenReady().then(async () => {
       emitToAllWindows("openchamber:system-resume", { timestamp: Date.now() })
     })
   } catch (err) {
-    launchAnimations?.dispose()
-    // Startup failed before the renderer loaded; do not leave the shell open.
-    if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
-    mainWindow = null
-    if (isQuitting) {
-      await stopBackgroundServices()
-      return
-    }
-    console.error("[electron] startup failed:", err)
-    localizedDialog.showErrorBox(
-      "AX Code failed to start",
-      `${nativeT("The application could not start.")}\n\n${err instanceof Error ? err.message : String(err)}\n\n${nativeT("Check the application logs for details.")}`,
-    )
-    // app.exit() does not fire 'before-quit', so stop the server process
-    // (and any ax-code child it spawned, or the main-supervised runtime under
-    // S2.5) here to avoid orphaning it when the server booted but window
-    // creation failed.
-    await stopBackgroundServices()
-    app.exit(1)
+    await handleStartupFailure(err)
   }
 })
 
