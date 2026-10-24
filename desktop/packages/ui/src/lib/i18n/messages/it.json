@@ -3056,6 +3056,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostica non ancora pronta. Attendi un momento e riprova.",
   "aboutDialog.toast.diagnosticsCopied": "Diagnostica copiata",
   "menuActions.toast.checkUpdatesFailed": "Impossibile verificare gli aggiornamenti",
+  "menuActions.toast.checkingForUpdates": "Controllo degli aggiornamenti…",
   "menuActions.toast.latestVersion": "Stai usando la versione pi\u00f9 recente",
   "menuActions.toast.collectStatusFailed": "Impossibile raccogliere lo stato di ax-code",
   "helpDialog.title": "Scorciatoie da tastiera",

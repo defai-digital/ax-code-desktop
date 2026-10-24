@@ -3056,6 +3056,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Tan\u0131lama bilgileri hen\u00fcz haz\u0131r de\u011fil. Bir saniye bekleyip yeniden deneyin.",
   "aboutDialog.toast.diagnosticsCopied": "Tan\u0131lama bilgileri kopyaland\u0131",
   "menuActions.toast.checkUpdatesFailed": "G\u00fcncellemeler denetlenemedi",
+  "menuActions.toast.checkingForUpdates": "Güncellemeler denetleniyor…",
   "menuActions.toast.latestVersion": "En son s\u00fcr\u00fcmdesiniz",
   "menuActions.toast.collectStatusFailed": "ax-code durumu toplanamad\u0131",
   "helpDialog.title": "Klavye k\u0131sayollar\u0131",

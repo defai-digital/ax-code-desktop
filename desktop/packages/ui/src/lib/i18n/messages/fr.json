@@ -3050,6 +3050,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostics pas encore pr\u00eats. Patientez une seconde et r\u00e9essayez.",
   "aboutDialog.toast.diagnosticsCopied": "Diagnostics copi\u00e9s",
   "menuActions.toast.checkUpdatesFailed": "\u00c9chec de la v\u00e9rification des mises \u00e0 jour",
+  "menuActions.toast.checkingForUpdates": "Recherche de mises à jour…",
   "menuActions.toast.latestVersion": "Vous utilisez la derni\u00e8re version",
   "menuActions.toast.collectStatusFailed": "\u00c9chec de la collecte du statut ax-code",
   "helpDialog.title": "Raccourcis clavier",

@@ -3056,6 +3056,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Diagnosedaten sind noch nicht bereit. Warte einen Moment und versuche es erneut.",
   "aboutDialog.toast.diagnosticsCopied": "Diagnosedaten kopiert",
   "menuActions.toast.checkUpdatesFailed": "Suche nach Updates fehlgeschlagen",
+  "menuActions.toast.checkingForUpdates": "Suche nach Updates…",
   "menuActions.toast.latestVersion": "Du verwendest die neueste Version",
   "menuActions.toast.collectStatusFailed": "ax-code-Status konnte nicht erfasst werden",
   "helpDialog.title": "Tastaturk\u00fcrzel",

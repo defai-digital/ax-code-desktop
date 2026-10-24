@@ -1,5 +1,5 @@
 import React from "react"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
 import { debugUtils } from "@/lib/debug"
 import { cn } from "@/lib/utils"
@@ -163,7 +163,7 @@ export const AboutDialog: React.FC<AboutDialogProps> = ({ open, onOpenChange }) 
           <AxCodeIcon width={64} height={64} />
 
           <div className="space-y-1">
-            <h2 className="text-lg font-semibold">AX Code</h2>
+            <DialogTitle className="text-lg font-semibold">AX Code</DialogTitle>
             <div className="space-y-0.5 typography-meta text-muted-foreground">
               {versionRows.map((row) => (
                 <p key={row.key}>{t(row.label, { version: row.version })}</p>

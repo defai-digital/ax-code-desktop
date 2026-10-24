@@ -39,6 +39,9 @@ import { SyncProvider } from "@/sync/sync-context"
 import { useSync } from "@/sync/use-sync"
 import { ConfigUpdateOverlay } from "@/components/ui/ConfigUpdateOverlay"
 import { AboutDialog } from "@/components/ui/AboutDialog"
+import { UpdateDialog } from "@/components/ui/UpdateDialog"
+import { useUpdateStore } from "@/stores/useUpdateStore"
+import { useShallow } from "zustand/react/shallow"
 import { RuntimeAPIProvider } from "@/contexts/RuntimeAPIProvider"
 import { registerRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { useUIStore } from "@/stores/useUIStore"
@@ -103,6 +106,35 @@ const AboutDialogWrapper: React.FC = () => {
   const isAboutDialogOpen = useUIStore((s) => s.isAboutDialogOpen)
   const setAboutDialogOpen = useUIStore((s) => s.setAboutDialogOpen)
   return <AboutDialog open={isAboutDialogOpen} onOpenChange={setAboutDialogOpen} />
+}
+
+const UpdateDialogWrapper: React.FC = () => {
+  const update = useUpdateStore(
+    useShallow((state) => ({
+      open: state.updateDialogOpen,
+      setUpdateDialogOpen: state.setUpdateDialogOpen,
+      info: state.info,
+      downloading: state.downloading,
+      downloaded: state.downloaded,
+      progress: state.progress,
+      error: state.error,
+      downloadUpdate: state.downloadUpdate,
+      restartToUpdate: state.restartToUpdate,
+    })),
+  )
+  return (
+    <UpdateDialog
+      open={update.open}
+      onOpenChange={update.setUpdateDialogOpen}
+      info={update.info}
+      downloading={update.downloading}
+      downloaded={update.downloaded}
+      progress={update.progress}
+      error={update.error}
+      onDownload={update.downloadUpdate}
+      onRestart={update.restartToUpdate}
+    />
+  )
 }
 
 const StartupInitializationRecovery: React.FC<{
@@ -1121,6 +1153,7 @@ function App({ apis }: AppProps) {
                 <>
                   <ConfigUpdateOverlay />
                   <AboutDialogWrapper />
+                  <UpdateDialogWrapper />
                   {showMemoryDebug && <MemoryDebugPanel onClose={() => setShowMemoryDebug(false)} />}
                 </>
               )}

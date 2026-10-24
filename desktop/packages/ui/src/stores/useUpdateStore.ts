@@ -30,6 +30,7 @@ type UpdateState = {
   runtimeType: "desktop" | "web" | null
   lastChecked: number | null
   nextCheckInSec: number | null
+  updateDialogOpen: boolean
 }
 
 interface UpdateStore extends UpdateState {
@@ -44,6 +45,7 @@ interface UpdateStore extends UpdateState {
   restartToUpdate: () => Promise<void>
   dismiss: () => void
   reset: () => void
+  setUpdateDialogOpen: (open: boolean) => void
 }
 
 const UPDATE_FAILED_MESSAGE = "Update failed. Please try again or open the release page."
@@ -73,6 +75,7 @@ const initialState: UpdateState = {
   runtimeType: null,
   lastChecked: null,
   nextCheckInSec: null,
+  updateDialogOpen: false,
 }
 
 export const useUpdateStore = create<UpdateStore>()((set, get) => ({
@@ -221,12 +224,16 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
   },
 
   dismiss: () => {
-    set({ available: false, downloaded: false, info: null })
+    set({ available: false, downloaded: false, info: null, updateDialogOpen: false })
   },
 
   reset: () => {
     updateCheckRequestId += 1
     updateDownloadRequestId += 1
     set(initialState)
+  },
+
+  setUpdateDialogOpen: (open) => {
+    set({ updateDialogOpen: open })
   },
 }))

@@ -3056,6 +3056,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "\u8bca\u65ad\u4fe1\u606f\u5c1a\u672a\u5c31\u7eea\u3002\u8bf7\u7a0d\u5019\u518d\u8bd5\u3002",
   "aboutDialog.toast.diagnosticsCopied": "\u8bca\u65ad\u4fe1\u606f\u5df2\u590d\u5236",
   "menuActions.toast.checkUpdatesFailed": "\u68c0\u67e5\u66f4\u65b0\u5931\u8d25",
+  "menuActions.toast.checkingForUpdates": "正在检查更新…",
   "menuActions.toast.latestVersion": "\u5f53\u524d\u5df2\u662f\u6700\u65b0\u7248\u672c",
   "menuActions.toast.collectStatusFailed": "\u65e0\u6cd5\u6536\u96c6 ax-code \u72b6\u6001",
   "helpDialog.title": "\u952e\u76d8\u5feb\u6377\u952e",

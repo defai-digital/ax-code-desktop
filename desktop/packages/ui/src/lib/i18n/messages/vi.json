@@ -3056,6 +3056,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Th\u00f4ng tin ch\u1ea9n \u0111o\u00e1n ch\u01b0a s\u1eb5n s\u00e0ng. \u0110\u1ee3i m\u1ed9t l\u00e1t r\u1ed3i th\u1eed l\u1ea1i.",
   "aboutDialog.toast.diagnosticsCopied": "\u0110\u00e3 sao ch\u00e9p th\u00f4ng tin ch\u1ea9n \u0111o\u00e1n",
   "menuActions.toast.checkUpdatesFailed": "Kh\u00f4ng ki\u1ec3m tra \u0111\u01b0\u1ee3c b\u1ea3n c\u1eadp nh\u1eadt",
+  "menuActions.toast.checkingForUpdates": "Đang kiểm tra bản cập nhật…",
   "menuActions.toast.latestVersion": "B\u1ea1n \u0111ang d\u00f9ng phi\u00ean b\u1ea3n m\u1edbi nh\u1ea5t",
   "menuActions.toast.collectStatusFailed": "Kh\u00f4ng thu th\u1eadp \u0111\u01b0\u1ee3c tr\u1ea1ng th\u00e1i ax-code",
   "helpDialog.title": "Ph\u00edm t\u1eaft",

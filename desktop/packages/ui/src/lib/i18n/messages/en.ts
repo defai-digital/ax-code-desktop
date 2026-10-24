@@ -1623,6 +1623,7 @@ export const dict = {
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostics not ready yet. Wait a second and retry.",
   "aboutDialog.toast.diagnosticsCopied": "Diagnostics copied",
   "menuActions.toast.checkUpdatesFailed": "Failed to check for updates",
+  "menuActions.toast.checkingForUpdates": "Checking for updates…",
   "menuActions.toast.latestVersion": "You are on the latest version",
   "menuActions.toast.collectStatusFailed": "Failed to collect ax-code status",
   "helpDialog.title": "Keyboard Shortcuts",

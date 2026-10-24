@@ -3050,6 +3050,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Diagnostik belum siap. Tunggu sebentar lalu coba lagi.",
   "aboutDialog.toast.diagnosticsCopied": "Diagnostik disalin",
   "menuActions.toast.checkUpdatesFailed": "Gagal memeriksa pembaruan",
+  "menuActions.toast.checkingForUpdates": "Memeriksa pembaruan…",
   "menuActions.toast.latestVersion": "Anda menggunakan versi terbaru",
   "menuActions.toast.collectStatusFailed": "Gagal mengumpulkan status ax-code",
   "helpDialog.title": "Pintasan Keyboard",

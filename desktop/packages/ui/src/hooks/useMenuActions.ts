@@ -12,6 +12,8 @@ import { openProjectFolder } from "@/lib/projectOpen"
 import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
 import { showAxCodeStatus } from "@/lib/axCodeStatus"
 import { isDesktopLocalOriginActive } from "@/lib/desktop"
+import { manualUpdateCheckOutcome } from "@/lib/manualUpdateCheckOutcome"
+import { armMenuDialogDismissalGuard } from "@/lib/menuDialogFocus"
 import { getTauriGlobal } from "@/lib/tauriGlobal"
 import { listenToTauriEvent } from "@/lib/tauriEventListener"
 import { useI18n } from "@/lib/i18n"
@@ -110,10 +112,32 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
   const { setThemeMode } = useThemeSystem()
   const { t } = useI18n()
   const checkUpdatesInFlightRef = React.useRef(false)
+  const aboutOpenTimerRef = React.useRef<number | null>(null)
+
+  const openDialogFromMenu = React.useCallback((open: () => void) => {
+    if (aboutOpenTimerRef.current != null) {
+      window.clearTimeout(aboutOpenTimerRef.current)
+    }
+    // The menu click's pointer event arrives in a later turn and hits the
+    // backdrop. Open after this turn, and ignore that one dismissal.
+    armMenuDialogDismissalGuard()
+    aboutOpenTimerRef.current = window.setTimeout(() => {
+      aboutOpenTimerRef.current = null
+      open()
+    }, 0)
+  }, [])
+
+  React.useEffect(() => {
+    return () => {
+      if (aboutOpenTimerRef.current != null) {
+        window.clearTimeout(aboutOpenTimerRef.current)
+      }
+    }
+  }, [])
 
   const handleCheckForUpdates = React.useCallback(() => {
     if (!isDesktopLocalOriginActive()) {
-      setAboutDialogOpen(true)
+      openDialogFromMenu(() => setAboutDialogOpen(true))
       return
     }
 
@@ -121,25 +145,36 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
       return
     }
     checkUpdatesInFlightRef.current = true
+    const checkingToast = toast.message(t("menuActions.toast.checkingForUpdates"))
 
     void checkForUpdates({ manual: true })
       .then(() => {
-        const { available, error } = useUpdateStore.getState()
-        if (error) {
+        const state = useUpdateStore.getState()
+        const outcome = manualUpdateCheckOutcome(state)
+        if (outcome === "open-update") {
+          armMenuDialogDismissalGuard()
+          state.setUpdateDialogOpen(true)
+          return
+        }
+        if (outcome === "failed") {
           toast.error(t("menuActions.toast.checkUpdatesFailed"), {
-            description: error,
+            description: state.error ?? undefined,
           })
           return
         }
-
-        if (!available) {
-          toast.success(t("menuActions.toast.latestVersion"))
-        }
+        state.setUpdateDialogOpen(false)
+        toast.success(t("menuActions.toast.latestVersion"))
+      })
+      .catch(() => {
+        toast.error(t("menuActions.toast.checkUpdatesFailed"))
       })
       .finally(() => {
         checkUpdatesInFlightRef.current = false
+        if (checkingToast != null) {
+          toast.dismiss(checkingToast)
+        }
       })
-  }, [checkForUpdates, setAboutDialogOpen, t])
+  }, [checkForUpdates, openDialogFromMenu, setAboutDialogOpen, t])
 
   const handleChangeWorkspace = React.useCallback(() => {
     void openProjectFolder({ t })
@@ -185,11 +220,11 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
     (action: MenuAction) => {
       switch (action) {
         case "about":
-          setAboutDialogOpen(true)
+          openDialogFromMenu(() => setAboutDialogOpen(true))
           break
 
         case "settings":
-          setSettingsDialogOpen(true)
+          openDialogFromMenu(() => setSettingsDialogOpen(true))
           break
 
         case "command-palette":
@@ -321,6 +356,7 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
       navigateProject,
       navigateSession,
       onToggleMemoryDebug,
+      openDialogFromMenu,
       openNewSessionDraft,
       setAboutDialogOpen,
       setActiveMainTab,

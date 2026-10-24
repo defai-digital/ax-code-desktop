@@ -4,12 +4,14 @@ import { Dialog as BaseDialog } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { Icon } from "@/components/icon/Icon"
+import { useCancelTransientMenuFocusOut } from "@/lib/menuDialogFocus"
 import { renderFromAsChild, type AsChildProps } from "./asChild"
 
 let openDialogCount = 0
 
-function Dialog({ ...props }: React.ComponentProps<typeof BaseDialog.Root>) {
-  return <BaseDialog.Root {...props} />
+function Dialog({ open, onOpenChange, ...props }: React.ComponentProps<typeof BaseDialog.Root>) {
+  const handleOpenChange = useCancelTransientMenuFocusOut(open, onOpenChange)
+  return <BaseDialog.Root open={open} onOpenChange={handleOpenChange} {...props} />
 }
 
 function DialogTrigger({

@@ -35,7 +35,6 @@ import { useSessionFolderCleanup } from "./sidebar/hooks/useSessionFolderCleanup
 import { useStickyProjectHeaders } from "./sidebar/hooks/useStickyProjectHeaders"
 import { getGitHubPrStatusKey, usePrVisualSummaryByKeys, useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
 import { ProjectEditDialog } from "@/components/layout/ProjectEditDialog"
-import { UpdateDialog } from "@/components/ui/UpdateDialog"
 import { SessionGroupSection } from "./sidebar/SessionGroupSection"
 import { SidebarHeader } from "./sidebar/SidebarHeader"
 import { SidebarActivitySections } from "./sidebar/SidebarActivitySections"
@@ -191,7 +190,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const [projectRepoStatus, setProjectRepoStatus] = React.useState<Map<string, boolean | null>>(new Map())
   const [expandedSessionGroups, setExpandedSessionGroups] = React.useState<Set<string>>(new Set())
   const [newWorktreeDialogOpen, setNewWorktreeDialogOpen] = React.useState(false)
-  const [updateDialogOpen, setUpdateDialogOpen] = React.useState(false)
   const [openSidebarMenuKey, setOpenSidebarMenuKey] = React.useState<string | null>(null)
   const [renamingFolderId, setRenamingFolderId] = React.useState<string | null>(null)
   const [renameFolderDraft, setRenameFolderDraft] = React.useState("")
@@ -347,13 +345,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     useShallow((s) => ({
       available: s.available,
       runtimeType: s.runtimeType,
-      info: s.info,
-      downloading: s.downloading,
-      downloaded: s.downloaded,
-      progress: s.progress,
-      error: s.error,
-      downloadUpdate: s.downloadUpdate,
-      restartToUpdate: s.restartToUpdate,
     })),
   )
 
@@ -582,7 +573,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const handleOpenUpdateDialog = React.useCallback(() => {
     const current = useUpdateStore.getState()
     if (current.available && current.info) {
-      setUpdateDialogOpen(true)
+      current.setUpdateDialogOpen(true)
     }
   }, [])
 
@@ -1712,18 +1703,6 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         onOpenUpdate={handleOpenUpdateDialog}
         showRuntimeButtons
         showUpdateButton={showSidebarUpdateButton}
-      />
-
-      <UpdateDialog
-        open={updateDialogOpen}
-        onOpenChange={setUpdateDialogOpen}
-        info={updateStore.info}
-        downloading={updateStore.downloading}
-        downloaded={updateStore.downloaded}
-        progress={updateStore.progress}
-        error={updateStore.error}
-        onDownload={updateStore.downloadUpdate}
-        onRestart={updateStore.restartToUpdate}
       />
 
       {editingProject ? (

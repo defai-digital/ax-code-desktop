@@ -2,6 +2,7 @@ import React from "react"
 import { Dialog } from "@base-ui/react/dialog"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
+import { useCancelTransientMenuFocusOut } from "@/lib/menuDialogFocus"
 import { SettingsView } from "./SettingsView"
 
 interface SettingsWindowProps {
@@ -27,14 +28,16 @@ export const SettingsWindow: React.FC<SettingsWindowProps> = ({ open, onOpenChan
     )
   }, [])
 
+  const handleOpenChange = useCancelTransientMenuFocusOut(open, (next, details) => {
+    if (!next && hasOpenFloatingMenu()) {
+      details.cancel()
+      return
+    }
+    onOpenChange(next)
+  })
+
   return (
-    <Dialog.Root
-      open={open}
-      onOpenChange={(next) => {
-        if (!next && hasOpenFloatingMenu()) return
-        onOpenChange(next)
-      }}
-    >
+    <Dialog.Root open={open} onOpenChange={handleOpenChange}>
       <Dialog.Portal>
         <Dialog.Backdrop
           className={cn(

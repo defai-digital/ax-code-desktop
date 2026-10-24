@@ -3050,6 +3050,7 @@
   "aboutDialog.toast.diagnosticsNotReady": "Diagn\u00f3sticos a\u00fan no listos. Espera un segundo y reint\u00e9ntalo.",
   "aboutDialog.toast.diagnosticsCopied": "Diagn\u00f3sticos copiados",
   "menuActions.toast.checkUpdatesFailed": "No se pudo buscar actualizaciones",
+  "menuActions.toast.checkingForUpdates": "Buscando actualizaciones…",
   "menuActions.toast.latestVersion": "Ya est\u00e1s en la \u00faltima versi\u00f3n",
   "menuActions.toast.collectStatusFailed": "No se pudo recopilar el estado de ax-code",
   "helpDialog.title": "Atajos de teclado",
