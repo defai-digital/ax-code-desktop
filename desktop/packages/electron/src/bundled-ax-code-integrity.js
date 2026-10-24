@@ -42,11 +42,27 @@ async function trustedStartupFilesMatch(runtimeRoot, expected, platform) {
     if (entry?.type !== "file") return false
     try {
       const file = path.join(runtimeRoot, relative)
-      const stat = await fs.promises.lstat(file)
-      if (!stat.isFile() || stat.size !== entry.size) return false
-      const bytes = await fs.promises.readFile(file)
-      if (bytes.length !== entry.size || crypto.createHash("sha256").update(bytes).digest("hex") !== entry.sha256) {
-        return false
+      const handle = await fs.promises.open(
+        file,
+        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0),
+      )
+      try {
+        const stat = await handle.stat()
+        if (!stat.isFile() || stat.size !== entry.size) return false
+        const bytes = await handle.readFile()
+        if (bytes.length !== entry.size || crypto.createHash("sha256").update(bytes).digest("hex") !== entry.sha256) {
+          return false
+        }
+        // Hash the checked descriptor, then require the path to still identify
+        // that unchanged regular file. Reject symlinks on platforms without O_NOFOLLOW too.
+        const after = await handle.stat()
+        const current = await fs.promises.lstat(file)
+        if (!current.isFile()) return false
+        for (const field of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
+          if (stat[field] !== after[field] || after[field] !== current[field]) return false
+        }
+      } finally {
+        await handle.close()
       }
     } catch {
       return false

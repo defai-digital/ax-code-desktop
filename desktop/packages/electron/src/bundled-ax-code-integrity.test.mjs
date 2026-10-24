@@ -165,10 +165,10 @@ describe("bundled ax-code runtime integrity (async)", () => {
       hit = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
       expect(hit).toMatchObject({ status: "verified", cache: "hit", entries: 3 })
       expect(verifyFull).toHaveBeenCalledTimes(1)
-      expect(read.mock.calls.map(([file]) => file)).toEqual([
-        config.receiptFile, path.join(paths.runtimeRoot, "bin", "ax-code"), path.join(paths.runtimeRoot, "package.json"),
+      expect(read.mock.calls.map(([file]) => file)).toEqual([config.receiptFile])
+      expect(open.mock.calls.map(([file]) => file)).toEqual([
+        path.join(paths.runtimeRoot, "bin", "ax-code"), path.join(paths.runtimeRoot, "package.json"),
       ])
-      expect(open).not.toHaveBeenCalled()
     } finally {
       read.mockRestore()
       open.mockRestore()
@@ -189,6 +189,79 @@ describe("bundled ax-code runtime integrity (async)", () => {
     )
     expect(verifyFull).toHaveBeenCalledTimes(1)
     expect(fs.existsSync(config.receiptFile)).toBe(false)
+  })
+
+  test.skipIf(process.platform === "win32")("rejects a startup path replaced with a symlink after its metadata check", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    const launcher = path.join(paths.runtimeRoot, "bin", "ax-code")
+    const backup = path.join(paths.resourcesPath, "original-launcher")
+    const manifest = JSON.parse(fs.readFileSync(path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME), "utf8"))
+    const verifyFull = vi.fn(async () => manifest)
+    const realLstat = fs.promises.lstat.bind(fs.promises)
+    const realOpen = fs.promises.open.bind(fs.promises)
+    let replaced = false
+    const replaceAfterMetadata = (stat) => {
+      if (!replaced) {
+        fs.renameSync(launcher, backup)
+        fs.symlinkSync(backup, launcher)
+        replaced = true
+      }
+      return stat
+    }
+    const lstat = vi.spyOn(fs.promises, "lstat").mockImplementation(async (file, ...args) => {
+      const stat = await realLstat(file, ...args)
+      return file === launcher ? replaceAfterMetadata(stat) : stat
+    })
+    const open = vi.spyOn(fs.promises, "open").mockImplementation(async (file, ...args) => {
+      const handle = await realOpen(file, ...args)
+      if (file === launcher) {
+        const stat = handle.stat.bind(handle)
+        handle.stat = async (...statArgs) => replaceAfterMetadata(await stat(...statArgs))
+      }
+      return handle
+    })
+    let result
+    try {
+      result = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
+      expect(replaced).toBe(true)
+      expect(result.cache).toBe("miss")
+      await result.backgroundVerification
+    } finally {
+      lstat.mockRestore()
+      open.mockRestore()
+      await result?.backgroundVerification
+      if (replaced) {
+        fs.rmSync(launcher)
+        fs.renameSync(backup, launcher)
+      }
+    }
+  })
+
+  test("closes the startup descriptor when its read fails before falling back", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    const manifest = JSON.parse(fs.readFileSync(path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME), "utf8"))
+    const verifyFull = vi.fn(async () => manifest)
+    const realOpen = fs.promises.open.bind(fs.promises)
+    const closes = []
+    const open = vi.spyOn(fs.promises, "open").mockImplementation(async (file, ...args) => {
+      const handle = await realOpen(file, ...args)
+      vi.spyOn(handle, "readFile").mockRejectedValue(new Error("startup read failed"))
+      closes.push(vi.spyOn(handle, "close"))
+      return handle
+    })
+    try {
+      const result = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
+      expect(result.cache).toBe("miss")
+      expect(verifyFull).toHaveBeenCalledOnce()
+      expect(closes).toHaveLength(1)
+      expect(closes[0]).toHaveBeenCalledOnce()
+    } finally {
+      open.mockRestore()
+    }
   })
 
   test("revokes the receipt and reports a background runtime mismatch", async () => {
