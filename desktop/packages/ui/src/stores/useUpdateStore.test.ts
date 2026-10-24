@@ -351,3 +351,56 @@ describe("useUpdateStore runtime detection", () => {
     }
   })
 })
+
+describe("useUpdateStore checkForUpdatesIfStale", () => {
+  const checkArgs: unknown[] = []
+
+  beforeEach(() => {
+    vi.restoreAllMocks()
+    checkArgs.length = 0
+    mockElectronUpdaterWindow(async (command: string, args?: unknown) => {
+      if (command === "desktop_check_for_updates") {
+        checkArgs.push(args)
+        return { available: false, currentVersion: "1.1.1" }
+      }
+      return null
+    })
+    useUpdateStore.getState().reset()
+  })
+
+  test("runs a manual check when nothing has been checked yet", async () => {
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+
+    expect(checkArgs).toEqual([{ manual: true }])
+  })
+
+  test("skips a check that succeeded within the window", async () => {
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+
+    expect(checkArgs).toHaveLength(1)
+  })
+
+  test("checks again once the last success is older than the window", async () => {
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+    useUpdateStore.setState({ lastChecked: Date.now() - 120_000 })
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+
+    expect(checkArgs).toHaveLength(2)
+  })
+
+  test("retries at once after a failed check", async () => {
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+    useUpdateStore.setState({ error: "Update failed. Please try again or open the release page.", lastChecked: Date.now() })
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+
+    expect(checkArgs).toHaveLength(2)
+  })
+
+  test("does not start a second check while one is running", async () => {
+    useUpdateStore.setState({ checking: true })
+    await useUpdateStore.getState().checkForUpdatesIfStale()
+
+    expect(checkArgs).toHaveLength(0)
+  })
+})

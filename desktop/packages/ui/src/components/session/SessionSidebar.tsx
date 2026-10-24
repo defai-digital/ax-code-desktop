@@ -22,6 +22,7 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue"
 import { useSessionSidebarSections } from "./sidebar/hooks/useSessionSidebarSections"
 import { useProjectSessionSelection } from "./sidebar/hooks/useProjectSessionSelection"
 import { useGroupOrdering } from "./sidebar/hooks/useGroupOrdering"
+import { useOpenAboutWithUpdateCheck } from "./sidebar/useOpenAboutWithUpdateCheck"
 import { useSessionGrouping } from "./sidebar/hooks/useSessionGrouping"
 import { useSessionSearchEffects } from "./sidebar/hooks/useSessionSearchEffects"
 import { isSessionSearchActive } from "./sidebar/hooks/sessionSearchActivity"
@@ -584,6 +585,9 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       setUpdateDialogOpen(true)
     }
   }, [])
+
+  const openAboutDialog = React.useCallback(() => setAboutDialogOpen(true), [setAboutDialogOpen])
+  const handleOpenAbout = useOpenAboutWithUpdateCheck(openAboutDialog)
 
   const handleOpenSettings = React.useCallback(() => {
     setSettingsDialogOpen(true)
@@ -1704,7 +1708,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       <SidebarFooter
         onOpenSettings={handleOpenSettings}
         onOpenShortcuts={toggleHelpDialog}
-        onOpenAbout={() => setAboutDialogOpen(true)}
+        onOpenAbout={handleOpenAbout}
         onOpenUpdate={handleOpenUpdateDialog}
         showRuntimeButtons
         showUpdateButton={showSidebarUpdateButton}

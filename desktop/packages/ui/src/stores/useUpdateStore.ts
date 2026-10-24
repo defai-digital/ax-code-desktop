@@ -16,6 +16,9 @@ import { withTimeout } from "@/lib/asyncTimeout"
 // report progress while doing so.
 const UPDATE_CHECK_TIMEOUT_MS = 30_000
 
+// A user-triggered refresh (the sidebar brand button) skips a check that succeeded this recently.
+const UPDATE_RECHECK_MIN_AGE_MS = 60_000
+
 type UpdateState = {
   checking: boolean
   available: boolean
@@ -31,6 +34,12 @@ type UpdateState = {
 
 interface UpdateStore extends UpdateState {
   checkForUpdates: (opts?: { manual?: boolean }) => Promise<number | null>
+  /**
+   * Quiet refresh for a user action that is not an update request itself: no toast, the sidebar Update
+   * button appears when a version is found. Runs as a manual check (an explicit action must not be
+   * gated by the startup auto-update policy). Skipped while a check runs and for a recent success.
+   */
+  checkForUpdatesIfStale: (maxAgeMs?: number) => Promise<void>
   downloadUpdate: () => Promise<void>
   restartToUpdate: () => Promise<void>
   dismiss: () => void
@@ -137,6 +146,14 @@ export const useUpdateStore = create<UpdateStore>()((set, get) => ({
       })
       return null
     }
+  },
+
+  checkForUpdatesIfStale: async (maxAgeMs = UPDATE_RECHECK_MIN_AGE_MS) => {
+    const { checking, lastChecked, error } = get()
+    if (checking) return
+    // A failed check is retried at once; only a recent success counts as fresh.
+    if (lastChecked !== null && !error && Date.now() - lastChecked < maxAgeMs) return
+    await get().checkForUpdates({ manual: true })
   },
 
   downloadUpdate: async () => {
