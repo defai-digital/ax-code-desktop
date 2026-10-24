@@ -2848,3 +2848,31 @@ describe("captured blocking request recovery", () => {
     expect(listCalls).toHaveLength(0)
   })
 })
+
+
+describe("archive directory hints for globally listed sessions", () => {
+  for (const action of ["archiveSession", "unarchiveSession"] as const) {
+    test(`${action} preserves an unhydrated worktree directory instead of the current project`, async () => {
+      const actions = await import("./session-actions")
+      actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([
+        ["/current/project", createStore({})], ["/worktrees/hidden", createStore({})],
+      ]), () => "/current/project")
+      await expect(actions[action]("hidden-session", { directoryHint: "/worktrees/hidden" })).resolves.toBe(true)
+      expect(sessionCalls).toContainEqual({ method: "session.update", params: {
+        sessionID: "hidden-session", directory: "/worktrees/hidden",
+        time: { archived: action === "archiveSession" ? expect.any(Number) : null },
+      } })
+    })
+    test(`${action} prefers the current authoritative directory over an old snapshot hint`, async () => {
+      const actions = await import("./session-actions")
+      actions.setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([
+        ["/test/project", createStore({})], ["/old/snapshot", createStore({})],
+      ]), () => "/current/project")
+      await expect(actions[action]("session-a", { directoryHint: "/old/snapshot" })).resolves.toBe(true)
+      expect(sessionCalls).toContainEqual({ method: "session.update", params: {
+        sessionID: "session-a", directory: "/test/project",
+        time: { archived: action === "archiveSession" ? expect.any(Number) : null },
+      } })
+    })
+  }
+})

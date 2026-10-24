@@ -447,6 +447,7 @@ export const dict = {
   "sessions.sidebar.project.actions.projectMenu": "Project menu",
   "sessions.sidebar.project.actions.newSession": "New session",
   "sessions.sidebar.project.actions.closeProject": "Close project",
+  "sessions.sidebar.project.actions.archiveAll": "Archive all",
   "sessions.sidebar.project.actions.newDraftSession": "New draft session",
   "sessions.sidebar.project.actions.pin": "Pin project",
   "sessions.sidebar.project.actions.unpin": "Unpin project",
@@ -583,6 +584,8 @@ export const dict = {
   "sessions.sidebar.dialogs.deleteSessions.pluralDescription": "{count} sessions will be permanently deleted.",
   "sessions.sidebar.dialogs.archiveSessions.singleDescription": "{count} session will be archived.",
   "sessions.sidebar.dialogs.archiveSessions.pluralDescription": "{count} sessions will be archived.",
+  "sessions.sidebar.dialogs.archiveProjectSessions.description":
+    'All {count} sessions in "{projectName}" will be archived.',
   "sessions.sidebar.dialogs.deleteFolder.title": "Delete folder?",
   "sessions.sidebar.dialogs.deleteFolder.withOneSubfolder":
     '"{folderName}" will be deleted along with {count} sub-folder. Sessions inside will not be deleted.',

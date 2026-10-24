@@ -125,6 +125,7 @@ export function BulkSessionDeleteConfirmDialog(props: {
   showDeletionDialog: boolean
   setShowDeletionDialog: (next: boolean) => void
   onConfirm: () => Promise<void> | void
+  projectName?: string
 }): React.ReactNode {
   const { t } = useI18n()
   const { value, setValue, showDeletionDialog, setShowDeletionDialog, onConfirm } = props
@@ -137,7 +138,9 @@ export function BulkSessionDeleteConfirmDialog(props: {
     : n === 1
       ? t("sessions.sidebar.dialogs.archiveSession.title")
       : t("sessions.sidebar.dialogs.archiveSessions.title")
-  const description = archived
+  const description = props.projectName && !archived
+    ? t("sessions.sidebar.dialogs.archiveProjectSessions.description", { count: n, projectName: props.projectName })
+    : archived
     ? n === 1
       ? t("sessions.sidebar.dialogs.deleteSessions.singleDescription", { count: n })
       : t("sessions.sidebar.dialogs.deleteSessions.pluralDescription", { count: n })

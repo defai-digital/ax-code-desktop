@@ -764,8 +764,14 @@ export async function deleteSession(sessionId: string, options?: { notify?: bool
   }
 }
 
-export async function archiveSession(sessionId: string, options?: { notify?: boolean }): Promise<boolean> {
-  const sessionDirectory = getSessionDirectory(sessionId)
+export async function archiveSession(
+  sessionId: string,
+  options?: { notify?: boolean; directoryHint?: string },
+): Promise<boolean> {
+  // A bulk removal may have already hidden a globally listed session whose
+  // child store was never loaded. Keep its directory ahead of the current project.
+  const sessionDirectory =
+    useSessionUIStore.getState().getDirectoryForSession(sessionId) || normalizeProjectPath(options?.directoryHint) || dir()
   const removed = optimisticRemoveSession(sessionId, sessionDirectory)
   const ui = useSessionUIStore.getState()
   const clearedCurrentSelection = ui.currentSessionId === sessionId
@@ -815,8 +821,12 @@ export async function archiveSession(sessionId: string, options?: { notify?: boo
   }
 }
 
-export async function unarchiveSession(sessionId: string, options?: { notify?: boolean }): Promise<boolean> {
-  const sessionDirectory = getSessionDirectory(sessionId)
+export async function unarchiveSession(
+  sessionId: string,
+  options?: { notify?: boolean; directoryHint?: string },
+): Promise<boolean> {
+  const sessionDirectory =
+    useSessionUIStore.getState().getDirectoryForSession(sessionId) || normalizeProjectPath(options?.directoryHint) || dir()
   try {
     // No manual global-store write: the session.updated(time.archived=null)
     // event restores the session to the active list (S4.5 single writer).

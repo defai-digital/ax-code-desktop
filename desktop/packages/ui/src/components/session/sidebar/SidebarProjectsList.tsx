@@ -50,6 +50,8 @@ type Props = {
   openNewWorktreeDialog: () => void
   openProjectEditDialog: (id: string) => void
   removeProject: (id: string) => void
+  archiveProject?: (id: string) => void
+  canArchiveProject?: (id: string) => boolean
   setProjectPinned?: (id: string, pinned: boolean) => void
   projectHeaderSentinelRefs: React.MutableRefObject<Map<string, HTMLDivElement | null>>
   reorderProjects: (fromIndex: number, toIndex: number) => void
@@ -226,6 +228,8 @@ export function SidebarProjectsList(props: Props): React.ReactNode {
                         : undefined
                     }
                     onClose={() => props.removeProject(projectKey)}
+                    onArchiveAll={props.archiveProject ? () => props.archiveProject?.(projectKey) : undefined}
+                    archiveAllDisabled={props.canArchiveProject ? !props.canArchiveProject(projectKey) : false}
                     sentinelRef={(el) => {
                       props.projectHeaderSentinelRefs.current.set(projectKey, el)
                     }}

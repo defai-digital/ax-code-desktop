@@ -31,6 +31,7 @@ import { softBulkArchive, softBulkDelete } from "@/sync/soft-removal"
 import { useSidebarPersistence } from "./sidebar/hooks/useSidebarPersistence"
 import { useProjectRepoStatus } from "./sidebar/hooks/useProjectRepoStatus"
 import { useProjectSessionLists } from "./sidebar/hooks/useProjectSessionLists"
+import { useProjectArchiveActions } from "./sidebar/hooks/useProjectArchiveActions"
 import { useSessionFolderCleanup } from "./sidebar/hooks/useSessionFolderCleanup"
 import { useStickyProjectHeaders } from "./sidebar/hooks/useStickyProjectHeaders"
 import { getGitHubPrStatusKey, usePrVisualSummaryByKeys, useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
@@ -330,6 +331,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   const liveSessions = useAllLiveSessions()
   const liveSessionStatuses = useAllSessionStatuses()
   const hasLoadedGlobalSessions = useGlobalSessionsStore((state) => state.hasLoaded)
+  const globalSessionsStatus = useGlobalSessionsStore((state) => state.status)
   const globalActiveSessions = useGlobalSessionsStore((state) => state.activeSessions)
   const archivedSessions = useGlobalSessionsStore((state) => state.archivedSessions)
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
@@ -397,6 +399,10 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
   )
 
   const initialGlobalSessionsRefreshStartedRef = React.useRef(false)
+  const [archiveWorktreeDiscovery, setArchiveWorktreeDiscovery] = React.useState({
+    key: "",
+    readyProjectIds: new Set<string>(),
+  })
   React.useEffect(() => {
     if (initialGlobalSessionsRefreshStartedRef.current) {
       return
@@ -414,6 +420,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
 
       const worktreesByProject = new Map<string, WorktreeMetadata[]>()
       const allWorktrees: WorktreeMetadata[] = []
+      const readyProjectIds = new Set<string>()
 
       await Promise.all(
         projectEntries.map(async (project) => {
@@ -424,8 +431,12 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
             const cachedIsGitRepo = useGitStore.getState().directories.get(projectPath)?.isGitRepo
             const isGitRepo =
               cachedIsGitRepo ?? (await import("@/lib/gitApi").then((m) => m.checkIsGitRepository(projectPath)))
-            if (!isGitRepo) return
+            if (!isGitRepo) {
+              readyProjectIds.add(project.id)
+              return
+            }
             const worktrees = await listProjectWorktrees({ id: project.id, path: projectPath })
+            readyProjectIds.add(project.id)
             if (cancelled || worktrees.length === 0) return
             worktreesByProject.set(projectPath, worktrees)
             allWorktrees.push(...worktrees)
@@ -441,6 +452,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         availableWorktrees: allWorktrees,
         availableWorktreesByProject: worktreesByProject,
       })
+      setArchiveWorktreeDiscovery({ key: projectWorktreeDiscoveryKey, readyProjectIds })
     }
 
     void discoverWorktrees()
@@ -844,6 +856,16 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     archivedSessions,
     availableWorktreesByProject,
     allProjectRoots: normalizedProjectPaths,
+  })
+
+  const projectArchive = useProjectArchiveActions({
+    projects: normalizedProjects,
+    getSessionsForProject,
+    inventoryReady: hasLoadedGlobalSessions && globalSessionsStatus === "ready",
+    isProjectReady: (id) =>
+      archiveWorktreeDiscovery.key === projectWorktreeDiscoveryKey && archiveWorktreeDiscovery.readyProjectIds.has(id),
+    showConfirmation: showDeletionDialog,
+    archiveSessions: softBulkArchive,
   })
 
   // Keep last-known repo status to avoid UI jiggling during project switch
@@ -1670,6 +1692,8 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         openNewWorktreeDialog={openNewWorktreeDialog}
         openProjectEditDialog={setEditingProjectDialogId}
         removeProject={removeProject}
+        archiveProject={projectArchive.archiveProject}
+        canArchiveProject={projectArchive.canArchiveProject}
         setProjectPinned={setProjectPinned}
         projectHeaderSentinelRefs={projectHeaderSentinelRefs}
         reorderProjects={reorderProjects}
@@ -1748,6 +1772,17 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
         value={deleteFolderConfirm}
         setValue={setDeleteFolderConfirm}
         onConfirm={confirmDeleteFolder}
+      />
+
+      <BulkSessionDeleteConfirmDialog
+        value={projectArchive.confirmation
+          ? { sessionCount: projectArchive.confirmation.sessions.length, archivedBucket: false }
+          : null}
+        setValue={() => projectArchive.setConfirmation(null)}
+        projectName={projectArchive.confirmation?.projectName}
+        showDeletionDialog={showDeletionDialog}
+        setShowDeletionDialog={setShowDeletionDialog}
+        onConfirm={projectArchive.confirmArchiveProject}
       />
 
       <BulkSessionDeleteConfirmDialog

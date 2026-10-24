@@ -289,7 +289,9 @@ async function commitRemovals(ids: string[], { keepFailuresInSlot = false } = {}
       ok =
         entry.kind === "delete"
           ? await sessionActions.deleteSession(entry.session.id)
-          : await sessionActions.archiveSession(entry.session.id)
+          : await sessionActions.archiveSession(entry.session.id, {
+              directoryHint: resolveGlobalSessionDirectory(entry.session) ?? undefined,
+            })
     } catch (error) {
       console.warn("[soft-removal] failed to commit pending removal", { id: entry.session.id, kind: entry.kind }, error)
     }
@@ -336,7 +338,9 @@ function undoRemovals(ids: string[]): void {
 }
 
 /** Reverse only successful requests from this archive action, once and without trusting local row state. */
-async function undoCommittedArchives(ids: string[], generation: symbol, commit: Promise<Set<string>>): Promise<void> {
+async function undoCommittedArchives(
+  ids: string[], generation: symbol, commit: Promise<Set<string>>, directoryHints: Map<string, string | null>,
+): Promise<void> {
   let anyUndoFailed = false
   try {
     const succeeded = await commit
@@ -344,7 +348,9 @@ async function undoCommittedArchives(ids: string[], generation: symbol, commit: 
       if (!succeeded.has(id) || archiveGenerationById.get(id) !== generation) continue
       archiveGenerationById.delete(id)
       keptForRecovery.delete(id)
-      const operation = { promise: sessionActions.unarchiveSession(id) }
+      const operation = { promise: sessionActions.unarchiveSession(id, {
+        directoryHint: directoryHints.get(id) ?? undefined,
+      }) }
       archiveUndoById.set(id, operation)
       // Undo each id on its own: one rejected (or refused) unarchive must not strand the
       // sessions after it in the batch — the rest still get reversed, one toast reports it.
@@ -394,6 +400,7 @@ function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void
   }
 
   if (kind === "archive") {
+    const directoryHints = new Map(fresh.map((session) => [session.id, resolveGlobalSessionDirectory(session)]))
     const generation = Symbol("archive")
     for (const id of ids) archiveGenerationById.set(id, generation)
     const commit = commitRemovals(ids)
@@ -414,7 +421,7 @@ function softRemoveSessions(sessions: Session[], kind: PendingRemovalKind): void
         onClick: () => {
           if (undoRequested) return
           undoRequested = true
-          void undoCommittedArchives(ids, generation, commit)
+          void undoCommittedArchives(ids, generation, commit, directoryHints)
         },
       },
     })

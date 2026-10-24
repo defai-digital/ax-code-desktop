@@ -14,9 +14,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 
-const deleteSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
-const archiveSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
-const unarchiveSessionMock = vi.fn<(sessionId: string) => Promise<boolean>>()
+const deleteSessionMock = vi.fn<(sessionId: string, options?: { directoryHint?: string }) => Promise<boolean>>()
+const archiveSessionMock = vi.fn<(sessionId: string, options?: { directoryHint?: string }) => Promise<boolean>>()
+const unarchiveSessionMock = vi.fn<(sessionId: string, options?: { directoryHint?: string }) => Promise<boolean>>()
 const setCurrentSessionMock = vi.fn()
 
 vi.doMock("@/components/ui", () => ({
@@ -132,6 +132,25 @@ describe("soft-removal S4.5 contract", () => {
     // call left over from an earlier test must not satisfy the wait.
     toastSuccessMock.mockClear()
     toastErrorMock.mockClear()
+  })
+
+  test("bulk archive and undo retain each session's original directory after leaving the global index", async () => {
+    const sessions = [makeSession("worktree-a", { directory: "/worktrees/a" } as Partial<Session>),
+      makeSession("worktree-b", { directory: "/worktrees/b" } as Partial<Session>)]
+    for (const session of sessions) useGlobalSessionsStore.getState().applySessionEvent(sessionEvent("session.created", session))
+    archiveSessionMock.mockResolvedValue(true)
+    unarchiveSessionMock.mockResolvedValue(true)
+    softBulkArchive(sessions)
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledTimes(2))
+    for (const [id, directory] of [["worktree-a", "/worktrees/a"], ["worktree-b", "/worktrees/b"]]) {
+      expect(archiveSessionMock).toHaveBeenCalledWith(id, { directoryHint: directory })
+    }
+    const options = toastSuccessMock.mock.calls.at(-1)?.[1] as { action?: { onClick?: () => void } } | undefined
+    options?.action?.onClick?.()
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledTimes(2))
+    for (const [id, directory] of [["worktree-a", "/worktrees/a"], ["worktree-b", "/worktrees/b"]]) {
+      expect(unarchiveSessionMock).toHaveBeenCalledWith(id, { directoryHint: directory })
+    }
   })
 
   test("delete flow: pendingRemoval hides instantly; the delete event never resurrects", async () => {
@@ -301,7 +320,7 @@ describe("soft-removal S4.5 contract", () => {
     expect(useGlobalSessionsStore.getState().activeSessions).toHaveLength(0)
 
     // No undo window: the request goes out without flushing or waiting for a timer.
-    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledWith("ses_c"))
+    await vi.waitFor(() => expect(archiveSessionMock).toHaveBeenCalledWith("ses_c", { directoryHint: undefined }))
     await vi.waitFor(() => expect(useGlobalSessionsStore.getState().pendingRemoval.size).toBe(0))
     // No manual archived-bucket write happened — the bucket is still empty
     // until the event arrives.
@@ -330,7 +349,7 @@ describe("soft-removal S4.5 contract", () => {
     expect(unarchiveSessionMock).not.toHaveBeenCalled()
 
     releaseArchive(true)
-    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith("ses_u"))
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith("ses_u", { directoryHint: undefined }))
   })
 
   test("undo after a failed archive does not unarchive; the rollback already restored the session", async () => {
@@ -364,7 +383,7 @@ describe("soft-removal S4.5 contract", () => {
     await vi.waitFor(() => expect(getPendingSessionRemovalCount()).toBe(0))
     const options = toastSuccessMock.mock.calls.at(-1)?.[1] as unknown as { action: { onClick: () => void } }
     options.action.onClick()
-    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith(session.id))
+    await vi.waitFor(() => expect(unarchiveSessionMock).toHaveBeenCalledWith(session.id, { directoryHint: undefined }))
   })
 
   test("an archive event before acknowledgement is accepted", async () => {

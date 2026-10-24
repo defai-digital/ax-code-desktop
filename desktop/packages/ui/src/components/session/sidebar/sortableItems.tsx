@@ -36,6 +36,8 @@ interface SidebarSortableProjectItemProps {
   onNewWorktreeSession?: () => void
   onRenameStart: () => void
   onTogglePin?: () => void
+  onArchiveAll?: () => void
+  archiveAllDisabled?: boolean
   onClose: () => void
   sentinelRef: (el: HTMLDivElement | null) => void
   children?: React.ReactNode
@@ -75,6 +77,8 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
   onNewWorktreeSession,
   onRenameStart,
   onTogglePin,
+  onArchiveAll,
+  archiveAllDisabled = false,
   onClose,
   sentinelRef,
   children,
@@ -342,6 +346,12 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                         {isPinned
                           ? t("sessions.sidebar.project.actions.unpin")
                           : t("sessions.sidebar.project.actions.pin")}
+                      </DropdownMenuItem>
+                    ) : null}
+                    {onArchiveAll ? (
+                      <DropdownMenuItem onClick={onArchiveAll} disabled={archiveAllDisabled} variant="destructive">
+                        <Icon name="archive" className="mr-1.5 h-4 w-4" />
+                        {t("sessions.sidebar.project.actions.archiveAll")}
                       </DropdownMenuItem>
                     ) : null}
                     <DropdownMenuItem onClick={onClose} className="text-destructive focus:text-destructive">
