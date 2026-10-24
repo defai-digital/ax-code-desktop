@@ -43,8 +43,8 @@ import { toast } from "@/components/ui"
 import { seedSessionAutoAccept, inheritSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
 import { blockingRequestStamp } from "./blocking-request-events"
 import { useI18nStore, formatMessage } from "@/lib/i18n/store"
+import { MESSAGE_REFETCH_LIMIT } from "./session-message-refresh"
 
-const MESSAGE_REFETCH_LIMIT = 200
 const MESSAGE_REFETCH_SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const UNREVERT_REFETCH_ATTEMPTS = 3
 const UNREVERT_REFETCH_RETRY_MS = 150
