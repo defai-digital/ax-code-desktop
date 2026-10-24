@@ -30,7 +30,8 @@ import {
   type EventRoutingIndex,
 } from "./event-routing"
 import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
-import { mergeSessionListPage } from "./session-list-merge"
+import { refreshDirectorySessionList } from "./session-list-loader"
+import { createExternalSessionPoller, isExternalSessionStatus } from "./external-session-poller"
 import { noteServerSessionStatus, serverSessionStatusStampFloor } from "./session-status-events"
 import { ingestSessionGoalEvent, noteSessionGoalRecovery } from "./session-goal-ingress"
 
@@ -553,6 +554,13 @@ function buildRelevantSessionStatuses(
   if (nextStatuses === null) return null
   const relevantStatuses: Record<string, SessionStatus> = {}
   for (const sessionId of candidateSessionIds) {
+    // This process cannot report activity owned by a separate CLI. An absent/idle
+    // runtime snapshot must not erase activity inferred from the shared transcript.
+    const serverStatus = nextStatuses[sessionId]
+    if (
+      (!serverStatus || serverStatus.type === "idle") &&
+      isExternalSessionStatus(sessionId, state.session_status[sessionId])
+    ) continue
     relevantStatuses[sessionId] = resolveResyncedSessionStatus({
       serverStatus: toSessionStatus(nextStatuses[sessionId]),
       existingStatus: state.session_status?.[sessionId],
@@ -1538,60 +1546,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
             },
             loadSessions: (dir) =>
               retry(async () => {
-                // Which sessions this client already knew when the request went out: a root that
-                // first appears while the page is in flight was not in the index the answer was read
-                // from, so the merge must carry it instead of treating it as deleted.
-                // Per-session `time.updated` at request time: the page was read before any event
-                // that lands while it is in flight, so a newer local copy must win (and a session
-                // deleted in that window must not be resurrected by the page).
-                const knownBeforeRequest = new Map(
-                  store.getState().session.map((session) => [session.id, session.time?.updated]),
-                )
-                const result = await props.sdk.session.list({
-                  directory: dir,
-                  roots: true,
-                  limit: 50,
-                })
-                // SDK returns { error } instead of { data } on non-ok responses (503).
-                // Preserve HTTP status so retry()'s transient detection works.
-                const rawError = (result as { error?: unknown }).error
-                if (rawError) {
-                  const response = (result as { response?: { status?: number } }).response
-                  const status = response?.status
-                  const message =
-                    typeof rawError === "object" && "message" in rawError
-                      ? String((rawError as { message?: unknown }).message)
-                      : String(rawError)
-                  const wrapped = new Error(`session.list failed${status ? ` (${status})` : ""}: ${message}`)
-                  if (status !== undefined) {
-                    ;(wrapped as Error & { status?: number }).status = status
-                  }
-                  throw wrapped
-                }
-                const rootPage = (result.data ?? [])
-                  .filter((s) => !!s?.id)
-                  .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
-                // Race guard: if the list came back empty but event pipeline
-                // already populated the store, don't clobber. AX Code can
-                // answer HTTP with empty sessions while WS delivers session
-                // events for the same data (disk warmup race on app launch).
-                const currentSessions = store.getState().session
-                if (rootPage.length === 0 && currentSessions.length > 0) {
-                  console.warn(
-                    `[bootstrap] session.list returned empty for ${dir}; preserving ${currentSessions.length} existing sessions`,
-                  )
-                  return
-                }
-                // The page lists root sessions only: the child (subagent) sessions
-                // the event pipeline already inserted are carried over, or a
-                // re-bootstrap would erase a running subagent and its notification
-                // and parent-resync guards until it announced itself again.
-                const sessions = mergeSessionListPage(rootPage, currentSessions, knownBeforeRequest)
-                store.setState({
-                  session: sessions,
-                  sessionTotal: rootPage.length,
-                  limit: Math.max(rootPage.length, 50),
-                })
+                await refreshDirectorySessionList({ sdk: props.sdk, directory: dir, store })
                 ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())
               }),
           })
@@ -1789,6 +1744,20 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       clearInterval(interval)
     }
   }, [childStores, triggerDirectoryResync])
+
+  useEffect(() => {
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: (directory) => axCodeClient.getScopedSdkClient(directory),
+      getOpenSessionId: () => useSessionUIStore.getState().currentSessionId,
+      refreshSessionList: async (directory, store, signal) => {
+        await refreshDirectorySessionList({ sdk: props.sdk, directory, store, signal })
+        if (!signal.aborted) ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())
+      },
+      document,
+    })
+    return () => poller.dispose()
+  }, [childStores, props.sdk, routingIndex])
 
   // Ensure current directory's child store exists
   useEffect(() => {
