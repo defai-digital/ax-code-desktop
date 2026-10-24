@@ -309,7 +309,7 @@ jobs:
         run: |
           run() { if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a "$@"; else "$@"; fi; }
           status=0
-          for journey in supervision-workspace portfolio-identity project-home project-browser; do
+          for journey in supervision-workspace portfolio-identity project-home project-archive-all project-browser; do
             run node "desktop/packages/electron/scripts/e2e/${journey}-webmcp.mjs" \
               --artifacts "$RUNNER_TEMP/supervision-journeys/${journey}" || status=1
           done

@@ -107,6 +107,17 @@ const portfolio = scenario && Array.isArray(scenario.portfolio) ? scenario.portf
 let scheduledFixture = [];
 let scheduledWrites = [];
 const createdSessions = [];
+const archivedSessionTimes = new Map();
+const sessionUpdateTimes = new Map();
+const sessionArchiveWrites = [];
+const archivedSessionState = (session) => {
+  const time = { ...session.time };
+  const updated = sessionUpdateTimes.get(session.id);
+  if (typeof updated === 'number') time.updated = updated;
+  if (archivedSessionTimes.has(session.id)) time.archived = archivedSessionTimes.get(session.id);
+  else delete time.archived;
+  return { ...session, time: time };
+};
 let scheduledCreateAttempts = 0;
 let scheduledFailCreateAt = 0;
 let scheduledFixtureModel = false;
@@ -325,6 +336,26 @@ const server = http.createServer((req, res) => {
       json(res, { tasks: scheduledFixture, writes: scheduledWrites, createAttempts: scheduledCreateAttempts });
       return;
     }
+    if (pathname === '/__e2e__/session-archives') {
+      if (req.method === 'POST') {
+        readBody(req, (body) => {
+          sessionArchiveWrites.length = 0;
+          archivedSessionTimes.clear();
+          for (const entry of Array.isArray(body.archived) ? body.archived : []) {
+            if (entry && typeof entry.id === 'string' && typeof entry.archived === 'number') {
+              archivedSessionTimes.set(entry.id, entry.archived);
+            }
+          }
+          json(res, { ok: true });
+        });
+        return;
+      }
+      json(res, {
+        writes: sessionArchiveWrites,
+        archived: Array.from(archivedSessionTimes, ([id, archived]) => ({ id: id, archived: archived })),
+      });
+      return;
+    }
     if (pathname === '/config/providers' && scheduledFixtureModel) {
       json(res, { providers: [{
         id: 'fixture', name: 'Fixture', models: {
@@ -495,9 +526,42 @@ const server = http.createServer((req, res) => {
         });
         return;
       }
-      json(res, url.searchParams.get('archived') === 'true' ? [] :
-        sessions.filter(entry =>
-          !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory));
+      // archived=true means "include archived"; the app splits the two buckets by time.archived.
+      const wantsArchived = url.searchParams.get('archived') === 'true';
+      json(res, sessions
+        .filter(entry => wantsArchived || !archivedSessionTimes.has(entry.id))
+        .filter(entry => !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory)
+        .map(archivedSessionState));
+      return;
+    }
+    // Archive fixture: the real runtime persists archive state through the scoped
+    // session update and announces it with session.updated. Desktop's Undo relies
+    // on that event, so the stub must emit it instead of only answering the PATCH.
+    const sessionUpdateMatch = pathname.match(/^\\/session\\/([^/]+)$/);
+    if (sessionUpdateMatch && req.method === 'PATCH') {
+      readBody(req, (body) => {
+        const sessionID = decodeURIComponent(sessionUpdateMatch[1]);
+        const entry = sessions.find(item => item.id === sessionID);
+        if (!entry) {
+          res.statusCode = 404;
+          json(res, { error: 'session not found' });
+          return;
+        }
+        if (body.time && Object.prototype.hasOwnProperty.call(body.time, 'archived')) {
+          const archived = typeof body.time.archived === 'number' && Number.isFinite(body.time.archived)
+            ? body.time.archived : null;
+          if (archived === null) archivedSessionTimes.delete(sessionID);
+          else archivedSessionTimes.set(sessionID, archived);
+          // The runtime bumps time.updated on every session.update. Without it an
+          // unarchive event is older than the archived entry and correctly treated as stale.
+          sessionUpdateTimes.set(sessionID, Date.now());
+          sessionArchiveWrites.push({ sessionID: sessionID, directory: scopedDirectory, archived: archived });
+          broadcast(canonDirectory(entry.directory), {
+            type: 'session.updated', properties: { info: archivedSessionState(entry) },
+          });
+        }
+        json(res, archivedSessionState(entry));
+      });
       return;
     }
     if (pathname === '/project') {

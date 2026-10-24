@@ -70,6 +70,14 @@ For Projects Home cards and child actions, run:
 node desktop/packages/electron/scripts/e2e/project-home-webmcp.mjs --artifacts /tmp/ax-project-home
 ```
 
+For the project-wide Archive all action, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/project-archive-all-webmcp.mjs --artifacts /tmp/ax-project-archive-all
+```
+
+This seeds extra sessions in two same-label projects. Native WebMCP opens each project menu, checks the disabled state, cancels once without writes, then archives and undoes one project's exact membership and archives the other. The stub records every scoped session update, so the journey asserts one archive request per session in that project's directory, no cross-project writes, restored membership after Undo and the disabled empty-project state. It does not qualify a real runtime's durability or physical pointer access.
+
 This discovers same-name cards, checks project/draft selection and opens each project's attention conversation. It also
 pins one project, reads the isolated settings file, reloads to check persistence and unpins it. Screenshots include
 populated narrow/light/dark views. No prompt is submitted; profile changes stay within the harness's temporary directory.

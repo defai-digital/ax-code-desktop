@@ -378,7 +378,8 @@ describe("stub runtime with a scenario", () => {
     ])
     expect(await (await fetch(`${stub.base}/session?directory=/somewhere/else`)).json()).toEqual([])
     expect(await (await fetch(`${stub.base}/experimental/session?archived=false`)).json()).toEqual([scenario.session])
-    expect(await (await fetch(`${stub.base}/experimental/session?archived=true`)).json()).toEqual([])
+    // The runtime's archived=true query means "include archived", not "only archived".
+    expect(await (await fetch(`${stub.base}/experimental/session?archived=true`)).json()).toEqual([scenario.session])
     expect(await (await fetch(`${stub.base}/project`)).json()).toEqual([scenario.project])
     expect(await (await fetch(`${stub.base}/project/current?directory=/tmp/e2e-project`)).json()).toEqual(
       scenario.project,
