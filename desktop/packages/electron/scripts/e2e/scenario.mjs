@@ -98,6 +98,10 @@ export const buildE2eScenario = ({ directory, now = Date.now(), portfolio = fals
     }]
     scenario.portfolioMessages = Object.fromEntries([scenario.session, scenario.portfolio[0].session].map((session, index) => {
       const messageID = `msg_e2e_portfolio_${index}`
+      // The reply keeps the scripted turn complete. The external-session poller
+      // treats a transcript whose newest message is from the user as a running
+      // turn, which would outrank these sessions' blocked goals.
+      const replyID = `msg_e2e_portfolio_reply_${index}`
       return [session.id, [{
         info: {
           id: messageID, sessionID: session.id, role: "user", time: { created: now },
@@ -106,6 +110,16 @@ export const buildE2eScenario = ({ directory, now = Date.now(), portfolio = fals
         parts: [{
           id: `part_e2e_portfolio_${index}`, sessionID: session.id, messageID, type: "text",
           text: `Fixture conversation for project ${index === 0 ? "A" : "B"}`,
+        }],
+      }, {
+        info: {
+          id: replyID, sessionID: session.id, role: "assistant",
+          time: { created: now + 1, completed: now + 2 }, finish: "stop",
+          agent: "build", model: { providerID: "fixture", modelID: "fixture" },
+        },
+        parts: [{
+          id: `part_e2e_portfolio_reply_${index}`, sessionID: session.id, messageID: replyID, type: "text",
+          text: `Fixture reply for project ${index === 0 ? "A" : "B"}`,
         }],
       }]]
     }))
