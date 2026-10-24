@@ -4,7 +4,6 @@ const fs = require("node:fs")
 const path = require("node:path")
 const crypto = require("node:crypto")
 const {
-  parseExpectedManifest,
   verifyRuntimeManifest,
   verifyRuntimeManifestAsync,
 } = require("../../../../script/runtime-manifest.cjs")
@@ -33,42 +32,6 @@ async function writeReceipt(receiptFile, receipt) {
   } finally {
     await fs.promises.rm(temporary, { force: true })
   }
-}
-
-async function trustedStartupFilesMatch(runtimeRoot, expected, platform) {
-  const paths = [platform === "win32" ? "bin/ax-code.cmd" : "bin/ax-code", "package.json"]
-  for (const relative of paths) {
-    const entry = expected.get(relative)
-    if (entry?.type !== "file") return false
-    try {
-      const file = path.join(runtimeRoot, relative)
-      const handle = await fs.promises.open(
-        file,
-        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | (fs.constants.O_NONBLOCK ?? 0),
-      )
-      try {
-        const stat = await handle.stat()
-        if (!stat.isFile() || stat.size !== entry.size) return false
-        const bytes = await handle.readFile()
-        if (bytes.length !== entry.size || crypto.createHash("sha256").update(bytes).digest("hex") !== entry.sha256) {
-          return false
-        }
-        // Hash the checked descriptor, then require the path to still identify
-        // that unchanged regular file. Reject symlinks on platforms without O_NOFOLLOW too.
-        const after = await handle.stat()
-        const current = await fs.promises.lstat(file)
-        if (!current.isFile()) return false
-        for (const field of ["dev", "ino", "size", "mtimeMs", "ctimeMs"]) {
-          if (stat[field] !== after[field] || after[field] !== current[field]) return false
-        }
-      } finally {
-        await handle.close()
-      }
-    } catch {
-      return false
-    }
-  }
-  return true
 }
 
 // Shared preflight: resolves everything cheap and decides whether the runtime
@@ -123,74 +86,54 @@ function verifyBundledAxCodeIntegrity(options = {}) {
   return { status: "verified", runtimeRoot, entries: manifest.files.length }
 }
 
-// Without receipt options this fully hashes before resolving, like the sync
-// verifier. A receipt hit moves the full scan behind the foreground launch gate.
+// Receipts are diagnostic metadata, never authorization to skip file hashes.
+// Always await the full trusted-manifest scan before opening the launch gate.
 async function verifyBundledAxCodeIntegrityAsync(options = {}) {
   const started = performance.now()
   const inspected = inspectBundledAxCode(options)
   if (inspected.result) return inspected.result
   const { runtimeRoot, trustedManifest } = inspected
-  const {
-    receiptFile,
-    appVersion,
-    platform = process.platform,
-    onIntegrityFailure,
-    verifyFull = verifyRuntimeManifestAsync,
-  } = options
-  const expected = parseExpectedManifest(trustedManifest, EMBEDDED_MANIFEST_NAME)
-  const cacheEnabled = Boolean(receiptFile && appVersion)
+  const { receiptFile, appVersion, verifyFull = verifyRuntimeManifestAsync } = options
   let receipt = null
-  if (cacheEnabled) {
-    receipt = {
-      schema: RECEIPT_SCHEMA,
-      appVersion,
-      manifestDigest: crypto.createHash("sha256").update(canonicalJson(trustedManifest)).digest("hex"),
-      runtimeRealpath: await fs.promises.realpath(runtimeRoot),
-    }
-  }
   let matches = false
-  if (cacheEnabled) {
+  if (receiptFile && appVersion) {
     try {
+      receipt = {
+        schema: RECEIPT_SCHEMA,
+        appVersion,
+        manifestDigest: crypto.createHash("sha256").update(canonicalJson(trustedManifest)).digest("hex"),
+        runtimeRealpath: await fs.promises.realpath(runtimeRoot),
+      }
       const previous = JSON.parse(await fs.promises.readFile(receiptFile, "utf8"))
       matches = Object.keys(receipt).every((key) => previous?.[key] === receipt[key])
     } catch {
-      // A missing, unreadable or incomplete receipt always requires a full scan.
+      // Missing or unreadable diagnostic metadata does not weaken the full scan.
     }
   }
-  const fullVerify = () => verifyFull(runtimeRoot, { manifest: trustedManifest })
-  if (matches && (await trustedStartupFilesMatch(runtimeRoot, expected, platform))) {
-    // Keep this promise separate from the launch gate. Its failure revokes the
-    // receipt and must stop any runtime the caller has already started.
-    const backgroundVerification = Promise.resolve().then(async () => {
+  let manifest
+  try {
+    manifest = await verifyFull(runtimeRoot, { manifest: trustedManifest })
+  } catch (error) {
+    if (receiptFile) {
       try {
-        await fullVerify()
-        await writeReceipt(receiptFile, receipt)
-      } catch (error) {
-        try {
-          await fs.promises.rm(receiptFile, { force: true })
-        } finally {
-          await onIntegrityFailure?.(error)
-        }
+        await fs.promises.rm(receiptFile, { force: true })
+      } catch {
+        console.warn("[electron] could not remove runtime integrity receipt; full verification remains required")
       }
-    })
-    // Callers may observe completion, but need not await it to launch.
-    backgroundVerification.catch((error) => console.error("[electron] integrity failure handling failed:", error))
-    return {
-      status: "verified",
-      cache: "hit",
-      runtimeRoot,
-      entries: trustedManifest.files.length,
-      durationMs: performance.now() - started,
-      backgroundVerification,
+    }
+    throw error
+  }
+  if (receipt) {
+    try {
+      await writeReceipt(receiptFile, receipt)
+    } catch {
+      // Disk exhaustion or a locked receipt is not a runtime integrity failure.
+      console.warn("[electron] could not write runtime integrity receipt; full verification remains required")
     }
   }
-  // Revoke a stale receipt before the scan, including when a startup file changed.
-  if (cacheEnabled) await fs.promises.rm(receiptFile, { force: true })
-  const manifest = await fullVerify()
-  if (cacheEnabled) await writeReceipt(receiptFile, receipt)
   return {
     status: "verified",
-    cache: "miss",
+    cache: matches ? "hit" : "miss",
     runtimeRoot,
     entries: manifest.files.length,
     durationMs: performance.now() - started,

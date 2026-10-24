@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "ax-coder",
-  "version": "7.28.7",
+  "version": "7.29.0",
   "description": "Persistent desktop supervision for AX Code projects.",
   "private": true,
   "type": "module",

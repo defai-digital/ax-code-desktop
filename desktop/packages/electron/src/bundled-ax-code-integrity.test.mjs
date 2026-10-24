@@ -148,34 +148,32 @@ describe("bundled ax-code runtime integrity (async)", () => {
     })
   })
 
-  test("resolves a hit after checking only startup files while the full scan is pending", async () => {
+  test("a matching receipt never opens the launch gate before the full scan completes", async () => {
     const paths = makePackagedRuntime()
     const config = cachedOptions(paths)
     await verifyBundledAxCodeIntegrityAsync(config)
-    let release
+    let release, entered
     const gate = new Promise((resolve) => { release = resolve })
+    const scanning = new Promise((resolve) => { entered = resolve })
     const verifyFull = vi.fn(async (...args) => {
+      entered()
       await gate
       return verifyRuntimeManifestAsync(...args)
     })
-    const read = vi.spyOn(fs.promises, "readFile")
-    const open = vi.spyOn(fs.promises, "open")
-    let hit
+    let launchAllowed = false
+    const pending = verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull }).then((result) => {
+      launchAllowed = true
+      return result
+    })
     try {
-      hit = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
-      expect(hit).toMatchObject({ status: "verified", cache: "hit", entries: 3 })
-      expect(verifyFull).toHaveBeenCalledTimes(1)
-      expect(read.mock.calls.map(([file]) => file)).toEqual([config.receiptFile])
-      expect(open.mock.calls.map(([file]) => file)).toEqual([
-        path.join(paths.runtimeRoot, "bin", "ax-code"), path.join(paths.runtimeRoot, "package.json"),
-      ])
+      await scanning
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(launchAllowed).toBe(false)
     } finally {
-      read.mockRestore()
-      open.mockRestore()
       release()
-      await hit?.backgroundVerification
+      await pending
     }
-    expect(fs.existsSync(config.receiptFile)).toBe(true)
+    expect(await pending).toMatchObject({ status: "verified", cache: "hit", entries: 3 })
   })
 
   test("rejects a changed package.json on a hit by falling through to the full verifier", async () => {
@@ -191,94 +189,52 @@ describe("bundled ax-code runtime integrity (async)", () => {
     expect(fs.existsSync(config.receiptFile)).toBe(false)
   })
 
-  test.skipIf(process.platform === "win32")("rejects a startup path replaced with a symlink after its metadata check", async () => {
-    const paths = makePackagedRuntime()
-    const config = cachedOptions(paths)
-    await verifyBundledAxCodeIntegrityAsync(config)
-    const launcher = path.join(paths.runtimeRoot, "bin", "ax-code")
-    const backup = path.join(paths.resourcesPath, "original-launcher")
-    const manifest = JSON.parse(fs.readFileSync(path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME), "utf8"))
-    const verifyFull = vi.fn(async () => manifest)
-    const realLstat = fs.promises.lstat.bind(fs.promises)
-    const realOpen = fs.promises.open.bind(fs.promises)
-    let replaced = false
-    const replaceAfterMetadata = (stat) => {
-      if (!replaced) {
-        fs.renameSync(launcher, backup)
-        fs.symlinkSync(backup, launcher)
-        replaced = true
-      }
-      return stat
-    }
-    const lstat = vi.spyOn(fs.promises, "lstat").mockImplementation(async (file, ...args) => {
-      const stat = await realLstat(file, ...args)
-      return file === launcher ? replaceAfterMetadata(stat) : stat
-    })
-    const open = vi.spyOn(fs.promises, "open").mockImplementation(async (file, ...args) => {
-      const handle = await realOpen(file, ...args)
-      if (file === launcher) {
-        const stat = handle.stat.bind(handle)
-        handle.stat = async (...statArgs) => replaceAfterMetadata(await stat(...statArgs))
-      }
-      return handle
-    })
-    let result
-    try {
-      result = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
-      expect(replaced).toBe(true)
-      expect(result.cache).toBe("miss")
-      await result.backgroundVerification
-    } finally {
-      lstat.mockRestore()
-      open.mockRestore()
-      await result?.backgroundVerification
-      if (replaced) {
-        fs.rmSync(launcher)
-        fs.renameSync(backup, launcher)
-      }
-    }
-  })
-
-  test("closes the startup descriptor when its read fails before falling back", async () => {
-    const paths = makePackagedRuntime()
-    const config = cachedOptions(paths)
-    await verifyBundledAxCodeIntegrityAsync(config)
-    const manifest = JSON.parse(fs.readFileSync(path.join(paths.appPath, "dist", EMBEDDED_MANIFEST_NAME), "utf8"))
-    const verifyFull = vi.fn(async () => manifest)
-    const realOpen = fs.promises.open.bind(fs.promises)
-    const closes = []
-    const open = vi.spyOn(fs.promises, "open").mockImplementation(async (file, ...args) => {
-      const handle = await realOpen(file, ...args)
-      vi.spyOn(handle, "readFile").mockRejectedValue(new Error("startup read failed"))
-      closes.push(vi.spyOn(handle, "close"))
-      return handle
-    })
-    try {
-      const result = await verifyBundledAxCodeIntegrityAsync({ ...config, verifyFull })
-      expect(result.cache).toBe("miss")
-      expect(verifyFull).toHaveBeenCalledOnce()
-      expect(closes).toHaveLength(1)
-      expect(closes[0]).toHaveBeenCalledOnce()
-    } finally {
-      open.mockRestore()
-    }
-  })
-
-  test("revokes the receipt and reports a background runtime mismatch", async () => {
+  test("rejects tampered sidecar code before launch even with a matching receipt", async () => {
     const paths = makePackagedRuntime()
     const config = cachedOptions(paths)
     await verifyBundledAxCodeIntegrityAsync(config)
     fs.appendFileSync(path.join(paths.runtimeRoot, "lib", "index-node-tui.js"), "tampered\n")
-    const onIntegrityFailure = vi.fn(() => {
-      expect(fs.existsSync(config.receiptFile)).toBe(false)
-    })
-    const hit = await verifyBundledAxCodeIntegrityAsync({ ...config, onIntegrityFailure })
-    expect(hit.cache).toBe("hit")
-    await hit.backgroundVerification
-    expect(onIntegrityFailure).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({ message: "Runtime manifest mismatch: lib/index-node-tui.js" }),
-    )
+    let launched = false
+    await expect(verifyBundledAxCodeIntegrityAsync(config).then(() => { launched = true }))
+      .rejects.toThrow("Runtime manifest mismatch: lib/index-node-tui.js")
+    expect(launched).toBe(false)
     expect(fs.existsSync(config.receiptFile)).toBe(false)
+  })
+
+  test("receipt write failures do not reject a valid runtime on either a miss or a hit", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    const realRename = fs.promises.rename.bind(fs.promises)
+    const rename = vi.spyOn(fs.promises, "rename").mockRejectedValue(new Error("disk full"))
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await expect(verifyBundledAxCodeIntegrityAsync(config)).resolves.toMatchObject({ status: "verified", cache: "miss" })
+      rename.mockImplementation(realRename)
+      await verifyBundledAxCodeIntegrityAsync(config)
+      rename.mockRejectedValue(new Error("permission denied"))
+      await expect(verifyBundledAxCodeIntegrityAsync(config)).resolves.toMatchObject({ status: "verified", cache: "hit" })
+      expect(warning).toHaveBeenCalledTimes(2)
+    } finally {
+      rename.mockRestore()
+      warning.mockRestore()
+    }
+  })
+
+  test("receipt cleanup failure cannot hide the original integrity error", async () => {
+    const paths = makePackagedRuntime()
+    const config = cachedOptions(paths)
+    await verifyBundledAxCodeIntegrityAsync(config)
+    fs.appendFileSync(path.join(paths.runtimeRoot, "lib", "index-node-tui.js"), "tampered\n")
+    const remove = vi.spyOn(fs.promises, "rm").mockRejectedValue(new Error("receipt locked"))
+    const warning = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await expect(verifyBundledAxCodeIntegrityAsync(config)).rejects.toThrow(
+        "Runtime manifest mismatch: lib/index-node-tui.js",
+      )
+    } finally {
+      remove.mockRestore()
+      warning.mockRestore()
+    }
   })
 
   test("fully verifies again when the app version changes", async () => {
@@ -317,7 +273,6 @@ describe("bundled ax-code runtime integrity (async)", () => {
     fs.writeFileSync(manifestFile, JSON.stringify({ files: manifest.files, algorithm: manifest.algorithm, schema: manifest.schema }))
     const hit = await verifyBundledAxCodeIntegrityAsync(config)
     expect(hit.cache).toBe("hit")
-    await hit.backgroundVerification
   })
 
   test("never writes a receipt for a failed full scan", async () => {

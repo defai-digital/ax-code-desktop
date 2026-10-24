@@ -4,31 +4,17 @@ import fs from "node:fs/promises"
 import http from "node:http"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { execFile, spawn } from "node:child_process"
+import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { CdpSession, listTargets, waitForCondition } from "./cdp.mjs"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { assertPathInsideDirectory } from "./scenario.mjs"
+import { runWebMcpChecker } from "./run-webmcp-checker.mjs"
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../../../..")
 const args = parseArgs(process.argv.slice(2))
-// Invoke pnpm's JS entry directly so Windows cmd.exe cannot rewrite JSON quotes.
-const pnpmEntry = async () => {
-  for (const directory of (process.env.PATH ?? "").split(path.delimiter)) {
-    for (const candidate of [path.join(directory, "pnpm"),
-      ...[directory, path.dirname(directory)].flatMap(base => [
-        path.join(base, "node_modules/pnpm/bin/pnpm.cjs"),
-        path.join(base, "node_modules/corepack/dist/pnpm.js"),
-      ])]) {
-      const resolved = await fs.realpath(candidate).catch(() => null)
-      if (resolved && /\.(?:c?js|mjs)$/.test(resolved)) return resolved
-    }
-  }
-  throw new Error("Cannot locate the installed pnpm JavaScript entry")
-}
-
 // Extend the actual documented example, retaining its registrations and visible UI.
 const registration = (changed = false) => `document.modelContext.registerTool({
   name: 'builder_echo', description: 'Echo builder input for a regression test.',
@@ -142,15 +128,10 @@ try {
         await act("W8", () => session.evaluate(`Array.from(document.querySelector('[data-webmcp-export="manual"]').querySelectorAll('button')).find(b => b.textContent.includes('Copy test')).click()`))
         // The same served quickstart registers the added tool in the independent checker process.
         const checkerUrl = `${pageUrl}?builder=1`
-        const pnpm = await pnpmEntry()
-        const checked = await act("W8", () => new Promise((resolve, reject) => {
-          const child = spawn(process.execPath, [pnpm, "run", "webmcp:check", "--", "--url", checkerUrl, "--expect-tools", "builder_echo", "--run", 'builder_echo={"text":"builder regression"}', "--json"], { cwd: root })
-          let stdout = "", stderr = ""
-          child.stdout.on("data", (data) => { stdout += data })
-          child.stderr.on("data", (data) => { stderr += data })
-          child.on("error", reject)
-          child.on("close", (code) => resolve({ code, stdout, stderr }))
-        }))
+        const checked = await act("W8", () => runWebMcpChecker(root, [
+          "--url", checkerUrl, "--expect-tools", "builder_echo",
+          "--run", 'builder_echo={"text":"builder regression"}', "--json",
+        ]))
         if (args.artifacts) { await fs.mkdir(args.artifacts, { recursive: true }); await fs.writeFile(path.join(args.artifacts, "w8-test.mjs"), snippet); await fs.writeFile(path.join(args.artifacts, "w8-checker.json"), JSON.stringify(checked, null, 2)) }
         if (checked.code !== 0) throw new Error(`W8 checker exit ${checked.code}: ${checked.stderr}`)
         await capture("W8", { snippet, checked })

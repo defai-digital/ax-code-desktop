@@ -3740,8 +3740,7 @@ app.whenReady().then(async () => {
   browserSession.setPermissionCheckHandler((_webContents, permission) => WEBVIEW_ALLOWED_PERMISSIONS.has(permission))
 
   try {
-    // A receipt miss fully verifies before use. A hit checks the trusted launch
-    // files here, then continues the full scan in the background with fatal teardown.
+    // Hash the full runtime before use on every launch, including receipt hits.
     const bundledIntegrityCheck = verifyBundledAxCodeIntegrityAsync({
       platform: process.platform,
       isPackaged: app.isPackaged,
@@ -3749,7 +3748,6 @@ app.whenReady().then(async () => {
       resourcesPath: process.resourcesPath,
       receiptFile: path.join(app.getPath("userData"), "runtime-integrity-receipt.json"),
       appVersion: app.getVersion(),
-      onIntegrityFailure: handleStartupFailure,
     })
     // The rejection is surfaced where it is awaited; this only keeps an early
     // failure from being reported as unhandled while the shell is created.
@@ -3815,9 +3813,8 @@ app.whenReady().then(async () => {
     // startup-failure path — only a prepare() failure (no usable binary, a
     // configuration error) still fails startup here.
     const loginShellEnv = await loginShellEnvCapture.promise
-    // This promise started at process load. While it settles, the background
-    // integrity scan and the quit coordinator can set isQuitting. Re-read the
-    // flag through a call so an abort during this await still stops startup.
+    // This promise started at process load. The quit coordinator can abort
+    // startup while it settles; re-read the flag after the await.
     if (startupWasAborted()) return
     loginShellEnvEncoded = resolveForwardedLoginShellEnv(loginShellEnv)
     recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
