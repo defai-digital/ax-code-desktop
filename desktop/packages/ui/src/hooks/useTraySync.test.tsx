@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 // Zero-arg mock: the assertions read the recorded calls through the helper below.
-const invokeDesktopMock = vi.fn(async () => null)
+const invokeDesktopMock = vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => null)
 const isDesktopShellMock = vi.fn(() => true)
 
 vi.doMock("@/lib/desktop", () => ({
@@ -59,7 +59,7 @@ describe("useTraySync", () => {
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
-    invokeDesktopMock.mockClear()
+    invokeDesktopMock.mockReset().mockResolvedValue(null)
     isDesktopShellMock.mockReturnValue(true)
     syncSessions.length = 0
     syncSessions.push({ id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } })
@@ -178,6 +178,35 @@ describe("useTraySync", () => {
     await render()
 
     expect(invokeDesktopMock).not.toHaveBeenCalled()
+  })
+
+  test.each(["unsupported", "rejected"])("retries an unchanged badge after an %s result", async (failure) => {
+    vi.useFakeTimers()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    let badgeAttempts = 0
+    invokeDesktopMock.mockImplementation(async (command) => {
+      if (command !== "desktop_set_badge_count") return null
+      badgeAttempts++
+      if (badgeAttempts > 1) return true
+      if (failure === "rejected") throw new Error("badge failed")
+      return false
+    })
+    try {
+      await render()
+      expect(badgeAttempts).toBe(1)
+      await React.act(async () => { await vi.advanceTimersByTimeAsync(5_600) })
+      expect(badgeAttempts).toBe(2)
+      await React.act(async () => { await vi.advanceTimersByTimeAsync(5_000) })
+      expect(badgeAttempts).toBe(2)
+      const badgeCalls = invokeCalls().filter((call) => call[0] === "desktop_set_badge_count")
+      expect(badgeCalls[0][1]).toEqual(badgeCalls[1][1])
+      if (failure === "rejected") {
+        expect(warn).toHaveBeenCalledWith("[tray-sync] failed to set the dock badge", expect.any(Error))
+      }
+    } finally {
+      warn.mockRestore()
+      vi.useRealTimers()
+    }
   })
 
   test("flushes again when a subscribed store changes", async () => {

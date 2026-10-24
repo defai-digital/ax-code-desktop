@@ -8,12 +8,47 @@ import {
   TERMINAL_OUTPUT_WS_MAX_BUFFERED_BYTES,
   TERMINAL_SHELL_STARTUP_GRACE_MS,
   createTerminalRuntime,
+  getTerminalShellCandidates,
   isTerminalOutputClientStalled,
   isTerminalOutputResponseStalled,
   observeTerminalShellStartup,
   sanitizeTerminalEnv,
 } from "./runtime.js"
 import { createMockRequest, createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
+
+describe("terminal shell selection", () => {
+  const resolve = (platform, env, unavailable = []) => getTerminalShellCandidates({
+    platform,
+    env,
+    searchPathFor: (name) => `resolved/${name}`,
+    isExecutable: (name) => !unavailable.includes(name),
+  })
+
+  it("prefers PowerShell over ComSpec and ignores SHELL on Windows", () => {
+    expect(resolve("win32", { ComSpec: "C:\\Windows\\System32\\cmd.exe", SHELL: "unix-shell" })).toEqual([
+      "resolved/pwsh.exe",
+      "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
+      "resolved/powershell.exe",
+      "C:\\Windows\\System32\\cmd.exe",
+      "resolved/cmd.exe",
+    ])
+  })
+
+  it("uses an executable override first", () => {
+    expect(resolve("win32", { AX_CODE_DESKTOP_TERMINAL_SHELL: "custom.exe" })[0]).toBe("resolved/custom.exe")
+  })
+
+  it("skips a non-executable override", () => {
+    expect(resolve("win32", { AX_CODE_DESKTOP_TERMINAL_SHELL: "custom.exe" }, ["custom.exe", "resolved/custom.exe"])[0])
+      .toBe("resolved/pwsh.exe")
+  })
+
+  it("preserves the Unix override, login shell and fallback order", () => {
+    expect(resolve("darwin", { AX_CODE_DESKTOP_TERMINAL_SHELL: "/custom", SHELL: "/login" })).toEqual([
+      "/custom", "/login", "/bin/zsh", "/bin/bash", "/bin/sh", "resolved/zsh", "resolved/bash", "resolved/sh",
+    ])
+  })
+})
 
 function createRuntime(server, overrides = {}) {
   const app = overrides.app ?? {

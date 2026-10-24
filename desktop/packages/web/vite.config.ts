@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs"
 import { themeStoragePlugin } from "../../vite-theme-plugin"
 import { createDesktopApiWsProxyPlugin } from "./vite-api-ws-proxy"
 import { createDesktopApiRuntimeProxyPlugin } from "./vite-api-runtime-proxy"
+import { renderTerminalFontSources } from "./terminal-font-faces"
 import devPorts from "../../shared/dev-ports.json"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -119,6 +120,10 @@ function getVendorChunkName(packageName: string): string | undefined {
 export default defineConfig({
   root: path.resolve(__dirname, "."),
   plugins: [
+    {
+      name: "terminal-font-sources",
+      transformIndexHtml: renderTerminalFontSources,
+    },
     react({
       babel: {
         plugins: ["babel-plugin-react-compiler"],

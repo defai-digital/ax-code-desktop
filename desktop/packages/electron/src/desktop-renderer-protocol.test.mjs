@@ -56,6 +56,15 @@ describe("packaged renderer protocol policy", () => {
     expect(imgSrc).toContain("https://models.dev")
   })
 
+  test("CSP permits offline fonts from self without allowing jsDelivr", () => {
+    for (const proxiedContent of [false, true]) {
+      const fontSrc = parseCspDirective(buildPackagedRendererCsp({ proxiedContent }), "font-src")
+      expect(fontSrc).toContain("'self'")
+      expect(fontSrc.join(" ")).not.toContain("jsdelivr")
+      expect(fontSrc).toEqual(["'self'", PACKAGED_RENDERER_ORIGIN, "data:"])
+    }
+  })
+
   test("CSP script-src permits WebAssembly without allowing JavaScript eval", () => {
     // The ghostty-vt terminal renderer compiles a WASM module at startup; the
     // packaged app:// policy must not block it (the http server policy already
