@@ -565,6 +565,24 @@ describe("createSession passes directory", () => {
     expect(setCurrentSessionMock).not.toHaveBeenCalled()
     expect(upsertSessionMock).not.toHaveBeenCalled()
   })
+
+  test("stores the request directory when the created response omits it", async () => {
+    mockScopedClient.session.create.mockImplementationOnce((params: Record<string, unknown>) => {
+      createSessionCalls.push({ client: "scoped", params })
+      return Promise.resolve({ data: { id: "ses_scoped" } }) as unknown as Promise<MockSessionCreateResult>
+    })
+
+    const { createSession, setActionRefs } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, createChildStores([]), () => "/current/project")
+
+    const created = await createSession("Desktop session", "/selected/project", null)
+
+    expect(created).toMatchObject({ id: "ses_scoped", directory: "/selected/project" })
+    expect(setCurrentSessionMock).toHaveBeenCalledWith("ses_scoped", "/selected/project")
+    expect(upsertSessionMock).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ses_scoped", directory: "/selected/project" }),
+    )
+  })
 })
 
 describe("unarchiveSession", () => {

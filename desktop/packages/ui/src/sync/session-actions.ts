@@ -597,21 +597,30 @@ export async function createSession(
     // change does not flip this one. Child sessions inherit their parent.
     seedSessionAutoAccept(session.id, session.parentID ?? parentID ?? null)
 
-    const sessionDirectory = (session as { directory?: string }).directory ?? directory ?? null
+    const rawDirectory = (session as { directory?: unknown }).directory
+    const sessionDirectory =
+      typeof rawDirectory === "string" && rawDirectory.length > 0 ? rawDirectory : (directory ?? null)
+    // Keep one resolved directory on the stored session: callers key WebMCP
+    // pages and project activity by it, and a response that omitted the field
+    // would otherwise leave the session under the empty project key.
+    const storedSession =
+      sessionDirectory && rawDirectory !== sessionDirectory
+        ? ({ ...session, directory: sessionDirectory } as Session)
+        : session
     // Pre-populate routing index so SSE events arriving before session.created
     // can be routed to the correct child store
     if (sessionDirectory) {
-      registerSessionDirectory(session.id, sessionDirectory)
+      registerSessionDirectory(storedSession.id, sessionDirectory)
     }
-    useSessionUIStore.getState().setCurrentSession(session.id, sessionDirectory)
+    useSessionUIStore.getState().setCurrentSession(storedSession.id, sessionDirectory)
     // Optimistic add (load-bearing): the new session is navigated to
     // immediately, so it must appear in the sidebar before the
     // `session.created` event round-trips — the HTTP response can arrive
     // first, and an event dropped during a reconnect would otherwise leave
     // the just-created session invisible until the next full load. The event
     // remains the reconcile authority (signature/preserveNewer dedupe).
-    useGlobalSessionsStore.getState().upsertSession(session)
-    return session
+    useGlobalSessionsStore.getState().upsertSession(storedSession)
+    return storedSession
   } catch (error) {
     console.error("[session-actions] createSession failed", error)
     throw error
