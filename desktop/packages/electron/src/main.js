@@ -1420,6 +1420,7 @@ function handOffToMainWindow(event, detail) {
 async function handleExternalOpenRequest(request) {
   const candidates = collectOpenPathCandidates(request.argv, {
     appExecutablePath: process.execPath,
+    defaultApp: Boolean(process.defaultApp),
     cwd: request.cwd,
     platform: process.platform,
   })

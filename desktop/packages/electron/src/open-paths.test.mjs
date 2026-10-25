@@ -62,6 +62,28 @@ describe("normalizeCandidate", () => {
 })
 
 describe("collectOpenPathCandidates", () => {
+  test("ignores the Electron development entry while preserving the requested project", () => {
+    expect(
+      collectOpenPathCandidates(["/engine/Electron", "/source/desktop", "--flag", "/projects/user"], {
+        appExecutablePath: "/engine/Electron",
+        defaultApp: true,
+        platform: "linux",
+        cwd: "/projects/fixture",
+      }),
+    ).toEqual(["/projects/user"])
+  })
+
+  test("does not drop a single Finder file-open path in development mode", () => {
+    expect(
+      collectOpenPathCandidates(["/projects/user"], {
+        appExecutablePath: "/engine/Electron",
+        defaultApp: true,
+        platform: "darwin",
+        cwd: "/projects/fixture",
+      }),
+    ).toEqual(["/projects/user"])
+  })
+
   test("deduplicates candidates with platform path semantics", () => {
     expect(
       collectOpenPathCandidates(

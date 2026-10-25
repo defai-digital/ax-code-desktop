@@ -4,7 +4,8 @@ import fs from "node:fs/promises"
 import path from "node:path"
 import { waitForCondition } from "./cdp.mjs"
 import { journeyBoot } from "./journeys.mjs"
-import { mentionsPath, pathForms } from "./paths.mjs"
+import { mentionsPath } from "./paths.mjs"
+import { projectKeyFor } from "../../../../shared/webmcp-view-key.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { parseStubOrigin } from "./stub-origin.mjs"
@@ -138,8 +139,8 @@ const outcome = await runHarness({
       const restoredWrites = (state, ids) =>
         state.writes.filter((write) => ids.includes(write.sessionID) && write.archived === null)
       const assertDirectories = (writes, project) => {
-        const forms = pathForms(project.worktree)
-        if (writes.some((write) => !forms.includes(write.directory)))
+        const expectedDirectory = projectKeyFor(project.worktree)
+        if (writes.some((write) => projectKeyFor(write.directory) !== expectedDirectory))
           throw new Error(`Archive request left ${project.id}`)
       }
       await audit.wait('document.querySelectorAll("[data-project-header]").length >= 2', "two project headers")

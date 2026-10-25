@@ -50,7 +50,18 @@ const collectOpenPathCandidates = (argv, options = {}) => {
   const seen = new Set()
   const result = []
 
-  for (const arg of argv) {
+  // Electron development argv includes the app entry after the executable.
+  // It is launch machinery, not a project the person asked to open. File-open
+  // events contain plain paths and must retain their first candidate.
+  const platform = options.platform || process.platform
+  const executableOptions = { ...options, appExecutablePath: "" }
+  const first = normalizeCandidate(argv[0], executableOptions)
+  const executable = normalizeCandidate(options.appExecutablePath, executableOptions)
+  const developmentLaunch = options.defaultApp === true && first && executable &&
+    pathKeyForPlatform(first, platform) === pathKeyForPlatform(executable, platform)
+  const args = developmentLaunch ? argv.slice(2) : argv
+
+  for (const arg of args) {
     const candidate = normalizeCandidate(arg, options)
     if (!candidate) continue
 
