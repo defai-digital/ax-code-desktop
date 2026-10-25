@@ -1168,6 +1168,9 @@ const requeueTransientSettingsFailure = (
   const retained = Object.fromEntries(
     Object.entries(changes).filter(([key]) => _settingsKeySequence.get(key) === sequence),
   ) as Partial<DesktopSettings>
+  // Superseded keys cannot be retried. An empty batch must not turn a failed write
+  // into a successful promise when the newer write may also have failed.
+  if (Object.keys(retained).length === 0) return false
   const hasPendingChanges = _pendingSettingsChanges !== null
   // Values queued since this flush started are newer and win.
   _pendingSettingsChanges = { ...retained, ...(_pendingSettingsChanges ?? {}) }
@@ -1177,10 +1180,9 @@ const requeueTransientSettingsFailure = (
   _pendingSettingsRetryAttempt = hasPendingChanges
     ? Math.min(_pendingSettingsRetryAttempt, retryAttempt + 1)
     : retryAttempt + 1
-  if (!_settingsFlushTimer) {
-    _settingsRetryDueAt = Date.now() + delay
-    _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), delay)
-  }
+  if (_settingsFlushTimer) clearTimeout(_settingsFlushTimer)
+  _settingsRetryDueAt = Math.max(_settingsRetryDueAt, Date.now() + delay)
+  _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), _settingsRetryDueAt - Date.now())
   return true
 }
 
@@ -1247,6 +1249,7 @@ const _flushSettingsUpdate = async (): Promise<void> => {
         throw new TransientSettingsSaveError(message)
       }
       console.warn(message)
+      _settingsCache = null
       rejectSettingsWaiters(waiters, new Error(message))
       return
     }
@@ -1275,6 +1278,7 @@ const _flushSettingsUpdate = async (): Promise<void> => {
       return
     }
     console.warn("Failed to update shared settings via API:", error)
+    _settingsCache = null
     rejectSettingsWaiters(waiters, error)
   }
 }

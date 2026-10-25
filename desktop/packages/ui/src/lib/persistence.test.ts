@@ -251,6 +251,48 @@ describe("updateDesktopSettings", () => {
     expect(save).toHaveBeenLastCalledWith({ showReasoningTraces: true })
   })
 
+  test("rejects a superseded failed save instead of resolving an empty retry batch", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({ getRegisteredRuntimeAPIs: () => null }))
+    const gateways: Array<(response: Response) => void> = []
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => gateways.push(resolve)))
+    vi.stubGlobal("fetch", fetch)
+    const { updateDesktopSettings } = await import("./persistence")
+    const first = updateDesktopSettings({ fontSize: 14 })
+    const firstOutcome = first.then(() => "saved", () => "failed")
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ fontSize: 15 })
+    const secondRejected = expect(second).rejects.toThrow("500")
+    await vi.advanceTimersByTimeAsync(200)
+    gateways[1]?.(new Response("Rejected", { status: 500 }))
+    await secondRejected
+    gateways[0]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(await firstOutcome).toBe("failed")
+    expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  test("does not shorten a failed hidden write's backoff to a newer edit's debounce", async () => {
+    let rejectHidden: ((error: Error) => void) | undefined
+    const save = vi.fn().mockImplementationOnce(() => new Promise<null>((_resolve, reject) => {
+      rejectHidden = reject
+    })).mockResolvedValue(null)
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({ settings: { load: vi.fn(), save } }),
+    }))
+    const { updateDesktopSettings } = await import("./persistence")
+    const hidden = updateDesktopSettings({ fontSize: 14 })
+    const rejected = expect(hidden).rejects.toThrow("offline")
+    window.dispatchEvent(new Event("pagehide"))
+    const newer = updateDesktopSettings({ showReasoningTraces: true })
+    rejectHidden?.(new Error("offline"))
+    await rejected
+    await vi.advanceTimersByTimeAsync(499)
+    expect(save).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(1)
+    await newer
+    expect(save).toHaveBeenLastCalledWith({ fontSize: 14, showReasoningTraces: true })
+  })
+
   test("reports a save the server rejected without retrying it", async () => {
     vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
       getRegisteredRuntimeAPIs: () => null,
@@ -383,6 +425,28 @@ describe("settings save response application", () => {
     await update
     await syncDesktopSettings()
     expect(load).toHaveBeenCalledTimes(3)
+  })
+
+  test("invalidates a pending-edit overlay after the edit is rejected", async () => {
+    let complete: ((value: unknown) => void) | undefined
+    const load = vi.fn().mockResolvedValue({ settings: { fontSize: 110, showReasoningTraces: true }, source: "web" })
+    const save = vi.fn().mockImplementationOnce(() => new Promise((resolve) => { complete = resolve }))
+      .mockRejectedValue(new Error("rejected"))
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({ settings: { load, save } }),
+    }))
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("Rejected", { status: 500 })))
+    const { syncDesktopSettings, updateDesktopSettings } = await import("./persistence")
+    const first = updateDesktopSettings({ fontSize: 110 })
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ showReasoningTraces: false })
+    const rejection = expect(second).rejects.toThrow("500")
+    complete?.({ fontSize: 110, showReasoningTraces: true })
+    await first
+    await vi.advanceTimersByTimeAsync(200)
+    await rejection
+    await syncDesktopSettings()
+    expect(load).toHaveBeenCalledTimes(1)
   })
 
   test("does not roll back a change queued while the save was in flight", async () => {
