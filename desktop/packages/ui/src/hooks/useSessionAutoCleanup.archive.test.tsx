@@ -32,8 +32,16 @@ test.each([true, false])("retention archive supports the global API: %s", async 
   useGlobalSessionsStore.setState({ activeSessions: sessions, archivedSessions: [], pendingRemoval: new Map(), hasLoaded: true, status: "ready" })
   const update = vi.fn(async () => ({ data: {} }))
   const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ session: { update } } as never)
-  const fetch = vi.fn(async () =>
-    supportsGlobalArchive ? new Response("{}", { status: 200 }) : new Response("404 Not Found", { status: 404 }),
+  const isArchiveRequest = (input: RequestInfo | URL) => {
+    const url = input instanceof Request ? input.url : String(input)
+    return url.includes("/global/session/") && new URL(url, "http://localhost").pathname.endsWith("/archived")
+  }
+  // Real store subscriptions may persist preferences during the archive. Only the
+  // archive endpoint is unavailable in the compatibility case; other traffic is unrelated.
+  const fetch = vi.fn(async (input: RequestInfo | URL) =>
+    !supportsGlobalArchive && isArchiveRequest(input)
+      ? new Response("404 Not Found", { status: 404 })
+      : new Response("{}", { status: 200 }),
   )
   vi.stubGlobal("fetch", fetch)
   useSessionUIStore.setState({ currentSessionId: null, isLoading: false })
@@ -57,11 +65,11 @@ test.each([true, false])("retention archive supports the global API: %s", async 
       // Includes sessions with removed directories and sessions with no directory metadata.
       expect(result.completedIds).toHaveLength(658)
       expect(result.failedIds).toEqual([])
-      expect(fetch).toHaveBeenCalledTimes(658)
+      expect(fetch.mock.calls.filter(([input]) => isArchiveRequest(input))).toHaveLength(658)
       expect(scoped).not.toHaveBeenCalled()
       expect(useUIStore.getState().autoDeleteLastRunAt).toBeGreaterThan(0)
     } else {
-      expect(fetch).toHaveBeenCalledTimes(1)
+      expect(fetch.mock.calls.filter(([input]) => isArchiveRequest(input))).toHaveLength(1)
       expect(update).toHaveBeenCalledTimes(329)
       expect(result.completedIds).toHaveLength(329)
       expect(result.failedIds).toHaveLength(329)
