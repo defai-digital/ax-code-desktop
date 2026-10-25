@@ -34,7 +34,7 @@ test.each([true, false])("retention archive supports the global API: %s", async 
   const scoped = vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ session: { update } } as never)
   const isArchiveRequest = (input: RequestInfo | URL) => {
     const url = input instanceof Request ? input.url : String(input)
-    return url.includes("/global/session/") && new URL(url, "http://localhost").pathname.endsWith("/archived")
+    return url.includes("/global/session/") && new URL(url, "http://localhost").pathname.endsWith("/archive")
   }
   // Real store subscriptions may persist preferences during the archive. Only the
   // archive endpoint is unavailable in the compatibility case; other traffic is unrelated.
