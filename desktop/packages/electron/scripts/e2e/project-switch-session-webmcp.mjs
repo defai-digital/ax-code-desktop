@@ -40,6 +40,7 @@ const outcome = await runHarness({
       const sessionA = e2e.scenario.session
       const sessionB = e2e.scenario.portfolio[0].session
       const markerA = "Fixture conversation for project A"
+      const markerB = "Fixture conversation for project B"
       const responses = []
       const allResponses = []
       session.on("Network.responseReceived", ({ response }) => {
@@ -81,57 +82,69 @@ const outcome = await runHarness({
       await openSessionA()
       await capture("session-open")
 
-      // Switch the active project from Settings while the chat stays mounted.
-      await audit.click("Settings")
-      await audit.wait('Boolean(document.querySelector("[data-settings-view]"))', "Settings view")
-      await audit.page("Agents")
       const waitProjectMenu = (expanded) =>
         waitForCondition(
           async () => (await audit.find("Switch project", { role: "button" })).expanded === String(expanded),
           { timeoutMs: 10_000, label: `Settings project menu ${expanded ? "open" : "closed"}` },
         )
-      await waitProjectMenu(false)
-      await audit.click("Switch project")
-      await waitProjectMenu(true)
-      const option = (await audit.all()).controls.find(
-        (control) => control.role === "menuitemradio" && mentionsPath(control.name, sessionB.directory),
-      )
-      if (!option) throw new Error(`Missing Settings project target for ${sessionB.directory}`)
-      await audit.click(option.name, { role: "menuitemradio" })
-      await waitProjectMenu(false)
-      await audit.click("Close settings")
-      await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
+      // Switch the active project from Settings while the chat stays mounted.
+      const switchProject = async (session) => {
+        await audit.click("Settings")
+        await audit.wait('Boolean(document.querySelector("[data-settings-view]"))', "Settings view")
+        await audit.page("Agents")
+        await waitProjectMenu(false)
+        await audit.click("Switch project")
+        await waitProjectMenu(true)
+        const option = (await audit.all()).controls.find(
+          (control) => control.role === "menuitemradio" && mentionsPath(control.name, session.directory),
+        )
+        if (!option) throw new Error(`Missing Settings project target for ${session.directory}`)
+        await audit.click(option.name, { role: "menuitemradio" })
+        await waitProjectMenu(false)
+        await audit.click("Close settings")
+        await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
+      }
+      // Give in-flight reads time to settle, then watch longer than one external
+      // session poll interval (3s) for transcript reads against the new project.
+      const assertNoCrossDirectoryReads = async (session) => {
+        await new Promise((resolve) => setTimeout(resolve, 1_500))
+        responses.length = 0
+        await new Promise((resolve) => setTimeout(resolve, 4_500))
+        const crossDirectory = responses.filter((entry) => {
+          const decoded = decodeURIComponent(entry.url)
+          return (
+            decoded.includes(session.id) &&
+            !decoded.includes(`directory=${session.directory}`) &&
+            (entry.status === 404 || entry.status === 409)
+          )
+        })
+        if (crossDirectory.length) {
+          throw new Error(
+            `Wrong project polled ${session.id} through its own directory: ${JSON.stringify(crossDirectory.slice(0, 3))}`,
+          )
+        }
+      }
 
+      await switchProject(sessionB)
       // The old conversation must not remain selected in the new project.
       await audit.wait(
         `!document.body.innerText.includes(${JSON.stringify(markerA)})`,
         "stale project A conversation cleared",
       )
       await capture("after-switch")
+      await assertNoCrossDirectoryReads(sessionA)
 
-      // Give any in-flight reads time to settle, then watch longer than one
-      // external-session poll interval (3s) for cross-directory transcript
-      // requests against project B's directory.
-      await new Promise((resolve) => setTimeout(resolve, 1_500))
-      responses.length = 0
-      await new Promise((resolve) => setTimeout(resolve, 4_500))
-      const crossDirectory = responses.filter((entry) => {
-        const decoded = decodeURIComponent(entry.url)
-        return (
-          decoded.includes(sessionA.id) &&
-          !decoded.includes(`directory=${sessionA.directory}`) &&
-          (entry.status === 404 || entry.status === 409)
-        )
-      })
-      if (crossDirectory.length) {
-        throw new Error(
-          `Project B polled project A's session through its own directory: ${JSON.stringify(crossDirectory.slice(0, 3))}`,
-        )
-      }
-
-      // Selecting the session again still opens it in its own project. Cached
-      // messages may legitimately answer it without another network read.
-      await openSessionA()
+      // Round trip: switch back while project B's conversation is selected.
+      await switchProject(sessionA)
+      await audit.wait(
+        `!document.body.innerText.includes(${JSON.stringify(markerB)})`,
+        "stale project B conversation cleared",
+      )
+      const markerAVisible = await session.evaluate(
+        `document.body.innerText.includes(${JSON.stringify(markerA)})`,
+      )
+      if (!markerAVisible) await openSessionA()
+      await assertNoCrossDirectoryReads(sessionB)
       await capture("session-reopened")
 
       const receipt = {

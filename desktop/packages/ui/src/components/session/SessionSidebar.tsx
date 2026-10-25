@@ -1105,6 +1105,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
     currentSessionId,
     sortedSessions,
     recentSessionIds: recentSessionIdsList,
+    directory: currentDirectory,
     ensureSessionRenderable: sync.ensureSessionRenderable,
   })
 

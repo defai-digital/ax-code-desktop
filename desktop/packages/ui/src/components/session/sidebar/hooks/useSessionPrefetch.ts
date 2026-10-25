@@ -1,5 +1,7 @@
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { normalizeProjectPath } from "@/lib/projectResolution"
+import { resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { getSyncSessionMaterializationStatus } from "@/sync/sync-refs"
 
@@ -8,10 +10,17 @@ const SESSION_PREFETCH_SETTLE_MS = 600
 const SESSION_PREFETCH_CONCURRENCY = 1
 const SESSION_PREFETCH_PENDING_LIMIT = 6
 
+/** Only sessions in the directory on screen can be prefetched through its sync store. */
+export const isSessionInPrefetchDirectory = (session: Session, directory: string | null): boolean => {
+  const activeDirectory = normalizeProjectPath(directory)
+  return !!activeDirectory && resolveGlobalSessionDirectory(session) === activeDirectory
+}
+
 type Args = {
   currentSessionId: string | null
   sortedSessions: Session[]
   recentSessionIds?: string[]
+  directory: string | null
   ensureSessionRenderable: (sessionId: string) => Promise<unknown>
 }
 
@@ -19,11 +28,28 @@ export const useSessionPrefetch = ({
   currentSessionId,
   sortedSessions,
   recentSessionIds = [],
+  directory,
   ensureSessionRenderable,
 }: Args): void => {
   const sessionPrefetchTimersRef = React.useRef<Map<string, number>>(new Map())
   const sessionPrefetchQueueRef = React.useRef<string[]>([])
   const sessionPrefetchInFlightRef = React.useRef<Set<string>>(new Set())
+
+  // The sidebar lists every project's live sessions, but sync only holds the
+  // active directory's child store. Prefetching a neighbor from another project
+  // through this directory asks the runtime for a foreign transcript and gets a
+  // 409/404; only neighbors in the directory on screen are renderable here.
+  const sessionById = React.useMemo(
+    () => new Map(sortedSessions.map((session) => [session.id, session])),
+    [sortedSessions],
+  )
+  const isInActiveDirectory = React.useCallback(
+    (sessionId: string) => {
+      const session = sessionById.get(sessionId)
+      return session ? isSessionInPrefetchDirectory(session, directory) : false
+    },
+    [directory, sessionById],
+  )
 
   const pumpSessionPrefetchQueue = React.useCallback(() => {
     if (typeof window === "undefined") {
@@ -43,6 +69,9 @@ export const useSessionPrefetch = ({
       if (state.currentSessionId === nextSessionId) {
         continue
       }
+      if (!isInActiveDirectory(nextSessionId)) {
+        continue
+      }
 
       // Check if the session is already renderable in the sync child store.
       if (getSyncSessionMaterializationStatus(nextSessionId).renderable) {
@@ -57,11 +86,14 @@ export const useSessionPrefetch = ({
           pumpSessionPrefetchQueue()
         })
     }
-  }, [ensureSessionRenderable])
+  }, [ensureSessionRenderable, isInActiveDirectory])
 
   const scheduleSessionPrefetch = React.useCallback(
     (sessionId: string | null | undefined) => {
       if (!sessionId || sessionId === currentSessionId || typeof window === "undefined") {
+        return
+      }
+      if (!isInActiveDirectory(sessionId)) {
         return
       }
 
@@ -94,7 +126,7 @@ export const useSessionPrefetch = ({
       }, SESSION_PREFETCH_HOVER_DELAY_MS)
       sessionPrefetchTimersRef.current.set(sessionId, timer)
     },
-    [currentSessionId, pumpSessionPrefetchQueue],
+    [currentSessionId, isInActiveDirectory, pumpSessionPrefetchQueue],
   )
 
   // Wait for the active session to finish loading before prefetching neighbors.
