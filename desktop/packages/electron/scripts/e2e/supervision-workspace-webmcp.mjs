@@ -76,6 +76,7 @@ const outcome = await runHarness({
     await audit.client.enable()
     await waitForCondition(async () => Boolean(await audit.find("Settings", { role: "button", optional: true })), { timeoutMs: 10000, label: "Settings after reload" })
     await audit.click("Settings")
+    await audit.wait(`Boolean(document.querySelector('[data-settings-view]'))`, "Settings view after reload")
     await audit.page("Chat")
     await audit.wait(`Boolean(document.querySelector('[aria-label="Diff layout: Dynamic"]'))`, "diff layout option rendered")
     await session.evaluate(`document.querySelector('[aria-label="Diff layout: Dynamic"]').scrollIntoView({ block: 'center' }); true`)

@@ -68,7 +68,7 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
             windowsVirtualKeyCode: 13,
             ...(type === "keyDown" ? { text: "\r", unmodifiedText: "\r" } : {}),
           })
-      } else await audit.click(control.name, { role: "button" })
+      } else await audit.client.call("ax_desktop_click", { ref: control.ref })
       await waitForCondition(async () => (await state(id))?.visible, { label: `W7 selected ${id}` })
       await audit.wait(
         `Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`,
