@@ -16,7 +16,7 @@ import {
 
 describe("readPinnedAxCodeVersion", () => {
   it("reads the reviewed runtime manifest instead of the Desktop package", () => {
-    expect(readPinnedAxCodeVersion()).toBe("7.28.5")
+    expect(readPinnedAxCodeVersion()).toBe("7.29.3")
   })
 
   it("fails when the runtime manifest has no version", () => {

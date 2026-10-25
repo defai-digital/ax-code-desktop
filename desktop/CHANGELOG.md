@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.29.1] - 2026-10-25
+
+### Changed
+
+- Bundle signed AX Code runtime 7.29.3 and exact GitHub Packages SDK 2.6.50.
+- Add a project-wide Archive all action with explicit confirmation and complete session ownership coverage.
+
+### Fixed
+
+- Keep overlapping settings saves from consuming or resetting each other's retry budget.
+- Retry transient settings transport failures and retain renderer warnings and errors in the main log.
+
 ## [7.28.0] - 2026-10-20
 
 ### Changed

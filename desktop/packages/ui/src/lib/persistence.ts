@@ -1148,7 +1148,8 @@ const recordSettingsKeys = (changes: Partial<DesktopSettings>, sequence: number)
 // same write succeeded a moment later.
 const SETTINGS_RETRY_DELAYS_MS = [500, 1500, 4000]
 const TRANSIENT_SETTINGS_STATUSES = new Set([408, 429, 502, 503, 504])
-let _settingsRetryAttempt = 0
+let _pendingSettingsRetryAttempt = 0
+let _settingsRetryDueAt = 0
 
 class TransientSettingsSaveError extends Error {}
 
@@ -1158,20 +1159,26 @@ const requeueTransientSettingsFailure = (
   changes: Partial<DesktopSettings>,
   waiters: typeof _pendingSettingsWaiters,
   sequence: number,
+  retryAttempt: number,
 ): boolean => {
-  const delay = SETTINGS_RETRY_DELAYS_MS[_settingsRetryAttempt]
+  const delay = SETTINGS_RETRY_DELAYS_MS[retryAttempt]
   if (delay === undefined) {
-    _settingsRetryAttempt = 0
     return false
   }
-  _settingsRetryAttempt += 1
   const retained = Object.fromEntries(
     Object.entries(changes).filter(([key]) => _settingsKeySequence.get(key) === sequence),
   ) as Partial<DesktopSettings>
+  const hasPendingChanges = _pendingSettingsChanges !== null
   // Values queued since this flush started are newer and win.
   _pendingSettingsChanges = { ...retained, ...(_pendingSettingsChanges ?? {}) }
   _pendingSettingsWaiters = [...waiters, ..._pendingSettingsWaiters]
+  // Concurrent failures coalesce into one retry batch. Their initial failures must not
+  // consume each other's budget, and an unrelated successful request cannot reset it.
+  _pendingSettingsRetryAttempt = hasPendingChanges
+    ? Math.min(_pendingSettingsRetryAttempt, retryAttempt + 1)
+    : retryAttempt + 1
   if (!_settingsFlushTimer) {
+    _settingsRetryDueAt = Date.now() + delay
     _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), delay)
   }
   return true
@@ -1181,8 +1188,11 @@ const _flushSettingsUpdate = async (): Promise<void> => {
   const sequence = ++_settingsFlushSequence
   const changes = _pendingSettingsChanges
   const waiters = _pendingSettingsWaiters
+  const retryAttempt = _pendingSettingsRetryAttempt
   _pendingSettingsChanges = null
   _pendingSettingsWaiters = []
+  _pendingSettingsRetryAttempt = 0
+  _settingsRetryDueAt = 0
   _settingsFlushTimer = null
   if (!changes || Object.keys(changes).length === 0) {
     resolveSettingsWaiters(waiters)
@@ -1195,6 +1205,7 @@ const _flushSettingsUpdate = async (): Promise<void> => {
     if (runtimeSettings) {
       try {
         const updated = await runtimeSettings.save(changes)
+        _settingsCache = null
         if (updated) {
           // The response predates any change queued while the request was in
           // flight; overlay the still-pending values so they are not rolled back.
@@ -1212,7 +1223,6 @@ const _flushSettingsUpdate = async (): Promise<void> => {
             _settingsCache = { value: effective, at: Date.now() }
           }
         }
-        _settingsRetryAttempt = 0
         resolveSettingsWaiters(waiters)
         return
       } catch (error) {
@@ -1237,12 +1247,12 @@ const _flushSettingsUpdate = async (): Promise<void> => {
         throw new TransientSettingsSaveError(message)
       }
       console.warn(message)
-      _settingsRetryAttempt = 0
       rejectSettingsWaiters(waiters, new Error(message))
       return
     }
 
     const updated = (await response.json().catch(() => null)) as DesktopSettings | null
+    _settingsCache = null
     if (updated) {
       // Same in-flight guard as the runtime path above: keep values that changed
       // locally while this request was out.
@@ -1255,10 +1265,12 @@ const _flushSettingsUpdate = async (): Promise<void> => {
         _settingsCache = null
       }
     }
-    _settingsRetryAttempt = 0
     resolveSettingsWaiters(waiters)
   } catch (error) {
-    if (error instanceof TransientSettingsSaveError && requeueTransientSettingsFailure(changes, waiters, sequence)) {
+    if (
+      error instanceof TransientSettingsSaveError &&
+      requeueTransientSettingsFailure(changes, waiters, sequence, retryAttempt)
+    ) {
       console.warn("Settings save did not reach the server, retrying:", error.message)
       return
     }
@@ -1274,6 +1286,10 @@ export const updateDesktopSettings = (changes: Partial<DesktopSettings>): Promis
 
   _pendingSettingsChanges = { ...(_pendingSettingsChanges ?? {}), ...changes }
 
+  // A new edit gets a full budget, but must still respect an active retry backoff.
+  _pendingSettingsRetryAttempt = 0
+  const delay = Math.max(SETTINGS_DEBOUNCE_MS, _settingsRetryDueAt - Date.now())
+
   if (_settingsFlushTimer) {
     clearTimeout(_settingsFlushTimer)
   }
@@ -1285,7 +1301,7 @@ export const updateDesktopSettings = (changes: Partial<DesktopSettings>): Promis
   // not become an unhandled browser rejection; callers that await `promise`
   // still receive the rejection and can show an explicit save failure.
   void promise.catch(() => {})
-  _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), SETTINGS_DEBOUNCE_MS)
+  _settingsFlushTimer = setTimeout(() => void _flushSettingsUpdate(), delay)
   return promise
 }
 // A still-pending debounced write (the 200ms window) would be dropped when the app
@@ -1306,6 +1322,8 @@ const _flushSettingsUpdateOnUnload = (): void => {
   const waiters = _pendingSettingsWaiters
   _pendingSettingsChanges = null
   _pendingSettingsWaiters = []
+  _pendingSettingsRetryAttempt = 0
+  _settingsRetryDueAt = 0
   if (!changes || Object.keys(changes).length === 0) {
     resolveSettingsWaiters(waiters)
     return
@@ -1315,7 +1333,8 @@ const _flushSettingsUpdateOnUnload = (): void => {
   // lands and puts its stale payload back in the store (and the auto-save
   // watchers then write that stale value back to the server).
   _settingsFlushSequence += 1
-  recordSettingsKeys(changes, _settingsFlushSequence)
+  const sequence = _settingsFlushSequence
+  recordSettingsKeys(changes, sequence)
   try {
     const runtimeSettings = getRuntimeSettingsAPI()
     const write = runtimeSettings
@@ -1341,7 +1360,10 @@ const _flushSettingsUpdateOnUnload = (): void => {
       (error) => {
         // The document may still be running (a backgrounded window, or a pagehide the browser
         // took back), so keep the change queued: the next flush sends it again.
-        _pendingSettingsChanges = { ...changes, ...(_pendingSettingsChanges ?? {}) }
+        const retained = Object.fromEntries(
+          Object.entries(changes).filter(([key]) => _settingsKeySequence.get(key) === sequence),
+        ) as Partial<DesktopSettings>
+        _pendingSettingsChanges = { ...retained, ...(_pendingSettingsChanges ?? {}) }
         rejectSettingsWaiters(waiters, error)
       },
     )

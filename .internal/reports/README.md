@@ -16,3 +16,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 
 - [Reference design comparison](DESIGN-2026-10-20-reference-comparison.md): OpenChamber, Orca, Herdr and OpenCode local
   source/image inspection plus online research; proposed supervision, recap and WebMCP outcome requirements.
+
+- [Desktop v7.29.1 integration and bug review](RELEASE-2026-10-25-v7.29.1-review.md)

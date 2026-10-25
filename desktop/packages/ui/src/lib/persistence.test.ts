@@ -149,6 +149,108 @@ describe("updateDesktopSettings", () => {
     await expect(first).resolves.toBeUndefined()
   })
 
+  test("keeps the retry budget when two in-flight saves fail together", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => null,
+    }))
+    const gateways: Array<(response: Response) => void> = []
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => gateways.push(resolve)))
+    vi.stubGlobal("fetch", fetch)
+    const { updateDesktopSettings } = await import("./persistence")
+    const first = updateDesktopSettings({ fontSize: 14 })
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ showReasoningTraces: true })
+    await vi.advanceTimersByTimeAsync(200)
+    const firstRejected = expect(first).rejects.toThrow("503")
+    const secondRejected = expect(second).rejects.toThrow("503")
+    gateways[0]?.(new Response("Unavailable", { status: 503 }))
+    gateways[1]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(500)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    gateways[2]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(1500)
+    expect(fetch).toHaveBeenCalledTimes(4)
+    gateways[3]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(4000)
+    expect(fetch).toHaveBeenCalledTimes(5)
+    gateways[4]?.(new Response("Unavailable", { status: 503 }))
+    await Promise.all([firstRejected, secondRejected])
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(fetch).toHaveBeenCalledTimes(5)
+  })
+
+  test("does not let unrelated successful saves replenish a failing batch's retry budget", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => null,
+    }))
+    const gateways: Array<(response: Response) => void> = []
+    const fetch = vi.fn(() => new Promise<Response>((resolve) => gateways.push(resolve)))
+    vi.stubGlobal("fetch", fetch)
+    const { updateDesktopSettings } = await import("./persistence")
+    const failing = updateDesktopSettings({ fontSize: 14 })
+    const rejection = expect(failing).rejects.toThrow("503")
+    await vi.advanceTimersByTimeAsync(200)
+    gateways[0]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(500)
+    const successful = updateDesktopSettings({ showReasoningTraces: true })
+    await vi.advanceTimersByTimeAsync(200)
+    gateways[2]?.(new Response("{}", { status: 200 }))
+    await successful
+    gateways[1]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(1499)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetch).toHaveBeenCalledTimes(4)
+    gateways[3]?.(new Response("Unavailable", { status: 503 }))
+    await vi.advanceTimersByTimeAsync(4000)
+    gateways[4]?.(new Response("Unavailable", { status: 503 }))
+    await rejection
+    await vi.advanceTimersByTimeAsync(10_000)
+    expect(fetch).toHaveBeenCalledTimes(5)
+  })
+
+  test("gives a new edit a full budget without shortening the pending backoff", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({ getRegisteredRuntimeAPIs: () => null }))
+    const fetch = vi.fn().mockResolvedValue(new Response("Unavailable", { status: 503 }))
+    vi.stubGlobal("fetch", fetch)
+    const { updateDesktopSettings } = await import("./persistence")
+    const first = updateDesktopSettings({ fontSize: 14 })
+    await vi.advanceTimersByTimeAsync(200 + 500 + 1500)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    const second = updateDesktopSettings({ showReasoningTraces: true })
+    await vi.advanceTimersByTimeAsync(3999)
+    expect(fetch).toHaveBeenCalledTimes(3)
+    await vi.advanceTimersByTimeAsync(1)
+    expect(fetch).toHaveBeenCalledTimes(4)
+    fetch.mockResolvedValue(new Response("{}", { status: 200 }))
+    await vi.advanceTimersByTimeAsync(500)
+    await Promise.all([first, second])
+    expect(fetch).toHaveBeenCalledTimes(5)
+  })
+
+  test("does not restore a stale hidden-window write after a newer save succeeds", async () => {
+    let rejectHidden: ((error: Error) => void) | undefined
+    const save = vi.fn().mockImplementationOnce(() => new Promise<null>((_resolve, reject) => {
+      rejectHidden = reject
+    })).mockResolvedValue(null)
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({ settings: { load: vi.fn(), save } }),
+    }))
+    const { updateDesktopSettings } = await import("./persistence")
+    const hidden = updateDesktopSettings({ fontSize: 14 })
+    const rejected = expect(hidden).rejects.toThrow("offline")
+    window.dispatchEvent(new Event("pagehide"))
+    const newer = updateDesktopSettings({ fontSize: 15 })
+    await vi.advanceTimersByTimeAsync(200)
+    await newer
+    rejectHidden?.(new Error("offline"))
+    await rejected
+    const last = updateDesktopSettings({ showReasoningTraces: true })
+    await vi.advanceTimersByTimeAsync(200)
+    await last
+    expect(save).toHaveBeenLastCalledWith({ showReasoningTraces: true })
+  })
+
   test("reports a save the server rejected without retrying it", async () => {
     vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
       getRegisteredRuntimeAPIs: () => null,
@@ -235,6 +337,31 @@ describe("settings save response application", () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.doUnmock("@/contexts/runtimeAPIRegistry")
+  })
+
+  test("invalidates a cached snapshot when an older save succeeds after a newer save fails", async () => {
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({ getRegisteredRuntimeAPIs: () => null }))
+    const gateways: Array<(response: Response) => void> = []
+    let fontSize = 100
+    const fetch = vi.fn((_url: string, init?: RequestInit) => {
+      if (init?.method === "PUT") return new Promise<Response>((resolve) => gateways.push(resolve))
+      return Promise.resolve(new Response(JSON.stringify({ fontSize }), { status: 200 }))
+    })
+    vi.stubGlobal("fetch", fetch)
+    const { syncDesktopSettings, updateDesktopSettings } = await import("./persistence")
+    await syncDesktopSettings()
+    const first = updateDesktopSettings({ fontSize: 110 })
+    await vi.advanceTimersByTimeAsync(200)
+    const second = updateDesktopSettings({ showReasoningTraces: true })
+    const rejection = expect(second).rejects.toThrow("500")
+    await vi.advanceTimersByTimeAsync(200)
+    gateways[1]?.(new Response("Rejected", { status: 500 }))
+    await rejection
+    fontSize = 110
+    gateways[0]?.(new Response(JSON.stringify({ fontSize }), { status: 200 }))
+    await first
+    await syncDesktopSettings()
+    expect(fetch.mock.calls.filter((call) => call[1]?.method === "GET")).toHaveLength(2)
   })
 
   test("does not roll back a change queued while the save was in flight", async () => {
