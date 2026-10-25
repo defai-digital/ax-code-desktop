@@ -487,203 +487,205 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
   return (
     <div className="flex h-full min-h-0 flex-col">
       {confirmDialog}
-      <WebMcpPageSwitcher
-        selectedKey={key}
-        onRetry={() => {
-          if (poolFull) setRestart((value) => value + 1)
-        }}
-      />
-      {poolFull && (
-        <p role="alert" className="p-2 typography-meta">
-          {t(otherWindows?.length ? "webmcp.pages.fullOtherWindows" : "webmcp.pages.blocked")}
-          <Button type="button" size="xs" variant="outline" onClick={() => setRestart((value) => value + 1)}>
-            {t("webmcp.actions.fix.reopen")}
-          </Button>
-        </p>
-      )}
-      <WebMcpTrustSummary viewKey={key} />
-      <Button
-        type="button"
-        size="xs"
-        variant="outline"
-        disabled={busy}
-        onClick={() =>
-          void confirmClose({ action: "clearProject", directory }).catch(() =>
-            updateSnapshot({ error: "operation-failed" }),
-          )
-        }
-      >
-        {t("webmcp.browser.signOut")}
-      </Button>
-      <form
-        className="flex items-center gap-1.5 border-b border-border/40 px-2 py-1.5"
-        onSubmit={(event) => {
-          event.preventDefault()
-          void command("navigate", { url })
-        }}
-      >
-        <div className="relative min-w-0 flex-1">
-          <Icon
-            name="global"
-            className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-          />
-          <input
-            ref={addressRef}
-            aria-label={t("webmcp.browser.addressAria")}
-            placeholder={t("webmcp.browser.addressPlaceholder")}
-            className="h-7 w-full rounded-md border border-transparent bg-[var(--surface-elevated)] pl-7 pr-2 font-mono typography-meta text-foreground outline-none transition-colors focus-visible:border-[var(--interactive-border-focus)]"
-            // Preserve explicit edits; masking a controlled value would corrupt the next keystroke.
-            type={urlIsDraft && redactWebMcpText(url) !== url ? "password" : "text"}
-            value={urlIsDraft ? url : redactWebMcpText(url)}
-            onChange={(event) => {
-              setUrl(event.target.value)
-              setUrlIsDraft(true)
-            }}
-            spellCheck={false}
-            autoComplete="off"
-          />
-        </div>
-        <button type="submit" className={TOOLBAR_BUTTON_CLASS} disabled={!ready || busy}>
-          {t("webmcp.browser.go")}
-        </button>
-        <button
+      <div className="max-h-[60%] shrink-0 overflow-y-auto">
+        <WebMcpPageSwitcher
+          selectedKey={key}
+          onRetry={() => {
+            if (poolFull) setRestart((value) => value + 1)
+          }}
+        />
+        {poolFull && (
+          <p role="alert" className="p-2 typography-meta">
+            {t(otherWindows?.length ? "webmcp.pages.fullOtherWindows" : "webmcp.pages.blocked")}
+            <Button type="button" size="xs" variant="outline" onClick={() => setRestart((value) => value + 1)}>
+              {t("webmcp.actions.fix.reopen")}
+            </Button>
+          </p>
+        )}
+        <WebMcpTrustSummary viewKey={key} />
+        <Button
           type="button"
-          className={TOOLBAR_BUTTON_CLASS}
-          disabled={!ready || busy}
-          onClick={() => void command("reload")}
-          aria-label={t("webmcp.browser.reload")}
-          title={t("webmcp.browser.reload")}
+          size="xs"
+          variant="outline"
+          disabled={busy}
+          onClick={() =>
+            void confirmClose({ action: "clearProject", directory }).catch(() =>
+              updateSnapshot({ error: "operation-failed" }),
+            )
+          }
         >
-          <Icon name="refresh" className="h-3.5 w-3.5" />
-        </button>
-      </form>
+          {t("webmcp.browser.signOut")}
+        </Button>
+        <form
+          className="flex items-center gap-1.5 border-b border-border/40 px-2 py-1.5"
+          onSubmit={(event) => {
+            event.preventDefault()
+            void command("navigate", { url })
+          }}
+        >
+          <div className="relative min-w-0 flex-1">
+            <Icon
+              name="global"
+              className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              ref={addressRef}
+              aria-label={t("webmcp.browser.addressAria")}
+              placeholder={t("webmcp.browser.addressPlaceholder")}
+              className="h-7 w-full rounded-md border border-transparent bg-[var(--surface-elevated)] pl-7 pr-2 font-mono typography-meta text-foreground outline-none transition-colors focus-visible:border-[var(--interactive-border-focus)]"
+              // Preserve explicit edits; masking a controlled value would corrupt the next keystroke.
+              type={urlIsDraft && redactWebMcpText(url) !== url ? "password" : "text"}
+              value={urlIsDraft ? url : redactWebMcpText(url)}
+              onChange={(event) => {
+                setUrl(event.target.value)
+                setUrlIsDraft(true)
+              }}
+              spellCheck={false}
+              autoComplete="off"
+            />
+          </div>
+          <button type="submit" className={TOOLBAR_BUTTON_CLASS} disabled={!ready || busy}>
+            {t("webmcp.browser.go")}
+          </button>
+          <button
+            type="button"
+            className={TOOLBAR_BUTTON_CLASS}
+            disabled={!ready || busy}
+            onClick={() => void command("reload")}
+            aria-label={t("webmcp.browser.reload")}
+            title={t("webmcp.browser.reload")}
+          >
+            <Icon name="refresh" className="h-3.5 w-3.5" />
+          </button>
+        </form>
 
-      <div className="flex items-center gap-3 border-b border-border/40 px-2.5 py-1.5">
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <WebMcpStatusDot tone={summary.tone} className={cn(enabled && "status-dot-running")} />
-          <span className="whitespace-nowrap typography-meta font-medium text-foreground">{summary.stateLabel}</span>
-          <span className="typography-micro truncate text-muted-foreground" title={summary.detail}>
-            {summary.detail}
-          </span>
-        </div>
-        {paused || enabled || interrupted ? (
-          <>
+        <div className="flex items-center gap-3 border-b border-border/40 px-2.5 py-1.5">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
+            <WebMcpStatusDot tone={summary.tone} className={cn(enabled && "status-dot-running")} />
+            <span className="whitespace-nowrap typography-meta font-medium text-foreground">{summary.stateLabel}</span>
+            <span className="typography-micro truncate text-muted-foreground" title={summary.detail}>
+              {summary.detail}
+            </span>
+          </div>
+          {paused || enabled || interrupted ? (
+            <>
+              <Button
+                ref={accessControlRef}
+                type="button"
+                size="xs"
+                disabled={!ready || busy}
+                onClick={() => void command(paused ? "resume" : "pause")}
+              >
+                {t(paused ? "webmcp.actions.resumeAgent" : "webmcp.actions.pauseAgent")}
+              </Button>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                disabled={!ready || busy}
+                onClick={() => void command("disconnect")}
+              >
+                {t("webmcp.actions.disconnect")}
+              </Button>
+            </>
+          ) : showErrorBanner ? null : sessionID && ready && !origin ? (
+            <Button ref={accessControlRef} type="button" size="xs" onClick={() => addressRef.current?.focus()}>
+              {t("webmcp.actions.fix.address")}
+            </Button>
+          ) : !sessionID ? (
+            <Button type="button" size="xs" onClick={() => openProjectBrowser({ enable: true })}>
+              {t("webmcp.actions.startSession")}
+            </Button>
+          ) : (
             <Button
               ref={accessControlRef}
               type="button"
               size="xs"
-              disabled={!ready || busy}
-              onClick={() => void command(paused ? "resume" : "pause")}
+              disabled={!canEnable || busy}
+              onClick={() => void command("enable")}
             >
-              {t(paused ? "webmcp.actions.resumeAgent" : "webmcp.actions.pauseAgent")}
+              {pendingAction === "enable" ? t("webmcp.actions.enabling") : t("webmcp.actions.enable")}
             </Button>
-            <Button
-              type="button"
-              size="xs"
-              variant="outline"
-              disabled={!ready || busy}
-              onClick={() => void command("disconnect")}
-            >
-              {t("webmcp.actions.disconnect")}
-            </Button>
-          </>
-        ) : showErrorBanner ? null : sessionID && ready && !origin ? (
-          <Button ref={accessControlRef} type="button" size="xs" onClick={() => addressRef.current?.focus()}>
-            {t("webmcp.actions.fix.address")}
-          </Button>
-        ) : !sessionID ? (
-          <Button type="button" size="xs" onClick={() => openProjectBrowser({ enable: true })}>
-            {t("webmcp.actions.startSession")}
-          </Button>
-        ) : (
-          <Button
-            ref={accessControlRef}
-            type="button"
-            size="xs"
-            disabled={!canEnable || busy}
-            onClick={() => void command("enable")}
+          )}
+        </div>
+
+        <div role="status" aria-live="polite" aria-atomic="true" data-webmcp-access-status>
+          {interrupted ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.detail.interrupted")}</p> : null}
+          {paused ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.browser.takeOver")}</p> : null}
+          {waiting || waitingForSignIn ? (
+            <p className="px-2.5 py-1.5 typography-micro">
+              {t(
+                waitingForSignIn
+                  ? "webmcp.browser.waitingForSignIn"
+                  : paused
+                    ? "webmcp.browser.waitingForResume"
+                    : "webmcp.browser.waitingForPage",
+              )}
+            </p>
+          ) : null}
+          <WebMcpCancellationStatus calls={cancellations} />
+          {!cancellations.length && finishingCalls > 0 ? (
+            <p className="px-2.5 py-1.5 typography-micro">
+              {t("webmcp.browser.stillFinishing", { count: finishingCalls })}
+            </p>
+          ) : null}
+          {!cancellations.length && stoppedCalls > 0 ? (
+            <p className="px-2.5 py-1.5 typography-micro">
+              {t(stoppedCalls === 1 ? "webmcp.browser.stoppedCall" : "webmcp.browser.stoppedCalls", {
+                count: stoppedCalls,
+              })}
+            </p>
+          ) : null}
+        </div>
+        {!enabled && !paused && !interrupted && ready ? (
+          <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
+            {t("webmcp.browser.explanation")}
+          </p>
+        ) : null}
+        {enabled && ready && !origin ? (
+          <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
+            {t("webmcp.browser.openPageHint")}
+          </p>
+        ) : null}
+        {enabled && pausedBridgeServers.length > 0 ? (
+          <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
+            {t("webmcp.detail.bridgePaused", { servers: pausedBridgeServers.map(redactWebMcpText).join(", ") })}
+          </p>
+        ) : null}
+
+        {showErrorBanner && !poolFull ? (
+          <p
+            role="alert"
+            className="flex items-start gap-2 border-b border-border/40 bg-[color-mix(in_srgb,var(--status-error)_10%,transparent)] px-2.5 py-1.5 typography-micro text-foreground"
           >
-            {pendingAction === "enable" ? t("webmcp.actions.enabling") : t("webmcp.actions.enable")}
-          </Button>
-        )}
+            <Icon name="error-warning" className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--status-error)]" />
+            <span>{t(describeWebMcpError(error))}</span>
+            <Button type="button" size="xs" variant="outline" disabled={busy} onClick={fixError}>
+              {t(`webmcp.actions.fix.${fixAction}`)}
+            </Button>
+          </p>
+        ) : null}
+
+        {sessionID ? <WebMcpCallStrip sessionID={sessionID} directory={directory} /> : null}
+        {browserId ? (
+          <WebMcpToolPanelConnected
+            key={key}
+            viewKey={key}
+            sessionID={sessionID}
+            directory={directory}
+            tryTool={(toolName, input, binding) =>
+              invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
+                action: "tryTool",
+                ...binding,
+                id: browserId,
+                toolName,
+                input,
+              })
+            }
+          />
+        ) : null}
+        {browserId ? <WebMcpBuilderHint viewKey={key} /> : null}
       </div>
-
-      <div role="status" aria-live="polite" aria-atomic="true" data-webmcp-access-status>
-        {interrupted ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.detail.interrupted")}</p> : null}
-        {paused ? <p className="px-2.5 py-1.5 typography-micro">{t("webmcp.browser.takeOver")}</p> : null}
-        {waiting || waitingForSignIn ? (
-          <p className="px-2.5 py-1.5 typography-micro">
-            {t(
-              waitingForSignIn
-                ? "webmcp.browser.waitingForSignIn"
-                : paused
-                  ? "webmcp.browser.waitingForResume"
-                  : "webmcp.browser.waitingForPage",
-            )}
-          </p>
-        ) : null}
-        <WebMcpCancellationStatus calls={cancellations} />
-        {!cancellations.length && finishingCalls > 0 ? (
-          <p className="px-2.5 py-1.5 typography-micro">
-            {t("webmcp.browser.stillFinishing", { count: finishingCalls })}
-          </p>
-        ) : null}
-        {!cancellations.length && stoppedCalls > 0 ? (
-          <p className="px-2.5 py-1.5 typography-micro">
-            {t(stoppedCalls === 1 ? "webmcp.browser.stoppedCall" : "webmcp.browser.stoppedCalls", {
-              count: stoppedCalls,
-            })}
-          </p>
-        ) : null}
-      </div>
-      {!enabled && !paused && !interrupted && ready ? (
-        <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
-          {t("webmcp.browser.explanation")}
-        </p>
-      ) : null}
-      {enabled && ready && !origin ? (
-        <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
-          {t("webmcp.browser.openPageHint")}
-        </p>
-      ) : null}
-      {enabled && pausedBridgeServers.length > 0 ? (
-        <p className="border-b border-border/40 px-2.5 py-1.5 typography-micro text-muted-foreground">
-          {t("webmcp.detail.bridgePaused", { servers: pausedBridgeServers.map(redactWebMcpText).join(", ") })}
-        </p>
-      ) : null}
-
-      {showErrorBanner && !poolFull ? (
-        <p
-          role="alert"
-          className="flex items-start gap-2 border-b border-border/40 bg-[color-mix(in_srgb,var(--status-error)_10%,transparent)] px-2.5 py-1.5 typography-micro text-foreground"
-        >
-          <Icon name="error-warning" className="mt-px h-3.5 w-3.5 shrink-0 text-[var(--status-error)]" />
-          <span>{t(describeWebMcpError(error))}</span>
-          <Button type="button" size="xs" variant="outline" disabled={busy} onClick={fixError}>
-            {t(`webmcp.actions.fix.${fixAction}`)}
-          </Button>
-        </p>
-      ) : null}
-
-      {sessionID ? <WebMcpCallStrip sessionID={sessionID} directory={directory} /> : null}
-      {browserId ? (
-        <WebMcpToolPanelConnected
-          key={key}
-          viewKey={key}
-          sessionID={sessionID}
-          directory={directory}
-          tryTool={(toolName, input, binding) =>
-            invoke<{ ok: boolean; outcome?: string; output?: unknown; reason?: string }>({
-              action: "tryTool",
-              ...binding,
-              id: browserId,
-              toolName,
-              input,
-            })
-          }
-        />
-      ) : null}
-      {browserId ? <WebMcpBuilderHint viewKey={key} /> : null}
 
       {/* The page itself is a native view over this box; the region names it so assistive technology announces the boundary. */}
       <div

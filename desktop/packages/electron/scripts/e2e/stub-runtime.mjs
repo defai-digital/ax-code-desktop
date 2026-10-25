@@ -1,6 +1,7 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { E2E_STEP_ROUTE } from "./scenario.mjs"
+import { projectKeyFor } from "../../../../shared/webmcp-view-key.mjs"
 
 // A stand-in for `ax-code serve` so the harness boots the real renderer without
 // sessions, models or credentials. List-shaped routes answer with empty arrays
@@ -145,7 +146,7 @@ const readBody = (req, done) => {
   });
   req.on('error', () => done({}));
 };
-const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').replace(/^([a-z]):/, (_, letter) => letter.toUpperCase() + ':').replace(/(.)\\/+$/, '$1');
+const canonDirectory = ${projectKeyFor.toString()};
 const browserProviders = new Map();
 const browserReplies = [];
 let browserProviderSequence = 0;

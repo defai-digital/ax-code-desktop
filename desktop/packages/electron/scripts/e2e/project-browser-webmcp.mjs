@@ -64,6 +64,10 @@ try {
             `document.querySelector('[data-webmcp-tool-panel]')?.closest('section')?.parentElement?.innerText ?? ''`,
           )
           await fs.writeFile(path.join(args.artifacts, `${name}.json`), JSON.stringify({ state, pane }, null, 2))
+          const pageHeight = await session.evaluate(
+            `document.querySelector('[role="region"][aria-label^="Web page"]')?.getBoundingClientRect().height ?? 0`,
+          )
+          if (pageHeight <= 0) throw new Error(`${name}: browser controls collapsed the native page`)
           const { data } = await session.send("Page.captureScreenshot", { format: "png" })
           await fs.writeFile(path.join(args.artifacts, `${name}.png`), Buffer.from(data, "base64"))
         }

@@ -1512,19 +1512,7 @@ const readJsonFile = (filePath) => {
   return result.ok ? result.value : {}
 }
 
-const writeJsonFile = async (filePath, data) => {
-  await fsp.mkdir(path.dirname(filePath), { recursive: true })
-  // Atomic: write to a temp file then rename. Readers never see a partial JSON
-  // file that could parse-error and get coerced to {}.
-  const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-  try {
-    await fsp.writeFile(tmp, JSON.stringify(data, null, 2))
-    await fsp.rename(tmp, filePath)
-  } catch (error) {
-    await fsp.rm(tmp, { force: true }).catch(() => {})
-    throw error
-  }
-}
+const writeJsonFile = require("./atomic-json-writer").createAtomicJsonWriter()
 
 let languageController
 const getLanguageController = () => {

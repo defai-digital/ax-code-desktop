@@ -79,6 +79,21 @@ afterEach(async () => {
 
 const readReplies = async (handle) => parseReplyLog(await fs.readFile(handle.repliesPath, "utf8").catch(() => ""))
 
+spawnTest("browser fixture accepts Windows path identity without changing POSIX case sensitivity", async () => {
+  for (const [directory, requested, expected] of [
+    ["C:\\Users\\RunnerAdmin\\Project", "c:/users/runneradmin/project", 200],
+    ["/tmp/Project", "/tmp/project", 404],
+  ]) {
+    const scenario = buildE2eScenario({ directory, portfolio: true })
+    const handle = await startStub({ scenario })
+    const response = await fetch(`${handle.base}/desktop/browser/provider?directory=${encodeURIComponent(requested)}`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ sessionID: scenario.session.id, snapshot: {} }),
+    })
+    expect(response.status).toBe(expected)
+  }
+})
+
 spawnTest("portfolio fixture keeps same-name sessions and goals scoped to their own project", async () => {
   const scenario = buildE2eScenario({ directory: "/tmp/portfolio/project", portfolio: true })
   const other = scenario.portfolio[0]

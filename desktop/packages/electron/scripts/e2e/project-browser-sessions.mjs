@@ -203,6 +203,7 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
       keyboardSwitches: 25,
       stressDisclosures,
       memoryScope: "Renderer and both guest JS heaps after GC; DOM listener counts, not whole-process RSS",
+      screenshotScope: "Each guest is selected and observed visible before capture; two evidence-only switches are separate from the 50 stress switches.",
       before,
       after,
       finalViews,
@@ -212,8 +213,10 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
       await fs.writeFile(path.join(artifacts, "w7-sessions.json"), JSON.stringify(evidence, null, 2))
       const { data } = await session.send("Page.captureScreenshot", { format: "png" })
       await fs.writeFile(path.join(artifacts, "w7-sessions.png"), Buffer.from(data, "base64"))
-      // Main-renderer CDP screenshots omit native child views; retain their page evidence separately.
-      for (const [name, guest] of [["a", guestA], ["b", guestB]]) {
+      // A detached Linux guest may never submit a compositor frame. Capture each
+      // page only after the normal switcher has made it visibly attached.
+      for (const [name, id, guest] of [["a", primary.id, guestA], ["b", secondary.id, guestB]]) {
+        await switchTo(id, false)
         const shot = await guest.send("Page.captureScreenshot", { format: "png" })
         await fs.writeFile(path.join(artifacts, `w7-page-${name}.png`), Buffer.from(shot.data, "base64"))
       }

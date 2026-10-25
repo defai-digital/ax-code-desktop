@@ -24,3 +24,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.29.2 integration and bug review](RELEASE-2026-10-25-v7.29.2-review.md)
 
 - [Desktop v7.29.2 verified publication](RELEASE-2026-10-25-v7.29.2-publication.md)
+
+- [Desktop v7.29.2 advisory journey investigation](REVIEW-2026-10-25-v7.29.2-advisory-journeys.md)
