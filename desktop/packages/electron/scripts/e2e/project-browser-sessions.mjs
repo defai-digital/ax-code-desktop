@@ -50,11 +50,18 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
         else stressDisclosures++
         await session.evaluate(`document.querySelector('[data-webmcp-pages] summary').click()`)
       }
-      const control = (await audit.all()).controls.find(
-        (control) =>
-          control.name.startsWith("Show page:") &&
-          control.name.includes(id === primary.id ? pageUrl.slice(0, -1) : secondUrl.slice(0, -1)),
-      )
+      // Refs expire on the next snapshot. Stop on the matching page rather
+      // than collecting later inventory pages and invalidating this control.
+      let inventory = await audit.read()
+      let control
+      while (true) {
+        control = inventory.controls.find((item) =>
+          item.name.startsWith("Show page:") &&
+          item.name.includes(id === primary.id ? pageUrl.slice(0, -1) : secondUrl.slice(0, -1)),
+        )
+        if (control || inventory.nextOffset === null) break
+        inventory = await audit.read(inventory.nextOffset)
+      }
       if (!control) throw new Error(`Missing W7 switcher control for ${id}`)
       if (keyboard) {
         await session.evaluate(
