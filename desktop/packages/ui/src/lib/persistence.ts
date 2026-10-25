@@ -1356,14 +1356,14 @@ const _flushSettingsUpdateOnUnload = (): void => {
     // the window is merely backgrounded, and this path used to answer every waiting caller with
     // success before the write was confirmed: the settings UI showed a save that never happened.
     void write.then(
-      () => resolveSettingsWaiters(waiters),
+      () => {
+        _settingsCache = null
+        resolveSettingsWaiters(waiters)
+      },
       (error) => {
         // The document may still be running (a backgrounded window, or a pagehide the browser
-        // took back), so keep the change queued: the next flush sends it again.
-        const retained = Object.fromEntries(
-          Object.entries(changes).filter(([key]) => _settingsKeySequence.get(key) === sequence),
-        ) as Partial<DesktopSettings>
-        _pendingSettingsChanges = { ...retained, ...(_pendingSettingsChanges ?? {}) }
+        // took back), so retry retained keys within the regular bounded transport budget.
+        requeueTransientSettingsFailure(changes, [], sequence, 0)
         rejectSettingsWaiters(waiters, error)
       },
     )

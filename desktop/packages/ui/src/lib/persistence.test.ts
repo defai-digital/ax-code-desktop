@@ -246,7 +246,7 @@ describe("updateDesktopSettings", () => {
     rejectHidden?.(new Error("offline"))
     await rejected
     const last = updateDesktopSettings({ showReasoningTraces: true })
-    await vi.advanceTimersByTimeAsync(200)
+    await vi.advanceTimersByTimeAsync(500)
     await last
     expect(save).toHaveBeenLastCalledWith({ showReasoningTraces: true })
   })
@@ -316,9 +316,10 @@ describe("updateDesktopSettings", () => {
       await rejection
       expect(save).toHaveBeenCalledWith({ fontSize: 16 })
 
-      // Still pending, so the next flush carries it again instead of dropping it.
+      // A backgrounded window retries even if the user makes no further edit.
       save.mockImplementation(() => Promise.resolve(null))
-      document.dispatchEvent(new Event("visibilitychange"))
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+      await vi.advanceTimersByTimeAsync(500)
       expect(save).toHaveBeenCalledTimes(2)
       expect(save).toHaveBeenLastCalledWith({ fontSize: 16 })
     } finally {
@@ -362,6 +363,26 @@ describe("settings save response application", () => {
     await first
     await syncDesktopSettings()
     expect(fetch.mock.calls.filter((call) => call[1]?.method === "GET")).toHaveLength(2)
+  })
+
+  test("invalidates a snapshot read while a hidden-window save was in flight", async () => {
+    let complete: (() => void) | undefined
+    const load = vi.fn().mockResolvedValue({ settings: { fontSize: 100 }, source: "web" })
+    const save = vi.fn(() => new Promise<null>((resolve) => { complete = () => resolve(null) }))
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({ settings: { load, save } }),
+    }))
+    const { syncDesktopSettings, updateDesktopSettings } = await import("./persistence")
+    await syncDesktopSettings()
+    const update = updateDesktopSettings({ fontSize: 110 })
+    window.dispatchEvent(new Event("pagehide"))
+    await syncDesktopSettings()
+    expect(load).toHaveBeenCalledTimes(2)
+    load.mockResolvedValue({ settings: { fontSize: 110 }, source: "web" })
+    complete?.()
+    await update
+    await syncDesktopSettings()
+    expect(load).toHaveBeenCalledTimes(3)
   })
 
   test("does not roll back a change queued while the save was in flight", async () => {
