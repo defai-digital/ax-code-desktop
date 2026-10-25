@@ -448,3 +448,21 @@ test("a disposed indexed directory falls back to the surviving session store", (
   expect(resolveDirectoryFromRoutingIndex(index, "/disposed", createEvent("session.status", { sessionID: "s1" }), manager))
     .toBe("/live")
 })
+
+
+test("retiring a Windows directory clears alias routing without removing another directory", () => {
+  const index = createEventRoutingIndex()
+  setIndexedSessionDirectory(index, "retired", "c:/users/runneradmin/project")
+  updateRoutingIndexFromEvent(index, "c:/users/runneradmin/project", createEvent("message.updated", {
+    info: { id: "msg_retired", sessionID: "retired" },
+  }))
+  setIndexedSessionDirectory(index, "live", "C:/Users/RunnerAdmin/Other")
+  updateRoutingIndexFromEvent(index, "C:/Users/RunnerAdmin/Other", createEvent("message.updated", {
+    info: { id: "msg_live", sessionID: "live" },
+  }))
+  removeIndexedDirectory(index, "C:/Users/RunnerAdmin/Project")
+  expect(index.sessionDirectoryById.has("retired")).toBe(false)
+  expect(index.messageSessionById.has("msg_retired")).toBe(false)
+  expect(index.sessionDirectoryById.get("live")).toBe("C:/Users/RunnerAdmin/Other")
+  expect(index.messageSessionById.get("msg_live")).toBe("live")
+})

@@ -1,3 +1,4 @@
+import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import type { Event, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { ChildStoreManager } from "./child-store"
@@ -238,7 +239,9 @@ const removeIndexedSession = (routingIndex: EventRoutingIndex, sessionID: string
 
 export const removeIndexedDirectory = (routingIndex: EventRoutingIndex, directory: string) => {
   for (const [sessionID, indexedDirectory] of routingIndex.sessionDirectoryById) {
-    if (indexedDirectory === directory) removeIndexedSession(routingIndex, sessionID)
+    if (getProjectPathIdentityKey(indexedDirectory) === getProjectPathIdentityKey(directory)) {
+      removeIndexedSession(routingIndex, sessionID)
+    }
   }
 }
 
