@@ -202,7 +202,15 @@ try {
         await capture("W6")
         // Identity regression, separate from the W3/W4/W6/W8 action budgets above.
         // Fixture preparation uses real native registrations; the agent call still goes through the runtime bridge.
-        await audit.click("Project browser (WebMCP)", { role: "tab" })
+        // At a small viewport Review and the workspace browser are separate
+        // surfaces. Observe each through normal navigation, including on the
+        // wider layout where both can happen to remain mounted.
+        const returnToBrowser = async () => {
+          await audit.click("Workspace", { role: "button" })
+          await waitForCondition(async () => Boolean(await audit.find("Project browser (WebMCP)", { role: "tab", optional: true })), { timeoutMs: 10000, label: "browser mode after returning to Workspace" })
+          await audit.click("Project browser (WebMCP)", { role: "tab" })
+        }
+        await returnToBrowser()
         const credentialNames = ["ghp_abcdefghijklmnop", "ghp_qrstuvwxyzabcdef"]
         await guest.evaluate(`(() => {
           window.credentialRegistrations = [new AbortController(), new AbortController()];
@@ -233,10 +241,18 @@ try {
           const current = (await view()).catalog.find(item => item.invocationID === originalCredentialTools[1].invocationID)
           return current && current.definitionDigest !== originalCredentialTools[1].definitionDigest
         }, { label: "credential schema version changed on the same tool ID" })
+        await audit.click("Review changes", { role: "button" })
+        await wait(`Boolean(document.querySelector('[data-landing-browser-recap] summary'))`, "credential review recap")
+        await session.evaluate(`(() => {
+          const summary = document.querySelector('[data-landing-browser-recap] summary')
+          if (!summary.parentElement.open) summary.click()
+        })()`)
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 1 &&
           document.querySelector('[data-recap-open]')?.textContent.includes('[redacted tool 1]') &&
           document.querySelector('[data-recap-not-called]')?.textContent.includes('[redacted tool 2]') &&
           !document.querySelector('[data-recap-not-called]')?.textContent.includes('[redacted tool 1]')`, "credential recap attribution")
+        const credentialRecap = await session.evaluate(`document.querySelector('[data-landing-browser-recap]')?.innerText`)
+        await returnToBrowser()
         await wait(`Array.from(document.querySelectorAll('[data-webmcp-call="ok"]')).some(row => row.textContent.includes('[redacted tool 1]'))`, "credential call strip label")
         await audit.click("Page tools (7)", { role: "button" })
         await wait(`Array.from(document.querySelectorAll('[data-webmcp-registration-kind="changed"]')).some(row =>
@@ -244,11 +260,10 @@ try {
         await session.evaluate(`document.querySelector('[data-webmcp-tool="[redacted tool 1]"] button[aria-expanded]').click()`)
         await wait(`Boolean(document.querySelector('[data-webmcp-tool="[redacted tool 1]"] [data-webmcp-compare-agent]')) &&
           !document.querySelector('[data-webmcp-tool="[redacted tool 2]"] [data-webmcp-compare-agent]')`, "credential comparison binding")
-        const credentialEvidence = await session.evaluate(`({
-          recap: document.querySelector('[data-landing-browser-recap]')?.innerText,
+        const credentialEvidence = { recap: credentialRecap, ...await session.evaluate(`({
           panel: document.querySelector('[data-webmcp-tool-panel]')?.innerText,
           strip: document.querySelector('[data-webmcp-call-strip]')?.innerText
-        })`)
+        })`) }
         if (credentialNames.some(name => JSON.stringify(credentialEvidence).includes(name)))
           throw new Error("Credential name leaked into displayed evidence")
         if (args.artifacts) {
