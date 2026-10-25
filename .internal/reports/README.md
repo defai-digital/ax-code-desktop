@@ -18,3 +18,5 @@ Existing standalone reports and historical evidence packages remain in their ori
   source/image inspection plus online research; proposed supervision, recap and WebMCP outcome requirements.
 
 - [Desktop v7.29.1 integration and bug review](RELEASE-2026-10-25-v7.29.1-review.md)
+
+- [Desktop v7.29.1 verified publication](RELEASE-2026-10-25-v7.29.1-publication.md)
