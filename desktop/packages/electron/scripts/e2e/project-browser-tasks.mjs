@@ -192,10 +192,25 @@ try {
         }
         await click("W6", '[data-webmcp-call="failed"] button')
         await wait(`Boolean(document.querySelector('[data-tool-part-id="part_w6-failure"][data-attention]'))`, "strip opens exact transcript tool part")
+        const transcriptBeforeReview = await session.evaluate(`Array.from(document.querySelectorAll('[data-tool-part-id]'), row => ({
+          id: row.getAttribute('data-tool-part-id'), text: row.textContent }))`)
         await act("W6", () => audit.click("Review changes", { role: "button" }))
         await wait(`Boolean(document.querySelector('[data-review-scope]'))`, "review scopes")
         await act("W6", () => audit.click("This session", { role: "radio" }))
+        try {
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 3 && document.querySelector('[data-landing-browser-recap]')?.textContent.includes('W6 controlled page failure') && document.querySelector('[data-recap-not-called]')?.textContent.includes('complete_task')`, "three-call landing recap with failure and unused tool")
+        } catch (error) {
+          if (args.artifacts) {
+            const response = await fetch(`${origin}/session/${owner.id}/message?directory=${encodeURIComponent(owner.directory)}`)
+            await fs.writeFile(path.join(args.artifacts, "recap-failure.json"), JSON.stringify({
+              messages: await response.json(), transcriptBeforeReview,
+              dom: await session.evaluate(`({ text: document.body.innerText,
+                rows: Array.from(document.querySelectorAll('[data-recap-outcome]'), row => row.outerHTML) })`),
+              native: await view(),
+            }, null, 2))
+          }
+          throw error
+        }
         await click("W6", "[data-landing-browser-recap] summary")
         await wait(`Boolean(document.querySelector('[data-recap-outcome="failed"] [data-webmcp-rejection-property="text"][data-webmcp-rejection-rule="minLength"]'))`, "runtime property rejection in recap")
         await act("W6", () => session.evaluate(`document.querySelector('[data-recap-outcome="failed"] [data-webmcp-runtime-rejections]').scrollIntoView({ block: 'center' })`))

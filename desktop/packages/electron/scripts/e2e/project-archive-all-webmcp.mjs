@@ -219,8 +219,10 @@ const outcome = await runHarness({
       await rowsArchived(otherIds, "1", "other project rows archived")
       await rowsArchived(archiveIds, "0", "first project rows stay active")
       await openMenu(projects[1])
-      const exhausted = await audit.find("Archive all", { role: "menuitem" })
-      if (!exhausted.disabled) throw new Error("Archive all stays enabled when every session is archived")
+      await waitForCondition(async () => {
+        const item = await audit.find("Archive all", { role: "menuitem", optional: true })
+        return Boolean(item?.disabled)
+      }, { timeoutMs: 10_000, label: "Archive all disabled when every session is archived" })
       await capture("archive-other-project")
       if (args.artifacts) {
         await fs.writeFile(

@@ -22,11 +22,13 @@ export function useWebMcpPages() {
       const project = projects.find((project) => projectKeyFor(project.path) === projectKeyFor(view.directory!))
       const row = rows.find((row) => row.directory && viewKeyFor(row.directory, row.sessionId) === key)
       const session = sessions.find((session) => viewKeyFor(session.directory, session.id) === key)
+      // Native Windows identity keys may change case; retain the registered display spelling.
+      const displayDirectory = project?.path ?? row?.directory ?? session?.directory ?? view.directory!
       return {
         ...view,
         key,
         projectId: project?.id,
-        project: redactWebMcpText(project?.label ? `${project.label} · ${view.directory}` : view.directory!),
+        project: redactWebMcpText(project?.label ? `${project.label} · ${displayDirectory}` : displayDirectory),
         title: redactWebMcpText(row?.title || session?.title || view.sessionID || ""),
         origin: view.origin ? redactWebMcpText(view.origin) : null,
       }

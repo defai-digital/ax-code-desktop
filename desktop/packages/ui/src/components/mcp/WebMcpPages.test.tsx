@@ -277,7 +277,7 @@ test.each([
   expect(container.querySelector("[data-webmcp-trust]")?.textContent).toContain("Windows project")
   fireEvent.click(
     within(container).getByRole("button", {
-      name: `Show page: Windows task · https://windows.test · Windows project · ${nativePath} · ses_windows · Access off`,
+      name: `Show page: Windows task · https://windows.test · Windows project · ${path} · ses_windows · Access off`,
     }),
   )
   expect(openSession).toHaveBeenCalledWith({
@@ -421,4 +421,20 @@ test("Mission Control waiting chip uses the Needs you rule and reacts only to it
   act(() => useWebMcpBrowserStore.getState().updateView(b, { waiting: true, visible: false }))
   expect(rows[0].querySelector('[data-webmcp-waiting-session]')).toBeNull()
   expect(rows[1].querySelector('[data-webmcp-waiting-session]')).not.toBeNull()
+})
+
+
+test("registered Windows path spelling keeps page controls stable across native projections", () => {
+  const directory = "C:/Users/RunnerAdmin/Project"
+  const key = viewKeyFor(directory, "ses_windows")
+  useProjectsStore.setState({ projects: [{ id: "windows", path: directory, label: "Shared project", addedAt: 1 }] })
+  useWebMcpBrowserStore.getState().updateView(key, {
+    browserId: "windows-page", directory, sessionID: "ses_windows", origin: "https://a.test", enabled: false,
+  })
+  const { container } = render(<WebMcpPageSwitcher selectedKey={key} onRetry={vi.fn()} />)
+  fireEvent.click(container.querySelector("summary")!)
+  const name = "Show page: ses_windows · https://a.test · Shared project · C:/Users/RunnerAdmin/Project · ses_windows · Access off"
+  expect(within(container).getByRole("button", { name })).toBeTruthy()
+  act(() => useWebMcpBrowserStore.getState().updateView(key, { directory: directory.toLowerCase() }))
+  expect(within(container).getByRole("button", { name })).toBeTruthy()
 })
