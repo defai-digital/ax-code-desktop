@@ -1,4 +1,5 @@
 import { create, type StoreApi } from "zustand"
+import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import type { DirState, State } from "./types"
 import { INITIAL_STATE, MAX_DIR_STORES, DIR_IDLE_TTL_MS } from "./types"
 import { pickDirectoriesToEvict, canDisposeDirectory, hasPendingBlockingRequests } from "./eviction"
@@ -46,6 +47,15 @@ export class ChildStoreManager {
   private isBooting?: (directory: string) => boolean
   private isLoadingSessions?: (directory: string) => boolean
 
+  private directoryKey(directory: string): string {
+    if (this.children.has(directory)) return directory
+    const identity = getProjectPathIdentityKey(directory)
+    for (const key of this.children.keys()) {
+      if (getProjectPathIdentityKey(key) === identity) return key
+    }
+    return directory
+  }
+
   private notifyRegistrySubscribers() {
     for (const subscriber of this.registrySubscribers) {
       subscriber()
@@ -66,18 +76,21 @@ export class ChildStoreManager {
 
   mark(directory: string) {
     if (!directory) return
+    directory = this.directoryKey(directory)
     this.lifecycle.set(directory, { lastAccessAt: Date.now() })
     this.runEviction(directory)
   }
 
   pin(directory: string) {
     if (!directory) return
+    directory = getProjectPathIdentityKey(directory) ?? directory
     this.pins.set(directory, (this.pins.get(directory) ?? 0) + 1)
     this.mark(directory)
   }
 
   unpin(directory: string) {
     if (!directory) return
+    directory = getProjectPathIdentityKey(directory) ?? directory
     const next = (this.pins.get(directory) ?? 0) - 1
     if (next > 0) {
       this.pins.set(directory, next)
@@ -88,12 +101,15 @@ export class ChildStoreManager {
   }
 
   pinned(directory: string) {
+    directory = getProjectPathIdentityKey(directory) ?? directory
     return (this.pins.get(directory) ?? 0) > 0
   }
 
   ensureChild(directory: string, options?: { bootstrap?: boolean }): StoreApi<DirectoryStore> {
     if (!directory) throw new Error("No directory provided to ensureChild")
 
+    // Keep the first display spelling, but never fork Windows state by path casing.
+    directory = this.directoryKey(directory)
     let store = this.children.get(directory)
     if (!store) {
       store = createDirectoryStore(directory)
@@ -112,10 +128,11 @@ export class ChildStoreManager {
   }
 
   getChild(directory: string): StoreApi<DirectoryStore> | undefined {
-    return this.children.get(directory)
+    return this.children.get(this.directoryKey(directory))
   }
 
   disposeDirectory(directory: string): boolean {
+    directory = this.directoryKey(directory)
     if (
       !canDisposeDirectory({
         directory,
@@ -159,12 +176,12 @@ export class ChildStoreManager {
   }
 
   hasPendingBlockingRequestsForDirectory(directory: string): boolean {
-    return hasPendingBlockingRequests(this.children.get(directory)?.getState())
+    return hasPendingBlockingRequests(this.getChild(directory)?.getState())
   }
 
   /** Apply a state mutation to a directory's store */
   update(directory: string, fn: (state: State) => Partial<State>) {
-    const store = this.children.get(directory)
+    const store = this.getChild(directory)
     if (!store) return
     const current = store.getState()
     const patch = fn(current)
@@ -173,7 +190,7 @@ export class ChildStoreManager {
 
   /** Get current state of a directory store (snapshot) */
   getState(directory: string): State | undefined {
-    return this.children.get(directory)?.getState()
+    return this.getChild(directory)?.getState()
   }
 
   disposeAll() {
