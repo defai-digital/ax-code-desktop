@@ -40,7 +40,11 @@ const session: Session = {
 
 const pollers: ReturnType<typeof createExternalSessionPoller>[] = []
 
-function setup(status?: SessionStatus, openSessionId: string | null = "session") {
+function setup(
+  status?: SessionStatus,
+  openSessionId: string | null = "session",
+  openSessionDirectory: string | null = "/repo",
+) {
   const childStores = new ChildStoreManager()
   const store = childStores.ensureChild("/repo", { bootstrap: false })
   store.setState({ session: [session], session_status: status ? { session: status } : {} })
@@ -53,6 +57,7 @@ function setup(status?: SessionStatus, openSessionId: string | null = "session")
     childStores,
     getClient: () => sdk,
     getOpenSessionId: () => openSessionId,
+    getOpenSessionDirectory: () => openSessionDirectory,
     refreshSessionList,
     document,
   })
@@ -89,6 +94,57 @@ describe("external session polling", () => {
     expect(messages).toHaveBeenCalledOnce()
     expect(store.getState().message.session).toEqual([user])
     expect(store.getState().session_status.session).toEqual({ type: "busy", lastActivityAt: 100 })
+  })
+
+  test("does not poll the open session through a store that does not own its directory", async () => {
+    const childStores = new ChildStoreManager()
+    const owning = childStores.ensureChild("/repo", { bootstrap: false })
+    owning.setState({ session: [session] })
+    // The selected session can be present in another store's materialized
+    // messages (it was viewed there earlier). That must not make every other
+    // project poll it with a directory the runtime rejects.
+    for (const foreignDirectory of ["/other", "/third"]) {
+      const foreign = childStores.ensureChild(foreignDirectory, { bootstrap: false })
+      foreign.setState({ message: { session: [user] } })
+    }
+    const messages = vi.fn(async (input: { directory: string }) => {
+      void input
+      return { data: [{ info: user, parts: [] }] }
+    })
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: () => ({ session: { messages } }) as unknown as AxCodeClient,
+      getOpenSessionId: () => "session",
+      getOpenSessionDirectory: () => "/repo",
+      refreshSessionList: vi.fn(async () => {}),
+      document,
+    })
+    pollers.push(poller)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages.mock.calls.map(([input]) => input.directory)).toEqual(["/repo"])
+  })
+
+  test("keeps polling the open session when its directory list omits it", async () => {
+    const childStores = new ChildStoreManager()
+    const store = childStores.ensureChild("/repo", { bootstrap: false })
+    store.setState({ message: { session: [user] } })
+    childStores.ensureChild("/other", { bootstrap: false }).setState({ message: { session: [user] } })
+    const messages = vi.fn(async (input: { directory: string }) => {
+      void input
+      return { data: [{ info: user, parts: [] }] }
+    })
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: () => ({ session: { messages } }) as unknown as AxCodeClient,
+      getOpenSessionId: () => "session",
+      getOpenSessionDirectory: () => "/repo",
+      refreshSessionList: vi.fn(async () => {}),
+      document,
+    })
+    pollers.push(poller)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    expect(messages.mock.calls[0][0].directory).toBe("/repo")
   })
 
   test("discovers activity in another session and clears only its own status after completion", async () => {

@@ -1750,6 +1750,10 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       childStores,
       getClient: (directory) => axCodeClient.getScopedSdkClient(directory),
       getOpenSessionId: () => useSessionUIStore.getState().currentSessionId,
+      getOpenSessionDirectory: () => {
+        const active = getActiveSessionRef()
+        return active.sessionId ? active.directory || null : null
+      },
       refreshSessionList: async (directory, store, signal) => {
         await refreshDirectorySessionList({ sdk: props.sdk, directory, store, signal })
         if (!signal.aborted) ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())

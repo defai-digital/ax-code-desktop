@@ -398,6 +398,13 @@ type SessionUIState = {
    * runtime rejects every message request for the session (409).
    */
   reconcileCurrentSessionDirectory: () => boolean
+  /**
+   * Drop the current session when the active directory no longer owns it.
+   * Changing projects moves the directory but leaves the previous project's
+   * session selected; without this the chat keeps requesting a transcript the
+   * runtime rejects with 409 ("belongs to a different project directory").
+   */
+  clearCurrentSessionIfOutsideDirectory: (directory: string) => boolean
   resolvePendingDraftWorktreeTarget: (
     requestId: string,
     directory: string | null,
@@ -1011,6 +1018,28 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     }
 
     get().setCurrentSession(sessionId, directory)
+    return true
+  },
+
+  clearCurrentSessionIfOutsideDirectory: (directory) => {
+    const sessionId = get().currentSessionId
+    if (!sessionId) return false
+
+    const sessionDirectory = normalizePath(get().getDirectoryForSession(sessionId))
+    const activeDirectory = normalizePath(directory)
+    if (!sessionDirectory || !activeDirectory) return false
+
+    // A worktree directory need not equal the project root but still belongs to
+    // it. Resolve both sides to their registered project; when either side is
+    // not known (the registry or worktree list has not loaded), leave the
+    // selection alone rather than guessing and dropping a valid worktree session.
+    const projects = useProjectsStore.getState().projects
+    const worktrees = get().availableWorktreesByProject
+    const sessionProject = resolveProjectForSessionDirectory(projects, worktrees, sessionDirectory)
+    const activeProject = resolveProjectForSessionDirectory(projects, worktrees, activeDirectory)
+    if (!sessionProject || !activeProject || sessionProject.id === activeProject.id) return false
+
+    get().setCurrentSession(null)
     return true
   },
 

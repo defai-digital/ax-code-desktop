@@ -394,6 +394,7 @@ function App({ apis }: AppProps) {
   const reconcileCurrentSessionDirectory = useSessionUIStore((s) => s.reconcileCurrentSessionDirectory)
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
+  const projectCount = useProjectsStore((state) => state.projects.length)
   const setDirectory = useDirectoryStore((state) => state.setDirectory)
   const isSwitchingDirectory = useDirectoryStore((state) => state.isSwitchingDirectory)
   const [showMemoryDebug, setShowMemoryDebug] = React.useState(false)
@@ -717,6 +718,19 @@ function App({ apis }: AppProps) {
     isUnsupportedMobile,
     reconcileCurrentSessionDirectory,
   ])
+
+  // The opposite transition: a project switch moves the directory but leaves
+  // the previous project's session selected, so the chat keeps requesting a
+  // transcript the runtime rejects with 409. Wait until the client and the
+  // directory store agree before deciding, so the reconciliation effect above
+  // (a selected session may claim its own project) settles first.
+  React.useEffect(() => {
+    if (embeddedSessionChat || isUnsupportedMobile || !isConnected) return
+    const clientDirectory = normalizeProjectPath(axCodeClient.getDirectory() ?? null)
+    const activeDirectory = normalizeProjectPath(currentDirectory)
+    if (!clientDirectory || !activeDirectory || clientDirectory !== activeDirectory) return
+    useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory(activeDirectory)
+  }, [currentDirectory, currentSessionId, embeddedSessionChat, isConnected, isUnsupportedMobile, projectCount])
 
   React.useEffect(() => {
     if (!embeddedSessionChat || typeof window === "undefined") {

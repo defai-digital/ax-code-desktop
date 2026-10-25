@@ -1,5 +1,6 @@
 import type { AxCodeClient, SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
 import type { StoreApi } from "zustand"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { ChildStoreManager, DirectoryStore } from "./child-store"
 import { EXTERNAL_SESSION_ACTIVITY_MAX_AGE_MS, inferExternalSessionActivity } from "./external-session-activity"
 import { refetchSessionMessagesIfChanged } from "./session-message-refresh"
@@ -17,6 +18,7 @@ interface ExternalSessionPollerInput {
   childStores: ChildStoreManager
   getClient: (directory: string) => AxCodeClient
   getOpenSessionId: () => string | null
+  getOpenSessionDirectory: () => string | null
   refreshSessionList: (directory: string, store: StoreApi<DirectoryStore>, signal: AbortSignal) => Promise<void>
   document: Pick<Document, "visibilityState" | "addEventListener" | "removeEventListener">
 }
@@ -67,8 +69,14 @@ export function createExternalSessionPoller(input: ExternalSessionPollerInput) {
             if (!sessionIds.has(sessionId)) clearOwnedStatus(store, sessionId)
           }
           const openSessionId = input.getOpenSessionId()
-          // The selected session can be absent from the first list page.
-          const candidates = new Set([...(openSessionId ? [openSessionId] : []), ...sessionIds])
+          // The selected session can be absent from the first list page, but it
+          // only belongs to the directory that owns it. Polling it through every
+          // other child store sends message requests to a directory the runtime
+          // rejects with 409 ("belongs to a different project directory").
+          const openSessionDirectory = normalizeProjectPath(input.getOpenSessionDirectory())
+          const openSessionBelongsHere =
+            !!openSessionId && !!openSessionDirectory && normalizeProjectPath(directory) === openSessionDirectory
+          const candidates = new Set([...(openSessionBelongsHere ? [openSessionId] : []), ...sessionIds])
           await Promise.all(
             Array.from(candidates, async (sessionId) => {
               if (!canApply()) return

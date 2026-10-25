@@ -3,6 +3,7 @@ import type { Message, Session } from "@defai-digital/ax-code-sdk/v2/client"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { axCodeClient } from "@/lib/ax-code/client"
 import type { SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import { useSessionWorktreeStore } from "./session-worktree-store"
@@ -47,6 +48,7 @@ const resetSessionStores = () => {
     error: null,
     worktreeMetadata: new Map(),
   })
+  useProjectsStore.setState({ projects: [], activeProjectId: null })
 }
 
 const expectAttachment = (sessionId: string): SessionWorktreeAttachment => {
@@ -467,6 +469,92 @@ describe("session-worktree-store worktree routing", () => {
       axCodeClient.setDirectory(previousClient)
       useDirectoryStore.setState({ currentDirectory: previousStore })
     }
+  })
+
+  test("clearCurrentSessionIfOutsideDirectory drops a session after a project switch", () => {
+    const session = {
+      id: "ses_project_a",
+      title: "Project A session",
+      directory: "/repo/a",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+    useProjectsStore.setState({
+      projects: [
+        { id: "project-a", path: "/repo/a" },
+        { id: "project-b", path: "/repo/b" },
+      ],
+      activeProjectId: "project-b",
+    })
+
+    const previousClient = axCodeClient.getDirectory()
+    const previousStore = useDirectoryStore.getState().currentDirectory
+    try {
+      axCodeClient.setDirectory("/repo/a")
+      useDirectoryStore.setState({ currentDirectory: "/repo/a" })
+      useSessionUIStore.getState().setCurrentSession(session.id, "/repo/a")
+
+      // Project switch: the directory moves, the selected session does not.
+      axCodeClient.setDirectory("/repo/b")
+      useDirectoryStore.setState({ currentDirectory: "/repo/b" })
+
+      expect(useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory("/repo/b")).toBe(true)
+      expect(useSessionUIStore.getState().currentSessionId).toBeNull()
+    } finally {
+      axCodeClient.setDirectory(previousClient)
+      useDirectoryStore.setState({ currentDirectory: previousStore })
+    }
+  })
+
+  test("clearCurrentSessionIfOutsideDirectory keeps a session in its own directory", () => {
+    const session = {
+      id: "ses_project_a",
+      title: "Project A session",
+      directory: "/repo/a",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+    useProjectsStore.setState({ projects: [{ id: "project-a", path: "/repo/a" }], activeProjectId: "project-a" })
+    useSessionUIStore.getState().setCurrentSession(session.id, "/repo/a")
+
+    expect(useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory("/repo/a/")).toBe(false)
+    expect(useSessionUIStore.getState().currentSessionId).toBe(session.id)
+  })
+
+  test("clearCurrentSessionIfOutsideDirectory keeps a worktree session in its project", () => {
+    const session = {
+      id: "ses_worktree",
+      title: "Worktree session",
+      directory: "/repo/a/.worktrees/feature",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+    useProjectsStore.setState({ projects: [{ id: "project-a", path: "/repo/a" }], activeProjectId: "project-a" })
+    useSessionUIStore.getState().setCurrentSession(session.id, "/repo/a/.worktrees/feature")
+
+    expect(useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory("/repo/a")).toBe(false)
+    expect(useSessionUIStore.getState().currentSessionId).toBe(session.id)
+  })
+
+  test("clearCurrentSessionIfOutsideDirectory leaves an unclassified directory alone", () => {
+    const session = {
+      id: "ses_unregistered",
+      title: "Unregistered directory session",
+      directory: "/tmp/one",
+      time: { created: 1, updated: 2 },
+    } as Session
+    useGlobalSessionsStore.setState({ activeSessions: [session], archivedSessions: [] })
+    useSessionUIStore.getState().setCurrentSession(session.id, "/tmp/one")
+
+    expect(useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory("/tmp/two")).toBe(false)
+    expect(useSessionUIStore.getState().currentSessionId).toBe(session.id)
+  })
+
+  test("clearCurrentSessionIfOutsideDirectory leaves a session with an unknown directory alone", () => {
+    useSessionUIStore.setState({ currentSessionId: "ses_unknown" })
+
+    expect(useSessionUIStore.getState().clearCurrentSessionIfOutsideDirectory("/repo/b")).toBe(false)
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_unknown")
   })
 })
 

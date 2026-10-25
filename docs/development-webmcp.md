@@ -70,6 +70,14 @@ For Projects Home cards and child actions, run:
 node desktop/packages/electron/scripts/e2e/project-home-webmcp.mjs --artifacts /tmp/ax-project-home
 ```
 
+For switching projects while a conversation is open, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/project-switch-session-webmcp.mjs --artifacts /tmp/ax-project-switch-session
+```
+
+This seeds two projects, opens one project's Needs You conversation, switches the active project from the Settings project selector, and checks that the stale session is cleared. It then watches longer than one three-second external-session poll for transcript reads against the new directory, and reopens the original conversation to confirm its own directory still works. It does not execute a model turn or write project files.
+
 For the project-wide Archive all action, run:
 
 ```sh
