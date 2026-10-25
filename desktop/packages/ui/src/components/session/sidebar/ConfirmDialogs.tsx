@@ -160,7 +160,7 @@ export function BulkSessionDeleteConfirmDialog(props: {
       <DialogContent showCloseButton={false} className="max-w-sm gap-5">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription className="[overflow-wrap:anywhere]">{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter className="w-full sm:items-center sm:justify-between">
           <button

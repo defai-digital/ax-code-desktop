@@ -113,6 +113,17 @@ const outcome = await runHarness({
         const text = await session.evaluate(`document.querySelector('[role="dialog"]')?.innerText ?? ""`)
         if (!text.includes(`All ${count} sessions in`)) throw new Error("Archive confirmation count is wrong")
         if (!mentionsPath(text, project.worktree)) throw new Error("Archive confirmation names the wrong project")
+        await assertDialogFits()
+      }
+      const assertDialogFits = async () => {
+        const fits = await session.evaluate(`(() => {
+          const dialog = document.querySelector('[role="dialog"]')
+          const description = dialog?.querySelector('[data-slot="dialog-description"]')
+          const bounds = dialog?.getBoundingClientRect()
+          return Boolean(dialog && description && dialog.scrollWidth <= dialog.clientWidth + 1 &&
+            description.scrollWidth <= description.clientWidth + 1 && bounds.left >= 0 && bounds.right <= innerWidth)
+        })()`)
+        if (!fits) throw new Error("Archive confirmation overflows horizontally for a long project path")
       }
       const rowsArchived = (ids, archived, label) =>
         audit.wait(
@@ -253,7 +264,25 @@ const outcome = await runHarness({
       if (!mentionsPath(singularText, projects[0].worktree))
         throw new Error("Singular description names the wrong project")
       if (singularText.includes("All 1 sessions")) throw new Error("Singular description uses plural copy")
+      await assertDialogFits()
       await capture("archive-singular")
+      await session.send("Emulation.setDeviceMetricsOverride", {
+        width: 360, height: 780, deviceScaleFactor: 1, mobile: false,
+      })
+      const dialogColors = new Set()
+      for (const theme of ["light", "dark"]) {
+        await session.send("Emulation.setEmulatedMedia", {
+          features: [{ name: "prefers-color-scheme", value: theme }],
+        })
+        await audit.wait(`document.documentElement.getAttribute("data-theme") === ${JSON.stringify(theme)}`, `${theme} archive theme`)
+        await session.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
+        await assertDialogFits()
+        dialogColors.add(await session.evaluate("getComputedStyle(document.querySelector('[role=dialog]')).backgroundColor"))
+        await capture(`archive-singular-narrow-${theme}`)
+      }
+      if (dialogColors.size !== 2) throw new Error("Archive confirmation did not render both light and dark themes")
+      await session.send("Emulation.clearDeviceMetricsOverride")
+      await session.send("Emulation.setEmulatedMedia", { features: [] })
       await audit.click("Cancel", { role: "button" })
       await audit.wait("!document.querySelector('[role=\"dialog\"]')", "singular confirmation closed")
       return {
