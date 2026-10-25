@@ -5,10 +5,11 @@
 import fs from "node:fs/promises"
 import path from "node:path"
 import { waitForCondition } from "./cdp.mjs"
-import { mentionsPath } from "./paths.mjs"
+import { mentionsPath, pathForms } from "./paths.mjs"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { parseStubOrigin } from "./stub-origin.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 const outcome = await runHarness({
@@ -18,8 +19,9 @@ const outcome = await runHarness({
   journeys: [
     journeyBoot,
     async function journeyProjectSwitchSession({ session, e2e }) {
-      const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
+      const origin = parseStubOrigin(await fs.readFile(e2e.stubOriginPath, "utf8"))
       const armed = await fetch(`${origin}/__e2e__/step`, {
+        redirect: "error",
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ step: "portfolio-goals" }),
@@ -111,10 +113,10 @@ const outcome = await runHarness({
         responses.length = 0
         await new Promise((resolve) => setTimeout(resolve, 4_500))
         const crossDirectory = responses.filter((entry) => {
-          const decoded = decodeURIComponent(entry.url)
+          const url = new URL(entry.url)
           return (
-            decoded.includes(session.id) &&
-            !decoded.includes(`directory=${session.directory}`) &&
+            decodeURIComponent(url.pathname).split("/").includes(session.id) &&
+            !pathForms(session.directory).includes(url.searchParams.get("directory") ?? "") &&
             (entry.status === 404 || entry.status === 409)
           )
         })
@@ -132,6 +134,9 @@ const outcome = await runHarness({
         "stale project A conversation cleared",
       )
       await capture("after-switch")
+      await audit.click((await attentionControl(sessionB)).name, { role: "button" })
+      await audit.wait(`document.body.innerText.includes(${JSON.stringify(markerB)})`, "project B conversation")
+      await capture("project-b-open")
       await assertNoCrossDirectoryReads(sessionA)
 
       // Round trip: switch back while project B's conversation is selected.

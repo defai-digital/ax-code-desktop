@@ -50,6 +50,10 @@ export const useSessionPrefetch = ({
     },
     [directory, sessionById],
   )
+  const contextRef = React.useRef({ isInActiveDirectory, ensureSessionRenderable })
+  React.useLayoutEffect(() => {
+    contextRef.current = { isInActiveDirectory, ensureSessionRenderable }
+  }, [isInActiveDirectory, ensureSessionRenderable])
 
   const pumpSessionPrefetchQueue = React.useCallback(() => {
     if (typeof window === "undefined") {
@@ -69,7 +73,7 @@ export const useSessionPrefetch = ({
       if (state.currentSessionId === nextSessionId) {
         continue
       }
-      if (!isInActiveDirectory(nextSessionId)) {
+      if (!contextRef.current.isInActiveDirectory(nextSessionId)) {
         continue
       }
 
@@ -79,14 +83,14 @@ export const useSessionPrefetch = ({
       }
 
       sessionPrefetchInFlightRef.current.add(nextSessionId)
-      void ensureSessionRenderable(nextSessionId)
+      void contextRef.current.ensureSessionRenderable(nextSessionId)
         .catch(() => undefined)
         .finally(() => {
           sessionPrefetchInFlightRef.current.delete(nextSessionId)
           pumpSessionPrefetchQueue()
         })
     }
-  }, [ensureSessionRenderable, isInActiveDirectory])
+  }, [])
 
   const scheduleSessionPrefetch = React.useCallback(
     (sessionId: string | null | undefined) => {
@@ -166,5 +170,5 @@ export const useSessionPrefetch = ({
       prefetchTimers.clear()
       sessionPrefetchQueueRef.current = []
     }
-  }, [])
+  }, [directory])
 }

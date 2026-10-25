@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.29.2] - 2026-10-25
+
+### Changed
+
+- Bundle signed AX Code runtime 7.29.4 and exact GitHub Packages SDK 2.6.51.
+
+### Fixed
+
+- Keep session polling and prefetch reads within the owning project directory when switching projects.
+- Cancel stale prefetch timers and drain the current directory's queue after older requests finish or fail.
+- Recheck selected-session ownership when project or worktree metadata arrives and after directory transitions settle.
+
 ## [7.29.1] - 2026-10-25
 
 ### Changed

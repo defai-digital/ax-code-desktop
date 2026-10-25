@@ -31,7 +31,7 @@ Express server + Vite renderer), `desktop/packages/electron` (`@ax-code/electron
   `pnpm install`; CI must use `pnpm install --frozen-lockfile`.
 - The SDK comes from GitHub Packages (`.npmrc` sets `@defai-digital:registry`); installing needs a user-level
   `//npm.pkg.github.com/:_authToken=...` line, and a token must never be committed (ADR-022). The SDK is pinned to an
-  exact version (`2.6.50`) — do not float it or widen it to a range.
+  exact version (`2.6.51`) — do not float it or widen it to a range.
 - Shared dependency versions live in the `catalog:` block of `pnpm-workspace.yaml`; its `overrides` block is the
   security-patch ratchet. Use `catalog:` for a shared dependency, or an exact pinned version. Never hand-edit a lockfile.
 
