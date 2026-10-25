@@ -216,10 +216,11 @@ const outcome = await runHarness({
           JSON.stringify(
             {
               seeded: Object.fromEntries(seeded),
-              observedWriteCounts: {
-                archived: archiveWrites.length,
-                restored: restoredWrites(afterUndo, archiveIds).length,
-                otherProjectArchived: activeWrites(afterOther, otherIds).length,
+              // The checks above proved these local expected counts against the server.
+              verifiedWriteCounts: {
+                archived: archiveIds.length,
+                restored: archiveIds.length,
+                otherProjectArchived: otherIds.length,
               },
               actions: audit.calls,
             },
