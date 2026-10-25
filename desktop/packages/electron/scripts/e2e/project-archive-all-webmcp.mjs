@@ -7,6 +7,7 @@ import { journeyBoot } from "./journeys.mjs"
 import { mentionsPath, pathForms } from "./paths.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { parseStubOrigin } from "./stub-origin.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 const outcome = await runHarness({
@@ -16,26 +17,31 @@ const outcome = await runHarness({
   journeys: [
     journeyBoot,
     async function journeyProjectArchiveAll({ session, e2e }) {
-      const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
+      const origin = parseStubOrigin(await fs.readFile(e2e.stubOriginPath, "utf8"))
       const projects = [e2e.scenario.project, e2e.scenario.portfolio[0].project]
       const seeded = new Map([
         [projects[0].id, [e2e.scenario.session.id]],
         [projects[1].id, [e2e.scenario.portfolio[0].session.id]],
       ])
+      let createdCount = 0
       const createSessions = async (project, count) => {
         for (let index = 0; index < count; index += 1) {
           const response = await fetch(`${origin}/session?directory=${encodeURIComponent(project.worktree)}`, {
+            redirect: "error",
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ title: `Archive fixture ${project.id} ${index + 1}` }),
           })
           if (!response.ok) throw new Error(`Could not seed a session for ${project.id}`)
-          seeded.get(project.id).push((await response.json()).id)
+          const expectedId = `ses_e2e_created_${++createdCount}`
+          if ((await response.json()).id !== expectedId) throw new Error("Unexpected created fixture session")
+          seeded.get(project.id).push(expectedId)
         }
       }
       await createSessions(projects[0], 2)
       await createSessions(projects[1], 2)
       const resetFixture = await fetch(`${origin}/__e2e__/session-archives`, {
+        redirect: "error",
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ archived: [] }),
@@ -45,7 +51,7 @@ const outcome = await runHarness({
       await journeyBoot({ session })
       const audit = new SettingsWebMcpAudit(session, args.artifacts)
       await audit.client.enable()
-      const fixture = async () => (await fetch(`${origin}/__e2e__/session-archives`)).json()
+      const fixture = async () => (await fetch(`${origin}/__e2e__/session-archives`, { redirect: "error" })).json()
       const capture = async (name) => {
         const state = await audit.all()
         const inspection = await session.evaluate(`(() => ({
@@ -210,7 +216,11 @@ const outcome = await runHarness({
           JSON.stringify(
             {
               seeded: Object.fromEntries(seeded),
-              writes: (await fixture()).writes,
+              observedWriteCounts: {
+                archived: archiveWrites.length,
+                restored: restoredWrites(afterUndo, archiveIds).length,
+                otherProjectArchived: activeWrites(afterOther, otherIds).length,
+              },
               actions: audit.calls,
             },
             null,
@@ -221,6 +231,7 @@ const outcome = await runHarness({
       // A project with exactly one live session must use singular copy, not "All 1 sessions".
       const singularArchives = archiveIds.slice(1).map((id) => ({ id, archived: Date.now() }))
       const seededArchives = await fetch(`${origin}/__e2e__/session-archives`, {
+        redirect: "error",
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ archived: singularArchives }),
