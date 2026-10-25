@@ -79,6 +79,46 @@ afterEach(async () => {
 
 const readReplies = async (handle) => parseReplyLog(await fs.readFile(handle.repliesPath, "utf8").catch(() => ""))
 
+spawnTest("Windows identity matching preserves directory spelling in path payloads and archive events", async () => {
+  const directory = "C:/Users/RunnerAdmin/Project"
+  const scenario = buildE2eScenario({ directory, portfolio: true })
+  const handle = await startStub({ scenario })
+  const response = await fetch(`${handle.base}/path?directory=${encodeURIComponent(directory)}`)
+  expect((await response.json()).directory).toBe(directory)
+  const controller = new AbortController()
+  const stream = await fetch(`${handle.base}/global/event`, { signal: controller.signal })
+  const reader = stream.body.getReader()
+  try {
+    await fetch(`${handle.base}/session/${scenario.session.id}?directory=${encodeURIComponent(directory)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ time: { archived: 123 } }),
+    })
+    const archives = await (await fetch(`${handle.base}/__e2e__/session-archives`)).json()
+    expect(archives.writes[0].directory).toBe(directory)
+    const decoder = new TextDecoder()
+    let buffer = ""
+    let update
+    while (!update) {
+      const { done, value } = await reader.read()
+      if (done) throw new Error("Event stream ended before the archive update")
+      buffer += decoder.decode(value, { stream: true })
+      const frames = buffer.split("\n\n")
+      buffer = frames.pop()
+      for (const frame of frames) {
+        const data = frame.split("\n").find((line) => line.startsWith("data: "))
+        if (!data) continue
+        const event = JSON.parse(data.slice(6))
+        if (event.payload?.type === "session.updated") update = event
+      }
+    }
+    expect(update.directory).toBe(directory)
+  } finally {
+    controller.abort()
+    await reader.cancel().catch(() => {})
+  }
+})
+
 spawnTest("browser fixture accepts Windows path identity without changing POSIX case sensitivity", async () => {
   for (const [directory, requested, expected] of [
     ["C:\\Users\\RunnerAdmin\\Project", "c:/users/runneradmin/project", 200],

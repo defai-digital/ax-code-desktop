@@ -75,7 +75,21 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
             windowsVirtualKeyCode: 13,
             ...(type === "keyDown" ? { text: "\r", unmodifiedText: "\r" } : {}),
           })
-      } else await audit.client.call("ax_desktop_click", { ref: control.ref })
+      } else {
+        try {
+          await audit.client.call("ax_desktop_click", { ref: control.ref })
+        } catch (error) {
+          if (artifacts) {
+            const fresh = await audit.read(inventory.offset)
+            await fs.writeFile(path.join(artifacts, "switch-click-failure.json"), JSON.stringify({
+              sessionID: id, before: control,
+              after: fresh.controls.filter((item) => item.name.startsWith("Show page:")),
+              views: await listing(),
+            }, null, 2))
+          }
+          throw new Error(`W7 page click ${id}: ${error.message}`, { cause: error })
+        }
+      }
       await waitForCondition(async () => (await state(id))?.visible, { label: `W7 selected ${id}` })
       await audit.wait(
         `Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`,
@@ -112,6 +126,10 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
     // Real provider request held while hidden, then surfaced through Needs you.
     await runtime({ sessionID: primary.id, requestID: "w7-hidden-a" })
     await waitForCondition(async () => (await state(primary.id))?.waiting, { label: "W7 hidden request waits" })
+    await audit.wait(
+      `Array.from(document.querySelectorAll('[data-webmcp-pages-status]')).some(node => node.textContent.includes(${JSON.stringify(primary.id)}))`,
+      "W7 frontend announces the waiting page",
+    )
     if ((await runtime()).replies.some((reply) => reply.requestID === "w7-hidden-a"))
       throw new Error("W7 hidden page acted")
     await audit.wait(

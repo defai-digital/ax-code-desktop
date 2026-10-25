@@ -146,7 +146,9 @@ const readBody = (req, done) => {
   });
   req.on('error', () => done({}));
 };
-const canonDirectory = ${projectKeyFor.toString()};
+const canonDirectory = (value) => String(value || '').replace(/\\\\/g, '/').replace(/^([a-z]):/, (_, letter) => letter.toUpperCase() + ':').replace(/(.)\\/+$/, '$1');
+const directoryIdentity = ${projectKeyFor.toString()};
+const sameDirectory = (left, right) => directoryIdentity(left) === directoryIdentity(right);
 const browserProviders = new Map();
 const browserReplies = [];
 let browserProviderSequence = 0;
@@ -187,7 +189,7 @@ const server = http.createServer((req, res) => {
     }
     if (pathname === '/desktop/browser/provider' && req.method === 'POST') {
       readBody(req, body => {
-        const selected = sessions.find(item => item.id === body.sessionID && canonDirectory(item.directory) === scopedDirectory);
+        const selected = sessions.find(item => item.id === body.sessionID && sameDirectory(item.directory, scopedDirectory));
         if (!selected) { res.statusCode = 404; json(res, { error: 'Unknown browser session' }); return; }
         const providerID = 'e2e-browser-' + (++browserProviderSequence);
         const connection = { providerID, epoch: 'e2e', projectID: selected.projectID };
@@ -308,8 +310,8 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/hooks' && req.method === 'GET' && hooksFixture !== null) {
-      const entry = projects.some(project => canonDirectory(project.worktree) === scopedDirectory)
-        ? hooksFixture.find(item => canonDirectory(item.directory) === scopedDirectory) : null;
+      const entry = projects.some(project => sameDirectory(project.worktree, scopedDirectory))
+        ? hooksFixture.find(item => sameDirectory(item.directory, scopedDirectory)) : null;
       const read = { directory: scopedDirectory, status: entry ? (entry.status || 200) : 404, completed: false };
       hooksReads.push(read);
       const respond = () => {
@@ -531,7 +533,7 @@ const server = http.createServer((req, res) => {
       const wantsArchived = url.searchParams.get('archived') === 'true';
       json(res, sessions
         .filter(entry => wantsArchived || !archivedSessionTimes.has(entry.id))
-        .filter(entry => !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory)
+        .filter(entry => !scopedDirectory || sameDirectory(entry.directory, scopedDirectory))
         .map(archivedSessionState));
       return;
     }
@@ -570,7 +572,7 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/project/current') {
-      json(res, projects.find(entry => canonDirectory(entry.worktree) === scopedDirectory) || scenario.project);
+      json(res, projects.find(entry => sameDirectory(entry.worktree, scopedDirectory)) || scenario.project);
       return;
     }
     if (pathname === '/session/status') {
@@ -580,7 +582,7 @@ const server = http.createServer((req, res) => {
     const messagesMatch = pathname.match(/^\\/session\\/([^/]+)\\/message$/);
     if (messagesMatch && req.method === 'GET' && portfolio.length) {
       const sessionID = decodeURIComponent(messagesMatch[1]);
-      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || sameDirectory(item.directory, scopedDirectory)));
       res.statusCode = entry ? 200 : 404;
       const messages = scenario.portfolioMessages[sessionID] || [];
       const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
@@ -595,7 +597,7 @@ const server = http.createServer((req, res) => {
     if (messageMatch && req.method === 'GET' && portfolio.length) {
       const sessionID = decodeURIComponent(messageMatch[1]);
       const messageID = decodeURIComponent(messageMatch[2]);
-      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
+      const entry = sessions.find(item => item.id === sessionID && (!scopedDirectory || sameDirectory(item.directory, scopedDirectory)));
       const messages = scenario.portfolioMessages[sessionID] || [];
       const latestUser = reviewScopesActive ? messages.findLastIndex(message => message.info.role === 'user') : -1;
       const index = messages.findIndex(message => message.info.id === messageID);
@@ -610,7 +612,7 @@ const server = http.createServer((req, res) => {
     if (diffMatch && req.method === 'GET' && reviewScopesActive) {
       const entry = sessions.find(item => item.id === decodeURIComponent(diffMatch[1]));
       if (entry) {
-        const inDirectory = !scopedDirectory || canonDirectory(entry.directory) === scopedDirectory;
+        const inDirectory = !scopedDirectory || sameDirectory(entry.directory, scopedDirectory);
         res.statusCode = inDirectory ? 200 : 404;
         json(res, inDirectory ? reviewDiffs : { error: 'session not found in this directory' });
         return;
@@ -620,7 +622,7 @@ const server = http.createServer((req, res) => {
     if (sessionMatch && req.method === 'GET') {
       const sessionID = decodeURIComponent(sessionMatch[1]);
       const entry = sessions.find(item => item.id === sessionID &&
-        (!scopedDirectory || canonDirectory(item.directory) === scopedDirectory));
+        (!scopedDirectory || sameDirectory(item.directory, scopedDirectory)));
       res.statusCode = entry ? 200 : 404;
       json(res, entry || { error: 'session not found in this directory' });
       return;
@@ -677,17 +679,17 @@ const server = http.createServer((req, res) => {
       const goalSessionID = decodeURIComponent(goalMatch[1]);
       const portfolioEntry = portfolio.find(entry => entry.session.id === goalSessionID);
       if (portfolioEntry) {
-        json(res, portfolioGoalsActive && (!scopedDirectory || canonDirectory(portfolioEntry.session.directory) === scopedDirectory) ? portfolioEntry.goal : null);
+        json(res, portfolioGoalsActive && (!scopedDirectory || sameDirectory(portfolioEntry.session.directory, scopedDirectory)) ? portfolioEntry.goal : null);
         return;
       }
       if (goalSessionID === scenario.session.id) {
-        json(res, !scopedDirectory || scopedDirectory === canonDirectory(directory) ? currentGoal : null);
+        json(res, !scopedDirectory || sameDirectory(scopedDirectory, directory) ? currentGoal : null);
         return;
       }
       json(res, foreignGoalEmitted && scenario.foreignGoal && goalSessionID === scenario.foreignGoal.sessionID ? scenario.foreignGoal : null);
       return;
     }
-    if (pathname === '/path' && projects.some(entry => canonDirectory(entry.worktree) === scopedDirectory)) {
+    if (pathname === '/path' && projects.some(entry => sameDirectory(entry.worktree, scopedDirectory))) {
       json(res, Object.assign({}, OBJECT_ROUTES['/path'], { directory: scopedDirectory, worktree: scopedDirectory }));
       return;
     }
