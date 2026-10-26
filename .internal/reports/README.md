@@ -41,3 +41,5 @@ Existing standalone reports and historical evidence packages remain in their ori
   behavioral reproductions, prioritized improvements and remaining packaged-app measurement requirements.
 
 - [Desktop v7.30.2 integration and bug review](RELEASE-2026-10-26-v7.30.2-review.md)
+
+- [Desktop v7.30.2 verified publication](RELEASE-2026-10-26-v7.30.2-publication.md)
