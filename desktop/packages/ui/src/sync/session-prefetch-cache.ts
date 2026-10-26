@@ -3,8 +3,9 @@
  * within a short window. Port of AX Code's session-prefetch.ts.
  *
  * Tracks: last fetch time, pagination cursor, completeness.
- * Version counter invalidates stale inflight requests after eviction.
  */
+
+import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 
 const SESSION_PREFETCH_TTL = 15_000
 
@@ -15,14 +16,10 @@ type Meta = {
   at: number
 }
 
-const compositeKey = (directory: string, sessionID: string) => `${directory}\n${sessionID}`
+const compositeKey = (directory: string, sessionID: string) => `${getProjectPathIdentityKey(directory) ?? directory}\n${sessionID}`
 
 const cache = new Map<string, Meta>()
-const inflight = new Map<string, Promise<Meta | undefined>>()
-const rev = new Map<string, number>()
 const listeners = new Map<string, Set<() => void>>()
-
-const version = (id: string) => rev.get(id) ?? 0
 
 const notify = (id: string) => {
   const callbacks = listeners.get(id)
@@ -90,9 +87,16 @@ export function clearSessionPrefetch(directory: string, sessionIDs: Iterable<str
   for (const sessionID of sessionIDs) {
     if (!sessionID) continue
     const id = compositeKey(directory, sessionID)
-    rev.set(id, version(id) + 1)
     cache.delete(id)
-    inflight.delete(id)
     notify(id)
+  }
+}
+
+export function clearDirectorySessionPrefetch(directory: string) {
+  const prefix = compositeKey(directory, "")
+  for (const key of cache.keys()) {
+    if (!key.startsWith(prefix)) continue
+    cache.delete(key)
+    notify(key)
   }
 }

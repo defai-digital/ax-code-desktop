@@ -424,6 +424,29 @@ const server = http.createServer((req, res) => {
     if (pathname === STEP_ROUTE && req.method === 'POST') {
       readBody(req, (body) => {
         const step = typeof body.step === 'string' ? body.step : '';
+        if (step === 'memory-retention') {
+          const batch = Math.max(0, Math.min(20, Number(body.batch) || 0));
+          for (let index = 0; index < 200; index += 1) {
+            const suffix = String(batch * 200 + index).padStart(6, '0');
+            const sessionID = 'ses_memory_' + suffix;
+            const messageID = 'msg_memory_' + suffix;
+            const now = Date.now();
+            broadcast(directory, { type: 'message.updated', properties: { info: {
+              id: messageID, sessionID: sessionID, role: 'assistant',
+              time: { created: now, completed: now }, parentID: 'msg_fixture_user',
+              providerID: 'fixture', modelID: 'fixture', agent: 'build', mode: 'build',
+              path: { cwd: directory, root: directory }, cost: 0,
+              tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } }
+            } } });
+            broadcast(directory, { type: 'message.part.updated', properties: { part: {
+              id: 'prt_memory_' + suffix, messageID: messageID, sessionID: sessionID,
+              type: 'text', text: 'Fixture ' + suffix + ' ' + 'x'.repeat(32768)
+            } } });
+            broadcast(directory, { type: 'session.status', properties: { sessionID: sessionID, status: { type: 'idle' } } });
+          }
+          json(res, { ok: true, batch: batch, sessions: 200, subscribers: eventClients.size });
+          return;
+        }
         if (step === 'reset') {
           const cleared = pending.splice(0, pending.length);
           for (const entry of cleared) {

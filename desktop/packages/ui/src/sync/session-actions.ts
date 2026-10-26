@@ -35,6 +35,7 @@ import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connec
 import { registerSessionDirectory } from "./sync-refs"
 import { isSyntheticPart } from "@/lib/messages/synthetic"
 import { materializeSessionSnapshots } from "./materialization"
+import { retainSessionLoad } from "./session-load-cache"
 import { serverSessionStatusStamp } from "./session-status-events"
 import { stripMessageDiffSnapshots } from "./sanitize"
 import { sessionEvents } from "@/lib/sessionEvents"
@@ -1054,6 +1055,7 @@ export async function optimisticSend(input: {
   markPromptAccepted(input.sessionId)
   // The reducer stamps every server status event, including one it dedupes because the value matches.
   const statusEventsBeforeSend = serverSessionStatusStamp(input.sessionId)
+  const lease = retainSessionLoad(sessionDirectory ?? _getDirectory(), input.sessionId)
 
   try {
     await waitForConnectionOrThrow()
@@ -1103,6 +1105,8 @@ export async function optimisticSend(input: {
       store.setState({ session_status: restored })
     }
     throw error
+  } finally {
+    lease.release()
   }
 }
 

@@ -81,6 +81,10 @@ import {
 import { axCodeClient } from "@/lib/ax-code/client"
 import { usePermissionStore } from "@/stores/permissionStore"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
+import { useGitStore } from "@/stores/useGitStore"
+import { clearSnippetsDirectoryCache } from "@/stores/useSnippetsStore"
+import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useTodosPersistStore } from "@/stores/useTodosPersistStore"
@@ -97,6 +101,7 @@ import type { QuestionRequest } from "@/types/question"
 import type { SessionMessageRecord } from "@/types/sessionMessages"
 import * as sessionActions from "./session-actions"
 import { getSessionMaterializationStatus, materializeSessionSnapshots } from "./materialization"
+import { retainSessionLoad, clearSessionLoadState } from "./session-load-cache"
 import { setSessionPrefetch } from "./session-prefetch-cache"
 import { useSessionUIStore } from "./session-ui-store"
 
@@ -339,55 +344,60 @@ export async function materializeSessionFromServer(
   store: StoreApi<DirectoryStore>,
   isStillCurrent: () => boolean,
 ) {
-  const before = store.getState()
-  // The server answers 409 when the request directory is not the session's own project, and a
-  // session can be listed under a parent or sibling directory's store. The session record carries
-  // the directory it was created in, so prefer it over the caller's guess.
-  const ownDirectory = store.getState().session.find((s) => s.id === sessionID)?.directory
-  const scopedClient = axCodeClient.getScopedSdkClient(ownDirectory || directory)
-  // The SDK resolves with `{ data, error }` on non-2xx instead of throwing; surface it as an
-  // Error inside retry() so warmup 5xx responses retry (instead of materializing a phantom
-  // empty snapshot and cooling down for 5s) and permanent failures keep their status.
-  const result = await retry(async () => {
-    const response = await scopedClient.session.messages({
-      sessionID,
-      limit: SESSION_MATERIALIZATION_MESSAGE_LIMIT,
+  const lease = retainSessionLoad(directory, sessionID)
+  try {
+    const before = store.getState()
+    // The server answers 409 when the request directory is not the session's own project, and a
+    // session can be listed under a parent or sibling directory's store. The session record carries
+    // the directory it was created in, so prefer it over the caller's guess.
+    const ownDirectory = store.getState().session.find((s) => s.id === sessionID)?.directory
+    const scopedClient = axCodeClient.getScopedSdkClient(ownDirectory || directory)
+    // The SDK resolves with `{ data, error }` on non-2xx instead of throwing; surface it as an
+    // Error inside retry() so warmup 5xx responses retry (instead of materializing a phantom
+    // empty snapshot and cooling down for 5s) and permanent failures keep their status.
+    const result = await retry(async () => {
+      const response = await scopedClient.session.messages({
+        sessionID,
+        limit: SESSION_MATERIALIZATION_MESSAGE_LIMIT,
+      })
+      if (response.error || response.data === undefined) {
+        const status = response.response?.status
+        const error = new Error(`session.messages failed${status ? ` (${status})` : ""}`)
+        if (status !== undefined) (error as Error & { status?: number }).status = status
+        throw error
+      }
+      return response
     })
-    if (response.error || response.data === undefined) {
-      const status = response.response?.status
-      const error = new Error(`session.messages failed${status ? ` (${status})` : ""}`)
-      if (status !== undefined) (error as Error & { status?: number }).status = status
-      throw error
-    }
-    return response
-  })
-  const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
-  if (records.length === 0) return
-  // A newer request for this session started while this one was in flight: its answer is newer than
-  // this one's, so neither the prefetch cursor nor the snapshot may be written from here.
-  if (!isStillCurrent()) return
-  const cursor = result.response?.headers?.get?.("x-next-cursor") ?? undefined
-  setSessionPrefetch({
-    directory,
-    sessionID,
-    limit: records.length,
-    cursor,
-    complete: !cursor,
-  })
-
-  store.setState((state: DirectoryStore) => {
-    const materialized = materializeSessionSnapshots(
-      state,
+    const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
+    if (records.length === 0) return
+    // A newer request for this session started while this one was in flight: its answer is newer than
+    // this one's, so neither the prefetch cursor nor the snapshot may be written from here.
+    if (!isStillCurrent() || !lease.isCurrent()) return
+    const cursor = result.response?.headers?.get?.("x-next-cursor") ?? undefined
+    setSessionPrefetch({
+      directory,
       sessionID,
-      records.map((record: { info: Message; parts?: Part[] }) => ({
-        info: stripMessageDiffSnapshots(record.info),
-        parts: record.parts ?? [],
-      })),
-      { skipPartTypes: RECONNECT_SKIP_PARTS, before },
-    )
-    if (!materialized.messagesChanged && !materialized.partsChanged) return state
-    return { message: materialized.message, part: materialized.part }
-  })
+      limit: records.length,
+      cursor,
+      complete: !cursor,
+    })
+
+    store.setState((state: DirectoryStore) => {
+      const materialized = materializeSessionSnapshots(
+        state,
+        sessionID,
+        records.map((record: { info: Message; parts?: Part[] }) => ({
+          info: stripMessageDiffSnapshots(record.info),
+          parts: record.parts ?? [],
+        })),
+        { skipPartTypes: RECONNECT_SKIP_PARTS, before },
+      )
+      if (!materialized.messagesChanged && !materialized.partsChanged) return state
+      return { message: materialized.message, part: materialized.part }
+    })
+  } finally {
+    lease.release()
+  }
 }
 
 // Module-level refs for notification viewed check.
@@ -397,7 +407,7 @@ let _activeSession = ""
 const externallyViewedSessions = new Map<string, number>()
 const EXTERNAL_VIEW_TTL_MS = 15_000
 
-const viewedSessionKey = (directory: string, sessionId: string) => `${directory}\n${sessionId}`
+const viewedSessionKey = (directory: string, sessionId: string) => `${getProjectPathIdentityKey(directory) ?? directory}\n${sessionId}`
 
 function pruneExternallyViewedSessions(now = Date.now()) {
   for (const [key, expiresAt] of externallyViewedSessions.entries()) {
@@ -881,93 +891,98 @@ async function resyncDirectoryAfterReconnect(
   const scopedClient = axCodeClient.getScopedSdkClient(directory)
   await Promise.all(
     candidateSessionIds.map(async (sessionId) => {
-      const before = store.getState()
-      const [sessionResponse, messageResponse] = await Promise.all([
-        scopedClient.session.get({ sessionID: sessionId }).catch(() => null),
-        scopedClient.session.messages({ sessionID: sessionId, limit: RECONNECT_MESSAGE_LIMIT }).catch(() => null),
-      ])
-      if (childStores.getChild(directory) !== store) return
-      const session = sessionResponse?.data
-      const records = messageResponse?.data
-      if (!session || !records) return
-      const cursor = messageResponse.response?.headers?.get?.("x-next-cursor") ?? undefined
-      setSessionPrefetch({
-        directory,
-        sessionID: sessionId,
-        limit: records.length,
-        cursor,
-        complete: !cursor,
-      })
+      const lease = retainSessionLoad(directory, sessionId)
+      try {
+        const before = store.getState()
+        const [sessionResponse, messageResponse] = await Promise.all([
+          scopedClient.session.get({ sessionID: sessionId }).catch(() => null),
+          scopedClient.session.messages({ sessionID: sessionId, limit: RECONNECT_MESSAGE_LIMIT }).catch(() => null),
+        ])
+        if (childStores.getChild(directory) !== store || !lease.isCurrent()) return
+        const session = sessionResponse?.data
+        const records = messageResponse?.data
+        if (!session || !records) return
+        const cursor = messageResponse.response?.headers?.get?.("x-next-cursor") ?? undefined
+        setSessionPrefetch({
+          directory,
+          sessionID: sessionId,
+          limit: records.length,
+          cursor,
+          complete: !cursor,
+        })
 
-      const nextSession = stripSessionDiffSnapshots(session)
+        const nextSession = stripSessionDiffSnapshots(session)
 
-      store.setState((state: DirectoryStore) => {
-        const sessionIndex = Binary.findIndex(state.session, nextSession.id, (item) => item.id)
-        let sessions = state.session
-        let sessionChanged = false
-        let sessionTotal = state.sessionTotal
-        // Candidates include the parent of every listed session, and its answer is only read to
-        // materialize that child's messages. An archived session is not part of this list — the
-        // `session.updated` reducer removes it — so the snapshot must neither re-insert it nor leave it
-        // where it is, and the count follows the reducer's rule for a session without a parent.
-        const archived = Boolean(nextSession.time?.archived)
+        store.setState((state: DirectoryStore) => {
+          const sessionIndex = Binary.findIndex(state.session, nextSession.id, (item) => item.id)
+          let sessions = state.session
+          let sessionChanged = false
+          let sessionTotal = state.sessionTotal
+          // Candidates include the parent of every listed session, and its answer is only read to
+          // materialize that child's messages. An archived session is not part of this list — the
+          // `session.updated` reducer removes it — so the snapshot must neither re-insert it nor leave it
+          // where it is, and the count follows the reducer's rule for a session without a parent.
+          const archived = Boolean(nextSession.time?.archived)
 
-        if (archived) {
-          if (sessionIndex >= 0) {
-            sessions = state.session.filter((item) => item.id !== nextSession.id)
-            if (!nextSession.parentID) sessionTotal = Math.max(0, sessionTotal - 1)
-            sessionChanged = true
-          }
-        } else if (sessionIndex >= 0) {
-          // A response computed before a concurrent live change (rename, share,
-          // revert) must not overwrite the newer record that change produced.
-          const currentUpdated = sessions[sessionIndex].time?.updated
-          const nextUpdated = nextSession.time?.updated
-          const stale =
-            typeof currentUpdated === "number" &&
-            typeof nextUpdated === "number" &&
-            currentUpdated > nextUpdated
-          if (!stale && !haveEquivalentSyncSnapshots(sessions[sessionIndex], nextSession)) {
+          if (archived) {
+            if (sessionIndex >= 0) {
+              sessions = state.session.filter((item) => item.id !== nextSession.id)
+              if (!nextSession.parentID) sessionTotal = Math.max(0, sessionTotal - 1)
+              sessionChanged = true
+            }
+          } else if (sessionIndex >= 0) {
+            // A response computed before a concurrent live change (rename, share,
+            // revert) must not overwrite the newer record that change produced.
+            const currentUpdated = sessions[sessionIndex].time?.updated
+            const nextUpdated = nextSession.time?.updated
+            const stale =
+              typeof currentUpdated === "number" &&
+              typeof nextUpdated === "number" &&
+              currentUpdated > nextUpdated
+            if (!stale && !haveEquivalentSyncSnapshots(sessions[sessionIndex], nextSession)) {
+              sessions = [...state.session]
+              sessions[sessionIndex] = nextSession
+              sessionChanged = true
+            }
+          } else if (!sessionIdsBeforeFetch.has(nextSession.id)) {
+            // A session that was present before the fetch but is gone now was
+            // removed by a session.updated/deleted event while the request was in
+            // flight; the stale answer must not resurrect it.
             sessions = [...state.session]
-            sessions[sessionIndex] = nextSession
+            sessions.push(nextSession)
+            sessions.sort((a, b) => cmp(a.id, b.id))
+            if (!nextSession.parentID) sessionTotal += 1
             sessionChanged = true
           }
-        } else if (!sessionIdsBeforeFetch.has(nextSession.id)) {
-          // A session that was present before the fetch but is gone now was
-          // removed by a session.updated/deleted event while the request was in
-          // flight; the stale answer must not resurrect it.
-          sessions = [...state.session]
-          sessions.push(nextSession)
-          sessions.sort((a, b) => cmp(a.id, b.id))
-          if (!nextSession.parentID) sessionTotal += 1
-          sessionChanged = true
-        }
 
-        const materialized = materializeSessionSnapshots(
-          state,
-          sessionId,
-          records.map((record: { info: Message; parts?: Part[] }) => ({
-            info: stripMessageDiffSnapshots(record.info),
-            parts: record.parts ?? [],
-          })),
-          { skipPartTypes: RECONNECT_SKIP_PARTS, before },
-        )
-        const messagesChanged = materialized.messagesChanged
-        const partsChanged = materialized.partsChanged
-        if (!sessionChanged && !messagesChanged && !partsChanged) {
-          return state
-        }
+          const materialized = materializeSessionSnapshots(
+            state,
+            sessionId,
+            records.map((record: { info: Message; parts?: Part[] }) => ({
+              info: stripMessageDiffSnapshots(record.info),
+              parts: record.parts ?? [],
+            })),
+            { skipPartTypes: RECONNECT_SKIP_PARTS, before },
+          )
+          const messagesChanged = materialized.messagesChanged
+          const partsChanged = materialized.partsChanged
+          if (!sessionChanged && !messagesChanged && !partsChanged) {
+            return state
+          }
 
-        return {
-          ...(sessionChanged ? { session: sessions, sessionTotal } : {}),
-          ...(messagesChanged ? { message: materialized.message } : {}),
-          ...(partsChanged ? { part: materialized.part } : {}),
-        }
-      })
+          return {
+            ...(sessionChanged ? { session: sessions, sessionTotal } : {}),
+            ...(messagesChanged ? { message: materialized.message } : {}),
+            ...(partsChanged ? { part: materialized.part } : {}),
+          }
+        })
 
-      if (childStores.getChild(directory) !== store) return
-      setIndexedSessionDirectory(routingIndex, nextSession.id, directory)
-      setIndexedSessionMessages(routingIndex, sessionId, directory, store.getState().message[sessionId] ?? EMPTY_MESSAGES)
+        if (childStores.getChild(directory) !== store || !lease.isCurrent()) return
+        setIndexedSessionDirectory(routingIndex, nextSession.id, directory)
+        setIndexedSessionMessages(routingIndex, sessionId, directory, store.getState().message[sessionId] ?? EMPTY_MESSAGES)
+      } finally {
+        lease.release()
+      }
     }),
   )
 
@@ -1227,6 +1242,15 @@ export function handleEvent(
       })
     }
     return
+  }
+
+  // An archive/delete also revokes pending content reads and their pagination ownership.
+  if (payload.type === "session.deleted" || payload.type === "session.updated") {
+    const info = (payload.properties as { info?: Session }).info
+    if (info && (payload.type === "session.deleted" || info.time?.archived)) {
+      clearSessionLoadState(resolvedDirectory, [info.id])
+      dropCachedSessionMessageRecordsSnapshots(store, [info.id])
+    }
   }
 
   childStores.mark(resolvedDirectory)
@@ -1493,6 +1517,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
   const routingIndex = routingIndexRef.current
   const lastStatusPollAtByDirectoryRef = useRef(new Map<string, number>())
   const statusPollingDirectoriesRef = useRef(new Set<string>())
+  const retentionLifecycleRef = useRef(0)
 
   const system = useMemo<SyncSystem>(
     () => ({
@@ -1522,6 +1547,23 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
     const bootingDirs = new Set<string>()
 
     childStores.configure({
+      getViewedSessions: (directory) => {
+        const ids = new Set<string>()
+        const active = getActiveSessionRef()
+        if (getProjectPathIdentityKey(active.directory) === getProjectPathIdentityKey(directory) && active.sessionId) ids.add(active.sessionId)
+        const prefix = `${getProjectPathIdentityKey(directory) ?? directory}\n`
+        pruneExternallyViewedSessions()
+        for (const key of externallyViewedSessions.keys()) {
+          if (key.startsWith(prefix)) ids.add(key.slice(prefix.length))
+        }
+        return ids
+      },
+      onContentInvalidated: (directory, sessions) => {
+        const store = childStores.getChild(directory)
+        if (!store) return
+        dropCachedSessionMessageRecordsSnapshots(store, sessions)
+        ingestDirectoryStateIntoRoutingIndex(routingIndex, directory, store.getState())
+      },
       onBootstrap: (directory) => {
         if (bootingDirs.has(directory)) return
         bootingDirs.add(directory)
@@ -1576,6 +1618,35 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       isLoadingSessions: () => false,
     })
   }, [childStores, props.sdk, routingIndex])
+
+  useEffect(() => {
+    retentionLifecycleRef.current += 1
+    const timer = setInterval(() => {
+      childStores.sweepRetention()
+      childStores.runEviction()
+    }, 30_000)
+    return () => {
+      clearInterval(timer)
+      const generation = ++retentionLifecycleRef.current
+      // StrictMode immediately sets the effect up again; only a real unmount owns disposal.
+      queueMicrotask(() => {
+        if (retentionLifecycleRef.current === generation) childStores.disposeAll()
+      })
+    }
+  }, [childStores])
+
+  useEffect(() => useProjectsStore.subscribe((state, previous) => {
+    if (state.projects === previous.projects) return
+    const registered = new Set(state.projects.map((project) => getProjectPathIdentityKey(project.path)))
+    for (const project of previous.projects) {
+      const identity = getProjectPathIdentityKey(project.path)
+      if (registered.has(identity)) continue
+      clearSnippetsDirectoryCache(project.path)
+      for (const directory of useGitStore.getState().directories.keys()) {
+        if (getProjectPathIdentityKey(directory) === identity) useGitStore.getState().removeDirectory(directory)
+      }
+    }
+  }), [])
 
   // Bootstrap global state — set bootingRoot/bootedAt to suppress
   // redundant refresh events during startup

@@ -2,6 +2,8 @@ import React from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { SyncProvider } from "../sync-context-impl"
+import { useGitStore } from "@/stores/useGitStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { getSyncChildStores } from "../sync-refs"
 import { createEventRoutingIndex, updateRoutingIndexFromEvent } from "../event-routing"
 
@@ -86,4 +88,33 @@ describe("SyncProvider child-store lifetime", () => {
     expect(index.sessionDirectoryById.get("/live-session")).toBe("/live")
     expect(index.messageSessionById.get("/live-message")).toBe("/live-session")
   })
+  test("registry removal releases Git snapshots and keeps other projects", () => {
+    useProjectsStore.setState({ projects: [
+      { id: "retired", path: "/retired", addedAt: 1 },
+      { id: "live", path: "/live", addedAt: 1 },
+    ] })
+    React.act(() => root.render(
+      React.createElement(SyncProvider, { sdk: stubSdk, directory: "/repo", children: null }),
+    ))
+    useGitStore.getState().setActiveDirectory("/retired")
+    useGitStore.getState().setActiveDirectory("/live")
+    React.act(() => useProjectsStore.setState({ projects: [{ id: "live", path: "/live", addedAt: 1 }] }))
+    expect(useGitStore.getState().directories.has("/retired")).toBe(false)
+    expect(useGitStore.getState().directories.has("/live")).toBe(true)
+    useProjectsStore.setState({ projects: [] })
+  })
+
+  test("StrictMode setup replay keeps the active store and real unmount disposes it", async () => {
+    React.act(() => root.render(React.createElement(React.StrictMode, {},
+      React.createElement(SyncProvider, { sdk: stubSdk, directory: "/repo", children: null }),
+    )))
+    await React.act(async () => { await Promise.resolve() })
+    const manager = getSyncChildStores()
+    expect(manager.getChild("/repo")).toBeDefined()
+    React.act(() => root.unmount())
+    mounted = false
+    await Promise.resolve()
+    expect(manager.children.size).toBe(0)
+  })
+
 })

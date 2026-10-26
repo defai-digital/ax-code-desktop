@@ -2,6 +2,7 @@ import React from "react"
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { GitStatus, GitBranch, GitLogResponse, GitIdentitySummary, GitAPI as RuntimeGitAPI } from "@/lib/api/types"
+import { retainedPayloadSize } from "@/lib/retainedPayloadSize"
 import { collectChangedDiffStatPaths, combinedDiffStatsForPath } from "@/lib/git/diffStats"
 
 const LOG_STALE_THRESHOLD = 10000
@@ -18,6 +19,10 @@ const DIFF_PREFETCH_LARGE_FILE_THRESHOLD = 500 // skip prefetch for files with >
 // Diff cache limits to prevent memory bloat with many modified files
 const DIFF_CACHE_MAX_ENTRIES = 30
 const DIFF_CACHE_MAX_TOTAL_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
+export const GIT_DIRECTORY_CACHE_LIMIT = 10
+export const GIT_DIRECTORY_CACHE_MAX_BYTES = 20 * 1024 * 1024
+const GIT_DIRECTORY_IDLE_TTL_MS = 20 * 60 * 1000
+const directoryAccessedAt = new Map<string, number>()
 type GitStatusFetchMode = "full" | "light"
 export type GitStoreAPI = Pick<
   RuntimeGitAPI,
@@ -51,6 +56,7 @@ interface GitStore {
   activeDirectory: string | null
 
   setActiveDirectory: (directory: string | null) => void
+  removeDirectory: (directory: string) => void
   getDirectoryState: (directory: string) => DirectoryGitState | null
 
   fetchStatus: (directory: string, git: GitStoreAPI, options?: { silent?: boolean; mode?: "light" }) => Promise<boolean>
@@ -99,6 +105,7 @@ interface GitStore {
 const inFlightDiffFetchesByDirectory = new Map<string, Set<string>>()
 const diffFetchGenerationByDirectory = new Map<string, number>()
 const inFlightStatusFetches = new Map<string, { promise: Promise<boolean> }>()
+const inFlightEnsureAllOwners = new Map<string, object>()
 const inFlightEnsureAllByDirectory = new Map<string, Promise<void>>()
 const statusFetchRequestIds = new Map<string, number>()
 let statusFetchSequence = 0
@@ -121,8 +128,9 @@ const getStatusFetchKey = (directory: string, mode: GitStatusFetchMode): string 
 
 const getDiffFetchGeneration = (directory: string): number => diffFetchGenerationByDirectory.get(directory) ?? 0
 
+let diffFetchSequence = 0
 const bumpDiffFetchGeneration = (directory: string): number => {
-  const next = getDiffFetchGeneration(directory) + 1
+  const next = ++diffFetchSequence
   diffFetchGenerationByDirectory.set(directory, next)
   return next
 }
@@ -135,6 +143,23 @@ const getInFlightDiffs = (directory: string): Set<string> => {
   const created = new Set<string>()
   inFlightDiffFetchesByDirectory.set(directory, created)
   return created
+}
+
+const forgetDirectoryRequests = (directory: string) => {
+  directoryAccessedAt.delete(directory)
+  statusFetchRequestIds.delete(directory)
+  for (const mode of ["full", "light"] as const) inFlightStatusFetches.delete(getStatusFetchKey(directory, mode))
+  for (const kind of ["log", "branches", "identity"]) listFetchRequestIds.delete(`${kind}:${directory}`)
+  inFlightEnsureAllByDirectory.delete(directory)
+  inFlightEnsureAllOwners.delete(directory)
+  inFlightDiffFetchesByDirectory.delete(directory)
+  diffFetchGenerationByDirectory.delete(directory)
+}
+
+const directoryPayloadBytes = (state: DirectoryGitState): number => {
+  let bytes = retainedPayloadSize(state)
+  for (const diff of state.diffCache.values()) bytes += retainedPayloadSize(diff)
+  return bytes
 }
 
 const createEmptyDirectoryState = (): DirectoryGitState => ({
@@ -376,9 +401,48 @@ const toUnstagedStatusFile = (file: GitStatus["files"][number]): GitStatus["file
 const isCleanStatusFile = (file: GitStatus["files"][number]): boolean =>
   isBlankStatusCode(file.index) && isBlankStatusCode(file.working_dir)
 
+type GitStateCreator = (set: (patch: Partial<GitStore>) => void, get: () => GitStore) => GitStore
+
+const withDirectoryRetention = (createState: GitStateCreator): GitStateCreator => (rawSet, get) => {
+  // Every action writes through this boundary, including late background responses.
+  const set = (patch: Partial<GitStore>) => {
+    const current = get()
+    const active = patch.activeDirectory === undefined ? current.activeDirectory : patch.activeDirectory
+    const source = patch.directories ?? current.directories
+    const directories = new Map(source)
+    const now = Date.now()
+    for (const [directory, entry] of source) {
+      if (current.directories.get(directory) === entry && directory !== active) continue
+      directoryAccessedAt.set(directory, now)
+      directories.delete(directory)
+      directories.set(directory, entry)
+    }
+    let bytes = 0
+    const sizes = new Map<string, number>()
+    for (const [directory, entry] of directories) {
+      const size = directoryPayloadBytes(entry)
+      sizes.set(directory, size)
+      bytes += size
+    }
+    for (const directory of directories.keys()) {
+      if (directory === active) continue
+      if (directories.size <= GIT_DIRECTORY_CACHE_LIMIT && bytes <= GIT_DIRECTORY_CACHE_MAX_BYTES &&
+        now - (directoryAccessedAt.get(directory) ?? now) < GIT_DIRECTORY_IDLE_TTL_MS) continue
+      directories.delete(directory)
+      bytes -= sizes.get(directory) ?? 0
+      forgetDirectoryRequests(directory)
+    }
+    for (const directory of current.directories.keys()) {
+      if (!directories.has(directory)) forgetDirectoryRequests(directory)
+    }
+    rawSet({ ...patch, directories })
+  }
+  return createState(set, get)
+}
+
 export const useGitStore = create<GitStore>()(
   devtools(
-    (set, get) => ({
+    withDirectoryRetention((set, get) => ({
       directories: new Map(),
       activeDirectory: null,
 
@@ -412,6 +476,13 @@ export const useGitStore = create<GitStore>()(
         } else {
           set({ activeDirectory: directory, directories: prunedDirectories })
         }
+      },
+
+      removeDirectory: (directory) => {
+        const directories = new Map(get().directories)
+        directories.delete(directory)
+        forgetDirectoryRequests(directory)
+        set({ directories, ...(get().activeDirectory === directory ? { activeDirectory: null } : {}) })
       },
 
       getDirectoryState: (directory) => {
@@ -701,6 +772,8 @@ export const useGitStore = create<GitStore>()(
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingBranches: false })
           set({ directories: newDirectories })
+        } finally {
+          if (isCurrentListFetch(`branches:${directory}`, requestId)) listFetchRequestIds.delete(`branches:${directory}`)
         }
       },
 
@@ -737,6 +810,8 @@ export const useGitStore = create<GitStore>()(
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingLog: false })
           set({ directories: newDirectories })
+        } finally {
+          if (isCurrentListFetch(`log:${directory}`, requestId)) listFetchRequestIds.delete(`log:${directory}`)
         }
       },
 
@@ -768,6 +843,8 @@ export const useGitStore = create<GitStore>()(
           const d = newDirectories.get(directory) ?? createEmptyDirectoryState()
           newDirectories.set(directory, { ...d, isLoadingIdentity: false })
           set({ directories: newDirectories })
+        } finally {
+          if (isCurrentListFetch(`identity:${directory}`, requestId)) listFetchRequestIds.delete(`identity:${directory}`)
         }
       },
 
@@ -874,7 +951,7 @@ export const useGitStore = create<GitStore>()(
         const limitedFilePaths = dedupedPaths.slice(0, Math.max(1, maxFiles))
         if (limitedFilePaths.length === 0) return
 
-        const generation = getDiffFetchGeneration(directory)
+        const generation = getDiffFetchGeneration(directory) || bumpDiffFetchGeneration(directory)
 
         if (typeof document !== "undefined" && document.hidden) {
           return
@@ -982,6 +1059,8 @@ export const useGitStore = create<GitStore>()(
         const existing = inFlightEnsureAllByDirectory.get(directory)
         if (existing) return existing
 
+        const owner = {}
+        inFlightEnsureAllOwners.set(directory, owner)
         const promise = (async () => {
           const dirState = get().directories.get(directory)
           const now = Date.now()
@@ -991,6 +1070,7 @@ export const useGitStore = create<GitStore>()(
             await get().fetchStatus(directory, git, { silent: Boolean(dirState?.status) })
           }
 
+          if (inFlightEnsureAllOwners.get(directory) !== owner) return
           const updatedState = get().directories.get(directory)
           if (!updatedState?.isGitRepo) return
 
@@ -1013,6 +1093,7 @@ export const useGitStore = create<GitStore>()(
         promise.finally(() => {
           if (inFlightEnsureAllByDirectory.get(directory) === promise) {
             inFlightEnsureAllByDirectory.delete(directory)
+            inFlightEnsureAllOwners.delete(directory)
           }
         })
 
@@ -1024,7 +1105,7 @@ export const useGitStore = create<GitStore>()(
         if (!activeDirectory) return
         await get().fetchAll(activeDirectory, git, options)
       },
-    }),
+    })),
     { name: "git-store" },
   ),
 )

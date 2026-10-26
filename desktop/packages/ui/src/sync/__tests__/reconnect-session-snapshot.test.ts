@@ -285,7 +285,7 @@ test.each(["materialization", "reconnect"] as const)(
 )
 
 test.each(["snapshot", "blocking requests"] as const)(
-  "disposing a directory during slow %s cannot repopulate its routing index",
+  "provider teardown during slow %s cannot repopulate its routing index",
   async (stage) => {
     const id = "ses_disposed"
     sessionsById[id] = makeSession(id)
@@ -308,7 +308,8 @@ test.each(["snapshot", "blocking requests"] as const)(
     recoverSessionSnapshotsAfterGap(children, index)
     await settle()
     expect(scopedMessagesMock).toHaveBeenCalledTimes(1)
-    expect(children.disposeDirectory("/repo")).toBe(true)
+    expect(children.disposeDirectory("/repo")).toBe(false)
+    children.disposeAll()
     // The provider's disposal hook removes any mappings written before disposal.
     removeIndexedDirectory(index, "/repo")
     finish()

@@ -1,0 +1,277 @@
+{
+  "baseline": false,
+  "snapshotReads": 1200,
+  "checkpoints": [
+    {
+      "batch": -1,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 39,
+          "evictedSessions": 161,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004161",
+            "ses_memory_004162"
+          ],
+          "last": [
+            "ses_memory_004197",
+            "ses_memory_004198",
+            "ses_memory_004199"
+          ],
+          "sha256": "171ddad8ca23f43e0998ef5b78f5b9441d2131cfac9853309f29432e93d320a2"
+        }
+      },
+      "heap": {
+        "usedSize": 57949792,
+        "totalSize": 59211776,
+        "embedderHeapUsedSize": 5438664,
+        "backingStorageSize": 19757583
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 668
+      }
+    },
+    {
+      "batch": 0,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 1,
+          "evictedSessions": 361,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_000161",
+            "ses_memory_000162"
+          ],
+          "last": [
+            "ses_memory_000197",
+            "ses_memory_000198",
+            "ses_memory_000199"
+          ],
+          "sha256": "d7f14fa955cdb67568813102ad33b29012d8da58fe5ee1686b7425fd6990bca0"
+        }
+      },
+      "heap": {
+        "usedSize": 58455792,
+        "totalSize": 59736064,
+        "embedderHeapUsedSize": 5263960,
+        "backingStorageSize": 19757705
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 1,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 1,
+          "evictedSessions": 561,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_000361",
+            "ses_memory_000362"
+          ],
+          "last": [
+            "ses_memory_000397",
+            "ses_memory_000398",
+            "ses_memory_000399"
+          ],
+          "sha256": "a6da04501cce8c6d78b5d5d257cb4f2e06a5fbd556903b3b9b85884ed1d4f5cd"
+        }
+      },
+      "heap": {
+        "usedSize": 60029548,
+        "totalSize": 61308928,
+        "embedderHeapUsedSize": 5400992,
+        "backingStorageSize": 19757705
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 2,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 1,
+          "evictedSessions": 761,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_000561",
+            "ses_memory_000562"
+          ],
+          "last": [
+            "ses_memory_000597",
+            "ses_memory_000598",
+            "ses_memory_000599"
+          ],
+          "sha256": "c07974fd6401c422f3967668818120c98f5e970659abd4ac5554cddbd01f4038"
+        }
+      },
+      "heap": {
+        "usedSize": 58993428,
+        "totalSize": 60260352,
+        "embedderHeapUsedSize": 5544568,
+        "backingStorageSize": 19757731
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 3,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 1,
+          "evictedSessions": 961,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_000761",
+            "ses_memory_000762"
+          ],
+          "last": [
+            "ses_memory_000797",
+            "ses_memory_000798",
+            "ses_memory_000799"
+          ],
+          "sha256": "dcc02beeda5deb044963e5fa1c869872f8f73f4ce32a073c195d9723c438f7a6"
+        }
+      },
+      "heap": {
+        "usedSize": 60485372,
+        "totalSize": 61833216,
+        "embedderHeapUsedSize": 5680880,
+        "backingStorageSize": 19756963
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 4,
+      "state": {
+        "retention": {
+          "sessions": 40,
+          "messages": 41,
+          "partMessages": 41,
+          "estimatedBytes": 2598166,
+          "protectedSessions": 1,
+          "evictedSessions": 1161,
+          "trimmedMessages": 0,
+          "directories": 2,
+          "sessionLimitPerDirectory": 40,
+          "backgroundMessageLimit": 150,
+          "estimatedContentBudgetPerDirectory": 20971520,
+          "protectedSessionsMayExceedBudget": true,
+          "measurement": "Estimated payload bytes, not process RSS; sampled by the retention sweep"
+        },
+        "cachedSessionSummary": {
+          "count": 40,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_000961",
+            "ses_memory_000962"
+          ],
+          "last": [
+            "ses_memory_000997",
+            "ses_memory_000998",
+            "ses_memory_000999"
+          ],
+          "sha256": "6cad732a5d1dd9f13af2139bfb5bd97a5007cd015b85e7f366101d1485cfadf7"
+        }
+      },
+      "heap": {
+        "usedSize": 59732748,
+        "totalSize": 61046784,
+        "embedderHeapUsedSize": 6137624,
+        "backingStorageSize": 19757229
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 669
+      }
+    }
+  ],
+  "artifactProjection": "Session ids summarized by count, endpoints and SHA-256; the journey generates full arrays."
+}

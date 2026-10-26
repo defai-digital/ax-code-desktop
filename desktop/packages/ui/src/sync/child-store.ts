@@ -3,6 +3,9 @@ import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import type { DirState, State } from "./types"
 import { INITIAL_STATE, MAX_DIR_STORES, DIR_IDLE_TTL_MS } from "./types"
 import { pickDirectoriesToEvict, canDisposeDirectory, hasPendingBlockingRequests } from "./eviction"
+import { getProtectedSessionCacheIds } from "./session-cache"
+import { SessionRetention, SESSION_RETENTION_SWEEP_MS, type RetentionStats } from "./session-retention"
+import { clearDirectorySessionLoadState, clearSessionLoadState, getPendingSessionLoadIds } from "./session-load-cache"
 import { readDirCache, persistVcs, persistProjectMeta, persistIcon } from "./persist-cache"
 
 export type DirectoryStore = State & {
@@ -42,6 +45,12 @@ export class ChildStoreManager {
   private readonly disposers = new Map<string, () => void>()
   private readonly registrySubscribers = new Set<() => void>()
 
+  private readonly retention = new Map<string, SessionRetention>()
+  private retentionTimer: ReturnType<typeof setTimeout> | undefined
+  private sweeping = false
+  private getViewedSessions?: (directory: string) => ReadonlySet<string>
+  private onContentInvalidated?: (directory: string, sessions: string[]) => void
+
   private onBootstrap?: (directory: string) => void
   private onDispose?: (directory: string) => void
   private isBooting?: (directory: string) => boolean
@@ -63,11 +72,15 @@ export class ChildStoreManager {
   }
 
   configure(callbacks: {
+    getViewedSessions?: (directory: string) => ReadonlySet<string>
+    onContentInvalidated?: (directory: string, sessions: string[]) => void
     onBootstrap?: (directory: string) => void
     onDispose?: (directory: string) => void
     isBooting?: (directory: string) => boolean
     isLoadingSessions?: (directory: string) => boolean
   }) {
+    this.getViewedSessions = callbacks.getViewedSessions
+    this.onContentInvalidated = callbacks.onContentInvalidated
     this.onBootstrap = callbacks.onBootstrap
     this.onDispose = callbacks.onDispose
     this.isBooting = callbacks.isBooting
@@ -114,6 +127,15 @@ export class ChildStoreManager {
     if (!store) {
       store = createDirectoryStore(directory)
       this.children.set(directory, store)
+      this.retention.set(directory, new SessionRetention())
+      this.disposers.set(directory, store.subscribe((state, previous) => {
+        if (this.sweeping) return
+        if (state.message !== previous.message || state.part !== previous.part ||
+          state.session_status !== previous.session_status || state.session_diff !== previous.session_diff ||
+          state.permission !== previous.permission || state.question !== previous.question || state.todo !== previous.todo) {
+          this.scheduleRetention()
+        }
+      }))
       this.notifyRegistrySubscribers()
     }
 
@@ -139,13 +161,15 @@ export class ChildStoreManager {
         hasStore: this.children.has(directory),
         pinned: this.pinned(directory),
         booting: this.isBooting?.(directory) ?? false,
-        loadingSessions: this.isLoadingSessions?.(directory) ?? false,
-        hasPendingBlockingRequests: this.hasPendingBlockingRequestsForDirectory(directory),
+        loadingSessions: (this.isLoadingSessions?.(directory) ?? false) || getPendingSessionLoadIds(directory).size > 0,
+        hasPendingBlockingRequests: this.hasProtectedContentForDirectory(directory),
       })
     ) {
       return false
     }
 
+    clearDirectorySessionLoadState(directory)
+    this.retention.delete(directory)
     this.lifecycle.delete(directory)
     this.children.delete(directory)
     this.notifyRegistrySubscribers()
@@ -155,7 +179,52 @@ export class ChildStoreManager {
       this.disposers.delete(directory)
     }
     this.onDispose?.(directory)
+    if (this.children.size === 0 && this.retentionTimer !== undefined) {
+      clearTimeout(this.retentionTimer)
+      this.retentionTimer = undefined
+    }
     return true
+  }
+
+  private scheduleRetention() {
+    if (this.retentionTimer !== undefined) return
+    this.retentionTimer = setTimeout(() => {
+      this.retentionTimer = undefined
+      this.sweepRetention()
+    }, SESSION_RETENTION_SWEEP_MS)
+  }
+
+  touchSession(directory: string, sessionID: string) {
+    this.retention.get(this.directoryKey(directory))?.touch(sessionID)
+    this.scheduleRetention()
+  }
+
+  sweepRetention(now = Date.now()) {
+    this.sweeping = true
+    try {
+      for (const [directory, store] of this.children) {
+        const keep = getPendingSessionLoadIds(directory)
+        for (const id of this.getViewedSessions?.(directory) ?? []) keep.add(id)
+        const result = this.retention.get(directory)?.sweep(store.getState(), keep, now)
+        if (!result?.patch) continue
+        clearSessionLoadState(directory, result.invalidated)
+        store.setState(result.patch)
+        this.onContentInvalidated?.(directory, result.invalidated)
+      }
+    } finally {
+      this.sweeping = false
+    }
+  }
+
+  getRetentionStats(): RetentionStats {
+    const total: RetentionStats = {
+      sessions: 0, messages: 0, partMessages: 0, estimatedBytes: 0, protectedSessions: 0,
+      evictedSessions: 0, trimmedMessages: 0,
+    }
+    for (const retention of this.retention.values()) {
+      for (const key of Object.keys(total) as Array<keyof RetentionStats>) total[key] += retention.stats[key]
+    }
+    return total
   }
 
   runEviction(skip?: string) {
@@ -168,11 +237,16 @@ export class ChildStoreManager {
       max: MAX_DIR_STORES,
       ttl: DIR_IDLE_TTL_MS,
       now: Date.now(),
-      hasPendingBlockingRequests: (dir) => this.hasPendingBlockingRequestsForDirectory(dir),
+      hasPendingBlockingRequests: (dir) => this.hasProtectedContentForDirectory(dir),
     }).filter((d) => d !== skip)
     for (const directory of list) {
       this.disposeDirectory(directory)
     }
+  }
+
+  private hasProtectedContentForDirectory(directory: string): boolean {
+    const state = this.getState(directory)
+    return (state !== undefined && getProtectedSessionCacheIds(state).size > 0) || getPendingSessionLoadIds(directory).size > 0
   }
 
   hasPendingBlockingRequestsForDirectory(directory: string): boolean {
@@ -194,6 +268,14 @@ export class ChildStoreManager {
   }
 
   disposeAll() {
+    if (this.retentionTimer !== undefined) clearTimeout(this.retentionTimer)
+    this.retentionTimer = undefined
+    for (const dispose of this.disposers.values()) dispose()
+    for (const directory of this.children.keys()) {
+      clearDirectorySessionLoadState(directory)
+      this.onDispose?.(directory)
+    }
+    this.retention.clear()
     for (const directory of [...this.children.keys()]) {
       this.children.delete(directory)
     }

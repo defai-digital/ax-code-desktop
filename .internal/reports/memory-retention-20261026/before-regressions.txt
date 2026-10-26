@@ -1,0 +1,60 @@
+
+> @openchamber/ui@7.30.1 test /private/tmp/ax-desktop-memory-before-qntdi8tq/desktop/packages/ui
+> node scripts/run-tests.mjs src/stores/useGitStore.test.ts src/stores/useSnippetsStore.test.ts -t 'bounds visited directories|evicts old project payloads'
+
+
+ RUN  v4.1.12 /private/tmp/ax-desktop-memory-before-qntdi8tq/desktop/packages/ui
+
+ ❯ src/stores/useGitStore.test.ts (20 tests | 1 failed | 19 skipped) 4ms
+     × bounds visited directories and retains the active project 4ms
+ ❯ src/stores/useSnippetsStore.test.ts (6 tests | 1 failed | 5 skipped) 61ms
+     × evicts old project payloads while preserving recent cached projects 61ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/stores/useGitStore.test.ts > Git working-set retention > bounds visited directories and retains the active project
+AssertionError: expected 100 to be less than or equal to 10
+ ❯ src/stores/useGitStore.test.ts:311:53
+    309|   test("bounds visited directories and retains the active project", ()…
+    310|     for (let i = 0; i < 100; i++) useGitStore.getState().setActiveDire…
+    311|     expect(useGitStore.getState().directories.size).toBeLessThanOrEqua…
+       |                                                     ^
+    312|     expect(useGitStore.getState().directories.has("/visited/99")).toBe…
+    313|     expect(useGitStore.getState().directories.has("/visited/0")).toBe(…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/stores/useSnippetsStore.test.ts > snippets working-set retention > evicts old project payloads while preserving recent cached projects
+AssertionError: expected [ { name: 'snippet-0', …(4) } ] to deeply equal []
+
+- Expected
++ Received
+
+- []
++ [
++   {
++     "aliases": [],
++     "content": "snippet-0 body",
++     "filePath": "/workspace/visited-0/snippets/snippet-0.md",
++     "name": "snippet-0",
++     "source": "project",
++   },
++ ]
+
+ ❯ src/stores/useSnippetsStore.test.ts:183:39
+    181|     queuedResponses.push(response.promise)
+    182|     const reload = store.getState().loadSnippets()
+    183|     expect(store.getState().snippets).toEqual([])
+       |                                       ^
+    184|     response.resolve(jsonResponse([snippet("reloaded", "visited-0")]))
+    185|     await reload
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  2 failed (2)
+      Tests  2 failed | 24 skipped (26)
+   Start at  13:44:12
+   Duration  2.02s (transform 1.12s, setup 1.55s, import 239ms, tests 66ms, environment 1.66s)
+
+ ELIFECYCLE  Test failed. See above for more details.

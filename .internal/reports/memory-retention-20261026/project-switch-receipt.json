@@ -1,0 +1,210 @@
+{
+  "sessions": {
+    "a": "ses_e2e_scripted",
+    "b": "ses_e2e_other"
+  },
+  "directories": {
+    "a": "/private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-biKTmp/project",
+    "b": "/private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-biKTmp/other-project"
+  },
+  "responses": [
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    }
+  ],
+  "allResponses": [
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=150",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=150",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=150",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=150",
+      "status": 404
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/status?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&roots=true&limit=50",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_scripted/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fproject&limit=200",
+      "status": 200
+    },
+    {
+      "url": "http://127.0.0.1:55255/api/session/ses_e2e_other/message?directory=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-biKTmp%2Fother-project&limit=10",
+      "status": 200
+    }
+  ]
+}

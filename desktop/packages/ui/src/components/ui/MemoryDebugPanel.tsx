@@ -2,7 +2,9 @@ import React from "react"
 
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useViewportStore } from "@/sync/viewport-store"
-import { useSessions, useDirectorySync } from "@/sync/sync-context"
+import { useSessions, useDirectorySync, useChildStoreManager } from "@/sync/sync-context"
+import { SESSION_CACHE_LIMIT } from "@/sync/types"
+import { BACKGROUND_MESSAGE_LIMIT, DIRECTORY_CONTENT_MAX_BYTES } from "@/sync/session-retention"
 import { MEMORY_LIMITS } from "@/stores/types/sessionTypes"
 import { useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
 import { getBackgroundTrimLimit } from "@/stores/types/sessionTypes"
@@ -101,6 +103,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
   const sessionMemoryState = useViewportStore((state) => state.sessionMemoryState)
   const sessions = useSessions()
+  const childStores = useChildStoreManager()
   const messageRecord = useDirectorySync((state) => state.message)
   const totalGitHubRequests = useGitHubPrStatusStore((state) => state.totalRequestCount)
   const [streamSnapshot, setStreamSnapshot] = React.useState<StreamPerfSnapshot>(() => getStreamPerfSnapshot())
@@ -254,7 +257,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
             <MetricCard label={t("memoryDebugPanel.metric.totalMessages")} value={totalMessages} />
             <MetricCard
               label={t("memoryDebugPanel.metric.cachedSessions")}
-              value={`${cachedSessionCount} / ${MEMORY_LIMITS.MAX_SESSIONS}`}
+              value={`${cachedSessionCount} / ${SESSION_CACHE_LIMIT}`}
             />
           </div>
 
@@ -331,6 +334,15 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ onClose }) => {
                       currentSessionId,
                       cachedSessions: Object.keys(messageRecord),
                       memoryStates: Object.fromEntries(sessionMemoryState),
+                      retention: {
+                        ...childStores.getRetentionStats(),
+                        directories: childStores.children.size,
+                        sessionLimitPerDirectory: SESSION_CACHE_LIMIT,
+                        backgroundMessageLimit: BACKGROUND_MESSAGE_LIMIT,
+                        estimatedContentBudgetPerDirectory: DIRECTORY_CONTENT_MAX_BYTES,
+                        protectedSessionsMayExceedBudget: true,
+                        measurement: "Estimated payload bytes, not process RSS; sampled by the retention sweep",
+                      },
                     })
                   }}
                 >

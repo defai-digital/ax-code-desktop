@@ -1,0 +1,47 @@
+{
+  "ok": true,
+  "results": [
+    {
+      "name": "boot",
+      "ok": true,
+      "detail": "shell rendered (title: Shared Project | AX Code)",
+      "durationMs": 65
+    },
+    {
+      "name": "memory-retention",
+      "ok": true,
+      "detail": "retained sessions: 40, 40, 40, 40, 40",
+      "baseline": false,
+      "snapshotReads": 1200,
+      "counts": [
+        40,
+        40,
+        40,
+        40,
+        40
+      ],
+      "heapUsedBytes": [
+        63607628,
+        60662192,
+        59183900,
+        60665332,
+        60871052,
+        66411788
+      ],
+      "note": "Five fixture batches; renderer post-GC heap, not total app RSS or a production soak.",
+      "durationMs": 13298
+    },
+    {
+      "name": "csp-clean",
+      "ok": true,
+      "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+      "durationMs": 1
+    },
+    {
+      "name": "renderer-errors",
+      "ok": true,
+      "detail": "no uncaught renderer exceptions",
+      "durationMs": 0
+    }
+  ]
+}

@@ -3,30 +3,25 @@ import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { Binary } from "./binary"
 import { retry } from "./retry"
 import { compareIds, sortPartsById } from "./part-ordering"
-import { SESSION_CACHE_LIMIT } from "./types"
-import { pickSessionCacheEvictions } from "./session-cache"
 import { mergeOptimisticPage, type OptimisticItem } from "./optimistic"
 import {
-  dropCachedSessionMessageRecordsSnapshots,
   useDirectoryChildStore,
   useSyncSDK,
   useSyncDirectory,
   useChildStoreManager,
 } from "./sync-context"
-import { dropSessionCaches, getProtectedSessionCacheIds, pickEvictableSeenSessionIds } from "./session-cache"
 import { stripMessageDiffSnapshots } from "./sanitize"
 import {
   shouldSkipSessionPrefetch,
   getSessionPrefetch,
   setSessionPrefetch,
-  clearSessionPrefetch,
 } from "./session-prefetch-cache"
 import { getSessionMaterializationStatus, materializeSessionSnapshots } from "./materialization"
+import { optimisticByKey, syncSessionInflightByKey, metaByKey, messageLoadsByKey, retainSessionLoad, sessionLoadKey, type SyncMeta } from "./session-load-cache"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const INITIAL_MESSAGE_PAGE_SIZE = 150
 const HISTORY_MESSAGE_PAGE_SIZE = 200
-const MAX_SEEN_DIRS = 30
 
 /**
  * Whether `syncSession` may return without touching the network.
@@ -65,41 +60,6 @@ export const shouldSkipSessionSync = (input: {
     pageSize: input.pageSize,
     now: input.now,
   })
-}
-
-// Shared across useSync() instances so cache eviction is based on app-level
-// session recency, not whichever component happened to call sync first.
-const seenByDirectory = new Map<string, Set<string>>()
-
-// Shared across useSync() instances. Optimistic sends are registered through
-// the SyncOptimisticBridge's instance but cleared by whichever instance loads
-// the session; a per-instance map would never be reconciled and would grow
-// for the app's lifetime.
-const optimisticByKey = new Map<string, Map<string, OptimisticItem>>()
-
-// Shared across useSync() hook instances. Chat, model controls, and sidebar can
-// all request the same session during startup; coalesce them into one HTTP load.
-const syncSessionInflightByKey = new Map<string, Promise<void>>()
-
-// Shared across useSync() instances for the same reason as the caches above:
-// eviction by one instance must also clear the pagination metadata another
-// instance is holding, or an evicted session that later gains an event-built
-// tail reopens through the stale `fetched/complete` meta and can never page
-// its history back in.
-const metaByKey = new Map<string, SyncMeta>()
-
-type SyncMeta = {
-  limit: number
-  cursor: string | undefined
-  complete: boolean
-  loading: boolean
-  /**
-   * Whether this session's messages were ever actually fetched. Events alone can
-   * build messages and parts in the store for a session nobody opened here; that
-   * tail is not the conversation's history, so it must not count as "cached".
-   */
-  fetched: boolean
-  error?: boolean
 }
 
 const getDefaultMeta = (): SyncMeta => ({
@@ -143,7 +103,7 @@ export function useSync(directoryOverride?: string | null) {
   const store = useDirectoryChildStore(directoryOverride ?? undefined)
   const childStores = useChildStoreManager()
 
-  const keyFor = useCallback((sessionID: string) => `${directory}\n${sessionID}`, [directory])
+  const keyFor = useCallback((sessionID: string) => sessionLoadKey(directory, sessionID), [directory])
 
   const getMetaFor = useCallback(
     (sessionID: string) => {
@@ -172,97 +132,14 @@ export function useSync(directoryOverride?: string | null) {
     [directory, keyFor],
   )
 
-  // Session cache eviction — two levels of LRU:
-  // (1) across directories (max 30), (2) within a directory (SESSION_CACHE_LIMIT).
-
-  // Evict all cached session data for given IDs from a directory's store
-  const evict = useCallback(
-    (dir: string, sessionIDs: string[]) => {
-      if (sessionIDs.length === 0) return
-
-      // Module-level caches must be cleared even when the directory's child
-      // store is already gone (child-store eviction races the seen-LRU);
-      // otherwise stale meta/prefetch entries survive and report old limits.
-      for (const id of sessionIDs) {
-        optimisticByKey.delete(`${dir}\n${id}`)
-        metaByKey.delete(`${dir}\n${id}`)
-      }
-      clearSessionPrefetch(dir, sessionIDs)
-
-      const dirStore = childStores.getChild(dir)
-      if (!dirStore) return
-
-      const current = dirStore.getState()
-      const draft = {
-        message: { ...current.message },
-        part: current.part.fork(),
-        session_status: { ...current.session_status },
-        session_diff: { ...current.session_diff },
-        todo: { ...current.todo },
-        permission: { ...current.permission },
-        question: { ...current.question },
-      }
-      dropSessionCaches(draft, sessionIDs)
-      dropCachedSessionMessageRecordsSnapshots(dirStore, sessionIDs)
-      draft.part.seal()
-      dirStore.setState(draft)
-    },
-    [childStores],
-  )
-
-  // Get or create the seen-set for a directory. LRU reorder on access.
-  // When seen directories exceed MAX_SEEN_DIRS, evict the oldest directory's caches.
-  // LRU reorder on access. Evicts oldest directory when exceeding MAX_SEEN_DIRS.
-  const seenFor = useCallback(() => {
-    const existing = seenByDirectory.get(directory)
-    if (existing) {
-      // LRU reorder: delete + re-insert moves to end (most recent)
-      seenByDirectory.delete(directory)
-      seenByDirectory.set(directory, existing)
-      return existing
-    }
-    const created = new Set<string>()
-    seenByDirectory.set(directory, created)
-
-    // Evict oldest directories if over limit
-    while (seenByDirectory.size > MAX_SEEN_DIRS) {
-      const first = seenByDirectory.keys().next().value
-      if (!first) break
-      const seen = seenByDirectory.get(first) ?? new Set<string>()
-      seenByDirectory.delete(first)
-      // A session that is working, or that is waiting on an approval or a question, keeps its caches
-      // even when its directory falls out of the LRU: the blocking dialog lives in them, and the
-      // reconnect and poll candidates are derived from the same slices, so nothing brings the session
-      // back until the user opens it again. The per-session path below already protects these; this
-      // directory-level path did not.
-      const dirState = childStores.getChild(first)?.getState()
-      const protectedIds = dirState ? getProtectedSessionCacheIds(dirState) : new Set<string>()
-      evict(first, pickEvictableSeenSessionIds(seen, protectedIds))
-    }
-
-    return created
-  }, [directory, childStores, evict])
-
-  // Touch a session — triggers both directory-level and session-level eviction
-  const touch = useCallback(
-    (sessionID: string) => {
-      const s = seenFor()
-      const protectedIds = getProtectedSessionCacheIds(store.getState())
-      const stale = pickSessionCacheEvictions({
-        seen: s,
-        keep: sessionID,
-        limit: SESSION_CACHE_LIMIT,
-        preserve: protectedIds,
-      })
-      evict(directory, stale)
-    },
-    [directory, seenFor, evict, store],
-  )
+  const touch = useCallback((sessionID: string) => {
+    childStores.touchSession(directory, sessionID)
+  }, [childStores, directory])
 
   // Optimistic operations
   const getOptimistic = useCallback(
     (sessionID: string): OptimisticItem[] => {
-      const key = `${directory}\n${sessionID}`
+      const key = sessionLoadKey(directory, sessionID)
       return [...(optimisticByKey.get(key)?.values() ?? [])]
     },
     [directory],
@@ -270,7 +147,7 @@ export function useSync(directoryOverride?: string | null) {
 
   const setOptimistic = useCallback(
     (sessionID: string, item: OptimisticItem, targetDirectory?: string) => {
-      const key = `${targetDirectory ?? directory}\n${sessionID}`
+      const key = sessionLoadKey(targetDirectory ?? directory, sessionID)
       const list = optimisticByKey.get(key)
       const sorted: OptimisticItem = { message: item.message, parts: sortPartsById(item.parts) }
       if (list) {
@@ -284,7 +161,7 @@ export function useSync(directoryOverride?: string | null) {
 
   const clearOptimistic = useCallback(
     (sessionID: string, messageID?: string, targetDirectory?: string) => {
-      const key = `${targetDirectory ?? directory}\n${sessionID}`
+      const key = sessionLoadKey(targetDirectory ?? directory, sessionID)
       if (!messageID) {
         optimisticByKey.delete(key)
         return
@@ -333,10 +210,15 @@ export function useSync(directoryOverride?: string | null) {
       const m = getMetaFor(sessionID)
       if (m.loading) return
       setMetaFor(sessionID, { loading: true })
+      const key = keyFor(sessionID)
+      const claim = {}
+      messageLoadsByKey.set(key, claim)
+      const isCurrent = () => messageLoadsByKey.get(key) === claim && childStores.getChild(directory) === store
 
       try {
         const limit = options?.before ? HISTORY_MESSAGE_PAGE_SIZE : m.limit
         const page = await fetchMessages(sessionID, limit, options?.before)
+        if (!isCurrent()) return
 
         // Merge optimistic items
         const items = getOptimistic(sessionID)
@@ -373,11 +255,14 @@ export function useSync(directoryOverride?: string | null) {
           complete: merged.complete,
         })
       } catch (error) {
+        if (!isCurrent()) return
         console.error("[sync] failed to load messages", sessionID, error)
         setMetaFor(sessionID, { loading: false, error: true })
+      } finally {
+        if (messageLoadsByKey.get(key) === claim) messageLoadsByKey.delete(key)
       }
     },
-    [store, fetchMessages, getMetaFor, setMetaFor, getOptimistic, clearOptimistic, directory],
+    [store, fetchMessages, getMetaFor, setMetaFor, getOptimistic, clearOptimistic, directory, keyFor, childStores],
   )
 
   // Sync a session (load if not cached)
@@ -416,6 +301,7 @@ export function useSync(directoryOverride?: string | null) {
 
       const shouldFetchSession = !hasSession || force
       const shouldLoadMessages = !cachedReady || force
+      const lease = retainSessionLoad(directory, sessionID)
       const promise = (async () => {
         await Promise.all([
           shouldFetchSession
@@ -431,7 +317,7 @@ export function useSync(directoryOverride?: string | null) {
                     }
                     return response
                   })
-                  if (result.data) {
+                  if (result.data && lease.isCurrent() && childStores.getChild(directory) === store) {
                     // Use functional setState to atomically read-modify-write,
                     // preventing lost-update races when multiple syncSession calls
                     // interleave their session array mutations.
@@ -457,13 +343,14 @@ export function useSync(directoryOverride?: string | null) {
 
       syncSessionInflightByKey.set(key, promise)
       promise.finally(() => {
+        lease.release()
         if (syncSessionInflightByKey.get(key) === promise) {
           syncSessionInflightByKey.delete(key)
         }
       })
       return promise
     },
-    [store, sdk, keyFor, touch, getMetaFor, loadMessages, directory],
+    [store, sdk, keyFor, touch, getMetaFor, loadMessages, directory, childStores],
   )
 
   // Load more (pagination)

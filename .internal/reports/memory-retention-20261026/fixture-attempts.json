@@ -1,0 +1,212 @@
+[
+  {
+    "attempt": "before-native",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Project | AX Code)",
+        "durationMs": 10
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Timed out waiting for retained content after batch 0",
+        "durationMs": 20585
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "after-native-v2",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Project | AX Code)",
+        "durationMs": 284
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Timed out waiting for live event ingestion barrier",
+        "durationMs": 20258
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "delivery-native",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Project | AX Code)",
+        "durationMs": 100
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Timed out waiting for warm-up retention sweep",
+        "durationMs": 21451
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "isolated-after",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Project | AX Code)",
+        "durationMs": 402
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Timed out waiting for live event ingestion barrier; publications=[{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1},{\"ok\":true,\"batch\":20,\"sessions\":200,\"subscribers\":1}]; latest={\"cachedSessions\":[],\"retention\":{\"sessions\":39,\"messages\":39,\"partMessages\":39,\"estimatedBytes\":2599332,\"protectedSessions\":1,\"evictedSessions\":2254,\"trimmedMessages\":0,\"directories\":2,\"sessionLimitPerDirectory\":40,\"backgroundMessageLimit\":150,\"estimatedContentBudgetPerDirectory\":20971520,\"protectedSessionsMayExceedBudget\":true,\"measurement\":\"Estimated payload bytes, not process RSS; sampled by the retention sweep\"}}",
+        "durationMs": 20279
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "scoped-after",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Shared Project | AX Code)",
+        "durationMs": 30
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Missing UI control: Allow once",
+        "durationMs": 12386
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "scoped-after-final",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Shared Project | AX Code)",
+        "durationMs": 27
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Missing UI control: Allow once",
+        "durationMs": 12671
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  },
+  {
+    "attempt": "final-fixture-after",
+    "ok": false,
+    "results": [
+      {
+        "name": "boot",
+        "ok": true,
+        "detail": "shell rendered (title: Shared Project | AX Code)",
+        "durationMs": 75
+      },
+      {
+        "name": "memoryretention",
+        "ok": false,
+        "detail": "Timed out waiting for pending approval: Missing UI control: Allow once",
+        "durationMs": 21206
+      },
+      {
+        "name": "csp-clean",
+        "ok": true,
+        "detail": "policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval' 'sha256-14LegtUDtFaIm31iQyl/jkB3w5+ofjdCR+AhJ53Uj3Q=' 'sha256-8JjKq+G896vdcnX9zNPTcRzIRGQihUsX8349+ZY79WE=' 'sha256-C/LjDnV1+yWN+DBwfnh2m8Ern+wTOyAz+7ege8bdf80=' 'sha256-yxetM6Qgl85/2NVeN7wfyQfMr9v2qep+yPClaHcoePE='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://models.dev; font-src 'self' data:; connect-src 'self' ws: wss: http: https:; frame-ancestors 'self';",
+        "durationMs": 1
+      },
+      {
+        "name": "renderer-errors",
+        "ok": true,
+        "detail": "no uncaught renderer exceptions",
+        "durationMs": 0
+      }
+    ]
+  }
+]

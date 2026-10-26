@@ -302,3 +302,56 @@ describe("useGitStore", () => {
     expect(useGitStore.getState().getDirectoryState("/repo")?.indexRevision).toBe(before + 1)
   })
 })
+
+describe("Git working-set retention", () => {
+  beforeEach(() => useGitStore.setState({ directories: new Map(), activeDirectory: null }))
+
+  test("bounds visited directories and retains the active project", () => {
+    for (let i = 0; i < 100; i++) useGitStore.getState().setActiveDirectory(`/visited/${i}`)
+    expect(useGitStore.getState().directories.size).toBeLessThanOrEqual(10)
+    expect(useGitStore.getState().directories.has("/visited/99")).toBe(true)
+    expect(useGitStore.getState().directories.has("/visited/0")).toBe(false)
+  })
+
+  test("late log responses cannot restore an evicted project or overwrite its replacement", async () => {
+    let finish!: (value: Awaited<ReturnType<GitStoreAPI["getGitLog"]>>) => void
+    const pending = new Promise<Awaited<ReturnType<GitStoreAPI["getGitLog"]>>>((resolve) => { finish = resolve })
+    const api = createGitApi(async () => createStatus())
+    api.getGitLog = async () => pending
+    useGitStore.getState().setActiveDirectory("/old")
+    const oldRead = useGitStore.getState().fetchLog("/old", api)
+    for (let i = 0; i < 20; i++) useGitStore.getState().setActiveDirectory(`/new/${i}`)
+    expect(useGitStore.getState().directories.has("/old")).toBe(false)
+    useGitStore.getState().setActiveDirectory("/old")
+    finish({ all: [], latest: null, total: 999 })
+    await oldRead
+    expect(useGitStore.getState().directories.get("/old")?.log).toBeNull()
+  })
+
+  test("removing a project revokes its pending reads", async () => {
+    let finish!: (value: Awaited<ReturnType<GitStoreAPI["getGitBranches"]>>) => void
+    const pending = new Promise<Awaited<ReturnType<GitStoreAPI["getGitBranches"]>>>((resolve) => { finish = resolve })
+    const api = createGitApi(async () => createStatus())
+    api.getGitBranches = async () => pending
+    useGitStore.getState().setActiveDirectory("/removed")
+    const read = useGitStore.getState().fetchBranches("/removed", api)
+    useGitStore.getState().removeDirectory("/removed")
+    finish({ all: ["stale"], current: "stale", branches: {} })
+    await read
+    expect(useGitStore.getState().directories.has("/removed")).toBe(false)
+    expect(useGitStore.getState().activeDirectory).toBeNull()
+  })
+
+  test("inactive directory payloads are evicted by size as well as count", async () => {
+    useGitStore.getState().setActiveDirectory("/small")
+    const api = createGitApi(async () => createStatus())
+    api.getGitLog = async () => ({ all: [{
+      hash: "fixture", date: "", message: "large", refs: "", body: "x".repeat(11 * 1024 * 1024),
+      author_name: "fixture", author_email: "fixture@example.invalid", filesChanged: 0, insertions: 0,
+      deletions: 0, parents: [],
+    }], latest: null, total: 1 })
+    await useGitStore.getState().fetchLog("/large", api)
+    expect(useGitStore.getState().directories.has("/large")).toBe(false)
+    expect(useGitStore.getState().directories.has("/small")).toBe(true)
+  })
+})

@@ -395,3 +395,25 @@ const useViewportStore = create(() => ({ scrollAnchor: 0 }))
 const useSelectionStore = create(() => ({ selectedModel: null }))
 const useInputStore = create(() => ({ pendingInput: "" }))
 ```
+
+## Resident session content
+
+`ChildStoreManager` observes every managed directory store, so event ingestion, reconnect recovery,
+materialization and hook-driven history loads share one retention policy. Writes coalesce into a one-second
+sweep; the provider also sweeps every 30 seconds for idle expiry. Streaming deltas do not scan payloads.
+
+Each directory targets 40 retained sessions and 20 MiB of estimated payload content. Unviewed, settled
+conversations retain their latest 150 messages; unprotected content expires after 20 minutes without access.
+The currently viewed conversation (including paged history), external window presence, busy/incomplete runs,
+permissions/questions and outstanding read/send leases are protected. These are explicit soft-budget exceptions,
+not an unconditional process memory ceiling. Canonical history remains in the runtime and is fetched again.
+
+Content eviction/trim clears pagination and prefetch ownership and invalidates display/routing snapshots.
+Loads use unique claims so disposal, archive/delete or replacement cannot authorize an old response again.
+Windows path aliases share claim/cache identity. Settled optimistic shadows are evictable; only their actual
+outstanding send lease protects them. Directory/provider disposal releases sweep timers, subscriptions and load
+metadata. StrictMode's immediate effect replay does not dispose the live manager.
+
+The Debug Panel uses the sync session limit. Its Log State action includes aggregate retention counts,
+estimated payload bytes, protected sessions and eviction/trim counters across directories. These are sampled
+payload diagnostics, not JavaScript heap, native/GPU memory or total application RSS measurements.

@@ -247,3 +247,16 @@ regardless of value length. Use `status` rather than `code` for diagnostics that
 The landing browser recap computes call totals, failures, and uncalled page tools over all messages
 and calls in the latest turn held by the transcript. Only the displayed step list is capped at the latest
 50 calls; this presentation limit does not exclude earlier calls from the evidence.
+
+For retained background content and renderer heap checkpoints:
+
+```sh
+node desktop/packages/electron/scripts/e2e/memory-retention-webmcp.mjs --artifacts /tmp/ax-memory-retention
+```
+
+This uses the isolated fixture runtime and native WebMCP to read the Debug Panel after a verified live-event
+warm-up and five batches of 200 completed background sessions. It asserts the retained-session budget and
+captures renderer heap after explicit garbage collection, DOM counters, fresh controls and a screenshot.
+It does not execute a model, change user projects, measure total application RSS or qualify a production soak.
+`AX_MEMORY_EXPECT_UNBOUNDED=1` is an investigation-only mode for running the same fixture on a pre-fix checkout;
+it expects cumulative retention instead of accepting a fixed build. Keep before/after source revisions separate.

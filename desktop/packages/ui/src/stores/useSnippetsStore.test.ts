@@ -154,3 +154,58 @@ describe("useSnippetsStore", () => {
     expect(useSnippetsStore.getState().isLoading).toBe(false)
   })
 })
+
+describe("snippets working-set retention", () => {
+  beforeEach(() => {
+    vi.resetModules()
+    activeProjectPath = "/workspace/project"
+    fetchCalls.length = 0
+    queuedResponses = []
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+    fetchMock.mockClear()
+  })
+
+  test("evicts old project payloads while preserving recent cached projects", async () => {
+    const store = await loadStore()
+    for (let i = 0; i < 50; i++) {
+      activeProjectPath = `/workspace/visited-${i}`
+      queuedResponses.push(jsonResponse([snippet(`snippet-${i}`, `visited-${i}`)]))
+      await store.getState().loadSnippets()
+    }
+    activeProjectPath = "/workspace/visited-49"
+    await store.getState().loadSnippets()
+    expect(fetchCalls).toHaveLength(50)
+    expect(store.getState().snippets[0]?.name).toBe("snippet-49")
+    activeProjectPath = "/workspace/visited-0"
+    const response = createDeferred<Response>()
+    queuedResponses.push(response.promise)
+    const reload = store.getState().loadSnippets()
+    expect(store.getState().snippets).toEqual([])
+    response.resolve(jsonResponse([snippet("reloaded", "visited-0")]))
+    await reload
+    expect(store.getState().snippets[0]?.name).toBe("reloaded")
+  })
+
+  test("does not retain an oversized snapshot as a hidden project cache", async () => {
+    const store = await loadStore()
+    const oversized = { ...snippet("large", "large"), content: "x".repeat(11 * 1024 * 1024) }
+    queuedResponses.push(jsonResponse([oversized]))
+    await store.getState().loadSnippets()
+    activeProjectPath = "/workspace/other"
+    queuedResponses.push(jsonResponse([]))
+    await store.getState().loadSnippets()
+    activeProjectPath = "/workspace/project"
+    queuedResponses.push(jsonResponse([snippet("fresh", "fresh")]))
+    await store.getState().loadSnippets()
+    expect(fetchCalls).toHaveLength(3)
+    expect(store.getState().snippets[0]?.name).toBe("fresh")
+  })
+
+  test("a failed load releases ownership so retry succeeds", async () => {
+    const store = await loadStore()
+    queuedResponses.push(new Response("failure", { status: 503 }), jsonResponse([snippet("retry", "project")]))
+    expect(await store.getState().loadSnippets()).toBe(false)
+    expect(await store.getState().loadSnippets()).toBe(true)
+    expect(store.getState().snippets[0]?.name).toBe("retry")
+  })
+})

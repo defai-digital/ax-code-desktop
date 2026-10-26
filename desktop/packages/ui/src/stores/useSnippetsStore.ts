@@ -4,7 +4,9 @@ import type { Snippet } from "@/types/snippet"
 import { API_ENDPOINTS } from "@/lib/http"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
+import { retainedPayloadSize } from "@/lib/retainedPayloadSize"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { setConfigCacheEntry } from "./utils/configCache"
 
 export type SnippetScope = "global" | "project"
 
@@ -40,20 +42,18 @@ interface SnippetsStore {
 }
 
 const SNIPPETS_LOAD_CACHE_TTL_MS = 5000
-const snippetsByCacheKey = new Map<string, Snippet[]>()
-const snippetsLastLoadedAt = new Map<string, number>()
+type SnippetsSnapshot = { snippets: Snippet[]; loadedAt: number; bytes: number }
+const snippetsByCacheKey = new Map<string, SnippetsSnapshot>()
+const SNIPPETS_CACHE_MAX_BYTES = 20 * 1024 * 1024
 const snippetsLoadInFlight = createSingleFlight<boolean>()
-const snippetsCacheVersions = new Map<string, number>()
+const snippetsLoadOwners = new Map<string, object>()
 let activeSnippetsCacheKey = getDirectoryCacheKey(null)
 
-const getSnippetsCacheVersion = (cacheKey: string): number => snippetsCacheVersions.get(cacheKey) ?? 0
-
-const invalidateSnippetsCache = (directory: string | null): void => {
+export const clearSnippetsDirectoryCache = (directory: string | null): void => {
   const cacheKey = getDirectoryCacheKey(directory)
   snippetsByCacheKey.delete(cacheKey)
-  snippetsLastLoadedAt.delete(cacheKey)
   snippetsLoadInFlight.clear(cacheKey)
-  snippetsCacheVersions.set(cacheKey, getSnippetsCacheVersion(cacheKey) + 1)
+  snippetsLoadOwners.delete(cacheKey)
 }
 
 const getRequestDirectory = (): string | null => getActiveConfigDirectory("SnippetsStore")
@@ -72,19 +72,20 @@ export const useSnippetsStore = create<SnippetsStore>()(
       loadSnippets: async () => {
         const directory = getRequestDirectory()
         const cacheKey = getDirectoryCacheKey(directory)
-        const cachedSnippets = snippetsByCacheKey.get(cacheKey)
+        const cached = snippetsByCacheKey.get(cacheKey)
+        const cachedSnippets = cached?.snippets
         activeSnippetsCacheKey = cacheKey
 
         const now = Date.now()
-        const loadedAt = snippetsLastLoadedAt.get(cacheKey) ?? 0
+        const loadedAt = cached?.loadedAt ?? 0
         if (cachedSnippets && now - loadedAt < SNIPPETS_LOAD_CACHE_TTL_MS) {
           set({ snippets: cachedSnippets, isLoading: false })
           return true
         }
 
-        const requestVersion = getSnippetsCacheVersion(cacheKey)
-
         return snippetsLoadInFlight.run(cacheKey, async () => {
+          const owner = {}
+          snippetsLoadOwners.set(cacheKey, owner)
           set({ isLoading: true, snippets: cachedSnippets ?? [] })
           try {
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
@@ -93,21 +94,31 @@ export const useSnippetsStore = create<SnippetsStore>()(
             })
             if (!response.ok) throw new Error("Failed to load snippets")
             const snippets: Snippet[] = await response.json()
-            if (getSnippetsCacheVersion(cacheKey) !== requestVersion) {
+            if (snippetsLoadOwners.get(cacheKey) !== owner) {
               return false
             }
-            snippetsByCacheKey.set(cacheKey, snippets)
-            snippetsLastLoadedAt.set(cacheKey, Date.now())
+            setConfigCacheEntry(snippetsByCacheKey, cacheKey, {
+              snippets, loadedAt: Date.now(), bytes: retainedPayloadSize(snippets),
+            })
+            let bytes = [...snippetsByCacheKey.values()].reduce((sum, item) => sum + item.bytes, 0)
+            for (const [key, snapshot] of snippetsByCacheKey) {
+              if (bytes <= SNIPPETS_CACHE_MAX_BYTES) break
+              snippetsByCacheKey.delete(key)
+              bytes -= snapshot.bytes
+            }
             if (activeSnippetsCacheKey === cacheKey) {
               set({ snippets, isLoading: false })
             }
             return true
           } catch (error) {
+            if (snippetsLoadOwners.get(cacheKey) !== owner) return false
             console.error("[SnippetsStore] Failed to load:", error)
             if (activeSnippetsCacheKey === cacheKey) {
               set({ isLoading: false })
             }
             return false
+          } finally {
+            if (snippetsLoadOwners.get(cacheKey) === owner) snippetsLoadOwners.delete(cacheKey)
           }
         })
       },
@@ -143,7 +154,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
             }
             throw new Error(payload?.error || "Failed to create snippet")
           }
-          invalidateSnippetsCache(directory)
+          clearSnippetsDirectoryCache(directory)
           await get().loadSnippets()
           return true
         } catch (error) {
@@ -169,7 +180,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
           )
           if (!response.ok)
             throw new Error((await response.json().catch(() => null))?.error || "Failed to update snippet")
-          invalidateSnippetsCache(directory)
+          clearSnippetsDirectoryCache(directory)
           await get().loadSnippets()
           return true
         } catch (error) {
@@ -192,7 +203,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
           if (!response.ok)
             throw new Error((await response.json().catch(() => null))?.error || "Failed to delete snippet")
           if (get().selectedSnippetName === name) set({ selectedSnippetName: null })
-          invalidateSnippetsCache(directory)
+          clearSnippetsDirectoryCache(directory)
           await get().loadSnippets()
           return true
         } catch (error) {

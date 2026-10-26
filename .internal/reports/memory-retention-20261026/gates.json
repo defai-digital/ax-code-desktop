@@ -1,0 +1,54 @@
+[
+  {
+    "command": "pnpm run check:boundaries",
+    "exitCode": 0,
+    "seconds": 15.93,
+    "log": "/tmp/ax-memory-qualified-check-boundaries.txt"
+  },
+  {
+    "command": "pnpm run check:locales",
+    "exitCode": 0,
+    "seconds": 0.85,
+    "log": "/tmp/ax-memory-qualified-check-locales.txt"
+  },
+  {
+    "command": "pnpm run typecheck",
+    "exitCode": 0,
+    "seconds": 25.01,
+    "log": "/tmp/ax-memory-qualified-typecheck.txt"
+  },
+  {
+    "command": "pnpm run lint",
+    "exitCode": 0,
+    "seconds": 11.8,
+    "log": "/tmp/ax-memory-qualified-lint.txt"
+  },
+  {
+    "command": "pnpm run test",
+    "exitCode": 0,
+    "seconds": 127.35,
+    "log": "/tmp/ax-memory-qualified-test.txt"
+  },
+  {
+    "command": "pnpm run build",
+    "exitCode": 0,
+    "seconds": 60.22,
+    "log": "/tmp/ax-memory-qualified-build.txt"
+  },
+  {
+    "command": "pnpm --dir desktop/packages/ui run test src/stores/useSnippetsStore.test.ts",
+    "exitCode": 0,
+    "purpose": "Follow-up after import ordering only; 6 tests passed"
+  },
+  {
+    "command": "pnpm run build",
+    "exitCode": 0,
+    "log": "/tmp/ax-memory-delivery-build.txt",
+    "purpose": "Final product build after import ordering only"
+  },
+  {
+    "command": "node desktop/packages/electron/scripts/e2e/memory-retention-webmcp.mjs",
+    "exitCode": 0,
+    "purpose": "Final fixture setup, snapshot interception, approval and retained-part assertions; two passing fixed runs"
+  }
+]

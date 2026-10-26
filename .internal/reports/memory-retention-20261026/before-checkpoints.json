@@ -1,0 +1,187 @@
+{
+  "baseline": true,
+  "snapshotReads": 1200,
+  "checkpoints": [
+    {
+      "batch": -1,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 201,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_004197",
+            "ses_memory_004198",
+            "ses_memory_004199"
+          ],
+          "sha256": "d84cbb835b60065aeb7a94682423ec282d9ef2c74b43605a151ea9d872062843"
+        }
+      },
+      "heap": {
+        "usedSize": 63152120,
+        "totalSize": 64978944,
+        "embedderHeapUsedSize": 5400184,
+        "backingStorageSize": 19750474
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 668
+      }
+    },
+    {
+      "batch": 0,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 401,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_000197",
+            "ses_memory_000198",
+            "ses_memory_000199"
+          ],
+          "sha256": "71cefeb64304a09f3a428e20813bb0b7dcd6406fa2a174b4c9c5d341e066f37b"
+        }
+      },
+      "heap": {
+        "usedSize": 70271084,
+        "totalSize": 71532544,
+        "embedderHeapUsedSize": 5208816,
+        "backingStorageSize": 19750430
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 1,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 601,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_000397",
+            "ses_memory_000398",
+            "ses_memory_000399"
+          ],
+          "sha256": "b00d670da5c6413dd3a916cd5656959794a2bf0b3c6b3e5d3cebd0de22877c84"
+        }
+      },
+      "heap": {
+        "usedSize": 77520260,
+        "totalSize": 79134720,
+        "embedderHeapUsedSize": 5346120,
+        "backingStorageSize": 19750607
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 2,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 801,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_000597",
+            "ses_memory_000598",
+            "ses_memory_000599"
+          ],
+          "sha256": "f965593fe7eed44cf1e9b6be84be2877f6f3942a85ca2b06675450d256aeeacb"
+        }
+      },
+      "heap": {
+        "usedSize": 84756484,
+        "totalSize": 87523328,
+        "embedderHeapUsedSize": 5490560,
+        "backingStorageSize": 19750607
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 3,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 1001,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_000797",
+            "ses_memory_000798",
+            "ses_memory_000799"
+          ],
+          "sha256": "413460c61d53b883404f98f7aac213c7d61e8886685a45181508a724279669bd"
+        }
+      },
+      "heap": {
+        "usedSize": 91805792,
+        "totalSize": 95649792,
+        "embedderHeapUsedSize": 5794600,
+        "backingStorageSize": 19750644
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    },
+    {
+      "batch": 4,
+      "state": {
+        "cachedSessionSummary": {
+          "count": 1201,
+          "first": [
+            "ses_e2e_scripted",
+            "ses_memory_004000",
+            "ses_memory_004001"
+          ],
+          "last": [
+            "ses_memory_000997",
+            "ses_memory_000998",
+            "ses_memory_000999"
+          ],
+          "sha256": "81a52a6e497b0305383b884a816a17c440e799baa72901dea5677b215242621b"
+        }
+      },
+      "heap": {
+        "usedSize": 99180760,
+        "totalSize": 104038400,
+        "embedderHeapUsedSize": 5806640,
+        "backingStorageSize": 19750633
+      },
+      "dom": {
+        "documents": 2,
+        "nodes": 1703,
+        "jsEventListeners": 667
+      }
+    }
+  ],
+  "artifactProjection": "Session ids summarized by count, endpoints and SHA-256; the journey generates full arrays."
+}
