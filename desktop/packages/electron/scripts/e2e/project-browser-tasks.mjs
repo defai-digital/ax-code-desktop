@@ -201,9 +201,8 @@ try {
         await wait(`document.querySelectorAll('[data-recap-outcome]').length === 3 && document.querySelector('[data-landing-browser-recap]')?.textContent.includes('W6 controlled page failure') && document.querySelector('[data-recap-not-called]')?.textContent.includes('complete_task')`, "three-call landing recap with failure and unused tool")
         } catch (error) {
           if (args.artifacts) {
-            const response = await fetch(`${origin}/session/${owner.id}/message?directory=${encodeURIComponent(owner.directory)}`)
             await fs.writeFile(path.join(args.artifacts, "recap-failure.json"), JSON.stringify({
-              messages: await response.json(), transcriptBeforeReview,
+              transcriptBeforeReview,
               dom: await session.evaluate(`({ text: document.body.innerText,
                 rows: Array.from(document.querySelectorAll('[data-recap-outcome]'), row => row.outerHTML) })`),
               native: await view(),
