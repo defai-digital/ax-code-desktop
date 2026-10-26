@@ -39,3 +39,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 
 - [Desktop memory retention investigation](memory-retention-20261026/README.md): source-backed retention findings,
   behavioral reproductions, prioritized improvements and remaining packaged-app measurement requirements.
+
+- [Desktop v7.30.2 integration and bug review](RELEASE-2026-10-26-v7.30.2-review.md)

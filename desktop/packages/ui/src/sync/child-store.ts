@@ -172,13 +172,13 @@ export class ChildStoreManager {
     this.retention.delete(directory)
     this.lifecycle.delete(directory)
     this.children.delete(directory)
-    this.notifyRegistrySubscribers()
     const dispose = this.disposers.get(directory)
-    if (dispose) {
-      dispose()
-      this.disposers.delete(directory)
-    }
+    this.disposers.delete(directory)
+    dispose?.()
     this.onDispose?.(directory)
+    // Observers may synchronously recreate this directory. Finish the old
+    // ownership cleanup before exposing its absence to those observers.
+    this.notifyRegistrySubscribers()
     if (this.children.size === 0 && this.retentionTimer !== undefined) {
       clearTimeout(this.retentionTimer)
       this.retentionTimer = undefined
@@ -270,19 +270,18 @@ export class ChildStoreManager {
   disposeAll() {
     if (this.retentionTimer !== undefined) clearTimeout(this.retentionTimer)
     this.retentionTimer = undefined
+    const directories = [...this.children.keys()]
     for (const dispose of this.disposers.values()) dispose()
-    for (const directory of this.children.keys()) {
+    for (const directory of directories) {
       clearDirectorySessionLoadState(directory)
-      this.onDispose?.(directory)
     }
     this.retention.clear()
-    for (const directory of [...this.children.keys()]) {
-      this.children.delete(directory)
-    }
-    this.notifyRegistrySubscribers()
+    this.children.clear()
     this.lifecycle.clear()
     this.pins.clear()
     this.disposers.clear()
+    for (const directory of directories) this.onDispose?.(directory)
+    this.notifyRegistrySubscribers()
   }
 
   subscribeRegistry(listener: () => void): () => void {

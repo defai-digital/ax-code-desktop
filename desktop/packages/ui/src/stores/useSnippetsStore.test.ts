@@ -208,4 +208,55 @@ describe("snippets working-set retention", () => {
     expect(await store.getState().loadSnippets()).toBe(true)
     expect(store.getState().snippets[0]?.name).toBe("retry")
   })
+  test("switching back to an in-flight project clears foreign snippets even when the load fails", async () => {
+    const store = await loadStore()
+    const first = createDeferred<Response>()
+    activeProjectPath = "/workspace/project-a"
+    queuedResponses.push(first.promise)
+    const loadA = store.getState().loadSnippets()
+    activeProjectPath = "/workspace/project-b"
+    queuedResponses.push(jsonResponse([snippet("same-name", "project-b")]))
+    await store.getState().loadSnippets()
+    expect(store.getState().snippets[0]?.filePath).toContain("project-b")
+    activeProjectPath = "/workspace/project-a"
+    const joinedA = store.getState().loadSnippets()
+    expect(store.getState().snippets).toEqual([])
+    expect(store.getState().isLoading).toBe(true)
+    first.resolve(new Response("failed", { status: 503 }))
+    expect(await loadA).toBe(false)
+    expect(await joinedA).toBe(false)
+    expect(store.getState().snippets).toEqual([])
+    expect(store.getState().isLoading).toBe(false)
+  })
+
+  test("one oversized project does not discard other projects' fresh snippet snapshots", async () => {
+    const store = await loadStore()
+    activeProjectPath = "/workspace/small"
+    queuedResponses.push(jsonResponse([snippet("small", "small")]))
+    await store.getState().loadSnippets()
+    activeProjectPath = "/workspace/large"
+    queuedResponses.push(jsonResponse([{ ...snippet("large", "large"), content: "x".repeat(11 * 1024 * 1024) }]))
+    await store.getState().loadSnippets()
+    activeProjectPath = "/workspace/small"
+    await store.getState().loadSnippets()
+    expect(fetchCalls).toHaveLength(2)
+    expect(store.getState().snippets[0]?.name).toBe("small")
+  })
+
+  test("removing the active project's cache releases its loading state and ignores the late read", async () => {
+    const store = await loadStore()
+    const { clearSnippetsDirectoryCache } = await import("./useSnippetsStore")
+    activeProjectPath = "/workspace/removed"
+    const delayed = createDeferred<Response>()
+    queuedResponses.push(delayed.promise)
+    const pending = store.getState().loadSnippets()
+    expect(store.getState().isLoading).toBe(true)
+    clearSnippetsDirectoryCache(activeProjectPath)
+    expect(store.getState().isLoading).toBe(false)
+    delayed.resolve(jsonResponse([snippet("late", "removed")]))
+    expect(await pending).toBe(false)
+    expect(store.getState().snippets).toEqual([])
+    expect(store.getState().isLoading).toBe(false)
+  })
+
 })

@@ -54,6 +54,9 @@ export const clearSnippetsDirectoryCache = (directory: string | null): void => {
   snippetsByCacheKey.delete(cacheKey)
   snippetsLoadInFlight.clear(cacheKey)
   snippetsLoadOwners.delete(cacheKey)
+  if (activeSnippetsCacheKey === cacheKey) {
+    useSnippetsStore.setState({ snippets: [], isLoading: false })
+  }
 }
 
 const getRequestDirectory = (): string | null => getActiveConfigDirectory("SnippetsStore")
@@ -83,10 +86,12 @@ export const useSnippetsStore = create<SnippetsStore>()(
           return true
         }
 
+        // A project switch can join an older read; publish this project's list before
+        // joining, because the single-flight callback only runs for its first caller.
+        set({ isLoading: true, snippets: cachedSnippets ?? [] })
         return snippetsLoadInFlight.run(cacheKey, async () => {
           const owner = {}
           snippetsLoadOwners.set(cacheKey, owner)
-          set({ isLoading: true, snippets: cachedSnippets ?? [] })
           try {
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
             const response = await fetch(`${API_ENDPOINTS.config.snippets}${queryParams}`, {
@@ -97,14 +102,21 @@ export const useSnippetsStore = create<SnippetsStore>()(
             if (snippetsLoadOwners.get(cacheKey) !== owner) {
               return false
             }
-            setConfigCacheEntry(snippetsByCacheKey, cacheKey, {
+            const snapshot: SnippetsSnapshot = {
               snippets, loadedAt: Date.now(), bytes: retainedPayloadSize(snippets),
-            })
-            let bytes = [...snippetsByCacheKey.values()].reduce((sum, item) => sum + item.bytes, 0)
-            for (const [key, snapshot] of snippetsByCacheKey) {
-              if (bytes <= SNIPPETS_CACHE_MAX_BYTES) break
-              snippetsByCacheKey.delete(key)
-              bytes -= snapshot.bytes
+            }
+            if (snapshot.bytes > SNIPPETS_CACHE_MAX_BYTES) {
+              // This payload cannot be cached. Keep other projects' fresh snapshots
+              // instead of flushing them before eventually evicting this one too.
+              snippetsByCacheKey.delete(cacheKey)
+            } else {
+              setConfigCacheEntry(snippetsByCacheKey, cacheKey, snapshot)
+              let bytes = [...snippetsByCacheKey.values()].reduce((sum, item) => sum + item.bytes, 0)
+              for (const [key, cached] of snippetsByCacheKey) {
+                if (bytes <= SNIPPETS_CACHE_MAX_BYTES) break
+                snippetsByCacheKey.delete(key)
+                bytes -= cached.bytes
+              }
             }
             if (activeSnippetsCacheKey === cacheKey) {
               set({ snippets, isLoading: false })
@@ -114,7 +126,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
             if (snippetsLoadOwners.get(cacheKey) !== owner) return false
             console.error("[SnippetsStore] Failed to load:", error)
             if (activeSnippetsCacheKey === cacheKey) {
-              set({ isLoading: false })
+              set({ snippets: cachedSnippets ?? [], isLoading: false })
             }
             return false
           } finally {

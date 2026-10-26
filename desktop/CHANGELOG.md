@@ -4,9 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.2] - 2026-10-26
+
+### Fixed
+
+- Bound retained background conversation content and Git/snippets project snapshots while preserving viewed history, running work, pending approvals and active loads.
+- Release dependent pagination, prefetch and routing caches together, and reject late responses after eviction or disposal.
+- Keep snippet lists scoped to the selected project when returning to an in-flight load, including failed requests.
+- Preserve other projects' fresh snippet snapshots when one oversized list is displayed, and clear loading state when a project is removed.
+- Preserve replacement-store retention subscriptions when registry observers recreate a directory during disposal.
+
 ### Changed
 
-- Pin signed AX Code CLI/TUI runtime 7.30.1 and exact SDK 2.6.53 after their producer publication.
+- Bundle signed AX Code CLI/TUI runtime 7.30.1 and exact SDK 2.6.53 after their producer publication.
+- Report the enforced session-cache limit and aggregate retention diagnostics in the Debug Panel.
 
 ## [7.30.1] - 2026-10-26
 
