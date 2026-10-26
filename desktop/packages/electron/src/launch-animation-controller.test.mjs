@@ -108,6 +108,7 @@ describe("desktop animation lifecycle", () => {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      backgroundThrottling: false,
     })
     expect(host.children).toEqual([controller.view])
     expect(controller.view.bounds).toEqual({ x: 0, y: 0, width: 1440, height: 900 })

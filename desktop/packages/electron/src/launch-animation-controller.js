@@ -104,6 +104,9 @@ function createLaunchAnimationController({
           nodeIntegration: false,
           webviewTag: false,
           autoplayPolicy: "no-user-gesture-required",
+          // Keep this short-lived overlay decoding while its host gains visibility.
+          // Completion or the six-second deadline closes the unthrottled contents.
+          backgroundThrottling: false,
           partition: "ax-code-launch-animation",
         },
       })

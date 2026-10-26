@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ## [7.30.2] - 2026-10-26
 
+- Keep the bounded launch-animation overlay decoding while its host gains visibility; preserve reduced-motion and teardown behavior.
+
 ### Fixed
 
 - Bound retained background conversation content and Git/snippets project snapshots while preserving viewed history, running work, pending approvals and active loads.
