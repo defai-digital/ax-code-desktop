@@ -1,10 +1,12 @@
+import { providerConnectCategory } from "@defai-digital/ax-code-sdk/provider-connect"
+import type { ProviderCustomListResponse } from "@defai-digital/ax-code-sdk/v2"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { isRecord } from "@/lib/record"
 import { axCodeClient } from "./client"
 import type { ProviderSources } from "@/components/sections/providers/types"
-import { providerConnectCategory } from "@defai-digital/ax-code-sdk/provider-connect"
 
 export {
+  AX_TRUST_PROVIDER_OPTION_ID,
   CUSTOM_API_PROVIDER_OPTION_ID,
   defaultProviderConnectCategory,
   providerConnectCategoriesPresent,
@@ -14,6 +16,7 @@ export {
   providersInConnectCategory,
   
   type ProviderConnectCategory,
+  type ProviderConnectCategoryOverrides,
 } from "@defai-digital/ax-code-sdk/provider-connect"
 
 const PROVIDER_REQUEST_RETRY_DELAYS_MS = [250, 500, 750, 1000, 1500, 2000, 2500, 3000, 3000, 3000]
@@ -233,6 +236,7 @@ export interface ProviderOption {
 }
 
 export type CustomApiProviderProtocol = "openai-compatible" | "anthropic-compatible"
+export type CustomApiProviderManagement = NonNullable<ProviderCustomListResponse[number]["management"]>
 
 export type CustomApiProviderModel = {
   id: string
@@ -246,6 +250,7 @@ export type CustomApiProviderModel = {
 }
 
 export type CustomApiProviderInput = {
+  management?: CustomApiProviderManagement
   name: string
   protocol: CustomApiProviderProtocol
   baseURL: string
@@ -256,6 +261,7 @@ export type CustomApiProviderInput = {
 }
 
 export type CustomApiProviderView = {
+  management?: CustomApiProviderManagement
   providerID: string
   name: string
   protocol: CustomApiProviderProtocol
@@ -303,6 +309,7 @@ const parseCustomApiProvider = (value: unknown): CustomApiProviderView | null =>
     !isCustomApiProviderProtocol(value.protocol) ||
     typeof value.baseURL !== "string" ||
     typeof value.hasApiKey !== "boolean" ||
+    (value.management !== undefined && value.management !== "custom-api" && value.management !== "ax-trust") ||
     !Array.isArray(value.models)
   )
     return null
@@ -310,6 +317,7 @@ const parseCustomApiProvider = (value: unknown): CustomApiProviderView | null =>
   if (models.some((model) => model === null)) return null
   return {
     providerID: value.providerID,
+    ...(value.management === undefined ? {} : { management: value.management }),
     name: value.name,
     protocol: value.protocol,
     baseURL: value.baseURL,

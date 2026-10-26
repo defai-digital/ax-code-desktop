@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { useI18n } from "@/lib/i18n"
-import type { CustomApiProviderInput, CustomApiProviderView } from "@/lib/ax-code/providerApi"
+import type { CustomApiProviderInput, CustomApiProviderManagement, CustomApiProviderView } from "@/lib/ax-code/providerApi"
 import {
   buildCustomApiProviderSubmission,
   createCustomApiProviderDraft,
@@ -17,6 +17,7 @@ import {
 } from "./customApiProviderFormModel"
 
 type CustomApiProviderFormProps = {
+  management?: CustomApiProviderManagement
   existing?: CustomApiProviderView
   /** Managed providers already registered; a matching endpoint is updated instead of duplicated. */
   providers?: readonly CustomApiProviderView[]
@@ -34,12 +35,15 @@ function needsInsecureConfirmation(value: string) {
 
 export const CustomApiProviderForm: React.FC<CustomApiProviderFormProps> = ({
   existing,
+  management,
   providers = [],
   busy = false,
   onSave,
 }) => {
   const { t } = useI18n()
-  const [draft, setDraft] = React.useState<CustomApiProviderDraft>(() => createCustomApiProviderDraft(existing))
+  const [draft, setDraft] = React.useState<CustomApiProviderDraft>(() =>
+    createCustomApiProviderDraft(existing, management),
+  )
   const [providerIDTouched, setProviderIDTouched] = React.useState(Boolean(existing))
   const [nameTouched, setNameTouched] = React.useState(Boolean(existing))
   const [error, setError] = React.useState<string | null>(null)
@@ -72,6 +76,9 @@ export const CustomApiProviderForm: React.FC<CustomApiProviderFormProps> = ({
           ...submission.input,
           name: registered.name,
           protocol: registered.protocol,
+          ...(draft.management || registered.management
+            ? { management: draft.management ?? registered.management }
+            : {}),
         })
         return
       }

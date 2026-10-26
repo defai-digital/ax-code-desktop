@@ -168,10 +168,25 @@ describe("provider connect type filter", () => {
 })
 
 describe("provider requests", () => {
+  test("preserves AX Trust management metadata and rejects unknown management kinds", () => {
+    const provider = {
+      providerID: "enterprise-gateway",
+      name: "Enterprise Gateway",
+      management: "ax-trust",
+      protocol: "openai-compatible",
+      baseURL: "https://gateway.example/v1",
+      hasApiKey: true,
+      models: [],
+    }
+    expect(parseCustomApiProvidersPayload([provider])).toEqual([provider])
+    expect(parseCustomApiProvidersPayload([{ ...provider, management: "unknown" }])).toEqual([])
+  })
+
   test("lists, saves, and deletes managed custom API providers through the dedicated routes", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const originalFetch = globalThis.fetch
     const view = {
+      management: "ax-trust" as const,
       providerID: "company-gateway",
       name: "Company Gateway",
       protocol: "openai-compatible" as const,
@@ -205,6 +220,7 @@ describe("provider requests", () => {
         await upsertCustomApiProvider(
           "company-gateway",
           {
+            management: "ax-trust",
             name: "Company Gateway",
             protocol: "openai-compatible",
             baseURL: "https://api.example.com/v1",
@@ -222,6 +238,7 @@ describe("provider requests", () => {
       ])
       expect(calls.map((call) => call.init?.method)).toEqual(["GET", "PUT", "DELETE"])
       expect(calls[1]?.init?.body).toContain('"apiKey":"test-token"')
+      expect(JSON.parse(String(calls[1]?.init?.body)).management).toBe("ax-trust")
     } finally {
       setFetchStub(originalFetch)
     }

@@ -10,6 +10,27 @@ import {
 } from "./customApiProviderFormModel"
 
 describe("custom API provider form model", () => {
+  test("carries AX Trust management through creation, editing and model refresh", () => {
+    const draft = createCustomApiProviderDraft(undefined, "ax-trust")
+    draft.baseURL = "https://gateway.example/v1"
+    draft.apiToken = "fixture-token"
+    expect(buildCustomApiProviderSubmission(draft).input.management).toBe("ax-trust")
+    const existing = {
+      providerID: "enterprise-gateway",
+      name: "Enterprise Gateway",
+      management: "ax-trust" as const,
+      protocol: "openai-compatible" as const,
+      baseURL: draft.baseURL,
+      hasApiKey: true,
+      models: [],
+    }
+    expect(buildCustomApiProviderSubmission(createCustomApiProviderDraft(existing)).input).toMatchObject({
+      management: "ax-trust",
+      baseURL: existing.baseURL,
+    })
+    expect(refreshCustomApiProviderInput(existing)).toMatchObject({ management: "ax-trust", refreshModels: true })
+  })
+
   test("builds the URL, token, protocol, and model contract", () => {
     const draft = createCustomApiProviderDraft()
     draft.providerID = "company-gateway"

@@ -16,6 +16,7 @@ import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import {
   buildDirectoryUrl,
   CUSTOM_API_PROVIDER_OPTION_ID,
+  AX_TRUST_PROVIDER_OPTION_ID,
   deleteCustomApiProvider,
   disconnectProviderAuth,
   fetchAvailableProviders,
@@ -32,6 +33,7 @@ import {
   providerConnectCategory,
   providersInConnectCategory,
   type ProviderConnectCategory,
+  type ProviderConnectCategoryOverrides,
   oauthMethodsWithSourceIndex,
   parseAuthMethodsPayload,
   parseAvailableProvidersPayload,
@@ -341,14 +343,27 @@ export const ProvidersPage: React.FC = () => {
   }, [directory, t])
 
   const connectedProviderIds = React.useMemo(() => new Set(providers.map((provider) => provider.id)), [providers])
+  const providerCategoryOverrides = React.useMemo<ProviderConnectCategoryOverrides>(
+    () => Object.fromEntries(
+      customApiProviders
+        .filter((provider) => provider.management === "ax-trust")
+        .map((provider) => [provider.providerID, "ax-trust"]),
+    ),
+    [customApiProviders],
+  )
 
   const unconnectedProviders = React.useMemo(
     () =>
       [
         ...availableProviders.filter(
-          (provider) => provider.id !== CUSTOM_API_PROVIDER_OPTION_ID && !connectedProviderIds.has(provider.id),
+          (provider) =>
+            provider.id !== CUSTOM_API_PROVIDER_OPTION_ID &&
+            provider.id !== AX_TRUST_PROVIDER_OPTION_ID &&
+            !connectedProviderIds.has(provider.id),
         ),
         { id: CUSTOM_API_PROVIDER_OPTION_ID, name: t("settings.providers.custom.option.name") },
+        // These are setup actions, so the runtime catalog need not contain them.
+        { id: AX_TRUST_PROVIDER_OPTION_ID, name: t("settings.providers.page.connect.type.axTrust") },
       ].sort((a, b) => {
         const labelA = (a.name || a.id).toLowerCase()
         const labelB = (b.name || b.id).toLowerCase()
@@ -358,13 +373,13 @@ export const ProvidersPage: React.FC = () => {
   )
 
   const availableConnectTypes = React.useMemo(
-    () => providerConnectCategoriesPresent(unconnectedProviders.map((provider) => provider.id)),
-    [unconnectedProviders],
+    () => providerConnectCategoriesPresent(unconnectedProviders.map((provider) => provider.id), providerCategoryOverrides),
+    [unconnectedProviders, providerCategoryOverrides],
   )
 
   const typedProviders = React.useMemo(
-    () => (connectType ? providersInConnectCategory(unconnectedProviders, connectType) : []),
-    [unconnectedProviders, connectType],
+    () => (connectType ? providersInConnectCategory(unconnectedProviders, connectType, providerCategoryOverrides) : []),
+    [unconnectedProviders, connectType, providerCategoryOverrides],
   )
 
   React.useEffect(() => {
@@ -376,8 +391,10 @@ export const ProvidersPage: React.FC = () => {
       return
     }
 
-    setConnectType(defaultProviderConnectCategory(unconnectedProviders.map((provider) => provider.id)) ?? "")
-  }, [selectedProviderId, connectType, availableConnectTypes, unconnectedProviders])
+    setConnectType(
+      defaultProviderConnectCategory(unconnectedProviders.map((provider) => provider.id), providerCategoryOverrides) ?? "",
+    )
+  }, [selectedProviderId, connectType, availableConnectTypes, unconnectedProviders, providerCategoryOverrides])
 
   React.useEffect(() => {
     if (selectedProviderId !== ADD_PROVIDER_ID) {
@@ -929,7 +946,10 @@ export const ProvidersPage: React.FC = () => {
                               setConnectType(type)
                               setTypeDropdownOpen(false)
                               setProviderSearchQuery("")
-                              if (candidateProviderId && providerConnectCategory(candidateProviderId) !== type) {
+                              if (
+                                candidateProviderId &&
+                                providerConnectCategory(candidateProviderId, providerCategoryOverrides) !== type
+                              ) {
                                 setCandidateProviderId("")
                               }
                             }}
@@ -1062,9 +1082,12 @@ export const ProvidersPage: React.FC = () => {
                 </h2>
               </div>
 
-              {candidateProviderId === CUSTOM_API_PROVIDER_OPTION_ID ? (
+              {candidateProviderId === CUSTOM_API_PROVIDER_OPTION_ID ||
+              candidateProviderId === AX_TRUST_PROVIDER_OPTION_ID ? (
                 <section className="px-2 pb-2 pt-0">
                   <CustomApiProviderForm
+                    key={candidateProviderId}
+                    management={candidateProviderId === AX_TRUST_PROVIDER_OPTION_ID ? "ax-trust" : undefined}
                     providers={customApiProviders}
                     busy={authBusyKey?.startsWith("custom:") ?? false}
                     onSave={handleSaveCustomApiProvider}

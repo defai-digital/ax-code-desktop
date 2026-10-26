@@ -40,6 +40,16 @@ pnpm run e2e:desktop:webmcp -- --artifacts /tmp/ax-desktop-ui-webmcp
 pnpm run e2e:desktop:settings-webmcp -- --artifacts /tmp/ax-desktop-settings-webmcp
 ```
 
+For AX Trust provider setup with an empty runtime catalog, run:
+
+```sh
+node desktop/packages/electron/scripts/e2e/ax-trust-provider-webmcp.mjs --artifacts /tmp/ax-trust-provider
+```
+
+The isolated journey discovers the AX Trust category and setup action through native WebMCP, verifies its URL/token
+form in light and dark themes, and records fresh DOM/control snapshots and screenshots. It submits no credentials and
+does not qualify a live gateway connection. Component/API regressions cover the saved management metadata and endpoint reuse.
+
 For portfolio identity and navigation, run:
 
 ```sh

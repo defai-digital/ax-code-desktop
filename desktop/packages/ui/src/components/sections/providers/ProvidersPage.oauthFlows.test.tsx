@@ -5,6 +5,9 @@ import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
 const {
+  fetchAvailableProviders,
+  fetchCustomApiProviders,
+  upsertCustomApiProvider,
   fetchProviderAuthMethods,
   fetchProviderJsonWithRetry,
   loadProviders,
@@ -14,6 +17,9 @@ const {
   toastMessage,
   toastWarning,
 } = vi.hoisted(() => ({
+  fetchAvailableProviders: vi.fn(),
+  fetchCustomApiProviders: vi.fn(),
+  upsertCustomApiProvider: vi.fn(),
   fetchProviderAuthMethods: vi.fn(),
   fetchProviderJsonWithRetry: vi.fn(),
   loadProviders: vi.fn(async () => {}),
@@ -30,13 +36,14 @@ vi.mock("@/lib/ax-code/providerApi", async () => {
     ...actual,
     fetchProviderAuthMethods,
     fetchProviderJsonWithRetry,
-    fetchAvailableProviders: vi.fn(async () => []),
+    fetchAvailableProviders,
+    upsertCustomApiProvider,
     fetchProviderSources: vi.fn(async () => ({
       auth: { exists: false },
       user: { exists: false },
       project: { exists: false },
     })),
-    fetchCustomApiProviders: vi.fn(async () => []),
+    fetchCustomApiProviders,
   }
 })
 
@@ -100,6 +107,9 @@ describe("ProvidersPage OAuth flows", () => {
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
+    fetchAvailableProviders.mockReset().mockResolvedValue({ all: [], connected: [], default: {} })
+    fetchCustomApiProviders.mockReset().mockResolvedValue([])
+    upsertCustomApiProvider.mockReset()
     fetchProviderAuthMethods.mockReset()
     fetchProviderJsonWithRetry.mockReset()
     loadProviders.mockClear()
@@ -113,8 +123,10 @@ describe("ProvidersPage OAuth flows", () => {
     fetchProviderJsonWithRetry.mockResolvedValue({ url: "https://example.test/authorize" })
     const configState = (await import("@/stores/useConfigStore")).useConfigStore.getState() as unknown as {
       providers: unknown[]
+      selectedProviderId: string
     }
     configState.providers = [provider]
+    configState.selectedProviderId = "demo"
   })
 
   afterEach(() => {
@@ -151,6 +163,139 @@ describe("ProvidersPage OAuth flows", () => {
     container.querySelectorAll(
       `input[placeholder="${dict["settings.providers.page.auth.pasteAuthorizationCodePlaceholder"]}"]`,
     )
+
+  const openTrustSetup = async () => {
+    const state = (await import("@/stores/useConfigStore")).useConfigStore.getState()
+    state.selectedProviderId = "__add_provider__"
+    await renderPage()
+    await act(async () => {
+      buttonByText(dict["settings.providers.page.connect.type.api"])?.click()
+    })
+    const trust = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent?.trim() === "AX Trust",
+    )
+    expect(trust).toBeTruthy()
+    await act(async () => {
+      trust?.click()
+    })
+    await act(async () => {
+      buttonByText(dict["settings.providers.page.connect.selectProviderPlaceholder"])?.click()
+    })
+  }
+
+  test("offers AX Trust setup without any AX Trust runtime catalog entry", async () => {
+    await openTrustSetup()
+    const setup = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent?.trim() === "AX Trust",
+    )
+    expect(setup).toBeTruthy()
+    await act(async () => {
+      setup?.click()
+    })
+    expect(container.querySelector('input[placeholder="https://api.example.com/v1"]')).toBeTruthy()
+    expect(container.querySelector('input[type="password"]')).toBeTruthy()
+
+    const setInput = async (input: HTMLInputElement, value: string) => {
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(input, value)
+        input.dispatchEvent(new Event("input", { bubbles: true }))
+      })
+    }
+    await setInput(
+      container.querySelector('input[placeholder="https://api.example.com/v1"]')!,
+      "https://gateway.example/v1",
+    )
+    await setInput(container.querySelector('input[type="password"]')!, "fixture-token")
+    upsertCustomApiProvider.mockRejectedValueOnce(new Error("Fixture discovery unavailable"))
+    await act(async () => {
+      container.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+    expect(upsertCustomApiProvider).toHaveBeenCalledWith(
+      "gateway-example",
+      expect.objectContaining({
+        management: "ax-trust",
+        baseURL: "https://gateway.example/v1",
+        apiKey: "fixture-token",
+      }),
+      null,
+    )
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe("Fixture discovery unavailable")
+    upsertCustomApiProvider.mockResolvedValueOnce({
+      providerID: "gateway-example",
+      name: "gateway.example",
+      management: "ax-trust",
+      protocol: "openai-compatible",
+      baseURL: "https://gateway.example/v1",
+      hasApiKey: true,
+      models: [],
+    })
+    await act(async () => {
+      container.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+    expect(loadProviders).toHaveBeenCalledWith({ directory: null })
+    expect(container.querySelector('[role="alert"]')).toBeNull()
+  })
+
+  test("reuses an existing endpoint and token when connecting it as AX Trust", async () => {
+    const existing = {
+      providerID: "original-gateway",
+      name: "Original Gateway",
+      management: "custom-api",
+      protocol: "anthropic-compatible",
+      baseURL: "https://gateway.example/v1",
+      hasApiKey: true,
+      models: [],
+    }
+    fetchCustomApiProviders.mockResolvedValue([existing])
+    upsertCustomApiProvider.mockResolvedValue({ ...existing, management: "ax-trust" })
+    await openTrustSetup()
+    const setup = Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(
+      (item) => item.textContent?.trim() === "AX Trust",
+    )
+    await act(async () => {
+      setup?.click()
+    })
+    const url = container.querySelector<HTMLInputElement>('input[placeholder="https://api.example.com/v1"]')!
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set?.call(url, existing.baseURL)
+      url.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+    await act(async () => {
+      container.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }))
+    })
+    expect(upsertCustomApiProvider).toHaveBeenCalledWith(
+      existing.providerID,
+      expect.objectContaining({
+        name: existing.name,
+        protocol: existing.protocol,
+        management: "ax-trust",
+        baseURL: existing.baseURL,
+      }),
+      null,
+    )
+    expect(upsertCustomApiProvider.mock.calls[0]?.[1]).not.toHaveProperty("apiKey")
+  })
+
+  test("classifies hostname-derived AX Trust providers using persisted management metadata", async () => {
+    fetchAvailableProviders.mockResolvedValue({ all: [{ id: "enterprise-gateway", name: "Enterprise Gateway" }] })
+    fetchCustomApiProviders.mockResolvedValue([
+      {
+        providerID: "enterprise-gateway",
+        name: "Enterprise Gateway",
+        management: "ax-trust",
+        protocol: "openai-compatible",
+        baseURL: "https://gateway.example/v1",
+        hasApiKey: true,
+        models: [],
+      },
+    ])
+    await openTrustSetup()
+    expect(
+      Array.from(document.querySelectorAll('[role="menuitem"]')).some((item) =>
+        item.textContent?.includes("Enterprise Gateway"),
+      ),
+    ).toBe(true)
+  })
 
   test("keeps a code field for every flow that was started", async () => {
     await renderPage()

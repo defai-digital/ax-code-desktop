@@ -1,5 +1,6 @@
 import type {
   CustomApiProviderInput,
+  CustomApiProviderManagement,
   CustomApiProviderModel,
   CustomApiProviderProtocol,
   CustomApiProviderView,
@@ -17,6 +18,7 @@ export type CustomApiProviderModelDraft = {
   temperature: boolean
 }
 export type CustomApiProviderDraft = {
+  management?: CustomApiProviderManagement
   providerID: string
   name: string
   protocol: CustomApiProviderProtocol
@@ -96,6 +98,7 @@ export function findCustomApiProviderByBaseURL<T extends { baseURL: string }>(
 /** Re-run GET /models for an existing provider in place, keeping its ID and token. */
 export function refreshCustomApiProviderInput(existing: CustomApiProviderView): CustomApiProviderInput {
   return {
+    ...(existing.management ? { management: existing.management } : {}),
     name: existing.name,
     protocol: existing.protocol,
     baseURL: existing.baseURL,
@@ -129,8 +132,12 @@ export function identityFromCustomApiBaseURL(baseURL: string): { name: string; p
   return { name, providerID }
 }
 
-export function createCustomApiProviderDraft(existing?: CustomApiProviderView): CustomApiProviderDraft {
+export function createCustomApiProviderDraft(
+  existing?: CustomApiProviderView,
+  management?: CustomApiProviderManagement,
+): CustomApiProviderDraft {
   return {
+    ...(existing?.management || management ? { management: existing?.management ?? management } : {}),
     providerID: existing?.providerID ?? "",
     name: existing?.name ?? "",
     protocol: existing?.protocol ?? "openai-compatible",
@@ -208,6 +215,7 @@ export function buildCustomApiProviderSubmission(draft: CustomApiProviderDraft):
   return {
     providerID,
     input: {
+      ...(draft.management ? { management: draft.management } : {}),
       name,
       protocol: draft.protocol,
       baseURL,
