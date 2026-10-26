@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.30.1] - 2026-10-26
+
+### Fixed
+
+- Preserve command-owned embedded browser state when a background pool snapshot temporarily omits the native view.
+- Defer stale-view cleanup until the active command finishes, including commands started while a poll is pending.
+
 ## [7.30.0] - 2026-10-26
 
 ### Fixed

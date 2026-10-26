@@ -366,3 +366,59 @@ test("projects interrupted access and foreign owner recovery while retaining bri
   })
   expect(pause).toHaveBeenCalledOnce()
 })
+
+
+test("a missing native view stays owned by a busy command until the command completes", async () => {
+  vi.useFakeTimers()
+  const key = viewKeyFor("/repo", "ses_first")
+  useWebMcpBrowserStore.getState().updateView(key, {
+    directory: "/repo",
+    sessionID: "ses_first",
+    phase: "ready",
+    browserId: "in-flight",
+    enabled: true,
+    busy: true,
+  })
+  invoke.mockResolvedValue({ views: [] })
+  render(<Harness />)
+  await act(async () => {})
+  expect(useWebMcpBrowserStore.getState().views[key]).toMatchObject({
+    browserId: "in-flight",
+    enabled: true,
+    busy: true,
+  })
+  expect(resume).not.toHaveBeenCalled()
+
+  act(() => useWebMcpBrowserStore.getState().updateView(key, { busy: false }))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1000)
+  })
+  expect(useWebMcpBrowserStore.getState().views[key]).toBeUndefined()
+  expect(resume).toHaveBeenCalledWith("/repo")
+})
+
+test("a command started during an outstanding pool poll keeps ownership of its missing view", async () => {
+  vi.useFakeTimers()
+  const key = viewKeyFor("/repo", "ses_first")
+  useWebMcpBrowserStore.getState().updateView(key, {
+    directory: "/repo",
+    sessionID: "ses_first",
+    phase: "ready",
+    browserId: "pending-command",
+    enabled: true,
+  })
+  let resolvePoll!: (value: unknown) => void
+  invoke.mockImplementationOnce(() => new Promise((resolve) => { resolvePoll = resolve }))
+  render(<Harness />)
+  await act(async () => {})
+  await act(async () => {
+    useWebMcpBrowserStore.getState().updateView(key, { busy: true })
+    resolvePoll({ views: [] })
+  })
+  expect(useWebMcpBrowserStore.getState().views[key]).toMatchObject({
+    browserId: "pending-command",
+    enabled: true,
+    busy: true,
+  })
+  expect(resume).not.toHaveBeenCalled()
+})

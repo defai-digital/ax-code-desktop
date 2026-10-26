@@ -163,6 +163,7 @@ export function useWebMcpPoolProjection(enabled = true) {
             prior.browserId &&
             !ids.has(prior.browserId) &&
             current?.browserId === prior.browserId &&
+            !current.busy &&
             current.phase !== "starting"
           ) {
             useWebMcpBrowserStore.getState().resetView(key)
