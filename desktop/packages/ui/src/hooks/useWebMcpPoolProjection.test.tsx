@@ -23,6 +23,12 @@ vi.mock("@/lib/webMcpBridgeCoordination", () => ({
   pauseChromeBridgeForProjectBrowser: pause,
   resumeChromeBridgeForProjectBrowser: resume,
 }))
+// The recorder only needs browser transitions here. Its full row/session modules initialize
+// directory settings asynchronously, whose persistence timers do not belong to this hook.
+vi.mock("./useSupervisionRows", () => ({ useSupervisionRows: () => [] }))
+vi.mock("@/sync/session-ui-store", () => ({
+  useSessionUIStore: (selector: (state: { currentSessionId: null }) => unknown) => selector({ currentSessionId: null }),
+}))
 const initial = useWebMcpBrowserStore.getState()
 afterEach(() => {
   cleanup()
@@ -77,8 +83,13 @@ test("projects hidden snapshots and retains bridge exclusion until the last proj
       useWebMcpBrowserStore.getState().selectView("/repo", i % 2 ? "ses_first" : "ses_second")
   })
   expect(vi.getTimerCount()).toBe(timers)
+  const polls = invoke.mock.calls.length
   cleanup()
   expect(vi.getTimerCount()).toBe(0)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2000)
+  })
+  expect(invoke).toHaveBeenCalledTimes(polls)
 })
 
 test("an old main without list leaves the pane projection intact", async () => {
