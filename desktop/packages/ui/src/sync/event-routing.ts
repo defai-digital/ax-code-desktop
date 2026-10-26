@@ -266,8 +266,9 @@ export const ingestDirectoryStateIntoRoutingIndex = (
     setIndexedSessionMessages(routingIndex, sessionID, directory, state.message[sessionID] ?? EMPTY_MESSAGES)
   }
 
+  const identity = getProjectPathIdentityKey(directory)
   for (const [indexedSessionID, indexedDirectory] of routingIndex.sessionDirectoryById) {
-    if (indexedDirectory !== directory) {
+    if (getProjectPathIdentityKey(indexedDirectory) !== identity) {
       continue
     }
     if (!nextSessionIds.has(indexedSessionID)) {

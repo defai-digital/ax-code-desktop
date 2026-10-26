@@ -112,3 +112,18 @@ describe("projectPathIsInsideRoot", () => {
     expect(projectPathIsInsideRoot("D:/Users/Alice/App/plans/1.md", "C:/Users/Alice/App/plans")).toBe(false)
   })
 })
+
+describe("root-preserving path containment", () => {
+  test("retains case-insensitive UNC identity without accepting a POSIX lookalike", () => {
+    expect(projectPathIsInsideRoot("\\\\SERVER\\Share\\plans\\one.md", "//server/share/plans")).toBe(true)
+    expect(projectPathIsInsideRoot("/server/share/plans/one.md", "//server/share/plans")).toBe(false)
+    expect(projectPathIsInsideRoot("//server/share/plans/one.md", "/server/share/plans")).toBe(false)
+  })
+
+  test("parent segments cannot consume a drive or UNC share root", () => {
+    expect(projectPathIsInsideRoot("C:/../plans/one.md", "C:/plans")).toBe(true)
+    expect(projectPathIsInsideRoot("//server/share/../plans/one.md", "//server/share/plans")).toBe(true)
+    expect(projectPathIsInsideRoot("//server/share/plans/../one.md", "//server/share/plans")).toBe(false)
+    expect(projectPathIsInsideRoot("//server/other/plans/one.md", "//server/share/plans")).toBe(false)
+  })
+})

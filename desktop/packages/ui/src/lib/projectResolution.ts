@@ -36,17 +36,21 @@ export const projectPathMatchesRoot = (directory: string, root: string): boolean
 const collapsePathSegments = (path: string): string => {
   const normalized = normalizeProjectPath(path)
   if (!normalized) return ""
+  // Keep the filesystem root outside the collapsible segments. In particular,
+  // UNC identity must not become a POSIX path or lose its server/share to "..".
+  const uncRoot = normalized.match(/^(\/\/[^/]+\/[^/]+)(?:\/|$)/)?.[1]
+  const root = uncRoot ? `${uncRoot}/` : (normalized.match(/^[A-Z]:\/|^\//)?.[0] ?? "")
   const segments: string[] = []
-  for (const segment of normalized.split("/")) {
+  for (const segment of normalized.slice(uncRoot?.length ?? root.length).split("/")) {
     if (!segment || segment === ".") continue
     if (segment === "..") {
-      segments.pop()
+      if (segments.length > 0 && segments.at(-1) !== "..") segments.pop()
+      else if (!root) segments.push(segment)
       continue
     }
     segments.push(segment)
   }
-  const joined = segments.join("/")
-  return normalized.startsWith("/") ? `/${joined}` : joined
+  return root + segments.join("/")
 }
 
 /**

@@ -466,3 +466,30 @@ test("retiring a Windows directory clears alias routing without removing another
   expect(index.sessionDirectoryById.get("live")).toBe("C:/Users/RunnerAdmin/Other")
   expect(index.messageSessionById.get("msg_live")).toBe("live")
 })
+
+
+test.each([
+  ["C:/Users/Alice/Project", "c:\\users\\alice\\project"],
+  ["//Server/Share/Project", "\\\\server\\share\\project"],
+])("snapshot ingestion retires stale routing under Windows aliases: %s", (directory, alias) => {
+  const index = createEventRoutingIndex()
+  setIndexedSessionMessages(index, "retired", alias, [createMessage("retired-message", "retired")])
+  setIndexedSessionMessages(index, "kept", alias, [createMessage("evicted-message", "kept")])
+  setIndexedSessionMessages(index, "other", "D:/other", [createMessage("other-message", "other")])
+  const manager = new ChildStoreManager()
+  const store = manager.ensureChild(directory, { bootstrap: false })
+  store.setState({ session: [createSession("kept")] })
+  ingestDirectoryStateIntoRoutingIndex(index, directory, store.getState())
+  expect([...index.sessionDirectoryById]).toEqual([["kept", directory], ["other", "D:/other"]])
+  expect([...index.messageSessionById]).toEqual([["other-message", "other"]])
+  expect([...index.sessionMessageIdsById.keys()]).toEqual(["other"])
+})
+
+test("snapshot ingestion preserves distinct POSIX case identities", () => {
+  const index = createEventRoutingIndex()
+  setIndexedSessionMessages(index, "other", "/Repo", [createMessage("other-message", "other")])
+  const state = new ChildStoreManager().ensureChild("/repo", { bootstrap: false }).getState()
+  ingestDirectoryStateIntoRoutingIndex(index, "/repo", state)
+  expect(index.sessionDirectoryById.get("other")).toBe("/Repo")
+  expect(index.messageSessionById.get("other-message")).toBe("other")
+})

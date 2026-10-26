@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [7.30.0] - 2026-10-26
+
+### Fixed
+
+- Keep embedded browser content visible when controls expand in compact windows.
+- Share Windows directory aliases across message caches, disposal and snapshot routing cleanup.
+- Preserve UNC share and drive roots during stored plan path containment checks.
+- Retry transient Windows atomic settings replacement failures without removing the valid snapshot.
+- Ignore the Electron development app entry when resolving requested projects.
+- Preserve registered project labels across native page projections and stabilize native browser journey observations.
+
+### Changed
+
+- Bundle signed AX Code runtime 7.30.0 and exact GitHub Packages SDK 2.6.52.
+
 ## [7.29.2] - 2026-10-25
 
 ### Changed
