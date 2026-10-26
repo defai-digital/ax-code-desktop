@@ -34,3 +34,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.30.1 integration and bug review](RELEASE-2026-10-26-v7.30.1-review.md)
 
 - [Desktop v7.30.1 verified publication](RELEASE-2026-10-26-v7.30.1-publication.md)
+
+- [Latest CLI/TUI 7.30.1 runtime pin](RUNTIME-PIN-2026-10-26-v7.30.1.md)
