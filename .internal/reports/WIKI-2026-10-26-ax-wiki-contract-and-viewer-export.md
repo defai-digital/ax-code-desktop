@@ -151,6 +151,12 @@ maintenance controller, or second graph renderer.
 1. `wiki viz --export` rejects valid multi-line CommonJS destructuring. Expected behavior: normalize or reject
    inventory symbol text at extraction, or stop treating function-local destructuring as a graph symbol. The minimal
    pair above is the acceptance case: both variants must export.
+   Fixed in the runtime repository at `48ababfa8` ("Keep Wiki export working on destructured declarations"; not yet
+   released): both syntactic extractors emit leaf binding identifiers instead of pattern text, and the projection skips
+   an invalid inventory entry as omitted instead of aborting. muse reproduced the defect at `95d0c4399` and verified the
+   fix: native and WASM inventories matched across 42 probe cases. Checks run: `cargo test -p ax-code-parser`, the ax-wiki
+   suite, every wiki and code-intelligence test, and the core `test:unit` group (16,847 passed). Desktop keeps the
+   `export_incompatible` message until a runtime release containing the fix is pinned in `config/ax-code-runtime.json`.
 2. Prompt injection. The approved task expects the `<repo_wiki>` block to warn when the wiki is stale and to list page
    cards. Reconciliation for the runtime owner: the pinned 7.30.1 bundle's `renderAxWikiProtocol` accepts `freshness`
    and `cards` and has a stale branch, but `maybeRenderAxWikiProtocol` calls `getWikiStatus` without `repositoryHead`,
