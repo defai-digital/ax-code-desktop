@@ -1,6 +1,7 @@
 # Docs Authoring Guide
 
-This package is docs content source-of-truth for AX Code Desktop.
+This directory is source content for AX Code Desktop public docs. This repository has no build, validation script, or
+packaging workflow for it.
 
 ## Voice & style
 
@@ -97,11 +98,6 @@ running.
    - `folder/index.mdx` -> `/folder/`
    - `folder/bar.mdx` -> `/folder/bar/`
 4. Keep the page in English. Do not add localized copies or `translations` maps.
-5. Run validation:
-
-   ```bash
-   bun run docs:validate
-   ```
 
 ## Add a new sidebar section
 
@@ -144,8 +140,6 @@ Rules:
   source of truth and the sync will not pick them up
 - keep originals reasonably sized; the build generates responsive variants
 
-`docs:validate` only checks `.mdx`, so images never block validation.
-
 ### Light / dark variants
 
 To show a different screenshot per theme, add a `-light` / `-dark` pair and tag
@@ -184,9 +178,9 @@ languages, but this docs package does not.
 
 ### Validate
 
-`bun run docs:validate` walks every `.mdx` under `content/docs/` and fails if any
-page is missing `title` or `description` frontmatter, or if a sidebar `link` does
-not resolve to a page. Run it after adding or changing pages.
+This repository has no docs validation script. There is no `docs:validate` script in the root `package.json`, and this
+directory has no `package.json`. After adding or changing a page, check the rules above yourself: every `.mdx` page
+needs `title` and `description` frontmatter, and every sidebar `link` must resolve to a page.
 
 ## Sync into the website
 
@@ -198,4 +192,4 @@ After docs content updates here:
 2. map `packages/docs/sidebar.config.json` into `apps/docs/astro.config.mjs` sidebar
 3. run docs checks/build in website repo
 
-Automation support exists in `.github/workflows/docs-source.yml` (release/manual packaging of docs source artifact).
+This repository does not automate that handoff. There is no docs packaging workflow and no docs-source tarball here.

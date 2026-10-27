@@ -55,8 +55,8 @@ were confirmed by comparing them with current files:
    recorded in `45a51507` and already absent from the workspace line that the legacy-history merge `62a86cbc`
    retained. `desktop/packages/docs` has no `package.json`, so `bun run docs:validate` cannot run, and the root
    `package.json` defines no such script. The generated page repeated a stale claim from
-   `desktop/packages/docs/README.md:32` and `desktop/packages/docs/CONTRIBUTING.md:201`; those source files still carry
-   the dead reference and were not edited here, because they are outside this task's file set.
+   `desktop/packages/docs/README.md:32` and `desktop/packages/docs/CONTRIBUTING.md:201`. A follow-up change removed the
+   dead references from those files and from `DEPLOYMENT.md`; the generated page keeps the claim until regeneration.
 
 Both classes are repaired only by regeneration. Hand editing a page would be overwritten on the next build and would
 hide the manifest's staleness.
@@ -222,7 +222,8 @@ muse, and for the poll guard by the parent run). The final muse round reported `
   pinned bundle's call graph, not on a recorded request.
 - Page-level staleness counts come from the approved audit; this documentation run reproduced the wiki-level stale
   result and head gap but did not produce a per-page freshness listing.
-- The stale references in `desktop/packages/docs/README.md`, `CONTRIBUTING.md`, and `DEPLOYMENT.md` to
-  `.github/workflows/docs-source.yml` remain; fixing them is a separate, code-adjacent documentation change.
+- The stale `desktop/packages/docs` references to `.github/workflows/docs-source.yml` and `bun run docs:validate` were
+  removed in a follow-up change. `desktop/docs/GITHUB_RELEASE_PUBLISHING.md:37` still lists `pnpm run docs:validate`
+  inside its not-yet-enabled legacy release flow and was left for that flow's owner.
 - Release evidence for this audit is intentionally absent from `.internal/releases/`; every fact above is reproducible
   with the commands listed and needs no untracked artifact.
