@@ -20,6 +20,32 @@ interface DirectoryMaintenance {
   status: WikiMaintenanceStatus
 }
 
+// A failed silent reload keeps the previous graph. Retrying its revision on the next samples
+// recovers from a transient error; the bound keeps a persistent one from refetching the
+// whole graph on every poll.
+const MAX_RELOAD_ATTEMPTS = 3
+
+interface ReloadFailures {
+  revision: number | null
+  count: number
+}
+
+/** Record a reload's outcome; forget the revision while it may still be retried. */
+function settleRevisionReload(
+  revisionRef: React.RefObject<number | null>,
+  failures: React.RefObject<ReloadFailures>,
+  revision: number,
+  loaded: boolean,
+) {
+  if (loaded) {
+    failures.current = { revision: null, count: 0 }
+    return
+  }
+  const count = failures.current.revision === revision ? failures.current.count + 1 : 1
+  failures.current = { revision, count }
+  if (count < MAX_RELOAD_ATTEMPTS && revisionRef.current === revision) revisionRef.current = null
+}
+
 /**
  * Loads the wiki graph for one directory and follows maintenance revisions.
  * Generation is never started here — only requestRefresh(), from a button, does that.
@@ -29,6 +55,7 @@ export function useWikiGraph(directory: string) {
   const [maintenanceState, setMaintenanceState] = React.useState<DirectoryMaintenance | null>(null)
   const [refreshing, setRefreshing] = React.useState(false)
   const revisionRef = React.useRef<number | null>(null)
+  const reloadFailures = React.useRef<ReloadFailures>({ revision: null, count: 0 })
   // Bumps when a refresh starts and when it publishes. A poll records the value it
   // began with and drops the sample if a refresh moved it.
   const maintenanceWrite = React.useRef(0)
@@ -88,6 +115,7 @@ export function useWikiGraph(directory: string) {
     // One poll chain at a time: a visibility change while a sample is in flight must not start a second one.
     let inFlight = false
     revisionRef.current = null
+    reloadFailures.current = { revision: null, count: 0 }
 
     const schedule = () => {
       window.clearTimeout(timer)
@@ -113,9 +141,7 @@ export function useWikiGraph(directory: string) {
           if (result.maintenance.revision !== revisionRef.current) {
             const revision = result.maintenance.revision
             revisionRef.current = revision
-            // A failed silent reload keeps the previous graph. Forget the revision so the next
-            // sample retries it instead of treating it as shown.
-            if (!(await readVisualization(true)) && revisionRef.current === revision) revisionRef.current = null
+            settleRevisionReload(revisionRef, reloadFailures, revision, await readVisualization(true))
           }
         }
       } finally {
@@ -152,13 +178,8 @@ export function useWikiGraph(directory: string) {
         if (outcome.status === "started") revisionRef.current = outcome.maintenance.revision
       }
       const loaded = await readVisualization(true)
-      if (
-        !loaded &&
-        outcome.status === "started" &&
-        activeScope.current === scope &&
-        revisionRef.current === outcome.maintenance.revision
-      ) {
-        revisionRef.current = null
+      if (outcome.status === "started" && activeScope.current === scope) {
+        settleRevisionReload(revisionRef, reloadFailures, outcome.maintenance.revision, loaded)
       }
       return outcome
     } finally {

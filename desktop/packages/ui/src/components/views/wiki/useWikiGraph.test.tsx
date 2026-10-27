@@ -185,3 +185,21 @@ describe("useWikiGraph revision reloads", () => {
     expect(wiki.visualization).toHaveBeenCalledTimes(4)
   })
 })
+
+describe("useWikiGraph bounded reload retries", () => {
+  test("a revision whose reload keeps failing stops refetching after the retry bound", async () => {
+    await render("/repo")
+    await flushPoll()
+    const baseline = wiki.visualization.mock.calls.length
+
+    wiki.maintenance.mockResolvedValue({ status: "reported", maintenance: status({ revision: 6 }) })
+    wiki.visualization.mockResolvedValue({ status: "error" })
+    for (let i = 0; i < 8; i++) await flushPoll()
+    expect(wiki.visualization.mock.calls.length - baseline).toBe(3)
+
+    // A new revision gets a fresh, equally bounded set of attempts.
+    wiki.maintenance.mockResolvedValue({ status: "reported", maintenance: status({ revision: 7 }) })
+    for (let i = 0; i < 8; i++) await flushPoll()
+    expect(wiki.visualization.mock.calls.length - baseline).toBe(6)
+  })
+})
