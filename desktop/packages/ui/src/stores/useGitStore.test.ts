@@ -1,6 +1,8 @@
+import React, { act } from "react"
+import { createRoot } from "react-dom/client"
 import { beforeEach, describe, expect, test } from "vitest"
 import type { GitStatus } from "@/lib/api/types"
-import { useGitStore, type GitStoreAPI } from "./useGitStore"
+import { useGitRepoStatusMap, useGitStore, type GitStoreAPI } from "./useGitStore"
 
 type Deferred<T> = {
   promise: Promise<T>
@@ -304,7 +306,51 @@ describe("useGitStore", () => {
 })
 
 describe("Git working-set retention", () => {
-  beforeEach(() => useGitStore.setState({ directories: new Map(), activeDirectory: null }))
+  beforeEach(() => useGitStore.setState({ directories: new Map(), repoSummaries: new Map(), activeDirectory: null }))
+
+  test("projects beyond the cache limit keep their repository summary when evicted mid-read", async () => {
+    const reads = new Map<string, Deferred<GitStatus>>()
+    const api = createGitApi(async (directory) => {
+      const read = createDeferred<GitStatus>()
+      reads.set(directory, read)
+      return read.promise
+    })
+    api.checkIsGitRepository = async (directory) => directory !== "/project/plain"
+    const projects = [...Array.from({ length: 14 }, (_, i) => `/project/${i}`), "/project/plain"]
+    const fetches = projects.map((directory) => useGitStore.getState().fetchStatus(directory, api))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(useGitStore.getState().directories.has("/project/0")).toBe(false)
+    for (const [directory, read] of reads) read.resolve({ ...createStatus(), current: `branch-${directory}` })
+    await Promise.all(fetches)
+
+    const state = useGitStore.getState()
+    expect(state.directories.size).toBeLessThanOrEqual(10)
+    // The evicted working set is not restored, but the sidebar summary survives for every project.
+    expect(state.directories.has("/project/0")).toBe(false)
+    expect(state.repoSummaries.get("/project/0")).toEqual({ isGitRepo: true, branch: "branch-/project/0" })
+    expect(state.repoSummaries.get("/project/13")).toEqual({ isGitRepo: true, branch: "branch-/project/13" })
+    expect(state.repoSummaries.get("/project/plain")).toEqual({ isGitRepo: false, branch: null })
+    expect(state.repoSummaries.size).toBe(projects.length)
+    let seen = new Map<string, { isGitRepo: boolean | null; branch: string | null }>()
+    const Probe = () => {
+      seen = useGitRepoStatusMap(projects)
+      return null
+    }
+    const root = createRoot(document.createElement("div"))
+    act(() => root.render(React.createElement(Probe)))
+    act(() => root.unmount())
+    expect(seen.get("/project/0")).toEqual({ isGitRepo: true, branch: "branch-/project/0" })
+    expect(seen.get("/project/plain")).toEqual({ isGitRepo: false, branch: null })
+  })
+
+  test("removing a project drops its repository summary", async () => {
+    const api = createGitApi(async () => createStatus())
+    await useGitStore.getState().fetchStatus("/summary", api)
+    expect(useGitStore.getState().repoSummaries.get("/summary")).toEqual({ isGitRepo: true, branch: "main" })
+    useGitStore.getState().removeDirectory("/summary")
+    expect(useGitStore.getState().repoSummaries.has("/summary")).toBe(false)
+  })
 
   test("bounds visited directories and retains the active project", () => {
     for (let i = 0; i < 100; i++) useGitStore.getState().setActiveDirectory(`/visited/${i}`)

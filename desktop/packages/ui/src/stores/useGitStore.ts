@@ -50,8 +50,17 @@ interface DirectoryGitState {
   isLoadingIdentity: boolean
 }
 
+/** What the sidebar shows for a project; it outlives the bounded per-directory working set. */
+export interface GitRepoSummary {
+  isGitRepo: boolean
+  branch: string | null
+}
+
 interface GitStore {
   directories: Map<string, DirectoryGitState>
+  // Evicting a project's working set must not blank its repository badge and branch label:
+  // only the last known summary is kept, so registered projects beyond the cache limit stay labeled.
+  repoSummaries: Map<string, GitRepoSummary>
 
   activeDirectory: string | null
 
@@ -108,6 +117,9 @@ const inFlightStatusFetches = new Map<string, { promise: Promise<boolean> }>()
 const inFlightEnsureAllOwners = new Map<string, object>()
 const inFlightEnsureAllByDirectory = new Map<string, Promise<void>>()
 const statusFetchRequestIds = new Map<string, number>()
+// Status reads whose directory was evicted mid-flight. Their response may only record the
+// summary; it must not restore the evicted working set.
+const evictedStatusRequestIds = new Map<string, number>()
 let statusFetchSequence = 0
 // Log, branch and identity reads have the same overlap problem as status: a
 // slower earlier response used to overwrite a newer one (a just-created commit
@@ -430,12 +442,25 @@ const withDirectoryRetention = (createState: GitStateCreator): GitStateCreator =
         now - (directoryAccessedAt.get(directory) ?? now) < GIT_DIRECTORY_IDLE_TTL_MS) continue
       directories.delete(directory)
       bytes -= sizes.get(directory) ?? 0
+      const statusRequestId = statusFetchRequestIds.get(directory)
       forgetDirectoryRequests(directory)
+      if (statusRequestId !== undefined) evictedStatusRequestIds.set(directory, statusRequestId)
     }
     for (const directory of current.directories.keys()) {
       if (!directories.has(directory)) forgetDirectoryRequests(directory)
     }
-    rawSet({ ...patch, directories })
+    const baseSummaries = patch.repoSummaries ?? current.repoSummaries ?? new Map<string, GitRepoSummary>()
+    let repoSummaries = baseSummaries
+    for (const [directory, entry] of directories) {
+      // An entry that has not resolved yet keeps the previous summary instead of blanking it.
+      if (entry.isGitRepo === null) continue
+      const branch = entry.status?.current ?? null
+      const previous = repoSummaries.get(directory)
+      if (previous?.isGitRepo === entry.isGitRepo && previous.branch === branch) continue
+      if (repoSummaries === baseSummaries) repoSummaries = new Map(repoSummaries)
+      repoSummaries.set(directory, { isGitRepo: entry.isGitRepo, branch })
+    }
+    rawSet({ ...patch, directories, repoSummaries })
   }
   return createState(set, get)
 }
@@ -444,6 +469,7 @@ export const useGitStore = create<GitStore>()(
   devtools(
     withDirectoryRetention((set, get) => ({
       directories: new Map(),
+      repoSummaries: new Map(),
       activeDirectory: null,
 
       setActiveDirectory: (directory) => {
@@ -482,7 +508,10 @@ export const useGitStore = create<GitStore>()(
         const directories = new Map(get().directories)
         directories.delete(directory)
         forgetDirectoryRequests(directory)
-        set({ directories, ...(get().activeDirectory === directory ? { activeDirectory: null } : {}) })
+        evictedStatusRequestIds.delete(directory)
+        const repoSummaries = new Map(get().repoSummaries)
+        repoSummaries.delete(directory)
+        set({ directories, repoSummaries, ...(get().activeDirectory === directory ? { activeDirectory: null } : {}) })
       },
 
       getDirectoryState: (directory) => {
@@ -501,7 +530,13 @@ export const useGitStore = create<GitStore>()(
 
         const requestId = ++statusFetchSequence
         statusFetchRequestIds.set(directory, requestId)
+        evictedStatusRequestIds.delete(directory)
         const isCurrentStatusFetch = () => statusFetchRequestIds.get(directory) === requestId
+        const recordEvictedSummary = (summary: GitRepoSummary) => {
+          if (evictedStatusRequestIds.get(directory) !== requestId) return
+          evictedStatusRequestIds.delete(directory)
+          set({ repoSummaries: new Map(get().repoSummaries).set(directory, summary) })
+        }
 
         const fetchPromise = (async () => {
           const { silent = false } = options
@@ -533,6 +568,7 @@ export const useGitStore = create<GitStore>()(
 
             if (!isRepo) {
               if (!isCurrentStatusFetch()) {
+                recordEvictedSummary({ isGitRepo: false, branch: null })
                 return false
               }
               const newDirectories = new Map(get().directories)
@@ -552,6 +588,7 @@ export const useGitStore = create<GitStore>()(
             const newStatus = await git.getGitStatus(directory, options.mode ? { mode: options.mode } : undefined)
 
             if (!isCurrentStatusFetch()) {
+              recordEvictedSummary({ isGitRepo: true, branch: newStatus.current ?? null })
               return false
             }
 
@@ -1138,16 +1175,24 @@ export const useGitIdentity = (directory: string | null) => {
   })
 }
 
+// A live entry wins once it has resolved; an evicted or still-loading one falls back to the
+// last known summary.
+const readRepoSummary = (state: GitStore, directory: string): GitRepoSummary | null => {
+  const entry = state.directories.get(directory)
+  if (entry && entry.isGitRepo !== null) return { isGitRepo: entry.isGitRepo, branch: entry.status?.current ?? null }
+  return state.repoSummaries.get(directory) ?? null
+}
+
 export const useIsGitRepo = (directory: string | null) => {
   return useGitStore((state) => {
     if (!directory) return null
-    return state.directories.get(directory)?.isGitRepo ?? null
+    return readRepoSummary(state, directory)?.isGitRepo ?? null
   })
 }
 export const useGitBranchLabel = (directory: string | null) => {
   return useGitStore((state) => {
     if (!directory) return null
-    return state.directories.get(directory)?.status?.current?.trim() ?? null
+    return readRepoSummary(state, directory)?.branch?.trim() ?? null
   })
 }
 
@@ -1156,10 +1201,11 @@ const allBranchesCacheRef = { current: new Map<string, string | null>() }
 export const useGitAllBranches = () => {
   return useGitStore((state) => {
     const prev = allBranchesCacheRef.current
-    let same = prev.size === state.directories.size
+    const directories = new Set([...state.directories.keys(), ...state.repoSummaries.keys()])
+    let same = prev.size === directories.size
     if (same) {
-      for (const [dir, dirState] of state.directories) {
-        if (prev.get(dir) !== (dirState.status?.current ?? null)) {
+      for (const dir of directories) {
+        if (!prev.has(dir) || prev.get(dir) !== (readRepoSummary(state, dir)?.branch ?? null)) {
           same = false
           break
         }
@@ -1167,8 +1213,8 @@ export const useGitAllBranches = () => {
     }
     if (same) return prev
     const result = new Map<string, string | null>()
-    for (const [dir, dirState] of state.directories) {
-      result.set(dir, dirState.status?.current ?? null)
+    for (const dir of directories) {
+      result.set(dir, readRepoSummary(state, dir)?.branch ?? null)
     }
     allBranchesCacheRef.current = result
     return result
@@ -1181,9 +1227,9 @@ export const useGitRepoStatusMap = (directories: string[]) => {
     let same = prev.size === directories.length
     if (same) {
       for (const dir of directories) {
-        const d = state.directories.get(dir)
+        const summary = readRepoSummary(state, dir)
         const pv = prev.get(dir)
-        if (!pv || (d?.isGitRepo ?? null) !== pv.isGitRepo || (d?.status?.current ?? null) !== pv.branch) {
+        if (!pv || (summary?.isGitRepo ?? null) !== pv.isGitRepo || (summary?.branch ?? null) !== pv.branch) {
           same = false
           break
         }
@@ -1192,8 +1238,8 @@ export const useGitRepoStatusMap = (directories: string[]) => {
     if (same) return prev
     const result = new Map<string, { isGitRepo: boolean | null; branch: string | null }>()
     for (const dir of directories) {
-      const d = state.directories.get(dir)
-      result.set(dir, { isGitRepo: d?.isGitRepo ?? null, branch: d?.status?.current ?? null })
+      const summary = readRepoSummary(state, dir)
+      result.set(dir, { isGitRepo: summary?.isGitRepo ?? null, branch: summary?.branch ?? null })
     }
     cacheRef.current = result
     return result

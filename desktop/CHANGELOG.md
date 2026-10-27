@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep repository badges and branch labels for registered projects beyond the bounded Git working set, including projects evicted while their status read was in flight, without restoring the evicted working set.
+
 ## [7.30.2] - 2026-10-26
 
 - Keep the bounded launch-animation overlay decoding while its host gains visibility; preserve reduced-motion and teardown behavior.
