@@ -49,3 +49,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [AX Wiki documentation contract and viewer export failure](WIKI-2026-10-26-ax-wiki-contract-and-viewer-export.md):
   verified stale/false generated claims, the minimal `Invalid graph text` reproducer, Desktop maintenance/viewer
   failure classification, and the separate runtime handoff.
+
+- [Desktop v7.30.3 verified publication](RELEASE-2026-10-27-v7.30.3-publication.md)
