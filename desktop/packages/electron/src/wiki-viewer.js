@@ -239,7 +239,11 @@ function createWikiViewer({
     const records = Array.from(windows)
     for (const [window] of records) if (!window.isDestroyed()) window.destroy()
     await Promise.allSettled(Array.from(jobs))
-    await Promise.all(records.map(([, closed]) => closed))
+    // Settle every cleanup before reporting one failure: rejecting on the first let shutdown
+    // continue while other viewers' project exports were still being removed.
+    const cleanups = await Promise.allSettled(records.map(([, closed]) => closed))
+    const failure = cleanups.find((cleanup) => cleanup.status === "rejected")
+    if (failure) throw failure.reason
   }
 
   return { open, closeAll }

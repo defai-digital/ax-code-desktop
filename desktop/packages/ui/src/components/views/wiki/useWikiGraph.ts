@@ -64,11 +64,13 @@ export function useWikiGraph(directory: string) {
     [scope],
   )
 
+  // Resolves false when the read failed, so a caller can leave its revision unconsumed.
   const readVisualization = React.useCallback(
-    async (silent: boolean) => {
+    async (silent: boolean): Promise<boolean> => {
       const generation = ++vizGeneration.current
       const next = await loadWikiVisualization(scope.directory)
       publishVisualization(generation, next, silent)
+      return next.status !== "error"
     },
     [scope, publishVisualization],
   )
@@ -109,8 +111,11 @@ export function useWikiGraph(directory: string) {
           // The opening read can finish before the first sample. Treat that sample as a
           // change from "unknown" so a revision that moved during the read is not missed.
           if (result.maintenance.revision !== revisionRef.current) {
-            revisionRef.current = result.maintenance.revision
-            await readVisualization(true)
+            const revision = result.maintenance.revision
+            revisionRef.current = revision
+            // A failed silent reload keeps the previous graph. Forget the revision so the next
+            // sample retries it instead of treating it as shown.
+            if (!(await readVisualization(true)) && revisionRef.current === revision) revisionRef.current = null
           }
         }
       } finally {
@@ -146,7 +151,15 @@ export function useWikiGraph(directory: string) {
         // A disabled refresh queued no work, so its revision is not this project's revision.
         if (outcome.status === "started") revisionRef.current = outcome.maintenance.revision
       }
-      await readVisualization(true)
+      const loaded = await readVisualization(true)
+      if (
+        !loaded &&
+        outcome.status === "started" &&
+        activeScope.current === scope &&
+        revisionRef.current === outcome.maintenance.revision
+      ) {
+        revisionRef.current = null
+      }
       return outcome
     } finally {
       setRefreshing(false)

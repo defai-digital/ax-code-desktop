@@ -160,3 +160,28 @@ describe("useWikiGraph", () => {
     expect(latest.maintenance).toMatchObject({ phase: "running" })
   })
 })
+
+describe("useWikiGraph revision reloads", () => {
+  test("a failed silent reload retries the same revision on the next sample", async () => {
+    await render("/repo")
+    await flushPoll()
+    expect(wiki.visualization).toHaveBeenCalledTimes(2)
+
+    // The revision moves, but the reload for it fails once.
+    wiki.maintenance.mockResolvedValue({ status: "reported", maintenance: status({ revision: 5 }) })
+    wiki.visualization.mockResolvedValueOnce({ status: "error" })
+    await flushPoll()
+    expect(wiki.visualization).toHaveBeenCalledTimes(3)
+    expect(latest.load).toEqual({ status: "missing" })
+
+    const graph = { schemaVersion: 1, snapshot: "s5", nodes: [], edges: [] }
+    wiki.visualization.mockResolvedValue({ status: "graph", graph })
+    await flushPoll()
+    expect(wiki.visualization).toHaveBeenCalledTimes(4)
+    expect(latest.load).toEqual({ status: "graph", graph })
+
+    // Once shown, the same revision is not reloaded again.
+    await flushPoll()
+    expect(wiki.visualization).toHaveBeenCalledTimes(4)
+  })
+})

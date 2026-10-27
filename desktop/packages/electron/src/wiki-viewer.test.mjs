@@ -103,6 +103,35 @@ describe("official Wiki viewer", () => {
     await expect(fs.access(window.file)).rejects.toThrow()
   })
 
+  it("waits for every viewer's export cleanup at shutdown even when one fails", async () => {
+    let finishSecond
+    const removals = []
+    const io = {
+      ...fs,
+      rm: (target, options) => {
+        removals.push(target)
+        if (removals.length === 1) return Promise.reject(new Error("locked export"))
+        return new Promise((resolve) => {
+          finishSecond = () => fs.rm(target, options).then(resolve)
+        })
+      },
+    }
+    const { root, viewer, windows } = await fixture(process.platform, { io })
+    await viewer.open(root)
+    await viewer.open(root)
+    let settled = false
+    const closing = viewer.closeAll().finally(() => {
+      settled = true
+    })
+    await vi.waitFor(() => expect(finishSecond).toBeTypeOf("function"))
+    await new Promise((resolve) => setTimeout(resolve, 20))
+    // The first cleanup already failed; shutdown must still wait for the second one.
+    expect(settled).toBe(false)
+    finishSecond()
+    await expect(closing).rejects.toThrow("locked export")
+    await expectRemoved(windows[1].file)
+  })
+
   it("passes Windows paths as literal argv to bundled Node without cmd.exe", async () => {
     const { root, viewer, run } = await fixture("win32")
     await viewer.open(root)
