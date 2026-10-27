@@ -344,6 +344,30 @@ describe("Git working-set retention", () => {
     expect(seen.get("/project/plain")).toEqual({ isGitRepo: false, branch: null })
   })
 
+  test("removing an evicted project revokes its summary and its in-flight status read", async () => {
+    const reads = new Map<string, Deferred<GitStatus>>()
+    const api = createGitApi(async (directory) => {
+      const read = createDeferred<GitStatus>()
+      reads.set(directory, read)
+      return read.promise
+    })
+    const projects = Array.from({ length: 12 }, (_, i) => `/evicted/${i}`)
+    const fetches = projects.map((directory) => useGitStore.getState().fetchStatus(directory, api))
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(useGitStore.getState().directories.has("/evicted/0")).toBe(false)
+    useGitStore.getState().removeDirectoriesMatching((directory) => directory === "/evicted/0")
+    for (const read of reads.values()) read.resolve(createStatus())
+    await Promise.all(fetches)
+    expect(useGitStore.getState().repoSummaries.has("/evicted/0")).toBe(false)
+    expect(useGitStore.getState().repoSummaries.get("/evicted/1")).toEqual({ isGitRepo: true, branch: "main" })
+
+    // A project whose summary outlived its working set is removed as well.
+    expect(useGitStore.getState().directories.has("/evicted/1")).toBe(false)
+    useGitStore.getState().removeDirectoriesMatching((directory) => directory === "/evicted/1")
+    expect(useGitStore.getState().repoSummaries.has("/evicted/1")).toBe(false)
+  })
+
   test("removing a project drops its repository summary", async () => {
     const api = createGitApi(async () => createStatus())
     await useGitStore.getState().fetchStatus("/summary", api)

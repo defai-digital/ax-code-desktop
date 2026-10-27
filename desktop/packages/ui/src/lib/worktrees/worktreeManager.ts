@@ -7,6 +7,7 @@ import { normalizeWorktreePath } from "@/lib/worktrees/path"
 import { invalidateResolvedProjectRootCache, resolveProjectRoot } from "@/lib/worktrees/worktreeStatus"
 import type { CreateGitWorktreePayload, GitWorktreeValidationResult } from "@/lib/api/types"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { useGitStore } from "@/stores/useGitStore"
 import { useTerminalStore } from "@/stores/useTerminalStore"
 
 /** What a removal actually did, so callers report it instead of assuming. */
@@ -351,6 +352,9 @@ export async function removeProjectWorktree(
   // dropping them closes their PTYs instead of leaving orphaned processes
   // pointing at a directory that no longer exists.
   useTerminalStore.getState().removeDirectory(worktree.path)
+  // Its Git state and repository summary describe a directory that no longer exists.
+  const removedWorktreePath = normalizeWorktreePath(worktree.path)
+  useGitStore.getState().removeDirectoriesMatching((directory) => normalizeWorktreePath(directory) === removedWorktreePath)
 
   invalidateWorktreeList(normalizeWorktreePath(project.path))
   // Removing a worktree changes the repo's worktree topology; drop cached root

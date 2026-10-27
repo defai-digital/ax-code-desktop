@@ -1642,9 +1642,7 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
       const identity = getProjectPathIdentityKey(project.path)
       if (registered.has(identity)) continue
       clearSnippetsDirectoryCache(project.path)
-      for (const directory of useGitStore.getState().directories.keys()) {
-        if (getProjectPathIdentityKey(directory) === identity) useGitStore.getState().removeDirectory(directory)
-      }
+      useGitStore.getState().removeDirectoriesMatching((directory) => getProjectPathIdentityKey(directory) === identity)
     }
   }), [])
 

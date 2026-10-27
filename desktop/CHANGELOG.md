@@ -7,6 +7,9 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Keep repository badges and branch labels for registered projects beyond the bounded Git working set, including projects evicted while their status read was in flight, without restoring the evicted working set.
+- Drop a removed project's or worktree's retained Git summary even when it had already left the working set.
+- Retry the Wiki graph reload for a revision whose silent reload failed instead of showing the previous graph until the next revision.
+- Wait for every Wiki viewer's export cleanup at shutdown when one cleanup fails.
 
 ## [7.30.2] - 2026-10-26
 

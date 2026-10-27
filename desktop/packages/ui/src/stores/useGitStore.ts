@@ -66,6 +66,9 @@ interface GitStore {
 
   setActiveDirectory: (directory: string | null) => void
   removeDirectory: (directory: string) => void
+  // Covers directories outside the working set too: an evicted project keeps a summary and may
+  // still have a status read in flight, and removing the project must revoke both.
+  removeDirectoriesMatching: (matches: (directory: string) => boolean) => void
   getDirectoryState: (directory: string) => DirectoryGitState | null
 
   fetchStatus: (directory: string, git: GitStoreAPI, options?: { silent?: boolean; mode?: "light" }) => Promise<boolean>
@@ -512,6 +515,14 @@ export const useGitStore = create<GitStore>()(
         const repoSummaries = new Map(get().repoSummaries)
         repoSummaries.delete(directory)
         set({ directories, repoSummaries, ...(get().activeDirectory === directory ? { activeDirectory: null } : {}) })
+      },
+
+      removeDirectoriesMatching: (matches) => {
+        const { directories, repoSummaries } = get()
+        const known = new Set([...directories.keys(), ...repoSummaries.keys(), ...evictedStatusRequestIds.keys()])
+        for (const directory of known) {
+          if (matches(directory)) get().removeDirectory(directory)
+        }
       },
 
       getDirectoryState: (directory) => {

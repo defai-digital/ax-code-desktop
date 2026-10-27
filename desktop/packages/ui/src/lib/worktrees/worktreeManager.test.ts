@@ -26,6 +26,7 @@ import { listProjectWorktrees, pruneExpiredWorktreeListEntries, removeProjectWor
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSessionWorktreeStore } from "@/sync/session-worktree-store"
 import { useTerminalStore } from "@/stores/useTerminalStore"
+import { useGitStore } from "@/stores/useGitStore"
 
 const entry = (at: number) => ({ value: [] as WorktreeMetadata[], at })
 
@@ -92,6 +93,18 @@ describe("removeProjectWorktree", () => {
     expect(removeDirectorySpy).toHaveBeenCalledWith(metadata.path)
     expect(useTerminalStore.getState().getDirectoryState(metadata.path)).toBeUndefined()
     removeDirectorySpy.mockRestore()
+  })
+
+  test("drops the removed worktree's Git state and repository summary", async () => {
+    useGitStore.setState({
+      repoSummaries: new Map([
+        ["/repo/.worktrees/feature", { isGitRepo: true, branch: "feature" }],
+        ["/repo", { isGitRepo: true, branch: "main" }],
+      ]),
+    })
+    await removeProjectWorktree(project, metadata, {})
+    expect(useGitStore.getState().repoSummaries.has("/repo/.worktrees/feature")).toBe(false)
+    expect(useGitStore.getState().repoSummaries.get("/repo")).toEqual({ isGitRepo: true, branch: "main" })
   })
 
   test("reports a remote branch it could not delete instead of claiming success", async () => {
