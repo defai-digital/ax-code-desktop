@@ -2,6 +2,7 @@ import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
+import rootPackage from "../package.json" with { type: "json" }
 import { buildShadowReleaseEvidence, parseArgs } from "./shadow-release-evidence.mjs"
 
 const temporaryDirectories = []
@@ -75,7 +76,7 @@ describe("shadow release evidence", () => {
       source: { repository: "defai-digital/ax-coder", commit: "f".repeat(40) },
       target: "darwin-arm64",
       publication: { electronBuilderMode: "never", publicReleaseEnabled: false },
-      versions: { desktop: "7.30.2", sdk: "2.6.53", runtime: "7.30.1" },
+      versions: { desktop: rootPackage.version, sdk: "2.6.53", runtime: "7.30.1" },
     })
     expect(JSON.stringify(evidence)).not.toContain("must-not-appear")
     expect(evidence.artifacts[0]).toMatchObject({
