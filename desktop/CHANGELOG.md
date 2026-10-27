@@ -4,8 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.3] - 2026-10-27
+
 ### Fixed
 
+- Ignore late Wiki reload failures from a previous project so they cannot exhaust the current project's retry budget.
+- Restore AX Trust provider setup and saved management metadata when the runtime catalog is empty.
+- Match Git commit lists to comparison statistics, accept discovered JPEG project icons, and persist new projects before icon discovery.
+- Refresh existing context tabs' editability, normalize Windows drive-letter identity, and preserve partial update-feed results.
+- Classify Wiki viewer export failures without exposing child-process output, and preserve maintenance status ordering.
 - Keep repository badges and branch labels for registered projects beyond the bounded Git working set, including projects evicted while their status read was in flight, without restoring the evicted working set.
 - Drop a removed project's or worktree's retained Git summary even when it had already left the working set.
 - Retry the Wiki graph reload for a revision whose silent reload failed instead of showing the previous graph until the next revision.

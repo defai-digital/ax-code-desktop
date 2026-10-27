@@ -187,6 +187,29 @@ describe("useWikiGraph revision reloads", () => {
 })
 
 describe("useWikiGraph bounded reload retries", () => {
+  test("a previous project's failed reload cannot consume the new project's retries", async () => {
+    let finishOldReload: (value: unknown) => void = () => {}
+    await render("/a")
+    wiki.visualization.mockReturnValueOnce(
+      new Promise((resolve) => {
+        finishOldReload = resolve
+      }),
+    )
+    await flushPoll()
+
+    await render("/b")
+    wiki.visualization.mockResolvedValue({ status: "error" })
+    await flushPoll()
+    const baseline = wiki.visualization.mock.calls.filter(([directory]) => directory === "/b").length
+    await act(async () => {
+      finishOldReload({ status: "error" })
+    })
+    for (let i = 0; i < 5; i++) await flushPoll()
+
+    const reads = wiki.visualization.mock.calls.filter(([directory]) => directory === "/b").length
+    expect(reads - baseline).toBe(2)
+  })
+
   test("a revision whose reload keeps failing stops refetching after the retry bound", async () => {
     await render("/repo")
     await flushPoll()

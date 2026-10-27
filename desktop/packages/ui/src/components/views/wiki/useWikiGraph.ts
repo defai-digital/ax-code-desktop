@@ -141,7 +141,11 @@ export function useWikiGraph(directory: string) {
           if (result.maintenance.revision !== revisionRef.current) {
             const revision = result.maintenance.revision
             revisionRef.current = revision
-            settleRevisionReload(revisionRef, reloadFailures, revision, await readVisualization(true))
+            const loaded = await readVisualization(true)
+            // A previous project's read can settle after the next poll chain resets the refs.
+            if (!stopped && activeScope.current === scope && write === maintenanceWrite.current) {
+              settleRevisionReload(revisionRef, reloadFailures, revision, loaded)
+            }
           }
         }
       } finally {
