@@ -45,3 +45,7 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.30.2 verified publication](RELEASE-2026-10-26-v7.30.2-publication.md)
 
 - [Missing AX Trust provider setup: root cause and repair](BUG-2026-10-26-ax-trust-provider.md)
+
+- [AX Wiki documentation contract and viewer export failure](WIKI-2026-10-26-ax-wiki-contract-and-viewer-export.md):
+  verified stale/false generated claims, the minimal `Invalid graph text` reproducer, Desktop maintenance/viewer
+  failure classification, and the separate runtime handoff.

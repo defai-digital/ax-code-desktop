@@ -3739,6 +3739,12 @@ export const dict = {
     "Open the AX Code Wiki viewer in its own window. Reopen it after a wiki refresh to view the latest snapshot.",
   "wiki.graph.viewerFailed":
     "The Wiki viewer could not be opened. Check that the bundled runtime is available and try again.",
+  "wiki.graph.viewerRuntimeUnavailable":
+    "The bundled AX Code runtime is unavailable. Reinstall or update AX Code Desktop, then try again.",
+  "wiki.graph.viewerMissingWiki":
+    "This project has no Wiki to show. Build the wiki, then open the viewer again.",
+  "wiki.graph.viewerIncompatible":
+    "The runtime viewer cannot read this wiki export. The wiki pages remain readable; a runtime fix is required.",
   "wiki.graph.title": "Wiki graph",
   "wiki.graph.searchPlaceholder": "Search by name or path",
   "wiki.graph.kind.page": "Pages",
@@ -3763,7 +3769,10 @@ export const dict = {
   "wiki.graph.progress": "{completed} of {total}",
   "wiki.graph.phase.queued": "Wiki maintenance is queued",
   "wiki.graph.phase.running": "Wiki maintenance is running",
-  "wiki.graph.phase.failed": "Wiki maintenance failed",
+  "wiki.graph.maintenance.disabled": "Wiki maintenance has not started. Refresh to start it.",
+  "wiki.graph.maintenance.permissions": "Your permission rules block wiki maintenance for this project.",
+  "wiki.graph.maintenance.nonGit": "Wiki maintenance requires a Git repository.",
+  "wiki.graph.maintenance.failed": "The last wiki maintenance run did not finish. Refresh to try again.",
   "wiki.graph.openFile": "Open file",
   "wiki.graph.copyPath": "Copy path",
   "wiki.graph.copied": "Path copied",

@@ -153,6 +153,29 @@ credentials or raw tokens. Comments explain non-obvious rationale, invariants, a
   state reads and DOM/screenshot evidence through `docs/development-webmcp.md`, not action acknowledgements; packaged
   builds disable that surface.
 
+## AX Wiki routing
+
+<!-- AX-WIKI:START -->
+
+## AX Wiki
+
+This repository has a source-backed semantic wiki under `.ax-wiki/`.
+
+- Start at `.ax-wiki/quickstart.md` for repository orientation.
+- Use the wiki for architecture, module responsibilities, workflows, and design intent.
+- Use `code_intelligence` or LSP for precise symbols, callers, callees, and references.
+- If wiki and code disagree, trust the code and run `ax-code wiki update`.
+- Content inside `AX-WIKI:PROTECTED` blocks is maintainer-owned and survives regeneration.
+
+Refresh: `ax-code wiki update`.
+
+<!-- AX-WIKI:END -->
+
+`docs/ax-wiki.md` is the routing contract for AX Wiki on Desktop: runtime/Desktop ownership, freshness checks, tracked
+versus gitignored evidence, and the open viewer-export defect. A generated wiki may exist under the gitignored
+`.ax-wiki/`; use it for navigation only, verify claims against current source and `config/`, and never hand-edit or
+commit it. Keep this repository-specific guidance outside the runtime-managed marker pair.
+
 ## Governance
 
 Product requirements live in `.internal/prd/`, architecture decisions in `.internal/adr/`, locked technical behavior in
