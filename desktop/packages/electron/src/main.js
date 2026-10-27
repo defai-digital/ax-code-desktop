@@ -1174,10 +1174,13 @@ const stopBackgroundServices = async ({ force = false } = {}) => {
   loginShellEnvCapture.cancel()
   // Revoke browser access while the runtime can still acknowledge enrollment
   // teardown. This also covers restart/update paths that bypass normal quit.
-  await Promise.allSettled([
+  const teardown = await Promise.allSettled([
     wikiViewer.closeAll(), stopServer(),
     ...(force && runtimeSupervision ? [runtimeSupervision.stop()] : []),
   ])
+  for (const result of teardown) {
+    if (result.status === "rejected") console.warn("[electron] shutdown teardown step failed:", result.reason)
+  }
   if (runtimeSupervision && !force) {
     await runtimeSupervision.stop().catch((error) => {
       console.error("[electron] failed to stop runtime supervision:", error)
