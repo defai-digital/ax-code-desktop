@@ -108,7 +108,14 @@ async function resolveDesktopUpdateFeed(options = {}) {
       const status = response ? `HTTP ${response.status}` : "no response"
       throw new Error(`Failed to list GitHub releases while resolving the desktop update feed (${status})`)
     }
-    const releases = await response.json()
+    let releases
+    try {
+      releases = await response.json()
+    } catch (error) {
+      // The body can still fail after the headers arrived (reset, timeout mid-stream).
+      if (bestTag) break
+      throw error
+    }
     const tag = latestDesktopReleaseTag(releases)
     if (tag) {
       // GitHub lists by creation time, not semver, so keep the highest tag

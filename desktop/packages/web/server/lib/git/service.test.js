@@ -31,6 +31,7 @@ import {
   getCommitPatch,
   getFileDiff,
   getGitBranchDiff,
+  getLog,
   getStatus,
   GIT_STATUS_CONTENT_ID_MAX_BYTES,
   GIT_STATUS_CONTENT_ID_MAX_FILES,
@@ -691,6 +692,32 @@ describe("getCommitPatch", () => {
   it("rejects an unknown commit", async () => {
     const { tmpDir } = await createTempRepo()
     await expect(getCommitPatch(tmpDir, "deadbeef")).rejects.toThrow()
+  })
+})
+
+describe("getLog range", () => {
+  it("lists only the head's commits when the base moved ahead", async () => {
+    const { tmpDir, git } = await createTempRepo()
+    const filePath = path.join(tmpDir, "file.txt")
+    await fs.promises.writeFile(filePath, "base\n", "utf8")
+    await git.add("file.txt")
+    await git.commit("Base commit")
+    await git.checkoutLocalBranch("feature")
+    for (const name of ["feature-1", "feature-2"]) {
+      await fs.promises.writeFile(path.join(tmpDir, `${name}.txt`), `${name}\n`, "utf8")
+      await git.add(`${name}.txt`)
+      await git.commit(`Add ${name}`)
+    }
+    await git.checkout("main")
+    for (const name of ["main-1", "main-2", "main-3"]) {
+      await fs.promises.writeFile(path.join(tmpDir, `${name}.txt`), `${name}\n`, "utf8")
+      await git.add(`${name}.txt`)
+      await git.commit(`Add ${name}`)
+    }
+
+    const log = await getLog(tmpDir, { from: "main", to: "feature" })
+    expect(log.all.map((entry) => entry.message)).toEqual(["Add feature-2", "Add feature-1"])
+    expect(log.all.every((entry) => entry.filesChanged === 1 && entry.insertions === 1)).toBe(true)
   })
 })
 

@@ -277,4 +277,45 @@ describe("project icon routes", () => {
     expect(searchFilesystemFiles).toHaveBeenCalledTimes(1)
     expect(deepScanRes.body.discoveredPath).toBe(path.join("/repo", "nested", "favicon.svg"))
   })
+
+  it("discovers a .jpeg favicon as image/jpeg", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    const jpegBytes = Buffer.from("jpeg-bytes")
+    const jpegPath = path.join("/repo", "favicon.jpeg")
+    const enoent = Object.assign(new Error("missing"), { code: "ENOENT" })
+    const fsPromises = {
+      stat: vi.fn(async (candidatePath) => {
+        if (candidatePath === jpegPath) return { isFile: () => true }
+        throw enoent
+      }),
+      readFile: vi.fn(async (candidatePath) => {
+        if (candidatePath === jpegPath) return jpegBytes
+        throw enoent
+      }),
+      mkdir: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined),
+      unlink: vi.fn(async () => undefined),
+    }
+    const persistSettings = vi.fn(async (changes) => changes)
+
+    registerProjectIconRoutes(app, {
+      fsPromises,
+      path,
+      crypto,
+      openchamberDataDir: "/tmp/openchamber-test",
+      sanitizeProjects: (projects) => projects,
+      readSettingsFromDiskMigrated: async () => ({ projects: [{ id: "proj-1", path: "/repo" }] }),
+      persistSettings,
+      createFsSearchRuntime: () => ({ searchFilesystemFiles: async () => [] }),
+      spawn: vi.fn(),
+      resolveGitBinaryForSpawn: vi.fn(),
+    })
+
+    const res = createMockResponse()
+    await getRoute("POST", "/api/projects/:projectId/icon/discover")({ params: { projectId: "proj-1" }, body: {} }, res)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body.discoveredPath).toBe(jpegPath)
+    expect(fsPromises.writeFile).toHaveBeenCalledWith(expect.stringMatching(/\.jpg$/), jpegBytes)
+  })
 })

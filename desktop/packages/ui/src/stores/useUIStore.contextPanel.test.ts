@@ -130,4 +130,17 @@ describe("useUIStore context panel", () => {
       diffFileLayout: { "src/index.ts": "inline" },
     })
   })
+
+  test("takes the read-only flag from the latest open of an existing tab", () => {
+    const directory = "/workspace/project"
+    const open = useUIStore.getState().openContextPanelTab
+
+    open(directory, { mode: "chat", dedupeKey: "session:a", label: "A", readOnly: true })
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs[0]?.readOnly).toBe(true)
+
+    open(directory, { mode: "chat", dedupeKey: "session:a", label: "A" })
+    const tabs = useUIStore.getState().contextPanelByDirectory[directory]?.tabs
+    expect(tabs).toHaveLength(1)
+    expect(tabs?.[0]?.readOnly).toBe(false)
+  })
 })

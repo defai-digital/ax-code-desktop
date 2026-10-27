@@ -20,9 +20,11 @@ export const registerProjectIconRoutes = (app, dependencies) => {
     "image/webp": "webp",
     "image/x-icon": "ico",
   }
-  const projectIconExtensionToMime = Object.fromEntries(
-    Object.entries(projectIconMimeToExtension).map(([mime, ext]) => [ext, mime]),
-  )
+  const projectIconExtensionToMime = {
+    ...Object.fromEntries(Object.entries(projectIconMimeToExtension).map(([mime, ext]) => [ext, mime])),
+    // Discovery also finds `favicon.jpeg`; the inverse map only knows the stored `jpg` spelling.
+    jpeg: "image/jpeg",
+  }
   const projectIconSupportedMimes = new Set(Object.keys(projectIconMimeToExtension))
   const projectIconMaxBytes = 5 * 1024 * 1024
   const projectIconThemeColors = {

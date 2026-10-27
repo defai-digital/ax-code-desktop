@@ -2,7 +2,12 @@ import { describe, expect, test } from "vitest"
 import type { ProjectEntry } from "@/lib/api/types"
 import type { WorktreeMetadata } from "@/types/worktree"
 
-import { projectPathIsInsideRoot, resolveProjectForDirectory, resolveProjectForSessionDirectory } from "./projectResolution"
+import {
+  projectPathIsInsideRoot,
+  projectPathMatchesRoot,
+  resolveProjectForDirectory,
+  resolveProjectForSessionDirectory,
+} from "./projectResolution"
 
 const project = (id: string, path: string): ProjectEntry => ({
   id,
@@ -125,5 +130,13 @@ describe("root-preserving path containment", () => {
     expect(projectPathIsInsideRoot("//server/share/../plans/one.md", "//server/share/plans")).toBe(true)
     expect(projectPathIsInsideRoot("//server/share/plans/../one.md", "//server/share/plans")).toBe(false)
     expect(projectPathIsInsideRoot("//server/other/plans/one.md", "//server/share/plans")).toBe(false)
+  })
+})
+
+describe("projectPathMatchesRoot", () => {
+  test("matches Windows paths whose drive letters differ only by case", () => {
+    expect(projectPathMatchesRoot("c:/Repo/src/a.ts", "C:/Repo")).toBe(true)
+    expect(projectPathMatchesRoot("C:/Repo/src/a.ts", "c:/Repo")).toBe(true)
+    expect(projectPathMatchesRoot("d:/Repo/src/a.ts", "C:/Repo")).toBe(false)
   })
 })

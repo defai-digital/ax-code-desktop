@@ -152,6 +152,27 @@ describe("resolveDesktopUpdateFeed", () => {
     expect(calls).toBe(2)
   })
 
+  test("keeps the first page's answer when a later page's body fails to read", async () => {
+    let calls = 0
+    const releases = Array.from({ length: 99 }, (_, index) => cliRelease(`7.9.${index}`))
+    releases.push(desktopRelease("7.9.12"))
+    const feed = await resolveDesktopUpdateFeed({
+      fetchImpl: async () => {
+        calls += 1
+        if (calls === 1) return jsonResponse(releases)
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error("body aborted")
+          },
+        }
+      },
+    })
+    expect(feed.tag).toBe("v7.9.12")
+    expect(calls).toBe(2)
+  })
+
   test("still prefers a higher desktop version found on a later page", async () => {
     const fullPage = Array.from({ length: 99 }, (_, index) => cliRelease(`7.9.${index}`))
     fullPage.push(desktopRelease("7.9.12"))

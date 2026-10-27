@@ -14,7 +14,7 @@ export const normalizeProjectPath = (value?: string | null): string | null => {
 }
 
 const toComparableProjectPath = (path: string): string =>
-  path.startsWith("//") || /^[A-Z]:\//.test(path) ? path.toLowerCase() : path
+  path.startsWith("//") || /^[A-Za-z]:\//.test(path) ? path.toLowerCase() : path
 
 export const getProjectPathIdentityKey = (value?: string | null): string | null => {
   const normalized = normalizeProjectPath(value)

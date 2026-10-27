@@ -10,13 +10,14 @@ vi.doMock("@/lib/ax-code/client", () => ({
 }))
 
 vi.doMock("@/lib/persistence", () => ({
-  updateDesktopSettings: vi.fn(),
+  updateDesktopSettings: vi.fn(async () => {}),
 }))
 
 vi.doMock("@/stores/utils/streamDebug", () => ({
   streamDebugEnabled: vi.fn(() => false),
 }))
 
+const { updateDesktopSettings } = await import("@/lib/persistence")
 const { useProjectsStore } = await import("./useProjectsStore")
 const { useDirectoryStore } = await import("./useDirectoryStore")
 
@@ -180,5 +181,44 @@ describe("useProjectsStore path identity", () => {
     useProjectsStore.getState().removeProject("b")
 
     expect(useDirectoryStore.getState().currentDirectory).toBe("/a/wt")
+  })
+})
+
+describe("useProjectsStore icon discovery", () => {
+  beforeEach(() => {
+    useProjectsStore.setState({ projects: [], activeProjectId: null })
+  })
+
+  const isDiscoverCall = (call: unknown[]) => String(call[0]).includes("/icon/discover")
+
+  test("waits for the new project to reach the server before discovering its icon", async () => {
+    let finishSave: () => void = () => {}
+    vi.mocked(updateDesktopSettings).mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishSave = resolve
+        }),
+    )
+    const fetchMock = vi.fn(async () => jsonResponse({ skipped: true }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    useProjectsStore.getState().addProject("/Users/Alice/Repo")
+    await Promise.resolve()
+    expect(fetchMock.mock.calls.some(isDiscoverCall)).toBe(false)
+
+    finishSave()
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(isDiscoverCall)).toBe(true))
+  })
+
+  test("skips discovery when the project list could not be saved", async () => {
+    vi.mocked(updateDesktopSettings).mockImplementationOnce(async () => {
+      throw new Error("save failed")
+    })
+    const fetchMock = vi.fn(async () => jsonResponse({ skipped: true }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    useProjectsStore.getState().addProject("/Users/Alice/Other")
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fetchMock.mock.calls.some(isDiscoverCall)).toBe(false)
   })
 })

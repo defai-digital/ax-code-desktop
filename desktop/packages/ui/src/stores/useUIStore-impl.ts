@@ -379,6 +379,7 @@ const upsertContextPanelTab = (
                 dedupeKey: nextTab.dedupeKey,
                 label: nextTab.label,
                 stagedDiff: nextTab.stagedDiff,
+                readOnly: nextTab.readOnly,
                 touchedAt: Date.now(),
               }
             : tab,

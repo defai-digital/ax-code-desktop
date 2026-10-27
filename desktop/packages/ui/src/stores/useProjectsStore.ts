@@ -293,9 +293,18 @@ const cacheProjects = (projects: ProjectEntry[], activeProjectId: string | null)
 
 const projectListKey = (projects: ProjectEntry[]): string => JSON.stringify(projects)
 
+// Settles when the latest project list reached the server. Icon discovery looks the project up in
+// the server's settings, so a new project must wait for this instead of racing the debounced save.
+let projectsPersisted: Promise<void> = Promise.resolve()
+
 const persistProjects = (projects: ProjectEntry[], activeProjectId: string | null) => {
   cacheProjects(projects, activeProjectId)
-  void updateDesktopSettings({ projects, activeProjectId: activeProjectId ?? undefined })
+  projectsPersisted = updateDesktopSettings({ projects, activeProjectId: activeProjectId ?? undefined })
+}
+
+const discoverIconAfterPersist = (discover: () => Promise<unknown>) => {
+  // A failed save leaves the server without the project; discovery would only answer 404.
+  void projectsPersisted.then(discover, () => {})
 }
 
 const initialProjects = readPersistedProjects()
@@ -363,7 +372,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         }
 
         get().setActiveProject(entry.id)
-        void get().discoverProjectIcon(entry.id)
+        discoverIconAfterPersist(() => get().discoverProjectIcon(entry.id))
         return entry
       },
 
@@ -433,7 +442,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         }
 
         for (const entry of added) {
-          void get().discoverProjectIcon(entry.id)
+          discoverIconAfterPersist(() => get().discoverProjectIcon(entry.id))
         }
 
         return added

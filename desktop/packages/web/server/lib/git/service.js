@@ -4590,10 +4590,13 @@ export async function getLog(directory, options = {}) {
     }
     const resolvedFrom = await resolveBaseRefForLog(options.from, checkRef)
 
+    // simple-git builds a symmetric `from...to` range by default; the stats command below
+    // uses `from..to`, so commits only on the base would be listed with zero stats.
     const baseLog = await git.log({
       maxCount,
       from: resolvedFrom,
       to: options.to,
+      symmetric: false,
       file: filePath,
     })
 

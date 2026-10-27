@@ -12,7 +12,7 @@ vi.doMock("@/lib/ax-code/client", () => ({
 }))
 
 vi.doMock("@/lib/persistence", () => ({
-  updateDesktopSettings: vi.fn(),
+  updateDesktopSettings: vi.fn(async () => {}),
 }))
 
 vi.doMock("@/stores/utils/streamDebug", () => ({
