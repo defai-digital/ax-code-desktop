@@ -55,3 +55,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [AkiTTY Web source migration](AKITTY-WEB-2026-10-30-source-migration.md): pinned canonical source import and validation evidence.
 
 - [AX Code Desktop 7.30.4 publication](RELEASE-2026-10-30-v7.30.4-publication.md): canonical AkiTTY Web, three fixes and verified four-platform publication.
+
+- [Desktop v7.30.5 verified publication](RELEASE-2026-10-30-v7.30.5-publication.md)
