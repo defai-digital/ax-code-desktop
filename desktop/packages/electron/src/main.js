@@ -28,6 +28,7 @@ const fs = require("fs")
 const fsp = require("fs/promises")
 const { execFile, spawn, spawnSync } = require("child_process")
 const { runOpenSpecChain } = require("./open-app-launcher")
+const { buildOpenFileSpecs, buildOpenProjectSpecs } = require("./open-app-specs")
 const { promisify } = require("util")
 const { createWikiViewer } = require("./wiki-viewer")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
@@ -1891,24 +1892,6 @@ const buildInstalledApps = async (apps) => {
   return resolved.filter(Boolean)
 }
 
-const JETBRAINS_APP_IDS = new Set([
-  "pycharm",
-  "intellij",
-  "webstorm",
-  "phpstorm",
-  "rider",
-  "rustrover",
-  "android-studio",
-])
-
-const CLI_BY_APP_ID = {
-  vscode: "code",
-  cursor: "cursor",
-  vscodium: "codium",
-  windsurf: "windsurf",
-  zed: "zed",
-}
-
 const WINDOWS_CLI_BY_APP_ID = {
   vscode: "code.cmd",
   cursor: "cursor.cmd",
@@ -2170,32 +2153,6 @@ const buildWindowsOpenFileSpecs = ({ filePath, appId, appName }) => {
     return buildWindowsOpenProjectSpecs({ projectPath: path.dirname(filePath), appId, appName })
   }
   return buildWindowsOpenProjectSpecs({ projectPath: filePath, appId, appName })
-}
-
-const buildOpenProjectSpecs = ({ projectPath, appId, appName }) => {
-  if (appId === "finder") return [{ program: "open", args: [projectPath] }]
-  if (appId === "terminal" || appId === "iterm2" || appId === "ghostty") {
-    return [{ program: "open", args: ["-a", appName, projectPath] }]
-  }
-  const specs = []
-  const cli = CLI_BY_APP_ID[appId]
-  if (cli) specs.push({ program: cli, args: ["-n", projectPath] })
-  if (JETBRAINS_APP_IDS.has(appId)) specs.push({ program: "open", args: ["-na", appName, "--args", projectPath] })
-  specs.push({ program: "open", args: ["-a", appName, projectPath] })
-  return specs
-}
-
-const buildOpenFileSpecs = ({ filePath, appId, appName }) => {
-  if (appId === "finder") return [{ program: "open", args: ["-R", filePath] }]
-  if (appId === "terminal" || appId === "iterm2" || appId === "ghostty") {
-    return buildOpenProjectSpecs({ projectPath: path.dirname(filePath), appId, appName })
-  }
-  const specs = []
-  const cli = CLI_BY_APP_ID[appId]
-  if (cli) specs.push({ program: cli, args: ["-n", filePath] })
-  if (JETBRAINS_APP_IDS.has(appId)) specs.push({ program: "open", args: ["-na", appName, "--args", filePath] })
-  specs.push({ program: "open", args: ["-a", appName, filePath] })
-  return specs
 }
 
 const quoteWindowsCommandArg = (value) => `"${String(value).replace(/"/g, '""')}"`

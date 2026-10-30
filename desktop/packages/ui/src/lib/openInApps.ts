@@ -9,6 +9,8 @@ export const OPEN_IN_APPS: OpenInApp[] = [
   { id: "terminal", label: "Terminal", appName: "Terminal" },
   { id: "iterm2", label: "iTerm2", appName: "iTerm" },
   { id: "ghostty", label: "Ghostty", appName: "Ghostty" },
+  // The bundle is Akitty.app; installed-app lookup matches that exact basename.
+  { id: "akitty", label: "AkiTTY", appName: "Akitty" },
   { id: "intellij", label: "IntelliJ", appName: "IntelliJ IDEA" },
   { id: "vscode", label: "VS Code", appName: "Visual Studio Code" },
   { id: "vscodium", label: "VSCodium", appName: "VSCodium" },
