@@ -6,7 +6,6 @@ catalog:
   "@types/node": "26.6.5"
   "electron-builder": "26.15.3"
   "fast-glob": "3.3.3"
-  "ghostty-web": "0.4.0"
   "resedit": "1.7.2"
   "typescript": "5.9.3"
 

@@ -1,0 +1,26 @@
+{
+  "name": "@ax-code/ghostty-web",
+  "version": "0.4.0-ax.1",
+  "private": true,
+  "description": "AX Code Desktop's maintained copy of ghostty-web (coder/ghostty-web v0.4.0), a canvas terminal over Ghostty's VT parser compiled to WebAssembly",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./types/index.d.ts",
+      "default": "./lib/index.ts"
+    },
+    "./ghostty-vt.wasm": "./ghostty-vt.wasm"
+  },
+  "scripts": {
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "build:wasm": "bash scripts/build-wasm.sh"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "happy-dom": "21.0.3",
+    "typescript": "catalog:",
+    "vitest": "4.1.12"
+  }
+}

@@ -56,7 +56,7 @@ describe("TerminalView source guards", () => {
       readFile(viteConfigPath, "utf8"),
     ])
 
-    expect(viteConfigSource).toContain('requireFromUi.resolve("ghostty-web/ghostty-vt.wasm")')
+    expect(viteConfigSource).toContain('requireFromUi.resolve("@ax-code/ghostty-web/ghostty-vt.wasm")')
     expect(viteConfigSource).toContain('fileName: "ghostty-vt.wasm"')
     expect(viteConfigSource).toContain('server.middlewares.use("/ghostty-vt.wasm"')
     expect(terminalViewportSource).toContain("onInitializeError")
