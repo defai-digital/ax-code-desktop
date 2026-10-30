@@ -1,7 +1,7 @@
 import * as releasePolicy from "./release-policy.mjs"
 import { describe, it, expect, vi } from "vitest"
 import fs from "node:fs"
-import { assertRouteOwnership, validateConfig, ROUTE } from "../.internal/deploy/cloudflare.mjs"
+import { assertRouteOwnership, validateConfig, checkPublic, ROUTE } from "../.internal/deploy/cloudflare.mjs"
 const config = () =>
   JSON.parse(fs.readFileSync(new URL("../.internal/deploy/download-worker/wrangler.jsonc", import.meta.url), "utf8"))
 describe("Desktop gateway operator boundaries", () => {
@@ -106,4 +106,26 @@ it("keeps serving enabled only after private and anonymous bytes both match", as
     check: async () => {},
   })
   expect(deployments).toEqual(["true"])
+})
+
+it("checks the current CLI installer even after a historical release disappears", async () => {
+  const fetcher = vi.fn(async (url) => {
+    if (
+      url === "https://download.automatosx.com/ax-code-desktop/install" ||
+      url === "https://download.automatosx.com/ax-code/install"
+    )
+      return new Response("installer".repeat(20))
+    return new Response("Not found", { status: 404 })
+  })
+  await expect(checkPublic(true, fetcher)).resolves.toBeUndefined()
+  expect(fetcher).toHaveBeenCalledTimes(2)
+})
+
+it("rejects an unavailable current CLI installer", async () => {
+  const fetcher = vi.fn(async (url) =>
+    url.includes("/ax-code-desktop/")
+      ? new Response("installer".repeat(20))
+      : new Response("Unavailable", { status: 503 }),
+  )
+  await expect(checkPublic(true, fetcher)).rejects.toThrow("Existing AX Code installer is unavailable")
 })

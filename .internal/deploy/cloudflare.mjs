@@ -109,8 +109,8 @@ async function inspect(api) {
   return { route, domain, publicEnabled, bucket: buckets.buckets.some((item) => item.name === BUCKET) }
 }
 
-async function checkPublic(publicEnabled = false) {
-  const response = await fetch("https://download.automatosx.com/ax-code-desktop/install", {
+export async function checkPublic(publicEnabled = false, fetcher = fetch) {
+  const response = await fetcher("https://download.automatosx.com/ax-code-desktop/install", {
     signal: AbortSignal.timeout(30000),
   })
   const body = await response.text()
@@ -120,7 +120,7 @@ async function checkPublic(publicEnabled = false) {
       : response.status === 503 && body.includes("Desktop public release is not enabled"),
     "Desktop gateway does not match its configured publication state",
   )
-  const cli = await fetch("https://download.automatosx.com/ax-code/releases/download/v7.24.4/install", {
+  const cli = await fetcher("https://download.automatosx.com/ax-code/install", {
     signal: AbortSignal.timeout(30000),
   })
   requireCondition(cli.ok && (await cli.text()).length > 100, "Existing AX Code installer is unavailable")
