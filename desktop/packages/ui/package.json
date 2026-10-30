@@ -20,7 +20,7 @@
     "icons:sprite": "node ../../scripts/generate-icon-sprite.mjs"
   },
   "dependencies": {
-    "@ax-code/ghostty-web": "workspace:*",
+    "@ax-code/akitty-web": "workspace:*",
     "@base-ui/react": "^1.9.0",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.1",

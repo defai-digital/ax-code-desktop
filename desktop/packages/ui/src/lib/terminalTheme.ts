@@ -1,4 +1,4 @@
-import type { Ghostty } from "@ax-code/ghostty-web"
+import type { Ghostty } from "@ax-code/akitty-web"
 import type { Theme } from "@/types/theme"
 
 export interface TerminalTheme {

@@ -108,6 +108,21 @@ importers:
         specifier: 4.1.12
         version: 4.1.12(@types/node@26.6.5)(happy-dom@21.0.3)(jsdom@27.4.0(@noble/hashes@2.4.0))(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.4)(yaml@2.9.1))
 
+  desktop/packages/akitty-web:
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      happy-dom:
+        specifier: 21.0.3
+        version: 21.0.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 4.1.12
+        version: 4.1.12(@types/node@26.6.5)(happy-dom@21.0.3)(jsdom@27.4.0(@noble/hashes@2.4.0))(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
+
   desktop/packages/electron:
     dependencies:
       '@defai-digital/ax-code-sdk':
@@ -139,26 +154,11 @@ importers:
         specifier: 'catalog:'
         version: 1.7.2
 
-  desktop/packages/ghostty-web:
-    devDependencies:
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      happy-dom:
-        specifier: 21.0.3
-        version: 21.0.3
-      typescript:
-        specifier: 'catalog:'
-        version: 5.9.3
-      vitest:
-        specifier: 4.1.12
-        version: 4.1.12(@types/node@26.6.5)(happy-dom@21.0.3)(jsdom@27.4.0(@noble/hashes@2.4.0))(vite@7.3.7(@types/node@26.6.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.15)(yaml@2.9.1))
-
   desktop/packages/ui:
     dependencies:
-      '@ax-code/ghostty-web':
+      '@ax-code/akitty-web':
         specifier: workspace:*
-        version: link:../ghostty-web
+        version: link:../akitty-web
       '@base-ui/react':
         specifier: ^1.9.0
         version: 1.9.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

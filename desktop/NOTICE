@@ -35,8 +35,8 @@ widgets because this project includes derived code. Those accounts are credited
 for upstream work and are not necessarily maintainers of, or direct contributors
 to, AX Code Desktop.
 
-The terminal emulator package at desktop/packages/ghostty-web is a maintained copy
-of ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
+The terminal emulator package at desktop/packages/akitty-web (AkiTTY Web) is
+derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
 Copyright (c) 2025 Coder, under the MIT License. Its ghostty-vt.wasm is compiled
 from Ghostty (https://github.com/ghostty-org/ghostty, commit 5714ed0), Copyright
 (c) 2024 Mitchell Hashimoto, Ghostty contributors, under the MIT License. Both

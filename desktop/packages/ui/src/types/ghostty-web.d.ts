@@ -1,6 +1,6 @@
 export {}
 
-declare module "@ax-code/ghostty-web" {
+declare module "@ax-code/akitty-web" {
   export interface ITerminalOptions {
     lineHeight?: number
   }

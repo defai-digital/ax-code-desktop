@@ -1,6 +1,6 @@
 import React from "react"
 import { createPortal } from "react-dom"
-import { Terminal as GhosttyTerminal, FitAddon } from "@ax-code/ghostty-web"
+import { Terminal as GhosttyTerminal, FitAddon } from "@ax-code/akitty-web"
 
 import type { TerminalTheme } from "@/lib/terminalTheme"
 import { getGhosttyTerminalOptions } from "@/lib/terminalTheme"

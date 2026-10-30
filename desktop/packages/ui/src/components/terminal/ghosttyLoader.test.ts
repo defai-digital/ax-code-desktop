@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const load = vi.fn()
 
-vi.doMock("@ax-code/ghostty-web", () => ({
+vi.doMock("@ax-code/akitty-web", () => ({
   Ghostty: { load },
 }))
 

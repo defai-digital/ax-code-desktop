@@ -53,7 +53,7 @@ function isHighRiskBuildWarning(warning: unknown): boolean {
 function ghosttyWasmAssetPlugin(): Plugin {
   // TerminalViewport loads this file at runtime rather than importing it, so
   // Vite cannot discover and emit it as part of the normal module graph.
-  const ghosttyWasmPath = requireFromUi.resolve("@ax-code/ghostty-web/ghostty-vt.wasm")
+  const ghosttyWasmPath = requireFromUi.resolve("@ax-code/akitty-web/ghostty-vt.wasm")
   const readWasm = () => readFileSync(ghosttyWasmPath)
 
   return {

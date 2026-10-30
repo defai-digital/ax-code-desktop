@@ -1,6 +1,7 @@
-# @ax-code/ghostty-web upstream record
+# @ax-code/akitty-web upstream record
 
-AX Code Desktop maintains this copy of ghostty-web itself (ADR-023). This file records where every part came from and
+AkiTTY Web is AX Code Desktop's in-app terminal emulator, part of the AkiTTY project and derived from ghostty-web
+(ADR-023). This file records where every part came from and
 what was changed, so a later sync can be reviewed as a diff against upstream.
 
 ## Baseline
@@ -21,7 +22,7 @@ upstream build from the pins above; a rebuilt file has not yet been compared byt
 
 `lib/` and the patch are byte-identical to the baseline. Everything else is Desktop-owned:
 
-- `package.json`: renamed to `@ax-code/ghostty-web`, private, and exports the TypeScript source (`lib/index.ts`) instead of
+- `package.json`: renamed to `@ax-code/akitty-web`, private, and exports the TypeScript source (`lib/index.ts`) instead of
   a prebuilt bundle, so the renderer build compiles it. The npm bundle inlined the wasm as a `data:` URL; the source
   build does not, which removed about 565 KB from the renderer's terminal chunk.
 - `tsconfig.json`, `types/runtime-globals.d.ts`: type-check without `bun-types`.
@@ -39,7 +40,7 @@ Record every future modification of `lib/` or the patch here, with the reason.
 1. Diff the upstream range against the baseline commit and review each commit; take fixes deliberately rather than
    copying the whole tree.
 2. Apply the chosen changes to `lib/` and, when the wasm API changes, to the patch.
-3. If the patch or Ghostty pin changed, run `pnpm --dir desktop/packages/ghostty-web run build:wasm` and record the new
+3. If the patch or Ghostty pin changed, run `pnpm --dir desktop/packages/akitty-web run build:wasm` and record the new
    sha256 above.
 4. Run this package's `type-check` and `test`, the UI terminal tests, and `pnpm run build`.
 5. Update the baseline table, this package's version (`0.4.0-ax.N`), and the NOTICE entries.

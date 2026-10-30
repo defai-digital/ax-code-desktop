@@ -34,8 +34,8 @@ beside that file as symbols-nerd-font-mono.LICENSE and
 symbols-nerd-font-mono.README.md. The README lists the icon-set licenses,
 including Apache-2.0, CC BY 4.0, MIT, and OFL 1.1.
 
-The terminal emulator package at desktop/packages/ghostty-web is a maintained copy
-of ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
+The terminal emulator package at desktop/packages/akitty-web (AkiTTY Web) is
+derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
 Copyright (c) 2025 Coder, under the MIT License. Its ghostty-vt.wasm is compiled
 from Ghostty (https://github.com/ghostty-org/ghostty, commit 5714ed0), Copyright
 (c) 2024 Mitchell Hashimoto, Ghostty contributors, under the MIT License. Both

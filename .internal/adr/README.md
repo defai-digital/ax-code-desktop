@@ -26,7 +26,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-019: Typed desktop IPC contract](ADR-019-typed-desktop-ipc-contract.md) | Active; contract-declared argument schemas, central validation, generated renderer types; migration incremental |
 | [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; the paired AX Code ADR-260 shipped in 7.27.7 and the migration spec is accepted |
 | [ADR-022: SDK from GitHub Packages](ADR-022-ax-code-sdk-from-github-packages.md) | Active; supersedes ADR-001 D1 and D3; exact SDK from `npm.pkg.github.com`, no credential in the repository, producer-first cutover |
-| [ADR-023: Maintained ghostty-web](ADR-023-maintained-ghostty-web-terminal.md) | Active; Desktop owns a copy of ghostty-web v0.4.0 as `@ax-code/ghostty-web` with recorded wasm provenance |
+| [ADR-023: Maintained ghostty-web](ADR-023-maintained-ghostty-web-terminal.md) | Active; Desktop owns a copy of ghostty-web v0.4.0, renamed AkiTTY Web (`@ax-code/akitty-web`) by its 2026-10-29 amendment |
 
 ## Open producer proposals
 

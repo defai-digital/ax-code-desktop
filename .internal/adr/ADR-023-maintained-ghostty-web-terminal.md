@@ -52,3 +52,10 @@ governance).
 - The renderer no longer ships the npm bundle's inline base64 wasm, which shrank the terminal chunk by about 565 KB.
 - The runtime monkey-patches in `TerminalViewport.tsx` can now become supported options in the package; that is
   follow-up work, not part of this decision.
+
+## Amendment 2026-10-29 — AkiTTY Web naming
+
+By maintainer instruction the package is renamed to `desktop/packages/akitty-web` (`@ax-code/akitty-web`, "AkiTTY Web")
+to place it under the AkiTTY project (`defai-digital/akitty`). D1 to D4 are unchanged: Desktop still owns the source,
+the baseline is still ghostty-web v0.4.0 over the Ghostty VT wasm, and provenance stays in the package's `UPSTREAM.md`.
+AkiTTY's native macOS app (Rust core, Swift interface) is a separate product and is not embedded in Desktop.
