@@ -22,3 +22,25 @@ describe("buildPastedInput", () => {
     expect(stripBracketedPasteMarkers("a\x1b[200~b\x1b[201~c\u009b201~d")).toBe("abcd")
   })
 })
+
+describe("nested bracketed paste markers", () => {
+  test.each(["\x1b[200~", "\x1b[201~", "\x9b200~", "\x9b201~"])(
+    "does not reconstruct %j after removing an inner marker",
+    (marker) => {
+      const nested = `${marker.slice(0, -2)}\x1b[201~${marker.slice(-2)}`
+      expect(stripBracketedPasteMarkers(`before${nested}after`)).toBe("beforeafter")
+      expect(buildPastedInput(`${nested}\ncommand\n`, true)).toBe("\x1b[200~\ncommand\n\x1b[201~")
+      expect(buildPastedInput(nested, false)).toBe(nested)
+    },
+  )
+
+  test("reduces deeply nested mixed markers without losing ordinary Unicode text", () => {
+    const nested = "\x1b[20".repeat(10_000) + "\x9b201~" + "1~".repeat(10_000)
+    expect(stripBracketedPasteMarkers(`cafe\u0301 ${nested}👩‍👧 漢字`)).toBe("cafe\u0301 👩‍👧 漢字")
+  })
+
+  test("preserves unrelated escape sequences and incomplete markers", () => {
+    const text = "\x1b[31mred\x1b[0m \x1b[20 \x9b201"
+    expect(stripBracketedPasteMarkers(text)).toBe(text)
+  })
+})
