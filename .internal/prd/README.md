@@ -1,5 +1,7 @@
 # AX Code Desktop PRD index
 
+Current terminal source: [PRD-2026-10-30-akitty-web-source-v1](PRD-2026-10-30-akitty-web-source-v1.md).
+
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status below distinguishes active requirements from historical implementation descriptions. Accepted records retain their original wording; later decisions control only their stated superseded clauses.
 
 ## Active and deferred requirements

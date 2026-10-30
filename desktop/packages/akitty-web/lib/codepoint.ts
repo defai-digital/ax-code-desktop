@@ -2,8 +2,7 @@
  * Codepoint guards for cell text.
  *
  * The wasm reports raw cell codepoints. A value above U+10FFFF or a lone surrogate makes String.fromCodePoint throw a
- * RangeError, which aborted the whole frame (or selection copy) instead of showing one blank cell. AkiTTY Web local
- * change; see UPSTREAM.md.
+ * RangeError, which aborted the whole frame (or selection copy) instead of showing one blank cell.
  */
 
 export function isRenderableCodepoint(codepoint: number | null | undefined): codepoint is number {

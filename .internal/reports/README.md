@@ -51,3 +51,5 @@ Existing standalone reports and historical evidence packages remain in their ori
   failure classification, and the separate runtime handoff.
 
 - [Desktop v7.30.3 verified publication](RELEASE-2026-10-27-v7.30.3-publication.md)
+
+- [AkiTTY Web source migration](AKITTY-WEB-2026-10-30-source-migration.md): pinned canonical source import and validation evidence.

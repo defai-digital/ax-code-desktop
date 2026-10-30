@@ -1,5 +1,5 @@
 /**
- * Test Helpers for ghostty-web
+ * Test helpers for akitty-web
  *
  * Provides utilities for test isolation and setup.
  */

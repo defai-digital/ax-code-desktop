@@ -155,7 +155,7 @@ describe('URL Detection', () => {
   });
 
   test('does not detect file paths', async () => {
-    const links = await getLinks('/home/user/file.txt');
+    const links = await getLinks('/tmp/example/file.txt');
     expect(links).toBeUndefined();
   });
 

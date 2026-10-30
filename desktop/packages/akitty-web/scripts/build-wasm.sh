@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Rebuilds ghostty-vt.wasm from the pinned Ghostty commit plus patches/ghostty-wasm-api.patch.
 #
-# Adapted from upstream coder/ghostty-web scripts/build-wasm.sh. Upstream builds inside a git submodule; this package
-# does not vendor Ghostty, so the pinned commit is fetched into a temporary directory instead. The pins live in
-# UPSTREAM.md and must change together with the patch and the committed wasm.
+# Originally adapted from coder/ghostty-web scripts/build-wasm.sh. This package does not vendor Ghostty, so the pinned
+# commit is fetched into a temporary directory. The pins live in PROVENANCE.md and must change together with the patch
+# and the committed wasm.
 set -euo pipefail
 
 GHOSTTY_REPOSITORY="https://github.com/ghostty-org/ghostty.git"

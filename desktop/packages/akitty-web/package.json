@@ -1,8 +1,8 @@
 {
   "name": "@ax-code/akitty-web",
-  "version": "0.4.0-ax.2",
+  "version": "0.5.0",
   "private": true,
-  "description": "AkiTTY Web: AX Code Desktop's in-app canvas terminal, derived from coder/ghostty-web v0.4.0, over Ghostty's VT parser compiled to WebAssembly",
+  "description": "AkiTTY Web: AX Code Desktop's in-app canvas terminal, a canvas terminal over Ghostty's VT parser compiled to WebAssembly",
   "license": "MIT",
   "type": "module",
   "exports": {
@@ -13,13 +13,13 @@
     "./ghostty-vt.wasm": "./ghostty-vt.wasm"
   },
   "scripts": {
-    "type-check": "tsc --noEmit",
+    "type-check": "node scripts/verify-source.mjs && tsc --noEmit",
     "test": "vitest run",
     "build:wasm": "bash scripts/build-wasm.sh"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "happy-dom": "21.0.3",
+    "happy-dom": "21.0.4",
     "typescript": "catalog:",
     "vitest": "4.1.12"
   }

@@ -1,5 +1,5 @@
 /**
- * Vitest setup for the vendored ghostty-web tests.
+ * Vitest setup for the akitty-web tests.
  *
  * Derived from upstream happydom.ts. Upstream preloads Happy DOM under Bun; here Vitest provides the same DOM through
  * its happy-dom environment (see vitest.config.ts), so only the canvas mock is kept.

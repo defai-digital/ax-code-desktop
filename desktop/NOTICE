@@ -36,12 +36,13 @@ for upstream work and are not necessarily maintainers of, or direct contributors
 to, AX Code Desktop.
 
 The terminal emulator package at desktop/packages/akitty-web (AkiTTY Web) is
-derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
+imported from defai-digital/akitty 0.5.0 (commit d7f23f54c236515ec4c325ba838517b5ec29d632),
+https://github.com/defai-digital/akitty, originally derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
 Copyright (c) 2025 Coder, under the MIT License. Its ghostty-vt.wasm is compiled
 from Ghostty (https://github.com/ghostty-org/ghostty, commit 5714ed0), Copyright
 (c) 2024 Mitchell Hashimoto, Ghostty contributors, under the MIT License. Both
-license texts ship in that directory as LICENSE and LICENSE-GHOSTTY; local
-modifications are listed in its UPSTREAM.md.
+license texts ship in that directory as LICENSE and LICENSE-GHOSTTY; source
+identity is recorded in SOURCE.json and UPSTREAM.md; original provenance is in PROVENANCE.md.
 
 See LICENSE for the full text of the Apache License, Version 2.0, and LICENSE-MIT
 for the MIT License as it applies to the OpenChamber-derived portions of this

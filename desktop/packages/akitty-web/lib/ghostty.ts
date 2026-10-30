@@ -269,6 +269,15 @@ export class GhosttyTerminal {
   /** Cell pool for zero-allocation rendering */
   private cellPool: GhosttyCell[] = [];
 
+  /** True while cellPool holds the current viewport; cleared by anything that can change it (write, resize). */
+  private viewportValid = false;
+
+  /** Reusable wasm buffer that write() encodes into, so a write does not allocate in wasm memory. */
+  private writeBufferPtr: number = 0;
+  private writeBufferSize: number = 0;
+  private static readonly WRITE_BUFFER_MAX = 1 << 20;
+  private static readonly encoder = new TextEncoder();
+
   constructor(
     exports: GhosttyWasmExports,
     memory: WebAssembly.Memory,
@@ -341,23 +350,69 @@ export class GhosttyTerminal {
   // ==========================================================================
 
   write(data: string | Uint8Array): void {
-    const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : data;
-    const ptr = this.exports.ghostty_wasm_alloc_u8_array(bytes.length);
-    new Uint8Array(this.memory.buffer).set(bytes, ptr);
-    this.exports.ghostty_terminal_write(this.handle, ptr, bytes.length);
-    this.exports.ghostty_wasm_free_u8_array(ptr, bytes.length);
+    this.viewportValid = false;
+    const maxBuffered = GhosttyTerminal.WRITE_BUFFER_MAX;
+
+    if (typeof data === 'string') {
+      // UTF-8 needs at most 3 bytes per UTF-16 unit, so encode straight into the reusable wasm buffer.
+      const capacity = data.length * 3;
+      if (capacity === 0) return;
+      if (capacity <= maxBuffered) {
+        const ptr = this.ensureWriteBuffer(capacity);
+        const target = new Uint8Array(this.memory.buffer, ptr, capacity);
+        const { written } = GhosttyTerminal.encoder.encodeInto(data, target);
+        this.exports.ghostty_terminal_write(this.handle, ptr, written);
+        return;
+      }
+      data = GhosttyTerminal.encoder.encode(data);
+    }
+
+    const length = data.length;
+    if (length === 0) return;
+    if (length <= maxBuffered) {
+      const ptr = this.ensureWriteBuffer(length);
+      new Uint8Array(this.memory.buffer, ptr, length).set(data);
+      this.exports.ghostty_terminal_write(this.handle, ptr, length);
+      return;
+    }
+
+    // Rare very large write: use a one-off allocation rather than pinning a large buffer.
+    const ptr = this.exports.ghostty_wasm_alloc_u8_array(length);
+    new Uint8Array(this.memory.buffer, ptr, length).set(data);
+    this.exports.ghostty_terminal_write(this.handle, ptr, length);
+    this.exports.ghostty_wasm_free_u8_array(ptr, length);
+  }
+
+  private ensureWriteBuffer(needed: number): number {
+    if (this.writeBufferPtr && this.writeBufferSize >= needed) return this.writeBufferPtr;
+    if (this.writeBufferPtr) {
+      this.exports.ghostty_wasm_free_u8_array(this.writeBufferPtr, this.writeBufferSize);
+    }
+    const size = Math.min(
+      GhosttyTerminal.WRITE_BUFFER_MAX,
+      Math.max(needed, this.writeBufferSize * 2, 4096)
+    );
+    this.writeBufferPtr = this.exports.ghostty_wasm_alloc_u8_array(size);
+    this.writeBufferSize = size;
+    return this.writeBufferPtr;
   }
 
   resize(cols: number, rows: number): void {
     if (cols === this._cols && rows === this._rows) return;
     this._cols = cols;
     this._rows = rows;
+    this.viewportValid = false;
     this.exports.ghostty_terminal_resize(this.handle, cols, rows);
     this.invalidateBuffers();
     this.initCellPool();
   }
 
   free(): void {
+    if (this.writeBufferPtr) {
+      this.exports.ghostty_wasm_free_u8_array(this.writeBufferPtr, this.writeBufferSize);
+      this.writeBufferPtr = 0;
+      this.writeBufferSize = 0;
+    }
     if (this.viewportBufferPtr) {
       this.exports.ghostty_wasm_free_u8_array(this.viewportBufferPtr, this.viewportBufferSize);
       this.viewportBufferPtr = 0;
@@ -394,11 +449,13 @@ export class GhosttyTerminal {
     // Call update() to ensure render state is fresh.
     // This is safe to call multiple times - dirty state persists until markClean().
     this.update();
+    const x = this.exports.ghostty_render_state_get_cursor_x(this.handle);
+    const y = this.exports.ghostty_render_state_get_cursor_y(this.handle);
     return {
-      x: this.exports.ghostty_render_state_get_cursor_x(this.handle),
-      y: this.exports.ghostty_render_state_get_cursor_y(this.handle),
-      viewportX: this.exports.ghostty_render_state_get_cursor_x(this.handle),
-      viewportY: this.exports.ghostty_render_state_get_cursor_y(this.handle),
+      x,
+      y,
+      viewportX: x,
+      viewportY: y,
       visible: this.exports.ghostty_render_state_get_cursor_visible(this.handle),
       blinking: false, // TODO: Add blinking support
       style: 'block', // TODO: Add style support
@@ -445,6 +502,10 @@ export class GhosttyTerminal {
    * Returns a reusable cell array (zero allocation after warmup).
    */
   getViewport(): GhosttyCell[] {
+    // The pool already holds the current viewport: nothing has written or resized since it was parsed.
+    if (this.viewportValid) return this.cellPool;
+    this.update();
+
     const totalCells = this._cols * this._rows;
     const neededSize = totalCells * GhosttyTerminal.CELL_SIZE;
 
@@ -468,6 +529,7 @@ export class GhosttyTerminal {
 
     // Parse cells into pool (reuses existing objects)
     this.parseCellsIntoPool(this.viewportBufferPtr, totalCells);
+    this.viewportValid = true;
     return this.cellPool;
   }
 
@@ -481,14 +543,22 @@ export class GhosttyTerminal {
    * Returns a COPY of the cells to avoid pool reference issues.
    */
   getLine(y: number): GhosttyCell[] | null {
+    const row = this.getLineView(y);
+    // Return deep copies to avoid cell pool reference issues
+    return row ? row.map((cell) => ({ ...cell })) : null;
+  }
+
+  /**
+   * Like getLine(), but the cells are the shared pool objects, not copies. They are only valid until the next
+   * write() or resize(), so callers must read them immediately and must not keep or mutate them. The renderer uses
+   * this: reading a full screen costs one viewport parse instead of one parse plus a copy per row.
+   */
+  getLineView(y: number): GhosttyCell[] | null {
     if (y < 0 || y >= this._rows) return null;
-    // Call update() to ensure render state is fresh.
-    // This is safe to call multiple times - dirty state persists until markClean().
-    this.update();
+    // getViewport() refreshes the render state and parses the viewport once per change.
     const viewport = this.getViewport();
     const start = y * this._cols;
-    // Return deep copies to avoid cell pool reference issues
-    return viewport.slice(start, start + this._cols).map((cell) => ({ ...cell }));
+    return viewport.slice(start, start + this._cols);
   }
 
   /** For compatibility with old API */

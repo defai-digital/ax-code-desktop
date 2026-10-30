@@ -1,5 +1,7 @@
 # AX Code Desktop technical specification index
 
+Current terminal source: [SPEC-2026-10-30-akitty-web-source-v1](SPEC-2026-10-30-akitty-web-source-v1.md).
+
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Each specification keeps its original status
 line. The "Current interpretation" column records what is true now, using code and release evidence; it does not edit
 the accepted text. Older records use the former name "AX Coder" (ADR-015).
