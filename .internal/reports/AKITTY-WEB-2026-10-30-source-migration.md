@@ -2,7 +2,7 @@
 
 Date: 2026-10-30
 Desktop base: c7bf29478abb440d18aa363d3e324f95b2cde020
-Implementation: working-tree change; not committed, pushed or released.
+Implementation: integrated in 5c5fabdb and published in 7.30.4; see RELEASE-2026-10-30-v7.30.4-publication.md.
 
 ## Source
 
@@ -24,7 +24,7 @@ not integration of the native Rust/Swift terminal.
 - Root boundaries, locales, typecheck and lint: passed.
 - AkiTTY suite: 369 passed, one opt-in timing probe skipped.
 - Web renderer build: passed; large-chunk and Node fs browser-externalization warnings were emitted.
-- Full root test run: 8,663 passed, 12 skipped across scripts, AkiTTY, Electron, UI and web packages.
+- Full root test run: 8,663 passed, 11 skipped across scripts, AkiTTY, Electron, UI and web packages.
 - Root shell build: passed (all three Turbo tasks).
 - Native WebMCP smoke: passed boot, preload bridge, native tool invocation, CSP and renderer-exception checks. Artifacts: `/tmp/ax-akitty-webmcp`.
 - Native workspace journey: passed, including the embedded Terminal tab, preserved Files tab, pane resizing, dark/light layouts, CSP and renderer-exception checks. Fresh DOM state and screenshot: `/tmp/ax-akitty-workspace/open-beside-terminal.json` and `.png`. Full receipt: `/tmp/ax-akitty-workspace/results.json`. The terminal screenshot shows its viewport and cursor with a Loading status; the journey asserts container layout, not completed PTY readiness or shell output. Real shell command execution remains unqualified.
