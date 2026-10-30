@@ -146,6 +146,7 @@ export class Terminal implements ITerminalCore {
       scrollback: options.scrollback ?? 10000,
       fontSize: options.fontSize ?? 15,
       fontFamily: options.fontFamily ?? 'monospace',
+      lineHeight: options.lineHeight ?? 1,
       allowTransparency: options.allowTransparency ?? false,
       convertEol: options.convertEol ?? false,
       disableStdin: options.disableStdin ?? false,
@@ -215,6 +216,13 @@ export class Terminal implements ITerminalCore {
       case 'fontFamily':
         if (this.renderer) {
           this.renderer.setFontFamily(this.options.fontFamily);
+          this.handleFontChange();
+        }
+        break;
+
+      case 'lineHeight':
+        if (this.renderer) {
+          this.renderer.setLineHeight(this.options.lineHeight);
           this.handleFontChange();
         }
         break;
@@ -413,6 +421,7 @@ export class Terminal implements ITerminalCore {
       this.renderer = new CanvasRenderer(this.canvas, {
         fontSize: this.options.fontSize,
         fontFamily: this.options.fontFamily,
+        lineHeight: this.options.lineHeight,
         cursorStyle: this.options.cursorStyle,
         cursorBlink: this.options.cursorBlink,
         theme: this.options.theme,

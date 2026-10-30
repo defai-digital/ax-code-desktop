@@ -10,6 +10,7 @@
  * - Auto-scroll during drag selection
  */
 
+import { cellChar, isRenderableCodepoint } from './codepoint';
 import { EventEmitter } from './event-emitter';
 import type { GhosttyTerminal } from './ghostty';
 import type { IEvent } from './interfaces';
@@ -162,7 +163,7 @@ export class SelectionManager {
       let lineText = '';
       for (let col = colStart; col <= colEnd; col++) {
         const cell = line[col];
-        if (cell && cell.codepoint !== 0) {
+        if (cell && isRenderableCodepoint(cell.codepoint)) {
           // Use grapheme lookup for cells with multi-codepoint characters
           let char: string;
           if (cell.grapheme_len > 0) {
@@ -174,7 +175,7 @@ export class SelectionManager {
               char = this.wasmTerm.getGraphemeString(screenRow, col);
             }
           } else {
-            char = String.fromCodePoint(cell.codepoint);
+            char = cellChar(cell.codepoint);
           }
           lineText += char;
           if (char.trim()) {
@@ -816,7 +817,7 @@ export class SelectionManager {
 
     // Word characters: letters, numbers, underscore, dash
     const isWordChar = (cell: GhosttyCell) => {
-      if (!cell || cell.codepoint === 0) return false;
+      if (!cell || !isRenderableCodepoint(cell.codepoint)) return false;
       const char = String.fromCodePoint(cell.codepoint);
       return /[\w-]/.test(char);
     };

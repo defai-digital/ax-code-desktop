@@ -13,6 +13,7 @@ export interface ITerminalOptions {
   scrollback?: number; // Default: 1000
   fontSize?: number; // Default: 15
   fontFamily?: string; // Default: 'monospace'
+  lineHeight?: number; // Row height as a multiple of the font's height. Default: 1
   allowTransparency?: boolean;
 
   // Phase 1 additions

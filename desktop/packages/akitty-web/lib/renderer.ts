@@ -10,6 +10,7 @@
  * - Dirty line optimization for 60 FPS
  */
 
+import { cellChar } from './codepoint';
 import type { ITheme } from './interfaces';
 import type { SelectionManager } from './selection-manager';
 import type { GhosttyCell, ILink } from './types';
@@ -44,6 +45,7 @@ export interface IScrollbackProvider {
 export interface RendererOptions {
   fontSize?: number; // Default: 15
   fontFamily?: string; // Default: 'monospace'
+  lineHeight?: number; // Row height as a multiple of the font's height. Default: 1
   cursorStyle?: 'block' | 'underline' | 'bar'; // Default: 'block'
   cursorBlink?: boolean; // Default: false
   theme?: ITheme;
@@ -96,6 +98,7 @@ export class CanvasRenderer {
   private ctx: CanvasRenderingContext2D;
   private fontSize: number;
   private fontFamily: string;
+  private lineHeight: number;
   private cursorStyle: 'block' | 'underline' | 'bar';
   private cursorBlink: boolean;
   private theme: Required<ITheme>;
@@ -149,6 +152,7 @@ export class CanvasRenderer {
     // Apply options
     this.fontSize = options.fontSize ?? 15;
     this.fontFamily = options.fontFamily ?? 'monospace';
+    this.lineHeight = options.lineHeight ?? 1;
     this.cursorStyle = options.cursorStyle ?? 'block';
     this.cursorBlink = options.cursorBlink ?? false;
     this.theme = { ...DEFAULT_THEME, ...options.theme };
@@ -205,8 +209,11 @@ export class CanvasRenderer {
 
     // Add 2px padding to height to account for glyphs that overflow (like 'f', 'd', 'g', 'p')
     // and anti-aliasing pixels
-    const height = Math.ceil(ascent + descent) + 2;
-    const baseline = Math.ceil(ascent) + 1; // Offset baseline by half the padding
+    const glyphHeight = Math.ceil(ascent + descent);
+    // lineHeight > 1 adds leading split above and below the glyphs, as CSS line-height does
+    const leading = Math.max(0, Math.round((this.lineHeight - 1) * glyphHeight));
+    const height = glyphHeight + 2 + leading;
+    const baseline = Math.ceil(ascent) + 1 + Math.floor(leading / 2); // Offset baseline by half the padding
 
     return { width, height, baseline };
   }
@@ -639,7 +646,7 @@ export class CanvasRenderer {
       char = this.currentBuffer.getGraphemeString(y, x);
     } else {
       // Simple cell - single codepoint
-      char = String.fromCodePoint(cell.codepoint || 32); // Default to space if null
+      char = cellChar(cell.codepoint); // Space for an empty or invalid codepoint
     }
     this.ctx.fillText(char, textX, textY);
 
@@ -805,6 +812,14 @@ export class CanvasRenderer {
    */
   public setFontFamily(family: string): void {
     this.fontFamily = family;
+    this.metrics = this.measureFont();
+  }
+
+  /**
+   * Update line height
+   */
+  public setLineHeight(lineHeight: number): void {
+    this.lineHeight = lineHeight;
     this.metrics = this.measureFont();
   }
 

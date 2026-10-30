@@ -20,26 +20,34 @@ upstream build from the pins above; a rebuilt file has not yet been compared byt
 
 ## Local changes
 
-`lib/` and the patch are byte-identical to the baseline. Everything else is Desktop-owned:
+The wasm API patch is byte-identical to the baseline. `lib/` carries these AkiTTY Web changes:
+
+- `lineHeight` option (`ITerminalOptions`, `RendererOptions`, `setOption`, `CanvasRenderer.setLineHeight`): row height
+  as a multiple of the glyph height, with the leading split around the glyphs. Desktop passes `1.15`; v0.4.0 ignored
+  it. Ported from the 0.3.0 dist patch that stopped applying when Desktop moved into the monorepo.
+- `codepoint.ts`: empty, out-of-range and surrogate cell codepoints render as a space in the renderer, selection
+  copy, word selection and grapheme strings, where `String.fromCodePoint` used to throw. From the same 0.3.0 patch.
+
+Everything else is Desktop-owned:
 
 - `package.json`: renamed to `@ax-code/akitty-web`, private, and exports the TypeScript source (`lib/index.ts`) instead of
   a prebuilt bundle, so the renderer build compiles it. The npm bundle inlined the wasm as a `data:` URL; the source
   build does not, which removed about 565 KB from the renderer's terminal chunk.
 - `tsconfig.json`, `types/runtime-globals.d.ts`: type-check without `bun-types`.
 - `vitest.config.ts`, `test/bun-test-shim.ts`, `test/setup.ts`: run the upstream `bun:test` suite under Vitest with
-  Happy DOM. `test/setup.ts` is derived from upstream `happydom.ts` (canvas mock kept, Bun preload removed).
+  Happy DOM. AkiTTY Web's own tests import Vitest directly. `test/setup.ts` is derived from upstream `happydom.ts` (canvas mock kept, Bun preload removed).
 - `scripts/build-wasm.sh`: derived from upstream; fetches the pinned Ghostty commit into a temporary directory
   instead of using a git submodule, and refuses a different Zig version.
 
 Not carried over: Bun lockfile and config, Biome, release-please, demo, bench, and upstream CI.
 
-Record every future modification of `lib/` or the patch here, with the reason.
+Record every further modification of `lib/` or the patch here, with the reason.
 
 ## Syncing from upstream
 
 1. Diff the upstream range against the baseline commit and review each commit; take fixes deliberately rather than
    copying the whole tree.
-2. Apply the chosen changes to `lib/` and, when the wasm API changes, to the patch.
+2. Apply the chosen changes to `lib/` and, when the wasm API changes, to the patch. Keep the local changes above.
 3. If the patch or Ghostty pin changed, run `pnpm --dir desktop/packages/akitty-web run build:wasm` and record the new
    sha256 above.
 4. Run this package's `type-check` and `test`, the UI terminal tests, and `pnpm run build`.

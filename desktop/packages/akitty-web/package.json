@@ -1,6 +1,6 @@
 {
   "name": "@ax-code/akitty-web",
-  "version": "0.4.0-ax.1",
+  "version": "0.4.0-ax.2",
   "private": true,
   "description": "AkiTTY Web: AX Code Desktop's in-app canvas terminal, derived from coder/ghostty-web v0.4.0, over Ghostty's VT parser compiled to WebAssembly",
   "license": "MIT",

@@ -6,6 +6,7 @@
  * snapshot of all render data in a single update call.
  */
 
+import { graphemeString } from './codepoint';
 import {
   CellFlags,
   type Cursor,
@@ -739,7 +740,7 @@ export class GhosttyTerminal {
   getGraphemeString(row: number, col: number): string {
     const codepoints = this.getGrapheme(row, col);
     if (!codepoints || codepoints.length === 0) return ' ';
-    return String.fromCodePoint(...codepoints);
+    return graphemeString(codepoints);
   }
 
   /**
@@ -776,7 +777,7 @@ export class GhosttyTerminal {
   getScrollbackGraphemeString(offset: number, col: number): string {
     const codepoints = this.getScrollbackGrapheme(offset, col);
     if (!codepoints || codepoints.length === 0) return ' ';
-    return String.fromCodePoint(...codepoints);
+    return graphemeString(codepoints);
   }
 
   private invalidateBuffers(): void {
