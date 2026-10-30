@@ -57,3 +57,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [AX Code Desktop 7.30.4 publication](RELEASE-2026-10-30-v7.30.4-publication.md): canonical AkiTTY Web, three fixes and verified four-platform publication.
 
 - [Desktop v7.30.5 verified publication](RELEASE-2026-10-30-v7.30.5-publication.md)
+
+- [Desktop v7.30.6 verified publication](RELEASE-2026-10-30-v7.30.6-publication.md)
