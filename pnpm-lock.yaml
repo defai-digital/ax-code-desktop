@@ -18,6 +18,9 @@ catalogs:
     fast-glob:
       specifier: 3.3.3
       version: 3.3.3
+    ghostty-web:
+      specifier: 0.4.0
+      version: 0.4.0
     resedit:
       specifier: 1.7.2
       version: 1.7.2
@@ -271,7 +274,7 @@ importers:
         specifier: ^7.5.0
         version: 7.5.0
       ghostty-web:
-        specifier: ^0.4.0
+        specifier: 'catalog:'
         version: 0.4.0
       heic2any:
         specifier: ^0.0.4
@@ -587,9 +590,6 @@ importers:
       eslint-plugin-react-refresh:
         specifier: ^0.4.26
         version: 0.4.26(eslint@9.39.5(jiti@2.7.0))
-      ghostty-web:
-        specifier: 0.3.0
-        version: 0.3.0
       globals:
         specifier: ^16.5.0
         version: 16.5.0
@@ -3615,9 +3615,6 @@ packages:
   get-stream@5.2.0:
     resolution: {integrity: sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA==}
     engines: {node: '>=8'}
-
-  ghostty-web@0.3.0:
-    resolution: {integrity: sha512-SAdSHWYF20GMZUB0n8kh1N6Z4ljMnuUqT8iTB2n5FAPswEV10MejEpLlhW/769GL5+BQa1NYwEg9y/XCckV5+A==}
 
   ghostty-web@0.4.0:
     resolution: {integrity: sha512-0puDBik2qapbD/QQBW9o5ZHfXnZBqZWx/ctBiVtKZ6ZLds4NYb+wZuw1cRLXZk9zYovIQ908z3rvFhexAvc5Hg==}
@@ -9050,8 +9047,6 @@ snapshots:
   get-stream@5.2.0:
     dependencies:
       pump: 3.0.4
-
-  ghostty-web@0.3.0: {}
 
   ghostty-web@0.4.0: {}
 
