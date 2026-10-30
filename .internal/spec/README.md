@@ -70,3 +70,5 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 | [Mermaid Capabilities v1](SPEC-2026-10-18-mermaid-capabilities-v1.md)                         | Preserved accepted inventory; v2 is current                                                                              |
 
 - [Reliable model downloads](SPEC-2026-10-19-reliable-model-downloads.md): Accepted; scoped login-shell environment forwarding for the supervised runtime.
+
+- [AkiTTY Web source v2](SPEC-2026-10-30-akitty-web-source-v2.md): consume the v0.12.0 release snapshot while preserving upstream Web package versioning.

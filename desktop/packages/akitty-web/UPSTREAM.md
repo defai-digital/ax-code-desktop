@@ -1,8 +1,8 @@
 # AkiTTY Web source snapshot
 
-Canonical source: https://github.com/defai-digital/akitty/tree/d7f23f54c236515ec4c325ba838517b5ec29d632/packages/akitty-web
+Canonical source: https://github.com/defai-digital/akitty/tree/6c6052f74bd83032933f153b9940a331f794543f/packages/akitty-web
 
-Desktop consumes AkiTTY Web 0.5.0 at commit `d7f23f54c236515ec4c325ba838517b5ec29d632` under ADR-024.
+Desktop consumes the AkiTTY v0.12.0 release (Web package version 0.5.0) at commit `6c6052f74bd83032933f153b9940a331f794543f` under ADR-024.
 `SOURCE.json` records SHA-256 hashes of the imported files. They are byte-identical to that commit, including the
 upstream tests, README and PROVENANCE. The README's npm instructions apply to upstream; in Desktop use pnpm.
 The wasm remains the Ghostty artifact described in PROVENANCE.md; changing terminal ownership does not replace its VT engine.

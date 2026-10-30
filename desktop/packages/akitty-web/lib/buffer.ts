@@ -17,6 +17,7 @@
 
 import { EventEmitter } from './event-emitter';
 import type { GhosttyTerminal } from './ghostty';
+import { graphemeString } from './codepoint';
 import { CellFlags } from './ghostty';
 import type {
   IBuffer,
@@ -165,16 +166,15 @@ export class Buffer implements IBuffer {
     const wasmTerm = this.getWasmTerm();
     if (!wasmTerm) return undefined;
 
-    // Check bounds
-    if (y < 0 || y >= this.length) {
+    // One scrollback query serves both the bounds check and the row lookup.
+    const scrollbackLength = this.bufferType === 'normal' ? wasmTerm.getScrollbackLength() : 0;
+    if (y < 0 || y >= scrollbackLength + wasmTerm.rows) {
       return undefined;
     }
 
-    // Determine if accessing scrollback or visible screen
-    const scrollbackLength = wasmTerm.getScrollbackLength();
     let cells: GhosttyCell[] | null;
-    let lineNumber: number;
     let isWrapped: boolean;
+    let grapheme: GraphemeLookup;
 
     if (this.bufferType === 'normal' && y < scrollbackLength) {
       // Accessing scrollback
@@ -186,18 +186,20 @@ export class Buffer implements IBuffer {
       // TODO: We'd need WASM API to check if scrollback line is wrapped
       // For now, assume not wrapped
       isWrapped = false;
+      grapheme = (x) => wasmTerm.getScrollbackGrapheme(scrollbackOffset, x);
     } else {
       // Accessing visible screen
-      lineNumber = this.bufferType === 'normal' ? y - scrollbackLength : y;
+      const lineNumber = y - scrollbackLength;
       cells = wasmTerm.getLine(lineNumber);
       isWrapped = wasmTerm.isRowWrapped(lineNumber);
+      grapheme = (x) => wasmTerm.getGrapheme(lineNumber, x);
     }
 
     if (!cells) {
       return undefined;
     }
 
-    return new BufferLine(cells, isWrapped, wasmTerm.cols);
+    return new BufferLine(cells, isWrapped, wasmTerm.cols, grapheme);
   }
 
   getNullCell(): IBufferCell {
@@ -207,6 +209,26 @@ export class Buffer implements IBuffer {
   private getWasmTerm(): GhosttyTerminal | undefined {
     return (this.terminal as any).wasmTerm as GhosttyTerminal | undefined;
   }
+}
+
+/** Looks up the codepoints of the grapheme cluster at a column of one row. */
+type GraphemeLookup = (x: number) => number[] | null;
+
+/**
+ * A non-empty cell's text: the whole grapheme cluster when the cell holds one, otherwise its codepoint, with an
+ * invalid codepoint shown as U+FFFD.
+ */
+function cellText(cell: GhosttyCell, x: number, grapheme?: GraphemeLookup): string {
+  if (cell.grapheme_len > 0 && grapheme) {
+    const codepoints = grapheme(x);
+    if (codepoints && codepoints.length > 1) return graphemeString(codepoints);
+  }
+  const codepoint = cell.codepoint;
+  // Valid: 0x0000 to 0x10FFFF, excluding surrogates (0xD800-0xDFFF)
+  if (codepoint < 0 || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
+    return '\uFFFD';
+  }
+  return String.fromCodePoint(codepoint);
 }
 
 // ============================================================================
@@ -220,11 +242,13 @@ export class BufferLine implements IBufferLine {
   private cells: GhosttyCell[];
   private _isWrapped: boolean;
   private _length: number;
+  private grapheme?: GraphemeLookup;
 
-  constructor(cells: GhosttyCell[], isWrapped: boolean, length: number) {
+  constructor(cells: GhosttyCell[], isWrapped: boolean, length: number, grapheme?: GraphemeLookup) {
     this.cells = cells;
     this._isWrapped = isWrapped;
     this._length = length;
+    this.grapheme = grapheme;
   }
 
   get length(): number {
@@ -260,9 +284,13 @@ export class BufferLine implements IBufferLine {
       );
     }
 
-    return new BufferCell(this.cells[x], x);
+    return new BufferCell(this.cells[x], x, this.grapheme);
   }
 
+  /**
+   * The line's text, as xterm.js gives it: an empty cell reads as a space, the spacer after a wide character reads as
+   * nothing, and a cell holding a grapheme cluster (combining marks, ZWJ emoji, flags) reads as the whole cluster.
+   */
   translateToString(trimRight = false, startColumn = 0, endColumn = this._length): string {
     // Clamp bounds
     const start = Math.max(0, Math.min(startColumn, this._length));
@@ -270,10 +298,15 @@ export class BufferLine implements IBufferLine {
 
     let result = '';
     for (let x = start; x < end; x++) {
-      const cell = this.getCell(x);
-      if (cell) {
-        const chars = cell.getChars();
-        result += chars;
+      const cell = this.cells[x];
+      if (!cell) {
+        result += ' ';
+      } else if (cell.width === 0) {
+        continue;
+      } else if (cell.codepoint === 0) {
+        result += ' ';
+      } else {
+        result += cellText(cell, x, this.grapheme);
       }
     }
 
@@ -295,28 +328,20 @@ export class BufferLine implements IBufferLine {
 export class BufferCell implements IBufferCell {
   private cell: GhosttyCell;
   private x: number;
+  private grapheme?: GraphemeLookup;
 
-  constructor(cell: GhosttyCell, x: number) {
+  constructor(cell: GhosttyCell, x: number, grapheme?: GraphemeLookup) {
     this.cell = cell;
     this.x = x;
+    this.grapheme = grapheme;
   }
 
   getChars(): string {
-    const codepoint = this.cell.codepoint;
-
-    // Return empty string for null character or invalid codepoints
-    if (codepoint === 0) {
+    // Return empty string for null character
+    if (this.cell.codepoint === 0) {
       return '';
     }
-
-    // Validate codepoint is within valid Unicode range
-    // Valid: 0x0000 to 0x10FFFF, excluding surrogates (0xD800-0xDFFF)
-    if (codepoint < 0 || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
-      // Return replacement character for invalid codepoints
-      return '\uFFFD';
-    }
-
-    return String.fromCodePoint(codepoint);
+    return cellText(this.cell, this.x, this.grapheme);
   }
 
   getCode(): number {

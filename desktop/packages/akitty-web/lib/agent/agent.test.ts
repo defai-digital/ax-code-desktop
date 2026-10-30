@@ -141,6 +141,14 @@ describe('TerminalReader.readOutput', () => {
     expect(page.truncated).toBe(true);
   });
 
+  test('a line cut to the budget never starts inside a surrogate pair', async () => {
+    const term = await makeTerminal(40);
+    term.write('😀😀😀😀😀');
+    const page = new TerminalReader(term).readOutput({ maxChars: 5 });
+    expect(page.truncated).toBe(true);
+    expect(page.lines).toEqual(['😀😀']);
+  });
+
   test('rejects out-of-range and non-integer options', async () => {
     const reader = await filled(1);
     expect(() => reader.readOutput({ lines: 0 })).toThrow(RangeError);
@@ -155,6 +163,34 @@ describe('TerminalReader.readOutput', () => {
     const page = reader.readOutput({ offset: 500 });
     expect(page.lines).toEqual([]);
     expect(page.nextOffset).toBeNull();
+  });
+});
+
+describe('reading text the way it was written', () => {
+  const text = 'cafe\u0301 👨\u200d👩\u200d👧 🇯🇵 漢字 x\u0308y';
+
+  test('readScreen keeps grapheme clusters, wide characters and gaps', async () => {
+    const term = await makeTerminal(40);
+    term.write(`${text}\r\na\x1b[6Gb`);
+    expect(new TerminalReader(term).readScreen().lines.slice(0, 2)).toEqual([text, 'a    b']);
+  });
+
+  test('readOutput keeps them in scrollback too', async () => {
+    const term = await makeTerminal(40);
+    term.write(`${text}\r\na\x1b[6Gb\r\n`);
+    for (let i = 0; i < 10; i++) term.write(`row ${i}\r\n`);
+    const reader = new TerminalReader(term);
+    expect(reader.readScreen().scrollbackLines).toBeGreaterThan(2);
+    expect(reader.readOutput().lines.slice(0, 2)).toEqual([text, 'a    b']);
+  });
+
+  test('BufferCell.getChars returns the whole cluster', async () => {
+    const term = await makeTerminal(40);
+    term.write('e\u0301🇯🇵');
+    const line = term.buffer.active.getLine(0)!;
+    expect(line.getCell(0)!.getChars()).toBe('e\u0301');
+    expect(line.getCell(1)!.getChars()).toBe('🇯🇵');
+    expect(line.getCell(3)!.getChars()).toBe('');
   });
 });
 

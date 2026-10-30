@@ -8,6 +8,30 @@ It started from [coder/ghostty-web](https://github.com/coder/ghostty-web) v0.4.0
 of it. It exposes an xterm.js-style API. Origin, licenses and the wasm pins are recorded in
 [PROVENANCE.md](PROVENANCE.md).
 
+## Platforms
+
+AkiTTY Web is the Windows and Linux terminal in this project. The installable AkiTTY app is macOS-only
+(Apple Silicon, macOS 14+). This package has no native Windows or Linux build because it does not need one:
+it draws to an HTML canvas and parses terminal output with WebAssembly, so the same library runs in a browser
+on Windows, Linux, and macOS.
+
+What that covers:
+
+- Rendering, VT parsing, selection, and keyboard input in the page. Ctrl, Alt, and Meta come from the browser.
+  Ctrl+C is the interrupt on every platform. Command-click and Ctrl-click both open links.
+- Loading `ghostty-vt.wasm` from a Windows `file://` URL (`/C:/…` is normalized to `C:/…`) as well as from
+  `fetch` in the browser.
+
+What stays with the host:
+
+- The shell. This package does not spawn a PTY. AX Code Desktop, or another host, starts the process on that
+  operating system and writes its output with `term.write()`. Keystrokes leave through `term.onData()`.
+- There is no AkiTTY installer or `.exe` for Windows or Linux. People on those systems use AX Code Desktop,
+  which embeds this terminal.
+
+Checks in this repository type-check the package and run Vitest under Happy DOM. They run on the macOS CI job.
+There is no separate Windows or Linux browser suite here.
+
 ## Status
 
 - The package is **private** (`"private": true`) and is **not published** to npm or GitHub Packages. Consume it from

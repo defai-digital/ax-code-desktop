@@ -125,6 +125,8 @@ export class TerminalReader {
         // Always return something, but never more than the budget.
         if (collected.length === 0) {
           text = text.slice(-maxChars);
+          // Never start on the second half of a surrogate pair.
+          if (/^[\udc00-\udfff]/.test(text)) text = text.slice(1);
           truncated = true;
         }
         else {

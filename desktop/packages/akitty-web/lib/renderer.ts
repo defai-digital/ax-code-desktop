@@ -27,6 +27,11 @@ export interface IRenderable {
   getCursor(): { x: number; y: number; visible: boolean };
   getDimensions(): { cols: number; rows: number };
   isRowDirty(y: number): boolean;
+  /**
+   * Optional cheap check that any row at all changed since clearDirty(). When it returns false the renderer skips
+   * polling every row, so a frame with no output costs a few wasm calls instead of one per row.
+   */
+  isDirty?(): boolean;
   /** Returns true if a full redraw is needed (e.g., screen change) */
   needsFullRedraw?(): boolean;
   clearDirty(): void;
@@ -125,6 +130,16 @@ export class CanvasRenderer {
   // string). -1 means unknown.
   private fontStyleBits: number = -1;
   private fillKey: number = -1;
+  /**
+   * Content hash of what each screen row currently shows on the canvas, or undefined when unknown. Kept only for the
+   * live view without selection, link hover or scrollbar, where a row's pixels depend on its cells alone; it lets a
+   * frame skip dirty rows that did not really change and move a scrolled screen with one canvas copy.
+   */
+  private drawnRows: (number | undefined)[] = [];
+  /** Screen lines already fetched this frame (by hashing), so drawing them does not fetch again. */
+  private frameLines: (GhosttyCell[] | null | undefined)[] = [];
+  /** Rows hashed this frame that hold anything but plain ASCII, whose glyphs may overflow into neighbouring rows. */
+  private frameOverflow: boolean[] = [];
 
   // Current buffer being rendered (for grapheme lookups)
   private currentBuffer: IRenderable | null = null;
@@ -264,6 +279,8 @@ export class CanvasRenderer {
     this.canvas.width = cssWidth * this.devicePixelRatio;
     this.canvas.height = cssHeight * this.devicePixelRatio;
 
+    this.drawnRows = [];
+
     // Scale context to match DPI (setting canvas.width/height resets the context)
     this.ctx.scale(this.devicePixelRatio, this.devicePixelRatio);
 
@@ -292,6 +309,8 @@ export class CanvasRenderer {
   ): void {
     // Store buffer reference for grapheme lookups in renderCell
     this.currentBuffer = buffer;
+    this.frameLines = [];
+    this.frameOverflow = [];
     this.fontStyleBits = -1;
     this.fillKey = -1;
 
@@ -301,10 +320,13 @@ export class CanvasRenderer {
     const dims = buffer.getDimensions();
     const scrollbackLength = scrollbackProvider ? scrollbackProvider.getScrollbackLength() : 0;
 
-    // Check if buffer needs full redraw (e.g., screen change between normal/alternate)
-    if (buffer.needsFullRedraw?.()) {
-      forceAll = true;
-    }
+    // Nothing changed since the last clearDirty() means no row can be dirty, so row polling below is skipped.
+    const anyDirty = buffer.isDirty ? buffer.isDirty() : true;
+    const isRowDirty = (y: number): boolean => anyDirty && buffer.isRowDirty(y);
+
+    // Every row changed (a scroll, a screen switch between normal and alternate). With row reuse below that only
+    // means every row is dirty, since isRowDirty() then reports them all; without it, repaint everything.
+    const allDirty = anyDirty && buffer.needsFullRedraw?.() === true;
 
     // Resize canvas if dimensions changed
     const needsResize =
@@ -324,12 +346,65 @@ export class CanvasRenderer {
 
     // The scrollbar paints over (and clears) a strip of the cell area, so any change to it, or to the history it
     // describes, needs the rows underneath repainted.
+    // A hidden scrollbar paints nothing, so growing history alone (every line of streaming output) repaints nothing.
     const scrollbarShown = scrollbackProvider && scrollbarOpacity > 0 ? scrollbarOpacity : 0;
-    if (scrollbarShown !== this.lastScrollbarOpacity || scrollbackLength !== this.lastScrollbackLength) {
+    if (
+      scrollbarShown !== this.lastScrollbarOpacity ||
+      (scrollbarShown > 0 && scrollbackLength !== this.lastScrollbackLength)
+    ) {
       forceAll = true;
-      this.lastScrollbarOpacity = scrollbarShown;
-      this.lastScrollbackLength = scrollbackLength;
     }
+    this.lastScrollbarOpacity = scrollbarShown;
+    this.lastScrollbackLength = scrollbackLength;
+
+    // Row reuse (see drawnRows). Rows are hashed only when dirty; a clean row keeps its drawn hash. Rows that are not a
+    // whole number of device pixels tall share antialiased edge pixels with their neighbours, so there a row's pixels
+    // do not depend on its cells alone and nothing is reused.
+    const reuse =
+      Number.isInteger(this.metrics.height * this.devicePixelRatio) &&
+      viewportY === 0 &&
+      scrollbarShown === 0 &&
+      !this.selectionManager?.hasSelection() &&
+      this.hoveredHyperlinkId === 0 &&
+      !this.hoveredLinkRange;
+    let hashes: (number | undefined)[] | null = null;
+    let shifted = false;
+    if (!reuse) {
+      if (allDirty) forceAll = true;
+      this.drawnRows = [];
+    } else {
+      if (forceAll || this.drawnRows.length !== dims.rows) {
+        this.drawnRows = new Array<number | undefined>(dims.rows).fill(undefined);
+      }
+      const drawn = this.drawnRows;
+      hashes = new Array<number | undefined>(dims.rows);
+      for (let y = 0; y < dims.rows; y++) {
+        hashes[y] = forceAll || isRowDirty(y) ? this.rowHash(buffer, y) : drawn[y];
+      }
+      const shift = forceAll || !anyDirty ? 0 : this.scrollShift(hashes, drawn);
+      if (shift > 0) {
+        this.copyRowsUp(shift, dims.rows);
+        shifted = true;
+        // The canvas now shows each drawn row k rows higher, the old cursor included.
+        drawn.copyWithin(0, shift);
+        drawn.fill(undefined, dims.rows - shift);
+        // Row 0's band may hold overflow copied from the row above it, which scrolled away.
+        drawn[0] = undefined;
+        this.lastCursorPosition = { x: this.lastCursorPosition.x, y: this.lastCursorPosition.y - shift };
+        for (let y = 0; y < dims.rows; y++) if (hashes[y] === undefined) hashes[y] = this.rowHash(buffer, y);
+      }
+    }
+    // A row needs drawing when its content differs from what the canvas shows there. Without reuse that is the
+    // terminal's dirty flag; with it, a dirty row that hashes the same as its drawn pixels is skipped.
+    // A dirty row that may overflow is always redrawn, as before: its overflow and its neighbours' repaint interact, so
+    // skipping it would move where stray antialiasing collects. After a copy its overflow moved with it exactly.
+    const rowChanged = (y: number): boolean => {
+      if (!hashes) return isRowDirty(y);
+      if (!shifted && !isRowDirty(y)) return false;
+      if (!shifted && this.frameOverflow[y]) return true;
+      const drawn = this.drawnRows[y];
+      return drawn === undefined || hashes[y] === undefined || drawn !== hashes[y];
+    };
 
     // Check if cursor position changed or if blinking (need to redraw cursor line)
     const cursorMoved =
@@ -337,24 +412,12 @@ export class CanvasRenderer {
     const cursorDrawnVisible = cursor.visible && this.cursorVisible;
     const cursorBlinkChanged = this.cursorBlink && cursorDrawnVisible !== this.lastCursorDrawnVisible;
     this.lastCursorDrawnVisible = cursorDrawnVisible;
+    // The rows the cursor left or reached are redrawn with the other rows below, so they get the same neighbour
+    // repaint: drawing one alone would paint its glyph overflow a second time into the rows around it.
+    const cursorRows = new Set<number>();
     if (cursorMoved || cursorBlinkChanged) {
-      // Mark cursor lines as needing redraw
-      if (!forceAll && !buffer.isRowDirty(cursor.y)) {
-        // Need to redraw cursor line
-        const line = this.fetchLine(buffer, cursor.y);
-        if (line) {
-          this.renderLine(line, cursor.y, dims.cols);
-        }
-      }
-      if (cursorMoved && this.lastCursorPosition.y !== cursor.y) {
-        // Also redraw old cursor line if cursor moved to different line
-        if (!forceAll && !buffer.isRowDirty(this.lastCursorPosition.y)) {
-          const line = this.fetchLine(buffer, this.lastCursorPosition.y);
-          if (line) {
-            this.renderLine(line, this.lastCursorPosition.y, dims.cols);
-          }
-        }
-      }
+      cursorRows.add(cursor.y);
+      if (cursorMoved) cursorRows.add(this.lastCursorPosition.y);
     }
 
     // Check if we need to redraw selection-related lines
@@ -463,7 +526,7 @@ export class CanvasRenderer {
     if (viewportY > 0 && !forceAll) {
       if (this.currentSelectionCoords) forceAll = true;
       for (let y = 0; y < dims.rows; y++) {
-        if (buffer.isRowDirty(y)) {
+        if (isRowDirty(y)) {
           forceAll = true;
           break;
         }
@@ -471,7 +534,11 @@ export class CanvasRenderer {
     }
     for (let y = 0; y < dims.rows; y++) {
       const needsRender =
-        forceAll || (viewportY <= 0 && buffer.isRowDirty(y)) || selectionRows.has(y) || hyperlinkRows.has(y);
+        forceAll ||
+        (viewportY <= 0 && rowChanged(y)) ||
+        cursorRows.has(y) ||
+        selectionRows.has(y) ||
+        hyperlinkRows.has(y);
 
       if (needsRender) {
         rowsToRender.add(y);
@@ -516,6 +583,7 @@ export class CanvasRenderer {
       if (line) {
         this.renderLine(line, y, dims.cols);
       }
+      if (hashes) this.drawnRows[y] = hashes[y];
     }
 
     // Selection highlighting is now integrated into renderCellBackground/renderCellText
@@ -542,8 +610,79 @@ export class CanvasRenderer {
     buffer.clearDirty();
   }
 
+  /** Hash of everything in a screen row that affects its pixels. A collision only delays that row's repaint. */
+  private rowHash(buffer: IRenderable, y: number): number | undefined {
+    const line = this.fetchLine(buffer, y);
+    if (!line) return undefined;
+    // Two independent 32-bit chains over three words per cell: codepoint with flags and width (bits 0-20, 21-28,
+    // 29-30), the foreground, and the background with the hyperlink id folded in.
+    let a = 0x811c9dc5 | 0;
+    let b = 0x01000193 | 0;
+    let overflow = false;
+    for (let x = 0; x < line.length; x++) {
+      const cell = line[x];
+      if (cell.codepoint > 0x7e || cell.grapheme_len > 0 || cell.width !== 1) overflow = true;
+      const glyph = cell.codepoint ^ (cell.flags << 21) ^ (cell.width << 29);
+      const fg = (cell.fg_r << 16) | (cell.fg_g << 8) | cell.fg_b;
+      const bg = ((cell.bg_r << 16) | (cell.bg_g << 8) | cell.bg_b) ^ (cell.hyperlink_id << 24) ^ (cell.hyperlink_id >>> 8);
+      a = Math.imul(Math.imul(Math.imul(a ^ glyph, 0x01000193) ^ fg, 0x01000193) ^ bg, 0x01000193);
+      b = Math.imul(Math.imul(b ^ bg, 0x5bd1e995) ^ glyph, 0x5bd1e995);
+      b = Math.imul(b ^ (b >>> 15) ^ fg, 0x5bd1e995);
+      if (cell.grapheme_len > 0 && buffer.getGraphemeString) {
+        const text = buffer.getGraphemeString(y, x);
+        for (let i = 0; i < text.length; i++) a = Math.imul(a ^ text.charCodeAt(i), 0x01000193);
+      }
+    }
+    a = Math.imul(a ^ line.length, 0x01000193);
+    this.frameOverflow[y] = overflow;
+    // 53 bits: a in the high part, the low 21 bits of b below it.
+    return (a >>> 0) * 0x200000 + (b & 0x1fffff);
+  }
+
+  /**
+   * How many rows the screen scrolled up since it was drawn: the shift that lines up the most new rows with drawn ones,
+   * if it beats leaving the canvas where it is. 0 when a translucent background would blend the copy into the rows it
+   * covers. Reuse already requires rows a whole number of device pixels tall, so the copy is never resampled.
+   */
+  private scrollShift(hashes: (number | undefined)[], drawn: (number | undefined)[]): number {
+    const rows = hashes.length;
+    if (rows < 2 || !isOpaqueColor(this.theme.background)) return 0;
+    const matches = (k: number) => {
+      let count = 0;
+      for (let y = 0; y + k < rows; y++) if (hashes[y] !== undefined && hashes[y] === drawn[y + k]) count++;
+      return count;
+    };
+    let best = 0;
+    let bestCount = matches(0);
+    for (let k = 1; k < rows && rows - k > bestCount; k++) {
+      const count = matches(k);
+      if (count > bestCount) {
+        best = k;
+        bestCount = count;
+      }
+    }
+    return best;
+  }
+
+  /** Moves the pixels of rows k.. up to row 0, in device pixels so nothing is resampled. */
+  private copyRowsUp(k: number, rows: number): void {
+    const band = this.metrics.height * this.devicePixelRatio;
+    const width = this.canvas.width;
+    this.ctx.save();
+    this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.ctx.globalAlpha = 1;
+    this.ctx.globalCompositeOperation = 'source-over';
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.drawImage(this.canvas, 0, k * band, width, (rows - k) * band, 0, 0, width, (rows - k) * band);
+    this.ctx.restore();
+  }
+
   private fetchLine(buffer: IRenderable, y: number): GhosttyCell[] | null {
-    return buffer.getLineView ? buffer.getLineView(y) : buffer.getLine(y);
+    const fetched = this.frameLines[y];
+    if (fetched !== undefined) return fetched;
+    const line = buffer.getLineView ? buffer.getLineView(y) : buffer.getLine(y);
+    if (y >= 0) this.frameLines[y] = line;
+    return line;
   }
 
   private setFillRGB(r: number, g: number, b: number): void {
@@ -839,6 +978,7 @@ export class CanvasRenderer {
    */
   public setTheme(theme: ITheme): void {
     this.theme = { ...DEFAULT_THEME, ...theme };
+    this.drawnRows = [];
 
     // Rebuild palette
     this.palette = [
@@ -866,6 +1006,7 @@ export class CanvasRenderer {
    */
   public setFontSize(size: number): void {
     this.fontSize = size;
+    this.drawnRows = [];
     this.metrics = this.measureFont();
   }
 
@@ -874,6 +1015,7 @@ export class CanvasRenderer {
    */
   public setFontFamily(family: string): void {
     this.fontFamily = family;
+    this.drawnRows = [];
     this.metrics = this.measureFont();
   }
 
@@ -882,6 +1024,7 @@ export class CanvasRenderer {
    */
   public setLineHeight(lineHeight: number): void {
     this.lineHeight = lineHeight;
+    this.drawnRows = [];
     this.metrics = this.measureFont();
   }
 
@@ -1043,6 +1186,7 @@ export class CanvasRenderer {
    * Clear entire canvas
    */
   public clear(): void {
+    this.drawnRows = [];
     this.ctx.fillStyle = this.theme.background;
     this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
@@ -1053,6 +1197,11 @@ export class CanvasRenderer {
   public dispose(): void {
     this.stopCursorBlink();
   }
+}
+
+/** True for colours a canvas copy can overwrite without blending: hex without alpha, or rgb(). */
+function isOpaqueColor(color: string): boolean {
+  return /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(color.trim()) || /^rgb\(/i.test(color.trim());
 }
 
 function sameLinkRange(

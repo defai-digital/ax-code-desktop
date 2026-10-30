@@ -13,7 +13,7 @@ function time(label: string, iterations: number, fn: () => void): void {
   const start = performance.now();
   for (let i = 0; i < iterations; i++) fn();
   const per = (performance.now() - start) / iterations;
-  console.log(`${label.padEnd(44)} ${per.toFixed(3)} ms`);
+  process.stderr.write(`${label.padEnd(44)} ${per.toFixed(3)} ms\n`);
 }
 
 describe.skipIf(!enabled)('web hot path probe', () => {
@@ -34,7 +34,7 @@ describe.skipIf(!enabled)('web hot path probe', () => {
       (term as any).viewportValid = false;
       for (let y = 0; y < 50; y++) term.getLineView(y);
     });
-    time('read 1 dirty row after a write (new)', 1000, () => {
+    time('read 1 dirty row after a write (lazy)', 1000, () => {
       term.write('x');
       term.getLineView(0);
     });

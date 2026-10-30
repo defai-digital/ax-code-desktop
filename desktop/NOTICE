@@ -36,7 +36,7 @@ for upstream work and are not necessarily maintainers of, or direct contributors
 to, AX Code Desktop.
 
 The terminal emulator package at desktop/packages/akitty-web (AkiTTY Web) is
-imported from defai-digital/akitty 0.5.0 (commit d7f23f54c236515ec4c325ba838517b5ec29d632),
+imported from defai-digital/akitty v0.12.0 (Web package version 0.5.0, commit 6c6052f74bd83032933f153b9940a331f794543f),
 https://github.com/defai-digital/akitty, originally derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
 Copyright (c) 2025 Coder, under the MIT License. Its ghostty-vt.wasm is compiled
 from Ghostty (https://github.com/ghostty-org/ghostty, commit 5714ed0), Copyright

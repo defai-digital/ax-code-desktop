@@ -269,8 +269,18 @@ export class GhosttyTerminal {
   /** Cell pool for zero-allocation rendering */
   private cellPool: GhosttyCell[] = [];
 
-  /** True while cellPool holds the current viewport; cleared by anything that can change it (write, resize). */
+  /**
+   * True while the wasm viewport buffer holds the current viewport; cleared by anything that can change it (write,
+   * resize). Rows are parsed from it into cellPool on demand, so a frame that repaints one row parses one row.
+   */
   private viewportValid = false;
+  /** Per-row flag: cellPool holds this row of the current viewport. Reset whenever the viewport is reloaded. */
+  private rowParsed = new Uint8Array(0);
+  private allRowsParsed = false;
+
+  /** Separate buffer for scrollback lines, so reading history never overwrites unparsed viewport rows. */
+  private scrollbackBufferPtr: number = 0;
+  private scrollbackBufferSize: number = 0;
 
   /** Reusable wasm buffer that write() encodes into, so a write does not allocate in wasm memory. */
   private writeBufferPtr: number = 0;
@@ -417,6 +427,10 @@ export class GhosttyTerminal {
       this.exports.ghostty_wasm_free_u8_array(this.viewportBufferPtr, this.viewportBufferSize);
       this.viewportBufferPtr = 0;
     }
+    if (this.scrollbackBufferPtr) {
+      this.exports.ghostty_wasm_free_u8_array(this.scrollbackBufferPtr, this.scrollbackBufferSize);
+      this.scrollbackBufferPtr = 0;
+    }
     this.exports.ghostty_terminal_free(this.handle);
   }
 
@@ -502,8 +516,20 @@ export class GhosttyTerminal {
    * Returns a reusable cell array (zero allocation after warmup).
    */
   getViewport(): GhosttyCell[] {
-    // The pool already holds the current viewport: nothing has written or resized since it was parsed.
-    if (this.viewportValid) return this.cellPool;
+    if (!this.loadViewport()) return this.cellPool;
+    if (!this.allRowsParsed) {
+      for (let y = 0; y < this._rows; y++) this.parseRow(y);
+      this.allRowsParsed = true;
+    }
+    return this.cellPool;
+  }
+
+  /**
+   * Copy the viewport into the wasm buffer (one call) if nothing has loaded it since the last write or resize.
+   * Returns false if the copy failed, in which case the pool is stale.
+   */
+  private loadViewport(): boolean {
+    if (this.viewportValid) return true;
     this.update();
 
     const totalCells = this._cols * this._rows;
@@ -524,13 +550,13 @@ export class GhosttyTerminal {
       this.viewportBufferPtr,
       totalCells
     );
+    if (count < 0) return false;
 
-    if (count < 0) return this.cellPool;
-
-    // Parse cells into pool (reuses existing objects)
-    this.parseCellsIntoPool(this.viewportBufferPtr, totalCells);
+    if (this.rowParsed.length !== this._rows) this.rowParsed = new Uint8Array(this._rows);
+    else this.rowParsed.fill(0);
+    this.allRowsParsed = false;
     this.viewportValid = true;
-    return this.cellPool;
+    return true;
   }
 
   // ==========================================================================
@@ -555,10 +581,10 @@ export class GhosttyTerminal {
    */
   getLineView(y: number): GhosttyCell[] | null {
     if (y < 0 || y >= this._rows) return null;
-    // getViewport() refreshes the render state and parses the viewport once per change.
-    const viewport = this.getViewport();
+    // The viewport is loaded once per change and each row is parsed the first time it is read.
+    if (this.loadViewport()) this.parseRow(y);
     const start = y * this._cols;
-    return viewport.slice(start, start + this._cols);
+    return this.cellPool.slice(start, start + this._cols);
   }
 
   /** For compatibility with old API */
@@ -624,12 +650,12 @@ export class GhosttyTerminal {
     const neededSize = this._cols * GhosttyTerminal.CELL_SIZE;
 
     // Ensure buffer is allocated
-    if (!this.viewportBufferPtr || this.viewportBufferSize < neededSize) {
-      if (this.viewportBufferPtr) {
-        this.exports.ghostty_wasm_free_u8_array(this.viewportBufferPtr, this.viewportBufferSize);
+    if (!this.scrollbackBufferPtr || this.scrollbackBufferSize < neededSize) {
+      if (this.scrollbackBufferPtr) {
+        this.exports.ghostty_wasm_free_u8_array(this.scrollbackBufferPtr, this.scrollbackBufferSize);
       }
-      this.viewportBufferPtr = this.exports.ghostty_wasm_alloc_u8_array(neededSize);
-      this.viewportBufferSize = neededSize;
+      this.scrollbackBufferPtr = this.exports.ghostty_wasm_alloc_u8_array(neededSize);
+      this.scrollbackBufferSize = neededSize;
     }
 
     // Call update() to ensure render state is fresh (needed for colors).
@@ -639,7 +665,7 @@ export class GhosttyTerminal {
     const count = this.exports.ghostty_terminal_get_scrollback_line(
       this.handle,
       offset,
-      this.viewportBufferPtr,
+      this.scrollbackBufferPtr,
       this._cols
     );
 
@@ -648,8 +674,8 @@ export class GhosttyTerminal {
     // Parse cells
     const cells: GhosttyCell[] = [];
     const buffer = this.memory.buffer;
-    const u8 = new Uint8Array(buffer, this.viewportBufferPtr, count * GhosttyTerminal.CELL_SIZE);
-    const view = new DataView(buffer, this.viewportBufferPtr, count * GhosttyTerminal.CELL_SIZE);
+    const u8 = new Uint8Array(buffer, this.scrollbackBufferPtr, count * GhosttyTerminal.CELL_SIZE);
+    const view = new DataView(buffer, this.scrollbackBufferPtr, count * GhosttyTerminal.CELL_SIZE);
 
     for (let i = 0; i < count; i++) {
       const cellOffset = i * GhosttyTerminal.CELL_SIZE;
@@ -749,14 +775,19 @@ export class GhosttyTerminal {
     }
   }
 
-  private parseCellsIntoPool(ptr: number, count: number): void {
+  private parseRow(y: number): void {
+    if (this.rowParsed[y]) return;
+    this.rowParsed[y] = 1;
+    const cols = this._cols;
+    const first = y * cols;
+    const byteOffset = this.viewportBufferPtr + first * GhosttyTerminal.CELL_SIZE;
     const buffer = this.memory.buffer;
-    const u8 = new Uint8Array(buffer, ptr, count * GhosttyTerminal.CELL_SIZE);
-    const view = new DataView(buffer, ptr, count * GhosttyTerminal.CELL_SIZE);
+    const u8 = new Uint8Array(buffer, byteOffset, cols * GhosttyTerminal.CELL_SIZE);
+    const view = new DataView(buffer, byteOffset, cols * GhosttyTerminal.CELL_SIZE);
 
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < cols; i++) {
       const offset = i * GhosttyTerminal.CELL_SIZE;
-      const cell = this.cellPool[i];
+      const cell = this.cellPool[first + i];
       cell.codepoint = view.getUint32(offset, true);
       cell.fg_r = u8[offset + 4];
       cell.fg_g = u8[offset + 5];
