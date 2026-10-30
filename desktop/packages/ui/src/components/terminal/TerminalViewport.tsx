@@ -1354,7 +1354,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
       }
 
       lastProcessedChunkIdRef.current = chunks[chunks.length - 1].id
-    }, [chunks, terminalReadyVersion, enqueueWrite, fitTerminal, resetWriteState])
+    }, [chunks, sessionKey, terminalReadyVersion, enqueueWrite, fitTerminal, resetWriteState])
 
     React.useImperativeHandle(
       ref,
