@@ -31,6 +31,7 @@ import {
   setScheduledTasksEnabled,
   updateScheduledTask,
 } from "./scheduledTasksApi"
+import { ScheduledTaskRejectedError } from "./scheduledTaskErrors"
 import type { RuntimeTaskPayload } from "./scheduledTaskTransform"
 
 const runtimeTask = (overrides: Record<string, unknown> = {}) => ({
@@ -218,6 +219,34 @@ describe("scheduledTasksApi", () => {
     expect(scheduledTask.create).toHaveBeenCalledTimes(2)
     expect(scheduledTask.pause).toHaveBeenCalledTimes(2)
     expect(scheduledTask.pause).toHaveBeenCalledWith({ scheduledTaskID: "st_a" })
+  })
+
+  const draft = {
+    title: "A",
+    prompt: "p",
+    schedule: { type: "once" as const, runAt: 1 },
+    catchUpPolicy: "run_once" as const,
+  }
+
+  test("createScheduledTasks reports a 4xx refusal as a definitive rejection with the runtime's message", async () => {
+    scheduledTask.create.mockResolvedValueOnce({
+      error: { name: "InvalidRequestError", message: "One-time run timestamp is not in the future", status: 400 },
+      response: { status: 400 },
+    })
+    const error = await createScheduledTasks("/work/alpha", [draft]).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(ScheduledTaskRejectedError)
+    expect((error as Error).message).toBe("One-time run timestamp is not in the future")
+  })
+
+  test.each([
+    ["a transport failure", { error: { message: "fetch failed" } }],
+    ["a 5xx", { error: { message: "instance crashed" }, response: { status: 503 } }],
+    ["an empty success body", { data: null, response: { status: 200 } }],
+  ])("createScheduledTasks keeps %s an uncertain outcome", async (_label, response) => {
+    scheduledTask.create.mockResolvedValueOnce(response)
+    const error = await createScheduledTasks("/work/alpha", [draft]).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(ScheduledTaskRejectedError)
   })
 
   test("updateScheduledTask forwards the patch to the runtime update route", async () => {
@@ -415,6 +444,30 @@ describe("scheduledTasksApi", () => {
       "delete:st_old",
       "delete:st_older",
     ])
+  })
+
+  test("reconcileScheduledTaskFamily leaves the schedule out of an update that keeps it", async () => {
+    scheduledTask.update.mockResolvedValue({ data: runtimeTask() })
+    await reconcileScheduledTaskFamily("/work/alpha", {
+      updates: [
+        { id: "st_1", payload: payload("Digest (1/2)", "09:00"), keepSchedule: true, status: "active" },
+        { id: "st_2", payload: payload("Digest (2/2)", "18:00") },
+      ],
+      creates: [],
+      createStatus: "active",
+      deletes: [],
+    })
+    expect(scheduledTask.update).toHaveBeenNthCalledWith(1, {
+      scheduledTaskID: "st_1",
+      title: "Digest (1/2)",
+      prompt: "Summarize",
+      catchUpPolicy: "run_once",
+      status: "active",
+    })
+    expect(scheduledTask.update).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ scheduledTaskID: "st_2", schedule: { type: "daily", time: "18:00", timezone: "UTC" } }),
+    )
   })
 
   test("reconcileScheduledTaskFamily leaves new parts active when createStatus is not paused", async () => {

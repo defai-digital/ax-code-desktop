@@ -1,7 +1,8 @@
 import * as React from "react"
 import { useScheduledTasksStore } from "@/stores/useScheduledTasksStore"
-import { subscribeScheduledTaskEvents } from "@/lib/scheduledTaskEvents"
-import { normalizeDirectory } from "../scheduledTaskGroups"
+import { subscribeScheduledTaskEvents, type ScheduledTaskEvent } from "@/lib/scheduledTaskEvents"
+import type { ScheduledTask } from "@/lib/scheduledTasksApi"
+import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import { buildPendingEntries, selectDueReloads, type PendingScheduleGroupInput } from "../scheduledTaskPending"
 
 /** Coalescing window for runtime events about one directory. */
@@ -14,13 +15,42 @@ const DUE_MIN_INTERVAL_MS = 60_000
 /** Slow fallback refresh for events this window never received. */
 const FALLBACK_REFRESH_MS = 5 * 60_000
 
-// Task ids are only guaranteed unique per project, so every loaded project
-// that lists the id is a candidate owner.
-const directoriesForTaskID = (taskID: string): string[] => {
-  const { groups } = useScheduledTasksStore.getState()
+type LoadedGroups = Readonly<Record<string, { tasks: readonly Pick<ScheduledTask, "id" | "directory">[] }>>
+
+/**
+ * Projects to reload for a runtime event: the registered project the event's
+ * directory names, otherwise the loaded projects whose tasks carry that
+ * directory or the event's task id. Directories are compared by path identity
+ * (separators, drive-letter case), since the projects store, the SDK client
+ * and the runtime each spell a path their own way. The runtime also reports a
+ * task's directory as the resolved real path, so a project registered through
+ * a symlink never matches by name; its loaded tasks still name the real path
+ * and its ids are unique within the project. Returns "all" for an event with
+ * neither a directory nor a task id, and [] when no owner can be found
+ * (usually a delete already reflected here, left to the fallback refresh).
+ */
+export const directoriesForScheduledTaskEvent = (
+  event: Pick<ScheduledTaskEvent, "directory" | "taskId">,
+  known: readonly string[],
+  groups: LoadedGroups,
+): string[] | "all" => {
+  const identity = getProjectPathIdentityKey(event.directory)
+  if (identity) {
+    const registered = known.find((directory) => getProjectPathIdentityKey(directory) === identity)
+    if (registered !== undefined) return [registered]
+  }
+  if (!identity && !event.taskId) return "all"
+  // Task ids are only guaranteed unique per project, so every loaded project
+  // that lists the id is a candidate owner.
   return Object.entries(groups)
-    .filter(([, group]) => group.tasks.some((task) => task.id === taskID))
-    .map(([directory]) => directory)
+    .filter(([, group]) =>
+      group.tasks.some(
+        (task) =>
+          (event.taskId !== undefined && task.id === event.taskId) ||
+          (identity !== null && getProjectPathIdentityKey(task.directory) === identity),
+      ),
+    )
+    .map(([owner]) => owner)
 }
 
 const isDocumentHidden = (): boolean => typeof document !== "undefined" && document.visibilityState === "hidden"
@@ -77,26 +107,14 @@ export function useScheduledTasksSync(groups: readonly PendingScheduleGroupInput
     }
     const unsubscribe = subscribeScheduledTaskEvents((event) => {
       const known = groupsRef.current.map((group) => group.directory)
-      if (!event.directory || !event.directory.trim()) {
-        // Deleted events carry only the task id: reload every project that
-        // lists it. An id no loaded list has is usually a delete already
-        // reflected here; leave it to the fallback refresh instead of
-        // reloading every project. Only an event with neither a directory
-        // nor a task id reloads them all.
-        if (event.taskId) {
-          for (const owner of directoriesForTaskID(event.taskId)) {
-            schedule(owner, () => void loadGroup(owner))
-          }
-          return
-        }
+      const owners = directoriesForScheduledTaskEvent(event, known, useScheduledTasksStore.getState().groups)
+      if (owners === "all") {
         schedule(ALL, () => void loadGroups(groupsRef.current.map((group) => group.directory)))
         return
       }
-      const directory = normalizeDirectory(event.directory)
-      if (!known.includes(directory)) {
-        return
+      for (const owner of owners) {
+        schedule(owner, () => void loadGroup(owner))
       }
-      schedule(directory, () => void loadGroup(directory))
     })
     return () => {
       unsubscribe()

@@ -408,3 +408,73 @@ describe("resolveFamilyMembers", () => {
     expect(missing).toEqual(["st_2"])
   })
 })
+
+describe("completed one-time tasks", () => {
+  const finished = (overrides: Partial<ScheduledTask> = {}) =>
+    task({
+      id: "once",
+      title: "One shot",
+      schedule: { type: "once", runAt: 1_000 },
+      status: "disabled",
+      lastRunAt: 1_000,
+      lastRunStatus: "success",
+      ...overrides,
+    })
+  const oncePayload = (runAt: number): RuntimeTaskPayload => ({
+    title: "One shot",
+    prompt: "Summarize",
+    schedule: { type: "once", runAt },
+    catchUpPolicy: "run_once",
+  })
+
+  it("marks a family completed only when every member is disabled", () => {
+    expect(groupScheduledTaskFamilies([finished()])[0].completed).toBe(true)
+    expect(groupScheduledTaskFamilies([task({ id: "p", status: "paused" })])[0].completed).toBe(false)
+    expect(groupScheduledTaskFamilies([part(1, 2, { status: "disabled" }), part(2, 2)])[0].completed).toBe(false)
+  })
+
+  it("re-activates a completed task together with its new date", () => {
+    // Regression: the status guard dropped the "active" write for a disabled
+    // member, so a finished one-time task re-scheduled through the editor kept
+    // its new date but stayed disabled and never fired again.
+    const plan = planFamilyReconciliation([finished()], [oncePayload(5_000)], "active")
+    expect(plan.updates).toEqual([
+      { id: "once", payload: oncePayload(5_000), status: "active" },
+    ])
+  })
+
+  it("writes the status alone when only the switch moved", () => {
+    const plan = planFamilyReconciliation([finished()], [oncePayload(1_000)], "active")
+    expect(plan.updates).toEqual([{ id: "once", payload: oncePayload(1_000), status: "active", keepSchedule: true }])
+  })
+
+  it("never pauses a completed task", () => {
+    const plan = planFamilyReconciliation([finished()], [oncePayload(1_000)], "paused")
+    expect(plan.updates).toEqual([])
+    const prompt = planFamilyReconciliation([finished()], [{ ...oncePayload(1_000), prompt: "Other" }], "paused")
+    expect(prompt.updates.map((update) => [update.id, update.status])).toEqual([["once", undefined]])
+  })
+})
+
+describe("keepSchedule", () => {
+  it("is set on updates whose schedule the draft did not change", () => {
+    // The runtime re-validates and re-arms any schedule it is sent, so a prompt
+    // edit on a finished one-time task was rejected as being in the past and a
+    // re-saved recurring task lost its failure backoff.
+    const plan = planFamilyReconciliation(
+      [part(1, 2), part(2, 2)],
+      [{ ...payload(1, 2, "09:00"), prompt: "Other" }, payload(2, 2, "11:00")],
+      null,
+    )
+    expect(plan.updates.map((update) => [update.id, update.payload.schedule.type, update.keepSchedule])).toEqual([
+      ["st_1", "daily", true],
+      ["st_2", "daily", undefined],
+    ])
+  })
+
+  it("is set on every field-only update", () => {
+    const members = [weekly(1, 2, 1, "09:00"), task({ id: "cron", schedule: { type: "cron", expression: "* * * * *" } })]
+    const plan = planFamilyFieldUpdate(members, { title: "Digest", prompt: "New", catchUpPolicy: "run_once" }, null)
+    expect(plan.updates.map((update) => update.keepSchedule)).toEqual([true, true])
+  })
+})

@@ -29,7 +29,10 @@ type Props = {
   onOpenChange: (open: boolean) => void
 }
 
-type LoadState = { kind: "loading" } | { kind: "error"; message: string } | { kind: "loaded"; runs: ScheduledTaskRun[] }
+type LoadState =
+  | { kind: "loading" }
+  | { kind: "error"; message: string; target: ScheduledTaskRunHistoryTarget }
+  | { kind: "loaded"; runs: ScheduledTaskRun[]; target: ScheduledTaskRunHistoryTarget }
 
 const OUTCOME_LABEL: Record<ScheduledTaskRunOutcome, I18nKey> = {
   running: "sessions.sidebar.scheduled.history.outcome.running",
@@ -70,33 +73,39 @@ function OutcomeIcon({ outcome }: { outcome: ScheduledTaskRunOutcome }) {
  */
 export function ScheduledTaskRunHistoryDialog({ target, onOpenChange }: Props): React.ReactNode {
   const { t } = useI18n()
-  const [state, setState] = React.useState<LoadState>({ kind: "loading" })
+  const [loaded, setLoaded] = React.useState<LoadState>({ kind: "loading" })
   const [reloadToken, setReloadToken] = React.useState(0)
   const descriptionId = React.useId()
 
   React.useEffect(() => {
     if (!target) return
     let cancelled = false
-    setState({ kind: "loading" })
+    setLoaded({ kind: "loading" })
     fetchScheduledTaskRuns(target.directory, target.taskIDs, SCHEDULED_TASK_RUN_HISTORY_LIMIT)
       .then((runs) => {
         if (cancelled) return
-        setState({ kind: "loaded", runs: mergeScheduledTaskRuns(runs, SCHEDULED_TASK_RUN_HISTORY_LIMIT) })
+        setLoaded({ kind: "loaded", runs: mergeScheduledTaskRuns(runs, SCHEDULED_TASK_RUN_HISTORY_LIMIT), target })
       })
       .catch((error: unknown) => {
         if (cancelled) return
-        setState({
+        setLoaded({
           kind: "error",
           message:
             error instanceof Error && error.message
               ? error.message
               : t("sessions.sidebar.scheduled.history.loadFailed"),
+          target,
         })
       })
     return () => {
       cancelled = true
     }
   }, [target, reloadToken, t])
+
+  // A result belongs to the target it was fetched for. The effect above only
+  // resets after the first render with a new target, which showed the previous
+  // task's runs (or its failure) under the new task's title for a frame.
+  const state: LoadState = loaded.kind !== "loading" && loaded.target === target ? loaded : { kind: "loading" }
 
   // Run moments ("today" vs a date) must follow a reactive clock, not a memoized mount read.
   const now = useNow()

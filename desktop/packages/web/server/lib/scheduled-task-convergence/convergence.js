@@ -645,7 +645,12 @@ export const createScheduledTaskConvergence = (deps) => {
     return watch
   }
 
-  const start = async () => {
+  // `onReady` runs once the runtime answered, before the migration and the
+  // wake: the caller reads the runtime identity the boot wake is about to be
+  // made against there. Read before `start()`, the identity is null on a cold
+  // boot (the runtime is still starting), so the wake watch could never trust
+  // the boot wake and re-woke every project on its first check.
+  const start = async ({ onReady } = {}) => {
     try {
       await waitForAxCodeReady(readyTimeoutMs, readyIntervalMs)
     } catch (error) {
@@ -656,6 +661,7 @@ export const createScheduledTaskConvergence = (deps) => {
       })
       return []
     }
+    onReady?.()
 
     try {
       const result = await migrate()

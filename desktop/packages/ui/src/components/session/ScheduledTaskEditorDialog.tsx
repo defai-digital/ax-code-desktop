@@ -27,8 +27,8 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useUIStore } from "@/stores/useUIStore"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 import { stripFanOutSuffix, zonedTimeToEpochMs, type ScheduledTaskDraftInput } from "@/lib/scheduledTaskTransform"
-import { useI18n } from "@/lib/i18n"
-import { describeFamilySchedule, type ScheduledTaskFamily } from "./scheduledTaskFamilies"
+import { useI18n, type I18nKey } from "@/lib/i18n"
+import { isIrregularFamily, type ScheduledTaskFamily } from "./scheduledTaskFamilies"
 import { normalizeScheduledTaskTimes } from "./scheduledTaskTime"
 
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6] as const
@@ -519,7 +519,7 @@ const startOfToday = () => {
 const isSameCalendarDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 
-type ScheduledTaskDraft = {
+export type ScheduledTaskDraft = {
   id?: string
   name: string
   enabled: boolean
@@ -736,6 +736,41 @@ const validateDraft = (draft: ScheduledTaskDraft, t: ReturnType<typeof useI18n>[
   }
 
   return onceScheduleError(draft.schedule, t)
+}
+
+export type ScheduledTaskSubmitBlocker = "onceInPast" | "agentCleared"
+
+/**
+ * Checks that depend on what changed since the editor opened, so they run at
+ * submit rather than in validateDraft. `baseline` is null for a new task.
+ *
+ * A one-time run in the past is an error only when it is being (re)scheduled
+ * or switched on: the runtime rejects that, with an epoch in its message, and a
+ * finished one-time task re-activated without a new date stayed disabled. A
+ * prompt edit on such a task must still save. An existing task's agent cannot
+ * be removed through the runtime's update route (it only accepts a name), so
+ * clearing it is reported instead of being silently kept.
+ */
+// eslint-disable-next-line react-refresh/only-export-components -- Exported for the submit validation tests.
+export const scheduledTaskSubmitBlocker = (
+  draft: ScheduledTaskDraft,
+  baseline: ScheduledTaskDraft | null,
+  now: number = Date.now(),
+): ScheduledTaskSubmitBlocker | null => {
+  const scheduleChanged =
+    baseline === null || scheduleSectionKey(draft.schedule) !== scheduleSectionKey(baseline.schedule)
+  const enabledChanged = baseline === null || draft.enabled !== baseline.enabled
+  if (draft.schedule.kind === "once" && (scheduleChanged || (enabledChanged && draft.enabled))) {
+    const runAt = zonedTimeToEpochMs(draft.schedule.onceDate, draft.schedule.onceTime, draft.schedule.timezone.trim())
+    if (runAt !== null && runAt <= now) return "onceInPast"
+  }
+  if (baseline !== null && baseline.execution.agent.trim() && !draft.execution.agent.trim()) return "agentCleared"
+  return null
+}
+
+const SUBMIT_BLOCKER_MESSAGE: Record<ScheduledTaskSubmitBlocker, I18nKey> = {
+  onceInPast: "sessions.scheduledTasks.editor.validation.onceInPast",
+  agentCleared: "sessions.scheduledTasks.editor.validation.agentCannotBeCleared",
 }
 
 export type ScheduledTaskEditorSubmit = {
@@ -1190,6 +1225,11 @@ export function ScheduledTaskEditorDialog(props: {
       if (validationError !== scheduleError) toast.error(validationError)
       return
     }
+    const blocker = scheduledTaskSubmitBlocker(draft, task === null ? null : openedRef.current.baseline)
+    if (blocker) {
+      toast.error(t(SUBMIT_BLOCKER_MESSAGE[blocker]))
+      return
+    }
 
     const normalizedTimes = normalizeScheduledTaskTimes(draft.schedule.times)
     const input: ScheduledTaskDraftInput = {
@@ -1260,8 +1300,10 @@ export function ScheduledTaskEditorDialog(props: {
       <span className="min-w-0 break-all">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
     </p>
   ) : null
+  // Same rule the save plans with: a cron task counts too, since the draft can
+  // only show it as the daily fallback and touching the time would rewrite it.
   const irregularScheduleNote =
-    family && !describeFamilySchedule(family).compact
+    family && isIrregularFamily([family])
       ? t("sessions.scheduledTasks.editor.schedule.irregularNote", {
           schedules: family.members.map((member) => formatMemberSchedule(member, t)).join(", "),
         })

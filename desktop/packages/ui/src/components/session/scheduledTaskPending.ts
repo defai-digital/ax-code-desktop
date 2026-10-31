@@ -25,11 +25,14 @@ export const pendingEntryKey = (directory: string, familyKey: string): string =>
 
 /**
  * 0 running, 1 active with a failed last run, 2 active with a next run,
- * 3 active without one, 4 paused or disabled. A failing task is lifted above
- * healthy ones so it is not buried in a long queue.
+ * 3 active without one, 4 paused, 5 completed (a one-time task that already
+ * ran). A failing task is lifted above healthy ones so it is not buried in a
+ * long queue; completed tasks are history and sit below the paused ones the
+ * user may still resume.
  */
 export const pendingRank = (family: ScheduledTaskFamily): number => {
   if (family.lastRunStatus === "running") return 0
+  if (family.completed) return 5
   if (!family.anyActive) return 4
   if (family.lastRunStatus === "error") return 1
   return typeof family.nextRunAt === "number" ? 2 : 3
@@ -82,7 +85,9 @@ export const summarizePendingEntries = (entries: readonly PendingScheduleEntry[]
   for (const { family } of entries) {
     if (family.anyActive) active += 1
     if (family.lastRunStatus === "running") running += 1
-    if (family.lastRunStatus === "error") failing += 1
+    // Same rule as pendingRank and the row: a paused task whose last run
+    // failed reads as paused, so the header must not count it as failing.
+    if (family.anyActive && family.lastRunStatus === "error") failing += 1
     if (family.anyActive && typeof family.nextRunAt === "number") {
       nextRunAt = nextRunAt === undefined ? family.nextRunAt : Math.min(nextRunAt, family.nextRunAt)
     }

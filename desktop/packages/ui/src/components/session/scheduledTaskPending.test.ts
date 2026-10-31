@@ -151,3 +151,34 @@ describe("selectDueReloads", () => {
     expect(selectDueReloads(entries, 80_000, last, options)).toEqual(["/work/alpha", "/work/beta"])
   })
 })
+
+describe("completed one-time tasks", () => {
+  const completed = family({
+    id: "done",
+    title: "Done",
+    schedule: { type: "once", runAt: 1 },
+    status: "disabled",
+    lastRunAt: 1,
+    lastRunStatus: "success",
+  })
+
+  it("ranks them below paused tasks", () => {
+    expect(pendingRank(completed)).toBe(5)
+    expect(pendingRank(family({ id: "e", title: "E", status: "paused" }))).toBe(4)
+  })
+
+  it("does not count a paused or completed task's old failure as failing", () => {
+    const entries = buildPendingEntries([
+      {
+        directory: "/work/alpha",
+        project: alpha,
+        tasks: [
+          task({ id: "a", title: "A", status: "paused", lastRunStatus: "error", lastRunAt: 1 }),
+          task({ id: "b", title: "B", nextRunAt: 5, lastRunStatus: "error", lastRunAt: 1 }),
+          task({ id: "c", title: "C", status: "disabled", lastRunStatus: "error", lastRunAt: 1 }),
+        ],
+      },
+    ])
+    expect(summarizePendingEntries(entries)).toMatchObject({ total: 3, active: 1, failing: 1 })
+  })
+})

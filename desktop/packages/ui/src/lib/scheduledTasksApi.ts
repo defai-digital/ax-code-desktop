@@ -1,5 +1,6 @@
 import { axCodeClient } from "@/lib/ax-code/client"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
+import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
 import type {
   CatchUpPolicy,
   RuntimeModelRef,
@@ -80,10 +81,18 @@ export type ScheduledTaskRun = {
  */
 export type ScheduledTaskFamilyReconciliation = {
   /**
-   * Kept parts to rewrite; `status` is present only when it has to change and
-   * `clearModel` when the part had a model the draft no longer sets.
+   * Kept parts to rewrite; `status` is present only when it has to change,
+   * `clearModel` when the part had a model the draft no longer sets, and
+   * `keepSchedule` when the part's schedule is unchanged, so the update leaves
+   * it out and the runtime neither re-validates nor re-arms it.
    */
-  updates: Array<{ id: string; payload: RuntimeTaskPayload; status?: RuntimeTaskStatus; clearModel?: boolean }>
+  updates: Array<{
+    id: string
+    payload: RuntimeTaskPayload
+    status?: RuntimeTaskStatus
+    clearModel?: boolean
+    keepSchedule?: boolean
+  }>
   creates: RuntimeTaskPayload[]
   /** Status every created part ends up in (the runtime creates them active). */
   createStatus: RuntimeTaskStatus
@@ -117,6 +126,12 @@ const ensureDirectory = (directory: string): string => {
 }
 
 const clientFor = (directory: string) => axCodeClient.getScopedApiClient(ensureDirectory(directory))
+
+// The SDK returns `{ error, response }` for an HTTP error and `{ error }` with no
+// response when the request itself failed. A 4xx means the runtime refused the
+// payload before it stored anything; everything else leaves the outcome open.
+const isDefinitiveRejection = (response: Response | undefined): boolean =>
+  typeof response?.status === "number" && response.status >= 400 && response.status < 500
 
 const toModelRef = (model: unknown): RuntimeModelRef | undefined => {
   if (!model || typeof model !== "object") return undefined
@@ -303,6 +318,8 @@ export const fetchScheduledTaskRuns = async (
  * Create the payloads produced by buildRuntimeScheduledTaskPayloads. When
  * `pause` is set (the editor's enabled checkbox was off), each task is paused
  * right after creation — the runtime create route always starts tasks active.
+ * A payload the runtime refuses outright throws ScheduledTaskRejectedError;
+ * any other failure throws a plain Error, as its outcome is not known.
  */
 export const createScheduledTasks = async (
   directory: string,
@@ -313,7 +330,11 @@ export const createScheduledTasks = async (
   for (const payload of payloads) {
     const response = await client.scheduledTask.create(payload)
     if (response.error || !response.data) {
-      throw new Error(formatSdkError(response.error, "Failed to save scheduled task"))
+      const message = formatSdkError(response.error, "Failed to save scheduled task")
+      if (response.error && isDefinitiveRejection(response.response)) {
+        throw new ScheduledTaskRejectedError(message)
+      }
+      throw new Error(message)
     }
     const created = response.data as RuntimeTaskInfo
     if (typeof created.id !== "string" || !created.id) {
@@ -356,6 +377,10 @@ export const updateScheduledTask = async (
  * the directory so the list shows the runtime's actual state. The runtime
  * update route cannot clear an agent (it only accepts a string), so a part
  * keeps its agent when the draft drops it; a dropped model is sent as null.
+ * An unchanged schedule is left out of the update: the runtime re-validates
+ * every schedule it receives, which rejected a prompt edit on a one-time task
+ * whose run time had passed, and re-arms the next run, which dropped a failure
+ * backoff.
  */
 export const reconcileScheduledTaskFamily = async (
   directory: string,
@@ -368,7 +393,7 @@ export const reconcileScheduledTaskFamily = async (
       scheduledTaskID: update.id,
       title: payload.title,
       prompt: payload.prompt,
-      schedule: payload.schedule,
+      ...(update.keepSchedule ? {} : { schedule: payload.schedule }),
       ...(payload.agent ? { agent: payload.agent } : {}),
       ...(payload.model ? { model: payload.model } : update.clearModel ? { model: null } : {}),
       catchUpPolicy: payload.catchUpPolicy,

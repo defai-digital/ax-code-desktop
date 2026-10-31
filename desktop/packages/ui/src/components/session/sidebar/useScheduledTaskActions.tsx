@@ -5,7 +5,7 @@ import { refreshGlobalSessions } from "@/stores/useGlobalSessionsStore"
 import { getScheduledTaskGroup, useScheduledTasksStore } from "@/stores/useScheduledTasksStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useI18n } from "@/lib/i18n"
-import { ScheduledTaskCreateRecoveryRequired } from "@/lib/scheduledTaskErrors"
+import { ScheduledTaskCreateRecoveryRequired, ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
 import {
   createScheduledTasks,
   deleteScheduledTasks,
@@ -19,9 +19,9 @@ import { ScheduledTaskEditorDialog, type ScheduledTaskEditorSubmit } from "../Sc
 import { ScheduledTaskRunHistoryDialog, type ScheduledTaskRunHistoryTarget } from "../ScheduledTaskRunHistoryDialog"
 import { normalizeDirectory } from "../scheduledTaskGroups"
 import {
-  describeFamilySchedule,
   familyMemberIDs,
   groupScheduledTaskFamilies,
+  isIrregularFamily,
   planFamilyFieldUpdate,
   planFamilyReconciliation,
   resolveFamilyMembers,
@@ -29,25 +29,15 @@ import {
 } from "../scheduledTaskFamilies"
 import { pendingEntryKey } from "../scheduledTaskPending"
 
+// The editor shows its irregular-schedule note from the same rule this hook
+// plans with, so the rule lives in the families module.
+export { isIrregularFamily }
+
 type EditorTarget = {
   directory: string
   projectLabel: string
   /** The family being edited; null for a new task. */
   family: ScheduledTaskFamily | null
-}
-
-/**
- * Whether the editor cannot express the family's schedule as its weekday × time
- * grid. A single cron task reports `compact` like any one-member family, but the
- * editor's draft maps it to the daily fallback — reconciling that draft would
- * rewrite the cron expression to daily 09:00 even when the schedule was untouched.
- */
-export const isIrregularFamily = (families: readonly ScheduledTaskFamily[]): boolean => {
-  if (families.length !== 1) {
-    return true
-  }
-  const [family] = families
-  return family.primary.schedule.type === "cron" || !describeFamilySchedule(family).compact
 }
 
 export type ScheduledTaskActions = {
@@ -213,6 +203,12 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
             onCreated: (taskID) => attempt.confirmed.add(taskID),
           })
         } catch (error) {
+          // The runtime refused the payload outright before anything of this draft existed
+          // (an invalid schedule, the project's task cap): the draft is safe to correct and
+          // resend, so the refusal is reported instead of locking the editor.
+          if (error instanceof ScheduledTaskRejectedError && attempt.confirmed.size === 0) {
+            throw error
+          }
           // A missing acknowledgement does not prove creation failed. Without a producer
           // idempotency key, resending this draft can duplicate confirmed or uncertain writes.
           attempt.blockedReason = t("sessions.scheduledTasks.editor.creationUncertain", {
@@ -348,9 +344,14 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
     })
   }, [])
 
+  // Keyed by target: the dialog seeds its draft from the first render and only
+  // resets it in an effect, so without a remount the editor opened for another
+  // task painted the previous task's name, prompt and schedule for a frame.
+  const editorKey = editorTarget ? `${editorTarget.directory}\u0000${editorTarget.family?.key ?? "new"}` : "none"
   const dialogs = (
     <>
       <ScheduledTaskEditorDialog
+        key={editorKey}
         open={editorOpen}
         task={editorTarget?.family?.primary ?? null}
         family={editorTarget?.family ?? undefined}

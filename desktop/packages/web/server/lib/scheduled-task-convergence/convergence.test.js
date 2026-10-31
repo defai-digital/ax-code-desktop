@@ -697,6 +697,59 @@ describe("scheduled task convergence migration", () => {
     await expect(readFile(path.join(tempRoot, "scheduled-tasks-migrated.json"), "utf8")).rejects.toThrow()
   })
 
+  it("reports readiness after the runtime answered and before the boot wake", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-ready-"))
+    cleanup = () => rm(tempRoot, { recursive: true, force: true })
+    const order = []
+    const convergence = createScheduledTaskConvergence({
+      fsPromises: await import("fs/promises"),
+      path,
+      projectsDirPath: path.join(tempRoot, "projects"),
+      markerPath: path.join(tempRoot, "scheduled-tasks-migrated.json"),
+      projectConfigRuntime: { replaceScheduledTasks: async () => ({ tasks: [] }) },
+      listProjects: async () => [{ id: "proj-a", path: "/work/alpha" }],
+      buildAxCodeUrl: () => "http://127.0.0.1:4096/",
+      getAxCodeAuthHeaders: () => ({}),
+      waitForAxCodeReady: async () => {
+        order.push("ready")
+      },
+      expandSnippets: (prompt) => prompt,
+      logger: silentLogger,
+      fetchImpl: async () => {
+        order.push("wake")
+        return new Response(JSON.stringify([]), { status: 200 })
+      },
+    })
+
+    await convergence.start({ onReady: () => order.push("onReady") })
+    expect(order).toEqual(["ready", "onReady", "wake"])
+  })
+
+  it("does not report readiness when the runtime never answered", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-noready-"))
+    cleanup = () => rm(tempRoot, { recursive: true, force: true })
+    const onReady = vi.fn()
+    const convergence = createScheduledTaskConvergence({
+      fsPromises: await import("fs/promises"),
+      path,
+      projectsDirPath: path.join(tempRoot, "projects"),
+      markerPath: path.join(tempRoot, "scheduled-tasks-migrated.json"),
+      projectConfigRuntime: { replaceScheduledTasks: async () => ({ tasks: [] }) },
+      listProjects: async () => [],
+      buildAxCodeUrl: () => "http://127.0.0.1:4096/",
+      getAxCodeAuthHeaders: () => ({}),
+      waitForAxCodeReady: async () => {
+        throw new Error("not ready")
+      },
+      expandSnippets: (prompt) => prompt,
+      logger: silentLogger,
+      fetchImpl: vi.fn(),
+    })
+
+    expect(await convergence.start({ onReady })).toEqual([])
+    expect(onReady).not.toHaveBeenCalled()
+  })
+
   it("wakes every registered project directory once", async () => {
     const harness = await createHarness()
     cleanup = harness.cleanup

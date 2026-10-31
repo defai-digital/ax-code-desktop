@@ -102,6 +102,26 @@ describe("ScheduledTaskRunHistoryDialog", () => {
     expect(document.body.textContent).toContain("1 of 1 finished runs succeeded")
   })
 
+  test("paints a new target as loading, never with the previous task's runs", async () => {
+    fetchScheduledTaskRuns.mockResolvedValueOnce([run({ id: "a", status: "failed", error: "alpha boom" })])
+    await render({ target })
+    expect(document.body.textContent).toContain("alpha boom")
+
+    // Another row's history is opened while the dialog is up. The effect that
+    // resets the state runs after the first commit, so the DOM at the moment
+    // it fetches is what the user saw for that frame.
+    let firstPaint = ""
+    fetchScheduledTaskRuns.mockImplementationOnce(() => {
+      firstPaint = document.body.textContent ?? ""
+      return new Promise<never>(() => {})
+    })
+    await render({ target: { ...target, title: "Weekly", taskIDs: ["t3"] } })
+    expect(firstPaint).toContain("Run history: Weekly")
+    expect(firstPaint).not.toContain("alpha boom")
+    expect(document.body.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(document.body.textContent).not.toContain("alpha boom")
+  })
+
   test("fetches nothing while closed", async () => {
     await render({ target: null })
     expect(fetchScheduledTaskRuns).not.toHaveBeenCalled()

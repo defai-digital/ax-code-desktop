@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
+import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
 const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(
@@ -334,6 +335,80 @@ describe("SidebarScheduledTasks", () => {
       ).rejects.toThrow("review the scheduled tasks")
     })
     expect(createScheduledTasks).toHaveBeenCalledTimes(1)
+  })
+
+  test("shows a finished one-time task as completed, below paused ones, without resume or run now", async () => {
+    const ranAt = Date.now() - HOUR
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha"
+        ? [
+            task({
+              id: "a1",
+              directory,
+              title: "One shot",
+              status: "disabled",
+              schedule: { type: "once", runAt: ranAt },
+              lastRunAt: ranAt,
+              lastRunStatus: "success",
+            }),
+            task({ id: "a2", directory, title: "Paused one", status: "paused", lastRunStatus: "error", lastRunAt: ranAt }),
+          ]
+        : [],
+    )
+    await render()
+    expect(rowTitles()).toEqual(["Paused one", "One shot"])
+    expect(rowText("One shot")).toContain("Completed")
+    expect(rowText("One shot")).not.toContain("Paused")
+    expect(container.querySelector('button[aria-label="Enable One shot"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Run One shot now"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Enable Paused one"]')).not.toBeNull()
+    // A paused task's old failure neither replaces its schedule line nor counts in the header.
+    expect(rowText("Paused one")).not.toContain("Last run failed")
+    expect(container.textContent).not.toContain("failing")
+  })
+
+  test("a draft the runtime refused outright can be corrected and sent again", async () => {
+    useProjectsStore.setState({
+      projects: [{ id: "p-alpha", path: "/work/alpha", label: "Alpha" }],
+      activeProjectId: "p-alpha",
+    })
+    fetchScheduledTasks.mockResolvedValue([])
+    await render()
+    const newTask = container.querySelector<HTMLButtonElement>(
+      `button[aria-label="${dict["sessions.sidebar.scheduled.newTask"]}"]`,
+    )
+    await act(async () => newTask?.click())
+
+    // Regression: every create failure locked the editor behind the "creation
+    // uncertain" notice, hiding the runtime's reason for a 400 and leaving no
+    // way to fix the draft and resend it.
+    createScheduledTasks.mockRejectedValueOnce(
+      new ScheduledTaskRejectedError("One-time run timestamp is not in the future: 1"),
+    )
+    fetchScheduledTasks.mockClear()
+    const submit = {
+      enabled: true,
+      enabledChanged: true,
+      scheduleChanged: true,
+      input: {
+        name: "One shot",
+        prompt: "Do it",
+        catchUpPolicy: "run_once",
+        schedule: { kind: "once", date: "2026-01-01", time: "09:00", timezone: "UTC" },
+      },
+    }
+    await act(async () => {
+      await expect(editorProps.current?.onSave(submit)).rejects.toThrow("not in the future")
+    })
+    expect(fetchScheduledTasks).not.toHaveBeenCalled()
+
+    createScheduledTasks.mockResolvedValueOnce(undefined)
+    await act(async () => {
+      await editorProps.current?.onSave({ ...submit, input: { ...submit.input, schedule: { ...submit.input.schedule, date: "2099-01-01" } } })
+    })
+    await flush()
+    expect(createScheduledTasks).toHaveBeenCalledTimes(2)
+    expect(fetchScheduledTasks).toHaveBeenCalledWith("/work/alpha")
   })
 
   test("pauses every part the store has now, not the row's snapshot", async () => {

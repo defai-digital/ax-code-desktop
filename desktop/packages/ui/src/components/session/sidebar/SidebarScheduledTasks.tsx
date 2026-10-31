@@ -222,22 +222,35 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     const running = family.lastRunStatus === "running"
     const failing = family.lastRunStatus === "error"
     const unknown = family.lastRunStatus === "unknown"
-    const paused = !family.anyActive
+    // A finished one-time task is neither paused nor pending: the runtime
+    // rejects resume and run-now for it, so the row offers neither.
+    const completed = family.completed
+    const paused = !family.anyActive && !completed
     const statusText = running
       ? t("sessions.sidebar.scheduled.status.running")
-      : paused
-        ? t("sessions.sidebar.scheduled.status.paused")
-        : failing
-          ? t("sessions.sidebar.scheduled.status.failed")
-          : t("sessions.sidebar.scheduled.status.scheduled")
+      : completed
+        ? t("sessions.sidebar.scheduled.status.completed")
+        : paused
+          ? t("sessions.sidebar.scheduled.status.paused")
+          : failing
+            ? t("sessions.sidebar.scheduled.status.failed")
+            : t("sessions.sidebar.scheduled.status.scheduled")
     const whenLabel = running
       ? t("sessions.sidebar.scheduled.status.running")
-      : paused
-        ? t("sessions.sidebar.scheduled.status.paused")
+      : completed
+        ? t("sessions.sidebar.scheduled.status.completed")
+        : paused
+          ? t("sessions.sidebar.scheduled.status.paused")
+          : family.nextRunAt
+            ? formatRelativeTime(family.nextRunAt, t, now)
+            : "—"
+    const whenTitle = running || paused
+      ? undefined
+      : completed
+        ? formatRunMoment(family.lastRunAt, now) || undefined
         : family.nextRunAt
-          ? formatRelativeTime(family.nextRunAt, t, now)
-          : "—"
-    const whenTitle = !running && !paused && family.nextRunAt ? formatRunMoment(family.nextRunAt, now) : undefined
+          ? formatRunMoment(family.nextRunAt, now)
+          : undefined
     const schedule = formatFamilySchedule(family, t, { localTimezone })
     const showActions = isMobile || menuOpenKey === entry.key
 
@@ -254,6 +267,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
         <span className="mt-[3px] inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
           {running ? (
             <Icon name="loader-4" className={cn(ROW_ICON_CLASS, "animate-spin text-status-warning")} />
+          ) : completed ? (
+            <Icon name="checkbox-circle" className={cn(ROW_ICON_CLASS, "text-muted-foreground")} />
           ) : paused ? (
             <Icon name="pause" className={cn(ROW_ICON_CLASS, "text-muted-foreground")} />
           ) : failing ? (
@@ -295,7 +310,9 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
                 {t("sessions.sidebar.scheduled.history.loadFailed")}
               </span>
-            ) : failing && !running ? (
+            ) : failing && !running && !paused && !completed ? (
+              // A paused task reads as paused everywhere else in the row, so
+              // its old failure does not replace the schedule line either.
               <span className="truncate text-status-error">{t("sessions.sidebar.scheduled.status.failed")}</span>
             ) : (
               <span className="truncate">{schedule}</span>
@@ -324,7 +341,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                 : "hidden group-hover/row:flex group-focus-within/row:flex [@media(hover:none)]:flex",
             )}
           >
-            {!isMobile ? (
+            {!isMobile && !completed ? (
               <>
                 <RowIconButton
                   icon="play"
@@ -375,25 +392,29 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                   ) : null}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  className="flex items-center gap-2"
-                  disabled={running}
-                  onClick={() => void actions.runNow(family, directory)}
-                >
-                  <Icon name="play" className="h-4 w-4" />
-                  <span>{t("sessions.scheduledTasks.dialog.actions.runNow")}</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="flex items-center gap-2"
-                  onClick={() => void actions.toggleEnabled(family, directory, paused)}
-                >
-                  <Icon name={paused ? "play-circle" : "pause"} className="h-4 w-4" />
-                  <span>
-                    {paused
-                      ? t("sessions.sidebar.scheduled.actions.resume")
-                      : t("sessions.sidebar.scheduled.actions.pause")}
-                  </span>
-                </DropdownMenuItem>
+                {!completed ? (
+                  <>
+                    <DropdownMenuItem
+                      className="flex items-center gap-2"
+                      disabled={running}
+                      onClick={() => void actions.runNow(family, directory)}
+                    >
+                      <Icon name="play" className="h-4 w-4" />
+                      <span>{t("sessions.scheduledTasks.dialog.actions.runNow")}</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className="flex items-center gap-2"
+                      onClick={() => void actions.toggleEnabled(family, directory, paused)}
+                    >
+                      <Icon name={paused ? "play-circle" : "pause"} className="h-4 w-4" />
+                      <span>
+                        {paused
+                          ? t("sessions.sidebar.scheduled.actions.resume")
+                          : t("sessions.sidebar.scheduled.actions.pause")}
+                      </span>
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
                 <DropdownMenuItem
                   className="flex items-center gap-2"
                   onClick={() => actions.openEditTask(family, directory, projectLabel)}

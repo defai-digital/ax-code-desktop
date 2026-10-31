@@ -49,6 +49,12 @@ export type ScheduledTaskFamily = {
   status: ScheduledTaskFamilyStatus
   /** True when at least one member is active; drives the row toggle. */
   anyActive: boolean
+  /**
+   * True when every member is disabled: a one-time task that already ran. The
+   * runtime keeps it listed, rejects resume and run-now for it, and only
+   * re-activates it together with a new schedule (the editor's path).
+   */
+  completed: boolean
   /** Earliest next run among active members. */
   nextRunAt?: number
   lastRunAt?: number
@@ -147,6 +153,7 @@ const buildFamily = (title: string, members: ScheduledTask[]): ScheduledTaskFami
     primary,
     status: aggregateStatus(sorted),
     anyActive: sorted.some((member) => member.status === "active"),
+    completed: sorted.every((member) => member.status === "disabled"),
     ...(nextRunAt !== undefined ? { nextRunAt } : {}),
     ...(maxDefined(sorted.map((member) => member.lastRunAt)) !== undefined
       ? { lastRunAt: maxDefined(sorted.map((member) => member.lastRunAt)) }
@@ -268,6 +275,20 @@ export const describeFamilySchedule = (family: ScheduledTaskFamily): FamilySched
   return { type, times: [], weekdays: [], ...(timezone ? { timezone } : {}), compact: members.length === 1 }
 }
 
+/**
+ * Whether the editor cannot express the family's schedule as its weekday × time
+ * grid. A single cron task reports `compact` like any one-member family, but the
+ * editor's draft maps it to the daily fallback — reconciling that draft would
+ * rewrite the cron expression to daily 09:00 even when the schedule was untouched.
+ */
+export const isIrregularFamily = (families: readonly ScheduledTaskFamily[]): boolean => {
+  if (families.length !== 1) {
+    return true
+  }
+  const [family] = families
+  return family.primary.schedule.type === "cron" || !describeFamilySchedule(family).compact
+}
+
 const sameSchedule = (a: RuntimeSchedule, b: RuntimeSchedule): boolean =>
   scheduleSortKey(a) === scheduleSortKey(b) && scheduleTimezone(a) === scheduleTimezone(b)
 
@@ -283,9 +304,16 @@ const payloadMatchesMember = (member: ScheduledTask, payload: RuntimeTaskPayload
   member.catchUpPolicy === payload.catchUpPolicy
 
 // `status` null means the editor's enabled switch was not touched: kept parts
-// keep their own status and new parts follow the primary part.
-const resolveStatus = (member: ScheduledTask, status: RuntimeTaskStatus | null): RuntimeTaskStatus | undefined =>
-  status !== null && member.status !== status && member.status !== "disabled" ? status : undefined
+// keep their own status and new parts follow the primary part. A disabled part
+// (a one-time task that already ran) is only ever re-activated, never paused:
+// the user turning the switch on is the one way to run it again, and the
+// runtime accepts that together with a new future schedule and rejects it
+// otherwise, which the save then reports instead of claiming success.
+const resolveStatus = (member: ScheduledTask, status: RuntimeTaskStatus | null): RuntimeTaskStatus | undefined => {
+  if (status === null || member.status === status) return undefined
+  if (member.status === "disabled" && status !== "active") return undefined
+  return status
+}
 
 // New parts follow the family as the row shows it: enabled while any part is
 // active (the row toggle and the editor switch both read `anyActive`).
@@ -329,6 +357,7 @@ const updateFor = (
       payload,
       ...(nextStatus ? { status: nextStatus } : {}),
       ...(member.model && !payload.model ? { clearModel: true } : {}),
+      ...(sameSchedule(member.schedule, payload.schedule) ? { keepSchedule: true } : {}),
     },
   ]
 }

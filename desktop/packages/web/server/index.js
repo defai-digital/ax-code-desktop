@@ -1544,9 +1544,13 @@ async function main(options = {}) {
   )
 
   let wokenScheduledTaskDirectories = []
-  const identityBeforeBootWake = getScheduledTaskRuntimeIdentity()
+  let identityBeforeBootWake = null
   try {
-    wokenScheduledTaskDirectories = await scheduledTaskConvergence.start()
+    wokenScheduledTaskDirectories = await scheduledTaskConvergence.start({
+      onReady: () => {
+        identityBeforeBootWake = getScheduledTaskRuntimeIdentity()
+      },
+    })
   } catch (error) {
     console.warn("[ScheduledTasks] Failed to run scheduled task convergence:", error?.message || error)
   }
