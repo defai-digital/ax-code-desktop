@@ -12,10 +12,15 @@ import { Icon } from "@/components/icon/Icon"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionDisplayStore } from "@/stores/useSessionDisplayStore"
-import { EMPTY_SCHEDULED_TASK_GROUP, useScheduledTasksStore } from "@/stores/useScheduledTasksStore"
+import {
+  EMPTY_SCHEDULED_TASK_GROUP,
+  useScheduledTasksStore,
+  type ScheduledTaskGroupState,
+} from "@/stores/useScheduledTasksStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
+import { useConnectionStore } from "@/lib/event-stream/connection-state"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import type { ProjectEntry } from "@/lib/api/types"
@@ -84,6 +89,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   const revealRequest = useSessionDisplayStore((state) => state.scheduledRevealRequest)
   const groupStates = useScheduledTasksStore((state) => state.groups)
   const loadGroup = useScheduledTasksStore((state) => state.loadGroup)
+  const streamHasConnected = useConnectionStore((state) => state.hasEverConnected)
   const actions = useScheduledTaskActions()
   const [menuOpenKey, setMenuOpenKey] = React.useState<string | null>(null)
   const headerRef = React.useRef<HTMLButtonElement | null>(null)
@@ -122,14 +128,20 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     () => new Map(projectGroups.map((group) => [group.directory, group.label])),
     [projectGroups],
   )
+  // Until the event stream has connected once the app is still booting: a load
+  // the runtime refused while starting is retried on connect
+  // (useScheduledTasksSync), so it stays a loading row rather than a failure.
+  const hasFailed = (state: ScheduledTaskGroupState): boolean => streamHasConnected && state.error !== null
   // A project whose latest load failed shows a retry row, also when an older
   // list is still shown, so a stale row is never presented as current.
-  const failedGroups = projectGroups.filter((group) => Boolean(groupStates[group.directory]?.error))
+  const failedGroups = projectGroups.filter((group) =>
+    hasFailed(groupStates[group.directory] ?? EMPTY_SCHEDULED_TASK_GROUP),
+  )
   // Projects still waiting for their first response (loads run a few at a
   // time) keep a loading row until they answer, even next to loaded ones.
   const pendingGroups = projectGroups.filter((group) => {
     const state = groupStates[group.directory] ?? EMPTY_SCHEDULED_TASK_GROUP
-    return !state.hasLoaded && !state.error
+    return !state.hasLoaded && !hasFailed(state)
   })
   const showProjectLabels = projectGroups.length > 1
   const hasBody = pendingGroups.length > 0 || entries.length > 0 || failedGroups.length > 0

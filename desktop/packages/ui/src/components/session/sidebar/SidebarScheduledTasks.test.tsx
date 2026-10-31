@@ -4,6 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
+// Read API only: the connection-state write API is reserved for the event pipeline (R5).
+import { useConnectionStore } from "@/lib/event-stream/connection-state"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 
 const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(
@@ -107,6 +109,8 @@ describe("SidebarScheduledTasks", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     resetScheduledTasksStoreForTests()
+    // The stream is up unless a test exercises the boot window.
+    useConnectionStore.setState({ phase: "connected", hasEverConnected: true, lastDisconnectReason: null })
     fetchScheduledTasks.mockReset()
     createScheduledTasks.mockReset()
     setScheduledTasksEnabled.mockReset()
@@ -519,5 +523,92 @@ describe("SidebarScheduledTasks", () => {
     })
     expect(container.textContent).toContain("Couldn't load Beta")
     expect(rowTitles()).toEqual(["Kept", "Kept"])
+  })
+
+  const booting = () =>
+    useConnectionStore.setState({ phase: "connecting", hasEverConnected: false, lastDisconnectReason: null })
+  const loadingRow = () => container.querySelector('[data-sidebar-scheduled] [aria-busy="true"]')
+
+  test("retries loads the runtime refused while starting once the stream connects, without a retry row", async () => {
+    // Cold start: the desktop web server answers 503 until the runtime is up,
+    // and the event stream connects only after that.
+    booting()
+    fetchScheduledTasks.mockRejectedValue(new Error("ax-code is restarting"))
+    await render()
+    expect(fetchScheduledTasks).toHaveBeenCalledTimes(2)
+    expect(container.textContent).not.toContain("Couldn't load")
+    expect(loadingRow()).not.toBeNull()
+
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: `${directory}-t`, directory, title: directory === "/work/alpha" ? "Alpha task" : "Beta task" }),
+    ])
+    await act(async () => {
+      useConnectionStore.setState({ phase: "connected", hasEverConnected: true })
+    })
+    await flush()
+    expect(fetchScheduledTasks).toHaveBeenCalledTimes(4)
+    expect(container.textContent).not.toContain("Couldn't load")
+    expect(loadingRow()).toBeNull()
+    expect([...rowTitles()].sort()).toEqual(["Alpha task", "Beta task"])
+  })
+
+  test("keeps lists loaded before the first connect and reloads only the project that failed", async () => {
+    booting()
+    fetchScheduledTasks.mockImplementation(async (directory: string) => {
+      if (directory === "/work/beta") throw new Error("ax-code is restarting")
+      return [task({ id: "a1", directory, title: "Nightly" })]
+    })
+    await render()
+    expect(rowTitles()).toEqual(["Nightly"])
+    expect(container.textContent).not.toContain("Couldn't load Beta")
+
+    fetchScheduledTasks.mockClear()
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: "b1", directory, title: "Recovered" }),
+    ])
+    await act(async () => {
+      useConnectionStore.setState({ phase: "connected", hasEverConnected: true })
+    })
+    await flush()
+    expect(fetchScheduledTasks.mock.calls.map(([directory]) => directory)).toEqual(["/work/beta"])
+    expect([...rowTitles()].sort()).toEqual(["Nightly", "Recovered"])
+  })
+
+  test("shows the retry row for a load that fails after the stream has connected", async () => {
+    booting()
+    fetchScheduledTasks.mockResolvedValue([])
+    await render()
+    await act(async () => {
+      useConnectionStore.setState({ phase: "connected", hasEverConnected: true })
+    })
+    await flush()
+    fetchScheduledTasks.mockRejectedValue(new Error("runtime down"))
+    const { useScheduledTasksStore } = await import("@/stores/useScheduledTasksStore")
+    await act(async () => {
+      await useScheduledTasksStore.getState().loadGroup("/work/beta")
+    })
+    expect(container.textContent).toContain("Couldn't load Beta")
+    expect(loadingRow()).toBeNull()
+  })
+
+  test("reloads every project after the stream reconnects", async () => {
+    fetchScheduledTasks.mockResolvedValue([])
+    await render()
+    expect(fetchScheduledTasks).toHaveBeenCalledTimes(2)
+    await act(async () => {
+      useConnectionStore.setState({ phase: "reconnecting", lastDisconnectReason: "runtime restarted" })
+    })
+    await flush()
+    expect(fetchScheduledTasks).toHaveBeenCalledTimes(2)
+
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: `${directory}-t`, directory, title: "After restart" }),
+    ])
+    await act(async () => {
+      useConnectionStore.setState({ phase: "connected" })
+    })
+    await flush()
+    expect(fetchScheduledTasks).toHaveBeenCalledTimes(4)
+    expect(rowTitles()).toEqual(["After restart", "After restart"])
   })
 })

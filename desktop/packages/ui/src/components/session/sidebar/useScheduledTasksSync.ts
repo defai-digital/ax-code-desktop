@@ -1,5 +1,6 @@
 import * as React from "react"
-import { useScheduledTasksStore } from "@/stores/useScheduledTasksStore"
+import { useScheduledTasksStore, type ScheduledTaskGroupState } from "@/stores/useScheduledTasksStore"
+import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { subscribeScheduledTaskEvents, type ScheduledTaskEvent } from "@/lib/scheduledTaskEvents"
 import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 import { getProjectPathIdentityKey } from "@/lib/projectResolution"
@@ -53,12 +54,37 @@ export const directoriesForScheduledTaskEvent = (
     .map(([owner]) => owner)
 }
 
+type ConnectReloadGroups = Readonly<Record<string, Pick<ScheduledTaskGroupState, "hasLoaded" | "error">>>
+
+/**
+ * Projects to reload when the event stream connects. On the first connect the
+ * app was still booting: a load issued before the runtime was up failed (the
+ * desktop web server answers 503 "ax-code is restarting" until its health
+ * probe passes) or is still pending, so those projects reload while the ones
+ * that already answered keep their list. After a reconnect every project
+ * reloads, since events were dropped while the stream was down.
+ */
+export const directoriesToReloadOnConnect = (
+  tracked: readonly string[],
+  groups: ConnectReloadGroups,
+  firstConnect: boolean,
+): string[] => {
+  if (!firstConnect) {
+    return [...tracked]
+  }
+  return tracked.filter((directory) => {
+    const group = groups[directory]
+    return !group || !group.hasLoaded || group.error !== null
+  })
+}
+
 const isDocumentHidden = (): boolean => typeof document !== "undefined" && document.visibilityState === "hidden"
 
 /**
  * Keep the scheduled-tasks store in sync for the given project groups while
- * `enabled`: load registered projects, reload on runtime events, reload a
- * project once its next run is due, and refresh slowly as a fallback. While
+ * `enabled`: load registered projects, reload on runtime events and when the
+ * event stream (re)connects, reload a project once its next run is due, and
+ * refresh slowly as a fallback. While
  * disabled nothing is tracked or fetched. Returns a clock for relative labels
  * that advances every tick while the window is visible.
  */
@@ -124,6 +150,27 @@ export function useScheduledTasksSync(groups: readonly PendingScheduleGroupInput
       timers.clear()
     }
   }, [enabled, loadGroup, loadGroups])
+
+  // Stream connects: retry what the runtime refused while it was starting, and
+  // catch up on events dropped during an outage (directoriesToReloadOnConnect).
+  React.useEffect(() => {
+    if (!enabled) {
+      return
+    }
+    return useConnectionStore.subscribe((state, previous) => {
+      if (!selectIsConnected(state) || selectIsConnected(previous)) {
+        return
+      }
+      const due = directoriesToReloadOnConnect(
+        groupsRef.current.map((group) => group.directory),
+        useScheduledTasksStore.getState().groups,
+        !previous.hasEverConnected,
+      )
+      if (due.length > 0) {
+        void loadGroups(due)
+      }
+    })
+  }, [enabled, loadGroups])
 
   // Ticker: advance the clock and reload projects whose next run is due.
   React.useEffect(() => {

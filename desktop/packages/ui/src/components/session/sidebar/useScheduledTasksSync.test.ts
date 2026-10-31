@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest"
-import { directoriesForScheduledTaskEvent } from "./useScheduledTasksSync"
+import { directoriesForScheduledTaskEvent, directoriesToReloadOnConnect } from "./useScheduledTasksSync"
 
 const groups = {
   "/work/alpha": { tasks: [{ id: "st_1", directory: "/work/alpha" }] },
@@ -42,5 +42,23 @@ describe("directoriesForScheduledTaskEvent", () => {
     expect(directoriesForScheduledTaskEvent({ directory: "   " }, known, groups)).toBe("all")
     expect(directoriesForScheduledTaskEvent({ taskId: "gone" }, known, groups)).toEqual([])
     expect(directoriesForScheduledTaskEvent({ directory: "/elsewhere" }, known, groups)).toEqual([])
+  })
+})
+
+describe("directoriesToReloadOnConnect", () => {
+  const states = {
+    "/work/loaded": { hasLoaded: true, error: null },
+    "/work/failed": { hasLoaded: false, error: "ax-code is restarting" },
+    "/work/stale": { hasLoaded: true, error: "runtime down" },
+  }
+  // "/work/pending" has no state yet: its first load is still queued.
+  const tracked = ["/work/loaded", "/work/failed", "/work/stale", "/work/pending"]
+
+  it("on the first connect reloads what failed or never answered and keeps loaded lists", () => {
+    expect(directoriesToReloadOnConnect(tracked, states, true)).toEqual(["/work/failed", "/work/stale", "/work/pending"])
+  })
+
+  it("after a reconnect reloads every tracked project", () => {
+    expect(directoriesToReloadOnConnect(tracked, states, false)).toEqual(tracked)
   })
 })
