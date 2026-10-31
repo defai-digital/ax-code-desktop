@@ -8,26 +8,18 @@ import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 
-async function journeyScheduledStartup({ session }) {
-  let refuse = true
-  let reads = 0
-  const errors = []
-  session.on("Fetch.requestPaused", (event) => {
-    reads += 1
-    void session
-      .send("Fetch.fulfillRequest", {
-        requestId: event.requestId,
-        responseCode: refuse ? 503 : 200,
-        responseHeaders: [{ name: "Content-Type", value: "application/json" }],
-        body: Buffer.from(JSON.stringify(refuse ? { error: "Controlled runtime startup failure" } : [])).toString(
-          "base64",
-        ),
-      })
-      .catch((error) => errors.push(String(error)))
-  })
-  await session.send("Fetch.enable", { patterns: [{ urlPattern: "*/scheduled-task*", requestStage: "Request" }] })
-  await session.send("Network.enable")
-  await session.send("Network.setBlockedURLs", { urls: ["*/global/event*", "*/api/event*"] })
+async function journeyScheduledStartup({ session, e2e }) {
+  const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
+  const availability = `${origin}/__e2e__/startup-availability`
+  const configure = async (scheduledReads, events = false) => {
+    const response = await fetch(availability, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scheduledReads, events }),
+    })
+    if (!response.ok) throw new Error("Startup fixture configuration failed")
+  }
+  await configure(false)
   const script = await session.send("Page.addScriptToEvaluateOnNewDocument", {
     source: `(() => {
       const realNow = Date.now.bind(Date);
@@ -44,7 +36,9 @@ async function journeyScheduledStartup({ session }) {
       'Boolean(document.querySelector("[data-sidebar-scheduled] [aria-busy=true]"))',
       "startup loading row",
     )
-    if (!reads) throw new Error("Startup fixture was not read")
+    const initial = await (await fetch(availability)).json()
+    if (!initial.startupScheduledReads || initial.startupStreamAcknowledgements !== 0)
+      throw new Error("Startup fixture did not refuse reads before stream connection")
     if (await session.evaluate('Boolean(document.querySelector("[data-sidebar-scheduled] [role=alert]"))')) {
       throw new Error("Startup grace failed to hide the initial refusal")
     }
@@ -66,22 +60,23 @@ async function journeyScheduledStartup({ session }) {
     await audit.click("Close settings")
     await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
     await audit.capture("Scheduled persistent failure light")
-    refuse = false
-    const before = reads
+    await configure(true)
     await audit.click(retry.name)
     await audit.wait(
       '!document.querySelector("[data-sidebar-scheduled] [role=alert], [data-sidebar-scheduled] [aria-busy=true]")',
       "retry recovered before stream connect",
     )
-    if (reads <= before || errors.length) throw new Error("Fixture retry was not completed: " + errors.join(", "))
+    const final = await (await fetch(availability)).json()
+    if (!final.startupScheduledReads || final.startupStreamAcknowledgements !== 0)
+      throw new Error("Retry was not completed before stream connection")
     await audit.capture("Scheduled retry recovered")
     if (args.artifacts) {
       await fs.writeFile(
         path.join(args.artifacts, "startup-receipt.json"),
         JSON.stringify(
           {
-            reads,
-            errors,
+            initial,
+            final,
             actions: audit.calls,
             scope:
               "Blocked event stream, simulated startup HTTP refusal, advanced display clock, native retry and fresh DOM/screenshots; no model execution",
@@ -98,8 +93,7 @@ async function journeyScheduledStartup({ session }) {
         "Startup refusal hidden briefly, persistent failure exposes Retry, successful HTTP retry clears failure without event connection",
     }
   } finally {
-    await session.send("Fetch.disable")
-    await session.send("Network.setBlockedURLs", { urls: [] })
+    await configure(true, true)
     await session.send("Page.removeScriptToEvaluateOnNewDocument", { identifier: script.identifier })
   }
 }

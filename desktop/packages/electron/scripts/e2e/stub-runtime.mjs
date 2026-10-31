@@ -126,6 +126,10 @@ let scheduledFailAfterWrite = false;
 let hooksFixture = null;
 let hooksReads = [];
 const eventClients = new Set();
+let eventStreamAvailable = true;
+let scheduledReadsAvailable = true;
+let startupScheduledReads = 0;
+let startupStreamAcknowledgements = 0;
 const sendEvent = (res, directory, payload) => {
   try {
     res.write('data: ' + JSON.stringify({ directory: directory, payload: payload }) + '\\n\\n');
@@ -162,6 +166,12 @@ const server = http.createServer((req, res) => {
     return;
   }
   if (pathname === '/global/event' || pathname === '/event') {
+    if (!eventStreamAvailable) {
+      res.statusCode = 503;
+      json(res, { error: 'Controlled event stream startup failure' });
+      return;
+    }
+    startupStreamAcknowledgements += 1;
     res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
     res.write('data: {"type":"server.connected","properties":{}}\\n\\n');
     if (scenario) {
@@ -323,6 +333,18 @@ const server = http.createServer((req, res) => {
       else respond();
       return;
     }
+    if (pathname === '/__e2e__/startup-availability') {
+      if (req.method === 'POST') readBody(req, body => {
+        eventStreamAvailable = body.events !== false;
+        scheduledReadsAvailable = body.scheduledReads !== false;
+        startupScheduledReads = 0;
+        startupStreamAcknowledgements = 0;
+        if (!eventStreamAvailable) for (const client of eventClients) client.end();
+        json(res, { eventStreamAvailable, scheduledReadsAvailable });
+      });
+      else json(res, { eventStreamAvailable, scheduledReadsAvailable, startupScheduledReads, startupStreamAcknowledgements });
+      return;
+    }
     if (pathname === '/__e2e__/scheduled-tasks' && req.method === 'POST') {
       readBody(req, (body) => {
         scheduledFixture = Array.isArray(body.tasks) ? body.tasks : [];
@@ -408,6 +430,12 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (pathname === '/scheduled-task' && req.method === 'GET') {
+      startupScheduledReads += 1;
+      if (!scheduledReadsAvailable) {
+        res.statusCode = 503;
+        json(res, { error: 'Controlled scheduled task startup failure' });
+        return;
+      }
       const scope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
       json(res, projects.some(project => project.worktree === scope) ? scheduledFixture
         .filter(entry => entry.task.directory === scope).map(entry => entry.task) : []);
