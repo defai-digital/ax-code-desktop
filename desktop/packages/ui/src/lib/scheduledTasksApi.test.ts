@@ -149,6 +149,48 @@ describe("scheduledTasksApi", () => {
     expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("idle")
   })
 
+  test("reports a failure the runtime recorded without a run row when the history is empty", async () => {
+    // A run-now that failed before it could claim a run leaves the task's
+    // error and last-run time with no history behind them.
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42, error: "queue unavailable" })] })
+    scheduledTask.listRuns.mockResolvedValue({ data: [] })
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task).toMatchObject({ lastRunStatus: "error", lastError: "queue unavailable", taskError: "queue unavailable" })
+  })
+
+  test("a history that could not be read stays unknown even when the task carries an error", async () => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42, error: "old failure" })] })
+    scheduledTask.listRuns.mockRejectedValue(new Error("boom"))
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task.lastRunStatus).toBe("unknown")
+    expect(task.lastError).toBeUndefined()
+    expect(task.taskError).toBe("old failure")
+  })
+
+  test("keeps the runtime's auto-pause note beside the latest run's error", async () => {
+    const note = "auto-paused after 5 consecutive failures: model exploded"
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ status: "paused", lastRunAt: 42, error: note })] })
+    scheduledTask.listRuns.mockResolvedValue({
+      data: [{ id: "run_1", status: "failed", error: "model exploded", time: { created: 42 } }],
+    })
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task.lastRunStatus).toBe("error")
+    expect(task.lastError).toBe("model exploded")
+    expect(task.taskError).toBe(note)
+  })
+
+  test("shows a missed occurrence as skipped and an overlap skip as idle", async () => {
+    scheduledTask.list.mockResolvedValue({
+      data: [runtimeTask({ status: "disabled", schedule: { type: "once", runAt: 10 }, lastRunAt: 42 })],
+    })
+    scheduledTask.listRuns.mockResolvedValue({ data: [{ id: "run_1", status: "missed_skip", time: { created: 42 } }] })
+    expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("skipped")
+    scheduledTask.listRuns.mockResolvedValue({
+      data: [{ id: "run_1", status: "skipped_overlap", time: { created: 42 } }],
+    })
+    expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunStatus).toBe("idle")
+  })
+
   test("confirmed new outcomes replace stale task errors", async () => {
     scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42, error: "old failure" })] })
     scheduledTask.listRuns.mockResolvedValue({

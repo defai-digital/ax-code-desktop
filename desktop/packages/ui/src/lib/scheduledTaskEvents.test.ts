@@ -50,6 +50,24 @@ describe("ingestScheduledTaskRuntimeEvent", () => {
     expect(received[0].directory).toBeUndefined()
   })
 
+  test("routes a deleted payload by the directory published beside the id", () => {
+    const received: ScheduledTaskEvent[] = []
+    const unsubscribe = subscribeScheduledTaskEvents((event) => received.push(event))
+    try {
+      ingestScheduledTaskRuntimeEvent({
+        type: "scheduled.task.deleted",
+        properties: { id: "st_9", projectID: "p", directory: "/work/alpha" },
+      })
+      ingestScheduledTaskRuntimeEvent({ type: "scheduled.task.deleted", properties: { id: "st_8", directory: "" } })
+    } finally {
+      unsubscribe()
+    }
+    expect(received.map((event) => [event.taskId, event.directory])).toEqual([
+      ["st_9", "/work/alpha"],
+      ["st_8", undefined],
+    ])
+  })
+
   test("unsubscribed listeners stop receiving events and listener errors are isolated", () => {
     const received: ScheduledTaskEvent[] = []
     const throwing = vi.fn(() => {

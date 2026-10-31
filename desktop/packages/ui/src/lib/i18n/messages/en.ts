@@ -205,6 +205,8 @@ export const dict = {
   "sessions.scheduledTasks.dialog.toast.deleteFailed": "Failed to delete task",
   "sessions.scheduledTasks.dialog.toast.started": "Task started",
   "sessions.scheduledTasks.dialog.toast.runFailed": "Failed to run task",
+  "sessions.scheduledTasks.dialog.toast.resumeExpiredOnce":
+    "This one-time task's time has passed. Run it now or give it a new time.",
   "sessions.scheduledTasks.dialog.confirm.deleteTask": 'Delete scheduled task "{taskName}"?',
   "sessions.scheduledTasks.dialog.schedule.daily": "Daily {time}",
   "sessions.scheduledTasks.dialog.schedule.dailyWithTimezone": "Daily {time} ({timezone})",
@@ -375,6 +377,7 @@ export const dict = {
   "sessions.sidebar.scheduled.status.failed": "Last run failed",
   "sessions.sidebar.scheduled.status.scheduled": "Scheduled",
   "sessions.sidebar.scheduled.status.completed": "Completed",
+  "sessions.sidebar.scheduled.status.missed": "Missed",
   "sessions.sidebar.scheduled.lastError": "Last error: {error}",
   "sessions.sidebar.scheduled.loadFailed": "Couldn't load {project}",
   "sessions.sidebar.scheduled.actions.pause": "Pause",

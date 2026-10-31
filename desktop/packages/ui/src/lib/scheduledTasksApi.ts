@@ -14,7 +14,12 @@ import type {
 // `directory` = the project path). The retired desktop endpoints under
 // `/api/projects/:projectId/scheduled-tasks` are gone.
 
-export type ScheduledTaskRunDisplayStatus = "idle" | "running" | "success" | "error" | "unknown"
+/**
+ * Latest run outcome as the sidebar shows it. "skipped" is a missed occurrence
+ * the catch-up policy dropped; an overlap skip stays "idle", since another run
+ * of the task is delivering it.
+ */
+export type ScheduledTaskRunDisplayStatus = "idle" | "running" | "success" | "error" | "skipped" | "unknown"
 
 export type ScheduledTask = {
   id: string
@@ -31,6 +36,12 @@ export type ScheduledTask = {
   /** Latest run outcome, derived from `GET /scheduled-task/:id/runs` (limit 1). */
   lastRunStatus: ScheduledTaskRunDisplayStatus
   lastError?: string
+  /**
+   * The runtime's task-level error as stored: its latest failure, or the
+   * failure policy's "auto-paused after N consecutive failures: ..." note. The
+   * runtime clears it on every claim and on resume.
+   */
+  taskError?: string
   time: {
     created: number
     updated?: number
@@ -153,7 +164,7 @@ const toScheduledTask = (info: RuntimeTaskInfo): ScheduledTask => ({
   ...(typeof info.nextRunAt === "number" ? { nextRunAt: info.nextRunAt } : {}),
   ...(typeof info.lastRunAt === "number" ? { lastRunAt: info.lastRunAt } : {}),
   lastRunStatus: typeof info.lastRunAt === "number" ? "unknown" : info.error ? "error" : "idle",
-  ...(info.error ? { lastError: info.error } : {}),
+  ...(info.error ? { lastError: info.error, taskError: info.error } : {}),
   time: info.time,
 })
 
@@ -161,6 +172,7 @@ const runDisplayStatus = (run: RuntimeRunInfo): ScheduledTaskRunDisplayStatus =>
   if (run.status === "running") return "running"
   if (run.status === "completed") return "success"
   if (run.status === "failed" || run.status === "timeout") return "error"
+  if (run.status === "missed_skip") return "skipped"
   return "idle"
 }
 
@@ -183,13 +195,21 @@ const mapWithConcurrency = async <T, R>(items: T[], concurrency: number, fn: (it
 }
 
 const withLatestRun = async (directory: string, task: ScheduledTask): Promise<ScheduledTask> => {
-  const unavailable = (): ScheduledTask => ({ ...task, lastRunStatus: "unknown", lastError: undefined })
+  const unknown = (): ScheduledTask => ({ ...task, lastRunStatus: "unknown", lastError: undefined })
+  // The runtime answered that there is no history, yet the task carries an
+  // error and a last-run time: that failure was recorded without a run row
+  // (a run-now that failed before it could claim one), so the task's own error
+  // is the latest outcome and is reported instead of "unknown". A history that
+  // could not be read stays unknown: a transport failure must not manufacture
+  // a failure state.
+  const noHistory = (): ScheduledTask =>
+    task.taskError ? { ...task, lastRunStatus: "error", lastError: task.taskError } : unknown()
   try {
     const response = await clientFor(directory).scheduledTask.listRuns({ scheduledTaskID: task.id, limit: 1 })
-    if (response.error || !Array.isArray(response.data)) return unavailable()
-    if (response.data.length === 0) return task.lastRunStatus === "idle" ? task : unavailable()
+    if (response.error || !Array.isArray(response.data)) return unknown()
+    if (response.data.length === 0) return task.lastRunStatus === "idle" ? task : noHistory()
     const latest = toScheduledTaskRun(response.data[0], task.id)
-    if (!latest) return unavailable()
+    if (!latest) return unknown()
     return {
       ...task,
       lastRunStatus: runDisplayStatus(latest),
@@ -197,7 +217,7 @@ const withLatestRun = async (directory: string, task: ScheduledTask): Promise<Sc
     }
   } catch {
     // Run history is display-only; keep the list row usable without it.
-    return unavailable()
+    return unknown()
   }
 }
 

@@ -225,11 +225,17 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     // A finished one-time task is neither paused nor pending: the runtime
     // rejects resume and run-now for it, so the row offers neither.
     const completed = family.completed
+    // A one-time task the catch-up policy skipped is finished too, but it never
+    // ran: "Completed" would claim work that did not happen.
+    const missed = completed && family.lastRunStatus === "skipped"
+    const finishedText = missed
+      ? t("sessions.sidebar.scheduled.status.missed")
+      : t("sessions.sidebar.scheduled.status.completed")
     const paused = !family.anyActive && !completed
     const statusText = running
       ? t("sessions.sidebar.scheduled.status.running")
       : completed
-        ? t("sessions.sidebar.scheduled.status.completed")
+        ? finishedText
         : paused
           ? t("sessions.sidebar.scheduled.status.paused")
           : failing
@@ -238,7 +244,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     const whenLabel = running
       ? t("sessions.sidebar.scheduled.status.running")
       : completed
-        ? t("sessions.sidebar.scheduled.status.completed")
+        ? finishedText
         : paused
           ? t("sessions.sidebar.scheduled.status.paused")
           : family.nextRunAt
@@ -267,6 +273,8 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
         <span className="mt-[3px] inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
           {running ? (
             <Icon name="loader-4" className={cn(ROW_ICON_CLASS, "animate-spin text-status-warning")} />
+          ) : missed ? (
+            <Icon name="close-circle" className={cn(ROW_ICON_CLASS, "text-muted-foreground")} />
           ) : completed ? (
             <Icon name="checkbox-circle" className={cn(ROW_ICON_CLASS, "text-muted-foreground")} />
           ) : paused ? (
@@ -310,10 +318,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               <span className="min-w-0 whitespace-normal [overflow-wrap:anywhere]">
                 {t("sessions.sidebar.scheduled.history.loadFailed")}
               </span>
-            ) : failing && !running && !paused && !completed ? (
-              // A paused task reads as paused everywhere else in the row, so
-              // its old failure does not replace the schedule line either.
-              <span className="truncate text-status-error">{t("sessions.sidebar.scheduled.status.failed")}</span>
+            ) : failing && !running && !completed ? (
+              // Shown for paused tasks too: the runtime pauses a task itself
+              // after repeated failures, and that failure is what the user
+              // needs to see. The status label still reads Paused.
+              <span className="truncate text-status-error" title={family.lastError}>
+                {t("sessions.sidebar.scheduled.status.failed")}
+              </span>
             ) : (
               <span className="truncate">{schedule}</span>
             )}

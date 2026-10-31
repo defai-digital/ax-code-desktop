@@ -13,7 +13,7 @@ export type ScheduledTaskEventStatus = "running" | "success" | "error" | "change
 export type ScheduledTaskEvent = {
   /** Runtime event type, e.g. "scheduled.task.fired". */
   type: string
-  /** Task directory when the payload carries one (deleted events do not). */
+  /** Task directory when the payload carries one (`task.directory`, or `directory` beside the id on a delete). */
   directory?: string
   taskId?: string
   /** fired→running, succeeded→success, failed/failed_persistently→error, else changed. */
@@ -59,10 +59,17 @@ export const ingestScheduledTaskRuntimeEvent = (payload: RuntimeEventPayload): v
   if (!payload || !isScheduledTaskRuntimeEventType(payload.type)) return
   const properties =
     payload.properties && typeof payload.properties === "object"
-      ? (payload.properties as { task?: { id?: unknown; directory?: unknown }; id?: unknown })
+      ? (payload.properties as { task?: { id?: unknown; directory?: unknown }; id?: unknown; directory?: unknown })
       : null
   const task = properties?.task && typeof properties.task === "object" ? properties.task : null
-  const directory = typeof task?.directory === "string" && task.directory.length > 0 ? task.directory : undefined
+  // A delete carries no task object; the runtime publishes the directory
+  // beside the id, so the event reaches its project without a task-id scan.
+  const directory =
+    typeof task?.directory === "string" && task.directory.length > 0
+      ? task.directory
+      : typeof properties?.directory === "string" && properties.directory.length > 0
+        ? properties.directory
+        : undefined
   const taskId =
     typeof task?.id === "string" && task.id.length > 0
       ? task.id

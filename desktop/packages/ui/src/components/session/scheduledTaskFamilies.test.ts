@@ -6,6 +6,7 @@ import {
   describeFamilySchedule,
   familyMemberIDs,
   groupScheduledTaskFamilies,
+  isExpiredOneShotFamily,
   parseFanOutTitle,
   planFamilyFieldUpdate,
   planFamilyReconciliation,
@@ -448,11 +449,60 @@ describe("completed one-time tasks", () => {
     expect(plan.updates).toEqual([{ id: "once", payload: oncePayload(1_000), status: "active", keepSchedule: true }])
   })
 
-  it("never pauses a completed task", () => {
+  it("re-arms a completed task given a new date even when the switch was not touched", () => {
+    // Regression: the update carried the schedule only, so the runtime stored
+    // the new date on a row that stayed disabled and never fired it.
+    const plan = planFamilyReconciliation([finished()], [oncePayload(5_000)], null)
+    expect(plan.updates).toEqual([{ id: "once", payload: oncePayload(5_000), status: "active" }])
+  })
+
+  it("parks a completed task paused when the switch was turned off with the new date", () => {
+    const plan = planFamilyReconciliation([finished()], [oncePayload(5_000)], "paused")
+    expect(plan.updates).toEqual([{ id: "once", payload: oncePayload(5_000), status: "paused" }])
+  })
+
+  it("never pauses a completed task that keeps its date", () => {
     const plan = planFamilyReconciliation([finished()], [oncePayload(1_000)], "paused")
     expect(plan.updates).toEqual([])
     const prompt = planFamilyReconciliation([finished()], [{ ...oncePayload(1_000), prompt: "Other" }], "paused")
     expect(prompt.updates.map((update) => [update.id, update.status])).toEqual([["once", undefined]])
+  })
+})
+
+describe("a part the runtime paused after repeated failures", () => {
+  const note = "auto-paused after 5 consecutive failures: model exploded"
+
+  it("reports the runtime's note as the family's failure whatever the run history says", () => {
+    const [family] = groupScheduledTaskFamilies([
+      task({ id: "auto", status: "paused", lastRunStatus: "error", lastRunAt: 5, lastError: "model exploded", taskError: note }),
+    ])
+    expect(family.pausedByFailure).toBe(true)
+    expect(family.lastRunStatus).toBe("error")
+    expect(family.lastError).toBe(note)
+    // Without run history the note still stands: it is the runtime's own record.
+    const [unread] = groupScheduledTaskFamilies([task({ id: "auto", status: "paused", lastRunStatus: "unknown", taskError: note })])
+    expect(unread.lastRunStatus).toBe("error")
+    expect(unread.lastError).toBe(note)
+  })
+
+  it("does not mistake a user's pause after a failure for the failure policy", () => {
+    const [family] = groupScheduledTaskFamilies([
+      task({ id: "user", status: "paused", lastRunStatus: "error", lastRunAt: 5, lastError: "model exploded", taskError: "model exploded" }),
+    ])
+    expect(family.pausedByFailure).toBe(false)
+    expect(family.lastError).toBe("model exploded")
+    // The note is cleared on resume, so an active member never counts.
+    expect(groupScheduledTaskFamilies([task({ id: "a", taskError: note })])[0].pausedByFailure).toBe(false)
+  })
+})
+
+describe("isExpiredOneShotFamily", () => {
+  it("is true only for a one-time family whose every part is in the past", () => {
+    const [past] = groupScheduledTaskFamilies([task({ id: "p", status: "paused", schedule: { type: "once", runAt: 1_000 } })])
+    expect(isExpiredOneShotFamily(past, 2_000)).toBe(true)
+    expect(isExpiredOneShotFamily(past, 500)).toBe(false)
+    const [daily] = groupScheduledTaskFamilies([task({ id: "d", status: "paused" })])
+    expect(isExpiredOneShotFamily(daily, 2_000)).toBe(false)
   })
 })
 

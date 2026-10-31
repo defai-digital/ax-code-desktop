@@ -21,6 +21,7 @@ import { normalizeDirectory } from "../scheduledTaskGroups"
 import {
   familyMemberIDs,
   groupScheduledTaskFamilies,
+  isExpiredOneShotFamily,
   isIrregularFamily,
   planFamilyFieldUpdate,
   planFamilyReconciliation,
@@ -56,7 +57,10 @@ export type ScheduledTaskActions = {
 /**
  * Mutations for the sidebar's scheduled tasks. Same semantics as the retired
  * scheduler dialog: family-aware save with fail-closed reconciliation, pause,
- * resume and delete on every member, run now on the primary member.
+ * resume and delete on every member, run now on the primary member only. The
+ * parts of a family share prompt, agent, model and catch-up policy (they are
+ * the grouping key) and differ only in schedule slot, so one run delivers the
+ * family's work; running every part would repeat the same prompt N times.
  */
 export function useScheduledTaskActions(): ScheduledTaskActions {
   const { t } = useI18n()
@@ -251,6 +255,13 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
       try {
         const family = await resolveCurrentFamily(rowFamily, directory)
         if (!family) {
+          return
+        }
+        if (enabled && isExpiredOneShotFamily(family, Date.now())) {
+          // The runtime refuses to resume a one-time task whose time has
+          // passed (its schedule has no occurrence left), so the row says what
+          // works instead of sending a request that will be rejected.
+          toast.error(t("sessions.scheduledTasks.dialog.toast.resumeExpiredOnce"))
           return
         }
         const memberIDs = familyMemberIDs(family)

@@ -351,7 +351,18 @@ describe("SidebarScheduledTasks", () => {
               lastRunAt: ranAt,
               lastRunStatus: "success",
             }),
-            task({ id: "a2", directory, title: "Paused one", status: "paused", lastRunStatus: "error", lastRunAt: ranAt }),
+            // As the API maps it: the latest run's error on `lastError`, the
+            // runtime's failure-policy note on `taskError`.
+            task({
+              id: "a2",
+              directory,
+              title: "Paused one",
+              status: "paused",
+              lastRunStatus: "error",
+              lastRunAt: ranAt,
+              lastError: "model exploded",
+              taskError: "auto-paused after 5 consecutive failures: model exploded",
+            }),
           ]
         : [],
     )
@@ -362,9 +373,64 @@ describe("SidebarScheduledTasks", () => {
     expect(container.querySelector('button[aria-label="Enable One shot"]')).toBeNull()
     expect(container.querySelector('button[aria-label="Run One shot now"]')).toBeNull()
     expect(container.querySelector('button[aria-label="Enable Paused one"]')).not.toBeNull()
-    // A paused task's old failure neither replaces its schedule line nor counts in the header.
-    expect(rowText("Paused one")).not.toContain("Last run failed")
-    expect(container.textContent).not.toContain("failing")
+    // The runtime paused the task itself after repeated failures: the row
+    // stays "Paused" but shows the failure with the runtime's note, and the
+    // header counts it, since it will not run again until the user acts.
+    expect(rowText("Paused one")).toContain("Paused")
+    expect(rowText("Paused one")).toContain("Last run failed")
+    expect(container.querySelector('[title^="auto-paused after 5"]')).not.toBeNull()
+    expect(container.textContent).toContain("1 failing")
+  })
+
+  test("shows a one-time task the catch-up policy skipped as missed, not completed", async () => {
+    const missedAt = Date.now() - HOUR
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha"
+        ? [
+            task({
+              id: "m1",
+              directory,
+              title: "Missed one",
+              status: "disabled",
+              schedule: { type: "once", runAt: missedAt },
+              lastRunAt: missedAt,
+              lastRunStatus: "skipped",
+            }),
+          ]
+        : [],
+    )
+    await render()
+    expect(rowText("Missed one")).toContain("Missed")
+    expect(rowText("Missed one")).not.toContain("Completed")
+    expect(container.querySelector('button[aria-label="Enable Missed one"]')).toBeNull()
+    expect(container.querySelector('button[aria-label="Run Missed one now"]')).toBeNull()
+  })
+
+  test("explains instead of resuming a paused one-time task whose time has passed", async () => {
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha"
+        ? [
+            task({
+              id: "l1",
+              directory,
+              title: "Late one",
+              status: "paused",
+              schedule: { type: "once", runAt: Date.now() - HOUR },
+            }),
+          ]
+        : [],
+    )
+    await render()
+    setScheduledTasksEnabled.mockResolvedValue(undefined)
+    const enable = container.querySelector<HTMLButtonElement>('button[aria-label="Enable Late one"]')
+    expect(enable).not.toBeNull()
+    await act(async () => enable?.click())
+    await flush()
+    // The runtime would reject the resume (the schedule has no occurrence
+    // left), so no request is sent and the row keeps its true state.
+    expect(setScheduledTasksEnabled).not.toHaveBeenCalled()
+    expect(rowText("Late one")).toContain("Paused")
+    expect(container.querySelector('button[aria-label="Run Late one now"]')).not.toBeNull()
   })
 
   test("a draft the runtime refused outright can be corrected and sent again", async () => {

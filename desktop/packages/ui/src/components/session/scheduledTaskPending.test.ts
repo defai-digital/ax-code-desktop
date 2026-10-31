@@ -31,6 +31,9 @@ describe("pendingRank", () => {
     expect(pendingRank(family({ id: "e", title: "E", status: "paused", nextRunAt: 5 }))).toBe(4)
     // A paused task whose last run failed is still paused, not "failing".
     expect(pendingRank(family({ id: "f", title: "F", status: "paused", lastRunStatus: "error", lastRunAt: 1 }))).toBe(4)
+    // One the runtime paused after repeated failures needs the user: it ranks with failing tasks.
+    const note = "auto-paused after 5 consecutive failures: boom"
+    expect(pendingRank(family({ id: "g", title: "G", status: "paused", lastRunStatus: "error", lastRunAt: 1, taskError: note }))).toBe(1)
   })
 })
 
@@ -167,18 +170,29 @@ describe("completed one-time tasks", () => {
     expect(pendingRank(family({ id: "e", title: "E", status: "paused" }))).toBe(4)
   })
 
-  it("does not count a paused or completed task's old failure as failing", () => {
+  it("counts a failure as failing only while it needs the user", () => {
     const entries = buildPendingEntries([
       {
         directory: "/work/alpha",
         project: alpha,
         tasks: [
+          // Paused by the user after a failure: at rest.
           task({ id: "a", title: "A", status: "paused", lastRunStatus: "error", lastRunAt: 1 }),
           task({ id: "b", title: "B", nextRunAt: 5, lastRunStatus: "error", lastRunAt: 1 }),
           task({ id: "c", title: "C", status: "disabled", lastRunStatus: "error", lastRunAt: 1 }),
+          // Paused by the runtime after repeated failures: will not run again until resumed.
+          task({
+            id: "d",
+            title: "D",
+            status: "paused",
+            lastRunStatus: "error",
+            lastRunAt: 1,
+            taskError: "auto-paused after 5 consecutive failures: boom",
+          }),
         ],
       },
     ])
-    expect(summarizePendingEntries(entries)).toMatchObject({ total: 3, active: 1, failing: 1 })
+    expect(summarizePendingEntries(entries)).toMatchObject({ total: 4, active: 1, failing: 2 })
+    expect(entries.map((entry) => entry.family.title)).toEqual(["B", "D", "A", "C"])
   })
 })

@@ -59,3 +59,7 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.30.5 verified publication](RELEASE-2026-10-30-v7.30.5-publication.md)
 
 - [Desktop v7.30.6 verified publication](RELEASE-2026-10-30-v7.30.6-publication.md)
+
+- [Scheduled tasks design and flow review](SCHEDULED-TASKS-2026-10-31-design-review.md): runtime and Desktop
+  scheduler review with two independent CLI reviewers, the bugs fixed in both repositories on 2026-10-31, and a
+  prioritized plan (state-model reasons, lastRun on Info, event-driven cache, seriesID, runtime-owned scheduler boot).

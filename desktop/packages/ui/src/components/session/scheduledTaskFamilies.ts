@@ -7,6 +7,17 @@ import type { RuntimeSchedule, RuntimeTaskPayload, RuntimeTaskStatus } from "@/l
 import { truncateToCodeUnits } from "@/lib/textTruncate"
 import { buildTaskRowKey, normalizeDirectory } from "./scheduledTaskGroups"
 
+/** Prefix of the task-level error the runtime's failure policy writes when it pauses a task. */
+const AUTO_PAUSED_ERROR_PREFIX = "auto-paused"
+
+/**
+ * Whether the runtime, not the user, paused the task (after repeated
+ * failures). The runtime records that only as a prefixed task-level error, so
+ * the member's `taskError` is read, never the latest run's error.
+ */
+export const isPausedByFailurePolicy = (task: Pick<ScheduledTask, "status" | "taskError">): boolean =>
+  task.status === "paused" && (task.taskError?.startsWith(AUTO_PAUSED_ERROR_PREFIX) ?? false)
+
 /**
  * The runtime scheduler supports one time (daily) or one weekday+time
  * (weekly) per task, so the editor's multi-time draft is fanned out into N
@@ -55,6 +66,11 @@ export type ScheduledTaskFamily = {
    * re-activates it together with a new schedule (the editor's path).
    */
   completed: boolean
+  /**
+   * True when a member was paused by the runtime's failure policy rather than
+   * by the user: the failure that paused it is what the row has to show.
+   */
+  pausedByFailure: boolean
   /** Earliest next run among active members. */
   nextRunAt?: number
   lastRunAt?: number
@@ -128,6 +144,11 @@ const aggregateLastRun = (
   members: readonly ScheduledTask[],
 ): { lastRunStatus: ScheduledTaskRunDisplayStatus; lastError?: string } => {
   if (members.some((member) => member.lastRunStatus === "running")) return { lastRunStatus: "running" }
+  // A part the runtime paused after repeated failures is a failure the row has
+  // to explain whatever its run history says: the runtime's note names the
+  // failure count and the error, and it is cleared the moment the task resumes.
+  const autoPaused = members.find(isPausedByFailurePolicy)
+  if (autoPaused?.taskError) return { lastRunStatus: "error", lastError: autoPaused.taskError }
   // A missing member history cannot prove the outcome of the whole family.
   if (members.some((member) => member.lastRunStatus === "unknown")) return { lastRunStatus: "unknown" }
   const latest = [...members]
@@ -139,6 +160,14 @@ const aggregateLastRun = (
     ...(latest.lastRunStatus === "error" && latest.lastError ? { lastError: latest.lastError } : {}),
   }
 }
+
+/**
+ * A one-time family whose run time has passed without it running (every part
+ * is `once` and in the past). The runtime refuses to resume it, since the
+ * schedule has no occurrence left: run-now or a new time are the only ways on.
+ */
+export const isExpiredOneShotFamily = (family: Pick<ScheduledTaskFamily, "members">, now: number): boolean =>
+  family.members.every((member) => member.schedule.type === "once" && member.schedule.runAt <= now)
 
 const buildFamily = (title: string, members: ScheduledTask[]): ScheduledTaskFamily => {
   const sorted = [...members].sort(compareMembers)
@@ -154,6 +183,7 @@ const buildFamily = (title: string, members: ScheduledTask[]): ScheduledTaskFami
     status: aggregateStatus(sorted),
     anyActive: sorted.some((member) => member.status === "active"),
     completed: sorted.every((member) => member.status === "disabled"),
+    pausedByFailure: sorted.some(isPausedByFailurePolicy),
     ...(nextRunAt !== undefined ? { nextRunAt } : {}),
     ...(maxDefined(sorted.map((member) => member.lastRunAt)) !== undefined
       ? { lastRunAt: maxDefined(sorted.map((member) => member.lastRunAt)) }
@@ -305,13 +335,22 @@ const payloadMatchesMember = (member: ScheduledTask, payload: RuntimeTaskPayload
 
 // `status` null means the editor's enabled switch was not touched: kept parts
 // keep their own status and new parts follow the primary part. A disabled part
-// (a one-time task that already ran) is only ever re-activated, never paused:
-// the user turning the switch on is the one way to run it again, and the
-// runtime accepts that together with a new future schedule and rejects it
-// otherwise, which the save then reports instead of claiming success.
-const resolveStatus = (member: ScheduledTask, status: RuntimeTaskStatus | null): RuntimeTaskStatus | undefined => {
+// (a one-time task that already ran) is finished, not paused: a new schedule is
+// the one way to run it again, so it is sent as active unless the switch was
+// turned off in the same save (then it is parked paused, which the runtime
+// keeps, instead of being left disabled with a future run it would never
+// fire). Without a new schedule only the switch turning on applies, and the
+// runtime rejects that for a past run time, which the save then reports.
+const resolveStatus = (
+  member: ScheduledTask,
+  status: RuntimeTaskStatus | null,
+  scheduleChanged: boolean,
+): RuntimeTaskStatus | undefined => {
+  if (member.status === "disabled") {
+    if (scheduleChanged) return status === "paused" ? "paused" : "active"
+    return status === "active" ? "active" : undefined
+  }
   if (status === null || member.status === status) return undefined
-  if (member.status === "disabled" && status !== "active") return undefined
   return status
 }
 
@@ -349,7 +388,8 @@ const updateFor = (
   payload: RuntimeTaskPayload,
   status: RuntimeTaskStatus | null,
 ): ScheduledTaskFamilyReconciliation["updates"] => {
-  const nextStatus = resolveStatus(member, status)
+  const keepSchedule = sameSchedule(member.schedule, payload.schedule)
+  const nextStatus = resolveStatus(member, status, !keepSchedule)
   if (nextStatus === undefined && payloadMatchesMember(member, payload)) return []
   return [
     {
@@ -357,7 +397,7 @@ const updateFor = (
       payload,
       ...(nextStatus ? { status: nextStatus } : {}),
       ...(member.model && !payload.model ? { clearModel: true } : {}),
-      ...(sameSchedule(member.schedule, payload.schedule) ? { keepSchedule: true } : {}),
+      ...(keepSchedule ? { keepSchedule: true } : {}),
     },
   ]
 }
