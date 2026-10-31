@@ -27,6 +27,16 @@ const asNonEmptyString = (value) => {
   return trimmed.length > 0 ? trimmed : null
 }
 
+// Same pattern and rule as the UI fan-out helper's stripFanOutSuffix
+// (desktop/packages/ui/src/lib/scheduledTaskTransform.ts). A task name that already ends
+// with " (n/m)" is a fan-out part, so its bare name is the part before that suffix;
+// composing the suffix again nested a second one ("Digest (2/3) (1/2)" instead of
+// "Digest (1/2)"). Anything else — including a name that only contains "(2/3)" earlier
+// in the text — is kept exactly as written.
+const FAN_OUT_SUFFIX_PATTERN = / \(\d+\/\d+\)$/
+
+const stripFanOutSuffix = (name) => name.replace(FAN_OUT_SUFFIX_PATTERN, "")
+
 // --- Runtime cron syntax guard -------------------------------------------
 // Mirror of the runtime parser (packages/ax-code/src/session/scheduled-task.ts
 // parseCronField / parseCronExpressionFull): five fields, `*`, comma lists,
@@ -242,10 +252,13 @@ export const transformDesktopScheduledTask = (task, options) => {
   const { now, expandPrompt } = options
   const warnings = []
 
-  const name = asNonEmptyString(task?.name)
-  if (!name) {
+  const rawName = asNonEmptyString(task?.name)
+  if (!rawName) {
     return { status: "skip", reason: "task name is missing", history: false, warnings }
   }
+  // Strip before composing, exactly as the editor does, so a part that is re-migrated or
+  // re-saved rebuilds "<name> (i/N)" instead of nesting a second suffix on its own name.
+  const name = stripFanOutSuffix(rawName)
 
   const rawPrompt = typeof task?.execution?.prompt === "string" ? task.execution.prompt : ""
   if (!rawPrompt.trim()) {

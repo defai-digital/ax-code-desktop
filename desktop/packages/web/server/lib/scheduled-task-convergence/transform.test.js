@@ -139,6 +139,31 @@ describe("transformDesktopScheduledTask", () => {
     expect(result.payloads.map((payload) => payload.schedule.time)).toEqual(["09:00", "12:00", "18:00"])
   })
 
+  it("strips an existing fan-out suffix before composing titles", () => {
+    // A task named "<name> (n/m)" is already a fan-out part. Composing the suffix on top nested a
+    // second one ("Digest (2/3) (1/2)"), where the editor helper rebuilds "<name> (i/N)" from the
+    // bare name. The two transforms must agree on naming (see the KEEP IN SYNC note in transform.js).
+    const result = transform(
+      baseTask({ name: "Digest (2/3)", schedule: { kind: "daily", times: ["09:00", "18:00"], timezone: "UTC" } }),
+    )
+    expect(result.status).toBe("ready")
+    expect(result.payloads.map((payload) => payload.title)).toEqual(["Digest (1/2)", "Digest (2/2)"])
+
+    // Same rule for a single-slot task: the editor strips before it decides how many slots there are.
+    const single = transform(baseTask({ name: "Digest (2/3)" }))
+    expect(single.payloads.map((payload) => payload.title)).toEqual(["Digest"])
+  })
+
+  it("keeps a name whose parenthesised index is not a trailing fan-out suffix", () => {
+    const result = transform(
+      baseTask({
+        name: "Digest (2/3) v2",
+        schedule: { kind: "daily", times: ["09:00", "18:00"], timezone: "UTC" },
+      }),
+    )
+    expect(result.payloads.map((payload) => payload.title)).toEqual(["Digest (2/3) v2 (1/2)", "Digest (2/3) v2 (2/2)"])
+  })
+
   it("fans out weekly weekday x time cross products deterministically", () => {
     const result = transform(
       baseTask({ schedule: { kind: "weekly", weekdays: [5, 1], times: ["10:00", "08:00"], timezone: "UTC" } }),
