@@ -9,8 +9,17 @@ import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 const args = parseArgs(process.argv.slice(2))
 
 async function journeyScheduledStartup({ session, e2e }) {
-  const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
-  const availability = `${origin}/__e2e__/startup-availability`
+  const origin = new URL((await fs.readFile(e2e.stubOriginPath, "utf8")).trim())
+  const port = Number(origin.port)
+  if (
+    origin.protocol !== "http:" ||
+    origin.hostname !== "127.0.0.1" ||
+    !Number.isInteger(port) ||
+    port < 1 ||
+    port > 65535
+  )
+    throw new Error("Startup fixture must use a loopback HTTP port")
+  const availability = `http://127.0.0.1:${port}/__e2e__/startup-availability`
   const configure = async (scheduledReads, events = false) => {
     const response = await fetch(availability, {
       method: "POST",
@@ -75,8 +84,9 @@ async function journeyScheduledStartup({ session, e2e }) {
         path.join(args.artifacts, "startup-receipt.json"),
         JSON.stringify(
           {
-            initial,
-            final,
+            startupRefusalVerified: true,
+            independentRetryVerified: true,
+            streamAcknowledgements: 0,
             actions: audit.calls,
             scope:
               "Blocked event stream, simulated startup HTTP refusal, advanced display clock, native retry and fresh DOM/screenshots; no model execution",
