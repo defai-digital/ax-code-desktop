@@ -129,6 +129,7 @@ describe("SidebarScheduledTasks", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
+    vi.restoreAllMocks()
   })
 
   test("lists every project's tasks in one pending-first queue", async () => {
@@ -528,6 +529,54 @@ describe("SidebarScheduledTasks", () => {
   const booting = () =>
     useConnectionStore.setState({ phase: "connecting", hasEverConnected: false, lastDisconnectReason: null })
   const loadingRow = () => container.querySelector('[data-sidebar-scheduled] [aria-busy="true"]')
+
+  test("reveals startup load failures and retry when the stream never connects", async () => {
+    booting()
+    const startedAt = Date.now()
+    const clock = vi.spyOn(Date, "now").mockReturnValue(startedAt)
+    fetchScheduledTasks.mockRejectedValue(new Error("ax-code is restarting"))
+    await render()
+    expect(container.textContent).not.toContain("Couldn't load")
+    expect(loadingRow()).not.toBeNull()
+
+    clock.mockReturnValue(startedAt + 60_000)
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")))
+    await flush()
+    expect(container.textContent).toContain("Couldn't load Alpha")
+    expect(container.textContent).toContain("Couldn't load Beta")
+    expect(loadingRow()).toBeNull()
+
+    fetchScheduledTasks.mockImplementation(async (directory: string) => [
+      task({ id: "recovered", directory, title: "Recovered before stream" }),
+    ])
+    const retry = container.querySelector<HTMLButtonElement>('button[aria-label="Retry loading tasks for Alpha"]')
+    expect(retry).not.toBeNull()
+    await act(async () => retry?.click())
+    await flush()
+    expect(container.textContent).not.toContain("Couldn't load Alpha")
+    expect(container.textContent).toContain("Couldn't load Beta")
+    expect(rowTitles()).toEqual(["Recovered before stream"])
+
+    await act(async () => {
+      useConnectionStore.setState({ phase: "connected", hasEverConnected: true })
+    })
+    await flush()
+    expect(container.textContent).not.toContain("Couldn't load")
+    expect(rowTitles()).toHaveLength(2)
+  })
+
+  test("keeps unanswered requests loading after the startup grace period", async () => {
+    booting()
+    const startedAt = Date.now()
+    const clock = vi.spyOn(Date, "now").mockReturnValue(startedAt)
+    fetchScheduledTasks.mockImplementation(() => new Promise<ScheduledTask[]>(() => {}))
+    await render()
+    clock.mockReturnValue(startedAt + 60_000)
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")))
+    await flush()
+    expect(container.textContent).not.toContain("Couldn't load")
+    expect(loadingRow()).not.toBeNull()
+  })
 
   test("retries loads the runtime refused while starting once the stream connects, without a retry row", async () => {
     // Cold start: the desktop web server answers 503 until the runtime is up,

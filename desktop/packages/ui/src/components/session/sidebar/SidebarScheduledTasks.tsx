@@ -44,6 +44,7 @@ type Props = {
 type ProjectGroup = PendingScheduleGroupInput & { label: string }
 
 const ROW_ICON_CLASS = "h-3.5 w-3.5 shrink-0"
+const STARTUP_ERROR_GRACE_MS = 30_000
 
 function ProjectGlyph({ project }: { project: ProjectEntry }) {
   const { currentTheme } = useThemeSystem()
@@ -113,6 +114,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   )
 
   const localTimezone = React.useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
+  const [mountedAt] = React.useState(() => Date.now())
   const enabled = showSection && projectGroups.length > 0
   const now = useScheduledTasksSync(projectGroups, enabled)
 
@@ -128,10 +130,11 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     () => new Map(projectGroups.map((group) => [group.directory, group.label])),
     [projectGroups],
   )
-  // Until the event stream has connected once the app is still booting: a load
-  // the runtime refused while starting is retried on connect
-  // (useScheduledTasksSync), so it stays a loading row rather than a failure.
-  const hasFailed = (state: ScheduledTaskGroupState): boolean => streamHasConnected && state.error !== null
+  // Briefly hide startup refusals because connecting retries them automatically.
+  // A stream that never connects must not hide load errors and Retry forever.
+  // The sync clock also catches up when a hidden window becomes visible again.
+  const waitingForRuntime = !streamHasConnected && now - mountedAt < STARTUP_ERROR_GRACE_MS
+  const hasFailed = (state: ScheduledTaskGroupState): boolean => !waitingForRuntime && state.error !== null
   // A project whose latest load failed shows a retry row, also when an older
   // list is still shown, so a stale row is never presented as current.
   const failedGroups = projectGroups.filter((group) =>

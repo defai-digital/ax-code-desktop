@@ -1,5 +1,16 @@
 # Test the Desktop UI with WebMCP
 
+To verify scheduled-task startup failures and recovery:
+
+```sh
+node desktop/packages/electron/scripts/e2e/scheduled-startup-webmcp.mjs --artifacts /tmp/ax-scheduled-startup
+```
+
+This isolated fixture blocks the event stream and refuses scheduled-task reads, checks the initial loading row,
+advances the display clock beyond the startup grace period, and discovers Retry through native WebMCP. It verifies
+that a successful retry clears the error before any stream connection, with fresh DOM and light/dark screenshots.
+It does not execute a model or change user schedules.
+
 AX Code Desktop can expose its own UI as native WebMCP tools in an explicitly enabled, unpackaged development instance.
 This is separate from using website tools through the project browser. The tools operate the rendered UI and its event
 handlers, so agents can inspect controls, click them, fill ordinary fields and check the resulting screen.
