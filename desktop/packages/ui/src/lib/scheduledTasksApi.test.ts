@@ -109,6 +109,36 @@ describe("scheduledTasksApi", () => {
     })
   })
 
+  test.each(["failed", "completed", "missed_skip"] as const)(
+    "retains a %s run timestamp when the task summary has none",
+    async (status) => {
+      scheduledTask.list.mockResolvedValue({ data: [runtimeTask()] })
+      scheduledTask.listRuns.mockResolvedValue({
+        data: [{ id: "run_1", status, timeStarted: 7, time: { created: 5 } }],
+      })
+      const [task] = await fetchScheduledTasks("/work/alpha")
+      expect(task.lastRunAt).toBe(7)
+      expect(task.lastRunStatus).toBe(status === "failed" ? "error" : status === "completed" ? "success" : "skipped")
+    },
+  )
+
+  test("uses run creation time when neither summary nor start time is available", async () => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask()] })
+    scheduledTask.listRuns.mockResolvedValue({
+      data: [{ id: "run_1", status: "failed", error: "queue unavailable", time: { created: 5 } }],
+    })
+    const [task] = await fetchScheduledTasks("/work/alpha")
+    expect(task).toMatchObject({ lastRunAt: 5, lastRunStatus: "error", lastError: "queue unavailable" })
+  })
+
+  test("preserves the task summary timestamp when enriching a valid run", async () => {
+    scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42 })] })
+    scheduledTask.listRuns.mockResolvedValue({
+      data: [{ id: "run_1", status: "completed", timeStarted: 7, time: { created: 5 } }],
+    })
+    expect((await fetchScheduledTasks("/work/alpha"))[0].lastRunAt).toBe(42)
+  })
+
   test("fetchScheduledTasks degrades gracefully when run history fails", async () => {
     scheduledTask.list.mockResolvedValue({ data: [runtimeTask({ lastRunAt: 42 })] })
     scheduledTask.listRuns.mockRejectedValue(new Error("boom"))

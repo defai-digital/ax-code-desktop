@@ -12,7 +12,7 @@ async function journeyScheduledHistory({ session, e2e }) {
   const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
   const directory = e2e.scenario.projectDirectory
   const now = Date.now()
-  const tasks = ["running", "completed", "unavailable"].map((status, index) => ({
+  const tasks = ["running", "failed", "unavailable"].map((status, index) => ({
     task: {
       id: `st_fixture_${index}`,
       projectID: e2e.scenario.project.id,
@@ -23,7 +23,7 @@ async function journeyScheduledHistory({ session, e2e }) {
       schedule: { type: "daily", time: "09:00", timezone: "UTC" },
       status: "active",
       catchUpPolicy: "run_once",
-      lastRunAt: now - 1000,
+      ...(status === "unavailable" ? { lastRunAt: now - 1000 } : {}),
       nextRunAt: now + 3600000,
       time: { created: now - 10000 },
     },
@@ -44,6 +44,7 @@ async function journeyScheduledHistory({ session, e2e }) {
               id: `run_fixture_${index}`,
               taskID: `st_fixture_${index}`,
               status,
+              ...(status === "failed" ? { error: "Controlled failure without summary timestamp" } : {}),
               triggerType: "manual",
               coalescedCount: 1,
               time: { created: now - 1000 },
@@ -70,6 +71,10 @@ async function journeyScheduledHistory({ session, e2e }) {
   if (!unknown?.includes("Couldn't load the run history")) throw new Error("Unavailable history was not disclosed")
   const running = rows.find((text) => text.includes("History running"))
   if (!running?.includes("Running") || running.includes("Couldn't load")) throw new Error("Running row was corrupted")
+  const failed = rows.find((text) => text.includes("History failed"))
+  if (!failed?.includes("Last run failed") || failed.includes("Couldn't load")) {
+    throw new Error("Valid history without a task summary timestamp lost its outcome")
+  }
   // Closing the editor returns keyboard focus to its row, exposing focus-within actions.
   await audit.click("Edit History unavailable")
   await audit.wait('Boolean(document.querySelector("#sched-name"))', "row editor opened")
@@ -96,6 +101,7 @@ async function journeyScheduledHistory({ session, e2e }) {
     index === 2
       ? {
           ...entry,
+          task: { ...entry.task, lastRunAt: undefined },
           history: [
             {
               id: "run_recovered",

@@ -212,6 +212,9 @@ const withLatestRun = async (directory: string, task: ScheduledTask): Promise<Sc
     if (!latest) return unknown()
     return {
       ...task,
+      // A valid run may be visible before its task summary timestamp. Keep its
+      // outcome visible to family aggregation, which orders members by lastRunAt.
+      lastRunAt: task.lastRunAt ?? latest.timeStarted ?? latest.time.created,
       lastRunStatus: runDisplayStatus(latest),
       lastError: latest.error || undefined,
     }
