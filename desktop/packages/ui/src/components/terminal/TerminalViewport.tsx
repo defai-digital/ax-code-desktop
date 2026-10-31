@@ -1662,6 +1662,33 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
       [],
     )
 
+    // AkiTTY's own textarea paste listener hands the clipboard text to Terminal.paste(), which wraps
+    // it in ESC[200~ … ESC[201~ without stripping markers the payload already carries: an embedded
+    // closing marker ends the paste early and everything after it is read as ordinary input,
+    // newlines included. The hidden-input path above sanitizes its payload; this capture handler
+    // gives the desktop path the same treatment and keeps the event from reaching AkiTTY at all.
+    const handleDesktopPaste = React.useCallback(
+      (event: React.ClipboardEvent<HTMLDivElement>) => {
+        if (useHiddenInputOverlay) {
+          return
+        }
+        const terminal = terminalRef.current
+        // No usable terminal: nothing handled this paste before either, so leave the event alone.
+        if (!terminal) {
+          return
+        }
+        const text = event.clipboardData?.getData("text") ?? ""
+        if (!text) {
+          return
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        ;(event.nativeEvent as Event | undefined)?.stopImmediatePropagation()
+        inputHandlerRef.current(buildPastedInput(text, Boolean(terminal.hasBracketedPaste?.())))
+      },
+      [useHiddenInputOverlay],
+    )
+
     const hiddenInputStyle: React.CSSProperties = {
       position: "fixed",
       left: 0,
@@ -1699,6 +1726,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         className={cn("relative h-full w-full terminal-viewport-container", className)}
         data-hidden-input-overlay-active={useHiddenInputOverlay ? "true" : undefined}
         style={{ backgroundColor: theme.background }}
+        onPasteCapture={handleDesktopPaste}
         onTouchStart={(event) => {
           if (!useHiddenInputOverlay || enableTouchScroll) {
             return
