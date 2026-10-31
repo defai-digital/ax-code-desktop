@@ -274,6 +274,113 @@ describe("agent browser enable request", () => {
     expect(container.textContent).not.toContain("webmcp.pages.access.interrupted")
   })
 
+  test("skips status polls while hidden and reads once when the document is visible again", async () => {
+    const status = { ...browserStatus(false), url: "https://example.test/stable" }
+    invoke.mockImplementation(async (_channel: string, call: { action?: string }) =>
+      call?.action === "close" || call?.action === "bounds" ? undefined : status,
+    )
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    render()
+    openAgentMode()
+    await flush()
+    expect(useWebMcpBrowserStore.getState().browserId).toBe("browser-1")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(callsFor("status")).toHaveLength(5)
+
+    visibility.mockReturnValue("hidden")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(callsFor("status")).toHaveLength(5)
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ phase: "ready", error: null })
+
+    visibility.mockReturnValue("visible")
+    const invokes = invoke.mock.calls.length
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+    })
+    expect(callsFor("status")).toHaveLength(6)
+    expect(invoke.mock.calls.length).toBe(invokes + 1)
+
+    cleanup()
+    const afterUnmount = invoke.mock.calls.length
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+      await vi.advanceTimersByTimeAsync(5000)
+    })
+    expect(invoke.mock.calls.length).toBe(afterUnmount)
+    expect(callsFor("status")).toHaveLength(6)
+  })
+
+  test("does not overlap a visibility catch-up read with the interval", async () => {
+    const status = { ...browserStatus(false), url: "https://example.test/stable" }
+    let release: (() => void) | undefined
+    invoke.mockImplementation((_channel: string, call: { action?: string }) => {
+      if (call?.action === "status") {
+        return new Promise<unknown>((resolve) => {
+          release = () => resolve(status)
+        })
+      }
+      return Promise.resolve(call?.action === "close" || call?.action === "bounds" ? undefined : status)
+    })
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    render()
+    openAgentMode()
+    await flush()
+    expect(useWebMcpBrowserStore.getState().browserId).toBe("browser-1")
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(callsFor("status")).toHaveLength(1)
+
+    // The read is still pending: neither a visibility catch-up nor the next tick may start another.
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"))
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(callsFor("status")).toHaveLength(1)
+
+    await act(async () => {
+      release?.()
+      await flush()
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(callsFor("status")).toHaveLength(2)
+    cleanup()
+  })
+
+  test("keeps polling after the bridge throws synchronously", async () => {
+    const status = { ...browserStatus(false), url: "https://example.test/stable" }
+    let throwOnce = false
+    invoke.mockImplementation((_channel: string, call: { action?: string }) => {
+      if (call?.action === "status" && throwOnce) {
+        throwOnce = false
+        throw new Error("bridge unavailable")
+      }
+      return Promise.resolve(call?.action === "close" || call?.action === "bounds" ? undefined : status)
+    })
+    vi.spyOn(document, "visibilityState", "get").mockReturnValue("visible")
+    render()
+    openAgentMode()
+    await flush()
+    expect(useWebMcpBrowserStore.getState().browserId).toBe("browser-1")
+
+    throwOnce = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000)
+    })
+    expect(callsFor("status")).toHaveLength(1)
+    // The throw counted as one failed poll; the next tick must read again and recover.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    expect(callsFor("status")).toHaveLength(3)
+    expect(useWebMcpBrowserStore.getState()).toMatchObject({ phase: "ready", error: null })
+    cleanup()
+  })
+
   test.each(["empty", "reject"])(
     "retires tab Enable after a %s session start and never enables a later session",
     async (failure) => {

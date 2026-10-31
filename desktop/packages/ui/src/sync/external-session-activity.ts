@@ -12,15 +12,19 @@ interface ExternalSessionActivityInput {
   now: number
   messages: readonly Message[]
   parts: readonly Part[]
+  /** Pre-sorted newest message from the caller; skips the internal sort when given. */
+  newest?: Message
 }
 
 export function inferExternalSessionActivity(input: ExternalSessionActivityInput): "running" | "idle" {
   if (typeof input.updated !== "number" || input.now - input.updated > EXTERNAL_SESSION_ACTIVITY_MAX_AGE_MS) {
     return "idle"
   }
-  const newest = [...input.messages].sort(
-    (left, right) => right.time.created - left.time.created || right.id.localeCompare(left.id),
-  )[0]
+  const newest =
+    input.newest ??
+    [...input.messages].sort(
+      (left, right) => right.time.created - left.time.created || right.id.localeCompare(left.id),
+    )[0]
   if (!newest) return "idle"
   if (newest.role === "user") return "running"
   if (input.parts.some((part) => part.type === "tool" && ACTIVE_TOOL_STATUSES.has(part.state.status))) {

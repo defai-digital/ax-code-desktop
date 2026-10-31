@@ -2,6 +2,7 @@ import React from "react"
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { GitStatus, GitBranch, GitLogResponse, GitIdentitySummary, GitAPI as RuntimeGitAPI } from "@/lib/api/types"
+import { setBoundedCacheEntry } from "@/lib/boundedCache"
 import { retainedPayloadSize } from "@/lib/retainedPayloadSize"
 import { collectChangedDiffStatPaths, combinedDiffStatsForPath } from "@/lib/git/diffStats"
 
@@ -22,6 +23,9 @@ const DIFF_CACHE_MAX_TOTAL_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
 export const GIT_DIRECTORY_CACHE_LIMIT = 10
 export const GIT_DIRECTORY_CACHE_MAX_BYTES = 20 * 1024 * 1024
 const GIT_DIRECTORY_IDLE_TTL_MS = 20 * 60 * 1000
+// Repository summaries outlive the working set on purpose (sidebar badges for every project), but
+// every distinct directory string that ever completed a status read would otherwise stay forever.
+export const GIT_REPO_SUMMARY_LIMIT = 512
 const directoryAccessedAt = new Map<string, number>()
 type GitStatusFetchMode = "full" | "light"
 export type GitStoreAPI = Pick<
@@ -171,9 +175,18 @@ const forgetDirectoryRequests = (directory: string) => {
   diffFetchGenerationByDirectory.delete(directory)
 }
 
+// Directory entries are replaced immutably on every change (`{ ...entry, ... }`), and the diff cache
+// map inside an entry is never mutated in place (its contents change only through a new Map in a new
+// entry), so the entry object identifies its payload. Without this cache every store write, including a
+// one-flag loading update, re-walked up to 20 MiB of retained text for all directories.
+const directoryPayloadBytesByEntry = new WeakMap<DirectoryGitState, number>()
+
 const directoryPayloadBytes = (state: DirectoryGitState): number => {
+  const cached = directoryPayloadBytesByEntry.get(state)
+  if (cached !== undefined) return cached
   let bytes = retainedPayloadSize(state)
   for (const diff of state.diffCache.values()) bytes += retainedPayloadSize(diff)
+  directoryPayloadBytesByEntry.set(state, bytes)
   return bytes
 }
 
@@ -447,7 +460,9 @@ const withDirectoryRetention = (createState: GitStateCreator): GitStateCreator =
       bytes -= sizes.get(directory) ?? 0
       const statusRequestId = statusFetchRequestIds.get(directory)
       forgetDirectoryRequests(directory)
-      if (statusRequestId !== undefined) evictedStatusRequestIds.set(directory, statusRequestId)
+      if (statusRequestId !== undefined) {
+        setBoundedCacheEntry(evictedStatusRequestIds, GIT_REPO_SUMMARY_LIMIT, directory, statusRequestId)
+      }
     }
     for (const directory of current.directories.keys()) {
       if (!directories.has(directory)) forgetDirectoryRequests(directory)
@@ -461,7 +476,18 @@ const withDirectoryRetention = (createState: GitStateCreator): GitStateCreator =
       const previous = repoSummaries.get(directory)
       if (previous?.isGitRepo === entry.isGitRepo && previous.branch === branch) continue
       if (repoSummaries === baseSummaries) repoSummaries = new Map(repoSummaries)
+      // Re-insert so the map order reflects the last update; the cap below evicts from the front.
+      repoSummaries.delete(directory)
       repoSummaries.set(directory, { isGitRepo: entry.isGitRepo, branch })
+    }
+    if (repoSummaries.size > GIT_REPO_SUMMARY_LIMIT) {
+      // Least recently updated first; the working set keeps its summaries so an open project never
+      // loses its badge.
+      if (repoSummaries === baseSummaries) repoSummaries = new Map(repoSummaries)
+      for (const directory of repoSummaries.keys()) {
+        if (repoSummaries.size <= GIT_REPO_SUMMARY_LIMIT) break
+        if (!directories.has(directory)) repoSummaries.delete(directory)
+      }
     }
     rawSet({ ...patch, directories, repoSummaries })
   }
@@ -518,11 +544,26 @@ export const useGitStore = create<GitStore>()(
       },
 
       removeDirectoriesMatching: (matches) => {
-        const { directories, repoSummaries } = get()
-        const known = new Set([...directories.keys(), ...repoSummaries.keys(), ...evictedStatusRequestIds.keys()])
-        for (const directory of known) {
-          if (matches(directory)) get().removeDirectory(directory)
+        const current = get()
+        const known = new Set([
+          ...current.directories.keys(),
+          ...current.repoSummaries.keys(),
+          ...evictedStatusRequestIds.keys(),
+        ])
+        const removed = [...known].filter((directory) => matches(directory))
+        if (removed.length === 0) return
+        // One publication for the whole batch: a project with many worktrees used to pay one
+        // retention pass and one subscriber notification per removed directory.
+        const directories = new Map(current.directories)
+        const repoSummaries = new Map(current.repoSummaries)
+        for (const directory of removed) {
+          directories.delete(directory)
+          repoSummaries.delete(directory)
+          forgetDirectoryRequests(directory)
+          evictedStatusRequestIds.delete(directory)
         }
+        const activeRemoved = current.activeDirectory !== null && removed.includes(current.activeDirectory)
+        set({ directories, repoSummaries, ...(activeRemoved ? { activeDirectory: null } : {}) })
       },
 
       getDirectoryState: (directory) => {

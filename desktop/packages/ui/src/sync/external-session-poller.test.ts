@@ -192,6 +192,9 @@ describe("external session polling", () => {
     const { poller, store, messages } = setup({ type: "idle" })
     await vi.advanceTimersByTimeAsync(0)
     store.setState({ session_status: {} })
+    // Bump time.updated so the watermark from the first idle evaluation does
+    // not skip this read; the in-flight guard is what this test exercises.
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 101 } }] })
     let resolve: ((value: { data: SessionMessageRecord[] }) => void) | undefined
     messages.mockImplementationOnce(
       () =>
@@ -220,6 +223,8 @@ describe("external session polling", () => {
   })
 
   test("polls every three seconds only while visible, resumes immediately, and disposes", async () => {
+    // Counts stay at one read per visible tick here: the session evaluates
+    // to an owned busy status, which bypasses the watermark skip.
     const { poller, messages, refreshSessionList } = setup()
     await vi.advanceTimersByTimeAsync(0)
     await vi.advanceTimersByTimeAsync(3000)
@@ -278,6 +283,217 @@ describe("external session polling", () => {
     await pending
     await vi.advanceTimersByTimeAsync(0)
     expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("watermark: skips refetch for an idle session with unchanged time.updated until it changes", async () => {
+    const { poller, store, messages } = setup()
+    messages.mockResolvedValue({ data: [{ info: assistant, parts: [] }] })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    expect(store.getState().session_status.session).toBeUndefined()
+    await poller.tick()
+    await poller.tick()
+    expect(messages).toHaveBeenCalledOnce()
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 101 } }] })
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+  })
+
+  test("watermark: keeps reading an owned busy session with unchanged time.updated until it evaluates idle", async () => {
+    const { poller, store, messages } = setup(undefined, null)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.getState().session_status.session?.type).toBe("busy")
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+    expect(store.getState().session_status.session?.type).toBe("busy")
+    messages.mockResolvedValue({ data: [{ info: assistant, parts: [] }] })
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+    expect(store.getState().session_status.session).toBeUndefined()
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("watermark: reads the open session absent from the list on every tick", async () => {
+    const { poller, store, messages } = setup()
+    store.setState({ session: [], message: { session: [user] } })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("watermark: forgets the stamp when a runtime status arrives during an owned read, so the next tick reads again", async () => {
+    const { poller, store, messages } = setup()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    // The first read stamped time.updated 100 and synthesized busy; the owned busy keeps the next read going
+    // with the same time.updated, so only a forgotten stamp can explain a third read after the guard tripped.
+    expect(store.getState().session_status.session?.type).toBe("busy")
+    let resolve: ((value: { data: SessionMessageRecord[] }) => void) | undefined
+    messages.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const pending = poller.tick()
+    await vi.advanceTimersByTimeAsync(0)
+    const runtime: SessionStatus = { type: "busy", lastActivityAt: 120 }
+    store.setState({ session_status: { session: runtime } })
+    noteServerSessionStatus("session")
+    resolve!({ data: [{ info: assistant, parts: [] }] })
+    await pending
+    expect(store.getState().session_status.session).toBe(runtime)
+    store.setState({ session_status: {} })
+    await poller.tick()
+    // 1 initial + 1 guarded in-flight + 1 retry after the guard tripped.
+    expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("watermark: a session evaluated in the background is read and applied again once it is opened", async () => {
+    let open: string | null = "session"
+    const childStores = new ChildStoreManager()
+    const store = childStores.ensureChild("/repo", { bootstrap: false })
+    store.setState({ session: [session] })
+    const messages = vi.fn(async (): Promise<{ data: SessionMessageRecord[] }> => ({
+      data: [{ info: assistant, parts: [] }],
+    }))
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: () => ({ session: { messages } }) as unknown as AxCodeClient,
+      getOpenSessionId: () => open,
+      getOpenSessionDirectory: () => (open ? "/repo" : null),
+      refreshSessionList: vi.fn(async () => {}),
+      document,
+    })
+    pollers.push(poller)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    expect(store.getState().message.session?.map((item) => item.id)).toEqual(["assistant"])
+
+    // The user switches away; a new external turn touches the row and finishes.
+    open = null
+    const followUp: Message = { ...assistant, id: "assistant2", time: { created: 50, completed: 60 } }
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 200 } }] })
+    messages.mockResolvedValue({ data: [{ info: assistant, parts: [] }, { info: followUp, parts: [] }] })
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+    expect(store.getState().message.session?.map((item) => item.id)).toEqual(["assistant"])
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+
+    // Opening the session pays one catch-up read that applies the page, then rests again.
+    open = "session"
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+    expect(store.getState().message.session?.map((item) => item.id)).toEqual(["assistant", "assistant2"])
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("watermark: a row touched during the read is evaluated with its new time.updated", async () => {
+    const { poller, store, messages } = setup()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(store.getState().session_status.session).toMatchObject({ type: "busy", lastActivityAt: 100 })
+    let resolve: ((value: { data: SessionMessageRecord[] }) => void) | undefined
+    messages.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const pending = poller.tick()
+    await vi.advanceTimersByTimeAsync(0)
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 300 } }] })
+    resolve!({ data: [{ info: user, parts: [] }] })
+    await pending
+    expect(store.getState().session_status.session).toMatchObject({ type: "busy", lastActivityAt: 300 })
+  })
+
+  test("watermark: a row touched during an idle read is forgotten, not stamped, so the next tick reads again", async () => {
+    const { poller, store, messages } = setup()
+    messages.mockResolvedValue({ data: [{ info: assistant, parts: [] }] })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    expect(store.getState().session_status.session).toBeUndefined()
+    // A touch starts a read; a second touch lands while that read is pending.
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 200 } }] })
+    let resolve: ((value: { data: SessionMessageRecord[] }) => void) | undefined
+    messages.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const pending = poller.tick()
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledTimes(2)
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 300 } }] })
+    resolve!({ data: [{ info: assistant, parts: [] }] })
+    await pending
+    // The page may predate the newer row, so it is read again; the unchanged row after that read rests.
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(3)
+  })
+
+  test("releases the synthesized status of a disposed store on the next tick", async () => {
+    const childStores = new ChildStoreManager()
+    const store = childStores.ensureChild("/repo", { bootstrap: false })
+    store.setState({ session: [session] })
+    const messages = vi.fn(async () => ({ data: [{ info: user, parts: [] }] }))
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: () => ({ session: { messages } }) as unknown as AxCodeClient,
+      getOpenSessionId: () => null,
+      getOpenSessionDirectory: () => null,
+      refreshSessionList: vi.fn(async () => {}),
+      document,
+    })
+    pollers.push(poller)
+    await vi.advanceTimersByTimeAsync(0)
+    const synthesized = store.getState().session_status.session
+    expect(synthesized?.type).toBe("busy")
+    // A busy status protects the directory from disposal, so clear it to
+    // satisfy canDisposeDirectory, dispose, then restore the exact owned
+    // object the poller still tracks on the orphaned store.
+    store.setState({ session_status: {} })
+    expect(childStores.disposeDirectory("/repo")).toBe(true)
+    if (!synthesized) throw new Error("expected a synthesized status")
+    store.setState({ session_status: { session: synthesized } })
+    const replacement = childStores.ensureChild("/repo", { bootstrap: false })
+    expect(replacement).not.toBe(store)
+    await poller.tick()
+    expect(store.getState().session_status.session).toBeUndefined()
+    expect(replacement.getState().session_status.session).toBeUndefined()
+    expect(childStores.ensureChild("/repo", { bootstrap: false })).toBe(replacement)
+  })
+
+  test("reads each candidate exactly once in a multi-session tick", async () => {
+    const childStores = new ChildStoreManager()
+    const store = childStores.ensureChild("/repo", { bootstrap: false })
+    const other: Session = { ...session, id: "session2", slug: "session2" }
+    store.setState({ session: [session, other] })
+    const messages = vi.fn(async (input: { sessionID: string }) => {
+      void input
+      return { data: [{ info: user, parts: [] }] }
+    })
+    const poller = createExternalSessionPoller({
+      childStores,
+      getClient: () => ({ session: { messages } }) as unknown as AxCodeClient,
+      getOpenSessionId: () => null,
+      getOpenSessionDirectory: () => null,
+      refreshSessionList: vi.fn(async () => {}),
+      document,
+    })
+    pollers.push(poller)
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledTimes(2)
+    expect(messages.mock.calls.map(([input]) => input.sessionID).sort()).toEqual(["session", "session2"])
   })
 
   test("disposal prevents an in-flight response from publishing", async () => {

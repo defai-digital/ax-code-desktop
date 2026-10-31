@@ -505,7 +505,19 @@ export function rememberWebMcpAddress(directory: string, sessionID: string | nul
   const identity = addressIdentity(directory, sessionID)
   const url = safeWebMcpAddress(value)
   if (!identity || !url) return
-  const addresses = readAddresses().filter(
+  const stored = readAddresses()
+  const front = stored[0]
+  // Status polls repeat the current address. Skip the write when that url is already the front entry and no
+  // duplicate of this identity sits behind it (legacy or foreign data), which the filter below collapses.
+  const sameIdentity = (entry: AddressEntry) => entry.directory === identity.directory && entry.sessionID === sessionID
+  if (
+    front !== undefined &&
+    sameIdentity(front) &&
+    front.url === url &&
+    !stored.some((entry, index) => index > 0 && sameIdentity(entry))
+  )
+    return
+  const addresses = stored.filter(
     (entry) => entry.directory !== identity.directory || entry.sessionID !== sessionID,
   )
   try {

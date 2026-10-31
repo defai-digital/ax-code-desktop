@@ -16,9 +16,20 @@ export type RetentionStats = {
   trimmedMessages: number
 }
 
+interface SessionSizeCache {
+  messages: State["message"][string] | undefined
+  diff: State["session_diff"][string] | undefined
+  todo: State["todo"][string] | undefined
+  permission: State["permission"][string] | undefined
+  question: State["question"][string] | undefined
+  ownBytes: number
+  parts: Map<string, { ref: unknown; bytes: number }>
+}
+
 export class SessionRetention {
   private readonly accessed = new Map<string, number>()
   private readonly messages = new Map<string, State["message"][string]>()
+  private readonly sizeCache = new Map<string, SessionSizeCache>()
   private evictedSessions = 0
   private trimmedMessages = 0
   stats: RetentionStats = {
@@ -67,6 +78,10 @@ export class SessionRetention {
       if (ids.has(id) || keep.has(id)) continue
       this.accessed.delete(id)
       this.messages.delete(id)
+      this.sizeCache.delete(id)
+    }
+    for (const id of this.sizeCache.keys()) {
+      if (!ids.has(id)) this.sizeCache.delete(id)
     }
 
     const draft = {
@@ -92,14 +107,58 @@ export class SessionRetention {
     const sizes = new Map<string, number>()
     let totalBytes = 0
     for (const id of ids) {
-      let bytes = retainedPayloadSize([
-        draft.message[id],
-        draft.session_diff[id],
-        draft.todo[id],
-        draft.permission[id],
-        draft.question[id],
-      ])
-      for (const messageID of partsBySession.get(id) ?? []) bytes += retainedPayloadSize(draft.part.get(messageID))
+      const messagesRef = draft.message[id]
+      const diffRef = draft.session_diff[id]
+      const todoRef = draft.todo[id]
+      const permissionRef = draft.permission[id]
+      const questionRef = draft.question[id]
+      const existing = this.sizeCache.get(id)
+      const cache: SessionSizeCache = existing ?? {
+        messages: undefined,
+        diff: undefined,
+        todo: undefined,
+        permission: undefined,
+        question: undefined,
+        ownBytes: 0,
+        parts: new Map(),
+      }
+      if (!existing) this.sizeCache.set(id, cache)
+      let bytes: number
+      if (
+        existing &&
+        cache.messages === messagesRef &&
+        cache.diff === diffRef &&
+        cache.todo === todoRef &&
+        cache.permission === permissionRef &&
+        cache.question === questionRef
+      ) {
+        bytes = cache.ownBytes
+      } else {
+        bytes = retainedPayloadSize([messagesRef, diffRef, todoRef, permissionRef, questionRef])
+        cache.messages = messagesRef
+        cache.diff = diffRef
+        cache.todo = todoRef
+        cache.permission = permissionRef
+        cache.question = questionRef
+        cache.ownBytes = bytes
+      }
+      const livePartIds = new Set<string>()
+      for (const messageID of partsBySession.get(id) ?? []) {
+        const partRef = draft.part.get(messageID)
+        if (partRef === undefined) continue
+        livePartIds.add(messageID)
+        const cachedPart = cache.parts.get(messageID)
+        if (cachedPart && cachedPart.ref === partRef) {
+          bytes += cachedPart.bytes
+        } else {
+          const partBytes = retainedPayloadSize(partRef)
+          cache.parts.set(messageID, { ref: partRef, bytes: partBytes })
+          bytes += partBytes
+        }
+      }
+      for (const messageID of cache.parts.keys()) {
+        if (!livePartIds.has(messageID)) cache.parts.delete(messageID)
+      }
       sizes.set(id, bytes)
       totalBytes += bytes
     }
@@ -119,6 +178,7 @@ export class SessionRetention {
       totalBytes -= sizes.get(id) ?? 0
       this.accessed.delete(id)
       this.messages.delete(id)
+      this.sizeCache.delete(id)
     }
     dropSessionCaches(draft, evicted)
     this.evictedSessions += evicted.length

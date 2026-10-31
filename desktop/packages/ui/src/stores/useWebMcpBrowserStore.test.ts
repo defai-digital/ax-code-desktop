@@ -381,6 +381,75 @@ test("run and journal storage filter secrets before truncation without changing 
   })
 })
 
+test("skips rewriting address history when the same url is already at the front", () => {
+  const setItem = vi.spyOn(Storage.prototype, "setItem")
+  try {
+    rememberWebMcpAddress("/repo", "ses_one", "https://example.org/one")
+    rememberWebMcpAddress("/repo", "ses_one", "https://example.org/one")
+    expect(setItem).toHaveBeenCalledTimes(1)
+
+    rememberWebMcpAddress("/repo", "ses_one", "https://other.test/next")
+    expect(setItem).toHaveBeenCalledTimes(2)
+
+    rememberWebMcpAddress("/elsewhere", "ses_two", "https://third.test/front")
+    expect(setItem).toHaveBeenCalledTimes(3)
+
+    rememberWebMcpAddress("/repo", "ses_one", "https://other.test/next")
+    expect(setItem).toHaveBeenCalledTimes(4)
+    expect(JSON.parse(localStorage.getItem(WEBMCP_HISTORY_KEY)!)).toEqual([
+      { directory: "/repo", sessionID: "ses_one", url: "https://other.test" },
+      { directory: "/elsewhere", sessionID: "ses_two", url: "https://third.test" },
+    ])
+  } finally {
+    setItem.mockRestore()
+  }
+})
+
+test("address history still writes when the front entry is another identity with the same url", () => {
+  localStorage.setItem(
+    WEBMCP_HISTORY_KEY,
+    JSON.stringify([
+      { directory: "/elsewhere", sessionID: "ses_two", url: "https://same.test" },
+      { directory: "/repo", sessionID: "ses_one", url: "https://same.test" },
+    ]),
+  )
+  const setItem = vi.spyOn(Storage.prototype, "setItem")
+  try {
+    rememberWebMcpAddress("/repo", "ses_one", "https://same.test")
+    expect(setItem).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(localStorage.getItem(WEBMCP_HISTORY_KEY)!)).toEqual([
+      { directory: "/repo", sessionID: "ses_one", url: "https://same.test" },
+      { directory: "/elsewhere", sessionID: "ses_two", url: "https://same.test" },
+    ])
+  } finally {
+    setItem.mockRestore()
+  }
+})
+
+test("address history collapses a duplicate identity behind a matching front entry", () => {
+  localStorage.setItem(
+    WEBMCP_HISTORY_KEY,
+    JSON.stringify([
+      { directory: "/repo", sessionID: "ses_one", url: "https://same.test" },
+      { directory: "/elsewhere", sessionID: "ses_two", url: "https://other.test" },
+      { directory: "/repo", sessionID: "ses_one", url: "https://older.test" },
+    ]),
+  )
+  const setItem = vi.spyOn(Storage.prototype, "setItem")
+  try {
+    rememberWebMcpAddress("/repo", "ses_one", "https://same.test")
+    expect(setItem).toHaveBeenCalledTimes(1)
+    expect(JSON.parse(localStorage.getItem(WEBMCP_HISTORY_KEY)!)).toEqual([
+      { directory: "/repo", sessionID: "ses_one", url: "https://same.test" },
+      { directory: "/elsewhere", sessionID: "ses_two", url: "https://other.test" },
+    ])
+    rememberWebMcpAddress("/repo", "ses_one", "https://same.test")
+    expect(setItem).toHaveBeenCalledTimes(1)
+  } finally {
+    setItem.mockRestore()
+  }
+})
+
 test("draft retention preserves every accepted field name and explicit-empty flag", () => {
   const store = useWebMcpBrowserStore.getState()
   const keys = ["__proto__", "constructor", "x".repeat(257), "y".repeat(5000)]

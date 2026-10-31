@@ -357,10 +357,16 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
     })
     window.addEventListener("resize", scheduleBounds)
     window.addEventListener("scroll", scheduleBounds, true)
-    document.addEventListener("visibilitychange", scheduleBounds)
-    scheduleBounds()
-    const interval = setInterval(() => {
-      void invoke<BrowserStatus>({ action: "status", id })
+    // A hidden document is not a missed poll. Skip the read, then catch up once it is visible again.
+    // One read at a time: the catch-up and the interval must not overlap, or one outage would count
+    // twice toward the disconnect and two results could land out of order. The bridge call starts
+    // inside a promise so a synchronous throw counts as a failed poll instead of leaving the flag set.
+    let statusInFlight = false
+    const readStatus = () => {
+      if (document.visibilityState === "hidden" || statusInFlight) return
+      statusInFlight = true
+      void Promise.resolve()
+        .then(() => invoke<BrowserStatus>({ action: "status", id }))
         .then((result) => {
           pollFailures = 0
           if (!disposed) applyStatus(result, lifecycle)
@@ -372,7 +378,17 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
             updateSnapshot({ phase: "error", error: "disconnected", enabled: false, interrupted: false })
           }
         })
-    }, 1000)
+        .finally(() => {
+          statusInFlight = false
+        })
+    }
+    const onVisibilityChange = () => {
+      scheduleBounds()
+      readStatus()
+    }
+    document.addEventListener("visibilitychange", onVisibilityChange)
+    scheduleBounds()
+    const interval = setInterval(readStatus, 1000)
     return () => {
       disposed = true
       cancelAnimationFrame(frame)
@@ -382,7 +398,7 @@ function AgentBrowser({ directory, initialUrl }: { directory: string; initialUrl
       mutationBounds.dispose()
       window.removeEventListener("resize", scheduleBounds)
       window.removeEventListener("scroll", scheduleBounds, true)
-      document.removeEventListener("visibilitychange", scheduleBounds)
+      document.removeEventListener("visibilitychange", onVisibilityChange)
     }
   }, [applyStatus, browserId, updateSnapshot])
 

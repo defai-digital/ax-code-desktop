@@ -26,11 +26,26 @@ const trimTerminalOutputChunkToMaxBytes = (data, maxBytes) => {
   return kept.reverse().join("")
 }
 
+// Evicted entries stay in `chunks` until one of these thresholds compacts the
+// array. A `shift()` per evicted chunk moved every retained pointer on every
+// append, which is quadratic for a stream of tiny chunks (65k one-byte echoes
+// at the 64 KiB cap). The byte threshold keeps evicted large chunks from
+// lingering past one cap's worth of memory.
+const COMPACT_AFTER_EVICTED_CHUNKS = 1024
+
 export const createTerminalOutputReplayBuffer = () => ({
   chunks: [],
+  // Index of the oldest retained chunk; entries before it are evicted.
+  head: 0,
+  evictedBytes: 0,
   totalBytes: 0,
   nextId: 1,
 })
+
+const retainedChunks = (bufferState) => {
+  const head = bufferState.head > 0 ? bufferState.head : 0
+  return head > 0 ? bufferState.chunks.slice(head) : bufferState.chunks
+}
 
 export const appendTerminalOutputReplayChunk = (bufferState, data, maxBytes = TERMINAL_OUTPUT_REPLAY_MAX_BYTES) => {
   if (!bufferState || typeof bufferState !== "object") {
@@ -53,10 +68,21 @@ export const appendTerminalOutputReplayChunk = (bufferState, data, maxBytes = TE
   bufferState.chunks.push(chunk)
   bufferState.totalBytes += bytes
 
-  while (bufferState.totalBytes > maxBytes && bufferState.chunks.length > 1) {
-    const removedChunk = bufferState.chunks.shift()
-    bufferState.totalBytes -= removedChunk?.bytes ?? 0
+  let head = bufferState.head > 0 ? bufferState.head : 0
+  let evictedBytes = bufferState.evictedBytes > 0 ? bufferState.evictedBytes : 0
+  while (bufferState.totalBytes > maxBytes && bufferState.chunks.length - head > 1) {
+    const removedBytes = bufferState.chunks[head]?.bytes ?? 0
+    bufferState.totalBytes -= removedBytes
+    evictedBytes += removedBytes
+    head += 1
   }
+  if (head >= COMPACT_AFTER_EVICTED_CHUNKS || evictedBytes >= maxBytes) {
+    bufferState.chunks.splice(0, head)
+    head = 0
+    evictedBytes = 0
+  }
+  bufferState.head = head
+  bufferState.evictedBytes = evictedBytes
 
   return chunk
 }
@@ -66,7 +92,7 @@ export const listTerminalOutputReplayChunksSince = (bufferState, lastSeenId = 0)
     return []
   }
 
-  return bufferState.chunks.filter((chunk) => chunk.id > lastSeenId)
+  return retainedChunks(bufferState).filter((chunk) => chunk.id > lastSeenId)
 }
 
 // Concatenate the retained replay, oldest chunk first. Callers that attach the
