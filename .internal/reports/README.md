@@ -65,3 +65,5 @@ Existing standalone reports and historical evidence packages remain in their ori
   prioritized plan (state-model reasons, lastRun on Info, event-driven cache, seriesID, runtime-owned scheduler boot).
 
 - [Desktop v7.30.7 verified publication](RELEASE-2026-10-31-v7.30.7-publication.md)
+
+- [Desktop v7.30.8 verified publication](RELEASE-2026-10-31-v7.30.8-publication.md)
