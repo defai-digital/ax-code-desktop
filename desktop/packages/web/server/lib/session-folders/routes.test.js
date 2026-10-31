@@ -79,6 +79,9 @@ describe("session folders routes", () => {
     const { app, getRoute } = createRouteRegistry()
     const tempPaths = []
     const fsPromises = {
+      readFile: vi.fn(async () => {
+        throw Object.assign(new Error("Not found"), { code: "ENOENT" })
+      }),
       mkdir: vi.fn(async () => {}),
       writeFile: vi.fn(async (tempPath) => {
         tempPaths.push(tempPath)
@@ -108,6 +111,9 @@ describe("session folders routes", () => {
   it("removes the temp file when rename fails", async () => {
     const { app, getRoute } = createRouteRegistry()
     const fsPromises = {
+      readFile: vi.fn(async () => {
+        throw Object.assign(new Error("Not found"), { code: "ENOENT" })
+      }),
       mkdir: vi.fn(async () => {}),
       writeFile: vi.fn(async () => {}),
       rename: vi.fn(async () => {
@@ -146,8 +152,54 @@ describe("session folders routes", () => {
     return {
       handler: getRoute("POST", "/api/session-folders"),
       readWritten: () => written,
+      fsPromises,
     }
   }
+
+  it.each(["EIO", "EACCES"])("preserves the snapshot after a %s read failure and allows the next save", async (code) => {
+    const folder = { id: "other-window", name: "Other", sessionIds: [], createdAt: 1, parentId: null }
+    const { handler, readWritten, fsPromises } = createMergeHarness({
+      version: 1,
+      updatedAt: 200,
+      foldersMap: { "/p": [folder] },
+      collapsedFolderIds: [folder.id],
+    })
+    fsPromises.readFile.mockRejectedValueOnce(Object.assign(new Error("Snapshot read failed"), { code }))
+    const request = { body: { version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] } }
+    const failed = createMockResponse()
+    await handler(request, failed)
+
+    expect(failed.statusCode).toBe(500)
+    expect(failed.body.error).toBe("Snapshot read failed")
+    expect(readWritten()).toBeNull()
+    expect(fsPromises.mkdir).not.toHaveBeenCalled()
+    expect(fsPromises.writeFile).not.toHaveBeenCalled()
+    expect(fsPromises.rename).not.toHaveBeenCalled()
+
+    const retried = createMockResponse()
+    await handler(request, retried)
+    expect(retried.statusCode).toBe(200)
+    expect(readWritten().foldersMap["/p"]).toEqual([folder])
+    expect(readWritten().collapsedFolderIds).toEqual([folder.id])
+  })
+
+  it.each(["", "not json {"])("still recovers a malformed snapshot %j on an explicit save", async (raw) => {
+    const { handler, readWritten, fsPromises } = createMergeHarness(null)
+    fsPromises.readFile.mockResolvedValueOnce(raw)
+    const response = createMockResponse()
+    await handler({ body: { version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] } }, response)
+    expect(response.statusCode).toBe(200)
+    expect(readWritten()).toEqual({ version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] })
+  })
+
+  it("creates the first snapshot when the file is missing", async () => {
+    const { handler, readWritten, fsPromises } = createMergeHarness(null)
+    fsPromises.readFile.mockRejectedValueOnce(Object.assign(new Error("Not found"), { code: "ENOENT" }))
+    const response = createMockResponse()
+    await handler({ body: { version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] } }, response)
+    expect(response.statusCode).toBe(200)
+    expect(readWritten().updatedAt).toBe(100)
+  })
 
   it("persists a deletion from a newer snapshot", async () => {
     // The disk still lists the deleted folder; the incoming full snapshot (the

@@ -15,7 +15,14 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
       throw error
     })
     if (raw === null) return null
-    return JSON.parse(raw)
+    try {
+      return JSON.parse(raw)
+    } catch (error) {
+      // An explicit save may recover malformed JSON, but a filesystem read
+      // failure must propagate: replacing an unread snapshot could erase it.
+      if (error instanceof SyntaxError) return null
+      throw error
+    }
   }
 
   // POST bodies are full client snapshots. Every window loads the disk state
@@ -121,14 +128,7 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
     }
 
     const write = writeQueue.catch(() => undefined).then(async () => {
-      let base = null
-      try {
-        base = await readSnapshot()
-      } catch {
-        // A corrupted file cannot be merged; the incoming snapshot becomes the
-        // new base (same recovery the plain overwrite offered).
-        base = null
-      }
+      const base = await readSnapshot()
       const merged = mergeSnapshots(base, body)
       const serialized = JSON.stringify(merged, null, 2)
 
