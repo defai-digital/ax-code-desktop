@@ -65,12 +65,24 @@ export const truncatePathMiddle = (value: string, options?: { maxLength?: number
 
   const fileName = segments.pop() ?? ""
   if (!fileName) {
-    return source
+    // A trailing separator leaves an empty final segment. Returning `source` whole
+    // exceeded maxLength (it is always longer than the budget here), so middle-truncate
+    // the stem and keep the separator.
+    const stem = source.slice(0, -1)
+    const stemBudget = maxLength - 1
+    const head = Math.max(1, Math.ceil((stemBudget - 1) / 2))
+    const tail = Math.max(1, stemBudget - 1 - head)
+    return `${stem.slice(0, head)}…${stem.slice(stem.length - tail)}/`
   }
 
   const prefixBudget = Math.max(0, maxLength - (fileName.length + 2))
-  if (prefixBudget <= 0) {
-    return `…/${fileName}`
+  if (fileName.length + 2 > maxLength) {
+    // The file name alone does not fit beside the prefix marker, so middle-truncate it:
+    // returning `…/${fileName}` whole ignored the budget the caller passed.
+    const nameBudget = maxLength - 2
+    const head = Math.max(1, Math.ceil((nameBudget - 1) / 2))
+    const tail = Math.max(1, nameBudget - 1 - head)
+    return `…/${fileName.slice(0, head)}…${fileName.slice(fileName.length - tail)}`
   }
 
   let prefix = ""

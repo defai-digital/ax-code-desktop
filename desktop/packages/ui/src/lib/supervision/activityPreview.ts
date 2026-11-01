@@ -88,7 +88,7 @@ const inProgressTodo = (todos: readonly ActivityTodo[] | null | undefined): stri
     if (todo?.status !== "in_progress" || typeof todo.content !== "string") continue
     const content = collapsed(todo.content)
     if (!content || looksLikeCredential(content)) continue
-    return `${ACTIVITY_TODO_PREFIX}${content}`
+    return truncateToCodeUnits(`${ACTIVITY_TODO_PREFIX}${content}`, ACTIVITY_PREVIEW_LIMIT)
   }
   return null
 }

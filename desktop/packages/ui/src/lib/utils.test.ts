@@ -65,4 +65,24 @@ describe("truncatePathMiddle", () => {
     expect(result).toBe("very/long…/file.ts")
     expect(result.length).toBeLessThanOrEqual(24)
   })
+
+  test("keeps the budget when the file name alone leaves no room for a prefix", () => {
+    // The prefix branch returned `…/${fileName}` as-is, so a file name longer than
+    // maxLength - 2 overflowed the label the caller sized.
+    const result = truncatePathMiddle("src/bbbbbbbbbbbbbbbb.ts", { maxLength: 16 })
+
+    expect(result.length).toBeLessThanOrEqual(16)
+    expect(result.startsWith("…/")).toBe(true)
+    expect(result.endsWith(".ts")).toBe(true)
+  })
+
+  test("keeps the budget when a source longer than maxLength ends with a separator", () => {
+    // A trailing separator splits off an empty final segment, and that branch returned
+    // `source` untouched, so a directory-style label overran the budget by its slash.
+    const result = truncatePathMiddle("d".repeat(61) + "/", { maxLength: 60 })
+
+    expect(result.length).toBeLessThanOrEqual(60)
+    expect(result.endsWith("/")).toBe(true)
+    expect(result).toContain("…")
+  })
 })

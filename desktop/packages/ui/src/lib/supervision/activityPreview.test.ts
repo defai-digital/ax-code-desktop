@@ -74,6 +74,13 @@ describe("activityPreview", () => {
     expect(truncated?.text).toHaveLength(ACTIVITY_PREVIEW_LIMIT)
   })
 
+  test("caps an in-progress todo preview at the preview limit, prefix included", () => {
+    const preview = activityPreview({ todos: [{ status: "in_progress", content: "x".repeat(500) }] })
+    expect(preview?.kind).toBe("todo")
+    expect(preview?.text).toHaveLength(ACTIVITY_PREVIEW_LIMIT)
+    expect(preview?.text.endsWith("…")).toBe(true)
+  })
+
   test("returns null when todos, messages or parts are not loaded", () => {
     expect(activityPreview({})).toBeNull()
     expect(activityPreview({ todos: [{ status: "pending", content: "not started" }] })).toBeNull()
