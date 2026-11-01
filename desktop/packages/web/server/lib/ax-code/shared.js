@@ -456,6 +456,11 @@ function isPromptFileReference(value) {
   return PROMPT_FILE_PATTERN.test(value.trim())
 }
 
+// Only a real ".." component (or an absolute answer) leaves a directory: a leading dot belongs to the name, so
+// "..notes.md" is inside. Both containments below — the config directory for prompt files and the skill directory
+// for supporting files — read the answer of `path.relative` through this one rule.
+const leavesRoot = (relative) => relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
+
 function resolvePromptFilePath(reference) {
   const match = typeof reference === "string" ? reference.trim().match(PROMPT_FILE_PATTERN) : null
   if (!match) {
@@ -486,7 +491,22 @@ function resolvePromptFilePath(reference) {
 
   const resolved = path.resolve(AX_CODE_CONFIG_DIR, target)
   const relativeToConfigDir = path.relative(AX_CODE_CONFIG_DIR, resolved)
-  if (relativeToConfigDir === "" || relativeToConfigDir.startsWith("..") || path.isAbsolute(relativeToConfigDir)) {
+  // A bare `startsWith("..")` here refused `{file:..notes.md}` while `{file:drafts/..notes.md}` kept working.
+  if (relativeToConfigDir === "" || leavesRoot(relativeToConfigDir)) {
+    return null
+  }
+
+  // Still lexical, and this reference can be *written* to: a link inside the config directory passes the check above
+  // and the write follows it, overwriting whatever it points at. Compare canonically, the way the skill-file guard
+  // below does. A target whose deepest existing ancestor resolves inside keeps working, so a new file can still be
+  // created; `null` answers a link whose target cannot be resolved, which is not a file to write through.
+  const canonicalRoot = resolveCanonicalPath(AX_CODE_CONFIG_DIR)
+  const canonicalTarget = resolveCanonicalPath(resolved)
+  if (canonicalRoot === null || canonicalTarget === null) {
+    return null
+  }
+  const relativeToCanonicalRoot = path.relative(canonicalRoot, canonicalTarget)
+  if (relativeToCanonicalRoot === "" || leavesRoot(relativeToCanonicalRoot)) {
     return null
   }
 
@@ -660,7 +680,9 @@ function assertPathWithinSkillDir(skillDir, relativePath) {
 
   if (canonical !== null) {
     const relative = path.relative(root, canonical)
-    const isWithin = relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+    // A component that *starts* with two dots ("..notes.md") is a name inside the skill, not a traversal; the rule
+    // lives in `leavesRoot`, shared with the prompt-file guard above.
+    const isWithin = relative === "" || !leavesRoot(relative)
 
     if (!isWithin) {
       throw skillFileAccessDenied()

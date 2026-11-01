@@ -15,6 +15,7 @@ import {
   readSkillSupportingFile,
   resolveAxCodeConfigDir,
   resolveProjectAxCodeResourcePath,
+  resolvePromptFilePath,
   writeSkillSupportingFile,
 } from "./shared.js"
 
@@ -260,5 +261,101 @@ describe("skill supporting files", () => {
       expect(readSkillSupportingFile(skillDir, path.join("notes", "one.md"))).toBe("hello")
       expect(readSkillSupportingFile(skillDir, "missing.md")).toBeNull()
     })
+  })
+
+  it("treats a name that only starts with two dots as inside the skill directory", async () => {
+    // `path.relative` answers "..notes.md" for a file of that name inside the skill, and a bare `startsWith("..")`
+    // read that answer as a traversal: the file was listed by the skill browser and then refused on open, on save
+    // and on delete. Only a real `..` component leaves the directory; a leading `.` is part of the name.
+    await withSkillDir(async ({ skillDir }) => {
+      writeSkillSupportingFile(skillDir, "..notes.md", "inside")
+
+      expect(readSkillSupportingFile(skillDir, "..notes.md")).toBe("inside")
+    })
+  })
+
+  it("keeps refusing a traversal out of the skill directory", async () => {
+    await withSkillDir(async ({ skillDir }) => {
+      expect(() => writeSkillSupportingFile(skillDir, "../outside.md", "escaped")).toThrow(/denied/)
+      expect(() => readSkillSupportingFile(skillDir, "../outside.md")).toThrow(/denied/)
+      expect(fs.existsSync(path.join(skillDir, "..", "outside.md"))).toBe(false)
+    })
+  })
+})
+
+describe("prompt file references", () => {
+  it("accepts a prompt file whose name only starts with two dots", () => {
+    // `path.relative` answers "..notes.md" for a file of that name in the config directory, and a bare
+    // `startsWith("..")` read that answer as a traversal — so `{file:..notes.md}` was refused while
+    // `{file:notes/..notes.md}` kept working. A leading dot is part of the name; only a real ".." component
+    // (or an absolute answer) leaves the config directory.
+    const plain = resolvePromptFilePath("{file:notes.md}")
+    const dotted = resolvePromptFilePath("{file:..notes.md}")
+    const nested = resolvePromptFilePath("{file:drafts/..notes.md}")
+
+    expect(plain).not.toBeNull()
+    expect(dotted).not.toBeNull()
+    expect(path.dirname(dotted)).toBe(path.dirname(plain))
+    expect(path.basename(dotted)).toBe("..notes.md")
+    expect(nested).not.toBeNull()
+    expect(path.basename(nested)).toBe("..notes.md")
+  })
+
+  it("keeps refusing a prompt file outside the config directory", () => {
+    expect(resolvePromptFilePath("{file:../outside.md}")).toBeNull()
+    expect(resolvePromptFilePath("{file:drafts/../../outside.md}")).toBeNull()
+    expect(resolvePromptFilePath("{file:/etc/passwd}")).toBeNull()
+    expect(resolvePromptFilePath("{file:~/authorized_keys}")).toBeNull()
+    // A reference that resolves to the config directory itself is not a file to read or overwrite.
+    expect(resolvePromptFilePath("{file:.}")).toBeNull()
+  })
+
+  it("refuses a prompt file a link points out of the config directory", async () => {
+    // The reference was resolved lexically, so a link *inside* the config directory passed the containment check and
+    // the write followed it: an agent or command update then overwrote whatever the link pointed at. The canonical
+    // comparison is the one the skill-file guard uses.
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-prompt-files-"))
+    const configHome = path.join(tempRoot, "config")
+    const configDir = path.join(configHome, "ax-code")
+    const outsideDir = path.join(tempRoot, "outside")
+    const previousConfigHome = process.env.XDG_CONFIG_HOME
+    try {
+      await fsPromises.mkdir(configDir, { recursive: true })
+      await fsPromises.mkdir(outsideDir, { recursive: true })
+      const outsidePath = path.join(outsideDir, "secret.md")
+      await fsPromises.writeFile(outsidePath, "do not touch", "utf8")
+      fs.symlinkSync(outsidePath, path.join(configDir, "linked.md"))
+      await fsPromises.writeFile(path.join(configDir, "notes.md"), "inside", "utf8")
+
+      // The config directory is read once at module load, so the temp home needs a fresh instance. Restored in
+      // `finally` so the other cases in this file keep using the real one.
+      process.env.XDG_CONFIG_HOME = configHome
+      vi.resetModules()
+      const tempShared = await import("./shared.js")
+
+      // A link out of the config directory is not a prompt file to read or overwrite.
+      const linked = tempShared.resolvePromptFilePath("{file:linked.md}")
+      expect(linked).toBeNull()
+      if (linked) tempShared.writePromptFile(linked, "overwritten")
+      expect(fs.readFileSync(outsidePath, "utf8")).toBe("do not touch")
+
+      // A real file inside the config directory still resolves, and writing it works.
+      const inside = tempShared.resolvePromptFilePath("{file:notes.md}")
+      expect(inside).not.toBeNull()
+      tempShared.writePromptFile(inside, "rewritten")
+      expect(fs.readFileSync(path.join(configDir, "notes.md"), "utf8")).toBe("rewritten")
+
+      // A new file is still a legitimate reference, and so is a name that only starts with two dots.
+      const created = tempShared.resolvePromptFilePath("{file:new-notes.md}")
+      expect(created).not.toBeNull()
+      tempShared.writePromptFile(created, "created")
+      expect(fs.readFileSync(path.join(configDir, "new-notes.md"), "utf8")).toBe("created")
+      expect(tempShared.resolvePromptFilePath("{file:..notes.md}")).not.toBeNull()
+    } finally {
+      if (previousConfigHome === undefined) delete process.env.XDG_CONFIG_HOME
+      else process.env.XDG_CONFIG_HOME = previousConfigHome
+      vi.resetModules()
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
   })
 })

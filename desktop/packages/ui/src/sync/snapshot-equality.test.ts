@@ -67,6 +67,40 @@ describe("haveEquivalentSyncSnapshots", () => {
       expect(haveEquivalentSyncSnapshots(base, { ...base, waitState: "permission" })).toBe(false)
     })
 
+    test("busy statuses compare the model-turn and continuation counters", () => {
+      // SDK SessionStatus "busy" also carries these progress counters. Without them a status that only
+      // advanced a counter compared equal, so applySessionStatusSnapshot skipped the write and the
+      // store kept the stale status.
+      const base = {
+        type: "busy",
+        step: 1,
+        maxSteps: 5,
+        segmentModelTurns: 1,
+        segmentModelTurnLimit: 3,
+        totalModelTurns: 1,
+        totalModelTurnLimit: 9,
+        continuations: 0,
+        continuationLimit: 2,
+        startedAt: 10,
+        lastActivityAt: 20,
+        activeTool: "bash",
+        toolCallID: "call-1",
+        waitState: "tool",
+      } as SessionStatus
+      expect(haveEquivalentSyncSnapshots(base, { ...base })).toBe(true)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, segmentModelTurns: 2 })).toBe(false)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, segmentModelTurnLimit: 4 })).toBe(false)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, totalModelTurns: 2 })).toBe(false)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, totalModelTurnLimit: 10 })).toBe(false)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, continuations: 1 })).toBe(false)
+      expect(haveEquivalentSyncSnapshots(base, { ...base, continuationLimit: 3 })).toBe(false)
+      // continuationLimit is `number | null`, so null and a number are distinct snapshots.
+      expect(haveEquivalentSyncSnapshots(base, { ...base, continuationLimit: null })).toBe(false)
+      expect(haveEquivalentSyncSnapshots({ ...base, continuationLimit: null }, { ...base, continuationLimit: 2 })).toBe(
+        false,
+      )
+    })
+
     test("an object with an unrecognized type is not a status snapshot", () => {
       expect(haveEquivalentSyncSnapshots({ type: "queued" }, { type: "queued" })).toBe(false)
     })

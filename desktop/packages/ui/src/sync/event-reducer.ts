@@ -18,6 +18,7 @@ import { dropSessionCaches, getProtectedSessionCacheIds } from "./session-cache"
 import { stripSessionDiffSnapshots } from "./sanitize"
 import { syncDebug } from "./debug"
 import { recordPartChanges } from "./part-changes"
+import { haveEquivalentSyncSnapshots } from "./snapshot-equality"
 
 const SKIP_PARTS = new Set(["patch", "step-start", "step-finish"])
 const DELTA_OVERLAP_FIELDS = ["text", "output"] as const
@@ -163,18 +164,11 @@ export function shouldPreserveExistingPart(previous: Part, next: Part): boolean 
   return false
 }
 
+// A busy status carries the live turn's progress (step, model turns, continuations), and those advance
+// without the type changing. The type-only comparison this replaced deduped every such update away, so
+// the rules live in one place (snapshot-equality) instead of a second, weaker copy here.
 function areSessionStatusesEqual(left: SessionStatus | undefined, right: SessionStatus): boolean {
-  if (left === right) return true
-  if (!left || left.type !== right.type) return false
-  if (left.type === "retry") {
-    return (
-      right.type === "retry" &&
-      left.attempt === right.attempt &&
-      left.message === right.message &&
-      left.next === right.next
-    )
-  }
-  return true
+  return haveEquivalentSyncSnapshots(left, right)
 }
 
 export function areMessagesEqual(left: Message, right: Message): boolean {

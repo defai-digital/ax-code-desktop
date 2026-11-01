@@ -293,7 +293,15 @@ describe("applyDirectoryEvent", () => {
     const ask = (extra: Record<string, unknown> = {}) =>
       applyDirectoryEvent(draft, {
         type: "permission.asked",
-        properties: { id: "perm_1", sessionID: "ses_1", permission: "hook", patterns: [], always: [], metadata: {}, ...extra },
+        properties: {
+          id: "perm_1",
+          sessionID: "ses_1",
+          permission: "hook",
+          patterns: [],
+          always: [],
+          metadata: {},
+          ...extra,
+        },
       } as Event)
     ask()
     ask({ autoOnceAt: 1_800_000_015_000 })
@@ -632,7 +640,12 @@ describe("applyDirectoryEvent", () => {
 
     expect(result).toEqual({
       changed: false,
-      materialization: { type: "incomplete-session-snapshot", sessionID: "ses_1", messageID: "msg_1", partID: "tool_1" },
+      materialization: {
+        type: "incomplete-session-snapshot",
+        sessionID: "ses_1",
+        messageID: "msg_1",
+        partID: "tool_1",
+      },
     })
   })
 
@@ -672,8 +685,11 @@ describe("applyDirectoryEvent", () => {
       time: { start: 20 },
     })
     expect(
-      ((draft.part.get("msg_1")?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state as { time?: { end?: number } })
-        .time?.end,
+      (
+        (draft.part.get("msg_1")?.[0] as Extract<Part, { type: "tool" }> | undefined)?.state as {
+          time?: { end?: number }
+        }
+      ).time?.end,
     ).toBeUndefined()
   })
 
@@ -690,6 +706,40 @@ describe("applyDirectoryEvent", () => {
 
     expect(applyDirectoryEvent(draft, event)).toBe(false)
     expect(draft.session_status.ses_1).toBe(statusRef)
+  })
+
+  test("applies changed busy status progress instead of deduping it", () => {
+    // A busy status carries the live turn's progress. Comparing the type alone treated every busy
+    // status as equal, so SSE dropped step, model-turn and continuation updates and the status froze
+    // at the first value the client saw.
+    const stored: Extract<SessionStatus, { type: "busy" }> = {
+      type: "busy",
+      step: 1,
+      maxSteps: 5,
+      segmentModelTurns: 1,
+      totalModelTurns: 1,
+      continuations: 0,
+    }
+    const statusEventFor = (status: SessionStatus) =>
+      ({ type: "session.status", properties: { sessionID: "ses_1", status } }) as Event
+
+    // An identical rich status is still deduped, keeping the stored object by reference.
+    const identical = state({ session_status: { ses_1: stored } })
+    expect(applyDirectoryEvent(identical, statusEventFor({ ...stored }))).toBe(false)
+    expect(identical.session_status.ses_1).toBe(stored)
+
+    // Each progress field on its own is a real update, with the status type unchanged.
+    const progressChanges: Array<[string, Extract<SessionStatus, { type: "busy" }>]> = [
+      ["step", { ...stored, step: 2 }],
+      ["segmentModelTurns", { ...stored, segmentModelTurns: 2 }],
+      ["totalModelTurns", { ...stored, totalModelTurns: 2 }],
+      ["continuations", { ...stored, continuations: 1 }],
+    ]
+    for (const [field, next] of progressChanges) {
+      const draft = state({ session_status: { ses_1: stored } })
+      expect(applyDirectoryEvent(draft, statusEventFor(next)), field).toBe(true)
+      expect(draft.session_status.ses_1, field).toBe(next)
+    }
   })
 
   test("skips duplicate session idle events", () => {
@@ -893,7 +943,6 @@ describe("message.part.delta offset reconciliation", () => {
   })
 })
 
-
 test("a fully covered offset replay preserves part identity and reports no change", () => {
   const part = { id: "prt_1", type: "text", text: "hello world" } as Part
   const parts = [part]
@@ -907,7 +956,6 @@ test("a fully covered offset replay preserves part identity and reports no chang
   expect(draft.part.get("msg_1")?.[0]).toBe(part)
 })
 
-
 test.each(["session.idle", "session.error"])("%s stamps even an equal idle status", (type) => {
   const draft = state({ session_status: { ses_idle_stamp: { type: "idle" } } })
   const before = serverSessionStatusStamp("ses_idle_stamp")
@@ -917,7 +965,11 @@ test.each(["session.idle", "session.error"])("%s stamps even an equal idle statu
 
 test("a legacy overlapping delta consumes its dedupe marker before the next delta", () => {
   const part = {
-    id: "prt_1", sessionID: "ses_1", messageID: "msg_1", type: "text", text: "hello",
+    id: "prt_1",
+    sessionID: "ses_1",
+    messageID: "msg_1",
+    type: "text",
+    text: "hello",
     __dedupeNextDeltaFields: ["text"],
   } as Part
   const draft = state({ part: PartMap.from({ msg_1: [part] }) })

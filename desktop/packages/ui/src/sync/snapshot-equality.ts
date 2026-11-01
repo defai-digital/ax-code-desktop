@@ -55,6 +55,15 @@ function areSessionStatusSnapshotsEqual(left: SessionStatus, right: SessionStatu
     right.type === "busy" &&
     left.step === right.step &&
     left.maxSteps === right.maxSteps &&
+    // The model-turn and continuation counters are part of the busy progress, not decoration: they
+    // advance without touching any field above, so omitting them made a live status compare equal to
+    // the stored one and applySessionStatusSnapshot skipped its authoritative write.
+    left.segmentModelTurns === right.segmentModelTurns &&
+    left.segmentModelTurnLimit === right.segmentModelTurnLimit &&
+    left.totalModelTurns === right.totalModelTurns &&
+    left.totalModelTurnLimit === right.totalModelTurnLimit &&
+    left.continuations === right.continuations &&
+    left.continuationLimit === right.continuationLimit &&
     left.startedAt === right.startedAt &&
     left.lastActivityAt === right.lastActivityAt &&
     left.activeTool === right.activeTool &&
