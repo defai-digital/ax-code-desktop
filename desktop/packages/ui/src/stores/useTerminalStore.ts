@@ -495,12 +495,17 @@ export const useTerminalStore = create<TerminalStore>()(
             const bufferChunks = [...tab.bufferChunks, chunkEntry]
             let bufferLength = tab.bufferLength + chunk.length
 
-            while (bufferLength > TERMINAL_BUFFER_LIMIT && bufferChunks.length > 1) {
-              const removed = bufferChunks.shift()
-              if (!removed) {
-                break
+            if (bufferLength > TERMINAL_BUFFER_LIMIT && bufferChunks.length > 1) {
+              let dropCount = 0
+              let remainingLength = bufferLength
+              while (remainingLength > TERMINAL_BUFFER_LIMIT && dropCount < bufferChunks.length - 1) {
+                remainingLength -= bufferChunks[dropCount].data.length
+                dropCount += 1
               }
-              bufferLength -= removed.data.length
+              if (dropCount > 0) {
+                bufferChunks.splice(0, dropCount)
+                bufferLength = remainingLength
+              }
             }
 
             const nextTabs = [...existing.tabs]

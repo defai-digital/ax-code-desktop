@@ -4989,6 +4989,44 @@ export async function renameBranch(directory, oldName, newName) {
   }
 }
 
+// The upstream ref alone, without a working-tree status: callers that only need
+// `tracking` should not pay for diff stats or content identities.
+export async function getTrackingBranch(directory) {
+  const directoryPath = normalizeDirectoryPath(directory)
+  if (!directoryPath) {
+    return null
+  }
+  // `rev-parse @{upstream}` fails once the remote-tracking ref is pruned, while
+  // `git status` keeps naming the configured upstream as "[gone]". `%(upstream:short)`
+  // reads the branch configuration, so a pull request opened from a remote branch
+  // that was deleted after the merge still resolves to that branch name.
+  const head = await runGitCommand(directoryPath, ["symbolic-ref", "-q", "HEAD"])
+  if (!head.success) {
+    return null
+  }
+  const headRef = head.stdout.trim()
+  if (!headRef) {
+    return null
+  }
+  const upstream = await runGitCommand(directoryPath, [
+    "for-each-ref",
+    "--format=%(refname) %(upstream:short)",
+    headRef,
+  ])
+  if (!upstream.success) {
+    return null
+  }
+  // The pattern also matches refs below `headRef/` (an unborn HEAD named `feature`
+  // beside a branch `feature/sub`), so only the line for the branch itself counts.
+  for (const line of upstream.stdout.split("\n")) {
+    const [refname, tracking] = line.trim().split(" ")
+    if (refname === headRef) {
+      return tracking || null
+    }
+  }
+  return null
+}
+
 export async function getRemotes(directory) {
   const { git } = await createRepositoryGitContext(directory)
 

@@ -159,6 +159,56 @@ describe("useTerminalStore", () => {
     expect(tab?.bufferChunks).toEqual([])
   })
 
+  test("capped append keeps exactly the newest tail within the buffer limit", () => {
+    const store = useTerminalStore.getState()
+    store.ensureDirectory("/repo")
+    const tabId = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]?.id
+    expect(tabId).toBeTruthy()
+
+    const chunkText = "x".repeat(64)
+    const total = 20000
+    for (let i = 0; i < total; i += 1) {
+      store.appendToBuffer("/repo", tabId!, chunkText)
+    }
+
+    const tab = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]
+    expect(tab).toBeTruthy()
+    const retained = tab!.bufferChunks
+    // 1_000_000 / 64 = 15625 chunks fit exactly.
+    expect(retained).toHaveLength(15625)
+    expect(tab!.bufferLength).toBe(retained.reduce((sum, chunk) => sum + chunk.data.length, 0))
+    expect(tab!.bufferLength).toBeLessThanOrEqual(1000000)
+    // Retained chunks are exactly the newest tail: ids are the last 15625 issued.
+    const expectedFirstId = total - retained.length + 1
+    expect(retained[0].id).toBe(expectedFirstId)
+    expect(retained[retained.length - 1].id).toBe(total)
+    for (let i = 1; i < retained.length; i += 1) {
+      expect(retained[i].id).toBe(retained[i - 1].id + 1)
+    }
+    expect(retained.every((chunk) => chunk.data === chunkText)).toBe(true)
+  })
+
+  test("keeps at least one chunk even when a single chunk exceeds the cap", () => {
+    const store = useTerminalStore.getState()
+    store.ensureDirectory("/repo")
+    const tabId = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]?.id
+    expect(tabId).toBeTruthy()
+
+    const huge = "y".repeat(1000001)
+    store.appendToBuffer("/repo", tabId!, huge)
+
+    const tab = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]
+    expect(tab!.bufferChunks).toHaveLength(1)
+    expect(tab!.bufferChunks[0].data).toBe(huge)
+    expect(tab!.bufferLength).toBe(huge.length)
+
+    // A following chunk evicts the huge one but is itself retained.
+    store.appendToBuffer("/repo", tabId!, "small")
+    const next = useTerminalStore.getState().getDirectoryState("/repo")?.tabs[0]
+    expect(next!.bufferChunks.map((chunk) => chunk.data)).toEqual(["small"])
+    expect(next!.bufferLength).toBe(5)
+  })
+
   test("removeDirectory closes the directory's PTY sessions before dropping them", () => {
     const store = useTerminalStore.getState()
     store.ensureDirectory("/repo")

@@ -68,12 +68,21 @@ function matchSessionProject(
   return owner?.id ?? null
 }
 
+export function createSessionProjectResolver(
+  projects: ReadonlyArray<{ id: string; path: string }>,
+): (
+  session: Pick<ProjectActivitySession, "directory" | "projectDirectory" | "archived">,
+) => string | null {
+  const projectKeys = projectPathKeys(projects)
+  return (session) => matchSessionProject(session, projectKeys)
+}
+
 /** Same project match deriveProjectActivity uses, including archived sessions as unmatched. */
 export function resolveSessionProjectId(
   session: Pick<ProjectActivitySession, "directory" | "projectDirectory" | "archived">,
   projects: ReadonlyArray<{ id: string; path: string }>,
 ): string | null {
-  return matchSessionProject(session, projectPathKeys(projects))
+  return createSessionProjectResolver(projects)(session)
 }
 
 export function deriveProjectActivity(input: ProjectActivityInput): Map<string, ProjectActivity> {

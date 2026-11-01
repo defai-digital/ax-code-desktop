@@ -2,7 +2,7 @@ import React from "react"
 
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import type { NeedsYouSessionInput } from "@/lib/needsYou"
-import { resolveSessionProjectId } from "@/lib/projectStatus"
+import { createSessionProjectResolver } from "@/lib/projectStatus"
 import { useGitStore } from "@/stores/useGitStore"
 import { resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -35,6 +35,7 @@ export function useNeedsYouSessionInputs(): NeedsYouSessionInput[] {
   const goals = useSessionGoalStore((state) => state.goals)
 
   return React.useMemo(() => {
+    const resolveProjectId = createSessionProjectResolver(projects)
     const inputs: NeedsYouSessionInput[] = []
     const loadedIds = new Set<string>()
     for (const session of sessions) {
@@ -61,10 +62,7 @@ export function useNeedsYouSessionInputs(): NeedsYouSessionInput[] {
       const isChild = typeof parentId === "string" && parentId.length > 0 && loadedIds.has(parentId)
       inputs.push({
         id: session.id,
-        projectId: resolveSessionProjectId(
-          { directory, projectDirectory, archived: false },
-          projects,
-        ),
+        projectId: resolveProjectId({ directory, projectDirectory, archived: false }),
         permissionCount: pendingPermissions.has(session.id) ? 1 : 0,
         questionCount: pendingQuestions.has(session.id) ? 1 : 0,
         hasError: unseenHasError[session.id] === true,

@@ -1,13 +1,25 @@
 import React, { act } from "react"
 import { createRoot } from "react-dom/client"
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { resolveSessionProjectId } from "@/lib/projectStatus"
+import { normalizePath } from "../utils"
 import { useProjectSessionLists } from "./useProjectSessionLists"
 import type { WorktreeMeta } from "../types"
 
+// Only the hook's own path normalizations are counted: the helpers inside
+// `../utils` keep calling their local binding.
+vi.mock("../utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils")>()
+  return { ...actual, normalizePath: vi.fn(actual.normalizePath) }
+})
+
 const session = (id: string, directory: string): Session =>
   ({ id, directory, title: id, time: { created: 1, updated: 1 } }) as unknown as Session
+const archivedSession = (id: string, directory: string): Session =>
+  ({ id, directory, title: id, time: { created: 1, updated: 1, archived: 2 } }) as unknown as Session
+const worktreeOnlySession = (id: string, worktree: string): Session =>
+  ({ id, title: id, time: { created: 1, updated: 1 }, project: { worktree } }) as unknown as Session
 
 type Lists = ReturnType<typeof useProjectSessionLists>
 
@@ -62,6 +74,47 @@ describe("sidebar session ownership", () => {
     })
     expect(ids(lists.getSessionsForProject({ normalizedPath: repo }))).toEqual(["in-worktree"])
     expect(lists.getSessionsForProject({ normalizedPath: code })).toEqual([])
+  })
+
+  test("archived and directory-less worktree sessions are listed under their owner only, archived first", () => {
+    const worktree = "/Users/dev/.worktrees/app-feature"
+    const lists = renderLists({
+      sessions: [...sessions, worktreeOnlySession("worktree-only", worktree), worktreeOnlySession("no-owner", "/x")],
+      archivedSessions: [
+        archivedSession("archived-in-code", "/Users/dev/code/notes"),
+        archivedSession("archived-in-repo", "/Users/dev/code/app/src"),
+        archivedSession("archived-elsewhere", "/Users/dev/other"),
+      ],
+      availableWorktreesByProject: new Map([[repo, [{ path: worktree } as WorktreeMeta]]]),
+      allProjectRoots: [code, repo],
+    })
+    expect(lists.getArchivedSessionsForProject({ normalizedPath: repo }).map((entry) => entry.id)).toEqual([
+      "archived-in-repo",
+      "worktree-only",
+    ])
+    expect(lists.getArchivedSessionsForProject({ normalizedPath: code }).map((entry) => entry.id)).toEqual([
+      "archived-in-code",
+    ])
+    expect(lists.getArchivedSessionsForProject({ normalizedPath: "/Users/dev/other" })).toEqual([])
+  })
+
+  test("archived lists are bucketed once per rebuild, not filtered once per project", () => {
+    const roots = Array.from({ length: 30 }, (_, index) => `/Users/dev/code/project-${index}`)
+    const live = Array.from({ length: 50 }, (_, index) => session(`live-${index}`, `${roots[index % 30]}/src`))
+    const archived = Array.from({ length: 50 }, (_, index) =>
+      archivedSession(`archived-${index}`, `${roots[index % 30]}/lib`),
+    )
+    const lists = renderLists({
+      sessions: live,
+      archivedSessions: archived,
+      availableWorktreesByProject: new Map(),
+      allProjectRoots: roots,
+    })
+    vi.mocked(normalizePath).mockClear()
+    const listed = roots.flatMap((root) => lists.getArchivedSessionsForProject({ normalizedPath: root }))
+    expect(listed.map((entry) => entry.id).sort()).toEqual(archived.map((entry) => entry.id).sort())
+    // Before: one normalization per live session per project (30 x 50). After: none per lookup.
+    expect(vi.mocked(normalizePath).mock.calls.length).toBeLessThanOrEqual(live.length)
   })
 
   test("the sidebar and the projects home agree on every owner", () => {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { deriveProjectActivity } from "./projectStatus"
+import { createSessionProjectResolver, deriveProjectActivity, resolveSessionProjectId } from "./projectStatus"
 
 describe("deriveProjectActivity", () => {
   const projects = [
@@ -105,6 +105,35 @@ describe("deriveProjectActivity", () => {
       pendingApprovals: 1,
       attentionSessions: 1,
     })
+  })
+
+  test("factory and wrapper agree on nested roots, worktree ownership and archived sessions", () => {
+    const resolve = createSessionProjectResolver(projects)
+    const cases: Array<{ directory: string | null; projectDirectory?: string | null; archived?: boolean }> = [
+      { directory: "/Users/dev/app/docs" },
+      { directory: "/Users/dev/app/docs/guide" },
+      { directory: "/Users/dev/app" },
+      { directory: "/Users/dev/other" },
+      { directory: "/Users/dev/elsewhere" },
+      { directory: null },
+      { directory: "/Users/dev/.ax-code/worktrees/other/feature", projectDirectory: "/Users/dev/other" },
+      { directory: "/Users/dev/app", projectDirectory: "/Users/dev/other" },
+      { directory: "/Users/dev/app", archived: true },
+      { directory: "/Users/dev/app/docs", archived: true },
+    ]
+    for (const session of cases) {
+      expect(resolve(session)).toBe(resolveSessionProjectId(session, projects))
+    }
+    // Longest match wins for nested projects.
+    expect(resolve({ directory: "/Users/dev/app/docs/guide" })).toBe("app-docs")
+    expect(resolve({ directory: "/Users/dev/app/src" })).toBe("app")
+    // projectDirectory wins over the session directory for worktrees.
+    expect(
+      resolve({ directory: "/Users/dev/.ax-code/worktrees/other/feature", projectDirectory: "/Users/dev/other" }),
+    ).toBe("other")
+    expect(resolve({ directory: "/Users/dev/app", projectDirectory: "/Users/dev/other" })).toBe("other")
+    // Archived sessions are unmatched.
+    expect(resolve({ directory: "/Users/dev/app", archived: true })).toBeNull()
   })
 
   test("a needs-attention session with no pending permission lights attention while idle", () => {

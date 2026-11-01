@@ -10,6 +10,7 @@ import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOver
 import { QuickDispatchDialog } from "@/components/supervision/QuickDispatchDialog"
 import { InspectorRail } from "./InspectorRail"
 import { SplitPaneLayout } from "./SplitPaneLayout"
+import { isContextPanelHiddenUnderGrid } from "./contextPanelVisibility"
 import { resolveBesideChatRedirect } from "@/lib/supervision/besideChat"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
@@ -300,9 +301,10 @@ export const MainLayout: React.FC = () => {
     if (!splitPaneEnabled) return null
     switch (splitPaneRightTab) {
       case "files":
+        // The split pane stays mounted but hidden while the session grid is the main tab.
         return (
           <React.Suspense fallback={null}>
-            <FilesView />
+            <FilesView active={activeMainTab !== "session-grid"} />
           </React.Suspense>
         )
       case "diff":
@@ -350,7 +352,7 @@ export const MainLayout: React.FC = () => {
       default:
         return null
     }
-  }, [splitPaneEnabled, splitPaneRightTab])
+  }, [activeMainTab, splitPaneEnabled, splitPaneRightTab])
 
   const secondaryView = React.useMemo(() => {
     switch (activeMainTab) {
@@ -533,7 +535,7 @@ export const MainLayout: React.FC = () => {
                           )}
                         </main>
                         {/* Keep the context panel mounted under the grid; a pane can reveal its page without leaving the grid. */}
-                        <div className={isGridActive && !gridBrowserOpen ? "hidden" : "contents"}>
+                        <div className={isContextPanelHiddenUnderGrid(activeMainTab, gridBrowserOpen) ? "hidden" : "contents"}>
                           <ContextPanel />
                         </div>
                       </div>

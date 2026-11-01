@@ -26,10 +26,28 @@ interface SessionSizeCache {
   parts: Map<string, { ref: unknown; bytes: number }>
 }
 
+interface SliceRefs {
+  message: State["message"]
+  part: State["part"]
+  session_status: State["session_status"]
+  session_diff: State["session_diff"]
+  todo: State["todo"]
+  permission: State["permission"]
+  question: State["question"]
+}
+
+type RetentionDraft = SliceRefs
+
 export class SessionRetention {
   private readonly accessed = new Map<string, number>()
   private readonly messages = new Map<string, State["message"][string]>()
   private readonly sizeCache = new Map<string, SessionSizeCache>()
+  private sliceRefs: SliceRefs | undefined
+  private cachedIds = new Set<string>()
+  private cachedSizes = new Map<string, number>()
+  private cachedTotalBytes = 0
+  /** Input message arrays this sweep already trimmed. A repeat of the same refs must not read them again. */
+  private readonly trimmedInputs = new Map<string, State["message"][string] | undefined>()
   private evictedSessions = 0
   private trimmedMessages = 0
   stats: RetentionStats = {
@@ -48,6 +66,8 @@ export class SessionRetention {
   }
 
   sweep(state: State, keep: ReadonlySet<string>, now = Date.now()) {
+    const reused = this.sweepUnchanged(state, keep, now)
+    if (reused) return reused
     const protectedIds = getProtectedSessionCacheIds(state)
     for (const id of keep) protectedIds.add(id)
     const messageOwners = new Map<string, string>()
@@ -96,11 +116,15 @@ export class SessionRetention {
     const invalidated = new Set<string>()
     for (const id of ids) {
       const messages = draft.message[id]
-      if (protectedIds.has(id) || !messages || messages.length <= BACKGROUND_MESSAGE_LIMIT) continue
+      if (protectedIds.has(id) || !messages || messages.length <= BACKGROUND_MESSAGE_LIMIT) {
+        this.trimmedInputs.delete(id)
+        continue
+      }
       const removed = messages.slice(0, -BACKGROUND_MESSAGE_LIMIT)
       draft.message[id] = messages.slice(-BACKGROUND_MESSAGE_LIMIT)
       for (const message of removed) draft.part.delete(message.id)
       this.trimmedMessages += removed.length
+      this.trimmedInputs.set(id, messages)
       invalidated.add(id)
     }
 
@@ -194,10 +218,129 @@ export class SessionRetention {
       evictedSessions: this.evictedSessions,
       trimmedMessages: this.trimmedMessages,
     }
+    this.cachedIds = ids
+    this.cachedSizes = sizes
+    this.cachedTotalBytes = totalBytes
+    // An eviction patch is only reflected after the caller applies it. Keep the
+    // fast path for sweeps that left this input intact.
+    this.sliceRefs =
+      evicted.length === 0
+        ? {
+            message: state.message,
+            part: state.part,
+            session_status: state.session_status,
+            session_diff: state.session_diff,
+            todo: state.todo,
+            permission: state.permission,
+            question: state.question,
+          }
+        : undefined
     return {
       patch: invalidated.size > 0 ? { ...draft, part: draft.part.seal() } : undefined,
       invalidated: [...invalidated],
       evicted,
+    }
+  }
+
+  /**
+   * Streaming arms a sweep every second for every loaded directory. When the
+   * slice refs and the PartMap are the ones already priced, the owner walk and
+   * the discarded draft are pure overhead. Touch, keep, and TTL still run.
+   * A long session that lost protection still falls through so it can trim.
+   */
+  private sweepUnchanged(state: State, keep: ReadonlySet<string>, now: number) {
+    const refs = this.sliceRefs
+    if (
+      !refs ||
+      refs.message !== state.message ||
+      refs.part !== state.part ||
+      refs.session_status !== state.session_status ||
+      refs.session_diff !== state.session_diff ||
+      refs.todo !== state.todo ||
+      refs.permission !== state.permission ||
+      refs.question !== state.question
+    ) {
+      return undefined
+    }
+    const protectedIds = getProtectedSessionCacheIds(state)
+    for (const id of keep) protectedIds.add(id)
+    for (const id of this.cachedIds) {
+      if (protectedIds.has(id)) continue
+      const messages = state.message[id]
+      if (messages && messages.length > BACKGROUND_MESSAGE_LIMIT && this.trimmedInputs.get(id) !== messages) {
+        return undefined
+      }
+    }
+    const ids = this.cachedIds
+    for (const id of ids) {
+      const live = state.message[id]
+      if (this.trimmedInputs.get(id) === live) continue
+      if (!this.accessed.has(id) || this.messages.get(id) !== live) this.touch(id, now)
+      this.messages.set(id, live)
+    }
+    for (const id of keep) this.touch(id, now)
+    for (const id of this.accessed.keys()) {
+      if (ids.has(id) || keep.has(id)) continue
+      this.accessed.delete(id)
+      this.messages.delete(id)
+      this.sizeCache.delete(id)
+    }
+    for (const id of this.sizeCache.keys()) {
+      if (!ids.has(id)) this.sizeCache.delete(id)
+    }
+    const evicted: string[] = []
+    let count = ids.size
+    let totalBytes = this.cachedTotalBytes
+    for (const [id, accessedAt] of this.accessed) {
+      if (!ids.has(id) || protectedIds.has(id)) continue
+      if (
+        count <= SESSION_CACHE_LIMIT &&
+        totalBytes <= DIRECTORY_CONTENT_MAX_BYTES &&
+        now - accessedAt < DIR_IDLE_TTL_MS
+      ) {
+        continue
+      }
+      evicted.push(id)
+      count -= 1
+      totalBytes -= this.cachedSizes.get(id) ?? 0
+      this.accessed.delete(id)
+      this.messages.delete(id)
+      this.sizeCache.delete(id)
+    }
+    const draft = evicted.length > 0 ? this.draftOf(state) : undefined
+    if (draft) {
+      dropSessionCaches(draft, evicted)
+      this.evictedSessions += evicted.length
+      this.sliceRefs = undefined
+    }
+    const published = draft ?? state
+    let messages = 0
+    for (const list of Object.values(published.message)) messages += list.length
+    this.stats = {
+      sessions: Object.keys(published.message).length,
+      messages,
+      partMessages: published.part.size,
+      estimatedBytes: totalBytes,
+      protectedSessions: [...protectedIds].filter((id) => ids.has(id)).length,
+      evictedSessions: this.evictedSessions,
+      trimmedMessages: this.trimmedMessages,
+    }
+    return {
+      patch: draft ? { ...draft, part: draft.part.seal() } : undefined,
+      invalidated: evicted,
+      evicted,
+    }
+  }
+
+  private draftOf(state: State): RetentionDraft {
+    return {
+      message: { ...state.message },
+      part: state.part.fork(),
+      session_status: { ...state.session_status },
+      session_diff: { ...state.session_diff },
+      todo: { ...state.todo },
+      permission: { ...state.permission },
+      question: { ...state.question },
     }
   }
 }

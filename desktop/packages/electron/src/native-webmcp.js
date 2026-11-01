@@ -78,6 +78,8 @@ class NativeWebMcp {
     this.revocationId = randomUUID()
     this.frameId = ""
     this.tools = new Map()
+    // Bumped wherever the tool set changes, so a view can cache its catalog projection against it.
+    this.catalogStamp = 0
     // Declarative (form) versus imperative (script). Kept beside the tool so the runtime snapshot,
     // and the digest an invocation is bound to, stay the qualified definition shape.
     this.toolKinds = new Map()
@@ -164,6 +166,7 @@ class NativeWebMcp {
   invalidate() {
     this.documentId = randomUUID()
     this.retirePageOperation?.()
+    this.catalogStamp += 1
     this.tools.clear()
     this.toolKinds.clear()
     this.catalogRejection = null
@@ -231,7 +234,10 @@ class NativeWebMcp {
     }
     // Even re-registering the same digest cannot revive a previously approved request.
     // Already dispatched calls retain their completion identity until enrollment/document revocation.
-    if (retired) this.generation = randomUUID()
+    if (retired) {
+      this.generation = randomUUID()
+      this.catalogStamp += 1
+    }
   }
   /**
    * Apply one toolsAdded batch, or name why it was rejected.
@@ -322,6 +328,7 @@ class NativeWebMcp {
       this.tools.set(entry.definition.name, entry.definition)
       this.toolKinds.set(entry.definition.name, entry.kind)
     }
+    this.catalogStamp += 1
     this.catalogRejection = null
     this.changed()
   }

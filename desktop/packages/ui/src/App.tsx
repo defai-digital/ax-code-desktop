@@ -352,7 +352,7 @@ const EmbeddedSessionChatContent: React.FC<{
                   <SidebarFilesTree />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <FilesView />
+                  <FilesView active={embeddedView === "files"} />
                 </div>
               </div>
             </React.Suspense>

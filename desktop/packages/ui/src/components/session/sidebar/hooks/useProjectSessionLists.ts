@@ -45,32 +45,38 @@ export const useProjectSessionLists = (args: Args) => {
     [liveSessionsByOwnerRoot],
   )
 
+  // The archived list of a project is its archived sessions followed by the live
+  // sessions that have no directory of their own (a project worktree stands in
+  // for it). The sidebar asks for every project's list on each rebuild, so both
+  // are bucketed once by owner instead of filtering and normalizing every
+  // session once per project.
+  const archivedSessionsByOwnerRoot = React.useMemo(() => {
+    const next = new Map<string, Session[]>()
+    const add = (session: Session) => {
+      const owner = ownerProjectRootBySessionId.get(session.id)
+      if (!owner) return
+      const bucket = next.get(owner)
+      if (bucket) bucket.push(session)
+      else next.set(owner, [session])
+    }
+    for (const session of archivedSessions) add(session)
+    for (const session of sessions) {
+      if (session.time?.archived) continue
+      const sessionDirectory = normalizePath((session as Session & { directory?: string | null }).directory ?? null)
+      if (sessionDirectory) continue
+      const projectWorktree = normalizePath(
+        (session as Session & { project?: { worktree?: string | null } | null }).project?.worktree ?? null,
+      )
+      if (!projectWorktree) continue
+      add(session)
+    }
+    return next
+  }, [archivedSessions, ownerProjectRootBySessionId, sessions])
+
   const getArchivedSessionsForProject = React.useCallback(
-    (project: { normalizedPath: string }) => {
-      const ownsSession = (session: Session): boolean =>
-        ownerProjectRootBySessionId.get(session.id) === project.normalizedPath
-
-      const archived = archivedSessions.filter(ownsSession)
-      const unassignedLive = sessions.filter((session) => {
-        if (session.time?.archived) {
-          return false
-        }
-        const sessionDirectory = normalizePath((session as Session & { directory?: string | null }).directory ?? null)
-        if (sessionDirectory) {
-          return false
-        }
-        const projectWorktree = normalizePath(
-          (session as Session & { project?: { worktree?: string | null } | null }).project?.worktree ?? null,
-        )
-        if (!projectWorktree) {
-          return false
-        }
-        return ownsSession(session)
-      })
-
-      return dedupeSessionsById([...archived, ...unassignedLive])
-    },
-    [archivedSessions, ownerProjectRootBySessionId, sessions],
+    (project: { normalizedPath: string }) =>
+      dedupeSessionsById(archivedSessionsByOwnerRoot.get(project.normalizedPath) ?? []),
+    [archivedSessionsByOwnerRoot],
   )
 
   return {

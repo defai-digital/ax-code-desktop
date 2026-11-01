@@ -116,6 +116,57 @@ test("replays retained output when the session changes with the same chunk snaps
   cleanup()
 })
 
+test("after a long buffer, appending one chunk writes only that chunk", async () => {
+  const longChunks = Array.from({ length: 100 }, (_, index) => ({ id: index + 1, data: `c${index + 1};` }))
+  const baseProps = {
+    onInput: vi.fn(),
+    onResize: vi.fn(),
+    theme,
+    fontFamily: "monospace",
+    fontSize: 14,
+    autoFocus: false,
+    sessionKey: "long-buffer",
+  }
+  const view = render(<TerminalViewport {...baseProps} chunks={longChunks} />)
+  const expectedInitial = longChunks.map((chunk) => chunk.data).join("")
+  await waitFor(() => expect(state.screen).toBe(expectedInitial))
+  const resetsBefore = state.resets
+
+  view.rerender(<TerminalViewport {...baseProps} chunks={[...longChunks, { id: 101, data: "NEW" }]} />)
+  await waitFor(() => expect(state.screen).toBe(`${expectedInitial}NEW`))
+  expect(state.resets).toBe(resetsBefore)
+  cleanup()
+})
+
+test("a buffer trimmed past the cursor triggers the repaint path", async () => {
+  const baseProps = {
+    onInput: vi.fn(),
+    onResize: vi.fn(),
+    theme,
+    fontFamily: "monospace",
+    fontSize: 14,
+    autoFocus: false,
+    sessionKey: "trimmed-buffer",
+  }
+  const initial = [
+    { id: 1, data: "one;" },
+    { id: 2, data: "two;" },
+    { id: 3, data: "three;" },
+  ]
+  const view = render(<TerminalViewport {...baseProps} chunks={initial} />)
+  await waitFor(() => expect(state.screen).toBe("one;two;three;"))
+  const resetsBefore = state.resets
+
+  const trimmed = [
+    { id: 10, data: "ten;" },
+    { id: 11, data: "eleven;" },
+  ]
+  view.rerender(<TerminalViewport {...baseProps} chunks={trimmed} />)
+  await waitFor(() => expect(state.resets).toBeGreaterThan(resetsBefore))
+  await waitFor(() => expect(state.screen).toBe("ten;eleven;"))
+  cleanup()
+})
+
 test("does not duplicate output when the session and chunks are unchanged", async () => {
   const props = {
     chunks: [{ id: 1, data: "once" }],

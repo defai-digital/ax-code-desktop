@@ -1,4 +1,4 @@
-import { getRemotes, getStatus } from "../git/index.js"
+import { getRemotes, getTrackingBranch } from "../git/index.js"
 import { resolveGitHubRepoFromDirectory } from "./repo/index.js"
 
 const REPO_DEFAULT_BRANCH_TTL_MS = 5 * 60_000
@@ -493,13 +493,15 @@ export async function resolveGitHubPrStatus({ octokit, directory, branch, remote
   const normalizedBranch = normalizeText(branch)
   const normalizedRemoteName = normalizeText(remoteName) || "origin"
 
-  const [status, remotes] = await Promise.all([
-    getStatus(directory).catch(() => null),
+  const [tracking, remotes] = await Promise.all([
+    Promise.resolve()
+      .then(() => getTrackingBranch(directory))
+      .catch(() => null),
     getRemotes(directory).catch(() => []),
   ])
 
-  const trackingRemoteName = parseTrackingRemoteName(status?.tracking)
-  const trackingBranchName = parseTrackingBranchName(status?.tracking)
+  const trackingRemoteName = parseTrackingRemoteName(tracking)
+  const trackingBranchName = parseTrackingBranchName(tracking)
   const branchCandidates = []
   pushUnique(branchCandidates, normalizedBranch)
   pushUnique(branchCandidates, trackingBranchName)

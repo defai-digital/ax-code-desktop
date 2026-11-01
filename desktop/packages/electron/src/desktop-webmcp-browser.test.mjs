@@ -2281,6 +2281,59 @@ test("pooled status and list preserve each page generation, catalog bounds and r
   expect(await f.controller.command(sender, { action: "status", id: second.id })).toEqual(b)
 })
 
+test("status caches the catalog projection until the tool set changes", async () => {
+  const f = fixture()
+  const { sender, status } = await f.create()
+  const guest = f.guests.at(-1)
+  let reads = 0
+  const countingSchema = (marker) => ({
+    get type() {
+      reads += 1
+      return "object"
+    },
+    properties: { value: { type: marker } },
+  })
+  const toolWith = (name, marker) => ({
+    name,
+    description: "Counting tool",
+    frameId: "top",
+    inputSchema: countingSchema(marker),
+  })
+  guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [toolWith("counter", "string")] })
+  reads = 0
+  const first = await f.controller.command(sender, { action: "status", id: status.id })
+  expect(reads).toBeGreaterThan(0)
+  expect(first.catalog).toHaveLength(1)
+
+  reads = 0
+  const second = await f.controller.command(sender, { action: "status", id: status.id })
+  expect(reads).toBe(0)
+  expect(second.catalog[0].digest).toBe(first.catalog[0].digest)
+  expect(second.catalog[0].definitionDigest).toBe(first.catalog[0].definitionDigest)
+  expect(second.catalog[0].invocationID).toBe(first.catalog[0].invocationID)
+
+  guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [toolWith("counter", "integer")] })
+  reads = 0
+  const replaced = await f.controller.command(sender, { action: "status", id: status.id })
+  expect(reads).toBeGreaterThan(0)
+  expect(replaced.catalog[0].digest).not.toBe(first.catalog[0].digest)
+  expect(replaced.catalog[0].invocationID).toBe(first.catalog[0].invocationID)
+
+  guest.debugger.emit("message", {}, "WebMCP.toolsAdded", { tools: [toolWith("extra", "boolean")] })
+  const added = await f.controller.command(sender, { action: "status", id: status.id })
+  expect(added.catalogTotal).toBe(2)
+  expect(added.catalog.map((entry) => entry.name).sort()).toEqual(["counter", "extra"])
+
+  reads = 0
+  const moved = await f.controller.command(sender, {
+    action: "navigate",
+    id: status.id,
+    url: "https://example.com/other",
+  })
+  expect(moved.url).toBe("https://example.com/other")
+  expect(reads).toBe(0)
+})
+
 describe("Round 14a LRU unload", () => {
   test("unloads the least recently used hidden idle page, keeps its full address only in memory and reloads with access off", async () => {
     const f = fixture({ maxLiveViews: 2 })

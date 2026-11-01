@@ -576,7 +576,24 @@ function createDesktopWebMcpBrowser({
   }
   const status = (entry) => {
     const snapshot = entry.adapter.snapshot()
-    const projected = projectToolCatalog(snapshot.tools, entry.adapter.toolKinds, entry.toolIdentities, snapshot.origin)
+    // The projection hashes and clones every schema, so rebuild it only when the tool set
+    // (adapter stamp) or the origin changes; url and the other fields below stay live.
+    let cached = entry.catalogCache
+    if (
+      !cached ||
+      cached.stamp !== entry.adapter.catalogStamp ||
+      cached.origin !== snapshot.origin ||
+      cached.toolCount !== snapshot.tools.length
+    ) {
+      cached = {
+        stamp: entry.adapter.catalogStamp,
+        origin: snapshot.origin,
+        toolCount: snapshot.tools.length,
+        projected: projectToolCatalog(snapshot.tools, entry.adapter.toolKinds, entry.toolIdentities, snapshot.origin),
+      }
+      entry.catalogCache = cached
+    }
+    const projected = cached.projected
     // Shown in the pane's address bar; never logged.
     const url = entry.contents.isDestroyed() ? "" : entry.contents.getURL()
     return {
@@ -993,6 +1010,7 @@ function createDesktopWebMcpBrowser({
     })
     const entry = {
       toolIdentities: new Map(),
+      catalogCache: null,
       id: remembered?.id ?? randomUUID(),
       key,
       projectKey: projectKey(args.directory),

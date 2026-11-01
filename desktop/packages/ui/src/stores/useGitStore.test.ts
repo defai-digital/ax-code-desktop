@@ -1,6 +1,6 @@
 import React, { act } from "react"
 import { createRoot } from "react-dom/client"
-import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 import type { GitStatus } from "@/lib/api/types"
 import { useGitRepoStatusMap, useGitStore, type GitStoreAPI } from "./useGitStore"
 
@@ -423,5 +423,159 @@ describe("Git working-set retention", () => {
     await useGitStore.getState().fetchLog("/large", api)
     expect(useGitStore.getState().directories.has("/large")).toBe(false)
     expect(useGitStore.getState().directories.has("/small")).toBe(true)
+  })
+
+  describe("ensureStatus", () => {
+    const fullDiffStats: GitStatus["diffStats"] = { staged: {}, working: { "a.ts": { insertions: 1, deletions: 0 } } }
+    const stale = () => {
+      const directories = new Map(useGitStore.getState().directories)
+      const state = directories.get("/repo")
+      if (!state) throw new Error("missing /repo")
+      directories.set("/repo", { ...state, lastStatusFetch: 0 })
+      useGitStore.setState({ directories })
+    }
+
+    test("fetches the first status in full, then checks in light mode and goes full only on a change", async () => {
+      const modes: Array<"light" | "full"> = []
+      let files: GitStatus["files"] = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-1" }]
+      const git = createGitApi(async (_directory, options) => {
+        modes.push(options?.mode === "light" ? "light" : "full")
+        return createStatus(options?.mode === "light" ? undefined : fullDiffStats, files)
+      })
+
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.diffStats).toEqual(fullDiffStats)
+
+      // Within the staleness window nothing is fetched.
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full"])
+
+      // Stale and unchanged: one light check, line counts kept from the full status.
+      stale()
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full", "light"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.diffStats).toEqual(fullDiffStats)
+
+      // Stale and the file was rewritten: the light check sees the new blob id and a full status follows.
+      files = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-2" }]
+      stale()
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full", "light", "light", "full"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.files?.[0]?.worktreeBlobId).toBe("blob-2")
+    })
+
+    test("a branch without upstream and unpublished commits keeps the full poll", async () => {
+      const modes: Array<"light" | "full"> = []
+      const git = createGitApi(async (_directory, options) => {
+        const light = options?.mode === "light"
+        modes.push(light ? "light" : "full")
+        // The full status counts unpublished commits; light mode would report git's 0/0.
+        return { ...createStatus(light ? undefined : fullDiffStats), ahead: light ? 0 : 3, headOid: "head-1" }
+      })
+
+      await useGitStore.getState().ensureStatus("/repo", git)
+      stale()
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full", "full"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.ahead).toBe(3)
+    })
+
+    test("a comparison against an upstream remote keeps the full poll", async () => {
+      const modes: Array<"light" | "full"> = []
+      const git = createGitApi(async (_directory, options) => {
+        const light = options?.mode === "light"
+        modes.push(light ? "light" : "full")
+        return {
+          ...createStatus(light ? undefined : fullDiffStats),
+          tracking: "origin/main",
+          upstreamComparison: light ? undefined : { remote: "upstream", branch: "main", ahead: 0, behind: 4 },
+        }
+      })
+
+      await useGitStore.getState().ensureStatus("/repo", git)
+      stale()
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full", "full"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.upstreamComparison?.behind).toBe(4)
+    })
+
+    test("a status with rows past the identity cap keeps the full poll", async () => {
+      const modes: Array<"light" | "full"> = []
+      const files: GitStatus["files"] = [
+        { path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-1" },
+        // Past the server's cap the identity fields are omitted, so a light check could not see an edit.
+        { path: "b.ts", index: " ", working_dir: "M" },
+      ]
+      const git = createGitApi(async (_directory, options) => {
+        modes.push(options?.mode === "light" ? "light" : "full")
+        return createStatus(options?.mode === "light" ? undefined : fullDiffStats, files)
+      })
+
+      await useGitStore.getState().ensureStatus("/repo", git)
+      stale()
+      await useGitStore.getState().ensureStatus("/repo", git)
+      expect(modes).toEqual(["full", "full"])
+    })
+
+    test("a light check that joined an in-flight full status does not start a second one", async () => {
+      const modes: Array<"light" | "full"> = []
+      let files: GitStatus["files"] = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-1" }]
+      let gate: Promise<void> | null = null
+      const git = createGitApi(async (_directory, options) => {
+        modes.push(options?.mode === "light" ? "light" : "full")
+        if (gate) await gate
+        return createStatus(options?.mode === "light" ? undefined : fullDiffStats, files)
+      })
+
+      await useGitStore.getState().ensureStatus("/repo", git)
+      stale()
+      files = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-2" }]
+      let release!: () => void
+      gate = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      // A full refresh (a git action, a refresh hint) is in flight when the periodic check runs.
+      const inFlight = useGitStore.getState().fetchStatus("/repo", git, { silent: true })
+      const check = useGitStore.getState().ensureStatus("/repo", git)
+      release()
+      await Promise.all([inFlight, check])
+
+      expect(modes).toEqual(["full", "full"])
+      expect(useGitStore.getState().directories.get("/repo")?.status?.files?.[0]?.worktreeBlobId).toBe("blob-2")
+    })
+
+    test("a light check writes nothing, so a failed full status is retried by the next check", async () => {
+      const modes: Array<"light" | "full"> = []
+      let files: GitStatus["files"] = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-1" }]
+      let failNextFull = false
+      const git = createGitApi(async (_directory, options) => {
+        const light = options?.mode === "light"
+        modes.push(light ? "light" : "full")
+        if (!light && failNextFull) {
+          failNextFull = false
+          throw new Error("git status failed")
+        }
+        return createStatus(light ? undefined : fullDiffStats, files)
+      })
+      const consoleError = vi.spyOn(console, "error").mockImplementation(() => {})
+      try {
+        await useGitStore.getState().ensureStatus("/repo", git)
+        files = [{ path: "a.ts", index: " ", working_dir: "M", worktreeBlobId: "blob-2" }]
+        failNextFull = true
+        stale()
+        await useGitStore.getState().ensureStatus("/repo", git)
+        expect(modes).toEqual(["full", "light", "full"])
+        // The light check did not publish the new blob id on its own.
+        expect(useGitStore.getState().directories.get("/repo")?.status?.files?.[0]?.worktreeBlobId).toBe("blob-1")
+
+        // The failed full status left the check stale, so the next call probes again and recovers.
+        await useGitStore.getState().ensureStatus("/repo", git)
+        expect(modes).toEqual(["full", "light", "full", "light", "full"])
+        expect(useGitStore.getState().directories.get("/repo")?.status?.files?.[0]?.worktreeBlobId).toBe("blob-2")
+      } finally {
+        consoleError.mockRestore()
+      }
+    })
   })
 })

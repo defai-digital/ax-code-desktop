@@ -46,6 +46,8 @@ export class ChildStoreManager {
   private readonly registrySubscribers = new Set<() => void>()
 
   private readonly retention = new Map<string, SessionRetention>()
+  /** Identity key to the spelling stored in `children`. Avoids scanning every child on a case-only miss. */
+  private readonly directoryKeyByIdentity = new Map<string, string>()
   private retentionTimer: ReturnType<typeof setTimeout> | undefined
   private sweeping = false
   private getViewedSessions?: (directory: string) => ReadonlySet<string>
@@ -59,10 +61,21 @@ export class ChildStoreManager {
   private directoryKey(directory: string): string {
     if (this.children.has(directory)) return directory
     const identity = getProjectPathIdentityKey(directory)
-    for (const key of this.children.keys()) {
-      if (getProjectPathIdentityKey(key) === identity) return key
-    }
+    const indexed = identity ? this.directoryKeyByIdentity.get(identity) : undefined
+    if (indexed && this.children.has(indexed)) return indexed
     return directory
+  }
+
+  private rememberDirectoryKey(directory: string) {
+    const identity = getProjectPathIdentityKey(directory)
+    if (identity) this.directoryKeyByIdentity.set(identity, directory)
+  }
+
+  private forgetDirectoryKey(directory: string) {
+    const identity = getProjectPathIdentityKey(directory)
+    if (identity && this.directoryKeyByIdentity.get(identity) === directory) {
+      this.directoryKeyByIdentity.delete(identity)
+    }
   }
 
   private notifyRegistrySubscribers() {
@@ -91,7 +104,9 @@ export class ChildStoreManager {
     if (!directory) return
     directory = this.directoryKey(directory)
     this.lifecycle.set(directory, { lastAccessAt: Date.now() })
-    this.runEviction(directory)
+    // Flushes mark every frame. The protected-session scan runs only to free a
+    // slot past the cap; the sync provider's 30s interval still applies the TTL.
+    if (this.children.size > MAX_DIR_STORES) this.runEviction(directory)
   }
 
   pin(directory: string) {
@@ -127,6 +142,7 @@ export class ChildStoreManager {
     if (!store) {
       store = createDirectoryStore(directory)
       this.children.set(directory, store)
+      this.rememberDirectoryKey(directory)
       this.retention.set(directory, new SessionRetention())
       this.disposers.set(directory, store.subscribe((state, previous) => {
         if (this.sweeping) return
@@ -172,6 +188,7 @@ export class ChildStoreManager {
     this.retention.delete(directory)
     this.lifecycle.delete(directory)
     this.children.delete(directory)
+    this.forgetDirectoryKey(directory)
     const dispose = this.disposers.get(directory)
     this.disposers.delete(directory)
     dispose?.()
@@ -277,6 +294,7 @@ export class ChildStoreManager {
     }
     this.retention.clear()
     this.children.clear()
+    this.directoryKeyByIdentity.clear()
     this.lifecycle.clear()
     this.pins.clear()
     this.disposers.clear()

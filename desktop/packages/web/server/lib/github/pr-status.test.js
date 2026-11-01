@@ -32,6 +32,7 @@ describe("pr-status repo resolution caches", () => {
 
 vi.mock("../git/index.js", () => ({
   getStatus: vi.fn(async () => ({ branch: "feature", tracking: "origin/feature", files: [] })),
+  getTrackingBranch: vi.fn(async () => "origin/feature"),
   getRemotes: vi.fn(async () => [{ name: "origin", refs: { fetch: "git@github.com:owner/repo.git", push: "git@github.com:owner/repo.git" } }]),
 }))
 vi.mock("./repo/index.js", () => ({

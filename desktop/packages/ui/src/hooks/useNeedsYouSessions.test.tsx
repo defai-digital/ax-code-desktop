@@ -16,6 +16,19 @@ vi.mock("@/sync/sync-context", () => ({
   usePendingQuestionSessionIds: () => mocks.pendingQuestions,
 }))
 
+const resolutionMocks = vi.hoisted(() => ({ identityKeyCalls: 0 }))
+
+vi.mock("@/lib/projectResolution", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/projectResolution")>()
+  return {
+    ...actual,
+    getProjectPathIdentityKey: (value?: string | null) => {
+      resolutionMocks.identityKeyCalls += 1
+      return actual.getProjectPathIdentityKey(value)
+    },
+  }
+})
+
 import {
   attentionSessionForProject,
   listNeedsYouSessions,
@@ -23,6 +36,7 @@ import {
   type NeedsYouSessionInput,
 } from "@/lib/needsYou"
 import { useGitStore } from "@/stores/useGitStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useRunStateStore } from "@/sync/run-state-store"
 import { useNeedsYouSessionInputs } from "./useNeedsYouSessions"
@@ -224,5 +238,68 @@ describe("useNeedsYouSessionInputs finished work", () => {
     // The same run-ended rule the in-session nudge follows: a later run ending shows it again.
     act(() => useRunStateStore.setState({ runEndedAt: { done: 4000 } }))
     expect(uncommitted("done")).toBe(true)
+  })
+})
+
+describe("useNeedsYouSessionInputs project resolution cost", () => {
+  let container: HTMLDivElement
+  let root: Root
+  let latest: NeedsYouSessionInput[] = []
+
+  const Harness: React.FC = () => {
+    latest = useNeedsYouSessionInputs()
+    return null
+  }
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    mocks.sessions = []
+    mocks.statuses = {}
+    mocks.pendingPermissions = new Set()
+    mocks.pendingQuestions = new Set()
+    useSessionGoalStore.getState().clear()
+    useGitStore.setState({ directories: new Map() })
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    useProjectsStore.setState({ projects: [], activeProjectId: null })
+    useSessionGoalStore.getState().clear()
+  })
+
+  test("builds the project key table once per memo instead of once per session", () => {
+    const projectCount = 30
+    const sessionCount = 50
+    const projects = Array.from({ length: projectCount }, (_, index) => ({
+      id: `p${index}`,
+      path: `/repo/p${index}`,
+    }))
+    // Nested project to also pin longest-match behavior.
+    projects.push({ id: "p0-nested", path: "/repo/p0/nested" })
+    const allProjects = projects
+    mocks.sessions = Array.from({ length: sessionCount }, (_, index) => ({
+      id: `s${index}`,
+      title: `Session ${index}`,
+      directory: index === 0 ? "/repo/p0/nested/deep" : `/repo/p${index % projectCount}/sub`,
+      time: { created: 1000, updated: 2000 },
+    }))
+
+    act(() => useProjectsStore.setState({ projects: allProjects, activeProjectId: null }))
+    resolutionMocks.identityKeyCalls = 0
+    act(() => root.render(<Harness />))
+
+    const projectTotal = allProjects.length
+    // After the fix: projectTotal keys built once + at most 2 per session.
+    // Before the fix this was at least projectTotal x sessionCount.
+    expect(resolutionMocks.identityKeyCalls).toBeLessThanOrEqual(projectTotal + 2 * sessionCount)
+    expect(resolutionMocks.identityKeyCalls).toBeLessThan(projectTotal * sessionCount)
+    // Longest match still wins for the nested session.
+    expect(latest.find((input) => input.id === "s0")?.projectId).toBe("p0-nested")
+    expect(latest.find((input) => input.id === "s1")?.projectId).toBe("p1")
+    expect(latest).toHaveLength(sessionCount)
   })
 })

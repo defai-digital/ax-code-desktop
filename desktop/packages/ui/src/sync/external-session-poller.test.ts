@@ -441,6 +441,20 @@ describe("external session polling", () => {
     expect(messages).toHaveBeenCalledTimes(3)
   })
 
+  test("watermark: an open session with an empty page is read once, then rests until its row is touched", async () => {
+    const { poller, store, messages } = setup()
+    messages.mockResolvedValue({ data: [] })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(messages).toHaveBeenCalledOnce()
+    expect(store.getState().session_status.session).toBeUndefined()
+    await poller.tick()
+    await poller.tick()
+    expect(messages).toHaveBeenCalledOnce()
+    store.setState({ session: [{ ...session, time: { created: 1, updated: 200 } }] })
+    await poller.tick()
+    expect(messages).toHaveBeenCalledTimes(2)
+  })
+
   test("releases the synthesized status of a disposed store on the next tick", async () => {
     const childStores = new ChildStoreManager()
     const store = childStores.ensureChild("/repo", { bootstrap: false })

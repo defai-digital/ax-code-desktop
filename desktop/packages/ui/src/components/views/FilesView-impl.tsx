@@ -553,9 +553,11 @@ const Dialogs: React.FC<DialogsProps> = ({
 
 interface FilesViewProps {
   mode?: "full" | "editor-only"
+  /** False while the host keeps the view mounted but out of sight (an unselected context-panel tab). */
+  active?: boolean
 }
 
-export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
+export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = true }) => {
   const { t } = useI18n()
   const { files, runtime } = useRuntimeAPIs()
   const { currentTheme, availableThemes, lightThemeId, darkThemeId } = useThemeSystem()
@@ -570,6 +572,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
   // must not write its file's content into the newly displayed file's state.
   const rootRef = React.useRef(root)
   rootRef.current = root
+  // The polls below read the live flag: a hidden pane neither refreshes the tree
+  // nor stats the open file, and the next tick after it is shown catches up.
+  const activeRef = React.useRef(active)
+  activeRef.current = active
   const showEditorTabsRow = isMobile || mode !== "editor-only"
   const suppressFileLoadingIndicator = mode === "editor-only" && !isMobile
   const searchFiles = useFileSearchStore((state) => state.searchFiles)
@@ -1156,7 +1162,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     if (!files.listDirectory) return
 
     const handleVisibilityChange = () => {
-      if (!document.hidden) {
+      if (!document.hidden && activeRef.current) {
         for (const dir of getBackgroundRefreshDirectories()) {
           void refreshDirectory(dir)
         }
@@ -1174,7 +1180,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     if (!root) return
 
     return startSingleFlightInterval(async () => {
-      if (document.hidden) return
+      if (document.hidden || !activeRef.current) return
       await Promise.allSettled(getBackgroundRefreshDirectories().map((dir) => refreshDirectory(dir)))
     }, 30000)
   }, [files.listDirectory, getBackgroundRefreshDirectories, refreshDirectory, root])
@@ -2003,7 +2009,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full" }) => {
     }
 
     return startSingleFlightInterval(async (isCancelled) => {
-      if (document.hidden) return
+      if (document.hidden || !activeRef.current) return
       const latestStat = await readFileStat(selectedFile.path, selectedFileReadOptions).catch(() => undefined)
       if (isCancelled() || !latestStat) return
 

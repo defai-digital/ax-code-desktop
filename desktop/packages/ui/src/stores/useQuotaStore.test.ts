@@ -1,3 +1,5 @@
+import React, { act } from "react"
+import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { ProviderResult } from "@/types"
 
@@ -248,5 +250,56 @@ describe("useQuotaStore", () => {
     await secondRefresh
 
     expect(useQuotaStore.getState().isFetchingProvider.claude).toBe(false)
+  })
+})
+
+describe("useQuotaAutoRefresh visibility gate", () => {
+  afterEach(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+    vi.restoreAllMocks()
+    vi.resetModules()
+  })
+
+  test("skips the fetch while the document is hidden and fetches on the next visible tick", async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => createQuotaResult("Claude", 1),
+    }))
+    vi.stubGlobal("fetch", fetchMock)
+
+    const { useQuotaStore, useQuotaAutoRefresh } = await importStore()
+    useQuotaStore.setState({ autoRefresh: true, refreshIntervalMs: 30000 })
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" })
+    ;(globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    const container = document.createElement("div")
+    document.body.appendChild(container)
+    const root = createRoot(container)
+    const Harness: React.FC = () => {
+      useQuotaAutoRefresh()
+      return null
+    }
+
+    await act(async () => {
+      root.render(React.createElement(Harness))
+    })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(90000)
+    })
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30000)
+    })
+    expect(fetchMock).toHaveBeenCalled()
+
+    await act(async () => {
+      root.unmount()
+    })
+    container.remove()
   })
 })

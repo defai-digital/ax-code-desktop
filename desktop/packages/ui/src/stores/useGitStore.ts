@@ -28,6 +28,13 @@ const GIT_DIRECTORY_IDLE_TTL_MS = 20 * 60 * 1000
 export const GIT_REPO_SUMMARY_LIMIT = 512
 const directoryAccessedAt = new Map<string, number>()
 type GitStatusFetchMode = "full" | "light"
+
+interface GitStatusFetchOptions {
+  silent?: boolean
+  mode?: "light"
+  // A probe compares the fresh status with the stored one and writes nothing.
+  probe?: boolean
+}
 export type GitStoreAPI = Pick<
   RuntimeGitAPI,
   "checkIsGitRepository" | "getGitStatus" | "getGitBranches" | "getGitLog" | "getCurrentGitIdentity" | "getGitFileDiff"
@@ -75,7 +82,7 @@ interface GitStore {
   removeDirectoriesMatching: (matches: (directory: string) => boolean) => void
   getDirectoryState: (directory: string) => DirectoryGitState | null
 
-  fetchStatus: (directory: string, git: GitStoreAPI, options?: { silent?: boolean; mode?: "light" }) => Promise<boolean>
+  fetchStatus: (directory: string, git: GitStoreAPI, options?: GitStatusFetchOptions) => Promise<boolean>
   fetchBranches: (directory: string, git: GitStoreAPI) => Promise<void>
   fetchLog: (directory: string, git: GitStoreAPI, maxCount?: number) => Promise<void>
   fetchIdentity: (directory: string, git: GitStoreAPI) => Promise<void>
@@ -278,6 +285,17 @@ const contentIdentityStamp = (file: {
 }): string | null => {
   if (file.headBlobId === undefined && file.indexBlobId === undefined && file.worktreeBlobId === undefined) return null
   return `${file.headBlobId ?? ""}\0${file.indexBlobId ?? ""}\0${file.worktreeBlobId ?? ""}`
+}
+
+// A light status carries the file list and blob ids but not what only the full
+// status computes: the unpublished-commit count of a branch without upstream,
+// the comparison against an `upstream` remote, and the content identities past
+// the server's cap (rows without identity fields). A stored status that shows
+// any of them keeps the full poll, so none of them waits for an unrelated change.
+const canPollStatusInLightMode = (status: GitStatus): boolean => {
+  if (!status.tracking && (status.ahead > 0 || status.behind > 0)) return false
+  if (status.upstreamComparison) return false
+  return !(status.files ?? []).some((file) => contentIdentityStamp(file) === null)
 }
 
 const hasStatusChanged = (oldStatus: GitStatus | null, newStatus: GitStatus | null): boolean => {
@@ -653,6 +671,10 @@ export const useGitStore = create<GitStore>()(
             const liveDirState = liveDirectories.get(directory) ?? dirState
             if (hasStatusChanged(liveDirState.status, newStatus)) {
               statusChanged = true
+              // A probe only answers whether a full status is due. It writes
+              // nothing, so when the full fetch that follows fails the stored
+              // status stays as it was and the next probe finds the change again.
+              if (options.probe) return true
               const newDirectories = liveDirectories
               const currentDirState = liveDirState
 
@@ -1141,7 +1163,21 @@ export const useGitStore = create<GitStore>()(
         if (dirState?.status && now - dirState.lastStatusFetch < STATUS_STALE_THRESHOLD) {
           return
         }
-        await get().fetchStatus(directory, git, { silent: Boolean(dirState?.status) })
+        if (!dirState?.status || !canPollStatusInLightMode(dirState.status)) {
+          await get().fetchStatus(directory, git, { silent: Boolean(dirState?.status) })
+          return
+        }
+        // With a status stored, the periodic check probes in light mode: it
+        // skips the numstats and the per-file --no-index diffs, and the blob
+        // ids it still carries reveal any change. Only a change pays for the
+        // full status that refreshes line counts and the upstream comparison.
+        const fetchedBefore = dirState.lastStatusFetch
+        const changed = await get().fetchStatus(directory, git, { silent: true, mode: "light", probe: true })
+        // A probe that joined an in-flight full fetch reports that fetch's result,
+        // which the store already holds; only a probe of its own owes the full status.
+        if (changed && get().directories.get(directory)?.lastStatusFetch === fetchedBefore) {
+          await get().fetchStatus(directory, git, { silent: true })
+        }
       },
 
       ensureAll: (directory, git) => {

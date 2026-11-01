@@ -160,8 +160,7 @@ describe("collectNativeSearchResults", () => {
           [`${root}/ax-code`]: [{ name: "auth.json", type: "file" }],
           [`${root}/project`]: [{ name: "auth-notes.md", type: "file" }],
         }),
-        realpath: async (candidate) =>
-          candidate === `${root}/ax-code` ? "/Users/alice/.config/ax-code" : candidate,
+        realpath: async (candidate) => (candidate === root ? "/Users/alice/.config" : candidate),
       },
     })
 
@@ -185,8 +184,7 @@ describe("collectNativeSearchResults", () => {
             { name: "project-notes.md", type: "file" },
           ],
         }),
-        realpath: async (candidate) =>
-          candidate === `${root}/credentials` ? "/Users/alice/.config/git/credentials" : candidate,
+        realpath: async (candidate) => (candidate === root ? "/Users/alice/.config/git" : candidate),
       },
     })
 
@@ -215,8 +213,144 @@ describe("collectNativeSearchResults", () => {
     })
 
     expect(results.map((entry) => entry.relativePath)).toEqual(["notes.md"])
-    // Only the entry that can appear in the results was resolved.
+    // Only the root was resolved; a non-symlink child keeps its logical path.
     expect(realpathCalls).toBe(1)
+  })
+
+  test("resolves only the root and symlink dirents, and excludes a denied symlink target", async () => {
+    const root = "/srv/project"
+    const entry = (name, type, symlink = false) => ({
+      name,
+      isDirectory: () => type === "directory",
+      isFile: () => type === "file",
+      isSymbolicLink: () => symlink,
+    })
+    const tree = {
+      [root]: [entry("src", "directory"), entry("link", "directory", true), entry("notes-top.txt", "file")],
+      [`${root}/src`]: [entry("notes-src.txt", "file")],
+      [`${root}/link`]: [entry("notes-denied.txt", "file")],
+    }
+    const realpathCalls = []
+    const results = await collectNativeSearchResults({
+      root,
+      query: "notes",
+      options: policyOptions,
+      fs: {
+        readdir: async (dir) => {
+          const entries = tree[dir]
+          if (!entries) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+          return entries
+        },
+        realpath: async (candidate) => {
+          realpathCalls.push(candidate)
+          return candidate === `${root}/link` ? "/Users/alice/.ssh" : candidate
+        },
+      },
+    })
+
+    expect(realpathCalls).toEqual([root, `${root}/link`])
+    expect(results.map((item) => item.relativePath).sort()).toEqual(["notes-top.txt", "src/notes-src.txt"])
+  })
+
+  test("a newer search of the same root abandons an older walk; another root's search does not", async () => {
+    const slowRoot = "/srv/slow"
+    const fastRoot = "/srv/fast"
+    let blockedOnce = false
+    const entry = (name, type) => ({
+      name,
+      isDirectory: () => type === "directory",
+      isFile: () => type === "file",
+      isSymbolicLink: () => false,
+    })
+    let releaseSlow
+    let slowEntered
+    const gate = new Promise((resolve) => {
+      releaseSlow = resolve
+    })
+    const entered = new Promise((resolve) => {
+      slowEntered = resolve
+    })
+    const fs = {
+      readdir: async (dir) => {
+        if (dir === slowRoot) return [entry("d1", "directory"), entry("d2", "directory")]
+        if (dir === `${slowRoot}/d1`) {
+          if (!blockedOnce) {
+            blockedOnce = true
+            slowEntered()
+            await gate
+          }
+          return [entry("notes-one.txt", "file")]
+        }
+        if (dir === `${slowRoot}/d2`) return [entry("notes-two.txt", "file")]
+        if (dir === fastRoot) return [entry("notes-fast.txt", "file")]
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      },
+      realpath: async (candidate) => candidate,
+    }
+    const first = collectNativeSearchResults({ root: slowRoot, query: "notes", options: policyOptions, fs })
+    await entered
+    const otherRoot = await collectNativeSearchResults({ root: fastRoot, query: "notes", options: policyOptions, fs })
+    expect(otherRoot.map((item) => item.relativePath)).toEqual(["notes-fast.txt"])
+    const second = await collectNativeSearchResults({ root: slowRoot, query: "notes", options: policyOptions, fs })
+    expect(second.map((item) => item.relativePath)).toEqual(["d1/notes-one.txt", "d2/notes-two.txt"])
+    releaseSlow()
+    // The first walk was superseded by the second search of its root, not by the other root's
+    // search; it reports null rather than the entries it had collected so far.
+    expect(await first).toBeNull()
+  })
+
+  test("an abandoned walk stays abandoned while a later search of its root is in flight", async () => {
+    const root = "/srv/project"
+    const entry = (name, type) => ({
+      name,
+      isDirectory: () => type === "directory",
+      isFile: () => type === "file",
+      isSymbolicLink: () => false,
+    })
+    const release = []
+    const entered = []
+    const gates = [0, 1].map(
+      (index) =>
+        new Promise((resolve) => {
+          release[index] = resolve
+        }),
+    )
+    const enteredGates = [0, 1].map(
+      (index) =>
+        new Promise((resolve) => {
+          entered[index] = resolve
+        }),
+    )
+    let deepReads = 0
+    const fs = {
+      readdir: async (dir) => {
+        if (dir === root) return [entry("d1", "directory"), entry("notes-top.txt", "file")]
+        if (dir === `${root}/d1`) {
+          deepReads += 1
+          // The first and the third search block inside the walk; the second completes at once.
+          if (deepReads === 1 || deepReads === 3) {
+            const index = deepReads === 1 ? 0 : 1
+            entered[index]()
+            await gates[index]
+          }
+          return [entry("notes-deep.txt", "file")]
+        }
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      },
+      realpath: async (candidate) => candidate,
+    }
+    const first = collectNativeSearchResults({ root, query: "notes", options: policyOptions, fs })
+    await enteredGates[0]
+    const second = await collectNativeSearchResults({ root, query: "notes", options: policyOptions, fs })
+    expect(second.map((item) => item.relativePath)).toEqual(["d1/notes-deep.txt", "notes-top.txt"])
+    const third = collectNativeSearchResults({ root, query: "notes", options: policyOptions, fs })
+    await enteredGates[1]
+    release[0]()
+    // The second search released the root's entry, and the third took it again: the first walk,
+    // superseded by both, must not find itself current and report a list.
+    expect(await first).toBeNull()
+    release[1]()
+    expect((await third).map((item) => item.relativePath)).toEqual(["d1/notes-deep.txt", "notes-top.txt"])
   })
 
   test("walks past a directory the policy denies but keeps ordinary siblings", async () => {

@@ -330,6 +330,11 @@ export const useQuotaAutoRefresh = () => {
       return
     }
 
-    return startSingleFlightInterval(() => fetchAllQuotas(), refreshIntervalMs)
+    return startSingleFlightInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") {
+        return
+      }
+      return fetchAllQuotas()
+    }, refreshIntervalMs)
   }, [autoRefresh, refreshIntervalMs, fetchAllQuotas])
 }

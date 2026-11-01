@@ -87,6 +87,14 @@ const NATIVE_SEARCH_SKIP_DIRS = new Set([
  * oracle `shouldSearchNativeRoot` exists to prevent. Only real directories are recursed into, so a
  * link is never followed out of the tree.
  */
+// A newer search of the same root supersedes an older walk: the mention box issues a query per
+// keystroke burst, and a stale walk would otherwise keep paying for results nobody reads. Keyed by
+// root so one window's search does not truncate another project's. Generation values are unique
+// across roots so a finished search can drop its root's entry without a later search of that root
+// reusing a number an abandoned walk still compares against.
+let nativeSearchSequence = 0
+const latestNativeSearchGenerationByRoot = new Map()
+
 const collectNativeSearchResults = async ({
   root,
   query,
@@ -98,9 +106,51 @@ const collectNativeSearchResults = async ({
   pathTools = path,
   maxDepth = 12,
 }) => {
+  const generation = ++nativeSearchSequence
+  latestNativeSearchGenerationByRoot.set(root, generation)
+  const isCurrent = () => latestNativeSearchGenerationByRoot.get(root) === generation
+  try {
+    return await walkNativeSearchRoot({
+      root,
+      query,
+      includeHidden,
+      resultType,
+      limit,
+      options,
+      fs: fsImpl,
+      pathTools,
+      maxDepth,
+      isCurrent,
+    })
+  } finally {
+    if (latestNativeSearchGenerationByRoot.get(root) === generation) latestNativeSearchGenerationByRoot.delete(root)
+  }
+}
+
+// Returns null when a newer search of the same root superseded this walk: the renderer caches an
+// array as the complete answer for 30 s, so a list cut short must not be reported as one; null
+// makes it fall back to the HTTP search instead.
+const walkNativeSearchRoot = async ({
+  root,
+  query,
+  includeHidden,
+  resultType,
+  limit,
+  options,
+  fs: fsImpl,
+  pathTools,
+  maxDepth,
+  isCurrent,
+}) => {
   const results = []
-  const walk = async (dir, depth) => {
-    if (results.length >= limit || depth > maxDepth) return
+  // Resolve the root once and carry its real path down the walk: a non-symlink child of a
+  // resolved root keeps its logical path for the policy check, so only symlink dirents pay
+  // for `realpath`. Mount points that are not symlinks are not resolved here and remain a gap.
+  const resolvedRoot = await resolvePolicyRealPath(root, fsImpl)
+  if (!isCurrent()) return null
+  if (resolvedRoot && !shouldSearchNativeRoot(resolvedRoot, options)) return results
+  const walk = async (dir, resolvedDir, depth) => {
+    if (!isCurrent() || results.length >= limit || depth > maxDepth) return
     let entries
     try {
       entries = await fsImpl.readdir(dir, { withFileTypes: true })
@@ -108,24 +158,20 @@ const collectNativeSearchResults = async ({
       return
     }
     for (const entry of entries) {
-      if (results.length >= limit) return
+      if (!isCurrent() || results.length >= limit) return
       if (entry.name.startsWith(".") && !includeHidden) continue
       if (entry.isDirectory() && NATIVE_SEARCH_SKIP_DIRS.has(entry.name)) continue
       const full = pathTools.join(dir, entry.name)
       if (!shouldSearchNativeRoot(full, options)) continue
-      if (entry.isDirectory()) {
-        // The walk keeps the caller's paths, but the HOME-relative deny rules compare strings — so a directory
-        // entered through a symlinked root (`/tmp/alias` -> `~/.config`) is not the string that names the denied
-        // store and used to be enumerated. Resolve the directory before descending; the basename rules
-        // (*.pem, *.key, .env*) need no resolution, and names are what this search returns.
-        const resolvedDir = await resolvePolicyRealPath(full, fsImpl)
-        if (resolvedDir && !shouldSearchNativeRoot(resolvedDir, options)) continue
-      } else if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
-        // A file needs the same resolution, and only a *matching* one pays for it: a search rooted at a symlinked
-        // directory returned `credentials` — the name of a path `desktop_read_file` refuses, and the walk follows
-        // the link — because the literal `/tmp/alias/credentials` names no denied prefix.
-        const resolvedEntry = await resolvePolicyRealPath(full, fsImpl)
-        if (resolvedEntry && !shouldSearchNativeRoot(resolvedEntry, options)) continue
+      const isSymlink = typeof entry.isSymbolicLink === "function" && entry.isSymbolicLink()
+      let resolvedFull = resolvedDir ? pathTools.join(resolvedDir, entry.name) : full
+      if (isSymlink) {
+        const resolved = await resolvePolicyRealPath(full, fsImpl)
+        if (!isCurrent()) return
+        if (resolved && !shouldSearchNativeRoot(resolved, options)) continue
+        if (resolved) resolvedFull = resolved
+      } else if (!shouldSearchNativeRoot(resolvedFull, options)) {
+        continue
       }
       if (shouldIncludeNativeSearchEntry(entry, resultType, query)) {
         const extension = entry.isDirectory() ? undefined : pathTools.extname(entry.name).replace(/^\./, "") || undefined
@@ -136,12 +182,12 @@ const collectNativeSearchResults = async ({
           ...(extension ? { extension } : {}),
         })
       }
-      if (entry.isDirectory()) await walk(full, depth + 1)
+      if (entry.isDirectory()) await walk(full, resolvedFull, depth + 1)
     }
   }
 
-  await walk(root, 0)
-  return results
+  await walk(root, resolvedRoot, 0)
+  return isCurrent() ? results : null
 }
 
 module.exports = {
