@@ -71,3 +71,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.30.9 verified publication](RELEASE-2026-10-31-v7.30.9-publication.md)
 
 - [Desktop v7.30.10 verified maintenance and publication](RELEASE-2026-11-01-v7.30.10-publication.md)
+
+- [Desktop v7.30.11 verified maintenance and publication](RELEASE-2026-11-01-v7.30.11-publication.md)

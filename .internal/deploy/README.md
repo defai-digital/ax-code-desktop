@@ -8,7 +8,7 @@ publisher. See [ADR-010](../adr/ADR-010-desktop-download-distribution.md) and th
 
 Public publication is authorized under ADR-012, and the independent GitHub and
 Cloudflare/R2 channels are active. The 2026-11-01 maintenance publication is recorded in
-[the 7.30.10 report](../reports/RELEASE-2026-11-01-v7.30.10-publication.md).
+[the 7.30.11 report](../reports/RELEASE-2026-11-01-v7.30.11-publication.md).
 Every newer version still requires exact-source CI, reviewed actual journey results,
 required platform/Minisign signatures, native installation and continuity receipts,
 and signed qualification before publication. The commands below include both the
