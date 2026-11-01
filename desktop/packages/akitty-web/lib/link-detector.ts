@@ -13,6 +13,7 @@ import type { IBufferCellPosition, ILink, ILinkProvider } from './types';
  */
 export class LinkDetector {
   private providers: ILinkProvider[] = [];
+  private isDisposed = false;
 
   // Cache links by hyperlink_id for fast lookups
   // Key format: `h${hyperlinkId}` for OSC 8 links
@@ -40,6 +41,7 @@ export class LinkDetector {
    * @returns Link at position, or undefined if none
    */
   async getLinkAt(col: number, row: number): Promise<ILink | undefined> {
+    if (this.isDisposed) return undefined;
     // First, check if this cell has a hyperlink_id (fast path for OSC 8)
     const line = this.terminal.buffer.active.getLine(row);
     if (!line || col < 0 || col >= line.length) {
@@ -96,6 +98,7 @@ export class LinkDetector {
         provider.provideLinks(row, resolve);
       });
 
+      if (this.isDisposed) return;
       if (links) {
         allLinks.push(...links);
       }
@@ -207,14 +210,18 @@ export class LinkDetector {
    * Dispose and cleanup
    */
   dispose(): void {
+    if (this.isDisposed) return;
+    this.isDisposed = true;
     this.linkCache.clear();
     this.scannedRows.clear();
 
     // Dispose all providers
+    const failures: unknown[] = [];
     for (const provider of this.providers) {
-      provider.dispose?.();
+      try { provider.dispose?.(); } catch (error) { failures.push(error); }
     }
     this.providers = [];
+    if (failures.length) throw failures[0];
   }
 }
 

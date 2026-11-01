@@ -59,6 +59,7 @@ export class SelectionManager {
   private boundContextMenuHandler: ((e: MouseEvent) => void) | null = null;
   private boundClickHandler: ((e: MouseEvent) => void) | null = null;
   private boundDocumentMouseMoveHandler: ((e: MouseEvent) => void) | null = null;
+  private boundDocumentMouseDownHandler: ((e: MouseEvent) => void) | null = null;
 
   // Auto-scroll state for drag selection
   private autoScrollInterval: ReturnType<typeof setInterval> | null = null;
@@ -117,8 +118,15 @@ export class SelectionManager {
   // ==========================================================================
 
   /**
-   * Get the selected text as a string
+   * Retarget selection after a successful terminal reset.
    */
+  setTerminal(wasmTerm: GhosttyTerminal): void {
+    this.clearSelection();
+    this.mouseDownTarget = null;
+    this.wasmTerm = wasmTerm;
+  }
+
+  /** Get the selected text as a string. */
   getSelection(): string {
     if (!this.selectionStart || !this.selectionEnd) return '';
 
@@ -221,8 +229,6 @@ export class SelectionManager {
    * Clear the selection
    */
   clearSelection(): void {
-    if (!this.hasSelection()) return;
-
     // Mark current selection rows as dirty for redraw
     const coords = this.normalizeSelection();
     if (coords) {
@@ -234,9 +240,10 @@ export class SelectionManager {
     this.selectionStart = null;
     this.selectionEnd = null;
     this.isSelecting = false;
+    this.stopAutoScroll();
 
     // Force redraw of previously selected lines to clear the overlay
-    this.requestRender();
+    if (coords) this.requestRender();
   }
 
   /**
@@ -244,9 +251,11 @@ export class SelectionManager {
    */
   selectAll(): void {
     const dims = this.wasmTerm.getDimensions();
-    const viewportY = this.getViewportY();
-    this.selectionStart = { col: 0, absoluteRow: viewportY };
-    this.selectionEnd = { col: dims.cols - 1, absoluteRow: viewportY + dims.rows - 1 };
+    this.selectionStart = { col: 0, absoluteRow: this.viewportRowToAbsolute(0) };
+    this.selectionEnd = {
+      col: dims.cols - 1,
+      absoluteRow: this.viewportRowToAbsolute(dims.rows - 1),
+    };
     this.requestRender();
     this.selectionChangedEmitter.fire();
   }
@@ -275,9 +284,8 @@ export class SelectionManager {
     endRow = Math.min(endRow, dims.rows - 1);
 
     // Convert viewport rows to absolute rows
-    const viewportY = this.getViewportY();
-    this.selectionStart = { col: column, absoluteRow: viewportY + row };
-    this.selectionEnd = { col: endCol, absoluteRow: viewportY + endRow };
+    this.selectionStart = { col: column, absoluteRow: this.viewportRowToAbsolute(row) };
+    this.selectionEnd = { col: endCol, absoluteRow: this.viewportRowToAbsolute(endRow) };
     this.requestRender();
     this.selectionChangedEmitter.fire();
   }
@@ -299,9 +307,8 @@ export class SelectionManager {
     }
 
     // Convert viewport rows to absolute rows
-    const viewportY = this.getViewportY();
-    this.selectionStart = { col: 0, absoluteRow: viewportY + start };
-    this.selectionEnd = { col: dims.cols - 1, absoluteRow: viewportY + end };
+    this.selectionStart = { col: 0, absoluteRow: this.viewportRowToAbsolute(start) };
+    this.selectionEnd = { col: dims.cols - 1, absoluteRow: this.viewportRowToAbsolute(end) };
     this.requestRender();
     this.selectionChangedEmitter.fire();
   }
@@ -388,6 +395,12 @@ export class SelectionManager {
     if (this.boundDocumentMouseMoveHandler) {
       document.removeEventListener('mousemove', this.boundDocumentMouseMoveHandler);
       this.boundDocumentMouseMoveHandler = null;
+    }
+
+    // Clean up document mousedown listener
+    if (this.boundDocumentMouseDownHandler) {
+      document.removeEventListener('mousedown', this.boundDocumentMouseDownHandler);
+      this.boundDocumentMouseDownHandler = null;
     }
 
     // Clean up context menu event listener
@@ -525,9 +538,10 @@ export class SelectionManager {
     document.addEventListener('mousemove', this.boundDocumentMouseMoveHandler);
 
     // Track mousedown on document to know if a click started inside the canvas
-    document.addEventListener('mousedown', (e: MouseEvent) => {
+    this.boundDocumentMouseDownHandler = (e: MouseEvent) => {
       this.mouseDownTarget = e.target;
-    });
+    };
+    document.addEventListener('mousedown', this.boundDocumentMouseDownHandler);
 
     // CRITICAL FIX: Listen for mouseup on DOCUMENT, not just canvas
     // This catches mouseup events that happen outside the canvas (common during drag)

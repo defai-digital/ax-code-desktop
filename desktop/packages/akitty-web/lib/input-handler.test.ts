@@ -2,7 +2,7 @@
  * Unit tests for InputHandler
  */
 
-import { beforeEach, describe, expect, mock, test } from 'bun:test';
+import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { Ghostty } from './ghostty';
 import { InputHandler } from './input-handler';
 import { Key, KeyAction, Mods } from './types';
@@ -219,6 +219,30 @@ describe('InputHandler', () => {
       handler.dispose(); // Second call should not throw
 
       expect(handler.isActive()).toBe(false);
+    });
+
+    test('dispose releases the owned KeyEncoder exactly once', () => {
+      const handler = new InputHandler(
+        ghostty,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        }
+      );
+
+      const encoder = (handler as any).encoder;
+      expect(typeof encoder.dispose).toBe('function');
+      expect(encoder.encoder).not.toBe(0); // live WASM handle before dispose
+
+      const disposeSpy = spyOn(encoder, 'dispose');
+      handler.dispose();
+      expect(disposeSpy).toHaveBeenCalledTimes(1);
+      expect(encoder.encoder).toBe(0); // WASM key encoder actually released
+
+      handler.dispose(); // second call must not release again
+      expect(disposeSpy).toHaveBeenCalledTimes(1);
+      expect(encoder.encoder).toBe(0);
     });
   });
 
@@ -1022,6 +1046,65 @@ describe('InputHandler', () => {
       simulateKey(container, createKeyEvent('KeyV', 'v', { meta: true }));
 
       expect(dataReceived.length).toBe(0);
+    });
+  });
+
+  describe('Paste delegation', () => {
+    test('an optional onPaste receives the text instead of onData', () => {
+      const pasted: string[] = [];
+      const handler = new InputHandler(
+        ghostty,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        },
+        undefined,
+        undefined,
+        undefined,
+        (text) => pasted.push(text)
+      );
+
+      container.dispatchEvent(createClipboardEvent('\x1b[201~evil'));
+
+      expect(pasted).toEqual(['\x1b[201~evil']);
+      expect(dataReceived).toEqual([]);
+    });
+
+    test('onPaste is invoked exactly once per paste event', () => {
+      const pasted: string[] = [];
+      const handler = new InputHandler(
+        ghostty,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        },
+        undefined,
+        undefined,
+        undefined,
+        (text) => pasted.push(text)
+      );
+
+      container.dispatchEvent(createClipboardEvent('once'));
+
+      expect(pasted).toHaveLength(1);
+      expect(dataReceived).toHaveLength(0);
+    });
+
+    test('without onPaste, handlePaste still sends raw text (standalone compatibility)', () => {
+      const handler = new InputHandler(
+        ghostty,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        }
+      );
+
+      container.dispatchEvent(createClipboardEvent('\x1b[201~raw'));
+
+      expect(dataReceived).toEqual(['\x1b[201~raw']);
     });
   });
 });

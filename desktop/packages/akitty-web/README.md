@@ -30,7 +30,10 @@ What stays with the host:
   which embeds this terminal.
 
 Checks in this repository type-check the package and run Vitest under Happy DOM. They run on the macOS CI job.
-There is no separate Windows or Linux browser suite here.
+Playwright also checks real canvas pixels, keyboard input, reset, resize and disposal
+in Chromium, Firefox and WebKit. It runs in the macOS gate, with additional Ubuntu
+and Windows CI jobs. This component coverage does not establish packaged-host PTY
+behavior, physical IME or every OS/font combination.
 
 ## Status
 

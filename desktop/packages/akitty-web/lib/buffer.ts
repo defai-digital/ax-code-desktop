@@ -137,15 +137,19 @@ export class Buffer implements IBuffer {
   }
 
   get viewportY(): number {
-    // Get viewport offset from Terminal
-    // For now, return 0 (no scrollback navigation implemented yet)
-    return 0;
+    // The terminal tracks the scroll offset, fractional during smooth scrolling; buffer rows are whole rows.
+    const raw = this.terminal.getViewportY();
+    return Math.max(0, Math.floor(raw));
   }
 
   get baseY(): number {
-    // For normal buffer: 0
-    // For alternate buffer: 0 (alternate has no scrollback)
-    return 0;
+    // The alternate screen has no scrollback. On the normal screen, baseY is the scrollback length,
+    // i.e. the line index where the viewport starts when scrolled to the bottom, so baseY + cursorY
+    // is the cursor's absolute row in the buffer.
+    if (this.bufferType === 'alternate') return 0;
+    const wasmTerm = this.getWasmTerm();
+    if (!wasmTerm) return 0;
+    return Math.max(0, wasmTerm.getScrollbackLength());
   }
 
   get length(): number {

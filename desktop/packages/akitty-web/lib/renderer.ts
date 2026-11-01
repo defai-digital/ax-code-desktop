@@ -319,6 +319,9 @@ export class CanvasRenderer {
     const cursor = buffer.getCursor();
     const dims = buffer.getDimensions();
     const scrollbackLength = scrollbackProvider ? scrollbackProvider.getScrollbackLength() : 0;
+    // A smooth scroll offset is fractional, but scrollback rows are whole rows. Boundary checks and offsets must use
+    // the same floored row, otherwise the boundary row is looked up one past the end of the scrollback.
+    const flooredViewportY = Math.floor(viewportY);
 
     // Nothing changed since the last clearDirty() means no row can be dirty, so row polling below is skipped.
     const anyDirty = buffer.isDirty ? buffer.isDirty() : true;
@@ -461,14 +464,13 @@ export class CanvasRenderer {
 
         // Same logic as rendering: fetch from scrollback or screen
         if (viewportY > 0) {
-          if (y < viewportY && scrollbackProvider) {
+          if (y < flooredViewportY && scrollbackProvider) {
             // This row is from scrollback
-            // Floor viewportY for array access (handles fractional values during smooth scroll)
-            const scrollbackOffset = scrollbackLength - Math.floor(viewportY) + y;
+            const scrollbackOffset = scrollbackLength - flooredViewportY + y;
             line = scrollbackProvider.getScrollbackLine(scrollbackOffset);
           } else {
             // This row is from visible screen
-            const screenRow = y - Math.floor(viewportY);
+            const screenRow = y - flooredViewportY;
             line = this.fetchLine(buffer, screenRow);
           }
         } else {
@@ -564,15 +566,14 @@ export class CanvasRenderer {
         // - Scrollback lines (from the end) + visible screen lines
 
         // Check if this row should come from scrollback or visible screen
-        if (y < viewportY && scrollbackProvider) {
+        if (y < flooredViewportY && scrollbackProvider) {
           // This row is from scrollback (upper part of viewport)
           // Get from end of scrollback buffer
-          // Floor viewportY for array access (handles fractional values during smooth scroll)
-          const scrollbackOffset = scrollbackLength - Math.floor(viewportY) + y;
+          const scrollbackOffset = scrollbackLength - flooredViewportY + y;
           line = scrollbackProvider.getScrollbackLine(scrollbackOffset);
         } else {
           // This row is from visible screen (lower part of viewport)
-          const screenRow = viewportY > 0 ? y - Math.floor(viewportY) : y;
+          const screenRow = y - flooredViewportY;
           line = this.fetchLine(buffer, screenRow);
         }
       } else {

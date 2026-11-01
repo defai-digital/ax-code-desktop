@@ -1,14 +1,16 @@
 # AkiTTY Web source snapshot
 
-Canonical source: https://github.com/defai-digital/akitty/tree/6c6052f74bd83032933f153b9940a331f794543f/packages/akitty-web
+Canonical source: https://github.com/defai-digital/akitty/tree/921efb02e3d9c929cacb0a191e0171297379853b/packages/akitty-web
 
-Desktop consumes the AkiTTY v0.12.0 release (Web package version 0.5.0) at commit `6c6052f74bd83032933f153b9940a331f794543f` under ADR-024.
+Desktop consumes the AkiTTY v1.2.4 release (Web package version 0.5.2) at commit `921efb02e3d9c929cacb0a191e0171297379853b` under ADR-024.
 `SOURCE.json` records SHA-256 hashes of the imported files. They are byte-identical to that commit, including the
 upstream tests, README and PROVENANCE. The README's npm instructions apply to upstream; in Desktop use pnpm.
 The wasm remains the Ghostty artifact described in PROVENANCE.md; changing terminal ownership does not replace its VT engine.
 
 Desktop owns only package.json (pnpm catalogs and verification hook), SOURCE.json, UPSTREAM.md and
-scripts/verify-source.mjs. The upstream package-lock.json is intentionally excluded. No terminal implementation patches are carried.
+scripts/verify-source.mjs. The upstream package-lock.json, the browser Playwright suite (`browser/`,
+`playwright.config.ts`) and its `@playwright/test` and `vite` dev dependencies are intentionally excluded. No terminal
+implementation patches are carried.
 
 ## Updating
 

@@ -418,4 +418,110 @@ describe('Buffer API', () => {
       expect(cell!.isUnderline()).toBe(1);
     });
   });
+
+  describe('Viewport position and screen changes', () => {
+    test('viewportY reports the terminal scroll offset', () => {
+      for (let i = 0; i < 100; i++) {
+        term.write(`Line ${i.toString().padStart(3, '0')}\r\n`);
+      }
+      term.scrollLines(-10);
+
+      expect(term.buffer.active.viewportY).toBe(10);
+      expect(term.buffer.normal.viewportY).toBe(10);
+    });
+
+    test('viewportY floors a fractional smooth-scroll offset', () => {
+      (term as any).viewportY = 10.7;
+
+      expect(term.buffer.normal.viewportY).toBe(10);
+    });
+
+    test('onBufferChange fires when writes enter and leave the alternate screen', () => {
+      const changes: string[] = [];
+      const subscription = term.buffer.onBufferChange((buffer) => changes.push(buffer.type));
+
+      term.write('\x1b[?1049h');
+      expect(changes).toEqual(['alternate']);
+
+      term.write('\x1b[?1049l');
+      expect(changes).toEqual(['alternate', 'normal']);
+
+      term.write('plain output');
+      expect(changes).toEqual(['alternate', 'normal']);
+
+      subscription.dispose();
+    });
+
+    test('reset while on the alternate screen fires one normal buffer change', () => {
+      term.write('\x1b[?1049h');
+      const changes: string[] = [];
+      const subscription = term.buffer.onBufferChange((buffer) => changes.push(buffer.type));
+
+      term.reset();
+
+      expect(changes).toEqual(['normal']);
+      expect(term.buffer.active.type).toBe('normal');
+
+      subscription.dispose();
+    });
+  });
+});
+
+describe('Buffer baseY and absolute coordinates', () => {
+  let term: Terminal | null = null;
+  let container: HTMLElement | null = null;
+
+  beforeEach(async () => {
+    if (typeof document !== 'undefined') {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+      term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+    }
+  });
+
+  afterEach(() => {
+    if (term) {
+      term.dispose();
+      term = null;
+    }
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container);
+      container = null;
+    }
+  });
+
+  test('normal baseY equals the scrollback length (length - rows)', () => {
+    if (!term) return;
+    for (let i = 0; i < 100; i++) term.write(`Line ${i}\r\n`);
+
+    const normal = term.buffer.normal;
+    const scrollback = term.wasmTerm!.getScrollbackLength();
+
+    expect(scrollback).toBeGreaterThan(0);
+    expect(normal.baseY).toBe(scrollback);
+    expect(normal.baseY).toBe(normal.length - term.rows);
+  });
+
+  test('alternate baseY is 0', () => {
+    if (!term) return;
+    term.write('\x1b[?1049h');
+
+    expect(term.buffer.alternate.baseY).toBe(0);
+    expect(term.buffer.normal.baseY).toBeGreaterThanOrEqual(0);
+  });
+
+  test('baseY + cursorY addresses the cursor line in the full buffer', () => {
+    if (!term) return;
+    // No trailing newline: the cursor stays on the last written line.
+    for (let i = 0; i < 99; i++) term.write(`Line ${i}\r\n`);
+    term.write('Line 99');
+
+    const normal = term.buffer.normal;
+    const absoluteCursorLine = normal.baseY + normal.cursorY;
+
+    expect(normal.baseY).toBeGreaterThan(0);
+    expect(absoluteCursorLine).toBe(normal.length - 1);
+    expect(normal.getLine(absoluteCursorLine)?.translateToString(true)).toBe('Line 99');
+  });
 });

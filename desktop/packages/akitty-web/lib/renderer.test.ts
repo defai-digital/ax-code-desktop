@@ -7,7 +7,8 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { DEFAULT_THEME } from './renderer';
+import { CanvasRenderer, DEFAULT_THEME } from './renderer';
+import type { IRenderable, IScrollbackProvider } from './renderer';
 
 describe('CanvasRenderer', () => {
   describe('Default Theme', () => {
@@ -60,5 +61,38 @@ describe('CanvasRenderer', () => {
       expect(DEFAULT_THEME.background).toMatch(hexPattern);
       expect(DEFAULT_THEME.cursor).toMatch(hexPattern);
     });
+  });
+});
+
+describe('CanvasRenderer scrollback row mapping', () => {
+  test('keeps fractional viewport rows inside the scrollback bounds', () => {
+    const canvas = document.createElement('canvas');
+    const renderer = new CanvasRenderer(canvas, { fontSize: 10, lineHeight: 1 });
+
+    const scrollbackLength = 10;
+    const requestedOffsets: number[] = [];
+    const scrollback: IScrollbackProvider = {
+      getScrollbackLength: () => scrollbackLength,
+      getScrollbackLine: (offset) => {
+        requestedOffsets.push(offset);
+        return null;
+      },
+    };
+
+    // Every screen row is empty, so only the scrollback boundary rows are mapped.
+    const buffer: IRenderable = {
+      getLine: () => null,
+      getCursor: () => ({ x: 0, y: 0, visible: false }),
+      getDimensions: () => ({ cols: 80, rows: 24 }),
+      isRowDirty: () => true,
+      isDirty: () => true,
+      clearDirty: () => {},
+    };
+
+    // A fractional viewport offset occurs during smooth scrolling. Rows above floor(3.5) come from scrollback.
+    renderer.render(buffer, true, 3.5, scrollback, 0);
+
+    expect(requestedOffsets.length).toBeGreaterThan(0);
+    expect(requestedOffsets.every((offset) => offset >= 0 && offset < scrollbackLength)).toBe(true);
   });
 });

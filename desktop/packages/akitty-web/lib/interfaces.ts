@@ -128,7 +128,7 @@ export interface IBuffer {
   readonly cursorY: number;
   /** Viewport Y position (scroll offset, 0 = bottom of scrollback) */
   readonly viewportY: number;
-  /** Base Y position (always 0 for normal buffer, may vary for alternate) */
+  /** Base Y position: the scrollback length for the normal buffer, 0 for the alternate buffer */
   readonly baseY: number;
   /** Total buffer length (rows + scrollback for normal, just rows for alternate) */
   readonly length: number;

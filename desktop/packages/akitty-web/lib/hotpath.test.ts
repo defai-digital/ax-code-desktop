@@ -550,4 +550,102 @@ describe('Terminal visibility', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  test.each(["fadeInScrollbar", "fadeOutScrollbar"])("stops %s callbacks after disposal", async (animation) => {
+    let nextId = 0
+    const pending = new Map<number, FrameRequestCallback>()
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      const id = nextId++
+      pending.set(id, callback)
+      return id
+    })
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => pending.delete(id))
+    const term = await createIsolatedTerminal({ cols: 20, rows: 4 })
+    const terminal = term as any
+    const container = document.createElement("div")
+    try {
+      term.open(container)
+      terminal[animation]()
+      term.dispose()
+      // A scrollbar callback already queued before disposal must not create another frame chain.
+      const callbacks = [...pending.values()]
+      pending.clear()
+      callbacks.forEach((callback) => callback(0))
+      expect(pending.size).toBe(0)
+    } finally {
+      term.dispose()
+      container.remove()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  test('stops scheduling frames while off-screen and resumes with a full redraw when shown', async () => {
+    let notify: (entries: { isIntersecting: boolean }[]) => void = () => {};
+    vi.stubGlobal(
+      'IntersectionObserver',
+      class {
+        constructor(callback: typeof notify) {
+          notify = callback;
+        }
+        observe() {}
+        disconnect() {}
+      }
+    );
+    const frames = vi.spyOn(globalThis, 'requestAnimationFrame');
+
+    try {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 4 });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      term.open(container);
+
+      const renderer = term.renderer!;
+      const original = renderer.render.bind(renderer);
+      const forced: boolean[] = [];
+      renderer.render = ((...args: Parameters<typeof original>) => {
+        forced.push(args[1] === true);
+        return original(...args);
+      }) as typeof renderer.render;
+      const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+      await wait(80);
+      expect(frames.mock.calls.length).toBeGreaterThan(1);
+      // Scroll up with history present so hidden output takes the auto-scroll and scrollbar-fade paths.
+      term.write('\r\n'.repeat(12));
+      await wait(40);
+      term.scrollLines(-2);
+      await wait(40);
+
+      notify([{ isIntersecting: false }]);
+      await wait(40); // the frame already scheduled observes onScreen=false and parks
+      const parkedAt = frames.mock.calls.length;
+      const renderedAt = forced.length;
+      term.write('output while hidden\r\n');
+      await wait(120);
+      expect(frames.mock.calls.length).toBe(parkedAt);
+      expect(forced.length).toBe(renderedAt);
+
+      notify([{ isIntersecting: true }]);
+      expect(forced.length).toBe(renderedAt + 1); // restarted synchronously on the visible edge
+      expect(forced[renderedAt]).toBe(true);
+      notify([{ isIntersecting: true }]); // a duplicate visible notification must not start a second loop
+      expect(forced.length).toBe(renderedAt + 1);
+      await wait(80);
+      expect(frames.mock.calls.length).toBeGreaterThan(parkedAt + 1);
+
+      // A second cycle parks again, and disposing while parked schedules nothing further.
+      notify([{ isIntersecting: false }]);
+      await wait(40);
+      const parkedAgainAt = frames.mock.calls.length;
+      await wait(60);
+      expect(frames.mock.calls.length).toBe(parkedAgainAt);
+      term.dispose();
+      await wait(40);
+      expect(frames.mock.calls.length).toBe(parkedAgainAt);
+      container.remove();
+    } finally {
+      frames.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
 });

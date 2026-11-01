@@ -166,6 +166,7 @@ export class InputHandler {
   private onKeyCallback?: (keyEvent: IKeyEvent) => void;
   private customKeyEventHandler?: (event: KeyboardEvent) => boolean;
   private getModeCallback?: (mode: number) => boolean;
+  private onPasteCallback?: (text: string) => void;
   private keydownListener: ((e: KeyboardEvent) => void) | null = null;
   private keypressListener: ((e: KeyboardEvent) => void) | null = null;
   private pasteListener: ((e: ClipboardEvent) => void) | null = null;
@@ -184,6 +185,8 @@ export class InputHandler {
    * @param onKey - Optional callback for raw key events
    * @param customKeyEventHandler - Optional custom key event handler
    * @param getMode - Optional callback to query terminal mode state (for application cursor mode)
+   * @param onPaste - Optional paste handler; when set it replaces the raw onData path so the terminal
+   *   can apply bracketed-paste wrapping and ESC stripping. Standalone callers keep the raw behaviour.
    */
   constructor(
     ghostty: Ghostty,
@@ -192,7 +195,8 @@ export class InputHandler {
     onBell: () => void,
     onKey?: (keyEvent: IKeyEvent) => void,
     customKeyEventHandler?: (event: KeyboardEvent) => boolean,
-    getMode?: (mode: number) => boolean
+    getMode?: (mode: number) => boolean,
+    onPaste?: (text: string) => void
   ) {
     this.encoder = ghostty.createKeyEncoder();
     this.container = container;
@@ -201,6 +205,7 @@ export class InputHandler {
     this.onKeyCallback = onKey;
     this.customKeyEventHandler = customKeyEventHandler;
     this.getModeCallback = getMode;
+    this.onPasteCallback = onPaste;
 
     // Attach event listeners
     this.attach();
@@ -506,9 +511,12 @@ export class InputHandler {
       return;
     }
 
-    // Send the text to the terminal
-    // Note: For bracketed paste mode, we would wrap this in \x1b[200~ ... \x1b[201~
-    // but for now, send raw text
+    // Hand the text to the owner when one is wired (the Terminal applies bracketed-paste wrapping
+    // and ESC stripping once); otherwise keep the standalone raw-send behaviour.
+    if (this.onPasteCallback) {
+      this.onPasteCallback(text);
+      return;
+    }
     this.onDataCallback(text);
   }
 
@@ -592,6 +600,8 @@ export class InputHandler {
       this.compositionEndListener = null;
     }
 
+    // Release the owned WASM key encoder exactly once (guarded by isDisposed above).
+    this.encoder.dispose();
     this.isDisposed = true;
   }
 

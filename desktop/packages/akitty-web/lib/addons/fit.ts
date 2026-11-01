@@ -41,8 +41,7 @@ export class FitAddon implements ITerminalAddon {
   private _terminal?: ITerminalCore;
   private _resizeObserver?: ResizeObserver;
   private _resizeDebounceTimer?: ReturnType<typeof setTimeout>;
-  private _lastCols?: number;
-  private _lastRows?: number;
+  private _resizeSettleTimer?: ReturnType<typeof setTimeout>;
   private _isResizing: boolean = false;
 
   /**
@@ -68,10 +67,11 @@ export class FitAddon implements ITerminalAddon {
       this._resizeDebounceTimer = undefined;
     }
 
-    // Clear stored dimensions
-    this._lastCols = undefined;
-    this._lastRows = undefined;
-
+    if (this._resizeSettleTimer !== undefined) {
+      clearTimeout(this._resizeSettleTimer);
+      this._resizeSettleTimer = undefined;
+    }
+    this._isResizing = false;
     this._terminal = undefined;
   }
 
@@ -97,18 +97,14 @@ export class FitAddon implements ITerminalAddon {
     const currentCols = terminal.cols;
     const currentRows = terminal.rows;
 
-    // Check if dimensions actually changed (prevent feedback loops)
-    // Compare against BOTH proposed dimensions AND current terminal dimensions
-    if (
-      (dims.cols === this._lastCols && dims.rows === this._lastRows) ||
-      (dims.cols === currentCols && dims.rows === currentRows)
-    ) {
+    // Check if dimensions actually changed (prevent no-ops and feedback loops).
+    // Current dimensions are authoritative: after an external terminal.resize
+    // the terminal must be re-fit even when the proposal matches the previous
+    // fit. The _isResizing window below keeps our own resize from feeding back
+    // through fit() while the DOM settles.
+    if (dims.cols === currentCols && dims.rows === currentRows) {
       return;
     }
-
-    // Store dimensions before resize
-    this._lastCols = dims.cols;
-    this._lastRows = dims.rows;
 
     // Set flag to prevent re-entrant calls
     this._isResizing = true;
@@ -120,7 +116,8 @@ export class FitAddon implements ITerminalAddon {
       }
     } finally {
       // Clear flag after a short delay to allow DOM to settle
-      setTimeout(() => {
+      this._resizeSettleTimer = setTimeout(() => {
+        this._resizeSettleTimer = undefined;
         this._isResizing = false;
       }, 50);
     }

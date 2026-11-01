@@ -529,4 +529,125 @@ describe('SelectionManager', () => {
       term.dispose();
     });
   });
+
+  describe('Document listener cleanup', () => {
+    test('dispose() removes the document mousedown tracker with the identical reference', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+
+      const added: Array<[string, EventListenerOrEventListenerObject]> = [];
+      const removed: Array<[string, EventListenerOrEventListenerObject]> = [];
+      const origAdd = document.addEventListener;
+      const origRemove = document.removeEventListener;
+      document.addEventListener = function (this: EventTarget, type: string, listener: any, options?: any) {
+        added.push([type, listener]);
+        return origAdd.call(this, type, listener, options);
+      } as typeof document.addEventListener;
+      document.removeEventListener = function (this: EventTarget, type: string, listener: any, options?: any) {
+        removed.push([type, listener]);
+        return origRemove.call(this, type, listener, options);
+      } as typeof document.removeEventListener;
+      try {
+        term.open(container);
+        term.dispose();
+      } finally {
+        document.addEventListener = origAdd;
+        document.removeEventListener = origRemove;
+      }
+
+      const mousedownAdds = added.filter(([type]) => type === 'mousedown');
+      const mousedownRemoves = removed.filter(([type]) => type === 'mousedown');
+      expect(mousedownAdds.length).toBeGreaterThan(0);
+      expect(mousedownRemoves.length).toBe(mousedownAdds.length);
+      for (const [, handler] of mousedownAdds) {
+        expect(mousedownRemoves.some(([, removedHandler]) => removedHandler === handler)).toBe(true);
+      }
+    });
+
+    test('a reused document is not affected by a leaked mousedown tracker', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+      const selMgr = (term as any).selectionManager;
+      expect(selMgr).toBeDefined();
+      term.dispose();
+
+      // The pre-fix anonymous tracker kept mutating the disposed manager's
+      // mouseDownTarget on every document mousedown
+      const outside = document.createElement('div');
+      document.body.appendChild(outside);
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      outside.remove();
+      expect(selMgr.mouseDownTarget).toBeNull();
+    });
+  });
+});
+
+describe('Programmatic selection in a scrolled viewport', () => {
+  let container: HTMLElement | null = null;
+
+  beforeEach(() => {
+    if (typeof document !== 'undefined') {
+      container = document.createElement('div');
+      document.body.appendChild(container);
+    }
+  });
+
+  afterEach(() => {
+    if (container && container.parentNode) {
+      container.parentNode.removeChild(container);
+      container = null;
+    }
+  });
+
+  /**
+   * 100 numbered lines leave 77 lines of scrollback on a 24-row screen.
+   * Scrolling back 50 lines puts "Line 027" at the top visible row.
+   */
+  async function openScrolledTerminal(): Promise<Terminal> {
+    if (!container) throw new Error('test container missing');
+    const term = await createIsolatedTerminal({ cols: 80, rows: 24, scrollback: 1000 });
+    term.open(container);
+    for (let i = 0; i < 100; i++) {
+      term.write(`Line ${i.toString().padStart(3, '0')}\r\n`);
+    }
+    term.scrollLines(-50);
+    expect(term.getViewportY()).toBe(50);
+    return term;
+  }
+
+  test('selectAll selects the visible rows instead of old scrollback', async () => {
+    const term = await openScrolledTerminal();
+
+    term.selectAll();
+
+    const lines = term.getSelection().split('\n');
+    expect(lines).toHaveLength(24);
+    expect(lines[0]).toBe('Line 027');
+    expect(lines[23]).toBe('Line 050');
+
+    term.dispose();
+  });
+
+  test('select maps viewport rows through the scrollback offset', async () => {
+    const term = await openScrolledTerminal();
+
+    term.select(0, 0, 9);
+
+    expect(term.getSelection()).toBe('Line 027');
+
+    term.dispose();
+  });
+
+  test('selectLines maps viewport rows through the scrollback offset', async () => {
+    const term = await openScrolledTerminal();
+
+    term.selectLines(0, 0);
+
+    expect(term.getSelection()).toBe('Line 027');
+
+    term.dispose();
+  });
 });
