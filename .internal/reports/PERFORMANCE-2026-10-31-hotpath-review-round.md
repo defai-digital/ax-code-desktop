@@ -133,10 +133,19 @@ muse on grok's sync diff (0 P1, 0 P2, 3 P3, all fixed), grok on muse's Electron 
 ### Verification (round 2)
 
 On `main` after the AkiTTY re-pins (`67a9aff5`, `37809222`), with the 37 round-2 files copied from the integration
-worktree byte-for-byte: `pnpm run check:boundaries`, `pnpm run typecheck`, `pnpm run lint`, `pnpm run test` and
-`pnpm run build` all exit 0. Test totals per suite in log order: 30 files / 253 tests (7 skipped), 13 files / 502 tests (2 skipped), 106 files / 1222 tests (1 skipped), 707 files / 5416 tests. Per-package type-check and
-eslint on every touched file ran clean in the worktree before the copy; each new or changed test was mutation-probed
-(production reverted, named test fails, restored), with the failing assertions quoted in the tables above.
+worktree byte-for-byte, the first full gate run was NOT green: `check:boundaries`, `typecheck` and `lint` exited 0, but
+`pnpm run test` exited 1 and `build` never ran. Every one of the 5,416 UI tests passed; the UI suite failed on a Vitest
+"unhandled error" because the new `ContextPanel.filesViewActive.test.tsx` left a `requestAnimationFrame` callback from
+the sortable tab strip calling `Element.scrollIntoView`, which jsdom does not implement. Round-2 commit `bcb3e9d3` was
+made and pushed before that exit code was read (the gate loop's `GATE FAILED` line was filtered out of the summary
+grep). The follow-up commit stubs `scrollIntoView` for the test's lifetime and records this paragraph; with it, the
+rerun of `pnpm run check:boundaries`, `pnpm run typecheck`, `pnpm run lint`, `pnpm run test` and `pnpm run build` in
+CI order all exit 0. Test totals per suite in log order: 30 files / 253 tests (7 skipped), 13 files / 502 tests
+(2 skipped), 106 files / 1222 tests (1 skipped), 707 files / 5416 tests, 139 files / 1543 tests (2 skipped).
+Per-package type-check and eslint on every touched file ran clean in the worktree before the copy; each new or changed
+test was mutation-probed (production reverted, named test fails, restored), with the failing assertions quoted in the
+tables above. Lesson recorded for the next round: read the per-gate exit lines, not a grep of the log, before
+committing.
 
 ## Process notes
 

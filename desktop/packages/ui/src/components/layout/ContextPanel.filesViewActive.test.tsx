@@ -28,9 +28,12 @@ const lastActive = () => filesViewActive.mock.calls.at(-1)?.[0]
 describe("ContextPanel files view activity", () => {
   let container: HTMLDivElement
   let root: Root
+  const scrollIntoView = Element.prototype.scrollIntoView
 
   beforeEach(() => {
-    // jsdom has no ResizeObserver; the panel observes its own width.
+    // jsdom has neither ResizeObserver nor scrollIntoView; the panel observes its own width and
+    // the tab strip scrolls the active tab into view on a later frame, after the test may be done.
+    Element.prototype.scrollIntoView = () => {}
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -49,6 +52,7 @@ describe("ContextPanel files view activity", () => {
     act(() => root.unmount())
     container.remove()
     vi.unstubAllGlobals()
+    Element.prototype.scrollIntoView = scrollIntoView
   })
 
   test("the editor-only files view is inactive while the panel is hidden under the session grid", async () => {
