@@ -34,6 +34,7 @@ export const createSettingsWriter = ({
   }
 
   const pending = new Map()
+  let closedError = null
 
   const rejectAll = (error) => {
     for (const [id, entry] of pending) {
@@ -64,11 +65,18 @@ export const createSettingsWriter = ({
   // The channel closing means the main process is gone. Fail pending writes
   // immediately instead of letting requests hang until the timeout.
   parentPort.on("close", () => {
-    rejectAll(new Error("Settings write channel to the desktop main process closed"))
+    closedError = new Error("Settings write channel to the desktop main process closed")
+    rejectAll(closedError)
   })
 
   const write = (settings) =>
     new Promise((resolve, reject) => {
+      // A closed MessagePort can silently drop posts; only a newly created
+      // writer/channel can resume delegated writes after main-process recovery.
+      if (closedError) {
+        reject(closedError)
+        return
+      }
       const id = createRequestId()
       const timer = setTimer(() => {
         pending.delete(id)

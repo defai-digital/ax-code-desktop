@@ -3,12 +3,12 @@
 ## Getting Started
 
 ```bash
-cd /path/to/ax-coder
+cd /path/to/ax-code-desktop
 pnpm install
 ```
 
 This repository pins `pnpm@10.33.4` in the root `package.json` and requires
-Node `>=24`; run `corepack enable` to get the pinned pnpm so dependency
+Node `>=26`; run `corepack enable` to get the pinned pnpm so dependency
 resolution matches CI.
 
 On Apple Silicon with newer Node versions, the optional `sharp` dependency can

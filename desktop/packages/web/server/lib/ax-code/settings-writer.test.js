@@ -109,4 +109,31 @@ describe("settings writer", () => {
 
     await expect(writer.write({ theme: "dark" })).rejects.toThrow("channel gone")
   })
+
+  it("refuses new writes after close without posting or waiting for a timeout", async () => {
+    const parentPort = new FakeParentPort()
+    const localWrite = vi.fn()
+    const setTimer = vi.fn(setTimeout)
+    const writer = createSettingsWriter({ parentPort, localWrite, setTimer, timeoutMs: 25 })
+
+    parentPort.emit("close")
+    await expect(writer.write({ theme: "dark" })).rejects.toThrow(/channel .* closed/)
+    expect(parentPort.posted).toEqual([])
+    expect(setTimer).not.toHaveBeenCalled()
+    expect(localWrite).not.toHaveBeenCalled()
+  })
+
+  it("recovers with a new channel while the old writer stays closed", async () => {
+    const closedPort = new FakeParentPort()
+    const closedWriter = createSettingsWriter({ parentPort: closedPort, localWrite: vi.fn(), timeoutMs: 25 })
+    closedPort.emit("close")
+
+    const parentPort = new FakeParentPort()
+    const writer = createSettingsWriter({ parentPort, localWrite: vi.fn(), createRequestId: () => "recovered" })
+    const pending = writer.write({ theme: "light" })
+    parentPort.respond("recovered", { ok: true })
+    await expect(pending).resolves.toBeUndefined()
+    await expect(closedWriter.write({ theme: "dark" })).rejects.toThrow(/channel .* closed/)
+    expect(closedPort.posted).toEqual([])
+  })
 })
