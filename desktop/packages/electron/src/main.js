@@ -33,7 +33,12 @@ const { promisify } = require("util")
 const { createWikiViewer } = require("./wiki-viewer")
 const { createStartupDiagnostics } = require("./startup-diagnostics")
 const { assertShellOpenPathSucceeded, collectOpenPathCandidates } = require("./open-paths")
-const { FOCUS_MAIN_WINDOW_ACTION, resolveFocusMainWindowAction } = require("./focus-main-window")
+const {
+  FOCUS_MAIN_WINDOW_ACTION,
+  RENDERER_READINESS_EVENT,
+  nextRendererReadiness,
+  resolveFocusMainWindowAction,
+} = require("./focus-main-window")
 const { mapWithConcurrency } = require("./map-with-concurrency")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
@@ -227,6 +232,11 @@ let openingAnimation = Promise.resolve()
 let desktopStartupComplete = false
 let rendererStabilityTimer = null
 let rendererReadyForOpenProject = false
+// Readiness captured at 'did-start-loading'. An in-page (hash) navigation also
+// emits that event without re-running the preload, so 'ax-code:renderer-app-ready'
+// cannot arrive again; 'did-navigate-in-page' restores this answer instead of
+// waiting for a signal that will never come.
+let rendererReadyBeforeInPageLoad = false
 let externalOpenPathDrainRunning = false
 let externalOpenPathHandlerReady = false
 const pendingExternalOpenRequests = []
@@ -852,8 +862,26 @@ function createMainWindowShell() {
   // unmounts the renderer's IPC listeners. Reset the hand-off readiness flag
   // for every load start so reload paths main did not initiate cannot leave it
   // stale; the fresh renderer re-arms it via 'ax-code:renderer-app-ready'.
+  //
+  // An in-page (hash) navigation emits this too but re-runs no preload, so the
+  // pre-load answer is kept for 'did-navigate-in-page' below to restore: clearing
+  // alone left the window permanently "not ready" after an in-page navigation,
+  // and Settings/native-menu hand-offs then queued until the app restarted.
   mainWindow.webContents.on("did-start-loading", () => {
+    rendererReadyBeforeInPageLoad = rendererReadyForOpenProject
     rendererReadyForOpenProject = false
+  })
+
+  mainWindow.webContents.on("did-navigate-in-page", () => {
+    // Same document, same listeners: restore the readiness the load start saved and
+    // deliver whatever queued meanwhile.
+    if (applyRendererReadiness(RENDERER_READINESS_EVENT.IN_PAGE_NAVIGATED)) markRendererReadyForHandOff()
+  })
+
+  mainWindow.webContents.on("did-navigate", () => {
+    // A real cross-document navigation replaced the renderer, so its predecessor's
+    // readiness must not be restored: wait for the new renderer's own ready signal.
+    applyRendererReadiness(RENDERER_READINESS_EVENT.DOCUMENT_NAVIGATED)
   })
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
@@ -1370,6 +1398,26 @@ async function revealMainWindowForOpenProject() {
   focusMainWindowIfPresent()
 }
 
+// Advances the readiness state machine in focus-main-window.js and reports whether a
+// navigation restored readiness, meaning the queues below must be drained.
+function applyRendererReadiness(event) {
+  const next = nextRendererReadiness(
+    { ready: rendererReadyForOpenProject, savedReady: rendererReadyBeforeInPageLoad },
+    event,
+  )
+  rendererReadyForOpenProject = next.ready
+  rendererReadyBeforeInPageLoad = next.savedReady
+  return next.flush
+}
+
+// The single "the renderer is listening again" path: its own ready signal and an
+// in-page navigation restore both arrive here, so both drain the same queues.
+function markRendererReadyForHandOff() {
+  applyRendererReadiness(RENDERER_READINESS_EVENT.APP_READY)
+  flushPendingOpenProjectPaths()
+  flushPendingFocusOpen()
+}
+
 function flushPendingOpenProjectPaths() {
   if (!rendererReadyForOpenProject || !mainWindow || mainWindow.isDestroyed()) return
 
@@ -1476,9 +1524,7 @@ async function drainExternalOpenRequests() {
 ipcMain.on("ax-code:renderer-app-ready", (event) => {
   if (!mainWindow || mainWindow.isDestroyed()) return
   if (event.sender !== mainWindow.webContents) return
-  rendererReadyForOpenProject = true
-  flushPendingOpenProjectPaths()
-  flushPendingFocusOpen()
+  markRendererReadyForHandOff()
 })
 
 externalOpenPathHandlerReady = true
