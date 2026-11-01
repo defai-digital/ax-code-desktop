@@ -6,17 +6,21 @@ Desktop must use its own package inventory and release gates, not run that CLI/S
 publisher. See [ADR-010](../adr/ADR-010-desktop-download-distribution.md) and the
 [platform and installation specification](../spec/SPEC-2026-10-11-desktop-download-distribution-v1.md).
 
-Public publication is authorized under ADR-012; live serving remains disabled until native qualification passes. Desktop bootstraps and the distribution tool are
-implemented locally under the [v2 specification](../spec/SPEC-2026-10-12-desktop-download-distribution-v2.md),
-but installer artifacts are not published yet. The independent Cloudflare gateway
-and R2 bucket were provisioned on 2026-10-12 UTC. The native installation endpoint
-currently returns HTTP 503 because public publication remains disabled.
+Public publication is authorized under ADR-012, and the independent GitHub and
+Cloudflare/R2 channels are active. The 2026-11-01 maintenance publication is recorded in
+[the 7.30.10 report](../reports/RELEASE-2026-11-01-v7.30.10-publication.md).
+Every newer version still requires exact-source CI, reviewed actual journey results,
+required platform/Minisign signatures, native installation and continuity receipts,
+and signed qualification before publication. The commands below include both the
+historical first-cutover procedure and the current active-channel update procedure;
+a successful shadow build alone does not publish a release.
 
 Current preparation commands:
 
 ```bash
 pnpm install --frozen-lockfile
 pnpm run check:boundaries
+pnpm run check:locales
 pnpm run typecheck
 pnpm run lint
 pnpm run test
@@ -126,12 +130,13 @@ Still qualify native fresh installations, upgrade/rollback and the anonymous
 generic updater before publication. A successful local package, source tag,
 mocked installer test or unsigned shadow run is not a public release.
 
-## First public release
+## Historical first public release
 
 The user authorized public Desktop release on 2026-10-12 UTC with Minisign, Apple
 signing/notarization and Windows Authenticode required. Authorization is recorded in
-`../reports/public-release-20261012/`; cross-platform and migration qualification
-remain incomplete. This does not enable policy or certify missing artifacts.
+`../reports/public-release-20261012/`. Cross-platform and migration qualification
+were incomplete at that initial handoff; later publication reports record the actual
+qualified releases. Authorization alone never certifies missing candidate artifacts.
 
 After all signed qualification gates pass and the release policy is approved:
 
