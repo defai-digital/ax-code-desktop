@@ -1,6 +1,6 @@
 # AX Code Desktop technical specification index
 
-Current terminal source: [SPEC-2026-10-31-akitty-web-source-v4](SPEC-2026-10-31-akitty-web-source-v4.md).
+Current terminal source: [SPEC-2026-11-01-akitty-web-source-v5](SPEC-2026-11-01-akitty-web-source-v5.md).
 
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Each specification keeps its original status
 line. The "Current interpretation" column records what is true now, using code and release evidence; it does not edit
@@ -74,3 +74,4 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 - [AkiTTY Web source v2](SPEC-2026-10-30-akitty-web-source-v2.md): consume the v0.12.0 release snapshot while preserving upstream Web package versioning.
 - [AkiTTY Web source v3](SPEC-2026-10-31-akitty-web-source-v3.md): consume the v1.2.4 release snapshot (Web package 0.5.2) with the parked off-screen render loop.
 - [AkiTTY Web source v4](SPEC-2026-10-31-akitty-web-source-v4.md): consume the v1.2.5 release snapshot (Web package 0.5.2) with the cancelled superseded scrollbar fades.
+- [AkiTTY Web source v5](SPEC-2026-11-01-akitty-web-source-v5.md): consume the v1.3.0 release snapshot (Web package 0.5.2, no Web package change since v1.2.5).

@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/defai-digital/akitty",
-  "commit": "a1354122902cff10cf0f342b4f8041d68f09ed5a",
+  "commit": "4daf16ce6cbb394a325b0f706779600bba045a83",
   "directory": "packages/akitty-web",
   "version": "0.5.2",
   "files": {
@@ -54,5 +54,5 @@
     "types/runtime-globals.d.ts": "d358949523e8cd7e1b739c6af076e44b0ae7df27cc4e87451d123b3184417882",
     "vitest.config.ts": "f2ef6189d9adf4be4fb6938ba781c4388f04ecf1a453b6a44b13bb099960e770"
   },
-  "releaseTag": "v1.2.5"
+  "releaseTag": "v1.3.0"
 }
