@@ -1,6 +1,6 @@
 {
   "repository": "https://github.com/defai-digital/akitty",
-  "commit": "921efb02e3d9c929cacb0a191e0171297379853b",
+  "commit": "a1354122902cff10cf0f342b4f8041d68f09ed5a",
   "directory": "packages/akitty-web",
   "version": "0.5.2",
   "files": {
@@ -26,7 +26,7 @@
     "lib/event-emitter.ts": "0bdd6e8e99b96c003a248f8d4019239fee43e8a7756455585714ffdb73053674",
     "lib/ghostty.ts": "deeaf7d8c757a74f52fa5b48f063c7ae6f04fa7cb3780a3aaa4637f5830cca0a",
     "lib/hotpath.probe.test.ts": "1709a3f2e4c1049d08ca8786ea64a9441f19758922d8ddcf38d4a02372e55c94",
-    "lib/hotpath.test.ts": "ce0d5adb8348d3e508133b9779f2f510e1fd4fdffb16a2dae3e928154c2306eb",
+    "lib/hotpath.test.ts": "9c355c8eac485fd0d8af58262bcc2294e05b85ad1ee3b228df6a40ba4b010494",
     "lib/index.ts": "001c8c20feafbc0a07837d7a5cb231acbe5eb3332dce0163c498a6258c77a896",
     "lib/input-handler.test.ts": "865af18f0cda7c3b15c450d63b3ab8f9625746a06895e369e5a477861c0bb04a",
     "lib/input-handler.ts": "f7bdb53d40f8116b79831330ff7a2a92821c05a244953ec8d520f84e2c448a75",
@@ -41,7 +41,7 @@
     "lib/selection-manager.test.ts": "43db05cf7b1f7e6baf8d63a180280e7a4dc2659ce5910646eb157706e804db43",
     "lib/selection-manager.ts": "a3e37d5ecd7f6af7b6b33de0a5ef89d2e5fb9c272a1339e6dc7f693f7b788ce3",
     "lib/terminal.test.ts": "e5be0b0d75b2fbeee69f495e572cfe153aea9a2edde1a36b9f96b76a71d0db68",
-    "lib/terminal.ts": "4c939bf576000247a639b1f299a099eac7c852c2323af55062ee797636ccafff",
+    "lib/terminal.ts": "145d1eefa8ef78a08fdd8e2f859c4cd7c3ca89966751bc12e26f204b3101efbc",
     "lib/test-helpers.ts": "19f7f466d6f05692cc672f87f763d2b5f464c320193173541bdbcf13bf43c64f",
     "lib/types.ts": "cee5f6225efc6978e1951d99e793c16e374cd3c327308a333b94912a46979669",
     "lib/url-detection.test.ts": "4b1d73894e778cb5546c067e67f4c563adb3574aa2f236828c9fef70647572ce",
@@ -54,5 +54,5 @@
     "types/runtime-globals.d.ts": "d358949523e8cd7e1b739c6af076e44b0ae7df27cc4e87451d123b3184417882",
     "vitest.config.ts": "f2ef6189d9adf4be4fb6938ba781c4388f04ecf1a453b6a44b13bb099960e770"
   },
-  "releaseTag": "v1.2.4"
+  "releaseTag": "v1.2.5"
 }

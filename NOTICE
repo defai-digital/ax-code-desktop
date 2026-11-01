@@ -35,7 +35,7 @@ symbols-nerd-font-mono.README.md. The README lists the icon-set licenses,
 including Apache-2.0, CC BY 4.0, MIT, and OFL 1.1.
 
 The terminal emulator package at desktop/packages/akitty-web (AkiTTY Web) is
-imported from defai-digital/akitty v1.2.4 (Web package version 0.5.2, commit 921efb02e3d9c929cacb0a191e0171297379853b),
+imported from defai-digital/akitty v1.2.5 (Web package version 0.5.2, commit a1354122902cff10cf0f342b4f8041d68f09ed5a),
 https://github.com/defai-digital/akitty, originally derived from ghostty-web v0.4.0 (https://github.com/coder/ghostty-web, commit 9e4e126),
 Copyright (c) 2025 Coder, under the MIT License. Its ghostty-vt.wasm is compiled
 from Ghostty (https://github.com/ghostty-org/ghostty, commit 5714ed0), Copyright

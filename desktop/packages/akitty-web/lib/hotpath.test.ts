@@ -551,6 +551,38 @@ describe('Terminal visibility', () => {
     }
   });
 
+  test.each(["fadeInScrollbar", "fadeOutScrollbar"])("renewed activity supersedes %s", async (animation) => {
+    const term = await createIsolatedTerminal({ cols: 20, rows: 4 })
+    const terminal = term as any
+    let nextId = 0
+    const pending = new Map<number, FrameRequestCallback>()
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      const id = nextId++
+      pending.set(id, callback)
+      return id
+    })
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => pending.delete(id))
+    const clock = vi.spyOn(Date, "now").mockReturnValue(0)
+    const container = document.createElement("div")
+    try {
+      term.open(container)
+      terminal.scrollbarVisible = true
+      terminal.scrollbarOpacity = 1
+      terminal[animation]()
+      terminal.showScrollbar()
+      clock.mockReturnValue(100)
+      const callbacks = [...pending.values()]
+      pending.clear()
+      callbacks.forEach((callback) => callback(100))
+      expect(terminal.scrollbarVisible).toBe(true)
+      expect(terminal.scrollbarOpacity).toBe(1)
+    } finally {
+      term.dispose()
+      clock.mockRestore()
+      vi.unstubAllGlobals()
+    }
+  })
+
   test.each(["fadeInScrollbar", "fadeOutScrollbar"])("stops %s callbacks after disposal", async (animation) => {
     let nextId = 0
     const pending = new Map<number, FrameRequestCallback>()

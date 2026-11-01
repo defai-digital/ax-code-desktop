@@ -356,6 +356,7 @@ export class Terminal implements ITerminalCore {
   private scrollbarVisible: boolean = false;
   private scrollbarOpacity: number = 0;
   private scrollbarHideTimeout?: number;
+  private scrollbarAnimationFrame?: number
   private readonly SCROLLBAR_HIDE_DELAY_MS = 1500; // Hide after 1.5 seconds
   private readonly SCROLLBAR_FADE_DURATION_MS = 200; // 200ms fade animation
 
@@ -1538,6 +1539,7 @@ export class Terminal implements ITerminalCore {
     }
 
     // Clean up scrollbar timers
+    release(() => this.cancelScrollbarAnimation())
     if (this.scrollbarHideTimeout) {
       window.clearTimeout(this.scrollbarHideTimeout);
       this.scrollbarHideTimeout = undefined;
@@ -2015,6 +2017,8 @@ export class Terminal implements ITerminalCore {
    * Show scrollbar with fade-in and schedule auto-hide
    */
   private showScrollbar(): void {
+    // New activity supersedes an older fade, including a fade-out that would otherwise hide this scrollbar.
+    this.cancelScrollbarAnimation()
     // Clear any existing hide timeout
     if (this.scrollbarHideTimeout) {
       window.clearTimeout(this.scrollbarHideTimeout);
@@ -2053,12 +2057,20 @@ export class Terminal implements ITerminalCore {
     }
   }
 
+  private cancelScrollbarAnimation(): void {
+    const frame = this.scrollbarAnimationFrame
+    this.scrollbarAnimationFrame = undefined
+    if (frame !== undefined) cancelAnimationFrame(frame)
+  }
+
   /**
    * Fade in scrollbar
    */
   private fadeInScrollbar(): void {
+    this.cancelScrollbarAnimation()
     const startTime = Date.now();
     const animate = () => {
+      this.scrollbarAnimationFrame = undefined
       // A pending scrollbar callback can outlive dispose(); do not restart its frame chain.
       if (this.isDisposed || !this.isOpen) return
       if (!this.onScreen) {
@@ -2076,7 +2088,7 @@ export class Terminal implements ITerminalCore {
       }
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        this.scrollbarAnimationFrame = requestAnimationFrame(animate)
       }
     };
     animate();
@@ -2086,9 +2098,11 @@ export class Terminal implements ITerminalCore {
    * Fade out scrollbar
    */
   private fadeOutScrollbar(): void {
+    this.cancelScrollbarAnimation()
     const startTime = Date.now();
     const startOpacity = this.scrollbarOpacity;
     const animate = () => {
+      this.scrollbarAnimationFrame = undefined
       // A pending scrollbar callback can outlive dispose(); do not restart its frame chain.
       if (this.isDisposed || !this.isOpen) return
       if (!this.onScreen) {
@@ -2106,7 +2120,7 @@ export class Terminal implements ITerminalCore {
       }
 
       if (progress < 1) {
-        requestAnimationFrame(animate);
+        this.scrollbarAnimationFrame = requestAnimationFrame(animate)
       } else {
         this.scrollbarVisible = false;
         this.scrollbarOpacity = 0;
