@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Show whether the resolved AX Engine downloads models natively or through the Python helper on the Local Models page, from the runtime's `nativeDownloads` field when it is present.
 
+### Fixed
+
+- Let Prewarm start a downloaded pinned-revision model that the runtime reports as `verification-required`, instead of showing it as Unavailable with Prewarm disabled; the runtime verifies the model's capabilities when it starts.
+
 ## [7.30.3] - 2026-10-27
 
 ### Fixed

@@ -43,8 +43,16 @@ const formatElapsed = (ms: number) => {
 
 const statusLabel = (model: AxEngineModelCatalogEntry) => (model.local.present ? "Downloaded" : "Ready to download")
 
-const isDimmed = (model: AxEngineModelCatalogEntry) =>
-  !model.fit.downloadable && !model.fit.runnable && model.fit.state !== "downloading"
+// Every pinned-revision model the runtime catalogs stays "verification-required"
+// (runnable: false) until it has served once and its native capabilities were
+// checked, so a freshly downloaded model is not runnable yet. The runtime's
+// start route accepts such a model and verifies it on start, so Desktop treats
+// it as startable rather than unavailable.
+const isStartable = (model: AxEngineModelCatalogEntry) =>
+  model.fit.runnable || (model.fit.state === "verification-required" && model.local.present && model.local.complete)
+
+const isDimmed = (model: AxEngineModelCatalogEntry, startable: boolean) =>
+  !model.fit.downloadable && !startable && model.fit.state !== "downloading"
 
 const primaryReason = (model: AxEngineModelCatalogEntry) =>
   model.fit.blockers[0] ?? model.local.blockers[0] ?? model.disk.blockers[0] ?? model.fit.warnings[0]
@@ -173,7 +181,7 @@ export const LocalModelsPage: React.FC = () => {
         : (data.server.blockers[0] ?? "Starting")
       : "Stopped"
     : "Checking"
-  const startCandidate = data?.models.find((model) => model.fit.runnable)
+  const startCandidate = data?.models.find(isStartable)
   const serverBusy = busyKey === "ax-engine-server"
   const engineView = describeAxEngineDependency(data?.dependency)
   const engineMissingDetails = connection?.mode === "attach" ? [] : axEngineMissingDetails(data?.dependency)
@@ -584,6 +592,7 @@ export const LocalModelsPage: React.FC = () => {
                         }
                         job={job}
                         now={now}
+                        startable={canManageLocal && isStartable(model)}
                         busy={busyKey === model.id || (job ? busyKey === job.id : false)}
                         onDownload={() => {
                           if (canManageLocal) void handleDownload(model)
@@ -705,13 +714,14 @@ const ModelRow: React.FC<{
   model: AxEngineModelCatalogEntry
   job?: AxEngineModelJobSummary
   now: number
+  startable: boolean
   busy: boolean
   onDownload: () => void
   onCancel: () => void | undefined
   onDelete: () => void
-}> = ({ model, job, now, busy, onDownload, onCancel, onDelete }) => {
+}> = ({ model, job, now, startable, busy, onDownload, onCancel, onDelete }) => {
   const reason = primaryReason(model)
-  const dimmed = isDimmed(model)
+  const dimmed = isDimmed(model, startable)
   return (
     <div
       className={cn(
@@ -760,7 +770,7 @@ const ModelRow: React.FC<{
             <Icon name={busy ? "loader" : "download"} className={cn("h-4 w-4", busy && "animate-spin")} />
             Download
           </Button>
-        ) : !model.fit.runnable ? (
+        ) : !startable ? (
           <Button size="sm" variant="outline" disabled title={reason}>
             Unavailable
           </Button>

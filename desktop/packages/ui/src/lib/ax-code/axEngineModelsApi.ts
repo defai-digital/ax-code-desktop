@@ -11,6 +11,8 @@ export type AxEngineModelFitState =
   | "disk-blocked"
   | "local-unusable"
   | "failed"
+  /** Downloaded pinned-revision model; the runtime checks its capabilities when it first serves. */
+  | "verification-required"
 
 export type AxEngineDownloadProgress = {
   mode: "determinate" | "indeterminate"

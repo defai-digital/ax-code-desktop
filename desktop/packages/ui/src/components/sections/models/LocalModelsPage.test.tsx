@@ -428,3 +428,70 @@ describe("local model platform availability", () => {
     expect(calls).toEqual(["POST /api/provider/ax-engine/stop"])
   })
 })
+
+describe("LocalModelsPage downloaded pinned models", () => {
+  // What the runtime reports for a fully downloaded catalog model before it has
+  // served once: present and complete, but runnable only after verification.
+  const downloaded = {
+    id: "tiel-coder-35b-axq-mxfp4",
+    apiModelID: "AX-Tiel-Coder-35B-A3B-MLX-AXQ-MXFP4-MTP",
+    name: "Tiel Coder 35B AXQ MXFP4 MTP",
+    quantization: "mlx",
+    hfRepo: "AutomatosX/AX-Tiel-Coder-35B-A3B-MLX-AXQ-MXFP4-MTP",
+    mtpSource: "AutomatosX/AX-Tiel-Coder-35B-A3B-MLX-AXQ-MXFP4-MTP",
+    minDiskBytes: 32 * 1024 ** 3,
+    minMemoryBytes: 48 * 1024 ** 3,
+    contextTokens: 131072,
+    outputTokens: 32768,
+    toolcall: true,
+    local: {
+      present: true,
+      complete: true,
+      path: "/Users/dev/.cache/huggingface/hub/models--AutomatosX--AX-Tiel/snapshots/5ab39b24",
+      revision: "5ab39b24",
+      bytes: 22042538089,
+      blockers: [],
+    },
+    disk: { path: "/Users/dev/.cache/huggingface/hub", freeBytes: 1e11, requiredBytes: 32 * 1024 ** 3, ok: true, blockers: [] },
+    fit: {
+      state: "verification-required",
+      downloadable: false,
+      runnable: false,
+      deletable: true,
+      blockers: [],
+      warnings: ["Resource requirements are estimates; native capabilities are checked when the model starts"],
+    },
+  }
+
+  test("prewarms a downloaded model the runtime verifies on start", async () => {
+    modelsBody = { ...models(staleManaged), models: [downloaded] }
+    await render()
+    expect(text()).toContain("Downloaded")
+    expect(button("Unavailable")).toBeNull()
+    expect(button("Delete")).not.toBeNull()
+    expect(button("Prewarm")?.disabled).toBe(false)
+    await act(async () => button("Prewarm")?.click())
+    await flush()
+    expect(calls).toEqual(["POST /api/provider/ax-engine/start"])
+    const start = fetchMock.mock.calls.find(([input]) => String(input).includes("/provider/ax-engine/start"))
+    expect(JSON.parse(String(start?.[1]?.body))).toEqual({ modelID: "tiel-coder-35b-axq-mxfp4", download: false })
+  })
+
+  test("keeps a model the runtime cannot serve unavailable", async () => {
+    modelsBody = {
+      ...models(staleManaged),
+      models: [
+        {
+          ...downloaded,
+          local: { ...downloaded.local, complete: false },
+          fit: { ...downloaded.fit, state: "local-unusable", blockers: ["AX_ENGINE_MODEL_INCOMPLETE: snapshot is incomplete"] },
+        },
+      ],
+    }
+    await render()
+    expect(button("Unavailable")).not.toBeNull()
+    expect(button("Unavailable")?.title).toContain("snapshot is incomplete")
+    expect(button("Prewarm")?.disabled).toBe(true)
+    expect(calls).toEqual([])
+  })
+})
