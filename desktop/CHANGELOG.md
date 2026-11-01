@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Show whether the resolved AX Engine downloads models natively or through the Python helper on the Local Models page, from the runtime's `nativeDownloads` field when it is present.
+
 ## [7.30.3] - 2026-10-27
 
 ### Fixed

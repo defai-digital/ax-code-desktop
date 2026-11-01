@@ -30,6 +30,34 @@ describe("describeAxEngineDependency", () => {
     expect(view.updateHint).toBeNull()
   })
 
+  test("names the download path when the runtime reports it", () => {
+    const base = {
+      available: true,
+      mode: "managed",
+      binaryPath: "/Users/dev/.cache/ax-code/ax-engine/bin/8.0.4/ax-engine",
+      installable: false,
+      blockers: [],
+      warnings: [],
+    }
+    expect(
+      describeAxEngineDependency({ ...base, version: "8.0.4", managedVersion: "8.0.4", nativeDownloads: true })
+        .summary,
+    ).toBe("v8.0.4 · Installed by AX Code · native downloads")
+    expect(
+      describeAxEngineDependency({
+        ...base,
+        binaryPath: "/Users/dev/.cache/ax-code/ax-engine/bin/7.7.0/ax-engine",
+        version: "7.7.0",
+        managedVersion: "7.7.0",
+        pinnedVersion: "8.0.4",
+        updateAvailable: true,
+        nativeDownloads: false,
+      }).summary,
+    ).toBe("v7.7.0 · Installed by AX Code · Python download helper")
+    // Older runtimes send neither value; the summary stays as before.
+    expect(describeAxEngineDependency({ ...base, version: "7.7.0" }).summary).toBe("v7.7.0 · Installed by AX Code")
+  })
+
   test("surfaces a PATH warning without the error code and says who updates it", () => {
     const view = describeAxEngineDependency({
       available: true,

@@ -82,7 +82,21 @@ export const describeAxEngineDependency = (dependency: Dependency | null | undef
   // runtime refuses to downgrade it.
   const pinned = dependency.pinnedVersion
   const ahead = mode === "managed" && version && pinned && compareVersions(version, pinned) > 0
-  const parts = [version ? `v${version}` : null, sourceLabel, ahead ? `newer than ${pinned}` : null].filter(Boolean)
+  // The download path is the usual difference between an engine that fetches
+  // models reliably and one that fails on a missing Python helper; name it when
+  // the runtime reports it.
+  const downloads =
+    dependency.nativeDownloads === true
+      ? "native downloads"
+      : dependency.nativeDownloads === false
+        ? "Python download helper"
+        : null
+  const parts = [
+    version ? `v${version}` : null,
+    sourceLabel,
+    ahead ? `newer than ${pinned}` : null,
+    downloads,
+  ].filter(Boolean)
   return {
     summary: parts.length > 0 ? parts.join(" · ") : (path ?? "Available"),
     path,

@@ -102,6 +102,12 @@ export type AxEngineModelsResponse = {
     pinnedVersion?: string
     /** True when that install would update the managed or legacy bundled engine in use. */
     updateAvailable?: boolean
+    /**
+     * True when the resolved engine downloads public models natively (AX Engine 7.10.0+),
+     * false when it still runs the Python huggingface_hub helper. Absent on older runtimes
+     * and when no engine is available.
+     */
+    nativeDownloads?: boolean
     blockers: string[]
     warnings?: string[]
   }
