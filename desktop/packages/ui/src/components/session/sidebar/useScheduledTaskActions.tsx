@@ -30,8 +30,8 @@ import {
 } from "../scheduledTaskFamilies"
 import { pendingEntryKey } from "../scheduledTaskPending"
 
-// The editor shows its irregular-schedule note from the same rule this hook
-// plans with, so the rule lives in the families module.
+// The editor's irregular-schedule note explains a family whose slots the draft
+// cannot express; the rule lives in the families module.
 export { isIrregularFamily }
 
 type EditorTarget = {
@@ -176,22 +176,25 @@ export function useScheduledTaskActions(): ScheduledTaskActions {
           throw new Error(t("sessions.scheduledTasks.dialog.error.taskChanged"))
         }
         const status = submit.enabledChanged ? (submit.enabled ? "active" : "paused") : null
-        const current = groupScheduledTaskFamilies(members)
-        const irregular = isIrregularFamily(current)
-        const plan =
-          irregular && !submit.scheduleChanged
-            ? planFamilyFieldUpdate(
-                members,
-                {
-                  title: baseTitle,
-                  prompt: payloads[0].prompt,
-                  agent: payloads[0].agent,
-                  model: payloads[0].model,
-                  catchUpPolicy: payloads[0].catchUpPolicy,
-                },
-                status,
-              )
-            : planFamilyReconciliation(members, payloads, status)
+        // An untouched schedule section is never re-derived from the draft: a
+        // one-time run time inside a DST fall-back hour formats to an ambiguous
+        // wall clock, and reading that wall clock back picks the other instant,
+        // so the save silently moved the run time. A field-only save keeps every
+        // member's own schedule (and its title numbering), and the runtime
+        // neither re-validates nor re-arms it.
+        const plan = submit.scheduleChanged
+          ? planFamilyReconciliation(members, payloads, status)
+          : planFamilyFieldUpdate(
+              members,
+              {
+                title: baseTitle,
+                prompt: payloads[0].prompt,
+                agent: payloads[0].agent,
+                model: payloads[0].model,
+                catchUpPolicy: payloads[0].catchUpPolicy,
+              },
+              status,
+            )
         try {
           await reconcileScheduledTaskFamily(directory, plan)
         } catch (error) {

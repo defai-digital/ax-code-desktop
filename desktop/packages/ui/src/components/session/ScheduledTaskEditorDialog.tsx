@@ -1300,8 +1300,8 @@ export function ScheduledTaskEditorDialog(props: {
       <span className="min-w-0 break-all">{t("sessions.scheduledTasks.editor.projectLabel", { project: projectLabel })}</span>
     </p>
   ) : null
-  // Same rule the save plans with: a cron task counts too, since the draft can
-  // only show it as the daily fallback and touching the time would rewrite it.
+  // A cron task counts too: the draft can only show it as the daily fallback,
+  // and touching the time would rewrite it.
   const irregularScheduleNote =
     family && isIrregularFamily([family])
       ? t("sessions.scheduledTasks.editor.schedule.irregularNote", {

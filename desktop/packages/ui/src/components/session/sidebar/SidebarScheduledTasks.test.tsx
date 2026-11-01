@@ -6,23 +6,28 @@ import { dict } from "@/lib/i18n/messages/en"
 import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
 // Read API only: the connection-state write API is reserved for the event pipeline (R5).
 import { useConnectionStore } from "@/lib/event-stream/connection-state"
-import type { ScheduledTask } from "@/lib/scheduledTasksApi"
+import type { ScheduledTask, ScheduledTaskFamilyReconciliation } from "@/lib/scheduledTasksApi"
 
-const { fetchScheduledTasks, createScheduledTasks, setScheduledTasksEnabled, deleteScheduledTasks } = vi.hoisted(
-  () => ({
-    fetchScheduledTasks: vi.fn(),
-    createScheduledTasks: vi.fn(),
-    setScheduledTasksEnabled: vi.fn(),
-    deleteScheduledTasks: vi.fn(),
-  }),
-)
+const {
+  fetchScheduledTasks,
+  createScheduledTasks,
+  setScheduledTasksEnabled,
+  deleteScheduledTasks,
+  reconcileScheduledTaskFamily,
+} = vi.hoisted(() => ({
+  fetchScheduledTasks: vi.fn(),
+  createScheduledTasks: vi.fn(),
+  setScheduledTasksEnabled: vi.fn(),
+  deleteScheduledTasks: vi.fn(),
+  reconcileScheduledTaskFamily: vi.fn(),
+}))
 
 vi.mock("@/lib/scheduledTasksApi", () => ({
   fetchScheduledTasks,
   createScheduledTasks,
   deleteScheduledTasks,
   expandPromptSnippets: vi.fn(async (_directory: string, prompt: string) => prompt),
-  reconcileScheduledTaskFamily: vi.fn(),
+  reconcileScheduledTaskFamily,
   runScheduledTaskNow: vi.fn(),
   setScheduledTasksEnabled,
 }))
@@ -115,6 +120,7 @@ describe("SidebarScheduledTasks", () => {
     createScheduledTasks.mockReset()
     setScheduledTasksEnabled.mockReset()
     deleteScheduledTasks.mockReset()
+    reconcileScheduledTaskFamily.mockReset()
     editorProps.current = null
     useSessionDisplayStore.setState({ showScheduledSection: true, scheduledSectionCollapsed: false })
     useProjectsStore.setState({
@@ -499,6 +505,50 @@ describe("SidebarScheduledTasks", () => {
     await act(async () => pause?.click())
     await flush()
     expect(setScheduledTasksEnabled).toHaveBeenCalledWith("/work/alpha", ["p1", "p2"], false)
+  })
+
+  test("keeps a one-time task's run time when the schedule section is untouched", async () => {
+    // 01:30 on a DST fall-back day is an ambiguous wall clock: formatting
+    // 2027-11-07T06:30:00Z in America/New_York yields 01:30, and reading that wall
+    // clock back resolves to the earlier 05:30Z. A save that leaves the schedule
+    // section alone must therefore keep the member's own schedule instead of
+    // rewriting it from the draft.
+    const runAt = Date.parse("2027-11-07T06:30:00Z")
+    fetchScheduledTasks.mockImplementation(async (directory: string) =>
+      directory === "/work/alpha"
+        ? [task({ id: "o1", directory, title: "One shot", schedule: { type: "once", runAt } })]
+        : [],
+    )
+    await render()
+    await act(async () => container.querySelector<HTMLButtonElement>("[data-scheduled-task-row] button")?.click())
+    expect(editorProps.current?.task?.id).toBe("o1")
+
+    await act(async () => {
+      await editorProps.current?.onSave({
+        id: "o1",
+        memberIDs: ["o1"],
+        enabled: true,
+        enabledChanged: false,
+        scheduleChanged: false,
+        input: {
+          name: "One shot",
+          prompt: "Edited prompt",
+          catchUpPolicy: "run_once",
+          schedule: { kind: "once", date: "2027-11-07", time: "01:30", timezone: "America/New_York" },
+        },
+      })
+    })
+    await flush()
+
+    expect(reconcileScheduledTaskFamily).toHaveBeenCalledTimes(1)
+    const plan = reconcileScheduledTaskFamily.mock.calls[0][1] as ScheduledTaskFamilyReconciliation
+    expect(plan.creates).toEqual([])
+    expect(plan.deletes).toEqual([])
+    expect(plan.updates).toHaveLength(1)
+    expect(plan.updates[0].id).toBe("o1")
+    expect(plan.updates[0].keepSchedule).toBe(true)
+    expect(plan.updates[0].payload.prompt).toBe("Edited prompt")
+    expect(plan.updates[0].payload.schedule).toEqual({ type: "once", runAt })
   })
 
   test("keeps a loading row for a project that has not answered yet", async () => {
