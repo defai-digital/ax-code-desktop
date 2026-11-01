@@ -163,6 +163,73 @@ describe("applyDirectoryEvent", () => {
     expect(draft.sessionTotal).toBe(1)
   })
 
+  // Freshness is max(time.created, time.updated, time.archived) — the same rule
+  // `useGlobalSessionsStore.getSessionFreshness` and the reconnect snapshot merge
+  // apply. Events arrive out of order over the lifecycle stream, so an older
+  // session.updated must never roll the cached row back.
+  test("ignores an older session.updated instead of rolling back a newer title", () => {
+    const newer = { ...session("ses_1", "Newer title"), time: { created: 1, updated: 20 } } as Session
+    const draft = state({ session: [newer], sessionTotal: 1 })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: { info: { ...session("ses_1", "Older title"), time: { created: 1, updated: 10 } } as Session },
+    } as Event)
+
+    expect(result).toBe(false)
+    expect(draft.session).toHaveLength(1)
+    expect(draft.session[0]).toBe(newer)
+    expect(draft.session[0].title).toBe("Newer title")
+    expect(draft.sessionTotal).toBe(1)
+  })
+
+  test("ignores an older archived session.updated without dropping the session or its caches", () => {
+    const live = { ...session("ses_1", "Live title"), time: { created: 1, updated: 20 } } as Session
+    const messages = [assistantMessage()]
+    const parts = [{ id: "prt_1", messageID: "msg_1", sessionID: "ses_1", type: "text", text: "hi" } as Part]
+    const busyStatus = { type: "busy" } as SessionStatus
+    const draft = state({
+      session: [live],
+      sessionTotal: 1,
+      message: { ses_1: messages },
+      part: PartMap.from({ msg_1: parts }),
+      session_status: { ses_1: busyStatus },
+    })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: {
+        info: {
+          ...session("ses_1", "Stale archive"),
+          time: { created: 1, updated: 10, archived: 11 },
+        } as Session,
+      },
+    } as Event)
+
+    expect(result).toBe(false)
+    expect(draft.session.map((item) => item.id)).toEqual(["ses_1"])
+    expect(draft.sessionTotal).toBe(1)
+    expect(draft.message.ses_1).toBe(messages)
+    expect(draft.part.get("msg_1")).toBe(parts)
+    expect(draft.session_status.ses_1).toBe(busyStatus)
+  })
+
+  test("still applies a session.updated whose freshness equals the cached row", () => {
+    const current = { ...session("ses_1", "Before"), time: { created: 1, updated: 20 } } as Session
+    const draft = state({ session: [current], sessionTotal: 1 })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.updated",
+      // Same freshness (updated 20), different content: only a STRICTLY newer
+      // current row may win.
+      properties: { info: { ...session("ses_1", "After"), time: { created: 1, updated: 20 } } as Session },
+    } as Event)
+
+    expect(result).toBe(true)
+    expect(draft.session[0].title).toBe("After")
+    expect(draft.sessionTotal).toBe(1)
+  })
+
   test("merges late assistant message metadata", () => {
     const initial = assistantMessage()
     const draft = state({
@@ -961,6 +1028,49 @@ test.each(["session.idle", "session.error"])("%s stamps even an equal idle statu
   const before = serverSessionStatusStamp("ses_idle_stamp")
   expect(applyDirectoryEvent(draft, { type, properties: { sessionID: "ses_idle_stamp" } } as Event)).toBe(false)
   expect(serverSessionStatusStamp("ses_idle_stamp")).toBeGreaterThan(before)
+})
+
+describe("session.updated sessionTotal bookkeeping", () => {
+  test("counts a root session first seen through session.updated", () => {
+    // A live session.created can be missed (reconnect gap, late subscription) and
+    // the first event the directory sees for that session is its update. Inserting
+    // the row without counting it left sessionTotal below the root sessions the
+    // list actually held, so pagination believed there was nothing more to fetch.
+    const draft = state({ session: [], sessionTotal: 0 })
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: { info: session("ses_late", "Late session") },
+    } as Event)
+
+    expect(result).toBe(true)
+    expect(draft.session.map((item) => item.id)).toEqual(["ses_late"])
+    expect(draft.sessionTotal).toBe(1)
+  })
+
+  test("does not count a child session first seen through session.updated", () => {
+    const draft = state({ session: [], sessionTotal: 0 })
+    const child = { ...session("ses_child", "Child session"), parentID: "ses_parent" } as Session
+
+    applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: { info: child },
+    } as Event)
+
+    expect(draft.session.map((item) => item.id)).toEqual(["ses_child"])
+    expect(draft.sessionTotal).toBe(0)
+  })
+
+  test("does not count an update for a session already in the list", () => {
+    const draft = state({ session: [session("ses_1", "Existing")], sessionTotal: 1 })
+
+    applyDirectoryEvent(draft, {
+      type: "session.updated",
+      properties: { info: session("ses_1", "Renamed") },
+    } as Event)
+
+    expect(draft.sessionTotal).toBe(1)
+  })
 })
 
 test("a legacy overlapping delta consumes its dedupe marker before the next delta", () => {

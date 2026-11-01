@@ -345,6 +345,13 @@ function areUnknownMessageKeysEqual(left: Message, right: Message): boolean {
   return true
 }
 
+// Session freshness: the newest of the three lifecycle timestamps. An archive sets
+// `time.archived` without necessarily bumping `time.updated`, so the maximum is what
+// orders two snapshots of the same session (matches useGlobalSessionsStore).
+function getSessionFreshness(session: Session): number {
+  return Math.max(session.time?.created ?? 0, session.time?.updated ?? 0, session.time?.archived ?? 0)
+}
+
 // ---------------------------------------------------------------------------
 // Global events
 // ---------------------------------------------------------------------------
@@ -526,6 +533,12 @@ export function applyDirectoryEvent(
       const sessions = draft.session
       const result = Binary.search(sessions, info.id, (s) => s.id)
 
+      // Never let an older replay roll back the cached row or archive a live session;
+      // equal timestamps still apply so same-tick metadata updates are not dropped.
+      if (result.found && getSessionFreshness(sessions[result.index]) > getSessionFreshness(info)) {
+        return false
+      }
+
       if (info.time.archived) {
         if (result.found) sessions.splice(result.index, 1)
         cleanupSessionCaches(draft, info.id, callbacks?.onSetSessionTodo)
@@ -542,6 +555,11 @@ export function applyDirectoryEvent(
       } else {
         sessions.splice(result.index, 0, info)
         trimSessions(draft)
+        // A live session.created can be missed (reconnect gap, late subscription), so this insert
+        // may be the first sighting of a root session. Count it exactly like session.created does:
+        // otherwise sessionTotal sits below the root sessions the list holds and pagination stops
+        // early. A child session, and an update for a row already listed, must not count.
+        if (!info.parentID) draft.sessionTotal += 1
       }
       return true
     }

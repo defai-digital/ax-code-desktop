@@ -346,6 +346,10 @@ function refApply(model: RefModel, ev: TraceEvent): void {
         if (model.sessions.delete(ev.sessionId)) model.sessionTotal = Math.max(0, model.sessionTotal - 1)
         refCleanup(model, ev.sessionId)
       } else {
+        // An update may be the first event seen for a root session (missed
+        // session.created). Generated sessions are all roots, so an insert counts
+        // once; an update for a row already listed does not.
+        if (!model.sessions.has(ev.sessionId)) model.sessionTotal += 1
         model.sessions.set(ev.sessionId, ev.updated)
       }
       break
