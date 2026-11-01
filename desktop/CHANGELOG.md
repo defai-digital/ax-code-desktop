@@ -4,11 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.11] - 2026-11-01
+
 ### Changed
 
 - Show whether the resolved AX Engine downloads models natively or through the Python helper on the Local Models page, from the runtime's `nativeDownloads` field when it is present.
 
 ### Fixed
+
+- Preserve newer session titles and metadata when delayed creation or update events are replayed, and count sessions first seen through an update.
+- Restore menu and project hand-offs after in-page navigation.
+- Preserve busy progress metadata and reject prompt-file symlinks that escape the configuration directory.
 
 - Let Prewarm start a downloaded pinned-revision model that the runtime reports as `verification-required`, instead of showing it as Unavailable with Prewarm disabled; the runtime verifies the model's capabilities when it starts.
 

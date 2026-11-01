@@ -167,6 +167,33 @@ describe("applyDirectoryEvent", () => {
   // `useGlobalSessionsStore.getSessionFreshness` and the reconnect snapshot merge
   // apply. Events arrive out of order over the lifecycle stream, so an older
   // session.updated must never roll the cached row back.
+  test("ignores a delayed session.created after a newer session.updated", () => {
+    const draft = state({ session: [], sessionTotal: 0 })
+    const updated = { ...session("ses_1", "Renamed"), time: { created: 1, updated: 20 } } as Session
+    applyDirectoryEvent(draft, { type: "session.updated", properties: { info: updated } } as Event)
+
+    const result = applyDirectoryEvent(draft, {
+      type: "session.created",
+      properties: { info: session("ses_1", "Original title") },
+    } as Event)
+
+    expect(result).toBe(false)
+    expect(draft.session).toEqual([updated])
+    expect(draft.sessionTotal).toBe(1)
+  })
+
+  test.each([20, 30])("accepts a replayed session.created with freshness %i without counting twice", (updated) => {
+    const draft = state({
+      session: [{ ...session("ses_1", "Before"), time: { created: 1, updated: 20 } } as Session],
+      sessionTotal: 1,
+    })
+    const incoming = { ...session("ses_1", "After"), time: { created: 1, updated } } as Session
+
+    expect(applyDirectoryEvent(draft, { type: "session.created", properties: { info: incoming } } as Event)).toBe(true)
+    expect(draft.session).toEqual([incoming])
+    expect(draft.sessionTotal).toBe(1)
+  })
+
   test("ignores an older session.updated instead of rolling back a newer title", () => {
     const newer = { ...session("ses_1", "Newer title"), time: { created: 1, updated: 20 } } as Session
     const draft = state({ session: [newer], sessionTotal: 1 })

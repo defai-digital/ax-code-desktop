@@ -519,6 +519,8 @@ export function applyDirectoryEvent(
       const sessions = draft.session
       const result = Binary.search(sessions, info.id, (s) => s.id)
       if (result.found) {
+        // A delayed create can follow a newer update or reconnect snapshot.
+        if (getSessionFreshness(sessions[result.index]) > getSessionFreshness(info)) return false
         sessions[result.index] = info
       } else {
         sessions.splice(result.index, 0, info)
