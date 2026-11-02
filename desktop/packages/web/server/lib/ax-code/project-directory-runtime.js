@@ -4,8 +4,8 @@ const DIRECTORY_HEADER = "x-ax-code-directory"
 
 /**
  * Read the decoded project directory from the `x-ax-code-directory` header.
- * The renderer percent-encodes the value when the path contains non-ASCII or
- * `%` (fetch headers only accept ByteString values), so decode it with
+ * The renderer percent-encodes the value when the path contains non-ASCII, controls, or
+ * `%` (fetch headers require valid HTTP field values), so decode it with
  * decodeURIComponent and keep the raw value when it is not valid
  * percent-encoding. Returns null when the header is absent.
  */
