@@ -1,4 +1,5 @@
 import { axCodeClient } from "@/lib/ax-code/client"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
 import type {
@@ -242,7 +243,7 @@ export const expandPromptSnippets = async (directory: string, prompt: string): P
         method: HTTP_DEFAULTS.method.post,
         headers: {
           ...HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
-          "x-ax-code-directory": safeDirectory,
+          "x-ax-code-directory": encodeDirectoryHeader(safeDirectory),
         },
         body: JSON.stringify({ text: prompt }),
       },

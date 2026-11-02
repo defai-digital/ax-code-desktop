@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
@@ -194,7 +195,9 @@ export const useMcpConfigStore = create<McpConfigStore>()(
             try {
               const queryParams = configDirectory ? `?directory=${encodeURIComponent(configDirectory)}` : ""
               const response = await fetch(`${API_ENDPOINTS.config.mcp}${queryParams}`, {
-                headers: configDirectory ? { "x-ax-code-directory": configDirectory } : undefined,
+                headers: configDirectory
+                  ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) }
+                  : undefined,
               })
               if (!response.ok) {
                 throw new Error("Failed to load MCP configs")
@@ -230,7 +233,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(configDirectory ? { "x-ax-code-directory": configDirectory } : {}),
+                  ...(configDirectory ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) } : {}),
                 },
                 body: JSON.stringify(body),
               },
@@ -292,7 +295,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
                 method: "PATCH",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(configDirectory ? { "x-ax-code-directory": configDirectory } : {}),
+                  ...(configDirectory ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) } : {}),
                 },
                 body: JSON.stringify(body),
               },
@@ -356,7 +359,9 @@ export const useMcpConfigStore = create<McpConfigStore>()(
               })}${queryParams}`,
               {
                 method: "DELETE",
-                headers: configDirectory ? { "x-ax-code-directory": configDirectory } : undefined,
+                headers: configDirectory
+                  ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) }
+                  : undefined,
               },
             )
 

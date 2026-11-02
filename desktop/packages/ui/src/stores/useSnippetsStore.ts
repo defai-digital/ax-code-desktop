@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { Snippet } from "@/types/snippet"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { API_ENDPOINTS } from "@/lib/http"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
@@ -95,7 +96,10 @@ export const useSnippetsStore = create<SnippetsStore>()(
           try {
             const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
             const response = await fetch(`${API_ENDPOINTS.config.snippets}${queryParams}`, {
-              headers: { "Cache-Control": "no-cache", ...(directory ? { "x-ax-code-directory": directory } : {}) },
+              headers: {
+                "Cache-Control": "no-cache",
+                ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
+              },
             })
             if (!response.ok) throw new Error("Failed to load snippets")
             const snippets: Snippet[] = await response.json()
@@ -145,7 +149,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
-                ...(directory ? { "x-ax-code-directory": directory } : {}),
+                ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
               },
               body: JSON.stringify({
                 content,
@@ -185,7 +189,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
               method: "PATCH",
               headers: {
                 "Content-Type": "application/json",
-                ...(directory ? { "x-ax-code-directory": directory } : {}),
+                ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
               },
               body: JSON.stringify(updates),
             },
@@ -209,7 +213,7 @@ export const useSnippetsStore = create<SnippetsStore>()(
             `${API_ENDPOINTS.config.snippet.replace(":name", encodeURIComponent(name))}${queryParams}`,
             {
               method: "DELETE",
-              headers: directory ? { "x-ax-code-directory": directory } : undefined,
+              headers: directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : undefined,
             },
           )
           if (!response.ok)
@@ -230,7 +234,10 @@ export const useSnippetsStore = create<SnippetsStore>()(
         const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
         const response = await fetch(`${API_ENDPOINTS.config.snippetExpand}${queryParams}`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", ...(directory ? { "x-ax-code-directory": directory } : {}) },
+          headers: {
+            "Content-Type": "application/json",
+            ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
+          },
           body: JSON.stringify({ text }),
         })
         if (!response.ok)

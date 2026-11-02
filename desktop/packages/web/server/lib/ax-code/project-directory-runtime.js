@@ -1,5 +1,26 @@
 import { createRealpathCache } from "../path-realpath-cache.js"
 
+const DIRECTORY_HEADER = "x-ax-code-directory"
+
+/**
+ * Read the decoded project directory from the `x-ax-code-directory` header.
+ * The renderer percent-encodes the value when the path contains non-ASCII or
+ * `%` (fetch headers only accept ByteString values), so decode it with
+ * decodeURIComponent and keep the raw value when it is not valid
+ * percent-encoding. Returns null when the header is absent.
+ */
+export const readDirectoryHeader = (req) => {
+  const raw = typeof req.get === "function" ? req.get(DIRECTORY_HEADER) : null
+  if (!raw) {
+    return null
+  }
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
+}
+
 export const createProjectDirectoryRuntime = (dependencies) => {
   const {
     fsPromises,
@@ -50,7 +71,7 @@ export const createProjectDirectoryRuntime = (dependencies) => {
   }
 
   const resolveProjectDirectory = async (req) => {
-    const headerDirectory = typeof req.get === "function" ? req.get("x-ax-code-directory") : null
+    const headerDirectory = readDirectoryHeader(req)
     const queryDirectory = Array.isArray(req.query?.directory) ? req.query.directory[0] : req.query?.directory
     const requested = headerDirectory || queryDirectory || null
 
@@ -102,7 +123,7 @@ export const createProjectDirectoryRuntime = (dependencies) => {
   }
 
   const resolveOptionalProjectDirectory = async (req) => {
-    const headerDirectory = typeof req.get === "function" ? req.get("x-ax-code-directory") : null
+    const headerDirectory = readDirectoryHeader(req)
     const queryDirectory = Array.isArray(req.query?.directory) ? req.query.directory[0] : req.query?.directory
     const requested = headerDirectory || queryDirectory || null
 

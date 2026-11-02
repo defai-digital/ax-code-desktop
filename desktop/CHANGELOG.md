@@ -8,6 +8,10 @@ All notable changes to this project will be documented in this file.
 
 - Pin signed AX Code CLI/TUI runtime 7.30.14 and exact SDK 2.6.67 after their producer publication.
 
+### Fixed
+
+- Percent-encode the project directory header in the renderer and decode it in the Desktop server, so agents, commands, MCP, plugin, snippet and scheduled-task settings load for projects whose path contains CJK or other non-Latin-1 characters (previously the request threw before it was sent) and Latin-1 paths no longer arrive garbled.
+
 ## [7.30.11] - 2026-11-01
 
 ### Changed

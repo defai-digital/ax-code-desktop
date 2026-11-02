@@ -4,6 +4,7 @@ import { getSafeStorage } from "./utils/safeStorage"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
@@ -474,13 +475,13 @@ function chunkSpecs(specs: string[]): string[][] {
 }
 
 function buildDirectoryHeaders(directory: string | null): HeadersInit | undefined {
-  return directory ? { "x-ax-code-directory": directory } : undefined
+  return directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : undefined
 }
 
 function buildJsonHeaders(directory: string | null): HeadersInit {
   return {
     "Content-Type": "application/json",
-    ...(directory ? { "x-ax-code-directory": directory } : {}),
+    ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
   }
 }
 

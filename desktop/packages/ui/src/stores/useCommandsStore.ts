@@ -7,6 +7,7 @@ import { createSingleFlight } from "@/lib/singleFlight"
 import { getSafeStorage } from "./utils/safeStorage"
 import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
@@ -165,7 +166,7 @@ export const useCommandsStore = create<CommandsStore>()(
                         {
                           headers: {
                             "Cache-Control": "no-cache",
-                            ...(directory ? { "x-ax-code-directory": directory } : {}),
+                            ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
                           },
                         },
                       )
@@ -262,7 +263,7 @@ export const useCommandsStore = create<CommandsStore>()(
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(directory ? { "x-ax-code-directory": directory } : {}),
+                  ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
                 },
                 body: JSON.stringify(commandConfig),
               },
@@ -338,7 +339,7 @@ export const useCommandsStore = create<CommandsStore>()(
                 method: "PATCH",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(directory ? { "x-ax-code-directory": directory } : {}),
+                  ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
                 },
                 body: JSON.stringify(commandConfig),
               },
@@ -409,7 +410,7 @@ export const useCommandsStore = create<CommandsStore>()(
               })}${queryParams}`,
               {
                 method: "DELETE",
-                headers: directory ? { "x-ax-code-directory": directory } : undefined,
+                headers: directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : undefined,
               },
             )
 

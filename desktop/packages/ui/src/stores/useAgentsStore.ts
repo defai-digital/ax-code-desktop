@@ -20,6 +20,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { parseConfigPathGroup } from "@/lib/configPathGroup"
 import { filterVisibleAgents, registerAgentsSource, type AgentScope, type AgentWithExtras } from "@/lib/agents"
 import { getAxCodeCurrentDirectory } from "@/lib/ax-code/currentDirectory"
@@ -210,7 +211,9 @@ export const useAgentsStore = create<AgentsStore>()(
                         {
                           headers: {
                             "Cache-Control": "no-cache",
-                            ...(configDirectory ? { "x-ax-code-directory": configDirectory } : {}),
+                            ...(configDirectory
+                              ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) }
+                              : {}),
                           },
                         },
                       )
@@ -311,7 +314,7 @@ export const useAgentsStore = create<AgentsStore>()(
                 method: "POST",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(configDirectory ? { "x-ax-code-directory": configDirectory } : {}),
+                  ...(configDirectory ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) } : {}),
                 },
                 body: JSON.stringify(agentConfig),
               },
@@ -383,7 +386,7 @@ export const useAgentsStore = create<AgentsStore>()(
                 method: "PATCH",
                 headers: {
                   "Content-Type": "application/json",
-                  ...(configDirectory ? { "x-ax-code-directory": configDirectory } : {}),
+                  ...(configDirectory ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) } : {}),
                 },
                 body: JSON.stringify(agentConfig),
               },
@@ -448,7 +451,9 @@ export const useAgentsStore = create<AgentsStore>()(
               })}${queryParams}`,
               {
                 method: "DELETE",
-                headers: configDirectory ? { "x-ax-code-directory": configDirectory } : undefined,
+                headers: configDirectory
+                  ? { "x-ax-code-directory": encodeDirectoryHeader(configDirectory) }
+                  : undefined,
               },
             )
 

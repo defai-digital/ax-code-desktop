@@ -1,6 +1,7 @@
 import { createProjectIdFromPath } from "../projects/project-id.js"
 import { compareVersions, evaluateAxCodeCompatibility, MIN_SUPPORTED_AX_CODE_VERSION } from "./version-compat.js"
 import { AX_CODE_CONFIG_DIR } from "./shared.js"
+import { readDirectoryHeader } from "./project-directory-runtime.js"
 import fs from "fs"
 import path from "path"
 
@@ -543,7 +544,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         return res.status(400).json({ error: "Provider ID is required" })
       }
 
-      const headerDirectory = typeof req.get === "function" ? req.get("x-ax-code-directory") : null
+      const headerDirectory = readDirectoryHeader(req)
       const queryDirectory = Array.isArray(req.query?.directory) ? req.query.directory[0] : req.query?.directory
       const requestedDirectory = headerDirectory || queryDirectory || null
 
@@ -616,7 +617,7 @@ export const registerAxCodeRoutes = (app, dependencies) => {
     try {
       const providerId = resolveProviderAuthId(req.params?.providerId)
       const scope = resolveProviderAuthScope(req.query?.scope)
-      const headerDirectory = typeof req.get === "function" ? req.get("x-ax-code-directory") : null
+      const headerDirectory = readDirectoryHeader(req)
       const queryDirectory = Array.isArray(req.query?.directory) ? req.query.directory[0] : req.query?.directory
       const requestedDirectory = headerDirectory || queryDirectory || null
       const resolved = await resolveProjectDirectory(req)

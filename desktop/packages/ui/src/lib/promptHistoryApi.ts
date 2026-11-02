@@ -1,5 +1,6 @@
 import { axCodeClient } from "@/lib/ax-code/client"
 import { buildAxCodeApiUrl } from "@/lib/ax-code/baseUrl"
+import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import {
   PROMPT_HISTORY_LIMIT,
@@ -27,15 +28,8 @@ export function promptHistoryRequestUrl(baseUrl: string, directory: string, limi
   return `${path}${joiner}${params.toString()}`
 }
 
-const headerNeedsEncoding = (directory: string) => {
-  for (let index = 0; index < directory.length; index += 1) {
-    if (directory.charCodeAt(index) > 127) return true
-  }
-  return false
-}
-
 export function promptHistoryHeaders(directory: string, extra?: Record<string, string>): Record<string, string> {
-  const encoded = headerNeedsEncoding(directory) ? encodeURIComponent(directory) : directory
+  const encoded = encodeDirectoryHeader(directory)
   return {
     ...extra,
     [DIRECTORY_HEADER]: encoded,

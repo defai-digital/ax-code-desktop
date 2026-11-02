@@ -142,6 +142,7 @@ This module provides ax-code server integration utilities for the web server run
   - `report()`: recompute the count and post it when it changed.
 
 ## Public exports (dev-runtime-upstream.js)
+
 - `createDevRuntimeUpstreamWriter({ filePath, getAxCodeAuthHeaders, processRef? })`: dev-only (S2.4b) publisher of the runtime's current loopback origin + Basic credential for the Vite dev proxy. Active only when `AX_CODE_DESKTOP_DEV_UPSTREAM_FILE` is set (the Electron dev orchestrator sets it for the whole stack; packaged/production runs never do). Wired into the same `onRuntimeOriginChange` transitions as the S2.4a utilityProcess message.
   - `publish(origin)`: writes `{ version: 1, origin, authorization?, updatedAt }` via atomic tmp+rename with mode 0600; `publish(null)` removes the file so the Vite proxy falls back to the web server. Contents are never logged.
   - `remove()`: idempotent delete; also registered on process exit (best effort — SIGKILL leaves a stale file, which the Vite side tolerates by falling back to the web server on proxy errors).
@@ -252,6 +253,7 @@ This module provides ax-code server integration utilities for the web server run
 ## Public exports (project-directory-runtime.js)
 
 - `createProjectDirectoryRuntime(dependencies)`: creates runtime for request/project directory candidate normalization and validation.
+- `readDirectoryHeader(req)`: returns the percent-decoded `x-ax-code-directory` header value (falls back to the raw value on malformed encoding, null when absent).
 - Returned API:
   - `resolveDirectoryCandidate(value)`
   - `validateDirectoryPath(candidate)`
