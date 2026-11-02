@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Pin signed AX Code CLI/TUI runtime 7.30.14 and exact SDK 2.6.67 after their producer publication.
+
 ## [7.30.11] - 2026-11-01
 
 ### Changed
