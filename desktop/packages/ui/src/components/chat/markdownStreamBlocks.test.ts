@@ -152,6 +152,14 @@ describe("buildLiveMarkdownBlocks", () => {
     expect(blocks[0]?.mode).toBe("live")
   })
 
+  test("keeps escaped closing brackets in reference labels in the same rendering block", () => {
+    const text = "See [a\\]b].\n\n[a\\]b]: https://example.com\n\nTail"
+    const { blocks } = buildLiveMarkdownBlocks(text, BASE_KEY)
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0]?.raw).toBe(text)
+    expectIncrementalMatchesScratch(text, [1, 7])
+  })
+
   test("non-append rewrites reset the cache instead of reusing a stale prefix", () => {
     const first = buildLiveMarkdownBlocks("alpha\n\nbeta gamma", BASE_KEY, null)
     const rewritten = "totally different\n\ncontent here"

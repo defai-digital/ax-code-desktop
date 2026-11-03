@@ -128,6 +128,10 @@ const outcome = await runHarness({
         "incremental worker response",
       )
       if ((await session.evaluate(headingCount)) !== 40) throw new Error("CRLF append duplicated headings")
+      const referenceText = "\n\nSee [a\\]b].\n\n[a\\]b]: https://example.com/escaped-reference\n\nReference tail"
+      await session.evaluate(`window.__markdownProbe.append(${JSON.stringify(referenceText)})`)
+      const referenceLink = 'Array.from(document.querySelectorAll("a")).some(a => a.href === "https://example.com/escaped-reference" && a.textContent === "a]b")'
+      await audit.wait(referenceLink, "escaped reference link painted while streaming")
       await session.evaluate("window.__markdownProbe.finish()")
       await audit.wait("window.__markdownProbe.requests.some(x => !x.live)", "final worker request")
       await audit.wait(
@@ -139,6 +143,7 @@ const outcome = await runHarness({
         "final parsed document",
       )
       const receipt = {
+        escapedReferenceLink: await session.evaluate(referenceLink),
         headings: await session.evaluate(headingCount),
         headingTexts: await session.evaluate(
           'Array.from(document.querySelectorAll("h2")).map(x => x.textContent).filter(text => /^Markdown section \\d+$/.test(text))',

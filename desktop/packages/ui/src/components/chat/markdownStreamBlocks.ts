@@ -26,7 +26,7 @@ const hasReferenceDefinitions = (text: string): boolean => {
   // optional, and the destination may sit on the following (indented) line. Missing a
   // definition split it into a block of its own, so an earlier `[docs]` link rendered as
   // literal text until the message finalized.
-  return /^[ \t]{0,3}\[[^\]]+\]:[ \t]*(?:\S|$)/m.test(text)
+  return /^[ \t]{0,3}\[(?:\\.|[^\]\\])+\]:[ \t]*(?:\S|$)/m.test(text)
 }
 
 const hasOpenFence = (raw: string): boolean => {

@@ -1,0 +1,23 @@
+{
+  "name": "muse",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 26.72,
+  "command": [
+    "muse",
+    "exec",
+    "--prompt-file",
+    "/tmp/ax-diff-delivery-evidence-20261103/patch-review/prompt.txt",
+    "--preset",
+    "empty",
+    "--disable-write",
+    "--disable-shell",
+    "--disable-web-tools",
+    "--disable-reminders",
+    "--disable-request-user-input",
+    "--no-foreign-personal-context",
+    "--max-model-steps",
+    "2",
+    "--json"
+  ]
+}

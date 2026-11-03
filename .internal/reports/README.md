@@ -86,3 +86,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Latest CLI/TUI 7.30.14 runtime pin](RUNTIME-PIN-2026-11-01-v7.30.14.md)
 
 - [Desktop v7.30.12 verified maintenance and publication](RELEASE-2026-11-02-v7.30.12-publication.md)
+
+- [Canonical diff WASM tarball delivery repair](diff-delivery-20261103/README.md).

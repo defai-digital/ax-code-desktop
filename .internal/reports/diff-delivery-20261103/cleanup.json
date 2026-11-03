@@ -1,0 +1,32 @@
+{
+  "worktree": "/tmp/ax-code-diff-wasm-delivery-20261103",
+  "commit": "ed8fae843c93fbde49b7e70a70cbae2382151603",
+  "generatedPathsRemoved": [
+    "crates/target/",
+    "node_modules/",
+    "packages/ax-agent-runtime/node_modules/",
+    "packages/ax-code-daemon/node_modules/",
+    "packages/ax-code-diff-native/ax-code-diff.node",
+    "packages/ax-code-diff-native/index.js",
+    "packages/ax-code-diff-native/node_modules/",
+    "packages/ax-code-diff-wasm/dist/",
+    "packages/ax-code-diff-wasm/node_modules/",
+    "packages/ax-code-diff-wasm/wasm/",
+    "packages/ax-code-fs-native/node_modules/",
+    "packages/ax-code-index-core/node_modules/",
+    "packages/ax-code-intel/node_modules/",
+    "packages/ax-code-parser-native/node_modules/",
+    "packages/ax-code-reason/node_modules/",
+    "packages/ax-code-terminal-native/node_modules/",
+    "packages/ax-code/node_modules/",
+    "packages/ax-computer/node_modules/",
+    "packages/ax-tui/node_modules/",
+    "packages/ax-wiki-viewer/node_modules/",
+    "packages/ax-wiki/node_modules/",
+    "packages/integration-github/node_modules/",
+    "packages/plugin/node_modules/",
+    "packages/script/node_modules/",
+    "packages/sdk/js/node_modules/",
+    "packages/util/node_modules/"
+  ]
+}

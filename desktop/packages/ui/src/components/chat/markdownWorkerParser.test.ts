@@ -51,6 +51,20 @@ describe("worker response transfer", () => {
 })
 
 describe("Incremental worker Markdown parsing", () => {
+  test("late escaped reference definitions invalidate earlier literal link text", () => {
+    const parse = createMarkdownWorkerParser()
+    const prefix = "# Heading\n\nSee [a\\]b].\n\nTail\n\n"
+    parse(request(prefix))
+    const blocks = parse(request(prefix + "[a\\]b]: https://example.com"))
+    expect(blocks).toHaveLength(1)
+    expect(blocks[0].tree?.children).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: "definition", identifier: "a\\]b", url: "https://example.com" }),
+      expect.objectContaining({ type: "paragraph", children: expect.arrayContaining([
+        expect.objectContaining({ type: "linkReference", identifier: "a\\]b" }),
+      ]) }),
+    ]))
+  })
+
   test("preserves UTF-16 source and CRLF when retaining completed blocks", () => {
     const parse = createMarkdownWorkerParser()
     const prefix = "# 中文 😀 \ud800\r\n\r\nBody \udc00\r\n\r\nTail"

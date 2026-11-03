@@ -1,0 +1,20 @@
+Advisory packaging review — no blocking defects found in this bounded fix.
+
+Scope: move `@ax-code/util` to `devDependencies`, keep package `private:true`, add offline packed-tarball consumer gate. No publish, no Desktop adoption, no CLI backend change. README states this explicitly. That matches authorization prepare/test/commit, not publish, and existing ADR.
+
+`package.json`: correct. No `dependencies`, `optionalDependencies`, or `peerDependencies`. Util, diff, reason are build-only. Tarball gate asserts all three dependency maps are empty. `files` plus automatic license inclusion is consistent with passing Chromium installed-asset smoke.
+
+Tempdir isolation: good. Unique `mkdtemp`, separate `artifacts/consumer/store/cache`, `npmrc` with `registry.invalid` mode `0600`, `NODE_PATH=""`, `NODE_OPTIONS=""`, fresh store plus `--offline --ignore-scripts --ignore-pnpmfile --frozen-lockfile`, cleanup in `finally` with `rm recursive force`.
+
+Subprocess execution: safe. All `execFileSync` use argv arrays, no shell. `pnpm` path gated on `npm_execpath` including `pnpm`. Timeouts set. Inputs are repo-owned manifest/compiler paths, not consumer data. Browser server binds `127.0.0.1` ephemeral port, strict `^/(dist|wasm)/[a-zA-Z0-9_.-]+$` path allowlist, CSP set, 90s watchdog with `unref`, browser/server closed in `finally`.
+
+Actual installed asset use: real. `pnpm pack` then offline `pnpm add <tgz>` plus frozen install in empty store. Node smoke imports bare `manifest.name/node` and root export with `cwd=consumer`, so it resolves to `consumer/node_modules`. Explicit `access` checks for `dist/*`, `wasm/*`, `LICENSE`, `NOTICE`. Browser path sets `AX_DIFF_WASM_PACKAGE_ROOT=installedRoot` and asserts all requests stay same-origin.
+
+Declaration check: adequate. Strict `noEmit`, `skipLibCheck:false`, `types:[]`, `NodeNext`, covers both exports and `DiffEngine/DiffPreview/Hunk/PatchChunk` contracts plus `@ts-expect-error` invalid-hunk case. Passing with no runtime deps corroborates bundled-util / clean `d.ts` claim.
+
+CI wiring: correct direction. Replaces direct workspace `test:browser` with `test:tarball --browser` for chromium/firefox/webkit, so all engines qualify installed artifacts.
+
+Lockfile: acceptable. Full `pnpm` regeneration moving only `util` link to `devDependencies`; avoids prior filtered-regeneration peer drift and hand-editing.
+
+Qualification gap, not a defect: Firefox/WebKit installed-asset runs and full tests were still running; Chromium only is evidenced. Complete that matrix before treating as production-qualified.
+
