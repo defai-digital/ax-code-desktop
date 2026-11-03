@@ -1453,6 +1453,7 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(JSON.stringify(status)).not.toContain("gone\n")
   })
 
+  // This exercises 201 real files; allow the 10s identity budget plus repository setup.
   it("skips worktree ids past the size cap and omits identities past the file cap", async () => {
     if (!canRunGit()) return
 
@@ -1483,7 +1484,7 @@ exec ${JSON.stringify(realGit)} "$@"
     expect(identified).toHaveLength(GIT_STATUS_CONTENT_ID_MAX_FILES)
     expect(omitted).toHaveLength(1)
     expect(identified.every((entry) => entry.content === undefined)).toBe(true)
-  })
+  }, 15_000)
 
   const gitBlob = (bytes) =>
     createHash("sha1").update(`blob ${Buffer.byteLength(bytes)}\0`).update(bytes).digest("hex")
