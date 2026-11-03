@@ -1,0 +1,19 @@
+{
+  "name": "grok",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 235.11,
+  "command": [
+    "grok",
+    "--prompt-file",
+    "/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-diff-qualification-20261103-xrcxq6y4/reviews/prompt.txt",
+    "--tools",
+    "",
+    "--no-subagents",
+    "--disable-web-search",
+    "--max-turns",
+    "3",
+    "--output-format",
+    "json"
+  ]
+}

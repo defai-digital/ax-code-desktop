@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "elapsed_seconds": 1.59,
+  "workaround": "Direct node build with rustup toolchain lib in DYLD_LIBRARY_PATH; no source change"
+}

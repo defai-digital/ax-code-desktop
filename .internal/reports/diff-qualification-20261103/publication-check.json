@@ -1,0 +1,79 @@
+{
+  "checked_at": "2026-11-03T10:01:27.398175+00:00",
+  "checks": [
+    {
+      "command": [
+        "gh",
+        "release",
+        "list",
+        "--repo",
+        "defai-digital/ax-code",
+        "--limit",
+        "4",
+        "--json",
+        "tagName,publishedAt"
+      ],
+      "exit_code": 0,
+      "stdout": "[{\"publishedAt\":\"2026-11-01T21:34:46Z\",\"tagName\":\"sdk-v2.6.67\"},{\"publishedAt\":\"2026-11-01T21:27:33Z\",\"tagName\":\"v7.30.14\"},{\"publishedAt\":\"2026-11-01T09:51:45Z\",\"tagName\":\"sdk-v2.6.66\"},{\"publishedAt\":\"2026-11-01T09:44:51Z\",\"tagName\":\"v7.30.13\"}]\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gh",
+        "api",
+        "orgs/defai-digital/packages?package_type=npm&per_page=100",
+        "--jq",
+        "[.[] | select(.name | test(\"diff|code\")) | {name,html_url}]"
+      ],
+      "exit_code": 0,
+      "stdout": "[{\"html_url\":\"https://github.com/orgs/defai-digital/packages/npm/package/ax-code-sdk\",\"name\":\"ax-code-sdk\"}]\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gh",
+        "run",
+        "view",
+        "41612753373",
+        "--repo",
+        "defai-digital/ax-code",
+        "--json",
+        "jobs",
+        "--jq",
+        "[.jobs[] | {name,conclusion,failedSteps:[.steps[] | select(.conclusion == \"failure\") | .name]}]"
+      ],
+      "exit_code": 0,
+      "stdout": "[{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (8/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"Diff Wasm parity and browser worker\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"Native evidence plan\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (5/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (4/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"Windows runtime and recovery (windows-2022)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"runtime-contract\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (2/8)\"},{\"conclusion\":\"failure\",\"failedSteps\":[\"Security scan\"],\"name\":\"SDK, typecheck, and scans\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (1/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"Offline process and server integration\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"quarantine\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (3/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (6/8)\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"tui-node26-smoke\"},{\"conclusion\":\"success\",\"failedSteps\":[],\"name\":\"deterministic (7/8)\"},{\"conclusion\":\"skipped\",\"failedSteps\":[],\"name\":\"live\"},{\"conclusion\":\"skipped\",\"failedSteps\":[],\"name\":\"Native evidence cache (${{ matrix.os }})\"},{\"conclusion\":\"failure\",\"failedSteps\":[\"Require every selected check to succeed\"],\"name\":\"AX Code required checks\"}]\n",
+      "stderr": ""
+    }
+  ],
+  "follow_up": {
+    "checked_at": "2026-11-03T10:04:45.503984+00:00",
+    "checks": [
+      {
+        "command": [
+          "gh",
+          "api",
+          "repos/defai-digital/ax-code/commits?per_page=2",
+          "--jq",
+          "[.[] | {sha,message:.commit.message}]"
+        ],
+        "exit_code": 0,
+        "stdout": "[{\"message\":\"Report actual checkout state in Wasm benchmarks\",\"sha\":\"d4d39fecb53d06838f26a6269889453d556a6ad5\"},{\"message\":\"Preserve braces guards in a registry package patch\",\"sha\":\"287338ee605390c29bf6729127c38164ffead69b\"}]\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "gh",
+          "api",
+          "orgs/defai-digital/packages?package_type=npm&per_page=100",
+          "--jq",
+          "[.[] | select(.name | test(\"diff\")) | {name,html_url}]"
+        ],
+        "exit_code": 0,
+        "stdout": "[]\n",
+        "stderr": ""
+      }
+    ]
+  }
+}

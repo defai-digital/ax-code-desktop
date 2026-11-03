@@ -2,6 +2,9 @@
 
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
 
+- [Canonical diff consumer qualification](diff-qualification-20261103/README.md): isolated fixed-source WASM build,
+  Pierre metadata/revert parity, browser cancellation/recovery, compute measurements and independent-install findings.
+
 - [Selective WebAssembly assessment](wasm-review-20261103/README.md): Grok/Muse source review, current JS/WASM
   highlighter comparison, Markdown workload probes, ownership boundaries, and conditional adoption gates; no migration implemented.
 

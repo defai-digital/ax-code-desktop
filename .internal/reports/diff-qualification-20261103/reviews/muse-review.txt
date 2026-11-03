@@ -1,0 +1,43 @@
+**Verdict**
+
+Sufficient for a gated consumer prototype. Not sufficient for production replacement.
+
+The strong result is narrow: across 215 deterministic fixtures, canonical hunks applied exactly, and Pierre's `processFile(patch,{oldFile,newFile})` produced deep-identical metadata to Desktop's current Pierre path. That supports trying one shared async diff result. It does not qualify the unpublished artifact, Desktop integration, real UI latency, or action semantics beyond single-hunk reject.
+
+**Probe gaps**
+
+- Fixture breadth is limited: tiny atoms, 64-line gap cases, and 120 seeded files of 40–140 lines with repeated vocabulary. Missing or weak: large files, long lines, no-final-newline in nontrivial files, mixed `\n`/`\r`/`\r\n`, lines resembling patch syntax, pure insertion/deletion at boundaries beyond atoms, overlapping/adjacent hunk merging, and alternative minimal diffs with heavy duplication.
+- `identicalRevertsWhenSpansMatch = 215` is inflated by vacuity. When `preview.hunks.length === 0`, `sameReverts` stays equal to `sameSpans` without any revert call. Report hunk-bearing and multi-hunk counts separately.
+- Only single-hunk reject is checked, against a forward complement constructed on `before`. Not tested: multi-select accept/reject, inverse application onto `after`, stale subset coordinates, unordered/overlapping hunks, or Pierre-expanded/context-merged hunks. Product actions must act on the same snapshot, not re-derive coordinates.
+- Staleness is one full-apply mismatch. There is no probe for stale `newStart`, truncated hunks, wrong counts, invalid UTF text, binary/NUL handling at scale, or mid-flight abort. The probe only proves a pre-aborted signal and recovery.
+- Reproducibility is incomplete: the report hashes only the supplied `node.js`, not the WASM binary, Pierre version, tarball provenance, or fixture corpus. The Desktop Pierre dependency is imported from current `node_modules`, so “identical” is version-local.
+- The benchmark is properly caveated, but the system load values are extreme, samples are seven warm Node runs, and it excludes scheduling/render. It supports “no obvious synthetic regression,” not an app-wide speed claim. Notably, the 50k-line dense case exceeds the canonical resource limit, so fallback is not an edge case.
+
+**Coordinate-mapping risk**
+
+The adapter is coordinate conversion, not a copied diff kernel: canonical computes and validates/applies hunks; `patchText` only rewrites empty ranges (`count===0 → start-1`) and serializes unified headers; Pierre only projects metadata.
+
+But that conversion relies on assumptions that need named contract tests:
+
+- canonical `oldStart/newStart` are always one-based, sorted, and non-overlapping;
+- empty ranges never produce a negative unified start;
+- `hunk.lines` can be safely joined with `"\n"` plus a terminal newline, including CRLF and missing-final-newline cases;
+- Pierre parses that serialized patch consistently across versions.
+
+The subset conversion `newStart = oldStart + cumulativeDelta` is correct only under the sorted/non-overlapping assumption. The probe does not assert that assumption explicitly.
+
+**Rollout assessment**
+
+The proposed order is right: artifact delivery first; then one shared async result; same snapshot for render/navigation/actions; bounded scheduling with revision discard; explicit limits/fallback; packaged tests.
+
+Production blockers:
+
+1. Publish a versioned, installable `@ax-code/diff-wasm` artifact with provenance, integrity hashes for JS and WASM, browser/Node exports, and reproducible release tests. The temp tarball build must not become a dependency.
+2. Test the installed artifact inside Desktop, including packaged Chromium, CSP, worker startup/restart, cancellation during work, timeouts, and cache/revision races.
+3. Bound the synchronous Pierre `processFile` projection. Canonical cancellation does not cancel that main-thread step; large accepted diffs can still jank or block.
+4. Define preflight limits by bytes, lines, hunks, and time, with Pierre fallback selected before expensive work. The 50k dense rejection must exercise that path in-product.
+5. Use snapshot identity everywhere: file identity, before/after revision or hash, engine/Pierre versions, and diff options. Discard late results by revision, not by completion order.
+
+Also keep the separate main-CI braces-scan failure separate: the diff job passing does not make the overall tree green.
+
+Conclusion: proceed to a feature-gated prototype against a properly delivered artifact. Do not ship, publish by implication, or claim Desktop performance until packaged-artifact, scheduling, fallback, and multi-hunk action tests pass.
