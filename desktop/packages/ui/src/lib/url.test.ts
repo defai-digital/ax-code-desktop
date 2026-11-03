@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import {
   extractLoopbackUrls,
-  getExternalFaviconUrl,
   getSafeExternalUrl,
   isLoopbackHttpUrl,
   isSafeExternalUrl,
@@ -58,17 +57,6 @@ describe("safe external URL helpers", () => {
     expect(isSafeExternalUrl("file:///Users/test/secret.txt")).toBe(false)
     expect(isSafeExternalUrl("javascript:alert(1)")).toBe(false)
     expect(isSafeExternalUrl("https://user:pass@example.com/docs")).toBe(false)
-  })
-
-  test("does not build favicons for credential-bearing URLs", () => {
-    expect(getExternalFaviconUrl("https://example.com/docs")).toBe("https://icons.duckduckgo.com/ip3/example.com.ico")
-    expect(getExternalFaviconUrl("https://user:pass@example.com/docs")).toBeNull()
-  })
-
-  test("avoids favicon loads blocked by the packaged renderer CSP", () => {
-    vi.stubGlobal("window", { location: { protocol: "app:" } })
-    expect(getExternalFaviconUrl("https://example.com/docs")).toBeNull()
-    expect(getSafeExternalUrl("https://example.com/docs")).toBe("https://example.com/docs")
   })
 
   test("opens mailto and tel URLs through the desktop bridge", async () => {

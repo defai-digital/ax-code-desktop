@@ -46,18 +46,6 @@ export const getSafeExternalUrl = (url: string): string | null => {
 
 export const isSafeExternalUrl = (url: string): boolean => getSafeExternalUrl(url) !== null
 
-export const getExternalFaviconUrl = (url: string): string | null => {
-  // The packaged renderer's img-src does not allow this third-party provider.
-  // Avoid doomed image loads and onError-driven updates for every link.
-  if (typeof window !== "undefined" && window.location.protocol === "app:") return null
-  const parsed = parseUrlSafely(url.trim())
-  if (!parsed || hasUrlUserInfo(parsed) || (parsed.protocol !== "http:" && parsed.protocol !== "https:")) {
-    return null
-  }
-
-  return `https://icons.duckduckgo.com/ip3/${parsed.hostname.toLowerCase()}.ico`
-}
-
 /**
  * Returns true when the URL is an http(s) URL pointing at a loopback host
  * (localhost, 127.0.0.0/8, 0.0.0.0, ::1). Used to decide whether to offer an in-app

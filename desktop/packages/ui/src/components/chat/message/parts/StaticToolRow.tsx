@@ -11,7 +11,7 @@ import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
-import { getExternalFaviconUrl, openExternalUrl } from "@/lib/url"
+import { openExternalUrl } from "@/lib/url"
 import { getSafeToolFetchHref } from "./toolFetchLinks"
 import { areRenderRelevantPartsEqual } from "../renderCompare"
 import { getToolRelativePath, normalizeToolDisplayPath, toAbsoluteToolPath } from "./toolPathDisplay"
@@ -20,29 +20,6 @@ import { truncateToCodeUnits } from "@/lib/textTruncate"
 const TOOL_ROW_TEXT_CLASS = "!text-[length:var(--text-meta)] !leading-4 sm:!leading-6 tracking-normal"
 const TOOL_ROW_TITLE_CLASS = cn("typography-meta font-medium", TOOL_ROW_TEXT_CLASS)
 const TOOL_ROW_DESCRIPTION_CLASS = cn("typography-meta", TOOL_ROW_TEXT_CLASS)
-
-const ExternalLinkFavicon: React.FC<{ href: string }> = ({ href }) => {
-  const [failed, setFailed] = React.useState(false)
-  const faviconUrl = React.useMemo(() => getExternalFaviconUrl(href), [href])
-
-  if (!faviconUrl || failed) {
-    return null
-  }
-
-  return (
-    <span className="inline-flex size-[18px] flex-shrink-0 items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)]">
-      <img
-        src={faviconUrl}
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        decoding="async"
-        className="size-3.5 rounded-sm"
-        onError={() => setFailed(true)}
-      />
-    </span>
-  )
-}
 
 const isActivityRunning = (activity: TurnActivityPart): boolean => {
   if (activity.kind !== "tool") return false
@@ -558,7 +535,6 @@ const StaticToolRowInner: React.FC<{
             const safeHref = getSafeToolFetchHref(url)
             const content = (
               <>
-                {safeHref ? <ExternalLinkFavicon href={safeHref} /> : null}
                 <span className="min-w-0 truncate">{url}</span>
               </>
             )

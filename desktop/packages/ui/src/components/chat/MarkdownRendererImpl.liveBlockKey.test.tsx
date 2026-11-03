@@ -54,6 +54,13 @@ describe("live markdown block identity", () => {
   const blocks = () => Array.from(container.querySelectorAll<HTMLElement>("[data-md-block]"))
   const paragraphs = () => Array.from(container.querySelectorAll<HTMLElement>(".markdown-content p"))
 
+  test.each([true, false])("external links do not request third-party icons while streaming=%s", (streaming) => {
+    renderMarkdown("[Documentation](https://example.com/docs)", streaming)
+    const link = container.querySelector('a[href="https://example.com/docs"]')
+    expect(link?.textContent).toBe("Documentation")
+    expect(link?.querySelector("img")).toBeNull()
+  })
+
   test("a token append keeps the live block mounted, and live to full remounts once", () => {
     renderMarkdown("Hello", true)
     const tail = paragraphs()

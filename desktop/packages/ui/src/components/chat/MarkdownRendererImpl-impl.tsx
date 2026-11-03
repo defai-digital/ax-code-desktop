@@ -12,7 +12,6 @@ import { useI18n } from "@/lib/i18n"
 import { fileReferenceExists, isAbsolutePath, normalizePath, toAbsolutePath } from "./markdownFileReferences"
 
 import {
-  getExternalFaviconUrl,
   isLoopbackHttpUrl,
   isSafeExternalUrl,
   normalizeLoopbackPreviewUrl,
@@ -107,30 +106,6 @@ const useExternalLinkInteractions = ({
       container.removeEventListener("click", handleClick)
     }
   }, [containerRef, enabled])
-}
-
-const ExternalLinkFavicon: React.FC<{ href: string }> = ({ href }) => {
-  // The streaming tail updates this link in place, so a failure belongs to the URL it was reported for.
-  const [failedUrl, setFailedUrl] = React.useState<string | null>(null)
-  const faviconUrl = React.useMemo(() => getExternalFaviconUrl(href), [href])
-
-  if (!faviconUrl || failedUrl === faviconUrl) {
-    return null
-  }
-
-  return (
-    <span className="mr-1 inline-flex size-[18px] items-center justify-center rounded border border-[var(--border)] bg-[var(--interactive-hover)] align-middle">
-      <img
-        src={faviconUrl}
-        alt=""
-        aria-hidden="true"
-        loading="lazy"
-        decoding="async"
-        className="size-3.5 rounded-sm"
-        onError={() => setFailedUrl(faviconUrl)}
-      />
-    </span>
-  )
 }
 
 // Table utility functions
@@ -914,7 +889,6 @@ const buildMarkdownComponents = ({
           target={isExternal ? "_blank" : undefined}
           rel={isExternal ? "noopener noreferrer" : undefined}
         >
-          {targetHref ? <ExternalLinkFavicon href={targetHref} /> : null}
           {children}
         </a>
         {previewHref && onPreviewLoopback ? (
