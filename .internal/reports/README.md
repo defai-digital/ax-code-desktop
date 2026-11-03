@@ -88,3 +88,5 @@ Existing standalone reports and historical evidence packages remain in their ori
 - [Desktop v7.30.12 verified maintenance and publication](RELEASE-2026-11-02-v7.30.12-publication.md)
 
 - [Canonical diff WASM tarball delivery repair](diff-delivery-20261103/README.md).
+
+- [AX Code Desktop 7.30.13 verified publication](RELEASE-2026-11-03-v7.30.13-publication.md).
