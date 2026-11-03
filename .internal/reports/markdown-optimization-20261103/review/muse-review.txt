@@ -1,0 +1,32 @@
+## Verdict
+
+Approve. No concrete defect requiring a fix was found in the patch.
+
+The scope is also correct: retaining Shiki JS is appropriate because no WASM migration passed qualification. The sibling `ax-code-diff` pilot should not be integrated: it is unpublished/private and supports duplicate comparison only, not diff preview or hunks.
+
+## Correctness review
+
+The switch from `marked.lexer(...)` to `new marked.Lexer().blockTokens(...)` is semantically sound for this module’s contract. The only fields consumed from the returned tokens are `type` and `raw`; inline markdown is subsequently parsed by remark from the block text. Therefore, skipping marked’s inline tokenization does not remove syntax handling from the rendering pipeline—it removes a redundant first pass.
+
+Using a fresh lexer for every call is important and correctly handled. Any undrained inline queue, tokenizer state, or reference-link state remains local to that invocation and is discarded. There is no cross-message or cross-render leakage.
+
+The CRLF/CR fix addresses the root cause rather than a symptom. Previously, the cache stored the original text while `stablePrefixLength` was derived from marked token raws, which are already LF-normalized. With CRLF input, those coordinate systems diverged and stable content could be sliced incorrectly. After the patch:
+
+- the input is normalized before cache comparison and slicing;
+- the cache stores that normalized text;
+- stable lengths and token raws are expressed in the same coordinates;
+- later appends are checked against the normalized prefix.
+
+The added split-CRLF case is particularly relevant. A CRLF sequence split between streaming updates is normalized consistently on each call, and the incremental result is compared against from-scratch lexing. Combined with the repeated-prefix CRLF regression test and the reuse-identity assertion, this covers the failure mode that motivated the change.
+
+The `hasOpenFence` change is behaviorally equivalent for the relevant inputs. Taking the substring after the final `\n` in the trimmed text produces the same last line as splitting and selecting the final element, including the no-newline case. It avoids constructing an array of all lines while preserving the existing fence-size and closing-fence checks.
+
+Malformed-input behavior remains acceptable. Block-lexer failures still fall back to a single whole-text live block. Reference definitions retain the existing whole-text fallback, so the renderer is not depending on marked’s inline/link resolution from the partially drained lexer state.
+
+## Residual considerations
+
+There is one maintainability caveat, not a current defect: directly constructing `marked.Lexer` bypasses any future global `marked.use(...)` extensions or non-default marked options that `marked.lexer(...)` might otherwise observe. Under the current stated architecture—default block lexing only, with remark owning inline parsing—that has no effect. It would deserve revisiting only if marked extensions are introduced later.
+
+No performance conclusion should be drawn from this patch alone. It removes duplicate inline tokenization and avoids a full line split in the fence check, but the added normalization is still linear and remark remains the dominant parser cost. The accurate claim is reduced redundant work, not a demonstrated end-to-end speedup.
+
+The reported test history is consistent with that assessment: three targeted failures before the fix demonstrate that the new tests capture the regressions, and the 59 passing focused tests provide reasonable coverage for the changed behavior.

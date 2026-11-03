@@ -1,0 +1,23 @@
+{
+  "name": "muse",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 28.24,
+  "command": [
+    "muse",
+    "exec",
+    "--prompt-file",
+    "/tmp/ax-desktop-markdown-20261103/final-review/plan-prompt.txt",
+    "--preset",
+    "empty",
+    "--disable-write",
+    "--disable-shell",
+    "--disable-web-tools",
+    "--disable-reminders",
+    "--disable-request-user-input",
+    "--no-foreign-personal-context",
+    "--max-model-steps",
+    "2",
+    "--json"
+  ]
+}

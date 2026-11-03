@@ -1,0 +1,28 @@
+{
+  "source_commit": "86fed71500347e9878219c2b98d23abd52d7f8f8",
+  "scope": "Assessment only; product source unchanged",
+  "files": {
+    "README.md": "87ded4a2105693b5b380860dba9ed571a2a90bef8316de4a56416fbdc3272fff",
+    "focused-tests.stdout.gz": "967a5ac55019761492613b59bd7387e757a758ad76848a731a299ff2842a17b6",
+    "grok-retry-prompt.txt.gz": "7aea0d05c9dc241fbe4e654b3bfda08b824e9bb8cb3aaf43378c5969d8e6349f",
+    "grok-retry.receipt.json": "7ba33d2479cedf046ad5647103f64d3353bcce81a97c02435fb14c1372fc0c66",
+    "grok-retry.stderr": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "grok-retry.stdout": "518291daa9a97aa343687259c45da1317a692b37eaf9b15aad529f2c8ca28a77",
+    "grok-review.txt": "a512482122139baef9900127f53b7489d8c0895196c77596c0182830e4055cab",
+    "grok.receipt.json": "8f0bcafdf3bb76b6468688c24a6abd7300116ab221c1acefcdd2ad1a61c71b9c",
+    "grok.stderr": "b3e62995cdc9d267dd575413b26c5eb3c56eb3f54d816fc4ace8f7b91c7d1b1f",
+    "grok.stdout": "62d3ebc7098c3be4a644631a2a42615f9f93fcf0fdf58ab7442bfe637b02231c",
+    "kernel-probe.mts": "74e8aa717b4322ad3c18e41b7002cc41faad759767897d339cea6c31731ad264",
+    "kernel-probe.stdout": "22dfc2e9f7d165fd049382dfce8de5a259ef7255f27b852f49982633cfc53438",
+    "markdown-probe.mts": "da47a3b7720b4610717e90c365018bfe0ec96445e63d1db4af75635cc5b016ea",
+    "markdown-probe.stdout": "ab825c47d11999bccef25369c0d67eab837b90e3930ddf6b307643848eee0583",
+    "muse-review.txt": "380f19acfdb3481bbfa635cdd36fdb168bd360d43c383413f12cac121fb4d88c",
+    "muse.receipt.json": "973bdfb4a9c8bfeec0d4e569b84d130b9edf2c57156230886dad1076abe9e4d9",
+    "muse.stderr": "ffed9f7a5a97a0d9906610e6298c777eff0a4ebd47fbe331ed0e1e1e4ccbc6b2",
+    "muse.stdout": "54cd72cf737b4ae97d2b2c5f7a319b302ec00dae3ebe5eed7a4a2b88bcd7aa34",
+    "prompt.txt.gz": "30d5deb8d8761172dda34eef4da79914c329e7db870487d44c5e2a71a055bdbb",
+    "run-reviewers.py": "75b833d0bbdb6e72dd18f430f1d1027355399bc57dc51eed8f05dddf6b39128a",
+    "sync-hotpath.stdout": "5ca0ce77327a8e73e88a26e7abcc0ef6f2ed96fcdfe7b779563ca75b08adb4c9"
+  },
+  "follow_up": "README follow-up records canonical diff engine availability; original probe and advisory outputs remain unchanged."
+}

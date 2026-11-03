@@ -1,0 +1,15 @@
+
+> ax-coder@7.30.12 typecheck /Users/akiralam/code/ax-code-desktop
+> pnpm --filter "./desktop/packages/*" --if-present run type-check
+
+Scope: 4 of 5 workspace projects
+desktop/packages/electron type-check$ node ../../scripts/check-electron-runtime.mjs
+desktop/packages/akitty-web type-check$ node scripts/verify-source.mjs && tsc --noEmit
+desktop/packages/akitty-web type-check: AkiTTY Web 0.5.2: 49 files verified at 4daf16ce6cbb394a325b0f706779600bba045a83
+desktop/packages/akitty-web type-check: Done
+desktop/packages/electron type-check: Electron runtime syntax check passed (236 file(s)).
+desktop/packages/electron type-check: Done
+desktop/packages/ui type-check$ tsc --noEmit
+desktop/packages/ui type-check: Done
+desktop/packages/web type-check$ tsc --noEmit
+desktop/packages/web type-check: Done

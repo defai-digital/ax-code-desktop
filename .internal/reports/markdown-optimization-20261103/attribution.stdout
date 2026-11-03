@@ -1,0 +1,8 @@
+{"name":"blocks","method":"marked","chars":501500,"length":25500,"ms":95.39245799999992}
+{"name":"blocks","method":"blockOnly","chars":501500,"length":25500,"ms":44.00220800000011}
+{"name":"blocks","method":"remarkWhole","chars":501500,"length":17000,"ms":1567.1425}
+{"name":"blocks","method":"remarkPerBlock","chars":501500,"length":17000,"ms":856.8272500000003}
+{"name":"fence","method":"marked","chars":512514,"length":1,"ms":0.6784999999999854}
+{"name":"fence","method":"blockOnly","chars":512514,"length":1,"ms":1.002874999998312}
+{"name":"fence","method":"remarkWhole","chars":512514,"length":1,"ms":49.50737499999923}
+{"name":"fence","method":"remarkPerBlock","chars":512514,"length":1,"ms":53.36358399999881}

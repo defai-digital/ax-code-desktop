@@ -1,0 +1,221 @@
+
+> @openchamber/ui@7.30.12 test /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+> node scripts/run-tests.mjs src/components/chat/markdownStreamBlocks.test.ts
+
+
+ RUN  v4.1.12 /Users/akiralam/code/ax-code-desktop/desktop/packages/ui
+
+ ❯ src/components/chat/markdownStreamBlocks.test.ts (17 tests | 3 failed) 135ms
+     × keeps normalized cache offsets aligned for "\r\n" line endings 15ms
+     × does not parse inline tokens that the Markdown renderer will parse again 2ms
+     × handles a CRLF pair split across streaming updates 4ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/chat/markdownStreamBlocks.test.ts > buildLiveMarkdownBlocks > keeps normalized cache offsets aligned for "\r\n" line endings
+AssertionError: expected [ { …(4) }, { …(4) }, { …(4) }, …(21) ] to deeply equal [ { …(4) }, { …(4) }, { …(4) }, …(18) ]
+
+- Expected
++ Received
+
+@@ -158,11 +158,33 @@
+      "mode": "full",
+      "raw": "Paragraph",
+      "src": "Paragraph",
+    },
+    {
+-     "key": "test-key:20:live:10:e7c31f8f",
++     "key": "test-key:20:full:9:5293aed9",
++     "mode": "full",
++     "raw": "Paragraph",
++     "src": "Paragraph",
++   },
++   {
++     "key": "test-key:21:full:11:8e6f2e84",
++     "mode": "full",
++     "raw": "# Heading
++
++ ",
++     "src": "# Heading
++
++ ",
++   },
++   {
++     "key": "test-key:22:full:9:5293aed9",
++     "mode": "full",
++     "raw": "Paragraph",
++     "src": "Paragraph",
++   },
++   {
++     "key": "test-key:23:live:10:e7c31f8f",
+      "mode": "live",
+      "raw": "Tail grows",
+      "src": "Tail grows",
+    },
+  ]
+
+ ❯ src/components/chat/markdownStreamBlocks.test.ts:76:25
+     74|     const first = buildLiveMarkdownBlocks(prefix, BASE_KEY)
+     75|     const next = buildLiveMarkdownBlocks(prefix + " grows", BASE_KEY, …
+     76|     expect(next.blocks).toEqual(fromScratch(prefix + " grows"))
+       |                         ^
+     77|     expect(next.blocks[0]).toBe(first.blocks[0])
+     78|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  src/components/chat/markdownStreamBlocks.test.ts > buildLiveMarkdownBlocks > does not parse inline tokens that the Markdown renderer will parse again
+AssertionError: expected "inlineTokens" to not be called at all, but actually been called 5 times
+
+Received:
+
+  1st inlineTokens call:
+
+    Array [
+      "**Heading**",
+      Array [
+        Object {
+          "raw": "**Heading**",
+          "text": "Heading",
+          "tokens": Array [
+            Object {
+              "escaped": false,
+              "raw": "Heading",
+              "text": "Heading",
+              "type": "text",
+            },
+          ],
+          "type": "strong",
+        },
+      ],
+    ]
+
+  2nd inlineTokens call:
+
+    Array [
+      "Heading",
+    ]
+
+  3rd inlineTokens call:
+
+    Array [
+      "Text with [a link](https://example.com) and `code`.",
+      Array [
+        Object {
+          "escaped": false,
+          "raw": "Text with ",
+          "text": "Text with ",
+          "type": "text",
+        },
+        Object {
+          "href": "https://example.com",
+          "raw": "[a link](https://example.com)",
+          "text": "a link",
+          "title": null,
+          "tokens": Array [
+            Object {
+              "escaped": false,
+              "raw": "a link",
+              "text": "a link",
+              "type": "text",
+            },
+          ],
+          "type": "link",
+        },
+        Object {
+          "escaped": false,
+          "raw": " and ",
+          "text": " and ",
+          "type": "text",
+        },
+        Object {
+          "raw": "`code`",
+          "text": "code",
+          "type": "codespan",
+        },
+        Object {
+          "escaped": false,
+          "raw": ".",
+          "text": ".",
+          "type": "text",
+        },
+      ],
+    ]
+
+  4th inlineTokens call:
+
+    Array [
+      "a link",
+    ]
+
+  5th inlineTokens call:
+
+    Array [
+      "Tail",
+      Array [
+        Object {
+          "escaped": false,
+          "raw": "Tail",
+          "text": "Tail",
+          "type": "text",
+        },
+      ],
+    ]
+
+
+Number of calls: 5
+
+ ❯ src/components/chat/markdownStreamBlocks.test.ts:87:26
+     85|       expect(blocks).toHaveLength(3)
+     86|       expect(blocks[1].raw).toContain("[a link](https://example.com)")
+     87|       expect(inline).not.toHaveBeenCalled()
+       |                          ^
+     88|     } finally {
+     89|       inline.mockRestore()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  src/components/chat/markdownStreamBlocks.test.ts > buildLiveMarkdownBlocks > handles a CRLF pair split across streaming updates
+AssertionError: expected [ { …(4) }, { …(4) }, { …(4) }, …(3) ] to deeply equal [ { …(4) }, { …(4) }, { …(4) }, …(2) ]
+
+- Expected
++ Received
+
+@@ -38,11 +38,17 @@
+  - second item with [a link](https://example.com)
+    - nested item
+  - third item",
+    },
+    {
+-     "key": "test-key:4:live:18:b0fb9527",
++     "key": "test-key:4:full:1:e80c2f78",
++     "mode": "full",
++     "raw": "m",
++     "src": "m",
++   },
++   {
++     "key": "test-key:5:live:18:b0fb9527",
+      "mode": "live",
+      "raw": "1. ordered one
+  2.
+  ",
+      "src": "1. ordered one
+
+ ❯ expectIncrementalMatchesScratch src/components/chat/markdownStreamBlocks.test.ts:28:32
+     26|     const incremental = buildLiveMarkdownBlocks(partial, BASE_KEY, cac…
+     27|     cache = incremental.cache
+     28|     expect(incremental.blocks).toEqual(fromScratch(partial))
+       |                                ^
+     29|   }
+     30| }
+ ❯ src/components/chat/markdownStreamBlocks.test.ts:100:5
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 14 passed (17)
+   Start at  04:17:37
+   Duration  921ms (transform 273ms, setup 252ms, import 36ms, tests 135ms, environment 406ms)
+
+ ELIFECYCLE  Test failed. See above for more details.

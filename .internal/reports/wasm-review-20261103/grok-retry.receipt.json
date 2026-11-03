@@ -1,0 +1,18 @@
+{
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 223.13044095039368,
+  "command": [
+    "grok",
+    "--prompt-file",
+    "/tmp/ax-desktop-wasm-review-20261103/grok-retry-prompt.txt",
+    "--tools",
+    "",
+    "--no-subagents",
+    "--disable-web-search",
+    "--max-turns",
+    "3",
+    "--output-format",
+    "json"
+  ]
+}

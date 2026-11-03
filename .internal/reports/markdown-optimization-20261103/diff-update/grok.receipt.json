@@ -1,0 +1,19 @@
+{
+  "name": "grok",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 132.34,
+  "command": [
+    "grok",
+    "--prompt-file",
+    "/tmp/ax-desktop-markdown-20261103/diff-update/prompt.txt",
+    "--tools",
+    "",
+    "--no-subagents",
+    "--disable-web-search",
+    "--max-turns",
+    "3",
+    "--output-format",
+    "json"
+  ]
+}

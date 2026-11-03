@@ -1,0 +1,836 @@
+{
+  "headings": 40,
+  "headingTexts": [
+    "Markdown section 0",
+    "Markdown section 1",
+    "Markdown section 2",
+    "Markdown section 3",
+    "Markdown section 4",
+    "Markdown section 5",
+    "Markdown section 6",
+    "Markdown section 7",
+    "Markdown section 8",
+    "Markdown section 9",
+    "Markdown section 10",
+    "Markdown section 11",
+    "Markdown section 12",
+    "Markdown section 13",
+    "Markdown section 14",
+    "Markdown section 15",
+    "Markdown section 16",
+    "Markdown section 17",
+    "Markdown section 18",
+    "Markdown section 19",
+    "Markdown section 20",
+    "Markdown section 21",
+    "Markdown section 22",
+    "Markdown section 23",
+    "Markdown section 24",
+    "Markdown section 25",
+    "Markdown section 26",
+    "Markdown section 27",
+    "Markdown section 28",
+    "Markdown section 29",
+    "Markdown section 30",
+    "Markdown section 31",
+    "Markdown section 32",
+    "Markdown section 33",
+    "Markdown section 34",
+    "Markdown section 35",
+    "Markdown section 36",
+    "Markdown section 37",
+    "Markdown section 38",
+    "Markdown section 39"
+  ],
+  "worker": {
+    "requests": [
+      {
+        "id": 1,
+        "live": true,
+        "characters": 23761
+      },
+      {
+        "id": 2,
+        "live": true,
+        "characters": 23778
+      },
+      {
+        "id": 3,
+        "live": false,
+        "characters": 23778
+      }
+    ],
+    "responses": [
+      {
+        "id": 1,
+        "blocks": 81,
+        "stablePrefixCount": 0,
+        "elapsedMs": 44.20000000298023
+      },
+      {
+        "id": 2,
+        "blocks": 1,
+        "stablePrefixCount": 80,
+        "elapsedMs": 0.5
+      },
+      {
+        "id": 3,
+        "blocks": 1,
+        "stablePrefixCount": 0,
+        "elapsedMs": 16.30000001192093
+      }
+    ]
+  },
+  "controls": [
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:0",
+      "name": "Open sessions",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:1",
+      "name": "Open session switcher",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:2",
+      "name": "Copy session ID ses_e2e_scripted",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:3",
+      "name": "Run Auto-discover",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:4",
+      "name": "Choose project action",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:5",
+      "name": "Open in Finder",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:6",
+      "name": "Choose app to open",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:7",
+      "name": "Open instance, usage and MCP (current: Local)",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:8",
+      "name": "Connected",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:9",
+      "name": "Needs you, 2 waiting",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:10",
+      "name": "Activity, 1 unread",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:11",
+      "name": "Notifications",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:12",
+      "name": "Project browser (WebMCP): Compatibility unknown",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:13",
+      "name": "Toggle right sidebar",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:14",
+      "name": "New session⌘ + N",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:15",
+      "name": "Add project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:16",
+      "name": "New multi-run",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:17",
+      "name": "Scheduled tasks",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "true",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:18",
+      "name": "Search sessions",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:19",
+      "name": "Select sessions",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:20",
+      "name": "Session display mode",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:21",
+      "name": "Scheduled",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "true",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:22",
+      "name": "New scheduled task",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:23",
+      "name": "Live",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "true",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:24",
+      "name": "Review the resultJust nowShared project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:25",
+      "name": "Archive",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:26",
+      "name": "Session menu",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:27",
+      "name": "Review the resultJust nowShared project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/other-project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:28",
+      "name": "Archive",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:29",
+      "name": "Session menu",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:30",
+      "name": "Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "true",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:31",
+      "name": "Project menu · Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:32",
+      "name": "New session · Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:33",
+      "name": "Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/other-project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "true",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:34",
+      "name": "Project menu · Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/other-project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:35",
+      "name": "New session · Shared Project · /private/var/folders/_k/7sc0bwc55zq_t81br51f6xn40000gn/T/ax-code-desktop-e2e-lUczx7/other-project",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:36",
+      "name": "About AX Code",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:37",
+      "name": "Color mode: System",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:38",
+      "name": "Shortcuts",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:39",
+      "name": "Settings",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:40",
+      "name": "Workspace",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:41",
+      "name": "Mission Control",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:42",
+      "name": "Session grid",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:43",
+      "name": "Review changes",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:44",
+      "name": "Open this session in a separate window",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:45",
+      "name": "Revert to this message",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:46",
+      "name": "Edit this message and rerun",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:47",
+      "name": "Fork from this message",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:48",
+      "name": "Copy message text",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:49",
+      "name": "Copy message text",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:50",
+      "name": "",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:51",
+      "name": "Mark response as helpful",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:52",
+      "name": "Mark response as needing improvement",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:53",
+      "name": "",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:54",
+      "name": "Start new session from this answer",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:55",
+      "name": "Start new multi-run from this answer",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:56",
+      "name": "Message input",
+      "role": "textarea",
+      "disabled": false,
+      "fillable": true,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:57",
+      "name": "Add attachment",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:58",
+      "name": "Toggle focus mode",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:59",
+      "name": "Work mode: Agent",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:60",
+      "name": "Execution mode: Manual",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:61",
+      "name": "Sandbox: on",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:62",
+      "name": "Enable permission auto-accept",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:63",
+      "name": "Not selected",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:64",
+      "name": "Select Agent",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:65",
+      "name": "Send message",
+      "role": "button",
+      "disabled": true,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:66",
+      "name": "Tools: Show tool labels",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": "false",
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:67",
+      "name": "Changes",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:68",
+      "name": "Files",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:69",
+      "name": "Git",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:70",
+      "name": "Issues & PRs",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:71",
+      "name": "Plan",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:72",
+      "name": "Context",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:73",
+      "name": "Wiki graph",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    },
+    {
+      "ref": "bed6dcf2-a964-41cc-8fba-d39b8b0d3201:4:74",
+      "name": "Terminal",
+      "role": "button",
+      "disabled": false,
+      "fillable": false,
+      "selected": null,
+      "expanded": null,
+      "checked": null
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+Advisory review only — no files changed.
+
+**Verdict:** The revised plan is directionally right: reuse the canonical Rust kernel, do not build a second one. But a Wasm-consuming Desktop prototype is **not dependency-ready under your stated rules**. Canonical package delivery comes first. Today you can only build preparatory scaffolding (an internal port with the Pierre adapter, a comparison corpus, instrumentation) that imports nothing from AX Code.
+
+**Why delivery blocks it**
+- [`package.json`](/Users/akiralam/code/ax-code-desktop) (as supplied) has `"private": true`, depends on `@ax-code/util: workspace:*`, and `dist/`+`wasm/` are git-ignored build outputs. Nothing independently installable exists.
+- Your rules forbid sibling-source and ignored-`dist` imports and duplicate runtimes — precisely the only three ways to consume it today.
+- Required first deliverable from the owner: a pinned, installable artifact (registry package or versioned tarball with integrity hash) with `workspace:*` removed or bundled, a `prepack` build, the `NOTICE` (BSD-3-Clause jsdiff), and a frozen `version: 1` protocol. Also confirm the worker asset story: [`browser.ts`](/Users/akiralam/code/ax-code-desktop) loads `./browser-worker.js` via `new URL(..., import.meta.url)`, which must survive Desktop's bundler/packager, plus `application/wasm` MIME and CSP Wasm permission in the packaged app, not just dev.
+
+**API-to-UI mapping issues**
+- Desktop is synchronous everywhere: `getFileHunks()` feeds `useMemo` in [DiffHunkReviewList.tsx](/Users/akiralam/code/ax-code-desktop:62) and an effect in [usePublishReviewHunks.ts](/Users/akiralam/code/ax-code-desktop:30). The engine is async, **one in-flight call per engine, concurrent calls reject without queueing**, and abort terminates the worker. Many files mounting at once will collide; you need a single-flight scheduler with coalescing/debounce, a content-hash cache (existing 64-entry hash cache is a good seed), and caller-side owner/revision tokens — the API's request IDs are internal and do not discard stale *UI* results for you.
+- Cancelling by worker termination makes per-keystroke cancel expensive (Wasm recompile on recreate). Cancel only superseded *queued* work eagerly; terminate in-flight work sparingly.
+- Pierre still parses internally to render. Until the renderer consumes canonical hunks, a "shared snapshot" only unifies list/navigation/revert — rendering stays a second parse. Shadow-mode comparison is the honest prototype scope.
+- Field mapping needs the unpublished `protocol.ts`: Pierre rows use `hunkSpecs`, `additionLines`/`deletionLines` counts, `additionStart`. Canonical hunks are one-based **including empty ranges** with fixed 4-line context — insertion-at-EOF and pure-deletion empty ranges are the edge cases most likely to misalign headers, counts, and focus anchors.
+- Caps (16 MiB/payload, 4,096 hunks, 200,000 lines) are below "whole file" assumptions; files Desktop currently renders via Pierre beyond those caps need an explicit Pierre fallback or a defined placeholder path, not a rejection surfaced as "no hunks."
+
+**Subset/reverse-apply correctness — the hard part**
+- `applyHunks` is forward-only. Desktop's revert is the inverse: take `modified`, undo one hunk. The README's subset note ("rebasing its `newStart`") covers forward subsets on the *original*, not reverse application. You must construct swapped hunks and rebase them in modified-side coordinates (apply bottom-up or recompute offsets), then prove: strict context matching still succeeds when neighbouring hunks' 4-line contexts overlap the reverted region; CRLF files use raw mode only (`normalize: true` hunks applied to raw CRLF source will correctly-but-uselessly reject); missing-final-newline round-trips byte-exactly.
+- Segmentation risk is real: if the Rust kernel segments differently from Pierre/jsdiff, hunk *indices* shift, focus anchors drift, and Git staging — matched today only by `candidate.newStart === hunk.additionStart` — silently loses actions or, worse, matches a same-start/different-extent hunk. Strengthen identity to `(oldStart, oldLines, newStart, newLines)` plus content hash before any migration, and treat "no match" (current safe behaviour) as the only acceptable mismatch outcome.
+- Keep the host-side guard you already planned: verify the on-disk snapshot hash immediately before writing a revert, since `applyHunks`' atomic rejection only validates against the string you pass it.
+
+**Measurements required before replacing Pierre** (none exist yet; do not quote any)
+1. Segmentation agreement on a real corpus (CRLF, Unicode/emoji, no-final-newline, empty-side, Markdown block cases from your completed fix, large files near caps): % files with identical hunk boundaries.
+2. Byte-exact round-trips: full apply, forward subsets, single-hunk reverse, across that corpus — zero-diff requirement.
+3. Staging-match rate vs. current Pierre behaviour on real `git diff` output.
+4. Latency: cold worker start + Wasm compile, warm `diff` p50/p95 by file size, termination/recreate cost; UI long-task impact vs. today's synchronous parse.
+5. Rejection/fallback behaviour at each cap.
+
+**Sequencing:** (1) owner ships the pinned artifact; (2) shadow read-only worker preview comparing against Pierre on the corpus; (3) migrate revert to reverse-apply behind snapshot checks once (2) shows boundary parity; (4) staging last, only after identity matching is proven.

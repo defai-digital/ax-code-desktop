@@ -1,0 +1,17 @@
+**Verdict:** The lifetime claim is sound for the new lexer, with one fallback caveat. I find no concrete correctness defect in the final change under the stated repository conditions.
+
+The spread creates invocation-owned top-level `options`, and explicitly passing `tokenizer: undefined` makes the constructor allocate a new `Tokenizer` instead of reusing `marked.defaults.tokenizer`. Setting `tokenizer.lexer = this` therefore creates only a local cycle:
+
+`lexer → options/tokenizer → lexer`, plus `inlineQueue` entries before clearing.
+
+JavaScript garbage collection handles unreachable cycles, so neither success nor a `blockTokens` throw leaves that cycle reachable from a shared root. Clearing `inlineQueue` additionally drops pending inline source strings promptly. Returned block tokens still retain their `raw` text while production holds them, which is expected.
+
+The regression is meaningful: because the separately constructed `other` lexer uses the shared tokenizer, checking that `other.options.tokenizer.lexer === other` and that a snapshot of its pending queue is unchanged proves production did not rebind or drain the shared tokenizer.
+
+Residual caveats:
+
+- The options copy is shallow. Nested defaults objects remain shared. This is not a demonstrated bug in the installed implementation or current repo usage, but it is not complete deep isolation.
+- If the whole-text error fallback literally calls global `marked.lexer(text)`, that fallback can again leave its queue on the shared tokenizer until another global lex overwrites it. The precise claim should therefore be: the new local lexer retains nothing globally; the retained fallback has the old shared-retention behavior on throw paths.
+- Suffix parsing still depends on `stablePrefixLength` being a genuine block boundary; the retained parity checks are the right guard.
+
+No issue with consuming only `type`/`raw` after discarding the inline queue.

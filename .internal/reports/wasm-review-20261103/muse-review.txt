@@ -1,0 +1,119 @@
+# AX Code Desktop — Selective WebAssembly Migration Assessment
+
+**Repository state reviewed:** HEAD `86fed71500347e9878219c2b98d23abd52d7f8f8`, version 7.30.12, Node 26.5.0.
+
+**Verdict:** No broad WASM migration is justified by the supplied evidence. At most two gated pilots are worth investigating, in this order:
+
+1. Enabling an **upstream-supported** WASM highlighter path inside the existing Pierre/Shiki diff workers — conditional on resolving a CSP discrepancy in the source comment.
+2. A markdown parse kernel **inside the existing markdown worker** — conditional on profiling proving parse time, not AST transfer or main-thread rendering, dominates.
+
+Everything else is either already WASM, already adequately bounded in JS/workers, owned by another component, or structurally unsuited to a WASM boundary. No speedup is claimed anywhere below; no profiling data was supplied.
+
+---
+
+## 1. Evidence status: facts vs. hypotheses
+
+**Source facts (from the excerpts, not measurements):**
+
+- Markdown parsing is already worker-isolated, incremental, and bounded. [markdownWorkerParser.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerParser.ts:13) retains only the last successful live request, reuses stable block references, and re-parses only the live tail. [markdownWorkerClient.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerClient.ts:13) enforces 16 pending jobs, 4,000,000 retained characters, a 5,000 ms timeout, a 3-failure limit, and a 15,000 ms recovery cooldown; poison jobs are settled once and never retried ([markdownWorkerClient.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerClient.ts:137)).
+- The parsed MDAST is consumed on the main thread by ReactMarkdown via the `remarkPreparsed` injection in [PreparedMarkdown.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/PreparedMarkdown.tsx:12), where HAST conversion, `rehypeKatex`, URL filtering, and custom components still run in JS.
+- Diff rendering is already worker-pooled through `@pierre/diffs`, with `preferredHighlighter: "shiki-js"` and a comment stating packaged `app://` workers inherit a CSP that disallows WebAssembly compilation ([DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:70)). Large content is already degraded above 500,000 bytes ([PierreDiffViewer.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/views/PierreDiffViewer.tsx:505)).
+- The terminal is already WASM: [ghostty.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/akitty-web/lib/ghostty.ts:362) writes UTF-8 directly into a reusable 1 MiB-capped WASM buffer via `TextEncoder.encodeInto`, and the RenderState API batches viewport reads to avoid per-row boundary crossings ([ghostty.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/akitty-web/lib/ghostty.ts:441)).
+- Mermaid is already serialized to one active job, cached with character bounds, and split between a worker renderer and a DOM-dependent official renderer ([mermaidRenderer.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/mermaidRenderer.ts:131)).
+
+**Hypotheses (unproven, requiring measurement):**
+
+- That markdown parse time in the worker is a user-visible bottleneck at all. The streaming coalescing, stable-prefix reuse, and tail-only re-parse may already have reduced it below perception.
+- That fuzzy search ([fuzzySearch.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/search/fuzzySearch.ts:88)) runs over corpora large enough for a WASM kernel to overcome string marshaling.
+- That `partSnapshotKey`'s `JSON.stringify` comparison in [materialization.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/sync/materialization.ts:39) is hot during streaming. This is a JS-side optimization question regardless (see §4).
+
+**Uncertainties:** Files over 200 lines were sampled around kernels. The middle of `materialization.ts`, the render loop of `terminal.ts`, and the CSP configuration itself were not supplied. Node 26.5.0 does not establish the renderer/Chromium WASM feature level. Rankings below are provisional on those gaps.
+
+---
+
+## 2. Ranked candidates
+
+### Candidate 1 (conditional pilot): WASM highlighting inside the existing diff workers
+
+- **Why it ranks first:** Tokenization input/output is regular (text in, token spans out), the work already sits in workers ([DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:50)), pool failure already degrades gracefully by clearing the cached promise for retry ([DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:96)), and large-file degradation thresholds show the maintainers already treat highlighting cost as real.
+- **Hard precondition:** The comment at [DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:70) claims the packaged CSP disallows WASM compilation, while your premise states production CSP permits `wasm-unsafe-eval`. These must be reconciled against the actual served CSP for the `app://` worker origin before any work. If the comment is accurate for packaged builds, this candidate is blocked, not merely risky.
+- **Constraint:** This means selecting an upstream Pierre/Shiki WASM option, never forking a grammar engine. Grammar/theme parity with `shiki-js` output must be golden-tested per preloaded language ([DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:13)).
+
+### Candidate 2 (conditional pilot): Markdown parse kernel inside the existing worker
+
+- **Why only second:** The worker seam is ideal — bounded input (1,000,000 code-unit cap), bounded failure (timeout, failure limit, cooldown), and a plain-text fallback already exists via `block.plain` in [PreparedMarkdown.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/PreparedMarkdown.tsx:42). But the kernel's output is an MDAST tree that must cross back as structured data, and the expensive downstream stages (HAST conversion, KaTeX, React rendering) stay in JS. If transfer plus rendering dominate, a faster parser changes nothing user-visible.
+- **Semantics risk:** Exact parity with `unified().use(remarkParse).use(remarkGfm).use(remarkMath)` ([markdownWorkerParser.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerParser.ts:9)) — GFM tables, task lists, math spans, reference definitions invalidating stable blocks, position data — is the real cost. A non-micromark-compatible WASM parser will diverge on edge inputs, and the stable-prefix reference-equality protocol ([markdownWorkerParser.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerParser.ts:70)) assumes identical reuse decisions.
+
+### Candidate 3 (weak, likely unnecessary): Batched fuzzy scoring
+
+- The batch paths ([fuzzySearch.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/search/fuzzySearch.ts:40)) already short-circuit substring matches before invoking Fuse. The single-target path constructs a `Fuse` instance per call ([fuzzySearch.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/search/fuzzySearch.ts:31)), which is a JS-level inefficiency to fix in JS. A WASM Bitap kernel only wins if real corpora are large and queries frequent — both unknown. Fuse's threshold/distance/score ordering semantics would need exact replication, including tie order after `scored.sort` ([fuzzySearch.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/lib/search/fuzzySearch.ts:154)).
+
+---
+
+## 3. No-go areas
+
+- **Terminal emulation.** Already WASM via the pinned canonical AkiTTY Web 0.5.2 import (akitty `4daf16ce`). Writing a second VT parser, or optimizing around Ghostty's upstream, duplicates the terminal upstream. The bounded JS-side OSC scanner ([terminal.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/akitty-web/lib/terminal.ts:45)) is small and intentionally capped; leave it.
+- **Mermaid official rendering.** It depends on DOM measurement, global `mermaid.initialize` state, and in-page containers ([mermaidOfficialRenderer.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/mermaidOfficialRenderer.ts:7)). It cannot move to WASM without reimplementing Mermaid. The existing one-active-job serialization already bounds it.
+- **Sync materialization and optimistic merging.** [materialization.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/sync/materialization.ts:43) operates over live SDK `Message`/`Part` object graphs with identity and structural-sharing semantics. Serializing those to a WASM boundary per event would pay full JSON encode/decode to save a comparison — the wrong direction. Optimize in JS if profiling indicts it (e.g., cheaper snapshot keys for streaming `text`/`output` fields, [materialization.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/sync/materialization.ts:7)).
+- **Wiki graph computation, repository intelligence, coding tools.** Owned by the runtime; the desktop only invokes `desktop_open_wiki_viewer` and renders status ([WikiGraphView.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/views/WikiGraphView.tsx:83)). Reimplementing any of this in desktop WASM duplicates the runtime.
+- **Durable runs and credentials/policy.** Owned by AX Agent and AX Trust respectively. Out of scope for performance migration entirely; introducing a second policy or credential path in the desktop would be a security regression, not an optimization.
+- **React rendering, HAST conversion, KaTeX layout.** DOM-coupled by construction ([PreparedMarkdown.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/PreparedMarkdown.tsx:45)).
+
+---
+
+## 4. ABI, string, and AST transfer costs
+
+These costs are the main reason the candidate list is short:
+
+- **Strings:** JS strings are UTF-16; WASM memory is bytes. Every text kernel pays UTF-8 encode in and decode out, plus a copy — Ghostty's wrapper demonstrates the discipline required (reusable buffer, `encodeInto`, explicit 1 MiB cap, [ghostty.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/akitty-web/lib/ghostty.ts:362)). The markdown parser even documents sliced-string retention hazards and copies UTF-16 units to preserve unfinished surrogate pairs ([markdownWorkerParser.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerParser.ts:35)). A WASM markdown kernel must define behavior for lone surrogates in the live tail explicitly; UTF-8 encoders typically replace them, which would corrupt streaming state.
+- **ASTs:** MDAST is a heterogeneous, position-annotated object tree. Crossing WASM means a bespoke binary or JSON encoding of every node type from remark-gfm and remark-math, string interning for values, and reconstruction of plain JS objects on return — then the same structured-clone-free handoff to ReactMarkdown. This encoding layer is new code that must track upstream mdast evolution. Diff tokens are far more regular (flat span arrays), which is why Candidate 1 outranks Candidate 2.
+- **Call granularity:** WASM wins on coarse, batched calls. Per-block or per-row chatter loses. Any pilot must transfer whole documents and return whole results, reusing preallocated buffers in the Ghostty style.
+
+## 5. Semantics compatibility requirements
+
+- Markdown: byte-for-byte MDAST parity (modulo object identity) against the current `parseSyntax` across a golden corpus — GFM tables/footnotes/strikethrough, math, reference definitions, malformed nesting that currently throws and is caught by `MarkdownRenderBoundary` ([PreparedMarkdown.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/PreparedMarkdown.tsx:19)). Divergence is a rendering-correctness bug, not a performance tradeoff.
+- Diff: identical token boundaries and theme scopes per language; the current full-string `fnv1a32` cache key ([PierreDiffViewer.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/views/PierreDiffViewer.tsx:105)) exists precisely because a stale-highlight bug already happened once with sampled keys.
+- Fuzzy: identical match sets and score ordering, including Fuse's `minMatchCharLength: 2` behavior in the ranking path.
+
+## 6. Bounded failure recovery (required pattern for any pilot)
+
+Reuse the existing contracts rather than inventing new ones:
+
+- Hard timeout with worker termination (5,000 ms markdown model); a WASM trap or OOM must terminate and respawn the instance — a trapped instance is never reused.
+- Poison input settled once, never retried; repeated failures trip a cooldown (3 failures / 15,000 ms model in [markdownWorkerClient.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerClient.ts:123)).
+- Response validation before acceptance, as in the `stablePrefixCount` checks ([markdownWorkerClient.ts](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/components/chat/markdownWorkerClient.ts:144)); a malformed WASM result fails the job, not the session.
+- Permanent JS fallback: plain-text markdown rendering and `shiki-js` highlighting remain shippable paths, selected by capability failure, not by user setting.
+
+## 7. Deployment and CSP
+
+- `wasm-unsafe-eval` permits WASM compilation without permitting JS `eval`; that is sufficient in principle, but the [DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:70) comment asserts the opposite for packaged `app://` workers. **Resolving this discrepancy against the real packaged CSP — for both page and worker contexts — is gate zero.** If the comment reflects a worker-specific policy gap, that is a small CSP fix, not a migration project.
+- WASM assets must be lazy-loaded off the first-paint path; the diff worker payload is already ~7 MB and deliberately idle-warmed ([DiffWorkerProvider.tsx](/Users/akiralam/code/ax-code-desktop/desktop/packages/ui/src/contexts/DiffWorkerProvider.tsx:170)). Any new `.wasm` artifact needs a size budget and the same treatment.
+- Provenance: new WASM must come from pinned upstream artifacts (as AkiTTY Web already is), with the commit/version recorded. No vendored hand-built binaries without a reproducible build story.
+
+## 8. Alternatives that should be exhausted first
+
+In expected value order:
+
+1. **Profile.** None of the candidates currently rests on a measurement.
+2. **Incremental JS.** E.g., cheaper part-snapshot keys in materialization; avoiding per-call `Fuse` construction in `matchesFuzzyQuery`; these are same-day changes with zero ABI surface.
+3. **Existing workers, better batching.** The markdown and diff seams already exist; coalescing and stable-prefix reuse already embody this. Verify they behave as written before adding a kernel.
+4. **Delegate to the native runtime.** Repository-scale search, indexing, or graph work belongs to the runtime's existing services (as the wiki already does), where it can use native code with no ABI tax — not to a desktop WASM reimplementation.
+5. **WASM only where the data is regular, the call is coarse, the semantics are upstream-owned, and a JS fallback already exists.** Today that describes, at most, Candidates 1 and 2.
+
+## 9. Proposed benchmark gates (decision criteria, not results)
+
+**Gate 0 — CSP and provenance:** Packaged build compiles and instantiates the candidate WASM in a worker under production CSP. Fail = stop.
+
+**Gate 1 — Attribution:** Instrument the current JS paths first. For markdown, split worker time into parse vs. block projection vs. transfer, and main-thread time into HAST/KaTeX/render, across corpora at the 16,384 threshold, ~100k, and the 1,000,000 cap, including streaming-tail updates. Proceed only if the targeted kernel is the dominant term at p95.
+
+**Gate 2 — Parity:** 100% golden-corpus parity (§5), including pathological nesting and lone-surrogate streaming tails. Any divergence = stop.
+
+**Gate 3 — End-to-end benefit:** Require a pre-registered minimum improvement in **end-to-end p95 latency** (not kernel microbenchmarks) — I suggest ≥25% on the Gate 1 corpora — with no p50 regression >5%, peak memory within +10%, and cold-load/bundle cost inside an agreed budget. Kernel-only wins that vanish end-to-end do not ship.
+
+**Gate 4 — Failure drills:** Kill the worker mid-parse, feed a trapping input, and exceed memory; recovery must match the existing timeout/cooldown/fallback behavior with no session loss.
+
+---
+
+## Bottom line
+
+Treat WASM as a narrow tool this codebase already uses correctly where it belongs (Ghostty). Fund Gate 0 and Gate 1 measurement; fund Candidate 1 only if both pass and upstream offers the switch; treat Candidate 2 as a research spike strictly behind its attribution gate. Spend the near-term performance budget on incremental JS in materialization and fuzzy search, and leave runtime-, agent-, and trust-owned work in their owners.

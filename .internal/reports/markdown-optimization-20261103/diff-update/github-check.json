@@ -1,0 +1,85 @@
+{
+  "checked_at": "2026-11-03T09:39:56.067095+00:00",
+  "checks": [
+    {
+      "name": "packages",
+      "exit_code": 0,
+      "command": [
+        "gh",
+        "api",
+        "orgs/defai-digital/packages?package_type=npm&per_page=100",
+        "--jq",
+        "[.[] | {name,visibility,html_url}]"
+      ]
+    },
+    {
+      "name": "runs",
+      "exit_code": 0,
+      "command": [
+        "gh",
+        "run",
+        "list",
+        "--repo",
+        "defai-digital/ax-code",
+        "--limit",
+        "12",
+        "--json",
+        "databaseId,workflowName,headSha,status,conclusion,displayTitle"
+      ]
+    },
+    {
+      "name": "latest-releases",
+      "exit_code": 0,
+      "command": [
+        "gh",
+        "release",
+        "list",
+        "--repo",
+        "defai-digital/ax-code",
+        "--limit",
+        "6",
+        "--json",
+        "tagName,name,isDraft,isPrerelease,publishedAt"
+      ]
+    },
+    {
+      "name": "current-manifest",
+      "exit_code": 0,
+      "command": [
+        "gh",
+        "api",
+        "repos/defai-digital/ax-code/contents/packages/ax-code-diff-wasm/package.json?ref=main",
+        "-H",
+        "Accept: application/vnd.github.raw+json"
+      ]
+    },
+    {
+      "name": "cli-release",
+      "exit_code": 1,
+      "command": [
+        "gh",
+        "release",
+        "view",
+        "v7.30.15",
+        "--repo",
+        "defai-digital/ax-code",
+        "--json",
+        "tagName,assets,publishedAt,url"
+      ]
+    },
+    {
+      "name": "sdk-release",
+      "exit_code": 1,
+      "command": [
+        "gh",
+        "release",
+        "view",
+        "sdk-v2.6.68",
+        "--repo",
+        "defai-digital/ax-code",
+        "--json",
+        "tagName,assets,publishedAt,url"
+      ]
+    }
+  ]
+}

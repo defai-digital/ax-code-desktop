@@ -1,4 +1,4 @@
-import { marked, type Tokens } from "marked"
+import { marked, type Token } from "marked"
 import remend from "remend"
 
 export type MarkdownStreamBlock = {
@@ -10,7 +10,7 @@ export type MarkdownStreamBlock = {
 
 /**
  * Incremental lex cache for a streaming message. `stableBlocks` covers the
- * first `stablePrefixLength` characters of `text`; appended text can only
+ * first `stablePrefixLength` characters of the LF-normalized `text`; appended text can only
  * change block structure from the last meaningful token onward, so subsequent
  * ticks re-lex just the tail instead of the whole message.
  */
@@ -36,7 +36,8 @@ const hasOpenFence = (raw: string): boolean => {
   if (!marker) return false
   const char = marker[0]
   const size = marker.length
-  const last = raw.trimEnd().split("\n").at(-1)?.trim() ?? ""
+  const trimmed = raw.trimEnd()
+  const last = trimmed.slice(trimmed.lastIndexOf("\n") + 1).trim()
   return !new RegExp(`^[\\t ]{0,3}${char}{${size},}[\\t ]*$`).test(last)
 }
 
@@ -98,18 +99,27 @@ export const buildLiveMarkdownBlocks = (
     return { blocks: [buildWholeLiveBlock(text, baseKey)], cache: emptyCache(baseKey, text) }
   }
 
+  // marked normalizes CRLF/CR before lexing. Cache and slice in that same
+  // coordinate space or a long CRLF prefix can repeat completed blocks.
+  const normalizedText = text.replace(/\r\n?/g, "\n")
+
   const canReusePrefix =
     cache != null &&
     cache.baseKey === baseKey &&
     cache.stablePrefixLength > 0 &&
-    text.length >= cache.text.length &&
-    text.startsWith(cache.text)
+    normalizedText.length >= cache.text.length &&
+    normalizedText.startsWith(cache.text)
   const stableBlocks = canReusePrefix ? cache.stableBlocks : []
   const stablePrefixLength = canReusePrefix ? cache.stablePrefixLength : 0
 
-  let tokens: ReturnType<typeof marked.lexer>
+  let tokens: Token[]
   try {
-    tokens = marked.lexer(text.slice(stablePrefixLength))
+    // Only block type/raw are consumed here; remark parses inline syntax later.
+    // Default Lexer options share a tokenizer that points back to the last
+    // lexer. Own both here so an undrained queue cannot retain message text.
+    const lexer = new marked.Lexer({ ...marked.defaults, tokenizer: undefined })
+    tokens = lexer.blockTokens(normalizedText.slice(stablePrefixLength))
+    lexer.inlineQueue.length = 0
   } catch {
     // Pathologically nested or malformed input can overflow the lexer; fall back
     // to one live block so the text renders instead of crashing the chat.
@@ -127,7 +137,7 @@ export const buildLiveMarkdownBlocks = (
   let blockIndex = stableBlocks.length
   let nextStablePrefixLength = stablePrefixLength
   for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index] as Tokens.Generic
+    const token = tokens[index]
     const raw = token.raw ?? ""
     if (token.type !== "space") {
       const mode: "full" | "live" = index === lastMeaningfulIndex ? "live" : "full"
@@ -162,7 +172,7 @@ export const buildLiveMarkdownBlocks = (
     blocks,
     cache: {
       baseKey,
-      text,
+      text: normalizedText,
       stablePrefixLength: nextStablePrefixLength,
       stableBlocks: lastBlock?.mode === "live" ? blocks.slice(0, -1) : blocks,
     },

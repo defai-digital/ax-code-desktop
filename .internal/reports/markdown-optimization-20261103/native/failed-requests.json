@@ -1,0 +1,247 @@
+[
+  {
+    "status": 400,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2FUsers%2Fakiralam%2FAGENTS.md"
+  },
+  {
+    "status": 400,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2FUsers%2Fakiralam%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 400,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/list?path=%2FUsers%2Fakiralam%2F"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2FUsers%2Fakiralam%2F.config%2Fopenchamber%2Fprojects%2Fpath_L3ByaXZhdGUvdmFyL2ZvbGRlcnMvX2svN3NjMGJ3YzU1enFfdDgxYnI1MWY2eG40MDAwMGduL1QvYXgtY29kZS1kZXNrdG9wLWUyZS1sVWN6eDcvcHJvamVjdA.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2F.openchamber%2Fopenchamber.json"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/stat?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FCLAUDE.md"
+  },
+  {
+    "status": 404,
+    "type": "Fetch",
+    "url": "http://127.0.0.1:61869/api/fs/read?path=%2Fprivate%2Fvar%2Ffolders%2F_k%2F7sc0bwc55zq_t81br51f6xn40000gn%2FT%2Fax-code-desktop-e2e-lUczx7%2Fproject%2FAGENTS.md"
+  }
+]

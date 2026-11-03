@@ -99,6 +99,17 @@ node desktop/packages/electron/scripts/e2e/project-switch-session-webmcp.mjs --a
 
 This seeds two projects, opens one project's Needs You conversation, switches the active project from the Settings project selector, and checks that the stale session is cleared. It then watches longer than one three-second external-session poll for transcript reads against the new directory, and reopens the original conversation to confirm its own directory still works. It does not execute a model turn or write project files.
 
+For large Markdown streaming and CRLF cache alignment, run after building:
+
+```sh
+node desktop/packages/electron/scripts/e2e/markdown-stream-webmcp.mjs --artifacts /tmp/ax-markdown-stream
+```
+
+Native WebMCP opens a fixture conversation. Renderer-only event injection then exercises the real Markdown Worker
+with a large CRLF message, an incremental append, and finalization. Fresh DOM checks require exactly 40 unique
+headings; Worker request/response receipts and light/dark screenshots are saved. No model call or runtime write
+occurs. Recorded Worker round trips include queueing and transfer and are diagnostic samples, not a performance SLA.
+
 For the project-wide Archive all action, run:
 
 ```sh

@@ -2,6 +2,12 @@
 
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
 
+- [Selective WebAssembly assessment](wasm-review-20261103/README.md): Grok/Muse source review, current JS/WASM
+  highlighter comparison, Markdown workload probes, ownership boundaries, and conditional adoption gates; no migration implemented.
+
+- [Markdown Worker optimization and CRLF repair](markdown-optimization-20261103/README.md): reviewed block-only
+  lexing, normalized incremental offsets, isolated tokenizer lifetime, regression tests and native Worker/DOM evidence.
+
 ## Report packages
 
 | Date       | Package                                                     | Status                                                                              |

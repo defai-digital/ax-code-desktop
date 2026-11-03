@@ -1,0 +1,10 @@
+
+> ax-coder@7.30.12 bench:sync-hotpath /Users/akiralam/code/ax-code-desktop
+> pnpm --dir desktop/packages/ui exec tsx src/sync/__tests__/streaming-hotpath.bench.ts
+
+{"cachedMessages":200,"deltasPerBatch":20,"sequentialMs":0.050079149999999115,"batchedMs":0.0095083499999987,"speedup":5.2668601807890925}
+{"cachedMessages":2000,"deltasPerBatch":20,"sequentialMs":0.08196249999999736,"batchedMs":0.0499187500000005,"speedup":1.6419181169399581}
+{"cachedMessages":8000,"deltasPerBatch":20,"sequentialMs":0.0884687499999984,"batchedMs":0.12749579999999697,"speedup":0.6938954067506578}
+{"turns":500,"fullMs":1.77916334,"incrementalMs":0.019068340000003445,"speedup":93.30457396919074}
+{"case":"display-normalization","turns":500,"fullMs":0.09128584000000046,"incrementalMs":0.004161680000001979}
+{"case":"markdown-response-clone-proxy","characters":73500,"fullBlocks":3001,"suffixBlocks":2,"fullJsonBytes":2511889,"suffixJsonBytes":1741,"fullCloneMs":34.3412500000004,"suffixCloneMs":0.018500000000130967}

@@ -1,4 +1,5 @@
-import { describe, expect, test } from "vitest"
+import { marked } from "marked"
+import { describe, expect, test, vi } from "vitest"
 
 import { buildLiveMarkdownBlocks, type LiveMarkdownLexCache } from "./markdownStreamBlocks"
 
@@ -68,6 +69,57 @@ Paragraph after math with trailing text that streams to the very end.
 `
 
 describe("buildLiveMarkdownBlocks", () => {
+  test.each(["\r\n", "\r"])("keeps normalized cache offsets aligned for %j line endings", (newline) => {
+    const prefix = `# Heading${newline}${newline}Paragraph${newline}${newline}`.repeat(10) + "Tail"
+    const first = buildLiveMarkdownBlocks(prefix, BASE_KEY)
+    const next = buildLiveMarkdownBlocks(prefix + " grows", BASE_KEY, first.cache)
+    expect(next.blocks).toEqual(fromScratch(prefix + " grows"))
+    expect(next.blocks[0]).toBe(first.blocks[0])
+  })
+
+  test("does not parse inline tokens that the Markdown renderer will parse again", () => {
+    const inline = vi.spyOn(marked.Lexer.prototype, "inlineTokens")
+    try {
+      const text = "# **Heading**\n\nText with [a link](https://example.com) and `code`.\n\nTail"
+      const { blocks } = buildLiveMarkdownBlocks(text, BASE_KEY)
+      expect(blocks).toHaveLength(3)
+      expect(blocks[1].raw).toContain("[a link](https://example.com)")
+      expect(inline).not.toHaveBeenCalled()
+    } finally {
+      inline.mockRestore()
+    }
+  })
+
+  test("does not redirect an existing lexer's tokenizer through global defaults", () => {
+    const originalTokenizer = marked.defaults.tokenizer
+    const originalLexer = originalTokenizer?.lexer
+    const other = new marked.Lexer()
+    try {
+      other.blockTokens("Other **message**")
+      const queued = other.inlineQueue.slice()
+      buildLiveMarkdownBlocks("A **different** message\n\nTail", BASE_KEY)
+      // A shared tokenizer would point at the discarded block-only lexer and
+      // keep its last message alive through marked.defaults.
+      expect(other.options.tokenizer?.lexer).toBe(other)
+      expect(other.inlineQueue).toHaveLength(queued.length)
+      expect(other.inlineQueue[0]).toBe(queued[0])
+    } finally {
+      other.inlineQueue.length = 0
+      marked.defaults.tokenizer = originalTokenizer
+      if (originalTokenizer && originalLexer) originalTokenizer.lexer = originalLexer
+    }
+  })
+
+  test.each(["\n", "\r\n", "\r"])("preserves marked block boundaries with %j line endings", (newline) => {
+    const text = DOCUMENT.replaceAll("\n", newline)
+    const expected = marked.lexer(text).filter((token) => token.type !== "space").map((token) => token.raw)
+    expect(fromScratch(text).map((block) => block.raw)).toEqual(expected)
+  })
+
+  test("handles a CRLF pair split across streaming updates", () => {
+    expectIncrementalMatchesScratch(DOCUMENT.replaceAll("\n", "\r\n"), [1, 7, 23])
+  })
+
   test("incremental lexing matches from-scratch lexing at every append step", () => {
     for (const chunkSizes of [[1], [3], [7, 2, 11], [64], [1, 40]]) {
       expectIncrementalMatchesScratch(DOCUMENT, chunkSizes)

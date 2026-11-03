@@ -1,0 +1,416 @@
+Review the updated canonical AX Code Wasm diff API for Desktop integration. READ-ONLY advisory review, no tools needed. Reply in English in under 800 words. The user correctly pointed out this implementation; fresh read at AX Code commit 912c8f92c4d66d0ad8a2887251c3325bbf8b5718 supersedes our earlier duplicate-only assessment. Desktop currently uses Pierre hunk metadata consistently for rendering, navigation, revert and Git staging. We have separately completed a tested Markdown CRLF fix/block-only lex optimization, not a Wasm migration. Do not invent benchmark results. Proposed revised plan: prefer reusing this canonical diff engine, not building another kernel. First owner-supplied independently installable pinned artifact/public API (currently private workspace and depends on workspace util); then read-only worker preview integration with one shared computed snapshot for display/hunk identity, bounded requests, cancellation, stale owner/revision discard; retain existing actions until proven same hunk semantics, then migrate strict hunk reconstruction with file snapshot checks. No sibling source/ignored dist imports or duplicate runtime are permitted. No publication authorized. Identify concrete feasibility issues in API-to-UI mapping, subset/reverse apply correctness, publication packaging, and measurements required before replacing Pierre. Is a dependency-ready prototype possible within current repository rules, or does integration require canonical package delivery first? Source follows.
+
+FILE packages/ax-code-diff-wasm/package.json
+{
+  "name": "@ax-code/diff-wasm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "description": "Worker-hosted Wasm diff, structured hunks and duplicate comparison using shared Rust kernels",
+  "exports": {
+    ".": {
+      "types": "./dist/browser.d.ts",
+      "default": "./dist/browser.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    }
+  },
+  "files": [
+    "dist",
+    "wasm",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "node script/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:browser": "node script/browser-smoke.mjs",
+    "benchmark": "node --import tsx script/benchmark.mjs"
+  },
+  "dependencies": {
+    "@ax-code/util": "workspace:*"
+  },
+  "devDependencies": {
+    "@ax-code/diff": "workspace:*",
+    "@ax-code/ax-code-reason": "workspace:*",
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "tsx": "catalog:",
+    "esbuild": "catalog:",
+    "playwright-core": "1.64.1"
+  }
+}
+
+FILE packages/ax-code-diff-wasm/README.md
+# AX Code diff Wasm
+
+An explicit Node/browser worker API for diff previews, structured hunk
+application, patch chunks and duplicate comparison. Native AX Code and Wasm
+share the bounded Rust preview, patch and duplicate kernels. The production
+CLI retains its native backend. This private workspace package is an opt-in
+integration surface; it is not published to a registry or bundled in CLI
+installers.
+
+## Build and validate
+
+From the repository root:
+
+```sh
+rustup target add wasm32-unknown-unknown --toolchain stable
+cargo install wasm-bindgen-cli --version 0.2.129 --locked
+pnpm install
+pnpm build:native diff
+pnpm --dir packages/ax-code-diff-wasm build
+pnpm --dir packages/ax-code-diff-wasm typecheck
+pnpm --dir packages/ax-code-diff-wasm test
+pnpm --dir packages/ax-code-diff-wasm test:browser
+```
+
+The build requires the CLI version matching the Rust binding dependency and
+uses rustup's compiler and target libraries even when Homebrew Rust precedes
+it on PATH. `AX_WASM_BINDGEN` may point to the CLI; `AX_DIFF_WASM_TOOLCHAIN`
+selects a rustup toolchain with the Wasm target installed. Generated `dist/`
+and `wasm/` artifacts are ignored; deploy both directories with `NOTICE`.
+Tests require real artifacts and the rebuilt native addon. Browser tests use
+Playwright Chromium or `AX_DIFF_WASM_CHROMIUM` (on macOS, installed Google
+Chrome is also detected). Set `AX_DIFF_WASM_BROWSER=firefox` or `webkit`
+to select another engine. Install them with `pnpm --dir packages/ax-code-diff-wasm
+exec playwright-core install firefox webkit`. CI tests all three browser engines.
+
+## Usage
+
+```ts
+import { createDiffEngine } from "@ax-code/diff-wasm/node"
+// Browser ESM: import from @ax-code/diff-wasm, deploying dist/ and wasm/ together.
+
+const engine = createDiffEngine()
+try {
+  const before = "hello\r\n"
+  const after = "你好😀"
+  const preview = await engine.diff(before, after)
+  // { version: 1, additions, deletions, hunks }
+  const result = await engine.applyHunks(before, preview.hunks)
+  // result === after, including the absent final newline.
+  const groups = await engine.compare([["a"], ["a", "b"], ["b"]], 0.5)
+  // Greedy representative groups, not transitive connected components.
+} finally {
+  await engine.close()
+}
+```
+
+`diff` returns one-based structured hunk coordinates, including empty ranges,
+with four context lines. `applyHunks` requires those exact coordinates, counts
+and source context. It preserves CRLF, Unicode and missing final newlines;
+stale, overlapping or malformed hunks reject atomically. It does not parse
+unified diff files or search fuzzily. Applying a selected subset requires
+rebasing its `newStart` coordinates. `diff(..., { normalize: true })` produces
+LF-normalized hunks while preserving the native API's raw addition/deletion
+counts; apply those hunks to an explicitly LF-normalized source.
+
+`applyPatch(file, original, chunks)` is a separate API matching the existing
+native patch worker, including whitespace matching, smart punctuation
+normalization and final-LF behavior. Chunks contain `old_lines`, `new_lines`,
+optional `change_context` and `is_end_of_file`. It returns computed text only.
+Neither API reads or writes project files. The host retains file snapshots,
+permissions, stale-file checks and all Git/staging operations.
+
+All methods accept `{ signal, timeoutMs }`. Each engine admits one in-flight
+call and rejects concurrent calls without queueing. It lazily reuses a worker.
+Abort/deadline terminates that worker; later calls recreate it after successful
+termination. Request IDs and worker identity exclude stale responses. A failed
+or stuck termination blocks reuse; caller rejection is bounded by a one-second
+teardown grace and retains the original reason. `close()` reports termination
+failure and may be retried. Always close idle engines. The default operation
+deadline is 30 seconds (1–120,000 ms), including synchronous bounded admission;
+admission cannot be interrupted mid-encoding. There is no native or JS fallback
+inside this API. `createDuplicateComparator` is an alias for `createDiffEngine`.
+
+Each text or serialized payload is limited to 16 MiB. Rust also caps combined
+input, output, lines and algorithmic work. Hunk application accepts at most
+4,096 hunks and 200,000 source/output lines. Duplicate inputs allow 10,000 rows,
+200,000 tokens and 16 MiB JSON, with output capped at 1 MiB. Strings must be
+well-formed Unicode and thresholds finite. Inputs outside these bounds reject;
+no partial output is returned.
+
+Wasm executes synchronously inside a dedicated worker. Cancellation terminates
+that worker rather than sending it an unread cancellation message. The kernel
+requires no shared memory, WASI, filesystem, network or process imports. The
+host loads its own assets. Browser hosting requires module workers, Wasm
+compilation permission in CSP and the `application/wasm` MIME type. COOP/COEP
+is unnecessary. AX Wiki export CSP is unchanged. The adapted jsdiff code's
+BSD-3-Clause notice is included in `NOTICE`.
+
+FILE packages/ax-code-diff-wasm/src/browser.ts
+import { createClient } from "./client.js"
+export type { CompareOptions, DuplicateComparator, DiffEngine } from "./client.js"
+export type { DuplicateGroup, DiffPreview, Hunk, PatchChunk } from "./protocol.js"
+
+export function createDiffEngine() {
+  return createClient((onMessage, onFailure) => {
+    const worker = new Worker(new URL("./browser-worker.js", import.meta.url), { type: "module" })
+    worker.onmessage = (event) => onMessage(event.data)
+    worker.onerror = () => onFailure(new Error("Wasm worker failed to load or execute"))
+    worker.onmessageerror = () => onFailure(new Error("Wasm worker message could not be decoded"))
+    return {
+      post: (message) => worker.postMessage(message),
+      terminate: async () => {
+        worker.terminate()
+      },
+    }
+  })
+}
+
+export const createDuplicateComparator = createDiffEngine
+
+FILE desktop/packages/ui/src/components/views/diffHunkRevert.ts
+import { diffAcceptRejectHunk, parseDiffFromFile, type FileContents, type Hunk } from "@pierre/diffs"
+
+function toFileContents(fileName: string, contents: string): FileContents {
+  return { name: fileName, contents }
+}
+
+const EMPTY_HUNKS: Hunk[] = []
+const HUNK_CACHE_LIMIT = 64
+const hunkCache = new Map<string, Hunk[]>()
+
+/** 53-bit hash over UTF-16 code units. The cache key never keeps the file text. */
+function fileContentHash(input: string): string {
+  let first = 0xdeadbeef
+  let second = 0x41c6ce57
+  for (let index = 0; index < input.length; index += 1) {
+    const unit = input.charCodeAt(index)
+    first = Math.imul(first ^ unit, 2654435761)
+    second = Math.imul(second ^ unit, 1597334677)
+  }
+  first = Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
+  second = Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
+  return (4294967296 * (second & 0x1fffff) + (first >>> 0)).toString(16)
+}
+
+function fileHunkCacheKey(fileName: string, original: string, modified: string): string {
+  return `${fileName}\0${original.length}:${fileContentHash(original)}\0${modified.length}:${fileContentHash(modified)}`
+}
+
+export function clearFileHunkCache(): void {
+  hunkCache.clear()
+}
+
+/**
+ * Parses `original`/`modified` (full file contents) into per-hunk metadata.
+ * One entry per path and content hash, shared by the hunk list and review navigation.
+ * Two empty sides are not a diff: binary and too-large placeholders skip the parse.
+ */
+export function getFileHunks(original: string, modified: string, fileName = ""): Hunk[] {
+  if (original.length === 0 && modified.length === 0) return EMPTY_HUNKS
+  const key = fileHunkCacheKey(fileName, original, modified)
+  const cached = hunkCache.get(key)
+  if (cached) {
+    hunkCache.delete(key)
+    hunkCache.set(key, cached)
+    return cached
+  }
+  const hunks = parseDiffFromFile(toFileContents(fileName, original), toFileContents(fileName, modified)).hunks
+  hunkCache.set(key, hunks)
+  if (hunkCache.size > HUNK_CACHE_LIMIT) {
+    const oldest = hunkCache.keys().next().value
+    if (oldest !== undefined) hunkCache.delete(oldest)
+  }
+  return hunks
+}
+
+/**
+ * Reconstructs the file's full content with a single hunk reverted back to
+ * `original`, leaving every other hunk's change untouched. `modified` is
+ * assumed to already be on disk (the agent writes changes directly), so this
+ * is a revert, not a pre-apply "reject" the way Copilot Edits/Zed use the term.
+ */
+export function revertHunk(original: string, modified: string, hunkIndex: number, fileName = ""): string {
+  const diff = parseDiffFromFile(toFileContents(fileName, original), toFileContents(fileName, modified))
+  // Each entry in `additionLines` already carries its own trailing "\n" (the
+  // last line doesn't, matching whether the file ends with a newline) — join
+  // with "" here, not "\n", or every line gets doubled.
+  const resolved = diffAcceptRejectHunk(diff, hunkIndex, "reject")
+  return resolved.additionLines.join("")
+}
+
+FILE desktop/packages/ui/src/components/views/DiffHunkReviewList.tsx
+import React from "react"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { Icon } from "@/components/icon/Icon"
+import { useI18n } from "@/lib/i18n"
+import { useReviewHunkFocus } from "@/lib/reviewHunkRegistry"
+import { getFileHunks } from "./diffHunkRevert"
+import type { FileDiffHunk } from "./gitHunkPatch"
+
+interface DiffHunkReviewListProps {
+  original: string
+  modified: string
+  fileName?: string
+  onRevertHunk: (hunkIndex: number) => void
+  revertingHunkIndex: number | null
+  /** Hunks of the file's git diff text, matched to rows by new-side start line; omitted hides the per-hunk stage action. */
+  gitHunks?: FileDiffHunk[] | null
+  onStageHunk?: (gitHunkIndex: number) => void
+  stagingHunkIndex?: number | null
+  /** Staged rows unstage their hunk and have no working-tree revert. */
+  staged?: boolean
+}
+
+export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
+  ({
+    original,
+    modified,
+    fileName,
+    onRevertHunk,
+    revertingHunkIndex,
+    gitHunks,
+    onStageHunk,
+    stagingHunkIndex,
+    staged = false,
+  }) => {
+    const { t } = useI18n()
+    const hunkFocus = useReviewHunkFocus(fileName)
+
+    const hunks = React.useMemo(() => getFileHunks(original, modified, fileName ?? ""), [original, modified, fileName])
+
+    // Rows come from the diff library's parse of the file contents; the git diff
+    // text's hunks start at the same new-side line whenever both segment the
+    // changes the same way, so a row is offered the action only for the exact
+    // hunk it displays. A row without a match (binary edge cases, segmentation
+    // disagreement) simply shows no action rather than acting on the wrong hunk.
+    const gitHunkIndexByRow = React.useMemo(() => {
+      if (!onStageHunk || !gitHunks) return null
+      const byRow = new Map<number, number>()
+      hunks.forEach((hunk, index) => {
+        const gitHunkIndex = gitHunks.findIndex((candidate) => candidate.newStart === hunk.additionStart)
+        if (gitHunkIndex >= 0) {
+          byRow.set(index, gitHunkIndex)
+        }
+      })
+      return byRow
+    }, [gitHunks, hunks, onStageHunk])
+
+    if (hunks.length === 0) {
+      return null
+    }
+
+    return (
+      <div className="flex flex-col border-b border-border/60 bg-[var(--surface-elevated)]">
+        {hunks.map((hunk, index) => {
+          const isReverting = revertingHunkIndex === index
+          const header = (hunk.hunkSpecs ?? "").trim()
+          const gitHunkIndex = gitHunkIndexByRow?.get(index)
+          const hasStageAction = gitHunkIndexByRow != null && gitHunkIndex !== undefined
+          const isStaging = hasStageAction && stagingHunkIndex === gitHunkIndex
+          const stageBusy = stagingHunkIndex != null
+          const active = hunkFocus?.hunkIndex === index
+          return (
+            <div
+              key={`${header}-${index}`}
+              data-review-hunk-index={index}
+              data-review-hunk-focus={active ? "header" : undefined}
+              aria-current={active ? "true" : undefined}
+              className={`flex items-center gap-2 px-3 py-1 border-b border-border/40 last:border-b-0${active ? " ring-2 ring-inset ring-primary bg-primary/10" : ""}`}
+            >
+              <span className="flex-1 min-w-0 truncate font-mono typography-micro text-muted-foreground">{header}</span>
+              <span className="shrink-0 typography-micro">
+                <span style={{ color: "var(--status-success)" }}>+{hunk.additionLines}</span>
+                <span className="text-muted-foreground mx-0.5">/</span>
+                <span style={{ color: "var(--status-error)" }}>-{hunk.deletionLines}</span>
+              </span>
+              {hasStageAction && onStageHunk ? (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onStageHunk(gitHunkIndex as number)}
+                      disabled={stageBusy}
+                      className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={
+                        staged
+                          ? t("diffView.hunk.unstageAria", { hunk: header })
+                          : t("diffView.hunk.stageAria", { hunk: header })
+                      }
+                    >
+                      {isStaging ? (
+                        <Icon name="loader-4" className="size-3.5 animate-spin" />
+                      ) : (
+                        <Icon name={staged ? "arrow-down" : "arrow-up"} className="size-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8}>
+                    {staged ? t("diffView.hunk.unstageTooltip") : t("diffView.hunk.stageTooltip")}
+                  </TooltipContent>
+                </Tooltip>
+              ) : null}
+              {staged ? null : (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      onClick={() => onRevertHunk(index)}
+                      disabled={revertingHunkIndex !== null}
+                      className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label={t("diffView.hunk.revertAria", { hunk: header })}
+                    >
+                      {isReverting ? (
+                        <Icon name="loader-4" className="size-3.5 animate-spin" />
+                      ) : (
+                        <Icon name="arrow-go-back" className="size-3.5" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent sideOffset={8}>{t("diffView.hunk.revertTooltip")}</TooltipContent>
+                </Tooltip>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    )
+  },
+)
+
+DiffHunkReviewList.displayName = "DiffHunkReviewList"
+
+FILE desktop/packages/ui/src/components/views/usePublishReviewHunks.ts
+import { useEffect } from "react"
+
+import { publishReviewHunks, releaseReviewHunks, retainReviewHunks, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
+import { reviewHunkAnchors } from "@/lib/reviewHunkNavigation"
+
+import { getFileHunks } from "./diffHunkRevert"
+
+/**
+ * Measure one file's hunk list from the same parse Pierre uses to draw it.
+ * Pass null contents for a binary, image, or too-large file: those have no hunks and are not parsed.
+ */
+export function ReviewHunkMeasure(props: { path: string; original: string | null; modified: string | null }) {
+  usePublishReviewHunks(props.path, props.original, props.modified)
+  return null
+}
+
+/** Measure one file's rendered hunk list from the same parse Pierre uses to draw it. */
+export function usePublishReviewHunks(
+  path: string | null | undefined,
+  original: string | null,
+  modified: string | null,
+): void {
+  const scope = useReviewHunkScope()
+  const scopeId = scope?.id
+  const directory = scope?.directory ?? ""
+  useEffect(() => {
+    if (!path || !scopeId) return
+    retainReviewHunks(scopeId, directory, path)
+    const anchors =
+      original === null || modified === null ? [] : reviewHunkAnchors(getFileHunks(original, modified, path))
+    publishReviewHunks(scopeId, directory, path, anchors)
+    return () => releaseReviewHunks(scopeId, directory, path)
+  }, [directory, modified, original, path, scopeId])
+}
