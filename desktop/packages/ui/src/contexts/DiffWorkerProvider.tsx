@@ -67,7 +67,9 @@ const createWorkerPool = async (style: WorkerPoolStyle): Promise<WorkerPoolManag
       },
       langs: PRELOAD_LANGS,
       lineDiffType: config.lineDiffType,
-      // Packaged app:// workers inherit a CSP that disallows WebAssembly compilation.
+      // The renderer CSP permits 'wasm-unsafe-eval', so Shiki WASM is loadable, but measured
+      // JS-vs-WASM tokenization showed no consistent win (.internal/reports/wasm-review-20261103).
+      // Keeping the JS engine also avoids the Oniguruma WASM payload in every diff worker.
       preferredHighlighter: "shiki-js",
     },
   )
