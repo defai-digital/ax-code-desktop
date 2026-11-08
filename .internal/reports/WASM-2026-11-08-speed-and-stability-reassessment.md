@@ -59,6 +59,31 @@ Unblock condition: an owner-published, exact-version artifact (GitHub Release ta
 dependencies are resolved or bundled, with browser worker/WASM assets, integrity, and NOTICE, that installs cleanly
 outside the canonical workspace. Then pin it through pnpm and follow PRD → ADR → spec → implementation.
 
+### Measured diff cost (2026-11-08)
+
+`pnpm run bench:diff-hunks` (`desktop/packages/ui/src/components/views/diffHunkRevert.bench.ts`) times the synchronous
+hunk work that runs on the renderer thread, on the same V8 engine the renderer uses. Medians, macOS arm64:
+
+| Fixture | Parse | Cached lookup | Revert, before → after |
+| --- | ---: | ---: | ---: |
+| 2k lines, 3 edits | 1.2 ms | 0.4 ms | 1.0 → 0.5 ms |
+| 20k lines, ~400 hunks | 35 ms | 4.6 ms | 32 → 4.8 ms |
+| 50k lines, ~500 hunks | 69 ms | 10 ms | 60 → 11 ms |
+| 1k-line full rewrite | 66 ms | 0.1 ms | 68 → 0.1 ms |
+| 2k-line full rewrite | 265 ms | 0.3 ms | 262 → 0.3 ms |
+| 5k-line full rewrite | 1,615 ms | 0.8 ms | 1,588 → 0.9 ms |
+
+Scattered edits stay cheap even at 50k lines. **Rewrites are super-linear in edit distance:** a 5k-line rewrite freezes
+the renderer for about 1.6 s, and the jsdiff options Pierre exposes are the non-abortable ones, so the parse cannot be
+bounded. Before this change, opening such a diff parsed it twice on the main thread (Pierre's `FileDiff.render` and
+`getFileHunks` for review navigation), and each hunk revert parsed it a third time.
+
+Interim fix: `diffHunkRevert.ts` now caches the full parse result. `PierreDiffViewer` passes it to `render()` as
+`fileDiff`, on a shallow copy carrying the viewer's highlight cache key and language. `revertHunk` resolves from the
+cached parse (Pierre's `resolveRegion` copies rather than mutates). One parse per content pair remains, so a large
+rewrite still freezes once. Removing that last freeze needs the parse off the main thread, which is what the
+canonical Worker-hosted engine provides. This measurement strengthens Candidate 1.
+
 ## Candidate 2: Markdown first parse
 
 The production responder measured 869 ms initial versus 2.6 ms append at ~500k characters (16,950 blocks), and about
@@ -164,8 +189,8 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 
 1. Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact — requested in
    [defai-digital/ax-code#503](https://github.com/defai-digital/ax-code/issues/503).
-2. ~~Capture packaged Markdown traces~~ — done (see above). A matching diff trace needs a large-diff stub fixture and
-   is still open.
+2. ~~Capture packaged Markdown traces~~ and ~~measure diff cost~~ — done (see above). Large rewrites are the case
+   that justifies the canonical diff engine.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
 4. Investigate the large-message render path in TypeScript: long tasks above
    100 ms at 500k characters, and finalization re-render cost. The ~300 ms first-render delay is fixed.
