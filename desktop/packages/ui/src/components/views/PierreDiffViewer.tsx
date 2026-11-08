@@ -35,6 +35,7 @@ import type { ReviewHunkAnchor } from "@/lib/reviewHunkNavigation"
 import { getReviewHunkAnchors, useReviewHunkFocus, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
 import { applyReviewHunkHighlight, clearReviewHunkHighlight, syncReviewHunkHighlightFrame } from "./reviewHunkFocus"
 import { usePublishReviewHunks } from "./usePublishReviewHunks"
+import { getFileDiff } from "./diffHunkRevert"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -599,9 +600,18 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       cacheKey: `new:${diffThemeKey}:${fileName}:${makeContentCacheKey(modified)}`,
     }
 
+    // Reuse the shared parse instead of letting Pierre parse again on this thread; the hunk
+    // list and review navigation read the same entry. The copy carries this viewer's
+    // highlight cache key and language without touching the shared object.
+    const sharedDiff = getFileDiff(original, modified, fileName || "")
+    const fileDiff = sharedDiff
+      ? { ...sharedDiff, cacheKey: `${oldFile.cacheKey}:${newFile.cacheKey}`, lang: newFile.lang ?? sharedDiff.lang }
+      : undefined
+
     instance.render({
       oldFile,
       newFile,
+      fileDiff,
       lineAnnotations: lineAnnotationsRef.current,
       containerWrapper: container,
     })
