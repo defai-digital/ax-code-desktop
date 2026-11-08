@@ -9,8 +9,10 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 ## Active
 
 Engine upgrade: [Electron 45 stable v1](SPEC-2026-11-08-electron-45-stable-v1.md) governs the requested exact
-`45.2.3` upgrade and Mission Control renderer startup adaptation. The generated lockfile preserves SDK `2.6.69`;
-workspace and native validation are recorded in the linked upgrade review.
+`45.2.3` upgrade and Mission Control renderer startup adaptation. Implemented in `35e9b684`; the generated lockfile
+preserves SDK `2.6.69`. All six root gates, native smokes, unsigned macOS packaging, bundled-runtime smoke and
+packaged E2E passed; evidence is recorded in the linked upgrade review. The specification's original implementation
+status remains a historical snapshot.
 
 Implementation addendum: [Session removal and isolation v2](SPEC-2026-10-23-session-removal-and-isolation-v2.md) records immediate archive with compensating Undo, explicit ordered isolation writes, and exact changed-file attribution for the v7.28.6 candidate. Earlier accepted records are preserved.
 
