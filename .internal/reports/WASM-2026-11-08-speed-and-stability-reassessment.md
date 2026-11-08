@@ -156,6 +156,13 @@ help at 100k characters or below, where cold paint is now under 170 ms. It would
 tasks (up to about 147 ms), which come from rendering. A 2x semantics-compatible WASM parser is also unproven: the
 Rust evaluation changed math rendering and source positions.
 
+A CPU profile of the 500k cold render after the fix attributes most of it to native style, layout and paint
+(about 406 ms of `(program)`). The largest JavaScript item (about 72 ms) is the chat auto-follow check reading
+`scrollHeight`, which forces that same layout synchronously. About 38 ms is the harness's own per-frame heading
+check, so measured cold paint slightly overstates the product cost. An experiment with `content-visibility: auto`
+on the blocks of messages with 150 or more blocks gave no reliable gain (585 vs 614 ms cold paint, long tasks
+unchanged) and doubled re-theme time (472 vs 208 ms), so it was reverted and not shipped.
+
 Conclusion: deprioritize the WASM Markdown parser. Keep it only as a conditional candidate for very large (≥300k)
 documents, if real sessions show that size is common. Render-path work in TypeScript comes first. The better targets are render batching or virtualization of very
 large messages, finalization re-render cost, and the unattributed mount latency, all in TypeScript.
