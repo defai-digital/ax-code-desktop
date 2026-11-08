@@ -3,7 +3,7 @@
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
 
 - [WebAssembly speed and stability reassessment](WASM-2026-11-08-speed-and-stability-reassessment.md): no broad
-  migration; canonical diff engine blocked on an installable artifact; packaged trace drops the Markdown parser candidate.
+  migration; diff engine blocked on an installable artifact; packaged trace found and fixed a 300 ms first-render delay.
 
 - [Electron 45.2.3 stable upgrade review](ELECTRON-45-2026-11-08-stable-upgrade.md): exact-version upgrade,
   Mission Control startup adaptation, pinned SDK readback verification, and workspace/native qualification evidence.

@@ -14,8 +14,8 @@ Do not start a broad WASM migration. Most remaining speed and stability risk com
 lifecycle races, and rendering cost, none of which a language change removes. Two candidates remain, both gated:
 
 1. **Canonical AX Code diff engine (`@ax-code/diff-wasm`)** — highest value, currently blocked on delivery.
-2. ~~Large-document Markdown first parse~~ — dropped after the packaged trace below: parsing is under half of cold
-   paint and already runs in a Worker, so no parser speedup can meet the adoption threshold.
+2. **Large-document Markdown first parse** — deprioritized after the packaged trace below. The largest cold cost was
+   a React Suspense reveal throttle, now fixed. Parsing runs in a Worker and only dominates at ≥300k characters.
 
 Diff syntax highlighting stays on Shiki JS. The terminal already uses WASM through AkiTTY Web and is upstream-owned.
 
@@ -89,19 +89,50 @@ The raw receipt is [markdown-trace.json](wasm-trace-20261108/markdown-trace.json
 
 Findings:
 
-- **Parsing is the minority of cold cost and already off the main thread.** At 500k characters the Worker round trip
-  is about 41% of time to paint. Even a parser twice as fast would save about 190 ms (about 20%), below the 25% p95
-  adoption threshold. The main-thread long tasks come from rendering, which a WASM parser does not touch.
+- **Parsing was the minority of cold cost and runs off the main thread.** Before the fix below, the Worker round
+  trip was about 41% of time to paint at 500k characters. The main-thread long tasks come from rendering, which a
+  WASM parser does not touch.
 - **Open-fence appends are not a problem in the real app.** About 40 ms from emit to paint and 12 ms of Worker time per
   append at 200k characters; the 11-03 responder-only figure (about 42 ms at 500k) does not translate into jank.
-- **A fixed ~300 ms passes before the parser is even asked.** A phase split (two cold runs, same harness) puts
-  emit → first Worker request at about 305–315 ms for 30k characters and 310–400 ms for 500k, with response → paint
-  at about 20 ms and 245 ms respectively. The delay sits upstream of Markdown (event pipeline or message mount), not
-  in the Worker client, which has no such timer. It is the largest single cold cost below 500k characters.
+- **A fixed ~300 ms before the parser was asked was a React Suspense reveal throttle, now fixed.** A phase split put
+  emit → first Worker request at about 305–315 ms at every size, while the message bubble mounted within 10 ms and the
+  main thread sat idle. A second message in the same page load showed text in about 23 ms, so the cost was one-time
+  per load. Profiling, network interception, timer capture, and resource timing ruled out timers, the transcript
+  materialization read, frame throttling, and chunk loading (the chunk was cached before the event). The cause:
+  the first render of the lazy Markdown renderer suspends, and React 19.3.1 throttles revealing suspended content to
+  300 ms after the last fallback. See "Fix: synchronous lazy resolution" below.
 - **Re-theming a large document costs 200–400 ms.** One cold run of the existing `markdown-stream-webmcp.mjs` timed out
   its 10 s light-theme wait right after a build; two re-runs passed. Treat that as a cold-start flake, not a regression.
 
-Conclusion: drop the WASM Markdown parser candidate. The better targets are render batching or virtualization of very
+### Fix: synchronous lazy resolution
+
+`components/chat/markdownRendererChunk.ts` loads the renderer module once (with chunk recovery). `ChatContainer`
+preloads it at idle time (`lib/idleTask.ts`). Once the module is loaded, the `React.lazy` factories in
+`MarkdownRenderer.tsx` return a synchronously resolving thenable, which React accepts without suspending. The first
+render therefore skips both the load and the reveal throttle. If a message renders before the preload completes, it
+falls back to the previous asynchronous path. A unit test renders the lazy component for the first time inside a
+synchronous `act` and fails without the synchronous path.
+
+Packaged trace after the fix (three cold runs, medians; receipts
+[after-preload](wasm-trace-20261108/markdown-trace-after-preload.json) and
+[500k](wasm-trace-20261108/markdown-trace-after-preload-500k.json)):
+
+| Workload | Cold paint before | Cold paint after | Emit → first text after |
+| --- | ---: | ---: | ---: |
+| 30k chars | ~398 ms | 80 ms | 17 ms |
+| 100k chars | 457 ms | 169 ms | 27 ms |
+| 300k chars | 687 ms | 392 ms | 55 ms |
+| 500k chars | 937 ms | 614 ms | 83 ms |
+| 200k-char open fence | 400 ms | 83 ms | n/a |
+
+Worker parse time is unchanged, so at 500k characters it is now about 61% of cold paint. A parser twice as fast
+would save about 186 ms (about 30%) there, which would clear the 25% threshold for that workload alone. It would not
+help at 100k characters or below, where cold paint is now under 170 ms. It would not remove the main-thread long
+tasks (up to about 147 ms), which come from rendering. A 2x semantics-compatible WASM parser is also unproven: the
+Rust evaluation changed math rendering and source positions.
+
+Conclusion: deprioritize the WASM Markdown parser. Keep it only as a conditional candidate for very large (≥300k)
+documents, if real sessions show that size is common. Render-path work in TypeScript comes first. The better targets are render batching or virtualization of very
 large messages, finalization re-render cost, and the unattributed mount latency, all in TypeScript.
 
 ## Stability
@@ -135,5 +166,5 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 2. ~~Capture packaged Markdown traces~~ — done (see above). A matching diff trace needs a large-diff stub fixture and
    is still open.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
-4. Investigate the large-message render path in TypeScript: the ~300 ms emit-to-parse delay, long tasks above
-   100 ms at 500k characters, and finalization re-render cost.
+4. Investigate the large-message render path in TypeScript: long tasks above
+   100 ms at 500k characters, and finalization re-render cost. The ~300 ms first-render delay is fixed.
