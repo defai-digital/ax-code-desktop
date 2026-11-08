@@ -110,6 +110,17 @@ with a large CRLF message, an incremental append, and finalization. Fresh DOM ch
 headings; Worker request/response receipts and light/dark screenshots are saved. No model call or runtime write
 occurs. Recorded Worker round trips include queueing and transfer and are diagnostic samples, not a performance SLA.
 
+To attribute large-Markdown cost before proposing parser changes, run after building:
+
+```sh
+node desktop/packages/electron/scripts/e2e/markdown-trace-webmcp.mjs --runs 3 --sizes 100000,300000,500000 --artifacts /tmp/ax-markdown-trace
+```
+
+Each run reloads and reopens the fixture conversation, so every sample is a cold document. It records time to the
+last painted heading, Worker parse round trips, main-thread long tasks, finalization, a light/dark re-theme, and JS
+heap; `--fence-size` sets the unterminated code fence used for ten append samples. Events are emitted from ordinary
+page tasks because work inside a CDP `Runtime.evaluate` is not reported to the long-task observer.
+
 For the project-wide Archive all action, run:
 
 ```sh
