@@ -1,12 +1,12 @@
 # WebAssembly speed and stability reassessment
 
-Date: 2026-11-08. Desktop baseline: `fdf135e1` (Desktop 7.30.13, Electron 45.2.3, AX Code 7.30.16, SDK 2.6.69).
+Date: 2026-11-08. Desktop baseline: `cc823b81` (Desktop 7.30.13, Electron 45.2.3, AX Code 7.30.16, SDK 2.6.69).
 Status: assessment only. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or
 release authorization, and it authorizes no migration.
 
 This revisits the [selective WebAssembly assessment](wasm-review-20261103/README.md) and the
 [canonical diff consumer qualification](diff-qualification-20261103/README.md) against current source and the current
-AX Code release channel. No new benchmarks were run; measurements cited below are from the 2026-11-03 evidence.
+AX Code release channel. Measurements are from the 2026-11-03 evidence except the packaged-renderer trace, run on 2026-11-08.
 
 ## Decision
 
@@ -14,7 +14,8 @@ Do not start a broad WASM migration. Most remaining speed and stability risk com
 lifecycle races, and rendering cost, none of which a language change removes. Two candidates remain, both gated:
 
 1. **Canonical AX Code diff engine (`@ax-code/diff-wasm`)** — highest value, currently blocked on delivery.
-2. **Large-document Markdown first parse** — research candidate, blocked on packaged attribution.
+2. ~~Large-document Markdown first parse~~ — dropped after the packaged trace below: parsing is under half of cold
+   paint and already runs in a Worker, so no parser speedup can meet the adoption threshold.
 
 Diff syntax highlighting stays on Shiki JS. The terminal already uses WASM through AkiTTY Web and is upstream-owned.
 
@@ -73,6 +74,35 @@ Before any implementation, capture packaged traces that attribute parse, clone/t
 paint separately. Downstream UI work may exceed parse cost for large documents. Then compare three variants: current,
 optimized JS in the same Worker, and WASM in the same Worker and protocol.
 
+### Packaged-renderer trace (2026-11-08)
+
+The attribution step was implemented as `desktop/packages/electron/scripts/e2e/markdown-trace-webmcp.mjs` and run
+against the built Electron 45.2.3 app on macOS arm64: three cold runs per size, one host, other activity uncontrolled.
+The raw receipt is [markdown-trace.json](wasm-trace-20261108/markdown-trace.json). Medians:
+
+| Workload | Cold paint | Worker parse | Longest main-thread task | Finalize (worker) | Re-theme |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 100k chars, 197 sections | 457 ms | 96 ms | none ≥ 50 ms | 108 ms (57 ms) | 85 ms |
+| 300k chars, 590 sections | 687 ms | 229 ms | 80 ms | 239 ms (173 ms) | 227 ms |
+| 500k chars, 983 sections | 937 ms | 385 ms | 132 ms | 542 ms (308 ms) | 208 ms |
+| 200k-char open fence, 30 appends | 400 ms cold | 12 ms per append | none ≥ 50 ms | n/a | n/a |
+
+Findings:
+
+- **Parsing is the minority of cold cost and already off the main thread.** At 500k characters the Worker round trip
+  is about 41% of time to paint. Even a parser twice as fast would save about 190 ms (about 20%), below the 25% p95
+  adoption threshold. The main-thread long tasks come from rendering, which a WASM parser does not touch.
+- **Open-fence appends are not a problem in the real app.** About 40 ms from emit to paint and 12 ms of Worker time per
+  append at 200k characters; the 11-03 responder-only figure (about 42 ms at 500k) does not translate into jank.
+- **A fixed ~300 ms of cold-paint latency is unattributed.** A 30k-character document took about 400 ms to paint with a
+  74 ms parse and no long tasks. It is likely scheduling or a deliberate mount delay, not compute; investigate before
+  any parser work.
+- **Re-theming a large document costs 200–400 ms.** One cold run of the existing `markdown-stream-webmcp.mjs` timed out
+  its 10 s light-theme wait right after a build; two re-runs passed. Treat that as a cold-start flake, not a regression.
+
+Conclusion: drop the WASM Markdown parser candidate. The better targets are render batching or virtualization of very
+large messages, finalization re-render cost, and the unattributed mount latency, all in TypeScript.
+
 ## Stability
 
 Reliable stability gains come from bounded work and lifecycle control, regardless of language:
@@ -101,5 +131,8 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 ## Recommended next steps
 
 1. Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact.
-2. Capture packaged traces for large Markdown sessions and large/fragmented diffs before selecting any kernel.
+2. ~~Capture packaged Markdown traces~~ — done (see above). A matching diff trace needs a large-diff stub fixture and
+   is still open.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
+4. Investigate the large-message render path in TypeScript: the unattributed ~300 ms mount latency, long tasks above
+   100 ms at 500k characters, and finalization re-render cost.

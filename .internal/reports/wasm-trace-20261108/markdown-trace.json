@@ -1,0 +1,604 @@
+{
+  "recordedAt": "2026-11-08T21:47:25.942Z",
+  "host": {
+    "platform": "darwin",
+    "arch": "arm64"
+  },
+  "runs": 3,
+  "manyBlocks": {
+    "100000": {
+      "characters": 100163,
+      "sections": 197,
+      "coldPaintMs": {
+        "count": 3,
+        "p50": 456.9,
+        "p95": 489.8,
+        "max": 489.8
+      },
+      "coldWorkerMs": {
+        "count": 3,
+        "p50": 96.1,
+        "p95": 126.2,
+        "max": 126.2
+      },
+      "coldLongTaskMaxMs": {
+        "count": 3,
+        "p50": 0,
+        "p95": 0,
+        "max": 0
+      },
+      "finalizeMs": {
+        "count": 3,
+        "p50": 108.3,
+        "p95": 109,
+        "max": 109
+      },
+      "finalizeWorkerMs": {
+        "count": 3,
+        "p50": 56.9,
+        "p95": 58.8,
+        "max": 58.8
+      },
+      "themeSwitchMs": {
+        "count": 3,
+        "p50": 85.4,
+        "p95": 106.7,
+        "max": 106.7
+      },
+      "heapUsedMiB": {
+        "count": 3,
+        "p50": 227.71,
+        "p95": 300.85,
+        "max": 300.85
+      }
+    },
+    "300000": {
+      "characters": 300200,
+      "sections": 590,
+      "coldPaintMs": {
+        "count": 3,
+        "p50": 687.1,
+        "p95": 698.2,
+        "max": 698.2
+      },
+      "coldWorkerMs": {
+        "count": 3,
+        "p50": 229.2,
+        "p95": 242.4,
+        "max": 242.4
+      },
+      "coldLongTaskMaxMs": {
+        "count": 3,
+        "p50": 80,
+        "p95": 83,
+        "max": 83
+      },
+      "finalizeMs": {
+        "count": 3,
+        "p50": 239.4,
+        "p95": 250.8,
+        "max": 250.8
+      },
+      "finalizeWorkerMs": {
+        "count": 3,
+        "p50": 173,
+        "p95": 183.2,
+        "max": 183.2
+      },
+      "themeSwitchMs": {
+        "count": 3,
+        "p50": 227.4,
+        "p95": 228.9,
+        "max": 228.9
+      },
+      "heapUsedMiB": {
+        "count": 3,
+        "p50": 241.19,
+        "p95": 351.5,
+        "max": 351.5
+      }
+    },
+    "500000": {
+      "characters": 500237,
+      "sections": 983,
+      "coldPaintMs": {
+        "count": 3,
+        "p50": 937.4,
+        "p95": 937.9,
+        "max": 937.9
+      },
+      "coldWorkerMs": {
+        "count": 3,
+        "p50": 384.6,
+        "p95": 387.3,
+        "max": 387.3
+      },
+      "coldLongTaskMaxMs": {
+        "count": 3,
+        "p50": 132,
+        "p95": 138,
+        "max": 138
+      },
+      "finalizeMs": {
+        "count": 3,
+        "p50": 541.5,
+        "p95": 556.9,
+        "max": 556.9
+      },
+      "finalizeWorkerMs": {
+        "count": 3,
+        "p50": 308.4,
+        "p95": 311.9,
+        "max": 311.9
+      },
+      "themeSwitchMs": {
+        "count": 3,
+        "p50": 207.6,
+        "p95": 400.7,
+        "max": 400.7
+      },
+      "heapUsedMiB": {
+        "count": 3,
+        "p50": 239.18,
+        "p95": 401.68,
+        "max": 401.68
+      }
+    }
+  },
+  "openFence": {
+    "characters": 200022,
+    "coldPaintMs": {
+      "count": 3,
+      "p50": 399.9,
+      "p95": 408.7,
+      "max": 408.7
+    },
+    "appendPaintMs": {
+      "count": 30,
+      "p50": 40.2,
+      "p95": 48,
+      "max": 48.2
+    },
+    "appendWorkerMs": {
+      "count": 30,
+      "p50": 12,
+      "p95": 14.1,
+      "max": 14.1
+    },
+    "appendLongTaskMaxMs": {
+      "count": 3,
+      "p50": 0,
+      "p95": 0,
+      "max": 0
+    },
+    "heapUsedMiB": {
+      "count": 3,
+      "p50": 287.66,
+      "p95": 459.09,
+      "max": 459.09
+    }
+  },
+  "samples": {
+    "manyBlocks": {
+      "100000": [
+        {
+          "characters": 100163,
+          "sections": 197,
+          "coldPaintMs": 489.79999999701977,
+          "coldWorkerMs": [
+            126.20000000298023
+          ],
+          "coldLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "finalizeMs": 84.29999999701977,
+          "finalizeWorkerMs": [
+            56.1000000089407
+          ],
+          "finalizeLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 106.70000000298023,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 105,
+            "maxMs": 105,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 125229372
+        },
+        {
+          "characters": 100163,
+          "sections": 197,
+          "coldPaintMs": 456.90000000596046,
+          "coldWorkerMs": [
+            96.09999999403954
+          ],
+          "coldLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "finalizeMs": 109,
+          "finalizeWorkerMs": [
+            56.8999999910593
+          ],
+          "finalizeLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 85.3999999910593,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 86,
+            "maxMs": 86,
+            "over100Ms": 0
+          },
+          "heapUsedBytes": 315466808
+        },
+        {
+          "characters": 100163,
+          "sections": 197,
+          "coldPaintMs": 454.20000000298023,
+          "coldWorkerMs": [
+            95.29999999701977
+          ],
+          "coldLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "finalizeMs": 108.29999999701977,
+          "finalizeWorkerMs": [
+            58.79999999701977
+          ],
+          "finalizeLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 83.29999999701977,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 83,
+            "maxMs": 83,
+            "over100Ms": 0
+          },
+          "heapUsedBytes": 238771608
+        }
+      ],
+      "300000": [
+        {
+          "characters": 300200,
+          "sections": 590,
+          "coldPaintMs": 698.2000000029802,
+          "coldWorkerMs": [
+            242.3999999910593
+          ],
+          "coldLongTasks": {
+            "count": 3,
+            "totalMs": 202,
+            "maxMs": 78,
+            "over100Ms": 0
+          },
+          "finalizeMs": 237.3999999910593,
+          "finalizeWorkerMs": [
+            173
+          ],
+          "finalizeLongTasks": {
+            "count": 0,
+            "totalMs": 0,
+            "maxMs": 0,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 227.40000000596046,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 232,
+            "maxMs": 232,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 227947272
+        },
+        {
+          "characters": 300200,
+          "sections": 590,
+          "coldPaintMs": 686.1000000089407,
+          "coldWorkerMs": [
+            229.19999998807907
+          ],
+          "coldLongTasks": {
+            "count": 2,
+            "totalMs": 155,
+            "maxMs": 80,
+            "over100Ms": 0
+          },
+          "finalizeMs": 239.40000000596046,
+          "finalizeWorkerMs": [
+            172.79999999701977
+          ],
+          "finalizeLongTasks": {
+            "count": 1,
+            "totalMs": 51,
+            "maxMs": 51,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 225.1000000089407,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 237,
+            "maxMs": 237,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 252909620
+        },
+        {
+          "characters": 300200,
+          "sections": 590,
+          "coldPaintMs": 687.0999999940395,
+          "coldWorkerMs": [
+            228.1000000089407
+          ],
+          "coldLongTasks": {
+            "count": 2,
+            "totalMs": 157,
+            "maxMs": 83,
+            "over100Ms": 0
+          },
+          "finalizeMs": 250.79999999701977,
+          "finalizeWorkerMs": [
+            183.19999998807907
+          ],
+          "finalizeLongTasks": {
+            "count": 1,
+            "totalMs": 51,
+            "maxMs": 51,
+            "over100Ms": 0
+          },
+          "themeSwitchMs": 228.8999999910593,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 235,
+            "maxMs": 235,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 368578048
+        }
+      ],
+      "500000": [
+        {
+          "characters": 500237,
+          "sections": 983,
+          "coldPaintMs": 937.4000000059605,
+          "coldWorkerMs": [
+            384.59999999403954
+          ],
+          "coldLongTasks": {
+            "count": 3,
+            "totalMs": 338,
+            "maxMs": 132,
+            "over100Ms": 2
+          },
+          "finalizeMs": 513.6000000089407,
+          "finalizeWorkerMs": [
+            297.5
+          ],
+          "finalizeLongTasks": {
+            "count": 3,
+            "totalMs": 261,
+            "maxMs": 113,
+            "over100Ms": 1
+          },
+          "themeSwitchMs": 400.70000000298023,
+          "themeLongTasks": {
+            "count": 1,
+            "totalMs": 409,
+            "maxMs": 409,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 186240568
+        },
+        {
+          "characters": 500237,
+          "sections": 983,
+          "coldPaintMs": 934.5999999940395,
+          "coldWorkerMs": [
+            373.70000000298023
+          ],
+          "coldLongTasks": {
+            "count": 3,
+            "totalMs": 329,
+            "maxMs": 138,
+            "over100Ms": 2
+          },
+          "finalizeMs": 541.5,
+          "finalizeWorkerMs": [
+            311.90000000596046
+          ],
+          "finalizeLongTasks": {
+            "count": 3,
+            "totalMs": 271,
+            "maxMs": 117,
+            "over100Ms": 1
+          },
+          "themeSwitchMs": 207.59999999403954,
+          "themeLongTasks": {
+            "count": 2,
+            "totalMs": 424,
+            "maxMs": 371,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 421196496
+        },
+        {
+          "characters": 500237,
+          "sections": 983,
+          "coldPaintMs": 937.9000000059605,
+          "coldWorkerMs": [
+            387.30000001192093
+          ],
+          "coldLongTasks": {
+            "count": 3,
+            "totalMs": 338,
+            "maxMs": 132,
+            "over100Ms": 2
+          },
+          "finalizeMs": 556.8999999910593,
+          "finalizeWorkerMs": [
+            308.40000000596046
+          ],
+          "finalizeLongTasks": {
+            "count": 3,
+            "totalMs": 293,
+            "maxMs": 145,
+            "over100Ms": 1
+          },
+          "themeSwitchMs": 194,
+          "themeLongTasks": {
+            "count": 2,
+            "totalMs": 401,
+            "maxMs": 350,
+            "over100Ms": 1
+          },
+          "heapUsedBytes": 250802732
+        }
+      ]
+    },
+    "openFence": [
+      {
+        "characters": 200022,
+        "coldPaintMs": 399.8999999910593,
+        "coldLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "appendPaintMs": [
+          43.20000000298023,
+          40.1000000089407,
+          39.5,
+          40.29999999701977,
+          48.20000000298023,
+          38.900000005960464,
+          39,
+          40.70000000298023,
+          40.900000005960464,
+          40
+        ],
+        "appendWorkerMs": [
+          12.599999994039536,
+          11.700000002980232,
+          12.400000005960464,
+          11,
+          12.5,
+          11.299999997019768,
+          11.599999994039536,
+          11.400000005960464,
+          11,
+          11.5
+        ],
+        "appendLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "heapUsedBytes": 240677444
+      },
+      {
+        "characters": 200022,
+        "coldPaintMs": 380.79999999701977,
+        "coldLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "appendPaintMs": [
+          47,
+          40.19999998807907,
+          47.70000000298023,
+          46.8999999910593,
+          48,
+          40.5,
+          40.1000000089407,
+          40.599999994039536,
+          40.099999994039536,
+          39.900000005960464
+        ],
+        "appendWorkerMs": [
+          13.600000008940697,
+          12.399999991059303,
+          12.200000002980232,
+          11.400000005960464,
+          14.099999994039536,
+          11.700000002980232,
+          11.700000002980232,
+          12.799999997019768,
+          12,
+          11.900000005960464
+        ],
+        "appendLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "heapUsedBytes": 481386424
+      },
+      {
+        "characters": 200022,
+        "coldPaintMs": 408.70000000298023,
+        "coldLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "appendPaintMs": [
+          44.80000001192093,
+          39.599999994039536,
+          40.099999994039536,
+          39.400000005960464,
+          47.3999999910593,
+          40.20000000298023,
+          42.1000000089407,
+          40,
+          40.400000005960464,
+          39.599999994039536
+        ],
+        "appendWorkerMs": [
+          12.799999997019768,
+          12.099999994039536,
+          12,
+          11.299999997019768,
+          14.099999994039536,
+          12.099999994039536,
+          12.100000008940697,
+          12.399999991059303,
+          12,
+          11.400000005960464
+        ],
+        "appendLongTasks": {
+          "count": 0,
+          "totalMs": 0,
+          "maxMs": 0,
+          "over100Ms": 0
+        },
+        "heapUsedBytes": 301634936
+      }
+    ]
+  }
+}
