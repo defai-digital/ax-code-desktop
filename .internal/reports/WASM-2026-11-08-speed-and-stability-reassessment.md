@@ -162,7 +162,8 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 
 ## Recommended next steps
 
-1. Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact.
+1. Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact — requested in
+   [defai-digital/ax-code#503](https://github.com/defai-digital/ax-code/issues/503).
 2. ~~Capture packaged Markdown traces~~ — done (see above). A matching diff trace needs a large-diff stub fixture and
    is still open.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
