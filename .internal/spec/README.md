@@ -8,6 +8,10 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
+Engine upgrade: [Electron 45 stable v1](SPEC-2026-11-08-electron-45-stable-v1.md) governs the requested exact
+`45.2.3` upgrade and Mission Control renderer startup adaptation. The generated lockfile preserves SDK `2.6.69`;
+workspace and native validation are recorded in the linked upgrade review.
+
 Implementation addendum: [Session removal and isolation v2](SPEC-2026-10-23-session-removal-and-isolation-v2.md) records immediate archive with compensating Undo, explicit ordered isolation writes, and exact changed-file attribution for the v7.28.6 candidate. Earlier accepted records are preserved.
 
 Current additive development observation: [Desktop UI WebMCP v4](SPEC-2026-10-20-desktop-ui-webmcp-v4.md) reports
@@ -65,7 +69,7 @@ Current testing extension: [Desktop E2E Harness v2](SPEC-2026-10-19-desktop-e2e-
 | [Desktop Download Distribution v1](SPEC-2026-10-11-desktop-download-distribution-v1.md)       | Preparation record; superseded by v3 and v4                                                                              |
 | [Desktop Download Distribution v2](SPEC-2026-10-12-desktop-download-distribution-v2.md)       | Preparation record; its disabled-publication state ended with ADR-012                                                    |
 | [Independent Release Preparation](SPEC-2026-10-11-independent-desktop-release-preparation.md) | Preparation record; release freeze superseded by ADR-012                                                                 |
-| [Electron 45 Candidate v1](SPEC-2026-10-11-electron-45-candidate-v1.md)                       | Qualification experiment (`d8b11c78`); the shipping pin is Electron 44.9.0. A new spec governs the next Electron upgrade |
+| [Electron 45 Candidate v1](SPEC-2026-10-11-electron-45-candidate-v1.md)                       | Historical beta experiment (`d8b11c78`); the 2026-11-08 stable specification governs the requested 45.2.3 upgrade |
 | [Analysis App Handoff v1](SPEC-2026-10-18-analysis-app-handoff-v1.md)                         | Executable contract superseded by analysis routing v2                                                                    |
 | [Mermaid Capabilities v1](SPEC-2026-10-18-mermaid-capabilities-v1.md)                         | Preserved accepted inventory; v2 is current                                                                              |
 

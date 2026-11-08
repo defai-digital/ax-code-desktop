@@ -249,7 +249,7 @@ pnpm run smoke:launch-animations
 
 ### Electron
 
-Development and release builds pin Electron `44.7.0`. Package targets are macOS 13+ Apple Silicon,
+Development and release builds pin Electron `45.2.3`. Package targets are macOS 13+ Apple Silicon,
 Windows x64, and Ubuntu Desktop 24.04+ amd64/arm64. After an Electron upgrade, rebuild `node-pty`
 and run the engine smokes:
 
@@ -258,6 +258,9 @@ pnpm --filter @ax-code/electron run rebuild:native
 pnpm run smoke:electron-compatibility
 pnpm run smoke:native-webmcp
 ```
+
+The Mission Control pop-out disables legacy webviews to use Electron 45's lighter renderer startup path.
+Workspace windows keep webview support for the existing browser preview. Startup timing gains require measurement.
 
 `pnpm run release:preflight` prints a read-only release report. It does not publish or copy credentials.
 

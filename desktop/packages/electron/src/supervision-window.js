@@ -41,7 +41,11 @@ function createSupervisionWindowController({
       title: "AX Code",
       ...chromeOptions(),
       show: false,
-      webPreferences: webPreferences(),
+      webPreferences: {
+        ...webPreferences(),
+        // Mission Control has no legacy webview; Electron 45 can skip its renderer bootstrap bundle.
+        webviewTag: false,
+      },
     })
     current = win
     win.on("closed", () => {

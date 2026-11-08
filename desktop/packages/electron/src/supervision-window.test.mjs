@@ -75,7 +75,7 @@ const createController = (overrides = {}) => {
 }
 
 describe("supervision pop-out window", () => {
-  test("uses the shared sandboxed renderer preferences and the spec window size", async () => {
+  test("keeps the shared sandboxed preferences without enabling legacy webviews", async () => {
     const { controller, instances } = createController()
     await controller.open()
     expect(instances).toHaveLength(1)
@@ -85,6 +85,7 @@ describe("supervision pop-out window", () => {
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      webviewTag: false,
     })
     expect(options).toMatchObject({ ...SUPERVISION_WINDOW_SIZE, show: false, titleBarStyle: "hiddenInset" })
     expect(SUPERVISION_WINDOW_SIZE).toEqual({ width: 960, height: 720, minWidth: 640, minHeight: 480 })
