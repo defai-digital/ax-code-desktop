@@ -36,6 +36,8 @@ import { cn, formatDirectoryName } from "@/lib/utils"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { collectVisibleSessionIdsForBlockingRequests } from "./lib/blockingRequests"
 import { useScopedPermissions, useScopedQuestions } from "./hooks/useScopedBlockingRequests"
+import { scheduleIdleTask } from "@/lib/idleTask"
+import { preloadMarkdownRenderer } from "./markdownRendererChunk"
 
 // New sync system imports
 import { useSessionUIStore } from "@/sync/session-ui-store"
@@ -392,6 +394,7 @@ type ChatContainerProps = {
 
 export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = true, readOnly = false }) => {
   const { t } = useI18n()
+  React.useEffect(() => scheduleIdleTask(preloadMarkdownRenderer), [])
   // Session UI state
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft)
