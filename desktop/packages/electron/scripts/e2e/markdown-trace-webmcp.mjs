@@ -198,6 +198,8 @@ const headingPredicate = (sections) =>
 const traceManyBlocks = async ({ session, fixture, size, run }) => {
   const { text, sections } = manyBlocksMarkdown(size)
   const emitted = await startMessage(session, { ...fixture, key: `blocks_${size}_${run}`, text })
+  // The unparsed source is shown while the Worker runs, so this marks the message mount.
+  const firstText = await until(session, 'document.body.textContent.includes("Trace section 0")')
   const painted = await until(session, headingPredicate(sections))
   const afterPaint = await traceSnapshot(session)
   const finishAt = await session.evaluate("window.__trace.finish()")
@@ -221,7 +223,7 @@ const traceManyBlocks = async ({ session, fixture, size, run }) => {
     sections,
     coldPaintMs: painted - emitted,
     coldWorkerMs: workerSamples(afterPaint, emitted, painted),
-    coldPhases: coldPhases(afterPaint, emitted, painted),
+    coldPhases: { ...coldPhases(afterPaint, emitted, painted), toFirstTextMs: firstText - emitted },
     coldLongTasks: longTasksWithin(afterPaint.longTasks, emitted, painted),
     finalizeMs: finalized - finishAt,
     finalizeWorkerMs: workerSamples(afterFinal, finishAt, finalized, { live: false }),
@@ -267,6 +269,7 @@ const summarizeBlocks = (samples) => ({
   coldWorkerMs: summarizeSamples(samples.flatMap((sample) => sample.coldWorkerMs)),
   coldToFirstRequestMs: summarizeSamples(samples.map((sample) => sample.coldPhases.toFirstRequestMs)),
   coldResponseToPaintMs: summarizeSamples(samples.map((sample) => sample.coldPhases.lastResponseToPaintMs)),
+  coldToFirstTextMs: summarizeSamples(samples.map((sample) => sample.coldPhases.toFirstTextMs)),
   coldLongTaskMaxMs: summarizeSamples(samples.map((sample) => sample.coldLongTasks.maxMs)),
   finalizeMs: summarizeSamples(samples.map((sample) => sample.finalizeMs)),
   finalizeWorkerMs: summarizeSamples(samples.flatMap((sample) => sample.finalizeWorkerMs)),
@@ -347,6 +350,7 @@ if (receipt) {
     console.log(`many-blocks ${size} chars (${summary.sections} sections)`)
     console.log(`  cold paint ms       ${formatSummary(summary.coldPaintMs)}`)
     console.log(`  cold worker ms      ${formatSummary(summary.coldWorkerMs)}`)
+    console.log(`  emit -> first text  ${formatSummary(summary.coldToFirstTextMs)}`)
     console.log(`  emit -> request ms  ${formatSummary(summary.coldToFirstRequestMs)}`)
     console.log(`  response -> paint   ${formatSummary(summary.coldResponseToPaintMs)}`)
     console.log(`  cold long task max  ${formatSummary(summary.coldLongTaskMaxMs)}`)
