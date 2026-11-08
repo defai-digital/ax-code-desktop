@@ -179,6 +179,18 @@ const workerSamples = (snapshot, start, end, { live } = {}) => {
     .filter((value) => Number.isFinite(value))
 }
 
+// Splits cold paint into: emit -> first parser request, parse round trip, last response -> paint.
+const coldPhases = (snapshot, start, end) => {
+  const requests = snapshot.requests.filter((request) => request.at >= start && request.at <= end)
+  const responses = snapshot.responses.filter((response) => requests.some((request) => request.id === response.id))
+  if (requests.length === 0 || responses.length === 0) return { toFirstRequestMs: null, lastResponseToPaintMs: null }
+  return {
+    toFirstRequestMs: requests[0].at - start,
+    lastResponseToPaintMs: end - Math.max(...responses.map((response) => response.at)),
+    requests: requests.length,
+  }
+}
+
 const headingPredicate = (sections) =>
   `(() => { const h = document.querySelectorAll("h2"); return h.length >= ${sections} && ` +
   `Array.prototype.some.call(h, x => x.textContent === "Trace section ${sections - 1}") })()`
@@ -209,6 +221,7 @@ const traceManyBlocks = async ({ session, fixture, size, run }) => {
     sections,
     coldPaintMs: painted - emitted,
     coldWorkerMs: workerSamples(afterPaint, emitted, painted),
+    coldPhases: coldPhases(afterPaint, emitted, painted),
     coldLongTasks: longTasksWithin(afterPaint.longTasks, emitted, painted),
     finalizeMs: finalized - finishAt,
     finalizeWorkerMs: workerSamples(afterFinal, finishAt, finalized, { live: false }),
@@ -252,6 +265,8 @@ const summarizeBlocks = (samples) => ({
   sections: samples[0]?.sections,
   coldPaintMs: summarizeSamples(samples.map((sample) => sample.coldPaintMs)),
   coldWorkerMs: summarizeSamples(samples.flatMap((sample) => sample.coldWorkerMs)),
+  coldToFirstRequestMs: summarizeSamples(samples.map((sample) => sample.coldPhases.toFirstRequestMs)),
+  coldResponseToPaintMs: summarizeSamples(samples.map((sample) => sample.coldPhases.lastResponseToPaintMs)),
   coldLongTaskMaxMs: summarizeSamples(samples.map((sample) => sample.coldLongTasks.maxMs)),
   finalizeMs: summarizeSamples(samples.map((sample) => sample.finalizeMs)),
   finalizeWorkerMs: summarizeSamples(samples.flatMap((sample) => sample.finalizeWorkerMs)),
@@ -332,6 +347,8 @@ if (receipt) {
     console.log(`many-blocks ${size} chars (${summary.sections} sections)`)
     console.log(`  cold paint ms       ${formatSummary(summary.coldPaintMs)}`)
     console.log(`  cold worker ms      ${formatSummary(summary.coldWorkerMs)}`)
+    console.log(`  emit -> request ms  ${formatSummary(summary.coldToFirstRequestMs)}`)
+    console.log(`  response -> paint   ${formatSummary(summary.coldResponseToPaintMs)}`)
     console.log(`  cold long task max  ${formatSummary(summary.coldLongTaskMaxMs)}`)
     console.log(`  finalize ms         ${formatSummary(summary.finalizeMs)}`)
     console.log(`  finalize worker ms  ${formatSummary(summary.finalizeWorkerMs)}`)

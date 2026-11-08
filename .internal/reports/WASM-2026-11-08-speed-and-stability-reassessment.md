@@ -94,9 +94,10 @@ Findings:
   adoption threshold. The main-thread long tasks come from rendering, which a WASM parser does not touch.
 - **Open-fence appends are not a problem in the real app.** About 40 ms from emit to paint and 12 ms of Worker time per
   append at 200k characters; the 11-03 responder-only figure (about 42 ms at 500k) does not translate into jank.
-- **A fixed ~300 ms of cold-paint latency is unattributed.** A 30k-character document took about 400 ms to paint with a
-  74 ms parse and no long tasks. It is likely scheduling or a deliberate mount delay, not compute; investigate before
-  any parser work.
+- **A fixed ~300 ms passes before the parser is even asked.** A phase split (two cold runs, same harness) puts
+  emit → first Worker request at about 305–315 ms for 30k characters and 310–400 ms for 500k, with response → paint
+  at about 20 ms and 245 ms respectively. The delay sits upstream of Markdown (event pipeline or message mount), not
+  in the Worker client, which has no such timer. It is the largest single cold cost below 500k characters.
 - **Re-theming a large document costs 200–400 ms.** One cold run of the existing `markdown-stream-webmcp.mjs` timed out
   its 10 s light-theme wait right after a build; two re-runs passed. Treat that as a cold-start flake, not a regression.
 
@@ -134,5 +135,5 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 2. ~~Capture packaged Markdown traces~~ — done (see above). A matching diff trace needs a large-diff stub fixture and
    is still open.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
-4. Investigate the large-message render path in TypeScript: the unattributed ~300 ms mount latency, long tasks above
+4. Investigate the large-message render path in TypeScript: the ~300 ms emit-to-parse delay, long tasks above
    100 ms at 500k characters, and finalization re-render cost.
