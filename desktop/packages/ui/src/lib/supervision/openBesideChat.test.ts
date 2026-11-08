@@ -51,6 +51,21 @@ describe("beside-chat views and the Files unsaved-changes guard", () => {
     expect(asked).toEqual([])
   })
 
+  test("opening an inspector closes the project sidebar after its guard accepts", () => {
+    useUIStore.setState({ isRightSidebarOpen: true, splitPaneEnabled: false })
+    expect(openBesideChat("files")).toBe(true)
+    expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
+    expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+  })
+
+  test("a rejected Files guard leaves the project sidebar and editor unchanged", () => {
+    dirtyFilesGuard()
+    useUIStore.setState({ isRightSidebarOpen: true })
+    expect(openBesideChat("diff")).toBe(false)
+    expect(useUIStore.getState().isRightSidebarOpen).toBe(true)
+    expect(useUIStore.getState().splitPaneRightTab).toBe("files")
+  })
+
   test("closing a dirty Files pane waits for the editor's decision, then closes", () => {
     const asked = dirtyFilesGuard()
     expect(closeBesideChat("files")).toBe(false)

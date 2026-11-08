@@ -5437,5 +5437,9 @@
   "webmcp.tools.compare.receiptMissing": "Laufzeitbeleg nicht verf\u00fcgbar: {reason}",
   "webmcp.tools.compare.missingDefinition": "Die Laufzeit hat keinen Definitionsdigest geliefert; dieser Aufruf kann daher keinem Schema zugeordnet werden.",
   "webmcp.tools.compare.unmatchedDefinition": "Zum Definitionsdigest der Laufzeit ist keine Definition gespeichert; dieser Aufruf kann daher diesem Werkzeug nicht zugeordnet werden.",
-  "webmcp.tools.compare.missingInput": "Die Laufzeit hat keinen Eingabebeleg geliefert; die Anfrage des Agenten belegt nicht, was die Seite empfangen hat."
+  "webmcp.tools.compare.missingInput": "Die Laufzeit hat keinen Eingabebeleg geliefert; die Anfrage des Agenten belegt nicht, was die Seite empfangen hat.",
+  "supervision.navigation.portfolio": "Projektübersicht",
+  "splitPane.focusPanel": "Bereich fokussieren",
+  "splitPane.restoreSplit": "Geteilte Ansicht wiederherstellen",
+  "splitPane.backToConversation": "Zurück zum Gespräch"
 }

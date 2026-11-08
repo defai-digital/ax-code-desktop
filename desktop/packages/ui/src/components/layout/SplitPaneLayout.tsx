@@ -1,7 +1,10 @@
 import React from "react"
 import { cn } from "@/lib/utils"
 import { useSplitPane, type SplitPaneRightTab } from "@/hooks/useSplitPane"
-import { selectSplitPaneTab } from "@/lib/supervision/openBesideChat"
+import { closeBesideChat, selectSplitPaneTab } from "@/lib/supervision/openBesideChat"
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { useUIStore } from "@/stores/useUIStore"
@@ -33,23 +36,45 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
   // element structure, so neither the chat nor the right pane's editor, terminal or drafts are rebuilt or lost.
   const splitEnabled = storedSplitEnabled
   const [isDragging, setIsDragging] = React.useState(false)
+  const [focusedTab, setFocusedTab] = React.useState<SplitPaneRightTab | null>(null)
+  const [isNarrow, setIsNarrow] = React.useState(false)
+  const panelFocused = splitEnabled && focusedTab === splitRightTab
   const containerRef = React.useRef<HTMLDivElement>(null)
+  const lastFocusedRef = React.useRef<Element | null>(null)
   const startXRef = React.useRef(0)
   const startRatioRef = React.useRef(splitRatio)
 
   React.useLayoutEffect(() => {
     const container = containerRef.current
+    if (!storedSplitEnabled || !container) return
+    const measure = () => {
+      const workspace = container.closest(".workspace-body") ?? container
+      const width = workspace.getBoundingClientRect().width
+      setIsNarrow(width > 0 && width <= 1120)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(container)
+    measure()
+    return () => observer.disconnect()
+  }, [storedSplitEnabled, suspended])
+
+  React.useLayoutEffect(() => {
+    const container = containerRef.current
     if (!splitEnabled || !container) return
-    let lastFocused = document.activeElement
+    if (container.contains(document.activeElement)) lastFocusedRef.current = document.activeElement
     const rememberFocus = (event: FocusEvent) => {
-      lastFocused = event.target as Element | null
+      if (event.target instanceof Element && container.contains(event.target)) lastFocusedRef.current = event.target
     }
     const keepFocusVisible = () => {
       const active = document.activeElement
-      const candidate = active === document.body ? lastFocused : active
+      const candidate = active === document.body ? lastFocusedRef.current : active
       if (!(candidate instanceof HTMLElement) || !container.contains(candidate)) return
-      const hiddenPane = candidate.closest<HTMLElement>("[data-split-chat], [data-split-resize]")
+      const hiddenPane = candidate.closest<HTMLElement>("[data-split-chat], [data-split-resize], [data-split-inspector]")
       if (!hiddenPane || getComputedStyle(hiddenPane).display !== "none") return
+      if (suspended) {
+        container.querySelector<HTMLElement>("[data-split-chat] textarea, [data-split-chat] button")?.focus({ preventScroll: true })
+        return
+      }
       container
         .querySelector<HTMLElement>('[data-split-inspector] button[aria-pressed="true"]')
         ?.focus({ preventScroll: true })
@@ -62,7 +87,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       observer.disconnect()
       document.removeEventListener("focusin", rememberFocus)
     }
-  }, [splitEnabled, splitRightTab])
+  }, [splitEnabled, splitRightTab, panelFocused, suspended])
 
   const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -122,15 +147,18 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
     [setSplitRatio, splitRatio],
   )
 
-  if (!splitEnabled) {
-    return <>{children}</>
-  }
-
-  const leftPercent = suspended ? "100%" : `${splitRatio * 100}%`
+  const leftPercent = !splitEnabled || suspended ? "100%" : `${splitRatio * 100}%`
   const rightPercent = `${(1 - splitRatio) * 100}%`
 
   return (
-    <div ref={containerRef} data-split-review={splitRightTab === "diff"} className="flex h-full w-full overflow-hidden">
+    <div
+      ref={containerRef}
+      data-split-layout
+      data-split-active={splitEnabled && !suspended}
+      data-panel-focused={panelFocused && !suspended}
+      data-split-review={splitRightTab === "diff"}
+      className="flex h-full w-full overflow-hidden"
+    >
       {/* Left pane. Must be a flex column: `children` is a `flex flex-1` element
           that only fills its height when its parent is a flex container (the
           non-split path renders it into MainLayout's `flex flex-col` wrapper).
@@ -146,7 +174,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
 
       {/* Drag handle */}
       <div
-        hidden={suspended}
+        hidden={!splitEnabled || suspended}
         className={cn(
           "relative flex-shrink-0 cursor-col-resize bg-border/40 transition-colors",
           "hover:bg-[var(--interactive-border)]",
@@ -172,32 +200,57 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       {/* Right pane */}
       <div
         data-split-inspector
-        hidden={suspended}
+        hidden={!splitEnabled || suspended}
         className="relative h-full min-w-0 overflow-hidden"
         style={{ width: rightPercent }}
       >
-        {/* Tab bar for right pane */}
-        <div className="flex h-8 items-center gap-0.5 overflow-x-auto border-b border-border/40 bg-[var(--surface-background)] px-1">
-          {SPLIT_TAB_OPTIONS.map((tab) => (
+        {/* A single selector keeps the inspector toolbar usable beside the conversation. */}
+        <div className="flex h-9 min-w-0 items-center gap-1 border-b border-border/40 bg-[var(--surface-background)] px-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-pressed="true"
+                className="inline-flex h-7 min-w-0 items-center gap-1 rounded px-2 typography-meta hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <span className="truncate">{t(SPLIT_TAB_OPTIONS.find(tab => tab.value === splitRightTab)!.labelKey as Parameters<typeof t>[0])}</span>
+                <Icon name="arrow-down-s" className="h-3 w-3 shrink-0" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {SPLIT_TAB_OPTIONS.map((tab) => (
+                <DropdownMenuItem key={tab.value} onSelect={() => selectSplitPaneTab(tab.value)}>
+                  <Icon name={tab.icon} className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t(tab.labelKey as Parameters<typeof t>[0])}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            {!isNarrow ? (
+              <button
+                type="button"
+                aria-label={t(panelFocused ? "splitPane.restoreSplit" : "splitPane.focusPanel")}
+                title={t(panelFocused ? "splitPane.restoreSplit" : "splitPane.focusPanel")}
+                aria-pressed={panelFocused}
+                onClick={() => setFocusedTab(panelFocused ? null : splitRightTab)}
+                className="inline-flex h-7 w-7 items-center justify-center rounded text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <Icon name={panelFocused ? "layout-column" : "window"} className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            ) : null}
             <button
-              key={tab.value}
               type="button"
-              aria-pressed={splitRightTab === tab.value}
-              onClick={() => selectSplitPaneTab(tab.value)}
-              className={cn(
-                "inline-flex h-6 shrink-0 items-center gap-1 rounded px-2 typography-micro transition-colors",
-                splitRightTab === tab.value
-                  ? "bg-[var(--interactive-hover)] text-foreground font-medium"
-                  : "text-muted-foreground hover:text-foreground hover:bg-[var(--interactive-hover)]/50",
-              )}
-              title={t(tab.labelKey as Parameters<typeof t>[0])}
+              aria-label={t("splitPane.backToConversation")}
+              onClick={() => closeBesideChat(splitRightTab)}
+              className="inline-flex h-7 items-center gap-1 rounded px-2 typography-meta text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
-              <Icon name={tab.icon} className="h-3 w-3" />
-              <span className="hidden sm:inline">{t(tab.labelKey as Parameters<typeof t>[0])}</span>
+              <Icon name="arrow-left" className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+              <span>{t("splitPane.backToConversation")}</span>
             </button>
-          ))}
+          </div>
         </div>
-        <div className="absolute inset-0 top-8 overflow-hidden">{rightContent}</div>
+        <div className="absolute inset-0 top-9 overflow-hidden">{rightContent}</div>
       </div>
     </div>
   )

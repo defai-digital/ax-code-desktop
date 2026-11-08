@@ -53,6 +53,7 @@ export const InspectorRail: React.FC = () => {
   const isMobile = useUIStore((state) => state.isMobile)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const splitPaneRightTab = useUIStore((state) => state.splitPaneRightTab)
+  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides)
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
@@ -61,7 +62,7 @@ export const InspectorRail: React.FC = () => {
   if (isMobile) return null
 
   const isActive = (view: BesideChatView): boolean =>
-    view === "terminal" ? isBottomTerminalOpen : splitPaneEnabled && splitPaneRightTab === view
+    view === "terminal" ? isBottomTerminalOpen : splitPaneEnabled && !isRightSidebarOpen && splitPaneRightTab === view
 
   const handleClick = (view: BesideChatView) => {
     if (isActive(view)) {

@@ -5437,5 +5437,9 @@
   "webmcp.tools.compare.receiptMissing": "Bukti runtime tidak tersedia: {reason}",
   "webmcp.tools.compare.missingDefinition": "Runtime tidak memberikan digest definisi, sehingga panggilan ini tidak dapat dikaitkan dengan skema.",
   "webmcp.tools.compare.unmatchedDefinition": "Digest definisi runtime tidak memiliki definisi yang tersimpan, sehingga panggilan ini tidak dapat dikaitkan dengan alat ini.",
-  "webmcp.tools.compare.missingInput": "Runtime tidak memberikan bukti input; permintaan agen bukan bukti tentang apa yang diterima halaman."
+  "webmcp.tools.compare.missingInput": "Runtime tidak memberikan bukti input; permintaan agen bukan bukti tentang apa yang diterima halaman.",
+  "supervision.navigation.portfolio": "Portofolio proyek",
+  "splitPane.focusPanel": "Fokus pada panel",
+  "splitPane.restoreSplit": "Pulihkan tampilan terbagi",
+  "splitPane.backToConversation": "Kembali ke percakapan"
 }

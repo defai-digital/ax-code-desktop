@@ -988,16 +988,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           )}
         >
           {showDraftHome ? (
-            // Order is the reading and Tab order: composer, sessions that need a person, starters,
-            // then the portfolio. The queue sits below the composer so arriving requests never move it.
+            // Order is the reading and Tab order: composer, sessions that need a person, projects,
+            // then bounded starter suggestions. The queue sits below the composer so arriving requests never move it.
             <div data-draft-home className="flex w-full flex-col items-center">
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
               <NeedsYouQueue className="chat-input-column mt-1" />
-              <DraftPresetChips
-                layout="grid"
-                onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
-                className="chat-input-column mt-5"
-              />
               {showDraftProjects ? (
                 <div className="chat-input-column mt-8">
                   <ProjectsHome
@@ -1007,6 +1002,11 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                   />
                 </div>
               ) : null}
+              <DraftPresetChips
+                layout="grid"
+                onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
+                className="chat-input-column mt-5"
+              />
             </div>
           ) : promptReadOnly ? (
             <ReadOnlyPromptBanner />

@@ -1,3 +1,4 @@
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
@@ -18,7 +19,7 @@ export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
   const grid = useUIStore((s) => s.activeMainTab === "session-grid")
-  const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
+  const review = useUIStore((s) => s.splitPaneEnabled && !s.isRightSidebarOpen && s.splitPaneRightTab === "diff")
   const directory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const branch = useGitBranchLabel(directory ?? null)
@@ -40,18 +41,11 @@ export function WorkspaceNavigation() {
       },
     },
     {
-      label: t("supervision.missionControl.title"),
+      label: t("supervision.navigation.portfolio"),
       icon: "equalizer-2" as const,
       active: board,
       disabled: false,
       run: () => useSupervisionStore.setState({ missionControlOpen: true, compareRunGroupKey: null }),
-    },
-    {
-      label: t("sessionGrid.title"),
-      icon: "window" as const,
-      active: !board && grid,
-      disabled: false,
-      run: () => openSessionGrid(),
     },
     {
       label: t("supervision.missionControl.action.reviewChanges"),
@@ -71,13 +65,14 @@ export function WorkspaceNavigation() {
     >
       {items.map((item) => (
         <button
+          data-navigation-level={item.icon === "file-check" ? "context" : "primary"}
           key={item.label}
           type="button"
           aria-pressed={item.active}
           disabled={item.disabled}
           onClick={item.run}
           className={cn(
-            "inline-flex min-h-9 min-w-0 items-center gap-2 rounded-md px-3 py-1 typography-ui-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+            "inline-flex min-h-9 min-w-0 items-center gap-2 rounded-md px-3 py-1 typography-ui-label data-[navigation-level=context]:ml-2 data-[navigation-level=context]:border-l data-[navigation-level=context]:border-border/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
             item.active
               ? "bg-interactive-selection text-primary"
               : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
@@ -87,6 +82,26 @@ export function WorkspaceNavigation() {
           <span>{item.label}</span>
         </button>
       ))}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            aria-pressed={!board && grid}
+            className="inline-flex min-h-9 items-center gap-1 rounded-md px-3 typography-meta text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Icon name="window" className="h-4 w-4" aria-hidden="true" />
+            {t("app.embeddedSession.views")}
+            <Icon name="arrow-down-s" className="h-3 w-3" aria-hidden="true" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem onSelect={() => {
+            useUIStore.getState().setActiveMainTab("chat")
+            leaveBoard()
+          }}>{t("supervision.navigation.workspace")}</DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => openSessionGrid()}>{t("sessionGrid.title")}</DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
       {currentSessionId && canOpenSessionWindow() ? (
         <button
           type="button"

@@ -250,7 +250,7 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
     await switchTo(primary.id, false)
     await runtime({ sessionID: secondary.id, requestID: "r26-grid-waiting" })
     await waitForCondition(async () => (await state(secondary.id))?.waiting, { label: "R26 hidden secondary page waits" })
-    await audit.click("Mission Control", { role: "button" })
+    await audit.click("Portfolio", { role: "button" })
     // These fixture sessions are idle; Recent includes them without changing the board's Live policy.
     await audit.click("Recent", { role: "button" })
     await audit.wait(`Boolean(document.querySelector('#mission-row-${secondary.id} [data-webmcp-waiting-session]')) &&

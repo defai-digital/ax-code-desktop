@@ -8,6 +8,7 @@ import { CdpSession, listTargets, waitForCondition } from "./cdp.mjs"
 import { journeyBoot, SHELL_READY_EXPRESSION } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { setDesktopViewport } from "./desktop-viewport.mjs"
 import { assertPathInsideDirectory } from "./scenario.mjs"
 import { focusPaletteForEscape, waitForGridReturn } from "./supervision-handoffs.mjs"
 import { STUB_REVIEW_DIFFS } from "./stub-runtime.mjs"
@@ -116,7 +117,7 @@ const outcome = await runHarness({
         await fs.writeFile(path.join(args.artifacts, `${name}.png`), Buffer.from(data, "base64"))
       }
     }
-    const viewport = width => session.send("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: false })
+    const viewport = width => setDesktopViewport(session, { width, height: 1000 })
     const observedControl = async (name, role = "button") => {
       const matches = (await audit.all()).controls.filter(control => control.name === name && control.role === role)
       if (matches.length !== 1) throw new Error(`Expected one observed ${role}: ${name}; got ${matches.length}`)
@@ -128,7 +129,7 @@ const outcome = await runHarness({
       return composer?.checkVisibility() && /^\d+(?:\.\d+)?px$/.test(clearance) && parseFloat(clearance) > 0
     })()`, "visible composer has positive toast clearance")
     const openBoard = async () => {
-      await audit.click("Mission Control", { role: "button" })
+      await audit.click("Portfolio", { role: "button" })
       await audit.wait('document.querySelectorAll(".mission-control-row").length === 2', "two board rows")
     }
     const checkGroupedBoard = async () => {
@@ -620,7 +621,8 @@ const outcome = await runHarness({
     await capture("session-grid-two")
     await audit.click("Workspace", { role: "button" })
     await audit.wait(`!document.querySelector('[data-session-grid]')`, "leave grid")
-    await audit.click("Session grid", { role: "button" })
+    await audit.click("Session views", { role: "button" })
+    await audit.click("Session grid", { role: "menuitem" })
     await audit.wait(`document.querySelector('[data-session-grid]')?.querySelectorAll('iframe').length === 2`, "return restores both grid panes")
 
     // Free arrangement: drag to reorder, keyboard move, split, and pop a pane into the session window.

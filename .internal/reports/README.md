@@ -2,6 +2,9 @@
 
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
 
+- [Workspace UX v1 implementation and verification](UX-2026-11-08-workspace-ux-v1.md): navigation hierarchy,
+  panel handoffs and focus, bounded starters, project identity, retry presentation and native qualification.
+
 - [WebAssembly speed and stability reassessment](WASM-2026-11-08-speed-and-stability-reassessment.md): no broad
   migration; canonical diff engine blocked on an installable artifact; packaged trace drops the Markdown parser candidate.
 

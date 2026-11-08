@@ -39,6 +39,8 @@ type DraftPresetChipsProps = {
 
 type StarterLayout = "pills" | "grid"
 
+const INITIAL_GRID_STARTERS = 3
+
 const PICKER_SECTIONS: {
   key: PinnableSection
   headingKey:
@@ -277,7 +279,12 @@ const AddStarterPicker: React.FC<{
 export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, className, layout = "pills" }) => {
   const { t } = useI18n()
   const { global, project, pinnable, ensureLoaded, addStarter, removeStarter, reorder } = useDraftStarters()
-  const hasChips = global.length > 0 || project.length > 0
+  const [expanded, setExpanded] = React.useState(false)
+  const total = global.length + project.length
+  const limit = layout === "grid" && !expanded ? INITIAL_GRID_STARTERS : total
+  const visibleGlobal = global.slice(0, limit)
+  const visibleProject = project.slice(0, Math.max(0, limit - visibleGlobal.length))
+  const hasChips = total > 0
   const [announcement, setAnnouncement] = React.useState("")
   const liveRegion = (
     <span className="sr-only" aria-live="polite" data-starter-announcement>
@@ -286,11 +293,11 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
   )
 
   const globalRow =
-    global.length > 0 ? (
+    visibleGlobal.length > 0 ? (
       <StarterGroupRow
         group="global"
         layout={layout}
-        items={global}
+        items={visibleGlobal}
         onSubmit={onSubmit}
         onRemove={removeStarter}
         onReorder={reorder}
@@ -298,11 +305,11 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
       />
     ) : null
   const projectRow =
-    project.length > 0 ? (
+    visibleProject.length > 0 ? (
       <StarterGroupRow
         group="project"
         layout={layout}
-        items={project}
+        items={visibleProject}
         onSubmit={onSubmit}
         onRemove={removeStarter}
         onReorder={reorder}
@@ -335,6 +342,16 @@ export const DraftPresetChips: React.FC<DraftPresetChipsProps> = ({ onSubmit, cl
           >
             {projectRow}
           </div>
+        ) : null}
+        {total > INITIAL_GRID_STARTERS ? (
+          <button
+            type="button"
+            aria-expanded={expanded}
+            onClick={() => setExpanded(!expanded)}
+            className="self-start rounded px-2 py-1 typography-meta text-muted-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            {t(expanded ? "inlineComment.actions.showLess" : "inlineComment.actions.showMore")}
+          </button>
         ) : null}
         <div className={gridClass}>
           {addPicker}

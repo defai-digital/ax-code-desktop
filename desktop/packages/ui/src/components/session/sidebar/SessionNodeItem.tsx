@@ -1,6 +1,7 @@
-import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { ProjectIdentityText } from "@/components/projects/ProjectIdentityText"
+import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -324,8 +325,8 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
   const hasSecondaryBranchLabel = Boolean(secondaryMeta?.branchLabel)
   const showActivityProjectContext = renderContext === "recent" && hasSecondaryProjectLabel
   const activityProjectContext = showActivityProjectContext ? (
-    <span className="w-full break-all typography-micro text-muted-foreground" data-session-project-context>
-      {secondaryMeta?.projectLabel}
+    <span className="w-full min-w-0 typography-micro text-muted-foreground" data-session-project-context>
+      <ProjectIdentityText label={secondaryMeta?.projectLabel ?? ""} />
     </span>
   ) : null
 
@@ -1117,6 +1118,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
                   <button
                     type="button"
                     disabled={isMissingDirectory}
+                    aria-label={showActivityProjectContext ? `${sessionTitle} · ${secondaryMeta?.projectLabel}` : undefined}
                     onMouseDown={handleRowMouseDown}
                     onClick={(event) => handleRowSelect(event)}
                     onDoubleClick={(e) => {
@@ -1216,6 +1218,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
               <button
                 type="button"
                 disabled={isMissingDirectory}
+                aria-label={showActivityProjectContext ? `${sessionTitle} · ${secondaryMeta?.projectLabel}` : undefined}
                 onMouseDown={handleRowMouseDown}
                 onClick={(event) => handleRowSelect(event)}
                 onDoubleClick={(e) => {

@@ -303,3 +303,14 @@ captures renderer heap after explicit garbage collection, DOM counters, fresh co
 It does not execute a model, change user projects, measure total application RSS or qualify a production soak.
 `AX_MEMORY_EXPECT_UNBOUNDED=1` is an investigation-only mode for running the same fixture on a pre-fix checkout;
 it expects cumulative retention instead of accepting a fixed build. Keep before/after source revisions separate.
+
+## Workspace layout and navigation
+
+Run `pnpm run e2e:desktop:workspace-ux -- --artifacts /tmp/ax-workspace-ux` after building.
+This isolated two-project journey checks Projects before the bounded starter list, starter disclosure, Files/sidebar
+handoffs, focused review and return, the session-grid view menu, Portfolio, and light/dark layouts at 1280 and 800 CSS
+pixels. It verifies the same composer DOM node and unsent message after navigation. Screenshots accompany fresh native
+control inventories and pane measurements. The fixture does not call a provider or qualify live runtime capacity.
+
+Viewport fixtures select reduced motion, deliver a resize notification after DevTools metric changes, and wait for the
+left sidebar's rendered width to settle. These checks qualify settled layout; they do not qualify animation timing.

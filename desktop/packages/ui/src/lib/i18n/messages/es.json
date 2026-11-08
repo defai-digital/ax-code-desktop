@@ -5437,5 +5437,9 @@
   "webmcp.tools.compare.receiptMissing": "Recibo de ejecuci\u00f3n no disponible: {reason}",
   "webmcp.tools.compare.missingDefinition": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un resumen de la definici\u00f3n, por lo que esta llamada no puede asociarse a un esquema.",
   "webmcp.tools.compare.unmatchedDefinition": "El resumen de la definici\u00f3n del entorno de ejecuci\u00f3n no tiene una definici\u00f3n conservada, por lo que esta llamada no puede asociarse a esta herramienta.",
-  "webmcp.tools.compare.missingInput": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un recibo de entrada; la solicitud del agente no demuestra lo que recibi\u00f3 la p\u00e1gina."
+  "webmcp.tools.compare.missingInput": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un recibo de entrada; la solicitud del agente no demuestra lo que recibi\u00f3 la p\u00e1gina.",
+  "supervision.navigation.portfolio": "Cartera de proyectos",
+  "splitPane.focusPanel": "Ampliar panel",
+  "splitPane.restoreSplit": "Restaurar vista dividida",
+  "splitPane.backToConversation": "Volver a la conversación"
 }

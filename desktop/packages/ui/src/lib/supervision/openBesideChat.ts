@@ -35,6 +35,7 @@ export function openBesideChat(view: BesideChatView): boolean {
     return true
   }
   if (!mayLeaveFilesPane(view)) return false
+  ui.setRightSidebarOpen(false)
   ui.setSplitPaneRightTab(view)
   ui.setSplitPaneEnabled(true)
   return true
@@ -55,6 +56,7 @@ export function closeBesideChat(view: BesideChatView): boolean {
 /** Switch the split pane's own tab, unless an unsaved Files editor keeps its place. */
 export function selectSplitPaneTab(view: BesideChatView): boolean {
   if (!mayLeaveFilesPane(view)) return false
+  useUIStore.getState().setRightSidebarOpen(false)
   useUIStore.getState().setSplitPaneRightTab(view)
   return true
 }
@@ -77,5 +79,5 @@ export function continueAfterFilesGuard(next: MainTab): void {
 export function isOpenBesideChat(view: BesideChatView): boolean {
   const ui = useUIStore.getState()
   if (view === "terminal") return ui.isBottomTerminalOpen
-  return ui.splitPaneEnabled && ui.splitPaneRightTab === view
+  return ui.splitPaneEnabled && !ui.isRightSidebarOpen && ui.splitPaneRightTab === view
 }

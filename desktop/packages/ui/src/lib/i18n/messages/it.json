@@ -5437,5 +5437,9 @@
   "webmcp.tools.compare.receiptMissing": "Ricevuta di esecuzione non disponibile: {reason}",
   "webmcp.tools.compare.missingDefinition": "Il runtime non ha fornito un digest della definizione, quindi questa chiamata non pu\u00f2 essere associata a uno schema.",
   "webmcp.tools.compare.unmatchedDefinition": "Il digest della definizione del runtime non ha una definizione conservata, quindi questa chiamata non pu\u00f2 essere associata a questo strumento.",
-  "webmcp.tools.compare.missingInput": "Il runtime non ha fornito una ricevuta di input; la richiesta dell\u2019agente non dimostra cosa ha ricevuto la pagina."
+  "webmcp.tools.compare.missingInput": "Il runtime non ha fornito una ricevuta di input; la richiesta dell\u2019agente non dimostra cosa ha ricevuto la pagina.",
+  "supervision.navigation.portfolio": "Portafoglio progetti",
+  "splitPane.focusPanel": "Espandi il pannello",
+  "splitPane.restoreSplit": "Ripristina vista divisa",
+  "splitPane.backToConversation": "Torna alla conversazione"
 }

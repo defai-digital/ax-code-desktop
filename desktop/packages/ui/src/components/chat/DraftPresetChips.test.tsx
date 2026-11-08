@@ -13,7 +13,7 @@ const starter = (id: string, label: string) => ({
 
 vi.doMock("./useDraftStarters", () => ({
   useDraftStarters: () => ({
-    global: [starter("a", "Alpha"), starter("b", "Beta"), starter("c", "Gamma")],
+    global: [starter("a", "Alpha"), starter("b", "Beta"), starter("c", "Gamma"), starter("d", "Delta")],
     project: [],
     pinnable: [],
     ensureLoaded: vi.fn(),
@@ -59,6 +59,18 @@ describe("draft starters keyboard reorder", () => {
     act(() => {
       target.dispatchEvent(new KeyboardEvent("keydown", { bubbles: true, cancelable: true, ...init }))
     })
+
+  test("the grid bounds suggestions and disclosure reveals the original actions", () => {
+    expect(container.querySelectorAll("[data-starter-layout]")).toHaveLength(3)
+    const disclosure = container.querySelector<HTMLButtonElement>('button[aria-expanded="false"]')!
+    act(() => disclosure.click())
+    expect(container.querySelectorAll("[data-starter-layout]")).toHaveLength(4)
+    act(() => chip("Delta").click())
+    expect(onSubmit).toHaveBeenCalledWith("/d")
+    act(() => disclosure.click())
+    expect(container.querySelectorAll("[data-starter-layout]")).toHaveLength(3)
+    expect(reorder).not.toHaveBeenCalled()
+  })
 
   test("Alt+Right moves a starter one place later and announces it", () => {
     press(chip("Alpha"), { key: "ArrowRight", altKey: true })

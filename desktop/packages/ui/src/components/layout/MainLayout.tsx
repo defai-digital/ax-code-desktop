@@ -501,7 +501,7 @@ export const MainLayout: React.FC = () => {
               <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <SupervisionMainOverlay />
                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <SplitPaneLayout suspended={isGridActive} rightContent={splitRightContent}>
+                  <SplitPaneLayout suspended={isGridActive || isRightSidebarOpen} rightContent={splitRightContent}>
                     <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
                       <div
                         className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"

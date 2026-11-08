@@ -166,3 +166,18 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
 
 This project includes software derived from OpenChamber; those portions remain under the
 [MIT License](./LICENSE-MIT). Upstream attribution is kept in [NOTICE](./NOTICE).
+
+## Workspace navigation and layout
+
+Workspace opens the current conversation. Portfolio opens Mission Control over the existing project/session state;
+Session views offers the session grid, and Review changes opens the current project's changes.
+
+The right project sidebar and the inspector share space: opening the sidebar temporarily hides the inspector while
+preserving its editor. Opening a tool reveals the inspector again. Narrow workspaces give the tool the full content
+width; Back to conversation returns through the existing unsaved-file guard. Wider workspaces also offer Focus panel
+and Restore split view. These display choices preserve the current message draft.
+
+The new-session page places Projects before starter suggestions. Three starters appear initially; Show more reveals
+the rest, including project starters. Sidebar directory labels use distinguishing suffixes, with full paths available
+on hover and in accessible action names. Retrying on a supervision row reflects a reported runtime retry; it does not
+change the run's urgency or count as a new approval request.

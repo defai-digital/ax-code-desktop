@@ -1,5 +1,7 @@
 # AX Code Desktop technical specification index
 
+Workspace usability contract: [Workspace UX v1](SPEC-2026-11-08-workspace-ux-v1.md).
+
 Current terminal source: [SPEC-2026-11-01-akitty-web-source-v5](SPEC-2026-11-01-akitty-web-source-v5.md).
 
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Each specification keeps its original status

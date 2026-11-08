@@ -5437,5 +5437,9 @@
   "webmcp.tools.compare.receiptMissing": "Re\u00e7u d\u2019ex\u00e9cution indisponible : {reason}",
   "webmcp.tools.compare.missingDefinition": "Le moteur n\u2019a pas fourni d\u2019empreinte de d\u00e9finition ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 un sch\u00e9ma.",
   "webmcp.tools.compare.unmatchedDefinition": "Aucune d\u00e9finition conserv\u00e9e ne correspond \u00e0 l\u2019empreinte du moteur ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 cet outil.",
-  "webmcp.tools.compare.missingInput": "Le moteur n\u2019a pas fourni de re\u00e7u d\u2019entr\u00e9e ; la requ\u00eate de l\u2019agent ne prouve pas ce que la page a re\u00e7u."
+  "webmcp.tools.compare.missingInput": "Le moteur n\u2019a pas fourni de re\u00e7u d\u2019entr\u00e9e ; la requ\u00eate de l\u2019agent ne prouve pas ce que la page a re\u00e7u.",
+  "supervision.navigation.portfolio": "Portefeuille de projets",
+  "splitPane.focusPanel": "Agrandir le panneau",
+  "splitPane.restoreSplit": "Rétablir la vue partagée",
+  "splitPane.backToConversation": "Revenir à la conversation"
 }

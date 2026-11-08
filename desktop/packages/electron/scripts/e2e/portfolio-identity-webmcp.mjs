@@ -5,6 +5,7 @@ import path from "node:path"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { setDesktopViewport, waitForCollapsedDesktopSidebar } from "./desktop-viewport.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 const outcome = await runHarness({
@@ -41,11 +42,11 @@ const outcome = await runHarness({
       }
     }
     const setViewport = async (width) => {
-      await session.send("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false })
+      await setDesktopViewport(session, { width, height: 900 })
       if (width < 900) {
         // The app collapses desktop panels after its resize debounce. Observe
         // that state before reopening, so the pending collapse cannot undo it.
-        await audit.wait('Boolean(document.querySelector(\'aside[aria-hidden="true"] [data-session-row]\'))', "responsive sidebar collapse")
+        await waitForCollapsedDesktopSidebar(session)
       }
     }
     const capture = async (name) => {
@@ -81,9 +82,9 @@ const outcome = await runHarness({
     const checkLiveRows = ({ liveRows }) => {
       for (const target of [e2e.scenario.session, e2e.scenario.portfolio[0].session]) {
         const row = liveRows.find(row => row.id === target.id)
-        if (!mentionsPath(row?.text, target.directory)) throw new Error(`Live row must visibly identify ${target.id}`)
+        if (!row?.text.includes(path.basename(target.directory))) throw new Error(`Live row must visibly identify ${target.id}`)
         const button = row.buttons.find(button => button.name.includes(target.title))
-        if (!mentionsPath(button?.text, target.directory)) throw new Error(`Live action must identify ${target.id}`)
+        if (!mentionsPath(button?.name, target.directory)) throw new Error(`Live action must identify ${target.id}`)
         if (row.scrollWidth > row.width + 1 || button.scrollWidth > button.width + 1) throw new Error("Live row overflows")
       }
     }
@@ -115,10 +116,15 @@ const outcome = await runHarness({
       if (!(await audit.find("Session display mode", { optional: true }))) {
         await audit.click("Open sessions")
       }
-      await audit.wait(`Array.from(document.querySelectorAll('[data-session-row]')).filter(row =>
+      try {
+        await audit.wait(`Array.from(document.querySelectorAll('[data-session-row]')).filter(row =>
         !row.closest('[aria-hidden="true"], [inert]') && row.checkVisibility() &&
         row.getBoundingClientRect().right <= (row.closest('aside')?.getBoundingClientRect().right ?? innerWidth) + 1
         ).length === 2`, "visible Live sidebar")
+      } catch (error) {
+        const state = await session.evaluate(`({ width: innerWidth, sidebar: Array.from(document.querySelectorAll('aside')).map(e => ({ hidden: e.getAttribute('aria-hidden'), width: e.getBoundingClientRect().width })), rows: Array.from(document.querySelectorAll('[data-session-row]')).map(e => ({ id: e.dataset.sessionRow, hidden: !!e.closest('[aria-hidden="true"], [inert]'), visible: e.checkVisibility(), right: e.getBoundingClientRect().right })) })`)
+        throw new Error(`Live sidebar did not settle: ${JSON.stringify(state)}`, { cause: error })
+      }
     }
     const checkLiveNavigation = async (mode) => {
       for (const [target, marker] of [
@@ -165,7 +171,7 @@ const outcome = await runHarness({
     await audit.click("Light")
     await audit.wait('document.documentElement.classList.contains("light")', "light theme")
     await audit.click("Close settings")
-    await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
+    await audit.wait('!Array.from(document.querySelectorAll("[data-settings-view]")).some(e => e.checkVisibility({ opacityProperty: true }) && !e.closest("[data-ending-style]"))', "settings closed")
     await setViewport(600)
     checkRows(await capture("portfolio-600-light"))
     await ensureSidebar()

@@ -624,13 +624,20 @@
   }
 }
 
-/* Keep chat mounted while a narrow workspace gives the review its full width. */
-@container workspace (max-width: 56rem) {
-  [data-split-review="true"] > [data-split-chat],
-  [data-split-review="true"] > [data-split-resize] {
+/* Keep both views mounted while inspection uses the available workspace. */
+[data-panel-focused="true"] > [data-split-chat],
+[data-panel-focused="true"] > [data-split-resize] {
+  display: none;
+}
+[data-panel-focused="true"] > [data-split-inspector] {
+  width: 100% !important;
+}
+@container workspace (max-width: 70rem) {
+  [data-split-layout][data-split-active="true"] > [data-split-chat],
+  [data-split-layout][data-split-active="true"] > [data-split-resize] {
     display: none;
   }
-  [data-split-review="true"] > [data-split-inspector] {
+  [data-split-layout][data-split-active="true"] > [data-split-inspector] {
     width: 100% !important;
   }
 }
