@@ -7,7 +7,7 @@ import {
   toTimestamp,
 } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 const buildCopilotWindows = (payload) => {
   const quota = payload?.quota_snapshots ?? {}
@@ -65,7 +65,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,
@@ -117,7 +117,7 @@ export const fetchQuotaAddon = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId: providerIdAddon,
         providerName: providerNameAddon,

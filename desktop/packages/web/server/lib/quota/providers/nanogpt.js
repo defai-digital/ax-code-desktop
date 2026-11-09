@@ -7,7 +7,7 @@ import {
   toTimestamp,
 } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 const NANO_GPT_DAILY_WINDOW_SECONDS = 86400
 
@@ -38,7 +38,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,

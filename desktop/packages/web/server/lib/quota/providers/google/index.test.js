@@ -66,4 +66,28 @@ describe("fetchGoogleQuota token refresh", () => {
     expect(result.ok).toBe(true)
     expect(Object.keys(result.usage.models)).toEqual(["antigravity/gemini-2.5-pro"])
   })
+
+  it("keeps a measured quota bucket when the model listing has no usage for the same model", async () => {
+    resolveGoogleAuthSources.mockReturnValue([{ ...source("gemini", "Gemini"), accessToken: "token", expires: Date.now() + 60_000 }])
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url) => {
+        if (String(url).includes("retrieveUserQuota")) {
+          return { ok: true, json: async () => ({ buckets: [{ modelId: "gemini-2.5-pro", remainingFraction: 0.4 }] }) }
+        }
+        return {
+          ok: true,
+          json: async () => ({
+            models: { "gemini-2.5-pro": { displayName: "Gemini 2.5 Pro" }, "gemini-2.5-flash": {} },
+          }),
+        }
+      }),
+    )
+
+    const result = await fetchGoogleQuota()
+
+    expect(result.usage.models["gemini/gemini-2.5-pro"].windows.daily.usedPercent).toBe(60)
+    // A listed model with no bucket is still reported.
+    expect(result.usage.models["gemini/gemini-2.5-flash"].windows.daily.usedPercent).toBeNull()
+  })
 })

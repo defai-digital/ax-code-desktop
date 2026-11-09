@@ -3,7 +3,7 @@ import { readFileSync } from "fs"
 import { join } from "path"
 import { buildResult, toUsageWindow, toNumber } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 const COOKIE_PATH = join(homedir(), ".config", "ollama-quota", "cookie")
 
@@ -82,7 +82,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,

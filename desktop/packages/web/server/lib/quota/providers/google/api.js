@@ -5,7 +5,7 @@
  * @module quota/providers/google/api
  */
 
-import { fetchWithQuotaTimeout } from "../../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../../fetch.js"
 
 const GOOGLE_PRIMARY_ENDPOINT = "https://cloudcode-pa.googleapis.com"
 
@@ -34,6 +34,7 @@ export const refreshGoogleAccessToken = async (refreshToken, clientId, clientSec
   })
 
   if (!response.ok) {
+    discardResponseBody(response)
     return null
   }
 
@@ -56,6 +57,7 @@ export const fetchGoogleQuotaBuckets = async (accessToken, projectId) => {
     })
 
     if (!response.ok) {
+      discardResponseBody(response)
       return null
     }
 
@@ -84,6 +86,8 @@ export const fetchGoogleModels = async (accessToken, projectId) => {
       if (response.ok) {
         return await response.json()
       }
+      // Unread, a refused endpoint's body keeps its connection out of the pool while the next one is tried.
+      discardResponseBody(response)
     } catch {
       continue
     }

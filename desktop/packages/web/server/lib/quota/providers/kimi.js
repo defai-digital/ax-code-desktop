@@ -9,7 +9,7 @@ import {
   durationToSeconds,
 } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 export const providerId = "kimi-for-coding"
 export const providerName = "Kimi for Coding"
@@ -38,7 +38,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,

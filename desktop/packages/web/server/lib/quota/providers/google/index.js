@@ -22,6 +22,9 @@ import { resolveGoogleAuthSources, resolveGoogleOAuthClient, DEFAULT_PROJECT_ID 
 import { transformQuotaBucket, transformModelData } from "./transforms.js"
 import { refreshGoogleAccessToken, fetchGoogleQuotaBuckets, fetchGoogleModels } from "./api.js"
 
+const hasMeasuredUsage = (entry) =>
+  Object.values(entry?.windows ?? {}).some((window) => typeof window?.usedPercent === "number")
+
 export const fetchGoogleQuota = async () => {
   const authSources = resolveGoogleAuthSources()
   if (!authSources.length) {
@@ -78,7 +81,12 @@ export const fetchGoogleQuota = async () => {
     if (payload) {
       for (const [modelName, modelData] of Object.entries(payload.models ?? {})) {
         const transformed = transformModelData(modelName, modelData, source.sourceId)
-        Object.assign(models, transformed)
+        for (const [scopedName, entry] of Object.entries(transformed)) {
+          // A listed model without `quotaInfo` carries no usage. The quota bucket fetched above for the same
+          // model measured it, and replacing that entry wholesale showed the usage as unknown.
+          if (models[scopedName] && !hasMeasuredUsage(entry)) continue
+          models[scopedName] = entry
+        }
         mergedAnyModel = true
       }
     }

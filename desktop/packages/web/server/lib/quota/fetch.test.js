@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { fetchWithQuotaTimeout } from "./fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "./fetch.js"
 
 describe("fetchWithQuotaTimeout", () => {
   afterEach(() => {
@@ -27,5 +27,40 @@ describe("fetchWithQuotaTimeout", () => {
     await fetchWithQuotaTimeout("https://example.com/usage", { signal: controller.signal })
 
     expect(spy.mock.calls[0][1].signal).toBe(controller.signal)
+  })
+})
+
+describe("discardResponseBody", () => {
+  it("does not leave an unhandled rejection when the body has already errored", async () => {
+    // A bare `response.body?.cancel()` rejects for an errored body (the timeout fired after the headers),
+    // and the server has no unhandled-rejection handler.
+    const unhandled = vi.fn()
+    process.on("unhandledRejection", unhandled)
+    try {
+      const response = new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(new Error("connection reset"))
+          },
+        }),
+        { status: 500 },
+      )
+
+      discardResponseBody(response)
+      await new Promise((resolve) => setTimeout(resolve, 10))
+
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off("unhandledRejection", unhandled)
+    }
+  })
+
+  it("releases an unread body and ignores a response without one", async () => {
+    const response = new Response("error details", { status: 401 })
+    discardResponseBody(response)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await expect(response.text()).rejects.toThrow()
+    expect(() => discardResponseBody({ ok: false })).not.toThrow()
+    expect(() => discardResponseBody(null)).not.toThrow()
   })
 })

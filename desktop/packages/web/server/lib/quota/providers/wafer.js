@@ -8,6 +8,7 @@ import {
   resolveWindowLabel,
   asNonEmptyString,
 } from "../utils/index.js"
+import { discardResponseBody } from "../fetch.js"
 
 export const providerId = "wafer"
 export const providerName = "Wafer.ai"
@@ -93,7 +94,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,

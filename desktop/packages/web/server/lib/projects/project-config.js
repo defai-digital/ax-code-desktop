@@ -405,6 +405,18 @@ export const createProjectConfigRuntime = (deps) => {
     }
   }
 
+  // A failed write (a full disk) or rename (the target became a directory) would otherwise leave a full copy
+  // of the config behind under a unique name on every attempt.
+  const writeFileAtomically = async (temporaryPath, filePath, contents) => {
+    try {
+      await fsPromises.writeFile(temporaryPath, contents, "utf8")
+      await fsPromises.rename(temporaryPath, filePath)
+    } catch (error) {
+      await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+      throw error
+    }
+  }
+
   const writeProjectConfigToDisk = async (projectID, config) => {
     const filePath = resolveProjectConfigPath(projectID)
     const parentDirectory = path.dirname(filePath)
@@ -422,8 +434,7 @@ export const createProjectConfigRuntime = (deps) => {
     }
 
     await fsPromises.mkdir(parentDirectory, { recursive: true })
-    await fsPromises.writeFile(temporaryPath, JSON.stringify(merged, null, 2), "utf8")
-    await fsPromises.rename(temporaryPath, filePath)
+    await writeFileAtomically(temporaryPath, filePath, JSON.stringify(merged, null, 2))
     await removeLegacyProjectConfigFile(projectID)
   }
 
@@ -450,8 +461,7 @@ export const createProjectConfigRuntime = (deps) => {
     }
 
     await fsPromises.mkdir(parentDirectory, { recursive: true })
-    await fsPromises.writeFile(temporaryPath, JSON.stringify(merged, null, 2), "utf8")
-    await fsPromises.rename(temporaryPath, filePath)
+    await writeFileAtomically(temporaryPath, filePath, JSON.stringify(merged, null, 2))
     await removeLegacyProjectConfigFile(projectID)
   }
 

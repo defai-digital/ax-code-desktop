@@ -7,7 +7,7 @@ import {
   toUsageWindow,
 } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 export const transformMinimaxWindows = (model) => {
   const intervalTotal = toNumber(model.current_interval_total_count)
@@ -73,7 +73,7 @@ export const createMinimaxProvider = ({ providerId, providerName, endpoint }) =>
       })
 
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         return buildResult({
           providerId,
           providerName,

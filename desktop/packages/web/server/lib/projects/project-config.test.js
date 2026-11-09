@@ -409,4 +409,28 @@ describe("project config file names", () => {
       await rm(tempRoot, { recursive: true, force: true })
     }
   })
+
+  it("removes its temporary file when the replace fails", async () => {
+    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-project-config-rename-"))
+    const realFs = await import("fs/promises")
+    const runtime = createProjectConfigRuntime({
+      // A replace that fails after the temporary copy was written (EXDEV, a locked target, EPERM on Windows).
+      fsPromises: {
+        ...realFs,
+        rename: async () => {
+          throw Object.assign(new Error("rename refused"), { code: "EPERM" })
+        },
+      },
+      path,
+      projectsDirPath: tempRoot,
+      createTaskID: () => "task-fixed-id",
+    })
+    try {
+      await expect(runtime.replaceScheduledTasks("project-blocked", [])).rejects.toThrow("rename refused")
+
+      expect(await readdir(tempRoot)).toEqual([])
+    } finally {
+      await rm(tempRoot, { recursive: true, force: true })
+    }
+  })
 })

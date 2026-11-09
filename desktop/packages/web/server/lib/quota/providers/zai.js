@@ -8,7 +8,7 @@ import {
   normalizeTimestamp,
 } from "../utils/index.js"
 
-import { fetchWithQuotaTimeout } from "../fetch.js"
+import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
 
 export const providerId = "zai-coding-plan"
 export const providerName = "z.ai"
@@ -37,7 +37,7 @@ export const fetchQuota = async () => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       return buildResult({
         providerId,
         providerName,
