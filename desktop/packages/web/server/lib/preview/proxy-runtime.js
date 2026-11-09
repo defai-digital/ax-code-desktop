@@ -1219,6 +1219,20 @@ const isScriptableDocumentEssence = (essence) =>
   essence === "text/xml" ||
   essence.endsWith("+xml")
 
+// The `charset` parameter of a Content-Type, lowercased, or "" when there is none.
+const readContentTypeCharset = (value) => {
+  const header = Array.isArray(value) ? value.join(",") : String(value ?? "")
+  const match = header.match(/;\s*charset\s*=\s*"?([^";,\s]+)"?/i)
+  return match ? match[1].toLowerCase() : ""
+}
+
+const setContentTypeCharsetUtf8 = (value) => {
+  const header = String(value ?? "")
+  return /;\s*charset\s*=/i.test(header)
+    ? header.replace(/;\s*charset\s*=\s*"?[^";,\s]+"?/i, "; charset=utf-8")
+    : `${header}; charset=utf-8`
+}
+
 const isJavaScriptEssence = (essence) => essence.includes("javascript") || essence.includes("ecmascript")
 
 // Only a body that must be rewritten (HTML/CSS/JS, and the scriptable documents sharing their
@@ -1390,6 +1404,8 @@ export const createPreviewProxyRuntime = ({
     // Don't keep the process alive.
     sweepTimer.unref?.()
   }
+
+  const MAX_REDIRECT_TARGETS_PER_PREVIEW = 32
 
   const createTarget = (
     origin,
@@ -1633,11 +1649,29 @@ export const createPreviewProxyRuntime = ({
         }
         // A public host keeps the Desktop origin unless it is sandboxed, so it is
         // always marked external; a loopback target of a local preview is not.
-        redirectTarget = createTarget(normalized.origin, resolved.entry.expiresAt - now(), {
-          token: resolved.entry.token,
-          expiresAt: resolved.entry.expiresAt,
-          external: !loopback.ok,
-        })
+        // Every redirect used to register a new entry, so a page that kept following one (or a loop between two
+        // hosts) grew the target map without bound for the parent's whole lifetime. A hop to an origin this
+        // preview already reaches reuses that entry, and a preview may reach only so many origins.
+        const external = !loopback.ok
+        let siblingCount = 0
+        let existing = null
+        for (const entry of targets.values()) {
+          if (entry.token !== resolved.entry.token || entry.expiresAt <= now()) continue
+          siblingCount += 1
+          if (entry.origin === normalized.origin && entry.external === external) existing = entry
+        }
+        if (existing) {
+          redirectTarget = { id: existing.id, token: existing.token, expiresAt: existing.expiresAt }
+        } else {
+          if (siblingCount >= MAX_REDIRECT_TARGETS_PER_PREVIEW) {
+            return null
+          }
+          redirectTarget = createTarget(normalized.origin, resolved.entry.expiresAt - now(), {
+            token: resolved.entry.token,
+            expiresAt: resolved.entry.expiresAt,
+            external,
+          })
+        }
         targetId = redirectTarget.id
       }
       return {
@@ -1810,9 +1844,18 @@ export const createPreviewProxyRuntime = ({
         if (lowerKey === "transfer-encoding" || lowerKey === "connection") {
           continue
         }
+        // The upstream must not switch MIME sniffing back on: a body streamed under an unknown type is sniffed
+        // as HTML by the browser, and this path never checks it for a document.
+        if (lowerKey === "x-content-type-options") {
+          continue
+        }
         res.setHeader(key, proxyRes.headers[key])
       }
+      res.setHeader("X-Content-Type-Options", "nosniff")
       stripFrameBustingHeadersOnRes(res)
+      // Every streamed external response carries the sandbox, whatever it calls itself: the type decides only
+      // what is buffered for rewriting, and an external site chooses its own type.
+      applyExternalPreviewSandbox(res, resolved)
       if (resolved.ok) {
         scopePreviewCookies(res, `/api/preview/proxy/${resolved.id}`)
       }
@@ -1972,12 +2015,30 @@ export const createPreviewProxyRuntime = ({
               return refuseProxiedResponse(res)
             }
 
+            // The rewrite works on text, and decoding every body as UTF-8 replaced each byte of a Latin-1 or
+            // Shift_JIS page that is not valid UTF-8 with U+FFFD while the header still named the old charset.
+            // A declared charset is decoded as such and the body goes out as UTF-8; one this runtime cannot
+            // decode is passed through unrewritten.
+            const declaredCharset = readContentTypeCharset(proxyRes.headers?.["content-type"])
+            let bodyText
+            if (!declaredCharset || declaredCharset === "utf-8" || declaredCharset === "utf8") {
+              bodyText = responseBuffer.toString("utf8")
+            } else {
+              try {
+                bodyText = new TextDecoder(declaredCharset).decode(responseBuffer)
+              } catch {
+                return responseBuffer
+              }
+              const contentType = String(res.getHeader?.("content-type") ?? proxyRes.headers?.["content-type"] ?? "")
+              res.setHeader("content-type", setContentTypeCharsetUtf8(contentType))
+            }
+
             const proxyBasePath = `/api/preview/proxy/${resolved.id}`
             const parsed = new URL(req.originalUrl || req.url || "", "http://localhost")
             const upstreamPath = stripProxyPrefix(parsed.pathname, resolved.id)
             if (isJavaScript && upstreamPath === "/@vite/client") {
               return rewritePreviewBody({
-                bodyText: rewriteViteClientHmr(responseBuffer.toString("utf8"), proxyBasePath),
+                bodyText: rewriteViteClientHmr(bodyText, proxyBasePath),
                 proxyBasePath,
                 targetOrigin: resolved.entry.origin,
                 kind: "javascript",
@@ -1985,7 +2046,7 @@ export const createPreviewProxyRuntime = ({
             }
 
             const rewrittenBody = rewritePreviewBody({
-              bodyText: responseBuffer.toString("utf8"),
+              bodyText,
               proxyBasePath,
               targetOrigin: resolved.entry.origin,
               kind: isHtml ? "html" : isCss ? "css" : "javascript",

@@ -95,6 +95,17 @@ export const createCappedResponseInterceptor = (interceptor, { maxBytes }) =>
         copyUpstreamHeaders(proxyRes, res)
         const output = Buffer.from(await interceptor(body, proxyRes, req, res))
         if (res.writableEnded) return
+        // A HEAD answer and a 204/304 carry no body (RFC 9110): the rewrite of their empty one would add the
+        // bridge script and announce its length, which for HEAD misstates the resource and for 204 is invalid.
+        const status = res.statusCode
+        if (String(req?.method || "").toUpperCase() === "HEAD" || status === 204 || status === 304) {
+          const upstreamLength = proxyRes.headers?.["content-length"]
+          if (upstreamLength !== undefined && String(req?.method || "").toUpperCase() === "HEAD" && !decoder) {
+            res.setHeader("content-length", upstreamLength)
+          }
+          res.end()
+          return
+        }
         res.setHeader("content-length", output.length)
         res.end(output)
       } catch (error) {

@@ -1263,6 +1263,71 @@ describe("preview proxy response hardening", () => {
     expect(scoped).not.toContain("Domain=")
   })
 
+  it("reuses one target for repeated redirects to the same origin and caps new ones", async () => {
+    // Each redirect registered a fresh target, so a page that kept following one grew the map for the
+    // preview's whole lifetime.
+    const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    const redirectTo = async (location) => {
+      const { responseHeaders, res } = await callProxyRes({
+        proxyOptions,
+        statusCode: 302,
+        headers: { location },
+        req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+      })
+      return { location: String(responseHeaders.get("location") ?? ""), statusCode: res.statusCode }
+    }
+    const targetIdOf = (location) => location.match(/^\/api\/preview\/proxy\/([a-f0-9]+)\//)?.[1]
+
+    const first = await redirectTo("https://other.example/a")
+    const second = await redirectTo("https://other.example/b")
+    expect(targetIdOf(first.location)).toBeTruthy()
+    expect(targetIdOf(second.location)).toBe(targetIdOf(first.location))
+
+    const statuses = []
+    for (let index = 0; index < 64; index += 1) {
+      statuses.push((await redirectTo(`https://host${index}.example/`)).statusCode)
+    }
+    expect(statuses).toContain(502)
+  })
+
+  it("keeps a Latin-1 page's text intact through the rewrite", async () => {
+    // The body was decoded as UTF-8 whatever its charset, so `caf\xE9` came out as `caf\uFFFD`.
+    const { proxyOptions, cookie, target } = await createHarness()
+
+    const { responseHeaders, body } = await callProxyRes({
+      proxyOptions,
+      body: Buffer.from("<html><body><p>caf\xE9</p></body></html>", "latin1"),
+      headers: { "content-type": "text/html; charset=iso-8859-1" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
+
+    expect(String(responseHeaders.get("content-type"))).toMatch(/charset=utf-8/i)
+    expect(body.toString("utf8")).toContain("<p>café</p>")
+  })
+
+  it("adds no body to a HEAD answer or a 204", async () => {
+    // The empty body was rewritten like any HTML: the bridge script was appended and its length announced, so
+    // HEAD misreported the resource and a 204 carried a Content-Length, which it may not.
+    const { proxyOptions, cookie, target } = await createHarness()
+
+    const head = await callProxyRes({
+      proxyOptions,
+      headers: { "content-type": "text/html", "content-length": "11" },
+      req: { method: "HEAD", originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
+    expect(head.body.length).toBe(0)
+    expect(String(head.responseHeaders.get("content-length"))).toBe("11")
+
+    const noContent = await callProxyRes({
+      proxyOptions,
+      statusCode: 204,
+      headers: { "content-type": "text/html" },
+      req: { originalUrl: `${target.proxyBasePath}/`, headers: { cookie } },
+    })
+    expect(noContent.body.length).toBe(0)
+    expect(noContent.responseHeaders.has("content-length")).toBe(false)
+  })
+
   it("resets the reason phrase on a refused redirect", async () => {
     const { proxyOptions, cookie, target } = await createHarness()
 
@@ -1313,6 +1378,29 @@ describe("preview proxy response hardening", () => {
 
     proxyRes.push(null)
     await vi.waitFor(() => expect(res.writableEnded).toBe(true))
+  })
+
+  it("sandboxes a streamed external response and keeps MIME sniffing off", async () => {
+    // An unknown type streamed unsandboxed, and the upstream's `X-Content-Type-Options: off` replaced the app's
+    // `nosniff`: the browser sniffed the body as HTML and ran its script on the Desktop origin.
+    const { proxyOptions, cookie, target } = await createHarness({ url: "https://example.com", allowExternal: true })
+    const proxyRes = new Readable({ read() {} })
+    proxyRes.statusCode = 200
+    proxyRes.headers = { "content-type": "unknown/unknown", "x-content-type-options": "off" }
+    const responseHeaders = new Map([["x-content-type-options", "nosniff"]])
+    const res = new Writable({ write: (_chunk, _encoding, callback) => callback() })
+    res.statusCode = 200
+    res.removeHeader = (name) => responseHeaders.delete(name.toLowerCase())
+    res.getHeader = (name) => responseHeaders.get(name.toLowerCase())
+    res.setHeader = (name, value) => responseHeaders.set(name.toLowerCase(), value)
+
+    proxyOptions.on.proxyRes(proxyRes, { originalUrl: `${target.proxyBasePath}/a`, headers: { cookie } }, res)
+    proxyRes.push(null)
+
+    expect(responseHeaders.get("x-content-type-options")).toBe("nosniff")
+    const csp = String(responseHeaders.get("content-security-policy") ?? "")
+    expect(csp).toContain("sandbox")
+    expect(csp).not.toContain("allow-same-origin")
   })
 
   it("destroys the downstream response when the upstream aborts mid-stream", async () => {
