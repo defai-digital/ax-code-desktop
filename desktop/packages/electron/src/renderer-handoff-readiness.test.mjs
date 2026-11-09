@@ -3,14 +3,18 @@ import path from "node:path"
 import { describe, expect, test } from "vitest"
 
 describe("main-window hand-off readiness", () => {
-  test("clears renderer readiness on every load start so menu/role reloads cannot leave it stale", async () => {
+  test("clears renderer readiness on every main-frame navigation start so menu/role reloads cannot leave it stale", async () => {
     const mainSource = await readFile(path.join(import.meta.dirname, "main.js"), "utf8")
-    const didStartLoadingHandler = mainSource.match(
-      /webContents\.on\("did-start-loading",\s*\(\)\s*=>\s*\{(?<body>[\s\S]*?)^\s*\}\)/m,
+    const navigationStartHandler = mainSource.match(
+      /webContents\.on\("did-start-navigation",\s*\(details\)\s*=>\s*\{(?<body>[\s\S]*?)^\s*\}\)/m,
     )?.groups?.body
 
-    expect(didStartLoadingHandler).toBeDefined()
-    expect(didStartLoadingHandler).toContain("rendererReadyForOpenProject = false")
+    // The frame filter and the reset itself are behavior-tested in focus-main-window.test.mjs;
+    // 'did-start-loading' also fires for iframe loads and must not drive readiness.
+    expect(navigationStartHandler).toBeDefined()
+    expect(navigationStartHandler).toContain("readinessEventForNavigationStart(details)")
+    expect(navigationStartHandler).toContain("applyRendererReadiness(event)")
+    expect(mainSource).not.toContain('mainWindow.webContents.on("did-start-loading"')
   })
 
   test("a failed main-window create reports the hand-off as not focused instead of rejecting", async () => {

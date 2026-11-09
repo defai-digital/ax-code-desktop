@@ -38,6 +38,8 @@ const {
   FOCUS_MAIN_WINDOW_ACTION,
   RENDERER_READINESS_EVENT,
   nextRendererReadiness,
+  readinessEventForLoadFailure,
+  readinessEventForNavigationStart,
   resolveFocusMainWindowAction,
 } = require("./focus-main-window")
 const { mapWithConcurrency } = require("./map-with-concurrency")
@@ -688,7 +690,7 @@ async function reloadRenderersAfterServerRecovery(info) {
         newPort,
       }),
   )
-  if (willReloadMainWindow) rendererReadyForOpenProject = false
+  if (willReloadMainWindow) applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
   const result = await reloadLocalRendererWindowsAfterServerRestart(BrowserWindow.getAllWindows(), {
     oldPort,
     newPort,
@@ -781,7 +783,7 @@ function localRendererOrigin() {
 // before the local server is ready so the opening artwork plays inside the
 // main window; createWindow() below loads the renderer into it later.
 function createMainWindowShell() {
-  rendererReadyForOpenProject = false
+  applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
   mainWindow = new BrowserWindow({
     width: 1440,
     height: 900,
@@ -846,7 +848,7 @@ function createMainWindowShell() {
     scheduleRendererStabilityReset()
   })
 
-  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
     recordStartupEvent(
       "renderer.did-fail-load",
       {
@@ -856,21 +858,29 @@ function createMainWindowShell() {
       },
       { once: false },
     )
+    const event = readinessEventForLoadFailure(errorCode, isMainFrame)
+    if (event) applyRendererReadiness(event)
   })
 
   // Any reload of the main window — the "Reload Webview" menu item, the
   // View→Reload role, crash recovery, or the post-server-restart reload —
   // unmounts the renderer's IPC listeners. Reset the hand-off readiness flag
-  // for every load start so reload paths main did not initiate cannot leave it
+  // for every main-frame navigation start so reload paths main did not initiate cannot leave it
   // stale; the fresh renderer re-arms it via 'ax-code:renderer-app-ready'.
   //
   // An in-page (hash) navigation emits this too but re-runs no preload, so the
   // pre-load answer is kept for 'did-navigate-in-page' below to restore: clearing
   // alone left the window permanently "not ready" after an in-page navigation,
   // and Settings/native-menu hand-offs then queued until the app restarted.
-  mainWindow.webContents.on("did-start-loading", () => {
-    rendererReadyBeforeInPageLoad = rendererReadyForOpenProject
-    rendererReadyForOpenProject = false
+  mainWindow.webContents.on("did-start-navigation", (details) => {
+    const event = readinessEventForNavigationStart(details)
+    if (event) applyRendererReadiness(event)
+  })
+
+  // A main-frame navigation that never committed (blocked by the navigation guards) keeps
+  // the document, so its saved readiness comes back and queued hand-offs are delivered.
+  mainWindow.webContents.on("did-stop-loading", () => {
+    if (applyRendererReadiness(RENDERER_READINESS_EVENT.LOAD_STOPPED)) markRendererReadyForHandOff()
   })
 
   mainWindow.webContents.on("did-navigate-in-page", () => {
@@ -895,7 +905,7 @@ function createMainWindowShell() {
       },
       { once: false },
     )
-    rendererReadyForOpenProject = false
+    applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
     if (rendererStabilityTimer) {
       clearTimeout(rendererStabilityTimer)
       rendererStabilityTimer = null
@@ -946,7 +956,7 @@ function createMainWindowShell() {
       })
       .then(({ response }) => {
         if (response === 1 && mainWindow && !mainWindow.isDestroyed()) {
-          rendererReadyForOpenProject = false
+          applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
           mainWindow.webContents.reload()
         }
       })
@@ -2907,7 +2917,7 @@ const clearCacheAndReload = async () => {
   // signal arrives again. Leaving the flag set made later open/hand-off requests
   // emit into a reloading renderer, where they were dropped, and the queue drained
   // with nothing delivered.
-  rendererReadyForOpenProject = false
+  applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
   for (const browserWindow of BrowserWindow.getAllWindows()) {
     // The storage clear can take seconds; a window closed meanwhile must be skipped
     // like every other window fan-out in this file.
