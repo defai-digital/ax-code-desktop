@@ -9,6 +9,7 @@ import {
 } from "../utils/index.js"
 
 import { discardResponseBody, fetchWithQuotaTimeout } from "../fetch.js"
+import { readEnvelopeError } from "./zhipuai-coding-plan.js"
 
 export const providerId = "zai-coding-plan"
 export const providerName = "z.ai"
@@ -48,8 +49,21 @@ export const fetchQuota = async () => {
     }
 
     const payload = await response.json()
+    // The same monitor API as Zhipu's: a rejected key answers HTTP 200 with `{code, msg, success:false}`,
+    // which read as a successful card with no windows and no reason.
+    const envelopeError = readEnvelopeError(payload)
+    if (envelopeError) {
+      return buildResult({
+        providerId,
+        providerName,
+        ok: false,
+        configured: true,
+        error: envelopeError,
+      })
+    }
     const limits = Array.isArray(payload?.data?.limits) ? payload.data.limits : []
-    const tokensLimit = limits.find((limit) => limit?.type === "TOKENS_LIMIT")
+    // The plan's budget entry was renamed to CREDIT_LIMIT.
+    const tokensLimit = limits.find((limit) => limit?.type === "TOKENS_LIMIT" || limit?.type === "CREDIT_LIMIT")
     const windowSeconds = resolveWindowSeconds(tokensLimit)
     const windowLabel = resolveWindowLabel(windowSeconds)
     const resetAt = tokensLimit?.nextResetTime ? normalizeTimestamp(tokensLimit.nextResetTime) : null

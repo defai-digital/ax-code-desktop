@@ -238,6 +238,57 @@ describe("project-config runtime", () => {
     }
   })
 
+  it("finds a task stored without an id by the id it was listed with", async () => {
+    // The id was generated afresh on each read, so the listed id never matched again: a delete removed
+    // nothing and an edit appended a second, also enabled, copy of the task.
+    const { runtime, cleanup } = await createRuntime()
+    try {
+      const projectID = "path_legacy_ids"
+      const filePath = runtime.resolveProjectConfigPath(projectID)
+      const legacyTask = (name) => ({
+        name,
+        schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
+        execution: { prompt: "p", providerID: "a", modelID: "b" },
+      })
+      await writeFile(filePath, JSON.stringify({ scheduledTasks: [legacyTask("first"), legacyTask("second")] }))
+
+      const [first, second] = await runtime.listScheduledTasks(projectID)
+      const edited = await runtime.upsertScheduledTask(projectID, { ...first, name: "renamed" })
+      expect(edited.created).toBe(false)
+      expect((await runtime.listScheduledTasks(projectID)).map((task) => task.name)).toEqual(["renamed", "second"])
+
+      const removed = await runtime.deleteScheduledTask(projectID, second.id)
+      expect(removed.deleted).toBe(true)
+      expect((await runtime.listScheduledTasks(projectID)).map((task) => task.name)).toEqual(["renamed"])
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it("keeps a task it cannot read when it writes another one", async () => {
+    const { runtime, cleanup } = await createRuntime()
+    try {
+      const projectID = "path_unreadable"
+      const filePath = runtime.resolveProjectConfigPath(projectID)
+      const unreadable = { id: "old", name: "old", schedule: { kind: "hourly" }, execution: { prompt: "p" } }
+      await writeFile(filePath, JSON.stringify({ scheduledTasks: [unreadable] }))
+
+      await runtime.upsertScheduledTask(projectID, {
+        name: "nightly",
+        schedule: { kind: "daily", time: "09:00", timezone: "UTC" },
+        execution: { prompt: "run", providerID: "openai", modelID: "gpt-4.1" },
+      })
+      await runtime.updateScheduledTaskState(projectID, "task-fixed-id", { lastRunAt: 1 })
+      await runtime.deleteScheduledTask(projectID, "task-fixed-id")
+
+      const raw = JSON.parse(await readFile(filePath, "utf8"))
+      expect(raw.scheduledTasks).toEqual([unreadable])
+      expect(await runtime.listScheduledTasks(projectID)).toEqual([])
+    } finally {
+      await cleanup()
+    }
+  })
+
   it("preserves scheduled task state timestamps when listing tasks", async () => {
     const { runtime, cleanup } = await createRuntime()
     try {

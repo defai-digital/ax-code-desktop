@@ -81,4 +81,11 @@ describe("parseSkillRepoSource", () => {
     })
     expect(parseSkillRepoSource("not-a-repo")).toMatchObject({ ok: false, error: { kind: "invalidSource" } })
   })
+
+  it("rejects a malformed HTTPS URL instead of throwing", () => {
+    // The URL constructor's TypeError reached the route's catch-all and answered 500.
+    for (const source of ["https://exa mple.com/o/r", "https://[::1/o/r"]) {
+      expect(parseSkillRepoSource(source)).toMatchObject({ ok: false, error: { kind: "invalidSource" } })
+    }
+  })
 })

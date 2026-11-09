@@ -28,8 +28,25 @@ import {
 const S_IFMT = 0o170000
 const S_IFLNK = 0o120000
 
+// The download is capped compressed; these cap what it may expand to. Extraction is synchronous and inflates
+// each entry to its declared size, so a small package declaring gigabytes of zeros stalled the server and
+// filled the temporary partition.
+export const MAX_CLAWDHUB_ZIP_ENTRIES = 2000
+export const MAX_CLAWDHUB_UNCOMPRESSED_BYTES = 64 * 1024 * 1024
+
 export function validateClawdHubZipEntries(zip) {
-  for (const entry of zip.getEntries()) {
+  const entries = zip.getEntries()
+  if (entries.length > MAX_CLAWDHUB_ZIP_ENTRIES) {
+    return { ok: false, reason: `Skill package has more than ${MAX_CLAWDHUB_ZIP_ENTRIES} entries` }
+  }
+  let uncompressedBytes = 0
+  for (const entry of entries) {
+    uncompressedBytes += Number(entry.header?.size) || 0
+    if (uncompressedBytes > MAX_CLAWDHUB_UNCOMPRESSED_BYTES) {
+      return { ok: false, reason: "Skill package is too large once extracted" }
+    }
+  }
+  for (const entry of entries) {
     if (!normalizeRepoRelativePath(entry.entryName)) {
       return { ok: false, reason: `Invalid ZIP entry path: ${entry.entryName}` }
     }
@@ -96,8 +113,8 @@ export async function installSkillsFromClawdHub({
 
   // Build installation plans
   const skillPlans = requestedSkills.map((sel) => {
-    const slug = sel.clawdhub?.slug || sel.skillDir
-    const version = sel.clawdhub?.version || "latest"
+    const slug = sel?.clawdhub?.slug || sel?.skillDir
+    const version = sel?.clawdhub?.version || "latest"
     return {
       slug,
       version,
@@ -280,6 +297,7 @@ export async function installSkillsFromClawdHub({
         // a recursive copy + cleanup in that case instead of surfacing a
         // spurious "failed to install" error for a perfectly good download.
         await ensureDir(path.dirname(targetDir))
+        let copyStarted = false
         try {
           try {
             await fs.promises.rename(tempDir, targetDir)
@@ -287,6 +305,7 @@ export async function installSkillsFromClawdHub({
             if (renameError?.code !== "EXDEV") {
               throw renameError
             }
+            copyStarted = true
             await fs.promises.cp(tempDir, targetDir, { recursive: true })
             await safeRm(tempDir)
           }
@@ -304,6 +323,10 @@ export async function installSkillsFromClawdHub({
                 `[skills] Restoring the replaced copy of "${plan.slug}" failed; it is kept at ${backupSkillDir}`,
               )
             }
+          } else if (copyStarted) {
+            // Nothing was there before: a copy that failed half way left a partial skill that the runtime
+            // would load and the next install would report as a conflict.
+            await safeRm(targetDir)
           }
           throw moveError
         }

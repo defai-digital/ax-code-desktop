@@ -300,6 +300,10 @@ const normalizeTaskForStorage = (value, options) => {
   }
 }
 
+// Derived from the stored task and its position, so it is stable across reads until a write persists it.
+const legacyTaskIDOf = (task, index) =>
+  `legacy_${createHash("sha256").update(`${index}:${JSON.stringify(task)}`).digest("hex").slice(0, 24)}`
+
 export const createProjectConfigRuntime = (deps) => {
   const { fsPromises, path, projectsDirPath, createTaskID } = deps
 
@@ -387,21 +391,30 @@ export const createProjectConfigRuntime = (deps) => {
     const tasksRaw = Array.isArray(parsed.scheduledTasks) ? parsed.scheduledTasks : []
     const now = Date.now()
     const scheduledTasks = []
-    for (const task of tasksRaw) {
+    // Tasks this version cannot normalize (an older schedule kind, a retired time zone) are hidden from the
+    // list but written back verbatim: every write replaces the whole list, and dropping them there erased
+    // them from disk without a trace.
+    const unreadableTasks = []
+    tasksRaw.forEach((task, index) => {
       try {
         const normalized = normalizeTaskForStorage(task, {
           now,
-          createId: taskIDFactory,
+          // A task stored without an id needs the same one on every read, or the id the client was listed
+          // can never be found again: a delete reported nothing deleted and an edit added a second copy.
+          createId: () => legacyTaskIDOf(task, index),
           existingTask: null,
           allowCreate: true,
           refreshUpdatedAt: false,
         })
         scheduledTasks.push(normalized)
-      } catch {}
-    }
+      } catch {
+        unreadableTasks.push(task)
+      }
+    })
     return {
       version: PROJECT_CONFIG_VERSION,
       scheduledTasks,
+      unreadableTasks,
     }
   }
 
@@ -430,7 +443,10 @@ export const createProjectConfigRuntime = (deps) => {
       // (see projectConfigFileStemOf), so a reader that enumerated the directory can no longer derive the
       // id from the file name — the scheduled-task convergence looks the project's path up by id.
       projectID: sanitizeProjectID(projectID),
-      scheduledTasks: Array.isArray(config?.scheduledTasks) ? config.scheduledTasks : [],
+      scheduledTasks: [
+        ...(Array.isArray(config?.scheduledTasks) ? config.scheduledTasks : []),
+        ...(Array.isArray(config?.unreadableTasks) ? config.unreadableTasks : []),
+      ],
     }
 
     await fsPromises.mkdir(parentDirectory, { recursive: true })
@@ -518,6 +534,7 @@ export const createProjectConfigRuntime = (deps) => {
       const nextConfig = {
         version: PROJECT_CONFIG_VERSION,
         scheduledTasks: nextTasks,
+        unreadableTasks: current.unreadableTasks,
       }
       await writeProjectConfigToDisk(projectID, nextConfig)
 
@@ -544,6 +561,7 @@ export const createProjectConfigRuntime = (deps) => {
         await writeProjectConfigToDisk(projectID, {
           version: PROJECT_CONFIG_VERSION,
           scheduledTasks: nextTasks,
+          unreadableTasks: current.unreadableTasks,
         })
       }
 
@@ -587,6 +605,7 @@ export const createProjectConfigRuntime = (deps) => {
       await writeProjectConfigToDisk(projectID, {
         version: PROJECT_CONFIG_VERSION,
         scheduledTasks: nextTasks,
+        unreadableTasks: current.unreadableTasks,
       })
 
       return {

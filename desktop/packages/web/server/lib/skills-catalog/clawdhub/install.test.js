@@ -367,6 +367,66 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("removes a partial cross-device copy of a skill that was not installed before", async () => {
+    // With no earlier copy to restore, the failed copy was left in the skills directory: the runtime loaded a
+    // half-written skill and the next install reported it as a conflict.
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    const renameSpy = vi.spyOn(fsPromises, "rename")
+    const cpSpy = vi.spyOn(fsPromises, "cp")
+    try {
+      const targetDir = path.join(tempRoot, "review-code")
+      downloadClawdHubSkill.mockResolvedValueOnce(
+        zipWithFiles({ "SKILL.md": '---\nname: "Review Code"\ndescription: Review code.\n---\nbody\n' }),
+      )
+      renameSpy.mockRejectedValue(Object.assign(new Error("EXDEV"), { code: "EXDEV" }))
+      cpSpy.mockImplementation(async () => {
+        await fsPromises.mkdir(targetDir, { recursive: true })
+        await fsPromises.writeFile(path.join(targetDir, "SKILL.md"), "partial")
+        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
+      })
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result.installed).toEqual([])
+      await expect(fsPromises.stat(targetDir)).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      renameSpy.mockRestore()
+      cpSpy.mockRestore()
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test("answers a null selection without throwing", async () => {
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      await expect(
+        installSkillsFromClawdHub({ scope: "user", userSkillDir: tempRoot, selections: [null] }),
+      ).resolves.toBeDefined()
+      expect(downloadClawdHubSkill).not.toHaveBeenCalled()
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a package that expands past the size limit before extraction", () => {
+    // Only the compressed download was capped; entries that each declare a gigabyte of zeros were inflated in full.
+    const entry = (entryName, size) => ({ entryName, header: { size } })
+    expect(validateClawdHubZipEntries({ getEntries: () => [entry("SKILL.md", 1024)] })).toEqual({ ok: true })
+    expect(
+      validateClawdHubZipEntries({
+        getEntries: () => [entry("SKILL.md", 1024), entry("a.bin", 1024 ** 3), entry("b.bin", 1024 ** 3)],
+      }),
+    ).toMatchObject({ ok: false })
+    expect(
+      validateClawdHubZipEntries({ getEntries: () => Array.from({ length: 5000 }, (_, i) => entry(`f${i}.md`, 1)) }),
+    ).toMatchObject({ ok: false })
+  })
+
   test("rejects unsafe ZIP entry paths before extraction", () => {
     expect(
       validateClawdHubZipEntries({

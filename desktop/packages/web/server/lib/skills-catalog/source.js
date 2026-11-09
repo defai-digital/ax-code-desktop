@@ -56,7 +56,13 @@ function parseSshScpSource(raw) {
 
 function parseRemoteSource(raw, urlFormat) {
   if (urlFormat === "https") {
-    const url = new URL(raw)
+    let url
+    try {
+      url = new URL(raw)
+    } catch {
+      // A malformed URL is a bad source (400), not a server fault.
+      return null
+    }
     const pathSegments = splitNonEmptyPath(url.pathname)
     return { host: url.host, pathSegments }
   }

@@ -16,7 +16,11 @@ const createResponse = (writableLength = 0) => ({
   writableLength,
   written: [],
   ended: false,
+  get writableEnded() {
+    return this.ended
+  },
   write(chunk) {
+    if (this.ended) throw new Error("write after end")
     this.written.push(chunk)
   },
   end() {
@@ -64,6 +68,18 @@ describe("notification emitter", () => {
     expect(clients.has(stalled)).toBe(false)
     expect(clients.has(healthy)).toBe(true)
     expect(healthy.written).toHaveLength(1)
+  })
+
+  it("does not write to a stream it already ended", () => {
+    // The heartbeat runs until the request closes, which an ended stream with a full buffer has not yet done.
+    const runtime = createRuntime()
+    const res = createResponse(5 * 1024 * 1024)
+    expect(runtime.writeSseEvent(res, { type: "x" })).toBe(false)
+    res.writableLength = 1024
+
+    expect(() => runtime.writeSseEvent(res, { type: "openchamber:heartbeat" })).not.toThrow()
+    expect(runtime.writeSseEvent(res, { type: "openchamber:heartbeat" })).toBe(false)
+    expect(res.written).toEqual([])
   })
 
   it("keeps writing while the pending buffer is under the cap", () => {
