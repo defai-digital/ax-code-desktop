@@ -224,7 +224,7 @@ export function registerGitRoutes(app, options = {}) {
   })
 
   app.post("/api/git/set-identity", async (req, res) => {
-    const { getProfile, setLocalIdentity, getGlobalIdentity } = await getGitLibraries()
+    const { getProfile, setLocalIdentity, getGlobalIdentity, globalIdentityProfile } = await getGitLibraries()
     try {
       const directory = req.query.directory
       if (!directory) {
@@ -243,13 +243,7 @@ export function registerGitRoutes(app, options = {}) {
         if (!globalIdentity?.userName || !globalIdentity?.userEmail) {
           return res.status(404).json({ error: "Global identity is not configured" })
         }
-        profile = {
-          id: "global",
-          name: "Global Identity",
-          userName: globalIdentity.userName,
-          userEmail: globalIdentity.userEmail,
-          sshKey: globalIdentity.sshCommand ? globalIdentity.sshCommand.replace("ssh -i ", "") : null,
-        }
+        profile = globalIdentityProfile(globalIdentity)
       } else {
         profile = getProfile(profileId)
         if (!profile) {

@@ -1554,6 +1554,36 @@ export async function hasLocalIdentity(directory) {
   }
 }
 
+// `ssh -i <path>`, `ssh -i '<path>'`, or the form buildSshCommand writes. Anything else
+// (extra options, no -i) is not reduced to a key path.
+const SIMPLE_SSH_KEY_COMMAND = /^ssh -i (?:'([^']+)'|([^\s'"]+))(?: -o IdentitiesOnly=yes)?$/
+const UNSAFE_SSH_KEY_PATH_CHARS = /[`$!"';&|<>(){}[\]*?#~]/
+
+function keyPathFromSimpleSshCommand(sshCommand) {
+  const match = typeof sshCommand === "string" ? SIMPLE_SSH_KEY_COMMAND.exec(sshCommand.trim()) : null
+  const keyPath = match ? (match[1] ?? match[2]) : null
+  // A path the key validator would reject (for example ~/...) inherits the global command instead.
+  return keyPath && !UNSAFE_SSH_KEY_PATH_CHARS.test(keyPath) ? keyPath : null
+}
+
+/**
+ * The "global" identity as a profile. A key path is derived only from a key-only global
+ * core.sshCommand, so clones keep their non-interactive ssh options for it. Any other global
+ * command is inherited as configured: stripping "ssh -i " from it left trailing options in the
+ * "path" and wrote a broken local override (or failed key-path validation).
+ */
+export function globalIdentityProfile(globalIdentity) {
+  const sshKey = keyPathFromSimpleSshCommand(globalIdentity.sshCommand)
+  return {
+    id: "global",
+    name: "Global Identity",
+    userName: globalIdentity.userName,
+    userEmail: globalIdentity.userEmail,
+    sshKey,
+    inheritsGlobalSsh: sshKey === null,
+  }
+}
+
 export async function setLocalIdentity(directory, profile) {
   const git = await createGit(directory)
 
@@ -1563,7 +1593,12 @@ export async function setLocalIdentity(directory, profile) {
 
     const authType = profile.authType || "ssh"
 
-    if (authType === "ssh" && profile.sshKey) {
+    if (profile.inheritsGlobalSsh) {
+      // Drop overrides left by a previous profile so the global settings apply again.
+      // --unset-all: a key with several local values makes --unset fail and keep them all.
+      await git.raw(["config", "--local", "--unset-all", "core.sshCommand"]).catch(() => {})
+      await git.raw(["config", "--local", "--unset-all", "credential.helper"]).catch(() => {})
+    } else if (authType === "ssh" && profile.sshKey) {
       await git.addConfig("core.sshCommand", buildSshCommand(profile.sshKey), false, "local")
       await git.raw(["config", "--local", "--unset", "credential.helper"]).catch(() => {})
     } else if (authType === "token" && profile.host) {

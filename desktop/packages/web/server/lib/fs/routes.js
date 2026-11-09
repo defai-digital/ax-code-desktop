@@ -335,17 +335,12 @@ export const isPlansDirectoryPath = (value) => {
 const resolveCloneGitIdentity = async (gitIdentityId) => {
   const id = typeof gitIdentityId === "string" ? gitIdentityId.trim() : ""
   if (!id) return null
-  const { getProfile, getGlobalIdentity } = await import("../git/index.js")
+  const { getProfile, getGlobalIdentity, globalIdentityProfile } = await import("../git/index.js")
   if (id === "global") {
     const globalIdentity = await getGlobalIdentity()
     if (!globalIdentity?.userName || !globalIdentity?.userEmail) return null
-    return {
-      id: "global",
-      name: "Global Identity",
-      userName: globalIdentity.userName,
-      userEmail: globalIdentity.userEmail,
-      sshKey: globalIdentity.sshCommand ? globalIdentity.sshCommand.replace("ssh -i ", "") : null,
-    }
+    // A key-only global command keeps its key path; any other is inherited as configured.
+    return globalIdentityProfile(globalIdentity)
   }
   return getProfile(id) || null
 }

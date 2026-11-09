@@ -38,6 +38,7 @@ import {
   GIT_STATUS_CONTENT_ID_TIMEOUT_MS,
   getWorktreeBootstrapStatus,
   getWorktrees,
+  globalIdentityProfile,
   previewWorktreeCreate,
   recordWorktreeRuntimeEvent,
   isGitRepository,
@@ -50,6 +51,7 @@ import {
   resolveBaseRefForLog,
   revertCommit,
   revertFile,
+  setLocalIdentity,
   stageFiles,
   stageHunk,
   unstageFiles,
@@ -105,6 +107,77 @@ async function createTempRepo() {
   await git.raw(["symbolic-ref", "HEAD", "refs/heads/main"])
   return { tmpDir, git }
 }
+
+// ---------------------------------------------------------------------------
+// global identity
+// ---------------------------------------------------------------------------
+
+describe("global identity", () => {
+  const identity = (sshCommand) => ({ userName: "Global User", userEmail: "global@example.com", sshCommand })
+
+  it("inherits a global ssh command that carries options instead of deriving a key path from it", () => {
+    for (const sshCommand of [
+      "ssh -i /home/me/.ssh/work -o IdentitiesOnly=yes -o ProxyJump=bastion",
+      "ssh -F /home/me/.ssh/alt_config",
+      "ssh -i ~/.ssh/id_ed25519",
+      null,
+    ]) {
+      const profile = globalIdentityProfile(identity(sshCommand))
+      expect(profile).toMatchObject({ id: "global", userEmail: "global@example.com", sshKey: null, inheritsGlobalSsh: true })
+    }
+  })
+
+  it("keeps the key of a key-only global ssh command", () => {
+    for (const sshCommand of [
+      "ssh -i /home/me/.ssh/work",
+      "ssh -i '/home/me/.ssh/work'",
+      "ssh -i '/home/me/.ssh/work' -o IdentitiesOnly=yes",
+    ]) {
+      expect(globalIdentityProfile(identity(sshCommand))).toMatchObject({
+        sshKey: "/home/me/.ssh/work",
+        inheritsGlobalSsh: false,
+      })
+    }
+  })
+
+  it("drops a previous profile's local overrides so the global settings take effect", async () => {
+    if (!canRunGit()) return
+    const { tmpDir } = await createTempRepo()
+    // Isolated global and no system config: never read or write the developer's real git config.
+    const globalConfig = path.join(createTempDir(), "gitconfig")
+    const globalCommand = "ssh -i /home/me/.ssh/work -o ProxyJump=bastion"
+    fs.writeFileSync(globalConfig, `[core]\n\tsshCommand = ${globalCommand}\n[credential]\n\thelper = osxkeychain\n`)
+    vi.stubEnv("GIT_CONFIG_GLOBAL", globalConfig)
+    vi.stubEnv("GIT_CONFIG_NOSYSTEM", "1")
+    try {
+      runGit(tmpDir, ["config", "--local", "core.sshCommand", "ssh -i /old/profile/key"])
+      // Several values for one key: a plain --unset fails and would keep them all.
+      runGit(tmpDir, ["config", "--local", "credential.helper", "store"])
+      runGit(tmpDir, ["config", "--local", "--add", "credential.helper", "cache"])
+
+      await setLocalIdentity(tmpDir, globalIdentityProfile(identity(globalCommand)))
+
+      expect(runGit(tmpDir, ["config", "--local", "user.email"]).trim()).toBe("global@example.com")
+      expect(() => runGit(tmpDir, ["config", "--local", "--get-all", "core.sshCommand"])).toThrow()
+      expect(() => runGit(tmpDir, ["config", "--local", "--get-all", "credential.helper"])).toThrow()
+      // The effective values are the global ones again. Previously the whole command became the
+      // key path: ssh -i '/home/me/.ssh/work -o ProxyJump=bastion' -o IdentitiesOnly=yes.
+      expect(runGit(tmpDir, ["config", "--get", "core.sshCommand"]).trim()).toBe(globalCommand)
+      expect(runGit(tmpDir, ["config", "--get-all", "credential.helper"]).trim()).toBe("osxkeychain")
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it("writes the key of a key-only global command as a local override", async () => {
+    if (!canRunGit()) return
+    const { tmpDir } = await createTempRepo()
+    await setLocalIdentity(tmpDir, globalIdentityProfile(identity("ssh -i /home/me/.ssh/work")))
+    expect(runGit(tmpDir, ["config", "--local", "--get", "core.sshCommand"]).trim()).toBe(
+      "ssh -i '/home/me/.ssh/work' -o IdentitiesOnly=yes",
+    )
+  })
+})
 
 // ---------------------------------------------------------------------------
 // resolveBaseRefForLog
