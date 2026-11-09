@@ -1,3 +1,5 @@
+import { discardResponseBody } from "../discard-response-body.js"
+
 export const createAxCodeNetworkRuntime = (deps) => {
   const { state, getAxCodeAuthHeaders } = deps
 
@@ -48,7 +50,7 @@ export const createAxCodeNetworkRuntime = (deps) => {
             return true
           }
         } else {
-          response.body?.cancel()
+          discardResponseBody(response)
         }
       } catch {
       } finally {

@@ -1,5 +1,6 @@
 import { addCappedSetEntry, setCappedCacheEntry } from "../capped-cache.js"
 import { formatNotificationModeLabel, formatNotificationModelLabel } from "./label-format.js"
+import { discardResponseBody } from "../discard-response-body.js"
 
 export const createNotificationTriggerRuntime = (deps) => {
   const {
@@ -179,7 +180,7 @@ let unkeyedPermissionAskSequence = 0
         signal: AbortSignal.timeout(2000),
       })
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         return undefined
       }
       const data = await response.json().catch(() => null)

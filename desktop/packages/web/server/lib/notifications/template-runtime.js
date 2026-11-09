@@ -7,6 +7,7 @@ import {
   formatNotificationModelLabel,
   formatNotificationProjectLabel,
 } from "./label-format.js"
+import { discardResponseBody } from "../discard-response-body.js"
 
 const execFileAsync = promisify(execFile)
 
@@ -160,7 +161,7 @@ export const createNotificationTemplateRuntime = (deps) => {
       })
 
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         return ""
       }
 
@@ -227,7 +228,7 @@ export const createNotificationTemplateRuntime = (deps) => {
         signal: AbortSignal.timeout(2000),
       })
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         console.warn(`[Notification] fetchSessionInfo: ${response.status} for session ${sessionId}`)
         return null
       }

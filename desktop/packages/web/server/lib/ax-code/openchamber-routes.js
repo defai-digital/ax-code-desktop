@@ -1,3 +1,5 @@
+import { discardResponseBody } from "../discard-response-body.js"
+
 const MODEL_COST_METADATA_ENABLED = false
 
 const stripModelCostMetadata = (metadata) => {
@@ -57,7 +59,7 @@ export const registerOpenChamberRoutes = (app, dependencies) => {
       })
 
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         throw new Error(`models.dev responded with status ${response.status}`)
       }
 

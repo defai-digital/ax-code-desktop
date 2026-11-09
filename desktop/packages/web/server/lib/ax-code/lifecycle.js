@@ -3,6 +3,7 @@ import net from "node:net"
 import { startHeadlessBackend, isLoopbackHostname as isSdkLoopbackHostname } from "@defai-digital/ax-code-sdk/headless"
 import { createManagedAxCodeRuntimeAdapter } from "./managed-ax-code-runtime.js"
 import { evaluateAxCodeCompatibility } from "./version-compat.js"
+import { discardResponseBody } from "../discard-response-body.js"
 
 export { isSdkLoopbackHostname }
 
@@ -625,7 +626,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
       })
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         return false
       }
       const body = await response.json().catch(() => null)
@@ -655,7 +656,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         signal: AbortSignal.timeout(1000),
       })
       if (!response.ok) {
-        response.body?.cancel()
+        discardResponseBody(response)
         return false
       }
       const body = await response.json().catch(() => null)
@@ -1059,22 +1060,22 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         ])
 
         if (configResult instanceof Error) {
-          if (!(agentResult instanceof Error)) agentResult.body?.cancel()
+          if (!(agentResult instanceof Error)) discardResponseBody(agentResult)
           lastError = configResult
         } else if (!configResult.ok) {
-          configResult.body?.cancel()
-          if (!(agentResult instanceof Error)) agentResult.body?.cancel()
+          discardResponseBody(configResult)
+          if (!(agentResult instanceof Error)) discardResponseBody(agentResult)
           lastError = new Error(`ax-code config endpoint responded with status ${configResult.status}`)
         } else if (agentResult instanceof Error) {
-          configResult.body?.cancel()
+          discardResponseBody(configResult)
           lastError = agentResult
         } else if (!agentResult.ok) {
-          configResult.body?.cancel()
-          agentResult.body?.cancel()
+          discardResponseBody(configResult)
+          discardResponseBody(agentResult)
           lastError = new Error(`Agent endpoint responded with status ${agentResult.status}`)
         } else {
-          configResult.body?.cancel()
-          agentResult.body?.cancel()
+          discardResponseBody(configResult)
+          discardResponseBody(agentResult)
           state.isAxCodeReady = true
           state.lastAxCodeError = null
           return
@@ -1117,7 +1118,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
             return
           }
         } else {
-          response.body?.cancel()
+          discardResponseBody(response)
         }
       } catch {}
 

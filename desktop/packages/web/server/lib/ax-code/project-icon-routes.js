@@ -430,7 +430,31 @@ export const registerProjectIconRoutes = (app, dependencies) => {
         return res.status(415).json({ error: "Unsupported favicon format" })
       }
 
-      const bytes = await fsPromises.readFile(selected.path)
+      // The candidate lives in a project the user may have just cloned: a `favicon.png` symlinked to a private
+      // file elsewhere was copied into the icon store and served back, and a multi-gigabyte one was read whole
+      // before the size check below could refuse it. Read the resolved file only when it stays in the project.
+      const [selectedRealPath, projectRealPath] = await Promise.all([
+        fsPromises.realpath(selected.path),
+        fsPromises.realpath(asTrimmedString(project.path)),
+      ])
+      const relativeToProject = path.relative(projectRealPath, selectedRealPath)
+      if (
+        !relativeToProject ||
+        relativeToProject === ".." ||
+        relativeToProject.startsWith(`..${path.sep}`) ||
+        path.isAbsolute(relativeToProject)
+      ) {
+        return res.status(403).json({ error: "Discovered icon is outside the project" })
+      }
+      const selectedStats = await fsPromises.stat(selectedRealPath)
+      if (!selectedStats.isFile()) {
+        return res.status(404).json({ error: "No favicon found in project" })
+      }
+      if (selectedStats.size > projectIconMaxBytes) {
+        return res.status(400).json({ error: "Discovered icon exceeds size limit (5 MB)" })
+      }
+
+      const bytes = await fsPromises.readFile(selectedRealPath)
       if (bytes.length === 0) {
         return res.status(400).json({ error: "Discovered icon is empty" })
       }

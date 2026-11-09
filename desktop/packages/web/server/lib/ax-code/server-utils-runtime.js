@@ -1,5 +1,6 @@
 import { registerAxCodeProxy } from "./proxy.js"
 import { pathLooksUserConfigured, mergePathValues } from "./path-utils.js"
+import { discardResponseBody } from "../discard-response-body.js"
 
 export const createServerUtilsRuntime = (dependencies) => {
   const {
@@ -124,7 +125,7 @@ export const createServerUtilsRuntime = (dependencies) => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       throw new Error(`Failed to fetch ${invalidMessage} (status ${response.status})`)
     }
 
@@ -147,7 +148,7 @@ export const createServerUtilsRuntime = (dependencies) => {
     })
 
     if (!response.ok) {
-      response.body?.cancel()
+      discardResponseBody(response)
       throw new Error(`Failed to fetch ${invalidMessage} (status ${response.status})`)
     }
 

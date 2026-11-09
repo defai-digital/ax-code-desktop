@@ -317,4 +317,57 @@ describe("ui passkeys", () => {
     })
     expect(passkeys.listPasskeys(req)).toEqual([])
   })
+
+  it("refuses a sign-in whose passkey a global sign-out invalidated while it was verifying", async () => {
+    // "Sign out everywhere" rotates the secret and builds a new controller around the new binding, so the old
+    // controller's lock does not hold it back. The sign-in still verifying on the old one answered verified, and
+    // the session it got was signed with the new secret.
+    const passkeys = createUiPasskeys({ passwordBinding: "binding-before-reset", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+    const registration = await passkeys.beginRegistration(req)
+    await passkeys.finishRegistration({ requestId: registration.requestId, response: { id: "credential-id" } })
+
+    let releaseVerification = () => {}
+    simpleWebAuthn.verifyAuthenticationResponse.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          releaseVerification = () => resolve({ verified: true, authenticationInfo: { newCounter: 5 } })
+        }),
+    )
+    const authentication = await passkeys.beginAuthentication(req)
+    const authenticating = passkeys.finishAuthentication({
+      requestId: authentication.requestId,
+      response: { id: "credential-id" },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(simpleWebAuthn.verifyAuthenticationResponse).toHaveBeenCalled()
+
+    const afterReset = createUiPasskeys({ passwordBinding: "binding-after-reset", storeFile })
+    await afterReset.clearAllPasskeys()
+    releaseVerification()
+
+    await expect(authenticating).rejects.toMatchObject({ statusCode: 401 })
+  })
+
+  it("keeps a bounded number of pending sign-in challenges", async () => {
+    // The options route answers before any session exists, and every call kept a challenge for five minutes.
+    const { MAX_PENDING_CHALLENGES } = await import("./ui-passkeys.js")
+    const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+    const registration = await passkeys.beginRegistration(req)
+    await passkeys.finishRegistration({ requestId: registration.requestId, response: { id: "credential-id" } })
+
+    const oldest = await passkeys.beginAuthentication(req)
+    let newest = oldest
+    for (let index = 0; index < MAX_PENDING_CHALLENGES; index += 1) {
+      newest = await passkeys.beginAuthentication(req)
+    }
+
+    await expect(
+      passkeys.finishAuthentication({ requestId: oldest.requestId, response: { id: "credential-id" } }),
+    ).rejects.toThrow("expired")
+    await expect(
+      passkeys.finishAuthentication({ requestId: newest.requestId, response: { id: "credential-id" } }),
+    ).resolves.toEqual({ verified: true })
+  })
 })

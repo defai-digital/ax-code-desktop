@@ -14,6 +14,7 @@ import { isLoopbackHostname, normalizeLoopbackHttpOrigin } from "../security/loc
 const DEFAULT_STORE_VERSION = 1
 const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000
 const DEFAULT_RP_NAME = "AX Code"
+export const MAX_PENDING_CHALLENGES = 256
 
 const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
   ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
@@ -191,6 +192,16 @@ export const createUiPasskeys = ({
     }
   }
 
+  // The sign-in options route answers before any session exists, and each call keeps a challenge for the whole
+  // TTL, so a client looping on it grew the map without bound. The oldest pending challenge gives way; a real
+  // sign-in completes well inside the window.
+  const rememberChallenge = (map, requestId, record) => {
+    while (map.size >= MAX_PENDING_CHALLENGES) {
+      map.delete(map.keys().next().value)
+    }
+    map.set(requestId, record)
+  }
+
   const buildOriginCandidates = async (req) => {
     const origins = new Set()
     const currentOrigin = normalizeLoopbackHttpOrigin(getRequestOrigin(req))
@@ -355,7 +366,7 @@ export const createUiPasskeys = ({
     })
 
     const requestId = crypto.randomBytes(16).toString("base64url")
-    registrationChallenges.set(requestId, {
+    rememberChallenge(registrationChallenges, requestId, {
       challenge: options.challenge,
       expectedOrigins: await buildOriginCandidates(req),
       expectedRPIDs: [rpID],
@@ -463,7 +474,7 @@ export const createUiPasskeys = ({
     })
 
     const requestId = crypto.randomBytes(16).toString("base64url")
-    authenticationChallenges.set(requestId, {
+    rememberChallenge(authenticationChallenges, requestId, {
       challenge: options.challenge,
       expectedOrigins: await buildOriginCandidates(req),
       expectedRPIDs: [rpID],
@@ -533,26 +544,30 @@ export const createUiPasskeys = ({
     // dropped one registered in it), which is why the other mutations hold this lock too.
     store = loadStore()
     const current = store.passkeys.find((item) => item.id === response?.id)
-    if (current) {
-      const nextPasskeys = store.passkeys.map((item) =>
-        item.id === current.id
-          ? {
-              ...item,
-              counter: verification.authenticationInfo.newCounter,
-              lastUsedAt: Date.now(),
-            }
-          : item,
-      )
-
-      persistStore({
-        ...store,
-        passwordBinding,
-        passkeys: nextPasskeys,
-      })
+    if (!current) {
+      // Gone while it was being verified. The revoke route holds the same lock, but "sign out everywhere"
+      // replaces this controller: a sign-in still verifying on the old one would otherwise be answered with a
+      // session signed by the new secret, for a credential the reset had just invalidated.
+      const error = new Error("That passkey is no longer registered for this AX Code instance")
+      error.statusCode = 401
+      throw error
     }
+    const nextPasskeys = store.passkeys.map((item) =>
+      item.id === current.id
+        ? {
+            ...item,
+            counter: verification.authenticationInfo.newCounter,
+            lastUsedAt: Date.now(),
+          }
+        : item,
+    )
 
-    // The credential was revoked while it was being verified: the sign-in itself succeeded, and
-    // nothing is written back for it.
+    persistStore({
+      ...store,
+      passwordBinding,
+      passkeys: nextPasskeys,
+    })
+
     return { verified: true }
   }
 

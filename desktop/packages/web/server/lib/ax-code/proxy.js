@@ -8,6 +8,10 @@ import {
   shouldForwardProxyResponseHeader,
 } from "../../proxy-headers.js"
 import { createRealpathCache } from "../path-realpath-cache.js"
+import { discardResponseBody } from "../discard-response-body.js"
+import { mapWithConcurrency } from "../map-with-concurrency.js"
+
+const WINDOWS_SESSION_MERGE_CONCURRENCY = 6
 
 export const createDirectoryQueryCanonicalizer = ({ realpath, ...cacheOptions } = {}) => {
   const realpathCache = createRealpathCache({ fallbackOnError: true, realpath, ...cacheOptions })
@@ -602,7 +606,7 @@ export const registerAxCodeProxy = (app, deps) => {
         if (globalRes.ok) {
           globalPayload = await globalRes.json().catch(() => [])
         } else {
-          globalRes.body?.cancel()
+          discardResponseBody(globalRes)
         }
         const globalSessions = Array.isArray(globalPayload) ? globalPayload : []
 
@@ -627,20 +631,27 @@ export const registerAxCodeProxy = (app, deps) => {
           Array.from(new Set([dir, dir.replace(/\\/g, "/"), dir.replace(/\//g, "\\")])),
         )
 
-        const dirResults = await Promise.all(
-          allCandidates.map(async (candidateDir) => {
+        // Up to three spellings per project, so a long project list fired hundreds of requests at the runtime
+        // at once, each buffering a session list, and all sharing the one timeout the global read had started.
+        const dirResults = await mapWithConcurrency(
+          allCandidates,
+          WINDOWS_SESSION_MERGE_CONCURRENCY,
+          async (candidateDir) => {
             const encoded = encodeURIComponent(candidateDir)
             try {
-              const dirRes = await fetch(buildAxCodeUrl(`/session?directory=${encoded}`, ""), fetchOpts)
+              const dirRes = await fetch(buildAxCodeUrl(`/session?directory=${encoded}`, ""), {
+                ...fetchOpts,
+                signal: AbortSignal.timeout(10000),
+              })
               if (dirRes.ok) {
                 const dirPayload = await dirRes.json().catch(() => [])
                 return Array.isArray(dirPayload) ? dirPayload : []
               } else {
-                dirRes.body?.cancel()
+                discardResponseBody(dirRes)
               }
             } catch {}
             return []
-          }),
+          },
         )
 
         for (const sessions of dirResults) {

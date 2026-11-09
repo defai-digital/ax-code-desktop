@@ -4,6 +4,7 @@ import { rateLimit } from "express-rate-limit"
 import { getRequestRpId } from "../security/request-origin.js"
 import { isLoopbackHostname, normalizeLoopbackHttpOrigin } from "../security/local-only.js"
 import { PACKAGED_RENDERER_ORIGIN } from "../security/response-headers.js"
+import { discardResponseBody } from "../discard-response-body.js"
 
 const API_SECURITY_SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"])
 
@@ -567,7 +568,7 @@ export const registerAuthAndAccessRoutes = (app, dependencies) => {
             redirect: "manual",
             signal: AbortSignal.timeout(1500),
           })
-          response.body?.cancel()
+          discardResponseBody(response)
           return res.json({ ok: response.ok, status: response.status })
         } catch (error) {
           return res.json({ ok: false, error: error?.message || "Probe failed" })

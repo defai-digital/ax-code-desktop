@@ -168,6 +168,7 @@ describe("project icon routes", () => {
       mkdir: vi.fn(async () => undefined),
       writeFile: vi.fn(async () => undefined),
       unlink: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) => targetPath),
     }
     const updatedProject = {
       id: "proj-1",
@@ -215,7 +216,9 @@ describe("project icon routes", () => {
     ])
     const enoent = Object.assign(new Error("missing"), { code: "ENOENT" })
     const fsPromises = {
-      stat: vi.fn(async () => {
+      stat: vi.fn(async (candidatePath) => {
+        // Only the deep scan finds it: no bounded candidate exists.
+        if (candidatePath === path.join("/repo", "nested", "favicon.svg")) return { isFile: () => true }
         throw enoent
       }),
       readFile: vi.fn(async (candidatePath) => {
@@ -227,6 +230,7 @@ describe("project icon routes", () => {
       mkdir: vi.fn(async () => undefined),
       writeFile: vi.fn(async () => undefined),
       unlink: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) => targetPath),
     }
 
     registerProjectIconRoutes(app, {
@@ -295,6 +299,7 @@ describe("project icon routes", () => {
       mkdir: vi.fn(async () => undefined),
       writeFile: vi.fn(async () => undefined),
       unlink: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) => targetPath),
     }
     const persistSettings = vi.fn(async (changes) => changes)
 
@@ -317,5 +322,73 @@ describe("project icon routes", () => {
     expect(res.statusCode).toBe(200)
     expect(res.body.discoveredPath).toBe(jpegPath)
     expect(fsPromises.writeFile).toHaveBeenCalledWith(expect.stringMatching(/\.jpg$/), jpegBytes)
+  })
+
+  const registerDiscovery = (fsPromises) => {
+    const { app, getRoute } = createRouteRegistry()
+    registerProjectIconRoutes(app, {
+      fsPromises,
+      path,
+      crypto,
+      openchamberDataDir: "/tmp/openchamber-test",
+      sanitizeProjects: (projects) => projects,
+      readSettingsFromDiskMigrated: async () => ({ projects: [{ id: "proj-1", path: "/repo" }] }),
+      persistSettings: vi.fn(async (changes) => changes),
+      createFsSearchRuntime: () => ({ searchFilesystemFiles: async () => [] }),
+      spawn: vi.fn(),
+      resolveGitBinaryForSpawn: vi.fn(),
+    })
+    return async () => {
+      const res = createMockResponse()
+      await getRoute("POST", "/api/projects/:projectId/icon/discover")({ params: { projectId: "proj-1" }, body: {} }, res)
+      return res
+    }
+  }
+
+  it("refuses a discovered favicon that is a symlink out of the project", async () => {
+    // A cloned project's `favicon.png` pointing at a private file elsewhere was copied into the icon store
+    // and served back by the icon route.
+    const faviconPath = path.join("/repo", "favicon.png")
+    const enoent = Object.assign(new Error("missing"), { code: "ENOENT" })
+    const fsPromises = {
+      stat: vi.fn(async (candidatePath) => {
+        if (candidatePath === faviconPath || candidatePath === "/home/user/.ssh/id_ed25519") {
+          return { isFile: () => true, size: 400 }
+        }
+        throw enoent
+      }),
+      realpath: vi.fn(async (targetPath) => (targetPath === faviconPath ? "/home/user/.ssh/id_ed25519" : targetPath)),
+      readFile: vi.fn(async () => Buffer.from("private")),
+      mkdir: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined),
+      unlink: vi.fn(async () => undefined),
+    }
+
+    const res = await registerDiscovery(fsPromises)()
+
+    expect(res.statusCode).toBe(403)
+    expect(fsPromises.readFile).not.toHaveBeenCalled()
+    expect(fsPromises.writeFile).not.toHaveBeenCalled()
+  })
+
+  it("refuses an oversized discovered favicon without reading it", async () => {
+    const faviconPath = path.join("/repo", "favicon.png")
+    const enoent = Object.assign(new Error("missing"), { code: "ENOENT" })
+    const fsPromises = {
+      stat: vi.fn(async (candidatePath) => {
+        if (candidatePath === faviconPath) return { isFile: () => true, size: 3 * 1024 * 1024 * 1024 }
+        throw enoent
+      }),
+      realpath: vi.fn(async (targetPath) => targetPath),
+      readFile: vi.fn(async () => Buffer.alloc(0)),
+      mkdir: vi.fn(async () => undefined),
+      writeFile: vi.fn(async () => undefined),
+      unlink: vi.fn(async () => undefined),
+    }
+
+    const res = await registerDiscovery(fsPromises)()
+
+    expect(res.statusCode).toBe(400)
+    expect(fsPromises.readFile).not.toHaveBeenCalled()
   })
 })

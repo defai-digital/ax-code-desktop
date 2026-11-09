@@ -4,6 +4,7 @@ import { AX_CODE_CONFIG_DIR } from "./shared.js"
 import { readDirectoryHeader } from "./project-directory-runtime.js"
 import fs from "fs"
 import path from "path"
+import { discardResponseBody } from "../discard-response-body.js"
 
 // Ceiling for a body forwarded verbatim to the runtime (a prompt with
 // attachments). Resolved per request so an operator (or a test) can lower it
@@ -586,18 +587,18 @@ export const registerAxCodeRoutes = (app, dependencies) => {
         signal: AbortSignal.timeout(10000),
       })
       if (response.ok) {
-        await response.body?.cancel()
+        discardResponseBody(response)
         return true
       }
       // 404 means the auth entry does not exist — nothing to remove.
       if (response.status === 404) {
-        await response.body?.cancel()
+        discardResponseBody(response)
         return false
       }
       // Other 4xx (401, 403, 408, etc.) and 5xx: fall back to direct
       // file removal so the entry is cleaned up even when ax-code
       // rejects the API call (e.g. auth header mismatch).
-      await response.body?.cancel()
+      discardResponseBody(response)
       console.warn("ax-code DELETE /auth returned non-success, falling back to direct file removal", {
         providerId,
         status: response.status,
