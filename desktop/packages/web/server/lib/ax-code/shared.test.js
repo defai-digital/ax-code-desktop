@@ -359,3 +359,66 @@ describe("prompt file references", () => {
     }
   })
 })
+
+describe("project resource containment", () => {
+  const makeProject = () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "oc-contain-"))
+    const project = path.join(root, "project")
+    fs.mkdirSync(path.join(project, ".ax-code", "commands"), { recursive: true })
+    fs.writeFileSync(path.join(root, "outside.txt"), "SECRET=1\n")
+    return { root, project }
+  }
+
+  it("refuses a project resource that links to a file outside the project", () => {
+    const { root, project } = makeProject()
+    try {
+      fs.symlinkSync(path.join(root, "outside.txt"), path.join(project, ".ax-code", "commands", "review.md"))
+      expect(() => resolveProjectAxCodeResourcePath(project, ["commands", "review.md"], ["command", "review.md"])).toThrow(
+        "must be inside the project",
+      )
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses a dangling link, which a write would create outside the project", () => {
+    const { root, project } = makeProject()
+    try {
+      fs.symlinkSync(path.join(root, "created.txt"), path.join(project, ".ax-code", "commands", "fresh.md"))
+      expect(() => resolveProjectAxCodeResourcePath(project, ["commands", "fresh.md"], ["command", "fresh.md"])).toThrow(
+        "must be inside the project",
+      )
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("does not create resource directories through a linked .ax-code directory", () => {
+    const { root, project } = makeProject()
+    try {
+      fs.rmSync(path.join(project, ".ax-code"), { recursive: true })
+      fs.mkdirSync(path.join(root, "elsewhere"))
+      fs.symlinkSync(path.join(root, "elsewhere"), path.join(project, ".ax-code"))
+      expect(() => ensureProjectAxCodeResourceDirs(project, "commands", "command")).toThrow("must be inside the project")
+      expect(fs.readdirSync(path.join(root, "elsewhere"))).toEqual([])
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it("accepts links that stay inside the project and paths that do not exist yet", () => {
+    const { root, project } = makeProject()
+    try {
+      fs.writeFileSync(path.join(project, "shared.md"), "body")
+      fs.symlinkSync(path.join(project, "shared.md"), path.join(project, ".ax-code", "commands", "linked.md"))
+      expect(resolveProjectAxCodeResourcePath(project, ["commands", "linked.md"], ["command", "linked.md"])).toBe(
+        path.join(project, ".ax-code", "commands", "linked.md"),
+      )
+      expect(resolveProjectAxCodeResourcePath(project, ["commands", "new.md"], ["command", "new.md"])).toBe(
+        path.join(project, ".ax-code", "commands", "new.md"),
+      )
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+})

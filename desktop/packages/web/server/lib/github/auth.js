@@ -19,26 +19,42 @@ function ensureStorageDir() {
   fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 })
 }
 
-function readJsonFile() {
+// Thrown instead of reading an unreadable file as "no accounts": every write rewrites the whole list, so a
+// sign-in would replace each stored account with the new one, and a logout would report success while the
+// token stayed on disk.
+export class GitHubAuthStorageError extends Error {}
+
+function readJsonFile({ strict = false } = {}) {
   ensureStorageDir()
+  let raw
   try {
-    const raw = fs.readFileSync(STORAGE_FILE, "utf8")
-    const trimmed = raw.trim()
-    if (!trimmed) {
-      return null
-    }
-    const parsed = JSON.parse(trimmed)
-    if (!parsed || typeof parsed !== "object") {
-      return null
-    }
-    return parsed
+    raw = fs.readFileSync(STORAGE_FILE, "utf8")
   } catch (error) {
     if (error && error.code === "ENOENT") {
       return null
     }
-    console.error("Failed to read GitHub auth file:", error)
+    // The code only: the error object can carry file contents in other runtimes' messages.
+    console.error("Failed to read GitHub auth file:", error?.code || "unknown error")
+    if (strict) throw new GitHubAuthStorageError("The GitHub auth file could not be read; it was left unchanged")
     return null
   }
+  const trimmed = raw.trim()
+  if (!trimmed) {
+    return null
+  }
+  let parsed
+  try {
+    parsed = JSON.parse(trimmed)
+  } catch {
+    // The parse message quotes the text around the error, which here is token material.
+    console.error("Failed to read GitHub auth file: invalid JSON")
+    parsed = null
+  }
+  if (!parsed || typeof parsed !== "object") {
+    if (strict) throw new GitHubAuthStorageError("The GitHub auth file is not valid; it was left unchanged")
+    return null
+  }
+  return parsed
 }
 
 function readSettingsJsonFile() {
@@ -66,14 +82,23 @@ function writeJsonFile(payload) {
   // Created 0600 rather than written and then chmod'd: this file holds the OAuth access token, the chmod is
   // best-effort (its failure was swallowed), and a 0644 window is readable by every other local user. The git
   // identities store beside it passes `mode` for the same reason.
-  fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), { encoding: "utf8", mode: 0o600 })
   try {
-    fs.chmodSync(tmpFile, 0o600)
-  } catch {
-    // best-effort
+    fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), { encoding: "utf8", mode: 0o600 })
+    try {
+      fs.chmodSync(tmpFile, 0o600)
+    } catch {
+      // best-effort
+    }
+    fs.renameSync(tmpFile, STORAGE_FILE)
+  } catch (error) {
+    // The temp file holds the tokens, and logout only removes STORAGE_FILE: a leftover copy would outlive it.
+    try {
+      fs.unlinkSync(tmpFile)
+    } catch {
+      // already gone
+    }
+    throw error
   }
-
-  fs.renameSync(tmpFile, STORAGE_FILE)
   try {
     fs.chmodSync(STORAGE_FILE, 0o600)
   } catch {
@@ -166,8 +191,8 @@ function normalizeAuthList(raw) {
   return { list, changed }
 }
 
-function readAuthList() {
-  const data = readJsonFile()
+function readAuthList({ strict = false } = {}) {
+  const data = readJsonFile({ strict })
   if (!data) {
     return []
   }
@@ -227,7 +252,7 @@ export function setGitHubAuth({ accessToken, scope, tokenType, user, accountId }
     accountId,
   })
 
-  const list = readAuthList()
+  const list = readAuthList({ strict: true })
   const existingIndex = list.findIndex((entry) => entry.accountId === resolvedAccountId)
   const nextEntry = {
     accessToken,
@@ -256,7 +281,7 @@ export function activateGitHubAuth(accountId) {
   if (typeof accountId !== "string" || !accountId.trim()) {
     return false
   }
-  const list = readAuthList()
+  const list = readAuthList({ strict: true })
   const index = list.findIndex((entry) => entry.accountId === accountId.trim())
   if (index === -1) {
     return false
@@ -270,7 +295,7 @@ export function activateGitHubAuth(accountId) {
 
 export function clearGitHubAuth() {
   try {
-    const list = readAuthList()
+    const list = readAuthList({ strict: true })
     if (!list.length) {
       return true
     }

@@ -7,6 +7,7 @@ import {
   AX_CODE_CONFIG_DIR,
   ensureProjectAxCodeResourceDirs,
   resolveProjectAxCodeResourcePath,
+  assertProjectResourceContained,
   resolveUserAxCodeResourcePath,
   parseMdFile,
   writeMdFile,
@@ -80,12 +81,17 @@ function getUserSkillPath(skillName) {
 function getExternalSkillDir(scope, workingDirectory, skillName, sourceConfig) {
   const root = scope === SKILL_SCOPE.PROJECT ? workingDirectory : os.homedir()
   if (!root) return null
-  return path.join(root, sourceConfig.rootName, "skills", skillName)
+  const skillDir = path.join(root, sourceConfig.rootName, "skills", skillName)
+  if (scope === SKILL_SCOPE.PROJECT) assertProjectResourceContained(workingDirectory, skillDir)
+  return skillDir
 }
 
 function getExternalSkillPath(scope, workingDirectory, skillName, sourceConfig) {
   const skillDir = getExternalSkillDir(scope, workingDirectory, skillName, sourceConfig)
-  return skillDir ? path.join(skillDir, SKILL_MD_FILENAME) : null
+  if (!skillDir) return null
+  const skillPath = path.join(skillDir, SKILL_MD_FILENAME)
+  if (scope === SKILL_SCOPE.PROJECT) assertProjectResourceContained(workingDirectory, skillPath)
+  return skillPath
 }
 
 function getExternalSkillEntry(scope, workingDirectory, skillName, sourceConfig) {

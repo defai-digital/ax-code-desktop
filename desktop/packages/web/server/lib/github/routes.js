@@ -360,6 +360,10 @@ export function registerGitHubRoutes(app) {
     try {
       const { clearGitHubAuth } = await getGitHubLibraries()
       const removed = clearGitHubAuth()
+      if (!removed) {
+        // The stored token could not be read or removed; reporting success would leave it signed in on disk.
+        return res.status(500).json({ error: "Failed to disconnect GitHub" })
+      }
       await clearGitHubAccountScopedCaches()
       return res.json({ success: true, removed })
     } catch (error) {

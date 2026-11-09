@@ -49,11 +49,45 @@ function ensureDirs() {
   fs.mkdirSync(SKILL_DIR, { recursive: true })
 }
 
+// A cloned project can commit `.ax-code/commands/review.md` (or `.ax-code` itself) as a symlink to a file
+// outside it, or as a dangling one: reads then returned that file and writes rewrote or created it. The
+// resolved form of the path, or of its nearest entry that exists (a dangling link counts), must stay inside
+// the project. Links within the project are fine. User scope is not checked: a symlinked user config
+// directory is a legitimate dotfiles setup.
+function assertProjectResourceContained(workingDirectory, resourcePath) {
+  const projectRoot = path.resolve(workingDirectory)
+  let existing = path.resolve(resourcePath)
+  for (;;) {
+    try {
+      fs.lstatSync(existing)
+      break
+    } catch (error) {
+      if (error?.code !== "ENOENT" && error?.code !== "ENOTDIR") throw error
+    }
+    // Nothing exists from the project root down, so nothing can lead out of it.
+    if (existing === projectRoot) return
+    const parent = path.dirname(existing)
+    if (parent === existing) return
+    existing = parent
+  }
+  let relative = null
+  try {
+    relative = path.relative(fs.realpathSync(workingDirectory), fs.realpathSync(existing))
+  } catch {
+    // A dangling link has no resolved form to check.
+  }
+  if (relative === null || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw new Error(`Project resource ${path.basename(resourcePath)} must be inside the project`)
+  }
+}
+
 function ensureProjectAxCodeResourceDirs(workingDirectory, primarySegment, legacySegment) {
   const primaryDir = path.join(workingDirectory, ".ax-code", primarySegment)
+  assertProjectResourceContained(workingDirectory, primaryDir)
   fs.mkdirSync(primaryDir, { recursive: true })
 
   const legacyDir = path.join(workingDirectory, ".ax-code", legacySegment)
+  assertProjectResourceContained(workingDirectory, legacyDir)
   fs.mkdirSync(legacyDir, { recursive: true })
 
   return primaryDir
@@ -69,7 +103,9 @@ function preferExistingLegacyPath(primaryPath, legacyPath) {
 function resolveProjectAxCodeResourcePath(workingDirectory, primarySegments, legacySegments) {
   const primaryPath = path.join(workingDirectory, ".ax-code", ...primarySegments)
   const legacyPath = path.join(workingDirectory, ".ax-code", ...legacySegments)
-  return preferExistingLegacyPath(primaryPath, legacyPath)
+  const resolved = preferExistingLegacyPath(primaryPath, legacyPath)
+  assertProjectResourceContained(workingDirectory, resolved)
+  return resolved
 }
 
 function resolveUserAxCodeResourcePath(primarySegments, legacySegments) {
@@ -748,6 +784,7 @@ export {
   ensureProjectAxCodeResourceDirs,
   resolveProjectAxCodeResourcePath,
   resolveUserAxCodeResourcePath,
+  assertProjectResourceContained,
   assertSafeResourceName,
   parseMdFile,
   writeMdFile,

@@ -389,4 +389,25 @@ describe("skill name safety", () => {
     expect(readSkillNameParam("")).toBeNull()
     expect(readSkillNameParam(undefined)).toBeNull()
   })
+
+  it("does not read or rewrite a file outside the project through a linked project SKILL.md", async () => {
+    // Discovery skips links, but the per-skill lookups followed them: viewing the skill returned the linked
+    // file and saving it replaced that file's contents.
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-link-"))
+    try {
+      const project = path.join(root, "project")
+      const victim = path.join(root, "victim.txt")
+      await fsPromises.writeFile(victim, "export SECRET=1\n")
+      for (const base of [".ax-code", ".claude"]) {
+        const skillDir = path.join(project, base, "skills", `linked-${base.slice(1)}`)
+        await fsPromises.mkdir(skillDir, { recursive: true })
+        await fsPromises.symlink(victim, path.join(skillDir, "SKILL.md"))
+        expect(() => getSkillSources(`linked-${base.slice(1)}`, project)).toThrow("must be inside the project")
+        expect(() => updateSkill(`linked-${base.slice(1)}`, { instructions: "pwned" }, project)).toThrow()
+      }
+      expect(await fsPromises.readFile(victim, "utf8")).toBe("export SECRET=1\n")
+    } finally {
+      await fsPromises.rm(root, { recursive: true, force: true })
+    }
+  })
 })

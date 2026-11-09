@@ -189,4 +189,29 @@ describe("github auth storage", () => {
     }
   })
 
+  it("leaves other accounts in place when the auth file cannot be read", async () => {
+    // An unreadable file read as "no accounts", so the next sign-in rewrote the file with only the new account
+    // and a logout reported success while the stored token stayed on disk.
+    const original = '[{"accessToken":"gho_kept","accountId":"octo","current":true},]'
+    fs.writeFileSync(authFile(), original, "utf8")
+    const { setGitHubAuth, clearGitHubAuth } = await importAuth()
+
+    expect(() => setGitHubAuth({ accessToken: "gho_new", user: { login: "other" } })).toThrow("left unchanged")
+    expect(clearGitHubAuth()).toBe(false)
+    expect(fs.readFileSync(authFile(), "utf8")).toBe(original)
+  })
+
+  it("removes the temporary token copy when the write fails", async () => {
+    // Logout only removes the auth file itself; a temp file left by a failed rename kept a copy of the token.
+    const { setGitHubAuth } = await importAuth()
+    const rename = vi.spyOn(fs, "renameSync").mockImplementation(() => {
+      throw Object.assign(new Error("EXDEV"), { code: "EXDEV" })
+    })
+    try {
+      expect(() => setGitHubAuth({ accessToken: "gho_secret", user: { login: "octocat" } })).toThrow("EXDEV")
+    } finally {
+      rename.mockRestore()
+    }
+    expect(fs.readdirSync(tempRoot).filter((name) => name.endsWith(".tmp"))).toEqual([])
+  })
 })
