@@ -1322,8 +1322,8 @@ const unwrapRuntimeResult = (result, fallbackMessage) => {
 }
 
 const ensureRemoteWithUrl = async (primaryWorktree, remoteName, remoteUrl) => {
-  const name = String(remoteName || "").trim()
-  const url = String(remoteUrl || "").trim()
+  const name = rejectOptionLikeValue(remoteName, "remote name")
+  const url = rejectOptionLikeValue(remoteUrl, "remote URL")
   if (!name || !url) {
     return
   }
@@ -1343,9 +1343,11 @@ const ensureRemoteWithUrl = async (primaryWorktree, remoteName, remoteUrl) => {
   remoteExistenceCache.delete(getRemoteExistenceCacheKey(primaryWorktree, name))
 }
 
+// The remote and branch are positional, and both can come from a request: a remote segment parsed out of
+// "refs/remotes/--upload-pack=<cmd>/main" reached `git fetch` as an option.
 const fetchRemoteBranchRef = async (primaryWorktree, remoteName, branchName) => {
-  const remote = String(remoteName || "").trim()
-  const branch = String(branchName || "").trim()
+  const remote = rejectOptionLikeValue(remoteName, "remote name")
+  const branch = rejectOptionLikeValue(branchName, "branch name")
   if (!remote || !branch) {
     return
   }
@@ -1359,6 +1361,10 @@ const checkRemoteBranchExists = async (primaryWorktree, remoteName, branchName, 
   const branch = String(branchName || "").trim()
   const url = String(remoteUrl || "").trim()
   if (!remote || !branch) {
+    return { success: false, found: false }
+  }
+  // `ls-remote` would read an option-like target as an option, `--upload-pack=<cmd>` among them.
+  if (remote.startsWith("-") || branch.startsWith("-") || url.startsWith("-")) {
     return { success: false, found: false }
   }
 
@@ -2444,6 +2450,44 @@ const readHeadFileSide = async (git, repoRoot, sourcePath, isImage, mimeType) =>
   return stdout && stdout.length > 0 ? `data:${mimeType};base64,${stdout.toString("base64")}` : ""
 }
 
+// Matches the `git show` reads of the other side, which are capped at 50MB.
+const MAX_WORKTREE_DIFF_SIDE_BYTES = 50 * 1024 * 1024
+
+// The worktree side of a diff, as git itself sees it. Following a symlink read whatever file the link named —
+// `~/.ssh/id_rsa` from a cloned repository — and shipped it to the renderer, where git's own blob for a link is
+// just its target path. A path under a symlinked directory is not in the repository at all. The read is also
+// bounded: a file of several gigabytes was read whole and copied again into a base64 or normalized string.
+const readWorktreeDiffSide = async (repoRoot, absolutePath, isImage, mimeType) => {
+  let stat
+  try {
+    stat = await fsp.lstat(absolutePath)
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return ""
+    throw error
+  }
+  const [realRoot, realParent] = await Promise.all([
+    fsp.realpath(repoRoot),
+    fsp.realpath(path.dirname(absolutePath)),
+  ])
+  if (!isInsideOrSameDirectory(realRoot, realParent)) {
+    return ""
+  }
+  if (stat.isSymbolicLink()) {
+    return isImage ? "" : await fsp.readlink(absolutePath)
+  }
+  if (!stat.isFile()) {
+    return ""
+  }
+  if (stat.size > MAX_WORKTREE_DIFF_SIDE_BYTES) {
+    throw new Error("File is too large to diff")
+  }
+  if (isImage) {
+    const buffer = await fsp.readFile(absolutePath)
+    return `data:${mimeType};base64,${buffer.toString("base64")}`
+  }
+  return fsp.readFile(absolutePath, "utf8")
+}
+
 export async function getFileDiff(directory, { path: filePath, staged = false } = {}) {
   if (!directory || !filePath) {
     throw new Error("directory and path are required for getFileDiff")
@@ -2507,13 +2551,7 @@ export async function getFileDiff(directory, { path: filePath, staged = false } 
     }
   } else {
     try {
-      if (isImage) {
-        // For images, read as binary and convert to data URL
-        const buffer = await fsp.readFile(absolutePath)
-        modified = `data:${mimeType};base64,${buffer.toString("base64")}`
-      } else {
-        modified = await fsp.readFile(absolutePath, "utf8")
-      }
+      modified = await readWorktreeDiffSide(repoRoot, absolutePath, isImage, mimeType)
     } catch (error) {
       if (error && typeof error === "object" && (error.code === "ENOENT" || error.code === "EISDIR")) {
         modified = ""
@@ -3761,14 +3799,14 @@ export async function commit(directory, message, options = {}) {
 }
 
 export async function getBranches(directory) {
-  const { git } = await createRepositoryGitContext(directory)
+  const { git, directoryPath } = await createRepositoryGitContext(directory)
 
   try {
     const result = await git.branch()
 
     const allBranches = result.all
     const remoteBranches = allBranches.filter((branch) => branch.startsWith("remotes/"))
-    const activeRemoteBranches = await filterActiveRemoteBranches(git, remoteBranches)
+    const activeRemoteBranches = await filterActiveRemoteBranches(git, directoryPath, remoteBranches)
 
     const filteredAll = [...allBranches.filter((branch) => !branch.startsWith("remotes/")), ...activeRemoteBranches]
 
@@ -3783,7 +3821,11 @@ export async function getBranches(directory) {
   }
 }
 
-async function filterActiveRemoteBranches(git, remoteBranches) {
+// A branch list is a local read, but this probe goes to every remote over the network. With no timeout, a host
+// that accepted the connection and never finished the protocol held the request (and a git child) forever.
+const REMOTE_BRANCH_PROBE_TIMEOUT_MS = 15_000
+
+async function filterActiveRemoteBranches(git, cwd, remoteBranches) {
   try {
     const remotes = await git.getRemotes()
     const branchesByRemote = new Map()
@@ -3791,7 +3833,12 @@ async function filterActiveRemoteBranches(git, remoteBranches) {
     await Promise.all(
       remotes.map(async (remote) => {
         try {
-          const lsRemoteResult = await git.raw(["ls-remote", "--heads", remote.name])
+          const probe = await runGitCommand(cwd, ["ls-remote", "--heads", remote.name], {
+            timeout: REMOTE_BRANCH_PROBE_TIMEOUT_MS,
+          })
+          // Skipped like any other unreachable remote.
+          if (!probe.success) return
+          const lsRemoteResult = probe.stdout
           const actualRemoteBranches = new Set()
           const lines = lsRemoteResult.trim().split("\n")
           for (const line of lines) {
@@ -4057,7 +4104,8 @@ export async function validateWorktreeCreate(directory, input = {}) {
 
     if (mode === "existing") {
       try {
-        const requestedExistingBranch = String(input?.existingBranch || "").trim()
+        // Rejected as in createWorktree: validation runs the same fetch and ls-remote calls.
+        const requestedExistingBranch = rejectOptionLikeValue(input?.existingBranch, "branch name")
         const parsedExistingRemote = await resolveRemoteBranchRef(context.primaryWorktree, requestedExistingBranch)
         if (
           parsedExistingRemote &&
@@ -4068,8 +4116,8 @@ export async function validateWorktreeCreate(directory, input = {}) {
           const lsRemote = await runGitCommand(context.primaryWorktree, [
             "ls-remote",
             "--heads",
-            ensureRemoteUrl,
-            `refs/heads/${parsedExistingRemote.branch}`,
+            rejectOptionLikeValue(ensureRemoteUrl, "remote URL"),
+            `refs/heads/${rejectOptionLikeValue(parsedExistingRemote.branch, "branch name")}`,
           ])
           if (!lsRemote.success) {
             throw new Error(`Unable to query remote ${ensureRemoteName}`)

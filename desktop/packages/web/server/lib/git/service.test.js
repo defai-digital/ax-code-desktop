@@ -25,6 +25,7 @@ import {
   continueRebase,
   countStashFiles,
   createWorktree,
+  validateWorktreeCreate,
   deleteRemoteBranch,
   getCommitFileDiff,
   getCommitFiles,
@@ -1224,6 +1225,37 @@ describe("getFileDiff", () => {
       modified: "one\ntwo\n",
       isBinary: false,
     })
+  })
+
+  it("reads a symlink's worktree side as its target path, not the linked file", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+
+    const repo = createTempDir()
+    const outside = createTempDir()
+    const secret = path.join(outside, "secret.txt")
+    fs.writeFileSync(secret, "do not ship\n")
+    initRepoWithFile(repo, "notes.txt", "notes\n")
+    fs.rmSync(path.join(repo, "notes.txt"))
+    fs.symlinkSync(secret, path.join(repo, "notes.txt"))
+
+    const result = await getFileDiff(repo, { path: "notes.txt" })
+
+    expect(result.modified).toBe(secret)
+    expect(result.modified).not.toContain("do not ship")
+  })
+
+  it("does not read a file through a symlinked directory that leads outside the repository", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+
+    const repo = createTempDir()
+    const outside = createTempDir()
+    fs.writeFileSync(path.join(outside, "secret.txt"), "do not ship\n")
+    initRepoWithFile(repo, "README.md", "readme\n")
+    fs.symlinkSync(outside, path.join(repo, "linked"), "dir")
+
+    const result = await getFileDiff(repo, { path: "linked/secret.txt" })
+
+    expect(result.modified).toBe("")
   })
 })
 
@@ -2514,6 +2546,26 @@ describe("createWorktree through the runtime", () => {
 
     expect(runtime.calls.create[0].worktreeCreateInput).toEqual({ name: "plain", operationId: expect.any(String) })
     expect(created.branch).toBe("ax-code/plain")
+  })
+
+  it("never hands an option-like remote segment of an existing branch to git", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+    const repo = initWorktreeRepo()
+    const runtime = createStubRuntime()
+    const existingBranch = "refs/remotes/--upload-pack=touch pwned/main"
+
+    const { result, invocations } = await recordGitInvocations(async () => ({
+      create: await createWorktree(repo, { mode: "existing", existingBranch, worktreeName: "t" }, runtime).catch(
+        (error) => error,
+      ),
+      validate: await validateWorktreeCreate(repo, { mode: "existing", existingBranch }),
+    }))
+
+    expect(result.create).toBeInstanceOf(Error)
+    expect(result.validate.errors.length).toBeGreaterThan(0)
+    expect(runtime.calls.create).toEqual([])
+    // Inside a ref name the text is inert; as a fetch or ls-remote argument it is an option.
+    expect(invocations.filter((line) => /^(fetch|ls-remote) /.test(line))).toEqual([])
   })
 
   it("borrows an existing local branch", async () => {
