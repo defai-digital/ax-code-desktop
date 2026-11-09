@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 
 - Return keyboard focus to the preserved conversation when closing an inspector.
+- Pass object inputs to the bundled native WebMCP checker instead of double-encoded JSON strings.
 - Read skills, discovered icons and worktree diffs through bounded checked handles so file replacement or growth cannot bypass validation.
 - Avoid the first Markdown render delay and retain newer session state during delayed updates.
 - Harden project file containment, credential storage failures, preview buffering, SSE shutdown and provider quota handling.

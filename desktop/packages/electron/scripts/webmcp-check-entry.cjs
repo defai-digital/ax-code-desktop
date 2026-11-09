@@ -115,7 +115,7 @@ async function check() {
   save()
   let contaminated = false
   for (const [index, run] of (config.runs ?? []).entries()) {
-    // The engine bundled with AX Code Desktop takes the input as a JSON string and answers with one.
+    // The bundled native API takes an input object; encode it once as a JavaScript literal for the page context.
     const result = contaminated ? { error: "not run: contaminated by an unconfirmed timeout", notRun: true } : await Promise.race([
       contents
         .executeJavaScript(
@@ -125,7 +125,7 @@ async function check() {
         const tool = (await context.getTools()).find((candidate) => candidate.name === ${JSON.stringify(run.name)})
         if (!tool) return { error: "tool not registered" }
         try {
-          return { output: await context.executeTool(tool, ${JSON.stringify(JSON.stringify(run.input))}) }
+          return { output: await context.executeTool(tool, ${JSON.stringify(run.input)}) }
         } catch (error) {
           return { error: String(error && error.name ? error.name + ": " + error.message : error) }
         }

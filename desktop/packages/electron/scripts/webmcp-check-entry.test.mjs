@@ -14,7 +14,7 @@ afterEach(() => {
   delete require.cache[require.resolve("./webmcp-check-entry.cjs")]
 })
 
-test("the actual Electron entry redacts every disk write without altering the invoked input", async () => {
+test("the actual Electron entry passes native object input and redacts every disk write", async () => {
   vi.useFakeTimers()
   const writes = []
   const receiptKey = randomBytes(32).toString("hex")
@@ -38,7 +38,8 @@ test("the actual Electron entry redacts every disk write without altering the in
   const context = {
     getTools: async () => [{ name: "echo" }],
     executeTool: async (_tool, input) => {
-      inputs.push(JSON.parse(input))
+      if (input === null || typeof input !== "object") throw new TypeError("invalid input object: value is not an object")
+      inputs.push(input)
       if (inputs.length === 2) throw new Error(JSON.stringify({ password: "thrown-secret" }))
       if (inputs.length === 3) return { errors: [...credentialTextCases, ...fieldContextCases.map(({ input }) => ({ error: input }))] }
       if (inputs.length === 4) throw new Error(credentialTextCases.join("\n"))
