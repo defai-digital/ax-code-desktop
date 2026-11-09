@@ -75,7 +75,16 @@ export const toRuntimeRelativePath = (targetPath, directory) => {
   return toPosix(relative)
 }
 
-export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeaders } = {}) => {
+// The renderer shares one in-flight request per directory listing, so a runtime that accepts the connection
+// and never answers would hang that listing, and every later one for the same directory, indefinitely.
+export const CORE_FILE_REQUEST_TIMEOUT_MS = 15_000
+
+export const createCoreFileAdapter = ({
+  fetchImpl = fetch,
+  getBaseUrl,
+  getHeaders,
+  requestTimeoutMs = CORE_FILE_REQUEST_TIMEOUT_MS,
+} = {}) => {
   const requestJson = async (pathname, search, extras = {}) => {
     const base = asTrimmedString(typeof getBaseUrl === "function" ? getBaseUrl() : "")
     if (!base) {
@@ -93,7 +102,18 @@ export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeader
     if (directory) {
       headers["x-ax-code-directory"] = encodeURIComponent(directory)
     }
-    const response = await fetchImpl(url, { headers })
+    const signal = AbortSignal.timeout(requestTimeoutMs)
+    let response
+    try {
+      response = await fetchImpl(url, { headers, signal })
+    } catch (error) {
+      if (signal.aborted) {
+        const timeout = new Error("AX Code core file API did not respond in time")
+        timeout.code = "ETIMEDOUT"
+        throw timeout
+      }
+      throw error
+    }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}))
       const error = new Error(
@@ -104,7 +124,16 @@ export const createCoreFileAdapter = ({ fetchImpl = fetch, getBaseUrl, getHeader
       else if (response.status === 403) error.code = "EACCES"
       throw error
     }
-    return response.json()
+    try {
+      return await response.json()
+    } catch (error) {
+      if (signal.aborted) {
+        const timeout = new Error("AX Code core file API did not respond in time")
+        timeout.code = "ETIMEDOUT"
+        throw timeout
+      }
+      throw error
+    }
   }
 
   return {

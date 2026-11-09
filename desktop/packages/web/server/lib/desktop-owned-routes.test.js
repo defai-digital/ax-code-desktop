@@ -26,7 +26,7 @@ describe("desktop owned route surface", () => {
     // classify, and its text payload is lossy; both handlers read the path the
     // containment check already canonicalized.
     expect(readHandler).toContain("decodeUtf8TextFile")
-    expect(readHandler).toContain("readRegularFileBytes(fsPromises, canonicalPath)")
+    expect(readHandler).toContain("readRegularFileBytes(fsPromises, canonicalPath, { maxBytes: MAX_TEXT_READ_BYTES })")
     expect(readHandler).toContain("isPathWithinRoot")
     expect(readHandler).not.toContain("fsPromises.open")
     expect(rawHandler).toContain("readRegularFileBytes(fsPromises, canonicalPath)")

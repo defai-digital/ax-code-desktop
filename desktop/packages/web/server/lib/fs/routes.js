@@ -26,7 +26,13 @@ const decodeUtf8TextFile = (buffer) => {
   }
 }
 
-const readRegularFileBytes = async (fsPromises, filename) => {
+export const CLONE_ALLOWED_PROTOCOLS = "https:http:ssh:git:file"
+
+// The editor and preview decode the whole text read in memory, so a multi-gigabyte log or database opened
+// from the Files view took the server (and every session on it) down. Same ceiling as the desktop read.
+export const MAX_TEXT_READ_BYTES = 50 * 1024 * 1024
+
+const readRegularFileBytes = async (fsPromises, filename, { maxBytes } = {}) => {
   // Inspect and read the same descriptor. Path-based stat followed by readFile
   // could read a replacement file. POSIX also refuses a substituted leaf symlink.
   const flags = fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW ?? 0) | (fsConstants.O_NONBLOCK ?? 0)
@@ -37,6 +43,9 @@ const readRegularFileBytes = async (fsPromises, filename) => {
       throw Object.assign(new Error("Specified path is not a file"), {
         code: stats.isDirectory() ? "EISDIR" : "EINVAL",
       })
+    }
+    if (Number.isFinite(maxBytes) && stats.size > maxBytes) {
+      throw Object.assign(new Error("File is too large to open"), { code: "EFBIG" })
     }
     return await file.readFile()
   } finally {
@@ -952,6 +961,10 @@ export const registerFsRoutes = (app, dependencies) => {
             ...process.env,
             PATH: buildAugmentedPath ? buildAugmentedPath(process.env.PATH || "") : process.env.PATH,
             GIT_TERMINAL_PROMPT: "0",
+            // The remote URL comes from the request. Git refuses `ext::` (which runs an arbitrary command)
+            // only by default: a user or system config that allows it made the clone a command runner.
+            // The allowlist overrides that config and keeps every transport a clone needs.
+            GIT_ALLOW_PROTOCOL: CLONE_ALLOWED_PROTOCOLS,
           },
         })
 
@@ -1135,7 +1148,7 @@ export const registerFsRoutes = (app, dependencies) => {
       // Read the validated canonical path instead of the core's text payload:
       // that payload decodes unrecognised binaries lossily, and the editor
       // saved the replacement characters back over the original bytes.
-      const buffer = await readRegularFileBytes(fsPromises, canonicalPath)
+      const buffer = await readRegularFileBytes(fsPromises, canonicalPath, { maxBytes: MAX_TEXT_READ_BYTES })
       const content = decodeUtf8TextFile(buffer)
       if (content === null) {
         return res.status(400).json({ error: "Specified path is not a text file" })
@@ -1150,6 +1163,9 @@ export const registerFsRoutes = (app, dependencies) => {
       }
       if (err && typeof err === "object" && err.code === "EINVAL") {
         return res.status(400).json({ error: "Specified path is not a file" })
+      }
+      if (err && typeof err === "object" && err.code === "EFBIG") {
+        return res.status(413).json({ error: "File is too large to open" })
       }
       if (err && typeof err === "object" && err.code === "ENOENT") {
         if (optional) {
@@ -1686,12 +1702,11 @@ export const registerFsRoutes = (app, dependencies) => {
       }
       const nodes = await coreFileAdapter.list({ path: resolvedPath, directory: canonical.base })
       const mapped = mapCoreFileNodesToDirectoryList(resolvedPath, nodes)
-      const entries = respectGitignore
-        ? mapped.entries.filter((entry) => {
-            const node = Array.isArray(nodes) ? nodes.find((item) => item?.name === entry.name) : null
-            return !node?.ignored
-          })
-        : mapped.entries
+      // A name lookup per entry made filtering a large directory quadratic in its size.
+      const ignoredNames = new Set(
+        Array.isArray(nodes) ? nodes.filter((item) => item?.ignored).map((item) => item.name) : [],
+      )
+      const entries = respectGitignore ? mapped.entries.filter((entry) => !ignoredNames.has(entry.name)) : mapped.entries
       return res.json({ directory: mapped.directory, entries })
     } catch (error) {
       const err = error
@@ -1708,6 +1723,9 @@ export const registerFsRoutes = (app, dependencies) => {
       }
       if (code === "EACCES") {
         return res.status(403).json({ error: "Access to directory denied" })
+      }
+      if (code === "ETIMEDOUT") {
+        return res.status(504).json({ error: "AX Code did not answer the directory listing in time" })
       }
       return res.status(500).json({ error: (error && error.message) || "Failed to list directory" })
     }

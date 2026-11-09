@@ -393,6 +393,22 @@ describe("fs outside workspace authorization", () => {
     expect(file.close).toHaveBeenCalledOnce()
   })
 
+  it("refuses to load a text file larger than the editor read limit", async () => {
+    // The whole read is decoded in memory, so a multi-gigabyte log opened from the Files view took the server down.
+    const file = {
+      stat: vi.fn(async () => ({ isFile: () => true, size: 4 * 1024 * 1024 * 1024 })),
+      readFile: vi.fn(async () => Buffer.from("never")),
+      close: vi.fn(async () => {}),
+    }
+    const { getRoute } = registerFs({ open: vi.fn(async () => file) })
+
+    const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: "/repo/huge.log" } })
+
+    expect(res.statusCode).toBe(413)
+    expect(file.readFile).not.toHaveBeenCalled()
+    expect(file.close).toHaveBeenCalledOnce()
+  })
+
   it("allows raw outside-workspace reads inside an approved directory", async () => {
     const content = Buffer.from("approved image")
     const file = {
@@ -536,6 +552,33 @@ describe("fs clone destination", () => {
 
     expect(res.statusCode).toBe(200)
     expect(calls[0]).toBe("git clone --progress -- https://example.com/acme/demo.git demo")
+  })
+
+  it("limits the clone to ordinary transports whatever the git config allows", async () => {
+    // `ext::` runs an arbitrary command. Git refuses it only by default, so a config that allowed it turned a
+    // request-supplied remote URL into command execution.
+    const { spawn: baseSpawn } = createSpawn({})
+    const envs = []
+    const spawn = vi.fn((executable, args, options) => {
+      envs.push(options?.env ?? {})
+      return baseSpawn(executable, args, options)
+    })
+    const fsPromises = {
+      mkdir: vi.fn(async () => undefined),
+      access: vi.fn(async () => {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      }),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, undefined, spawn)
+
+    await callRoute(getRoute("POST", "/api/fs/clone"), {
+      body: { remoteUrl: "ext::sh -c touch% /tmp/pwned", destinationPath: "/repo/sub/" },
+    })
+
+    expect(spawn).toHaveBeenCalledOnce()
+    const allowed = String(envs[0].GIT_ALLOW_PROTOCOL ?? "").split(":")
+    expect(allowed).not.toContain("ext")
+    expect(allowed).toEqual(expect.arrayContaining(["https", "ssh", "file"]))
   })
 })
 
@@ -1203,6 +1246,39 @@ describe("fs text and raw reads", () => {
     expect(res.statusCode).toBe(400)
     expect(res.body).toEqual({ error: "Cannot delete the workspace root" })
     expect(fsPromises.rm).not.toHaveBeenCalled()
+  })
+})
+
+describe("fs directory listing", () => {
+  it("answers 504 when the runtime does not answer the listing in time", async () => {
+    const coreFileAdapter = {
+      list: async () => {
+        throw Object.assign(new Error("AX Code core file API did not respond in time"), { code: "ETIMEDOUT" })
+      },
+    }
+    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/list"), { query: { path: "/repo" } })
+
+    expect(res.statusCode).toBe(504)
+  })
+
+  it("drops ignored entries when asked to respect .gitignore", async () => {
+    const coreFileAdapter = {
+      list: async () => [
+        { name: "src", absolute: "/repo/src", type: "directory" },
+        { name: "dist", absolute: "/repo/dist", type: "directory", ignored: true },
+        { name: "README.md", absolute: "/repo/README.md", type: "file" },
+      ],
+    }
+    const { getRoute } = registerFs({}, { approvedDirectories: [] }, coreFileAdapter)
+
+    const res = await callRoute(getRoute("GET", "/api/fs/list"), {
+      query: { path: "/repo", respectGitignore: "true" },
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(res.body.entries.map((entry) => entry.name)).toEqual(["src", "README.md"])
   })
 })
 

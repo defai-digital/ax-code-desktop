@@ -95,4 +95,21 @@ describe("core file adapter", () => {
     expect(urls[2].searchParams.get("path")).toBe("README.md")
     expect(fetchImpl.mock.calls[1][1].headers["x-ax-code-directory"]).toBe(encodeURIComponent("/Users/dev"))
   })
+
+  it("gives up on a runtime that accepts the request and never answers", async () => {
+    // The renderer shares one in-flight listing per directory, so a hung request hung every later listing too.
+    const fetchImpl = vi.fn(
+      (_url, { signal }) =>
+        new Promise((_resolve, reject) => {
+          signal.addEventListener("abort", () => reject(signal.reason), { once: true })
+        }),
+    )
+    const adapter = createCoreFileAdapter({
+      fetchImpl,
+      getBaseUrl: () => "http://127.0.0.1:4096",
+      requestTimeoutMs: 20,
+    })
+
+    await expect(adapter.list({ path: "/repo/src", directory: "/repo" })).rejects.toMatchObject({ code: "ETIMEDOUT" })
+  })
 })
