@@ -665,7 +665,13 @@ describe("defaultProbeVersion", () => {
         fs.writeFileSync(binary, "#!/bin/sh\nsleep 0.2\nprintf '\\n7.9.1\\nextra\\n'\n", { mode: 0o755 })
         let ticks = 0
         const timer = setInterval(() => ticks++, 10)
-        const version = await defaultProbeVersion(binary, { platform: process.platform, env: process.env })
+        // This checks that the probe does not block the event loop, not the production 3 s
+        // limit: on a saturated machine the shell start alone can exceed it and fail spuriously.
+        const version = await defaultProbeVersion(binary, {
+          platform: process.platform,
+          env: process.env,
+          timeoutMs: 15_000,
+        })
         clearInterval(timer)
         expect(version).toBe("7.9.1")
         expect(ticks).toBeGreaterThan(5)
@@ -673,6 +679,7 @@ describe("defaultProbeVersion", () => {
         fs.rmSync(dir, { recursive: true, force: true })
       }
     },
+    20_000,
   )
 
   test.skipIf(process.platform === "win32")("an aborted signal kills a slow probe and resolves null", async () => {

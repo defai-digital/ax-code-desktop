@@ -210,7 +210,10 @@ function resolveRuntimeBinary({ env, settings, isExecutable = defaultIsExecutabl
 // Routed through the same ComSpec wrapping as the runtime spawn so a .cmd
 // launcher resolves on Windows too. Asynchronous: a synchronous spawn here
 // blocked the Electron main thread for the whole probe during startup.
-function defaultProbeVersion(binary, { platform = process.platform, env = process.env, signal } = {}) {
+function defaultProbeVersion(
+  binary,
+  { platform = process.platform, env = process.env, signal, timeoutMs = VERSION_PROBE_TIMEOUT_MS } = {},
+) {
   return new Promise((resolve) => {
     try {
       const invocation = resolveSpawnInvocation(binary, ["--version"], platform, env)
@@ -220,7 +223,7 @@ function defaultProbeVersion(binary, { platform = process.platform, env = proces
         {
           encoding: "utf8",
           env: invocation.env || env,
-          timeout: VERSION_PROBE_TIMEOUT_MS,
+          timeout: timeoutMs,
           windowsHide: true,
           windowsVerbatimArguments: invocation.windowsVerbatimArguments,
           signal,
