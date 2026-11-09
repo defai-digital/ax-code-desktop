@@ -522,6 +522,44 @@ describe("ax-code runtime supervision", () => {
     expect(ctx.originReports.at(-1)).toMatchObject({ origin: FIXED_ORIGIN, exhausted: false })
   })
 
+  test("a failed restart reports a terminal exhausted state instead of restarting forever", async () => {
+    // restart() reuses start()'s initial-boot retry, whose failure only returns the FSM to idle
+    // and never reports exhaustion: the protocol handler kept answering {restarting:true} and no
+    // recovery dialog appeared.
+    const ctx = createSupervision()
+    await startHealthy(ctx)
+    const before = ctx.originReports.length
+
+    const restarted = ctx.supervision.restart({ reprepare: true })
+    await flushMicrotasks()
+    // The restart clears any earlier state so the renderer shows "restarting" meanwhile.
+    expect(ctx.originReports[before]).toMatchObject({ origin: null, exhausted: false })
+    // The healthy runtime stops, then the fresh one exits before it becomes ready.
+    ctx.fakeSpawn.children[0].emitExit(0)
+    await vi.waitFor(() => expect(ctx.fakeSpawn.children).toHaveLength(2))
+    ctx.fakeSpawn.children[1].emitExit(1)
+    await expect(restarted).rejects.toThrow()
+
+    const report = ctx.originReports.at(-1)
+    expect(report).toMatchObject({ origin: null, exhausted: true })
+    expect(report.diagnostics.error).toEqual(expect.any(String))
+    expect(report.diagnostics.binary).toBe(require("path").join("/usr/bin", "ax-code"))
+    expect(JSON.stringify(report.diagnostics)).not.toContain(TEST_PASSWORD)
+  })
+
+  test("a restart cancelled by stop() does not report exhaustion", async () => {
+    const ctx = createSupervision()
+    await startHealthy(ctx)
+    const restarted = ctx.supervision.restart({ reprepare: true })
+    await flushMicrotasks()
+    const stopped = ctx.supervision.stop()
+    await flushMicrotasks()
+    ctx.fakeSpawn.children[0].emitExit(0)
+    await stopped
+    await restarted.catch(() => {})
+    expect(ctx.originReports.some((report) => report.exhausted === true)).toBe(false)
+  })
+
   test("a stop that had to SIGKILL leaves no exit listener on the child", async () => {
     const ctx = createSupervision()
     await startHealthy(ctx)

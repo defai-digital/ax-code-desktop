@@ -563,6 +563,16 @@ function createAxCodeRuntimeSupervision(options = {}) {
     }
   }
 
+  function buildStartFailureDiagnostics(error) {
+    return {
+      error: error instanceof Error ? error.message : String(error),
+      binary: resolution ? resolution.binary : undefined,
+      binarySource: resolution ? resolution.source : undefined,
+      version: resolution ? resolution.version || undefined : undefined,
+      logHint: "See the Electron main process log for recent [ax-code] stdout/stderr lines.",
+    }
+  }
+
   function handleFsmEvent(event) {
     if (event.type === "restart-backoff") {
       logger.error(`[electron] ax-code runtime restart attempt ${event.attempt} failed: ${event.error}`)
@@ -804,15 +814,30 @@ function createAxCodeRuntimeSupervision(options = {}) {
   async function restart({ reprepare = false } = {}) {
     if (restartSlot) return restartSlot.promise
     const mine = (async () => {
-      // Internal stop only: a user quit that lands while this restart is in
-      // flight still wins, because the terminal flag is not cleared here.
-      await stopRuntime()
-      // The cancelled in-flight start() (if any) rejects on its own and its
-      // finally guard only clears its own pin; make sure the fresh start()
-      // below never joins the stale promise.
-      startSlot = null
-      if (reprepare) resolveBinary()
-      return start()
+      // Leave any earlier exhausted state: consumers show "restarting" until
+      // this restart reports its own outcome.
+      reportOrigin(null, { exhausted: false })
+      try {
+        // Internal stop only: a user quit that lands while this restart is in
+        // flight still wins, because the terminal flag is not cleared here.
+        await stopRuntime()
+        // The cancelled in-flight start() (if any) rejects on its own and its
+        // finally guard only clears its own pin; make sure the fresh start()
+        // below never joins the stale promise.
+        startSlot = null
+        if (reprepare) resolveBinary()
+        return await start()
+      } catch (error) {
+        // start()'s initial-boot retry ends in `idle`, which never reports
+        // exhaustion, and a re-resolve failure happens after the runtime is
+        // already stopped. Report the terminal state so consumers stop waiting
+        // on {restarting:true} and show the recovery UI. A quit or a newer
+        // restart cancelling this one is not a failure.
+        if (!terminated && error?.code !== RUNTIME_START_CANCELLED_CODE) {
+          reportOrigin(null, { exhausted: true, diagnostics: buildStartFailureDiagnostics(error) })
+        }
+        throw error
+      }
     })()
     const slot = { promise: mine }
     restartSlot = slot
