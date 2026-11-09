@@ -273,6 +273,92 @@ describe("ui auth", () => {
     }
   })
 
+  it("treats a new secret that could not be saved as one for this run only", async () => {
+    // Passkeys bound to a secret that exists only in memory would all be wiped on the next start.
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secretFile = path.join(tempRoot, "jwt-secret")
+    const realWrite = fs.writeFileSync
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
+      if (String(target).startsWith(secretFile)) {
+        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC", syscall: "write" })
+      }
+      return realWrite(target, ...rest)
+    })
+    vi.resetModules()
+
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    try {
+      const res = createResponse()
+      await auth.handlePasskeyRegistrationOptions({ headers: { host: "localhost" }, body: {} }, res)
+
+      // A writable controller persists the initial store on its first read; a read-only one never writes.
+      expect(fs.existsSync(path.join(tempRoot, "ui-passkeys.json"))).toBe(false)
+    } finally {
+      auth.dispose()
+    }
+  })
+
+  it("counts the stored passkeys in a reset while the secret file cannot be read", async () => {
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secretFile = path.join(tempRoot, "jwt-secret")
+    const secret = "persisted-secret-at-least-32-bytes-long"
+    fs.writeFileSync(secretFile, secret, "utf8")
+    seedPasskeyStore({ dataDir: tempRoot, secret, password: "correct horse battery staple", count: 3 })
+    const realRead = fs.readFileSync
+    const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation((target, ...rest) => {
+      if (String(target) === secretFile) {
+        throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" })
+      }
+      return realRead(target, ...rest)
+    })
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.resetModules()
+
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    readSpy.mockRestore()
+    try {
+      const res = createResponse()
+      await auth.handleResetAuth({ headers: {} }, res)
+
+      expect(res.statusCode).toBe(200)
+      expect(res.body).toMatchObject({ cleared: true, clearedPasskeys: 3 })
+    } finally {
+      auth.dispose()
+    }
+  })
+
+  it("reports a failed global sign-out as such, not as a passkey storage failure", async () => {
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secretFile = path.join(tempRoot, "jwt-secret")
+    fs.writeFileSync(secretFile, "persisted-secret-at-least-32-bytes-long", "utf8")
+    vi.resetModules()
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    const realWrite = fs.writeFileSync
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
+      if (String(target).startsWith(secretFile)) {
+        throw Object.assign(new Error(`ENOSPC: no space left on device, write '${target}'`), {
+          code: "ENOSPC",
+          syscall: "write",
+        })
+      }
+      return realWrite(target, ...rest)
+    })
+    try {
+      const res = createResponse()
+      await auth.handleResetAuth({ headers: {} }, res)
+
+      expect(res.statusCode).toBe(500)
+      expect(res.body).toEqual({ error: "Global sign-out could not be completed" })
+    } finally {
+      auth.dispose()
+    }
+  })
+
   it("allows reset-auth when the env secret is too short to be in use", async () => {
     // A short env secret is ignored when signing (resolveEnvJwtSecret returns null), so the file
     // secret is what protects the sessions — but the reset guard only asked whether the variable was

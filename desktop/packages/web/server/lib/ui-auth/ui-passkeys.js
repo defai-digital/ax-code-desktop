@@ -144,25 +144,48 @@ export const createUiPasskeys = ({
     passkeys: [],
   })
 
+  // A store that exists but cannot be read (EACCES, EMFILE, malformed JSON) is an error, not an empty store.
+  // Falling back to an empty store used to look like a binding mismatch, and the store was rewritten with no
+  // passkeys — permanently deleting every enrolled one because of a transient read failure.
+  const createStoreUnreadableError = (cause) => {
+    const error = new Error("Passkey storage could not be read")
+    error.statusCode = 503
+    error.storeUnreadable = true
+    error.cause = cause
+    return error
+  }
+
+  // Returns the parsed file, or null when there is no store yet. Throws a storeUnreadable error otherwise.
+  const readStoreFile = () => {
+    let parsed
+    try {
+      parsed = JSON.parse(fs.readFileSync(storeFile, "utf8"))
+    } catch (error) {
+      if (error?.code === "ENOENT") return null
+      console.warn("[UI Passkeys] Failed to read passkey store:", error?.code || error?.message || error)
+      throw createStoreUnreadableError(error)
+    }
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      console.warn("[UI Passkeys] Passkey store is not a JSON object")
+      throw createStoreUnreadableError()
+    }
+    return parsed
+  }
+
   const loadStore = () => {
     let store = createEmptyStore()
     let shouldPersistInitialStore = false
 
-    try {
-      const raw = fs.readFileSync(storeFile, "utf8")
-      const parsed = JSON.parse(raw)
+    const parsed = readStoreFile()
+    if (parsed) {
       store = {
         version: DEFAULT_STORE_VERSION,
-        userID: decodeUserId(parsed?.userID) ? parsed.userID : store.userID,
-        passwordBinding: typeof parsed?.passwordBinding === "string" ? parsed.passwordBinding : "",
-        passkeys: Array.isArray(parsed?.passkeys) ? parsed.passkeys.map(parseStoredPasskey).filter(Boolean) : [],
+        userID: decodeUserId(parsed.userID) ? parsed.userID : store.userID,
+        passwordBinding: typeof parsed.passwordBinding === "string" ? parsed.passwordBinding : "",
+        passkeys: Array.isArray(parsed.passkeys) ? parsed.passkeys.map(parseStoredPasskey).filter(Boolean) : [],
       }
-    } catch (error) {
-      if (error?.code === "ENOENT") {
-        shouldPersistInitialStore = true
-      } else {
-        console.warn("[UI Passkeys] Failed to read passkey store:", error?.message || error)
-      }
+    } else {
+      shouldPersistInitialStore = true
     }
 
     if (!passwordBinding) {
@@ -235,7 +258,14 @@ export const createUiPasskeys = ({
   }
 
   const getStatus = (req) => {
-    const store = loadStore()
+    let store
+    try {
+      store = loadStore()
+    } catch (error) {
+      // The login page asks this before anyone is signed in; an unreadable store must not break password sign-in.
+      if (!error?.storeUnreadable) throw error
+      store = { passkeys: [] }
+    }
     const rpID = getLocalRpId(req)
     return {
       enabled: Boolean(passwordBinding),
@@ -305,9 +335,21 @@ export const createUiPasskeys = ({
   }
 
   // How many are registered, for a caller that has to know before it does something that invalidates them.
+  // Counted from the file, not through loadStore: while the controller is read-only its binding cannot match
+  // the stored one, so loadStore sees an empty store even though the passkeys on disk are real and about to be
+  // invalidated. Returns null when the store cannot be read, so the caller can go ahead without a count.
   const countPasskeys = () => {
     assertEnabled()
-    return loadStore().passkeys.length
+    let parsed
+    try {
+      parsed = readStoreFile()
+    } catch (error) {
+      if (error?.storeUnreadable) return null
+      throw error
+    }
+    if (!parsed || !Array.isArray(parsed.passkeys)) return 0
+    if (!readOnly && parsed.passwordBinding !== passwordBinding) return 0
+    return parsed.passkeys.map(parseStoredPasskey).filter(Boolean).length
   }
 
   const clearAllPasskeys = () => runLocked(clearAllPasskeysUnlocked)
@@ -315,7 +357,14 @@ export const createUiPasskeys = ({
   const clearAllPasskeysUnlocked = () => {
     assertEnabled()
 
-    const store = loadStore()
+    // Clearing is meant to destroy the store, so an unreadable one is replaced rather than blocking the reset.
+    let store
+    try {
+      store = loadStore()
+    } catch (error) {
+      if (!error?.storeUnreadable) throw error
+      store = createEmptyStore()
+    }
     const clearedCount = store.passkeys.length
     persistStore({
       ...store,

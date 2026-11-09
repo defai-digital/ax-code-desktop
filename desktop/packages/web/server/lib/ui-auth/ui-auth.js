@@ -393,7 +393,10 @@ function getOrCreateJwtSecret() {
     writeJwtSecretFile(secret)
     console.log("[JWT] Generated and persisted new secret to", JWT_SECRET_FILE)
   } catch (e) {
-    console.warn("[JWT] Failed to persist secret:", e.message)
+    // The secret exists only in memory, so it is one for this run: passkeys bound to it would all be wiped on
+    // the next start, when a different secret is generated.
+    console.warn("[JWT] Failed to persist secret; using it for this run only:", e?.code || e?.message)
+    return { secret: new TextEncoder().encode(secret), ephemeral: true }
   }
 
   return { secret: new TextEncoder().encode(secret), ephemeral: false }
@@ -845,6 +848,13 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
         signedOutEverywhere: true,
       })
     } catch (error) {
+      if (typeof error?.statusCode !== "number" && typeof error?.code === "string" && error?.syscall) {
+        // A failed write of the secret or of the revocation list, not a passkey problem. The message carries
+        // local paths, so only the code is logged and the client gets a generic answer.
+        console.warn("[UI Auth] Global sign-out failed:", error.code, error.syscall)
+        res.status(500).json({ error: "Global sign-out could not be completed" })
+        return
+      }
       respondPasskeyError(res, error)
     }
   }

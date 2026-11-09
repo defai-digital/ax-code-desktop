@@ -109,6 +109,25 @@ describe("ui passkeys", () => {
     }
   })
 
+  it("leaves an unreadable passkey store on disk instead of replacing it with an empty one", async () => {
+    const corrupt = '{"version":1,"passwordBinding":"password-binding","passkeys":['
+    fs.writeFileSync(storeFile, corrupt, "utf8")
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })
+    const req = createMockRequest({ host: "localhost:3000" })
+
+    try {
+      // Password sign-in still needs the status route to answer.
+      expect(passkeys.getStatus(req)).toMatchObject({ enabled: true, hasPasskeys: false, passkeyCount: 0 })
+      expect(() => passkeys.listPasskeys(req)).toThrow(expect.objectContaining({ statusCode: 503 }))
+      await expect(passkeys.beginRegistration(req, { label: "Laptop" })).rejects.toMatchObject({ statusCode: 503 })
+      expect(passkeys.countPasskeys()).toBeNull()
+      expect(fs.readFileSync(storeFile, "utf8")).toBe(corrupt)
+    } finally {
+      passkeys.dispose()
+    }
+  })
+
   it("normalizes request origins before WebAuthn verification", async () => {
     const passkeys = createUiPasskeys({
       passwordBinding: "password-binding",
