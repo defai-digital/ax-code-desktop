@@ -217,6 +217,9 @@ export function useSync(directoryOverride?: string | null) {
 
       try {
         const limit = options?.before ? HISTORY_MESSAGE_PAGE_SIZE : m.limit
+        // Snapshot before the request: messages and parts that live events remove while it is
+        // in flight must stay removed instead of being restored from the older response.
+        const beforeRequest = store.getState()
         const page = await fetchMessages(sessionID, limit, options?.before)
         if (!isCurrent()) return
 
@@ -235,7 +238,11 @@ export function useSync(directoryOverride?: string | null) {
             info,
             parts: merged.part.find((item) => item.id === info.id)?.part ?? [],
           })),
-          { skipPartTypes: SKIP_PARTS, mode: options?.mode === "prepend" ? "prepend" : "merge" },
+          {
+            skipPartTypes: SKIP_PARTS,
+            mode: options?.mode === "prepend" ? "prepend" : "merge",
+            before: beforeRequest,
+          },
         )
 
         setMetaFor(sessionID, {

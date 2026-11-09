@@ -451,6 +451,44 @@ describe("respondToPermission passes directory", () => {
     await expect(refetchSessionMessages("session-a")).rejects.toThrow("refetchSessionMessages failed")
   })
 
+  test("keeps a message removed while the refetch is in flight removed", async () => {
+    // The refetch read the store only after its request returned and passed no pre-request
+    // snapshot, so a message.removed that landed in between was merged back from the response.
+    const message = (id: string) =>
+      ({ id, sessionID: "session-a", role: "assistant", time: { created: 1, completed: 2 } }) as Message
+    const part = (id: string) =>
+      [{ id: `prt_${id}`, messageID: id, sessionID: "session-a", type: "text", text: id }] as Part[]
+    const store = createStore({})
+    store.setState({
+      message: { "session-a": [message("msg_1"), message("msg_2")] },
+      part: PartMap.from([
+        ["msg_1", part("msg_1")],
+        ["msg_2", part("msg_2")],
+      ]),
+    })
+    const childStores = createChildStores([["/test/project", store]])
+    const { refetchSessionMessages, setActionRefs } = await import("./session-actions")
+    setActionRefs(mockSdk as unknown as AxCodeClient, childStores, () => "/test/project")
+    let respond!: (value: typeof scopedMessagesResult) => void
+    mockScopedClient.session.messages.mockReturnValueOnce(
+      new Promise<typeof scopedMessagesResult>((resolve) => (respond = resolve)) as never,
+    )
+
+    const refetch = refetchSessionMessages("session-a")
+    await vi.waitFor(() => expect(respond).toBeTypeOf("function"))
+    store.setState({ message: { "session-a": [message("msg_1")] }, part: PartMap.from([["msg_1", part("msg_1")]]) })
+    respond({
+      data: [
+        { info: message("msg_1"), parts: part("msg_1") },
+        { info: message("msg_2"), parts: part("msg_2") },
+      ],
+    })
+    await refetch
+
+    expect(store.getState().message["session-a"]?.map((item) => item.id)).toEqual(["msg_1"])
+    expect(store.getState().part.get("msg_2")).toBeUndefined()
+  })
+
   test("keeps retrying the unrevert refetch after a failed read", async () => {
     // `refetchSessionMessages` reports a failed read now, and this loop exists for a read that has not caught up
     // yet: a transient failure on the first attempt must not end the retries, or the restore is applied

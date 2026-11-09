@@ -193,6 +193,8 @@ async function recoverAcceptedPromptFromServer(
 ): Promise<void> {
   try {
     const client = getSessionReplyClient(sessionId)
+    // Messages and parts removed by live events while the request is in flight stay removed.
+    const beforeRequest = store.getState()
     const result = await client.session.messages({ sessionID: sessionId, directory, limit: MESSAGE_REFETCH_LIMIT })
     const records = (result.data ?? []).filter((record: { info?: { id?: string } }) => !!record?.info?.id)
     if (records.length === 0) return
@@ -204,7 +206,7 @@ async function recoverAcceptedPromptFromServer(
           info: stripMessageDiffSnapshots(record.info),
           parts: record.parts ?? [],
         })),
-        { skipPartTypes: MESSAGE_REFETCH_SKIP_PARTS },
+        { skipPartTypes: MESSAGE_REFETCH_SKIP_PARTS, before: beforeRequest },
       )
       return { message: materialized.message, part: materialized.part }
     })
@@ -1465,6 +1467,8 @@ export async function setMessageFeedback(
 export async function refetchSessionMessages(sessionId: string): Promise<void> {
   const directory = getSessionDirectory(sessionId)
   const store = getDirectoryStore(directory)
+  // Messages and parts removed by live events while the request is in flight stay removed.
+  const beforeRequest = store.getState()
   const result = await scopedClientForDirectory(directory).session.messages({
     sessionID: sessionId,
     directory,
@@ -1482,7 +1486,7 @@ export async function refetchSessionMessages(sessionId: string): Promise<void> {
         info: stripMessageDiffSnapshots(record.info),
         parts: record.parts ?? [],
       })),
-      { skipPartTypes: MESSAGE_REFETCH_SKIP_PARTS },
+      { skipPartTypes: MESSAGE_REFETCH_SKIP_PARTS, before: beforeRequest },
     )
     return { message: materialized.message, part: materialized.part }
   })

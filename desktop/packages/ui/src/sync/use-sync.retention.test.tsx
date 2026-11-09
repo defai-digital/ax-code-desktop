@@ -144,3 +144,36 @@ test("disposed directories do not receive late fetches into their detached store
   expect(detached.getState().message.ses).toBeUndefined()
   expect(getPendingSessionLoadIds("/repo").size).toBe(0)
 })
+
+test("a message removed while its session load is in flight stays removed", async () => {
+  // The session is already open with two messages.
+  store.setState({
+    message: { ses: [record(1).info, record(2).info] },
+    part: PartMap.from([record(1), record(2)].map((r) => [r.info.id, r.parts])),
+  })
+  let resolveMessages!: (value: typeof messagesResponse) => void
+  messagesMock.mockImplementationOnce(
+    () => new Promise<typeof messagesResponse>((resolve) => (resolveMessages = resolve)),
+  )
+  const { result } = renderSyncHook()
+  let sync!: Promise<void>
+  act(() => {
+    sync = result.current.syncSession("ses", true)
+  })
+  await act(async () => {
+    await vi.waitFor(() => expect(messagesMock).toHaveBeenCalled())
+  })
+  // A live message.removed (for example after a revert) lands before the response.
+  act(() => {
+    const state = store.getState()
+    const part = PartMap.from([[record(1).info.id, record(1).parts]])
+    store.setState({ message: { ...state.message, ses: [record(1).info] }, part })
+  })
+  // The response was produced before the removal and still contains the message.
+  await act(async () => {
+    resolveMessages({ data: [record(1), record(2)], response: new Response("") })
+    await sync
+  })
+  expect(store.getState().message.ses?.map((message) => message.id)).toEqual([record(1).info.id])
+  expect(store.getState().part.get(record(2).info.id)).toBeUndefined()
+})
