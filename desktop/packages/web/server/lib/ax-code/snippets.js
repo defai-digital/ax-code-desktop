@@ -10,6 +10,48 @@ const SNIPPET_EXTENSION = ".md"
 const SNIPPET_NAME_PATTERN = /^[a-z0-9][a-z0-9_-]{0,79}$/i
 const HASHTAG_PATTERN = /#([a-z0-9_-]+)/gi
 const MAX_EXPANSION_COUNT = 15
+// A snippet is a short prompt fragment, and every list, read and expansion reloads all of them synchronously.
+export const MAX_SNIPPET_BYTES = 256 * 1024
+
+// A project's snippet directory belongs to a repository the user may have just cloned. A snippet symlinked to a
+// private file was read and, through `#name`, expanded into the prompt sent to the model; an update wrote through
+// the link. Project snippets must be regular files in a directory that resolves inside the project.
+function resolvesInside(targetPath, rootPath) {
+  let realTarget
+  let realRoot
+  try {
+    realTarget = fs.realpathSync(targetPath)
+    realRoot = fs.realpathSync(rootPath)
+  } catch {
+    return false
+  }
+  const relative = path.relative(realRoot, realTarget)
+  return relative === "" || (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+}
+
+function isLoadableSnippetFile(filePath) {
+  try {
+    const stats = fs.lstatSync(filePath)
+    return stats.isFile() && stats.size <= MAX_SNIPPET_BYTES
+  } catch {
+    return false
+  }
+}
+
+function assertWritableSnippetPath(filePath, workingDirectory, scope) {
+  try {
+    if (!fs.lstatSync(filePath).isFile()) throw new Error("Snippet file is not a regular file")
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error
+  }
+  if (scope !== "project") return
+  // The nearest existing ancestor decides where `mkdir` would create the directory.
+  let existing = path.dirname(filePath)
+  while (!fs.existsSync(existing) && path.dirname(existing) !== existing) existing = path.dirname(existing)
+  if (!resolvesInside(existing, workingDirectory)) {
+    throw new Error("Snippet directory must be inside the project")
+  }
+}
 
 function getProjectSnippetDirs(workingDirectory) {
   if (!workingDirectory) return []
@@ -111,8 +153,13 @@ function loadSnippetRegistry(workingDirectory) {
   const canonicalNames = new Set()
   for (const { dir, source } of getLoadDirs(workingDirectory)) {
     if (!fs.existsSync(dir)) continue
+    if (source === "project" && !resolvesInside(dir, workingDirectory)) {
+      console.warn(`[Snippets] Ignoring ${dir}: it resolves outside the project`)
+      continue
+    }
     for (const filename of fs.readdirSync(dir)) {
       if (!filename.endsWith(SNIPPET_EXTENSION)) continue
+      if (!isLoadableSnippetFile(path.join(dir, filename))) continue
       try {
         const snippet = loadSnippetFile(dir, filename, source)
         if (snippet) registerSnippet(registry, snippet, canonicalNames)
@@ -213,6 +260,7 @@ export function createSnippet(name, config, workingDirectory, scope = "global") 
   const dir = getWritableSnippetDir(scope, workingDirectory)
   const filePath = path.join(dir, `${name}${SNIPPET_EXTENSION}`)
   if (fs.existsSync(filePath)) throw new Error(`Snippet "${name}" already exists`)
+  assertWritableSnippetPath(filePath, workingDirectory, scope)
   writeMarkdownFile(filePath, config || {})
   return getSnippet(name, workingDirectory)
 }
@@ -220,6 +268,7 @@ export function createSnippet(name, config, workingDirectory, scope = "global") 
 export function updateSnippet(name, updates, workingDirectory) {
   const existing = findSnippetByName(name, workingDirectory)
   if (!existing) throw new Error(`Snippet "${name}" not found`)
+  assertWritableSnippetPath(existing.filePath, workingDirectory, existing.source)
   writeMarkdownFile(existing.filePath, { ...existing, ...(updates || {}) })
   return getSnippet(name, workingDirectory)
 }

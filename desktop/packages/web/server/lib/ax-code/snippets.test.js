@@ -109,4 +109,36 @@ describe("snippets", () => {
   test("rejects invalid snippet names", () => {
     expect(() => createSnippet("../bad", { content: "" }, projectDir, "project")).toThrow("Snippet name")
   })
+
+  test("does not expand a project snippet that links to a file outside the project", () => {
+    // `#leak` used to paste the linked file into the prompt sent to the model.
+    if (process.platform === "win32") return
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "openchamber-snippets-outside-"))
+    try {
+      fs.writeFileSync(path.join(outsideDir, "private.md"), "PRIVATE-CONTENT")
+      fs.mkdirSync(path.join(projectDir, ".ax-code", "snippet"), { recursive: true })
+      fs.symlinkSync(path.join(outsideDir, "private.md"), path.join(projectDir, ".ax-code", "snippet", "leak.md"))
+
+      expect(expandSnippets("Use #leak here", projectDir)).not.toContain("PRIVATE-CONTENT")
+      expect(getSnippet("leak", projectDir)).toBeNull()
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
+
+  test("ignores a project snippet directory that resolves outside the project", () => {
+    if (process.platform === "win32") return
+    const outsideDir = fs.mkdtempSync(path.join(os.tmpdir(), "openchamber-snippets-outside-"))
+    try {
+      fs.writeFileSync(path.join(outsideDir, "notes.md"), "OUTSIDE-NOTES")
+      fs.mkdirSync(path.join(projectDir, ".ax-code"), { recursive: true })
+      fs.symlinkSync(outsideDir, path.join(projectDir, ".ax-code", "snippet"))
+
+      expect(expandSnippets("#notes", projectDir)).not.toContain("OUTSIDE-NOTES")
+      expect(() => createSnippet("planted", { content: "x" }, projectDir, "project")).toThrow("inside the project")
+      expect(fs.existsSync(path.join(outsideDir, "planted.md"))).toBe(false)
+    } finally {
+      fs.rmSync(outsideDir, { recursive: true, force: true })
+    }
+  })
 })
