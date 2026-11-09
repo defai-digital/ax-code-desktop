@@ -35,10 +35,26 @@ const DEFAULT_WAKE_PROJECTS_CHECK_MS = 60_000
 const DEFAULT_WAKE_FOLLOW_UP_MS = 60_000
 const DEFAULT_WAKE_REQUEST_TIMEOUT_MS = 30_000
 
-// Identity of a scheduled task across the migration's read and its write.
+// Identity of a scheduled task across the migration's read and its write. Nothing makes a name unique, so an
+// id-less task is identified by its whole stored content: keyed by name, two such "Digest" tasks shared one key,
+// and settling the first removed the second from the file while it was still waiting for a retry.
 const scheduledTaskKey = (task) => {
   const id = asNonEmptyString(task?.id)
-  return id ? `id:${id}` : `name:${asNonEmptyString(task?.name)}`
+  return id ? `id:${id}` : `content:${JSON.stringify(task ?? null)}`
+}
+
+const countTaskKey = (counts, key) => counts.set(key, (counts.get(key) ?? 0) + 1)
+
+// Two stored tasks can still be identical, so a key removes only as many tasks as were counted against it.
+const withoutCountedTasks = (tasks, keyCounts) => {
+  const left = new Map(keyCounts)
+  return tasks.filter((task) => {
+    const key = scheduledTaskKey(task)
+    const count = left.get(key) ?? 0
+    if (count <= 0) return true
+    left.set(key, count - 1)
+    return false
+  })
 }
 
 const asNonEmptyString = (value) => {
@@ -80,7 +96,9 @@ export const createScheduledTaskConvergence = (deps) => {
   } = deps
 
   // --- runtime HTTP helpers ---------------------------------------------
-  const runtimeRequest = async ({ method, route, directory, body, timeoutMs }) => {
+  // Every call is bounded: the migration's list, create and pause calls passed no timeout, so a runtime that
+  // accepted the connection and never answered held `migrate()` (and the wake-up phase behind it) forever.
+  const runtimeRequest = async ({ method, route, directory, body, timeoutMs = wakeRequestTimeoutMs }) => {
     const base = buildAxCodeUrl("/", "").replace(/\/+$/, "")
     const url = new URL(`${base}${route}`)
     url.searchParams.set("directory", directory)
@@ -368,7 +386,7 @@ export const createScheduledTaskConvergence = (deps) => {
       // What this migration settles, by identity: the tasks it migrated and the ones it is permanently
       // skipping. The write below removes exactly these from the file as it stands then, instead of
       // replacing it with the list read before the runtime calls.
-      const settledTaskKeys = new Set()
+      const settledTaskKeys = new Map()
       // What this project still has to hand over: set inside the `try` and corrected by the `catch`, then counted
       // once — counting inside the `try` as well made a project that failed on its file write report its tasks
       // twice.
@@ -383,7 +401,7 @@ export const createScheduledTaskConvergence = (deps) => {
           }
           // Not a retry, so this task is settled either way: it was handed to the runtime or it is being
           // skipped permanently. Both leave the project file.
-          settledTaskKeys.add(scheduledTaskKey(task))
+          countTaskKey(settledTaskKeys, scheduledTaskKey(task))
           if (outcome.outcome === "skipped") {
             // A task can be skipped again on a later boot when the write that would have removed it from the file
             // failed, and the marker is a support-facing record: the same skip is listed once.
@@ -400,7 +418,7 @@ export const createScheduledTaskConvergence = (deps) => {
         }
         projectRemaining = remaining
         await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
-          currentTasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task))),
+          withoutCountedTasks(currentTasks, settledTaskKeys),
         )
       } catch (error) {
         // The runtime answers are classified retry-vs-permanent so that one bad task cannot abort the pass, but a
@@ -411,7 +429,7 @@ export const createScheduledTaskConvergence = (deps) => {
         // Left as a retry, the project is read again next boot like the runtime-unreachable case above — and only
         // the tasks it did not settle: the ones it migrated are in the runtime, and re-listing them as remaining
         // made the attempts-exhausted branch record them as dropped, removing them from the project file.
-        projectRemaining = tasks.filter((task) => !settledTaskKeys.has(scheduledTaskKey(task)))
+        projectRemaining = withoutCountedTasks(tasks, settledTaskKeys)
         logger.warn("[ScheduledTaskMigration] project left for next boot", {
           project: projectID,
           error: error?.message || String(error),
@@ -443,7 +461,7 @@ export const createScheduledTaskConvergence = (deps) => {
         // either stayed for a retry or was settled and has to leave the file. There is nothing to skip here — a
         // guard that skipped an empty remainder also skipped the file whose settled-task removal is what failed,
         // which is the stranding this write exists to clean up.
-        const settledKeys = [...(settledKeysByFile.get(projectID) ?? [])]
+        const exhaustedKeys = new Map(settledKeysByFile.get(projectID) ?? [])
         for (const task of remaining) {
           skipped.push({
             project: projectID,
@@ -453,9 +471,9 @@ export const createScheduledTaskConvergence = (deps) => {
         }
         // The recorded tasks are what leaves the file: passing a literal `[]` also deleted a task saved while
         // the pass was talking to the runtime, and recorded nothing about it.
-        const exhaustedKeys = new Set([...remaining.map((task) => scheduledTaskKey(task)), ...settledKeys])
+        for (const task of remaining) countTaskKey(exhaustedKeys, scheduledTaskKey(task))
         await projectConfigRuntime.replaceScheduledTasks(projectID, (currentTasks) =>
-          currentTasks.filter((task) => !exhaustedKeys.has(scheduledTaskKey(task))),
+          withoutCountedTasks(currentTasks, exhaustedKeys),
         )
       }
       await writeMarker({ migratedAt: Date.now(), attempts, skipped, warnings })

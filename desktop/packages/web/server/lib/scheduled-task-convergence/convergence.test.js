@@ -14,6 +14,7 @@ const createHarness = async ({
   listProjects,
   maxAttempts,
   expandSnippets,
+  wakeRequestTimeoutMs,
   fsPromises: fsPromisesOverride,
 } = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-convergence-"))
@@ -54,6 +55,7 @@ const createHarness = async ({
     logger: silentLogger,
     fetchImpl,
     ...(maxAttempts === undefined ? {} : { maxAttempts }),
+    ...(wakeRequestTimeoutMs === undefined ? {} : { wakeRequestTimeoutMs }),
   })
 
   return {
@@ -522,6 +524,72 @@ describe("scheduled task convergence migration", () => {
 
     const project = await harness.readProject("proj-a.json")
     expect(project.scheduledTasks).toBeUndefined()
+  })
+
+  it("keeps an id-less task for retry when another with the same name was migrated", async () => {
+    // Id-less tasks were identified by name alone, so settling the first "Digest" removed both from the file:
+    // the second, still waiting for a retry, then had no runtime task and nothing left to retry from.
+    let creates = 0
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") return new Response(JSON.stringify([]), { status: 200 })
+        creates += 1
+        if (creates === 1) return new Response(JSON.stringify({ id: "st_1", status: "active" }), { status: 200 })
+        return new Response("unavailable", { status: 503 })
+      },
+    })
+    cleanup = harness.cleanup
+    const { id: _firstId, ...first } = dailyTask()
+    const { id: _secondId, ...second } = dailyTask({ schedule: { kind: "daily", times: ["17:00"], timezone: "UTC" } })
+    await harness.writeProject("proj-a.json", { projectPath: "/work/alpha", scheduledTasks: [first, second] })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: false, reason: "retry-pending", retryableRemaining: 1 })
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toEqual([second])
+  })
+
+  it("removes only one of two identical id-less tasks when only one was migrated", async () => {
+    let creates = 0
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") return new Response(JSON.stringify([]), { status: 200 })
+        creates += 1
+        if (creates === 1) return new Response(JSON.stringify({ id: "st_1", status: "active" }), { status: 200 })
+        return new Response("unavailable", { status: 503 })
+      },
+    })
+    cleanup = harness.cleanup
+    const { id: _id, ...task } = dailyTask()
+    await harness.writeProject("proj-a.json", { projectPath: "/work/alpha", scheduledTasks: [task, { ...task }] })
+
+    await harness.convergence.migrate()
+
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toEqual([task])
+  })
+
+  it("bounds the migration's runtime calls when the runtime never answers", async () => {
+    // Only the wake path passed a timeout: a runtime that accepted the connection and never answered held the
+    // migration, and the wake-up phase behind it, forever.
+    const harness = await createHarness({
+      wakeRequestTimeoutMs: 50,
+      runtimeHandler: (_url, init = {}) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () => reject(init.signal.reason), { once: true })
+        }),
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", { projectPath: "/work/alpha", scheduledTasks: [dailyTask()] })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: false, reason: "retry-pending" })
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toHaveLength(1)
   })
 
   it("creates the second of two same-named tasks when the runtime already has one", async () => {
