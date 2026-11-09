@@ -39,4 +39,19 @@ const runOpenSpecChain = async (specs, appName, spawnProcess = spawn, { settleTi
   throw new Error(`Failed to open in ${appName}: ${failures.join("; ")}`)
 }
 
-module.exports = { runOpenSpecChain }
+// A cmd.exe command line that names each value through an environment variable instead of spelling it out.
+// Quoting does not stop cmd from expanding `%VAR%` inside a value, and `call` doubles every caret even inside
+// quotes, so `C:\work\%USERNAME%` opened the user's own folder and `C:\src\a^b` became `a^^b`. cmd expands each
+// reference once and does not re-read the text it substituted. `call` is not used: it expands a second time.
+// Windows paths cannot contain `"`, so the quotes around each reference hold.
+const buildWindowsCommandLine = (leadingTokens, values, env = process.env) => {
+  const nextEnv = { ...env }
+  const references = values.map((value, index) => {
+    const name = `AX_CODE_LAUNCH_ARG_${index}`
+    nextEnv[name] = String(value)
+    return `"%${name}%"`
+  })
+  return { commandLine: [...leadingTokens, ...references].join(" "), env: nextEnv }
+}
+
+module.exports = { runOpenSpecChain, buildWindowsCommandLine }

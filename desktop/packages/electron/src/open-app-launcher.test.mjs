@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events"
 import { createRequire } from "node:module"
 import { describe, expect, test, vi } from "vitest"
 
-const { runOpenSpecChain } = createRequire(import.meta.url)("./open-app-launcher.js")
+const { buildWindowsCommandLine, runOpenSpecChain } = createRequire(import.meta.url)("./open-app-launcher.js")
 
 describe("asynchronous app launching", () => {
   test("serves timers while an actual launcher process is still running", async () => {
@@ -68,5 +68,25 @@ describe("asynchronous app launching", () => {
       "failed exited 1",
     )
     await expect(runOpenSpecChain([], "Editor", spawn)).rejects.toThrow("no launch candidates")
+  })
+})
+
+describe("Windows command lines", () => {
+  test("keeps paths cmd would rewrite out of the command line", () => {
+    // Quoting does not stop cmd from expanding `%USERNAME%` or `call` from doubling `^`, so the editor opened
+    // a different folder than the one the user picked. The values travel in the environment instead.
+    const values = ["C:\\Program Files\\Code\\bin\\code.cmd", "C:\\work\\%USERNAME%", "C:\\src\\a^b & c"]
+
+    const { commandLine, env } = buildWindowsCommandLine(["start", '""'], values, { PATH: "C:\\Windows" })
+
+    expect(commandLine).toBe('start "" "%AX_CODE_LAUNCH_ARG_0%" "%AX_CODE_LAUNCH_ARG_1%" "%AX_CODE_LAUNCH_ARG_2%"')
+    expect(commandLine).not.toContain("call")
+    for (const value of values) expect(commandLine).not.toContain(value)
+    expect(env).toEqual({
+      PATH: "C:\\Windows",
+      AX_CODE_LAUNCH_ARG_0: values[0],
+      AX_CODE_LAUNCH_ARG_1: values[1],
+      AX_CODE_LAUNCH_ARG_2: values[2],
+    })
   })
 })

@@ -27,7 +27,7 @@ const os = require("os")
 const fs = require("fs")
 const fsp = require("fs/promises")
 const { execFile, spawn, spawnSync } = require("child_process")
-const { runOpenSpecChain } = require("./open-app-launcher")
+const { buildWindowsCommandLine, runOpenSpecChain } = require("./open-app-launcher")
 const { createMenuCopyAction } = require("./menu-copy-action")
 const { buildOpenFileSpecs, buildOpenProjectSpecs } = require("./open-app-specs")
 const { promisify } = require("util")
@@ -2191,7 +2191,9 @@ const buildWindowsOpenProjectSpecs = ({ projectPath, appId, appName }) => {
       })
     }
     const commandPrompt = resolveWindowsCommandProcessor()
-    if (commandPrompt) specs.push({ program: commandPrompt, args: ["/k", "cd", "/d", projectPath], shellStart: true })
+    // The folder is the process's working directory rather than a `cd` argument: the new cmd would parse that
+    // argument itself and expand any `%VAR%` in the folder name.
+    if (commandPrompt) specs.push({ program: commandPrompt, args: ["/k"], cwd: projectPath, shellStart: true })
     return specs
   }
   const specs = []
@@ -2216,8 +2218,6 @@ const buildWindowsOpenFileSpecs = ({ filePath, appId, appName }) => {
   return buildWindowsOpenProjectSpecs({ projectPath: filePath, appId, appName })
 }
 
-const quoteWindowsCommandArg = (value) => `"${String(value).replace(/"/g, '""')}"`
-
 const resolveWindowsLaunchProgram = (program) => {
   if (path.isAbsolute(program)) return fs.existsSync(program) ? program : null
   return runWhere(program)
@@ -2236,9 +2236,12 @@ const launchDetachedWindowsProcess = (program, args, options) => {
 }
 
 const launchWindowsCommandScript = (spec, program) => {
-  const commandLine = ["call", quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(" ")
-  launchDetachedWindowsProcess(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
+  const { commandLine, env } = buildWindowsCommandLine([], [program, ...spec.args])
+  // `/s` strips the first and last quote of what follows `/c`, so the line gets one more pair around it.
+  launchDetachedWindowsProcess(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", `"${commandLine}"`], {
     windowsVerbatimArguments: true,
+    env,
+    ...(spec.cwd ? { cwd: spec.cwd } : {}),
   })
 }
 
@@ -2246,11 +2249,11 @@ const launchWindowsSpec = (spec) => {
   const program = resolveWindowsLaunchProgram(spec.program)
   if (!program) throw new Error("program not found")
   if (spec.shellStart) {
-    const commandLine = ["start", '""', quoteWindowsCommandArg(program), ...spec.args.map(quoteWindowsCommandArg)].join(
-      " ",
-    )
+    const { commandLine, env } = buildWindowsCommandLine(["start", '""'], [program, ...spec.args])
     launchDetachedWindowsProcess(resolveWindowsCommandProcessor() || "cmd.exe", ["/d", "/s", "/c", commandLine], {
       windowsVerbatimArguments: true,
+      env,
+      ...(spec.cwd ? { cwd: spec.cwd } : {}),
     })
     return
   }
