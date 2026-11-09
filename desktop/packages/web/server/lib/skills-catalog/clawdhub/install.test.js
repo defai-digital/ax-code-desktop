@@ -52,6 +52,37 @@ describe("ClawdHub skill installation", () => {
     }
   })
 
+  test("does not replace a skill that another install created during the download", async () => {
+    // A missing target also read as an "overwrite" decision, so the recheck after the download never skipped:
+    // a copy that a concurrent install had just reported as installed was moved aside and replaced.
+    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "clawdhub-install-test-"))
+    try {
+      const installedDir = path.join(tempRoot, "review-code")
+      downloadClawdHubSkill.mockImplementationOnce(async () => {
+        await fsPromises.mkdir(installedDir, { recursive: true })
+        await fsPromises.writeFile(path.join(installedDir, "SKILL.md"), "# Review Code\nconcurrent body\n")
+        return zipWithFiles({ "SKILL.md": "---\nname: review-code\ndescription: Review code.\n---\nnew body\n" })
+      })
+
+      const result = await installSkillsFromClawdHub({
+        scope: "user",
+        targetSource: "ax-code",
+        userSkillDir: tempRoot,
+        selections: [{ skillDir: "review-code", clawdhub: { slug: "review-code", version: "1.0.0" } }],
+      })
+
+      expect(result).toMatchObject({
+        installed: [],
+        skipped: [{ skillName: "review-code", reason: "Already installed (skipped)" }],
+      })
+      await expect(fsPromises.readFile(path.join(installedDir, "SKILL.md"), "utf8")).resolves.toContain(
+        "concurrent body",
+      )
+    } finally {
+      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+    }
+  })
+
   test("keeps the installed skill when the replacement cannot be moved into place", async () => {
     // The overwrite deleted the installed copy before the rename, and a rename cannot land on a directory that
     // still exists — so a move that then failed (a cross-device copy out of space, a target that reappeared)

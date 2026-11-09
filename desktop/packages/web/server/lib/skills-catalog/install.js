@@ -12,6 +12,7 @@ import {
   isRepoPathInside,
   normalizeRepoRelativePath,
   normalizeUserSkillDir,
+  readSkillMdFile,
   safeRm,
   toRepoFsPath,
   validateSkillName,
@@ -247,7 +248,13 @@ export async function installSkillsFromRepository({
         continue
       }
 
-      const skillMdContent = await fs.promises.readFile(skillMdPath, "utf8")
+      let skillMdContent
+      try {
+        skillMdContent = await readSkillMdFile(skillMdPath)
+      } catch {
+        skipped.push({ skillName: plan.skillName, reason: "SKILL.md is not a readable regular file" })
+        continue
+      }
       const catalogItem = getCatalogItemFromSkillDocument({
         source,
         effectiveSubpath,

@@ -1,3 +1,4 @@
+import fs from "fs"
 import { describe, expect, it } from "vitest"
 import fsPromises from "fs/promises"
 import os from "os"
@@ -11,7 +12,9 @@ import {
   isRepoPathInside,
   normalizeRepoRelativePath,
   normalizeUserSkillDir,
+  readSkillMdFile,
   safeRm,
+  SKILL_MD_MAX_BYTES,
   toRepoFsPath,
   validateSkillName,
 } from "./shared.js"
@@ -76,6 +79,29 @@ describe("skills-catalog shared helpers", () => {
     expect(isRepoPathInside("skills/evil", "..")).toBe(false)
     expect(isRepoPathInside("skills/evil", ".")).toBe(false)
     expect(isRepoPathInside("skills/evil", "skills\\..\\..")).toBe(false)
+  })
+
+  it("reads a SKILL.md only when it is a regular file within the size cap", async () => {
+    // A cloned repository's SKILL.md can link to /dev/zero, a fifo or a local file: following it hung the
+    // server or returned a local file's frontmatter as catalog text.
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "skills-shared-test-"))
+    try {
+      const outside = path.join(dir, "outside.md")
+      await fs.promises.writeFile(outside, "---\ndescription: local secret\n---\n")
+      const regular = path.join(dir, "SKILL.md")
+      await fs.promises.writeFile(regular, "---\nname: ok\n---\n")
+      const linked = path.join(dir, "linked.md")
+      await fs.promises.symlink(outside, linked)
+      const huge = path.join(dir, "huge.md")
+      await fs.promises.writeFile(huge, "")
+      await fs.promises.truncate(huge, SKILL_MD_MAX_BYTES + 1)
+
+      await expect(readSkillMdFile(regular)).resolves.toContain("name: ok")
+      await expect(readSkillMdFile(linked)).rejects.toThrow("not a regular file")
+      await expect(readSkillMdFile(huge)).rejects.toThrow("too large")
+    } finally {
+      await fs.promises.rm(dir, { recursive: true, force: true })
+    }
   })
 
   it("builds catalog items from SKILL.md frontmatter", () => {

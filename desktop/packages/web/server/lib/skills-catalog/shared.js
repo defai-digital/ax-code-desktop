@@ -114,6 +114,22 @@ export function getCatalogItemFromSkillDocument({ source, effectiveSubpath, skil
   return item
 }
 
+// The fallback `git show` read's own output cap.
+export const SKILL_MD_MAX_BYTES = 4 * 1024 * 1024
+
+// A SKILL.md comes from a cloned repository, so it can be a symlink — to /dev/zero, a fifo, or a local file whose
+// frontmatter would then come back as catalog text — or simply huge. Only a regular file within the cap is read.
+export async function readSkillMdFile(filePath) {
+  const stat = await fs.promises.lstat(filePath)
+  if (!stat.isFile()) {
+    throw new Error("SKILL.md is not a regular file")
+  }
+  if (stat.size > SKILL_MD_MAX_BYTES) {
+    throw new Error("SKILL.md is too large")
+  }
+  return fs.promises.readFile(filePath, "utf8")
+}
+
 export async function safeRm(dir) {
   try {
     await fs.promises.rm(dir, { recursive: true, force: true })

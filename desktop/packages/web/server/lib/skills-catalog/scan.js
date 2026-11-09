@@ -4,7 +4,13 @@ import path from "path"
 
 import { assertGitAvailable, cloneRepo, looksLikeAuthError, runGit } from "./git.js"
 import { parseSkillRepoSource } from "./source.js"
-import { getCatalogItemFromSkillDocument, isEnglishOnlyCatalogItem, safeRm, toRepoFsPath } from "./shared.js"
+import {
+  getCatalogItemFromSkillDocument,
+  isEnglishOnlyCatalogItem,
+  readSkillMdFile,
+  safeRm,
+  toRepoFsPath,
+} from "./shared.js"
 
 export async function scanSkillsRepository({ source, subpath, defaultSubpath, identity } = {}) {
   const gitCheck = await assertGitAvailable()
@@ -116,7 +122,7 @@ export async function scanSkillsRepository({ source, subpath, defaultSubpath, id
         // Prefer filesystem reads when sparse checkout succeeded.
         const filePath = toRepoFsPath(tempBase, skillMdPath)
         try {
-          skillMdContent = await fs.promises.readFile(filePath, "utf8")
+          skillMdContent = await readSkillMdFile(filePath)
         } catch {
           const showResult = await runGit(["-C", tempBase, "show", `HEAD:${skillMdPath}`], {
             identity,

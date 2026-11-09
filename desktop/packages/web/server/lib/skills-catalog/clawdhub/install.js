@@ -238,8 +238,11 @@ export async function installSkillsFromClawdHub({
         // ENOTEMPTY; under overwrite it backed up and replaced content a concurrent install had
         // just reported as successful.
         const targetExistsForReplacement = fs.existsSync(targetDir)
-        if (targetExistsForReplacement && decision !== "overwrite") {
-          // No decision was made (the target did not exist when asked), or it says skip. A copy
+        // Only a directory that was there when the decision was made may be replaced: a missing target also
+        // reads as "overwrite" above, so the recheck never skipped, and a concurrent install's copy was moved
+        // aside and replaced although that request had already reported it installed.
+        if (targetExistsForReplacement && !(exists && decision === "overwrite")) {
+          // No decision covered this directory (the target did not exist when asked), or it says skip. A copy
           // over a live directory is not a replacement, and this path has no policy for it.
           skipped.push({ skillName: plan.slug, reason: "Already installed (skipped)" })
           continue
