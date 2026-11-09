@@ -35,7 +35,7 @@ const FILE_REFERENCE_STAT_CACHE_MAX = 1000
 // once the file appears — holding the miss until the LRU evicts it left the
 // reference dead for the rest of the session. Hits stay cached, and a transient
 // stat failure is retried on the same schedule.
-const FILE_REFERENCE_STAT_NEGATIVE_TTL_MS = 10_000
+export const FILE_REFERENCE_STAT_NEGATIVE_TTL_MS = 10_000
 
 const statCache = new Map<string, Promise<boolean>>()
 let activeFileReferenceStatCount = 0

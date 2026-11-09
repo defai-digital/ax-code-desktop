@@ -9,7 +9,13 @@ import { toast } from "@/components/ui"
 import { Icon } from "@/components/icon/Icon"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { useI18n } from "@/lib/i18n"
-import { fileReferenceExists, isAbsolutePath, normalizePath, toAbsolutePath } from "./markdownFileReferences"
+import {
+  FILE_REFERENCE_STAT_NEGATIVE_TTL_MS,
+  fileReferenceExists,
+  isAbsolutePath,
+  normalizePath,
+  toAbsolutePath,
+} from "./markdownFileReferences"
 
 import {
   isLoopbackHttpUrl,
@@ -1137,6 +1143,17 @@ const getContextDirectory = (effectiveDirectory: string, resolvedPath: string): 
   return parent || normalizedPath
 }
 
+// A reference that resolved to "missing" is checked again a few times, after the cached miss
+// expires: the agent often creates the file just after the message finishes, and a transient
+// stat failure would otherwise leave the path unclickable for good, because a finished message
+// never mutates again to trigger another annotation pass. Bounded, so a path that really does
+// not exist is not polled forever.
+const FILE_REFERENCE_MISS_RETRY_DELAYS_MS = [
+  FILE_REFERENCE_STAT_NEGATIVE_TTL_MS + 1_000,
+  FILE_REFERENCE_STAT_NEGATIVE_TTL_MS * 3,
+  FILE_REFERENCE_STAT_NEGATIVE_TTL_MS * 9,
+]
+
 const useFileReferenceInteractions = ({
   containerRef,
   effectiveDirectory,
@@ -1159,6 +1176,8 @@ const useFileReferenceInteractions = ({
     }
     let cancelled = false
     const fileReferenceLinkLimit = getFileReferenceLinkLimit()
+    let missRetryCount = 0
+    let missRetryTimer: number | null = null
 
     const clearFileLinkAttributes = (candidate: HTMLElement) => {
       candidate.removeAttribute("data-openchamber-file-link")
@@ -1205,7 +1224,11 @@ const useFileReferenceInteractions = ({
         linkedCount += 1
 
         void fileReferenceExists(resolved.resolvedPath).then((exists) => {
-          if (cancelled || !exists || !container.contains(candidate)) {
+          if (cancelled || !container.contains(candidate)) {
+            return
+          }
+          if (!exists) {
+            scheduleMissRetry()
             return
           }
 
@@ -1225,6 +1248,17 @@ const useFileReferenceInteractions = ({
           }
         })
       }
+    }
+
+    function scheduleMissRetry() {
+      if (missRetryTimer !== null || typeof window === "undefined") return
+      const delay = FILE_REFERENCE_MISS_RETRY_DELAYS_MS[missRetryCount]
+      if (delay === undefined) return
+      missRetryCount += 1
+      missRetryTimer = window.setTimeout(() => {
+        missRetryTimer = null
+        if (!cancelled) annotateFileLinks()
+      }, delay)
     }
 
     const openFileReference = (sourceElement: HTMLElement) => {
@@ -1296,6 +1330,9 @@ const useFileReferenceInteractions = ({
     annotateFileLinks()
 
     const observer = new MutationObserver(() => {
+      // New content brings its own references: give them a fresh retry budget. Annotation only
+      // changes attributes, which this observer does not watch, so this cannot loop.
+      missRetryCount = 0
       if (annotationDebounceRef.current !== null && typeof window !== "undefined") {
         window.clearTimeout(annotationDebounceRef.current)
       }
@@ -1322,6 +1359,9 @@ const useFileReferenceInteractions = ({
 
     return () => {
       cancelled = true
+      if (missRetryTimer !== null && typeof window !== "undefined") {
+        window.clearTimeout(missRetryTimer)
+      }
       if (annotationDebounceRef.current !== null && typeof window !== "undefined") {
         window.clearTimeout(annotationDebounceRef.current)
       }
