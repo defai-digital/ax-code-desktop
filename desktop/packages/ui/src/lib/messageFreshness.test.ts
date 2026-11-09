@@ -76,4 +76,20 @@ describe("MessageFreshnessDetector", () => {
       false,
     )
   })
+
+  test("keeps start times for the most recently started sessions only", () => {
+    const detector = MessageFreshnessDetector.getInstance()
+    // Fill the 500-session budget, then re-start the oldest so it becomes the most recent.
+    for (let index = 0; index < 500; index += 1) detector.recordSessionStart(`ses_bound_${index}`)
+    detector.recordSessionStart("ses_bound_0")
+    // One more session evicts the least recently started one, which is now ses_bound_1.
+    detector.recordSessionStart("ses_bound_500")
+    expect(detector.getSessionStartTime("ses_bound_0")).toEqual(expect.any(Number))
+    expect(detector.getSessionStartTime("ses_bound_1")).toBeUndefined()
+    expect(detector.getSessionStartTime("ses_bound_500")).toEqual(expect.any(Number))
+    // Many more sessions never grow the map past its budget.
+    for (let index = 501; index < 2000; index += 1) detector.recordSessionStart(`ses_bound_${index}`)
+    expect(detector.getSessionStartTime("ses_bound_1499")).toBeUndefined()
+    expect(detector.getSessionStartTime("ses_bound_1500")).toEqual(expect.any(Number))
+  })
 })

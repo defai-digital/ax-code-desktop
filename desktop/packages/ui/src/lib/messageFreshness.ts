@@ -5,6 +5,9 @@ import type { Message } from "@defai-digital/ax-code-sdk/v2"
 // order of magnitude as the other render caches in this app). Evicting is safe: a dropped id is
 // re-evaluated on the next render, and an old message is never fresh again.
 const MAX_TRACKED_MESSAGE_IDS = 5000
+// One start time per session viewed in this window; keep the most recently started ones. An evicted
+// session has no start time, which already means "do not animate" for its old messages.
+const MAX_TRACKED_SESSIONS = 500
 
 export class MessageFreshnessDetector {
   private static instance: MessageFreshnessDetector
@@ -38,7 +41,14 @@ export class MessageFreshnessDetector {
   }
 
   recordSessionStart(sessionId: string): void {
+    // Re-insert so the Map's insertion order tracks recency.
+    this.sessionStartTimes.delete(sessionId)
     this.sessionStartTimes.set(sessionId, Date.now())
+    while (this.sessionStartTimes.size > MAX_TRACKED_SESSIONS) {
+      const oldest = this.sessionStartTimes.keys().next().value
+      if (oldest === undefined) break
+      this.sessionStartTimes.delete(oldest)
+    }
   }
 
   getSessionStartTime(sessionId: string): number | undefined {
