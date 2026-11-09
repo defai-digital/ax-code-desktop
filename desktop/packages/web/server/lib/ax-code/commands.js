@@ -185,7 +185,7 @@ function updateCommand(commandName, updates, workingDirectory) {
         }
         continue
       } else if (isPromptFileReference(jsonSection?.template)) {
-        const templateFilePath = resolvePromptFilePath(jsonSection.template)
+        const templateFilePath = resolvePromptFilePath(jsonSection.template, jsonSource.path)
         if (!templateFilePath) {
           throw new Error(`Invalid template file reference for command ${commandName}`)
         }

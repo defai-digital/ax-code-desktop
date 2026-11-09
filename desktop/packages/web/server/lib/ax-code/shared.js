@@ -497,7 +497,11 @@ function isPromptFileReference(value) {
 // for supporting files — read the answer of `path.relative` through this one rule.
 const leavesRoot = (relative) => relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)
 
-function resolvePromptFilePath(reference) {
+// `configFilePath` is the config file that holds the reference: AX Code resolves `{file:...}` against that file's
+// directory, so resolving against the user config directory wrote a project's (or a custom config's) referenced
+// file somewhere AX Code never reads, and the edit silently did not apply.
+function resolvePromptFilePath(reference, configFilePath = null) {
+  const baseDir = typeof configFilePath === "string" && configFilePath ? path.dirname(configFilePath) : AX_CODE_CONFIG_DIR
   const match = typeof reference === "string" ? reference.trim().match(PROMPT_FILE_PATTERN) : null
   if (!match) {
     return null
@@ -514,7 +518,7 @@ function resolvePromptFilePath(reference) {
   // content to whatever path it resolves to). Unlike ax-code core's
   // "trusted" config resolution, requests reaching this API must be treated
   // as untrusted: reject absolute paths and home-directory references, and
-  // confine the resolved path to AX_CODE_CONFIG_DIR — otherwise
+  // confine the resolved path to the config file's directory — otherwise
   // `{file:/etc/cron.d/x}` or `{file:~/.ssh/authorized_keys}` would let a
   // caller overwrite an arbitrary file on disk.
   if (path.isAbsolute(target) || target.startsWith("~")) {
@@ -525,10 +529,15 @@ function resolvePromptFilePath(reference) {
     target = target.slice(2)
   }
 
-  const resolved = path.resolve(AX_CODE_CONFIG_DIR, target)
-  const relativeToConfigDir = path.relative(AX_CODE_CONFIG_DIR, resolved)
+  const resolved = path.resolve(baseDir, target)
+  const relativeToConfigDir = path.relative(baseDir, resolved)
   // A bare `startsWith("..")` here refused `{file:..notes.md}` while `{file:drafts/..notes.md}` kept working.
   if (relativeToConfigDir === "" || leavesRoot(relativeToConfigDir)) {
+    return null
+  }
+  // A project config sits at the project root, which holds the repository's own metadata: a reference into
+  // `.git` would let a prompt edit rewrite a hook.
+  if (relativeToConfigDir.split(path.sep).some((segment) => segment.toLowerCase() === ".git")) {
     return null
   }
 
@@ -536,7 +545,7 @@ function resolvePromptFilePath(reference) {
   // and the write follows it, overwriting whatever it points at. Compare canonically, the way the skill-file guard
   // below does. A target whose deepest existing ancestor resolves inside keeps working, so a new file can still be
   // created; `null` answers a link whose target cannot be resolved, which is not a file to write through.
-  const canonicalRoot = resolveCanonicalPath(AX_CODE_CONFIG_DIR)
+  const canonicalRoot = resolveCanonicalPath(baseDir)
   const canonicalTarget = resolveCanonicalPath(resolved)
   if (canonicalRoot === null || canonicalTarget === null) {
     return null

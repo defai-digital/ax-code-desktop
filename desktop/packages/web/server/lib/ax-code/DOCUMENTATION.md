@@ -71,7 +71,7 @@ This module provides ax-code server integration utilities for the web server run
 - `getJsonWriteTarget(layers, preferredScope)`: Determines write target for config updates.
 - `getConfigEntitySources(options)`: Builds shared markdown/JSON source summaries for agent and command config entities.
 - `getAncestors(startDir, stopDir)`, `findWorktreeRoot(startDir)`: Git worktree helpers.
-- `isPromptFileReference(value)`, `resolvePromptFilePath(reference)`, `writePromptFile(filePath, content)`: Prompt file reference handling.
+- `isPromptFileReference(value)`, `resolvePromptFilePath(reference, configFilePath)`, `writePromptFile(filePath, content)`: Prompt file reference handling; a reference resolves against the directory of the config file that holds it, as AX Code does, and stays inside it (never into `.git`).
 - `walkSkillMdFiles(rootDir)`: Recursively finds all SKILL.md files.
 - `addSkillFromMdFile(skillsMap, skillMdPath, scope, source)`: Parses and indexes a skill file.
 - `resolveSkillSearchDirectories(workingDirectory)`: Returns skill search path order (config, project, home, custom).

@@ -410,7 +410,7 @@ function updateAgent(agentName, updates, workingDirectory) {
         }
         continue
       } else if (isPromptFileReference(jsonSection?.prompt)) {
-        const promptFilePath = resolvePromptFilePath(jsonSection.prompt)
+        const promptFilePath = resolvePromptFilePath(jsonSection.prompt, jsonSource.path)
         if (!promptFilePath) {
           throw new Error(`Invalid prompt file reference for agent ${agentName}`)
         }
