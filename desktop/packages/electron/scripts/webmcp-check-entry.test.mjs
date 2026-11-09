@@ -74,7 +74,7 @@ test("the actual Electron entry passes native object input and redacts every dis
       timeoutMs: 1000,
       runs: [
         { name: "echo", input: { password: "input-secret" } },
-        { name: "echo", input: {} },
+        { name: "echo", input: JSON.parse('{"__proto__":{"retained":true},"nested":{"text":"literal"}}') },
         { name: "echo", input: { messages: credentialTextCases } },
         { name: "echo", input: {} },
       ],
@@ -83,7 +83,7 @@ test("the actual Electron entry passes native object input and redacts every dis
   require("./webmcp-check-entry.cjs")
   await vi.runAllTimersAsync()
   expect(exit).toHaveBeenCalledWith(0)
-  expect(inputs).toEqual([{ password: "input-secret" }, {}, { messages: credentialTextCases }, {}])
+  expect(inputs).toEqual([{ password: "input-secret" }, JSON.parse('{"__proto__":{"retained":true},"nested":{"text":"literal"}}'), { messages: credentialTextCases }, {}])
   expect(writes.length).toBeGreaterThan(2)
   for (const text of writes) {
     for (const secret of ["input-secret", "returned-secret", "nested-secret", "thrown-secret", "AUDIT_FAKE_PASSWORD"])
