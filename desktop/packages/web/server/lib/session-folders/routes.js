@@ -74,7 +74,16 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
 
     const baseCollapsed = Array.isArray(base?.collapsedFolderIds) ? base.collapsedFolderIds : []
     const incomingCollapsed = Array.isArray(incoming?.collapsedFolderIds) ? incoming.collapsedFolderIds : []
-    const collapsedFolderIds = incomingIsAuthoritative ? incomingCollapsed : [...new Set([...baseCollapsed, ...incomingCollapsed])]
+    // A lagging snapshot speaks only for folders the newer file does not know: unioning its collapsed list put
+    // back a folder the user had since expanded in the save that already landed.
+    const baseFolderIds = new Set(
+      Object.values(baseMap).flatMap((folders) =>
+        (Array.isArray(folders) ? folders : []).map((folder) => folder?.id).filter((id) => typeof id === "string"),
+      ),
+    )
+    const collapsedFolderIds = incomingIsAuthoritative
+      ? incomingCollapsed
+      : [...new Set([...baseCollapsed, ...incomingCollapsed.filter((id) => !baseFolderIds.has(id))])]
     const existingIds = new Set(
       Object.values(foldersMap).flatMap((folders) =>
         (Array.isArray(folders) ? folders : []).map((folder) => folder?.id).filter((id) => typeof id === "string"),

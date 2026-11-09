@@ -268,6 +268,36 @@ describe("session folders routes", () => {
     expect(written.collapsedFolderIds).toEqual(["other-window"])
   })
 
+  it("does not re-collapse a folder the newer file expanded", async () => {
+    // The lagging writer's collapsed ids were unioned with the file's, so a stale debounce that still had the
+    // folder collapsed undid an expand that had already been saved.
+    const folder = { id: "folder-1", name: "One", sessionIds: [], createdAt: 1, parentId: null }
+    const fresh = { id: "lagging-new", name: "New", sessionIds: [], createdAt: 2, parentId: null }
+    const { handler, readWritten } = createMergeHarness({
+      version: 1,
+      updatedAt: 200,
+      foldersMap: { "/p": [folder] },
+      collapsedFolderIds: [],
+    })
+
+    const response = createMockResponse()
+    await handler(
+      {
+        body: {
+          version: 1,
+          updatedAt: 100,
+          foldersMap: { "/p": [folder, fresh] },
+          collapsedFolderIds: [folder.id, fresh.id],
+        },
+      },
+      response,
+    )
+
+    expect(response.statusCode).toBe(200)
+    // The folder only the lagging writer knows keeps its own collapsed state.
+    expect(readWritten().collapsedFolderIds).toEqual([fresh.id])
+  })
+
   it("drops collapsed ids of folders that no longer exist", async () => {
     const { handler, readWritten } = createMergeHarness({
       version: 1,
