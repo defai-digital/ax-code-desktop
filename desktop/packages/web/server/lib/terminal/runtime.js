@@ -836,7 +836,7 @@ export function createTerminalRuntime({
     let cleanedUp = false
     let dataDisposable = null
     let exitDisposable = null
-    const cleanup = () => {
+    const cleanup = ({ abort = false } = {}) => {
       if (cleanedUp) {
         return
       }
@@ -853,7 +853,11 @@ export function createTerminalRuntime({
       }
 
       try {
-        res.end()
+        // A stalled client is dropped, not ended: `end()` only queues the end behind everything it has not read,
+        // so the client never saw it or reconnected, and the socket held the full backlog for the life of the
+        // process.
+        if (abort) res.destroy()
+        else res.end()
       } catch (error) {
         console.warn("Failed to end terminal SSE response:", error)
       }
@@ -868,11 +872,11 @@ export function createTerminalRuntime({
         // Backpressure cannot be pushed onto the pty here. It is shared with every other SSE client, the bound WS
         // clients and the replay buffer, so pausing it for one socket starves all of them — the freeze the teardown
         // comment above used to have to undo. The WS path sheds the client that is too far behind instead
-        // (`isTerminalOutputClientStalled`) and this one does the same: the frame is not written, the stream ends,
+        // (`isTerminalOutputClientStalled`) and this one does the same: the frame is not written, the stream is dropped,
         // and the client reconnects.
         if (!ok && isTerminalOutputResponseStalled(res)) {
-          console.warn(`Terminal SSE client ${clientId} is too far behind; ending its stream`)
-          cleanup()
+          console.warn(`Terminal SSE client ${clientId} is too far behind; dropping its stream`)
+          cleanup({ abort: true })
         }
       } catch (error) {
         console.error(`Error sending data to client ${clientId}:`, error)

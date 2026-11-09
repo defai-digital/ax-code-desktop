@@ -77,4 +77,43 @@ describe("graceful shutdown runtime", () => {
     expect(setAxCodeProcess).toHaveBeenCalledWith(null)
     expect(killProcessOnPort).toHaveBeenCalledWith(45678)
   })
+
+  it("still exits when a teardown step throws", async () => {
+    // The throw skipped process.exit, and the shutdown flag then made every later signal a no-op.
+    vi.spyOn(console, "error").mockImplementation(() => {})
+    const exit = vi.fn()
+    const runtime = createRuntime(null, {
+      process: { exit },
+      axCodeWatcherRuntime: {
+        stop: () => {
+          throw new Error("watcher already closed")
+        },
+      },
+    })
+
+    await runtime.gracefulShutdown({ exitProcess: true })
+
+    expect(exit).toHaveBeenCalledWith(1)
+  })
+
+  it("exits at once on a repeated signal while a teardown step hangs", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const exit = vi.fn()
+    let shuttingDown = false
+    const runtime = createRuntime(null, {
+      process: { exit },
+      getIsShuttingDown: () => shuttingDown,
+      setIsShuttingDown: (value) => {
+        shuttingDown = value
+      },
+      getTerminalRuntime: () => ({ shutdown: () => new Promise(() => {}) }),
+    })
+
+    void runtime.gracefulShutdown({ exitProcess: true, repeatExits: true })
+    await Promise.resolve()
+    expect(exit).not.toHaveBeenCalled()
+
+    await runtime.gracefulShutdown({ exitProcess: true, repeatExits: true })
+    expect(exit).toHaveBeenCalledWith(1)
+  })
 })

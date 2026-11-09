@@ -790,11 +790,12 @@ describe("terminal output backpressure", () => {
     expect(isTerminalOutputResponseStalled({ writableLength: TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES + 1 })).toBe(true)
   })
 
-  it("ends one far-behind SSE stream instead of pausing the pty every client shares", async () => {
+  it("drops one far-behind SSE stream instead of pausing the pty every client shares", async () => {
     // The pause this replaced was `session.ptyProcess.pause()`, and that process is shared with every other SSE
     // client, the bound WS clients and the replay buffer: one slow socket froze output for all of them, and the
     // teardown comment spent lines undoing it. The WS path disconnects the client that is too far behind; this one
-    // does the same.
+    // does the same. Dropped, not ended: `end()` queues behind the unread backlog, so the client never saw it and
+    // the socket kept the whole backlog.
     const { app, getRoute } = createRouteRegistry()
     const server = new EventEmitter()
     const dataHandlers = []
@@ -839,12 +840,17 @@ describe("terminal output backpressure", () => {
 
       const streamRes = createMockResponse()
       let streamEnded = false
+      let streamDestroyed = false
       streamRes.writableLength = TERMINAL_OUTPUT_SSE_MAX_BUFFERED_BYTES + 1
       // Every write signals backpressure: this client has stopped draining.
       streamRes.write = () => false
       streamRes.once = () => {}
       streamRes.end = () => {
         streamEnded = true
+        return streamRes
+      }
+      streamRes.destroy = () => {
+        streamDestroyed = true
         return streamRes
       }
 
@@ -854,7 +860,8 @@ describe("terminal output backpressure", () => {
 
       for (const handler of [...dataHandlers]) handler("more output than the client can take")
 
-      expect(streamEnded).toBe(true)
+      expect(streamDestroyed).toBe(true)
+      expect(streamEnded).toBe(false)
       expect(pauseCalls).toEqual([])
     } finally {
       if (previousShell === undefined) delete process.env.AX_CODE_DESKTOP_TERMINAL_SHELL

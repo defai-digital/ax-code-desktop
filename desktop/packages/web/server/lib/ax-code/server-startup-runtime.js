@@ -69,7 +69,7 @@ export const createServerStartupRuntime = (dependencies) => {
   const attachProcessHandlers = ({ attachSignals }) => {
     if (attachSignals && !getSignalsAttached()) {
       const handleSignal = async () => {
-        await gracefulShutdown()
+        await gracefulShutdown({ repeatExits: true })
       }
       process.on("SIGTERM", handleSignal)
       process.on("SIGINT", handleSignal)

@@ -77,12 +77,38 @@ export const createGracefulShutdownRuntime = (dependencies) => {
   }
 
   const gracefulShutdown = async (options = {}) => {
-    if (getIsShuttingDown()) return
+    const exitProcess = typeof options.exitProcess === "boolean" ? options.exitProcess : getExitOnShutdown()
+    if (getIsShuttingDown()) {
+      // The signal handlers replace the default exit, so while a teardown step hangs, repeating Ctrl+C did
+      // nothing at all. A repeated signal is the user insisting: exit now.
+      if (options.repeatExits && exitProcess) {
+        console.warn("Shutdown already in progress; exiting now")
+        process.exit(1)
+      }
+      return
+    }
 
     setIsShuttingDown(true)
+    let failure = null
+    try {
+      await runShutdownPhases()
+    } catch (error) {
+      // A throwing teardown step skipped the exit below, and the shutdown flag then turned every later signal
+      // into a no-op: the server stayed up with half its subsystems torn down.
+      failure = error
+      console.error("Graceful shutdown failed:", error instanceof Error ? error.message : error)
+    }
+
+    if (exitProcess) {
+      process.exit(failure ? 1 : 0)
+      return
+    }
+    if (failure) throw failure
+  }
+
+  const runShutdownPhases = async () => {
     syncToHmrState()
     console.log("Starting graceful shutdown...")
-    const exitProcess = typeof options.exitProcess === "boolean" ? options.exitProcess : getExitOnShutdown()
 
     // Phase 1: synchronous teardown (fast, immediate)
     // Abort any in-flight ax-code launch FIRST: without this, a shutdown that
@@ -182,9 +208,6 @@ export const createGracefulShutdownRuntime = (dependencies) => {
     }
 
     console.log("Graceful shutdown complete")
-    if (exitProcess) {
-      process.exit(0)
-    }
   }
 
   return {
