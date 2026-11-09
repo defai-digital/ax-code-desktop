@@ -20,3 +20,6 @@ Base: 5d34efef. Worktree: /Users/akiralam/code/ax-code-desktop-ux-2026.
 Implementation and the six root gates are complete. See the [verification report](../reports/UX-2026-11-08-workspace-ux-v1.md)
 for native receipts and the Settings-dismissal repeatability limitation. The user subsequently authorized committing
 and pushing `feat/workspace-ux-2026`; merging and releasing remain outside scope.
+
+The follow-up [workspace completion and scheduled-task UX report](../reports/UX-2026-11-08-scheduled-task-ux-v2.md)
+records the responsive-sidebar repair and three consecutive final identity passes, closing the initial native limitation.

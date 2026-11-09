@@ -181,3 +181,15 @@ The new-session page places Projects before starter suggestions. Three starters 
 the rest, including project starters. Sidebar directory labels use distinguishing suffixes, with full paths available
 on hover and in accessible action names. Retrying on a supervision row reflects a reported runtime retry; it does not
 change the run's urgency or count as a new approval request.
+
+## Scheduled tasks
+
+Open Scheduled from the sidebar calendar button. An empty list explains scheduling and provides a labeled New scheduled
+task action; with multiple projects, choose the project before editing. A task's recurrence, timezone and next-run or
+stopped state stay visible while using its actions. More actions provides Run now, Pause/Resume, Edit, Run history and
+Delete according to the task's state. Completed one-time tasks must be rescheduled rather than resumed.
+
+The editor starts with the task name and prompt, followed by schedule and execution settings. Review Schedule summary
+for the wall-clock times, timezone, automatic-run state and missed-run policy before saving. Tasks run on this computer;
+it must be awake with AX Code running. The summary describes the configured schedule; actual next-run times and history
+come from the runtime. An unchanged imported cron schedule is retained when only the prompt is edited.

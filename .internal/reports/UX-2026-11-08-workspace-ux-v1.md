@@ -5,6 +5,10 @@ Worktree: `/Users/akiralam/code/ax-code-desktop-ux-2026`.
 Status: Implemented on `feat/workspace-ux-2026`. The user subsequently authorized committing and pushing this branch.
 The original worktree was left on its own branch with its concurrent work preserved.
 
+Follow-up: the responsive sidebar regression is resolved in the [scheduled-task UX and workspace completion report](UX-2026-11-08-scheduled-task-ux-v2.md).
+Three consecutive final identity journeys passed, including reopening after light-theme Settings and a repeated resize.
+The initial failure observations below are retained as historical evidence.
+
 ## Result
 
 - Workspace and Portfolio are primary areas. Portfolio reuses Mission Control; Session grid is reached through Session views,
@@ -64,8 +68,8 @@ visibility instead of requiring DOM removal. Initial timeout receipts were kept 
 These are fixture-backed macOS development checks, not a signed release, live-model throughput campaign or user study.
 The 600px captures are rendering stress cases, not a changed native minimum-window-size promise. Dirty Files refusal is
 covered by behavioral/module and mounted-component regressions; native workspace checks prove composer preservation and
-panel handoffs without editing a real project. The full legacy supervision journey is not certified by these bounded runs. The native identity harness still needs
-repeatability qualification around Settings dismissal; a passing capture does not establish that this race is resolved.
+panel handoffs without editing a real project. The full legacy supervision journey is not certified by these bounded runs. At initial delivery the native identity harness still needed
+repeatability qualification around Settings dismissal. The follow-up above records the repair and repeated qualification.
 Narrow titlebar utility compaction remains a follow-up outside this bounded workspace change.
 The follow-up delivery instruction authorizes a commit and branch push. Merge and release remain outside this change.
 

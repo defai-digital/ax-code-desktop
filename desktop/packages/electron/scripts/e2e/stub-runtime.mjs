@@ -391,6 +391,21 @@ const server = http.createServer((req, res) => {
       return;
     }
     const scheduledScope = url.searchParams.get('directory') || req.headers['x-ax-code-directory'] || '';
+    const controlMatch = pathname.match(/^\\/scheduled-task\\/([^/]+)\\/(pause|resume)$/);
+    if (controlMatch && req.method === 'POST') {
+      const entry = scheduledScope === directory
+        ? scheduledFixture.find(entry => entry.task.id === controlMatch[1] && entry.task.directory === directory)
+        : null;
+      if (!entry) {
+        res.statusCode = 404;
+        json(res, { message: 'Fixture task not found' });
+        return;
+      }
+      entry.task.status = controlMatch[2] === 'pause' ? 'paused' : 'active';
+      scheduledWrites.push({ operation: controlMatch[2], directory, taskID: entry.task.id, fields: { status: entry.task.status } });
+      json(res, entry.task);
+      return;
+    }
     const updateMatch = pathname.match(/^\\/scheduled-task\\/([^/]+)\\/update$/);
     if ((pathname === '/scheduled-task' || updateMatch) && req.method === 'POST') {
       if (scheduledScope !== directory) {

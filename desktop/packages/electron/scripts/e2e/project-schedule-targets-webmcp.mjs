@@ -2,6 +2,7 @@
 // Read-only editor/selection verification against two isolated fixture projects.
 import fs from "node:fs/promises"
 import path from "node:path"
+import { setDesktopViewport, waitForCollapsedDesktopSidebar } from "./desktop-viewport.mjs"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
@@ -28,6 +29,7 @@ const outcome = await runHarness({
     await journeyBoot({ session })
     const audit = new SettingsWebMcpAudit(session)
     await audit.client.enable()
+    await setDesktopViewport(session, { width: 1280, height: 1000 })
     await audit.wait('document.querySelectorAll("[data-scheduled-task-row]").length === 2', "two scoped scheduled definitions")
     const capture = async (name) => {
       const state = await audit.all()
@@ -54,9 +56,9 @@ const outcome = await runHarness({
     }
     const verify = ({ state, inspection }) => {
       for (const project of projects) {
-        if (!inspection.schedules.some(row => row.text.includes(project.worktree))) throw new Error("Scheduled project context is ambiguous")
+        if (!inspection.schedules.some(row => row.text.includes(path.basename(project.worktree)))) throw new Error("Scheduled project context is ambiguous")
         const header = inspection.projects.find(row => row.id === project.id)
-        if (!header.text.includes(project.worktree)) throw new Error("Project header needs visible directory context")
+        if (!header.text.includes(path.basename(project.worktree)) || !header.name.includes(project.worktree)) throw new Error("Project header needs visible directory context")
         const edits = state.controls.filter(control => control.role === "button" && control.name.startsWith("Edit Nightly") && control.name.includes(project.worktree))
         if (edits.length !== 1) throw new Error(`Ambiguous scheduled edit target for ${project.id}`)
         const headers = state.controls.filter(control => control.role === "button" && control.name.startsWith("Shared Project") && control.name.includes(project.worktree))
@@ -78,7 +80,7 @@ const outcome = await runHarness({
         document.querySelector('[role="dialog"]')?.textContent.includes(${JSON.stringify(entry.task.directory)})`, "correct scheduled editor")
       await capture(`editor-${entry.task.projectID}`)
       await audit.click("Cancel")
-      await audit.wait('!document.querySelector("#sched-name")', "scheduled editor closed")
+      await audit.wait(`!document.querySelector('#sched-name')?.closest('[role="dialog"]')?.hasAttribute('data-open')`, "scheduled editor closed")
     }
     for (const project of projects) {
       const header = (await audit.all()).controls.find(control => control.name.startsWith("Shared Project") && control.name.includes(project.worktree))
@@ -100,20 +102,20 @@ const outcome = await runHarness({
     await audit.wait(`document.querySelector('#sched-name')?.value === '' && document.querySelector('[role="dialog"]')?.textContent.includes(${JSON.stringify(projects[1].worktree)})`, "new schedule for selected project")
     await audit.click("Cancel")
     for (const width of [800, 600]) {
-      await session.send("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: false })
-      await audit.wait('Boolean(document.querySelector(\'aside[aria-hidden="true"] [data-project-id]\'))', "responsive collapse")
+      await setDesktopViewport(session, { width, height: 1000 })
+      await waitForCollapsedDesktopSidebar(session)
       await audit.click("Open sessions")
       await audit.wait(`Array.from(document.querySelectorAll('[data-project-header]')).filter(button => !button.closest('[aria-hidden="true"], [inert]') &&
         button.getBoundingClientRect().right <= button.closest('aside').getBoundingClientRect().right + 1).length >= 2`, "visible project headers")
       verify(await capture(`targets-${width}`))
     }
-    await session.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false })
+    await setDesktopViewport(session, { width: 1280, height: 1000 })
     await audit.click("Settings")
     await audit.page("Appearance")
     await audit.click("Light")
     await audit.wait('document.documentElement.classList.contains("light")', "light theme")
     await audit.click("Close settings")
-    await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
+    await audit.wait('!Array.from(document.querySelectorAll("[data-settings-view]")).some(e => e.checkVisibility({ opacityProperty: true }) && !e.closest("[data-ending-style]"))', "settings closed")
     verify(await capture("targets-light"))
     const persisted = await (await fetch(`${origin}/__e2e__/scheduled-tasks`)).json()
     if (persisted.writes.length || persisted.createAttempts || JSON.stringify(persisted.tasks) !== JSON.stringify(tasks)) throw new Error("Read-only target journey changed scheduled definitions")

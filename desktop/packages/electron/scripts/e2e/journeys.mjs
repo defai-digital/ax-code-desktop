@@ -187,9 +187,16 @@ export const journeyCspClean = async ({
   }
 }
 
+export const SETTINGS_OPEN_EXPRESSION = `(() => {
+  const view = document.querySelector('[data-settings-view]')
+  const popup = view?.closest('[role="dialog"]')
+  return Boolean(view && !view.closest('[data-ending-style]') && popup?.hasAttribute('data-open'))
+})()`
+
 export const journeySettings = async ({ session, platform = process.platform }) => {
   // A pop-out can own focus after the preceding journey. Keyboard delivery
   // requires the tested document to be active, as it would be for a user.
+  await session.evaluate('window.__AX_CODE_DESKTOP__.invoke("desktop_focus_main_window", {})')
   await session.send("Page.bringToFront")
   await waitForCondition(() => session.evaluate("document.hasFocus()"), {
     timeoutMs: 10_000,
@@ -208,13 +215,19 @@ export const journeySettings = async ({ session, platform = process.platform }) 
         windowsVirtualKeyCode: 188,
       })
     }
-    await session.evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))")
-    await waitForCondition(() => session.evaluate('document.querySelector("[data-settings-view]") !== null'), {
+    await waitForCondition(() => session.evaluate(SETTINGS_OPEN_EXPRESSION), {
       timeoutMs: 10_000,
-      label: "settings view",
+      label: `settings view after shortcut ${invocation + 1}`,
     })
   }
-  return { name: "settings", ok: true, detail: "settings view opened with the keyboard shortcut" }
+  for (const type of ["rawKeyDown", "keyUp"]) {
+    await session.send("Input.dispatchKeyEvent", { type, key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 })
+  }
+  await waitForCondition(async () => !(await session.evaluate(SETTINGS_OPEN_EXPRESSION)), {
+    timeoutMs: 10_000,
+    label: "settings closed after shortcut qualification",
+  })
+  return { name: "settings", ok: true, detail: "repeated keyboard Open remains open; Escape closes settings" }
 }
 
 export const isSupervisionPageTarget = (target) =>
@@ -307,6 +320,14 @@ export const journeySupervisionPopout = async ({
     const targets = await listTargets(debuggingPort)
     const windows = targets.filter(isSupervisionPageTarget).length
     const target = targets.find(isSupervisionPageTarget)
+    // This journey owns the pop-out: close it before the subsequent main-window keyboard/reload checks.
+    if (target) {
+      await session.send("Target.closeTarget", { targetId: target.id })
+      await waitForCondition(async () => !(await listTargets(debuggingPort)).some(isSupervisionPageTarget), {
+        timeoutMs: 10_000,
+        label: "supervision pop-out closed after qualification",
+      })
+    }
     return {
       name: "supervision-popout",
       ok: windows === 1,
@@ -441,7 +462,12 @@ const postStubStep = async (e2e, step) => {
   if (!response.ok) throw new Error(`Stub step "${step}" failed with status ${response.status}`)
 }
 
-const readNeedsYouPopoverText = async (session) => {
+export const NEEDS_YOU_POPOVER_TEXT_EXPRESSION = `(() => {
+  const dialog = document.querySelector('[role="dialog"][aria-label="Needs you"]')
+  return dialog ? dialog.textContent || "" : ""
+})()`
+
+const readNeedsYouPopoverText = async (session, expectedFragment = "") => {
   const opened = await session.evaluate(`(() => {
     const button = ${NEEDS_YOU_BUTTON_EXPRESSION}
     if (!button) return false
@@ -451,11 +477,10 @@ const readNeedsYouPopoverText = async (session) => {
   if (!opened) throw new Error("The main window shows no Needs you button")
   try {
     return await waitForCondition(
-      () =>
-        session.evaluate(`(() => {
-          const dialog = document.querySelector('[role="dialog"]')
-          return dialog ? dialog.textContent || "" : ""
-        })()`),
+      async () => {
+        const text = await session.evaluate(NEEDS_YOU_POPOVER_TEXT_EXPRESSION)
+        return text && (!expectedFragment || text.includes(expectedFragment)) ? text : false
+      },
       { timeoutMs: 15_000, label: "needs-you popover" },
     )
   } finally {
@@ -631,7 +656,7 @@ export const journeyGoalRow = async ({ session, debuggingPort, consoleMessages, 
       timeoutMs: 30_000,
       label: "main window needs-you count after the goal",
     })
-    const popoverText = await readNeedsYouPopoverText(session)
+    const popoverText = await readNeedsYouPopoverText(session, updatedGoal.objective)
     if (!popoverText.includes(updatedGoal.objective)) {
       throw new Error("The main window does not show the revised goal objective")
     }

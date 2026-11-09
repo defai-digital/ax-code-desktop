@@ -5,6 +5,10 @@ import { waitForCondition } from "./cdp.mjs"
  * Deliver the viewport notification before checking responsive UI; callers still verify fresh DOM state.
  */
 export async function setDesktopViewport(session, { width, height }) {
+  // DevTools can expose a document while its native window is occluded; visibility observers need the real window.
+  await session.evaluate('window.__AX_CODE_DESKTOP__.invoke("desktop_focus_main_window", {})')
+  await session.send("Page.bringToFront")
+  await waitForCondition(() => session.evaluate("document.hasFocus()"), { timeoutMs: 10_000, label: "native viewport focus" })
   // Geometry qualification uses reduced motion so compositor timing cannot hold an intermediate panel width.
   await session.send("Emulation.setEmulatedMedia", {
     features: [{ name: "prefers-reduced-motion", value: "reduce" }],

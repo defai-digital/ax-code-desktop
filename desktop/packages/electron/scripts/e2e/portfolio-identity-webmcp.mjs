@@ -176,6 +176,9 @@ const outcome = await runHarness({
     checkRows(await capture("portfolio-600-light"))
     await ensureSidebar()
     checkLiveRows(await capture("live-600-light"))
+    // A duplicate native viewport notification must not undo the explicit Open sessions action.
+    await setDesktopViewport(session, { width: 600, height: 900 })
+    checkLiveRows(await capture("live-600-light-after-repeat-resize"))
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "portfolio-calls.json"), JSON.stringify(audit.calls, null, 2))
     return { name: "portfolio-identity-webmcp", ok: true, detail: "Needs You and Live identify duplicate projects at narrow widths; default/minimal Live actions open their own conversations and return" }
   }],

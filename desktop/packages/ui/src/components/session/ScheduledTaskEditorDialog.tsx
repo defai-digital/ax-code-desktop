@@ -29,6 +29,8 @@ import type { ScheduledTask } from "@/lib/scheduledTasksApi"
 import { stripFanOutSuffix, zonedTimeToEpochMs, type ScheduledTaskDraftInput } from "@/lib/scheduledTaskTransform"
 import { useI18n, type I18nKey } from "@/lib/i18n"
 import { isIrregularFamily, type ScheduledTaskFamily } from "./scheduledTaskFamilies"
+import { ScheduledTaskConfirmation } from "./ScheduledTaskConfirmation"
+import { formatFamilySchedule } from "./scheduledTaskFormat"
 import { normalizeScheduledTaskTimes } from "./scheduledTaskTime"
 
 const WEEKDAY_INDEXES = [0, 1, 2, 3, 4, 5, 6] as const
@@ -1311,7 +1313,7 @@ export function ScheduledTaskEditorDialog(props: {
 
   const formBody = (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
+      <div className="flex flex-col gap-3">
         <div className="flex flex-col gap-1">
           <FieldLabel htmlFor="sched-name" required>
             {t("sessions.scheduledTasks.editor.taskName.label")}
@@ -1322,39 +1324,111 @@ export function ScheduledTaskEditorDialog(props: {
             onChange={(event) => setDraft((prev) => ({ ...prev, name: event.target.value }))}
             placeholder={t("sessions.scheduledTasks.editor.taskName.placeholder")}
             maxLength={80}
-            className="w-full sm:max-w-[220px]"
+            className="w-full"
           />
         </div>
+      </div>
 
-        <div className="flex flex-col gap-1">
-          <FieldLabel>{t("sessions.scheduledTasks.editor.scheduleType.label")}</FieldLabel>
-          <Select
-            value={draft.schedule.kind}
-            onValueChange={(value: "daily" | "weekly" | "once") => {
-              setDraft((prev) => ({
-                ...prev,
-                schedule: { ...prev.schedule, kind: value },
-              }))
+      <div className="flex flex-col gap-1">
+        <FieldLabel htmlFor="sched-prompt" required>
+          {t("sessions.scheduledTasks.editor.prompt.label")}
+        </FieldLabel>
+        <div className="relative">
+          <Textarea
+            id="sched-prompt"
+            ref={promptTextareaRef}
+            value={draft.execution.prompt}
+            onChange={(event) => {
+              const nextPrompt = event.target.value
+              setPromptValue(nextPrompt)
+              const cursorPosition = event.target.selectionStart ?? nextPrompt.length
+              updateAutocompleteState(nextPrompt, cursorPosition)
             }}
-          >
-            <SelectTrigger className="w-fit max-w-full">
-              <SelectValue>
-                {(value) =>
-                  value === "daily"
-                    ? t("sessions.scheduledTasks.editor.scheduleType.daily")
-                    : value === "weekly"
-                      ? t("sessions.scheduledTasks.editor.scheduleType.weekly")
-                      : t("sessions.scheduledTasks.editor.scheduleType.once")
-                }
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="daily">{t("sessions.scheduledTasks.editor.scheduleType.daily")}</SelectItem>
-              <SelectItem value="weekly">{t("sessions.scheduledTasks.editor.scheduleType.weekly")}</SelectItem>
-              <SelectItem value="once">{t("sessions.scheduledTasks.editor.scheduleType.once")}</SelectItem>
-            </SelectContent>
-          </Select>
+            onKeyDown={handlePromptKeyDown}
+            rows={5}
+            placeholder={t("sessions.scheduledTasks.editor.prompt.placeholder")}
+            className="typography-meta min-h-[120px] max-h-[300px] resize-none overflow-y-auto"
+          />
+
+          {showCommandAutocomplete ? (
+            <CommandAutocomplete
+              ref={commandRef}
+              searchQuery={commandQuery}
+              onCommandSelect={handleCommandSelect}
+              onClose={() => setShowCommandAutocomplete(false)}
+              style={{
+                left: 0,
+                top: "auto",
+                bottom: "calc(100% + 6px)",
+                marginBottom: 0,
+                maxWidth: "100%",
+              }}
+            />
+          ) : null}
+
+          {showFileMention ? (
+            <FileMentionAutocomplete
+              ref={mentionRef}
+              searchQuery={mentionQuery}
+              onFileSelect={handleFileSelect}
+              onAgentSelect={handleAgentSelect}
+              onClose={() => setShowFileMention(false)}
+              style={{
+                left: 0,
+                top: "auto",
+                bottom: "calc(100% + 6px)",
+                marginBottom: 0,
+                maxWidth: "100%",
+              }}
+            />
+          ) : null}
+
+          {showSnippetAutocomplete ? (
+            <SnippetAutocomplete
+              ref={snippetRef}
+              searchQuery={snippetQuery}
+              onSnippetSelect={handleSnippetSelect}
+              onClose={() => setShowSnippetAutocomplete(false)}
+              style={{
+                left: 0,
+                top: "auto",
+                bottom: "calc(100% + 6px)",
+                marginBottom: 0,
+                maxWidth: "100%",
+              }}
+            />
+          ) : null}
         </div>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <FieldLabel>{t("sessions.scheduledTasks.editor.scheduleType.label")}</FieldLabel>
+        <Select
+          value={draft.schedule.kind}
+          onValueChange={(value: "daily" | "weekly" | "once") => {
+            setDraft((prev) => ({
+              ...prev,
+              schedule: { ...prev.schedule, kind: value },
+            }))
+          }}
+        >
+          <SelectTrigger className="w-fit max-w-full">
+            <SelectValue>
+              {(value) =>
+                value === "daily"
+                  ? t("sessions.scheduledTasks.editor.scheduleType.daily")
+                  : value === "weekly"
+                    ? t("sessions.scheduledTasks.editor.scheduleType.weekly")
+                    : t("sessions.scheduledTasks.editor.scheduleType.once")
+              }
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="daily">{t("sessions.scheduledTasks.editor.scheduleType.daily")}</SelectItem>
+            <SelectItem value="weekly">{t("sessions.scheduledTasks.editor.scheduleType.weekly")}</SelectItem>
+            <SelectItem value="once">{t("sessions.scheduledTasks.editor.scheduleType.once")}</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {irregularScheduleNote ? (
@@ -1640,6 +1714,7 @@ export function ScheduledTaskEditorDialog(props: {
         </div>
       )}
 
+
       <div className="grid grid-cols-1 gap-x-4 gap-y-3 sm:grid-cols-2">
         <div className="flex min-w-0 flex-col gap-1">
           <FieldLabel required>{t("sessions.scheduledTasks.editor.model.label")}</FieldLabel>
@@ -1677,77 +1752,17 @@ export function ScheduledTaskEditorDialog(props: {
         </div>
       </div>
 
-      <div className="flex flex-col gap-1">
-        <FieldLabel htmlFor="sched-prompt" required>
-          {t("sessions.scheduledTasks.editor.prompt.label")}
-        </FieldLabel>
-        <div className="relative">
-          <Textarea
-            id="sched-prompt"
-            ref={promptTextareaRef}
-            value={draft.execution.prompt}
-            onChange={(event) => {
-              const nextPrompt = event.target.value
-              setPromptValue(nextPrompt)
-              const cursorPosition = event.target.selectionStart ?? nextPrompt.length
-              updateAutocompleteState(nextPrompt, cursorPosition)
-            }}
-            onKeyDown={handlePromptKeyDown}
-            rows={8}
-            placeholder={t("sessions.scheduledTasks.editor.prompt.placeholder")}
-            className="typography-meta min-h-[120px] max-h-[300px] resize-none overflow-y-auto"
-          />
-
-          {showCommandAutocomplete ? (
-            <CommandAutocomplete
-              ref={commandRef}
-              searchQuery={commandQuery}
-              onCommandSelect={handleCommandSelect}
-              onClose={() => setShowCommandAutocomplete(false)}
-              style={{
-                left: 0,
-                top: "auto",
-                bottom: "calc(100% + 6px)",
-                marginBottom: 0,
-                maxWidth: "100%",
-              }}
-            />
-          ) : null}
-
-          {showFileMention ? (
-            <FileMentionAutocomplete
-              ref={mentionRef}
-              searchQuery={mentionQuery}
-              onFileSelect={handleFileSelect}
-              onAgentSelect={handleAgentSelect}
-              onClose={() => setShowFileMention(false)}
-              style={{
-                left: 0,
-                top: "auto",
-                bottom: "calc(100% + 6px)",
-                marginBottom: 0,
-                maxWidth: "100%",
-              }}
-            />
-          ) : null}
-
-          {showSnippetAutocomplete ? (
-            <SnippetAutocomplete
-              ref={snippetRef}
-              searchQuery={snippetQuery}
-              onSnippetSelect={handleSnippetSelect}
-              onClose={() => setShowSnippetAutocomplete(false)}
-              style={{
-                left: 0,
-                top: "auto",
-                bottom: "calc(100% + 6px)",
-                marginBottom: 0,
-                maxWidth: "100%",
-              }}
-            />
-          ) : null}
-        </div>
-      </div>
+      <ScheduledTaskConfirmation
+        schedule={draft.schedule}
+        enabled={draft.enabled}
+        catchUpPolicy={draft.catchUpPolicy}
+        originalDescription={
+          family && isIrregularFamily([family]) &&
+          scheduleSectionKey(draft.schedule) === scheduleSectionKey(openedRef.current.baseline.schedule)
+            ? formatFamilySchedule(family, t)
+            : undefined
+        }
+      />
     </div>
   )
 

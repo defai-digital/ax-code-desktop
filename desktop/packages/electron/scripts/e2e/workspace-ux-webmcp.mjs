@@ -6,6 +6,7 @@ import { execFile } from "node:child_process"
 import { promisify } from "node:util"
 import { assertPathInsideDirectory } from "./scenario.mjs"
 import { journeyBoot } from "./journeys.mjs"
+import { waitForCondition } from "./cdp.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { setDesktopViewport, waitForCollapsedDesktopSidebar } from "./desktop-viewport.mjs"
@@ -142,9 +143,13 @@ const outcome = await runHarness({
         "focused review",
       )
       await checkDraft()
-      await audit.wait(`Array.from(document.querySelectorAll('[data-review-changes] diffs-container')).some(host =>
-        host.checkVisibility() && host.shadowRoot?.querySelector('pre')?.textContent?.includes('Improved')) ||
-        document.querySelector('[data-review-changes]')?.innerText.includes('Improved layout fixture')`, "populated review content")
+      // Read a presented frame while observing visibility-gated diff content, even on an occluded host desktop.
+      await waitForCondition(async () => {
+        await session.send("Page.captureScreenshot", { format: "png" })
+        return session.evaluate(`Array.from(document.querySelectorAll('[data-review-changes] diffs-container')).some(host =>
+          host.checkVisibility() && host.shadowRoot?.querySelector('pre')?.textContent?.includes('Improved')) ||
+          document.querySelector('[data-review-changes]')?.innerText.includes('Improved layout fixture')`)
+      }, { timeoutMs: 10_000, label: "populated review content" })
       await capture("review-focused-dark-1600")
       await audit.click("Restore split view")
       await audit.wait(

@@ -1,0 +1,190 @@
+{
+  "branch": "feat/workspace-ux-2026",
+  "parent": "728ccf06",
+  "gates": [
+    {
+      "name": "check:boundaries",
+      "exitCode": 0,
+      "seconds": 24.05,
+      "log": "complete-check-boundaries.log"
+    },
+    {
+      "name": "check:locales",
+      "exitCode": 0,
+      "seconds": 0.7,
+      "log": "complete-check-locales.log"
+    },
+    {
+      "name": "typecheck",
+      "exitCode": 0,
+      "seconds": 33.69,
+      "log": "complete-typecheck.log"
+    },
+    {
+      "name": "lint",
+      "exitCode": 0,
+      "seconds": 9.02,
+      "log": "complete-lint.log"
+    },
+    {
+      "name": "test",
+      "exitCode": 0,
+      "seconds": 112.23,
+      "log": "complete-test.log"
+    },
+    {
+      "name": "build",
+      "exitCode": 0,
+      "seconds": 33.3,
+      "log": "complete-build.log"
+    }
+  ],
+  "native": [
+    {
+      "name": "base-final",
+      "exitCode": 0
+    },
+    {
+      "name": "workspace-final",
+      "exitCode": 0
+    },
+    {
+      "name": "workspace-repeat",
+      "exitCode": 0,
+      "seconds": 23.77
+    },
+    {
+      "name": "projects",
+      "exitCode": 0,
+      "seconds": 21.79
+    },
+    {
+      "name": "identity-1",
+      "exitCode": 0,
+      "seconds": 29.5
+    },
+    {
+      "name": "identity-2",
+      "exitCode": 0,
+      "seconds": 30.53
+    },
+    {
+      "name": "identity-3",
+      "exitCode": 0,
+      "seconds": 28.94
+    },
+    {
+      "name": "scheduled-ux",
+      "exitCode": 0,
+      "seconds": 20.57
+    },
+    {
+      "name": "scheduled-history-dst",
+      "exitCode": 0,
+      "seconds": 17.0
+    },
+    {
+      "name": "project-schedule-targets-final",
+      "exitCode": 0
+    },
+    {
+      "name": "scheduled-startup",
+      "exitCode": 0,
+      "seconds": 13.65
+    },
+    {
+      "name": "partial-create",
+      "exitCode": 0,
+      "seconds": 16.22
+    },
+    {
+      "name": "lost-ack",
+      "exitCode": 0,
+      "seconds": 16.21
+    }
+  ],
+  "testTotals": {
+    "passed": 9025,
+    "skipped": 12,
+    "uiPassed": 5481
+  },
+  "localeCount": 14,
+  "localeKeys": 5450,
+  "qualifiedAssets": {
+    "shell": {
+      "files": 8,
+      "identicalToNativeQualification": true
+    },
+    "renderer": {
+      "files": 158,
+      "identicalToNativeQualification": true
+    }
+  },
+  "sourceBlobs": {
+    "desktop/packages/electron/scripts/e2e/desktop-viewport.mjs": "3501fb7660873a05b90a923d67a86a61867a69ad",
+    "desktop/packages/electron/scripts/e2e/harness.test.mjs": "d72b9610007877f842e19447a1aa79478124b67a",
+    "desktop/packages/electron/scripts/e2e/journeys.mjs": "ab73e321b9eaf2a9c6f705e36e9ad5fda54bc5ca",
+    "desktop/packages/electron/scripts/e2e/portfolio-identity-webmcp.mjs": "88c29baa8898fbf3d2d4144a40ba86333ef1426a",
+    "desktop/packages/electron/scripts/e2e/project-schedule-targets-webmcp.mjs": "c1e744d194e1aaa47e893d90d673f5f908e6a7f7",
+    "desktop/packages/electron/scripts/e2e/scheduled-ux-webmcp.mjs": "0a1da42a892f77e87caeacdc0f970352719f0ef1",
+    "desktop/packages/electron/scripts/e2e/stub-runtime.mjs": "a20099939a0a288b4f0ab6cc16b05574fe431a88",
+    "desktop/packages/electron/scripts/e2e/workspace-ux-webmcp.mjs": "59148e735140708e0037f9cd33cae0c59cde580f",
+    "desktop/packages/ui/src/components/layout/MainLayout.tsx": "187871c54deeabab921cbe1c1aeb5adb107db271",
+    "desktop/packages/ui/src/components/session/ScheduledTaskConfirmation.test.tsx": "2171361d14b6bdd2d974014e8b779e423b83bdd6",
+    "desktop/packages/ui/src/components/session/ScheduledTaskConfirmation.tsx": "b6f7aed13a5c51470c0f805f8b25d7fc34de3970",
+    "desktop/packages/ui/src/components/session/ScheduledTaskEditorDialog.tsx": "00b52862043590d462b14a7ab5a75acacf6fb91d",
+    "desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.test.tsx": "a7f7206efbcbeb878fceedfc8ba804d71f9f8eef",
+    "desktop/packages/ui/src/components/session/sidebar/SidebarScheduledTasks.tsx": "2b8e3bd2306372956b8ca44e3c4b4ffba484b396",
+    "desktop/packages/ui/src/hooks/useResponsivePanels.test.tsx": "c9d422e42531c4c5339f251c043388705ffbfb4f",
+    "desktop/packages/ui/src/hooks/useResponsivePanels.ts": "020c60949d8b8a990f5b87954e8fc0b7fe06c68c",
+    "desktop/packages/ui/src/lib/i18n/messages/de.json": "11597021d60a0b4ce0eb52615ac338d6a0aa8507",
+    "desktop/packages/ui/src/lib/i18n/messages/en.ts": "f70da3cb6cc2d8c025694b7e061e80af73429e13",
+    "desktop/packages/ui/src/lib/i18n/messages/es.json": "e8fd51e574453262804506bdf5b39fb402dae65a",
+    "desktop/packages/ui/src/lib/i18n/messages/fr.json": "c424df2eb3b542ef8e877cc052f210b5dbc5e421",
+    "desktop/packages/ui/src/lib/i18n/messages/id.json": "0978652dd59b22018d0985a8d3fb5df413b4c028",
+    "desktop/packages/ui/src/lib/i18n/messages/it.json": "25acd8f87ef7ba2b0910dcf2ed2fb0528e4bb750",
+    "desktop/packages/ui/src/lib/i18n/messages/ja.json": "56ad4a309a35ee2d089e5c7cb15c20a349d0349a",
+    "desktop/packages/ui/src/lib/i18n/messages/ko.json": "c4da8272245fabde20b169a1c3856df5eb7a91d4",
+    "desktop/packages/ui/src/lib/i18n/messages/pt-BR.json": "669b40c3790e5c2e3f840ab76761eb9d492c33eb",
+    "desktop/packages/ui/src/lib/i18n/messages/ru.json": "8a60bb585b8fbbd81cb264c73eec0f8cd4b658cd",
+    "desktop/packages/ui/src/lib/i18n/messages/tr.json": "b1000c40d1f700cf72ef3e750e1d4afbe0342d41",
+    "desktop/packages/ui/src/lib/i18n/messages/vi.json": "eefea0b6ceeda1b8d2ee8be4ff46c760fb9f1eb4",
+    "desktop/packages/ui/src/lib/i18n/messages/zh-CN.json": "31398c41f06306be34435b7dbcd603e4060cdb31",
+    "desktop/packages/ui/src/lib/i18n/messages/zh-TW.json": "23a9d83336d0ea31a31e50bf7c10509d30b8f435",
+    "desktop/packages/web/server/lib/notifications/template-runtime.test.js": "b419f5592df2927eeca5a79815f21e3fe35c729c",
+    "package.json": "08ab61a2b5f8c98a0d80fc4e2820b4d0c2f72b40"
+  },
+  "screenshotSha256": {
+    "review-focused-dark.png": "cb64cf2631e08e6aa3bd0b7e278ebebc7c6b3b319952f627ca5ad9f3c795a344",
+    "schedule-editor-dark.png": "703e75e67a2c6ec891162f684eb4fa27fccbea4a5853cd0860a67f788768e718",
+    "schedule-summary-light.png": "8397370ac5d81138012f21e250c8ca49ebc7c58450b1ed2120b4d88f5ea51014",
+    "sidebar-identity-light.png": "51cad64ec432b0d88c53552562b6a79d4df33180bc66a7129f3a9bd2b9be2175",
+    "workspace-home-dark.png": "47c715b4ef09edffef6984a71f21d862a2565f405b775feae81d643b0f980618"
+  },
+  "resolvedDiagnostics": [
+    {
+      "name": "base",
+      "exitCode": 1,
+      "seconds": 44.53
+    },
+    {
+      "name": "workspace",
+      "exitCode": 1,
+      "seconds": 28.43
+    },
+    {
+      "name": "project-schedule-targets",
+      "exitCode": 1,
+      "seconds": 18.95
+    }
+  ],
+  "localReceiptRoot": "/var/folders/pw/j64s76pj6sl3t1ty5bg9ctq00000gp/T/ax-ux-v2-final-7mvjt5iw",
+  "resolvedGateDiagnostics": [
+    {
+      "name": "test",
+      "exitCode": 1,
+      "seconds": 113.02,
+      "log": "delivery-test.log"
+    }
+  ]
+}

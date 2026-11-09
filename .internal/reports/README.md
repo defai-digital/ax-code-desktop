@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Scheduled task UX review and workspace completion](UX-2026-11-08-scheduled-task-ux-v2.md): current primary research,
+  local scheduling clarity, stable row timing, task-first editing and the responsive-sidebar regression repair.
+
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
 
 - [Workspace UX v1 implementation and verification](UX-2026-11-08-workspace-ux-v1.md): navigation hierarchy,
