@@ -3,6 +3,8 @@ import os from "os"
 import path from "path"
 import yaml from "yaml"
 
+import { readBoundedRegularFile } from "../read-bounded-file.js"
+
 const SKILL_NAME_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/
 const NON_ENGLISH_TEXT_PATTERN = /[^\p{Script=Latin}\p{Script=Common}\p{Script=Inherited}]/u
 
@@ -120,14 +122,8 @@ export const SKILL_MD_MAX_BYTES = 4 * 1024 * 1024
 // A SKILL.md comes from a cloned repository, so it can be a symlink — to /dev/zero, a fifo, or a local file whose
 // frontmatter would then come back as catalog text — or simply huge. Only a regular file within the cap is read.
 export async function readSkillMdFile(filePath) {
-  const stat = await fs.promises.lstat(filePath)
-  if (!stat.isFile()) {
-    throw new Error("SKILL.md is not a regular file")
-  }
-  if (stat.size > SKILL_MD_MAX_BYTES) {
-    throw new Error("SKILL.md is too large")
-  }
-  return fs.promises.readFile(filePath, "utf8")
+  const bytes = await readBoundedRegularFile(filePath, { maxBytes: SKILL_MD_MAX_BYTES, label: "SKILL.md" })
+  return bytes.toString("utf8")
 }
 
 export async function safeRm(dir) {

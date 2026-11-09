@@ -1,5 +1,5 @@
 import fs from "fs"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
@@ -100,6 +100,30 @@ describe("skills-catalog shared helpers", () => {
       await expect(readSkillMdFile(linked)).rejects.toThrow("not a regular file")
       await expect(readSkillMdFile(huge)).rejects.toThrow("too large")
     } finally {
+      await fs.promises.rm(dir, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses a SKILL.md swapped after its regular-file check", async () => {
+    if (process.platform === "win32") return
+    const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), "skills-race-test-"))
+    const file = path.join(dir, "SKILL.md")
+    const secret = path.join(dir, "secret.md")
+    await fs.promises.writeFile(file, "Public skill")
+    await fs.promises.writeFile(secret, "Private contents")
+    const lstat = fs.promises.lstat.bind(fs.promises)
+    const spy = vi.spyOn(fs.promises, "lstat").mockImplementation(async (...args) => {
+      const entry = await lstat(...args)
+      if (args[0] === file) {
+        await fs.promises.unlink(file)
+        await fs.promises.symlink(secret, file)
+      }
+      return entry
+    })
+    try {
+      await expect(readSkillMdFile(file)).rejects.toThrow()
+    } finally {
+      spy.mockRestore()
       await fs.promises.rm(dir, { recursive: true, force: true })
     }
   })

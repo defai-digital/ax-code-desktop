@@ -117,3 +117,30 @@ test("opening and closing an inspector does not remount the conversation", () =>
     container.remove()
   }
 })
+
+test("closing an inspector returns keyboard focus to the preserved conversation", () => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true
+  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} })
+  useUIStore.setState({ splitPaneEnabled: true, splitPaneRightTab: "diff", isMobile: false })
+  const container = document.createElement("div")
+  document.body.append(container)
+  const root = createRoot(container)
+  try {
+    act(() => root.render(
+      <SplitPaneLayout rightContent={<button>Inspect change</button>}>
+        <button>Attach file</button>
+        <textarea defaultValue="Keep this draft" />
+      </SplitPaneLayout>,
+    ))
+    const draft = container.querySelector<HTMLTextAreaElement>("textarea")!
+    const back = container.querySelector<HTMLButtonElement>('[aria-label="splitPane.backToConversation"]')!
+    act(() => back.focus())
+    act(() => back.click())
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
+    expect(document.activeElement).toBe(draft)
+    expect(draft.value).toBe("Keep this draft")
+  } finally {
+    act(() => root.unmount())
+    container.remove()
+  }
+})

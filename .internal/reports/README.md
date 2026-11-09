@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.14 maintenance candidate](RELEASE-2026-11-09-v7.30.14-candidate.md): branch integration, keyboard focus
+  repair and bounded handle-based reads, with exact-source publication gates.
+
 - [Scheduled task UX review and workspace completion](UX-2026-11-08-scheduled-task-ux-v2.md): current primary research,
   local scheduling clarity, stable row timing, task-first editing and the responsive-sidebar regression repair.
 

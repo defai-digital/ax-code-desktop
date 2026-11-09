@@ -5,6 +5,8 @@ import os from "os"
 import { execFile, spawn } from "child_process"
 import { promisify } from "util"
 import { createHash, randomUUID } from "crypto"
+
+import { readBoundedRegularFile } from "../read-bounded-file.js"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 // The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
@@ -2481,11 +2483,11 @@ const readWorktreeDiffSide = async (repoRoot, absolutePath, isImage, mimeType) =
   if (stat.size > MAX_WORKTREE_DIFF_SIDE_BYTES) {
     throw new Error("File is too large to diff")
   }
-  if (isImage) {
-    const buffer = await fsp.readFile(absolutePath)
-    return `data:${mimeType};base64,${buffer.toString("base64")}`
-  }
-  return fsp.readFile(absolutePath, "utf8")
+  const bytes = await readBoundedRegularFile(absolutePath, {
+    maxBytes: MAX_WORKTREE_DIFF_SIDE_BYTES,
+    root: repoRoot,
+  })
+  return isImage ? `data:${mimeType};base64,${bytes.toString("base64")}` : bytes.toString("utf8")
 }
 
 export async function getFileDiff(directory, { path: filePath, staged = false } = {}) {

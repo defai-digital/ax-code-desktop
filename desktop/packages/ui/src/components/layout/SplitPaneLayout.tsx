@@ -60,7 +60,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
 
   React.useLayoutEffect(() => {
     const container = containerRef.current
-    if (!splitEnabled || !container) return
+    if (!container) return
     if (container.contains(document.activeElement)) lastFocusedRef.current = document.activeElement
     const rememberFocus = (event: FocusEvent) => {
       if (event.target instanceof Element && container.contains(event.target)) lastFocusedRef.current = event.target
@@ -70,9 +70,11 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       const candidate = active === document.body ? lastFocusedRef.current : active
       if (!(candidate instanceof HTMLElement) || !container.contains(candidate)) return
       const hiddenPane = candidate.closest<HTMLElement>("[data-split-chat], [data-split-resize], [data-split-inspector]")
-      if (!hiddenPane || getComputedStyle(hiddenPane).display !== "none") return
-      if (suspended) {
-        container.querySelector<HTMLElement>("[data-split-chat] textarea, [data-split-chat] button")?.focus({ preventScroll: true })
+      if (!hiddenPane || (!hiddenPane.hidden && getComputedStyle(hiddenPane).display !== "none")) return
+      if (!splitEnabled || suspended) {
+        const target = container.querySelector<HTMLElement>("[data-split-chat] textarea:not(:disabled)")
+          ?? container.querySelector<HTMLElement>("[data-split-chat] button:not(:disabled)")
+        target?.focus({ preventScroll: true })
         return
       }
       container

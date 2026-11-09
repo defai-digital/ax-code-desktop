@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.14] - 2026-11-09
+
+### Changed
+
+- Refine workspace navigation, project identity, inspector focus, starter suggestions and scheduled-task editing.
+- Upgrade to stable Electron 45.2.3 and move large file-diff parsing into a bounded, cancellable worker.
+
+### Fixed
+
+- Return keyboard focus to the preserved conversation when closing an inspector.
+- Read skills, discovered icons and worktree diffs through bounded checked handles so file replacement or growth cannot bypass validation.
+- Avoid the first Markdown render delay and retain newer session state during delayed updates.
+- Harden project file containment, credential storage failures, preview buffering, SSE shutdown and provider quota handling.
+
 ## [7.30.12] - 2026-11-02
 
 ### Changed

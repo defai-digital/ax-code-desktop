@@ -185,7 +185,9 @@ const outcome = await runHarness({
       const narrow = await capture("files-light-800")
       if (narrow.panes.filter((pane) => pane.kind === "inspector").some((pane) => pane.width < 700))
         throw new Error("Narrow inspector must have the workspace width")
+      await session.evaluate(`document.querySelector('[aria-label="Back to conversation"]').focus(); true`)
       await audit.click("Back to conversation")
+      await audit.wait('document.activeElement === window.__uxDraftNode', "keyboard focus returns to the preserved composer")
       await checkDraft()
       await capture("draft-return-light-800")
       return {

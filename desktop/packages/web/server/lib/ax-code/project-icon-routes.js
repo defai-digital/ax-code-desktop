@@ -1,3 +1,5 @@
+import { readBoundedRegularFile } from "../read-bounded-file.js"
+
 export const registerProjectIconRoutes = (app, dependencies) => {
   const {
     fsPromises,
@@ -454,7 +456,11 @@ export const registerProjectIconRoutes = (app, dependencies) => {
         return res.status(400).json({ error: "Discovered icon exceeds size limit (5 MB)" })
       }
 
-      const bytes = await fsPromises.readFile(selectedRealPath)
+      const bytes = await readBoundedRegularFile(selectedRealPath, {
+        maxBytes: projectIconMaxBytes,
+        root: projectRealPath,
+        fsPromises,
+      })
       if (bytes.length === 0) {
         return res.status(400).json({ error: "Discovered icon is empty" })
       }

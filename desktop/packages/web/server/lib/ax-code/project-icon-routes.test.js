@@ -5,6 +5,20 @@ import path from "path"
 import { registerProjectIconRoutes } from "./project-icon-routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
+// The discovery fixtures model the same file through a checked handle, while route assertions inspect copied bytes.
+const withReadHandles = (fsPromises) => ({
+  ...fsPromises,
+  lstat: fsPromises.lstat ?? fsPromises.stat,
+  open: vi.fn(async (filePath) => ({
+    stat: async () => ({ ...await fsPromises.stat(filePath), size: 1024 }),
+    read: async (buffer, offset, length, position) => {
+      const bytes = await fsPromises.readFile(filePath)
+      return { bytesRead: bytes.copy(buffer, offset, position, position + length) }
+    },
+    close: vi.fn(async () => {}),
+  })),
+})
+
 describe("project icon routes", () => {
   it("uses fallback file extension MIME when metadata points to a missing icon", async () => {
     const { app, getRoute } = createRouteRegistry()
@@ -20,7 +34,7 @@ describe("project icon routes", () => {
     }
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -71,7 +85,7 @@ describe("project icon routes", () => {
     }
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -113,7 +127,7 @@ describe("project icon routes", () => {
     }
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -177,7 +191,7 @@ describe("project icon routes", () => {
     }
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -234,7 +248,7 @@ describe("project icon routes", () => {
     }
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -304,7 +318,7 @@ describe("project icon routes", () => {
     const persistSettings = vi.fn(async (changes) => changes)
 
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
@@ -327,7 +341,7 @@ describe("project icon routes", () => {
   const registerDiscovery = (fsPromises) => {
     const { app, getRoute } = createRouteRegistry()
     registerProjectIconRoutes(app, {
-      fsPromises,
+      fsPromises: withReadHandles(fsPromises),
       path,
       crypto,
       openchamberDataDir: "/tmp/openchamber-test",
