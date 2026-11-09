@@ -102,7 +102,7 @@ function createMcpConfig(name, mcpConfig, workingDirectory, scope) {
   }
 
   const { name: _ignoredName, ...entryData } = mcpConfig
-  config.mcp[name] = buildMcpEntry(entryData)
+  config.mcp[name] = buildMcpEntry(entryData, { requireTarget: true })
 
   writeConfig(config, targetPath)
   console.log(`Created MCP server config: ${name}`)
@@ -130,7 +130,7 @@ function updateMcpConfig(name, updates, workingDirectory) {
   const existing = config.mcp[name]
   const { name: _ignoredName, ...updateData } = updates
 
-  config.mcp[name] = buildMcpEntry({ ...existing, ...updateData })
+  config.mcp[name] = buildMcpEntry({ ...existing, ...updateData }, { requireTarget: true })
 
   writeConfig(config, targetPath)
   console.log(`Updated MCP server config: ${name}`)
@@ -164,7 +164,7 @@ function deleteMcpConfig(name, workingDirectory) {
 /**
  * Build a clean MCP entry object, omitting undefined/null values
  */
-function buildMcpEntry(data) {
+function buildMcpEntry(data, { requireTarget = false } = {}) {
   const entry = data && typeof data === "object" && !Array.isArray(data) ? { ...data } : {}
 
   delete entry.name
@@ -177,7 +177,11 @@ function buildMcpEntry(data) {
     // command must be a non-empty array of strings
     if (Array.isArray(data.command) && data.command.length > 0) {
       entry.command = data.command.map(String)
+    } else if (requireTarget) {
+      // Saved without one, the entry was reported created and could never start.
+      throw new Error("A command is required for a local MCP server")
     } else {
+      // Reading an entry saved that way still lists it, so it can be fixed or removed.
       delete entry.command
     }
 
@@ -187,8 +191,10 @@ function buildMcpEntry(data) {
     delete entry.timeout
   } else {
     // remote: url required
-    if (data.url && typeof data.url === "string") {
+    if (typeof data.url === "string" && data.url.trim()) {
       entry.url = data.url.trim()
+    } else if (requireTarget) {
+      throw new Error("A URL is required for a remote MCP server")
     } else {
       delete entry.url
     }
@@ -207,7 +213,8 @@ function buildMcpEntry(data) {
       } else {
         delete entry.headers
       }
-    } else if (data.headers === undefined) {
+    } else {
+      // Kept as sent, a string such as "Authorization: x" reached the runtime's config parser.
       delete entry.headers
     }
 
@@ -232,13 +239,13 @@ function buildMcpEntry(data) {
       } else {
         delete entry.oauth
       }
-    } else if (data.oauth === undefined) {
+    } else {
       delete entry.oauth
     }
 
     if (typeof data.timeout === "number" && Number.isFinite(data.timeout) && data.timeout > 0) {
       entry.timeout = data.timeout
-    } else if (data.timeout === undefined || data.timeout === null || data.timeout === "") {
+    } else {
       delete entry.timeout
     }
   }
@@ -256,7 +263,7 @@ function buildMcpEntry(data) {
     } else {
       delete entry.environment
     }
-  } else if (data.environment === undefined) {
+  } else {
     delete entry.environment
   }
 

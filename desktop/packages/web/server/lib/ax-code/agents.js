@@ -512,6 +512,12 @@ function updateAgent(agentName, updates, workingDirectory) {
       if (!config.agent[agentName]) config.agent[agentName] = {}
       config.agent[agentName][field] = value
       jsonModified = true
+      // The same field in the `.md` frontmatter is what `getAgentConfig` reads back, so updating the JSON copy
+      // alone answered success while every later read still showed the old value.
+      if (inMd && mdData) {
+        mdData.frontmatter[field] = value
+        mdModified = true
+      }
     } else if (inMd || creatingNewMd) {
       if (mdData) {
         mdData.frontmatter[field] = value
