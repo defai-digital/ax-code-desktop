@@ -75,6 +75,9 @@ export const createUiPasskeys = ({
   storeFile = PASSKEY_STORE_FILE,
   rpName = DEFAULT_RP_NAME,
   challengeTtlMs = DEFAULT_CHALLENGE_TTL_MS,
+  // Set while the sign-in secret is one for this run only: the binding then cannot match the stored passkeys,
+  // and replacing the store to match it would delete them for good.
+  readOnly = false,
 } = {}) => {
   const registrationChallenges = new Map()
   const authenticationChallenges = new Map()
@@ -106,6 +109,11 @@ export const createUiPasskeys = ({
   }
 
   const persistStore = (store) => {
+    if (readOnly) {
+      const error = new Error("Passkeys are unavailable until the sign-in secret can be read")
+      error.statusCode = 503
+      throw error
+    }
     const storeDirectory = ensureStoreDirectory()
     const tmpFile = path.join(
       storeDirectory,
@@ -160,7 +168,7 @@ export const createUiPasskeys = ({
     if (!passwordBinding) {
       if (store.passkeys.length > 0 || store.passwordBinding) {
         store = { ...store, passkeys: [], passwordBinding: "" }
-        persistStore(store)
+        if (!readOnly) persistStore(store)
       }
       return store
     }
@@ -172,12 +180,12 @@ export const createUiPasskeys = ({
         passwordBinding,
         passkeys: [],
       }
-      persistStore(store)
+      if (!readOnly) persistStore(store)
       return store
     }
 
     if (shouldPersistInitialStore) {
-      persistStore(store)
+      if (!readOnly) persistStore(store)
     }
 
     return store

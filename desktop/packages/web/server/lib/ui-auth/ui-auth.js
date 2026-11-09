@@ -56,8 +56,10 @@ const persistRevokedSessionIds = () => {
     const tmp = `${file}.${process.pid}.tmp`
     fs.writeFileSync(tmp, JSON.stringify([...revokedSessionIds]), { mode: 0o600 })
     fs.renameSync(tmp, file)
+    return true
   } catch (error) {
-    console.warn("[JWT] Failed to persist revoked sessions:", error?.message || error)
+    console.warn("[JWT] Failed to persist revoked sessions:", error?.code || error?.message || error)
+    return false
   }
 }
 
@@ -348,34 +350,53 @@ const resolveEnvJwtSecret = () => {
   return envSecret
 }
 
+// Temp file plus rename: a crash or a full disk part way through a plain write left a truncated secret, which
+// the next start read as too short and replaced — signing everyone out and orphaning every passkey.
+function writeJwtSecretFile(secret) {
+  fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
+  const tmp = `${JWT_SECRET_FILE}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`
+  try {
+    fs.writeFileSync(tmp, secret, { mode: 0o600 })
+    fs.renameSync(tmp, JWT_SECRET_FILE)
+  } catch (error) {
+    try {
+      fs.rmSync(tmp, { force: true })
+    } catch {}
+    throw error
+  }
+}
+
+// `ephemeral` marks a secret used only for this run because the stored one exists but could not be read. The
+// stored file is left alone: overwriting it, as every read failure used to, destroyed a secret that was still
+// fine and, through the password binding derived from it, emptied the passkey store as well.
 function getOrCreateJwtSecret() {
   const envSecret = resolveEnvJwtSecret()
   if (envSecret) {
-    return new TextEncoder().encode(envSecret)
+    return { secret: new TextEncoder().encode(envSecret), ephemeral: false }
   }
 
   try {
     const stored = fs.readFileSync(JWT_SECRET_FILE, "utf8").trim()
     if (isStrongJwtSecret(stored)) {
-      return new TextEncoder().encode(stored)
+      return { secret: new TextEncoder().encode(stored), ephemeral: false }
     }
     console.warn(`[JWT] Replacing a too-short stored secret at ${JWT_SECRET_FILE}`)
   } catch (e) {
     if (e?.code !== "ENOENT") {
-      console.warn("[JWT] Failed to read secret file:", e.message)
+      console.warn("[JWT] Failed to read secret file; using a secret for this run only:", e?.code || e?.message)
+      return { secret: new TextEncoder().encode(crypto.randomBytes(32).toString("hex")), ephemeral: true }
     }
   }
 
   const secret = crypto.randomBytes(32).toString("hex")
   try {
-    fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
-    fs.writeFileSync(JWT_SECRET_FILE, secret, { mode: 0o600 })
+    writeJwtSecretFile(secret)
     console.log("[JWT] Generated and persisted new secret to", JWT_SECRET_FILE)
   } catch (e) {
     console.warn("[JWT] Failed to persist secret:", e.message)
   }
 
-  return new TextEncoder().encode(secret)
+  return { secret: new TextEncoder().encode(secret), ephemeral: false }
 }
 
 function persistJwtSecret(secret) {
@@ -387,8 +408,7 @@ function persistJwtSecret(secret) {
     throw error
   }
 
-  fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
-  fs.writeFileSync(JWT_SECRET_FILE, secret, { mode: 0o600 })
+  writeJwtSecretFile(secret)
   return new TextEncoder().encode(secret)
 }
 
@@ -479,21 +499,26 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
 
   const salt = crypto.randomBytes(16)
   const expectedHash = crypto.scryptSync(normalizedPassword, salt, 64)
-  let jwtSecret = getOrCreateJwtSecret()
+  const initialSecret = getOrCreateJwtSecret()
+  let jwtSecret = initialSecret.secret
+  // A secret for this run only derives a binding the stored passkeys do not match; the store must not be
+  // rewritten to match it.
+  let jwtSecretEphemeral = initialSecret.ephemeral
   loadRevokedSessionIds()
   let passwordBinding = derivePasswordBinding(normalizedPassword, jwtSecret)
   const resolveSessionTtlMs = (trustDevice) => (trustDevice ? TRUSTED_DEVICE_SESSION_TTL_MS : sessionTtlMs)
-  let passkeyController = createUiPasskeys({ passwordBinding })
+  let passkeyController = createUiPasskeys({ passwordBinding, readOnly: jwtSecretEphemeral })
 
   const rebuildPasskeyController = () => {
     passkeyController.dispose()
     passwordBinding = derivePasswordBinding(normalizedPassword, jwtSecret)
-    passkeyController = createUiPasskeys({ passwordBinding })
+    passkeyController = createUiPasskeys({ passwordBinding, readOnly: jwtSecretEphemeral })
   }
 
   const rotateJwtSecret = () => {
     const nextSecret = crypto.randomBytes(32).toString("hex")
     jwtSecret = persistJwtSecret(nextSecret)
+    jwtSecretEphemeral = false
     rebuildPasskeyController()
   }
 
@@ -668,6 +693,13 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
   }
 
   const respondPasskeyError = (res, error) => {
+    if (typeof error?.statusCode !== "number" && typeof error?.code === "string" && error?.syscall) {
+      // A filesystem failure (the data directory unwritable) is the server's fault, and its message carries
+      // local paths that an unauthenticated caller of the status route has no business seeing.
+      console.warn("[UI Passkeys] Request failed:", error.code)
+      res.status(500).json({ error: "Passkey storage is unavailable" })
+      return
+    }
     const statusCode = typeof error?.statusCode === "number" ? error.statusCode : 400
     res.status(statusCode).json({ error: error?.message || "Passkey request failed" })
   }
@@ -745,6 +777,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
    * its cookie.
    */
   const handleSessionLogout = async (req, res) => {
+    let revocationSaved = true
     const token = getTokenFromRequest(req)
     if (token) {
       try {
@@ -758,7 +791,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
             }
           }
           revokedSessionIds.add(tokenId)
-          persistRevokedSessionIds()
+          revocationSaved = persistRevokedSessionIds()
         }
       } catch {
         // An expired or malformed token has nothing to revoke.
@@ -766,6 +799,11 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     }
 
     clearSessionCookie(req, res)
+    if (!revocationSaved) {
+      // The token is refused until the next restart only; a copy of the cookie elsewhere becomes valid again.
+      res.status(500).json({ authenticated: false, error: "Sign-out could not be saved" })
+      return
+    }
     res.json({ authenticated: false })
   }
 

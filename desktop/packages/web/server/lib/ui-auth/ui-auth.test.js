@@ -191,7 +191,7 @@ describe("ui auth", () => {
     const auth = createUiAuth({ password: "correct horse battery staple" })
     const realWrite = fs.writeFileSync
     const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target) === secretFile) {
+      if (String(target).startsWith(secretFile)) {
         const error = new Error("EACCES: permission denied")
         error.code = "EACCES"
         throw error
@@ -210,6 +210,66 @@ describe("ui auth", () => {
     } finally {
       auth.dispose()
       writeSpy.mockRestore()
+    }
+  })
+
+  it("keeps the stored secret and passkeys when the secret file cannot be read", async () => {
+    // Any read error was treated as "no secret": a new one overwrote the file, and the binding derived from it
+    // made the first passkey read replace the store with an empty one. A permissions slip cost every passkey.
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    const secretFile = path.join(tempRoot, "jwt-secret")
+    const secret = "persisted-secret-at-least-32-bytes-long"
+    fs.writeFileSync(secretFile, secret, "utf8")
+    const seeded = seedPasskeyStore({ dataDir: tempRoot, secret, password: "correct horse battery staple", count: 2 })
+    const realRead = fs.readFileSync
+    const readSpy = vi.spyOn(fs, "readFileSync").mockImplementation((target, ...rest) => {
+      if (String(target) === secretFile) {
+        throw Object.assign(new Error("EACCES: permission denied"), { code: "EACCES" })
+      }
+      return realRead(target, ...rest)
+    })
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.resetModules()
+
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    try {
+      auth.handlePasskeyStatus({ headers: { host: "localhost" } }, createResponse())
+      readSpy.mockRestore()
+
+      expect(fs.readFileSync(secretFile, "utf8")).toBe(secret)
+      const stored = JSON.parse(fs.readFileSync(path.join(tempRoot, "ui-passkeys.json"), "utf8"))
+      expect(stored.passkeys).toHaveLength(seeded.length)
+    } finally {
+      auth.dispose()
+    }
+  })
+
+  it("answers a passkey storage failure as a server error without its local path", async () => {
+    process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
+    fs.writeFileSync(path.join(tempRoot, "jwt-secret"), "persisted-secret-at-least-32-bytes-long", "utf8")
+    vi.resetModules()
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password: "correct horse battery staple" })
+    const realWrite = fs.writeFileSync
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
+      if (String(target).includes("ui-passkeys")) {
+        throw Object.assign(new Error(`EACCES: permission denied, open '${target}'`), {
+          code: "EACCES",
+          syscall: "open",
+        })
+      }
+      return realWrite(target, ...rest)
+    })
+    try {
+      const res = createResponse()
+      auth.handlePasskeyStatus({ headers: { host: "localhost" } }, res)
+
+      expect(res.statusCode).toBe(500)
+      expect(JSON.stringify(res.body)).not.toContain(tempRoot)
+    } finally {
+      auth.dispose()
     }
   })
 

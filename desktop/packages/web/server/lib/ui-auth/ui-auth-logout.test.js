@@ -142,6 +142,39 @@ describe("ui auth sign-out", () => {
     auth.dispose()
   })
 
+  it("reports a sign-out whose revocation could not be saved", async () => {
+    // The failed write was only logged and the sign-out answered success, though the token would be valid
+    // again after the next restart.
+    const password = "correct horse battery staple"
+    const { createUiAuth } = await import("./ui-auth.js")
+    const auth = createUiAuth({ password })
+    const loginRes = createResponse()
+    await auth.handleSessionCreate({ body: { password }, headers: { host: "127.0.0.1:4096" } }, loginRes)
+    const token = sessionTokenFrom(loginRes)
+    const realWrite = fs.writeFileSync
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
+      if (String(target).includes("revoked-sessions")) {
+        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
+      }
+      return realWrite(target, ...rest)
+    })
+    try {
+      const logoutRes = createResponse()
+      await auth.handleSessionLogout(
+        { headers: { host: "127.0.0.1:4096", cookie: `oc_ui_session_4096=${encodeURIComponent(token)}` } },
+        logoutRes,
+      )
+
+      expect(logoutRes.statusCode).toBe(500)
+      expect(logoutRes.body).toMatchObject({ authenticated: false })
+    } finally {
+      writeSpy.mockRestore()
+      warn.mockRestore()
+      auth.dispose()
+    }
+  })
+
   it("keeps a signed-out token revoked across a process restart", async () => {
     // The JWT secret is persisted, so a revocation that lives only in memory resurrects the
     // signed-out token on the next launch.
