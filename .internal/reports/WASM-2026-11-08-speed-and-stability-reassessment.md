@@ -20,6 +20,35 @@ lifecycle races, and rendering cost, none of which a language change removes. Tw
 
 Diff syntax highlighting stays on Shiki JS. The terminal already uses WASM through AkiTTY Web and is upstream-owned.
 
+## Release-asset benchmark (2026-11-08, after v7.30.18)
+
+v7.30.18 shipped `ax-code-diff-wasm.tgz`, and its signature and digest verify. A clean `pnpm add` of the tarball outside
+the workspace installs, and a `diff` → `applyHunks` round trip is exact. That closes ax-code#503.
+
+The same machine (Node 26, macOS arm64) then timed the engine's Node Worker against Pierre `parseDiffFromFile`. Medians:
+
+| Input | Pierre (main thread) | diff-wasm (Worker) |
+| --- | ---: | ---: |
+| 2k lines, 5 edits | 0.9 ms | 0.4 ms |
+| 20k lines, ~400 hunks | 29.8 ms | 9.3 ms |
+| 50k lines, ~1000 hunks | 163 ms | rejected |
+| 1k-line full rewrite | 66 ms | rejected |
+| 2k-line full rewrite | 264 ms | rejected |
+| 5k-line full rewrite | 1,685 ms | rejected |
+| 10k-line full rewrite | 7,554 ms | rejected |
+
+Each "rejected" is `Diff resource limit exceeded`: a fixed work budget (`MAX_WORK`) that callers cannot change.
+
+**Revised decision for Candidate 1:** do not adopt the engine yet. It is 2–3× faster where Desktop is already fast,
+and it rejects exactly the large rewrites that freeze the renderer. Desktop would still need its own fallback for
+those inputs. Instead:
+
+- Desktop moves the existing Pierre parse into a dedicated Worker, with a timeout and a "too large" state
+  ([SPEC-2026-11-08-diff-parse-worker-v1](../spec/SPEC-2026-11-08-diff-parse-worker-v1.md)). That removes the freeze
+  for every input without a new dependency.
+- [ax-code#506](https://github.com/defai-digital/ax-code/issues/506) asks the engine to return a marked coarse
+  result over the work limit. Reconsider adoption once that ships in a release.
+
 ## What changed since 2026-11-03
 
 - **Diff artifact delivery (updated later on 2026-11-08).** The AX Code releases `v7.30.16` and `v7.30.17` and SDK
@@ -203,7 +232,8 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 
 1. ~~Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact~~ — requested in
    [defai-digital/ax-code#503](https://github.com/defai-digital/ax-code/issues/503) and implemented in ax-code#504.
-   Next: once v7.30.18 is published, verify the asset's signature and digest and start the Desktop PRD → ADR → spec.
+   v7.30.18 published it; verified and #503 closed. Adoption is deferred: see the release-asset benchmark above and
+   ax-code#506.
 2. ~~Capture packaged Markdown traces~~ and ~~measure diff cost~~ — done (see above). Large rewrites are the case
    that justifies the canonical diff engine.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
