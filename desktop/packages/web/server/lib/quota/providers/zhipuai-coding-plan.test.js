@@ -9,28 +9,11 @@ vi.mock("../../ax-code/shared.js", () => ({
   }),
 }))
 
-const { fetchQuota, readEnvelopeError } = await import("./zhipuai-coding-plan.js")
+const { fetchQuota } = await import("./zhipuai-coding-plan.js")
 
 const quotaResponse = (payload) => {
   fetchWithQuotaTimeout.mockResolvedValueOnce({ ok: true, json: async () => payload })
 }
-
-describe("Zhipu coding plan envelope", () => {
-  it("reports the failure the API puts inside an HTTP 200 body", () => {
-    // A rejected key answers `{code, msg, success:false}`, which used to read as a successful
-    // empty card: no windows and no reason.
-    expect(readEnvelopeError({ code: 401, msg: "invalid api key", success: false })).toBe("invalid api key")
-    expect(readEnvelopeError({ code: 500, success: false })).toBe("Usage request failed (500)")
-    expect(readEnvelopeError({ code: 429, msg: "   " })).toBe("Usage request failed (429)")
-  })
-
-  it("leaves a normal payload alone", () => {
-    expect(readEnvelopeError({ code: 200, msg: "ok", data: { limits: [] } })).toBeNull()
-    expect(readEnvelopeError({ success: true, data: { limits: [] } })).toBeNull()
-    expect(readEnvelopeError({ data: { limits: [] } })).toBeNull()
-    expect(readEnvelopeError(null)).toBeNull()
-  })
-})
 
 describe("Zhipu coding plan windows", () => {
   beforeEach(() => {

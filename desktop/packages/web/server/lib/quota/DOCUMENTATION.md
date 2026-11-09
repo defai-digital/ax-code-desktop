@@ -10,6 +10,9 @@ This module fetches quota and usage signals for supported providers in the web s
 - `packages/web/server/lib/quota/routes.js`: Express route registration for quota endpoints.
 - `packages/web/server/lib/quota/providers/index.js`: provider registry, configured-provider list, and provider dispatcher.
 - `packages/web/server/lib/quota/providers/google/`: Google-specific auth, API, and transform modules.
+- `packages/web/server/lib/quota/providers/zhipu-monitor-shared.js`: the quota monitor API that `zai.js` and
+  `zhipuai-coding-plan.js` both call (request, error envelope, limit lookups).
+- `packages/web/server/lib/quota/providers/minimax-shared.js`: the API shared by the two MiniMax providers.
 - `packages/web/server/lib/quota/utils/`: shared auth, transform, and formatting helpers.
 
 ## Supported provider IDs (dispatcher)
