@@ -16,6 +16,7 @@ import {
   pruneRebindTimestamps,
   readTerminalInputWsControlFrame,
   resolveTerminalDimensions,
+  trimTerminalOutputChunkToMaxBytes,
 } from "./index.js"
 
 export const observeTerminalShellStartup = (ptyProcess, graceMs) =>
@@ -61,6 +62,11 @@ export const observeTerminalShellStartup = (ptyProcess, graceMs) =>
 
     dataDisposable = ptyProcess.onData((chunk) => {
       earlyOutput += typeof chunk === "string" ? chunk : String(chunk)
+      // Only the replay tail is ever kept from this, and a startup script that floods the pty (`yes`,
+      // `cat` of a large file) would otherwise build one unbounded string before the session exists.
+      if (earlyOutput.length > TERMINAL_OUTPUT_REPLAY_MAX_BYTES * 2) {
+        earlyOutput = trimTerminalOutputChunkToMaxBytes(earlyOutput, TERMINAL_OUTPUT_REPLAY_MAX_BYTES)
+      }
     })
     exitDisposable = ptyProcess.onExit(({ exitCode, signal }) => finish({ crashed: true, exitCode, signal }))
     timer = setTimeout(() => finish({ crashed: false }), graceMs)

@@ -29,6 +29,7 @@ export {
   listTerminalOutputReplayChunksSince,
   readTerminalOutputReplayText,
   getLatestTerminalOutputReplayChunkId,
+  trimTerminalOutputChunkToMaxBytes,
 } from "./output-replay-buffer.js"
 
 export {

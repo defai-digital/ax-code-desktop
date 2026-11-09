@@ -15,6 +15,7 @@ import {
   sanitizeTerminalEnv,
 } from "./runtime.js"
 import { createMockRequest, createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
+import { TERMINAL_OUTPUT_REPLAY_MAX_BYTES } from "./output-replay-buffer.js"
 
 describe("terminal shell selection", () => {
   const resolve = (platform, env, unavailable = []) => getTerminalShellCandidates({
@@ -124,6 +125,29 @@ describe("terminal runtime", () => {
       exitCode: 0,
       signal: 11,
     })
+  })
+
+  it("keeps only the replay tail of a startup flood", async () => {
+    let onData = null
+    const ptyProcess = {
+      onData(callback) {
+        onData = callback
+        return { dispose() {} }
+      },
+      onExit() {
+        return { dispose() {} }
+      },
+    }
+
+    const outcomePromise = observeTerminalShellStartup(ptyProcess, 20)
+    const line = `${"y".repeat(1023)}\n`
+    for (let index = 0; index < 4096; index += 1) onData(line)
+    onData("last-line\n")
+    const outcome = await outcomePromise
+    const output = outcome.release()
+
+    expect(Buffer.byteLength(output, "utf8")).toBeLessThanOrEqual(TERMINAL_OUTPUT_REPLAY_MAX_BYTES * 2)
+    expect(output.endsWith("last-line\n")).toBe(true)
   })
 
   it("keeps collecting startup output until release() after a healthy start", async () => {

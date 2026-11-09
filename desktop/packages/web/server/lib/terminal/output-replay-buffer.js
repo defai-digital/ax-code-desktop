@@ -1,6 +1,6 @@
 export const TERMINAL_OUTPUT_REPLAY_MAX_BYTES = 64 * 1024
 
-const trimTerminalOutputChunkToMaxBytes = (data, maxBytes) => {
+export const trimTerminalOutputChunkToMaxBytes = (data, maxBytes) => {
   if (typeof data !== "string" || data.length === 0) {
     return ""
   }
