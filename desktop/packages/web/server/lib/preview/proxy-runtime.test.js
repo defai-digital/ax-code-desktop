@@ -1430,3 +1430,87 @@ describe("preview proxy response hardening", () => {
     expect(String(body)).toContain("openchamber-preview-bridge")
   })
 })
+
+describe("preview proxy resource bounds", () => {
+  const setup = (runtimeOptions = {}) => {
+    let targetRoute = null
+    let proxyOptions = null
+    let randomCounter = 0
+    const runtime = createPreviewProxyRuntime({
+      crypto: {
+        randomBytes: () => Buffer.from(String(++randomCounter).padStart(32, "0"), "hex"),
+      },
+      URL,
+      createProxyMiddleware: (options) => {
+        proxyOptions = options
+        const middleware = vi.fn()
+        middleware.upgrade = vi.fn()
+        return middleware
+      },
+      responseInterceptor,
+      ...runtimeOptions,
+    })
+    runtime.attach(
+      {
+        post: (_path, ...handlers) => {
+          targetRoute = handlers.at(-1)
+        },
+        use() {},
+      },
+      {
+        server: { on: vi.fn() },
+        express: { json: vi.fn(() => vi.fn()) },
+        uiAuthController: null,
+        isRequestOriginAllowed: vi.fn(async () => true),
+        rejectWebSocketUpgrade: vi.fn(),
+      },
+    )
+    const createTarget = async (body) => {
+      const headers = new Map()
+      const response = { setHeader: (name, value) => headers.set(name.toLowerCase(), value), json: vi.fn() }
+      await targetRoute({ body, secure: false }, response)
+      return { target: response.json.mock.calls[0][0], cookie: String(headers.get("set-cookie")).split(";", 1)[0] }
+    }
+    return { createTarget, proxyOptions: () => proxyOptions }
+  }
+
+  it("caps a requested target lifetime at the default instead of keeping it forever", async () => {
+    const { createTarget } = setup()
+    const before = Date.now()
+    const { target } = await createTarget({ url: "http://127.0.0.1:3000", ttlMs: 1e308 })
+    expect(target.expiresAt).toBeLessThanOrEqual(Date.now() + 30 * 60 * 1000)
+    expect(target.expiresAt).toBeGreaterThan(before)
+  })
+
+  it("answers 502 instead of buffering a rewritable body past the cap", async () => {
+    const { createTarget, proxyOptions } = setup({ maxBufferedBodyBytes: 1024 })
+    const { target, cookie } = await createTarget({ url: "http://127.0.0.1:3000" })
+    const req = { originalUrl: `${target.proxyBasePath}/app.js`, headers: { cookie }, secure: false }
+
+    const { res, body } = await callProxyRes({
+      proxyOptions: proxyOptions(),
+      body: Buffer.alloc(4096, "a"),
+      headers: { "content-type": "text/javascript" },
+      req,
+    })
+
+    expect(res.statusCode).toBe(502)
+    expect(String(body)).toBe("Preview response is too large to proxy")
+  })
+
+  it("still rewrites a body within the cap", async () => {
+    const { createTarget, proxyOptions } = setup({ maxBufferedBodyBytes: 1024 })
+    const { target, cookie } = await createTarget({ url: "http://127.0.0.1:3000" })
+    const req = { originalUrl: `${target.proxyBasePath}/app.css`, headers: { cookie }, secure: false }
+
+    const { res, body } = await callProxyRes({
+      proxyOptions: proxyOptions(),
+      body: Buffer.from("body { background: url(/bg.png) }"),
+      headers: { "content-type": "text/css" },
+      req,
+    })
+
+    expect(res.statusCode).toBe(200)
+    expect(String(body)).toContain(`${target.proxyBasePath}/bg.png`)
+  })
+})

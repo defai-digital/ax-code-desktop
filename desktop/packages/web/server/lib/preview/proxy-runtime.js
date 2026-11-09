@@ -1,6 +1,13 @@
 import { UI_SESSION_COOKIE_NAME } from "../ui-auth/ui-session-cookie.js"
+import { createCappedResponseInterceptor } from "./capped-response-interceptor.js"
 
 const DEFAULT_TARGET_TTL_MS = 30 * 60 * 1000
+const MIN_TARGET_TTL_MS = 15_000
+// No client asks for a longer life; an unbounded request value made a target the sweeper never removes.
+const MAX_TARGET_TTL_MS = DEFAULT_TARGET_TTL_MS
+// A rewritten body is held in memory in full before anything is sent; past this many decoded bytes the
+// proxy answers 502 instead (createCappedResponseInterceptor).
+export const MAX_BUFFERED_PROXY_BODY_BYTES = 64 * 1024 * 1024
 const TOKEN_COOKIE_NAME = "oc_preview_token"
 
 const LOOPBACK_HOSTS = new Set(["localhost", "::1", "[::1]", "0.0.0.0"])
@@ -1355,7 +1362,12 @@ export const rewritePreviewBody = ({ bodyText, proxyBasePath, targetOrigin, kind
   return bodyText
 }
 
-export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, responseInterceptor }) => {
+export const createPreviewProxyRuntime = ({
+  crypto,
+  URL,
+  createProxyMiddleware,
+  maxBufferedBodyBytes = MAX_BUFFERED_PROXY_BODY_BYTES,
+}) => {
   const targets = new Map()
   let sweepTimer = null
 
@@ -1389,7 +1401,10 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
     const createdAt = now()
     const expiresAt = Number.isFinite(inheritedExpiresAt)
       ? inheritedExpiresAt
-      : createdAt + (Number.isFinite(ttlMs) ? Math.max(15_000, Math.trunc(ttlMs)) : DEFAULT_TARGET_TTL_MS)
+      : createdAt +
+        (Number.isFinite(ttlMs)
+          ? Math.min(MAX_TARGET_TTL_MS, Math.max(MIN_TARGET_TTL_MS, Math.trunc(ttlMs)))
+          : DEFAULT_TARGET_TTL_MS)
     targets.set(id, {
       id,
       origin,
@@ -1879,7 +1894,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
           rewritePreviewOriginHeaders(proxyReq, req)
         },
         proxyRes: (() => {
-          const bufferedProxyResponse = responseInterceptor(async (responseBuffer, proxyRes, req, res) => {
+          const bufferedProxyResponse = createCappedResponseInterceptor(async (responseBuffer, proxyRes, req, res) => {
             // Allow the site to be framed inside OpenChamber even if it sets
             // X-Frame-Options or a CSP frame-ancestors rule. The proxy is
             // same-origin so embedding is otherwise safe. Strip on `res` (not
@@ -1979,7 +1994,7 @@ export const createPreviewProxyRuntime = ({ crypto, URL, createProxyMiddleware, 
               return injectPreviewBridge(rewrittenBody, resolved.entry.origin)
             }
             return rewrittenBody
-          })
+          }, { maxBytes: maxBufferedBodyBytes })
 
           return (proxyRes, req, res) => {
             if (shouldBufferProxyResponse(proxyRes)) {

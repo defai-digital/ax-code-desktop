@@ -66,7 +66,7 @@ import { createDevRuntimeUpstreamWriter } from "./lib/ax-code/dev-runtime-upstre
 import { createProjectConfigRuntime } from "./lib/projects/project-config.js"
 import { expandSnippets } from "./lib/ax-code/snippets.js"
 import { createPreviewProxyRuntime } from "./lib/preview/proxy-runtime.js"
-import { createProxyMiddleware, responseInterceptor } from "http-proxy-middleware"
+import { createProxyMiddleware } from "http-proxy-middleware"
 import { createSseProxyMetrics } from "./lib/ax-code/proxy.js"
 
 const __filename = fileURLToPath(import.meta.url)
@@ -1468,7 +1468,6 @@ async function main(options = {}) {
     crypto,
     URL,
     createProxyMiddleware,
-    responseInterceptor,
   })
   previewProxyRuntime.attach(app, {
     server,
