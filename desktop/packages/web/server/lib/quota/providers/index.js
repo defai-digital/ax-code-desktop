@@ -125,7 +125,9 @@ export const listConfiguredQuotaProviders = () => {
 }
 
 export const fetchQuotaForProvider = async (providerId) => {
-  const provider = registry[providerId]
+  // Own entries only: a plain-object lookup resolved `constructor` or `toString` from the URL
+  // to Object.prototype members instead of reporting an unsupported provider.
+  const provider = Object.hasOwn(registry, providerId) ? registry[providerId] : null
 
   if (!provider) {
     return buildResult({
