@@ -1,12 +1,12 @@
 /**
- * Controlled CPU microbenchmark of the synchronous hunk work that runs on the renderer
- * thread: getFileHunks (DiffHunkReviewList memo, usePublishReviewHunks effect) and
- * revertHunk (hunk revert click). Not a renderer/FPS benchmark; it sizes the main-thread
- * block that a Worker-hosted diff engine would remove.
+ * Controlled CPU microbenchmark of the hunk work: the shared parse (on the renderer thread up to
+ * SYNC_PARSE_MAX_CHARACTERS, in the diff Worker above it) and revertHunk (hunk revert click).
+ * Node has no Web Worker, so the parse client falls back to this thread and every sample times
+ * the parse itself. Not a renderer/FPS benchmark.
  * Run: pnpm run bench:diff-hunks
  */
 import assert from "node:assert/strict"
-import { clearFileHunkCache, getFileHunks, revertHunk } from "./diffHunkRevert"
+import { clearFileHunkCache, loadFileDiff, revertHunk } from "./diffHunkRevert"
 
 const SAMPLES = 7
 
@@ -43,11 +43,14 @@ const FIXTURES: Fixture[] = [
   rewrite("5k lines, full rewrite", 5_000),
 ]
 
-const time = (run: () => void): number => {
+const time = async (run: () => unknown): Promise<number> => {
   const start = performance.now()
-  run()
+  await run()
   return performance.now() - start
 }
+
+const getFileHunks = async (original: string, modified: string, fileName: string) =>
+  (await loadFileDiff(original, modified, fileName))?.hunks ?? []
 
 const stats = (values: number[]) => {
   const sorted = [...values].sort((a, b) => a - b)
@@ -60,7 +63,7 @@ console.log("fixture".padEnd(38), "chars".padStart(9), "hunks".padStart(6), "  p
 for (const fixture of FIXTURES) {
   // Warm up the parser's JIT on this shape before measuring.
   clearFileHunkCache()
-  const hunks = getFileHunks(fixture.original, fixture.modified, "bench.ts")
+  const hunks = await getFileHunks(fixture.original, fixture.modified, "bench.ts")
   assert.ok(hunks.length > 0, `${fixture.name} produced no hunks`)
 
   const parse: number[] = []
@@ -69,11 +72,11 @@ for (const fixture of FIXTURES) {
   const middle = Math.floor(hunks.length / 2)
   for (let sample = 0; sample < SAMPLES; sample += 1) {
     clearFileHunkCache()
-    parse.push(time(() => getFileHunks(fixture.original, fixture.modified, "bench.ts")))
+    parse.push(await time(() => getFileHunks(fixture.original, fixture.modified, "bench.ts")))
     // A cache hit still hashes both full texts to build its key.
-    cached.push(time(() => getFileHunks(fixture.original, fixture.modified, "bench.ts")))
+    cached.push(await time(() => getFileHunks(fixture.original, fixture.modified, "bench.ts")))
     let reverted = ""
-    revert.push(time(() => (reverted = revertHunk(fixture.original, fixture.modified, middle, "bench.ts"))))
+    revert.push(await time(async () => (reverted = await revertHunk(fixture.original, fixture.modified, middle, "bench.ts"))))
     assert.notEqual(reverted, fixture.modified, `${fixture.name} revert changed nothing`)
   }
   const p = stats(parse)

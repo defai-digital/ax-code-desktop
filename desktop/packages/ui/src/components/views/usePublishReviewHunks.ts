@@ -3,7 +3,7 @@ import { useEffect } from "react"
 import { publishReviewHunks, releaseReviewHunks, retainReviewHunks, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
 import { reviewHunkAnchors } from "@/lib/reviewHunkNavigation"
 
-import { getFileHunks } from "./diffHunkRevert"
+import { useFileDiff } from "./useFileDiff"
 
 /**
  * Measure one file's hunk list from the same parse Pierre uses to draw it.
@@ -23,12 +23,14 @@ export function usePublishReviewHunks(
   const scope = useReviewHunkScope()
   const scopeId = scope?.id
   const directory = scope?.directory ?? ""
+  // Without a scope nothing is published, so skip the parse (and the Worker) entirely.
+  const fileDiff = useFileDiff(scopeId && path ? original : null, scopeId && path ? modified : null, path ?? "")
+  // A diff that is still computing, timed out or failed publishes no anchors rather than stale ones.
+  const hunks = fileDiff.status === "ready" ? fileDiff.diff?.hunks : undefined
   useEffect(() => {
     if (!path || !scopeId) return
     retainReviewHunks(scopeId, directory, path)
-    const anchors =
-      original === null || modified === null ? [] : reviewHunkAnchors(getFileHunks(original, modified, path))
-    publishReviewHunks(scopeId, directory, path, anchors)
+    publishReviewHunks(scopeId, directory, path, hunks ? reviewHunkAnchors(hunks) : [])
     return () => releaseReviewHunks(scopeId, directory, path)
-  }, [directory, modified, original, path, scopeId])
+  }, [directory, hunks, path, scopeId])
 }

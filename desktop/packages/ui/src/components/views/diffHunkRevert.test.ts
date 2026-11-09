@@ -13,7 +13,11 @@ vi.mock("@pierre/diffs", async (importOriginal) => {
   }
 })
 
-const { clearFileHunkCache, getFileDiff, getFileHunks, revertHunk } = await import("./diffHunkRevert")
+const { clearFileHunkCache, loadFileDiff, revertHunk } = await import("./diffHunkRevert")
+
+const getFileDiff = (before: string, after: string, fileName: string) => loadFileDiff(before, after, fileName)
+const getFileHunks = async (before: string, after: string, fileName: string) =>
+  (await loadFileDiff(before, after, fileName))?.hunks ?? []
 
 // 20 unchanged lines with a wide gap between the two edits: this diff library
 // merges hunks that are closer than its internal context threshold, so the
@@ -33,47 +37,47 @@ describe("diffHunkRevert", () => {
     parseCalls.count = 0
   })
 
-  it("shares one parse between the hunk list, the viewer diff and hunk revert", () => {
-    const hunks = getFileHunks(original, modified, "file.txt")
-    const diff = getFileDiff(original, modified, "file.txt")
+  it("shares one parse between the hunk list, the viewer diff and hunk revert", async () => {
+    const hunks = await getFileHunks(original, modified, "file.txt")
+    const diff = await getFileDiff(original, modified, "file.txt")
     expect(diff?.hunks).toBe(hunks)
-    revertHunk(original, modified, 1, "file.txt")
+    await revertHunk(original, modified, 1, "file.txt")
     // The line diff is super-linear in edit distance, so every repeat is a main-thread stall.
     expect(parseCalls.count).toBe(1)
   })
 
-  it("reverting a hunk leaves the shared parse unchanged", () => {
-    const diff = getFileDiff(original, modified, "file.txt")
+  it("reverting a hunk leaves the shared parse unchanged", async () => {
+    const diff = await getFileDiff(original, modified, "file.txt")
     const snapshot = JSON.stringify(diff)
-    revertHunk(original, modified, 0, "file.txt")
-    expect(JSON.stringify(getFileDiff(original, modified, "file.txt"))).toBe(snapshot)
-    expect(getFileHunks(original, modified, "file.txt")).toHaveLength(2)
+    await revertHunk(original, modified, 0, "file.txt")
+    expect(JSON.stringify(await getFileDiff(original, modified, "file.txt"))).toBe(snapshot)
+    expect(await getFileHunks(original, modified, "file.txt")).toHaveLength(2)
   })
 
-  it("does not parse two empty sides", () => {
-    expect(getFileDiff("", "", "binary.png")).toBeNull()
-    expect(getFileHunks("", "", "binary.png")).toEqual([])
+  it("does not parse two empty sides", async () => {
+    expect(await getFileDiff("", "", "binary.png")).toBeNull()
+    expect(await getFileHunks("", "", "binary.png")).toEqual([])
     expect(parseCalls.count).toBe(0)
   })
 
-  it("parses two separate hunks", () => {
-    const hunks = getFileHunks(original, modified, "file.txt")
+  it("parses two separate hunks", async () => {
+    const hunks = await getFileHunks(original, modified, "file.txt")
     expect(hunks).toHaveLength(2)
   })
 
-  it("reverts only the targeted hunk, leaving the other intact", () => {
-    const reverted = revertHunk(original, modified, 0, "file.txt")
+  it("reverts only the targeted hunk, leaving the other intact", async () => {
+    const reverted = await revertHunk(original, modified, 0, "file.txt")
     expect(reverted).toContain("line2\n")
     expect(reverted).not.toContain("line2-edited")
     expect(reverted).toContain(`line${lineCount - 1}-edited`)
   })
 
-  it("reverting the last remaining hunk restores the original file exactly", () => {
-    const afterFirstRevert = revertHunk(original, modified, 0, "file.txt")
-    const hunksAfterFirstRevert = getFileHunks(original, afterFirstRevert, "file.txt")
+  it("reverting the last remaining hunk restores the original file exactly", async () => {
+    const afterFirstRevert = await revertHunk(original, modified, 0, "file.txt")
+    const hunksAfterFirstRevert = await getFileHunks(original, afterFirstRevert, "file.txt")
     expect(hunksAfterFirstRevert).toHaveLength(1)
 
-    const afterSecondRevert = revertHunk(original, afterFirstRevert, 0, "file.txt")
+    const afterSecondRevert = await revertHunk(original, afterFirstRevert, 0, "file.txt")
     expect(afterSecondRevert).toBe(original)
   })
 })

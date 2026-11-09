@@ -4,6 +4,7 @@ import { useGitStore } from "@/stores/useGitStore"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { useI18n } from "@/lib/i18n"
 import { revertHunk } from "./diffHunkRevert"
+import { DiffParseError } from "./diffParseClient"
 import { toViewAbsolutePath } from "./viewPathUtils"
 
 interface UseDiffHunkRevertOptions {
@@ -52,7 +53,10 @@ export function useDiffHunkRevert({ directory, filePath, diff }: UseDiffHunkReve
         }
         setDiff(directory, filePath, { original: diff.original, modified: reconstructed })
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : t("diffView.hunk.revertFailed"))
+        // A diff that could not be computed has no user-readable message of its own.
+        toast.error(
+          error instanceof Error && !(error instanceof DiffParseError) ? error.message : t("diffView.hunk.revertFailed"),
+        )
       } finally {
         inFlightRef.current = false
         setRevertingHunkIndex(null)

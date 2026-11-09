@@ -7,7 +7,7 @@ import { getReviewHunkAnchors, resetReviewHunkNavigation } from "@/lib/reviewHun
 import { ReviewHunkScopeProvider } from "@/lib/reviewHunkScope"
 import { cleanup, render } from "@/test/dom"
 
-import { clearFileHunkCache, getFileHunks } from "./diffHunkRevert"
+import { clearFileHunkCache, peekFileDiff } from "./diffHunkRevert"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 
@@ -26,6 +26,13 @@ vi.mock("@/components/ui/tooltip", () => ({
 }))
 
 vi.mock("@/components/icon/Icon", () => ({ Icon: () => <span /> }))
+
+// These inputs are under SYNC_PARSE_MAX_CHARACTERS, so the shared parse is synchronous.
+function getFileHunks(before: string, after: string, fileName: string) {
+  const snapshot = peekFileDiff(before, after, fileName)
+  if (snapshot.status !== "ready") throw new Error(`expected a synchronous parse, got ${snapshot.status}`)
+  return snapshot.diff?.hunks ?? []
+}
 
 const originalLines = Array.from({ length: 20 }, (_, index) => `line${index + 1}`)
 const original = originalLines.join("\n")

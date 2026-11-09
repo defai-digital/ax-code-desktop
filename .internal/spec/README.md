@@ -8,6 +8,10 @@ the accepted text. Older records use the former name "AX Coder" (ADR-015).
 
 ## Active
 
+Diff parsing: [Diff parse worker v1](SPEC-2026-11-08-diff-parse-worker-v1.md) moves the shared Pierre diff parse
+for large inputs into a dedicated Worker with cancellation, a timeout and an explicit too-large state. Authorized by
+the user on 2026-11-08 after the canonical diff engine benchmark.
+
 Engine upgrade: [Electron 45 stable v1](SPEC-2026-11-08-electron-45-stable-v1.md) governs the requested exact
 `45.2.3` upgrade and Mission Control renderer startup adaptation. Implemented in `35e9b684`; the generated lockfile
 preserves SDK `2.6.69`. All six root gates, native smokes, unsigned macOS packaging, bundled-runtime smoke and

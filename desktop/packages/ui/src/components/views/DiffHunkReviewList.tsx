@@ -1,10 +1,13 @@
 import React from "react"
+import type { Hunk } from "@pierre/diffs"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { useReviewHunkFocus } from "@/lib/reviewHunkRegistry"
-import { getFileHunks } from "./diffHunkRevert"
+import { useFileDiff } from "./useFileDiff"
 import type { FileDiffHunk } from "./gitHunkPatch"
+
+const NO_HUNKS: Hunk[] = []
 
 interface DiffHunkReviewListProps {
   original: string
@@ -35,7 +38,10 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
     const { t } = useI18n()
     const hunkFocus = useReviewHunkFocus(fileName)
 
-    const hunks = React.useMemo(() => getFileHunks(original, modified, fileName ?? ""), [original, modified, fileName])
+    const fileDiff = useFileDiff(original, modified, fileName ?? "")
+    // Rows exist only for a computed diff; while it loads, or after it timed out or failed, no revert
+    // or stage action is offered for a hunk that is not known.
+    const hunks = fileDiff.status === "ready" ? (fileDiff.diff?.hunks ?? NO_HUNKS) : NO_HUNKS
 
     // Rows come from the diff library's parse of the file contents; the git diff
     // text's hunks start at the same new-side line whenever both segment the

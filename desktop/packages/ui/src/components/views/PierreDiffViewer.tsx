@@ -20,6 +20,8 @@ import {
 
 import { useOptionalThemeSystem } from "@/contexts/useThemeSystem"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
+import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
+import { useI18n } from "@/lib/i18n"
 import { useWorkerPool } from "@/contexts/DiffWorkerProvider"
 import { ensurePierreThemeRegistered, getAppThemeRegistrationId, getResolvedShikiTheme } from "@/lib/shiki/appThemeRegistry"
 import { getDefaultTheme } from "@/lib/theme/themes"
@@ -35,7 +37,7 @@ import type { ReviewHunkAnchor } from "@/lib/reviewHunkNavigation"
 import { getReviewHunkAnchors, useReviewHunkFocus, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
 import { applyReviewHunkHighlight, clearReviewHunkHighlight, syncReviewHunkHighlightFrame } from "./reviewHunkFocus"
 import { usePublishReviewHunks } from "./usePublishReviewHunks"
-import { getFileDiff } from "./diffHunkRevert"
+import { useFileDiff } from "./useFileDiff"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -232,7 +234,13 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   wrapLines,
   layout = "fill",
 }) => {
+  const { t } = useI18n()
   const registerThreadContent = React.useContext(RegisterReviewThreadContentContext)
+  // Large diffs compute in the diff Worker; nothing renders until this file's own parse is ready, so
+  // Pierre never parses on this thread and a late result for earlier contents never paints.
+  const fileDiffState = useFileDiff(original, modified, fileName || "")
+  const diffReady = fileDiffState.status === "ready"
+  const sharedDiff = fileDiffState.status === "ready" ? fileDiffState.diff : null
   useEffect(() => {
     if (fileName) return registerThreadContent?.(fileName, { original, modified })
   }, [fileName, original, modified, registerThreadContent])
@@ -572,6 +580,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     sharedVirtualizerRef.current?.release()
     sharedVirtualizerRef.current = null
     container.innerHTML = ""
+    if (!diffReady) return
 
     const sharedVirtualizer = acquireSharedVirtualizer(container)
     sharedVirtualizerRef.current = sharedVirtualizer
@@ -603,7 +612,6 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     // Reuse the shared parse instead of letting Pierre parse again on this thread; the hunk
     // list and review navigation read the same entry. The copy carries this viewer's
     // highlight cache key and language without touching the shared object.
-    const sharedDiff = getFileDiff(original, modified, fileName || "")
     const fileDiff = sharedDiff
       ? { ...sharedDiff, cacheKey: `${oldFile.cacheKey}:${newFile.cacheKey}`, lang: newFile.lang ?? sharedDiff.lang }
       : undefined
@@ -631,7 +639,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       }
       container.innerHTML = ""
     }
-  }, [diffThemeKey, fileName, language, modified, options, original, workerPool])
+  }, [diffReady, diffThemeKey, fileName, language, modified, options, original, sharedDiff, workerPool])
 
   useEffect(() => {
     const instance = diffInstanceRef.current
@@ -844,10 +852,21 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     }
     // Same inputs as the render effect: a rebuild replaces the element this observes, and an observer
     // on the detached node reports nothing.
-  }, [diffThemeKey, fileName, language, modified, options, original])
+  }, [diffReady, diffThemeKey, fileName, language, modified, options, original, sharedDiff])
 
   if (typeof window === "undefined") {
     return null
+  }
+
+  let diffStatus: React.ReactNode = null
+  if (fileDiffState.status === "loading") {
+    diffStatus = <ViewLoadingSkeleton rows={3} label={t("diffView.state.loadingDiff")} />
+  } else if (fileDiffState.status === "too-large" || fileDiffState.status === "error") {
+    diffStatus = (
+      <div role="status" className="px-4 py-8 text-center typography-ui-label text-muted-foreground">
+        {t(fileDiffState.status === "too-large" ? "diffView.branch.tooLarge" : "diffView.state.failedToLoadDiff")}
+      </div>
+    )
   }
 
   const commentOverlays = (
@@ -885,6 +904,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
             data-diff-virtual-content
           >
             <div ref={diffRootRef} className="size-full relative">
+              {diffStatus}
               <div ref={diffContainerRef} className="size-full" />
             </div>
           </ScrollableOverlay>
@@ -898,6 +918,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   return (
     <div className={cn("relative", "w-full")} dir="ltr">
       <div ref={diffRootRef} className="pierre-diff-wrapper w-full overflow-x-auto overflow-y-visible relative">
+        {diffStatus}
         <div ref={diffContainerRef} className="w-full" />
       </div>
       {commentOverlays}
