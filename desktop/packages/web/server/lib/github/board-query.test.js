@@ -33,6 +33,20 @@ describe("github board query", () => {
     ).toBe('repo:acme/app is:issue is:closed label:"good first issue" "repo:evil"')
   })
 
+  it("limits the length of each label, not of the whole list", () => {
+    // The limit applied to the joined list cut the last label short, and since every label must match, the board
+    // showed nothing.
+    expect(
+      buildIssueSearchQuery({
+        owner: "acme",
+        repo: "app",
+        state: "open",
+        label: "priority: high,good first issue,help wanted,frontend",
+        text: "",
+      }),
+    ).toBe('repo:acme/app is:issue is:open label:"priority: high" label:"good first issue" label:"help wanted" label:"frontend"')
+  })
+
   it("matches several labels when the value is comma-separated", () => {
     // The route sends a comma-joined value down this path *because* a comma separates labels on listForRepo, and
     // GitHub's search needs one qualifier per label: a single quoted phrase matched only a label by that name.

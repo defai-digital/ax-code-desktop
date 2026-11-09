@@ -97,4 +97,29 @@ describe("the search fallback's 403 memo", () => {
 
     expect(allowed).toHaveBeenCalled()
   })
+
+  it("searches only the repositories the branch can belong to", async () => {
+    // Unscoped, the search covered all of GitHub: for a common branch name the first page was other people's pull
+    // requests, every one filtered out, and the answer "no pull request" was cached.
+    clearPrStatusResolutionCaches()
+    const search = vi.fn(async () => ({ data: { items: [] } }))
+    await resolveGitHubPrStatus({ octokit: octokitWithSearch(search), directory: "/tmp/repo", branch: "fix-typo" })
+
+    expect(search).toHaveBeenCalled()
+    expect(search.mock.calls[0][0].q).toContain(" repo:owner/repo")
+  })
+
+  it("propagates a throttled search instead of answering that there is no pull request", async () => {
+    clearPrStatusResolutionCaches()
+    const throttled = vi.fn(async () => {
+      throw Object.assign(new Error("rate limited"), {
+        status: 403,
+        response: { headers: { "x-ratelimit-remaining": "0" } },
+      })
+    })
+
+    await expect(
+      resolveGitHubPrStatus({ octokit: octokitWithSearch(throttled), directory: "/tmp/repo", branch: "throttled" }),
+    ).rejects.toMatchObject({ status: 403 })
+  })
 })

@@ -217,14 +217,15 @@ export const createScheduledTaskConvergence = (deps) => {
     }
 
     for (const payload of result.payloads) {
-      const existing = existingByTitle.get(payload.title)
+      const sameTitle = existingByTitle.get(payload.title)
+      const existing = sameTitle?.shift()
       if (existing) {
         // One entry in the runtime's list accounts for one desktop task. Consuming it here is what keeps a second
         // desktop task with the same name — nothing forbids one — from reading the same entry as "already
         // migrated" and being dropped from the project file: the seventeenth round removed the in-run
         // registration that used to mask this, and a run that had created one of them left the other to be lost
         // on the retry.
-        existingByTitle.delete(payload.title)
+        if (sameTitle.length === 0) existingByTitle.delete(payload.title)
         // Idempotency: already created by a previous (half-completed) run.
         // A disabled desktop task must still end up paused — a previous run
         // may have created the task but crashed before the pause call.
@@ -364,10 +365,15 @@ export const createScheduledTaskConvergence = (deps) => {
       let existingByTitle
       try {
         const existing = await listRuntimeTasks(projectPath)
+        // Every runtime entry per title, not the last one: with two desktop tasks of the same name already
+        // created by an interrupted run, a single entry per title matched the first and the second was created
+        // again, so the same prompt ran twice on every schedule.
         existingByTitle = new Map()
         for (const task of existing) {
           if (typeof task?.title === "string") {
-            existingByTitle.set(task.title, task)
+            const sameTitle = existingByTitle.get(task.title)
+            if (sameTitle) sameTitle.push(task)
+            else existingByTitle.set(task.title, [task])
           }
         }
       } catch (error) {

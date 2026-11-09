@@ -365,6 +365,8 @@ const parseRepoFromApiUrl = (value) => {
 const _searchApiDisabledRepos = new Map()
 const SEARCH_API_RETRY_MS = 5 * 60 * 1000 // retry after 5 minutes
 const SEARCH_API_DISABLED_MAX = 200
+// GitHub caps a search query's length and its number of boolean operators; a fork network rarely needs more.
+const MAX_SEARCH_REPO_QUALIFIERS = 5
 
 const searchFallbackPr = async ({ octokit, branch, repos }) => {
   const epoch = getGitHubAccountCacheEpoch()
@@ -382,12 +384,20 @@ const searchFallbackPr = async ({ octokit, branch, repos }) => {
   }
 
   const allowedRepoKeys = new Set(repos.map((repo) => normalizeRepoKey(repo?.owner, repo?.repo)).filter(Boolean))
+  // Without `repo:` the search covered every repository on GitHub, so for a common branch name (`fix-typo`, `dev`)
+  // the first page was other people's pull requests, all filtered out below: "no PR", cached. Repeated `repo:`
+  // qualifiers are ORed. Only names safe to interpolate are added; the filter below still applies.
+  const repoQualifiers = [...allowedRepoKeys]
+    .filter((key) => /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/.test(key))
+    .slice(0, MAX_SEARCH_REPO_QUALIFIERS)
+    .map((key) => ` repo:${key}`)
+    .join("")
 
   for (const state of ["open", "closed"]) {
     let response
     try {
       response = await octokit.rest.search.issuesAndPullRequests({
-        q: `is:pr state:${state} head:${branch}`,
+        q: `is:pr state:${state} head:${branch}${repoQualifiers}`,
         per_page: 20,
       })
       // If we get here, search API works for this repo — clear the disabled flag
@@ -408,6 +418,10 @@ const searchFallbackPr = async ({ octokit, branch, repos }) => {
           }
           _searchApiDisabledRepos.set(repoKey, Date.now())
         }
+        // A throttled search proves nothing about the branch. Answering null here was cached by the route as
+        // "no pull request" for the full TTL; the route answers a thrown 403 uncached, as it does for the
+        // other lookups.
+        if (rateLimited) throw error
         return null
       }
       if (error?.status === 404) {

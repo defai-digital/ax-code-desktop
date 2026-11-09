@@ -1,6 +1,7 @@
 const SAFE_REPO_PART = /^[A-Za-z0-9_.-]+$/
 const SEARCH_TEXT_MAX = 200
 const LABEL_MAX = 50
+const MAX_LABELS = 10
 
 export function normalizeIssueListState(value) {
   return value === "closed" ? "closed" : "open"
@@ -21,12 +22,23 @@ export function sanitizeGitHubSearchText(value) {
     .slice(0, SEARCH_TEXT_MAX)
 }
 
+// The value is a comma-separated list of labels. The length limit is per label: applied to the whole list, it cut
+// the last label short (`frontend` became `fronte`), and since several labels must all match, the board showed
+// nothing.
 export function sanitizeGitHubLabel(value) {
   if (typeof value !== "string") return ""
   return value
-    .replace(/["\\\r\n]/g, "")
-    .trim()
-    .slice(0, LABEL_MAX)
+    .split(",")
+    .map((label) =>
+      label
+        .replace(/["\\\r\n]/g, "")
+        .trim()
+        .slice(0, LABEL_MAX)
+        .trim(),
+    )
+    .filter(Boolean)
+    .slice(0, MAX_LABELS)
+    .join(",")
 }
 
 function quoteSearchText(value) {
