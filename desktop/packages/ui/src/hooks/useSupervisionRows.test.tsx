@@ -195,7 +195,22 @@ describe("useSupervisionRows goal wiring", () => {
     useSessionGoalStore.getState().applyEvent("root", goal("root", "blocked"))
     render()
     expect(latest[0]?.state).toBe("running")
+    expect(latest[0]?.retrying).toBe(true)
     expect(latest[0]?.goal?.status).toBe("blocked")
+  })
+
+  test("retry presentation never overrides a decision or attributes a child retry to its root", () => {
+    mocks.sessions = [session("root"), session("child", "root")]
+    mocks.statuses = { root: { type: "retry" }, child: { type: "retry" } }
+    mocks.inputs = [{ ...input("root"), permissionCount: 1 }, input("child")]
+    render()
+    expect(latest[0]?.state).toBe("permission")
+    expect(latest[0]?.retrying).toBe(false)
+    mocks.statuses = { root: { type: "busy" }, child: { type: "retry" } }
+    mocks.inputs = [input("root"), input("child")]
+    render()
+    expect(latest[0]?.state).toBe("running")
+    expect(latest[0]?.retrying).toBe(false)
   })
 
   test("a paused goal is shown on the row without changing its state", () => {

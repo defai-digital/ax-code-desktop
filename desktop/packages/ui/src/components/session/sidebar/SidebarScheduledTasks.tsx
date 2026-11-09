@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Icon } from "@/components/icon/Icon"
+import { ProjectIdentityText } from "@/components/projects/ProjectIdentityText"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionDisplayStore } from "@/stores/useSessionDisplayStore"
@@ -113,7 +114,6 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     [projects, homeDirectory, t],
   )
 
-  const localTimezone = React.useMemo(() => Intl.DateTimeFormat().resolvedOptions().timeZone, [])
   const [mountedAt] = React.useState(() => Date.now())
   const enabled = showSection && projectGroups.length > 0
   const now = useScheduledTasksSync(projectGroups, enabled)
@@ -144,11 +144,14 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   // time) keep a loading row until they answer, even next to loaded ones.
   const pendingGroups = projectGroups.filter((group) => {
     const state = groupStates[group.directory] ?? EMPTY_SCHEDULED_TASK_GROUP
-    return !state.hasLoaded && !hasFailed(state)
+    // An empty cached success is no longer authoritative during refresh or a startup refusal.
+    const awaitingEmptyRead = state.tasks.length === 0 && (state.loading || state.error !== null)
+    return (!state.hasLoaded || awaitingEmptyRead) && !hasFailed(state)
   })
   const showProjectLabels = projectGroups.length > 1
   const hasBody = pendingGroups.length > 0 || entries.length > 0 || failedGroups.length > 0
   const expanded = !collapsed
+  const showEmpty = !hasBody && expanded && !searchActive
 
   // The sidebar's calendar button reveals the section: move focus to it.
   const handledRevealRef = React.useRef(revealRequest)
@@ -176,8 +179,9 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
     return 0
   })
 
-  const newTaskButtonClass =
-    "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+  const newTaskButtonClass = showEmpty
+    ? "inline-flex min-h-7 items-center gap-1 rounded-md px-2 typography-meta text-foreground hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+    : "inline-flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
 
   const newTaskControl =
     orderedProjects.length === 1 ? (
@@ -190,6 +194,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             onClick={() => actions.openNewTask(orderedProjects[0].directory, orderedProjects[0].label)}
           >
             <Icon name="add" className="h-4 w-4" />
+            {showEmpty ? <span>{t("sessions.sidebar.scheduled.newTask")}</span> : null}
           </button>
         </TooltipTrigger>
         <TooltipContent side="bottom" sideOffset={4}>
@@ -203,6 +208,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             <DropdownMenuTrigger asChild>
               <button type="button" className={newTaskButtonClass} aria-label={t("sessions.sidebar.scheduled.newTask")}>
                 <Icon name="add" className="h-4 w-4" />
+                {showEmpty ? <span>{t("sessions.sidebar.scheduled.newTask")}</span> : null}
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
@@ -272,7 +278,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
         : family.nextRunAt
           ? formatRunMoment(family.nextRunAt, now)
           : undefined
-    const schedule = formatFamilySchedule(family, t, { localTimezone })
+    const schedule = formatFamilySchedule(family, t)
     const showActions = isMobile || menuOpenKey === entry.key
 
     return (
@@ -325,7 +331,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           {showProjectLabels ? (
             <span className="flex min-w-0 items-start gap-1 typography-micro leading-tight text-muted-foreground">
               <ProjectGlyph project={project} />
-              <span className="min-w-0 break-all">{projectLabel}</span>
+              <ProjectIdentityText label={projectLabel} />
             </span>
           ) : null}
           <span className="flex min-w-0 items-center gap-1 typography-micro leading-tight text-muted-foreground">
@@ -344,31 +350,26 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
               <span className="truncate">{schedule}</span>
             )}
           </span>
+          <span
+            data-scheduled-task-timing
+            className={cn("block typography-micro tabular-nums", running ? "text-status-warning" : "text-muted-foreground")}
+            title={whenTitle}
+          >
+            {running || paused || completed || !family.nextRunAt
+              ? whenLabel
+              : t("sessions.sidebar.scheduled.nextRun", { when: whenLabel })}
+          </span>
         </button>
 
         <span className="flex h-5 shrink-0 items-center gap-0.5">
-          <span
-            className={cn(
-              "typography-micro tabular-nums whitespace-nowrap",
-              running ? "text-status-warning" : "text-muted-foreground",
-              !isMobile && "group-hover/row:hidden group-focus-within/row:hidden [@media(hover:none)]:hidden",
-              showActions && !isMobile && "hidden",
-            )}
-            title={whenTitle}
-          >
-            {whenLabel}
-          </span>
-          <span
-            className={cn(
-              "items-center gap-0.5",
-              // Without hover (touch screens), the actions are always shown.
-              showActions
-                ? "flex"
-                : "hidden group-hover/row:flex group-focus-within/row:flex [@media(hover:none)]:flex",
-            )}
-          >
+          <span className="flex items-center gap-0.5">
             {!isMobile && !completed ? (
-              <>
+              <span
+                className={cn(
+                  "items-center gap-0.5",
+                  showActions ? "flex" : "hidden group-hover/row:flex group-focus-within/row:flex [@media(hover:none)]:flex",
+                )}
+              >
                 <RowIconButton
                   icon="play"
                   label={t("sessions.scheduledTasks.dialog.actions.runNowAria", { taskName })}
@@ -385,7 +386,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
                   disabled={busy}
                   onClick={() => void actions.toggleEnabled(family, directory, paused)}
                 />
-              </>
+              </span>
             ) : null}
             <DropdownMenu
               open={menuOpenKey === entry.key}
@@ -483,7 +484,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
           type="button"
           onClick={() => setCollapsed(expanded)}
           aria-expanded={expanded}
-          aria-controls={hasBody && expanded && !searchActive ? listId : undefined}
+          aria-controls={(hasBody || showEmpty) && expanded && !searchActive ? listId : undefined}
           className="group flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md px-0.5 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
         >
           <span className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center text-muted-foreground">
@@ -525,8 +526,16 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
             </span>
           ) : null}
         </button>
-        {newTaskControl}
+        {!showEmpty ? newTaskControl : null}
       </div>
+
+      {showEmpty ? (
+        <div id={listId} className="space-y-1 px-2 py-2" data-scheduled-empty>
+          <p className="typography-meta text-foreground">{t("sessions.sidebar.scheduled.empty.title")}</p>
+          <p className="typography-micro text-muted-foreground">{t("sessions.sidebar.scheduled.empty.description")}</p>
+          {newTaskControl}
+        </div>
+      ) : null}
 
       {expanded && !searchActive && hasBody ? (
         <div id={listId} className="max-h-[min(36vh,320px)] overflow-y-auto overscroll-contain">

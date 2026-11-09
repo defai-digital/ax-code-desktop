@@ -26,6 +26,7 @@ describe("workspace navigation", () => {
     useProjectsStore.setState({ projects: [] } as never)
     useUIStore.setState({
       isMobile: false,
+      isRightSidebarOpen: false,
       activeMainTab: "chat",
       splitPaneEnabled: false,
       splitPaneRightTab: "diff",
@@ -48,17 +49,18 @@ describe("workspace navigation", () => {
         .find((b) => b.textContent?.includes(text))!
         .click(),
     )
-  test("lists Workspace first, then Mission Control, the session grid and review", () => {
+  test("separates the two primary areas from contextual review and session views", () => {
     const labels = Array.from(container.querySelectorAll("nav button[aria-pressed]")).map((b) => b.textContent ?? "")
     expect(labels).toHaveLength(4)
     expect(labels[0]).toContain("navigation.workspace")
-    expect(labels[1]).toContain("missionControl.title")
-    expect(labels[2]).toContain("sessionGrid.title")
-    expect(labels[3]).toContain("action.reviewChanges")
+    expect(labels[1]).toContain("navigation.portfolio")
+    expect(labels[2]).toContain("action.reviewChanges")
+    expect(labels[3]).toContain("app.embeddedSession.views")
+    expect(container.querySelectorAll('[data-navigation-level="primary"]')).toHaveLength(2)
   })
   test("moves from comparison to the board, opens review beside chat and returns to workspace", () => {
     act(() => useSupervisionStore.setState({ compareRunGroupKey: "group" }))
-    click("missionControl.title")
+    click("navigation.portfolio")
     expect(useSupervisionStore.getState().compareRunGroupKey).toBeNull()
     expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
     click("action.reviewChanges")
@@ -116,6 +118,26 @@ describe("workspace navigation", () => {
       Array.from(container.querySelectorAll("button")).find((b) => b.textContent?.includes("action.reviewChanges"))
         ?.disabled,
     ).toBe(true)
+  })
+
+  test("the session views menu opens the grid and preserves a rejected navigation guard", async () => {
+    const openGrid = async () => {
+      await act(async () => {
+        Array.from(container.querySelectorAll("button")).find(button => button.textContent?.includes("app.embeddedSession.views"))!.click()
+      })
+      await act(async () => {
+        Array.from(document.querySelectorAll<HTMLElement>('[role="menuitem"]')).find(item => item.textContent === "sessionGrid.title")!.click()
+      })
+    }
+    await openGrid()
+    expect(useUIStore.getState().activeMainTab).toBe("session-grid")
+    act(() => {
+      useUIStore.setState({ activeMainTab: "chat", mainTabGuard: () => false })
+      useSupervisionStore.setState({ missionControlOpen: true })
+    })
+    await openGrid()
+    expect(useUIStore.getState().activeMainTab).toBe("chat")
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(true)
   })
 
   test("offers to open the current session in its own window only where windows exist", () => {

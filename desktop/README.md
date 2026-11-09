@@ -166,3 +166,30 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
 
 This project includes software derived from OpenChamber; those portions remain under the
 [MIT License](./LICENSE-MIT). Upstream attribution is kept in [NOTICE](./NOTICE).
+
+## Workspace navigation and layout
+
+Workspace opens the current conversation. Portfolio opens Mission Control over the existing project/session state;
+Session views offers the session grid, and Review changes opens the current project's changes.
+
+The right project sidebar and the inspector share space: opening the sidebar temporarily hides the inspector while
+preserving its editor. Opening a tool reveals the inspector again. Narrow workspaces give the tool the full content
+width; Back to conversation returns through the existing unsaved-file guard. Wider workspaces also offer Focus panel
+and Restore split view. These display choices preserve the current message draft.
+
+The new-session page places Projects before starter suggestions. Three starters appear initially; Show more reveals
+the rest, including project starters. Sidebar directory labels use distinguishing suffixes, with full paths available
+on hover and in accessible action names. Retrying on a supervision row reflects a reported runtime retry; it does not
+change the run's urgency or count as a new approval request.
+
+## Scheduled tasks
+
+Open Scheduled from the sidebar calendar button. An empty list explains scheduling and provides a labeled New scheduled
+task action; with multiple projects, choose the project before editing. A task's recurrence, timezone and next-run or
+stopped state stay visible while using its actions. More actions provides Run now, Pause/Resume, Edit, Run history and
+Delete according to the task's state. Completed one-time tasks must be rescheduled rather than resumed.
+
+The editor starts with the task name and prompt, followed by schedule and execution settings. Review Schedule summary
+for the wall-clock times, timezone, automatic-run state and missed-run policy before saving. Tasks run on this computer;
+it must be awake with AX Code running. The summary describes the configured schedule; actual next-run times and history
+come from the runtime. An unchanged imported cron schedule is retained when only the prompt is edited.

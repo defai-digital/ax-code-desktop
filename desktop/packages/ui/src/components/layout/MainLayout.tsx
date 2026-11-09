@@ -24,6 +24,7 @@ import { DiffWorkerProvider } from "@/contexts/DiffWorkerProvider"
 
 import { useUIStore } from "@/stores/useUIStore"
 import { useUpdateStore } from "@/stores/useUpdateStore"
+import { useResponsivePanels } from "@/hooks/useResponsivePanels"
 import { useDeviceInfo } from "@/lib/device"
 import { isDesktopLocalOriginActive } from "@/lib/desktop"
 import { useI18n } from "@/lib/i18n"
@@ -73,18 +74,9 @@ const sidebarCornerBackground = (position: string) =>
 
 export const MainLayout: React.FC = () => {
   const { t } = useI18n()
-  const RIGHT_SIDEBAR_AUTO_CLOSE_WIDTH = 1140
-  const RIGHT_SIDEBAR_AUTO_OPEN_WIDTH = 1220
-  const BOTTOM_TERMINAL_AUTO_CLOSE_HEIGHT = 640
-  const BOTTOM_TERMINAL_AUTO_OPEN_HEIGHT = 700
-  const LEFT_SIDEBAR_AUTO_CLOSE_WIDTH = 900
-  const LEFT_SIDEBAR_AUTO_OPEN_WIDTH = 980
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen)
   const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
-  const setSidebarOpen = useUIStore((state) => state.setSidebarOpen)
-  const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
-  const setBottomTerminalOpen = useUIStore((state) => state.setBottomTerminalOpen)
   const gridBrowserOpen = useUIStore((state) => state.browserPanel.isOpen && state.browserPanel.focused)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
@@ -98,11 +90,9 @@ export const MainLayout: React.FC = () => {
   const setMultiRunLauncherOpen = useUIStore((state) => state.setMultiRunLauncherOpen)
   const multiRunLauncherPrefillPrompt = useUIStore((state) => state.multiRunLauncherPrefillPrompt)
   const { isMobile, isTablet } = useDeviceInfo()
+  useResponsivePanels({ isMobile, isTablet })
   const sidebarWidth = useUIStore((state) => state.sidebarWidth)
   const rightSidebarWidth = useUIStore((state) => state.rightSidebarWidth)
-  const rightSidebarAutoClosedRef = React.useRef(false)
-  const bottomTerminalAutoClosedRef = React.useRef(false)
-  const leftSidebarAutoClosedRef = React.useRef(false)
 
   // Trigger native desktop update checks shortly after mount, then repeat periodically.
   const checkForUpdates = useUpdateStore((state) => state.checkForUpdates)
@@ -187,115 +177,6 @@ export const MainLayout: React.FC = () => {
       }
     }
   }, [])
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
-    let timeoutId: number | undefined
-
-    const handleResponsivePanels = () => {
-      const state = useUIStore.getState()
-      const width = window.innerWidth
-      const height = window.innerHeight
-
-      // Touch devices frequently resize when the on-screen keyboard opens.
-      // Treat panel auto-collapse/restore as desktop-only so keyboard
-      // viewport changes do not churn drawer or terminal layout state.
-      if (!isMobile && !isTablet) {
-        const shouldCloseLeftSidebar = width < LEFT_SIDEBAR_AUTO_CLOSE_WIDTH
-        const canAutoOpenLeftSidebar = width >= LEFT_SIDEBAR_AUTO_OPEN_WIDTH
-
-        if (shouldCloseLeftSidebar) {
-          if (state.isSidebarOpen) {
-            setSidebarOpen(false)
-            leftSidebarAutoClosedRef.current = true
-          }
-        } else if (canAutoOpenLeftSidebar && leftSidebarAutoClosedRef.current) {
-          setSidebarOpen(true)
-          leftSidebarAutoClosedRef.current = false
-        }
-
-        const shouldCloseRightSidebar = width < RIGHT_SIDEBAR_AUTO_CLOSE_WIDTH
-        const canAutoOpenRightSidebar = width >= RIGHT_SIDEBAR_AUTO_OPEN_WIDTH
-
-        if (shouldCloseRightSidebar) {
-          if (state.isRightSidebarOpen) {
-            setRightSidebarOpen(false)
-            rightSidebarAutoClosedRef.current = true
-          }
-        } else if (canAutoOpenRightSidebar && rightSidebarAutoClosedRef.current) {
-          setRightSidebarOpen(true)
-          rightSidebarAutoClosedRef.current = false
-        }
-
-        const shouldCloseBottomTerminal = height < BOTTOM_TERMINAL_AUTO_CLOSE_HEIGHT
-        const canAutoOpenBottomTerminal = height >= BOTTOM_TERMINAL_AUTO_OPEN_HEIGHT
-
-        if (shouldCloseBottomTerminal) {
-          if (state.isBottomTerminalOpen) {
-            setBottomTerminalOpen(false)
-            bottomTerminalAutoClosedRef.current = true
-          }
-        } else if (canAutoOpenBottomTerminal && bottomTerminalAutoClosedRef.current) {
-          setBottomTerminalOpen(true)
-          bottomTerminalAutoClosedRef.current = false
-        }
-      }
-    }
-
-    const handleResize = () => {
-      if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId)
-      }
-
-      timeoutId = window.setTimeout(() => {
-        handleResponsivePanels()
-      }, 100)
-    }
-
-    handleResponsivePanels()
-    window.addEventListener("resize", handleResize)
-
-    return () => {
-      window.removeEventListener("resize", handleResize)
-      if (timeoutId !== undefined) {
-        window.clearTimeout(timeoutId)
-      }
-    }
-  }, [isMobile, isTablet, setBottomTerminalOpen, setRightSidebarOpen, setSidebarOpen])
-
-  React.useEffect(() => {
-    if (typeof window === "undefined") {
-      return
-    }
-
-    const unsubscribe = useUIStore.subscribe((state, prevState) => {
-      const width = window.innerWidth
-      const height = window.innerHeight
-
-      const leftCanAutoOpen = width >= LEFT_SIDEBAR_AUTO_OPEN_WIDTH
-      const rightCanAutoOpen = width >= RIGHT_SIDEBAR_AUTO_OPEN_WIDTH
-      const bottomCanAutoOpen = height >= BOTTOM_TERMINAL_AUTO_OPEN_HEIGHT
-
-      if (state.isSidebarOpen !== prevState.isSidebarOpen && leftCanAutoOpen) {
-        leftSidebarAutoClosedRef.current = false
-      }
-
-      if (state.isRightSidebarOpen !== prevState.isRightSidebarOpen && rightCanAutoOpen) {
-        rightSidebarAutoClosedRef.current = false
-      }
-
-      if (state.isBottomTerminalOpen !== prevState.isBottomTerminalOpen && bottomCanAutoOpen) {
-        bottomTerminalAutoClosedRef.current = false
-      }
-    })
-
-    return () => {
-      unsubscribe()
-    }
-  }, [isMobile, isTablet, setBottomTerminalOpen, setRightSidebarOpen, setSidebarOpen])
 
   const splitRightContent = React.useMemo(() => {
     if (!splitPaneEnabled) return null
@@ -501,7 +382,7 @@ export const MainLayout: React.FC = () => {
               <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <SupervisionMainOverlay />
                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <SplitPaneLayout suspended={isGridActive} rightContent={splitRightContent}>
+                  <SplitPaneLayout suspended={isGridActive || isRightSidebarOpen} rightContent={splitRightContent}>
                     <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
                       <div
                         className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"

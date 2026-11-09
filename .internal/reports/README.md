@@ -1,6 +1,12 @@
 # Internal reports
 
+- [Scheduled task UX review and workspace completion](UX-2026-11-08-scheduled-task-ux-v2.md): current primary research,
+  local scheduling clarity, stable row timing, task-first editing and the responsive-sidebar regression repair.
+
 Engineering investigations and proposed implementation plans live here. A report is evidence or a proposal; it does not amend an accepted PRD, ADR, specification, or release authorization.
+
+- [Workspace UX v1 implementation and verification](UX-2026-11-08-workspace-ux-v1.md): navigation hierarchy,
+  panel handoffs and focus, bounded starters, project identity, retry presentation and native qualification.
 
 - [WebAssembly speed and stability reassessment](WASM-2026-11-08-speed-and-stability-reassessment.md): no broad
   migration; diff engine release attachment merged upstream (first asset expected in AX Code v7.30.18); packaged

@@ -1,4 +1,11 @@
 {
+  "sessions.scheduledTasks.editor.confirmation.host": "G\u00f6revler bu bilgisayarda \u00e7al\u0131\u015f\u0131r. Zamanlanan saatte bilgisayar\u0131 uyan\u0131k, AX Code\u2019u \u00e7al\u0131\u015f\u0131r durumda tutun.",
+  "sessions.scheduledTasks.editor.confirmation.skip": "Ka\u00e7\u0131r\u0131lan \u00e7al\u0131\u015ft\u0131rmalar atlan\u0131r.",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "Ka\u00e7\u0131r\u0131lan \u00e7al\u0131\u015ft\u0131rmalar tek bir telafi \u00e7al\u0131\u015ft\u0131rmas\u0131nda birle\u015ftirilir.",
+  "sessions.scheduledTasks.editor.confirmation.off": "Bu g\u00f6rev etkinle\u015ftirilene kadar otomatik \u00e7al\u0131\u015ft\u0131rmalar kapal\u0131d\u0131r.",
+  "sessions.scheduledTasks.editor.confirmation.title": "Zamanlama \u00f6zeti",
+  "sessions.sidebar.scheduled.empty.description": "Bir projede istemi bir kez veya d\u00fczenli olarak \u00e7al\u0131\u015facak \u015fekilde zamanlay\u0131n.",
+  "sessions.sidebar.scheduled.empty.title": "Hen\u00fcz zamanlanm\u0131\u015f g\u00f6rev yok",
   "desktop.native.closeAnyway": "Yine de kapat",
   "settings.window.description": "AX Code ayarlar penceresi.",
   "settings.view.home.title": "Ayarlar",
@@ -1818,7 +1825,7 @@
   "sessions.scheduledTasks.dialog.taskToggle.pauseAria": "{taskName} g\u00f6revini duraklat",
   "sessions.scheduledTasks.editor.title.edit": "Zamanlanm\u0131\u015f g\u00f6revi d\u00fczenle",
   "sessions.scheduledTasks.editor.title.new": "Yeni zamanlanm\u0131\u015f g\u00f6rev",
-  "sessions.scheduledTasks.editor.description": "Yeni bir oturum olu\u015fturup bir istem g\u00f6nderen sunucu taraf\u0131 g\u00f6revi yap\u0131land\u0131r\u0131n.",
+  "sessions.scheduledTasks.editor.description": "Neyin ne zaman \u00e7al\u0131\u015faca\u011f\u0131n\u0131 se\u00e7in. Her \u00e7al\u0131\u015ft\u0131rma bu projede yeni bir oturum ba\u015flat\u0131r.",
   "sessions.scheduledTasks.editor.taskName.label": "G\u00f6rev ad\u0131",
   "sessions.scheduledTasks.editor.taskName.placeholder": "G\u00fcnl\u00fck e\u015fitleme",
   "sessions.scheduledTasks.editor.scheduleType.label": "Zamanlama t\u00fcr\u00fc",
@@ -5437,5 +5444,9 @@
   "webmcp.tools.compare.receiptMissing": "\u00c7al\u0131\u015fma zaman\u0131 al\u0131nd\u0131s\u0131 kullan\u0131lam\u0131yor: {reason}",
   "webmcp.tools.compare.missingDefinition": "\u00c7al\u0131\u015fma zaman\u0131 bir tan\u0131m \u00f6zeti sa\u011flamad\u0131, bu nedenle bu \u00e7a\u011fr\u0131 bir \u015femayla ili\u015fkilendirilemiyor.",
   "webmcp.tools.compare.unmatchedDefinition": "\u00c7al\u0131\u015fma zaman\u0131n\u0131n tan\u0131m \u00f6zeti i\u00e7in saklanan bir tan\u0131m yok, bu nedenle bu \u00e7a\u011fr\u0131 bu ara\u00e7la ili\u015fkilendirilemiyor.",
-  "webmcp.tools.compare.missingInput": "\u00c7al\u0131\u015fma zaman\u0131 bir girdi al\u0131nd\u0131s\u0131 sa\u011flamad\u0131; arac\u0131n\u0131n iste\u011fi sayfan\u0131n ne ald\u0131\u011f\u0131n\u0131n kan\u0131t\u0131 de\u011fildir."
+  "webmcp.tools.compare.missingInput": "\u00c7al\u0131\u015fma zaman\u0131 bir girdi al\u0131nd\u0131s\u0131 sa\u011flamad\u0131; arac\u0131n\u0131n iste\u011fi sayfan\u0131n ne ald\u0131\u011f\u0131n\u0131n kan\u0131t\u0131 de\u011fildir.",
+  "supervision.navigation.portfolio": "Proje portföyü",
+  "splitPane.focusPanel": "Panele odaklan",
+  "splitPane.restoreSplit": "Bölünmüş görünümü geri yükle",
+  "splitPane.backToConversation": "Konuşmaya dön"
 }

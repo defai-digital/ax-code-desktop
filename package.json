@@ -40,6 +40,8 @@
     "e2e:desktop:webmcp": "node desktop/packages/electron/scripts/e2e/ui-webmcp.mjs --smoke",
     "webmcp:check": "node desktop/packages/electron/scripts/webmcp-check.mjs",
     "e2e:desktop:settings-webmcp": "node desktop/packages/electron/scripts/e2e/settings-webmcp.mjs",
+    "e2e:desktop:workspace-ux": "node desktop/packages/electron/scripts/e2e/workspace-ux-webmcp.mjs",
+    "e2e:desktop:scheduled-ux": "node desktop/packages/electron/scripts/e2e/scheduled-ux-webmcp.mjs",
     "dev:webmcp": "node desktop/packages/electron/scripts/e2e/ui-webmcp.mjs",
     "soak:desktop": "node desktop/scripts/renderer-soak.mjs",
     "smoke:packaged": "node desktop/packages/electron/scripts/smoke-packaged-app.mjs",

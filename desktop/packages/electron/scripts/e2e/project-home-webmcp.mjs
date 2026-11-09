@@ -7,6 +7,7 @@ import { waitForCondition } from "./cdp.mjs"
 import { journeyBoot } from "./journeys.mjs"
 import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
+import { setDesktopViewport, waitForCollapsedDesktopSidebar } from "./desktop-viewport.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 const outcome = await runHarness({
@@ -103,12 +104,12 @@ const outcome = await runHarness({
       await audit.wait('document.querySelectorAll("[data-project-row]").length >= 2', "return to project cards")
     }
     for (const width of [800, 600]) {
-      await session.send("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: false })
-      await audit.wait('Boolean(document.querySelector(\'aside[aria-hidden="true"]\'))', "responsive sidebar collapse")
+      await setDesktopViewport(session, { width, height: 1000 })
+      await waitForCollapsedDesktopSidebar(session)
       await audit.click((await targetControl("Shared project · ", targets[0].directory)).name)
       verify(await capture(`home-${width}`))
     }
-    await session.send("Emulation.setDeviceMetricsOverride", { width: 1280, height: 1000, deviceScaleFactor: 1, mobile: false })
+    await setDesktopViewport(session, { width: 1280, height: 1000 })
     await waitForCondition(async () => Boolean(await audit.find("Settings", { role: "button", optional: true })),
       { timeoutMs: 10_000, label: "Settings after responsive sidebar restoration" })
     await audit.click("Settings")
@@ -116,7 +117,7 @@ const outcome = await runHarness({
     await audit.click("Light")
     await audit.wait('document.documentElement.classList.contains("light")', "light theme")
     await audit.click("Close settings")
-    await audit.wait('!document.querySelector("[data-settings-view]")', "settings closed")
+    await audit.wait('!Array.from(document.querySelectorAll("[data-settings-view]")).some(e => e.checkVisibility({ opacityProperty: true }) && !e.closest("[data-ending-style]"))', "settings closed")
     await audit.click((await targetControl("Shared project · ", targets[0].directory)).name)
     verify(await capture("home-light"))
     const finalProfile = await readProfile()

@@ -44,7 +44,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, children, cl
     <aside
       ref={sidebarRef}
       className={cn(
-        "relative flex h-full overflow-hidden border-l border-border/40 will-change-[width] motion-reduce:transition-none",
+        "relative flex h-full overflow-hidden border-l border-border/40 will-change-[width] transition-[width,min-width,max-width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none",
         "bg-sidebar",
         !isOpen && "border-l-0",
         className,
@@ -55,9 +55,7 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({ isOpen, children, cl
         maxWidth: `${currentWidth}px`,
         ["--ax-right-sidebar-width" as string]: `${isResizing ? currentWidth : openWidth}px`,
         overflowX: "clip",
-        transitionProperty: isResizing ? "none" : "width, min-width, max-width",
-        transitionDuration: "200ms",
-        transitionTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)",
+        transitionProperty: isResizing ? "none" : undefined,
       }}
       aria-hidden={!isOpen || appliedWidth === 0}
     >

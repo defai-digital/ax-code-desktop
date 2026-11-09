@@ -200,23 +200,38 @@ describe("branch resolution", () => {
     const path = await import("node:path")
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "git-stub-"))
     const stub = path.join(dir, "git")
-    const pidFile = path.join(dir, "pid")
-    fs.writeFileSync(stub, `#!/bin/sh\necho $$ > ${pidFile}\nsleep 60\n`, { mode: 0o755 })
+    // Read the actual spawned PID: under load the timeout can fire before the shell writes a PID file.
+    // exec replaces the shell, so the fixture has no descendant that could outlive the assertion.
+    fs.writeFileSync(stub, "#!/bin/sh\nexec sleep 60\n", { mode: 0o755 })
+    const { ChildProcess } = await import("node:child_process")
+    const originalSpawn = ChildProcess.prototype.spawn
+    let gitChild
+    const spawn = vi.spyOn(ChildProcess.prototype, "spawn").mockImplementation(function (options) {
+      const result = originalSpawn.call(this, options)
+      if (options.file === stub) gitChild = this
+      return result
+    })
 
-    const runtime = createRuntime({}, { resolveGitBinaryForSpawn: () => stub })
-    const startedAt = Date.now()
-    const variables = await runtime.buildTemplateVariables(
-      { properties: { info: { path: { root: dir } } } },
-      "ses_x",
-    )
+    try {
+      const runtime = createRuntime({}, { resolveGitBinaryForSpawn: () => stub })
+      const startedAt = Date.now()
+      const variables = await runtime.buildTemplateVariables(
+        { properties: { info: { path: { root: dir } } } },
+        "ses_x",
+      )
 
-    expect(Date.now() - startedAt).toBeLessThan(30_000)
-    expect(variables.branch).toBe("")
+      expect(Date.now() - startedAt).toBeLessThan(30_000)
+      expect(variables.branch).toBe("")
 
-    // The point of the timeout: the child must be dead, not merely abandoned.
-    const pid = Number(fs.readFileSync(pidFile, "utf8").trim())
-    expect(Number.isFinite(pid)).toBe(true)
-    expect(() => process.kill(pid, 0)).toThrow()
-    fs.rmSync(dir, { recursive: true, force: true })
+      // The point of the timeout: the child must be dead, not merely abandoned.
+      expect(gitChild?.pid).toBeGreaterThan(0)
+      expect(gitChild.killed).toBe(true)
+      expect(gitChild.signalCode).toBe("SIGTERM")
+      expect(() => process.kill(gitChild.pid, 0)).toThrow()
+    } finally {
+      spawn.mockRestore()
+      if (gitChild?.pid > 0 && gitChild.exitCode === null && gitChild.signalCode === null) gitChild.kill("SIGKILL")
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
   })
 })

@@ -43,7 +43,8 @@ test("colliding rendered labels expose one distinct working project-header actio
         act(() => { tools[1].execute({ ref: action!.ref }) })
         expect(toggle).toHaveBeenLastCalledWith(id)
         expect(document.activeElement?.tagName).toBe("BUTTON")
-        expect(document.activeElement?.textContent).toContain(path)
+        expect(document.activeElement?.textContent).toContain(path.slice(2))
+        expect(document.activeElement?.querySelector("[title]")?.getAttribute("title")).toBe(path)
         expect(document.activeElement?.getAttribute("aria-describedby")).toBeTruthy()
       }
     } finally { dispose() }

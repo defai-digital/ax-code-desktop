@@ -303,3 +303,32 @@ captures renderer heap after explicit garbage collection, DOM counters, fresh co
 It does not execute a model, change user projects, measure total application RSS or qualify a production soak.
 `AX_MEMORY_EXPECT_UNBOUNDED=1` is an investigation-only mode for running the same fixture on a pre-fix checkout;
 it expects cumulative retention instead of accepting a fixed build. Keep before/after source revisions separate.
+
+## Workspace layout and navigation
+
+Run `pnpm run e2e:desktop:workspace-ux -- --artifacts /tmp/ax-workspace-ux` after building.
+This isolated two-project journey checks Projects before the bounded starter list, starter disclosure, Files/sidebar
+handoffs, focused review and return, the session-grid view menu, Portfolio, and light/dark layouts at 1280 and 800 CSS
+pixels. It verifies the same composer DOM node and unsent message after navigation. Screenshots accompany fresh native
+control inventories and pane measurements. The fixture does not call a provider or qualify live runtime capacity.
+
+Viewport fixtures foreground the native main window, select reduced motion, deliver a resize notification after DevTools metric changes, and wait for the
+left sidebar's rendered width to settle. These checks qualify settled layout; they do not qualify animation timing.
+
+## Scheduled task UX qualification
+
+After building, run `pnpm run e2e:desktop:scheduled-ux -- --artifacts /tmp/ax-scheduled-ux`. The isolated fixture
+qualifies loaded-empty guidance, task-intent field order, stable timing while actions are open, pause/resume, weekly
+multiple-time save/reopen and one-time confirmation, unchanged cron preservation, and narrow light/dark rendering.
+Runtime fixture readback independently checks every persisted member after actions; no provider work is executed.
+Use `scheduled-webmcp.mjs` for history retrieval/recovery and DST-gap refusal, and `scheduled-create-webmcp.mjs`
+(with and without `--lost-ack`) for partial-create and uncertain-write recovery.
+
+The identity journey also sends a repeated resize after manually reopening the sidebar. The panel must stay open;
+this checks the responsive controller's ordering rather than adding a second click to mask a lost action.
+
+The workspace fixture reads presented screenshots while polling visibility-gated diff content, then requires actual
+fixture code in the rendered diff before retaining its review screenshot. The default keyboard journey closes the
+supervision pop-out it created, explicitly focuses the native main window, and observes Settings open/ending state
+instead of awaiting an unbounded compositor callback. Needs You inspection selects its named dialog and waits for
+the requested goal revision, independently of retained Settings DOM.

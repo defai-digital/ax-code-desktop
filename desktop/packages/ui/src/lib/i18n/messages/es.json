@@ -1,4 +1,11 @@
 {
+  "sessions.scheduledTasks.editor.confirmation.host": "Las tareas se ejecutan en este equipo. Mantenlo activo con AX Code en ejecuci\u00f3n a la hora programada.",
+  "sessions.scheduledTasks.editor.confirmation.skip": "Se omiten las ejecuciones perdidas.",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "Las ejecuciones perdidas se combinan en una sola ejecuci\u00f3n de recuperaci\u00f3n.",
+  "sessions.scheduledTasks.editor.confirmation.off": "Las ejecuciones autom\u00e1ticas est\u00e1n desactivadas hasta que actives esta tarea.",
+  "sessions.scheduledTasks.editor.confirmation.title": "Resumen de programaci\u00f3n",
+  "sessions.sidebar.scheduled.empty.description": "Programa un prompt para ejecutarlo una vez o de forma peri\u00f3dica en un proyecto.",
+  "sessions.sidebar.scheduled.empty.title": "A\u00fan no hay tareas programadas",
   "desktop.native.closeAnyway": "Cerrar de todos modos",
   "settings.window.description": "Ventana de ajustes de AX Code.",
   "settings.view.home.title": "Ajustes",
@@ -1812,7 +1819,7 @@
   "sessions.scheduledTasks.dialog.taskToggle.pauseAria": "Pausar {taskName}",
   "sessions.scheduledTasks.editor.title.edit": "Editar tarea programada",
   "sessions.scheduledTasks.editor.title.new": "Nueva tarea programada",
-  "sessions.scheduledTasks.editor.description": "Configura una tarea del servidor que crea una sesi\u00f3n nueva y env\u00eda una indicaci\u00f3n.",
+  "sessions.scheduledTasks.editor.description": "Elige qu\u00e9 ejecutar y cu\u00e1ndo. Cada ejecuci\u00f3n inicia una nueva sesi\u00f3n en este proyecto.",
   "sessions.scheduledTasks.editor.taskName.label": "Nombre de la tarea",
   "sessions.scheduledTasks.editor.taskName.placeholder": "Sincronizaci\u00f3n diaria",
   "sessions.scheduledTasks.editor.scheduleType.label": "Tipo de programaci\u00f3n",
@@ -5437,5 +5444,9 @@
   "webmcp.tools.compare.receiptMissing": "Recibo de ejecuci\u00f3n no disponible: {reason}",
   "webmcp.tools.compare.missingDefinition": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un resumen de la definici\u00f3n, por lo que esta llamada no puede asociarse a un esquema.",
   "webmcp.tools.compare.unmatchedDefinition": "El resumen de la definici\u00f3n del entorno de ejecuci\u00f3n no tiene una definici\u00f3n conservada, por lo que esta llamada no puede asociarse a esta herramienta.",
-  "webmcp.tools.compare.missingInput": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un recibo de entrada; la solicitud del agente no demuestra lo que recibi\u00f3 la p\u00e1gina."
+  "webmcp.tools.compare.missingInput": "El entorno de ejecuci\u00f3n no proporcion\u00f3 un recibo de entrada; la solicitud del agente no demuestra lo que recibi\u00f3 la p\u00e1gina.",
+  "supervision.navigation.portfolio": "Cartera de proyectos",
+  "splitPane.focusPanel": "Ampliar panel",
+  "splitPane.restoreSplit": "Restaurar vista dividida",
+  "splitPane.backToConversation": "Volver a la conversación"
 }

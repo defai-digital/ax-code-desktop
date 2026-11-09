@@ -139,6 +139,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         sessionId: input.id,
         title: input.title?.trim() || input.id,
         state: rolled.state,
+        retrying: rolled.state === "running" && statuses[input.id]?.type === "retry",
         treeSessionIds,
         childSessions: childSessionSummaries(input.id, treeSessionIds, childById),
         projectId: input.projectId,

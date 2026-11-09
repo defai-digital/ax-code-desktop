@@ -1,5 +1,9 @@
 # AX Code Desktop technical specification index
 
+- [Scheduled task UX v2 technical contract](SPEC-2026-11-08-scheduled-task-ux-v2.md): authorized schedule-list and editor experience improvements.
+
+Workspace usability contract: [Workspace UX v1](SPEC-2026-11-08-workspace-ux-v1.md).
+
 Current terminal source: [SPEC-2026-11-01-akitty-web-source-v5](SPEC-2026-11-01-akitty-web-source-v5.md).
 
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Each specification keeps its original status

@@ -63,7 +63,7 @@ vi.mock("@/contexts/useThemeSystem", () => ({
 
 const { useProjectsStore } = await import("@/stores/useProjectsStore")
 const { useSessionDisplayStore } = await import("@/stores/useSessionDisplayStore")
-const { resetScheduledTasksStoreForTests } = await import("@/stores/useScheduledTasksStore")
+const { resetScheduledTasksStoreForTests, useScheduledTasksStore } = await import("@/stores/useScheduledTasksStore")
 const { SidebarScheduledTasks } = await import("./SidebarScheduledTasks")
 
 const HOUR = 3_600_000
@@ -167,6 +167,66 @@ describe("SidebarScheduledTasks", () => {
     expect(container.textContent).toMatch(/Next in/)
   })
 
+  test("a loaded empty list guides creation in the registered project", async () => {
+    useProjectsStore.setState({ projects: [{ id: "p-alpha", path: "/work/alpha", label: "Alpha" }] })
+    fetchScheduledTasks.mockResolvedValue([])
+    await render()
+    expect(container.textContent).toContain("No scheduled tasks yet")
+    const create = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button =>
+      button.textContent?.includes("New scheduled task"))
+    expect(create).toBeDefined()
+    await act(async () => create!.click())
+    expect(editorProps.current?.open).toBe(true)
+    expect(editorProps.current?.task).toBeNull()
+    expect(editorProps.current?.projectLabel).toBe("Alpha")
+  })
+
+  test("loading and session search never claim an empty schedule", async () => {
+    fetchScheduledTasks.mockImplementation(() => new Promise(() => {}))
+    await render()
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+    await render({ searchActive: true })
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+  })
+
+  test("an empty cached list cannot claim success while startup errors are temporarily hidden", async () => {
+    useConnectionStore.setState({ phase: "connecting", hasEverConnected: false, lastDisconnectReason: null })
+    fetchScheduledTasks.mockResolvedValue([])
+    await render()
+    expect(container.textContent).toContain("No scheduled tasks yet")
+    let failRefresh: (error: Error) => void = () => { throw new Error("Refresh did not start") }
+    fetchScheduledTasks.mockImplementation(() => new Promise((_resolve, reject) => { failRefresh = reject }))
+    act(() => { void useScheduledTasksStore.getState().loadGroup("/work/alpha") })
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+    await act(async () => failRefresh(new Error("runtime restarting")))
+    await flush()
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+    expect(container.querySelector('[aria-busy="true"]')).not.toBeNull()
+  })
+
+  test("failed reads never claim an empty schedule", async () => {
+    fetchScheduledTasks.mockRejectedValue(new Error("offline"))
+    await render()
+    expect(container.querySelector('[role="alert"]')).not.toBeNull()
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+  })
+
+  test("next-run timing and recurrence timezone remain in the task content beside discoverable actions", async () => {
+    const now = Date.now()
+    fetchScheduledTasks.mockImplementation(async (directory: string) => directory === "/work/alpha"
+      ? [task({ id: "nightly", directory, title: "Nightly", nextRunAt: now + HOUR })] : [])
+    await render()
+    const row = container.querySelector('[data-scheduled-task-row]')!
+    const edit = row.querySelector("button")!
+    expect(edit.textContent).toContain("UTC")
+    expect(edit.textContent).toContain("Next in")
+    const more = row.querySelector('button[aria-label="More actions for Nightly"]')!
+    expect(more.parentElement?.className).not.toContain("hidden")
+    expect(row.querySelector('[data-scheduled-task-timing]')?.closest("button")).toBe(edit)
+  })
+
   test("opens the editor for a row with its project", async () => {
     fetchScheduledTasks.mockImplementation(async (directory: string) =>
       directory === "/work/beta" ? [task({ id: "b1", directory, title: "Soon" })] : [],
@@ -190,8 +250,9 @@ describe("SidebarScheduledTasks", () => {
     const rows = Array.from(container.querySelectorAll<HTMLElement>("[data-scheduled-task-row]"))
     expect(rows).toHaveLength(2)
     for (const directory of ["/work/alpha", "/work/beta"]) {
-      const row = rows.find(row => row.textContent?.includes(directory))
+      const row = rows.find(row => row.querySelector("button")?.getAttribute("aria-label")?.includes(directory))
       expect(row).toBeDefined()
+      expect(row!.textContent).toContain(directory.split("/").at(-1))
       const edit = row!.querySelector<HTMLButtonElement>("button")!
       expect(edit.getAttribute("aria-label")).toContain(directory)
       await act(async () => edit.click())
@@ -258,12 +319,16 @@ describe("SidebarScheduledTasks", () => {
     expect(rowTitles()).toEqual(["Recovered"])
   })
 
-  test("keeps only the header when no project has tasks", async () => {
+  test("associates the header with empty guidance and collapses it normally", async () => {
     fetchScheduledTasks.mockResolvedValue([])
     await render()
     expect(container.querySelector("[data-sidebar-scheduled]")).not.toBeNull()
     expect(container.querySelector("[data-sidebar-scheduled] ul")).toBeNull()
     const header = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
+    const body = container.querySelector("[data-scheduled-empty]")
+    expect(body?.id).toBe(header?.getAttribute("aria-controls"))
+    await act(async () => header?.click())
+    expect(container.querySelector("[data-scheduled-empty]")).toBeNull()
     expect(header?.getAttribute("aria-controls")).toBeNull()
   })
 

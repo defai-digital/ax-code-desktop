@@ -181,7 +181,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
           />
         </span>
         <span role="gridcell" className="mission-state">
-          <SupervisionStateBadge state={row.state} />
+          <SupervisionStateBadge state={row.state} retrying={row.retrying} />
         </span>
         <span role="gridcell" className="mission-title min-w-0">
           <span className="flex min-w-0 items-center gap-1.5">

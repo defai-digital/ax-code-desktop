@@ -1,4 +1,11 @@
 {
+  "sessions.scheduledTasks.editor.confirmation.host": "Les t\u00e2ches s\u2019ex\u00e9cutent sur cet ordinateur. Gardez-le \u00e9veill\u00e9 avec AX Code en fonctionnement \u00e0 l\u2019heure pr\u00e9vue.",
+  "sessions.scheduledTasks.editor.confirmation.skip": "Les ex\u00e9cutions manqu\u00e9es sont ignor\u00e9es.",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "Les ex\u00e9cutions manqu\u00e9es sont regroup\u00e9es en un seul rattrapage.",
+  "sessions.scheduledTasks.editor.confirmation.off": "Les ex\u00e9cutions automatiques sont d\u00e9sactiv\u00e9es tant que cette t\u00e2che reste inactive.",
+  "sessions.scheduledTasks.editor.confirmation.title": "R\u00e9sum\u00e9 de la planification",
+  "sessions.sidebar.scheduled.empty.description": "Planifiez un prompt \u00e0 ex\u00e9cuter une fois ou r\u00e9guli\u00e8rement dans un projet.",
+  "sessions.sidebar.scheduled.empty.title": "Aucune t\u00e2che planifi\u00e9e pour le moment",
   "desktop.native.closeAnyway": "Fermer quand m\u00eame",
   "settings.window.description": "Fen\u00eatre des param\u00e8tres AX Code.",
   "settings.view.home.title": "Param\u00e8tres",
@@ -1812,7 +1819,7 @@
   "sessions.scheduledTasks.dialog.taskToggle.pauseAria": "Suspendre {taskName}",
   "sessions.scheduledTasks.editor.title.edit": "Modifier la t\u00e2che planifi\u00e9e",
   "sessions.scheduledTasks.editor.title.new": "Nouvelle t\u00e2che planifi\u00e9e",
-  "sessions.scheduledTasks.editor.description": "Configurez une t\u00e2che c\u00f4t\u00e9 serveur qui cr\u00e9e une nouvelle session et envoie une invite.",
+  "sessions.scheduledTasks.editor.description": "Choisissez le contenu et le moment. Chaque ex\u00e9cution ouvre une nouvelle session dans ce projet.",
   "sessions.scheduledTasks.editor.taskName.label": "Nom de la t\u00e2che",
   "sessions.scheduledTasks.editor.taskName.placeholder": "Synchro quotidienne",
   "sessions.scheduledTasks.editor.scheduleType.label": "Type de planification",
@@ -5437,5 +5444,9 @@
   "webmcp.tools.compare.receiptMissing": "Re\u00e7u d\u2019ex\u00e9cution indisponible : {reason}",
   "webmcp.tools.compare.missingDefinition": "Le moteur n\u2019a pas fourni d\u2019empreinte de d\u00e9finition ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 un sch\u00e9ma.",
   "webmcp.tools.compare.unmatchedDefinition": "Aucune d\u00e9finition conserv\u00e9e ne correspond \u00e0 l\u2019empreinte du moteur ; cet appel ne peut donc pas \u00eatre associ\u00e9 \u00e0 cet outil.",
-  "webmcp.tools.compare.missingInput": "Le moteur n\u2019a pas fourni de re\u00e7u d\u2019entr\u00e9e ; la requ\u00eate de l\u2019agent ne prouve pas ce que la page a re\u00e7u."
+  "webmcp.tools.compare.missingInput": "Le moteur n\u2019a pas fourni de re\u00e7u d\u2019entr\u00e9e ; la requ\u00eate de l\u2019agent ne prouve pas ce que la page a re\u00e7u.",
+  "supervision.navigation.portfolio": "Portefeuille de projets",
+  "splitPane.focusPanel": "Agrandir le panneau",
+  "splitPane.restoreSplit": "Rétablir la vue partagée",
+  "splitPane.backToConversation": "Revenir à la conversation"
 }

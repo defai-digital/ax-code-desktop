@@ -1,4 +1,5 @@
 import React from "react"
+import { ProjectIdentityText } from "@/components/projects/ProjectIdentityText"
 import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -259,7 +260,7 @@ export const SortableProjectItem: React.FC<SidebarSortableProjectItemProps> = ({
                         {projectLabel}
                       </span>
                       {showProjectDescription ? (
-                        <span className="break-all typography-micro text-muted-foreground">{projectDescription}</span>
+                        <span className="line-clamp-2 break-all typography-micro text-muted-foreground"><ProjectIdentityText label={projectDescription} /></span>
                       ) : null}
                     </span>
                     {isPinned ? (

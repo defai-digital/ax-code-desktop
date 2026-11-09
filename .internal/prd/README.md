@@ -1,5 +1,9 @@
 # AX Code Desktop PRD index
 
+- [Scheduled task UX v2](PRD-2026-11-08-scheduled-task-ux-v2.md): authorized schedule-list and editor experience improvements.
+
+Workspace usability refinement: [Workspace UX v1](PRD-2026-11-08-workspace-ux-v1.md), authorized on 2026-11-08, covers panel handoffs, navigation hierarchy, draft home ordering, identity and retry presentation.
+
 Current terminal source: [PRD-2026-10-30-akitty-web-source-v1](PRD-2026-10-30-akitty-web-source-v1.md).
 
 Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Status below distinguishes active requirements from historical implementation descriptions. Accepted records retain their original wording; later decisions control only their stated superseded clauses.

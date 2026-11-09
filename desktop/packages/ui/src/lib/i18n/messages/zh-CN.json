@@ -1,4 +1,11 @@
 {
+  "sessions.scheduledTasks.editor.confirmation.host": "\u4efb\u52a1\u5728\u6b64\u7535\u8111\u4e0a\u8fd0\u884c\u3002\u8ba1\u5212\u65f6\u95f4\u8bf7\u4fdd\u6301\u7535\u8111\u5524\u9192\uff0c\u5e76\u8ba9 AX Code \u6301\u7eed\u8fd0\u884c\u3002",
+  "sessions.scheduledTasks.editor.confirmation.skip": "\u8df3\u8fc7\u9519\u8fc7\u7684\u6267\u884c\u3002",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "\u9519\u8fc7\u7684\u6267\u884c\u4f1a\u5408\u5e76\u4e3a\u4e00\u6b21\u8865\u6267\u884c\u3002",
+  "sessions.scheduledTasks.editor.confirmation.off": "\u542f\u7528\u6b64\u4efb\u52a1\u4e4b\u524d\uff0c\u4e0d\u4f1a\u81ea\u52a8\u6267\u884c\u3002",
+  "sessions.scheduledTasks.editor.confirmation.title": "\u8ba1\u5212\u6458\u8981",
+  "sessions.sidebar.scheduled.empty.description": "\u5b89\u6392\u63d0\u793a\u5728\u9879\u76ee\u4e2d\u6267\u884c\u4e00\u6b21\u6216\u5b9a\u671f\u6267\u884c\u3002",
+  "sessions.sidebar.scheduled.empty.title": "\u6682\u65e0\u8ba1\u5212\u4efb\u52a1",
   "desktop.native.closeAnyway": "\u4ecd\u7136\u5173\u95ed",
   "settings.window.description": "AX Code \u8bbe\u7f6e\u7a97\u53e3\u3002",
   "settings.view.home.title": "\u8bbe\u7f6e",
@@ -1818,7 +1825,7 @@
   "sessions.scheduledTasks.dialog.taskToggle.pauseAria": "\u6682\u505c {taskName}",
   "sessions.scheduledTasks.editor.title.edit": "\u7f16\u8f91\u8ba1\u5212\u4efb\u52a1",
   "sessions.scheduledTasks.editor.title.new": "\u65b0\u5efa\u8ba1\u5212\u4efb\u52a1",
-  "sessions.scheduledTasks.editor.description": "\u914d\u7f6e\u4e00\u4e2a\u5728\u670d\u52a1\u5668\u7aef\u521b\u5efa\u65b0\u4f1a\u8bdd\u5e76\u53d1\u9001\u63d0\u793a\u8bcd\u7684\u4efb\u52a1\u3002",
+  "sessions.scheduledTasks.editor.description": "\u9009\u62e9\u6267\u884c\u5185\u5bb9\u4e0e\u65f6\u95f4\u3002\u6bcf\u6b21\u6267\u884c\u90fd\u4f1a\u5728\u6b64\u9879\u76ee\u4e2d\u521b\u5efa\u65b0\u7684\u4f1a\u8bdd\u3002",
   "sessions.scheduledTasks.editor.taskName.label": "\u4efb\u52a1\u540d\u79f0",
   "sessions.scheduledTasks.editor.taskName.placeholder": "\u6bcf\u65e5\u540c\u6b65",
   "sessions.scheduledTasks.editor.scheduleType.label": "\u8ba1\u5212\u7c7b\u578b",
@@ -5437,5 +5444,9 @@
   "webmcp.tools.compare.receiptMissing": "\u8fd0\u884c\u65f6\u56de\u6267\u4e0d\u53ef\u7528\uff1a{reason}",
   "webmcp.tools.compare.missingDefinition": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u5b9a\u4e49\u6458\u8981\uff0c\u56e0\u6b64\u65e0\u6cd5\u5c06\u6b64\u8c03\u7528\u5173\u8054\u5230\u67b6\u6784\u3002",
   "webmcp.tools.compare.unmatchedDefinition": "\u8fd0\u884c\u65f6\u7684\u5b9a\u4e49\u6458\u8981\u6ca1\u6709\u4fdd\u7559\u7684\u5b9a\u4e49\uff0c\u56e0\u6b64\u65e0\u6cd5\u5c06\u6b64\u8c03\u7528\u5173\u8054\u5230\u6b64\u5de5\u5177\u3002",
-  "webmcp.tools.compare.missingInput": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u8f93\u5165\u56de\u6267\uff1b\u4ee3\u7406\u7684\u8bf7\u6c42\u4e0d\u80fd\u8bc1\u660e\u7f51\u9875\u6536\u5230\u7684\u5185\u5bb9\u3002"
+  "webmcp.tools.compare.missingInput": "\u8fd0\u884c\u65f6\u672a\u63d0\u4f9b\u8f93\u5165\u56de\u6267\uff1b\u4ee3\u7406\u7684\u8bf7\u6c42\u4e0d\u80fd\u8bc1\u660e\u7f51\u9875\u6536\u5230\u7684\u5185\u5bb9\u3002",
+  "supervision.navigation.portfolio": "项目总览",
+  "splitPane.focusPanel": "聚焦面板",
+  "splitPane.restoreSplit": "恢复分屏视图",
+  "splitPane.backToConversation": "返回对话"
 }

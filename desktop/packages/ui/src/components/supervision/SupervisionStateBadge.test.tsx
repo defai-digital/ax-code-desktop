@@ -22,6 +22,13 @@ describe("SupervisionStateBadge", () => {
     container.remove()
   })
 
+  test("runtime retry changes the running label but never masks a blocking request", () => {
+    act(() => root.render(<SupervisionStateBadge state="running" retrying />))
+    expect(container.querySelector("[data-supervision-state]")?.getAttribute("aria-label")).toBe("miniChat.status.retry")
+    act(() => root.render(<SupervisionStateBadge state="permission" retrying />))
+    expect(container.querySelector("[data-supervision-state]")?.getAttribute("aria-label")).toBe("supervision.state.permission")
+  })
+
   test("goal has its own textual label and accessible name, not colour alone", () => {
     act(() => root.render(<SupervisionStateBadge state="goal" />))
     const badge = container.querySelector("[data-supervision-state='goal']")

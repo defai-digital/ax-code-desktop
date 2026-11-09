@@ -11,6 +11,9 @@ import {
   isSupervisionPageTarget,
   instrumentSupervisionPopout,
   journeyRendererErrors,
+  journeySettings,
+  SETTINGS_OPEN_EXPRESSION,
+  NEEDS_YOU_POPOVER_TEXT_EXPRESSION,
   journeyCspClean,
   waitForRuntimeReadiness,
 } from "./journeys.mjs"
@@ -374,4 +377,42 @@ describe("supervision pop-out journey", () => {
     const names = JOURNEYS.map((journey) => journey.name)
     expect(names.indexOf("journeySupervisionPopout")).toBe(names.indexOf("journeySettings") + 1)
   })
+})
+test("settings keyboard qualification does not depend on compositor frames and closes its dialog", async () => {
+  let open = false
+  const delivered = []
+  const view = { closest: (selector) => (selector === "[data-ending-style]" ? null : { hasAttribute: () => open }) }
+  const session = {
+    send: async (method, params) => {
+      if (method !== "Input.dispatchKeyEvent") return
+      delivered.push(params)
+      if (params.type === "rawKeyDown") open = params.key !== "Escape"
+    },
+    evaluate: async (expression) =>
+      runInNewContext(expression, {
+        document: { hasFocus: () => true, querySelector: () => (open ? view : null) },
+        window: { __AX_CODE_DESKTOP__: { invoke: async () => ({ focused: true }) } },
+        requestAnimationFrame: () => {
+          throw new Error("Compositor frame is not a UI readiness signal")
+        },
+      }),
+  }
+  expect((await journeySettings({ session, platform: "darwin" })).ok).toBe(true)
+  expect(delivered.filter((event) => event.type === "rawKeyDown" && event.key === ",")).toHaveLength(2)
+  expect(open).toBe(false)
+})
+
+test("a retained settings popup cannot substitute for the requested Needs you dialog", () => {
+  const settings = { textContent: "Settings" }
+  const needsYou = { textContent: "Revised goal objective" }
+  const value = runInNewContext(NEEDS_YOU_POPOVER_TEXT_EXPRESSION, {
+    document: {
+      querySelector: (selector) => (selector === '[role="dialog"][aria-label="Needs you"]' ? needsYou : settings),
+    },
+  })
+  expect(value).toBe("Revised goal objective")
+  const closed = runInNewContext(SETTINGS_OPEN_EXPRESSION, {
+    document: { querySelector: () => ({ closest: () => ({ hasAttribute: () => false }) }) },
+  })
+  expect(closed).toBe(false)
 })

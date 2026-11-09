@@ -1,4 +1,11 @@
 {
+  "sessions.scheduledTasks.editor.confirmation.host": "Le attivit\u00e0 vengono eseguite su questo computer. Tienilo attivo con AX Code in esecuzione all\u2019orario pianificato.",
+  "sessions.scheduledTasks.editor.confirmation.skip": "Le esecuzioni perse vengono saltate.",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "Le esecuzioni perse vengono unite in una sola esecuzione di recupero.",
+  "sessions.scheduledTasks.editor.confirmation.off": "Le esecuzioni automatiche sono disattivate finch\u00e9 questa attivit\u00e0 non viene abilitata.",
+  "sessions.scheduledTasks.editor.confirmation.title": "Riepilogo della pianificazione",
+  "sessions.sidebar.scheduled.empty.description": "Pianifica un prompt da eseguire una volta o periodicamente in un progetto.",
+  "sessions.sidebar.scheduled.empty.title": "Nessuna attivit\u00e0 pianificata",
   "desktop.native.closeAnyway": "Chiudi comunque",
   "settings.window.description": "Finestra delle impostazioni di AX Code.",
   "settings.view.home.title": "Impostazioni",
@@ -1818,7 +1825,7 @@
   "sessions.scheduledTasks.dialog.taskToggle.pauseAria": "Metti in pausa {taskName}",
   "sessions.scheduledTasks.editor.title.edit": "Modifica attivit\u00e0 pianificata",
   "sessions.scheduledTasks.editor.title.new": "Nuova attivit\u00e0 pianificata",
-  "sessions.scheduledTasks.editor.description": "Configura un'attivit\u00e0 lato server che crea una nuova sessione e invia un prompt.",
+  "sessions.scheduledTasks.editor.description": "Scegli cosa eseguire e quando. Ogni esecuzione avvia una nuova sessione in questo progetto.",
   "sessions.scheduledTasks.editor.taskName.label": "Nome attivit\u00e0",
   "sessions.scheduledTasks.editor.taskName.placeholder": "Sincronizzazione giornaliera",
   "sessions.scheduledTasks.editor.scheduleType.label": "Tipo di pianificazione",
@@ -5437,5 +5444,9 @@
   "webmcp.tools.compare.receiptMissing": "Ricevuta di esecuzione non disponibile: {reason}",
   "webmcp.tools.compare.missingDefinition": "Il runtime non ha fornito un digest della definizione, quindi questa chiamata non pu\u00f2 essere associata a uno schema.",
   "webmcp.tools.compare.unmatchedDefinition": "Il digest della definizione del runtime non ha una definizione conservata, quindi questa chiamata non pu\u00f2 essere associata a questo strumento.",
-  "webmcp.tools.compare.missingInput": "Il runtime non ha fornito una ricevuta di input; la richiesta dell\u2019agente non dimostra cosa ha ricevuto la pagina."
+  "webmcp.tools.compare.missingInput": "Il runtime non ha fornito una ricevuta di input; la richiesta dell\u2019agente non dimostra cosa ha ricevuto la pagina.",
+  "supervision.navigation.portfolio": "Portafoglio progetti",
+  "splitPane.focusPanel": "Espandi il pannello",
+  "splitPane.restoreSplit": "Ripristina vista divisa",
+  "splitPane.backToConversation": "Torna alla conversazione"
 }

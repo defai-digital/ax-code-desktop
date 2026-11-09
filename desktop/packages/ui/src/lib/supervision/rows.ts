@@ -9,6 +9,8 @@ export interface SupervisionRow {
   sessionId: string
   title: string
   state: SupervisionState
+  /** Root runtime retry only; urgency and canonical state remain unchanged. */
+  retrying?: boolean
   /** This root session and its loaded subagent sessions, for finding their pending requests. */
   treeSessionIds: string[]
   /** Loaded descendants with their own state, for the board details disclosure. */

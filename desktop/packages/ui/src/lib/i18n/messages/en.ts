@@ -2,6 +2,13 @@ import { settingsDict } from "./en.settings"
 import nativeDict from "../../../../../../shared/native.en.json"
 
 export const dict = {
+  "sessions.scheduledTasks.editor.confirmation.host": "Tasks run on this computer. Keep it awake with AX Code running at the scheduled time.",
+  "sessions.scheduledTasks.editor.confirmation.skip": "Missed runs are skipped.",
+  "sessions.scheduledTasks.editor.confirmation.catchUp": "Missed runs are combined into one catch-up run.",
+  "sessions.scheduledTasks.editor.confirmation.off": "Automatic runs are off until this task is enabled.",
+  "sessions.scheduledTasks.editor.confirmation.title": "Schedule summary",
+  "sessions.sidebar.scheduled.empty.description": "Schedule a prompt to run once or repeat in a project.",
+  "sessions.sidebar.scheduled.empty.title": "No scheduled tasks yet",
   "webmcp.tools.staleForm": "This form is stale because the page or tool changed. Reopen the tool and review the input before trying again.",
   ...settingsDict,
   ...nativeDict,
@@ -235,8 +242,7 @@ export const dict = {
   "sessions.scheduledTasks.editor.title.edit": "Edit scheduled task",
   "sessions.scheduledTasks.editor.title.new": "New scheduled task",
   "sessions.scheduledTasks.editor.projectLabel": "Project: {project}",
-  "sessions.scheduledTasks.editor.description":
-    "Configure a server-side task that creates a new session and sends a prompt.",
+  "sessions.scheduledTasks.editor.description": "Choose what to run and when. Each run starts a new session in this project.",
   "sessions.scheduledTasks.editor.taskName.label": "Task name",
   "sessions.scheduledTasks.editor.taskName.placeholder": "Daily sync",
   "sessions.scheduledTasks.editor.scheduleType.label": "Schedule type",
@@ -3514,6 +3520,10 @@ export const dict = {
   "supervision.inspector.showLabels": "Show tool labels",
   "supervision.inspector.hideLabels": "Hide tool labels",
   "supervision.navigation.workspace": "Workspace",
+  "supervision.navigation.portfolio": "Portfolio",
+  "splitPane.focusPanel": "Focus panel",
+  "splitPane.restoreSplit": "Restore split view",
+  "splitPane.backToConversation": "Back to conversation",
   "supervision.navigation.openInWindow": "Open this session in a separate window",
   "supervision.navigation.openInWindowFailed": "Could not open the session window",
   "supervision.request.open": "Open",
