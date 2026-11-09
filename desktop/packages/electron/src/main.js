@@ -28,6 +28,7 @@ const fs = require("fs")
 const fsp = require("fs/promises")
 const { execFile, spawn, spawnSync } = require("child_process")
 const { runOpenSpecChain } = require("./open-app-launcher")
+const { createMenuCopyAction } = require("./menu-copy-action")
 const { buildOpenFileSpecs, buildOpenProjectSpecs } = require("./open-app-specs")
 const { promisify } = require("util")
 const { createWikiViewer } = require("./wiki-viewer")
@@ -2561,16 +2562,12 @@ const DISCORD_INVITE_URL = "https://discord.gg/gf9UyPxaN2"
 
 const buildMacMenu = () => {
   const dispatchAction = (action) => dispatchMenuAction(action)
-  const handleCopyAction = () => {
-    const focused = BrowserWindow.getFocusedWindow()
-    focused?.webContents.copy()
-    // The renderer's copy handler re-copies its own selection. Sending it to a
-    // window that is not focused (mini-chat, wiki viewer) overwrote what that
-    // window had just copied with the main window's stale selection. Copy with
-    // nothing focused does nothing — a menu command it is not, and dispatching
-    // it re-created the main window.
-    if (focused && focused === getMenuTargetWindow()) dispatchAction("copy")
-  }
+  const handleCopyAction = createMenuCopyAction({
+    getFocusedWindow: () => BrowserWindow.getFocusedWindow(),
+    getFocusedWebContents: () => webContents.getFocusedWebContents(),
+    getMenuTargetWindow,
+    dispatchAction,
+  })
   return buildLocalizedMenu([
     {
       label: app.name,
@@ -2688,13 +2685,12 @@ const buildMacMenu = () => {
 
 const buildNonMacMenu = () => {
   const dispatchAction = (action) => dispatchMenuAction(action)
-  const handleCopyAction = () => {
-    const focused = BrowserWindow.getFocusedWindow()
-    focused?.webContents.copy()
-    // See buildMacMenu: only the focused window's own handler may run, and
-    // copy with nothing focused does nothing instead of re-creating a window.
-    if (focused && focused === getMenuTargetWindow()) dispatchAction("copy")
-  }
+  const handleCopyAction = createMenuCopyAction({
+    getFocusedWindow: () => BrowserWindow.getFocusedWindow(),
+    getFocusedWebContents: () => webContents.getFocusedWebContents(),
+    getMenuTargetWindow,
+    dispatchAction,
+  })
   const isDev = !app.isPackaged
   return buildLocalizedMenu([
     {
