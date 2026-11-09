@@ -1,5 +1,4 @@
 import { constants as fsConstants } from "node:fs"
-import { createRealpathCache } from "../path-realpath-cache.js"
 import { mapCoreFileNodesToDirectoryList } from "./core-file-adapter.js"
 
 const EXEC_JOB_TTL_MS = 30 * 60 * 1000
@@ -519,9 +518,11 @@ export const registerFsRoutes = (app, dependencies) => {
     cloneKillGraceMs = CLONE_KILL_GRACE_MS,
     coreFileAdapter,
   } = dependencies
-  const realpathCache = createRealpathCache({
-    realpath: fsPromises.realpath.bind(fsPromises),
-  })
+  // Resolved on every request, never cached: these answers decide whether a path is inside the workspace, and a
+  // cached one outlived an external swap of a directory for a symlink (a branch switch, an agent's `ln -s`), so
+  // a delete through it removed a file outside the workspace. A cached miss also kept a directory created by
+  // anything but this server "missing" for a minute.
+  const realpathCache = { resolve: (value) => fsPromises.realpath(value) }
 
   const execJobs = new Map()
   const commandTimeoutMs = createCommandTimeoutMs()
@@ -554,11 +555,6 @@ export const registerFsRoutes = (app, dependencies) => {
 
     return { ok: true, path: entryPath, base: canonicalBase }
   }
-
-  // The cache answers by path, so an entry created or removed since its last lookup must not keep
-  // answering with the old answer: a directory that did not exist when it was first listed stayed
-  // "missing" for the rest of the failure TTL (60 s) after it was created.
-  const invalidateRealpathCache = () => realpathCache.clear()
 
   const rejectSymlinkEscape = async ({ resolvedPath, basePath }) => {
     const [canonicalPath, canonicalBase] = await Promise.all([
@@ -846,7 +842,6 @@ export const registerFsRoutes = (app, dependencies) => {
       const resolvedPath = writable.path
 
       await fsPromises.mkdir(resolvedPath, { recursive: true })
-      invalidateRealpathCache()
       return res.json({ success: true, path: resolvedPath })
     } catch (error) {
       console.error("Failed to create directory:", error)
@@ -1054,7 +1049,6 @@ export const registerFsRoutes = (app, dependencies) => {
 
       // The clone created a directory the realpath cache may hold as missing (a lookup before
       // the clone caches ENOENT); drop it so the new repository resolves immediately.
-      invalidateRealpathCache()
 
       return res.json({ success: true, path: resolvedDestination, output })
     } catch (error) {
@@ -1101,10 +1095,11 @@ export const registerFsRoutes = (app, dependencies) => {
       return res.json({ path: canonicalPath, isFile: true, size: stats.size, mtimeMs: stats.mtimeMs })
     } catch (error) {
       const err = error
-      if (err && typeof err === "object" && err.code === "ENOENT") {
+      // ENOTDIR: a component of the path is a file, so nothing exists there.
+      if (err && typeof err === "object" && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
         return res.status(404).json({ error: "File not found" })
       }
-      if (err && typeof err === "object" && err.code === "EACCES") {
+      if (err && typeof err === "object" && (err.code === "EACCES" || err.code === "ELOOP")) {
         return res.status(403).json({ error: "Access to file denied" })
       }
       console.error("Failed to stat file:", error)
@@ -1167,7 +1162,7 @@ export const registerFsRoutes = (app, dependencies) => {
       if (err && typeof err === "object" && err.code === "EFBIG") {
         return res.status(413).json({ error: "File is too large to open" })
       }
-      if (err && typeof err === "object" && err.code === "ENOENT") {
+      if (err && typeof err === "object" && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
         if (optional) {
           return res.type("text/plain").send("")
         }
@@ -1266,7 +1261,7 @@ export const registerFsRoutes = (app, dependencies) => {
       if (err && typeof err === "object" && (err.code === "EISDIR" || err.code === "EINVAL")) {
         return res.status(400).json({ error: err.message || "Path is not a file" })
       }
-      if (err && typeof err === "object" && err.code === "ENOENT") {
+      if (err && typeof err === "object" && (err.code === "ENOENT" || err.code === "ENOTDIR")) {
         return res.status(404).json({ error: "File not found" })
       }
       if (err && typeof err === "object" && (err.code === "EACCES" || err.code === "ELOOP")) {
@@ -1312,14 +1307,32 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(writable.statusCode).json({ error: writable.error })
       }
 
-      const existing = await fsPromises.readFile(writable.path, "utf8").catch(() => null)
+      const existingStat = await fsPromises.stat?.(writable.path).catch(() => null)
+      // Only a file of exactly the new content's size can be unchanged; reading anything else in full just to
+      // compare it held an arbitrarily large file in memory.
+      const sameSize = !existingStat || existingStat.size === Buffer.byteLength(content, "utf8")
+      const existing = sameSize ? await fsPromises.readFile(writable.path, "utf8").catch(() => null) : null
       if (existing === content) {
         return res.json({ success: true, path: writable.path })
       }
 
       await fsPromises.mkdir(path.dirname(writable.path), { recursive: true })
-      await fsPromises.writeFile(writable.path, content, "utf8")
-      invalidateRealpathCache()
+      // A temp file beside the target, then a rename: writing the target in place truncated it first, so a
+      // crash, a full disk or a concurrent reader saw the user's file empty or cut short.
+      const temporaryPath = path.join(
+        path.dirname(writable.path),
+        `.${path.basename(writable.path)}.ax-write-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      )
+      try {
+        await fsPromises.writeFile(temporaryPath, content, {
+          encoding: "utf8",
+          ...(existingStat?.mode ? { mode: existingStat.mode & 0o7777 } : {}),
+        })
+        await fsPromises.rename(temporaryPath, writable.path)
+      } catch (writeError) {
+        await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+        throw writeError
+      }
       return res.json({ success: true, path: writable.path })
     } catch (error) {
       const err = error
@@ -1371,7 +1384,6 @@ export const registerFsRoutes = (app, dependencies) => {
       // component that became a symlink since. Its final name stays as written, so
       // deleting a symlink removes the link and not whatever it points at.
       await fsPromises.rm(canonical.path, { recursive: true })
-      invalidateRealpathCache()
       return res.json({ success: true, path: canonical.path })
     } catch (error) {
       const err = error
@@ -1448,6 +1460,14 @@ export const registerFsRoutes = (app, dependencies) => {
       if (destinationRealPath && destinationRealPath !== canonicalOld.path) {
         return res.status(409).json({ error: "Destination path already exists" })
       }
+      // A link pointing at the source resolves to it as well, but it is an entry of its own: taking it for a
+      // case-only rename replaced the link and answered success.
+      if (destinationRealPath && typeof fsPromises.lstat === "function") {
+        const destinationEntry = await fsPromises.lstat(resolvedNew.resolved).catch(() => null)
+        if (destinationEntry?.isSymbolicLink?.()) {
+          return res.status(409).json({ error: "Destination path already exists" })
+        }
+      }
 
       // The containment check handed back the canonical destination, which for a
       // case-only rename is the spelling the file already has: renaming to it would
@@ -1455,7 +1475,6 @@ export const registerFsRoutes = (app, dependencies) => {
       const renameTarget = destinationRealPath ? resolvedNew.resolved : writableNew.path
 
       await fsPromises.rename(canonicalOld.path, renameTarget)
-      invalidateRealpathCache()
       return res.json({ success: true, path: renameTarget })
     } catch (error) {
       const err = error

@@ -284,6 +284,53 @@ describe("fs read optional contract", () => {
   })
 })
 
+describe("fs paths through a file", () => {
+  it("answers a path under a regular file as missing, not as a server fault", async () => {
+    // `f.txt/x` fails with ENOTDIR, which no route mapped: they answered 500 with the absolute path in the message.
+    const notDir = Object.assign(new Error("ENOTDIR: not a directory, realpath '/repo/f.txt/x'"), { code: "ENOTDIR" })
+    const { getRoute } = registerFs({
+      realpath: async (targetPath) => {
+        if (targetPath === "/repo") return targetPath
+        throw notDir
+      },
+    })
+
+    const read = getRoute("GET", "/api/fs/read")
+    expect((await callRoute(read, { query: { path: "/repo/f.txt/x" } })).statusCode).toBe(404)
+    const optional = await callRoute(read, { query: { path: "/repo/f.txt/x", optional: "true" } })
+    expect(optional.statusCode).toBe(200)
+    expect(optional.body).toBe("")
+    expect((await callRoute(getRoute("GET", "/api/fs/raw"), { query: { path: "/repo/f.txt/x" } })).statusCode).toBe(404)
+  })
+})
+
+// An in-memory stand-in for the write path: the content that lands at a path is what a reader would see there.
+const createMemoryFiles = (initial = {}) => {
+  const files = new Map(Object.entries(initial))
+  return {
+    files,
+    readFile: vi.fn(async (target) => {
+      if (!files.has(target)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      return files.get(target)
+    }),
+    stat: vi.fn(async (target) => {
+      if (!files.has(target)) throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+      return { size: Buffer.byteLength(files.get(target)), mode: 0o100644 }
+    }),
+    mkdir: vi.fn(async () => undefined),
+    writeFile: vi.fn(async (target, content) => {
+      files.set(target, content)
+    }),
+    rename: vi.fn(async (from, to) => {
+      files.set(to, files.get(from))
+      files.delete(from)
+    }),
+    rm: vi.fn(async (target) => {
+      files.delete(target)
+    }),
+  }
+}
+
 describe("fs write", () => {
   it("does not rewrite a file when content is unchanged", async () => {
     const fsPromises = {
@@ -300,18 +347,29 @@ describe("fs write", () => {
   })
 
   it("writes a file when content changed", async () => {
-    const fsPromises = {
-      readFile: vi.fn(async () => "old"),
-      mkdir: vi.fn(async () => undefined),
-      writeFile: vi.fn(async () => undefined),
-    }
+    const fsPromises = createMemoryFiles({ "/repo/file.txt": "old" })
     const handler = registerWrite(fsPromises)
 
     const res = await callWrite(handler, { path: "/repo/file.txt", content: "new" })
 
     expect(res.body).toEqual({ success: true, path: "/repo/file.txt" })
     expect(fsPromises.mkdir).toHaveBeenCalledWith("/repo", { recursive: true })
-    expect(fsPromises.writeFile).toHaveBeenCalledWith("/repo/file.txt", "new", "utf8")
+    expect([...fsPromises.files]).toEqual([["/repo/file.txt", "new"]])
+  })
+
+  it("never leaves the target cut short when the write fails part way", async () => {
+    // The target was written in place, truncated first: a full disk part way through left the user's file empty.
+    const fsPromises = createMemoryFiles({ "/repo/file.txt": "the original contents" })
+    fsPromises.writeFile.mockImplementation(async (target) => {
+      fsPromises.files.set(target, "")
+      throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
+    })
+    const handler = registerWrite(fsPromises)
+
+    const res = await callWrite(handler, { path: "/repo/file.txt", content: "new contents" })
+
+    expect(res.statusCode).toBe(500)
+    expect([...fsPromises.files]).toEqual([["/repo/file.txt", "the original contents"]])
   })
 
   it("writes to the canonical target the containment check resolved, not the requested string", async () => {
@@ -323,9 +381,7 @@ describe("fs write", () => {
         if (targetPath === "/repo/link/file.txt") return "/repo/real/file.txt"
         return targetPath
       }),
-      readFile: vi.fn(async () => "old"),
-      mkdir: vi.fn(async () => undefined),
-      writeFile: vi.fn(async () => undefined),
+      ...createMemoryFiles({ "/repo/real/file.txt": "old" }),
     }
     const handler = registerWrite(fsPromises)
 
@@ -333,15 +389,11 @@ describe("fs write", () => {
 
     expect(res.body).toEqual({ success: true, path: "/repo/real/file.txt" })
     expect(fsPromises.mkdir).toHaveBeenCalledWith("/repo/real", { recursive: true })
-    expect(fsPromises.writeFile).toHaveBeenCalledWith("/repo/real/file.txt", "new", "utf8")
+    expect([...fsPromises.files]).toEqual([["/repo/real/file.txt", "new"]])
   })
 
   it("allows writes inside an approved outside-workspace directory when explicitly requested", async () => {
-    const fsPromises = {
-      readFile: vi.fn(async () => "old"),
-      mkdir: vi.fn(async () => undefined),
-      writeFile: vi.fn(async () => undefined),
-    }
+    const fsPromises = createMemoryFiles({ "/tmp/approved/file.txt": "old" })
     const handler = registerWrite(fsPromises, { approvedDirectories: ["/tmp/approved"] })
 
     const res = await callWrite(handler, {
@@ -353,7 +405,7 @@ describe("fs write", () => {
     expect(res.statusCode).toBe(200)
     expect(res.body).toEqual({ success: true, path: "/tmp/approved/file.txt" })
     expect(fsPromises.mkdir).toHaveBeenCalledWith("/tmp/approved", { recursive: true })
-    expect(fsPromises.writeFile).toHaveBeenCalledWith("/tmp/approved/file.txt", "new", "utf8")
+    expect(fsPromises.files.get("/tmp/approved/file.txt")).toBe("new")
   })
 })
 
@@ -1235,6 +1287,45 @@ describe("fs text and raw reads", () => {
     expect(listed.statusCode).toBe(200)
   })
 
+  it("refuses a delete through a directory replaced by a symlink after it was listed", async () => {
+    // The containment answer was cached for ten minutes, so once `/repo/sub` had been looked up, swapping it for
+    // a link to `/outside` (a branch switch, an agent's `ln -s`) let a delete under it remove a file outside.
+    let swapped = false
+    const fsPromises = {
+      rm: vi.fn(async () => undefined),
+      realpath: vi.fn(async (targetPath) =>
+        swapped && targetPath.startsWith("/repo/sub") ? targetPath.replace("/repo/sub", "/outside") : targetPath,
+      ),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, { list: async () => [] })
+    await callRoute(getRoute("GET", "/api/fs/list"), { query: { path: "/repo/sub" } })
+
+    swapped = true
+    const res = await callRoute(getRoute("POST", "/api/fs/delete"), { body: { path: "/repo/sub/victim" } })
+
+    expect(res.statusCode).toBe(403)
+    expect(fsPromises.rm).not.toHaveBeenCalled()
+  })
+
+  it("lists a directory something else created after it was first reported missing", async () => {
+    const existingPaths = new Set(["/repo"])
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (!existingPaths.has(targetPath)) {
+          throw Object.assign(new Error("ENOENT"), { code: "ENOENT" })
+        }
+        return targetPath
+      }),
+    }
+    const { getRoute } = registerFs(fsPromises, { approvedDirectories: [] }, { list: async () => [] })
+    const listRoute = getRoute("GET", "/api/fs/list")
+    expect((await callRoute(listRoute, { query: { path: "/repo/notes" } })).statusCode).toBe(404)
+
+    existingPaths.add("/repo/notes")
+
+    expect((await callRoute(listRoute, { query: { path: "/repo/notes" } })).statusCode).toBe(200)
+  })
+
   it("refuses to delete the workspace root itself", async () => {
     // The containment check accepts the root (a relative path of "" is inside
     // it) and the removal is recursive, so this would take the whole project.
@@ -1380,6 +1471,25 @@ describe("fs rename", () => {
     expect(res.statusCode).toBe(200)
     // Renaming the target left the link pointing at a name that no longer exists.
     expect(fsPromises.rename).toHaveBeenCalledWith("/repo/pointing.txt", "/repo/moved.txt")
+  })
+
+  it("refuses to replace a link that points at the source", async () => {
+    const fsPromises = {
+      realpath: vi.fn(async (targetPath) => {
+        if (targetPath === "/repo/link.txt") return "/repo/real.txt"
+        if (targetPath === "/repo/real.txt" || targetPath === "/repo") return targetPath
+        throw missing()
+      }),
+      lstat: vi.fn(async (targetPath) => ({ isSymbolicLink: () => targetPath === "/repo/link.txt" })),
+      rename: vi.fn(async () => undefined),
+    }
+    const { getRoute } = registerFs(fsPromises)
+    const res = await callRoute(getRoute("POST", "/api/fs/rename"), {
+      body: { oldPath: "/repo/real.txt", newPath: "/repo/link.txt" },
+    })
+
+    expect(res.statusCode).toBe(409)
+    expect(fsPromises.rename).not.toHaveBeenCalled()
   })
 
   it("allows a case-only rename on a case-insensitive filesystem", async () => {
