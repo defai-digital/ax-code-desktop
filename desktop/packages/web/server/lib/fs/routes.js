@@ -3,6 +3,15 @@ import { createRealpathCache } from "../path-realpath-cache.js"
 import { mapCoreFileNodesToDirectoryList } from "./core-file-adapter.js"
 
 const EXEC_JOB_TTL_MS = 30 * 60 * 1000
+// A clone that reports no progress for this long is treated as hung (stalled transfer, dead
+// connection that was never closed) and stopped. --progress makes git report regularly while it
+// works, so a large but healthy clone is never cut off by its total duration.
+const CLONE_INACTIVITY_TIMEOUT_MS = 10 * 60 * 1000
+// After SIGTERM, a clone that has not exited (or whose transport helper keeps the pipes open)
+// is killed outright and the request settles anyway.
+const CLONE_KILL_GRACE_MS = 10 * 1000
+// Progress lines repeat for the whole transfer; keep only the tail for the response and errors.
+const CLONE_OUTPUT_MAX_CHARS = 64 * 1024
 
 // A lossy decode is how opening a binary as text and saving it destroyed the
 // original bytes: every invalid sequence became U+FFFD. Only bytes that are
@@ -497,6 +506,8 @@ export const registerFsRoutes = (app, dependencies) => {
     buildAugmentedPath,
     resolveGitBinaryForSpawn,
     openchamberUserConfigRoot,
+    cloneInactivityTimeoutMs = CLONE_INACTIVITY_TIMEOUT_MS,
+    cloneKillGraceMs = CLONE_KILL_GRACE_MS,
     coreFileAdapter,
   } = dependencies
   const realpathCache = createRealpathCache({
@@ -885,7 +896,7 @@ export const registerFsRoutes = (app, dependencies) => {
       }
 
       const identity = await resolveCloneGitIdentity(gitIdentityId)
-      const gitArgs = ["clone", "--", remote, directoryName]
+      const gitArgs = ["clone", "--progress", "--", remote, directoryName]
       const sshKeyPath = typeof identity?.sshKey === "string" ? identity.sshKey.trim() : ""
       if (sshKeyPath) {
         gitArgs.unshift(
@@ -946,21 +957,76 @@ export const registerFsRoutes = (app, dependencies) => {
 
         let stdout = ""
         let stderr = ""
+        let settled = false
+        let stopReason = null
+        let inactivityTimer = null
+        let killTimer = null
+        const keepTail = (text) => (text.length > CLONE_OUTPUT_MAX_CHARS ? text.slice(-CLONE_OUTPUT_MAX_CHARS) : text)
+        const stopError = () => {
+          if (stopReason === "stalled") {
+            const minutes = Math.round(cloneInactivityTimeoutMs / 60000)
+            return new Error(`git clone stopped after ${minutes} minute(s) without progress`)
+          }
+          return new Error("git clone cancelled because the client disconnected")
+        }
+        const stop = (reason) => {
+          if (settled || stopReason) return
+          stopReason = reason
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          // git clone removes its partially created directory when it is terminated.
+          child.kill()
+          killTimer = setTimeout(() => {
+            child.kill("SIGKILL")
+            finish(() => reject(stopError()))
+          }, cloneKillGraceMs)
+        }
+        const armInactivityTimer = () => {
+          if (stopReason || settled) return
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          inactivityTimer = setTimeout(() => stop("stalled"), cloneInactivityTimeoutMs)
+        }
+        // The client gave up (closed the window, cancelled, reloaded): nobody is waiting for
+        // this clone any more, so it must not keep running or finish unseen.
+        const onResponseClose = () => {
+          if (!res.writableEnded) stop("client-closed")
+        }
+        const finish = (callback) => {
+          if (settled) return
+          settled = true
+          if (inactivityTimer) clearTimeout(inactivityTimer)
+          if (killTimer) clearTimeout(killTimer)
+          if (typeof res.off === "function") res.off("close", onResponseClose)
+          callback()
+        }
+        if (typeof res.on === "function") res.on("close", onResponseClose)
+        armInactivityTimer()
         child.stdout.on("data", (data) => {
-          stdout += data.toString()
+          stdout = keepTail(stdout + data.toString())
+          armInactivityTimer()
         })
         child.stderr.on("data", (data) => {
-          stderr += data.toString()
+          stderr = keepTail(stderr + data.toString())
+          armInactivityTimer()
         })
-        child.on("error", reject)
+        child.on("error", (error) => finish(() => reject(error)))
+        // A stopped clone settles when git exits: 'close' also waits for every inherited pipe,
+        // which a surviving transport helper can hold open.
+        child.on("exit", () => {
+          if (stopReason) finish(() => reject(stopError()))
+        })
         child.on("close", (code) => {
-          const combined = `${stdout}\n${stderr}`.trim()
-          if (code === 0) {
-            resolve(combined)
-            return
-          }
-          const message = combined || `git clone failed with exit code ${code}`
-          reject(new Error(message))
+          finish(() => {
+            const combined = `${stdout}\n${stderr}`.trim()
+            if (stopReason) {
+              reject(stopError())
+              return
+            }
+            if (code === 0) {
+              resolve(combined)
+              return
+            }
+            reject(new Error(combined || `git clone failed with exit code ${code}`))
+          })
         })
       })
 

@@ -163,7 +163,13 @@ const callWrite = async (handler, body) => {
   return res
 }
 
-const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFileAdapter, spawn = vi.fn()) => {
+const registerFs = (
+  fsPromises,
+  settings = { approvedDirectories: [] },
+  coreFileAdapter,
+  spawn = vi.fn(),
+  extraDependencies = {},
+) => {
   const { app, getRoute } = createRouteRegistry()
   registerFsRoutes(app, {
     os: { homedir: () => "/home/user" },
@@ -193,6 +199,7 @@ const registerFs = (fsPromises, settings = { approvedDirectories: [] }, coreFile
     resolveGitBinaryForSpawn: () => "git",
     openchamberUserConfigRoot: "/home/user/.config",
     coreFileAdapter,
+    ...extraDependencies,
   })
   return { getRoute }
 }
@@ -528,7 +535,134 @@ describe("fs clone destination", () => {
     })
 
     expect(res.statusCode).toBe(200)
-    expect(calls[0]).toBe("git clone -- https://example.com/acme/demo.git demo")
+    expect(calls[0]).toBe("git clone --progress -- https://example.com/acme/demo.git demo")
+  })
+})
+
+describe("fs clone process lifetime", () => {
+  // A fake git clone that stays running until killed, then closes like a terminated process.
+  const createHangingClone = () => {
+    const children = []
+    const spawn = vi.fn(() => {
+      const child = new EventEmitter()
+      child.stdout = new EventEmitter()
+      child.stderr = new EventEmitter()
+      child.killed = false
+      child.kill = vi.fn(() => {
+        child.killed = true
+        queueMicrotask(() => child.emit("close", null, "SIGTERM"))
+      })
+      children.push(child)
+      return child
+    })
+    return { spawn, children }
+  }
+  const missingDestination = {
+    mkdir: vi.fn(async () => undefined),
+    access: vi.fn(async () => {
+      const error = new Error("ENOENT")
+      error.code = "ENOENT"
+      throw error
+    }),
+  }
+  const body = { remoteUrl: "https://example.com/acme/demo.git", destinationPath: "/repo/sub/" }
+  // The mock response plus the http.ServerResponse 'close' event.
+  const closableResponse = (writableEnded) => {
+    const emitter = new EventEmitter()
+    return Object.assign(createMockResponse(), {
+      writableEnded,
+      on: emitter.on.bind(emitter),
+      off: emitter.off.bind(emitter),
+      emit: emitter.emit.bind(emitter),
+      listenerCount: emitter.listenerCount.bind(emitter),
+    })
+  }
+
+  it("stops a clone that reports no progress for the inactivity window", async () => {
+    vi.useFakeTimers()
+    try {
+      const { spawn, children } = createHangingClone()
+      const { getRoute } = registerFs(missingDestination, { approvedDirectories: [] }, undefined, spawn, {
+        cloneInactivityTimeoutMs: 1000,
+      })
+      const res = createMockResponse()
+      const pending = getRoute("POST", "/api/fs/clone")({ query: {}, body }, res)
+      await vi.advanceTimersByTimeAsync(0)
+      // Progress keeps it alive; silence afterwards stops it.
+      await vi.advanceTimersByTimeAsync(900)
+      children[0].stderr.emit("data", Buffer.from("Receiving objects:  40%\r"))
+      await vi.advanceTimersByTimeAsync(900)
+      expect(children[0].kill).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(200)
+      expect(children[0].kill).toHaveBeenCalledOnce()
+      await pending
+      expect(res.statusCode).toBe(500)
+      expect(res.body.error).toContain("without progress")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("stops the clone when the client disconnects before the response", async () => {
+    const { spawn, children } = createHangingClone()
+    const { getRoute } = registerFs(missingDestination, { approvedDirectories: [] }, undefined, spawn)
+    const res = closableResponse(false)
+    const pending = getRoute("POST", "/api/fs/clone")({ query: {}, body }, res)
+    await vi.waitFor(() => expect(children).toHaveLength(1))
+
+    res.emit("close")
+
+    expect(children[0].kill).toHaveBeenCalledOnce()
+    await pending
+    expect(res.body.error).toContain("client disconnected")
+  })
+
+  it("does not kill an in-flight clone when 'close' follows a response that already ended", async () => {
+    const { spawn, children } = createHangingClone()
+    const { getRoute } = registerFs(missingDestination, { approvedDirectories: [] }, undefined, spawn)
+    const res = closableResponse(true)
+    const pending = getRoute("POST", "/api/fs/clone")({ query: {}, body }, res)
+    await vi.waitFor(() => expect(children).toHaveLength(1))
+
+    res.emit("close")
+    expect(children[0].kill).not.toHaveBeenCalled()
+
+    children[0].emit("close", 0, null)
+    await pending
+    expect(res.statusCode).toBe(200)
+    // The listener is removed once the clone settles.
+    expect(res.listenerCount("close")).toBe(0)
+  })
+
+  it("settles a stopped clone even when its pipes stay open, escalating to SIGKILL", async () => {
+    vi.useFakeTimers()
+    try {
+      const children = []
+      const spawn = vi.fn(() => {
+        const child = new EventEmitter()
+        child.stdout = new EventEmitter()
+        child.stderr = new EventEmitter()
+        // A transport helper keeps the pipes open: neither 'exit' nor 'close' ever arrives.
+        child.kill = vi.fn()
+        children.push(child)
+        return child
+      })
+      const { getRoute } = registerFs(missingDestination, { approvedDirectories: [] }, undefined, spawn, {
+        cloneInactivityTimeoutMs: 1000,
+        cloneKillGraceMs: 500,
+      })
+      const res = createMockResponse()
+      const pending = getRoute("POST", "/api/fs/clone")({ query: {}, body }, res)
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(children[0].kill).toHaveBeenCalledWith()
+      await vi.advanceTimersByTimeAsync(500)
+      expect(children[0].kill).toHaveBeenCalledWith("SIGKILL")
+      await pending
+      expect(res.statusCode).toBe(500)
+      expect(res.body.error).toContain("without progress")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
