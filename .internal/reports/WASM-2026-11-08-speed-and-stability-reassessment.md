@@ -13,7 +13,8 @@ AX Code release channel. Measurements are from the 2026-11-03 evidence except th
 Do not start a broad WASM migration. Most remaining speed and stability risk comes from unbounded or synchronous work,
 lifecycle races, and rendering cost, none of which a language change removes. Two candidates remain, both gated:
 
-1. **Canonical AX Code diff engine (`@ax-code/diff-wasm`)** — highest value, currently blocked on delivery.
+1. **Canonical AX Code diff engine (`@ax-code/diff-wasm`)** — highest value; publication is merged upstream and the
+   first release carrying it is expected at AX Code v7.30.18.
 2. **Large-document Markdown first parse** — deprioritized after the packaged trace below. The largest cold cost was
    a React Suspense reveal throttle, now fixed. Parsing runs in a Worker and only dominates at ≥300k characters.
 
@@ -21,10 +22,15 @@ Diff syntax highlighting stays on Shiki JS. The terminal already uses WASM throu
 
 ## What changed since 2026-11-03
 
-- **No installable diff artifact yet.** The AX Code releases `v7.30.16` and `v7.30.17` and SDK releases through
-  `sdk-v2.6.70` list no diff or WASM asset (GitHub release query, 2026-11-08). The 11-03 packed tarball failed a clean
-  install because `@ax-code/util@1.3.2` returned HTTP 404; nothing observed since resolves that closure. Desktop must
-  not consume sibling source or ignored build output, so integration cannot start.
+- **Diff artifact delivery (updated later on 2026-11-08).** The AX Code releases `v7.30.16` and `v7.30.17` and SDK
+  releases through `sdk-v2.6.70` list no diff or WASM asset. The 11-03 clean-install failure (`@ax-code/util@1.3.2`
+  returned HTTP 404) no longer applies: AX Code `ed8fae843` made the tarball independently installable, with
+  `@ax-code/util` as a build-time devDependency and an offline `test:tarball` consumer check. Publication was the
+  remaining gap. [ax-code#504](https://github.com/defai-digital/ax-code/pull/504) (merged as `2aa77c31d`) makes each
+  release from v7.30.18 attach `ax-code-diff-wasm.tgz` with a minisign signature and `.sha256`. It landed on top of
+  [ax-code#505](https://github.com/defai-digital/ax-code/pull/505), which fixed the Linux bubblewrap CI failure that
+  blocked every AX Code PR. Desktop must not consume sibling source or ignored build output, so integration starts
+  once that release is published.
 - **Stale highlighter comment fixed.** `DiffWorkerProvider.tsx` claimed packaged `app://` workers cannot compile
   WebAssembly. The packaged renderer CSP (`desktop-renderer-protocol.js`) and web CSP (`response-headers.js`) both
   allow `'wasm-unsafe-eval'` (not `'unsafe-eval'`). Commit `fdf135e1` replaces the comment with the measured rationale
@@ -55,9 +61,10 @@ The main gain is **stability**, not raw speed: hunk computation on cache misses 
 renderer thread, and moving it behind an interruptible Worker bounds the worst case for large or fragmented diffs.
 Integration points and ordering are in the [canonical diff plan](markdown-optimization-20261103/canonical-diff-plan.md).
 
-Unblock condition: an owner-published, exact-version artifact (GitHub Release tarball or GitHub Packages) whose runtime
-dependencies are resolved or bundled, with browser worker/WASM assets, integrity, and NOTICE, that installs cleanly
-outside the canonical workspace. Then pin it through pnpm and follow PRD → ADR → spec → implementation.
+Unblock condition: an owner-published, exact-version artifact with resolved runtime dependencies, browser worker and
+WASM assets, integrity, and NOTICE, installable outside the canonical workspace. Installability (`ed8fae843`) and the
+release attachment (ax-code#504) are both merged; what remains is a published release carrying the asset (expected
+v7.30.18). Then pin the release tag and SHA-256 through pnpm and follow PRD → ADR → spec → implementation.
 
 ### Measured diff cost (2026-11-08)
 
@@ -194,8 +201,9 @@ Carried forward from the 11-03 assessment as suggested thresholds, not policy:
 
 ## Recommended next steps
 
-1. Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact — requested in
-   [defai-digital/ax-code#503](https://github.com/defai-digital/ax-code/issues/503).
+1. ~~Ask the AX Code owner to publish an independently installable `@ax-code/diff-wasm` artifact~~ — requested in
+   [defai-digital/ax-code#503](https://github.com/defai-digital/ax-code/issues/503) and implemented in ax-code#504.
+   Next: once v7.30.18 is published, verify the asset's signature and digest and start the Desktop PRD → ADR → spec.
 2. ~~Capture packaged Markdown traces~~ and ~~measure diff cost~~ — done (see above). Large rewrites are the case
    that justifies the canonical diff engine.
 3. Keep Shiki JS; revisit only for a demonstrated grammar-compatibility or performance problem.
