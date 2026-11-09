@@ -73,7 +73,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(profile)
     } catch (error) {
       console.error("Failed to create git identity profile:", error)
-      res.status(400).json({ error: error.message || "Failed to create git identity profile" })
+      res.status(error?.statusCode || 500).json({ error: error?.statusCode ? error.message : "Failed to create git identity profile" })
     }
   })
 
@@ -85,7 +85,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(profile)
     } catch (error) {
       console.error("Failed to update git identity profile:", error)
-      res.status(400).json({ error: error.message || "Failed to update git identity profile" })
+      res.status(error?.statusCode || 500).json({ error: error?.statusCode ? error.message : "Failed to update git identity profile" })
     }
   })
 
@@ -97,7 +97,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true })
     } catch (error) {
       console.error("Failed to delete git identity profile:", error)
-      res.status(400).json({ error: error.message || "Failed to delete git identity profile" })
+      res.status(error?.statusCode || 500).json({ error: error?.statusCode ? error.message : "Failed to delete git identity profile" })
     }
   })
 

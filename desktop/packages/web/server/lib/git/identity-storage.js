@@ -77,15 +77,27 @@ export function getProfile(id) {
   return profiles.find((p) => p.id === id) || null
 }
 
+// Request errors carry the status the routes answer with; anything else (an unreadable or unwritable file) is
+// a server fault.
+const requestError = (message, statusCode) => Object.assign(new Error(message), { statusCode })
+
+const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0
+
 export function createProfile(profileData) {
+  // Route params are always strings: a numeric id was saved, then no update or delete could ever match it.
+  // A non-string name or email ended up as the argument of `git config`.
+  if (
+    !isNonEmptyString(profileData?.id) ||
+    !isNonEmptyString(profileData.userName) ||
+    !isNonEmptyString(profileData.userEmail)
+  ) {
+    throw requestError("Profile must have id, userName, and userEmail", 400)
+  }
+
   const profiles = getProfiles()
 
   if (profiles.some((p) => p.id === profileData.id)) {
-    throw new Error(`Profile with ID "${profileData.id}" already exists`)
-  }
-
-  if (!profileData.id || !profileData.userName || !profileData.userEmail) {
-    throw new Error("Profile must have id, userName, and userEmail")
+    throw requestError(`Profile with ID "${profileData.id}" already exists`, 409)
   }
 
   const newProfile = {
@@ -111,7 +123,16 @@ export function updateProfile(id, updates) {
   const index = profiles.findIndex((p) => p.id === id)
 
   if (index === -1) {
-    throw new Error(`Profile with ID "${id}" not found`)
+    throw requestError(`Profile with ID "${id}" not found`, 404)
+  }
+  // An update must not save what a create refuses.
+  if (!updates || typeof updates !== "object" || Array.isArray(updates)) {
+    throw requestError("Profile updates must be an object", 400)
+  }
+  for (const field of ["userName", "userEmail"]) {
+    if (Object.hasOwn(updates, field) && !isNonEmptyString(updates[field])) {
+      throw requestError(`Profile ${field} must be a non-empty string`, 400)
+    }
   }
 
   profiles[index] = {
@@ -129,7 +150,7 @@ export function deleteProfile(id) {
   const filteredProfiles = profiles.filter((p) => p.id !== id)
 
   if (filteredProfiles.length === profiles.length) {
-    throw new Error(`Profile with ID "${id}" not found`)
+    throw requestError(`Profile with ID "${id}" not found`, 404)
   }
 
   saveProfiles({ profiles: filteredProfiles })

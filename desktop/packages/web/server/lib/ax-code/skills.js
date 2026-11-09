@@ -464,8 +464,6 @@ function createSkill(skillName, config, workingDirectory, scope) {
     targetScope = SKILL_SCOPE.USER
   }
 
-  fs.mkdirSync(targetDir, { recursive: true })
-
   const { instructions, scope: _scopeFromConfig, source: _sourceFromConfig, supportingFiles, ...frontmatter } = config
   void _scopeFromConfig
   void _sourceFromConfig
@@ -473,9 +471,23 @@ function createSkill(skillName, config, workingDirectory, scope) {
   if (!frontmatter.name) {
     frontmatter.name = skillName
   }
+  // Everything a request can get wrong is refused before anything is written. A refused supporting-file path
+  // used to surface after SKILL.md was on disk: the client saw a failed create, and its retry hit "already
+  // exists". A missing description left an empty skill directory behind.
   if (!frontmatter.description) {
     throw new Error("Skill description is required")
   }
+  if (supportingFiles && Array.isArray(supportingFiles)) {
+    for (const file of supportingFiles) {
+      if (!file?.path || file.content === undefined) continue
+      const relative = typeof file.path === "string" ? path.relative(targetDir, path.resolve(targetDir, file.path)) : ""
+      if (!relative || path.isAbsolute(relative) || relative === ".." || relative.startsWith(`..${path.sep}`)) {
+        throw new Error(`Invalid supporting file path: ${String(file.path)}`)
+      }
+    }
+  }
+
+  fs.mkdirSync(targetDir, { recursive: true })
 
   writeMdFile(targetPath, frontmatter, instructions || "")
 

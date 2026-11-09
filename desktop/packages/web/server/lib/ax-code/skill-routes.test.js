@@ -73,6 +73,24 @@ describe("skill install", () => {
   })
 })
 
+describe("skill mutations", () => {
+  it("answers a refused supporting-file path as forbidden, not as a server fault", async () => {
+    const getRoute = registerSkills({
+      updateSkill: vi.fn(() => {
+        throw Object.assign(new Error("Access to file denied"), { code: "EACCES" })
+      }),
+    })
+    const res = createMockResponse()
+
+    await getRoute("PATCH", "/api/config/skills/:name")(
+      { params: { name: "review" }, body: { supportingFiles: [{ path: "link/x.md", content: "y" }] }, query: {} },
+      res,
+    )
+
+    expect(res.statusCode).toBe(403)
+  })
+})
+
 describe("skill catalog source", () => {
   it("asks for credentials when a saved source's identity is refused", async () => {
     // The scan route answers this with 401 and the identities to choose from; the catalog route answered 500,

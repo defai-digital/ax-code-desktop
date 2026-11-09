@@ -1,7 +1,7 @@
 const MAX_BODY_BYTES = 4 * 1024 * 1024
 
 export const registerSessionFoldersRoutes = (app, dependencies) => {
-  const { fsPromises, path, openchamberDataDir } = dependencies
+  const { fsPromises, path, openchamberDataDir, now = () => Date.now() } = dependencies
 
   const filePath = path.join(openchamberDataDir, "sessions-directories.json")
 
@@ -43,8 +43,15 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
   const mergeSnapshots = (base, incoming) => {
     const baseMap = base?.foldersMap && typeof base.foldersMap === "object" ? base.foldersMap : {}
     const incomingMap = incoming?.foldersMap && typeof incoming.foldersMap === "object" ? incoming.foldersMap : {}
-    const baseUpdatedAt = typeof base?.updatedAt === "number" ? base.updatedAt : 0
-    const incomingUpdatedAt = typeof incoming?.updatedAt === "number" ? incoming.updatedAt : 0
+    // Timestamps come from client clocks. One ahead of real time stayed in the file as the maximum, and every
+    // later honest snapshot then compared as lagging, so deletions and un-collapses stopped persisting until real
+    // time caught up. An incoming stamp is capped at now, and a stamp already on disk from the future (written
+    // before the cap, or before the clock was set back) does not outrank anything.
+    const currentTime = now()
+    const readStamp = (value) => (typeof value === "number" && Number.isFinite(value) ? value : 0)
+    const storedUpdatedAt = readStamp(base?.updatedAt)
+    const baseUpdatedAt = storedUpdatedAt > currentTime ? 0 : storedUpdatedAt
+    const incomingUpdatedAt = Math.min(readStamp(incoming?.updatedAt), currentTime)
     const incomingIsAuthoritative = incomingUpdatedAt >= baseUpdatedAt
 
     const foldersMap = {}

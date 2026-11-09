@@ -77,4 +77,21 @@ describe("git identity storage", () => {
 
     expect(loadProfiles()).toEqual({ profiles: [] })
   })
+
+  it("refuses profiles that git could not use or the routes could never address", async () => {
+    // A numeric id was saved and then matched no update or delete (route ids are strings); an update could
+    // store the empty email that create refuses, which then reached `git config user.email`.
+    const { createProfile, updateProfile, getProfiles } = await importStorage()
+
+    expect(() => createProfile({ id: 1, userName: "a", userEmail: "b@example.com" })).toThrow(
+      expect.objectContaining({ statusCode: 400 }),
+    )
+    createProfile({ id: "work", userName: "Test User", userEmail: "test@example.com" })
+    expect(() => createProfile({ id: "work", userName: "x", userEmail: "y" })).toThrow(
+      expect.objectContaining({ statusCode: 409 }),
+    )
+    expect(() => updateProfile("work", { userEmail: "" })).toThrow(expect.objectContaining({ statusCode: 400 }))
+    expect(() => updateProfile("missing", { userName: "x" })).toThrow(expect.objectContaining({ statusCode: 404 }))
+    expect(getProfiles()).toEqual([expect.objectContaining({ id: "work", userEmail: "test@example.com" })])
+  })
 })

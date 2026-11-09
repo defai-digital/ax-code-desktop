@@ -11,6 +11,10 @@ const respondSkillError = (res, error, fallback) => {
   if (message.includes("already exists")) {
     return res.status(409).json({ error: message })
   }
+  // The supporting-file guard refuses paths that resolve outside the skill.
+  if (error?.code === "EACCES") {
+    return res.status(403).json({ error: message })
+  }
   if (
     message.includes("is required") ||
     message.startsWith("Invalid ") ||

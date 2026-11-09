@@ -232,6 +232,30 @@ describe("session folders routes", () => {
     expect(written.collapsedFolderIds).toEqual([])
   })
 
+  it("keeps persisting deletions after a snapshot stamped in the future", async () => {
+    // A client clock ahead of real time left its stamp in the file, and every later snapshot compared as lagging:
+    // the deleted folder stayed on disk until real time passed the stamp.
+    const future = Date.now() + 365 * 24 * 60 * 60 * 1000
+    const folder = (id) => ({ id, name: id, sessionIds: [], createdAt: 1, parentId: null })
+    const { handler, readWritten } = createMergeHarness({
+      version: 1,
+      updatedAt: future,
+      foldersMap: { "/p": [folder("keep"), folder("gone")] },
+      collapsedFolderIds: [],
+    })
+
+    const response = createMockResponse()
+    await handler(
+      { body: { version: 1, updatedAt: Date.now(), foldersMap: { "/p": [folder("keep")] }, collapsedFolderIds: [] } },
+      response,
+    )
+    expect(response.statusCode).toBe(200)
+    expect(readWritten().foldersMap["/p"].map((entry) => entry.id)).toEqual(["keep"])
+
+    await handler({ body: { version: 1, updatedAt: future, foldersMap: { "/p": [folder("keep")] } } }, createMockResponse())
+    expect(readWritten().updatedAt).toBeLessThan(future)
+  })
+
   it("keeps folders a lagging writer never saw", async () => {
     // An older in-flight write (another window's debounced save racing a newer
     // one) must not erase a folder that landed on disk after it was taken.

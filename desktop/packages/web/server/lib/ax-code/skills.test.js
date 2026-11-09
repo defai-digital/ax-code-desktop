@@ -3,6 +3,7 @@ import fsPromises from "fs/promises"
 import os from "os"
 import path from "path"
 import {
+  createSkill,
   deleteSkill,
   getSkillScope,
   getSkillSources,
@@ -408,6 +409,29 @@ describe("skill name safety", () => {
       expect(await fsPromises.readFile(victim, "utf8")).toBe("export SECRET=1\n")
     } finally {
       await fsPromises.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("refuses a bad create request before writing any of the skill", async () => {
+    // A supporting-file path outside the skill was refused only after SKILL.md was written, so the client saw a
+    // failed create and its retry hit "already exists"; a missing description left an empty directory behind.
+    const project = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-create-"))
+    try {
+      const skillDir = path.join(project, ".ax-code", "skills", "probe-skill")
+      expect(() =>
+        createSkill(
+          "probe-skill",
+          { description: "d", supportingFiles: [{ path: "../escape.md", content: "y" }] },
+          project,
+          "project",
+        ),
+      ).toThrow("Invalid supporting file path")
+      await expect(fsPromises.stat(skillDir)).rejects.toMatchObject({ code: "ENOENT" })
+
+      expect(() => createSkill("probe-skill", {}, project, "project")).toThrow("description is required")
+      await expect(fsPromises.stat(skillDir)).rejects.toMatchObject({ code: "ENOENT" })
+    } finally {
+      await fsPromises.rm(project, { recursive: true, force: true })
     }
   })
 })
