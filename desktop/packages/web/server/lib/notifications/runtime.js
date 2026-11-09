@@ -1,4 +1,4 @@
-import { setCappedCacheEntry } from "../capped-cache.js"
+import { addCappedSetEntry, setCappedCacheEntry } from "../capped-cache.js"
 import { formatNotificationModeLabel, formatNotificationModelLabel } from "./label-format.js"
 
 export const createNotificationTriggerRuntime = (deps) => {
@@ -116,11 +116,15 @@ let unkeyedPermissionAskSequence = 0
   // so the server can suppress permission notifications BEFORE dispatch (the
   // 500ms debounce race otherwise leaks notifications for auto-accepted
   // permissions when the replied round-trip is slower than the debounce).
+  // The client prunes deleted sessions locally without telling the server, and auto-accept is on by
+  // default, so every session ever created used to stay here. Evicting the oldest only costs an
+  // unsuppressed notification for a long-idle session, and the client replays its map on reconnect.
   const autoAcceptingSessions = new Set()
+  const MAX_AUTO_ACCEPT_SESSIONS = 2_000
   const setAutoAcceptSession = (sessionId, enabled) => {
     if (typeof sessionId !== "string" || sessionId.length === 0) return
     if (enabled) {
-      autoAcceptingSessions.add(sessionId)
+      addCappedSetEntry(autoAcceptingSessions, sessionId, MAX_AUTO_ACCEPT_SESSIONS)
     } else {
       autoAcceptingSessions.delete(sessionId)
     }
