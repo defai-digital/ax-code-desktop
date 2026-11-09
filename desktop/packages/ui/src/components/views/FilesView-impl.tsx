@@ -732,6 +732,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
 
   const [draftContent, setDraftContent] = React.useState("")
   const [isSaving, setIsSaving] = React.useState(false)
+  // Identifies the newest save: only it may clear `isSaving`. An older save (for a file the
+  // user has since left) finishing must not unlock a second, overlapping save of the current
+  // file, whose writes could then land out of order and leave stale content on disk.
+  const latestSaveRef = React.useRef(0)
   const [loadedFileLineEnding, setLoadedFileLineEnding] = React.useState<FileLineEnding>("\n")
   const dialogInputRef = React.useRef<HTMLInputElement>(null)
   const autoSaveTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -1604,6 +1608,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
       return currentPath === savedPath
     }
 
+    const saveId = ++latestSaveRef.current
     setIsSaving(true)
 
     try {
@@ -1640,7 +1645,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
       toast.error(error instanceof Error ? error.message : t("filesView.toast.saveFailed"))
       return false
     } finally {
-      setIsSaving(false)
+      if (latestSaveRef.current === saveId) setIsSaving(false)
     }
   }, [
     displayedContent,

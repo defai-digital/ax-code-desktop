@@ -281,4 +281,63 @@ describe("FilesView unsaved-changes guard", () => {
 
     expect(readFile.mock.calls.map((call) => call[0])).toContain("/repo/b.txt")
   })
+
+  test("an older file's save finishing does not unlock a second overlapping save of the current file", async () => {
+    // Each write stays pending until the test settles it.
+    const writes: Array<{ path: string; content: string; resolve: () => void }> = []
+    // The hoisted mock is declared without parameters; the view calls it with (path, content).
+    const pendingWrite = (path: string, content: string) =>
+      new Promise<{ success: boolean }>((resolve) =>
+        writes.push({ path, content, resolve: () => resolve({ success: true }) }),
+      )
+    writeFile.mockImplementation(pendingWrite as unknown as () => Promise<{ success: boolean }>)
+    const save = async () => {
+      await act(async () => {
+        // Real key events target an element (here the body) and bubble to the window listeners.
+        document.body.dispatchEvent(new KeyboardEvent("keydown", { key: "s", metaKey: true, ctrlKey: true, bubbles: true }))
+      })
+      await act(async () => {})
+    }
+    const writesTo = (path: string) => writes.filter((write) => write.path === path)
+    try {
+      await render()
+
+      // A's save is still in flight when the user moves to B (discarding the dirty buffer).
+      await act(async () => {
+        editorOnChange?.("alpha edited\n")
+      })
+      await save()
+      expect(writesTo("/repo/a.txt")).toHaveLength(1)
+      tabsState.selectedPath = "/repo/b.txt"
+      await act(async () => {
+        bump()
+      })
+      await clickByText(dict["filesView.unsaved.discard"])
+      await act(async () => {})
+
+      // B's first save is in flight too.
+      await act(async () => {
+        editorOnChange?.("beta edited once\n")
+      })
+      await save()
+      expect(writesTo("/repo/b.txt")).toHaveLength(1)
+
+      // A's save finishing must not clear B's in-flight state.
+      await act(async () => {
+        writesTo("/repo/a.txt")[0]?.resolve()
+      })
+      await act(async () => {})
+      await act(async () => {
+        editorOnChange?.("beta edited twice\n")
+      })
+      await save()
+      // A second, newer write of B now would race the first; if the older one landed last
+      // it would leave stale content on disk.
+      expect(writesTo("/repo/b.txt")).toHaveLength(1)
+    } finally {
+      for (const write of writes) write.resolve()
+      writeFile.mockImplementation(async () => ({ success: true }))
+    }
+  })
 })
+
