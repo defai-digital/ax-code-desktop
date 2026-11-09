@@ -8,6 +8,7 @@ import {
   shouldForwardProxyResponseHeader,
 } from "../../proxy-headers.js"
 import { createRealpathCache } from "../path-realpath-cache.js"
+import { guardSseResponse } from "../sse-response.js"
 import { discardResponseBody } from "../discard-response-body.js"
 import { mapWithConcurrency } from "../map-with-concurrency.js"
 
@@ -352,6 +353,9 @@ export const registerAxCodeProxy = (app, deps) => {
     }
 
     req.on("close", closeUpstream)
+    // Writes are checked before they are queued, but a heartbeat or chunk can still race the end of the response;
+    // its `error` would otherwise be unhandled. Stopping the upstream read ends the pump loop below.
+    guardSseResponse(res, () => abortController.abort(), { label: "AX Code SSE proxy" })
 
     try {
       const requestUrl =

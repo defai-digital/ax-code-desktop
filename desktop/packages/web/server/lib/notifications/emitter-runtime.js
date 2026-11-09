@@ -1,3 +1,5 @@
+import { isSseResponseWritable } from "../sse-response.js"
+
 export const createNotificationEmitterRuntime = (dependencies) => {
   const {
     process,
@@ -30,7 +32,7 @@ export const createNotificationEmitterRuntime = (dependencies) => {
     // A stream ended over the cap stays open until its buffer drains, and the route's heartbeat keeps calling
     // here meanwhile: a write after `end()` is emitted as an `error` on a response with no listener for it,
     // which took the whole server down.
-    if (res?.writableEnded || res?.destroyed) {
+    if (!isSseResponseWritable(res)) {
       return false
     }
     const buffered = typeof res?.writableLength === "number" ? res.writableLength : 0

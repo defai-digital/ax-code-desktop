@@ -57,3 +57,37 @@ describe("session state routes and the UI session", () => {
     expect(response.status).not.toBe(401)
   })
 })
+
+describe("notification stream", () => {
+  it("drops a client whose response emits an error instead of leaving it unhandled", async () => {
+    // A broadcast that races the end of this response is emitted as an `error` on it; with no listener that was an
+    // uncaught exception that took the server down.
+    const { createMockRequest, createMockResponse, createRouteRegistry } = await import(
+      "../../test-helpers/route-harness.js"
+    )
+    const { app, getRoute } = createRouteRegistry()
+    const clients = new Set()
+    registerNotificationRoutes(app, {
+      uiAuthController: { ensureSessionToken: vi.fn(async () => "session-token") },
+      ensureGlobalWatcherStarted: vi.fn(async () => {}),
+      getUiSessionTokenFromRequest: () => null,
+      getUiNotificationClients: () => clients,
+      writeSseEvent: vi.fn(() => true),
+    })
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const res = createMockResponse()
+
+    try {
+      await getRoute("GET", "/api/notifications/stream")(createMockRequest({ host: "localhost" }), res)
+      expect(clients.has(res)).toBe(true)
+
+      res.emit("error", Object.assign(new Error("write after end"), { code: "ERR_STREAM_WRITE_AFTER_END" }))
+
+      expect(clients.has(res)).toBe(false)
+    } finally {
+      warn.mockRestore()
+      // The heartbeat interval was cleared by the drop; a close afterwards is harmless.
+      res.emit("close")
+    }
+  })
+})

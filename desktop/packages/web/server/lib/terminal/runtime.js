@@ -1,6 +1,7 @@
 import crypto from "node:crypto"
 import path from "path"
 import { WebSocketServer } from "ws"
+import { guardSseResponse, isSseResponseWritable } from "../sse-response.js"
 import {
   TERMINAL_INPUT_WS_MAX_PAYLOAD_BYTES,
   TERMINAL_INPUT_WS_PATH,
@@ -820,6 +821,10 @@ export function createTerminalRuntime({
     res.write(`data: ${JSON.stringify({ type: "connected", runtime: terminalRuntimeName, ptyBackend })}\n\n`)
 
     const heartbeatInterval = setInterval(() => {
+      if (!isSseResponseWritable(res)) {
+        cleanup()
+        return
+      }
       try {
         res.write(": heartbeat\n\n")
       } catch (error) {
@@ -866,6 +871,10 @@ export function createTerminalRuntime({
     }
 
     const dataHandler = (data) => {
+      if (!isSseResponseWritable(res)) {
+        cleanup()
+        return
+      }
       try {
         session.lastActivity = Date.now()
         const ok = res.write(`data: ${JSON.stringify({ type: "data", data })}\n\n`)
@@ -886,8 +895,10 @@ export function createTerminalRuntime({
 
     const exitHandler = ({ exitCode, signal }) => {
       try {
-        res.write(`data: ${JSON.stringify({ type: "exit", exitCode, signal })}\n\n`)
-        res.end()
+        if (isSseResponseWritable(res)) {
+          res.write(`data: ${JSON.stringify({ type: "exit", exitCode, signal })}\n\n`)
+          res.end()
+        }
       } catch (error) {
         console.warn("Failed to write terminal exit event to client:", error)
       }
@@ -906,6 +917,7 @@ export function createTerminalRuntime({
 
     req.on("close", cleanup)
     req.on("error", cleanup)
+    guardSseResponse(res, () => cleanup({ abort: true }), { label: "Terminal SSE" })
 
     console.log(
       `Terminal connected: session=${sessionId} client=${clientId} runtime=${terminalRuntimeName} pty=${ptyBackend}`,

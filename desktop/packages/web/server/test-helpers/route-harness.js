@@ -44,8 +44,32 @@ export const createMockResponse = () => {
   let contentType = null
   let flushed = false
   const headers = new Map()
+  const listeners = new Map()
 
   return {
+    // Long-lived responses (SSE) attach `error`/`close` listeners like a real ServerResponse.
+    on(event, listener) {
+      if (!listeners.has(event)) listeners.set(event, [])
+      listeners.get(event).push(listener)
+      return this
+    },
+    once(event, listener) {
+      const wrapped = (...args) => {
+        this.off(event, wrapped)
+        listener(...args)
+      }
+      return this.on(event, wrapped)
+    },
+    off(event, listener) {
+      const current = listeners.get(event) || []
+      listeners.set(event, current.filter((entry) => entry !== listener))
+      return this
+    },
+    emit(event, ...args) {
+      const current = [...(listeners.get(event) || [])]
+      for (const listener of current) listener(...args)
+      return current.length > 0
+    },
     status(code) {
       statusCode = code
       return this

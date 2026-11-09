@@ -869,6 +869,83 @@ describe("terminal output backpressure", () => {
       await runtime.shutdown()
     }
   })
+
+  it("tears the SSE stream down when its response emits an error", async () => {
+    // A write that races the end of the response is emitted as an `error` on it, not thrown; with no listener it
+    // was an uncaught exception that took the server down, and the pty listeners stayed attached.
+    const { app, getRoute } = createRouteRegistry()
+    const server = new EventEmitter()
+    const dataHandlers = []
+    const pauseCalls = []
+    const previousShell = process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+    process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = "/bin/zsh"
+    const runtime = createRuntime(server, {
+      app,
+      isExecutable: () => true,
+      searchPathFor: (name) => name,
+      getPtyProvider: async () => ({
+        backend: "mock",
+        spawn: () => ({
+          onData: (callback) => {
+            dataHandlers.push(callback)
+            return {
+              dispose() {
+                const index = dataHandlers.indexOf(callback)
+                if (index >= 0) dataHandlers.splice(index, 1)
+              },
+            }
+          },
+          onExit: () => ({ dispose() {} }),
+          write() {},
+          kill() {},
+          resize() {},
+          pause() {
+            pauseCalls.push("pause")
+          },
+          resume() {
+            pauseCalls.push("resume")
+          },
+        }),
+      }),
+    })
+
+    try {
+      const createRes = createMockResponse()
+      await getRoute("POST", "/api/terminal/create")({ body: { cwd: "/tmp", cols: 80, rows: 24 } }, createRes)
+      const sessionId = createRes.body?.sessionId
+      expect(sessionId).toBeTruthy()
+
+      const streamRes = createMockResponse()
+      let streamEnded = false
+      let streamDestroyed = false
+      streamRes.end = () => {
+        streamEnded = true
+        return streamRes
+      }
+      streamRes.destroy = () => {
+        streamDestroyed = true
+        return streamRes
+      }
+
+      const handlersBeforeStream = dataHandlers.length
+      const streamReq = createMockRequest()
+      streamReq.params = { sessionId }
+      await getRoute("GET", "/api/terminal/:sessionId/stream")(streamReq, streamRes)
+
+      expect(dataHandlers).toHaveLength(handlersBeforeStream + 1)
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+      streamRes.emit("error", Object.assign(new Error("write after end"), { code: "ERR_STREAM_WRITE_AFTER_END" }))
+      warn.mockRestore()
+
+      expect(streamDestroyed).toBe(true)
+      expect(streamEnded).toBe(false)
+      expect(dataHandlers).toHaveLength(handlersBeforeStream)
+    } finally {
+      if (previousShell === undefined) delete process.env.AX_CODE_DESKTOP_TERMINAL_SHELL
+      else process.env.AX_CODE_DESKTOP_TERMINAL_SHELL = previousShell
+      await runtime.shutdown()
+    }
+  })
 })
 
 describe("terminal shell env", () => {

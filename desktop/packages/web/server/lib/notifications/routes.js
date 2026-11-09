@@ -1,3 +1,5 @@
+import { guardSseResponse } from "../sse-response.js"
+
 export const registerNotificationRoutes = (app, dependencies) => {
   const {
     uiAuthController,
@@ -108,10 +110,10 @@ export const registerNotificationRoutes = (app, dependencies) => {
     }, 25_000)
     if (typeof heartbeat.unref === "function") heartbeat.unref()
 
-    req.on("close", () => {
-      clearInterval(heartbeat)
-      clients.delete(res)
-    })
+    req.on("close", dropClient)
+    // Broadcasts write to every client in the set from other requests' handlers, so a write that races this
+    // response's end must not reach an unhandled `error` event.
+    guardSseResponse(res, dropClient, { label: "UI notifications SSE" })
   })
 
   app.get("/api/session-activity", async (_req, res) => {
