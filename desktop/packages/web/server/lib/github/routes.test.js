@@ -203,6 +203,88 @@ describe("github routes", () => {
     expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
   })
 
+  it("does not cache a PR status that finished after the active account changed", async () => {
+    // The cache is cleared on an account switch, but a lookup already waiting on GitHub wrote the previous
+    // account's answer back after the clear, and the next account was served it until the TTL ran out.
+    let finishLookup
+    resolveGitHubPrStatusMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishLookup = () => resolve({ repo: null, pr: null, defaultBranch: null, resolvedRemoteName: null })
+        }),
+    )
+    resolveGitHubPrStatusMock.mockResolvedValue({ repo: null, pr: null, defaultBranch: null, resolvedRemoteName: null })
+    const { getOctokitOrNull } = await import("./index.js")
+    getOctokitOrNull.mockReturnValue({ rest: {} })
+    activateGitHubAuth.mockReturnValue(true)
+    const query = { directory: "/repo-account-race", branch: "feature" }
+
+    const app = createApp()
+    const pending = request(app).get("/api/github/pr/status").query(query).then((response) => response)
+    await vi.waitFor(() => expect(finishLookup).toBeTypeOf("function"))
+    await request(app).post("/api/github/auth/activate").send({ accountId: "known-account" }).expect(200)
+    finishLookup()
+    expect((await pending).status).toBe(200)
+
+    await request(app).get("/api/github/pr/status").query(query).expect(200)
+
+    expect(resolveGitHubPrStatusMock).toHaveBeenCalledTimes(2)
+    getOctokitOrNull.mockReturnValue(null)
+    resolveGitHubPrStatusMock.mockReset()
+  })
+
+  it("reports GitHub's refusal when every repo's issue list fails instead of an empty board", async () => {
+    // Each repo's failure was swallowed as `issues: []`, so a rate limit or an organization blocking OAuth
+    // apps answered 200 with no issues, which read as a repository that has none.
+    const forbidden = Object.assign(new Error("Forbidden"), {
+      status: 403,
+      response: { data: { message: "API rate limit exceeded" } },
+    })
+    const listForRepo = vi.fn(async () => {
+      throw forbidden
+    })
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "me", repo: "solo" } })
+    getOctokitOrNull.mockReturnValueOnce({
+      rest: {
+        issues: { listForRepo },
+        repos: { get: vi.fn(async () => ({ data: { full_name: "me/solo", fork: false } })) },
+      },
+    })
+
+    const app = createApp()
+    const response = await request(app).get("/api/github/issues/list").query({ directory: "/repo-solo" })
+
+    expect(response.status).toBe(403)
+    expect(response.body.error).toBe("API rate limit exceeded")
+    expect(listForRepo).toHaveBeenCalled()
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: null })
+  })
+
+  it("refuses to open a pull request in a repo outside this checkout's network", async () => {
+    // `targetRepo` was used as sent, so any caller of the local API could open a pull request in any
+    // repository the token can write to, whatever `directory` named.
+    const create = vi.fn(async () => ({ data: { number: 1 } }))
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValueOnce({ rest: { pulls: { create } } })
+
+    const app = createApp()
+    const response = await request(app)
+      .post("/api/github/pr/create")
+      .send({
+        directory: "/repo",
+        title: "Change",
+        head: "feature",
+        base: "main",
+        targetRepo: { owner: "victim", repo: "elsewhere" },
+      })
+
+    expect(response.status).toBe(400)
+    expect(create).not.toHaveBeenCalled()
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: null })
+  })
+
   it("rejects unknown account activation before mutating auth state", async () => {
     const app = createApp()
 

@@ -1,3 +1,4 @@
+import { getGitHubAccountCacheEpoch } from "../account-cache-epoch.js"
 import { resolveGitHubRepoFromDirectory } from "./index.js"
 
 const REPO_METADATA_TTL_MS = 5 * 60_000
@@ -11,7 +12,8 @@ export function clearForkDetectionCache() {
   repoMetadataCache.clear()
 }
 
-const setRepoMetadataCache = (repoKey, data) => {
+const setRepoMetadataCache = (repoKey, data, epoch) => {
+  if (epoch !== getGitHubAccountCacheEpoch()) return
   if (repoMetadataCache.size >= REPO_METADATA_CACHE_MAX_ENTRIES && !repoMetadataCache.has(repoKey)) {
     const oldest = repoMetadataCache.entries().next().value
     if (oldest) {
@@ -37,13 +39,14 @@ const getRepoMetadata = async (octokit, repo) => {
     return cached.data
   }
 
+  const epoch = getGitHubAccountCacheEpoch()
   try {
     const response = await octokit.rest.repos.get({
       owner: repo.owner,
       repo: repo.repo,
     })
     const data = response?.data ?? null
-    setRepoMetadataCache(repoKey, data)
+    setRepoMetadataCache(repoKey, data, epoch)
     return data
   } catch (error) {
     if (error?.status === 403) {
@@ -52,7 +55,7 @@ const getRepoMetadata = async (octokit, repo) => {
       throw error
     }
     if (error?.status === 404) {
-      setRepoMetadataCache(repoKey, null)
+      setRepoMetadataCache(repoKey, null, epoch)
       return null
     }
     throw error

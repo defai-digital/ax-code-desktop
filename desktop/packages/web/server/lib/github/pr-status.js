@@ -1,4 +1,5 @@
 import { getRemotes, getTrackingBranch } from "../git/index.js"
+import { getGitHubAccountCacheEpoch } from "./account-cache-epoch.js"
 import { resolveGitHubRepoFromDirectory } from "./repo/index.js"
 
 const REPO_DEFAULT_BRANCH_TTL_MS = 5 * 60_000
@@ -187,12 +188,14 @@ const getRepoDefaultBranch = async (octokit, repo) => {
     return cached.defaultBranch
   }
 
+  const epoch = getGitHubAccountCacheEpoch()
   try {
     const response = await octokit.rest.repos.get({
       owner: repo.owner,
       repo: repo.repo,
     })
     const defaultBranch = normalizeText(response?.data?.default_branch) || null
+    if (epoch !== getGitHubAccountCacheEpoch()) return defaultBranch
     setCappedCacheEntry(defaultBranchCache, repoKey, {
       defaultBranch,
       fetchedAt: Date.now(),
@@ -214,12 +217,14 @@ const getRepoMetadata = async (octokit, repo) => {
     return cached.data
   }
 
+  const epoch = getGitHubAccountCacheEpoch()
   try {
     const response = await octokit.rest.repos.get({
       owner: repo.owner,
       repo: repo.repo,
     })
     const data = response?.data ?? null
+    if (epoch !== getGitHubAccountCacheEpoch()) return data
     setCappedCacheEntry(repoMetadataCache, repoKey, {
       data,
       fetchedAt: Date.now(),
@@ -232,6 +237,7 @@ const getRepoMetadata = async (octokit, repo) => {
       throw error
     }
     if (error?.status === 404) {
+      if (epoch !== getGitHubAccountCacheEpoch()) return null
       setCappedCacheEntry(repoMetadataCache, repoKey, {
         data: null,
         fetchedAt: Date.now(),
@@ -361,6 +367,7 @@ const SEARCH_API_RETRY_MS = 5 * 60 * 1000 // retry after 5 minutes
 const SEARCH_API_DISABLED_MAX = 200
 
 const searchFallbackPr = async ({ octokit, branch, repos }) => {
+  const epoch = getGitHubAccountCacheEpoch()
   // Build a repo key to check/store 403 status per-repo
   const repoKey = repos
     .map((repo) => normalizeRepoKey(repo?.owner, repo?.repo))
@@ -392,7 +399,7 @@ const searchFallbackPr = async ({ octokit, branch, repos }) => {
         const headers = error?.response?.headers ?? {}
         const rateLimited =
           headers["x-ratelimit-remaining"] === "0" || typeof headers["retry-after"] === "string"
-        if (!rateLimited) {
+        if (!rateLimited && epoch === getGitHubAccountCacheEpoch()) {
           if (_searchApiDisabledRepos.size >= SEARCH_API_DISABLED_MAX) {
             const oldest = _searchApiDisabledRepos.keys().next().value
             if (oldest !== undefined) {

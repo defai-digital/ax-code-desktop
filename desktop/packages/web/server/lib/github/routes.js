@@ -10,6 +10,7 @@ import {
   sanitizeGitHubLabel,
   sanitizeGitHubSearchText,
 } from "./board-query.js"
+import { advanceGitHubAccountCacheEpoch, getGitHubAccountCacheEpoch } from "./account-cache-epoch.js"
 
 const PR_STATUS_CACHE_TTL_MS = 90_000
 const GITHUB_LIST_PAGE_SIZE = 50
@@ -108,6 +109,7 @@ function setPrStatusCache(key, data, fetchedAt) {
 // newly-activated account can't be served data fetched under the previous
 // account's authorization.
 async function clearGitHubAccountScopedCaches() {
+  advanceGitHubAccountCacheEpoch()
   prStatusCache.clear()
   const [{ clearPrStatusResolutionCaches }, { clearForkDetectionCache }] = await Promise.all([
     import("./pr-status.js"),
@@ -410,9 +412,11 @@ export function registerGitHubRoutes(app) {
         return res.json(cached.data)
       }
 
-      // Cache successful responses before sending. Only caches connected:true responses.
+      // Cache successful responses before sending. Only caches connected:true responses, and only while the
+      // account that answered is still the active one.
+      const cacheEpoch = getGitHubAccountCacheEpoch()
       const sendJson = (data) => {
-        if (data && data.connected === true) {
+        if (data && data.connected === true && cacheEpoch === getGitHubAccountCacheEpoch()) {
           setPrStatusCache(cacheKey, data, Date.now())
         }
         return res.json(data)
@@ -642,7 +646,12 @@ export function registerGitHubRoutes(app) {
       const { resolveGitHubRepoFromDirectory } = await import("./index.js")
       let repo
       if (targetRepo) {
-        repo = targetRepo
+        // Bound to this checkout's fork network like every other mutation: used as sent, any caller of the
+        // local API could open a pull request in any repository the token can write to.
+        repo = await resolveRepoForRequest(octokit, directory, targetRepo)
+        if (!repo) {
+          return res.status(400).json({ error: "Target repository is not in this checkout's fork network" })
+        }
       } else {
         const resolved = await resolveGitHubRepoFromDirectory(directory, remote)
         repo = resolved.repo
@@ -1187,11 +1196,16 @@ export function registerGitHubRoutes(app) {
             throw error
           }
           console.warn(`Failed to list issues for ${repoRef.owner}/${repoRef.repo}:`, error?.message || error)
-          return { issues: [], hasMore: false }
+          return { issues: [], hasMore: false, error }
         }
       }
 
       const results = await Promise.all(reposToQuery.map(queryRepo))
+      // One repo of a fork network may fail on its own, but when every one failed (a rate limit, an organization
+      // that blocks OAuth apps) there is no board to show: answering `issues: []` read as a repository with none.
+      if (results.length > 0 && results.every((r) => r.error)) {
+        throw results[0].error
+      }
       const allIssues = results.flatMap((r) => r.issues)
       const anyHasMore = results.some((r) => r.hasMore)
 
@@ -1205,6 +1219,9 @@ export function registerGitHubRoutes(app) {
         clearGitHubAuth()
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
+      }
+      if (error?.status === 403) {
+        return res.status(403).json({ error: gitHubRefusalMessage(error) })
       }
       console.error("Failed to list GitHub issues:", error)
       return res.status(500).json({ error: error.message || "Failed to list GitHub issues" })
@@ -1510,11 +1527,15 @@ export function registerGitHubRoutes(app) {
             throw error
           }
           console.warn(`Failed to list PRs for ${repoRef.owner}/${repoRef.repo}:`, error?.message || error)
-          return { prs: [], hasMore: false }
+          return { prs: [], hasMore: false, error }
         }
       }
 
       const results = await Promise.all(reposToQuery.map(queryRepo))
+      // As for issues: a failure of every repo is not an empty pull request list.
+      if (results.length > 0 && results.every((r) => r.error)) {
+        throw results[0].error
+      }
       const allPrs = results.flatMap((r) => r.prs)
       const anyHasMore = results.some((r) => r.hasMore)
 
@@ -1525,6 +1546,9 @@ export function registerGitHubRoutes(app) {
         clearGitHubAuth()
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
+      }
+      if (error?.status === 403) {
+        return res.status(403).json({ error: gitHubRefusalMessage(error) })
       }
       console.error("Failed to list GitHub pull requests:", error)
       return res.status(500).json({ error: error.message || "Failed to list GitHub pull requests" })
