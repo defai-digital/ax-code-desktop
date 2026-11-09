@@ -12,7 +12,9 @@ function createAtomicJsonWriter({
     await filesystem.mkdir(path.dirname(filePath), { recursive: true })
     const tmp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     try {
-      await filesystem.writeFile(tmp, JSON.stringify(data, null, 2))
+      // Owner-only: settings carry secrets such as the UI password hash, and the rename gives the target this
+      // file's mode, so the default umask left them readable by every local account.
+      await filesystem.writeFile(tmp, JSON.stringify(data, null, 2), { mode: 0o600 })
       // Windows readers/antivirus can briefly hold the destination. Retry the
       // atomic replacement without deleting the last valid settings snapshot.
       for (let attempt = 1; ; attempt++) {

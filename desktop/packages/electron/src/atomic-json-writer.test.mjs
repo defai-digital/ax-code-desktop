@@ -1,3 +1,6 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import { createAtomicJsonWriter } from "./atomic-json-writer.js"
 
@@ -13,6 +16,20 @@ function fixture() {
 }
 
 describe("atomic JSON replacement", () => {
+  it.skipIf(process.platform === "win32")("writes the file owner-only, replacing a readable one", async () => {
+    // Settings carry the UI password hash, and the default umask left the file readable by other accounts.
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomic-json-writer-"))
+    try {
+      const file = path.join(dir, "settings.json")
+      await fs.writeFile(file, "{}", { mode: 0o644 })
+      await createAtomicJsonWriter()(file, { secret: "hash" })
+      expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+      expect(JSON.parse(await fs.readFile(file, "utf8"))).toEqual({ secret: "hash" })
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true })
+    }
+  })
+
   it.each(["EPERM", "EACCES", "EBUSY"])(
     "retries transient Windows %s without rewriting or removing the destination",
     async (code) => {
@@ -23,6 +40,7 @@ describe("atomic JSON replacement", () => {
       expect(f.filesystem.writeFile).toHaveBeenCalledExactlyOnceWith(
         expect.stringContaining("settings.json.tmp-"),
         JSON.stringify({ projects: ["kept"] }, null, 2),
+        { mode: 0o600 },
       )
       expect(f.wait).toHaveBeenCalledExactlyOnceWith(25)
       expect(f.filesystem.rm).not.toHaveBeenCalled()

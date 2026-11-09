@@ -43,6 +43,7 @@ const {
   resolveFocusMainWindowAction,
 } = require("./focus-main-window")
 const { mapWithConcurrency } = require("./map-with-concurrency")
+const { readOpenFileUpTo } = require("./read-open-file")
 const { assertDesktopReadFileAllowed } = require("./desktop-read-file-policy")
 const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const { collectNativeSearchResults, resolveSearchableNativeRoot } = require("./desktop-file-search")
@@ -1882,7 +1883,8 @@ const resolveAppBundlePath = async (appName) => {
     if (await pathExists(candidate)) return candidate
   }
   try {
-    const { stdout } = await execFileAsync("mdfind", ["-name", bundleName], { encoding: "utf8" })
+    // A Spotlight query can stall while the index rebuilds; unbounded, it held the IPC call that asked.
+    const { stdout } = await execFileAsync("mdfind", ["-name", bundleName], { encoding: "utf8", timeout: 10_000 })
     // mdfind -name matches substrings, so "Code.app" also finds
     // "Visual Studio Code.app" and "Code.app.zip"; only an exact
     // bundle basename names the requested app.
@@ -1990,7 +1992,8 @@ const getWindowsAppIdForName = (appName) =>
   ) || ""
 
 const runWhere = (program) => {
-  const result = spawnSync("where.exe", [program], { encoding: "utf8", windowsHide: true })
+  // spawnSync blocks the main thread, so a stalled lookup froze every window until it returned.
+  const result = spawnSync("where.exe", [program], { encoding: "utf8", windowsHide: true, timeout: 5_000 })
   if (result.error || result.status !== 0) return null
   const first = String(result.stdout || "")
     .split(/\r?\n/)
@@ -2048,6 +2051,7 @@ const resolveWindowsTerminalPackagePath = () => {
     const result = spawnSync(powershell, ["-NoProfile", "-NonInteractive", "-Command", command], {
       encoding: "utf8",
       windowsHide: true,
+      timeout: 10_000,
     })
     if (!result.error && result.status === 0) {
       const packagePath = String(result.stdout || "")
@@ -3090,8 +3094,9 @@ handleCommand("desktop_filter_installed_apps", async (args) => {
     return []
   }
   if (!Array.isArray(args.apps)) return []
-  const results = await Promise.all(
-    args.apps.map(async (appName) => ((await isAppBundleInstalled(String(appName))) ? String(appName) : null)),
+  // Bounded like the icon lookup below: each name can reach an `mdfind` child, and a long list spawned them all at once.
+  const results = await mapWithConcurrency(args.apps, APP_LOOKUP_CONCURRENCY, async (appName) =>
+    (await isAppBundleInstalled(String(appName))) ? String(appName) : null,
   )
   return results.filter(Boolean)
 })
@@ -3148,7 +3153,9 @@ handleCommand("desktop_read_file", async (args) => {
     const stats = await handle.stat()
     if (!stats.isFile()) throw new Error("Path is not a file")
     if (stats.size > 50 * 1024 * 1024) throw new Error("File is too large. Maximum size is 50MB.")
-    bytes = await handle.readFile()
+    // Read what the size check approved and no more: `readFile` reads to EOF, so a file still growing (a log)
+    // was read past the cap.
+    bytes = await readOpenFileUpTo(handle, stats.size)
   } finally {
     await handle.close()
   }

@@ -34,6 +34,21 @@ describe("asynchronous app launching", () => {
     expect(finished).toBe(true)
   })
 
+  test("treats a launcher that never exits as launched instead of waiting forever", async () => {
+    // A candidate that is the app itself (or a shim that hangs) never closes, and the IPC call that asked
+    // never returned. The child is not killed: it may be the app the user asked for.
+    const child = Object.assign(new EventEmitter(), { unref: vi.fn(), kill: vi.fn() })
+    const spawn = vi.fn(() => child)
+
+    await runOpenSpecChain([{ program: "editor", args: [] }, { program: "unused", args: [] }], "Editor", spawn, {
+      settleTimeoutMs: 20,
+    })
+
+    expect(spawn).toHaveBeenCalledTimes(1)
+    expect(child.unref).toHaveBeenCalled()
+    expect(child.kill).not.toHaveBeenCalled()
+  })
+
   test("tries fallbacks after spawn errors and nonzero exits, stopping at success", async () => {
     const spawn = vi.fn((program) => {
       const child = new EventEmitter()
