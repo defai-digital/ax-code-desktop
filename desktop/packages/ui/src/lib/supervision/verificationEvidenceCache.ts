@@ -61,6 +61,7 @@ export function createVerificationEvidenceCache(
   const consumers = new Set<Demand>()
   const pending = new Map<string, { updatedAt: number; directory: string }>()
   let retryTimer: ReturnType<typeof setTimeout> | null = null
+  let retryAt = Infinity
 
   function demanded(): Set<string> {
     const ids = new Set<string>()
@@ -89,10 +90,16 @@ export function createVerificationEvidenceCache(
   const failedUntil = new Map<string, number>()
   const MAX_FAILURE_DEADLINES = 1000
 
+  // One timer for the earliest due row: a sooner deadline re-arms it, so a long backoff armed
+  // first cannot hold back another row's earlier refetch (same as pullRequestCache.schedule).
   function scheduleRetry(delay: number) {
-    if (retryTimer !== null) return
+    const deadline = now() + delay
+    if (retryTimer !== null && deadline >= retryAt) return
+    if (retryTimer !== null) clearTimeout(retryTimer)
+    retryAt = deadline
     retryTimer = setTimeout(() => {
       retryTimer = null
+      retryAt = Infinity
       pump()
     }, delay)
   }
@@ -198,6 +205,7 @@ export function createVerificationEvidenceCache(
           if (consumers.size === 0 && retryTimer !== null) {
             clearTimeout(retryTimer)
             retryTimer = null
+            retryAt = Infinity
           }
 
         },

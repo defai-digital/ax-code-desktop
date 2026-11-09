@@ -84,6 +84,37 @@ describe("verification evidence cache", () => {
     }
   })
 
+  test("an earlier refetch is not held back by a later backoff timer that is already armed", async () => {
+    vi.useFakeTimers()
+    try {
+      let clock = 0
+      const fetchRisk = vi.fn<FetchSessionRisk>(async (input) =>
+        input.sessionID === "a" ? { error: { message: "down" } } : { data: failedPayload },
+      )
+      const cache = createVerificationEvidenceCache(fetchRisk, { minRefetchMs: 1000, failureBackoffMs: 5000, now: () => clock })
+      const consumer = cache.mount()
+      consumer.update([
+        { sessionId: "a", directory: "/repo", updatedAt: 1 },
+        { sessionId: "b", directory: "/repo", updatedAt: 1 },
+      ])
+      await vi.advanceTimersByTimeAsync(0)
+      expect(fetchRisk).toHaveBeenCalledTimes(2)
+
+      // A's failure arms a 5 s backoff first; B's newer revision is due after its 1 s minimum.
+      clock = 10
+      consumer.update([
+        { sessionId: "a", directory: "/repo", updatedAt: 1 },
+        { sessionId: "b", directory: "/repo", updatedAt: 2 },
+      ])
+      clock = 1000
+      await vi.advanceTimersByTimeAsync(990)
+      expect(fetchRisk.mock.calls.filter((call) => call[0].sessionID === "b")).toHaveLength(2)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   test("a stuck read is aborted at the timeout, so no more than two requests are ever outstanding", async () => {
     vi.useFakeTimers()
     try {
