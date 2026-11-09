@@ -69,7 +69,13 @@ export const fetchQuota = async () => {
       const detail = limit?.detail
       const rawLabel = durationToLabel(window?.duration, window?.timeUnit)
       const windowSeconds = durationToSeconds(window?.duration, window?.timeUnit)
-      const label = windowSeconds === 5 * 60 * 60 ? `Rate Limit (${rawLabel})` : rawLabel
+      const baseLabel = windowSeconds === 5 * 60 * 60 ? `Rate Limit (${rawLabel})` : rawLabel
+      // Two limits over the same span (or two with a unit this version does not know, both "limit") replaced
+      // each other, and the card showed only the last one.
+      let label = baseLabel
+      for (let suffix = 2; Object.hasOwn(windows, label); suffix += 1) {
+        label = `${baseLabel} (${suffix})`
+      }
       const total = toNumber(detail?.limit)
       const remaining = toNumber(detail?.remaining)
       const usedPercent =

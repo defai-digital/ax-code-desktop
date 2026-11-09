@@ -24,6 +24,19 @@ describe("Wafer quota transforms", () => {
     })
   })
 
+  it("falls back to the plan window when the payload's end is not after its start", () => {
+    const result = transformWaferWindows({
+      remaining_included_requests: 25,
+      included_request_limit: 100,
+      current_period_used_percent: 75,
+      window_start: 19_000,
+      window_end: 1_000,
+    })
+
+    expect(result.windowLabel).not.toMatch(/^-/)
+    expect(result.windows[result.windowLabel].windowSeconds).toBeGreaterThan(0)
+  })
+
   it("keeps a missing percent unknown instead of reporting a full bar", () => {
     // The API can return the counts without current_period_used_percent; every other provider
     // reports null there, and 0 would draw an empty bar and "100% remaining".

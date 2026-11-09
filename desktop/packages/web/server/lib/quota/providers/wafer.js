@@ -50,8 +50,10 @@ export const transformWaferWindows = (payload) => {
         ? Math.max(0, usedPercentRaw)
         : Math.max(0, Math.min(100, usedPercentRaw))
 
-  const windowSeconds =
-    windowStart !== null && windowEnd !== null ? Math.round((windowEnd - windowStart) / 1000) : WAFER_WINDOW_SECONDS
+  // An end at or before the start is not a window; it labelled the card with a negative duration.
+  const boundedSeconds =
+    windowStart !== null && windowEnd !== null ? Math.round((windowEnd - windowStart) / 1000) : null
+  const windowSeconds = boundedSeconds !== null && boundedSeconds > 0 ? boundedSeconds : WAFER_WINDOW_SECONDS
   const windowLabel = resolveWindowLabel(windowSeconds)
 
   let valueLabel = null
