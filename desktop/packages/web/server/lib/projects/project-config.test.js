@@ -2,73 +2,44 @@ import { describe, expect, it } from "vitest"
 import os from "os"
 import path from "path"
 import { mkdtemp, readdir, readFile, rm, writeFile } from "fs/promises"
-import {
-  MAX_LAST_ERROR_LENGTH,
-  MAX_TASK_NAME_LENGTH,
-  MAX_TASK_PROMPT_LENGTH,
-  createProjectConfigRuntime,
-} from "./project-config.js"
+import { createProjectConfigRuntime } from "./project-config.js"
 
-const createRuntime = async () => {
+const createRuntime = async (fsOverrides = {}) => {
   const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-scheduled-project-config-"))
   const runtime = createProjectConfigRuntime({
-    fsPromises: await import("fs/promises"),
+    fsPromises: { ...(await import("fs/promises")), ...fsOverrides },
     path,
     projectsDirPath: tempRoot,
-    createTaskID: () => "task-fixed-id",
   })
   return {
     runtime,
+    tempRoot,
     cleanup: async () => {
       await rm(tempRoot, { recursive: true, force: true })
     },
   }
 }
 
+const storedTask = (overrides = {}) => ({
+  id: "task-1",
+  name: "Nightly digest",
+  enabled: true,
+  schedule: { kind: "daily", times: ["09:30"], timezone: "UTC" },
+  execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
+  ...overrides,
+})
+
+const readJson = async (filePath) => JSON.parse(await readFile(filePath, "utf8"))
+
 describe("project-config runtime", () => {
-  it("creates and persists a scheduled task", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const result = await runtime.upsertScheduledTask("project-test", {
-        name: "Nightly digest",
-        enabled: true,
-        schedule: {
-          kind: "daily",
-          time: "09:30",
-          timezone: "UTC",
-        },
-        execution: {
-          prompt: "Summarize repository changes",
-          providerID: "openai",
-          modelID: "gpt-4.1",
-        },
-      })
-
-      expect(result.created).toBe(true)
-      expect(result.task.id).toBe("task-fixed-id")
-      const reloaded = await runtime.listScheduledTasks("project-test")
-      expect(reloaded).toHaveLength(1)
-      expect(reloaded[0].name).toBe("Nightly digest")
-      expect(reloaded[0].schedule.timezone).toBe("UTC")
-      expect(reloaded[0].schedule.times).toEqual(["09:30"])
-      expect(reloaded[0].catchUpPolicy).toBe("run_once")
-    } finally {
-      await cleanup()
-    }
-  })
-
   it("refuses a task list an updater did not return as an array", async () => {
     // `writeScheduledTasksToDisk` deletes the key for an empty list, so the old `Array.isArray(resolved)
     // ? resolved : []` fallback answered a broken updater by erasing every scheduled task in the project
     // and logging nothing.
     const { runtime, cleanup } = await createRuntime()
     try {
-      await runtime.upsertScheduledTask("project-test", {
-        name: "Nightly digest",
-        enabled: true,
-        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
-        execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
-      })
+      const filePath = runtime.resolveProjectConfigPath("project-test")
+      await writeFile(filePath, JSON.stringify({ scheduledTasks: [storedTask()] }), "utf8")
 
       await expect(runtime.replaceScheduledTasks("project-test", async () => null)).rejects.toThrow(
         "expects an array of tasks",
@@ -77,411 +48,125 @@ describe("project-config runtime", () => {
         "expects an array of tasks",
       )
 
-      const reloaded = await runtime.listScheduledTasks("project-test")
-      expect(reloaded).toHaveLength(1)
-      expect(reloaded[0].name).toBe("Nightly digest")
+      expect((await readJson(filePath)).scheduledTasks).toEqual([storedTask()])
     } finally {
       await cleanup()
     }
   })
 
-  it("persists catch-up policy and active queue recovery state", async () => {
+  it("hands the updater the tasks exactly as stored, in stored order", async () => {
+    // The migration matches the tasks it settled against this list by identity, so a task this version
+    // could not normalize (an older schedule kind) or one stored without an id must reach it unchanged.
     const { runtime, cleanup } = await createRuntime()
     try {
-      const created = await runtime.upsertScheduledTask("project-recovery", {
-        name: "Recoverable task",
-        enabled: true,
-        catchUpPolicy: "skip",
-        schedule: { kind: "daily", time: "09:00", timezone: "UTC" },
-        execution: { prompt: "run", providerID: "openai", modelID: "gpt-4.1" },
-      })
-      await runtime.updateScheduledTaskState("project-recovery", created.task.id, {
-        lastStatus: "running",
-        lastSessionId: "ses_recovery",
-        activeQueueItemId: "que_recovery",
-        activeRunReason: "scheduled",
+      const filePath = runtime.resolveProjectConfigPath("project-raw")
+      const tasks = [
+        { id: "old", name: "old", schedule: { kind: "hourly" }, execution: { prompt: "p" } },
+        { name: "no id", schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" } },
+        storedTask(),
+      ]
+      await writeFile(filePath, JSON.stringify({ scheduledTasks: tasks }), "utf8")
+
+      let seen
+      await runtime.replaceScheduledTasks("project-raw", (current) => {
+        seen = current
+        return current.filter((task) => task.id !== "task-1")
       })
 
-      const [reloaded] = await runtime.listScheduledTasks("project-recovery")
-      expect(reloaded.catchUpPolicy).toBe("skip")
-      expect(reloaded.state).toMatchObject({
-        lastStatus: "running",
-        lastSessionId: "ses_recovery",
-        activeQueueItemId: "que_recovery",
-        activeRunReason: "scheduled",
-      })
+      expect(seen).toEqual(tasks)
+      expect((await readJson(filePath)).scheduledTasks).toEqual(tasks.slice(0, 2))
     } finally {
       await cleanup()
     }
   })
 
-  it("deduplicates and sorts scheduled task times", async () => {
+  it("preserves unknown project config keys and removes the key once no task remains", async () => {
     const { runtime, cleanup } = await createRuntime()
     try {
-      const result = await runtime.upsertScheduledTask("project-test", {
-        name: "Multi-run digest",
-        enabled: true,
-        schedule: {
-          kind: "daily",
-          times: ["16:00", "09:30", "16:00"],
-          time: "09:30",
-          timezone: "UTC",
-        },
-        execution: {
-          prompt: "Summarize repository changes",
-          providerID: "openai",
-          modelID: "gpt-4.1",
-        },
-      })
-
-      expect(result.task.schedule.times).toEqual(["09:30", "16:00"])
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("trims and clamps scheduled task string fields", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const result = await runtime.upsertScheduledTask("project-test", {
-        name: ` ${"n".repeat(MAX_TASK_NAME_LENGTH + 8)} `,
-        enabled: true,
-        schedule: {
-          kind: "daily",
-          time: "09:30",
-          timezone: "UTC",
-        },
-        execution: {
-          prompt: ` ${"p".repeat(MAX_TASK_PROMPT_LENGTH + 8)} `,
-          providerID: "openai",
-          modelID: "gpt-4.1",
-        },
-        state: {
-          lastError: ` ${"e".repeat(MAX_LAST_ERROR_LENGTH + 8)} `,
-        },
-      })
-
-      expect(result.task.name).toBe("n".repeat(MAX_TASK_NAME_LENGTH))
-      expect(result.task.execution.prompt).toBe("p".repeat(MAX_TASK_PROMPT_LENGTH))
-      expect(result.task.state.lastError).toBe("e".repeat(MAX_LAST_ERROR_LENGTH))
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("rejects invalid cron expressions", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      await expect(
-        runtime.upsertScheduledTask("project-test", {
-          name: "Invalid cron task",
-          enabled: true,
-          schedule: {
-            kind: "cron",
-            cron: "invalid cron",
-            timezone: "UTC",
-          },
-          execution: {
-            prompt: "Run checks",
-            providerID: "openai",
-            modelID: "gpt-4.1",
-          },
-        }),
-      ).rejects.toThrow("schedule.cron is invalid")
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("preserves unknown project config keys when writing scheduled tasks", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const projectID = "path_preserve"
-      const filePath = path.join(runtime.resolveProjectConfigPath(projectID))
-      await writeFile(
-        filePath,
-        JSON.stringify(
-          {
-            projectNotes: "hello notes",
-            projectTodos: [{ id: "t1", text: "buy milk", completed: false, createdAt: 1 }],
-            projectActions: [{ id: "a1", name: "Run", command: "bun run dev" }],
-            projectActionsPrimaryId: "a1",
-            "setup-worktree": ["bun install"],
-            projectPlanFiles: [{ id: "p1", path: "/tmp/plans/p1.md", createdAt: 2 }],
-            projectPath: "/tmp/demo",
-          },
-          null,
-          2,
-        ),
-        "utf8",
-      )
-
-      await runtime.upsertScheduledTask(projectID, {
-        name: "nightly",
-        enabled: true,
-        schedule: { kind: "daily", time: "09:00", timezone: "UTC" },
-        execution: { prompt: "run", providerID: "openai", modelID: "gpt-4.1" },
-      })
-
-      const raw = JSON.parse(await readFile(filePath, "utf8"))
-      expect(raw.projectNotes).toBe("hello notes")
-      expect(raw.projectTodos).toEqual([{ id: "t1", text: "buy milk", completed: false, createdAt: 1 }])
-      expect(raw.projectActions).toHaveLength(1)
-      expect(raw.projectActionsPrimaryId).toBe("a1")
-      expect(raw["setup-worktree"]).toEqual(["bun install"])
-      expect(raw.projectPlanFiles).toEqual([{ id: "p1", path: "/tmp/plans/p1.md", createdAt: 2 }])
-      expect(raw.projectPath).toBe("/tmp/demo")
-      expect(raw.scheduledTasks).toHaveLength(1)
-      expect(raw.version).toBe(1)
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("finds a task stored without an id by the id it was listed with", async () => {
-    // The id was generated afresh on each read, so the listed id never matched again: a delete removed
-    // nothing and an edit appended a second, also enabled, copy of the task.
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const projectID = "path_legacy_ids"
+      const projectID = "preserve_keys"
       const filePath = runtime.resolveProjectConfigPath(projectID)
-      const legacyTask = (name) => ({
-        name,
-        schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
-        execution: { prompt: "p", providerID: "a", modelID: "b" },
-      })
-      await writeFile(filePath, JSON.stringify({ scheduledTasks: [legacyTask("first"), legacyTask("second")] }))
+      const otherKeys = {
+        projectNotes: "hello notes",
+        projectTodos: [{ id: "t1", text: "buy milk", completed: false, createdAt: 1 }],
+        projectActions: [{ id: "a1", name: "Run", command: "bun run dev" }],
+        projectActionsPrimaryId: "a1",
+        "setup-worktree": ["bun install"],
+        projectPath: "/tmp/demo",
+      }
+      await writeFile(filePath, JSON.stringify({ ...otherKeys, scheduledTasks: [storedTask()] }), "utf8")
 
-      const [first, second] = await runtime.listScheduledTasks(projectID)
-      const edited = await runtime.upsertScheduledTask(projectID, { ...first, name: "renamed" })
-      expect(edited.created).toBe(false)
-      expect((await runtime.listScheduledTasks(projectID)).map((task) => task.name)).toEqual(["renamed", "second"])
+      await runtime.replaceScheduledTasks(projectID, [])
 
-      const removed = await runtime.deleteScheduledTask(projectID, second.id)
-      expect(removed.deleted).toBe(true)
-      expect((await runtime.listScheduledTasks(projectID)).map((task) => task.name)).toEqual(["renamed"])
+      const raw = await readJson(filePath)
+      expect(raw).toMatchObject({ ...otherKeys, version: 1, projectID })
+      expect(raw.scheduledTasks).toBeUndefined()
     } finally {
       await cleanup()
     }
   })
 
-  it("keeps a task it cannot read when it writes another one", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const projectID = "path_unreadable"
-      const filePath = runtime.resolveProjectConfigPath(projectID)
-      const unreadable = { id: "old", name: "old", schedule: { kind: "hourly" }, execution: { prompt: "p" } }
-      await writeFile(filePath, JSON.stringify({ scheduledTasks: [unreadable] }))
-
-      await runtime.upsertScheduledTask(projectID, {
-        name: "nightly",
-        schedule: { kind: "daily", time: "09:00", timezone: "UTC" },
-        execution: { prompt: "run", providerID: "openai", modelID: "gpt-4.1" },
-      })
-      await runtime.updateScheduledTaskState(projectID, "task-fixed-id", { lastRunAt: 1 })
-      await runtime.deleteScheduledTask(projectID, "task-fixed-id")
-
-      const raw = JSON.parse(await readFile(filePath, "utf8"))
-      expect(raw.scheduledTasks).toEqual([unreadable])
-      expect(await runtime.listScheduledTasks(projectID)).toEqual([])
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("preserves scheduled task state timestamps when listing tasks", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const projectID = "timestamp_preserve"
-      const filePath = path.join(runtime.resolveProjectConfigPath(projectID))
-      await writeFile(
-        filePath,
-        JSON.stringify(
-          {
-            scheduledTasks: [
-              {
-                id: "task-existing",
-                name: "nightly",
-                enabled: true,
-                schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
-                execution: { prompt: "run", providerID: "openai", modelID: "gpt-4.1" },
-                state: { createdAt: 10, updatedAt: 20, lastStatus: "idle" },
-              },
-            ],
-          },
-          null,
-          2,
-        ),
-        "utf8",
-      )
-
-      const first = await runtime.listScheduledTasks(projectID)
-      const second = await runtime.listScheduledTasks(projectID)
-
-      expect(first[0].state.createdAt).toBe(10)
-      expect(first[0].state.updatedAt).toBe(20)
-      expect(second[0].state.updatedAt).toBe(20)
-    } finally {
-      await cleanup()
-    }
-  })
-
-  it("accepts one-time schedule with date and time", async () => {
-    const { runtime, cleanup } = await createRuntime()
-    try {
-      const result = await runtime.upsertScheduledTask("project-test", {
-        name: "One-time review",
-        enabled: true,
-        schedule: {
-          kind: "once",
-          date: "2026-04-20",
-          time: "13:45",
-          timezone: "Europe/Kyiv",
-        },
-        execution: {
-          prompt: "Create a release summary",
-          providerID: "openai",
-          modelID: "gpt-4.1",
-        },
-      })
-
-      expect(result.task.schedule.kind).toBe("once")
-      expect(result.task.schedule.date).toBe("2026-04-20")
-      expect(result.task.schedule.time).toBe("13:45")
-      expect(result.task.schedule.timezone).toBe("Europe/Kyiv")
-    } finally {
-      await cleanup()
-    }
-  })
-})
-
-describe("project config file names", () => {
   it("keeps a long project id's config under a name the filesystem accepts", async () => {
-    // A project id is `path_` + base64url of the whole project path, so a long path pushed the config
-    // file name past the filesystem's 255-byte limit: the project's config could be neither written nor
-    // read (ENAMETOOLONG), and the start command and scheduled tasks were lost with it.
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-long-project-id-"))
-    const runtime = createProjectConfigRuntime({
-      fsPromises: await import("fs/promises"),
-      path,
-      projectsDirPath: tempRoot,
-      createTaskID: () => "task-fixed-id",
-    })
+    // A project id is base64url of its whole path, so a long path made a config file name longer than the
+    // filesystem's 255-byte limit: the project's config could be neither written nor read (ENAMETOOLONG).
+    const { runtime, tempRoot, cleanup } = await createRuntime()
     try {
       const longPath = `/${["deep-segment".repeat(4)].join("/").repeat(6)}`
       const projectID = `path_${Buffer.from(longPath, "utf8").toString("base64url")}`
       expect(projectID.length).toBeGreaterThan(255)
 
-      await runtime.upsertScheduledTask(projectID, {
-        name: "Nightly digest",
-        enabled: true,
-        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
-        execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
-      })
-
-      const reloaded = await runtime.listScheduledTasks(projectID)
-      expect(reloaded).toHaveLength(1)
-      expect(reloaded[0].name).toBe("Nightly digest")
+      await runtime.replaceScheduledTasks(projectID, [storedTask()])
 
       const entries = await readdir(tempRoot)
       expect(entries).toHaveLength(1)
       expect(Buffer.byteLength(entries[0], "utf8")).toBeLessThan(255)
-    } finally {
-      await rm(tempRoot, { recursive: true, force: true })
-    }
-  })
-
-  it("replaces that file once it writes under the bounded name", async () => {
-    // Leaving both on disk shows the project twice to every reader that enumerates the directory, so its
-    // tasks could be migrated a second time and tasks deleted since could come back from the stale copy.
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-legacy-replaced-"))
-    const runtime = createProjectConfigRuntime({
-      fsPromises: await import("fs/promises"),
-      path,
-      projectsDirPath: tempRoot,
-      createTaskID: () => "task-fixed-id",
-    })
-    try {
-      const longID = `path_${"c".repeat(180)}`
-      const legacyPath = path.join(tempRoot, `${longID}.json`)
-      await writeFile(legacyPath, JSON.stringify({ version: 1, scheduledTasks: [] }), "utf8")
-
-      await runtime.upsertScheduledTask(longID, {
-        name: "Digest",
-        enabled: true,
-        schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
-        execution: { prompt: "Summarize", providerID: "openai", modelID: "gpt-4.1" },
+      expect(await readJson(path.join(tempRoot, entries[0]))).toMatchObject({
+        projectID,
+        scheduledTasks: [storedTask()],
       })
-
-      const entries = await readdir(tempRoot)
-      expect(entries).toHaveLength(1)
-      expect(entries[0]).not.toBe(`${longID}.json`)
-      expect(JSON.parse(await readFile(path.join(tempRoot, entries[0]), "utf8"))).toMatchObject({ projectID: longID })
     } finally {
-      await rm(tempRoot, { recursive: true, force: true })
+      await cleanup()
     }
   })
 
-  it("still reads a config an earlier version wrote under the full id", async () => {
-    // An id longer than the bound but still short enough for the filesystem: the bounded name is used for
-    // new writes, and the file the earlier version wrote under the full id is still read.
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-legacy-project-id-"))
-    const runtime = createProjectConfigRuntime({
-      fsPromises: await import("fs/promises"),
-      path,
-      projectsDirPath: tempRoot,
-      createTaskID: () => "task-fixed-id",
-    })
+  it("reads a config an earlier version wrote under the full id, then replaces that file", async () => {
+    // An id longer than the bound but still short enough for the filesystem: new writes use the bounded name,
+    // the file the earlier version wrote under the full id is still read, and it is removed after the write so
+    // a reader that enumerates the directory does not see the project twice.
+    const { runtime, tempRoot, cleanup } = await createRuntime()
     try {
       const longID = `path_${"b".repeat(180)}`
       const legacyPath = path.join(tempRoot, `${longID}.json`)
-      await writeFile(
-        legacyPath,
-        JSON.stringify({
-          version: 1,
-          scheduledTasks: [
-            {
-              id: "task-legacy",
-              name: "Legacy task",
-              enabled: true,
-              schedule: { kind: "daily", time: "09:30", timezone: "UTC" },
-              execution: { prompt: "Summarize repository changes", providerID: "openai", modelID: "gpt-4.1" },
-            },
-          ],
-        }),
-        "utf8",
-      )
+      await writeFile(legacyPath, JSON.stringify({ version: 1, scheduledTasks: [storedTask()] }), "utf8")
 
-      const tasks = await runtime.listScheduledTasks(longID)
+      let seen
+      await runtime.replaceScheduledTasks(longID, (current) => {
+        seen = current
+        return current
+      })
 
-      expect(tasks).toHaveLength(1)
-      expect(tasks[0].name).toBe("Legacy task")
+      expect(seen).toEqual([storedTask()])
+      const entries = await readdir(tempRoot)
+      expect(entries).toHaveLength(1)
+      expect(entries[0]).not.toBe(`${longID}.json`)
+      expect(await readJson(path.join(tempRoot, entries[0]))).toMatchObject({ projectID: longID })
     } finally {
-      await rm(tempRoot, { recursive: true, force: true })
+      await cleanup()
     }
   })
 
   it("removes its temporary file when the replace fails", async () => {
-    const tempRoot = await mkdtemp(path.join(os.tmpdir(), "oc-project-config-rename-"))
-    const realFs = await import("fs/promises")
-    const runtime = createProjectConfigRuntime({
-      // A replace that fails after the temporary copy was written (EXDEV, a locked target, EPERM on Windows).
-      fsPromises: {
-        ...realFs,
-        rename: async () => {
-          throw Object.assign(new Error("rename refused"), { code: "EPERM" })
-        },
+    // A replace that fails after the temporary copy was written (EXDEV, a locked target, EPERM on Windows).
+    const { runtime, tempRoot, cleanup } = await createRuntime({
+      rename: async () => {
+        throw Object.assign(new Error("rename refused"), { code: "EPERM" })
       },
-      path,
-      projectsDirPath: tempRoot,
-      createTaskID: () => "task-fixed-id",
     })
     try {
       await expect(runtime.replaceScheduledTasks("project-blocked", [])).rejects.toThrow("rename refused")
 
       expect(await readdir(tempRoot)).toEqual([])
     } finally {
-      await rm(tempRoot, { recursive: true, force: true })
+      await cleanup()
     }
   })
 })

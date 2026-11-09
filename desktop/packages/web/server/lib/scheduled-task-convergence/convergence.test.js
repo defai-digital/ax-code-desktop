@@ -313,13 +313,7 @@ describe("scheduled task convergence migration", () => {
     })
     cleanup = harness.cleanup
     // Written through the runtime, which is what puts the id inside the file and bounds the name.
-    await harness.projectConfigRuntime.upsertScheduledTask(`path_${"b".repeat(180)}`, {
-      name: "Digest",
-      enabled: true,
-      catchUpPolicy: "run_once",
-      schedule: { kind: "daily", times: ["09:00"], timezone: "UTC" },
-      execution: { prompt: "Summarize", providerID: "openai", modelID: "gpt" },
-    })
+    await harness.projectConfigRuntime.replaceScheduledTasks(`path_${"b".repeat(180)}`, [dailyTask()])
 
     await harness.convergence.start()
 
@@ -389,11 +383,11 @@ describe("scheduled task convergence migration", () => {
     await vi.waitFor(async () => {
       expect(createCalls).toBe(1)
     })
-    // The user saves a task while the first create is still in flight.
-    await harness.projectConfigRuntime.upsertScheduledTask(
-      "proj-a",
+    // Another write adds a task while the first create is still in flight.
+    await harness.projectConfigRuntime.replaceScheduledTasks("proj-a", (tasks) => [
+      ...tasks,
       dailyTask({ id: "task-saved", name: "Saved meanwhile" }),
-    )
+    ])
     releaseFirstCreate()
     await migrating
 
@@ -658,7 +652,7 @@ describe("scheduled task convergence migration", () => {
   it("keeps a retryable task the normalized reader would drop", async () => {
     // `replaceScheduledTasks` handed its updater the normalized task list, which silently drops every task
     // whose normalization throws — `execution.providerID`/`modelID` are optional for the transform (it warns
-    // and lets the runtime use its default model) and required by `normalizeTaskForStorage`. The write then
+    // and lets the runtime use its default model) and were required by the normalizer that reader used. The write then
     // erased a task the pass had only marked for retry.
     const harness = await createHarness({
       runtimeHandler: async (url, init = {}) => {
@@ -737,10 +731,10 @@ describe("scheduled task convergence migration", () => {
     await vi.waitFor(async () => {
       expect(createCalls).toBe(1)
     })
-    await harness.projectConfigRuntime.upsertScheduledTask(
-      "proj-a",
+    await harness.projectConfigRuntime.replaceScheduledTasks("proj-a", (tasks) => [
+      ...tasks,
       dailyTask({ id: "task-saved", name: "Saved meanwhile" }),
-    )
+    ])
     releaseFirstCreate()
     await migrating
 

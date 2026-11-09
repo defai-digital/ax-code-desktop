@@ -1,7 +1,4 @@
 import { createHash } from "node:crypto"
-import { DateTime, IANAZone } from "luxon"
-import parser from "cron-parser"
-import { normalizeScheduledTaskTime, resolveScheduledTaskTimes } from "./scheduled-task-time.js"
 
 const PROJECT_CONFIG_VERSION = 1
 // A project id is `path_` + base64url of the whole project path (project-id.js), so a long path pushes
@@ -19,10 +16,6 @@ export const projectConfigFileStemOf = (projectID) =>
         .update(projectID)
         .digest("hex")
         .slice(0, 24)}`
-const MAX_TASK_NAME_LENGTH = 80
-const MAX_TASK_PROMPT_LENGTH = 20_000
-const MAX_CRON_LENGTH = 200
-const MAX_LAST_ERROR_LENGTH = 2_000
 
 const asNonEmptyString = (value) => {
   if (typeof value !== "string") {
@@ -32,290 +25,11 @@ const asNonEmptyString = (value) => {
   return trimmed.length > 0 ? trimmed : null
 }
 
-const clampLength = (value, maxLength) => {
-  if (typeof value !== "string") {
-    return ""
-  }
-  return value.length > maxLength ? value.slice(0, maxLength) : value
-}
-
-const asLimitedString = (value, maxLength) => clampLength(asNonEmptyString(value) || "", maxLength)
-
-const normalizeStatus = (value) => {
-  if (value === "running" || value === "success" || value === "error" || value === "idle") {
-    return value
-  }
-  return "idle"
-}
-
-const normalizeCatchUpPolicy = (value) => (value === "skip" ? "skip" : "run_once")
-
-const normalizeDateValue = (value) => {
-  const date = asNonEmptyString(value)
-  if (!date) {
-    return null
-  }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return null
-  }
-  const parsed = DateTime.fromISO(date, { zone: "UTC" })
-  if (!parsed.isValid || parsed.toFormat("yyyy-LL-dd") !== date) {
-    return null
-  }
-  return date
-}
-
-const normalizeWeekdays = (value) => {
-  if (!Array.isArray(value)) {
-    return null
-  }
-
-  const unique = new Set()
-  for (const entry of value) {
-    if (!Number.isInteger(entry)) {
-      return null
-    }
-    if (entry < 0 || entry > 6) {
-      return null
-    }
-    unique.add(entry)
-  }
-
-  if (unique.size === 0) {
-    return null
-  }
-
-  return Array.from(unique).sort((a, b) => a - b)
-}
-
-const resolveDefaultTimezone = () => {
-  const resolved = DateTime.local().zoneName
-  if (resolved && IANAZone.isValidZone(resolved)) {
-    return resolved
-  }
-  return "UTC"
-}
-
-const normalizeTimezone = (value, fallback = resolveDefaultTimezone()) => {
-  const timezone = asNonEmptyString(value)
-  if (!timezone) {
-    return fallback
-  }
-  return IANAZone.isValidZone(timezone) ? timezone : null
-}
-
-const validateCronExpression = (expression, timezone) => {
-  try {
-    const iterator = parser.parseExpression(expression, {
-      tz: timezone,
-      currentDate: new Date(),
-    })
-    iterator.next()
-    return true
-  } catch {
-    return false
-  }
-}
-
-const normalizeSchedule = (value, existingSchedule) => {
-  if (!value || typeof value !== "object") {
-    throw new Error("schedule is required")
-  }
-
-  const kind = asNonEmptyString(value.kind)
-  if (kind !== "daily" && kind !== "weekly" && kind !== "once" && kind !== "cron") {
-    throw new Error("schedule.kind must be daily, weekly, once, or cron")
-  }
-
-  const fallbackTimezone = existingSchedule?.timezone || resolveDefaultTimezone()
-  const timezone = normalizeTimezone(value.timezone, fallbackTimezone)
-  if (!timezone) {
-    throw new Error("schedule.timezone must be a valid IANA timezone")
-  }
-
-  if (kind === "daily") {
-    const times = resolveScheduledTaskTimes(value, { existingSchedule, rejectInvalidTimes: true })
-    if (times.length === 0) {
-      throw new Error("schedule.times must include at least one HH:mm value for daily schedule")
-    }
-    return { kind, times, timezone }
-  }
-
-  if (kind === "weekly") {
-    const times = resolveScheduledTaskTimes(value, { existingSchedule, rejectInvalidTimes: true })
-    if (times.length === 0) {
-      throw new Error("schedule.times must include at least one HH:mm value for weekly schedule")
-    }
-    const weekdays = normalizeWeekdays(value.weekdays)
-    if (!weekdays) {
-      throw new Error("schedule.weekdays must include values from 0 to 6 for weekly schedule")
-    }
-    return { kind, times, weekdays, timezone }
-  }
-
-  if (kind === "once") {
-    const date = normalizeDateValue(value.date)
-    if (!date) {
-      throw new Error("schedule.date must be YYYY-MM-DD for once schedule")
-    }
-
-    const time = normalizeScheduledTaskTime(value.time)
-    if (!time) {
-      throw new Error("schedule.time must be HH:mm for once schedule")
-    }
-
-    return { kind, date, time, timezone }
-  }
-
-  const cron = asLimitedString(value.cron, MAX_CRON_LENGTH)
-  if (!cron) {
-    throw new Error("schedule.cron is required for cron schedule")
-  }
-
-  if (!validateCronExpression(cron, timezone)) {
-    throw new Error("schedule.cron is invalid")
-  }
-
-  return { kind, cron, timezone }
-}
-
-const normalizeExecution = (value) => {
-  if (!value || typeof value !== "object") {
-    throw new Error("execution is required")
-  }
-
-  const prompt = asLimitedString(value.prompt, MAX_TASK_PROMPT_LENGTH)
-  const providerID = asNonEmptyString(value.providerID)
-  const modelID = asNonEmptyString(value.modelID)
-  const variant = asNonEmptyString(value.variant)
-  const agent = asNonEmptyString(value.agent)
-
-  if (!prompt) {
-    throw new Error("execution.prompt is required")
-  }
-  if (!providerID) {
-    throw new Error("execution.providerID is required")
-  }
-  if (!modelID) {
-    throw new Error("execution.modelID is required")
-  }
-
-  return {
-    prompt,
-    providerID,
-    modelID,
-    ...(variant ? { variant } : {}),
-    ...(agent ? { agent } : {}),
-  }
-}
-
-const normalizeState = (value, fallback) => {
-  const source = value && typeof value === "object" ? value : fallback || {}
-  const lastRunAt =
-    typeof source.lastRunAt === "number" && Number.isFinite(source.lastRunAt)
-      ? Math.max(0, Math.round(source.lastRunAt))
-      : undefined
-  const lastDurationMs =
-    typeof source.lastDurationMs === "number" && Number.isFinite(source.lastDurationMs)
-      ? Math.max(0, Math.round(source.lastDurationMs))
-      : undefined
-  const nextRunAt =
-    typeof source.nextRunAt === "number" && Number.isFinite(source.nextRunAt)
-      ? Math.max(0, Math.round(source.nextRunAt))
-      : undefined
-  const lastSessionId = asNonEmptyString(source.lastSessionId)
-  const activeQueueItemId = asNonEmptyString(source.activeQueueItemId)
-  const activeRunReason =
-    source.activeRunReason === "manual" || source.activeRunReason === "scheduled" ? source.activeRunReason : null
-  const lastError = asLimitedString(source.lastError, MAX_LAST_ERROR_LENGTH)
-
-  return {
-    createdAt:
-      typeof source.createdAt === "number" && Number.isFinite(source.createdAt)
-        ? Math.max(0, Math.round(source.createdAt))
-        : Date.now(),
-    updatedAt:
-      typeof source.updatedAt === "number" && Number.isFinite(source.updatedAt)
-        ? Math.max(0, Math.round(source.updatedAt))
-        : Date.now(),
-    lastStatus: normalizeStatus(source.lastStatus),
-    ...(typeof lastRunAt === "number" ? { lastRunAt } : {}),
-    ...(typeof lastDurationMs === "number" ? { lastDurationMs } : {}),
-    ...(typeof nextRunAt === "number" ? { nextRunAt } : {}),
-    ...(lastSessionId ? { lastSessionId } : {}),
-    ...(activeQueueItemId ? { activeQueueItemId } : {}),
-    ...(activeRunReason ? { activeRunReason } : {}),
-    ...(lastError ? { lastError } : {}),
-  }
-}
-
-const normalizeTaskForStorage = (value, options) => {
-  const { now, createId, existingTask, allowCreate, refreshUpdatedAt = true } = options
-
-  if (!value || typeof value !== "object") {
-    throw new Error("task is required")
-  }
-
-  const incomingId = asNonEmptyString(value.id)
-  const existingId = asNonEmptyString(existingTask?.id)
-
-  if (existingTask) {
-    if (incomingId && incomingId !== existingId) {
-      throw new Error("task.id is immutable")
-    }
-  }
-
-  if (!existingTask && incomingId && !allowCreate) {
-    throw new Error("task.id does not exist")
-  }
-
-  const id = existingId || incomingId || createId()
-  const name = asLimitedString(value.name, MAX_TASK_NAME_LENGTH)
-  if (!name) {
-    throw new Error("task.name is required")
-  }
-
-  const enabled = typeof value.enabled === "boolean" ? value.enabled : (existingTask?.enabled ?? true)
-  const catchUpPolicy = normalizeCatchUpPolicy(value.catchUpPolicy ?? existingTask?.catchUpPolicy)
-
-  const schedule = normalizeSchedule(value.schedule, existingTask?.schedule)
-  const execution = normalizeExecution(value.execution)
-
-  const nowMs = Math.max(0, Math.round(now))
-  const baseState = normalizeState(value.state, existingTask?.state)
-  const state = {
-    ...baseState,
-    createdAt: existingTask?.state?.createdAt ?? baseState.createdAt ?? nowMs,
-    updatedAt: refreshUpdatedAt ? nowMs : (baseState.updatedAt ?? nowMs),
-  }
-
-  return {
-    id,
-    name,
-    enabled,
-    catchUpPolicy,
-    schedule,
-    execution,
-    state,
-  }
-}
-
-// Derived from the stored task and its position, so it is stable across reads until a write persists it.
-const legacyTaskIDOf = (task, index) =>
-  `legacy_${createHash("sha256").update(`${index}:${JSON.stringify(task)}`).digest("hex").slice(0, 24)}`
-
+// Scheduled tasks are owned by the AX Code runtime; the `scheduledTasks` key left in a project config file is
+// legacy data that the boot migration (scheduled-task-convergence) moves there and then removes. This module
+// is that migration's only write path, so it works on the tasks exactly as stored and never normalizes them.
 export const createProjectConfigRuntime = (deps) => {
-  const { fsPromises, path, projectsDirPath, createTaskID } = deps
-
-  const taskIDFactory =
-    typeof createTaskID === "function"
-      ? createTaskID
-      : () => {
-          if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-            return crypto.randomUUID()
-          }
-          return `task_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`
-        }
+  const { fsPromises, path, projectsDirPath } = deps
 
   const writeLocks = new Map()
 
@@ -386,38 +100,6 @@ export const createProjectConfigRuntime = (deps) => {
     return {}
   }
 
-  const readProjectConfigFromDisk = async (projectID) => {
-    const parsed = await readRawProjectConfigFromDisk(projectID)
-    const tasksRaw = Array.isArray(parsed.scheduledTasks) ? parsed.scheduledTasks : []
-    const now = Date.now()
-    const scheduledTasks = []
-    // Tasks this version cannot normalize (an older schedule kind, a retired time zone) are hidden from the
-    // list but written back verbatim: every write replaces the whole list, and dropping them there erased
-    // them from disk without a trace.
-    const unreadableTasks = []
-    tasksRaw.forEach((task, index) => {
-      try {
-        const normalized = normalizeTaskForStorage(task, {
-          now,
-          // A task stored without an id needs the same one on every read, or the id the client was listed
-          // can never be found again: a delete reported nothing deleted and an edit added a second copy.
-          createId: () => legacyTaskIDOf(task, index),
-          existingTask: null,
-          allowCreate: true,
-          refreshUpdatedAt: false,
-        })
-        scheduledTasks.push(normalized)
-      } catch {
-        unreadableTasks.push(task)
-      }
-    })
-    return {
-      version: PROJECT_CONFIG_VERSION,
-      scheduledTasks,
-      unreadableTasks,
-    }
-  }
-
   // A failed write (a full disk) or rename (the target became a directory) would otherwise leave a full copy
   // of the config behind under a unique name on every attempt.
   const writeFileAtomically = async (temporaryPath, filePath, contents) => {
@@ -430,35 +112,11 @@ export const createProjectConfigRuntime = (deps) => {
     }
   }
 
-  const writeProjectConfigToDisk = async (projectID, config) => {
-    const filePath = resolveProjectConfigPath(projectID)
-    const parentDirectory = path.dirname(filePath)
-    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-
-    const existing = await readRawProjectConfigFromDisk(projectID)
-    const merged = {
-      ...existing,
-      version: PROJECT_CONFIG_VERSION,
-      // The project id, inside the file: a name longer than the filesystem allows is bounded with a digest
-      // (see projectConfigFileStemOf), so a reader that enumerated the directory can no longer derive the
-      // id from the file name — the scheduled-task convergence looks the project's path up by id.
-      projectID: sanitizeProjectID(projectID),
-      scheduledTasks: [
-        ...(Array.isArray(config?.scheduledTasks) ? config.scheduledTasks : []),
-        ...(Array.isArray(config?.unreadableTasks) ? config.unreadableTasks : []),
-      ],
-    }
-
-    await fsPromises.mkdir(parentDirectory, { recursive: true })
-    await writeFileAtomically(temporaryPath, filePath, JSON.stringify(merged, null, 2))
-    await removeLegacyProjectConfigFile(projectID)
-  }
-
   // S2.6 (SPEC-2026-08-29-desktop-process-model-collapse §2 D6): the runtime
   // migration rewrites the task list after each project pass and deletes the
   // server-owned `scheduledTasks` key entirely once nothing remains, so the
-  // JSON no longer looks like an unmigrated store. Atomic tmp+rename like
-  // writeProjectConfigToDisk; every other key is preserved verbatim.
+  // JSON no longer looks like an unmigrated store. Atomic tmp+rename; every
+  // other key is preserved verbatim.
   const writeScheduledTasksToDisk = async (projectID, tasks) => {
     const filePath = resolveProjectConfigPath(projectID)
     const parentDirectory = path.dirname(filePath)
@@ -503,132 +161,17 @@ export const createProjectConfigRuntime = (deps) => {
     }
   }
 
-  const listScheduledTasks = async (projectID) => {
-    const config = await readProjectConfigFromDisk(projectID)
-    return config.scheduledTasks
-  }
-
-  const upsertScheduledTask = async (projectID, taskInput) => {
-    return withProjectWriteLock(projectID, async () => {
-      const now = Date.now()
-      const current = await readProjectConfigFromDisk(projectID)
-      const incomingID = asNonEmptyString(taskInput?.id)
-      const existingIndex = incomingID ? current.scheduledTasks.findIndex((task) => task.id === incomingID) : -1
-      const existingTask = existingIndex >= 0 ? current.scheduledTasks[existingIndex] : null
-
-      const normalizedTask = normalizeTaskForStorage(taskInput, {
-        now,
-        createId: taskIDFactory,
-        existingTask,
-        allowCreate: true,
-      })
-
-      const nextTasks = current.scheduledTasks.slice()
-      const created = !existingTask
-      if (existingIndex >= 0) {
-        nextTasks[existingIndex] = normalizedTask
-      } else {
-        nextTasks.push(normalizedTask)
-      }
-
-      const nextConfig = {
-        version: PROJECT_CONFIG_VERSION,
-        scheduledTasks: nextTasks,
-        unreadableTasks: current.unreadableTasks,
-      }
-      await writeProjectConfigToDisk(projectID, nextConfig)
-
-      return {
-        task: normalizedTask,
-        tasks: nextTasks,
-        created,
-      }
-    })
-  }
-
-  const deleteScheduledTask = async (projectID, taskID) => {
-    return withProjectWriteLock(projectID, async () => {
-      const normalizedTaskID = asNonEmptyString(taskID)
-      if (!normalizedTaskID) {
-        throw new Error("taskId is required")
-      }
-
-      const current = await readProjectConfigFromDisk(projectID)
-      const nextTasks = current.scheduledTasks.filter((task) => task.id !== normalizedTaskID)
-      const deleted = nextTasks.length !== current.scheduledTasks.length
-
-      if (deleted) {
-        await writeProjectConfigToDisk(projectID, {
-          version: PROJECT_CONFIG_VERSION,
-          scheduledTasks: nextTasks,
-          unreadableTasks: current.unreadableTasks,
-        })
-      }
-
-      return {
-        deleted,
-        tasks: nextTasks,
-      }
-    })
-  }
-
-  const updateScheduledTaskState = async (projectID, taskID, statePatch) => {
-    return withProjectWriteLock(projectID, async () => {
-      const normalizedTaskID = asNonEmptyString(taskID)
-      if (!normalizedTaskID) {
-        throw new Error("taskId is required")
-      }
-
-      const current = await readProjectConfigFromDisk(projectID)
-      const taskIndex = current.scheduledTasks.findIndex((task) => task.id === normalizedTaskID)
-      if (taskIndex === -1) {
-        return { task: null, tasks: current.scheduledTasks }
-      }
-
-      const currentTask = current.scheduledTasks[taskIndex]
-      const patchObject = statePatch && typeof statePatch === "object" ? statePatch : {}
-      const nextTask = {
-        ...currentTask,
-        state: normalizeState(
-          {
-            ...currentTask.state,
-            ...patchObject,
-            updatedAt: Date.now(),
-          },
-          currentTask.state,
-        ),
-      }
-
-      const nextTasks = current.scheduledTasks.slice()
-      nextTasks[taskIndex] = nextTask
-
-      await writeProjectConfigToDisk(projectID, {
-        version: PROJECT_CONFIG_VERSION,
-        scheduledTasks: nextTasks,
-        unreadableTasks: current.unreadableTasks,
-      })
-
-      return {
-        task: nextTask,
-        tasks: nextTasks,
-      }
-    })
-  }
-
-  // S2.6: replace the whole task list with the tasks that still need migration
-  // (the input comes from a prior listScheduledTasks read, so it is already
-  // normalized). An empty list deletes the key; the key is never deleted while
-  // any task still awaits confirmation in the runtime.
+  // S2.6: replace the whole task list with the tasks that still need migration.
+  // An empty list deletes the key; the key is never deleted while any task
+  // still awaits confirmation in the runtime.
   const replaceScheduledTasks = async (projectID, tasksOrUpdater) => {
     return withProjectWriteLock(projectID, async () => {
       // An updater is handed the list as it is *now*, inside the lock. A caller that computed its list
       // from an earlier read — the boot migration reads the file, talks to the runtime for seconds and
-      // then writes back — would otherwise replace whatever a task edit added in the meantime.
+      // then writes back — would otherwise replace whatever another write landed in the meantime.
       //
-      // The list is the one on disk, not the normalized view: `readProjectConfigFromDisk` drops every task
-      // whose normalization throws and gives a task without an id a fresh one on each read. A caller that
-      // reconciles the tasks it read itself (the migration filters by their identity) therefore either erased
-      // a task it never settled, or failed to match one it had, depending on which of the two it hit.
+      // The list is the raw one on disk, in stored order, so a caller that reconciles the tasks it read itself
+      // (the migration filters by their identity) matches exactly the entries it saw: none dropped, none renamed.
       let resolved
       if (Array.isArray(tasksOrUpdater)) {
         resolved = tasksOrUpdater
@@ -651,13 +194,7 @@ export const createProjectConfigRuntime = (deps) => {
   }
 
   return {
-    listScheduledTasks,
-    upsertScheduledTask,
-    deleteScheduledTask,
-    updateScheduledTaskState,
     replaceScheduledTasks,
     resolveProjectConfigPath,
   }
 }
-
-export { MAX_TASK_NAME_LENGTH, MAX_TASK_PROMPT_LENGTH, MAX_CRON_LENGTH, MAX_LAST_ERROR_LENGTH, normalizeTaskForStorage }
