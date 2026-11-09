@@ -21,6 +21,9 @@ export const createRouteRegistry = () => {
       put(routePath, ...handlers) {
         register("PUT", routePath, handlers)
       },
+      patch(routePath, ...handlers) {
+        register("PATCH", routePath, handlers)
+      },
       delete(routePath, ...handlers) {
         register("DELETE", routePath, handlers)
       },

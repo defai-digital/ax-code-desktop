@@ -201,6 +201,24 @@ describe("settings runtime", () => {
     }
   })
 
+  it("does not leave a settings copy behind when the replace fails", async () => {
+    // Each failed attempt stranded a full copy of settings.json, whatever secrets it held, next to it.
+    const failingFs = {
+      ...fsPromises,
+      rename: async () => {
+        throw Object.assign(new Error("rename refused"), { code: "EXDEV" })
+      },
+    }
+    const { runtime, tempRoot, cleanup } = await createRuntime({ fsPromises: failingFs })
+    try {
+      await expect(runtime.writeSettingsToDiskLocal({ projects: [] })).rejects.toThrow("rename refused")
+
+      expect((await fsPromises.readdir(tempRoot)).filter((name) => name.includes(".tmp-"))).toEqual([])
+    } finally {
+      await cleanup()
+    }
+  })
+
   it("keeps the destination file when a migrating rename fails", async () => {
     // `moveDirectoryContents` deleted the destination before renaming, so a rename that then failed left the
     // destination's previous content gone and the source file still in the old directory — while the merged

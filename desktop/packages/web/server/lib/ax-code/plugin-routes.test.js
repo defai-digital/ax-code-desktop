@@ -91,6 +91,20 @@ describe("ax-code plugin routes", () => {
     expect(response.body).toEqual({ entries: [], files: [] })
   })
 
+  test("GET /registry tells an unreadable path spec from a missing one", async () => {
+    if (process.platform === "win32") return
+    const loop = path.join(projectDir, "loop-a")
+    fs.symlinkSync(path.join(projectDir, "loop-b"), loop)
+    fs.symlinkSync(loop, path.join(projectDir, "loop-b"))
+    const missing = path.join(projectDir, "absent")
+
+    const response = await request(app)
+      .get(`/api/config/plugins/registry?specs=${encodeURIComponent(`${loop},${missing}`)}`)
+      .expect(200)
+
+    expect(response.body.results.map((result) => result.kind)).toEqual(["path-unreadable", "path-missing"])
+  })
+
   test("GET /registry with empty specs returns empty results", async () => {
     const getNpmInfo = vi.fn(async () => ({
       ok: true,

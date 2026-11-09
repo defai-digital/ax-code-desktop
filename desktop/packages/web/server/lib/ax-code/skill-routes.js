@@ -363,7 +363,15 @@ export const registerSkillRoutes = (app, dependencies) => {
         })
 
         if (!scanned.ok) {
-          return res.status(500).json({ ok: false, error: scanned.error })
+          // Mapped like the scan route: an expired identity for a saved source is a credential prompt, not a
+          // server fault, and the client only offers one for 401.
+          if (scanned.error?.kind === "authRequired") {
+            return res.status(401).json({
+              ok: false,
+              error: { ...scanned.error, identities: listGitIdentitiesForResponse() },
+            })
+          }
+          return res.status(400).json({ ok: false, error: scanned.error })
         }
 
         scanResult = scanned
@@ -466,20 +474,8 @@ export const registerSkillRoutes = (app, dependencies) => {
 
         const installed = result.installed || []
         const skipped = result.skipped || []
-        const requiresReload = installed.length > 0
 
-        if (requiresReload) {
-          await refreshAxCodeAfterConfigChange("skills install")
-        }
-
-        return res.json({
-          ok: true,
-          installed,
-          skipped,
-          requiresReload,
-          message: requiresReload ? "Skills installed successfully. Reloading interface…" : "No skills were installed",
-          reloadDelayMs: requiresReload ? clientReloadDelayMs : undefined,
-        })
+        return res.json(await installResponse(installed, skipped))
       }
 
       const identity = resolveGitIdentity(gitIdentityId)
@@ -517,20 +513,8 @@ export const registerSkillRoutes = (app, dependencies) => {
 
       const installed = result.installed || []
       const skipped = result.skipped || []
-      const requiresReload = installed.length > 0
 
-      if (requiresReload) {
-        await refreshAxCodeAfterConfigChange("skills install")
-      }
-
-      res.json({
-        ok: true,
-        installed,
-        skipped,
-        requiresReload,
-        message: requiresReload ? "Skills installed successfully. Reloading interface…" : "No skills were installed",
-        reloadDelayMs: requiresReload ? clientReloadDelayMs : undefined,
-      })
+      res.json(await installResponse(installed, skipped))
     } catch (error) {
       console.error("Failed to install skills:", error)
       res
@@ -602,6 +586,37 @@ export const registerSkillRoutes = (app, dependencies) => {
       res.status(500).json({ error: "Failed to read skill file" })
     }
   })
+
+  // The skills are on disk once the installer returns. A reload that throws used to reach the route's catch
+  // and answer 500, so the client treated a completed install as a failure and its retry hit name conflicts
+  // for skills it had just installed. Same partial-success shape as the other skill mutations below.
+  const installResponse = async (installed, skipped) => {
+    if (installed.length === 0) {
+      return { ok: true, installed, skipped, requiresReload: false, message: "No skills were installed" }
+    }
+    try {
+      await refreshAxCodeAfterConfigChange("skills install")
+      return {
+        ok: true,
+        installed,
+        skipped,
+        requiresReload: true,
+        message: "Skills installed successfully. Reloading interface…",
+        reloadDelayMs: clientReloadDelayMs,
+      }
+    } catch (error) {
+      console.error("[API:skill] Reload failed after skills install:", error)
+      return {
+        ok: true,
+        installed,
+        skipped,
+        requiresReload: false,
+        reloadFailed: true,
+        message: "Skills installed, but ax-code reload failed.",
+        warning: error?.message || "ax-code reload failed after skills install",
+      }
+    }
+  }
 
   // The config write has already landed by the time the runtime reload runs.
   // Reporting a reload failure as 500 made the client roll the mutation back

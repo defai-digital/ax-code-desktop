@@ -234,6 +234,41 @@ describe("ax-code plugins data layer", () => {
     expect(() => plugins.deletePluginDirFile(file.id, projectDir)).toThrow("not found")
   })
 
+  test("does not follow a symlinked plugin file in a project", () => {
+    // A cloned repository can ship `.ax-code/plugins/x.js` pointing at a private file: reading served it and
+    // saving overwrote it.
+    if (process.platform === "win32") return
+    const outside = path.join(rootDir, `secret-${path.basename(projectDir)}.txt`)
+    fs.writeFileSync(outside, "private")
+    const pluginDir = path.join(projectDir, ".ax-code", "plugins")
+    fs.mkdirSync(pluginDir, { recursive: true })
+    fs.symlinkSync(outside, path.join(pluginDir, "linked.js"))
+    const id = plugins.encodePluginId("file", "project:linked.js")
+
+    expect(thrownBy(() => plugins.readPluginDirFile(id, projectDir))).toHaveProperty("code", "EINVAL")
+    expect(
+      thrownBy(() =>
+        plugins.writePluginDirFile({ fileName: "linked.js", content: "overwritten", scope: "project" }, projectDir, {
+          overwrite: true,
+        }),
+      ),
+    ).toHaveProperty("code", "EINVAL")
+    expect(fs.readFileSync(outside, "utf8")).toBe("private")
+  })
+
+  test("does not write through a project plugin directory that links out of the project", () => {
+    if (process.platform === "win32") return
+    const outsideDir = fs.mkdtempSync(path.join(rootDir, "outside-"))
+    fs.symlinkSync(outsideDir, path.join(projectDir, ".ax-code"))
+
+    expect(
+      thrownBy(() =>
+        plugins.writePluginDirFile({ fileName: "planted.js", content: "x", scope: "project" }, projectDir),
+      ),
+    ).toHaveProperty("code", "EINVAL")
+    expect(fs.readdirSync(outsideDir)).toEqual([])
+  })
+
   test("rejects duplicate plugin dir files unless overwrite is true", () => {
     plugins.writePluginDirFile({ fileName: "dup.js", content: "one", scope: "project" }, projectDir)
     expect(() =>

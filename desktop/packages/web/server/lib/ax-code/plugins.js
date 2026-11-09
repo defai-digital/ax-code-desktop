@@ -191,6 +191,41 @@ function pluginDirForScope(scope, workingDirectory) {
   return path.join(getActiveAxCodeConfigDir(), "plugins")
 }
 
+// A project's plugin directory is inside a repository the user may have just cloned, where `.ax-code`,
+// `.ax-code/plugins` or a plugin file itself can be a symlink. Followed, a read served whatever the link named
+// (a private key, a token file) and a save overwrote it (a shell profile). The file itself must not be a link,
+// and a project-scope directory must resolve inside the project.
+function assertPluginPathContained(absolutePath, scope, workingDirectory) {
+  let stats = null
+  try {
+    stats = fs.lstatSync(absolutePath)
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error
+  }
+  if (stats && !stats.isFile()) {
+    throw codedError("Plugin file is not a regular file", "EINVAL")
+  }
+  if (scope !== AGENT_SCOPE.PROJECT) return
+  // The directory may not exist yet: the nearest ancestor that does decides where `mkdir` would create it.
+  let existing = path.dirname(absolutePath)
+  let realDir
+  for (;;) {
+    try {
+      realDir = fs.realpathSync(existing)
+      break
+    } catch (error) {
+      const parent = path.dirname(existing)
+      if (error?.code !== "ENOENT" || parent === existing) throw error
+      existing = parent
+    }
+  }
+  const realProject = fs.realpathSync(workingDirectory)
+  const relative = path.relative(realProject, realDir)
+  if (relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
+    throw codedError("Plugin directory resolves outside the project", "EINVAL")
+  }
+}
+
 function fileTargetFromId(id, workingDirectory) {
   const decoded = decodePluginId(id)
   if (decoded.prefix !== "file") {
@@ -365,6 +400,7 @@ function readPluginDirFile(id, workingDirectory) {
   if (!fs.existsSync(target.absolutePath)) {
     return null
   }
+  assertPluginPathContained(target.absolutePath, target.scope, workingDirectory)
   return {
     fileName: target.fileName,
     scope: target.scope,
@@ -378,11 +414,14 @@ function writePluginDirFile(file, workingDirectory, opts = {}) {
   validateScope(scope)
   const dir = pluginDirForScope(scope, workingDirectory)
   const absolutePath = path.join(dir, fileName)
+  assertPluginPathContained(absolutePath, scope, workingDirectory)
   if (!opts.overwrite && fs.existsSync(absolutePath)) {
     throw codedError(`Plugin file "${fileName}" already exists`, "FILE_EXISTS")
   }
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(absolutePath, file?.content ?? "", "utf8")
+  // A create must not replace a file that appeared after the existence check above; `wx` refuses it (EEXIST,
+  // answered 409 like the check).
+  fs.writeFileSync(absolutePath, file?.content ?? "", { encoding: "utf8", flag: opts.overwrite ? "w" : "wx" })
 }
 
 function deletePluginDirFile(id, workingDirectory) {

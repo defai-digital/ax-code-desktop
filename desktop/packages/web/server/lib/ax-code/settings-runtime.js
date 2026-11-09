@@ -141,8 +141,14 @@ export const createSettingsRuntime = (deps) => {
     // tmp + rename, same as project-config.js: a crash mid-write otherwise leaves a
     // truncated JSON that every later read treats as corrupt.
     const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    await fsPromises.writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
-    await fsPromises.rename(temporaryPath, filePath)
+    try {
+      await fsPromises.writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
+      await fsPromises.rename(temporaryPath, filePath)
+    } catch (error) {
+      // Otherwise every failed attempt (a full disk, a locked target) leaves a full copy behind.
+      await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+      throw error
+    }
   }
 
   const uniqueStrings = (values) =>
@@ -605,8 +611,14 @@ export const createSettingsRuntime = (deps) => {
       // Electron main is the sole writer of settings.json and every write
       // delegates to it via the settingsWriter (S2.3).
       const tmp = `${SETTINGS_FILE_PATH}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      await fsPromises.writeFile(tmp, JSON.stringify(settings, null, 2), "utf8")
-      await replaceFile(tmp, SETTINGS_FILE_PATH)
+      try {
+        await fsPromises.writeFile(tmp, JSON.stringify(settings, null, 2), "utf8")
+        await replaceFile(tmp, SETTINGS_FILE_PATH)
+      } catch (error) {
+        // A stranded copy holds the whole settings payload, secrets included, and one is left per failure.
+        await fsPromises.rm(tmp, { force: true }).catch(() => {})
+        throw error
+      }
     } catch (error) {
       console.warn("Failed to write settings file:", error)
       throw error

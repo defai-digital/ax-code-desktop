@@ -187,8 +187,11 @@ export const registerPluginRoutes = (app, dependencies) => {
           const { absolutePath } = parsePathSpec(spec, { homedir: os.homedir(), cwd: directory || os.homedir() })
           try {
             fs.statSync(absolutePath)
-          } catch {
-            results.push({ kind: "path-missing", spec, absolutePath })
+          } catch (error) {
+            // Only an absent path is missing. A permission error or a symlink loop is a path that exists and
+            // cannot be read, which the client reports differently.
+            const missing = error?.code === "ENOENT" || error?.code === "ENOTDIR"
+            results.push({ kind: missing ? "path-missing" : "path-unreadable", spec, absolutePath })
             continue
           }
 
