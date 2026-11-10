@@ -1,3 +1,5 @@
+import { createHash } from "crypto"
+
 import {
   buildIssueSearchQuery,
   buildPullSearchQuery,
@@ -17,6 +19,11 @@ const GITHUB_LIST_PAGE_SIZE = 50
 const GITHUB_COMMENT_MAX_LENGTH = 65_536
 const PR_STATUS_CACHE_MAX_ENTRIES = 200
 const prStatusCache = new Map()
+// GitHub device codes expire after 15 minutes and are single-use: once a poll has received the token, polling the
+// same code again is refused. A token whose account lookup then failed is held here, in memory only and keyed by a
+// digest of the device code, so the dialog's next poll finishes the sign-in instead of losing it.
+const DEVICE_FLOW_TOKEN_TTL_MS = 15 * 60 * 1000
+const DEVICE_FLOW_TOKEN_MAX_ENTRIES = 16
 
 class GitHubAuthRouteError extends Error {
   constructor(statusCode, message) {
@@ -127,6 +134,18 @@ async function clearGitHubAccountScopedCaches() {
 }
 
 export function registerGitHubRoutes(app) {
+  const exchangedDeviceTokens = new Map()
+  const deviceCodeKey = (deviceCode) => createHash("sha256").update(deviceCode).digest("hex")
+  const pruneExchangedDeviceTokens = () => {
+    const now = Date.now()
+    for (const [key, entry] of exchangedDeviceTokens) {
+      if (entry.expiresAt <= now) exchangedDeviceTokens.delete(key)
+    }
+    while (exchangedDeviceTokens.size >= DEVICE_FLOW_TOKEN_MAX_ENTRIES) {
+      exchangedDeviceTokens.delete(exchangedDeviceTokens.keys().next().value)
+    }
+  }
+
   let githubLibraries = null
   const getGitHubLibraries = async () => {
     if (!githubLibraries) {
@@ -275,7 +294,10 @@ export function registerGitHubRoutes(app) {
         return res.status(400).json({ error: "deviceCode is required" })
       }
 
-      const payload = await exchangeDeviceCode({ clientId, deviceCode })
+      const tokenKey = deviceCodeKey(deviceCode)
+      pruneExchangedDeviceTokens()
+      const held = exchangedDeviceTokens.get(tokenKey)
+      const payload = held ? held.payload : await exchangeDeviceCode({ clientId, deviceCode })
 
       if (payload?.error) {
         return res.json({
@@ -290,10 +312,31 @@ export function registerGitHubRoutes(app) {
         return res.status(500).json({ error: "Missing access_token from GitHub" })
       }
 
+      if (!held) {
+        exchangedDeviceTokens.set(tokenKey, { payload, expiresAt: Date.now() + DEVICE_FLOW_TOKEN_TTL_MS })
+      }
+
       const { Octokit } = await import("@octokit/rest")
       const { applyGitHubRequestTimeout } = await import("./octokit.js")
       const octokit = applyGitHubRequestTimeout(new Octokit({ auth: accessToken }))
-      const user = await getGitHubUserSummary(octokit)
+      let user
+      try {
+        user = await getGitHubUserSummary(octokit)
+      } catch (error) {
+        if (error?.status === 401) {
+          // GitHub refused the token it just issued: retrying with it cannot succeed.
+          exchangedDeviceTokens.delete(tokenKey)
+          return res.json({
+            connected: false,
+            status: "access_denied",
+            error: "GitHub rejected the new token",
+          })
+        }
+        // A timeout or outage: the token is kept for the next poll.
+        console.error("GitHub sign-in succeeded but the account lookup failed:", error?.message || error)
+        return res.status(502).json({ error: "GitHub account lookup failed; retrying" })
+      }
+      exchangedDeviceTokens.delete(tokenKey)
 
       setGitHubAuth({
         accessToken,

@@ -28,6 +28,21 @@ vi.mock("./pr-status.js", async (importOriginal) => ({
   resolveGitHubPrStatus: resolveGitHubPrStatusMock,
 }))
 
+const getAuthenticatedMock = vi.hoisted(() => vi.fn())
+vi.mock("@octokit/rest", () => ({
+  Octokit: class {
+    constructor() {
+      this.rest = {
+        users: {
+          getAuthenticated: getAuthenticatedMock,
+          listEmailsForAuthenticatedUser: vi.fn(async () => ({ data: [] })),
+        },
+      }
+      this.hook = { wrap: vi.fn(), before: vi.fn(), after: vi.fn(), error: vi.fn() }
+    }
+  },
+}))
+
 const { registerGitHubRoutes } = await import("./routes.js")
 
 const createApp = () => {
@@ -670,5 +685,51 @@ describe("github routes", () => {
 
     expect(response.body.connected).toBe(false)
     expect(clearRejectedGitHubAuth).toHaveBeenCalled()
+  })
+  describe("device flow completion", () => {
+    const issuedToken = { access_token: "gho_test_token", scope: "repo", token_type: "bearer" }
+    const user = { data: { login: "alice", id: 7, avatar_url: "https://avatars.example/a", name: "Alice", email: "a@example.com" } }
+
+    it("keeps the issued token when the account lookup fails, and finishes the sign-in on the next poll", async () => {
+      // The device code is single-use: the token GitHub issued was discarded when the user lookup timed out, and
+      // the next poll's exchange was refused, so the user had to start the sign-in over.
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValueOnce(issuedToken)
+      exchangeDeviceCode.mockResolvedValue({ error: "incorrect_device_code", error_description: "already used" })
+      getAuthenticatedMock.mockRejectedValueOnce(Object.assign(new Error("timeout"), { status: 504 }))
+      getAuthenticatedMock.mockResolvedValueOnce(user)
+      const app = createApp()
+
+      const first = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-1" })
+      expect(first.status).toBe(502)
+      expect(JSON.stringify(first.body)).not.toContain(issuedToken.access_token)
+      expect(setGitHubAuth).not.toHaveBeenCalled()
+
+      const second = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-1" }).expect(200)
+      expect(second.body).toMatchObject({ connected: true, user: { login: "alice" } })
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(1)
+      expect(setGitHubAuth).toHaveBeenCalledWith(expect.objectContaining({ accessToken: issuedToken.access_token }))
+
+      // Finished: the held token is gone, so a replay of the code goes back to GitHub.
+      const replay = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-1" }).expect(200)
+      expect(replay.body).toMatchObject({ connected: false, status: "incorrect_device_code" })
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
+    })
+
+    it("ends the sign-in when GitHub rejects the token it just issued", async () => {
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValue(issuedToken)
+      getAuthenticatedMock.mockRejectedValueOnce(Object.assign(new Error("Bad credentials"), { status: 401 }))
+      const app = createApp()
+
+      const response = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-2" }).expect(200)
+
+      expect(response.body).toMatchObject({ connected: false, status: "access_denied" })
+      expect(setGitHubAuth).not.toHaveBeenCalled()
+      // Not held: the next poll asks GitHub again rather than reusing the rejected token.
+      getAuthenticatedMock.mockResolvedValueOnce(user)
+      await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-2" }).expect(200)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
+    })
   })
 })
