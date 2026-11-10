@@ -12,6 +12,9 @@ import { createGlobalMessageStreamWsBridge } from "./global-ws-bridge.js"
 import { acceptDirectoryMessageStreamWsConnection } from "./directory-ws-bridge.js"
 import { DEFAULT_UPSTREAM_RECONNECT_DELAY_MS, DEFAULT_UPSTREAM_STALL_TIMEOUT_MS } from "./upstream-reader.js"
 
+// Large enough for a ping or close frame with a reason; the client sends nothing else.
+export const MESSAGE_STREAM_WS_MAX_PAYLOAD_BYTES = 4 * 1024
+
 export function createGlobalUiEventBroadcaster({ sseClients, wsClients, writeSseEvent }) {
   return (payload, options = {}) => {
     const hasSseClients = sseClients.size > 0
@@ -65,8 +68,11 @@ export function createMessageStreamWsRuntime({
   fetchImpl = fetch,
   globalEventHub = null,
 }) {
+  // The message stream is server-to-client only; nothing reads an inbound frame. ws buffers a whole frame before
+  // any handler runs, so its 100 MiB default let one authenticated socket hold that much memory for nothing.
   const wsServer = new WebSocketServer({
     noServer: true,
+    maxPayload: MESSAGE_STREAM_WS_MAX_PAYLOAD_BYTES,
   })
 
   const ownsGlobalHub = !globalEventHub

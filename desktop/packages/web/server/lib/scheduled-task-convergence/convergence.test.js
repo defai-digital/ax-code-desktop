@@ -439,6 +439,28 @@ describe("scheduled task convergence migration", () => {
     expect(typeof marker.migratedAt).toBe("number")
   })
 
+  it("leaves the project for the next boot when the runtime's task list cannot be read", async () => {
+    // A truncated or non-list body read as "no tasks", so the title match could not see a task an earlier boot
+    // had already created and the same prompt was created again.
+    const requests = []
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        requests.push({ method, url })
+        if (method === "GET") return new Response('[{"id":"st_existing","title":"Dig', { status: 200 })
+        return new Response(JSON.stringify({ id: "st_new", status: "active" }), { status: 200 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", { projectPath: "/work/alpha", scheduledTasks: [dailyTask()] })
+
+    await harness.convergence.start()
+
+    expect(requests.filter((request) => request.method === "POST")).toHaveLength(0)
+    const project = await harness.readProject("proj-a.json")
+    expect(project.scheduledTasks).toHaveLength(1)
+  })
+
   it("records permanent skips (unsupported cron, slash commands) and still finalizes", async () => {
     const harness = await createHarness()
     cleanup = harness.cleanup

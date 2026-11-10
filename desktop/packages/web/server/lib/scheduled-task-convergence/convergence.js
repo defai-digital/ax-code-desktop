@@ -129,7 +129,13 @@ export const createScheduledTaskConvergence = (deps) => {
       directory,
       timeoutMs: options.timeoutMs,
     })
-    return Array.isArray(result) ? result : []
+    if (Array.isArray(result)) return result
+    // The migration matches titles against this list to avoid creating a task twice: a body that could not be read
+    // or parsed read as "the runtime has none", and a task created by an interrupted earlier boot was created again.
+    if (options.requireList) {
+      throw new Error("runtime GET /scheduled-task answered without a task list")
+    }
+    return []
   }
 
   const createRuntimeTask = async (directory, payload) => {
@@ -364,7 +370,7 @@ export const createScheduledTaskConvergence = (deps) => {
 
       let existingByTitle
       try {
-        const existing = await listRuntimeTasks(projectPath)
+        const existing = await listRuntimeTasks(projectPath, { requireList: true })
         // Every runtime entry per title, not the last one: with two desktop tasks of the same name already
         // created by an interrupted run, a single entry per title matched the first and the second was created
         // again, so the same prompt ran twice on every schedule.

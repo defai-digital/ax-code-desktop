@@ -1,8 +1,14 @@
 import { EventEmitter } from "node:events"
+import { createServer } from "node:http"
 import { describe, expect, it, vi } from "vitest"
+import WebSocket from "ws"
 
 import { createSseResponse } from "./test-helpers.js"
-import { createGlobalUiEventBroadcaster, createMessageStreamWsRuntime } from "./runtime.js"
+import {
+  createGlobalUiEventBroadcaster,
+  createMessageStreamWsRuntime,
+  MESSAGE_STREAM_WS_MAX_PAYLOAD_BYTES,
+} from "./runtime.js"
 
 class FakeSocket extends EventEmitter {
   constructor() {
@@ -119,6 +125,40 @@ describe("event stream broadcaster", () => {
 })
 
 describe("message stream websocket runtime", () => {
+  it("closes a socket that sends a frame larger than the stream ever reads", async () => {
+    // The stream is server-to-client only, but ws buffered inbound frames up to its 100 MiB default.
+    const server = createServer()
+    const runtime = createMessageStreamWsRuntime({
+      server,
+      uiAuthController: null,
+      isRequestOriginAllowed: async () => true,
+      rejectWebSocketUpgrade: (socket) => socket.destroy(),
+      markWebSocketUpgradeClaimed() {},
+      buildAxCodeUrl: (path) => `http://127.0.0.1:4096${path}`,
+      getAxCodeAuthHeaders: () => ({}),
+      processForwardedEventPayload() {},
+      wsClients: new Set(),
+      upstreamReconnectDelayMs: 60_000,
+      fetchImpl: async (_url, options) => createSseResponse({ signal: options.signal, holdOpen: true, blocks: [] }),
+    })
+    await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve))
+    try {
+      const client = new WebSocket(`ws://127.0.0.1:${server.address().port}/api/global/event/ws`)
+      await new Promise((resolve, reject) => {
+        client.once("open", resolve)
+        client.once("error", reject)
+      })
+      const closed = new Promise((resolve) => client.once("close", (code) => resolve(code)))
+      client.send(Buffer.alloc(MESSAGE_STREAM_WS_MAX_PAYLOAD_BYTES * 16))
+
+      // 1009: message too big.
+      await expect(closed).resolves.toBe(1009)
+    } finally {
+      await runtime.close()
+      await new Promise((resolve) => server.close(resolve))
+    }
+  })
+
   it("shares one global upstream SSE reader across multiple websocket clients", async () => {
     const server = new EventEmitter()
     const wsClients = new Set()
