@@ -1346,16 +1346,23 @@ export const registerFsRoutes = (app, dependencies) => {
         // A valid target name can already fill the component limit; keep the temporary name independent of it.
         `.ax-write-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       )
+      let temporaryWritten = false
       try {
         await fsPromises.writeFile(temporaryPath, content, {
           encoding: "utf8",
+          flag: "wx",
           ...(existingMode !== null ? { mode: existingMode } : {}),
         })
+        temporaryWritten = true
         // Creation mode is filtered through umask. Restore the original only after writing, before replacement.
         if (existingMode !== null) await fsPromises.chmod(temporaryPath, existingMode)
         await fsPromises.rename(temporaryPath, writable.path)
       } catch (writeError) {
-        await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+        // EEXIST during exclusive creation belongs to another writer. Partial writes and later-step failures
+        // still need cleanup, including a rename that itself reports EEXIST after our successful write.
+        if (temporaryWritten || writeError?.code !== "EEXIST") {
+          await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
+        }
         throw writeError
       }
       return res.json({ success: true, path: writable.path })

@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.17] - 2026-11-10
+
 ### Fixed
+
+- Create atomic-save temporary files exclusively and preserve pre-existing files or symlinks on name collisions.
 
 - Save files with long valid filenames, preserve existing permissions across atomic saves, and leave the original intact when metadata or permission restoration fails.
 - Preserve literal filenames containing ` => ` or braces in commit history and file diffs, including rename destinations.

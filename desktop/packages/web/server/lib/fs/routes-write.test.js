@@ -135,13 +135,59 @@ describe("fs atomic writes", () => {
     }
   })
 
-  it("preserves the original and cleans up when replacement fails", async () => {
+  const assertTemporaryCollision = async (kind) => {
+    const { directory, filename } = await createFixture()
+    const otherFile = path.join(directory, "other-owner.txt")
+    await fs.writeFile(otherFile, "other owner's bytes")
+    let temporaryPath
+    const io = {
+      ...fs,
+      writeFile: async (target, content, options) => {
+        temporaryPath = target
+        if (kind === "symlink") await fs.symlink(otherFile, target)
+        else await fs.writeFile(target, "other temporary bytes")
+        return fs.writeFile(target, content, options)
+      },
+    }
+
+    const response = await save(registerWrite(directory, io), filename)
+
+    expect(response.statusCode).toBe(500)
+    expect(await fs.readFile(filename, "utf8")).toBe("original contents")
+    expect(await fs.readFile(otherFile, "utf8")).toBe("other owner's bytes")
+    expect(await fs.readFile(temporaryPath, "utf8")).toBe(kind === "symlink" ? "other owner's bytes" : "other temporary bytes")
+    expect((await fs.lstat(temporaryPath)).isSymbolicLink()).toBe(kind === "symlink")
+  }
+
+  it("refuses a temporary-name collision with a pre-existing file", () => assertTemporaryCollision("file"))
+  it.skipIf(process.platform === "win32")("refuses a temporary-name collision with a pre-existing symlink", () =>
+    assertTemporaryCollision("symlink"),
+  )
+
+  it("cleans a partial temporary write without replacing the original", async () => {
+    const { directory, filename } = await createFixture()
+    const io = {
+      ...fs,
+      writeFile: async (target, _content, options) => {
+        await fs.writeFile(target, "partial bytes", options)
+        throw Object.assign(new Error("Disk full"), { code: "ENOSPC" })
+      },
+    }
+
+    const response = await save(registerWrite(directory, io), filename)
+
+    expect(response.statusCode).toBe(500)
+    expect(await fs.readFile(filename, "utf8")).toBe("original contents")
+    expect(await fs.readdir(directory)).toEqual(["file.txt"])
+  })
+
+  it.each(["EIO", "EEXIST"])("preserves the original and cleans up when replacement fails: %s", async (code) => {
     const { directory, filename } = await createFixture()
     const originalMode = (await fs.stat(filename)).mode & 0o777
     const io = {
       ...fs,
       rename: vi.fn(async () => {
-        throw Object.assign(new Error("Cannot replace existing file"), { code: "EIO" })
+        throw Object.assign(new Error("Cannot replace existing file"), { code })
       }),
     }
 

@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.17 maintenance candidate](RELEASE-2026-11-10-v7.30.17-candidate.md): synchronized fixes and
+  exclusive atomic-save temporary creation.
+
 - [Desktop 7.30.16 verified publication](RELEASE-2026-11-10-v7.30.16-publication.md): signed four-platform release
   and independent public readback.
 
