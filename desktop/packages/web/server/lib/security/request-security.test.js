@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { createRequestSecurityRuntime } from "./request-security.js"
 import { createMockRequest } from "../../test-helpers/route-harness.js"
 
-const createRuntime = () => createRequestSecurityRuntime()
+const createRuntime = () => createRequestSecurityRuntime({ env: {} })
 
 describe("request security origin checks", () => {
   it("normalizes host casing before comparing origins", async () => {
@@ -125,15 +125,38 @@ describe("request security origin checks", () => {
     ).resolves.toBe(true)
   })
 
-  it("allows loopback origins on a different port than the Host (dev proxy)", async () => {
-    const runtime = createRuntime()
+  it("allows the registered dev renderer on another loopback port", async () => {
+    const request = createMockRequest({ host: "127.0.0.1:3001", origin: "http://localhost:5173", localPort: 3001 })
+
+    await expect(
+      createRequestSecurityRuntime({ env: { AX_CODE_DESKTOP_RENDERER_PORT: "5173" } }).isRequestOriginAllowed(request),
+    ).resolves.toBe(true)
+    await expect(
+      createRequestSecurityRuntime({
+        env: { AX_CODE_DESKTOP_ELECTRON_RENDERER_URL: "http://127.0.0.1:5173/" },
+      }).isRequestOriginAllowed(request),
+    ).resolves.toBe(true)
+  })
+
+  it("rejects another local server's page on a different loopback port", async () => {
+    // Any loopback origin was trusted, so an untrusted project's dev server could open the event stream and
+    // terminal sockets of this server from the user's browser.
+    const runtime = createRequestSecurityRuntime({ env: {} })
 
     await expect(
       runtime.isRequestOriginAllowed(
-        createMockRequest({
-          host: "127.0.0.1:3001",
-          origin: "http://localhost:5173",
-        }),
+        createMockRequest({ host: "127.0.0.1:3001", origin: "http://localhost:5173", localPort: 3001 }),
+      ),
+    ).resolves.toBe(false)
+    // A forged Host cannot stand in for the port the connection really reached.
+    await expect(
+      runtime.isRequestOriginAllowed(
+        createMockRequest({ host: "127.0.0.1:5173", origin: "http://localhost:5173", localPort: 3001 }),
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      runtime.isRequestOriginAllowed(
+        createMockRequest({ host: "localhost:3001", origin: "http://[::1]:3001", localPort: 3001 }),
       ),
     ).resolves.toBe(true)
   })

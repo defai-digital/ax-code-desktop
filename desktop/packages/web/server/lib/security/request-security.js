@@ -1,8 +1,44 @@
 import { normalizeLoopbackHttpOrigin } from "./local-only.js"
 import { resolveUiSessionCookieName } from "../ui-auth/ui-session-cookie.js"
 
-export const createRequestSecurityRuntime = () => {
+const effectivePort = (url) => {
+  if (url.port) return Number(url.port)
+  return url.protocol === "https:" ? 443 : 80
+}
+
+const parsePort = (value) => {
+  const port = Number(typeof value === "string" ? value.trim() : value)
+  return Number.isInteger(port) && port > 0 && port <= 65535 ? port : null
+}
+
+export const createRequestSecurityRuntime = ({ env = process.env } = {}) => {
   const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
+
+  // The development renderer is a Vite server on its own loopback port that proxies API and WebSocket requests here
+  // with the browser's Origin. The launchers name it (scripts/dev.mjs sets both); nothing else on loopback is the UI.
+  const trustedDevRendererPorts = new Set(
+    [
+      parsePort(env?.AX_CODE_DESKTOP_RENDERER_PORT),
+      (() => {
+        const origin = normalizeLoopbackHttpOrigin(env?.AX_CODE_DESKTOP_ELECTRON_RENDERER_URL)
+        return origin ? effectivePort(new URL(origin)) : null
+      })(),
+    ].filter((port) => port !== null),
+  )
+
+  // The port this request reached, which is this server's own origin: the socket's local port, or the Host header's
+  // port for a request object without one. Host cannot widen the check: the Origin must still be loopback.
+  const readServedPort = (req) => {
+    const localPort = parsePort(req?.socket?.localPort)
+    if (localPort !== null) return localPort
+    const host = asTrimmedString(req?.headers?.host)
+    if (!host) return null
+    try {
+      return effectivePort(new URL(`http://${host}`))
+    } catch {
+      return null
+    }
+  }
 
   const getUiSessionTokenFromRequest = (req) => {
     const cookieHeader = req?.headers?.cookie
@@ -65,16 +101,19 @@ export const createRequestSecurityRuntime = () => {
       return true
     }
 
-    // The UI is served same-origin from this loopback server, and the Vite
-    // dev proxy forwards the browser's original (loopback) Origin while
-    // rewriting Host — so accept any loopback origin rather than requiring an
-    // exact host match. What must be rejected is a cross-site (non-loopback)
-    // browser origin: any website open in the user's browser can otherwise
-    // reach this loopback server.
+    // The UI is served same-origin from this loopback server, or from app://ax-code when packaged, or through the
+    // registered Vite dev renderer. Any other loopback origin is some other local server - a dev server of an
+    // untrusted project on localhost:5173 - and accepting it let that page open the session event stream and the
+    // terminal sockets. Loopback hostnames are interchangeable (localhost, 127.0.0.1, [::1]); the port is not.
     if (originHeader === "app://ax-code") {
       return true
     }
-    return normalizeLoopbackHttpOrigin(originHeader) !== null
+    const loopbackOrigin = normalizeLoopbackHttpOrigin(originHeader)
+    if (!loopbackOrigin) {
+      return false
+    }
+    const originPort = effectivePort(new URL(loopbackOrigin))
+    return originPort === readServedPort(req) || trustedDevRendererPorts.has(originPort)
   }
 
   // Several feature runtimes multiplex their WebSocket paths over one HTTP
