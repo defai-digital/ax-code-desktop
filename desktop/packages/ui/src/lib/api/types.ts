@@ -555,7 +555,7 @@ export interface GitAPI {
   createGitCommit(directory: string, message: string, options?: CreateGitCommitOptions): Promise<GitCommitResult>
   gitPush(
     directory: string,
-    options?: { remote?: string; branch?: string; options?: string[] | Record<string, unknown> },
+    options?: { remote?: string; branch?: string },
   ): Promise<GitPushResult>
   gitPull(directory: string, options?: GitPullOptions): Promise<GitPullResult>
   gitFetch(directory: string, options?: { remote?: string; branch?: string }): Promise<{ success: boolean }>
