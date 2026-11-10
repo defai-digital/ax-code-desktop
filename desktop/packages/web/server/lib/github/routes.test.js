@@ -356,6 +356,80 @@ describe("github routes", () => {
     expect(merge).toHaveBeenCalledWith({ owner: "me", repo: "fork", pull_number: 7, merge_method: "merge" })
   })
 
+  it("refuses an unknown merge method before calling GitHub", async () => {
+    const merge = vi.fn(async () => ({ data: { merged: true } }))
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValue({ rest: { pulls: { merge } } })
+
+    const response = await request(createApp())
+      .post("/api/github/pr/merge")
+      .send({ directory: "/repo", number: 7, method: "fast-forward" })
+
+    expect(response.status).toBe(400)
+    expect(merge).not.toHaveBeenCalled()
+  })
+
+  it("refuses a pull request number that is not a positive integer", async () => {
+    const merge = vi.fn(async () => ({ data: { merged: true } }))
+    const { getOctokitOrNull } = await import("./index.js")
+    getOctokitOrNull.mockReturnValue({ rest: { pulls: { merge } } })
+    const app = createApp()
+
+    for (const number of [1.5, -1]) {
+      const response = await request(app).post("/api/github/pr/merge").send({ directory: "/repo", number })
+      expect(response.status).toBe(400)
+    }
+    const issue = await request(app).get("/api/github/issues/get").query({ directory: "/repo", number: "1.5" })
+    expect(issue.status).toBe(400)
+    expect(merge).not.toHaveBeenCalled()
+  })
+
+  it("answers GitHub's not-found for a missing issue instead of a server fault", async () => {
+    const notFound = () =>
+      Object.assign(new Error("Not Found"), { status: 404, response: { data: { message: "Not Found" } } })
+    const get = vi.fn(async () => {
+      throw notFound()
+    })
+    const listComments = vi.fn(async () => {
+      throw notFound()
+    })
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "owner", repo: "repo" } })
+    getOctokitOrNull.mockReturnValue({ rest: { issues: { get, listComments }, pulls: { get } } })
+    const app = createApp()
+
+    const issue = await request(app).get("/api/github/issues/get").query({ directory: "/repo", number: "999" })
+    expect(issue.status).toBe(404)
+    expect(issue.body.error).toBe("Not Found")
+
+    const comments = await request(app).get("/api/github/issues/comments").query({ directory: "/repo", number: "999" })
+    expect(comments.status).toBe(404)
+
+    const context = await request(app).get("/api/github/pulls/context").query({ directory: "/repo", number: "999" })
+    expect(context.status).toBe(404)
+
+    const ready = await request(app).post("/api/github/pr/ready").send({ directory: "/repo", number: 999 })
+    expect(ready.status).toBe(404)
+  })
+
+  it("answers GitHub's refusal of a merge it cannot apply", async () => {
+    const merge = vi.fn(async () => {
+      throw Object.assign(new Error("Validation Failed"), {
+        status: 422,
+        response: { data: { message: "Merge commits are not allowed on this repository" } },
+      })
+    })
+    const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
+    resolveGitHubRepoFromDirectory.mockResolvedValueOnce({ repo: { owner: "me", repo: "fork" } })
+    getOctokitOrNull.mockReturnValueOnce({ rest: { pulls: { merge } } })
+
+    const response = await request(createApp()).post("/api/github/pr/merge").send({ directory: "/repo", number: 7 })
+
+    expect(response.status).toBe(422)
+    expect(response.body.error).toBe("Merge commits are not allowed on this repository")
+  })
+
   const connectRepo = async (rest) => {
     const { getOctokitOrNull, resolveGitHubRepoFromDirectory } = await import("./index.js")
     resolveGitHubRepoFromDirectory.mockResolvedValue({ repo: { owner: "owner", repo: "repo" } })

@@ -50,6 +50,13 @@ function readPositiveInteger(value) {
   return number
 }
 
+const PULL_REQUEST_MERGE_METHODS = new Set(["merge", "squash", "rebase"])
+
+// GitHub answers these for a request it understood and refused: a number that does not exist or was deleted
+// (404/410), no permission (403), or a state it cannot apply (422). They are the caller's answer, not a server
+// fault, and were reported as 500 with only Octokit's generic message.
+const isGitHubClientRefusal = (error) => [403, 404, 410, 422].includes(error?.status)
+
 function readLinkHasMore(headers) {
   const link = typeof headers?.link === "string" ? headers.link : ""
   return /rel="next"/.test(link)
@@ -831,7 +838,7 @@ export function registerGitHubRoutes(app) {
   app.post("/api/github/pr/update", async (req, res) => {
     try {
       const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
-      const number = typeof req.body?.number === "number" ? req.body.number : null
+      const number = readPositiveInteger(req.body?.number)
       const title = typeof req.body?.title === "string" ? req.body.title.trim() : ""
       const body = typeof req.body?.body === "string" ? req.body.body : undefined
       if (!directory || !number || !title) {
@@ -910,10 +917,13 @@ export function registerGitHubRoutes(app) {
   app.post("/api/github/pr/merge", async (req, res) => {
     try {
       const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
-      const number = typeof req.body?.number === "number" ? req.body.number : null
-      const method = typeof req.body?.method === "string" ? req.body.method : "merge"
+      const number = readPositiveInteger(req.body?.number)
+      const method = req.body?.method === undefined ? "merge" : req.body.method
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
+      }
+      if (!PULL_REQUEST_MERGE_METHODS.has(method)) {
+        return res.status(400).json({ error: "method must be merge, squash or rebase" })
       }
 
       const { getOctokitOrNull } = await getGitHubLibraries()
@@ -948,6 +958,9 @@ export function registerGitHubRoutes(app) {
         throw error
       }
     } catch (error) {
+      if (isGitHubClientRefusal(error)) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
+      }
       console.error("Failed to merge GitHub PR:", error)
       return res.status(500).json({ error: error.message || "Failed to merge GitHub PR" })
     }
@@ -956,7 +969,7 @@ export function registerGitHubRoutes(app) {
   app.post("/api/github/pr/ready", async (req, res) => {
     try {
       const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
-      const number = typeof req.body?.number === "number" ? req.body.number : null
+      const number = readPositiveInteger(req.body?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
       }
@@ -999,6 +1012,9 @@ export function registerGitHubRoutes(app) {
 
       return res.json({ ready: true })
     } catch (error) {
+      if (isGitHubClientRefusal(error)) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
+      }
       console.error("Failed to mark PR ready:", error)
       return res.status(500).json({ error: error.message || "Failed to mark PR ready" })
     }
@@ -1235,7 +1251,7 @@ export function registerGitHubRoutes(app) {
   app.get("/api/github/issues/get", async (req, res) => {
     try {
       const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
-      const number = typeof req.query?.number === "string" ? Number(req.query.number) : null
+      const number = readPositiveInteger(req.query?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
       }
@@ -1294,6 +1310,9 @@ export function registerGitHubRoutes(app) {
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
+      if (isGitHubClientRefusal(error)) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
+      }
       console.error("Failed to fetch GitHub issue:", error)
       return res.status(500).json({ error: error.message || "Failed to fetch GitHub issue" })
     }
@@ -1302,7 +1321,7 @@ export function registerGitHubRoutes(app) {
   app.get("/api/github/issues/comments", async (req, res) => {
     try {
       const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
-      const number = typeof req.query?.number === "string" ? Number(req.query.number) : null
+      const number = readPositiveInteger(req.query?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
       }
@@ -1342,6 +1361,9 @@ export function registerGitHubRoutes(app) {
         clearGitHubAuth()
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
+      }
+      if (isGitHubClientRefusal(error)) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
       }
       console.error("Failed to fetch GitHub issue comments:", error)
       return res.status(500).json({ error: error.message || "Failed to fetch GitHub issue comments" })
@@ -1562,7 +1584,7 @@ export function registerGitHubRoutes(app) {
   app.get("/api/github/pulls/context", async (req, res) => {
     try {
       const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
-      const number = typeof req.query?.number === "string" ? Number(req.query.number) : null
+      const number = readPositiveInteger(req.query?.number)
       const includeDiff = req.query?.diff === "1" || req.query?.diff === "true"
       const includeCheckDetails = req.query?.checkDetails === "1" || req.query?.checkDetails === "true"
       if (!directory || !number) {
@@ -1913,6 +1935,9 @@ export function registerGitHubRoutes(app) {
         clearGitHubAuth()
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
+      }
+      if (isGitHubClientRefusal(error)) {
+        return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
       }
       console.error("Failed to load GitHub PR context:", error)
       return res.status(500).json({ error: error.message || "Failed to load GitHub PR context" })
