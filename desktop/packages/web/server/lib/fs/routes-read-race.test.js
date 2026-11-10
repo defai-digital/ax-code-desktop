@@ -66,6 +66,7 @@ describe.each(["/api/fs/read", "/api/fs/raw"])("%s descriptor consistency", (rou
             await replacePath()
             return stats
           },
+          read: (...args) => handle.read(...args),
           readFile: () => handle.readFile(),
           close: async () => {
             closed()
