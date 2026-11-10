@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Save files with long valid filenames, preserve existing permissions across atomic saves, and leave the original intact when metadata or permission restoration fails.
 - Preserve literal filenames containing ` => ` or braces in commit history and file diffs, including rename destinations.
 - Share overlapping GitHub device sign-in polls and preserve retry tokens when the bounded cache is full.
 - Preserve snake_case identifiers and inline code in notification previews, completion summaries and project notes.

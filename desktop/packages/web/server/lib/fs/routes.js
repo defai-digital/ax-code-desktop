@@ -1324,7 +1324,12 @@ export const registerFsRoutes = (app, dependencies) => {
         return res.status(writable.statusCode).json({ error: writable.error })
       }
 
-      const existingStat = await fsPromises.stat?.(writable.path).catch(() => null)
+      const existingStat = await fsPromises.stat?.(writable.path).catch((error) => {
+        // A failed metadata read is not a missing file: replacing it would discard permissions we could not read.
+        if (error?.code === "ENOENT") return null
+        throw error
+      })
+      const existingMode = typeof existingStat?.mode === "number" ? existingStat.mode & 0o7777 : null
       // Only a file of exactly the new content's size can be unchanged; reading anything else in full just to
       // compare it held an arbitrarily large file in memory.
       const sameSize = !existingStat || existingStat.size === Buffer.byteLength(content, "utf8")
@@ -1338,13 +1343,16 @@ export const registerFsRoutes = (app, dependencies) => {
       // crash, a full disk or a concurrent reader saw the user's file empty or cut short.
       const temporaryPath = path.join(
         path.dirname(writable.path),
-        `.${path.basename(writable.path)}.ax-write-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        // A valid target name can already fill the component limit; keep the temporary name independent of it.
+        `.ax-write-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       )
       try {
         await fsPromises.writeFile(temporaryPath, content, {
           encoding: "utf8",
-          ...(existingStat?.mode ? { mode: existingStat.mode & 0o7777 } : {}),
+          ...(existingMode !== null ? { mode: existingMode } : {}),
         })
+        // Creation mode is filtered through umask. Restore the original only after writing, before replacement.
+        if (existingMode !== null) await fsPromises.chmod(temporaryPath, existingMode)
         await fsPromises.rename(temporaryPath, writable.path)
       } catch (writeError) {
         await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})

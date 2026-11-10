@@ -330,6 +330,7 @@ const createMemoryFiles = (initial = {}) => {
       return { size: Buffer.byteLength(files.get(target)), mode: 0o100644 }
     }),
     mkdir: vi.fn(async () => undefined),
+    chmod: vi.fn(async () => undefined),
     writeFile: vi.fn(async (target, content) => {
       files.set(target, content)
     }),

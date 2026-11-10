@@ -37,5 +37,10 @@ Own filesystem API behavior for the web server runtime, including workspace-boun
 
 ## Notes for contributors
 
+- Text saves write a short temporary name beside the validated target, then atomically replace it. Temporary names
+  do not include the target basename, so a valid filename near the filesystem component limit can still be saved.
+- Replacing an existing file preserves its permission bits even under a restrictive process umask. New files keep
+  the normal umask defaults. Metadata or permission-restoration failures leave the original file intact; failed
+  writes remove the temporary file before reporting the error.
 - Keep filesystem policy (workspace root checks, error mapping, exec timeout behavior) inside this module, not in the composition root.
 - If adding new `/api/fs/*` endpoints, add them in `routes.js` and extend this document.
