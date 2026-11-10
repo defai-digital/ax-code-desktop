@@ -690,6 +690,187 @@ describe("github routes", () => {
     const issuedToken = { access_token: "gho_test_token", scope: "repo", token_type: "bearer" }
     const user = { data: { login: "alice", id: 7, avatar_url: "https://avatars.example/a", name: "Alice", email: "a@example.com" } }
 
+    it.each([false, true])("retains the oldest token at capacity, with an unrelated pending poll: %s", async (pollPending) => {
+      const { exchangeDeviceCode } = await import("./index.js")
+      const exchanged = new Set()
+      exchangeDeviceCode.mockImplementation(async ({ deviceCode }) => {
+        if (deviceCode === "pending") return { error: "authorization_pending" }
+        if (exchanged.has(deviceCode)) return { error: "incorrect_device_code" }
+        exchanged.add(deviceCode)
+        return issuedToken
+      })
+      getAuthenticatedMock.mockRejectedValue(new Error("Account lookup unavailable"))
+      const app = createApp()
+      for (let index = 0; index < 16; index += 1) {
+        await request(app).post("/api/github/auth/complete").send({ deviceCode: `held-${index}` }).expect(502)
+      }
+      if (pollPending) {
+        const pending = await request(app).post("/api/github/auth/complete").send({ deviceCode: "pending" }).expect(200)
+        expect(pending.body.status).toBe("authorization_pending")
+      }
+
+      getAuthenticatedMock.mockResolvedValue(user)
+      const response = await request(app).post("/api/github/auth/complete").send({ deviceCode: "held-0" }).expect(200)
+
+      expect(response.body.connected).toBe(true)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(pollPending ? 17 : 16)
+    })
+
+    it.each(["success", "exchange", "lookup", "storage"])("shares overlapping polls with a %s outcome", async (outcome) => {
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      let releaseExchange
+      const exchangeReady = new Promise((resolve) => {
+        releaseExchange = resolve
+      })
+      exchangeDeviceCode.mockResolvedValue({ error: "incorrect_device_code" })
+      exchangeDeviceCode.mockImplementationOnce(async () => {
+        await exchangeReady
+        if (outcome === "exchange") throw new Error("Exchange unavailable")
+        return issuedToken
+      })
+      getAuthenticatedMock.mockResolvedValue(user)
+      if (outcome === "lookup") getAuthenticatedMock.mockRejectedValueOnce(new Error("Lookup unavailable"))
+      if (outcome === "storage") {
+        setGitHubAuth.mockImplementationOnce(() => {
+          throw new Error("Storage unavailable")
+        })
+      }
+
+      let arrivals = 0
+      const app = express()
+      app.use(express.json())
+      app.use((_req, _res, next) => {
+        arrivals += 1
+        next()
+      })
+      registerGitHubRoutes(app)
+      const first = request(app).post("/api/github/auth/complete").send({ deviceCode: "overlap" }).then((res) => res)
+      let second
+      try {
+        await vi.waitFor(() => expect(exchangeDeviceCode).toHaveBeenCalledTimes(1))
+        second = request(app).post("/api/github/auth/complete").send({ deviceCode: "overlap" }).then((res) => res)
+        await vi.waitFor(() => expect(arrivals).toBe(2))
+      } finally {
+        releaseExchange()
+      }
+      const [firstResponse, secondResponse] = await Promise.all([first, second])
+
+      expect(secondResponse.status).toBe(firstResponse.status)
+      expect(secondResponse.body).toEqual(firstResponse.body)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(1)
+      expect(JSON.stringify(firstResponse.body)).not.toContain(issuedToken.access_token)
+      if (outcome === "success") {
+        expect(firstResponse.body.connected).toBe(true)
+        expect(setGitHubAuth).toHaveBeenCalledTimes(1)
+        expect(getAuthenticatedMock).toHaveBeenCalledTimes(1)
+      } else {
+        expect(firstResponse.status).toBe(outcome === "lookup" ? 502 : 500)
+        if (outcome === "exchange") exchangeDeviceCode.mockResolvedValueOnce(issuedToken)
+        const retry = await request(app).post("/api/github/auth/complete").send({ deviceCode: "overlap" }).expect(200)
+        expect(retry.body.connected).toBe(true)
+        expect(exchangeDeviceCode).toHaveBeenCalledTimes(outcome === "exchange" ? 2 : 1)
+      }
+    })
+
+    it("shares local completion when a second poll arrives after the token exchange", async () => {
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValue(issuedToken)
+      let releaseLookup
+      getAuthenticatedMock.mockImplementationOnce(
+        () => new Promise((resolve) => {
+          releaseLookup = () => resolve(user)
+        }),
+      )
+      getAuthenticatedMock.mockResolvedValue(user)
+      let arrivals = 0
+      const app = express()
+      app.use(express.json())
+      app.use((_req, _res, next) => {
+        arrivals += 1
+        next()
+      })
+      registerGitHubRoutes(app)
+      const first = request(app).post("/api/github/auth/complete").send({ deviceCode: "lookup-overlap" }).then((res) => res)
+      let second
+      try {
+        await vi.waitFor(() => expect(releaseLookup).toBeTypeOf("function"))
+        second = request(app).post("/api/github/auth/complete").send({ deviceCode: "lookup-overlap" }).then((res) => res)
+        await vi.waitFor(() => expect(arrivals).toBe(2))
+      } finally {
+        releaseLookup?.()
+      }
+      const [firstResponse, secondResponse] = await Promise.all([first, second])
+
+      expect(firstResponse.status).toBe(200)
+      expect(firstResponse.body.connected).toBe(true)
+      expect(secondResponse.body).toEqual(firstResponse.body)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(1)
+      expect(getAuthenticatedMock).toHaveBeenCalledTimes(1)
+      expect(setGitHubAuth).toHaveBeenCalledTimes(1)
+      expect(getGitHubAuthAccounts).toHaveBeenCalledTimes(1)
+    })
+
+    it("evicts only the oldest token when a seventeenth token is issued", async () => {
+      const { exchangeDeviceCode } = await import("./index.js")
+      const exchanged = new Set()
+      exchangeDeviceCode.mockImplementation(async ({ deviceCode }) => {
+        if (exchanged.has(deviceCode)) return { error: "incorrect_device_code" }
+        exchanged.add(deviceCode)
+        return issuedToken
+      })
+      getAuthenticatedMock.mockRejectedValue(new Error("Account lookup unavailable"))
+      const app = createApp()
+      for (let index = 0; index < 17; index += 1) {
+        await request(app).post("/api/github/auth/complete").send({ deviceCode: `bounded-${index}` }).expect(502)
+      }
+      getAuthenticatedMock.mockResolvedValue(user)
+      const retained = await request(app).post("/api/github/auth/complete").send({ deviceCode: "bounded-1" }).expect(200)
+      expect(retained.body.connected).toBe(true)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(17)
+      const evicted = await request(app).post("/api/github/auth/complete").send({ deviceCode: "bounded-0" }).expect(200)
+      expect(evicted.body).toMatchObject({ connected: false, status: "incorrect_device_code" })
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(18)
+    })
+
+    it("expires a held token after fifteen minutes without extending it on retries", async () => {
+      const { exchangeDeviceCode } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValueOnce(issuedToken)
+      exchangeDeviceCode.mockResolvedValue({ error: "incorrect_device_code" })
+      getAuthenticatedMock.mockRejectedValue(new Error("Account lookup unavailable"))
+      let now = Date.now()
+      const clock = vi.spyOn(Date, "now").mockImplementation(() => now)
+      const app = createApp()
+      try {
+        await request(app).post("/api/github/auth/complete").send({ deviceCode: "expiring" }).expect(502)
+        now += 15 * 60 * 1000 - 1
+        await request(app).post("/api/github/auth/complete").send({ deviceCode: "expiring" }).expect(502)
+        expect(exchangeDeviceCode).toHaveBeenCalledTimes(1)
+
+        now += 1
+        const expired = await request(app).post("/api/github/auth/complete").send({ deviceCode: "expiring" }).expect(200)
+        expect(expired.body).toMatchObject({ connected: false, status: "incorrect_device_code" })
+        expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
+        expect(getAuthenticatedMock).toHaveBeenCalledTimes(2)
+      } finally {
+        clock.mockRestore()
+      }
+    })
+
+    it("polls GitHub again after a pending authorization response", async () => {
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValueOnce({ error: "authorization_pending" })
+      exchangeDeviceCode.mockResolvedValue(issuedToken)
+      getAuthenticatedMock.mockResolvedValue(user)
+      const app = createApp()
+      const pending = await request(app).post("/api/github/auth/complete").send({ deviceCode: "waiting" }).expect(200)
+      expect(pending.body.status).toBe("authorization_pending")
+      expect(setGitHubAuth).not.toHaveBeenCalled()
+
+      const completed = await request(app).post("/api/github/auth/complete").send({ deviceCode: "waiting" }).expect(200)
+      expect(completed.body.connected).toBe(true)
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
+    })
+
     it("keeps the issued token when the account lookup fails, and finishes the sign-in on the next poll", async () => {
       // The device code is single-use: the token GitHub issued was discarded when the user lookup timed out, and
       // the next poll's exchange was refused, so the user had to start the sign-in over.

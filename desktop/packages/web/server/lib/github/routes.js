@@ -135,14 +135,12 @@ async function clearGitHubAccountScopedCaches() {
 
 export function registerGitHubRoutes(app) {
   const exchangedDeviceTokens = new Map()
+  const pendingDeviceCompletions = new Map()
   const deviceCodeKey = (deviceCode) => createHash("sha256").update(deviceCode).digest("hex")
   const pruneExchangedDeviceTokens = () => {
     const now = Date.now()
     for (const [key, entry] of exchangedDeviceTokens) {
       if (entry.expiresAt <= now) exchangedDeviceTokens.delete(key)
-    }
-    while (exchangedDeviceTokens.size >= DEVICE_FLOW_TOKEN_MAX_ENTRIES) {
-      exchangedDeviceTokens.delete(exchangedDeviceTokens.keys().next().value)
     }
   }
 
@@ -273,9 +271,86 @@ export function registerGitHubRoutes(app) {
     }
   })
 
+  const completeDeviceFlow = async ({ clientId, deviceCode, tokenKey }) => {
+    const { exchangeDeviceCode, setGitHubAuth, getGitHubAuthAccounts } = await getGitHubLibraries()
+    pruneExchangedDeviceTokens()
+    const held = exchangedDeviceTokens.get(tokenKey)
+    const payload = held ? held.payload : await exchangeDeviceCode({ clientId, deviceCode })
+
+    if (payload?.error) {
+      return {
+        statusCode: 200,
+        body: {
+          connected: false,
+          status: payload.error,
+          error: payload.error_description || payload.error,
+        },
+      }
+    }
+
+    const accessToken = payload?.access_token
+    if (!accessToken) {
+      return { statusCode: 500, body: { error: "Missing access_token from GitHub" } }
+    }
+
+    if (!held) {
+      // Make room only for a newly issued token: reading or polling a pending code must not evict a retry.
+      pruneExchangedDeviceTokens()
+      while (exchangedDeviceTokens.size >= DEVICE_FLOW_TOKEN_MAX_ENTRIES) {
+        exchangedDeviceTokens.delete(exchangedDeviceTokens.keys().next().value)
+      }
+      exchangedDeviceTokens.set(tokenKey, { payload, expiresAt: Date.now() + DEVICE_FLOW_TOKEN_TTL_MS })
+    }
+
+    const { Octokit } = await import("@octokit/rest")
+    const { applyGitHubRequestTimeout } = await import("./octokit.js")
+    const octokit = applyGitHubRequestTimeout(new Octokit({ auth: accessToken }))
+    let user
+    try {
+      user = await getGitHubUserSummary(octokit)
+    } catch (error) {
+      if (error?.status === 401) {
+        // GitHub refused the token it just issued: retrying with it cannot succeed.
+        exchangedDeviceTokens.delete(tokenKey)
+        return {
+          statusCode: 200,
+          body: {
+            connected: false,
+            status: "access_denied",
+            error: "GitHub rejected the new token",
+          },
+        }
+      }
+      // A timeout or outage: the token is kept for the next poll.
+      console.error("GitHub sign-in succeeded but the account lookup failed:", error?.message || error)
+      return { statusCode: 502, body: { error: "GitHub account lookup failed; retrying" } }
+    }
+    setGitHubAuth({
+      accessToken,
+      scope: typeof payload.scope === "string" ? payload.scope : "",
+      tokenType: typeof payload.token_type === "string" ? payload.token_type : "bearer",
+      user,
+    })
+    await clearGitHubAccountScopedCaches()
+    const accounts = getGitHubAuthAccounts()
+    // A local storage/readback failure must leave the single-use exchange available for the next poll.
+    // Only drop it once credentials and the complete response are ready; GitHub cannot issue it twice.
+    exchangedDeviceTokens.delete(tokenKey)
+
+    return {
+      statusCode: 200,
+      body: {
+        connected: true,
+        user,
+        scope: typeof payload.scope === "string" ? payload.scope : "",
+        accounts,
+      },
+    }
+  }
+
   app.post("/api/github/auth/complete", async (req, res) => {
     try {
-      const { getGitHubClientId, exchangeDeviceCode, setGitHubAuth, getGitHubAuthAccounts } = await getGitHubLibraries()
+      const { getGitHubClientId } = await getGitHubLibraries()
       const clientId = getGitHubClientId()
       if (!clientId) {
         return res.status(400).json({
@@ -294,66 +369,19 @@ export function registerGitHubRoutes(app) {
         return res.status(400).json({ error: "deviceCode is required" })
       }
 
+      // Overlapping polls share exchange, lookup and persistence, including failures. A device code is single-use.
       const tokenKey = deviceCodeKey(deviceCode)
-      pruneExchangedDeviceTokens()
-      const held = exchangedDeviceTokens.get(tokenKey)
-      const payload = held ? held.payload : await exchangeDeviceCode({ clientId, deviceCode })
-
-      if (payload?.error) {
-        return res.json({
-          connected: false,
-          status: payload.error,
-          error: payload.error_description || payload.error,
-        })
+      let completion = pendingDeviceCompletions.get(tokenKey)
+      if (!completion) {
+        completion = completeDeviceFlow({ clientId, deviceCode, tokenKey })
+        pendingDeviceCompletions.set(tokenKey, completion)
       }
-
-      const accessToken = payload?.access_token
-      if (!accessToken) {
-        return res.status(500).json({ error: "Missing access_token from GitHub" })
-      }
-
-      if (!held) {
-        exchangedDeviceTokens.set(tokenKey, { payload, expiresAt: Date.now() + DEVICE_FLOW_TOKEN_TTL_MS })
-      }
-
-      const { Octokit } = await import("@octokit/rest")
-      const { applyGitHubRequestTimeout } = await import("./octokit.js")
-      const octokit = applyGitHubRequestTimeout(new Octokit({ auth: accessToken }))
-      let user
       try {
-        user = await getGitHubUserSummary(octokit)
-      } catch (error) {
-        if (error?.status === 401) {
-          // GitHub refused the token it just issued: retrying with it cannot succeed.
-          exchangedDeviceTokens.delete(tokenKey)
-          return res.json({
-            connected: false,
-            status: "access_denied",
-            error: "GitHub rejected the new token",
-          })
-        }
-        // A timeout or outage: the token is kept for the next poll.
-        console.error("GitHub sign-in succeeded but the account lookup failed:", error?.message || error)
-        return res.status(502).json({ error: "GitHub account lookup failed; retrying" })
+        const { statusCode, body } = await completion
+        return res.status(statusCode).json(body)
+      } finally {
+        if (pendingDeviceCompletions.get(tokenKey) === completion) pendingDeviceCompletions.delete(tokenKey)
       }
-      setGitHubAuth({
-        accessToken,
-        scope: typeof payload.scope === "string" ? payload.scope : "",
-        tokenType: typeof payload.token_type === "string" ? payload.token_type : "bearer",
-        user,
-      })
-      await clearGitHubAccountScopedCaches()
-      const accounts = getGitHubAuthAccounts()
-      // A local storage/readback failure must leave the single-use exchange available for the next poll.
-      // Only drop it once credentials and the complete response are ready; GitHub cannot issue it twice.
-      exchangedDeviceTokens.delete(tokenKey)
-
-      return res.json({
-        connected: true,
-        user,
-        scope: typeof payload.scope === "string" ? payload.scope : "",
-        accounts,
-      })
     } catch (error) {
       console.error("Failed to complete GitHub device flow:", error)
       return res.status(500).json({ error: error.message || "Failed to complete GitHub device flow" })

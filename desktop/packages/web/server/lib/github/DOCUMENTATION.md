@@ -35,6 +35,12 @@
 - `startDeviceFlow({ clientId, scope })`: request device code.
 - `exchangeDeviceCode({ clientId, deviceCode })`: poll for access token.
 
+Overlapping completion requests for the same device code share one exchange, account lookup and credential write.
+Once that attempt settles, a later poll may retry a transient failure or pending authorization. An issued token is
+held in process memory until local completion succeeds, GitHub rejects it or its fifteen-minute retention expires.
+The retry cache holds up to sixteen tokens; only insertion of a new token can evict the oldest retained token.
+Reading a retained token or polling a pending code does not evict an entry or extend its retention.
+
 ### Octokit
 
 - `getOctokitOrNull()`: current Octokit or `null`.
