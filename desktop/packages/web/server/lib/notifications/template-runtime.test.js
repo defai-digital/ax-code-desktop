@@ -163,6 +163,36 @@ describe("notification template variables", () => {
   })
 })
 
+describe("notification template project names", () => {
+  // The paths below do not exist, so the branch lookup fails and is ignored; only the project name is under test.
+  it("names a Windows worktree by its last segment, not the whole path", async () => {
+    const runtime = createRuntime({ projects: [] })
+
+    await expect(
+      runtime.buildTemplateVariables({ properties: { info: { path: { root: "C:\\Users\\me\\my-repo\\" } } } }, ""),
+    ).resolves.toMatchObject({ project_name: "My Repo" })
+  })
+
+  it("matches a registered project whatever separator and trailing slash either side uses", async () => {
+    const runtime = createRuntime({ projects: [{ id: "p1", label: "Billing", path: "C:/Users/me/billing/" }] })
+
+    await expect(
+      runtime.buildTemplateVariables({ properties: { info: { path: { cwd: "C:\\Users\\me\\billing" } } } }, ""),
+    ).resolves.toMatchObject({ project_name: "Billing" })
+  })
+
+  it("names an unlabeled active project with a trailing slash by its folder", async () => {
+    const runtime = createRuntime({
+      activeProjectId: "p1",
+      projects: [{ id: "p1", path: "/nonexistent-ax-test/side-project/" }],
+    })
+
+    await expect(runtime.buildTemplateVariables({ properties: { info: {} } }, "")).resolves.toMatchObject({
+      project_name: "Side Project",
+    })
+  })
+})
+
 describe("notification template git deadline", () => {
   it("resolves with the raced value and leaves no pending timer", async () => {
     vi.useFakeTimers()

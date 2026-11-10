@@ -29,6 +29,12 @@ export const withTimeout = async (promise, timeoutMs, message) => {
   }
 }
 
+// Project paths reach this module in the platform's own form, so a Windows worktree arrives as `C:\\Users\\me\\repo`.
+// Comparison and the fallback label must accept either separator and ignore a trailing one; splitting on `/`
+// alone made the whole Windows path the project name, and a trailing slash made it empty.
+const normalizeProjectDir = (value) => value.replace(/\\/g, "/").replace(/\/+$/, "")
+const projectDirBasename = (value) => normalizeProjectDir(value).split("/").filter(Boolean).pop() || ""
+
 export const createNotificationTemplateRuntime = (deps) => {
   const { readSettingsFromDisk, buildAxCodeUrl, getAxCodeAuthHeaders, resolveGitBinaryForSpawn } = deps
 
@@ -297,16 +303,16 @@ export const createNotificationTemplateRuntime = (deps) => {
       const projects = Array.isArray(settings.projects) ? settings.projects : []
 
       if (worktreeDir) {
-        const normalizedDir = worktreeDir.replace(/\/+$/, "")
+        const normalizedDir = normalizeProjectDir(worktreeDir)
         const matchedProject = projects.find((project) => {
           if (!project || typeof project.path !== "string") return false
-          return project.path.replace(/\/+$/, "") === normalizedDir
+          return normalizeProjectDir(project.path) === normalizedDir
         })
         const matchedProjectLabel = asTrimmedString(matchedProject?.label)
         if (matchedProjectLabel) {
           projectName = matchedProjectLabel
         } else {
-          projectName = normalizedDir.split("/").filter(Boolean).pop() || ""
+          projectName = projectDirBasename(worktreeDir)
         }
       } else {
         const activeId = typeof settings.activeProjectId === "string" ? settings.activeProjectId : ""
@@ -315,13 +321,13 @@ export const createNotificationTemplateRuntime = (deps) => {
           const activeProjectLabel = asTrimmedString(activeProject.label)
           projectName =
             activeProjectLabel ||
-            (typeof activeProject.path === "string" ? activeProject.path.split("/").pop() || "" : "")
+            (typeof activeProject.path === "string" ? projectDirBasename(activeProject.path) : "")
           worktreeDir = typeof activeProject.path === "string" ? activeProject.path : ""
         }
       }
     } catch {
       if (worktreeDir && !projectName) {
-        projectName = worktreeDir.split("/").filter(Boolean).pop() || ""
+        projectName = projectDirBasename(worktreeDir)
       }
     }
 
