@@ -980,6 +980,8 @@ const PreviewPane: React.FC<PreviewPaneProps> = ({ rawUrl, onNavigate }) => {
               className="h-full w-full border-0"
               style={{ colorScheme: previewColorScheme }}
               onLoad={handlePreviewFrameLoad}
+              // ADR-025: a loopback preview is the user's own project and keeps full trust on the app origin;
+              // every other target stays sandboxed without allow-same-origin.
               sandbox={
                 isLoopback
                   ? "allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"

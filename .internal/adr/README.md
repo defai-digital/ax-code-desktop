@@ -29,6 +29,7 @@ Reviewed 2026-10-19 (`../reports/GOVERNANCE-2026-10-19-rebaseline.md`). Accepted
 | [ADR-020: Desktop git operation scope](ADR-020-desktop-git-operation-scope.md) | Active; Desktop keeps interactive version control; the paired AX Code ADR-260 shipped in 7.27.7 and the migration spec is accepted |
 | [ADR-022: SDK from GitHub Packages](ADR-022-ax-code-sdk-from-github-packages.md) | Active; supersedes ADR-001 D1 and D3; exact SDK from `npm.pkg.github.com`, no credential in the repository, producer-first cutover |
 | [ADR-023: Maintained ghostty-web](ADR-023-maintained-ghostty-web-terminal.md) | Source ownership and synchronization superseded by ADR-024; wasm provenance and attribution retained |
+| [ADR-025: Local preview full trust](ADR-025-local-preview-full-trust.md) | Active; loopback previews keep `allow-same-origin` on the app origin by user decision; external targets stay sandboxed |
 
 ## Open producer proposals
 
