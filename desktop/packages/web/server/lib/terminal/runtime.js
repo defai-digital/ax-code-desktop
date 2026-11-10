@@ -376,8 +376,10 @@ export function createTerminalRuntime({
     }
 
     try {
-      // node-pty accepts an optional signal string.
-      ptyProcess.kill(mode === "kill" ? "SIGKILL" : undefined)
+      // node-pty accepts an optional signal string on POSIX only: its Windows terminal throws "Signals not supported
+      // on windows." for any signal, so a force-kill was caught as a warning and the shell kept running (and its dev
+      // server kept the port) after the session was deleted. Without a signal it closes the pseudo console.
+      ptyProcess.kill(mode === "kill" && process.platform !== "win32" ? "SIGKILL" : undefined)
     } catch (error) {
       console.warn("Failed to kill terminal process:", error)
     }

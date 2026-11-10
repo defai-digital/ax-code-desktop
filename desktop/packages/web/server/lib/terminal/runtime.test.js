@@ -1190,6 +1190,24 @@ describe("terminal close escalation", () => {
     }
   })
 
+  it("force-kills a Windows pseudo console without a signal it rejects", async () => {
+    // node-pty's Windows terminal throws "Signals not supported on windows." for any signal argument, so the
+    // force-kill was swallowed as a warning and the shell outlived its deleted session.
+    const { runtime, getRoute, signals, sessionId } = await createClosableTerminal()
+    const platform = Object.getOwnPropertyDescriptor(process, "platform")
+    try {
+      Object.defineProperty(process, "platform", { ...platform, value: "win32" })
+      const res = createMockResponse()
+      getRoute("POST", "/api/terminal/force-kill")({ body: { sessionId } }, res)
+      expect(res.body).toMatchObject({ success: true, killedCount: 1 })
+    } finally {
+      Object.defineProperty(process, "platform", platform)
+      await runtime.shutdown()
+    }
+    // The mock records a call without a signal as SIGTERM.
+    expect(signals).toEqual(["SIGTERM"])
+  })
+
   it("does not signal again once the shell exited on SIGTERM", async () => {
     const { runtime, getRoute, signals, sessionId, emitExit } = await createClosableTerminal()
     try {
