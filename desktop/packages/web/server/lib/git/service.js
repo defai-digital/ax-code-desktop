@@ -2198,6 +2198,12 @@ export async function getDiff(directory, { path: filePath, staged = false, conte
       await git.raw(["ls-files", "--error-unmatch", "--", literalPathspec(fileContext.repoPath)])
       return diff
     } catch {
+      // `--no-index` reads the worktree path with plain filesystem calls, following a symlinked parent directory
+      // out of the repository: a committed `link -> ~/.ssh` made `link/id_rsa` a "new file" whose diff carried the
+      // key. git itself never descends into such a directory, so there is nothing of the repository's to show.
+      if (!(await hasParentInsideRepository(repoRoot, fileContext.absolutePath))) {
+        return ""
+      }
       const noIndexArgs = ["diff", "--no-color"]
       if (typeof contextLines === "number" && !Number.isNaN(contextLines)) {
         noIndexArgs.push(`-U${Math.max(0, contextLines)}`)
@@ -2450,6 +2456,20 @@ const readHeadFileSide = async (git, repoRoot, sourcePath, isImage, mimeType) =>
     maxBuffer: 50 * 1024 * 1024, // 50MB max
   })
   return stdout && stdout.length > 0 ? `data:${mimeType};base64,${stdout.toString("base64")}` : ""
+}
+
+/** Whether the real directory holding `absolutePath` is inside the real repository root. */
+const hasParentInsideRepository = async (repoRoot, absolutePath) => {
+  try {
+    const [realRoot, realParent] = await Promise.all([
+      fsp.realpath(repoRoot),
+      fsp.realpath(path.dirname(absolutePath)),
+    ])
+    return isInsideOrSameDirectory(realRoot, realParent)
+  } catch (error) {
+    if (error?.code === "ENOENT" || error?.code === "ENOTDIR") return false
+    throw error
+  }
 }
 
 // Matches the `git show` reads of the other side, which are capped at 50MB.
@@ -3510,6 +3530,8 @@ const HUNK_HEADER_PATTERN = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/
  */
 const declaredFileSections = (lines) => {
   const sections = []
+  // Lines outside every hunk body, which is where git reads extended headers.
+  const headerLines = []
   let index = 0
   while (index < lines.length) {
     const hunk = HUNK_HEADER_PATTERN.exec(lines[index])
@@ -3538,17 +3560,27 @@ const declaredFileSections = (lines) => {
       index += 2
       continue
     }
+    headerLines.push(lines[index])
     index += 1
   }
-  return sections
+  return { sections, headerLines }
 }
+
+// A `diff --git` section that only renames, copies, or deletes or adds an empty file carries no `---`/`+++` pair,
+// so counting pairs missed it: a hunk for the declared file followed by `rename from o` / `rename to moved` passed
+// the one-file guard and `git apply --cached` renamed another file in the index. A hunk never renames or copies.
+const FOREIGN_SECTION_HEADER_PATTERN = /^(rename from |rename to |copy from |copy to )/
+
+const hasForeignSectionHeader = (headerLines) =>
+  headerLines.filter((line) => line.startsWith("diff --git ")).length > 1 ||
+  headerLines.some((line) => FOREIGN_SECTION_HEADER_PATTERN.test(line))
 
 const patchTargetsDeclaredPath = (patchText, repoPath) => {
   const allLines = patchText.split("\n")
   // One file only: a second section would let the patch edit another file, whether it carries its own
   // `diff --git` line or starts straight at a `--- `/`+++ ` pair.
-  const sections = declaredFileSections(allLines)
-  if (sections.length !== 1) {
+  const { sections, headerLines } = declaredFileSections(allLines)
+  if (sections.length !== 1 || hasForeignSectionHeader(headerLines)) {
     return false
   }
   const [section] = sections
@@ -3725,12 +3757,18 @@ export async function commit(directory, message, options = {}) {
         if (requestedStageFiles) {
           commitFromIndexOnly = true
           const selectedFileSet = new Set(filesToCommit)
+          // A staged rename is two index entries, and status names it by its destination: unstaging only that
+          // path left the source's deletion staged, so the commit carried half of a rename nobody selected.
           temporarilyUnstagedFiles = status.files
             .filter((file) => {
               const indexStatus = (file.index || "").trim()
               return indexStatus && indexStatus !== "?" && !selectedFileSet.has(file.path)
             })
-            .map((file) => file.path)
+            .flatMap((file) =>
+              typeof file.from === "string" && file.from && file.from !== file.path && !selectedFileSet.has(file.from)
+                ? [file.path, file.from]
+                : [file.path],
+            )
 
           if (temporarilyUnstagedFiles.length > 0) {
             preservedIndexEntries = await readStagedIndexEntries(git, temporarilyUnstagedFiles)
@@ -4562,7 +4600,9 @@ export async function deleteBranch(directory, branch, options = {}) {
 
   try {
     const branchName = branch.startsWith("refs/heads/") ? branch.substring("refs/heads/".length) : branch
-    const args = ["branch", options.force ? "-D" : "-d", branchName]
+    // The route refuses an option-like name before the prefix is stripped, so `refs/heads/--help` reached git as
+    // `--help`: nothing was deleted and the request answered success.
+    const args = ["branch", options.force ? "-D" : "-d", "--", branchName]
     await git.raw(args)
     return { success: true }
   } catch (error) {
@@ -4776,9 +4816,14 @@ export async function getLog(directory, options = {}) {
 export async function isLinkedWorktree(directory) {
   const git = await createGit(directory)
   try {
+    // From a subdirectory of the main checkout git prints `--git-dir` as an absolute, symlink-resolved path and
+    // `--git-common-dir` relative to the working directory (`../.git`), so comparing the raw strings called it a
+    // linked worktree. Both are resolved against the directory and through symlinks before comparing.
+    const cwd = normalizeDirectoryPath(directory)
+    const resolveGitPath = (output) => fsp.realpath(path.resolve(cwd, output.trim()))
     const [gitDir, gitCommonDir] = await Promise.all([
-      git.raw(["rev-parse", "--git-dir"]).then((output) => output.trim()),
-      git.raw(["rev-parse", "--git-common-dir"]).then((output) => output.trim()),
+      git.raw(["rev-parse", "--git-dir"]).then(resolveGitPath),
+      git.raw(["rev-parse", "--git-common-dir"]).then(resolveGitPath),
     ])
     return gitDir !== gitCommonDir
   } catch (error) {

@@ -26,10 +26,12 @@ import {
   countStashFiles,
   createWorktree,
   validateWorktreeCreate,
+  deleteBranch,
   deleteRemoteBranch,
   getCommitFileDiff,
   getCommitFiles,
   getCommitPatch,
+  getDiff,
   getFileDiff,
   getGitBranchDiff,
   getLog,
@@ -43,6 +45,7 @@ import {
   previewWorktreeCreate,
   recordWorktreeRuntimeEvent,
   isGitRepository,
+  isLinkedWorktree,
   isRefusedRepositoryRoot,
   leavesRepositoryRoot,
   push,
@@ -1257,6 +1260,21 @@ describe("getFileDiff", () => {
 
     expect(result.modified).toBe("")
   })
+
+  it("does not show a file under a symlinked directory as a new file in the patch diff", async () => {
+    if (!canRunGit() || process.platform === "win32") return
+
+    const repo = createTempDir()
+    const outside = createTempDir()
+    fs.writeFileSync(path.join(outside, "secret.txt"), "do not ship\n")
+    initRepoWithFile(repo, "README.md", "readme\n")
+    fs.symlinkSync(outside, path.join(repo, "linked"), "dir")
+    fs.writeFileSync(path.join(repo, "draft.txt"), "draft\n")
+
+    await expect(getDiff(repo, { path: "linked/secret.txt" })).resolves.not.toContain("do not ship")
+    // An untracked file of the repository itself still diffs against the null device.
+    await expect(getDiff(repo, { path: "draft.txt" })).resolves.toContain("+draft")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -1763,6 +1781,29 @@ describe("commit with selected files", () => {
     expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
   })
 
+  it("keeps an unselected staged rename whole when another file is committed", async () => {
+    if (!canRunGit()) return
+
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "old.txt"), "rename me\n")
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\n")
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+
+    runGit(repo, ["mv", "old.txt", "new.txt"])
+    fs.writeFileSync(path.join(repo, "b.txt"), "b\nchanged\n")
+    runGit(repo, ["add", "b.txt"])
+
+    await commit(repo, "Only b", { files: ["b.txt"], stageFiles: ["b.txt"] })
+
+    // Only the rename's destination was unstaged, so the commit deleted old.txt without adding new.txt.
+    expect(runGit(repo, ["show", "--name-only", "--format=", "HEAD"]).trim()).toBe("b.txt")
+    expect(runGit(repo, ["status", "--porcelain"]).trim()).toBe("R  old.txt -> new.txt")
+  })
+
   it("commits a file whose name looks like a git option", async () => {
     if (!canRunGit()) return
 
@@ -2017,6 +2058,31 @@ describe("continueRebase on a step that resolved to nothing", () => {
   })
 })
 
+describe("worktree and branch helpers", () => {
+  it("does not report a subdirectory of the main checkout as a linked worktree", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    fs.writeFileSync(path.join(repo, "README.md"), "readme\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.mkdirSync(path.join(repo, "src"))
+
+    await expect(isLinkedWorktree(repo)).resolves.toBe(false)
+    await expect(isLinkedWorktree(path.join(repo, "src"))).resolves.toBe(false)
+  })
+
+  it("does not treat a stripped branch name as a git option", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    fs.writeFileSync(path.join(repo, "README.md"), "readme\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "base"])
+
+    // `git branch -d --help` printed help and exited 0, so the delete answered success.
+    await expect(deleteBranch(repo, "refs/heads/--help")).rejects.toThrow()
+  })
+})
+
 // ---------------------------------------------------------------------------
 // stageHunk / unstageHunk
 // ---------------------------------------------------------------------------
@@ -2233,6 +2299,21 @@ describe("stageHunk and unstageHunk", () => {
     ].join("\n")
 
     await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+  })
+
+  it("rejects a header-only rename section of another file", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    fs.writeFileSync(path.join(repo, "other.txt"), "other\n")
+    runGit(repo, ["add", "other.txt"])
+    writeTwoEditFile(repo)
+    const hunk = extractHunkPatch(runGit(repo, ["diff", "--unified=4", "--", "file.txt"]), 0)
+    // A rename carries no `---`/`+++` pair, so the one-section guard saw only file.txt and `git apply --cached`
+    // renamed other.txt in the index as well.
+    const patch = `${hunk}diff --git a/other.txt b/moved.txt\nsimilarity index 100%\nrename from other.txt\nrename to moved.txt\n`
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+    expect(runGit(repo, ["diff", "--cached", "--name-status"]).trim()).toBe("")
   })
 
   it("rejects a second file section that carries no diff --git line", async () => {
