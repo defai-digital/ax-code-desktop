@@ -16,6 +16,12 @@ export interface SessionFolder {
 
 export type SessionFoldersMap = Record<string, SessionFolder[]>
 
+/** The part of the store the disk file holds. */
+export interface SessionFoldersSnapshot {
+  foldersMap: SessionFoldersMap
+  collapsedFolderIds: string[]
+}
+
 interface SessionFoldersState {
   foldersMap: SessionFoldersMap
   collapsedFolderIds: Set<string>
@@ -81,14 +87,203 @@ const toNonEmptyStringSet = (values: readonly unknown[]): Set<string> =>
 
 const toSessionIdSet = (sessionIds: readonly unknown[]): Set<string> => toNonEmptyStringSet(sessionIds)
 
-const sendSessionFoldersToDisk = async (body: string, keepalive = false): Promise<void> => {
+const sameFolder = (a: SessionFolder | undefined, b: SessionFolder | undefined): boolean => {
+  if (!a || !b) return a === b
+  return (
+    a.name === b.name &&
+    a.createdAt === b.createdAt &&
+    (a.parentId ?? null) === (b.parentId ?? null) &&
+    a.sessionIds.length === b.sessionIds.length &&
+    a.sessionIds.every((sessionId, index) => sessionId === b.sessionIds[index])
+  )
+}
+
+/**
+ * Three-way merge of the folder state after the server refused a write (409): `base` is what this window last
+ * read from or wrote to disk, `local` is this window now, `remote` is the file now. A folder this window changed
+ * (created, edited or deleted) since `base` takes this window's version; any other folder takes the file's, so
+ * another window's rename, creation or deletion is kept. Collapsed ids follow the same rule per id.
+ */
+export const mergeSessionFolderSnapshots = (
+  base: SessionFoldersSnapshot,
+  local: SessionFoldersSnapshot,
+  remote: SessionFoldersSnapshot,
+): SessionFoldersSnapshot => {
+  const foldersMap: SessionFoldersMap = {}
+  const scopeKeys = new Set([
+    ...Object.keys(remote.foldersMap),
+    ...Object.keys(local.foldersMap),
+    ...Object.keys(base.foldersMap),
+  ])
+  for (const scopeKey of scopeKeys) {
+    const byId = (folders: SessionFolder[] | undefined) => new Map((folders ?? []).map((folder) => [folder.id, folder]))
+    const baseById = byId(base.foldersMap[scopeKey])
+    const localById = byId(local.foldersMap[scopeKey])
+    const remoteById = byId(remote.foldersMap[scopeKey])
+    const orderedIds = [...remoteById.keys()]
+    for (const id of localById.keys()) {
+      if (!remoteById.has(id)) orderedIds.push(id)
+    }
+    const merged: SessionFolder[] = []
+    const fromLocal = new Set<string>()
+    for (const id of orderedIds) {
+      const localChanged = !sameFolder(baseById.get(id), localById.get(id))
+      const folder = localChanged ? localById.get(id) : remoteById.get(id)
+      if (!folder) continue
+      if (localChanged) fromLocal.add(id)
+      merged.push({ ...folder, sessionIds: [...folder.sessionIds] })
+    }
+    // A session belongs to one folder. If this window and another each moved it, this window's move wins.
+    const owner = new Map<string, string>()
+    for (const folder of merged) {
+      for (const sessionId of folder.sessionIds) {
+        const current = owner.get(sessionId)
+        if (!current || (fromLocal.has(folder.id) && !fromLocal.has(current))) owner.set(sessionId, folder.id)
+      }
+    }
+    const mergedIds = new Set(merged.map((folder) => folder.id))
+    const folders = merged.map((folder) => ({
+      ...folder,
+      sessionIds: folder.sessionIds.filter((sessionId) => owner.get(sessionId) === folder.id),
+      // A sub-folder whose parent the other side deleted stays, at the top level.
+      parentId: folder.parentId && mergedIds.has(folder.parentId) ? folder.parentId : null,
+    }))
+    if (folders.length > 0) foldersMap[scopeKey] = folders
+  }
+
+  const baseCollapsed = new Set(base.collapsedFolderIds)
+  const localCollapsed = new Set(local.collapsedFolderIds)
+  const remoteCollapsed = new Set(remote.collapsedFolderIds)
+  const existingIds = new Set(Object.values(foldersMap).flatMap((folders) => folders.map((folder) => folder.id)))
+  const collapsedFolderIds = [...new Set([...remoteCollapsed, ...localCollapsed, ...baseCollapsed])].filter((id) => {
+    if (!existingIds.has(id)) return false
+    return localCollapsed.has(id) !== baseCollapsed.has(id) ? localCollapsed.has(id) : remoteCollapsed.has(id)
+  })
+  return { foldersMap, collapsedFolderIds }
+}
+
+const MAX_DISK_WRITE_CONFLICTS = 3
+const MAX_DISK_WRITE_RETRIES = 3
+/** The file revision this window last read or wrote; null until disk hydration has answered. */
+let diskRevision: number | null = null
+/** The folder state at `diskRevision`, the base of the three-way merge after a 409. */
+let diskSyncedSnapshot: SessionFoldersSnapshot | null = null
+let diskWriteInFlight = false
+let diskWriteRequested = false
+let diskWriteRetries = 0
+let diskWriteRetryTimer: ReturnType<typeof setTimeout> | null = null
+
+const readRevision = (value: unknown): number | null =>
+  typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null
+
+const snapshotFromDisk = (value: { foldersMap?: unknown; collapsedFolderIds?: unknown }): SessionFoldersSnapshot => ({
+  foldersMap: normalizeFoldersMap(value.foldersMap),
+  collapsedFolderIds: Array.isArray(value.collapsedFolderIds)
+    ? Array.from(toStringSet(value.collapsedFolderIds))
+    : [],
+})
+
+const readStoreSnapshot = (): SessionFoldersSnapshot => {
+  const state = useSessionFoldersStore.getState()
+  return {
+    foldersMap: cloneSessionFoldersMap(state.foldersMap),
+    collapsedFolderIds: Array.from(state.collapsedFolderIds),
+  }
+}
+
+/** Puts a merged state into the store and localStorage without scheduling another disk write. */
+const applyMergedSnapshot = (snapshot: SessionFoldersSnapshot): void => {
+  const collapsed = new Set(snapshot.collapsedFolderIds)
+  useSessionFoldersStore.setState({ foldersMap: snapshot.foldersMap, collapsedFolderIds: collapsed })
+  persistFolders(snapshot.foldersMap)
+  persistCollapsed(collapsed)
+}
+
+const scheduleDiskWriteRetry = (): void => {
+  if (diskWriteRetryTimer || diskWriteRetries >= MAX_DISK_WRITE_RETRIES) return
+  diskWriteRetries += 1
+  diskWriteRetryTimer = setTimeout(() => {
+    diskWriteRetryTimer = null
+    void writeSessionFoldersToDisk()
+  }, 2_000 * diskWriteRetries)
+}
+
+const postSessionFolders = async (snapshot: SessionFoldersSnapshot, baseRevision: number | null) => {
+  const body: Record<string, unknown> = { version: 1, ...snapshot, updatedAt: Date.now() }
+  if (baseRevision !== null) body.baseRevision = baseRevision
+  return fetch(SESSION_FOLDERS_API_PATH, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+}
+
+/**
+ * Writes the store's current state, one request at a time. A 409 means another window saved first: merge this
+ * window's changes into the file's state and write again. A failed write used to be dropped silently, leaving
+ * the disk behind localStorage; it is retried a few times.
+ */
+const writeSessionFoldersToDisk = async (): Promise<void> => {
+  if (diskWriteInFlight) {
+    diskWriteRequested = true
+    return
+  }
+  diskWriteInFlight = true
   try {
-    await fetch(SESSION_FOLDERS_API_PATH, {
+    for (let conflicts = 0; ; ) {
+      diskWriteRequested = false
+      const snapshot = readStoreSnapshot()
+      const baseRevision = diskRevision
+      const response = await postSessionFolders(snapshot, baseRevision)
+      if (response.ok) {
+        const result = (await response.json().catch(() => null)) as { revision?: unknown } | null
+        const revision = readRevision(result?.revision)
+        // Only a write sent with a revision leaves the file equal to this snapshot. One sent before hydration
+        // was merged with folders this window has not seen, so it is not a base to merge against.
+        if (revision !== null && baseRevision !== null) {
+          diskRevision = revision
+          diskSyncedSnapshot = snapshot
+        }
+        diskWriteRetries = 0
+        if (!diskWriteRequested) return
+        continue
+      }
+      if (response.status === 409 && conflicts < MAX_DISK_WRITE_CONFLICTS) {
+        conflicts += 1
+        const result = (await response.json().catch(() => null)) as {
+          current?: { foldersMap?: unknown; collapsedFolderIds?: unknown; revision?: unknown }
+        } | null
+        const revision = readRevision(result?.current?.revision)
+        if (!result?.current || revision === null) {
+          scheduleDiskWriteRetry()
+          return
+        }
+        const remote = snapshotFromDisk(result.current)
+        const base = diskSyncedSnapshot ?? { foldersMap: {}, collapsedFolderIds: [] }
+        applyMergedSnapshot(mergeSessionFolderSnapshots(base, readStoreSnapshot(), remote))
+        diskRevision = revision
+        diskSyncedSnapshot = remote
+        continue
+      }
+      scheduleDiskWriteRetry()
+      return
+    }
+  } catch {
+    scheduleDiskWriteRetry()
+  } finally {
+    diskWriteInFlight = false
+  }
+}
+
+/** The unload flush: keepalive cannot read a 409, so it is sent without a revision and the server merges it. */
+const sendSessionFoldersToDiskOnUnload = (body: string): void => {
+  try {
+    void fetch(SESSION_FOLDERS_API_PATH, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body,
-      ...(keepalive ? { keepalive: true } : {}),
-    })
+      keepalive: true,
+    }).catch(() => {})
   } catch {
     /* best-effort */
   }
@@ -117,7 +312,7 @@ const schedulePersistToDisk = (foldersMap: SessionFoldersMap, collapsedFolderIds
   diskWriteTimer = setTimeout(() => {
     diskWriteTimer = null
     pendingDiskWriteBody = null
-    void sendSessionFoldersToDisk(body)
+    void writeSessionFoldersToDisk()
   }, DISK_WRITE_DEBOUNCE_MS)
 }
 
@@ -242,7 +437,7 @@ if (typeof window !== "undefined") {
       }
       const body = pendingDiskWriteBody
       pendingDiskWriteBody = null
-      void sendSessionFoldersToDisk(body, true)
+      sendSessionFoldersToDiskOnUnload(body)
     }
   })
 }
@@ -567,6 +762,7 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
     const parsed = (await response.json().catch(() => null)) as {
       foldersMap?: SessionFoldersMap
       collapsedFolderIds?: string[]
+      revision?: unknown
     } | null
 
     if (!parsed) {
@@ -579,6 +775,13 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
       ? toStringSet(parsed.collapsedFolderIds)
       : new Set<string>()
 
+    const diskSnapshot: SessionFoldersSnapshot = { foldersMap: diskFolders, collapsedFolderIds: Array.from(diskCollapsed) }
+    const revision = readRevision(parsed.revision)
+    if (revision !== null) {
+      diskRevision = revision
+      diskSyncedSnapshot = diskSnapshot
+    }
+
     const hasDiskData = Object.keys(diskFolders).length > 0 || diskCollapsed.size > 0
     if (!hasDiskData) {
       diskHydrated = true
@@ -587,11 +790,13 @@ const hydrateSessionFoldersFromDisk = async (): Promise<void> => {
 
     // A folder created/edited locally while this fetch was in flight must
     // win over the (now stale) disk snapshot — otherwise it would vanish
-    // from the UI the instant hydration lands.
+    // from the UI the instant hydration lands. The edits since boot are merged
+    // into the disk state instead of replacing it, so folders another window
+    // saved survive; the pending debounced write then saves the merge.
     if (hasLocalFoldersMutation) {
-      // The local state is authoritative; completing hydration here keeps the stale disk copy
-      // from landing on a later retry.
+      applyMergedSnapshot(mergeSessionFolderSnapshots(initialLocalSnapshot, readStoreSnapshot(), diskSnapshot))
       diskHydrated = true
+      void writeSessionFoldersToDisk()
       return
     }
 
@@ -617,5 +822,8 @@ const bootstrapSessionFoldersDiskHydration = (): void => {
 
   void hydrateSessionFoldersFromDisk()
 }
+
+/** What this window loaded from localStorage at boot: the base for merging edits made before hydration. */
+const initialLocalSnapshot = readStoreSnapshot()
 
 bootstrapSessionFoldersDiskHydration()

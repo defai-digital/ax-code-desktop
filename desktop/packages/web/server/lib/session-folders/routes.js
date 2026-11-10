@@ -1,5 +1,10 @@
 const MAX_BODY_BYTES = 4 * 1024 * 1024
 
+// The file's write counter. A missing or malformed one reads as 0, which is what a file written before
+// revisions existed holds.
+const readRevision = (snapshot) =>
+  Number.isSafeInteger(snapshot?.revision) && snapshot.revision >= 0 ? snapshot.revision : 0
+
 export const registerSessionFoldersRoutes = (app, dependencies) => {
   const { fsPromises, path, openchamberDataDir, now = () => Date.now() } = dependencies
 
@@ -32,15 +37,20 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
   // previous per-id union did neither: it resurrected every deleted folder on
   // the very next write, even from the single window that deleted it.
   //
+  // Revisions: a client that read the file at revision N sends `baseRevision: N`. If the file is still at N
+  // the snapshot is authoritative and the file moves to N + 1; otherwise the write is refused with 409 and the
+  // current file, and the client merges its own changes into it and writes again. That is what lets two open
+  // windows keep each other's renames, creations and deletions. A write without `baseRevision` (an older
+  // client, or the unload flush that cannot read a response) still goes through the timestamp merge below.
+  //
   // Rule: a snapshot at least as recent as the file is authoritative (its
   // absences are the user's deletions, its collapsed list is the user's
   // layout). A snapshot older than the file is a lagging writer — an in-flight
   // debounced write racing a newer one — and only contributes its own entries
-  // per id; disk entries it lacks survive. The residual limitation is the
-  // protocol's, not the merge's: two windows that both stay open never
-  // re-hydrate, so a folder created in one after the other booted is lost when
-  // the other window writes next. Tombstones would fix that; nothing here can.
-  const mergeSnapshots = (base, incoming) => {
+  // per id; disk entries it lacks survive. This path cannot tell two open
+  // windows' edits apart, which is why revision-aware clients use the 409 path
+  // above instead.
+  const mergeSnapshots = (base, incoming, { authoritative = false } = {}) => {
     const baseMap = base?.foldersMap && typeof base.foldersMap === "object" ? base.foldersMap : {}
     const incomingMap = incoming?.foldersMap && typeof incoming.foldersMap === "object" ? incoming.foldersMap : {}
     // Timestamps come from client clocks. One ahead of real time stayed in the file as the maximum, and every
@@ -52,7 +62,7 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
     const storedUpdatedAt = readStamp(base?.updatedAt)
     const baseUpdatedAt = storedUpdatedAt > currentTime ? 0 : storedUpdatedAt
     const incomingUpdatedAt = Math.min(readStamp(incoming?.updatedAt), currentTime)
-    const incomingIsAuthoritative = incomingUpdatedAt >= baseUpdatedAt
+    const incomingIsAuthoritative = authoritative || incomingUpdatedAt >= baseUpdatedAt
 
     const foldersMap = {}
     for (const scopeKey of new Set([...Object.keys(baseMap), ...Object.keys(incomingMap)])) {
@@ -117,11 +127,11 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
       // empty snapshot is authoritative to the client, so it would replace the user's layout with nothing. It
       // falls through to the parse below and is reported the same way as any other corrupt file.
       if (raw === null) {
-        return res.json({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0 })
+        return res.json({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: 0 })
       }
       try {
         const parsed = JSON.parse(raw)
-        return res.json(parsed)
+        return res.json({ ...parsed, revision: readRevision(parsed) })
       } catch {
         // A corrupted file must not read as "no folders": the client treats the empty
         // snapshot as authoritative and a follow-up write would replace the user's
@@ -142,10 +152,23 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
     if (Buffer.byteLength(JSON.stringify(body), "utf8") > MAX_BODY_BYTES) {
       return res.status(413).json({ error: "Payload too large" })
     }
+    const hasBaseRevision = body.baseRevision !== undefined && body.baseRevision !== null
+    if (hasBaseRevision && !(Number.isSafeInteger(body.baseRevision) && body.baseRevision >= 0)) {
+      return res.status(400).json({ error: "baseRevision must be a non-negative integer" })
+    }
 
+    let conflict = null
+    let savedRevision = null
     const write = writeQueue.catch(() => undefined).then(async () => {
       const base = await readSnapshot()
-      const merged = mergeSnapshots(base, body)
+      const currentRevision = readRevision(base)
+      if (hasBaseRevision && body.baseRevision !== currentRevision) {
+        conflict = base
+          ? { ...base, revision: currentRevision }
+          : { version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: currentRevision }
+        return
+      }
+      const merged = { ...mergeSnapshots(base, body, { authoritative: hasBaseRevision }), revision: currentRevision + 1 }
       const serialized = JSON.stringify(merged, null, 2)
 
       let tmp
@@ -156,6 +179,7 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
         await fsPromises.writeFile(tmp, serialized, "utf8")
         await fsPromises.rename(tmp, filePath)
         saved = true
+        savedRevision = merged.revision
       } finally {
         if (tmp && !saved) {
           await fsPromises.unlink(tmp).catch(() => {})
@@ -166,7 +190,10 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
 
     try {
       await write
-      return res.json({ success: true })
+      if (conflict) {
+        return res.status(409).json({ error: "Session folders changed since baseRevision", current: conflict })
+      }
+      return res.json({ success: true, revision: savedRevision })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to write session folders"
       return res.status(500).json({ error: message })

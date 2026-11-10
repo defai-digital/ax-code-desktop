@@ -72,7 +72,7 @@ describe("session folders routes", () => {
     await handler({}, response)
 
     expect(response.statusCode).toBe(200)
-    expect(response.body).toEqual({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0 })
+    expect(response.body).toEqual({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: 0 })
   })
 
   it("uses unique temp files for concurrent saves", async () => {
@@ -189,7 +189,7 @@ describe("session folders routes", () => {
     const response = createMockResponse()
     await handler({ body: { version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] } }, response)
     expect(response.statusCode).toBe(200)
-    expect(readWritten()).toEqual({ version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [] })
+    expect(readWritten()).toEqual({ version: 1, updatedAt: 100, foldersMap: {}, collapsedFolderIds: [], revision: 1 })
   })
 
   it("creates the first snapshot when the file is missing", async () => {
@@ -344,5 +344,98 @@ describe("session folders routes", () => {
     )
 
     expect(readWritten().collapsedFolderIds).toEqual(["keep"])
+  })
+  describe("revisions", () => {
+    const folder = (id, name = id) => ({ id, name, sessionIds: [], createdAt: 1, parentId: null })
+
+    it("reports the stored revision, and 0 for a file written before revisions existed", async () => {
+      const { app, getRoute } = createRouteRegistry()
+      const stored = { version: 1, updatedAt: 1, foldersMap: {}, collapsedFolderIds: [] }
+      const fsPromises = { readFile: vi.fn(async () => JSON.stringify(stored)) }
+      registerSessionFoldersRoutes(app, { fsPromises, path, openchamberDataDir: "/tmp/openchamber-test" })
+      const handler = getRoute("GET", "/api/session-folders")
+
+      const legacy = createMockResponse()
+      await handler({}, legacy)
+      expect(legacy.body.revision).toBe(0)
+
+      stored.revision = 7
+      const current = createMockResponse()
+      await handler({}, current)
+      expect(current.body.revision).toBe(7)
+    })
+
+    it("accepts a snapshot based on the current revision as authoritative and advances the revision", async () => {
+      const { handler, readWritten } = createMergeHarness({
+        version: 1,
+        revision: 4,
+        updatedAt: 500,
+        foldersMap: { "/p": [folder("keep"), folder("gone")] },
+        collapsedFolderIds: [],
+      })
+
+      const response = createMockResponse()
+      // Older timestamp than the file: by revision it is still the newest write, so its deletion persists.
+      await handler(
+        { body: { version: 1, baseRevision: 4, updatedAt: 100, foldersMap: { "/p": [folder("keep")] }, collapsedFolderIds: [] } },
+        response,
+      )
+
+      expect(response.statusCode).toBe(200)
+      expect(response.body).toEqual({ success: true, revision: 5 })
+      expect(readWritten().revision).toBe(5)
+      expect(readWritten().foldersMap["/p"].map((entry) => entry.id)).toEqual(["keep"])
+      expect(readWritten()).not.toHaveProperty("baseRevision")
+    })
+
+    it("refuses a snapshot based on an older revision and returns the current file", async () => {
+      // A lagging writer used to overwrite every folder id it carried, so a stale window reverted a rename
+      // another window had already saved.
+      const stored = {
+        version: 1,
+        revision: 6,
+        updatedAt: 200,
+        foldersMap: { "/p": [folder("shared", "Renamed in window A")] },
+        collapsedFolderIds: [],
+      }
+      const { handler, readWritten, fsPromises } = createMergeHarness(stored)
+
+      const response = createMockResponse()
+      await handler(
+        {
+          body: { version: 1, baseRevision: 5, updatedAt: 300, foldersMap: { "/p": [folder("shared", "Old")] }, collapsedFolderIds: [] },
+        },
+        response,
+      )
+
+      expect(response.statusCode).toBe(409)
+      expect(response.body.current).toEqual(stored)
+      expect(readWritten()).toBeNull()
+      expect(fsPromises.writeFile).not.toHaveBeenCalled()
+    })
+
+    it("still merges a write without baseRevision and advances the revision", async () => {
+      const { handler, readWritten } = createMergeHarness({
+        version: 1,
+        revision: 2,
+        updatedAt: 200,
+        foldersMap: { "/p": [folder("other-window")] },
+        collapsedFolderIds: [],
+      })
+
+      const response = createMockResponse()
+      await handler({ body: { version: 1, updatedAt: 100, foldersMap: { "/p": [folder("mine")] } } }, response)
+
+      expect(response.body).toEqual({ success: true, revision: 3 })
+      expect(readWritten().foldersMap["/p"].map((entry) => entry.id).sort()).toEqual(["mine", "other-window"])
+    })
+
+    it.each([-1, 1.5, "3"])("rejects baseRevision %j", async (baseRevision) => {
+      const { handler, fsPromises } = createMergeHarness(null)
+      const response = createMockResponse()
+      await handler({ body: { version: 1, baseRevision, foldersMap: {} } }, response)
+      expect(response.statusCode).toBe(400)
+      expect(fsPromises.writeFile).not.toHaveBeenCalled()
+    })
   })
 })
