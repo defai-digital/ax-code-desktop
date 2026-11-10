@@ -30,6 +30,7 @@ import {
   deleteRemoteBranch,
   getCommitFileDiff,
   getCommitFiles,
+  getConflictDetails,
   getCommitPatch,
   getDiff,
   getFileDiff,
@@ -2276,6 +2277,8 @@ describe("stageHunk and unstageHunk", () => {
     ].join("\n")
 
     await expect(stageHunk(repo, "file.txt", patch)).rejects.toThrow("Patch does not target file.txt")
+    // A refused request, not a server fault: the route answers it as 400.
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toMatchObject({ statusCode: 400 })
   })
 
   it("rejects a patch that also carries another file's section", async () => {
@@ -3279,5 +3282,40 @@ describe("getGitBranchDiff", () => {
     const oversized = result.files.find((file) => file.file === "big.txt")
     expect(binary).toMatchObject({ binary: true, before: "", after: "" })
     expect(oversized).toMatchObject({ tooLarge: true, before: "", after: "" })
+  })
+})
+
+describe("getConflictDetails", () => {
+  it.skipIf(!canRunGit())("lists unmerged files by their real names", async () => {
+    const { tmpDir } = await createTempRepo()
+    const names = ["café.txt", " lead.txt"]
+    for (const name of names) fs.writeFileSync(path.join(tmpDir, name), "base\n")
+    runGit(tmpDir, ["add", "-A"])
+    runGit(tmpDir, ["commit", "-q", "-m", "base"])
+    runGit(tmpDir, ["checkout", "-q", "-b", "other"])
+    for (const name of names) fs.writeFileSync(path.join(tmpDir, name), "theirs\n")
+    runGit(tmpDir, ["commit", "-q", "-am", "theirs"])
+    runGit(tmpDir, ["checkout", "-q", "main"])
+    for (const name of names) fs.writeFileSync(path.join(tmpDir, name), "ours\n")
+    runGit(tmpDir, ["commit", "-q", "-am", "ours"])
+    try {
+      runGit(tmpDir, ["merge", "-q", "other"])
+    } catch {
+      // The conflict is the point.
+    }
+
+    const details = await getConflictDetails(tmpDir)
+
+    expect(details.operation).toBe("merge")
+    expect([...details.unmergedFiles].sort()).toEqual([...names].sort())
+    for (const name of details.unmergedFiles) expect(fs.existsSync(path.join(tmpDir, name))).toBe(true)
+  })
+})
+
+describe("refused git input", () => {
+  it.skipIf(!canRunGit())("marks a missing argument and an invalid hash as request errors", async () => {
+    const { tmpDir } = await createTempRepo()
+    await expect(cherryPick(tmpDir, { hash: "not-a-hash" })).rejects.toMatchObject({ statusCode: 400 })
+    await expect(getCommitPatch(tmpDir, "")).rejects.toMatchObject({ statusCode: 400 })
   })
 })

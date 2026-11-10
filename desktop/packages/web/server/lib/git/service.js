@@ -547,7 +547,7 @@ export const validateRepositoryFilePaths = (directoryPath, filePaths, pathTools 
     const absoluteTarget = pathTools.resolve(repoRoot, filePath)
     const relative = pathTools.relative(repoRoot, absoluteTarget)
     if (leavesRepositoryRoot(relative, pathTools)) {
-      throw new Error(`Path is outside repository: ${filePath}`)
+      throw createRequestError(`Path is outside repository: ${filePath}`)
     }
   }
 }
@@ -562,7 +562,7 @@ const isInsideOrSameDirectory = (root, target) => {
 export const resolveRepositoryFilePath = (repoRoot, filePath) => {
   const absolutePath = path.resolve(repoRoot, filePath)
   if (!isInsideOrSameDirectory(repoRoot, absolutePath)) {
-    throw new Error(`Path is outside repository: ${filePath}`)
+    throw createRequestError(`Path is outside repository: ${filePath}`)
   }
   return absolutePath
 }
@@ -694,7 +694,7 @@ const resolveGitFileContext = async (directoryPath, git, filePath, repoRootOverr
     }
   }
 
-  throw new Error("Invalid file path")
+  throw createRequestError("Invalid file path")
 }
 
 const cleanBranchName = (branch) => {
@@ -798,7 +798,7 @@ const normalizeStartRef = (value) => {
   // option-looking value ("--force", "--detach") is eaten by git's option
   // parser and the intended ref is silently dropped.
   if (trimmed.startsWith("-")) {
-    throw new Error(`Invalid start ref: ${trimmed}`)
+    throw createRequestError(`Invalid start ref: ${trimmed}`)
   }
   return trimmed
 }
@@ -1076,7 +1076,7 @@ const resolveGitCommitFilePath = async (repoRoot, hash, candidates) => {
     }
   }
 
-  throw new Error("Invalid file path")
+  throw createRequestError("Invalid file path")
 }
 
 /**
@@ -1195,7 +1195,7 @@ const ensureAxCodeProjectId = async (primaryWorktree) => {
 const resolveWorktreeProjectContext = async (directory) => {
   const directoryPath = normalizeDirectoryPath(directory)
   if (!directoryPath) {
-    throw new Error("Directory is required")
+    throw createRequestError("Directory is required")
   }
 
   // A bare repository has no work tree, so `--show-toplevel` fails there — but the directory is still a
@@ -1236,7 +1236,7 @@ const listWorktreeEntries = async (directory) => {
 const resolveBranchForExistingMode = async (primaryWorktree, existingBranch, preferredBranchName) => {
   const requested = String(existingBranch || "").trim()
   if (!requested) {
-    throw new Error("existingBranch is required in existing mode")
+    throw createRequestError("existingBranch is required in existing mode")
   }
 
   const normalizedLocal = cleanBranchName(requested)
@@ -2256,7 +2256,7 @@ export async function getRangeDiff(directory, { base, head, path: filePath, cont
   const baseRef = typeof base === "string" ? base.trim() : ""
   const headRef = typeof head === "string" ? head.trim() : ""
   if (!baseRef || !headRef) {
-    throw new Error("base and head are required")
+    throw createRequestError("base and head are required")
   }
 
   // Prefer remote-tracking base ref so merged commits don't reappear
@@ -2290,7 +2290,7 @@ export async function getRangeFiles(directory, { base, head } = {}) {
   const baseRef = typeof base === "string" ? base.trim() : ""
   const headRef = typeof head === "string" ? head.trim() : ""
   if (!baseRef || !headRef) {
-    throw new Error("base and head are required")
+    throw createRequestError("base and head are required")
   }
 
   let resolvedBase = baseRef
@@ -2537,7 +2537,7 @@ const readWorktreeDiffSide = async (repoRoot, absolutePath, isImage, mimeType) =
 
 export async function getFileDiff(directory, { path: filePath, staged = false } = {}) {
   if (!directory || !filePath) {
-    throw new Error("directory and path are required for getFileDiff")
+    throw createRequestError("directory and path are required for getFileDiff")
   }
 
   const { directoryPath, directoryGit, repoRoot, git } = await createRepositoryGitContext(directory)
@@ -3337,7 +3337,7 @@ export async function push(directory, options = {}) {
 export async function deleteRemoteBranch(directory, options = {}) {
   const { branch, remote } = options
   if (!branch) {
-    throw new Error("branch is required to delete remote branch")
+    throw createRequestError("branch is required to delete remote branch")
   }
 
   const { git } = await createRepositoryGitContext(directory)
@@ -3365,7 +3365,7 @@ export async function deleteRemoteBranch(directory, options = {}) {
     throw new Error(`Branch "${targetBranch}" has no configured remote; refusing to delete a remote branch`)
   }
   if (remoteName.startsWith("-")) {
-    throw new Error(`Invalid remote name: ${remoteName}`)
+    throw createRequestError(`Invalid remote name: ${remoteName}`)
   }
   if (remoteName === ".") {
     throw new Error("Refusing to delete a remote branch from the local repository")
@@ -3411,12 +3411,12 @@ export async function stageFile(directory, filePath) {
 
 export async function stageFiles(directory, paths) {
   if (!directory) {
-    throw new Error("directory and path are required for stageFile")
+    throw createRequestError("directory and path are required for stageFile")
   }
 
   const filePaths = normalizeFilePathList(paths)
   if (filePaths.length === 0) {
-    throw new Error("directory and path are required for stageFile")
+    throw createRequestError("directory and path are required for stageFile")
   }
   validateRepositoryFilePaths(normalizeDirectoryPath(directory), filePaths)
 
@@ -3465,12 +3465,12 @@ export async function unstageFile(directory, filePath) {
 
 export async function unstageFiles(directory, paths) {
   if (!directory) {
-    throw new Error("directory and path are required for unstageFile")
+    throw createRequestError("directory and path are required for unstageFile")
   }
 
   const filePaths = normalizeFilePathList(paths)
   if (filePaths.length === 0) {
-    throw new Error("directory and path are required for unstageFile")
+    throw createRequestError("directory and path are required for unstageFile")
   }
   validateRepositoryFilePaths(normalizeDirectoryPath(directory), filePaths)
 
@@ -3617,7 +3617,7 @@ const applyHunkPatchToIndex = async (directory, filePath, patch, direction) => {
   const patchText = typeof patch === "string" ? patch : ""
 
   if (!directory || !filePath || !patchText.trim()) {
-    throw new Error(`directory, path, and patch are required to ${action} a hunk`)
+    throw createRequestError(`directory, path, and patch are required to ${action} a hunk`)
   }
   validateRepositoryFilePaths(normalizeDirectoryPath(directory), [filePath])
 
@@ -3627,7 +3627,7 @@ const applyHunkPatchToIndex = async (directory, filePath, patch, direction) => {
     validateRepositoryFilePaths(repoRoot, [repoPath])
 
     if (!patchTargetsDeclaredPath(patchText, repoPath)) {
-      throw new Error(`Patch does not target ${filePath}`)
+      throw createRequestError(`Patch does not target ${filePath}`)
     }
 
     const args = ["apply", "--cached", "--unidiff-zero", "--whitespace=nowarn"]
@@ -4017,14 +4017,14 @@ async function resolveCheckoutBranchName(git, branchName) {
 
 export async function checkoutCommit(directory, hash) {
   if (!isValidCommitHash(hash)) {
-    throw new Error("Invalid commit hash")
+    throw createRequestError("Invalid commit hash")
   }
   const { git } = await createRepositoryGitContext(directory)
   // A hex-looking value that names no commit falls through to git's pathspec
   // semantics: `git checkout deadbeef` restores a tracked file with that name
   // and discards its uncommitted changes instead of failing.
   if (!(await isCheckoutableRevision(git, hash))) {
-    throw new Error("Invalid commit hash")
+    throw createRequestError("Invalid commit hash")
   }
   try {
     await git.checkout(hash)
@@ -4037,7 +4037,7 @@ export async function checkoutCommit(directory, hash) {
 
 export async function cherryPick(directory, hash) {
   if (!isValidCommitHash(hash)) {
-    throw new Error("Invalid commit hash")
+    throw createRequestError("Invalid commit hash")
   }
   const { git } = await createRepositoryGitContext(directory)
   try {
@@ -4063,7 +4063,7 @@ export async function cherryPick(directory, hash) {
 
 export async function revertCommit(directory, hash) {
   if (!isValidCommitHash(hash)) {
-    throw new Error("Invalid commit hash")
+    throw createRequestError("Invalid commit hash")
   }
   const { git } = await createRepositoryGitContext(directory)
   try {
@@ -4089,7 +4089,7 @@ export async function revertCommit(directory, hash) {
 
 export async function resetToCommit(directory, hash, mode, force = false) {
   if (!isValidCommitHash(hash)) {
-    throw new Error("Invalid commit hash")
+    throw createRequestError("Invalid commit hash")
   }
   const { git } = await createRepositoryGitContext(directory)
 
@@ -4503,7 +4503,7 @@ export async function createWorktree(directory, input = {}, deps = {}) {
 export async function getWorktreeBootstrapStatus(directory) {
   const key = toBootstrapStateKey(directory)
   if (!key) {
-    throw new Error("Worktree directory is required")
+    throw createRequestError("Worktree directory is required")
   }
 
   const current = worktreeBootstrapState.get(key)
@@ -4526,7 +4526,7 @@ export async function getWorktreeBootstrapStatus(directory) {
 export async function removeWorktree(directory, input = {}, deps = {}) {
   const targetDirectory = normalizeDirectoryPath(input?.directory)
   if (!targetDirectory) {
-    throw new Error("Worktree directory is required")
+    throw createRequestError("Worktree directory is required")
   }
 
   const context = await resolveWorktreeProjectContext(directory)
@@ -4535,7 +4535,7 @@ export async function removeWorktree(directory, input = {}, deps = {}) {
   const targetCanonical = await canonicalPath(targetDirectory)
   const primaryCanonical = await canonicalPath(context.primaryWorktree)
   if (targetCanonical === primaryCanonical) {
-    throw new Error("Cannot remove the primary workspace")
+    throw createRequestError("Cannot remove the primary workspace")
   }
 
   // Read-only: the branch the worktree has checked out. Keeping or deleting
@@ -5191,10 +5191,10 @@ export async function getRemotes(directory) {
 export async function removeRemote(directory, options = {}) {
   const remoteName = String(options.remote || "").trim()
   if (!remoteName) {
-    throw new Error("remote is required to remove a remote")
+    throw createRequestError("remote is required to remove a remote")
   }
   if (remoteName === "origin") {
-    throw new Error("Cannot remove origin remote")
+    throw createRequestError("Cannot remove origin remote")
   }
 
   const { git } = await createRepositoryGitContext(directory)
@@ -5215,12 +5215,12 @@ export async function rebase(directory, options = {}) {
   try {
     const { onto } = options
     if (!onto || typeof onto !== "string") {
-      throw new Error("onto parameter is required for rebase")
+      throw createRequestError("onto parameter is required for rebase")
     }
     // Reject refs starting with '-' so they can't be interpreted as git options
     // (e.g. `--exec=<cmd>`, which would run arbitrary commands during rebase).
     if (onto.startsWith("-")) {
-      throw new Error("Invalid onto ref for rebase")
+      throw createRequestError("Invalid onto ref for rebase")
     }
 
     await git.rebase([onto])
@@ -5269,12 +5269,12 @@ export async function merge(directory, options = {}) {
   try {
     const { branch } = options
     if (!branch || typeof branch !== "string") {
-      throw new Error("branch parameter is required for merge")
+      throw createRequestError("branch parameter is required for merge")
     }
     // Reject refs starting with '-' so they can't be interpreted as git options
     // (option injection via a positional argument).
     if (branch.startsWith("-")) {
-      throw new Error("Invalid branch ref for merge")
+      throw createRequestError("Invalid branch ref for merge")
     }
 
     await git.merge([branch])
@@ -5444,11 +5444,10 @@ export async function getConflictDetails(directory) {
     const statusPorcelain = await git.raw(["status", "--porcelain"]).catch(() => "")
 
     // Get unmerged files
-    const unmergedFilesRaw = await git.raw(["diff-files", "--name-only", "--diff-filter=U"]).catch(() => "")
-    const unmergedFiles = unmergedFilesRaw
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
+    // `-z` keeps the names raw: without it git C-quotes a non-ASCII path (`"caf\303\251.txt"`) and the trim
+    // ate a name's own leading or trailing spaces, so the list named files that do not exist.
+    const unmergedFilesRaw = await git.raw(["diff-files", "--name-only", "-z", "--diff-filter=U"]).catch(() => "")
+    const unmergedFiles = [...new Set(String(unmergedFilesRaw).split("\0").filter(Boolean))]
 
     // Get current diff
     const diff = await git.raw(["diff-files", "-p"]).catch(() => "")
@@ -5504,7 +5503,7 @@ const COMMIT_PATCH_MAX_BYTES = 256 * 1024
  */
 export async function getCommitPatch(directory, hash, { maxBytes = COMMIT_PATCH_MAX_BYTES } = {}) {
   if (!directory || !hash) {
-    throw new Error("directory and hash are required for getCommitPatch")
+    throw createRequestError("directory and hash are required for getCommitPatch")
   }
   const { repoRoot } = await createRepositoryGitContext(directory)
   const result = await runGitCommandOrThrow(
@@ -5534,7 +5533,7 @@ const resolveCommitRenameSourcePath = async (repoRoot, hash, displayPath) => {
 
 export async function getCommitFileDiff(directory, hash, filePath, isBinary) {
   if (!directory || !hash || !filePath) {
-    throw new Error("directory, hash, and path are required for getCommitFileDiff")
+    throw createRequestError("directory, hash, and path are required for getCommitFileDiff")
   }
 
   if (isBinary) {

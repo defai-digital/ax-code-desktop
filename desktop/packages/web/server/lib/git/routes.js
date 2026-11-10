@@ -10,6 +10,11 @@ import { subscribeWorktreeRuntimeEvents } from "./worktree-runtime-client.js"
 const isOptionLikeRevision = (value) =>
   typeof value !== "string" ? value != null : value.trim().length > 0 && value.trim().startsWith("-")
 
+// The service marks a refused input (a missing argument, an option-like ref, a path outside the repository, an
+// invalid hash) with statusCode 400. Routes answered 500 for those, which reads as a server fault and hides that
+// the request itself is what needs fixing.
+const gitErrorStatus = (error) => (error?.statusCode === 400 ? 400 : 500)
+
 // A directory that is not a repository must still answer with the shape the client reads as a
 // `GitStatus`: a partial object left `current`/`isClean` undefined, and `!undefined` made the
 // worktree dialog report uncommitted changes for it.
@@ -255,7 +260,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true, profile })
     } catch (error) {
       console.error("Failed to set git identity:", error)
-      res.status(500).json({ error: error.message || "Failed to set git identity" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to set git identity" })
     }
   })
 
@@ -292,7 +297,7 @@ export function registerGitRoutes(app, options = {}) {
         return res.json(notAGitRepositoryStatus())
       }
       console.error("Failed to get git status:", error)
-      res.status(500).json({ error: error.message || "Failed to get git status" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get git status" })
     }
   })
 
@@ -321,7 +326,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ diff })
     } catch (error) {
       console.error("Failed to get git diff:", error)
-      res.status(500).json({ error: error.message || "Failed to get git diff" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get git diff" })
     }
   })
 
@@ -353,7 +358,7 @@ export function registerGitRoutes(app, options = {}) {
       })
     } catch (error) {
       console.error("Failed to get git file diff:", error)
-      res.status(500).json({ error: error.message || "Failed to get git file diff" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get git file diff" })
     }
   })
 
@@ -398,7 +403,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true })
     } catch (error) {
       console.error("Failed to revert git file:", error)
-      res.status(500).json({ error: error.message || "Failed to revert git file" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to revert git file" })
     }
   })
 
@@ -419,7 +424,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true })
     } catch (error) {
       console.error("Failed to stage git file:", error)
-      res.status(500).json({ error: error.message || "Failed to stage git file" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to stage git file" })
     }
   })
 
@@ -440,7 +445,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true })
     } catch (error) {
       console.error("Failed to unstage git file:", error)
-      res.status(500).json({ error: error.message || "Failed to unstage git file" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to unstage git file" })
     }
   })
 
@@ -463,7 +468,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: true })
     } catch (error) {
       console.error("Failed to apply git hunk patch:", error)
-      res.status(500).json({ error: error.message || "Failed to apply git hunk patch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to apply git hunk patch" })
     }
   }
 
@@ -492,7 +497,7 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: error.message })
       }
       console.error("Failed to pull:", error)
-      res.status(500).json({ error: error.message || "Failed to pull from remote" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to pull from remote" })
     }
   })
 
@@ -511,7 +516,7 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: error.message })
       }
       console.error("Failed to push:", error)
-      res.status(500).json({ error: error.message || "Failed to push to remote" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to push to remote" })
     }
   })
 
@@ -523,7 +528,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ stashes: await listStashes(directory) })
     } catch (error) {
       console.error("Failed to list stashes:", error)
-      res.status(500).json({ error: error.message || "Failed to list stashes" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to list stashes" })
     }
   })
 
@@ -545,7 +550,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ counts: await countStashFiles(directory, refs) })
     } catch (error) {
       console.error("Failed to count stash files:", error)
-      res.status(500).json({ error: error.message || "Failed to count stash files" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to count stash files" })
     }
   })
 
@@ -557,7 +562,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(await stashPush(directory, req.body))
     } catch (error) {
       console.error("Failed to stash changes:", error)
-      res.status(500).json({ error: error.message || "Failed to stash changes" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to stash changes" })
     }
   })
 
@@ -575,7 +580,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(await stashApply(directory, req.body))
     } catch (error) {
       console.error("Failed to apply stash:", error)
-      res.status(500).json({ error: error.message || "Failed to apply stash" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to apply stash" })
     }
   })
 
@@ -593,7 +598,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(await stashPop(directory, req.body))
     } catch (error) {
       console.error("Failed to pop stash:", error)
-      res.status(500).json({ error: error.message || "Failed to pop stash" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to pop stash" })
     }
   })
 
@@ -611,7 +616,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(await stashDrop(directory, req.body))
     } catch (error) {
       console.error("Failed to drop stash:", error)
-      res.status(500).json({ error: error.message || "Failed to drop stash" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to drop stash" })
     }
   })
 
@@ -630,7 +635,7 @@ export function registerGitRoutes(app, options = {}) {
         return res.status(400).json({ error: error.message })
       }
       console.error("Failed to fetch:", error)
-      res.status(500).json({ error: error.message || "Failed to fetch from remote" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to fetch from remote" })
     }
   })
 
@@ -646,7 +651,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(remotes)
     } catch (error) {
       console.error("Failed to get remotes:", error)
-      res.status(500).json({ error: error.message || "Failed to get remotes" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get remotes" })
     }
   })
 
@@ -667,7 +672,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to remove remote:", error)
-      res.status(500).json({ error: error.message || "Failed to remove remote" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to remove remote" })
     }
   })
 
@@ -683,7 +688,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to rebase:", error)
-      res.status(500).json({ error: error.message || "Failed to rebase" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to rebase" })
     }
   })
 
@@ -699,7 +704,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to abort rebase:", error)
-      res.status(500).json({ error: error.message || "Failed to abort rebase" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to abort rebase" })
     }
   })
 
@@ -715,7 +720,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to merge:", error)
-      res.status(500).json({ error: error.message || "Failed to merge" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to merge" })
     }
   })
 
@@ -731,7 +736,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to abort merge:", error)
-      res.status(500).json({ error: error.message || "Failed to abort merge" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to abort merge" })
     }
   })
 
@@ -747,7 +752,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to continue rebase:", error)
-      res.status(500).json({ error: error.message || "Failed to continue rebase" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to continue rebase" })
     }
   })
 
@@ -763,7 +768,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to continue merge:", error)
-      res.status(500).json({ error: error.message || "Failed to continue merge" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to continue merge" })
     }
   })
 
@@ -779,7 +784,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to get conflict details:", error)
-      res.status(500).json({ error: error.message || "Failed to get conflict details" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get conflict details" })
     }
   })
 
@@ -804,7 +809,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to commit:", error)
-      res.status(500).json({ error: error.message || "Failed to create commit" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to create commit" })
     }
   })
 
@@ -820,7 +825,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(branches)
     } catch (error) {
       console.error("Failed to get branches:", error)
-      res.status(500).json({ error: error.message || "Failed to get branches" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get branches" })
     }
   })
 
@@ -847,7 +852,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to create branch:", error)
-      res.status(500).json({ error: error.message || "Failed to create branch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to create branch" })
     }
   })
 
@@ -874,7 +879,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to delete branch:", error)
-      res.status(500).json({ error: error.message || "Failed to delete branch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to delete branch" })
     }
   })
 
@@ -904,7 +909,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to rename branch:", error)
-      res.status(500).json({ error: error.message || "Failed to rename branch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to rename branch" })
     }
   })
   app.delete("/api/git/remote-branches", async (req, res) => {
@@ -933,7 +938,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to delete remote branch:", error)
-      res.status(500).json({ error: error.message || "Failed to delete remote branch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to delete remote branch" })
     }
   })
 
@@ -960,7 +965,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to checkout branch:", error)
-      res.status(500).json({ error: error.message || "Failed to checkout branch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to checkout branch" })
     }
   })
 
@@ -979,7 +984,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to checkout commit:", error)
-      res.status(500).json({ error: error.message || "Failed to checkout commit" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to checkout commit" })
     }
   })
 
@@ -998,7 +1003,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to cherry-pick:", error)
-      res.status(500).json({ error: error.message || "Failed to cherry-pick" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to cherry-pick" })
     }
   })
 
@@ -1017,7 +1022,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to revert commit:", error)
-      res.status(500).json({ error: error.message || "Failed to revert commit" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to revert commit" })
     }
   })
 
@@ -1039,7 +1044,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to reset to commit:", error)
-      res.status(500).json({ error: error.message || "Failed to reset" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to reset" })
     }
   })
 
@@ -1078,7 +1083,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to validate worktree creation:", error)
-      res.status(500).json({ error: error.message || "Failed to validate worktree creation" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to validate worktree creation" })
     }
   })
 
@@ -1098,7 +1103,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(created)
     } catch (error) {
       console.error("Failed to create worktree:", error)
-      res.status(500).json({ error: error.message || "Failed to create worktree" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to create worktree" })
     }
   })
 
@@ -1118,7 +1123,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(preview)
     } catch (error) {
       console.error("Failed to preview worktree:", error)
-      res.status(500).json({ error: error.message || "Failed to preview worktree" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to preview worktree" })
     }
   })
 
@@ -1138,7 +1143,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(status)
     } catch (error) {
       console.error("Failed to get worktree bootstrap status:", error)
-      res.status(500).json({ error: error.message || "Failed to get worktree bootstrap status" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get worktree bootstrap status" })
     }
   })
 
@@ -1173,7 +1178,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ success: Boolean(result), ...(warning ? { warning: String(warning) } : {}) })
     } catch (error) {
       console.error("Failed to remove worktree:", error)
-      res.status(500).json({ error: error.message || "Failed to remove worktree" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to remove worktree" })
     }
   })
 
@@ -1188,7 +1193,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json({ linked })
     } catch (error) {
       console.error("Failed to determine worktree type:", error)
-      res.status(500).json({ error: error.message || "Failed to determine worktree type" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to determine worktree type" })
     }
   })
 
@@ -1209,7 +1214,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to validate worktree directory:", error)
-      res.status(500).json({ error: error.message || "Failed to validate worktree directory" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to validate worktree directory" })
     }
   })
 
@@ -1227,7 +1232,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to canonicalize worktree state:", error)
-      res.status(500).json({ error: error.message || "Failed to canonicalize worktree state" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to canonicalize worktree state" })
     }
   })
 
@@ -1254,7 +1259,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(log)
     } catch (error) {
       console.error("Failed to get log:", error)
-      res.status(500).json({ error: error.message || "Failed to get commit log" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get commit log" })
     }
   })
 
@@ -1276,7 +1281,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to get commit files:", error)
-      res.status(500).json({ error: error.message || "Failed to get commit files" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get commit files" })
     }
   })
 
@@ -1295,7 +1300,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to get commit patch:", error)
-      res.status(500).json({ error: error.message || "Failed to get commit patch" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get commit patch" })
     }
   })
 
@@ -1321,7 +1326,7 @@ export function registerGitRoutes(app, options = {}) {
       res.json(result)
     } catch (error) {
       console.error("Failed to get commit file diff:", error)
-      res.status(500).json({ error: error.message || "Failed to get commit file diff" })
+      res.status(gitErrorStatus(error)).json({ error: error.message || "Failed to get commit file diff" })
     }
   })
 }

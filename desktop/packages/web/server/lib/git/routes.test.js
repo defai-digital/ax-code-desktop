@@ -596,6 +596,34 @@ describe("git remote sync routes", () => {
   })
 })
 
+describe("git route error status", () => {
+  it("answers a refused input as 400 and a git failure as 500", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const request = { query: { directory: "/repo" }, body: { path: "file.txt", patch: "diff --git a/x b/x" } }
+
+    gitLibraries.stageHunk.mockRejectedValueOnce(
+      Object.assign(new Error("Patch does not target file.txt"), { statusCode: 400 }),
+    )
+    const refused = createMockResponse()
+    await getRoute("POST", "/api/git/stage-hunk")(request, refused)
+    expect(refused.statusCode).toBe(400)
+    expect(refused.body.error).toBe("Patch does not target file.txt")
+
+    gitLibraries.stageHunk.mockRejectedValueOnce(new Error("index.lock exists"))
+    const failed = createMockResponse()
+    await getRoute("POST", "/api/git/stage-hunk")(request, failed)
+    expect(failed.statusCode).toBe(500)
+
+    gitLibraries.stageFiles.mockRejectedValueOnce(
+      Object.assign(new Error("Path is outside repository: ../x"), { statusCode: 400 }),
+    )
+    const outside = createMockResponse()
+    await getRoute("POST", "/api/git/stage")({ query: { directory: "/repo" }, body: { path: "../x" } }, outside)
+    expect(outside.statusCode).toBe(400)
+  })
+})
+
 describe("git branch diff route", () => {
   beforeEach(() => {
     gitLibraries.getGitBranchDiff.mockReset()
