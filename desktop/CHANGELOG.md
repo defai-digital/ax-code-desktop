@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Preserve snake_case identifiers and inline code in notification previews, completion summaries and project notes.
+- Derive notification project names from Windows paths and directories with trailing separators.
+
 ## [7.30.16] - 2026-11-10
 
 ### Fixed
