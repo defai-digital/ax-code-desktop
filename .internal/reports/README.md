@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.15 maintenance candidate](RELEASE-2026-11-09-v7.30.15-candidate.md): synchronized fixes and a
+  descriptor-read limit repair for files that grow after stat.
+
 - [Desktop 7.30.14 verified publication](RELEASE-2026-11-09-v7.30.14-publication.md): signed four-platform release
   and independent public readback.
 

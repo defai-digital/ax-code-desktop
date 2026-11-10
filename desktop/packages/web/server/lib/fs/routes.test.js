@@ -1,9 +1,12 @@
 import { EventEmitter } from "events"
 import { validateHeaderValue } from "node:http"
 import path from "path"
+import fs from "fs"
+import os from "os"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import {
+  MAX_TEXT_READ_BYTES,
   deriveCloneDirectoryName,
   isPathWithinRoot,
   isPlansDirectoryPath,
@@ -171,24 +174,33 @@ const registerFs = (
   extraDependencies = {},
 ) => {
   const { app, getRoute } = createRouteRegistry()
+  const fallbackOpen = async (filename) => ({
+    stat: async () => {
+      const stats = await fsPromises.stat(filename)
+      return { ...stats, isFile: () => (typeof stats.isFile === "function" ? stats.isFile() : !stats.isDirectory()) }
+    },
+    readFile: () => fsPromises.readFile(filename),
+    close: async () => {},
+  })
+  const open = fsPromises.open ?? fallbackOpen
   registerFsRoutes(app, {
     os: { homedir: () => "/home/user" },
     path: path.posix,
     fsPromises: {
       realpath: async (targetPath) => targetPath,
-      // Adapt the existing byte/stat fixtures to the descriptor-based read API.
-      open: async (filename) => ({
-        stat: async () => {
-          const stats = await fsPromises.stat(filename)
-          return {
-            ...stats,
-            isFile: () => (typeof stats.isFile === "function" ? stats.isFile() : !stats.isDirectory()),
-          }
-        },
-        readFile: () => fsPromises.readFile(filename),
-        close: async () => {},
-      }),
       ...fsPromises,
+      // Existing read fixtures also support bounded descriptor reads; real FileHandles pass through unchanged.
+      open: async (...args) => {
+        const file = await open(...args)
+        if (typeof file.read === "function") return file
+        return {
+          ...file,
+          read: async (buffer, offset, length, position) => {
+            const bytes = Buffer.from(await file.readFile())
+            return { bytesRead: bytes.copy(buffer, offset, position, position + length) }
+          },
+        }
+      },
     },
     spawn,
     crypto: { randomUUID: () => "job-0" },
@@ -459,6 +471,39 @@ describe("fs outside workspace authorization", () => {
     expect(res.statusCode).toBe(413)
     expect(file.readFile).not.toHaveBeenCalled()
     expect(file.close).toHaveBeenCalledOnce()
+  })
+
+  it("refuses a text file that grows beyond the limit after its descriptor was checked", async () => {
+    const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), "editor-read-growth-"))
+    const filename = path.join(directory, "growing.log")
+    await fs.promises.writeFile(filename, "small")
+    const open = fs.promises.open.bind(fs.promises)
+    const { getRoute } = registerFs(
+      {
+        ...fs.promises,
+        open: async (...args) => {
+          const file = await open(...args)
+          const stat = file.stat.bind(file)
+          vi.spyOn(file, "stat").mockImplementationOnce(async () => {
+            const snapshot = await stat()
+            await fs.promises.truncate(filename, MAX_TEXT_READ_BYTES + 1)
+            return snapshot
+          })
+          return file
+        },
+      },
+      undefined,
+      undefined,
+      undefined,
+      { resolveProjectDirectory: async () => ({ directory }) },
+    )
+    try {
+      const res = await callRoute(getRoute("GET", "/api/fs/read"), { query: { path: filename } })
+      expect(res.statusCode).toBe(413)
+      expect(res.body).toEqual({ error: "File is too large to open" })
+    } finally {
+      await fs.promises.rm(directory, { recursive: true, force: true })
+    }
   })
 
   it("allows raw outside-workspace reads inside an approved directory", async () => {

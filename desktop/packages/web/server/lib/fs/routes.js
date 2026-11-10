@@ -46,6 +46,23 @@ const readRegularFileBytes = async (fsPromises, filename, { maxBytes } = {}) => 
     if (Number.isFinite(maxBytes) && stats.size > maxBytes) {
       throw Object.assign(new Error("File is too large to open"), { code: "EFBIG" })
     }
+    if (Number.isFinite(maxBytes)) {
+      // A writer can grow the file after stat. Probe at most one byte past the cap instead of letting readFile
+      // allocate for the new size; raw downloads retain their existing unbounded byte-read contract below.
+      const chunks = []
+      let total = 0
+      while (total <= maxBytes) {
+        const chunk = Buffer.alloc(Math.min(64 * 1024, maxBytes + 1 - total))
+        const { bytesRead } = await file.read(chunk, 0, chunk.length, total)
+        if (bytesRead === 0) break
+        total += bytesRead
+        if (total > maxBytes) {
+          throw Object.assign(new Error("File is too large to open"), { code: "EFBIG" })
+        }
+        chunks.push(chunk.subarray(0, bytesRead))
+      }
+      return Buffer.concat(chunks, total)
+    }
     return await file.readFile()
   } finally {
     await file.close()

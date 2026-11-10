@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.15] - 2026-11-09
+
 ### Fixed
+
+- Enforce the text-editor read limit during descriptor reads even when a file grows after its initial size check.
 
 - Keep Git operations to what was requested: no worktree diff through a symlinked folder that leads outside the repository, no hunk patch that renames, copies or opens a second file, no half of an unselected staged rename in a partial commit, and no option-like branch name passed to `git branch -d`.
 - Detect the main checkout correctly from a subdirectory instead of reporting it as a linked worktree.
