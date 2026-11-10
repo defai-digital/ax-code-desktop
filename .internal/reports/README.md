@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.14 verified publication](RELEASE-2026-11-09-v7.30.14-publication.md): signed four-platform release
+  and independent public readback.
+
 - [Desktop 7.30.14 maintenance candidate](RELEASE-2026-11-09-v7.30.14-candidate.md): branch integration, keyboard focus
   repair and bounded handle-based reads, with exact-source publication gates.
 
