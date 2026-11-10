@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Keep Git operations to what was requested: no worktree diff through a symlinked folder that leads outside the repository, no hunk patch that renames, copies or opens a second file, no half of an unselected staged rename in a partial commit, and no option-like branch name passed to `git branch -d`.
+- Detect the main checkout correctly from a subdirectory instead of reporting it as a linked worktree.
+- Validate pull request and issue numbers and the merge method, and return GitHub's 403, 404, 410 and 422 refusals with their status instead of a server error.
+- Stop GitHub device sign-in on any status other than pending, instead of polling until the code expires.
+- Stop a deleted terminal session's shell on Windows, where the force-kill signal was rejected and the shell kept running.
+- Close a message-stream WebSocket that sends a frame larger than 4 KiB instead of buffering up to 100 MiB.
+- Leave a project's legacy scheduled tasks for the next start when the runtime's task list cannot be read, instead of creating them again.
+
 ## [7.30.14] - 2026-11-09
 
 ### Changed

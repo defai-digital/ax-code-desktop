@@ -54,12 +54,15 @@ You can also run the install command again. Close the app first.
 - Manage branches and worktrees.
 - Create pull requests with generated descriptions.
 - Recover from merge/rebase conflicts with guided UI state.
+- Diffs, patches and partial commits stay inside the repository and the files you selected: a symlinked folder
+  that points outside the repository is not followed.
 
 ### Files and terminal
 
 - Browse and edit workspace files.
 - Inspect large diffs without loading the whole workspace at once.
-- Run integrated terminal sessions by project directory.
+- Run integrated terminal sessions by project directory. Deleting a session stops its shell, on Windows
+  too.
 - Keep project actions and dev servers close to the chat context.
 
 ### Desktop
@@ -191,5 +194,6 @@ Delete according to the task's state. Completed one-time tasks must be reschedul
 
 The editor starts with the task name and prompt, followed by schedule and execution settings. Review Schedule summary
 for the wall-clock times, timezone, automatic-run state and missed-run policy before saving. Tasks run on this computer;
-it must be awake with AX Code running. The summary describes the configured schedule; actual next-run times and history
-come from the runtime. An unchanged imported cron schedule is retained when only the prompt is edited.
+it must be awake with AX Code running. Tasks saved by older Desktop versions move to the runtime at startup; if the
+runtime's task list cannot be read, the move waits for the next start so no task is created twice. The summary describes the configured schedule;
+actual next-run times and history come from the runtime. An unchanged imported cron schedule is retained when only the prompt is edited.
