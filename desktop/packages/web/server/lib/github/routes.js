@@ -176,7 +176,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/auth/status", async (_req, res) => {
     try {
-      const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth, getGitHubAuthAccounts } = await getGitHubLibraries()
+      const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth, getGitHubAuthAccounts } = await getGitHubLibraries()
       const auth = getGitHubAuth()
       const accounts = getGitHubAuthAccounts()
       if (!auth?.accessToken) {
@@ -194,7 +194,7 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearGitHubAuth()
+          clearRejectedGitHubAuth(error)
           // The token is gone: cached PR/repo data belongs to the account that just
           // stopped being current, so it must not outlive the switch.
           await clearGitHubAccountScopedCaches()
@@ -317,7 +317,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/auth/activate", async (req, res) => {
     try {
-      const { activateGitHubAuth, getGitHubAuth, getOctokitOrNull, clearGitHubAuth, getGitHubAuthAccounts } =
+      const { activateGitHubAuth, getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth, getGitHubAuthAccounts } =
         await getGitHubLibraries()
       const accountId = resolveGitHubActivationAccountId(req.body?.accountId, getGitHubAuthAccounts())
       const activated = activateGitHubAuth(accountId)
@@ -342,7 +342,7 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearGitHubAuth()
+          clearRejectedGitHubAuth(error)
           await clearGitHubAccountScopedCaches()
           return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
         }
@@ -381,7 +381,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/me", async (_req, res) => {
     try {
-      const { getOctokitOrNull, clearGitHubAuth } = await getGitHubLibraries()
+      const { getOctokitOrNull, clearRejectedGitHubAuth } = await getGitHubLibraries()
       const octokit = getOctokitOrNull()
       if (!octokit) {
         return res.status(401).json({ error: "GitHub not connected" })
@@ -391,7 +391,7 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearGitHubAuth()
+          clearRejectedGitHubAuth(error)
           await clearGitHubAccountScopedCaches()
           return res.status(401).json({ error: "GitHub token expired or revoked" })
         }
@@ -593,8 +593,8 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1235,8 +1235,8 @@ export function registerGitHubRoutes(app) {
       // and report the account as disconnected: answering 500 left the app connected to a token that
       // no longer works until some other call happened to notice.
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1305,8 +1305,8 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1357,8 +1357,8 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, comments })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1408,8 +1408,8 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, comment: mapIssueComment(result?.data) })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1453,8 +1453,8 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, issue: mapIssueState(result?.data) })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1568,8 +1568,8 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, prs: allPrs, page: effectivePage, hasMore: anyHasMore })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }
@@ -1931,8 +1931,8 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearGitHubAuth } = await getGitHubLibraries()
-        clearGitHubAuth()
+        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+        clearRejectedGitHubAuth(error)
         await clearGitHubAccountScopedCaches()
         return res.json({ connected: false })
       }

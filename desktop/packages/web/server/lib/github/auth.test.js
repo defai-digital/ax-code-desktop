@@ -214,4 +214,34 @@ describe("github auth storage", () => {
     }
     expect(fs.readdirSync(tempRoot).filter((name) => name.endsWith(".tmp"))).toEqual([])
   })
+
+  it("removes only the account a refused request used", async () => {
+    // A 401 cleared whichever account was current when it arrived: a poll that started with A and was refused
+    // after the user switched to B deleted B and made the revoked A current again.
+    const auth = await importAuth()
+    auth.setGitHubAuth({ accessToken: "token-a", user: { login: "alice", id: 1 }, accountId: "a" })
+    auth.setGitHubAuth({ accessToken: "token-b", user: { login: "bob", id: 2 }, accountId: "b" })
+    expect(auth.getGitHubAuth().accountId).toBe("b")
+
+    const refused = auth.tagGitHubRequestError(Object.assign(new Error("Bad credentials"), { status: 401 }), {
+      accountId: "a",
+      accessToken: "token-a",
+    })
+    expect(auth.clearRejectedGitHubAuth(refused)).toBe(true)
+
+    expect(auth.getGitHubAuthAccounts().map((account) => account.id)).toEqual(["b"])
+    expect(auth.getGitHubAuth().accountId).toBe("b")
+  })
+
+  it("keeps an account whose token was replaced after the refused request started", async () => {
+    const auth = await importAuth()
+    auth.setGitHubAuth({ accessToken: "token-old", user: { login: "alice", id: 1 }, accountId: "a" })
+    const refused = auth.tagGitHubRequestError(new Error("Bad credentials"), { accountId: "a", accessToken: "token-old" })
+    // The user signed in again with the same account while the request was in flight.
+    auth.setGitHubAuth({ accessToken: "token-new", user: { login: "alice", id: 1 }, accountId: "a" })
+
+    auth.clearRejectedGitHubAuth(refused)
+
+    expect(auth.getGitHubAuth()?.accessToken).toBe("token-new")
+  })
 })

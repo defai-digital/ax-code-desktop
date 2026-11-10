@@ -293,6 +293,63 @@ export function activateGitHubAuth(accountId) {
   return true
 }
 
+// Set by the Octokit request hook on every error it rethrows: the account and token the failing request used.
+// A symbol key that is not enumerable, so the token never reaches a log line or a JSON body with the error.
+export const GITHUB_REQUEST_CREDENTIAL = Symbol("ax-code-desktop.githubRequestCredential")
+
+export function tagGitHubRequestError(error, credential) {
+  if (error && typeof error === "object" && credential?.accessToken) {
+    try {
+      Object.defineProperty(error, GITHUB_REQUEST_CREDENTIAL, { value: credential, configurable: true })
+    } catch {
+      // A frozen error keeps the untagged fallback below.
+    }
+  }
+  return error
+}
+
+/**
+ * Forget the credential GitHub refused for this request. A 401 cleared whichever account was current when the
+ * answer arrived: a poll that started with account A and was refused after the user switched to B deleted B and
+ * made the revoked A current again. Only the entry the request used is removed, and only while it still holds the
+ * refused token, so a re-login of the same account in the meantime survives too. An error without the tag (an
+ * Octokit built elsewhere) keeps the previous behavior.
+ */
+export function clearRejectedGitHubAuth(error) {
+  const credential = error?.[GITHUB_REQUEST_CREDENTIAL]
+  if (!credential?.accessToken) {
+    return clearGitHubAuth()
+  }
+  try {
+    const list = readAuthList({ strict: true })
+    const index = list.findIndex(
+      (entry) => entry.accountId === credential.accountId && entry.accessToken === credential.accessToken,
+    )
+    if (index === -1) {
+      return true
+    }
+    const [removed] = list.splice(index, 1)
+    if (!list.length) {
+      try {
+        fs.unlinkSync(STORAGE_FILE)
+      } catch (unlinkError) {
+        if (!unlinkError || unlinkError.code !== "ENOENT") throw unlinkError
+      }
+      return true
+    }
+    if (removed.current) {
+      list.forEach((entry, entryIndex) => {
+        entry.current = entryIndex === 0
+      })
+    }
+    writeAuthList(list)
+    return true
+  } catch (failure) {
+    console.error("Failed to clear GitHub auth file:", failure)
+    return false
+  }
+}
+
 export function clearGitHubAuth() {
   try {
     const list = readAuthList({ strict: true })
