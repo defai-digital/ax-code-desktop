@@ -736,7 +736,7 @@ export async function createGitCommit(
 
 export async function gitPush(
   directory: string,
-  options: { remote?: string; branch?: string; options?: string[] | Record<string, unknown> } = {},
+  options: { remote?: string; branch?: string } = {},
 ): Promise<GitPushResult> {
   const response = await gitRequest(buildUrl(`${API_BASE}/push`, directory), {
     method: HTTP_DEFAULTS.method.post,

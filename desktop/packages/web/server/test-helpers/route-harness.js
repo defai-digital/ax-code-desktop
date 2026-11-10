@@ -126,7 +126,7 @@ export const createMockResponse = () => {
   }
 }
 
-export const createMockRequest = ({ host, origin, protocol = "http", forwardedHost, forwardedProto } = {}) => {
+export const createMockRequest = ({ host, origin, protocol = "http", forwardedHost, forwardedProto, localPort } = {}) => {
   const listeners = new Map()
 
   return {
@@ -140,6 +140,7 @@ export const createMockRequest = ({ host, origin, protocol = "http", forwardedHo
     hostname: host,
     socket: {
       encrypted: protocol === "https",
+      ...(localPort ? { localPort } : {}),
     },
     on(event, handler) {
       listeners.set(event, handler)

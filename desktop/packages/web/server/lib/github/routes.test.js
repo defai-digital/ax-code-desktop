@@ -9,6 +9,7 @@ const getGitHubAuthAccounts = vi.fn()
 vi.mock("./index.js", () => ({
   activateGitHubAuth,
   clearGitHubAuth: vi.fn(),
+  clearRejectedGitHubAuth: vi.fn(),
   exchangeDeviceCode: vi.fn(),
   getGitHubAuth: vi.fn(() => null),
   getGitHubAuthAccounts,
@@ -47,7 +48,7 @@ describe("github routes", () => {
     // GitHub returns 403 for primary and secondary rate limits, which previously read
     // as "auth invalid": the route deleted the stored OAuth token and wiped every
     // account-scoped cache. A 403 must keep the credentials.
-    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth } = await import("./index.js")
     getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
     getOctokitOrNull.mockReturnValueOnce({
       rest: {
@@ -64,7 +65,7 @@ describe("github routes", () => {
     const response = await request(app).get("/api/github/auth/status").expect(200)
 
     expect(response.body.connected).toBe(true)
-    expect(clearGitHubAuth).not.toHaveBeenCalled()
+    expect(clearRejectedGitHubAuth).not.toHaveBeenCalled()
   })
 
   it("answers GitHub's own refusal when the PR status is forbidden", async () => {
@@ -132,7 +133,7 @@ describe("github routes", () => {
   it("marks the cached user as stale when the live lookup fails", async () => {
     // A network or GitHub failure keeps the credentials but must not silently stand in
     // as a live account: the route now says so.
-    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth } = await import("./index.js")
     getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
     getOctokitOrNull.mockReturnValueOnce({
       rest: {
@@ -151,11 +152,11 @@ describe("github routes", () => {
     expect(response.body.connected).toBe(true)
     expect(response.body.stale).toBe(true)
     expect(response.body.user).toEqual({ login: "alice" })
-    expect(clearGitHubAuth).not.toHaveBeenCalled()
+    expect(clearRejectedGitHubAuth).not.toHaveBeenCalled()
   })
 
   it("clears stored credentials on a 401", async () => {
-    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth } = await import("./index.js")
+    const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth } = await import("./index.js")
     getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
     getOctokitOrNull.mockReturnValueOnce({
       rest: {
@@ -172,14 +173,14 @@ describe("github routes", () => {
     const response = await request(app).get("/api/github/auth/status").expect(200)
 
     expect(response.body.connected).toBe(false)
-    expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
+    expect(clearRejectedGitHubAuth).toHaveBeenCalledTimes(1)
   })
 
   it("clears stored credentials when an issue route sees the token is gone", async () => {
     // The PR routes and auth/status clear a revoked token and report the account as
     // disconnected; the issue routes answered 500 and left the app connected to a token that no
     // longer works until some other call happened to notice.
-    const { getGitHubAuth, getOctokitOrNull, clearGitHubAuth, resolveGitHubRepoFromDirectory } = await import(
+    const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth, resolveGitHubRepoFromDirectory } = await import(
       "./index.js"
     )
     getGitHubAuth.mockReturnValueOnce({ accessToken: "tok", user: { login: "alice" }, scope: "repo" })
@@ -200,7 +201,7 @@ describe("github routes", () => {
       .expect(200)
 
     expect(response.body.connected).toBe(false)
-    expect(clearGitHubAuth).toHaveBeenCalledTimes(1)
+    expect(clearRejectedGitHubAuth).toHaveBeenCalledTimes(1)
   })
 
   it("does not cache a PR status that finished after the active account changed", async () => {
@@ -652,7 +653,7 @@ describe("github routes", () => {
   })
 
   it("clears a revoked token when commenting fails with 401", async () => {
-    const { clearGitHubAuth } = await import("./index.js")
+    const { clearRejectedGitHubAuth } = await import("./index.js")
     await connectRepo({
       issues: {
         createComment: vi.fn(async () => {
@@ -668,6 +669,6 @@ describe("github routes", () => {
       .expect(200)
 
     expect(response.body.connected).toBe(false)
-    expect(clearGitHubAuth).toHaveBeenCalled()
+    expect(clearRejectedGitHubAuth).toHaveBeenCalled()
   })
 })

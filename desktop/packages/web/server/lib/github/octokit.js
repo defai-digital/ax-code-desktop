@@ -1,5 +1,5 @@
 import { Octokit } from "@octokit/rest"
-import { getGitHubAuth } from "./auth.js"
+import { getGitHubAuth, tagGitHubRequestError } from "./auth.js"
 
 const GITHUB_REQUEST_TIMEOUT_MS = 15_000
 
@@ -30,5 +30,10 @@ export function getOctokitOrNull() {
   if (!auth?.accessToken) {
     return null
   }
-  return applyGitHubRequestTimeout(new Octokit({ auth: auth.accessToken }))
+  const octokit = applyGitHubRequestTimeout(new Octokit({ auth: auth.accessToken }))
+  const credential = { accountId: auth.accountId, accessToken: auth.accessToken }
+  octokit.hook.error("request", (error) => {
+    throw tagGitHubRequestError(error, credential)
+  })
+  return octokit
 }

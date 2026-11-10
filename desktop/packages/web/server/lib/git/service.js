@@ -812,12 +812,37 @@ function isValidCommitHash(hash) {
  * otherwise glob sibling files (restore/clean/add affect them too). */
 const literalPathspec = (repoPath) => `:(literal)${repoPath}`
 
+const createRequestError = (message) => Object.assign(new Error(message), { statusCode: 400 })
+
 const rejectOptionLikeValue = (value, label) => {
   const text = String(value || "").trim()
   if (text.startsWith("-")) {
-    throw new Error(`Invalid ${label}: ${text}`)
+    throw createRequestError(`Invalid ${label}: ${text}`)
   }
   return text
+}
+
+// push/pull/fetch forwarded a caller-supplied option bag straight to git, so `{ "--mirror": null }` or
+// `{ "--force": null }` ran a destructive push even though the positional guards refuse option-like remotes. No
+// caller needs raw flags: upstream and rebase are typed options the service turns into flags itself.
+const rejectRawGitOptions = (raw) => {
+  const hasEntries = Array.isArray(raw)
+    ? raw.length > 0
+    : raw !== null && typeof raw === "object"
+      ? Object.keys(raw).length > 0
+      : raw !== undefined && raw !== null
+  if (hasEntries) {
+    throw createRequestError("Raw git options are not accepted")
+  }
+}
+
+// A branch is pushed as a refspec: `+main` force-pushes and `main:other` or `:main` writes or deletes another
+// remote ref. A branch name can contain neither a colon nor a leading plus.
+const rejectPushRefspec = (value) => {
+  const text = String(value || "").trim()
+  if (text.startsWith("+") || text.includes(":")) {
+    throw createRequestError(`Invalid branch name: ${text}`)
+  }
 }
 
 const parseRemoteBranchRef = (value) => {
@@ -3068,15 +3093,8 @@ export async function pull(directory, options = {}) {
   // Positional for git pull, same option-injection guard as push.
   rejectOptionLikeValue(options.remote, "remote name")
   rejectOptionLikeValue(options.branch, "branch name")
-  const pullOptions =
-    options.rebase === true
-      ? {
-          ...(options.options && typeof options.options === "object" && !Array.isArray(options.options)
-            ? options.options
-            : {}),
-          "--rebase": null,
-        }
-      : options.options || {}
+  rejectRawGitOptions(options.options)
+  const pullOptions = options.rebase === true ? { "--rebase": null } : {}
 
   try {
     const remote = String(options.remote || "").trim()
@@ -3194,6 +3212,8 @@ export async function push(directory, options = {}) {
   // every remote ref the local repo does not have.
   rejectOptionLikeValue(options.remote, "remote name")
   rejectOptionLikeValue(options.branch, "branch name")
+  rejectPushRefspec(options.branch)
+  rejectRawGitOptions(options.options)
 
   const describePushError = (error) => {
     const fromNestedGit =
@@ -3205,17 +3225,7 @@ export async function push(directory, options = {}) {
     return candidates[0] || "Failed to push to remote"
   }
 
-  const buildUpstreamOptions = (raw) => {
-    if (Array.isArray(raw)) {
-      return raw.includes("--set-upstream") ? raw : [...raw, "--set-upstream"]
-    }
-
-    if (raw && typeof raw === "object") {
-      return { ...raw, "--set-upstream": null }
-    }
-
-    return ["--set-upstream"]
-  }
+  const buildUpstreamOptions = () => ["--set-upstream"]
 
   const looksLikeMissingUpstream = (error) => {
     const message = String(error?.message || error?.stderr || "").toLowerCase()
@@ -3265,7 +3275,7 @@ export async function push(directory, options = {}) {
           throw new Error(message)
         }
 
-        const result = await git.push(fallbackRemote, branch, buildUpstreamOptions(options.options))
+        const result = await git.push(fallbackRemote, branch, buildUpstreamOptions())
         return normalizePushResult(result)
       } catch (fallbackError) {
         const message = describePushError(fallbackError)
@@ -3290,13 +3300,13 @@ export async function push(directory, options = {}) {
     // A failed publish push must surface, not fall through to the generic path
     // below (which would push the branch's configured upstream instead).
     if (status?.current && !status.tracking) {
-      const result = await git.push(remoteName, status.current, buildUpstreamOptions(options.options))
+      const result = await git.push(remoteName, status.current, buildUpstreamOptions())
       return normalizePushResult(result)
     }
   }
 
   try {
-    const result = await git.push(remoteName, options.branch, options.options || {})
+    const result = await git.push(remoteName, options.branch, {})
     return normalizePushResult(result)
   } catch (error) {
     // Last-resort fallback: retry with upstream if the error suggests it's missing.
@@ -3314,7 +3324,7 @@ export async function push(directory, options = {}) {
         throw error
       }
 
-      const result = await git.push(remoteName, branch, buildUpstreamOptions(options.options))
+      const result = await git.push(remoteName, branch, buildUpstreamOptions())
       return normalizePushResult(result)
     } catch (fallbackError) {
       const message = describePushError(fallbackError)
@@ -3378,7 +3388,8 @@ export async function fetch(directory, options = {}) {
     // Positional for git fetch, same option-injection guard as push/pull.
     const remote = rejectOptionLikeValue(options.remote, "remote name")
     const branch = rejectOptionLikeValue(options.branch, "branch name")
-    const fetchOptions = options.options || {}
+    rejectRawGitOptions(options.options)
+    const fetchOptions = {}
 
     if (remote && !branch) {
       // simple-git drops the remote when branch is omitted, so use raw to preserve `git fetch <remote>`.

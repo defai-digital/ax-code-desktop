@@ -4,6 +4,7 @@ export {
   setGitHubAuth,
   activateGitHubAuth,
   clearGitHubAuth,
+  clearRejectedGitHubAuth,
   getGitHubClientId,
   getGitHubScopes,
   GITHUB_AUTH_FILE,

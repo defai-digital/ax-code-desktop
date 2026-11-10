@@ -2486,6 +2486,57 @@ describe("push publish path", () => {
   })
 })
 
+describe("push, pull and fetch options", () => {
+  const createRepoWithOrigin = () => {
+    const origin = createTempDir()
+    runGit(origin, ["init", "--bare", "-b", "main"])
+    const repo = createTempDir()
+    runGit(repo, ["init", "-b", "main"])
+    runGit(repo, ["config", "user.email", "test@example.com"])
+    runGit(repo, ["config", "user.name", "Test User"])
+    fs.writeFileSync(path.join(repo, "README.md"), "# Test\n")
+    runGit(repo, ["add", "README.md"])
+    runGit(repo, ["commit", "-m", "Initial commit"])
+    runGit(repo, ["remote", "add", "origin", origin])
+    runGit(repo, ["push", "-q", "origin", "main", "main:refs/heads/shared"])
+    return { origin, repo }
+  }
+  const remoteBranches = (origin) => runGit(origin, ["for-each-ref", "--format=%(refname:short)", "refs/heads"]).trim().split("\n")
+
+  it("refuses raw git flags instead of running a destructive push", async () => {
+    if (!canRunGit()) return
+    const { origin, repo } = createRepoWithOrigin()
+
+    // `--mirror` deletes every remote ref the local repository lacks: here `shared`.
+    for (const options of [{ "--mirror": null }, ["--force"]]) {
+      await expect(push(repo, { remote: "origin", branch: "main", options })).rejects.toMatchObject({ statusCode: 400 })
+    }
+    expect(remoteBranches(origin)).toEqual(["main", "shared"])
+  })
+
+  it("refuses a branch that is a refspec", async () => {
+    if (!canRunGit()) return
+    const { origin, repo } = createRepoWithOrigin()
+
+    // `:shared` deletes the remote branch and `+main` force-pushes.
+    for (const branch of [":shared", "+main", "main:shared"]) {
+      await expect(push(repo, { remote: "origin", branch })).rejects.toMatchObject({ statusCode: 400 })
+    }
+    expect(remoteBranches(origin)).toEqual(["main", "shared"])
+  })
+
+  it("still publishes a new branch with its upstream", async () => {
+    if (!canRunGit()) return
+    const { origin, repo } = createRepoWithOrigin()
+    runGit(repo, ["checkout", "-q", "-b", "feature"])
+
+    await push(repo, { remote: "origin" })
+
+    expect(remoteBranches(origin)).toContain("feature")
+    expect(runGit(repo, ["rev-parse", "--abbrev-ref", "feature@{upstream}"]).trim()).toBe("origin/feature")
+  })
+})
+
 // ---------------------------------------------------------------------------
 // Runtime-owned worktrees (ADR-020, runtime worktree migration v1)
 // ---------------------------------------------------------------------------

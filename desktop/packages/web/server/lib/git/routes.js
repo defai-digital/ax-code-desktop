@@ -488,6 +488,9 @@ export function registerGitRoutes(app, options = {}) {
       const result = await pull(directory, req.body)
       res.json(result)
     } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error("Failed to pull:", error)
       res.status(500).json({ error: error.message || "Failed to pull from remote" })
     }
@@ -504,6 +507,9 @@ export function registerGitRoutes(app, options = {}) {
       const result = await push(directory, req.body)
       res.json(result)
     } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error("Failed to push:", error)
       res.status(500).json({ error: error.message || "Failed to push to remote" })
     }
@@ -620,6 +626,9 @@ export function registerGitRoutes(app, options = {}) {
       const result = await gitFetch(directory, req.body)
       res.json(result)
     } catch (error) {
+      if (error?.statusCode === 400) {
+        return res.status(400).json({ error: error.message })
+      }
       console.error("Failed to fetch:", error)
       res.status(500).json({ error: error.message || "Failed to fetch from remote" })
     }

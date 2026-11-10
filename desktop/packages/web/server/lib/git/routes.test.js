@@ -27,6 +27,9 @@ const gitLibraries = {
   createBranch: vi.fn(),
   deleteRemoteBranch: vi.fn(),
   getGitBranchDiff: vi.fn(),
+  push: vi.fn(),
+  pull: vi.fn(),
+  fetch: vi.fn(),
 }
 
 vi.doMock("./index.js", () => ({
@@ -52,6 +55,9 @@ vi.doMock("./index.js", () => ({
   createBranch: gitLibraries.createBranch,
   deleteRemoteBranch: gitLibraries.deleteRemoteBranch,
   getGitBranchDiff: gitLibraries.getGitBranchDiff,
+  push: gitLibraries.push,
+  pull: gitLibraries.pull,
+  fetch: gitLibraries.fetch,
 }))
 
 const { registerGitRoutes } = await import("./routes.js")
@@ -567,6 +573,26 @@ describe("git routes stash references", () => {
     )
 
     expect(response.statusCode).toBe(400)
+  })
+})
+
+describe("git remote sync routes", () => {
+  it.each([
+    ["push", "/api/git/push"],
+    ["pull", "/api/git/pull"],
+    ["fetch", "/api/git/fetch"],
+  ])("answers a refused %s request as a client error", async (name, route) => {
+    gitLibraries[name].mockRejectedValueOnce(
+      Object.assign(new Error("Raw git options are not accepted"), { statusCode: 400 }),
+    )
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app)
+    const response = createMockResponse()
+
+    await getRoute("POST", route)({ query: { directory: "/repo" }, body: { options: { "--mirror": null } } }, response)
+
+    expect(response.statusCode).toBe(400)
+    expect(response.body.error).toBe("Raw git options are not accepted")
   })
 })
 
