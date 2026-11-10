@@ -40,19 +40,39 @@ export function sanitizeForSummary(text) {
     .trim()
 }
 
+// Code spans are set aside while the markdown passes run so their text comes back verbatim (`a * b`, `my_var`);
+// NUL never appears in text worth showing, so it can delimit the placeholders.
+const CODE_SPAN_PLACEHOLDER = /\u0000(\d+)\u0000/g
+
+function withCodeSpansKept(text, transform) {
+  const codeSpans = []
+  const masked = text
+    .replace(/\u0000/g, "")
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]*)`/g, (_match, code) => {
+      codeSpans.push(code)
+      return `\u0000${codeSpans.length - 1}\u0000`
+    })
+  return transform(masked).replace(CODE_SPAN_PLACEHOLDER, (_match, index) => codeSpans[Number(index)] ?? "")
+}
+
+// Underscore emphasis cannot open or close inside a word (CommonMark), so `file_name_utils.py` keeps its name;
+// asterisk emphasis can, so those passes stay unanchored.
+function stripInlineEmphasisAndLinks(text) {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/(^|[^\p{L}\p{N}_])__(.+?)__(?![\p{L}\p{N}_])/gu, "$1$2")
+    .replace(/\*(.*?)\*/g, "$1")
+    .replace(/(^|[^\p{L}\p{N}_])_(.+?)_(?![\p{L}\p{N}_])/gu, "$1$2")
+    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+}
+
 export function sanitizeForNotification(text) {
   if (!text || typeof text !== "string") return ""
 
-  return text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/^[\t ]*[-*+]\s+/gm, "")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/_(.*?)_/g, "$1")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+  return withCodeSpansKept(text, (masked) =>
+    stripInlineEmphasisAndLinks(masked.replace(/^[\t ]*[-*+]\s+/gm, "").replace(/^#{1,6}\s+/gm, "")),
+  )
     .replace(/\s*\n\s*/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -61,16 +81,10 @@ export function sanitizeForNotification(text) {
 export function sanitizeForNote(text) {
   if (!text || typeof text !== "string") return ""
 
-  return text
-    .replace(/```[\s\S]*?```/g, " ")
-    .replace(/`([^`]*)`/g, "$1")
-    .replace(/^\s*[-*+]\s+/gm, "")
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/\*\*(.*?)\*\*/g, "$1")
-    .replace(/__(.*?)__/g, "$1")
-    .replace(/\*(.*?)\*/g, "$1")
-    .replace(/_(.*?)_/g, "$1")
-    .replace(/\[(.*?)\]\((.*?)\)/g, "$1")
+  // The link and quote passes run after the code spans return: a URL inside backticks is still a URL.
+  return withCodeSpansKept(text, (masked) =>
+    stripInlineEmphasisAndLinks(masked.replace(/^\s*[-*+]\s+/gm, "").replace(/^#{1,6}\s+/gm, "")),
+  )
     .replace(SCHEME_URL, "")
     .replace(/["']/g, "")
     .replace(/\s+/g, " ")

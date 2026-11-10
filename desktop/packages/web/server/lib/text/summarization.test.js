@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { sanitizeForNote, sanitizeForSummary, summarizeText } from "./summarization.js"
+import { sanitizeForNote, sanitizeForNotification, sanitizeForSummary, summarizeText } from "./summarization.js"
 
 describe("text summarization stubs", () => {
   it("keeps a slash inside a word, and still drops a path", () => {
@@ -62,6 +62,19 @@ describe("text summarization stubs", () => {
   it("removes code from summary text before stripping markdown punctuation", () => {
     expect(sanitizeForSummary("Read `const value = 1` aloud")).toBe("Read aloud")
     expect(sanitizeForSummary("Before\n```js\nconst value = 1\n```\nAfter")).toBe("Before After")
+  })
+
+  it("keeps intraword underscores and code span text in notification and note text", () => {
+    // Every underscore pair was read as emphasis, so `file_name_utils.py` lost its underscores, and the emphasis
+    // passes also ran inside inline code.
+    const input = "Updated file_name_utils.py and `my_var_x` in __init__ with _care_ and `a * b * c`"
+    const expected = "Updated file_name_utils.py and my_var_x in init with care and a * b * c"
+    expect(sanitizeForNotification(input)).toBe(expected)
+    expect(sanitizeForNote(input)).toBe(expected)
+  })
+
+  it("still strips a scheme URL written as inline code from a note", () => {
+    expect(sanitizeForNote("clone `ssh://git@host/repo.git` now")).toBe("clone now")
   })
 
   it("does not call the retired zen provider", async () => {
