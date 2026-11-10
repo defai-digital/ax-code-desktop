@@ -210,7 +210,8 @@ export const createScheduledTaskConvergence = (deps) => {
     return !(status === 400 || status === 409)
   }
 
-  // Migrate a single desktop task. Returns "migrated" | { retry: reason } | { skip: reason }.
+  // Migrate a single desktop task. Its outcome is "migrated", "retry", "skipped", or "partial": some of a
+  // multi-slot task's slots are in the runtime and the rest were refused permanently.
   const migrateTask = async ({ projectID, projectPath, task, existingByTitle, now }) => {
     const taskLabel = asNonEmptyString(task?.name) || asNonEmptyString(task?.id) || "unnamed"
     const result = transformDesktopScheduledTask(task, {
@@ -222,6 +223,12 @@ export const createScheduledTaskConvergence = (deps) => {
       return { outcome: "skipped", reason: result.reason, taskLabel, warnings }
     }
 
+    // Slots the runtime holds (found from an earlier run or created now) and slots it refused for good. A
+    // refused slot used to end the task as wholly skipped while the slots before it kept running: the marker
+    // reported as dropped a task that still fired, and the slots after it were never tried. They are kept — a
+    // rollback would delete schedules that work — and the task is recorded as partially migrated.
+    const migratedSlots = []
+    const failedSlots = []
     for (const payload of result.payloads) {
       const sameTitle = existingByTitle.get(payload.title)
       const existing = sameTitle?.shift()
@@ -250,6 +257,7 @@ export const createScheduledTaskConvergence = (deps) => {
             })
           }
         }
+        migratedSlots.push(payload.title)
         continue
       }
       let created
@@ -259,8 +267,10 @@ export const createScheduledTaskConvergence = (deps) => {
         if (isRetryableRuntimeError(error)) {
           return { outcome: "retry", reason: error.message, taskLabel, warnings }
         }
-        return { outcome: "skipped", reason: error.message, taskLabel, warnings }
+        failedSlots.push({ slot: payload.title, reason: error.message })
+        continue
       }
+      migratedSlots.push(payload.title)
       const createdID = typeof created?.id === "string" ? created.id : null
       // Deliberately not recorded in `existingByTitle`. That map is the resume heuristic — "the runtime already
       // had a task with this title before this run" — and registering the task created a moment ago made the
@@ -292,7 +302,13 @@ export const createScheduledTaskConvergence = (deps) => {
         }
       }
     }
-    return { outcome: "migrated", taskLabel, warnings }
+    if (failedSlots.length === 0) {
+      return { outcome: "migrated", taskLabel, warnings }
+    }
+    if (migratedSlots.length === 0) {
+      return { outcome: "skipped", reason: failedSlots[0].reason, taskLabel, warnings }
+    }
+    return { outcome: "partial", taskLabel, migratedSlots, failedSlots, warnings }
   }
 
   const migrate = async () => {
@@ -302,6 +318,7 @@ export const createScheduledTaskConvergence = (deps) => {
     }
     const attempts = (typeof marker?.attempts === "number" ? marker.attempts : 0) + 1
     const skipped = Array.isArray(marker?.skipped) ? marker.skipped.slice() : []
+    const partial = Array.isArray(marker?.partial) ? marker.partial.slice() : []
     const warnings = Array.isArray(marker?.warnings) ? marker.warnings.slice() : []
     const now = Date.now()
 
@@ -414,6 +431,26 @@ export const createScheduledTaskConvergence = (deps) => {
           // Not a retry, so this task is settled either way: it was handed to the runtime or it is being
           // skipped permanently. Both leave the project file.
           countTaskKey(settledTaskKeys, scheduledTaskKey(task))
+          if (outcome.outcome === "partial") {
+            // Settled like a skip: the refused slots will be refused again, and the slots in the runtime must not
+            // be created twice. The same record is listed once across boots, as skips are.
+            const record = {
+              project: projectID,
+              task: outcome.taskLabel,
+              migratedSlots: outcome.migratedSlots,
+              failedSlots: outcome.failedSlots,
+            }
+            const recordKey = JSON.stringify(record)
+            if (!partial.some((entry) => JSON.stringify(entry) === recordKey)) {
+              partial.push(record)
+            }
+            logger.warn("[ScheduledTaskMigration] task partially migrated", {
+              project: projectID,
+              task: outcome.taskLabel,
+              migratedSlots: outcome.migratedSlots.length,
+              failedSlots: outcome.failedSlots.length,
+            })
+          }
           if (outcome.outcome === "skipped") {
             // A task can be skipped again on a later boot when the write that would have removed it from the file
             // failed, and the marker is a support-facing record: the same skip is listed once.
@@ -463,8 +500,8 @@ export const createScheduledTaskConvergence = (deps) => {
     }
 
     if (retryableRemaining === 0) {
-      await writeMarker({ migratedAt: Date.now(), attempts, skipped, warnings })
-      return { migrated: true, attempts, skippedCount: skipped.length }
+      await writeMarker({ migratedAt: Date.now(), attempts, skipped, partial, warnings })
+      return { migrated: true, attempts, skippedCount: skipped.length, partialCount: partial.length }
     }
 
     if (attempts >= maxAttempts) {
@@ -488,13 +525,13 @@ export const createScheduledTaskConvergence = (deps) => {
           withoutCountedTasks(currentTasks, exhaustedKeys),
         )
       }
-      await writeMarker({ migratedAt: Date.now(), attempts, skipped, warnings })
-      return { migrated: true, attempts, exhausted: true, skippedCount: skipped.length }
+      await writeMarker({ migratedAt: Date.now(), attempts, skipped, partial, warnings })
+      return { migrated: true, attempts, exhausted: true, skippedCount: skipped.length, partialCount: partial.length }
     }
 
     // Progress marker: no migratedAt, so the next boot retries the tasks that
     // remain in the project JSONs.
-    await writeMarker({ attempts, lastAttemptAt: Date.now(), skipped, warnings })
+    await writeMarker({ attempts, lastAttemptAt: Date.now(), skipped, partial, warnings })
     return { migrated: false, reason: "retry-pending", attempts, retryableRemaining }
   }
 

@@ -461,6 +461,68 @@ describe("scheduled task convergence migration", () => {
     expect(project.scheduledTasks).toHaveLength(1)
   })
 
+  it("keeps the created slots of a multi-slot task when one slot is refused, and records a partial migration", async () => {
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        const method = init.method || "GET"
+        if (method === "GET") return new Response(JSON.stringify([]), { status: 200 })
+        const body = JSON.parse(init.body)
+        harness.requests.push({ url, method, body })
+        if (body.title === "Multi (2/3)") {
+          return new Response(JSON.stringify({ error: "invalid schedule" }), { status: 400 })
+        }
+        return new Response(JSON.stringify({ id: `st_${harness.requests.length}`, status: "active" }), { status: 200 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [
+        dailyTask({ name: "Multi", schedule: { kind: "daily", times: ["09:00", "12:00", "18:00"], timezone: "UTC" } }),
+      ],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, skippedCount: 0, partialCount: 1 })
+    // The slot after the refused one is still created; nothing is rolled back.
+    expect(harness.requests.map((request) => request.body.title)).toEqual(["Multi (1/3)", "Multi (2/3)", "Multi (3/3)"])
+    expect(harness.requests.some((request) => request.method === "DELETE")).toBe(false)
+    const marker = await harness.readMarker()
+    expect(marker.skipped).toEqual([])
+    expect(marker.partial).toHaveLength(1)
+    expect(marker.partial[0]).toMatchObject({
+      project: "proj-a",
+      task: "Multi",
+      migratedSlots: ["Multi (1/3)", "Multi (3/3)"],
+      failedSlots: [{ slot: "Multi (2/3)" }],
+    })
+    expect(marker.partial[0].failedSlots[0].reason).toEqual(expect.any(String))
+    // Settled: the task leaves the project file, so the next boot does not create the kept slots again.
+    expect((await harness.readProject("proj-a.json")).scheduledTasks).toBeUndefined()
+  })
+
+  it("still records a multi-slot task as skipped when every slot is refused", async () => {
+    const harness = await createHarness({
+      runtimeHandler: async (url, init = {}) => {
+        if ((init.method || "GET") === "GET") return new Response(JSON.stringify([]), { status: 200 })
+        return new Response(JSON.stringify({ error: "task cap reached" }), { status: 409 })
+      },
+    })
+    cleanup = harness.cleanup
+    await harness.writeProject("proj-a.json", {
+      projectPath: "/work/alpha",
+      scheduledTasks: [dailyTask({ name: "Multi", schedule: { kind: "daily", times: ["09:00", "18:00"], timezone: "UTC" } })],
+    })
+
+    const result = await harness.convergence.migrate()
+
+    expect(result).toMatchObject({ migrated: true, skippedCount: 1, partialCount: 0 })
+    const marker = await harness.readMarker()
+    expect(marker.partial).toEqual([])
+    expect(marker.skipped).toEqual([expect.objectContaining({ project: "proj-a", task: "Multi" })])
+  })
+
   it("records permanent skips (unsupported cron, slash commands) and still finalizes", async () => {
     const harness = await createHarness()
     cleanup = harness.cleanup

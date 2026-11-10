@@ -44,6 +44,11 @@ desktop scheduled-tasks engine and converges on the ax-code runtime's
     writes `scheduled-tasks-migrated.json` next to the projects dir with the
     skip/warning report. Only confirmed tasks are removed from the project
     JSON; the `scheduledTasks` key is deleted once nothing remains.
+  - A multi-slot task whose slots are only partly accepted (the others get a
+    permanent 400/409) keeps the created slots — nothing is rolled back — and
+    is listed in the marker's `partial` array with `migratedSlots` and
+    `failedSlots` (`{ slot, reason }`). A task with every slot refused is a
+    `skipped` entry as before.
 
 ## Related
 
