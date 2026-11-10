@@ -41,7 +41,10 @@ export const pollCurrentGitHubDeviceFlow = async ({
       return { status: "slow-down" }
     }
 
-    if (result.status === "expired_token" || result.status === "access_denied") {
+    // Only authorization_pending (or no status at all) means "keep waiting". GitHub's other codes -
+    // incorrect_device_code, device_flow_disabled, unsupported_grant_type, incorrect_client_credentials - never
+    // clear on a retry, and reading them as pending left the dialog polling until the code expired.
+    if (result.status && result.status !== "authorization_pending") {
       return { status: "authorization-failed", error: result.error }
     }
 

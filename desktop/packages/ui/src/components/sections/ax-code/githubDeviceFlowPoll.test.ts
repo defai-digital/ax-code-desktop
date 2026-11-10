@@ -42,6 +42,29 @@ describe("pollCurrentGitHubDeviceFlow", () => {
     ).resolves.toEqual({ status: "authorization-failed", error: "Expired" })
   })
 
+  test("keeps waiting while authorization is pending", async () => {
+    await expect(
+      pollCurrentGitHubDeviceFlow({
+        deviceCode: "device-1",
+        pollOnce: vi.fn(async () => ({ connected: false, status: "authorization_pending" }) as const),
+        isCurrent: () => true,
+      }),
+    ).resolves.toEqual({ status: "pending" })
+  })
+
+  test.each(["incorrect_device_code", "device_flow_disabled", "unsupported_grant_type"])(
+    "stops polling on GitHub's %s refusal",
+    async (code) => {
+      await expect(
+        pollCurrentGitHubDeviceFlow({
+          deviceCode: "device-1",
+          pollOnce: vi.fn(async () => ({ connected: false, status: code, error: "Refused" }) as const),
+          isCurrent: () => true,
+        }),
+      ).resolves.toEqual({ status: "authorization-failed", error: "Refused" })
+    },
+  )
+
   test("suppresses stale poll results", async () => {
     await expect(
       pollCurrentGitHubDeviceFlow({
