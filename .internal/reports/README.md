@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.16 maintenance candidate](RELEASE-2026-11-10-v7.30.16-candidate.md): synchronized fixes and
+  retry-safe completion of GitHub device sign-in.
+
 - [Desktop 7.30.15 verified publication](RELEASE-2026-11-09-v7.30.15-publication.md): signed four-platform release
   and independent public readback.
 

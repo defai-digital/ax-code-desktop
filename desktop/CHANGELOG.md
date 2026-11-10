@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.16] - 2026-11-10
+
+### Fixed
+
+- Preserve an exchanged GitHub device-flow token until credentials are saved and account readback completes, so transient local failures can retry without restarting authorization.
+- Retry GitHub account lookup with the already issued device-flow token after a temporary provider failure.
+- Merge session-folder edits across windows using revision checks and client-side three-way reconciliation.
+- Record partially accepted multi-slot scheduled tasks as partial migrations instead of silently skipping accepted slots.
+- Return HTTP 400 for refused Git input and preserve real conflict filenames.
+
+### Changed
+
+- Document that local application previews run with the same trust as the local project.
+
 ## [7.30.15] - 2026-11-09
 
 ### Fixed

@@ -336,8 +336,6 @@ export function registerGitHubRoutes(app) {
         console.error("GitHub sign-in succeeded but the account lookup failed:", error?.message || error)
         return res.status(502).json({ error: "GitHub account lookup failed; retrying" })
       }
-      exchangedDeviceTokens.delete(tokenKey)
-
       setGitHubAuth({
         accessToken,
         scope: typeof payload.scope === "string" ? payload.scope : "",
@@ -345,12 +343,16 @@ export function registerGitHubRoutes(app) {
         user,
       })
       await clearGitHubAccountScopedCaches()
+      const accounts = getGitHubAuthAccounts()
+      // A local storage/readback failure must leave the single-use exchange available for the next poll.
+      // Only drop it once credentials and the complete response are ready; GitHub cannot issue it twice.
+      exchangedDeviceTokens.delete(tokenKey)
 
       return res.json({
         connected: true,
         user,
         scope: typeof payload.scope === "string" ? payload.scope : "",
-        accounts: getGitHubAuthAccounts(),
+        accounts,
       })
     } catch (error) {
       console.error("Failed to complete GitHub device flow:", error)

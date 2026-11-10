@@ -716,6 +716,36 @@ describe("github routes", () => {
       expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
     })
 
+    it.each(["storage", "accounts"])("keeps the issued token when local %s completion fails", async (failure) => {
+      const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
+      exchangeDeviceCode.mockResolvedValueOnce(issuedToken)
+      exchangeDeviceCode.mockResolvedValue({ error: "incorrect_device_code", error_description: "already used" })
+      getAuthenticatedMock.mockResolvedValue(user)
+      if (failure === "storage") {
+        setGitHubAuth.mockImplementationOnce(() => {
+          throw new Error("Auth storage temporarily unavailable")
+        })
+      } else {
+        getGitHubAuthAccounts.mockImplementationOnce(() => {
+          throw new Error("Accounts temporarily unreadable")
+        })
+      }
+      const app = createApp()
+
+      const first = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-local" })
+      expect(first.status).toBe(500)
+      expect(JSON.stringify(first.body)).not.toContain(issuedToken.access_token)
+
+      const second = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-local" }).expect(200)
+      expect(second.body).toMatchObject({ connected: true, user: { login: "alice" } })
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(1)
+      expect(setGitHubAuth).toHaveBeenLastCalledWith(expect.objectContaining({ accessToken: issuedToken.access_token }))
+
+      const replay = await request(app).post("/api/github/auth/complete").send({ deviceCode: "dev-local" }).expect(200)
+      expect(replay.body).toMatchObject({ connected: false, status: "incorrect_device_code" })
+      expect(exchangeDeviceCode).toHaveBeenCalledTimes(2)
+    })
+
     it("ends the sign-in when GitHub rejects the token it just issued", async () => {
       const { exchangeDeviceCode, setGitHubAuth } = await import("./index.js")
       exchangeDeviceCode.mockResolvedValue(issuedToken)
