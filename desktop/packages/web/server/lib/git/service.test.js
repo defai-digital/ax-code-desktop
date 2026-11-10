@@ -1855,6 +1855,85 @@ describe("commit with selected files", () => {
 })
 
 describe("getCommitFiles rename handling", () => {
+  // These real filesystem fixtures contain ">", which Windows filenames cannot contain.
+  it.skipIf(process.platform === "win32").each([
+    "old => new.txt",
+    "{old => new}.txt",
+    " spaced => name.txt ",
+    "tab\t => name.txt",
+    "line\n => name.txt",
+  ])(
+    "keeps a literal rename-like filename %j when listing an edited commit",
+    async (filePath) => {
+      if (!canRunGit()) return
+
+      const { tmpDir: repo } = await createTempRepo()
+      fs.writeFileSync(path.join(repo, filePath), "before\n")
+      runGit(repo, ["add", "--", filePath])
+      runGit(repo, ["commit", "-m", "base"])
+      fs.writeFileSync(path.join(repo, filePath), "before\nafter\n")
+      runGit(repo, ["commit", "-am", "edit literal filename"])
+      const hash = runGit(repo, ["rev-parse", "HEAD"]).trim()
+
+      const { files } = await getCommitFiles(repo, hash)
+
+      expect(files).toEqual([{ path: filePath, insertions: 1, deletions: 0, isBinary: false, changeType: "M" }])
+      await expect(getCommitFileDiff(repo, hash, files[0].path, false)).resolves.toEqual({
+        original: "before\n",
+        modified: "before\nafter\n",
+        isBinary: false,
+      })
+    },
+  )
+
+  it.skipIf(process.platform === "win32")("keeps literal binary additions and deletions distinct from a suffix filename", async () => {
+    if (!canRunGit()) return
+
+    const { tmpDir: repo } = await createTempRepo()
+    const filePath = "old => new.bin"
+    fs.writeFileSync(path.join(repo, "new.bin"), "before\n")
+    runGit(repo, ["add", "--", "new.bin"])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.writeFileSync(path.join(repo, filePath), Buffer.from([0, 1, 2]))
+    fs.writeFileSync(path.join(repo, "new.bin"), "before\nafter\n")
+    runGit(repo, ["add", "-A"])
+    runGit(repo, ["commit", "-m", "add literal binary filename"])
+
+    const added = await getCommitFiles(repo, runGit(repo, ["rev-parse", "HEAD"]).trim())
+    expect(added.files).toHaveLength(2)
+    expect(added.files).toContainEqual({ path: filePath, insertions: 0, deletions: 0, isBinary: true, changeType: "A" })
+    expect(added.files).toContainEqual({ path: "new.bin", insertions: 1, deletions: 0, isBinary: false, changeType: "M" })
+
+    runGit(repo, ["rm", "--", filePath])
+    runGit(repo, ["commit", "-m", "delete literal binary filename"])
+    const deleted = await getCommitFiles(repo, runGit(repo, ["rev-parse", "HEAD"]).trim())
+    expect(deleted.files).toEqual([{ path: filePath, insertions: 0, deletions: 0, isBinary: true, changeType: "D" }])
+  })
+
+  it.skipIf(process.platform === "win32").each(["old => new.txt", "{old => new}.txt"])(
+    "keeps a rename destination whose literal name is %j",
+    async (destination) => {
+      if (!canRunGit()) return
+
+      const { tmpDir: repo } = await createTempRepo()
+      fs.writeFileSync(path.join(repo, "source.txt"), "unchanged\n")
+      runGit(repo, ["add", "--", "source.txt"])
+      runGit(repo, ["commit", "-m", "base"])
+      runGit(repo, ["mv", "--", "source.txt", destination])
+      runGit(repo, ["commit", "-m", "rename to literal filename"])
+      const hash = runGit(repo, ["rev-parse", "HEAD"]).trim()
+
+      const { files } = await getCommitFiles(repo, hash)
+
+      expect(files).toEqual([{ path: destination, insertions: 0, deletions: 0, isBinary: false, changeType: "R" }])
+      await expect(getCommitFileDiff(repo, hash, files[0].path, false)).resolves.toEqual({
+        original: "unchanged\n",
+        modified: "unchanged\n",
+        isBinary: false,
+      })
+    },
+  )
+
   it("reports a renamed file's destination path so its diff can be loaded", async () => {
     if (!canRunGit()) return
 

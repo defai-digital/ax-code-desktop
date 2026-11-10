@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Preserve literal filenames containing ` => ` or braces in commit history and file diffs, including rename destinations.
 - Share overlapping GitHub device sign-in polls and preserve retry tokens when the bounded cache is full.
 - Preserve snake_case identifiers and inline code in notification previews, completion summaries and project notes.
 - Derive notification project names from Windows paths and directories with trailing separators.

@@ -2381,20 +2381,6 @@ const parseGitNameStatusZ = (raw) => {
   return entries
 }
 
-const extractGitNumstatDestinationPath = (filePath) => {
-  if (!filePath.includes(" => ")) {
-    return filePath
-  }
-
-  const braceMatch = filePath.match(/^(.*)\{([^{}]*)\s=>\s([^{}]*)\}(.*)$/)
-  if (braceMatch) {
-    const [, prefix, , destination, suffix] = braceMatch
-    return `${prefix}${destination}${suffix}`.replace(/\/+/g, "/")
-  }
-
-  return filePath.split(" => ").pop()?.trim() || filePath
-}
-
 const looksBinaryBySniff = async (absolutePath) => {
   try {
     const handle = await fsp.open(absolutePath, "r")
@@ -5044,22 +5030,13 @@ export async function getCommitFiles(directory, commitHash) {
       const deletions = deletionsRaw === "-" ? 0 : parseInt(deletionsRaw, 10) || 0
       const isBinary = insertionsRaw === "-" && deletionsRaw === "-"
 
-      let changeType = "M"
-
-      // `git show --numstat` can write a rename as `old.ts => new.ts` or `src/{old.ts => new.ts}`, which is
-      // not a path: the history view passed it back as `commit-file-diff`'s `path` and every renamed file
-      // answered 500. The destination is what the file is called at this commit.
-      const displayPath = filePath.includes(" => ") ? extractGitNumstatDestinationPath(filePath) : filePath
-      if (isRename || filePath.includes(" => ")) {
-        changeType = "R"
-      }
-
+      // With `-z`, rename boundaries are NUL records; " => " and braces inside a path are literal filename text.
       files.push({
-        path: displayPath,
+        path: filePath,
         insertions,
         deletions,
         isBinary,
-        changeType,
+        changeType: isRename ? "R" : "M",
       })
     }
 
@@ -5071,9 +5048,7 @@ export async function getCommitFiles(directory, commitHash) {
     }
 
     for (const file of files) {
-      const basePath = extractGitNumstatDestinationPath(file.path)
-
-      const status = statusMap.get(basePath) || statusMap.get(file.path)
+      const status = statusMap.get(file.path)
       if (status) {
         file.changeType = status
       }
