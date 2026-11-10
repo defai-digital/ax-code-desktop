@@ -31,4 +31,27 @@ describe("notification message helpers", () => {
 
     expect(result).toBe("Committed. Commit: 85924b9d Message: fix desktop notifications")
   })
+
+  it("keeps intraword underscores and code span text while stripping real emphasis", async () => {
+    const result = await prepareNotificationLastMessage({
+      message: "Updated file_name_utils.py and `my_var_x` in __init__ with _care_ and __bold__ text",
+      settings: { maxLastMessageLength: 200 },
+    })
+
+    expect(result).toBe("Updated file_name_utils.py and my_var_x in init with care and bold text")
+  })
+
+  it("keeps markdown characters inside inline code verbatim", async () => {
+    const result = await prepareNotificationLastMessage({
+      message: "Run `a * b * c` then `[x](y)`",
+      settings: { maxLastMessageLength: 200 },
+    })
+
+    expect(result).toBe("Run a * b * c then [x](y)")
+  })
+
+  it("does not split a surrogate pair when truncating", () => {
+    expect(truncateNotificationText("ab\u{1F600}cd", 3)).toBe("ab...")
+    expect(truncateNotificationText("ab\u{1F600}cd", 4)).toBe("ab\u{1F600}...")
+  })
 })
