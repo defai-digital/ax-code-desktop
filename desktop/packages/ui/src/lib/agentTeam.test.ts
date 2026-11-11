@@ -4,6 +4,7 @@ import {
   agentTeamSelfReviewModels,
   disableAgentTeam,
   emptyAgentTeam,
+  isAgentTeamRoleIncomplete,
   parseAgentTeam,
   resolveAgentTeamSend,
   setAgentTeamRoleEnabled,
@@ -138,8 +139,29 @@ describe("resolveAgentTeamSend", () => {
     expect(send.directive).toContain("changed no files")
   })
 
+  test("a single QA model is not sent: the runtime's council refuses one reviewer", () => {
+    const one = team([], [C])
+    expect(isAgentTeamRoleIncomplete(one, "qa")).toBe(true)
+    expect(resolveAgentTeamSend(one, LEAD)).toEqual({ ...LEAD, directive: null })
+    expect(agentTeamExtraModelCount(one)).toBe(0)
+
+    // The coder half of the team still runs.
+    expect(resolveAgentTeamSend(team([A], [C]), LEAD)).toEqual({ ...A, directive: null })
+    expect(isAgentTeamRoleIncomplete(team([], [C, D]), "qa")).toBe(false)
+    expect(isAgentTeamRoleIncomplete(disableAgentTeam(one), "qa")).toBe(false)
+  })
+
+  test("a panel above council's default member limit tells the lead to report dropped reviewers", () => {
+    const four = resolveAgentTeamSend(team([], [A, C, D, E]), LEAD).directive ?? ""
+    expect(four).toContain("modes.council.maxMembers")
+    expect(four).toContain("left out")
+
+    const three = resolveAgentTeamSend(team([], [C, D, E]), LEAD).directive ?? ""
+    expect(three).not.toContain("modes.council.maxMembers")
+  })
+
   test("one coder plus QA: the coder runs the turn and is told to request the review", () => {
-    const send = resolveAgentTeamSend(team([A], [C]), LEAD)
+    const send = resolveAgentTeamSend(team([A], [C, D]), LEAD)
     expect(send.providerID).toBe(A.providerID)
     expect(send.modelID).toBe(A.modelID)
     expect(send.directive).toContain("**council**")
@@ -156,7 +178,7 @@ describe("resolveAgentTeamSend", () => {
   })
 
   test("every directive forbids substituting members and fabricating output", () => {
-    const directive = resolveAgentTeamSend(team([], [C]), LEAD).directive ?? ""
+    const directive = resolveAgentTeamSend(team([], [C, D]), LEAD).directive ?? ""
     expect(directive).toContain("Pass exactly the listed providers")
     expect(directive).toContain("never fabricate")
     expect(directive).toContain("Do not change configuration yourself")

@@ -10,11 +10,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { useModelLists } from "@/hooks/useModelLists"
 import {
   AGENT_TEAM_LIMITS,
+  AGENT_TEAM_MINIMUMS,
   AGENT_TEAM_ROLES,
+  COUNCIL_DEFAULT_MAX_MEMBERS,
   activeAgentTeamModels,
   agentTeamExtraModelCount,
   agentTeamSelfReviewModels,
   emptyAgentTeam,
+  isAgentTeamRoleIncomplete,
   isSameAgentTeamModel,
   type AgentTeamModelRef,
   type AgentTeamRole,
@@ -67,6 +70,10 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
   const max = AGENT_TEAM_LIMITS[role]
   const label = t(ROLE_LABEL_KEYS[role])
   const atLimit = models.length >= max
+  // Ticked, but with too few models to run: the role is skipped on send, so it must not look active.
+  const incomplete = isAgentTeamRoleIncomplete(team, role)
+  const needsMore = t("chat.agentTeam.needsMore", { min: AGENT_TEAM_MINIMUMS[role] })
+  const overCouncilLimit = role === "qa" && models.length > COUNCIL_DEFAULT_MAX_MEMBERS
   const names = models.map(nameOf).join(", ")
   const count = t("chat.agentTeam.selectedCount", { count: models.length, max })
   const menuTitle = t("chat.agentTeam.menuTitle", { role: label })
@@ -123,11 +130,12 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
     <div
       data-agent-team-role={role}
       data-enabled={enabled ? "true" : "false"}
+      data-incomplete={incomplete ? "true" : undefined}
       className={cn(
         "inline-flex h-7 min-w-0 flex-shrink-0 items-center rounded-md border typography-micro transition-colors",
-        enabled
-          ? "border-emerald-500/35 bg-emerald-500/10 dark:border-emerald-400/40"
-          : "border-[var(--interactive-border)]",
+        !enabled && "border-[var(--interactive-border)]",
+        enabled && !incomplete && "border-emerald-500/35 bg-emerald-500/10 dark:border-emerald-400/40",
+        incomplete && "border-[var(--status-warning)]",
       )}
     >
       <button
@@ -180,6 +188,9 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
                         {models.length}/{max}
                       </span>
                     ) : null}
+                    {incomplete ? (
+                      <span className="flex-shrink-0 text-[var(--status-warning)]">{needsMore}</span>
+                    ) : null}
                   </>
                 ) : (
                   <span className="flex-shrink-0">{upTo}</span>
@@ -192,6 +203,7 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
             <p className="font-medium">
               {menuTitle} · {models.length > 0 ? count : upTo}
             </p>
+            {incomplete ? <p className="text-[var(--status-warning)]">{needsMore}</p> : null}
             {models.map((model) => (
               <p key={`${model.providerID}/${model.modelID}`} className="text-muted-foreground">
                 {nameOf(model)}
@@ -228,8 +240,16 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
               ) : null
             }
             footerContent={
-              <span aria-live="polite" className={atLimit ? "text-foreground" : undefined}>
-                {atLimit ? `${count} · ${t("chat.agentTeam.limitReached")}` : count}
+              <span aria-live="polite" className="flex flex-col">
+                <span className={atLimit ? "text-foreground" : undefined}>
+                  {atLimit ? `${count} · ${t("chat.agentTeam.limitReached")}` : count}
+                  {incomplete ? <span className="text-[var(--status-warning)]"> · {needsMore}</span> : null}
+                </span>
+                {overCouncilLimit ? (
+                  <span className="text-[var(--status-warning)]">
+                    {t("chat.agentTeam.hint.qaMemberLimit", { limit: COUNCIL_DEFAULT_MAX_MEMBERS })}
+                  </span>
+                ) : null}
               </span>
             }
           />
@@ -287,8 +307,17 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   if (coders.length === 1) details.push(t("chat.agentTeam.hint.coderSingle", { model: nameOf(coders[0]!) }))
   if (coders.length >= 2) details.push(t("chat.agentTeam.hint.coderArena"))
   if (qa.length > 0) details.push(t("chat.agentTeam.hint.qa"))
-  const hint = extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : (details[0] ?? "")
-  const warning = selfReview.length > 0 ? t("chat.agentTeam.selfReview") : ""
+  const warnings: string[] = []
+  if (isAgentTeamRoleIncomplete(team, "qa")) {
+    warnings.push(t("chat.agentTeam.hint.qaNeedsMore", { min: AGENT_TEAM_MINIMUMS.qa }))
+  }
+  if (qa.length > COUNCIL_DEFAULT_MAX_MEMBERS) {
+    warnings.push(t("chat.agentTeam.hint.qaMemberLimit", { limit: COUNCIL_DEFAULT_MAX_MEMBERS }))
+  }
+  if (selfReview.length > 0) warnings.push(t("chat.agentTeam.selfReview"))
+  const hint =
+    extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : (details[0] ?? warnings[0] ?? "")
+  const warning = warnings.join(" ")
 
   return (
     <div
@@ -315,7 +344,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
             <span
               data-agent-team-hint
               data-warning={warning ? "true" : undefined}
-              aria-label={warning ? `${warning}. ${hint}` : undefined}
+              aria-label={warning && warning !== hint ? `${warning} ${hint}` : undefined}
               tabIndex={0}
               className={cn(
                 "ml-auto flex min-w-0 items-center gap-1 rounded typography-micro",
@@ -331,7 +360,11 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
             {details.map((line) => (
               <p key={line}>{line}</p>
             ))}
-            {warning ? <p className="text-[var(--status-warning)]">{warning}</p> : null}
+            {warnings.map((line) => (
+              <p key={line} className="text-[var(--status-warning)]">
+                {line}
+              </p>
+            ))}
           </TooltipContent>
         </Tooltip>
       ) : null}

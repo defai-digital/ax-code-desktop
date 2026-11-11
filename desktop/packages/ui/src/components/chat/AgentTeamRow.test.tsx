@@ -209,6 +209,7 @@ describe("AgentTeamRow", () => {
   test("warns when a QA model reviews its own work", () => {
     // No coder is selected, so the composer model writes the code that it would then review.
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", QWEN))
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
     render()
 
     const hint = () => container.querySelector<HTMLElement>("[data-agent-team-hint]")!
@@ -217,6 +218,38 @@ describe("AgentTeamRow", () => {
 
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
     expect(hint().dataset.warning).toBeUndefined()
+  })
+
+  test("a single QA model is flagged as not enough to run", () => {
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
+    render()
+
+    const hint = () => container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+    expect(roleElement("qa").dataset.incomplete).toBe("true")
+    expect(roleElement("qa").textContent).toContain('chat.agentTeam.needsMore {"min":2}')
+    expect(hint().dataset.warning).toBe("true")
+    expect(hint().textContent).toContain('chat.agentTeam.hint.qaNeedsMore {"min":2}')
+
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", KIMI))
+    expect(roleElement("qa").dataset.incomplete).toBeUndefined()
+    expect(roleElement("qa").textContent).not.toContain("chat.agentTeam.needsMore")
+    expect(hint().textContent).toContain('chat.agentTeam.hint.extraModels {"count":2}')
+  })
+
+  test("a fourth QA model warns that council's default member limit is three", () => {
+    for (const model of [KIMI, GLM, QWEN, { providerID: "zhipu", modelID: "glm-air" }]) {
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", model))
+    }
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GLM))
+    render()
+
+    const hint = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+    expect(hint.dataset.warning).toBe("true")
+    expect(hint.getAttribute("aria-label")).toContain('chat.agentTeam.hint.qaMemberLimit {"limit":3}')
+
+    act(() => roleElement("qa").querySelectorAll<HTMLButtonElement>("button")[1]!.click())
+    expect(document.body.textContent).toContain('chat.agentTeam.hint.qaMemberLimit {"limit":3}')
   })
 
   test("a narrow composer shows counts instead of names", () => {

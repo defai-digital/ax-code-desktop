@@ -34,6 +34,18 @@ export const AGENT_TEAM_ROLES: readonly AgentTeamRole[] = ["coder", "qa"]
 /** Coders compete on real patches, so two is the useful ceiling; review benefits from a wider panel. */
 export const AGENT_TEAM_LIMITS: Record<AgentTeamRole, number> = { coder: 2, qa: 4 }
 
+/**
+ * Fewest models a role needs to run. The runtime's council refuses a single reviewer: one member
+ * cannot reach consensus.
+ */
+export const AGENT_TEAM_MINIMUMS: Record<AgentTeamRole, number> = { coder: 1, qa: 2 }
+
+/**
+ * The runtime's default `modes.council.maxMembers`. A larger QA panel is cut down to this unless the
+ * project raises the setting, so the composer and the directive both say so.
+ */
+export const COUNCIL_DEFAULT_MAX_MEMBERS = 3
+
 export function emptyAgentTeam(): AgentTeamState {
   return { coder: { enabled: false, models: [] }, qa: { enabled: false, models: [] } }
 }
@@ -110,8 +122,15 @@ export function disableAgentTeam(team: AgentTeamState): AgentTeamState {
   }
 }
 
+/** A ticked role that has too few models to run. It is skipped on send, and the composer says so. */
+export function isAgentTeamRoleIncomplete(team: AgentTeamState, role: AgentTeamRole): boolean {
+  return team[role].enabled && team[role].models.length < AGENT_TEAM_MINIMUMS[role]
+}
+
+/** Models that will actually take part: the role is ticked and has enough models to run. */
 export function activeAgentTeamModels(team: AgentTeamState, role: AgentTeamRole): AgentTeamModelRef[] {
-  return team[role].enabled ? team[role].models : []
+  const { enabled, models } = team[role]
+  return enabled && models.length >= AGENT_TEAM_MINIMUMS[role] ? models : []
 }
 
 /**
@@ -161,6 +180,11 @@ function qaStep(qa: readonly AgentTeamModelRef[], after: "arena" | "self"): stri
     `Call the **council** tool with \`kind: "review"\` and \`providers: ${providersArgument(qa)}\`.`,
     "- Set `question` to a concrete review question: does the work meet the user's request, is it correct, and does it risk regressions?",
     "- Put the evidence in `context`, within 24000 characters. If you had to leave material out, say what.",
+    ...(qa.length > COUNCIL_DEFAULT_MAX_MEMBERS
+      ? [
+          `- Council runs at most \`modes.council.maxMembers\` reviewers (default ${COUNCIL_DEFAULT_MAX_MEMBERS}). If it ran fewer than the ${qa.length} listed, name the reviewers that were left out and tell the user to raise that setting.`,
+        ]
+      : []),
     "- If the request changed no files, have the reviewers check your draft answer or analysis against the request instead.",
     "Weigh each finding against the evidence. Fix findings you can verify and that fall within what the user asked for, then re-verify; do not apply a change only because reviewers agree. Ask before anything that needs new authorization.",
   ]

@@ -76,8 +76,18 @@ describe("agent team send routing", () => {
     expect(message.additionalParts![0]!.text).toContain(JSON.stringify([GLM, DEEPSEEK]))
   })
 
+  test("a single QA model is not sent, because the runtime's council needs two reviewers", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+
+    await send()
+
+    expect(sentMessage()).toMatchObject({ providerID: "alibaba", modelID: "qwen", text: "fix the login bug" })
+    expect(sentMessage().additionalParts).toBeUndefined()
+  })
+
   test("an unticked role sends nothing even though its models are remembered", async () => {
     useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
     useAgentTeamStore.getState().disableTeam("/proj")
 
     await send()
