@@ -1,0 +1,45 @@
+{
+  "reviewer": "muse",
+  "round": "final",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 11.9,
+  "command": [
+    "muse",
+    "exec",
+    "--model",
+    "muse-wonder-1.0",
+    "--prompt-file",
+    "/Users/akiralam/code/ax-code-desktop/.internal/reviews/herdr-fit-2026-11-10/final-input.md",
+    "--preset",
+    "empty",
+    "--disable-write",
+    "--disable-shell",
+    "--disable-web-tools",
+    "--disable-reminders",
+    "--disable-request-user-input",
+    "--no-foreign-personal-context",
+    "--no-session-log",
+    "--max-model-steps",
+    "3",
+    "--json"
+  ],
+  "input": "final-input.md",
+  "raw_stdout": "/tmp/ax-desktop-herdr-fit-20261110/final-muse.stdout",
+  "raw_stderr": "/tmp/ax-desktop-herdr-fit-20261110/final-muse.stderr",
+  "scope": "Tool-free advisory consultation on supplied evidence; no product execution or approval.",
+  "reported_model_usage": [
+    {
+      "model": "muse-wonder-1.0",
+      "input_tokens": 19266,
+      "cached_tokens": 12404,
+      "output_tokens": 1642,
+      "reasoning_tokens": 901,
+      "calls": 1
+    }
+  ],
+  "output": "final-muse.md",
+  "output_sha256": "ff02242d69ecf2c3e044c501e1c52fafeccf946c0538ca79d6cb9fa9de0a0e71",
+  "input_sha256": "4d7467eeba3760a9c27bda8f80c4879f75d3a01821b5b134c9d2aee40c74cf9f",
+  "identity_limit": "Requested CLI model and native usage receipt; not an independent attestation of vendor weights."
+}

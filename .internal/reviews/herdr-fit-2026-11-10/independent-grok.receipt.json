@@ -1,0 +1,45 @@
+{
+  "reviewer": "grok",
+  "round": "independent",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 134.83,
+  "command": [
+    "grok",
+    "--model",
+    "grok-4.7",
+    "--prompt-file",
+    "/Users/akiralam/code/ax-code-desktop/.internal/reviews/herdr-fit-2026-11-10/review-input.md",
+    "--tools",
+    "",
+    "--no-subagents",
+    "--disable-web-search",
+    "--max-turns",
+    "3",
+    "--output-format",
+    "json",
+    "--verbatim",
+    "--system-prompt-override",
+    "You are an independent product and architecture reviewer. Read only the supplied evidence and answer directly in English. No tools, planning preamble, filesystem changes, delegation, or web research. State uncertainties and preserve dissent. This is advisory, not approval."
+  ],
+  "input": "review-input.md",
+  "raw_stdout": "/tmp/ax-desktop-herdr-fit-20261110/independent-grok.stdout",
+  "raw_stderr": "/tmp/ax-desktop-herdr-fit-20261110/independent-grok.stderr",
+  "scope": "Tool-free advisory consultation on supplied evidence; no product execution or approval.",
+  "reported_model_usage": {
+    "grok-4.7-build": {
+      "inputTokens": 15880,
+      "outputTokens": 6982,
+      "cacheReadInputTokens": 1152,
+      "cacheCreationInputTokens": 0,
+      "modelCalls": 1,
+      "costUSD": 0.074228
+    }
+  },
+  "reported_cost_usd": 0.074228,
+  "stop_reason": "end_turn",
+  "output": "independent-grok.md",
+  "output_sha256": "667c0099f7e73d6d1b1642b24cf67e7c4dcbfed7435ed8bf108cf053bc47cb35",
+  "input_sha256": "95ee3c9044bbb41dbe470cf87ba6cbc161c62934b7b42f2898732ddc3896f435",
+  "identity_limit": "Requested CLI model and native usage receipt; not an independent attestation of vendor weights."
+}
