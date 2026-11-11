@@ -3579,7 +3579,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max} se\u00e7ildi",
   "chat.agentTeam.limitReached": "S\u0131n\u0131ra ula\u015f\u0131ld\u0131. De\u011fi\u015ftirmek i\u00e7in birinin se\u00e7imini kald\u0131r\u0131n.",
   "chat.agentTeam.selfReview": "Kendi i\u015fini inceliyor",
-  "chat.agentTeam.noModels": "Kullan\u0131labilir model yok",
   "chat.agentTeam.hint.coderSingle": "Bu mesaj\u0131 {model} \u00e7al\u0131\u015ft\u0131r\u0131r.",
   "chat.agentTeam.hint.coderArena": "Kodlay\u0131c\u0131lar Arena \u00e7al\u0131\u015fma a\u011fa\u00e7lar\u0131nda yar\u0131\u015f\u0131r.",
   "chat.agentTeam.hint.qa": "QA, Council \u00fczerinden inceler.",

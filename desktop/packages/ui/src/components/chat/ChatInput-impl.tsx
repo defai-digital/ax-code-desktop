@@ -103,6 +103,9 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { PROJECT_COLOR_MAP, PROJECT_ICON_MAP, getProjectIconImageUrl } from "@/lib/projectMeta"
 import { useGitBranches, useGitStore, useIsGitRepo } from "@/stores/useGitStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
+import { useWorkModeStore } from "@/stores/useWorkModeStore"
+import { usableAgentTeam, type AgentTeamState } from "@/lib/agentTeam"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { ProjectSwitcher } from "@/components/chat/ProjectSwitcher"
 import { useSkillsStore } from "@/stores/useSkillsStore"
@@ -1636,6 +1639,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     setPrPickerOpen(true)
   }, [])
 
+  // The team the row shows: the current project's selection, limited to models that can run now.
+  const composerAgentTeamForSend = (): AgentTeamState | undefined => {
+    const directory = useDirectoryStore.getState().currentDirectory
+    if (useWorkModeStore.getState().getMode(directory) !== "agent") return undefined
+    return usableAgentTeam(useAgentTeamStore.getState().getTeam(directory), useConfigStore.getState().providers)
+  }
+
   const handleSubmit = async (options?: SubmitOptions) => {
     if (workSendDisabled) {
       toast.error(WORK_SESSION_SEND_DISABLED)
@@ -2309,6 +2319,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             // auto-sender (or a retry) is deduplicated by the server instead of delivering
             // the same prompt twice. Minted before dispatch when the entry had none yet.
             messageId: queuedOnly ? queuedEntryMessageId : undefined,
+            // Only a direct send from a composer that shows the team row carries the team. A queued
+            // entry is dispatched later, when the team on screen may no longer be the one it was typed under.
+            agentTeam: queuedOnly || isMobile || inputMode === "shell" ? undefined : composerAgentTeamForSend(),
           },
         )
 

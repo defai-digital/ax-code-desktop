@@ -161,6 +161,8 @@ function createHarness(command: string, options: HarnessOptions = {}) {
     },
     setExpandedInput: vi.fn(),
     isMobile: false,
+    // No Coder/QA team is ticked in these flows.
+    composerAgentTeamForSend: () => undefined,
     restoreConsumedDrafts: vi.fn(),
     useInputStore: inputStore,
     useSessionUIStore: { getState: () => state },

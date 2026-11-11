@@ -183,6 +183,21 @@ describe("AgentTeamRow", () => {
     expect(team().coder.models).toEqual([KIMI, GLM])
   })
 
+  test("a stored pick that left the catalog is not shown, and the next edit drops it", () => {
+    const GONE = { providerID: "removed", modelID: "old" }
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GONE))
+    render()
+
+    // The only coder is gone, so the role has nothing to run: it shows unticked, with no model or hint.
+    expect(checkbox("coder").getAttribute("aria-checked")).toBe("false")
+    expect(roleElement("coder").textContent).not.toContain("old")
+    expect(container.querySelector("[data-agent-team-hint]")).toBeNull()
+
+    act(() => roleElement("coder").querySelectorAll<HTMLButtonElement>("button")[1]!.click())
+    act(() => option("Kimi-K3").click())
+    expect(team().coder.models).toEqual([KIMI])
+  })
+
   test("unticking keeps the models and ticking again restores them", () => {
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
     render()

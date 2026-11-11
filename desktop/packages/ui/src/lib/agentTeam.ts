@@ -6,6 +6,8 @@
  * through its `council` tool (review). A single coder is an ordinary single-agent turn on that model.
  */
 
+import { isProviderModelSelectable } from "./providerModelAvailability"
+
 export type AgentTeamRole = "coder" | "qa"
 
 export interface AgentTeamModelRef {
@@ -117,6 +119,53 @@ export function setAgentTeamRoleEnabled(team: AgentTeamState, role: AgentTeamRol
 /** A ticked role that has too few models to run. It is skipped on send, and the composer says so. */
 export function isAgentTeamRoleIncomplete(team: AgentTeamState, role: AgentTeamRole): boolean {
   return team[role].enabled && team[role].models.length < AGENT_TEAM_MINIMUMS[role]
+}
+
+/** The provider catalog as far as the team needs it: which models exist and what they offer. */
+export interface AgentTeamCatalogProvider {
+  id: string
+  models: ReadonlyArray<Record<string, unknown> & { id: string; variants?: unknown }>
+}
+
+function findCatalogModel(providers: readonly AgentTeamCatalogProvider[], ref: AgentTeamModelRef) {
+  return providers.find((provider) => provider.id === ref.providerID)?.models.find((model) => model.id === ref.modelID)
+}
+
+/**
+ * The team restricted to models that can run now. A persisted pick whose provider was disconnected,
+ * or whose model was removed or became unusable, must not keep overriding the composer model; the
+ * picker cannot show it, so the user could not take it out either. The stored team is not changed.
+ */
+export function usableAgentTeam(team: AgentTeamState, providers: readonly AgentTeamCatalogProvider[]): AgentTeamState {
+  const usable = (ref: AgentTeamModelRef) => {
+    const model = findCatalogModel(providers, ref)
+    return model !== undefined && isProviderModelSelectable(model, ref.providerID)
+  }
+  let changed = false
+  const next = { ...team }
+  for (const role of AGENT_TEAM_ROLES) {
+    const models = team[role].models.filter(usable)
+    if (models.length === team[role].models.length) continue
+    changed = true
+    // A ticked role always has a model; one left with none shows as unticked, like toggling it empty.
+    next[role] = { enabled: team[role].enabled && models.length > 0, models }
+  }
+  return changed ? next : team
+}
+
+/**
+ * The effort variant to send with the model that runs the turn. The composer's variant belongs to
+ * the composer model; another model gets it only when it offers the same variant.
+ */
+export function agentTeamSendVariant(
+  providers: readonly AgentTeamCatalogProvider[],
+  runner: AgentTeamModelRef,
+  lead: AgentTeamModelRef,
+  variant: string | undefined,
+): string | undefined {
+  if (!variant || isSameAgentTeamModel(runner, lead)) return variant
+  const variants = findCatalogModel(providers, runner)?.variants
+  return variants && typeof variants === "object" && Object.hasOwn(variants, variant) ? variant : undefined
 }
 
 /** Models that will actually take part: the role is ticked and has enough models to run. */

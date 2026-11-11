@@ -3573,7 +3573,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max} s\u00e9lectionn\u00e9s",
   "chat.agentTeam.limitReached": "Limite atteinte. D\u00e9s\u00e9lectionnez-en un pour changer.",
   "chat.agentTeam.selfReview": "R\u00e9vise son propre travail",
-  "chat.agentTeam.noModels": "Aucun mod\u00e8le disponible",
   "chat.agentTeam.hint.coderSingle": "{model} ex\u00e9cute ce message.",
   "chat.agentTeam.hint.coderArena": "Les codeurs s\u2019affrontent dans des worktrees Arena.",
   "chat.agentTeam.hint.qa": "La QA r\u00e9vise via Council.",

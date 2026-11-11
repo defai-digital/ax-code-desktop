@@ -2252,7 +2252,6 @@ export const dict = {
   "chat.agentTeam.selectedCount": "{count}/{max} selected",
   "chat.agentTeam.limitReached": "Limit reached. Deselect one to swap.",
   "chat.agentTeam.selfReview": "Reviews its own work",
-  "chat.agentTeam.noModels": "No models available",
   "chat.agentTeam.hint.coderSingle": "{model} runs this message.",
   "chat.agentTeam.hint.coderArena": "Coders compete in Arena worktrees.",
   "chat.agentTeam.hint.qa": "QA reviews through Council.",

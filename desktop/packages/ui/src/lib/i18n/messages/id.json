@@ -3573,7 +3573,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max} dipilih",
   "chat.agentTeam.limitReached": "Batas tercapai. Batalkan satu untuk menukar.",
   "chat.agentTeam.selfReview": "Meninjau hasil kerjanya sendiri",
-  "chat.agentTeam.noModels": "Tidak ada model tersedia",
   "chat.agentTeam.hint.coderSingle": "{model} menjalankan pesan ini.",
   "chat.agentTeam.hint.coderArena": "Pemrogram bersaing di worktree Arena.",
   "chat.agentTeam.hint.qa": "QA meninjau melalui Council.",

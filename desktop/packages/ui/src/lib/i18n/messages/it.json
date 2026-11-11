@@ -3579,7 +3579,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max} selezionati",
   "chat.agentTeam.limitReached": "Limite raggiunto. Deselezionane uno per cambiare.",
   "chat.agentTeam.selfReview": "Revisiona il proprio lavoro",
-  "chat.agentTeam.noModels": "Nessun modello disponibile",
   "chat.agentTeam.hint.coderSingle": "{model} esegue questo messaggio.",
   "chat.agentTeam.hint.coderArena": "I programmatori competono nei worktree di Arena.",
   "chat.agentTeam.hint.qa": "La QA revisiona tramite Council.",

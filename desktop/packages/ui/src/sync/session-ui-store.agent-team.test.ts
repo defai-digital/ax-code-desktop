@@ -11,30 +11,45 @@ vi.mock("@/lib/ax-code/client", () => ({
     sendMessage: (input: Record<string, unknown>) => sendMessage(input),
     sendCommand: (input: Record<string, unknown>) => sendCommand(input),
   },
+  ascendingId: (prefix: string) => `${prefix}_minted`,
+  isValidMessageId: (id: string) => id.startsWith("msg_"),
 }))
 
 vi.mock("./session-actions", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./session-actions")>()),
   // The optimistic insert needs live sync state; the routing under test is what `send` receives.
-  optimisticSend: (input: { send: (messageID: string) => Promise<void> }) => input.send("message-1"),
+  optimisticSend: (input: { messageId?: string; send: (messageID: string) => Promise<void> }) =>
+    input.send(input.messageId ?? "msg_optimistic"),
 }))
 
 const { routeMessage, useSessionUIStore } = await import("./session-ui-store")
 const { useAgentTeamStore } = await import("@/stores/useAgentTeamStore")
 const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 const { useCommandsStore } = await import("@/stores/useCommandsStore")
+const { useConfigStore } = await import("@/stores/useConfigStore")
 
 const KIMI = { providerID: "moonshot", modelID: "kimi" }
 const GLM = { providerID: "zhipu", modelID: "glm" }
 const DEEPSEEK = { providerID: "deepseek", modelID: "v4" }
 
-const send = (content = "fix the login bug") =>
-  routeMessage({ sessionId: "session-1", directory: "/proj", content, providerID: "alibaba", modelID: "qwen" })
+// The composer passes the team it shows; `withTeam: false` is any other sender.
+const send = (content = "fix the login bug", options: { withTeam?: boolean; variant?: string } = {}) =>
+  routeMessage({
+    sessionId: "session-1",
+    directory: "/proj",
+    content,
+    providerID: "alibaba",
+    modelID: "qwen",
+    variant: options.variant,
+    agentTeam: options.withTeam === false ? undefined : useAgentTeamStore.getState().getTeam("/proj"),
+  })
 
 const sentMessage = () => sendMessage.mock.calls[0]![0] as {
   providerID: string
   modelID: string
   text: string
+  variant?: string
+  messageId?: string
   additionalParts?: Array<{ text: string; synthetic?: boolean }>
 }
 
@@ -42,7 +57,7 @@ describe("agent team send routing", () => {
   beforeEach(() => {
     sendMessage.mockClear()
     sendCommand.mockClear()
-    useAgentTeamStore.setState({ teamByDirectory: {} })
+    useAgentTeamStore.setState({ teamByDirectory: {}, coderMessageIds: [] })
     useWorkModeStore.setState({ modeByDirectory: {} })
   })
 
@@ -113,12 +128,55 @@ describe("agent team send routing", () => {
     expect(sentMessage().additionalParts?.[0]?.text).toContain("**council**")
   })
 
-  test("a team picked for another project does not leak into this send", async () => {
-    useAgentTeamStore.getState().toggleModel("/other", "coder", KIMI)
+  test("a sender that does not pass the team is sent exactly as requested", async () => {
+    // Plans, quick dispatch, reviews, retries and queued follow-ups picked their own model.
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
+
+    await send("run the plan", { withTeam: false, variant: "high" })
+
+    expect(sentMessage()).toMatchObject({ providerID: "alibaba", modelID: "qwen", variant: "high" })
+    expect(sentMessage().additionalParts).toBeUndefined()
+    expect(useAgentTeamStore.getState().coderMessageIds).toEqual([])
+  })
+
+  test("a turn a single coder runs is recorded, so the composer does not adopt the coder", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
 
     await send()
 
-    expect(sentMessage()).toMatchObject({ providerID: "alibaba", modelID: "qwen" })
+    expect(sentMessage().messageId).toBe("msg_minted")
+    expect(useAgentTeamStore.getState().isCoderMessage("msg_minted")).toBe(true)
+  })
+
+  test("a turn the composer model runs is not recorded as a coder turn", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
+
+    await send()
+
+    expect(useAgentTeamStore.getState().coderMessageIds).toEqual([])
+  })
+
+  test("the composer's effort variant goes to a coder only when the coder offers it", async () => {
+    useConfigStore.setState({
+      providers: [
+        { id: "moonshot", models: [{ id: "kimi", variants: { high: {} } }] },
+        { id: "zhipu", models: [{ id: "glm" }] },
+      ],
+    } as never)
+
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
+    await send("a", { variant: "high" })
+    expect(sentMessage()).toMatchObject({ ...KIMI, variant: "high" })
+
+    sendMessage.mockClear()
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", GLM)
+    await send("b", { variant: "high" })
+    expect(sentMessage()).toMatchObject(GLM)
+    expect(sentMessage().variant).toBeUndefined()
   })
 
   test("Council work mode owns the fan-out: the team is not applied to its command", async () => {

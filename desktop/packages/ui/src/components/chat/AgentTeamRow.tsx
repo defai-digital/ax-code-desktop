@@ -20,6 +20,8 @@ import {
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
   isSameAgentTeamModel,
+  toggleAgentTeamModel,
+  usableAgentTeam,
   type AgentTeamModelRef,
   type AgentTeamRole,
   type AgentTeamState,
@@ -410,13 +412,15 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
   const dirKey = normalizeDirectoryKey(currentDirectory)
   const workMode = useWorkModeStore((s) => parseWorkMode(s.modeByDirectory[dirKey]))
-  const team = useAgentTeamStore((s) => s.teamByDirectory[dirKey] ?? EMPTY_TEAM)
-  const toggleModel = useAgentTeamStore((s) => s.toggleModel)
+  const storedTeam = useAgentTeamStore((s) => s.teamByDirectory[dirKey] ?? EMPTY_TEAM)
   const setRoleEnabled = useAgentTeamStore((s) => s.setRoleEnabled)
   const setTeam = useAgentTeamStore((s) => s.setTeam)
   const providers = useConfigStore((s) => s.providers)
   const leadProviderId = useConfigStore((s) => s.currentProviderId)
   const leadModelId = useConfigStore((s) => s.currentModelId)
+  // Show, count and send the same models: a stored pick that can no longer run is left out here and
+  // in the composer's send, and the next edit drops it from the store.
+  const team = React.useMemo(() => usableAgentTeam(storedTeam, providers), [storedTeam, providers])
 
   const nameOf = React.useCallback(
     (ref: AgentTeamModelRef) => {
@@ -428,8 +432,11 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
 
   const onToggleModel = React.useCallback(
     (role: AgentTeamRole, model: AgentTeamModelRef) =>
-      toggleModel(currentDirectory, role, { providerID: model.providerID, modelID: model.modelID }),
-    [currentDirectory, toggleModel],
+      setTeam(
+        currentDirectory,
+        toggleAgentTeamModel(team, role, { providerID: model.providerID, modelID: model.modelID }),
+      ),
+    [currentDirectory, setTeam, team],
   )
   const onSetEnabled = React.useCallback(
     (role: AgentTeamRole, enabled: boolean) => setRoleEnabled(currentDirectory, role, enabled),

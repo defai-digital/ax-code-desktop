@@ -3,6 +3,7 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
+import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
 import type { ProviderWithModelList } from "@/types/providerModels"
@@ -33,6 +34,8 @@ let container: HTMLDivElement
 let root: Root
 beforeEach(() => {
   messages[0].agent = "plan"
+  messages[0].modelOrigin = "agent"
+  useAgentTeamStore.setState({ coderMessageIds: [] })
   useConfigStore.setState({
     providers: [
       {
@@ -178,4 +181,25 @@ test("a late agent name waits for discovery instead of replaying a pin from lega
   })
   expect(useConfigStore.getState().currentModelId).toBe("picked")
   expect(useSelectionStore.getState().getAgentModelForSession("session-imported", "plan")?.modelId).toBe("routed")
+})
+
+test("a turn the composer's single Coder ran does not replace the composer model", async () => {
+  // The coder's model is recorded as an explicit request, which is otherwise the user's own pick.
+  messages[0].modelOrigin = "request"
+  useAgentTeamStore.getState().markCoderMessage("msg-2")
+  useConfigStore.setState({ currentAgentName: "plan" })
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  expect(useConfigStore.getState().currentModelId).toBe("picked")
+  expect(useSelectionStore.getState().getSessionModelSelection("session-imported")).toBeFalsy()
+})
+
+test("a requested model on an ordinary turn is still restored", async () => {
+  messages[0].modelOrigin = "request"
+  useConfigStore.setState({ currentAgentName: "plan" })
+  await act(async () => {
+    root.render(<ModelControls />)
+  })
+  expect(useConfigStore.getState().currentModelId).toBe("routed")
 })

@@ -1,6 +1,8 @@
 import { describe, expect, test } from "vitest"
 import {
   agentTeamExtraModelCount,
+  agentTeamSendVariant,
+  usableAgentTeam,
   agentTeamSelfReviewModels,
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
@@ -198,5 +200,51 @@ describe("self-review and cost cue", () => {
     expect(agentTeamExtraModelCount(team([A, B], []))).toBe(2)
     expect(agentTeamExtraModelCount(team([A], [C, D]))).toBe(2)
     expect(agentTeamExtraModelCount(team([A, B], [C, D, E, LEAD]))).toBe(6)
+  })
+})
+
+describe("usableAgentTeam", () => {
+  const catalog = [
+    { id: "moonshot", models: [{ id: "kimi" }] },
+    { id: "zhipu", models: [{ id: "glm" }] },
+    // Cannot return text, so the composer refuses it too.
+    { id: "deepseek", models: [{ id: "v4", capabilities: { output: { text: false } } }] },
+  ]
+
+  test("drops models whose provider is gone, that left the catalog, or that cannot run", () => {
+    const usable = usableAgentTeam(team([A, D], [B, C, E]), catalog)
+    expect(usable.coder).toEqual({ enabled: true, models: [A] })
+    expect(usable.qa).toEqual({ enabled: true, models: [B] })
+  })
+
+  test("a role left below its minimum no longer runs", () => {
+    const usable = usableAgentTeam(team([], [B, C]), catalog)
+    expect(resolveAgentTeamSend(usable, LEAD)).toEqual({ ...LEAD, directive: null })
+  })
+
+  test("a team that is entirely usable is returned as is", () => {
+    const state = team([A], [A, B])
+    expect(usableAgentTeam(state, catalog)).toBe(state)
+  })
+})
+
+describe("agentTeamSendVariant", () => {
+  const catalog = [
+    { id: "moonshot", models: [{ id: "kimi", variants: { high: {}, max: {} } }] },
+    { id: "zhipu", models: [{ id: "glm" }] },
+  ]
+
+  test("the composer model keeps its own variant", () => {
+    expect(agentTeamSendVariant(catalog, LEAD, LEAD, "high")).toBe("high")
+  })
+
+  test("a coder gets the variant only when it offers the same one", () => {
+    expect(agentTeamSendVariant(catalog, A, LEAD, "high")).toBe("high")
+    expect(agentTeamSendVariant(catalog, A, LEAD, "low")).toBeUndefined()
+    expect(agentTeamSendVariant(catalog, B, LEAD, "high")).toBeUndefined()
+  })
+
+  test("no variant stays no variant", () => {
+    expect(agentTeamSendVariant(catalog, A, LEAD, undefined)).toBeUndefined()
   })
 })

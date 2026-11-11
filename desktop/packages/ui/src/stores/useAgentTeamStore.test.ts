@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "vitest"
-import { useAgentTeamStore } from "./useAgentTeamStore"
+import { MAX_CODER_MESSAGE_IDS, useAgentTeamStore } from "./useAgentTeamStore"
 
 const A = { providerID: "moonshot", modelID: "kimi" }
 const B = { providerID: "zhipu", modelID: "glm" }
@@ -7,7 +7,7 @@ const C = { providerID: "deepseek", modelID: "v4" }
 
 describe("useAgentTeamStore", () => {
   beforeEach(() => {
-    useAgentTeamStore.setState({ teamByDirectory: {} })
+    useAgentTeamStore.setState({ teamByDirectory: {}, coderMessageIds: [] })
   })
 
   test("an unknown directory has an empty team", () => {
@@ -58,5 +58,19 @@ describe("useAgentTeamStore", () => {
 
     useAgentTeamStore.getState().setRoleEnabled("/one", "coder", true)
     expect(useAgentTeamStore.getState().getTeam("/one").coder.enabled).toBe(true)
+  })
+
+  test("coder turns are remembered once each, keeping only the newest", () => {
+    const store = useAgentTeamStore.getState()
+    store.markCoderMessage("msg_a")
+    store.markCoderMessage("msg_a")
+    expect(useAgentTeamStore.getState().coderMessageIds).toEqual(["msg_a"])
+    expect(store.isCoderMessage("msg_a")).toBe(true)
+    expect(store.isCoderMessage("msg_b")).toBe(false)
+    expect(store.isCoderMessage("")).toBe(false)
+
+    for (let i = 0; i < MAX_CODER_MESSAGE_IDS; i += 1) store.markCoderMessage(`msg_${i}`)
+    expect(useAgentTeamStore.getState().coderMessageIds).toHaveLength(MAX_CODER_MESSAGE_IDS)
+    expect(store.isCoderMessage("msg_a")).toBe(false)
   })
 })

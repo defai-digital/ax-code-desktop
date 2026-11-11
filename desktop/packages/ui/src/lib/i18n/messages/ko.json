@@ -3579,7 +3579,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max}\uac1c \uc120\ud0dd\ub428",
   "chat.agentTeam.limitReached": "\ud55c\ub3c4\uc5d0 \ub3c4\ub2ec\ud588\uc2b5\ub2c8\ub2e4. \ubc14\uafb8\ub824\uba74 \ud558\ub098\ub97c \ud574\uc81c\ud558\uc138\uc694.",
   "chat.agentTeam.selfReview": "\uc790\uc2e0\uc758 \uc791\uc5c5\uc744 \uac80\ud1a0\ud569\ub2c8\ub2e4",
-  "chat.agentTeam.noModels": "\uc0ac\uc6a9 \uac00\ub2a5\ud55c \ubaa8\ub378\uc774 \uc5c6\uc2b5\ub2c8\ub2e4",
   "chat.agentTeam.hint.coderSingle": "{model}\uc774(\uac00) \uc774 \uba54\uc2dc\uc9c0\ub97c \uc2e4\ud589\ud569\ub2c8\ub2e4.",
   "chat.agentTeam.hint.coderArena": "\ucf54\ub354\uac00 Arena \uc6cc\ud06c\ud2b8\ub9ac\uc5d0\uc11c \uacbd\uc7c1\ud569\ub2c8\ub2e4.",
   "chat.agentTeam.hint.qa": "QA\uac00 Council\uc744 \ud1b5\ud574 \uac80\ud1a0\ud569\ub2c8\ub2e4.",

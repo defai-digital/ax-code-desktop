@@ -29,6 +29,7 @@ import { mergeModelMetadataWithLiveModel } from "@/lib/modelMetadata"
 import { getEditModeColors } from "@/lib/permissions/editModeColors"
 import { isProviderModelSelectable } from "@/lib/providerModelAvailability"
 import { extractMessageModelRef, isOlderUserMessage, isServerChosenModelOrigin } from "@/lib/messageModelRef"
+import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
 import { cn, fuzzyMatch } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
@@ -719,7 +720,12 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
     // A complexity route, agent pin, hybrid placement, session default, or
     // fallback recorded on the user message is not the model the user picked.
     // Adopting it is what swapped the composer after the prompt was sent.
-    if (isServerChosenModelOrigin(latestLoadedUserChoice.modelOrigin)) {
+    // A turn the composer's single Coder ran records the coder's model with a "request" origin.
+    // It is not the composer pick either, and adopting it would keep the coder after it is unticked.
+    if (
+      isServerChosenModelOrigin(latestLoadedUserChoice.modelOrigin) ||
+      useAgentTeamStore.getState().isCoderMessage(latestLoadedUserChoice.id)
+    ) {
       // The runtime still owns the agent identity even when it routed the model.
       if (latestLoadedUserChoice.agent) saveSessionAgentSelection(currentSessionId, latestLoadedUserChoice.agent)
       latestLoadedUserChoiceRestoreRef.current = restoreKey

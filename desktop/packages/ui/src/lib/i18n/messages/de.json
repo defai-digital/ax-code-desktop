@@ -3579,7 +3579,6 @@
   "chat.agentTeam.selectedCount": "{count}/{max} ausgew\u00e4hlt",
   "chat.agentTeam.limitReached": "Limit erreicht. Zum Tauschen eines abw\u00e4hlen.",
   "chat.agentTeam.selfReview": "Pr\u00fcft die eigene Arbeit",
-  "chat.agentTeam.noModels": "Keine Modelle verf\u00fcgbar",
   "chat.agentTeam.hint.coderSingle": "{model} f\u00fchrt diese Nachricht aus.",
   "chat.agentTeam.hint.coderArena": "Coder treten in Arena-Worktrees an.",
   "chat.agentTeam.hint.qa": "QA pr\u00fcft \u00fcber Council.",
