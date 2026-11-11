@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { markWorkModeBlockedError, workModeBlockedReasonOfError } from "@/lib/workMode"
 import path from "node:path"
 import ts from "typescript"
 import { describe, expect, test, vi } from "vitest"
@@ -163,6 +164,9 @@ function createHarness(command: string, options: HarnessOptions = {}) {
     isMobile: false,
     // No Coder/QA team is ticked in these flows.
     composerAgentTeamForSend: () => undefined,
+    // The chip is in Agent, and no send in these flows is refused for its work mode.
+    composerWorkModeForSend: () => "agent",
+    workModeBlockedReasonOfError: (() => null) as (error: unknown) => "cliLead" | "noToolCalling" | null,
     restoreConsumedDrafts: vi.fn(),
     useInputStore: inputStore,
     useSessionUIStore: { getState: () => state },
@@ -367,6 +371,37 @@ describe("magic-command submit races", () => {
     )
     expect(h.sent).not.toHaveBeenCalled()
     expect(h.messageRef.current).toBe("hello from project A")
+  })
+})
+
+describe("a Council or Arena send refused for its model", () => {
+  const refusedSend = async (reason: "cliLead" | "noToolCalling") => {
+    const h = createHarness("", { sessionId: "session-1", draftOpen: false, attachments: [] })
+    h.messageRef.current = "rate this module"
+    h.dependencies.workModeBlockedReasonOfError = workModeBlockedReasonOfError
+    h.sent.mockRejectedValueOnce(markWorkModeBlockedError(new Error("Council cannot run on this model"), reason))
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+    await vi.waitFor(() => expect(h.toastError).toHaveBeenCalled())
+    return h
+  }
+
+  test("offers to send anyway when the refusal rests on the catalog's tool-calling flag", async () => {
+    const h = await refusedSend("noToolCalling")
+
+    const [message, data] = h.toastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    expect(message).toBe("Council cannot run on this model")
+    // The text was put back, so the action resubmits it with the override for that one send.
+    expect(h.messageRef.current).toBe("rate this module")
+    data.action.onClick()
+    expect(h.handleSubmitRef.current).toHaveBeenCalledWith({ allowUnverifiedToolCalling: true })
+  })
+
+  test("offers nothing for a CLI model, which can never receive the tools", async () => {
+    const h = await refusedSend("cliLead")
+
+    expect(h.toastError).toHaveBeenCalledWith("Council cannot run on this model")
+    expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
   })
 })
 

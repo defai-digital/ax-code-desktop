@@ -2274,6 +2274,7 @@ export const dict = {
   "chat.agentTeam.suggest.reason.available": "Available",
   "chat.workMode.blocked.cliLead": "{mode} needs a non-CLI model. Pick another model.",
   "chat.workMode.blocked.noToolCalling": "{mode} needs a model with tool calling. Pick another model.",
+  "chat.workMode.sendAnyway": "Send anyway",
   "chat.workMode.menuLabel": "Work mode",
   "chat.workMode.tooltip": "Work mode: {mode}",
   "chat.workMode.tooltipBlocked": "Work mode: {mode}. {warning}",

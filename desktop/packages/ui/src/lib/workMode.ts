@@ -4,6 +4,9 @@
  * Re-exports from the public SDK contract with desktop-friendly flat names.
  * Desktop-specific helpers (resolveWorkModeSend, workModeEnsembleCommand, workModeBlockedReason,
  * workModeFallbackPrompt) live here.
+ *
+ * The mode is per-directory composer state (`useWorkModeStore`), but a send carries the mode it was
+ * committed under as request data: the send path never reads the live chip.
  */
 
 import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
@@ -97,6 +100,19 @@ export function workModeBlockedReason(
   if (mode === "agent" || !lead) return null
   if (canOrchestrateAgentTeam(lead, providers)) return null
   return isExternalCliProvider(lead.providerID) ? "cliLead" : "noToolCalling"
+}
+
+/** Tag a refusal with its reason, so the composer can tell a catalog doubt from a structural limit. */
+export function markWorkModeBlockedError(error: Error, reason: WorkModeBlockedReason): Error {
+  ;(error as Error & { workModeBlocked?: WorkModeBlockedReason }).workModeBlocked = reason
+  return error
+}
+
+/** The reason a send was refused for its work mode, or null for any other failure. */
+export function workModeBlockedReasonOfError(error: unknown): WorkModeBlockedReason | null {
+  if (!error || typeof error !== "object") return null
+  const reason = (error as { workModeBlocked?: unknown }).workModeBlocked
+  return reason === "cliLead" || reason === "noToolCalling" ? reason : null
 }
 
 /** Translation key for a blocked-mode warning; the mode name is passed as `{mode}`. */

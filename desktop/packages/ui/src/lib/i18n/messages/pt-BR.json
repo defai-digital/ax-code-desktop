@@ -3595,6 +3595,7 @@
   "chat.agentTeam.suggest.reason.available": "Dispon\u00edvel",
   "chat.workMode.blocked.cliLead": "{mode} precisa de um modelo que n\u00e3o seja CLI. Escolha outro modelo.",
   "chat.workMode.blocked.noToolCalling": "{mode} precisa de um modelo com chamadas de ferramentas. Escolha outro modelo.",
+  "chat.workMode.sendAnyway": "Enviar mesmo assim",
   "chat.workMode.menuLabel": "Modo de trabalho",
   "chat.workMode.tooltip": "Modo de trabalho: {mode}",
   "chat.workMode.tooltipBlocked": "Modo de trabalho: {mode}. {warning}",

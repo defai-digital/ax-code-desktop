@@ -158,7 +158,13 @@ const SuggestControl: React.FC<SuggestControlProps> = ({ team, lead, compact, na
         </div>
         <div data-agent-team-suggestion="qa" className="flex flex-col gap-0.5">
           <p className="typography-micro font-semibold text-muted-foreground">{t("chat.agentTeam.qa")}</p>
-          {renderModels(suggestion.qa, "chat.agentTeam.suggest.noQa")}
+          {renderModels(
+            suggestion.qa,
+            // A panel left out so the top coder could stay is not the same as too few reviewers.
+            suggestion.qaSkipped === "coderCannotRunQa"
+              ? "chat.agentTeam.hint.coderCannotRunQa"
+              : "chat.agentTeam.suggest.noQa",
+          )}
         </div>
         <p className="typography-micro text-muted-foreground">{t("chat.agentTeam.suggest.note")}</p>
         <div className="flex items-center justify-end gap-2">

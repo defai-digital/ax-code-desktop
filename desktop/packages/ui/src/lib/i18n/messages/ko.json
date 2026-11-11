@@ -3601,6 +3601,7 @@
   "chat.agentTeam.suggest.reason.available": "\uc0ac\uc6a9 \uac00\ub2a5",
   "chat.workMode.blocked.cliLead": "{mode}\uc5d0\ub294 CLI\uac00 \uc544\ub2cc \ubaa8\ub378\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ub2e4\ub978 \ubaa8\ub378\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
   "chat.workMode.blocked.noToolCalling": "{mode}\uc5d0\ub294 \ub3c4\uad6c \ud638\ucd9c\uc744 \uc9c0\uc6d0\ud558\ub294 \ubaa8\ub378\uc774 \ud544\uc694\ud569\ub2c8\ub2e4. \ub2e4\ub978 \ubaa8\ub378\uc744 \uc120\ud0dd\ud558\uc138\uc694.",
+  "chat.workMode.sendAnyway": "\uadf8\ub798\ub3c4 \ubcf4\ub0b4\uae30",
   "chat.workMode.menuLabel": "\uc791\uc5c5 \ubaa8\ub4dc",
   "chat.workMode.tooltip": "\uc791\uc5c5 \ubaa8\ub4dc: {mode}",
   "chat.workMode.tooltipBlocked": "\uc791\uc5c5 \ubaa8\ub4dc: {mode}. {warning}",

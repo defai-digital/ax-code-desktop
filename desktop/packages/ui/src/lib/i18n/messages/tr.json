@@ -3601,6 +3601,7 @@
   "chat.agentTeam.suggest.reason.available": "Kullan\u0131labilir",
   "chat.workMode.blocked.cliLead": "{mode} CLI olmayan bir model gerektirir. Ba\u015fka bir model se\u00e7in.",
   "chat.workMode.blocked.noToolCalling": "{mode} ara\u00e7 \u00e7a\u011fr\u0131s\u0131n\u0131 destekleyen bir model gerektirir. Ba\u015fka bir model se\u00e7in.",
+  "chat.workMode.sendAnyway": "Yine de g\u00f6nder",
   "chat.workMode.menuLabel": "\u00c7al\u0131\u015fma modu",
   "chat.workMode.tooltip": "\u00c7al\u0131\u015fma modu: {mode}",
   "chat.workMode.tooltipBlocked": "\u00c7al\u0131\u015fma modu: {mode}. {warning}",

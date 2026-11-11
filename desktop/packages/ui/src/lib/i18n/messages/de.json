@@ -3601,6 +3601,7 @@
   "chat.agentTeam.suggest.reason.available": "Verf\u00fcgbar",
   "chat.workMode.blocked.cliLead": "{mode} braucht ein Nicht-CLI-Modell. W\u00e4hle ein anderes Modell.",
   "chat.workMode.blocked.noToolCalling": "{mode} braucht ein Modell mit Tool-Aufrufen. W\u00e4hle ein anderes Modell.",
+  "chat.workMode.sendAnyway": "Trotzdem senden",
   "chat.workMode.menuLabel": "Arbeitsmodus",
   "chat.workMode.tooltip": "Arbeitsmodus: {mode}",
   "chat.workMode.tooltipBlocked": "Arbeitsmodus: {mode}. {warning}",

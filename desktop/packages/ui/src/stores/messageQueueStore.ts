@@ -3,6 +3,7 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { getSafeStorage } from "./utils/safeStorage"
 import type { AttachedFile } from "./types/sessionTypes"
 import { updateDesktopSettings } from "@/lib/persistence"
+import type { WorkModeId } from "@/lib/workMode"
 
 export interface QueuedMessage {
   id: string
@@ -24,6 +25,8 @@ export interface QueuedMessage {
     modelID: string
     agent?: string
     variant?: string
+    /** The work mode the entry was queued in. Absent means Agent: the entry is sent as typed. */
+    workMode?: WorkModeId
   }
 }
 

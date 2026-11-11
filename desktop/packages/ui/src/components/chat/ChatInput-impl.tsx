@@ -106,6 +106,7 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { usableAgentTeam, type AgentTeamState } from "@/lib/agentTeam"
+import { workModeBlockedReasonOfError, type WorkModeId } from "@/lib/workMode"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { ProjectSwitcher } from "@/components/chat/ProjectSwitcher"
 import { useSkillsStore } from "@/stores/useSkillsStore"
@@ -155,6 +156,10 @@ import {
   findAttachmentCitationRanges,
 } from "./attachmentCitations"
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+
+/** The mode the chip shows. A send carries it as request data; the send path never reads the chip. */
+const composerWorkModeForSend = (): WorkModeId =>
+  useWorkModeStore.getState().getMode(useDirectoryStore.getState().currentDirectory)
 
 const MAX_VISIBLE_TEXTAREA_LINES = 8
 const EMPTY_QUEUE: QueuedMessage[] = []
@@ -1444,6 +1449,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   type SubmitOptions = {
     queuedOnly?: boolean
     queuedMessageId?: string
+    /** The user chose "Send anyway" on a Council/Arena refusal that rests on catalog metadata. */
+    allowUnverifiedToolCalling?: boolean
   }
   const handleSubmitRef = React.useRef<(options?: SubmitOptions) => Promise<void>>(async () => {})
 
@@ -1521,6 +1528,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 modelID: currentModelId,
                 agent: currentAgentName ?? undefined,
                 variant: currentVariant ?? undefined,
+                // The mode the text was typed under; a later switch must not change what it runs as.
+                workMode: composerWorkModeForSend(),
               }
             : undefined,
       })
@@ -2322,6 +2331,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             // Only a direct send from a composer that shows the team row carries the team. A queued
             // entry is dispatched later, when the team on screen may no longer be the one it was typed under.
             agentTeam: queuedOnly || isMobile || inputMode === "shell" ? undefined : composerAgentTeamForSend(),
+            // A queued entry runs in the mode it was queued in (Agent when it recorded none), not
+            // the one the composer is in now.
+            workMode: queuedOnly ? capturedSendConfig?.workMode : composerWorkModeForSend(),
+            allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
           },
         )
 
@@ -2451,6 +2464,17 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }
 
         restoreComposerAttachments(restorableAttachments)
+        // The catalog can be wrong about tool calling for a custom or local model, so that refusal
+        // offers one resend of the restored text. A CLI model is refused without the offer.
+        if (workModeBlockedReasonOfError(error) === "noToolCalling" && viewingFailedSession) {
+          toast.error(rawMessage, {
+            action: {
+              label: t("chat.workMode.sendAnyway"),
+              onClick: () => void handleSubmitRef.current({ ...options, allowUnverifiedToolCalling: true }),
+            },
+          })
+          return
+        }
         toast.error(rawMessage || t("chat.chatInput.toast.messageSendFailed"))
       })
 

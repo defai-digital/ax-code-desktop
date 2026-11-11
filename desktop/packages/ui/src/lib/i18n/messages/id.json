@@ -3595,6 +3595,7 @@
   "chat.agentTeam.suggest.reason.available": "Tersedia",
   "chat.workMode.blocked.cliLead": "{mode} memerlukan model non-CLI. Pilih model lain.",
   "chat.workMode.blocked.noToolCalling": "{mode} memerlukan model dengan pemanggilan alat. Pilih model lain.",
+  "chat.workMode.sendAnyway": "Tetap kirim",
   "chat.workMode.menuLabel": "Mode kerja",
   "chat.workMode.tooltip": "Mode kerja: {mode}",
   "chat.workMode.tooltipBlocked": "Mode kerja: {mode}. {warning}",

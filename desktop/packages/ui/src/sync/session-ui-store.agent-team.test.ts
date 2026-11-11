@@ -27,6 +27,7 @@ const { useAgentTeamStore } = await import("@/stores/useAgentTeamStore")
 const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 const { useCommandsStore } = await import("@/stores/useCommandsStore")
 const { useConfigStore } = await import("@/stores/useConfigStore")
+const { workModeBlockedReasonOfError } = await import("@/lib/workMode")
 
 const KIMI = { providerID: "moonshot", modelID: "kimi" }
 const GLM = { providerID: "zhipu", modelID: "glm" }
@@ -36,12 +37,20 @@ const CLI_LEAD = { providerID: "claude-code", modelID: "claude-fable-5-2" }
 const CLI_CODER = { providerID: "codex-cli", modelID: "codex-large" }
 const CLI_CODER_B = { providerID: "dsh-cli", modelID: "dsh-pro" }
 
-// The composer passes the team it shows; `withTeam: false` is any other sender.
+// The composer passes the team it shows and the mode its chip shows; `withTeam: false` is any other
+// sender, which passes neither.
 const send = (
   content = "fix the login bug",
-  options: { withTeam?: boolean; variant?: string; lead?: { providerID: string; modelID: string } } = {},
+  options: {
+    withTeam?: boolean
+    variant?: string
+    lead?: { providerID: string; modelID: string }
+    allowUnverifiedToolCalling?: boolean
+  } = {},
 ) =>
   routeMessage({
+    workMode: options.withTeam === false ? undefined : useWorkModeStore.getState().getMode("/proj"),
+    allowUnverifiedToolCalling: options.allowUnverifiedToolCalling,
     sessionId: "session-1",
     directory: "/proj",
     content,
@@ -268,6 +277,45 @@ describe("agent team send routing", () => {
     try {
       await expect(send("rate this module")).rejects.toThrow("Council needs a model with tool calling")
       expect(sendMessage).not.toHaveBeenCalled()
+    } finally {
+      useConfigStore.setState({ providers: [] } as never)
+    }
+  })
+
+  test("a sender with no mode control sends the text it built, whatever the directory's chip says", async () => {
+    // Plans, quick dispatch, Multi-Run and reviews have no chip: a Council directory must not turn
+    // their prompt into /council, nor refuse it on a CLI model.
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await send("run the plan", { withTeam: false, lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "run the plan" })
+  })
+
+  test("the tool-calling refusal can be overridden for one send; the CLI refusal cannot", async () => {
+    useConfigStore.setState({
+      providers: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] }],
+    } as never)
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+    try {
+      // The refusal names its reason, which is what lets the composer offer "Send anyway".
+      const refusal = await send("rate this module").catch((error: unknown) => error)
+      expect(workModeBlockedReasonOfError(refusal)).toBe("noToolCalling")
+
+      // The catalog can be wrong for a custom or local model, so the user may send regardless.
+      await send("rate this module", { allowUnverifiedToolCalling: true })
+      expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "council", modelID: "qwen" }))
+
+      // A CLI provider never receives the tool: there is nothing for an override to be right about.
+      sendCommand.mockClear()
+      const cliRefusal = await send("rate this module", { lead: CLI_LEAD, allowUnverifiedToolCalling: true }).catch(
+        (error: unknown) => error,
+      )
+      expect(workModeBlockedReasonOfError(cliRefusal)).toBe("cliLead")
+      expect(sendCommand).not.toHaveBeenCalled()
     } finally {
       useConfigStore.setState({ providers: [] } as never)
     }

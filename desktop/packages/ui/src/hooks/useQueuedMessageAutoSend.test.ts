@@ -361,9 +361,30 @@ describe("buildQueuedAutoSendPayload", () => {
       undefined,
       "variant-1",
       "normal",
-      // The retry id travels with the send so the server can deduplicate a repeat.
-      { sessionId: "session-original", messageId: "msg_test_retry_id_0001" },
+      // The retry id travels with the send so the server can deduplicate a repeat. An entry that
+      // recorded no work mode is an Agent prompt.
+      { sessionId: "session-original", messageId: "msg_test_retry_id_0001", workMode: "agent" },
     ])
+  })
+
+  test("auto-send runs an entry in the work mode it was queued in, not the directory's current one", async () => {
+    const send = async (workMode: unknown) => {
+      sendMessageCalls.length = 0
+      const payload = buildQueuedAutoSendPayload([
+        {
+          id: "queued-1",
+          content: "rate this module",
+          createdAt: 1,
+          sendConfig: { providerID: "provider-1", modelID: "model-1", workMode: workMode as never },
+        },
+      ])
+      await sendQueuedAutoSendPayload("session-original", payload!, { providerID: "provider-1", modelID: "model-1" }, "msg_1")
+      return (sendMessageCalls[0] as unknown[])[9] as { workMode?: string }
+    }
+
+    expect((await send("council")).workMode).toBe("council")
+    // A persisted entry is untrusted: anything that is not a mode is sent as an Agent prompt.
+    expect((await send("everything")).workMode).toBe("agent")
   })
 })
 

@@ -1,4 +1,5 @@
 import React from "react"
+import { parseWorkMode } from "@/lib/workMode"
 import {
   claimQueuedDispatch,
   releaseQueuedDispatchClaim,
@@ -89,7 +90,9 @@ export const sendQueuedAutoSendPayload = (
     "normal",
     // The entry's retry id makes a repeated, ambiguous or duplicate send of this
     // entry idempotent on the server instead of delivering the prompt twice.
-    { sessionId, messageId },
+    // The mode the entry was queued in, validated: a persisted entry is untrusted data. An entry
+    // without one is an Agent prompt whatever the directory's chip says now.
+    { sessionId, messageId, workMode: parseWorkMode(payload.sendConfig?.workMode) },
   )
 }
 

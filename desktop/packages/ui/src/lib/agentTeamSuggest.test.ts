@@ -221,20 +221,52 @@ describe("suggestions that can actually run", () => {
     expect(blockedReason(candidates, CLI_LEAD)).toBeNull()
   })
 
-  test("with nothing that can orchestrate, no team is suggested at all", () => {
+  test("with nothing that can orchestrate, the top coder runs alone and the panel is left out with its reason", () => {
     const candidates = [
       candidate("claude-code", "fable"),
       candidate("codex-cli", "codex"),
       candidate("dsh-cli", "dsh"),
       candidate("kimi-cli", "k3"),
     ]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead: CLI_LEAD })
 
-    expect(suggestAgentTeam({ candidates, favorites: [], recents: [], lead: CLI_LEAD })).toEqual({ coder: [], qa: [] })
+    // No arena and no council can run, but one coder is an ordinary turn on that model.
+    expect(ids(suggestion.coder)).toEqual(["claude-code/fable"])
+    expect(suggestion.qa).toEqual([])
+    expect(suggestion.qaSkipped).toBe("coderCannotRunQa")
+    expect(blockedReason(candidates, CLI_LEAD)).toBeNull()
   })
 
-  test("a swapped-in coder is never the kept coder's model behind another provider", () => {
-    // Both favorites are CLI, so one gives way to a model that can orchestrate. The only one is the
-    // first coder's model under another provider, so the first coder is the one replaced.
+  test("a favorite CLI coder is kept and its panel dropped, rather than the coder being replaced", () => {
+    // One model can code. It cannot run a council, and nothing else may take its place as coder.
+    const candidates = [
+      candidate("claude-code", "fable"),
+      candidate("zhipu", "glm", { toolCall: undefined }),
+      candidate("deepseek", "v4", { toolCall: undefined }),
+    ]
+    const suggestion = suggestAgentTeam({
+      candidates,
+      favorites: [ref("claude-code", "fable")],
+      recents: [],
+      lead: ref("zhipu", "glm"),
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["claude-code/fable"])
+    expect(suggestion.qa).toEqual([])
+    expect(suggestion.qaSkipped).toBe("coderCannotRunQa")
+  })
+
+  test("a team that runs as suggested carries no skipped-panel reason", () => {
+    const suggestion = suggestAgentTeam({ candidates: CLI_HEAVY, favorites: [], recents: [], lead: CLI_LEAD })
+
+    expect(suggestion.qa.length).toBeGreaterThan(0)
+    expect(suggestion.qaSkipped).toBeUndefined()
+  })
+
+  test("the top coder is never evicted, and its own model behind another provider is not swapped in", () => {
+    // Both favorites are CLI. The only model that can orchestrate is the top coder's model under
+    // another provider: seating it would compare a model with itself, and replacing the top coder
+    // would override the user's first choice, so the top coder runs alone.
     const candidates = [candidate("claude-code", "opus"), candidate("codex-cli", "gpt"), candidate("anthropic", "opus")]
     const lead = ref("claude-code", "opus")
     const suggestion = suggestAgentTeam({
@@ -244,7 +276,8 @@ describe("suggestions that can actually run", () => {
       lead,
     })
 
-    expect(ids(suggestion.coder)).toEqual(["codex-cli/gpt", "anthropic/opus"])
+    expect(ids(suggestion.coder)).toEqual(["claude-code/opus"])
+    expect(suggestion.qa).toEqual([])
   })
 
   test("with no coder, a lead that cannot orchestrate gets no panel whose reviewer would write the code", () => {
