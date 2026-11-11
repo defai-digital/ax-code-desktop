@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.18 maintenance candidate](RELEASE-2026-11-10-v7.30.18-candidate.md): literal filesystem paths
+  and regressions preventing changes to a trimmed sibling.
+
 - [Desktop 7.30.17 verified publication](RELEASE-2026-11-10-v7.30.17-publication.md): signed four-platform release
   and independent public readback.
 

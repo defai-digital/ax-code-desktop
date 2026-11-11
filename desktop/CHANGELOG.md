@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.18] - 2026-11-10
+
+### Fixed
+
+- Preserve trailing whitespace in absolute filesystem paths so reads, saves, deletes, renames and directory listings operate on the requested entry rather than a trimmed sibling.
+
 ## [7.30.17] - 2026-11-10
 
 ### Fixed

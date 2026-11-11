@@ -155,6 +155,11 @@ const collectApprovedDirectories = (settings) => {
   return approved
 }
 
+// Absolute resource paths come from directory entries, where trailing whitespace is part of the name.
+// Settings normalization trims user input and must only apply to shorthand paths such as ~/project.
+const normalizeResourcePath = (value, path, normalizeDirectoryPath) =>
+  typeof value === "string" && path.isAbsolute(value) ? value : normalizeDirectoryPath(value)
+
 export const resolveApprovedPathFromSettings = async ({
   targetPath,
   readSettingsFromDiskMigrated,
@@ -162,7 +167,7 @@ export const resolveApprovedPathFromSettings = async ({
   os,
   normalizeDirectoryPath,
 }) => {
-  const normalized = normalizeDirectoryPath(targetPath)
+  const normalized = normalizeResourcePath(targetPath, path, normalizeDirectoryPath)
   if (!normalized || typeof normalized !== "string") {
     return { ok: false, error: "Path is required" }
   }
@@ -179,7 +184,7 @@ export const resolveApprovedPathFromSettings = async ({
     if (typeof approvedDirectory !== "string" || !approvedDirectory.trim()) {
       continue
     }
-    const approved = path.resolve(normalizeDirectoryPath(approvedDirectory))
+    const approved = path.resolve(normalizeResourcePath(approvedDirectory, path, normalizeDirectoryPath))
     if (isPathWithinRoot(resolved, approved, path, os)) {
       return { ok: true, base: approved, resolved }
     }
@@ -196,7 +201,7 @@ const resolveWorkspacePath = ({
   normalizeDirectoryPath,
   openchamberUserConfigRoot,
 }) => {
-  const normalized = normalizeDirectoryPath(targetPath)
+  const normalized = normalizeResourcePath(targetPath, path, normalizeDirectoryPath)
   if (!normalized || typeof normalized !== "string") {
     return { ok: false, error: "Path is required" }
   }
@@ -216,7 +221,7 @@ const resolveWorkspacePath = ({
 }
 
 const resolveWorkspacePathFromWorktrees = async ({ targetPath, baseDirectory, path, os, normalizeDirectoryPath }) => {
-  const normalized = normalizeDirectoryPath(targetPath)
+  const normalized = normalizeResourcePath(targetPath, path, normalizeDirectoryPath)
   if (!normalized || typeof normalized !== "string") {
     return { ok: false, error: "Path is required" }
   }
@@ -235,7 +240,7 @@ const resolveWorkspacePathFromWorktrees = async ({ targetPath, baseDirectory, pa
           : typeof worktree?.worktree === "string"
             ? worktree.worktree
             : ""
-      const candidate = normalizeDirectoryPath(candidatePath)
+      const candidate = normalizeResourcePath(candidatePath, path, normalizeDirectoryPath)
       if (!candidate) {
         continue
       }
@@ -1075,8 +1080,8 @@ export const registerFsRoutes = (app, dependencies) => {
   })
 
   app.get("/api/fs/stat", async (req, res) => {
-    const filePath = typeof req.query.path === "string" ? req.query.path.trim() : ""
-    if (!filePath) {
+    const filePath = typeof req.query.path === "string" ? req.query.path : ""
+    if (!filePath.trim()) {
       return res.status(400).json({ error: "Path is required" })
     }
 
@@ -1125,9 +1130,9 @@ export const registerFsRoutes = (app, dependencies) => {
   })
 
   app.get("/api/fs/read", async (req, res) => {
-    const filePath = typeof req.query.path === "string" ? req.query.path.trim() : ""
+    const filePath = typeof req.query.path === "string" ? req.query.path : ""
     const optional = req.query.optional === "true"
-    if (!filePath) {
+    if (!filePath.trim()) {
       return res.status(400).json({ error: "Path is required" })
     }
 
@@ -1194,8 +1199,8 @@ export const registerFsRoutes = (app, dependencies) => {
   })
 
   app.get("/api/fs/raw", async (req, res) => {
-    const filePath = typeof req.query.path === "string" ? req.query.path.trim() : ""
-    if (!filePath) {
+    const filePath = typeof req.query.path === "string" ? req.query.path : ""
+    if (!filePath.trim()) {
       return res.status(400).json({ error: "Path is required" })
     }
 
@@ -1721,7 +1726,7 @@ export const registerFsRoutes = (app, dependencies) => {
 
   app.get("/api/fs/list", async (req, res) => {
     const rawPath =
-      typeof req.query.path === "string" && req.query.path.trim().length > 0 ? req.query.path.trim() : os.homedir()
+      typeof req.query.path === "string" && req.query.path.trim().length > 0 ? req.query.path : os.homedir()
     const respectGitignore = req.query.respectGitignore === "true"
     let resolvedPath = ""
 
