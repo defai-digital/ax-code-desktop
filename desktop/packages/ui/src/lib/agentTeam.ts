@@ -247,7 +247,7 @@ export function agentTeamRunner(
 }
 
 /** A team step the send has to skip: no model is left that can call the runtime tools. */
-export type AgentTeamBlockedReason = "cliCoderQa" | "noOrchestrator"
+export type AgentTeamBlockedReason = "coderCannotRunQa" | "noOrchestrator"
 
 /** The orchestration test a caller supplies: see `canOrchestrateAgentTeam`. */
 export type AgentTeamOrchestrator = (model: AgentTeamModelRef) => boolean
@@ -263,7 +263,7 @@ export function agentTeamBlockedReasonFor(
 ): AgentTeamBlockedReason | null {
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  if (qa.length > 0 && coders.length === 1 && !canOrchestrate(coders[0]!)) return "cliCoderQa"
+  if (qa.length > 0 && coders.length === 1 && !canOrchestrate(coders[0]!)) return "coderCannotRunQa"
   if (!needsAgentTeamDirective(team) || canOrchestrate(lead)) return null
   const members = [...coders, ...qa]
   return members.every((model) => !canOrchestrate(model)) ? "noOrchestrator" : null
@@ -272,7 +272,7 @@ export function agentTeamBlockedReasonFor(
 /**
  * Why the team cannot be sent as chosen, or null when it can.
  *
- * - `cliCoderQa`: the single coder writes the code and would orchestrate the QA step itself, but a
+ * - `coderCannotRunQa`: the single coder writes the code and would orchestrate the QA step itself, but a
  *   CLI provider, or a model without tool calling, has no `council` tool. The QA step is skipped and
  *   the coder runs the turn alone.
  * - `noOrchestrator`: a directive is needed, the composer model cannot orchestrate, and no active

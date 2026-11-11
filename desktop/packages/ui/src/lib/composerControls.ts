@@ -2,8 +2,9 @@ import { parseWorkMode, workModeLabel, type WorkModeId } from "@/lib/workMode"
 
 export interface WorkModeChoice {
   id: WorkModeId
+  /** A product name; it is the same in every language. */
   label: string
-  hint: string
+  hintKey: "chat.workMode.hint.agent" | "chat.workMode.hint.council" | "chat.workMode.hint.arena"
 }
 
 /** Explicit labeled choices. A click selects one of these; it does not cycle. */
@@ -11,17 +12,17 @@ export const WORK_MODE_CHOICES: readonly WorkModeChoice[] = [
   {
     id: "agent",
     label: workModeLabel("agent"),
-    hint: "Normal single-agent coding.",
+    hintKey: "chat.workMode.hint.agent",
   },
   {
     id: "council",
     label: workModeLabel("council"),
-    hint: "Multi-provider advisory review.",
+    hintKey: "chat.workMode.hint.council",
   },
   {
     id: "arena",
     label: workModeLabel("arena"),
-    hint: "Multi-model best-of-N.",
+    hintKey: "chat.workMode.hint.arena",
   },
 ]
 

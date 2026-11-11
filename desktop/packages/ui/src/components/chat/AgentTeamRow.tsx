@@ -455,23 +455,31 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
     [leadProviderId, leadModelId],
   )
 
+  // One pass over the catalog per team, lead or catalog change rather than on every composer render.
+  const send = React.useMemo(
+    () => ({
+      selfReview: agentTeamSelfReviewModels(team, lead, providers),
+      // A composer model that cannot orchestrate (a CLI provider, or one the catalog says cannot call
+      // tools) cannot run the runtime tools, and neither can such a coder's own QA panel: either step
+      // is dropped on send, so the row says so instead of promising it.
+      blocked: lead ? agentTeamBlockedReason(team, lead, providers) : null,
+      runner: lead ? agentTeamRunner(team, lead, providers) : null,
+      extra: agentTeamExtraModelCount(team, lead, providers),
+    }),
+    [team, lead, providers],
+  )
+
   if (workMode !== "agent") return null
 
-  const selfReview = agentTeamSelfReviewModels(team, lead, providers)
+  const { selfReview, blocked, runner, extra } = send
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  // A composer model that cannot orchestrate (a CLI provider, or one the catalog says cannot call
-  // tools) cannot run the runtime tools, and neither can such a coder's own QA panel: either step is
-  // dropped on send, so the row says so instead of promising it.
-  const blocked = lead ? agentTeamBlockedReason(team, lead, providers) : null
-  const runner = lead ? agentTeamRunner(team, lead, providers) : null
   // Only a team model standing in for the composer pick is a substitution: a single coder is the
   // ordinary "this coder runs the message" case, and a kept lead is no change at all.
   const substituted =
     blocked === null && coders.length !== 1 && runner !== null && lead !== null && !isSameAgentTeamModel(runner, lead)
   const runnerHint =
     substituted && runner ? t("chat.agentTeam.hint.runnerSubstituted", { model: nameOf(runner) }) : null
-  const extra = agentTeamExtraModelCount(team, lead, providers)
   const extraHint = extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : null
 
   // The row states only the cost; what each role does is one hover away.
@@ -483,7 +491,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   // The substituted runner takes the row's visible line, so the cost cue moves into the detail.
   if (runnerHint && extraHint) details.push(extraHint)
   const warnings: string[] = []
-  if (blocked === "cliCoderQa") warnings.push(t("chat.agentTeam.hint.cliCoderQa"))
+  if (blocked === "coderCannotRunQa") warnings.push(t("chat.agentTeam.hint.coderCannotRunQa"))
   if (blocked === "noOrchestrator") warnings.push(t("chat.agentTeam.hint.noOrchestrator"))
   if (isAgentTeamRoleIncomplete(team, "qa")) {
     warnings.push(t("chat.agentTeam.hint.qaNeedsMore", { min: AGENT_TEAM_MINIMUMS.qa }))

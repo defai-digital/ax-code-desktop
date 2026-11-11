@@ -132,7 +132,9 @@ function suggestCoders(ranked: readonly Ranked[]): Seat[] {
   const first = eligible[0]
   if (!first) return []
   // Two coders are worth their cost when they are likely to differ, so prefer another provider.
-  const rest = eligible.slice(1)
+  // The same model id behind another provider is still the same model, and an arena that compares
+  // a model with itself is not worth its cost.
+  const rest = eligible.slice(1).filter((entry) => entry.candidate.modelID !== first.candidate.modelID)
   const otherProvider = rest.find((entry) => entry.candidate.providerID !== first.candidate.providerID)
   const second = otherProvider ?? rest[0]
   if (!second) return [toSeat(first)]

@@ -301,8 +301,8 @@ describe("agentTeamRunner", () => {
 
 describe("agentTeamBlockedReason", () => {
   test("a single CLI coder with QA skips the QA step, whoever leads", () => {
-    expect(agentTeamBlockedReason(team([CLI_CODER], [C, D]), LEAD)).toBe("cliCoderQa")
-    expect(agentTeamBlockedReason(team([CLI_CODER], [C, D]), CLI_LEAD)).toBe("cliCoderQa")
+    expect(agentTeamBlockedReason(team([CLI_CODER], [C, D]), LEAD)).toBe("coderCannotRunQa")
+    expect(agentTeamBlockedReason(team([CLI_CODER], [C, D]), CLI_LEAD)).toBe("coderCannotRunQa")
   })
 
   test("a single non-CLI coder orchestrates its own QA panel", () => {
@@ -454,7 +454,7 @@ describe("tool-calling capability", () => {
   })
 
   test("a single coder without tool calling cannot orchestrate its QA, so QA is skipped", () => {
-    expect(agentTeamBlockedReason(team([C], [A, B]), LEAD, TOOL_CATALOG)).toBe("cliCoderQa")
+    expect(agentTeamBlockedReason(team([C], [A, B]), LEAD, TOOL_CATALOG)).toBe("coderCannotRunQa")
     expect(resolveAgentTeamSend(team([C], [A, B]), LEAD, TOOL_CATALOG)).toEqual({ ...C, directive: null })
   })
 

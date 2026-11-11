@@ -53,6 +53,16 @@ describe("suggestAgentTeam", () => {
     expect(suggestion.coder.map((model) => model.reason)).toEqual(["lead", "otherProvider"])
   })
 
+  test("the second coder is never the first coder's model behind another provider", () => {
+    const candidates = [candidate("claude-code", "opus"), candidate("anthropic", "opus"), candidate("zhipu", "glm")]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [ref("claude-code", "opus")], recents: [] })
+
+    expect(ids(suggestion.coder)).toEqual(["claude-code/opus", "zhipu/glm"])
+    // With no other model to compare against, one coder is suggested rather than the same model twice.
+    const alone = suggestAgentTeam({ candidates: candidates.slice(0, 2), favorites: [], recents: [] })
+    expect(alone.coder).toHaveLength(1)
+  })
+
   test("a coder must support tool calling and be available", () => {
     const suggestion = suggestAgentTeam({
       candidates: [

@@ -68,7 +68,9 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
     providers,
   )
   const warning = blocked ? t(workModeBlockedMessageKey(blocked), { mode: active.label }) : null
-  const tooltipLabel = warning ? `Work mode: ${active.label}. ${warning}` : `Work mode: ${active.label}`
+  const tooltipLabel = warning
+    ? t("chat.workMode.tooltipBlocked", { mode: active.label, warning })
+    : t("chat.workMode.tooltip", { mode: active.label })
 
   return (
     <DropdownMenu>
@@ -100,12 +102,14 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[16rem] typography-micro">
           <p className="font-medium">{active.label}</p>
-          <p className="text-muted-foreground">{active.hint}</p>
+          <p className="text-muted-foreground">{t(active.hintKey)}</p>
           {warning ? <p className="text-[var(--status-warning)]">{warning}</p> : null}
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="start" className="min-w-[240px]">
-        <DropdownMenuLabel className="typography-meta text-muted-foreground">Work mode</DropdownMenuLabel>
+        <DropdownMenuLabel className="typography-meta text-muted-foreground">
+          {t("chat.workMode.menuLabel")}
+        </DropdownMenuLabel>
         <DropdownMenuRadioGroup
           value={active.id}
           onValueChange={(value) => {
@@ -117,7 +121,7 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
               <Icon name={MODE_ICONS[choice.id]} className="mt-0.5 h-4 w-4 flex-shrink-0" />
               <span className="flex min-w-0 flex-col">
                 <span className="typography-meta text-foreground">{choice.label}</span>
-                <span className="typography-micro text-muted-foreground">{choice.hint}</span>
+                <span className="typography-micro text-muted-foreground">{t(choice.hintKey)}</span>
               </span>
             </DropdownMenuRadioItem>
           ))}
