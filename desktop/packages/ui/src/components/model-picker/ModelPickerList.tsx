@@ -323,6 +323,13 @@ interface ModelPickerListProps {
   onSelectNone?: () => void
   selectionCount?: (entry: ModelPickerEntry) => number
   disabled?: boolean
+  /** Multi-select: rows that are part of the selection, in addition to `selectedModel`. */
+  isRowSelected?: (entry: ModelPickerEntry) => boolean
+  /**
+   * Make individual rows unselectable, e.g. unselected models once a multi-select has reached its
+   * limit. Such a row can still be starred: favoriting is not a selection.
+   */
+  isRowDisabled?: (entry: ModelPickerEntry) => boolean
   maxHeightClassName?: string
   maxHeightStyle?: React.CSSProperties
   sectionHeaderClassName?: string
@@ -360,6 +367,8 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
   onSelectNone,
   selectionCount,
   disabled = false,
+  isRowSelected,
+  isRowDisabled,
   maxHeightClassName = "max-h-[min(400px,calc(100dvh-12rem))] flex-1",
   maxHeightStyle,
   sectionHeaderClassName,
@@ -481,9 +490,10 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
 
   const isEntryDisabled = React.useCallback(
     (entry: ModelPickerEntry | undefined) => {
-      return disabled || Boolean(entry && getProviderModelDisabledReason(entry.model, entry.providerID))
+      if (disabled || !entry) return disabled
+      return Boolean(getProviderModelDisabledReason(entry.model, entry.providerID)) || Boolean(isRowDisabled?.(entry))
     },
-    [disabled],
+    [disabled, isRowDisabled],
   )
 
   // What the last reset was for. The reset belongs to a change of the list itself — a query, new
@@ -584,10 +594,13 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
     )
     const contextTokens = formatModelContextTokens(metadata?.limit?.context)
     const count = selectionCount?.(entry) ?? 0
-    const isSelected = selectedModel?.providerID === entry.providerID && selectedModel.modelID === entry.modelID
+    const isSelected =
+      (selectedModel?.providerID === entry.providerID && selectedModel.modelID === entry.modelID) ||
+      Boolean(isRowSelected?.(entry))
     const favorite = isFavorite?.(entry) ?? false
     const disabledReason = getProviderModelDisabledReason(entry.model, entry.providerID)
-    const rowDisabled = disabled || Boolean(disabledReason)
+    const modelUnavailable = disabled || Boolean(disabledReason)
+    const rowDisabled = modelUnavailable || Boolean(isRowDisabled?.(entry))
 
     const handleMouseActivity = (event: React.MouseEvent) => {
       const nextPosition = { x: event.clientX, y: event.clientY }
@@ -685,7 +698,7 @@ export const ModelPickerList: React.FC<ModelPickerListProps> = ({
               {onToggleFavorite ? (
                 <button
                   type="button"
-                  disabled={rowDisabled}
+                  disabled={modelUnavailable}
                   onClick={(event) => {
                     event.preventDefault()
                     event.stopPropagation()

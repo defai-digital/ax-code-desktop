@@ -25,7 +25,22 @@ const config = vi.hoisted(() => ({
   ],
   currentProviderId: "alibaba",
   currentModelId: "qwen",
+  modelsMetadata: new Map(),
 }))
+
+const ui = vi.hoisted(() => {
+  const state = {
+    hiddenModels: [{ providerID: "zhipu", modelID: "glm-air" }],
+    favoriteModels: [] as Array<{ providerID: string; modelID: string }>,
+    recentModels: [] as Array<{ providerID: string; modelID: string }>,
+    toggleFavoriteModel: (providerID: string, modelID: string) => {
+      state.favoriteModels = [{ providerID, modelID }]
+    },
+    isFavoriteModel: (providerID: string, modelID: string) =>
+      state.favoriteModels.some((entry) => entry.providerID === providerID && entry.modelID === modelID),
+  }
+  return state
+})
 
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
@@ -37,11 +52,12 @@ vi.mock("@/stores/useDirectoryStore", () => ({
     selector({ currentDirectory: "/repo" }),
 }))
 vi.mock("@/stores/useConfigStore", () => ({
-  useConfigStore: (selector: (state: typeof config) => unknown) => selector(config),
+  useConfigStore: Object.assign((selector: (state: typeof config) => unknown) => selector(config), {
+    getState: () => config,
+  }),
 }))
 vi.mock("@/stores/useUIStore", () => ({
-  useUIStore: (selector: (state: { hiddenModels: Array<{ providerID: string; modelID: string }> }) => unknown) =>
-    selector({ hiddenModels: [{ providerID: "zhipu", modelID: "glm-air" }] }),
+  useUIStore: (selector: (state: typeof ui) => unknown) => selector(ui),
 }))
 
 import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
@@ -64,6 +80,7 @@ describe("AgentTeamRow", () => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
     useAgentTeamStore.setState({ teamByDirectory: {} })
     useWorkModeStore.setState({ modeByDirectory: {} })
+    ui.favoriteModels = []
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -81,6 +98,8 @@ describe("AgentTeamRow", () => {
   const roleElement = (role: "coder" | "qa") => container.querySelector<HTMLElement>(`[data-agent-team-role="${role}"]`)!
   const checkbox = (role: "coder" | "qa") => roleElement(role).querySelector<HTMLButtonElement>('[role="checkbox"]')!
   const team = () => useAgentTeamStore.getState().getTeam("/repo")
+  const options = () => [...document.body.querySelectorAll<HTMLElement>('[role="option"]')]
+  const option = (name: string) => options().find((entry) => entry.textContent?.includes(name))!
 
   test("both roles start unticked and show their limits", () => {
     render()
@@ -92,25 +111,86 @@ describe("AgentTeamRow", () => {
     expect(container.querySelector("[data-agent-team-hint]")).toBeNull()
   })
 
-  test("ticking a role with no models does not turn it on", () => {
+  test("ticking a role with no models opens the picker instead of turning it on", () => {
     render()
 
     act(() => checkbox("coder").click())
 
     expect(team().coder.enabled).toBe(false)
     expect(checkbox("coder").getAttribute("aria-checked")).toBe("false")
+    expect(options().map((option) => option.textContent)).toEqual(
+      expect.arrayContaining([expect.stringContaining("Kimi-K3"), expect.stringContaining("GLM-5.2")]),
+    )
+    // Hidden models are not offered.
+    expect(document.body.textContent).not.toContain("GLM-Air")
   })
 
-  test("a selected role shows its models, its count and what the send will do", () => {
+  test("picking models in the menu selects them, and the limit disables the rest", () => {
+    render()
+    act(() => checkbox("coder").click())
+
+    act(() => option("Kimi-K3").click())
+    expect(team().coder).toEqual({ enabled: true, models: [KIMI] })
+    expect(option("GLM-5.2").getAttribute("aria-disabled")).toBeNull()
+
+    act(() => option("GLM-5.2").click())
+    expect(team().coder.models).toEqual([KIMI, GLM])
+    expect(option("Qwen3.8-27b").getAttribute("aria-disabled")).toBe("true")
+    expect(option("Kimi-K3").getAttribute("aria-selected")).toBe("true")
+    expect(option("Qwen3.8-27b").getAttribute("aria-selected")).toBe("false")
+    expect(document.body.textContent).toContain("chat.agentTeam.limitReached")
+
+    act(() => option("Qwen3.8-27b").click())
+    expect(team().coder.models).toEqual([KIMI, GLM])
+
+    // A selected model stays clickable so it can be swapped out.
+    act(() => option("Kimi-K3").click())
+    expect(team().coder.models).toEqual([GLM])
+  })
+
+  test("a model can be starred from the menu without selecting it", () => {
+    render()
+    act(() => checkbox("qa").click())
+
+    const star = option("Kimi-K3").querySelector<HTMLButtonElement>(".model-favorite-button")!
+    act(() => star.click())
+
+    expect(ui.favoriteModels).toEqual([KIMI])
+    expect(team().qa.models).toEqual([])
+  })
+
+  test("a selected role shows one model name, how many more, and what the send will do", () => {
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
     render()
 
     expect(checkbox("coder").getAttribute("aria-checked")).toBe("true")
     expect(roleElement("coder").textContent).toContain("Kimi-K3")
-    expect(roleElement("coder").textContent).toContain("1/2")
+    expect(roleElement("coder").textContent).not.toContain("+")
     expect(container.querySelector("[data-agent-team-hint]")!.textContent).toContain(
       'chat.agentTeam.hint.coderSingle {"model":"Kimi-K3"}',
     )
+
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GLM))
+    expect(roleElement("coder").textContent).toContain("Kimi-K3")
+    expect(roleElement("coder").textContent).not.toContain("GLM-5.2")
+    expect(roleElement("coder").textContent).toContain("+1")
+    expect(container.querySelector("[data-agent-team-hint]")!.textContent).toContain(
+      'chat.agentTeam.hint.extraModels {"count":2}',
+    )
+  })
+
+  test("a model past the limit can still be starred", () => {
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
+    act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GLM))
+    render()
+    act(() => roleElement("coder").querySelectorAll<HTMLButtonElement>("button")[1]!.click())
+
+    const star = option("Qwen3.8-27b").querySelector<HTMLButtonElement>(".model-favorite-button")!
+    expect(star.disabled).toBe(false)
+    act(() => star.click())
+
+    expect(ui.favoriteModels).toEqual([QWEN])
+    expect(team().coder.models).toEqual([KIMI, GLM])
   })
 
   test("unticking keeps the models and ticking again restores them", () => {
@@ -131,10 +211,12 @@ describe("AgentTeamRow", () => {
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", QWEN))
     render()
 
-    expect(container.querySelector("[data-agent-team-hint]")!.textContent).toContain("chat.agentTeam.selfReview")
+    const hint = () => container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+    expect(hint().dataset.warning).toBe("true")
+    expect(hint().getAttribute("aria-label")).toContain("chat.agentTeam.selfReview")
 
     act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
-    expect(container.querySelector("[data-agent-team-hint]")!.textContent).not.toContain("chat.agentTeam.selfReview")
+    expect(hint().dataset.warning).toBeUndefined()
   })
 
   test("a narrow composer shows counts instead of names", () => {

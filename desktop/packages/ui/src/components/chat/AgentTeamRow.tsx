@@ -1,15 +1,13 @@
 import React from "react"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Icon } from "@/components/icon/Icon"
+import {
+  ModelPickerList,
+  type ModelPickerEntry,
+  type ModelPickerProvider,
+} from "@/components/model-picker/ModelPickerList"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { useModelLists } from "@/hooks/useModelLists"
 import {
   AGENT_TEAM_LIMITS,
   AGENT_TEAM_ROLES,
@@ -38,16 +36,6 @@ interface AgentTeamRowProps {
   className?: string
 }
 
-interface ModelOption extends AgentTeamModelRef {
-  name: string
-}
-
-interface ProviderOptions {
-  id: string
-  name: string
-  models: ModelOption[]
-}
-
 const ROLE_LABEL_KEYS: Record<AgentTeamRole, I18nKey> = {
   coder: "chat.agentTeam.coder",
   qa: "chat.agentTeam.qa",
@@ -55,13 +43,9 @@ const ROLE_LABEL_KEYS: Record<AgentTeamRole, I18nKey> = {
 
 const EMPTY_TEAM = emptyAgentTeam()
 
-/** Names shown on the collapsed control before the rest fold into "+N". */
-const MAX_VISIBLE_NAMES = 2
-
 interface RoleControlProps {
   role: AgentTeamRole
   team: AgentTeamState
-  providers: ProviderOptions[]
   selfReview: AgentTeamModelRef[]
   compact: boolean
   nameOf: (model: AgentTeamModelRef) => string
@@ -70,18 +54,38 @@ interface RoleControlProps {
 }
 
 const RoleControl: React.FC<RoleControlProps> = (props) => {
-  const { role, team, providers, selfReview, compact, nameOf, onToggleModel, onSetEnabled } = props
+  const { role, team, selfReview, compact, nameOf, onToggleModel, onSetEnabled } = props
   const { t } = useI18n()
   const [open, setOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState("")
+  const providers = useConfigStore((s) => s.providers)
+  const hiddenModels = useUIStore((s) => s.hiddenModels)
+  const toggleFavoriteModel = useUIStore((s) => s.toggleFavoriteModel)
+  const isFavoriteModel = useUIStore((s) => s.isFavoriteModel)
+  const { favoriteModelsList, recentModelsList } = useModelLists()
   const { enabled, models } = team[role]
   const max = AGENT_TEAM_LIMITS[role]
   const label = t(ROLE_LABEL_KEYS[role])
   const atLimit = models.length >= max
-  const visible = enabled ? models.slice(0, MAX_VISIBLE_NAMES) : []
-  const hidden = enabled ? models.length - visible.length : 0
   const names = models.map(nameOf).join(", ")
   const count = t("chat.agentTeam.selectedCount", { count: models.length, max })
   const menuTitle = t("chat.agentTeam.menuTitle", { role: label })
+  const upTo = t("chat.agentTeam.upTo", { max })
+
+  const isSelected = React.useCallback(
+    (entry: AgentTeamModelRef) => models.some((model) => isSameAgentTeamModel(model, entry)),
+    [models],
+  )
+  // Options past the limit stay visible but inert, so the user can see what a swap would offer.
+  const isRowDisabled = React.useCallback(
+    (entry: ModelPickerEntry) => atLimit && !isSelected(entry),
+    [atLimit, isSelected],
+  )
+
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next)
+    if (!next) setSearchQuery("")
+  }
 
   const handleCheckbox = () => {
     if (enabled) {
@@ -96,12 +100,31 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
     onSetEnabled(role, true)
   }
 
+  // The same labels as the composer's model picker: it is the same list, with the same favorites.
+  const pickerLabels = {
+    searchPlaceholder: t("chat.modelControls.searchModels"),
+    noResults: t("chat.modelControls.noModelsFound"),
+    favorites: t("chat.modelControls.favorites"),
+    recent: t("chat.modelControls.recent"),
+    keyboardHint: t("chat.modelControls.keyboardHintNavigate"),
+    favorite: t("chat.modelControls.favoriteAria"),
+    unfavorite: t("chat.modelControls.unfavoriteAria"),
+    capabilities: t("chat.modelControls.capabilities"),
+    capabilityToolCalling: t("chat.modelControls.capability.toolCalling"),
+    capabilityReasoning: t("chat.modelControls.capability.reasoning"),
+    input: t("chat.modelControls.input"),
+    output: t("chat.modelControls.output"),
+    costPerMillion: t("chat.modelControls.costPerMillion"),
+    local: t("chat.modelControls.local"),
+    localTooltip: t("chat.modelControls.localTooltip"),
+  }
+
   return (
     <div
       data-agent-team-role={role}
       data-enabled={enabled ? "true" : "false"}
       className={cn(
-        "inline-flex h-7 min-w-0 items-center rounded-md border typography-micro transition-colors",
+        "inline-flex h-7 min-w-0 flex-shrink-0 items-center rounded-md border typography-micro transition-colors",
         enabled
           ? "border-emerald-500/35 bg-emerald-500/10 dark:border-emerald-400/40"
           : "border-[var(--interactive-border)]",
@@ -114,7 +137,7 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
         aria-label={t("chat.agentTeam.toggle", { role: label })}
         onClick={handleCheckbox}
         className={cn(
-          "inline-flex h-full flex-shrink-0 items-center gap-1.5 rounded-l-md pl-1.5 pr-1 font-semibold",
+          "inline-flex h-full flex-shrink-0 items-center gap-1.5 rounded-l-md pl-2 pr-1.5 font-semibold",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
           enabled ? "text-foreground" : "text-muted-foreground hover:text-foreground",
         )}
@@ -132,7 +155,7 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
         </span>
         <span>{label}</span>
       </button>
-      <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenu open={open} onOpenChange={handleOpenChange}>
         <Tooltip delayDuration={350}>
           <TooltipTrigger asChild>
             <DropdownMenuTrigger asChild>
@@ -140,78 +163,76 @@ const RoleControl: React.FC<RoleControlProps> = (props) => {
                 type="button"
                 aria-label={models.length > 0 ? `${menuTitle}: ${names}` : menuTitle}
                 className={cn(
-                  "inline-flex h-full min-w-0 items-center gap-1 rounded-r-md border-l border-[var(--interactive-border)] pl-1.5 pr-1",
+                  "inline-flex h-full min-w-0 items-center gap-1.5 rounded-r-md border-l border-[var(--interactive-border)] pl-2 pr-1.5",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
                   enabled ? "text-foreground" : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {!compact &&
-                  visible.map((model) => (
-                    <span
-                      key={`${model.providerID}/${model.modelID}`}
-                      className="max-w-[9rem] truncate rounded bg-[var(--interactive-hover)] px-1"
-                    >
-                      {nameOf(model)}
-                    </span>
-                  ))}
-                {!compact && hidden > 0 ? <span className="text-muted-foreground">+{hidden}</span> : null}
                 {enabled ? (
-                  <span className="tabular-nums text-muted-foreground">
-                    {models.length}/{max}
-                  </span>
+                  // One readable name beats several clipped ones; the rest are in the tooltip and menu.
+                  <>
+                    {compact ? null : <span className="max-w-[11rem] truncate">{nameOf(models[0]!)}</span>}
+                    {compact || models.length === 1 ? null : (
+                      <span className="flex-shrink-0 text-muted-foreground">+{models.length - 1}</span>
+                    )}
+                    {compact ? (
+                      <span className="flex-shrink-0 tabular-nums text-muted-foreground">
+                        {models.length}/{max}
+                      </span>
+                    ) : null}
+                  </>
                 ) : (
-                  <span>{t("chat.agentTeam.upTo", { max })}</span>
+                  <span className="flex-shrink-0">{upTo}</span>
                 )}
                 <Icon name="arrow-down-s" className="h-3.5 w-3.5 flex-shrink-0" />
               </button>
             </DropdownMenuTrigger>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[18rem] typography-micro">
-            <p className="font-medium">{menuTitle}</p>
-            <p className="text-muted-foreground">{models.length > 0 ? names : t("chat.agentTeam.upTo", { max })}</p>
+            <p className="font-medium">
+              {menuTitle} · {models.length > 0 ? count : upTo}
+            </p>
+            {models.map((model) => (
+              <p key={`${model.providerID}/${model.modelID}`} className="text-muted-foreground">
+                {nameOf(model)}
+              </p>
+            ))}
           </TooltipContent>
         </Tooltip>
-        <DropdownMenuContent align="start" className="max-h-[360px] min-w-[280px] overflow-y-auto">
-          <DropdownMenuLabel className="flex items-center justify-between gap-3 typography-meta">
-            <span>{menuTitle}</span>
-            <span className="text-muted-foreground">{t("chat.agentTeam.upTo", { max })}</span>
-          </DropdownMenuLabel>
-          {providers.length === 0 ? (
-            <p className="px-2 py-1 typography-micro text-muted-foreground">{t("chat.agentTeam.noModels")}</p>
-          ) : null}
-          {providers.map((provider) => (
-            <DropdownMenuGroup key={provider.id}>
-              <DropdownMenuLabel className="typography-micro text-muted-foreground">{provider.name}</DropdownMenuLabel>
-              {provider.models.map((model) => {
-                const checked = models.some((selected) => isSameAgentTeamModel(selected, model))
-                const reviewsOwnWork = checked && selfReview.some((entry) => isSameAgentTeamModel(entry, model))
-                return (
-                  <DropdownMenuCheckboxItem
-                    key={model.modelID}
-                    checked={checked}
-                    // Options past the limit stay visible so the user can see what a swap would offer.
-                    disabled={!checked && atLimit}
-                    closeOnClick={false}
-                    onCheckedChange={() => onToggleModel(role, model)}
-                    className="pr-7"
-                  >
-                    <span className="flex min-w-0 flex-col">
-                      <span className="truncate">{model.name}</span>
-                      {reviewsOwnWork ? (
-                        <span className="typography-micro text-[var(--status-warning)]">
-                          {t("chat.agentTeam.selfReview")}
-                        </span>
-                      ) : null}
-                    </span>
-                  </DropdownMenuCheckboxItem>
-                )
-              })}
-            </DropdownMenuGroup>
-          ))}
-          <DropdownMenuSeparator />
-          <p className="px-2 py-1 typography-micro text-muted-foreground" aria-live="polite">
-            {atLimit ? `${count} · ${t("chat.agentTeam.limitReached")}` : count}
-          </p>
+        <DropdownMenuContent align="start" className="flex w-[min(380px,calc(100vw-2rem))] flex-col p-0">
+          <div className="flex items-center justify-between gap-3 border-b border-border/40 px-3 py-1.5 typography-meta">
+            <span className="font-medium">{menuTitle}</span>
+            <span className="text-muted-foreground">{upTo}</span>
+          </div>
+          <ModelPickerList
+            providers={providers as ModelPickerProvider[]}
+            favoriteModels={favoriteModelsList}
+            recentModels={recentModelsList}
+            modelsMetadata={useConfigStore.getState().modelsMetadata}
+            searchQuery={searchQuery}
+            onSearchQueryChange={setSearchQuery}
+            onSelect={(entry) => onToggleModel(role, entry)}
+            labels={pickerLabels}
+            hiddenModels={hiddenModels}
+            isRowDisabled={isRowDisabled}
+            isFavorite={(entry) => isFavoriteModel(entry.providerID, entry.modelID)}
+            onToggleFavorite={(entry) => toggleFavoriteModel(entry.providerID, entry.modelID)}
+            onEscape={() => handleOpenChange(false)}
+            tooltipsEnabled={open}
+            isRowSelected={isSelected}
+            renderRowEnd={(entry) =>
+              selfReview.some((model) => isSameAgentTeamModel(model, entry)) ? (
+                <span className="flex-shrink-0 typography-micro text-[var(--status-warning)]">
+                  {t("chat.agentTeam.selfReview")}
+                </span>
+              ) : null
+            }
+            footerContent={
+              <span aria-live="polite" className={atLimit ? "text-foreground" : undefined}>
+                {atLimit ? `${count} · ${t("chat.agentTeam.limitReached")}` : count}
+              </span>
+            }
+          />
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -231,29 +252,14 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const team = useAgentTeamStore((s) => s.teamByDirectory[dirKey] ?? EMPTY_TEAM)
   const toggleModel = useAgentTeamStore((s) => s.toggleModel)
   const setRoleEnabled = useAgentTeamStore((s) => s.setRoleEnabled)
-  const configProviders = useConfigStore((s) => s.providers)
+  const providers = useConfigStore((s) => s.providers)
   const leadProviderId = useConfigStore((s) => s.currentProviderId)
   const leadModelId = useConfigStore((s) => s.currentModelId)
-  const hiddenModels = useUIStore((s) => s.hiddenModels)
-
-  const providers = React.useMemo<ProviderOptions[]>(
-    () =>
-      configProviders
-        .map((provider) => ({
-          id: provider.id,
-          name: provider.name || provider.id,
-          models: provider.models
-            .filter((model) => !hiddenModels.some((h) => h.providerID === provider.id && h.modelID === model.id))
-            .map((model) => ({ providerID: provider.id, modelID: model.id, name: model.name || model.id })),
-        }))
-        .filter((provider) => provider.models.length > 0),
-    [configProviders, hiddenModels],
-  )
 
   const nameOf = React.useCallback(
     (ref: AgentTeamModelRef) => {
       const provider = providers.find((entry) => entry.id === ref.providerID)
-      return provider?.models.find((model) => model.modelID === ref.modelID)?.name ?? ref.modelID
+      return provider?.models.find((model) => model.id === ref.modelID)?.name || ref.modelID
     },
     [providers],
   )
@@ -276,12 +282,13 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const qa = activeAgentTeamModels(team, "qa")
   const extra = agentTeamExtraModelCount(team)
 
-  const hints: string[] = []
-  if (coders.length === 1) hints.push(t("chat.agentTeam.hint.coderSingle", { model: nameOf(coders[0]!) }))
-  if (coders.length >= 2) hints.push(t("chat.agentTeam.hint.coderArena"))
-  if (qa.length > 0) hints.push(t("chat.agentTeam.hint.qa"))
-  if (extra > 0) hints.push(t("chat.agentTeam.hint.extraModels", { count: extra }))
-  const hint = hints.join(" ")
+  // The row states only the cost; what each role does is one hover away.
+  const details: string[] = []
+  if (coders.length === 1) details.push(t("chat.agentTeam.hint.coderSingle", { model: nameOf(coders[0]!) }))
+  if (coders.length >= 2) details.push(t("chat.agentTeam.hint.coderArena"))
+  if (qa.length > 0) details.push(t("chat.agentTeam.hint.qa"))
+  const hint = extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : (details[0] ?? "")
+  const warning = selfReview.length > 0 ? t("chat.agentTeam.selfReview") : ""
 
   return (
     <div
@@ -295,7 +302,6 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
           key={role}
           role={role}
           team={team}
-          providers={providers}
           selfReview={role === "qa" ? selfReview : []}
           compact={compact}
           nameOf={nameOf}
@@ -304,16 +310,30 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
         />
       ))}
       {hint && !compact ? (
-        <span
-          data-agent-team-hint
-          title={hint}
-          className={cn(
-            "ml-auto min-w-0 truncate typography-micro",
-            selfReview.length > 0 ? "text-[var(--status-warning)]" : "text-muted-foreground",
-          )}
-        >
-          {selfReview.length > 0 ? `${t("chat.agentTeam.selfReview")} · ${hint}` : hint}
-        </span>
+        <Tooltip delayDuration={350}>
+          <TooltipTrigger asChild>
+            <span
+              data-agent-team-hint
+              data-warning={warning ? "true" : undefined}
+              aria-label={warning ? `${warning}. ${hint}` : undefined}
+              tabIndex={0}
+              className={cn(
+                "ml-auto flex min-w-0 items-center gap-1 rounded typography-micro",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
+                warning ? "text-[var(--status-warning)]" : "text-muted-foreground",
+              )}
+            >
+              {warning ? <Icon name="error-warning" className="h-3.5 w-3.5 flex-shrink-0" /> : null}
+              <span className="truncate">{hint}</span>
+            </span>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-[20rem] typography-micro">
+            {details.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+            {warning ? <p className="text-[var(--status-warning)]">{warning}</p> : null}
+          </TooltipContent>
+        </Tooltip>
       ) : null}
     </div>
   )
