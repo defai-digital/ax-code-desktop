@@ -127,6 +127,46 @@ export function attachmentToRouteFileInput(attachment: AttachedFile): RouteFileI
 // Send routing — shell mode, slash commands, or normal prompt
 // ---------------------------------------------------------------------------
 
+/**
+ * Council and Arena ask the model that runs the turn to call the runtime's council/arena tools. A
+ * model that cannot call them (a CLI provider, or one the catalog says cannot call tools) would
+ * receive a request that cannot succeed, so the send is refused: the error is stored for the
+ * composer and thrown so the caller keeps the text.
+ */
+function refuseBlockedWorkModeSend(command: "council" | "arena", providerID: string, modelID: string): void {
+  const blocked = workModeBlockedReason(command, { providerID, modelID }, useConfigStore.getState().providers)
+  if (!blocked) return
+  const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(blocked), {
+    mode: workModeLabel(command),
+  })
+  useSessionUIStore.setState({ error: message })
+  throw new Error(message)
+}
+
+/**
+ * The same refusal as `routeMessage`, made before a send creates or changes anything: a new chat
+ * would otherwise be left with an empty session (and its worktree) and a message-sent notification
+ * for a message that never existed. `routeMessage` stays the backstop for its direct callers and
+ * for a command catalog that is not loaded yet, which this check does not wait for.
+ */
+function refuseBlockedWorkModeSendEarly(input: {
+  content: string
+  directory: string | null
+  providerID: string
+  modelID: string
+  inputMode?: "normal" | "shell"
+}): void {
+  if (input.inputMode === "shell") return
+  const directory = input.directory ?? useDirectoryStore.getState().currentDirectory
+  const resolved = resolveWorkModeSend(useWorkModeStore.getState().getMode(directory), input.content)
+  const command = workModeEnsembleCommand(resolved.content, resolved.forcedCommand)
+  if (!command) return
+  // An explicit command the runtime is not known to offer may still go out as plain text.
+  const known = useCommandsStore.getState().commands.some((entry) => entry.name === command)
+  if (!resolved.forcedCommand && !known) return
+  refuseBlockedWorkModeSend(command, input.providerID, input.modelID)
+}
+
 export function routeMessage(params: {
   sessionId: string
   directory?: string | null
@@ -181,26 +221,10 @@ export function routeMessage(params: {
     const content = resolved.content
     const forcedCommand = resolved.forcedCommand
 
-    // Council and Arena ask the model that runs the turn to call the runtime's council/arena tools.
-    // Only a send actually routed to the ensemble needs them: the work-mode remap (`forcedCommand`)
-    // or an explicit `/council`/`/arena` typed in any mode. Any other slash command — `/help`, a
-    // custom command — passes through untouched and is sent normally. A model that cannot call the
-    // tools (a CLI provider, or one the catalog says cannot call tools) would receive a request that
-    // cannot succeed, so refuse instead of sending it.
-    const ensembleCommand = workModeEnsembleCommand(content, forcedCommand)
-    if (ensembleCommand) {
-      const workModeBlocked = workModeBlockedReason(
-        ensembleCommand,
-        { providerID: params.providerID, modelID: params.modelID },
-        useConfigStore.getState().providers,
-      )
-      if (workModeBlocked) {
-        const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(workModeBlocked), {
-          mode: workModeLabel(ensembleCommand),
-        })
-        useSessionUIStore.setState({ error: message })
-        throw new Error(message)
-      }
+    // The work-mode remap always asks for the runtime's council/arena tool: as the slash command, or
+    // as the fallback prompt when the connected runtime lacks it. Refuse before anything is loaded.
+    if (forcedCommand) {
+      refuseBlockedWorkModeSend(forcedCommand.name, params.providerID, params.modelID)
     }
 
     // Slash commands — fire and forget, SSE delivers messages and status.
@@ -230,6 +254,14 @@ export function routeMessage(params: {
       const knownCommand = Boolean(storeCommands.find((c) => c.name === cmdName))
       // Empty lists usually mean "not synced yet"; do not treat that as "command missing".
       const commandsLoaded = storeCommands.length > 0
+
+      // An explicit `/council` or `/arena` asks for the same tool only when it is sent as that
+      // command. One the runtime does not offer falls through below and is sent as plain text, which
+      // any model can take, so it is not refused.
+      const explicitEnsemble = forcedCommand ? null : workModeEnsembleCommand(content, null)
+      if (explicitEnsemble && (knownCommand || catalogLoadFailed)) {
+        refuseBlockedWorkModeSend(explicitEnsemble, params.providerID, params.modelID)
+      }
 
       // Known command, forced work-mode while command catalog not loaded
       // yet, or any slash command while the catalog load failed.
@@ -1216,6 +1248,15 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 
+      // Before the session exists: a refused send must leave the draft open and nothing behind.
+      refuseBlockedWorkModeSendEarly({
+        content,
+        directory: normalizePath(draftDirectoryOverride),
+        providerID,
+        modelID,
+        inputMode,
+      })
+
       const created = await get().createSession(draft.title, draftDirectoryOverride, draft.parentID ?? null)
       if (!created?.id) throw new Error("Failed to create session")
 
@@ -1353,6 +1394,15 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       throw new Error(WORK_SESSION_SEND_DISABLED)
     }
     const effectiveAgent = trimmedAgent || sessionAgentSelection || configAgentName || undefined
+
+    // Before the selection is saved or the message-sent notification goes out for a refused send.
+    refuseBlockedWorkModeSendEarly({
+      content,
+      directory: normalizePath(get().getDirectoryForSession(targetSessionId)),
+      providerID,
+      modelID,
+      inputMode,
+    })
 
     if (effectiveAgent) {
       useSelectionStore.getState().saveSessionAgentSelection(targetSessionId, effectiveAgent)

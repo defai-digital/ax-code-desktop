@@ -1,4 +1,4 @@
-import { parseWorkMode, type WorkModeId } from "@/lib/workMode"
+import { parseWorkMode, workModeLabel, type WorkModeId } from "@/lib/workMode"
 
 export interface WorkModeChoice {
   id: WorkModeId
@@ -10,17 +10,17 @@ export interface WorkModeChoice {
 export const WORK_MODE_CHOICES: readonly WorkModeChoice[] = [
   {
     id: "agent",
-    label: "Agent",
+    label: workModeLabel("agent"),
     hint: "Normal single-agent coding.",
   },
   {
     id: "council",
-    label: "Council",
+    label: workModeLabel("council"),
     hint: "Multi-provider advisory review.",
   },
   {
     id: "arena",
-    label: "Arena",
+    label: workModeLabel("arena"),
     hint: "Multi-model best-of-N.",
   },
 ]

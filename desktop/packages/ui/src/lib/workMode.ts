@@ -52,18 +52,22 @@ export function resolveWorkModeSend(
 }
 
 /**
- * The ensemble command a send is actually routed to, or null when it is not an arena/council turn.
+ * The ensemble command a send asks for, or null when it is not an arena/council turn.
  *
  * Work-mode remapping sets `forcedCommand` (`resolveWorkModeSend`); an explicit `/council` or
  * `/arena` typed by the user goes through untouched in any mode and asks for the same runtime tool.
  * Every other slash command — `/help`, `/compact`, a custom command — is not an ensemble turn.
+ *
+ * The explicit form is read the way `routeMessage` reads a command name: the text up to the first
+ * space, with no leading-whitespace trim. `/council` followed by a newline is therefore not the
+ * command; it is sent as plain text, and must not be refused as an ensemble turn.
  */
 export function workModeEnsembleCommand(
   content: string,
   forcedCommand: { name: "council" | "arena" } | null,
 ): "council" | "arena" | null {
   if (forcedCommand) return forcedCommand.name
-  const head = content.trimStart().split(/\s+/, 1)[0]
+  const head = content.split(" ", 1)[0]
   if (head === "/council") return "council"
   if (head === "/arena") return "arena"
   return null

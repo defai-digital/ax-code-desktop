@@ -207,6 +207,28 @@ function bestOrchestrator(ranked: readonly Ranked[], options: ReplacementOptions
 }
 
 /**
+ * The coder to seat in place of one that cannot orchestrate. With two coders one is kept, and the
+ * newcomer must be a different model: the same model id behind another provider would make the
+ * arena compare a model with itself. The second coder is the first to give way, so the user's
+ * top-ranked pick stays when either swap works.
+ */
+function repairCoders(coders: readonly Seat[], ranked: readonly Ranked[]): Seat[] | null {
+  if (coders.length < 2) {
+    const replacement = bestOrchestrator(ranked, { coderSlot: true, exclude: coders })
+    return replacement ? [toSeat(replacement)] : null
+  }
+  for (const kept of [coders[0]!, coders[1]!]) {
+    const replacement = bestOrchestrator(ranked, {
+      coderSlot: true,
+      exclude: coders,
+      excludeModelIds: new Set([kept.entry.candidate.modelID]),
+    })
+    if (replacement) return [kept, toSeat(replacement)]
+  }
+  return null
+}
+
+/**
  * Keep a suggestion runnable. A team the sender would skip is not a suggestion, so swap in the
  * best-ranked model that can orchestrate, re-seat QA around a new author, and only leave the team
  * unchanged when the catalog holds nothing that can run the step.
@@ -217,26 +239,25 @@ function repairDraftTeam(
   isRunnable: (draft: DraftTeam) => boolean,
 ): DraftTeam {
   if (isRunnable(draft)) return draft
-  const coderReplacement = bestOrchestrator(ranked, { coderSlot: true, exclude: draft.coder })
-  if (coderReplacement) {
-    const coder =
-      draft.coder.length >= 2 ? [...draft.coder.slice(0, -1), toSeat(coderReplacement)] : [toSeat(coderReplacement)]
+  const coder = repairCoders(draft.coder, ranked)
+  if (coder) {
     // The new coder writes the code, so it cannot also review it.
     return { coder, qa: suggestQa(ranked, coder.map(toRef)) }
   }
-  if (draft.coder.length === 1) {
+  if (draft.coder.length < 2) {
     // Nothing here can orchestrate, so the QA step would be skipped: do not promise one.
     return { ...draft, qa: [] }
   }
-  // A reviewer can orchestrate the arena or council it takes part in.
-  const authorModelIds = new Set(draft.coder.map((seat) => seat.entry.candidate.modelID))
+  // A reviewer can orchestrate the arena or council it takes part in. It must be a model that is
+  // neither an author nor already on the panel under another provider.
+  const kept = draft.qa.slice(0, -1)
   const reviewer = bestOrchestrator(ranked, {
     coderSlot: false,
     exclude: [...draft.coder, ...draft.qa],
-    excludeModelIds: authorModelIds,
+    excludeModelIds: new Set([...draft.coder, ...kept].map((seat) => seat.entry.candidate.modelID)),
   })
   if (reviewer && draft.qa.length > 0) {
-    return { ...draft, qa: [...draft.qa.slice(0, -1), toSeat(reviewer)] }
+    return { ...draft, qa: [...kept, toSeat(reviewer)] }
   }
   return draft
 }
@@ -252,8 +273,12 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
   let draft: DraftTeam = { coder, qa: suggestQa(ranked, authors) }
   if (input.lead) {
     const lead = input.lead
+    const canOrchestrate = orchestratorFromCandidates(input.candidates)
+    // With no coder, the model that runs the turn writes the code. A lead that cannot orchestrate
+    // hands the turn to a reviewer, which would then review its own work: suggest no panel instead.
+    if (draft.coder.length === 0 && !canOrchestrate(lead)) return { coder: [], qa: [] }
     const isRunnable = (candidate: DraftTeam) =>
-      agentTeamBlockedReasonFor(draftTeam(candidate), lead, orchestratorFromCandidates(input.candidates)) === null
+      agentTeamBlockedReasonFor(draftTeam(candidate), lead, canOrchestrate) === null
     draft = repairDraftTeam(draft, ranked, isRunnable)
     // A team the send would still skip is not a suggestion at all.
     if (!isRunnable(draft)) return { coder: [], qa: [] }

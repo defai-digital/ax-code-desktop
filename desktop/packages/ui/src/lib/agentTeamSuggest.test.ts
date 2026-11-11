@@ -222,6 +222,47 @@ describe("suggestions that can actually run", () => {
     expect(suggestAgentTeam({ candidates, favorites: [], recents: [], lead: CLI_LEAD })).toEqual({ coder: [], qa: [] })
   })
 
+  test("a swapped-in coder is never the kept coder's model behind another provider", () => {
+    // Both favorites are CLI, so one gives way to a model that can orchestrate. The only one is the
+    // first coder's model under another provider, so the first coder is the one replaced.
+    const candidates = [candidate("claude-code", "opus"), candidate("codex-cli", "gpt"), candidate("anthropic", "opus")]
+    const lead = ref("claude-code", "opus")
+    const suggestion = suggestAgentTeam({
+      candidates,
+      favorites: [ref("claude-code", "opus"), ref("codex-cli", "gpt")],
+      recents: [],
+      lead,
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["codex-cli/gpt", "anthropic/opus"])
+  })
+
+  test("with no coder, a lead that cannot orchestrate gets no panel whose reviewer would write the code", () => {
+    // Nothing is known to call tools, so there is no coder and the turn would pass to a reviewer:
+    // the lead's own model under another provider, reviewing what it wrote.
+    const candidates = [
+      candidate("claude-code", "opus", { toolCall: undefined }),
+      candidate("custom", "opus", { toolCall: undefined }),
+      candidate("zhipu", "glm", { toolCall: false }),
+      candidate("deepseek", "v4", { toolCall: false }),
+    ]
+    const lead = ref("claude-code", "opus")
+
+    expect(suggestAgentTeam({ candidates, favorites: [], recents: [], lead })).toEqual({ coder: [], qa: [] })
+  })
+
+  test("with no coder, a lead that can orchestrate still gets its QA panel", () => {
+    const candidates = [
+      candidate("kimi", "k3", { toolCall: undefined }),
+      candidate("zhipu", "glm", { toolCall: false }),
+      candidate("deepseek", "v4", { toolCall: false }),
+    ]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead: ref("kimi", "k3") })
+
+    expect(suggestion.coder).toEqual([])
+    expect(ids(suggestion.qa)).toEqual(["deepseek/v4", "zhipu/glm"])
+  })
+
   test("a suggested team is never one the send would skip or run on a model without tools", () => {
     const mixed = [
       candidate("claude-code", "fable"),

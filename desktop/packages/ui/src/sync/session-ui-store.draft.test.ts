@@ -8,6 +8,7 @@ vi.mock("./session-actions", async (importOriginal) => {
 })
 
 const { useSessionUIStore, getNewSessionDraftRevision } = await import("./session-ui-store")
+const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 
 const draft = () => ({
   open: true,
@@ -153,5 +154,47 @@ describe("createSession draft rollback", () => {
         }),
     ).rejects.toThrow("Cannot send message without an active session or draft")
     expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
+  test("a Council send the model cannot run is refused before the session is created", async () => {
+    // The refusal used to come after the create: the draft was gone and an empty session was left.
+    useWorkModeStore.setState({ modeByDirectory: {} })
+    useWorkModeStore.getState().setMode("/proj-b", "council")
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))
+
+    try {
+      await expect(
+        useSessionUIStore.getState().sendMessage("rate this module", "claude-code", "claude-fable-5-2"),
+      ).rejects.toThrow("Council needs a non-CLI model")
+
+      expect(createSessionAction).not.toHaveBeenCalled()
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
+      expect(useSessionUIStore.getState().currentSessionId).toBeNull()
+      expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+    } finally {
+      fetchSpy.mockRestore()
+      useWorkModeStore.setState({ modeByDirectory: {} })
+    }
+  })
+
+  test("an existing session refuses the same send before the message-sent notification goes out", async () => {
+    useWorkModeStore.setState({ modeByDirectory: {} })
+    useWorkModeStore.getState().setMode("/proj-b", "arena")
+    useSessionUIStore.setState({ newSessionDraft: { open: false } as never, currentSessionId: "session-1" })
+    const directorySpy = vi.spyOn(useSessionUIStore.getState(), "getDirectoryForSession").mockReturnValue("/proj-b")
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))
+
+    try {
+      await expect(
+        useSessionUIStore.getState().sendMessage("compare two plans", "claude-code", "claude-fable-5-2"),
+      ).rejects.toThrow("Arena needs a non-CLI model")
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+      directorySpy.mockRestore()
+      useWorkModeStore.setState({ modeByDirectory: {} })
+    }
   })
 })

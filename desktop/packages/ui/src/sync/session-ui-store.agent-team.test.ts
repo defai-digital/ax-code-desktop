@@ -305,6 +305,26 @@ describe("agent team send routing", () => {
     expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
   })
 
+  test("a /council the runtime does not offer is sent as plain text, so a CLI model is not refused", async () => {
+    // Version skew: the catalog is loaded and has no `council`, so the text goes out as a prompt.
+    useCommandsStore.setState({ commands: [{ name: "help" }] } as never)
+
+    await send("/council rate the API", { lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "/council rate the API" })
+  })
+
+  test("/council followed by a newline is not the command, so it is sent as typed on a CLI model", async () => {
+    // The command name is read up to the first space; this one is `council\nrate`, which is unknown.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await send("/council\nrate the API", { lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "/council\nrate the API" })
+  })
+
   test("an explicit /council on a model that can orchestrate is sent in Agent work mode", async () => {
     useWorkModeStore.getState().setMode("/proj", "agent")
     useCommandsStore.setState({ commands: [{ name: "council" }] } as never)

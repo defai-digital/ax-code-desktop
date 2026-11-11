@@ -96,7 +96,7 @@ describe("workModeEnsembleCommand", () => {
 
   test("an explicit ensemble slash is detected without a remap", () => {
     expect(workModeEnsembleCommand("/council rate this", null)).toBe("council")
-    expect(workModeEnsembleCommand("  /arena compare plans", null)).toBe("arena")
+    expect(workModeEnsembleCommand("/arena compare plans", null)).toBe("arena")
     expect(workModeEnsembleCommand("/council", null)).toBe("council")
   })
 
@@ -105,6 +105,9 @@ describe("workModeEnsembleCommand", () => {
     expect(workModeEnsembleCommand("/help", null)).toBeNull()
     expect(workModeEnsembleCommand("/compact", null)).toBeNull()
     expect(workModeEnsembleCommand("/councils", null)).toBeNull()
+    // Read like the command path: the name ends at the first space, so these are not the command.
+    expect(workModeEnsembleCommand("/council\nrate this", null)).toBeNull()
+    expect(workModeEnsembleCommand("/arena\tcompare plans", null)).toBeNull()
     expect(workModeEnsembleCommand("fix the login bug", null)).toBeNull()
     expect(workModeEnsembleCommand("", null)).toBeNull()
   })
