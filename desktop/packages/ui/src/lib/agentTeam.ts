@@ -6,8 +6,9 @@
  * through its `council` tool (review). A single coder is an ordinary single-agent turn on that model.
  *
  * The directive only works on a model the runtime serves itself. CLI providers (`claude-code`,
- * `codex-cli`, and the like) run their own vendor agent loop and never get the runtime's tools, so
- * they cannot orchestrate; `agentTeamRunner` picks the non-CLI model that runs such a turn instead.
+ * `codex-cli`, and the like) run their own vendor agent loop and never get the runtime's tools, and a
+ * model the catalog marks as unable to call tools cannot use them either, so neither can orchestrate;
+ * `agentTeamRunner` picks a team model that can instead.
  */
 
 import { isExternalCliProvider, isProviderModelSelectable } from "./providerModelAvailability"
@@ -140,6 +141,36 @@ function findCatalogModel(providers: readonly AgentTeamCatalogProvider[], ref: A
 }
 
 /**
+ * Tool calling as the catalog states it. `undefined` means the catalog does not say, which callers
+ * treat as capable: only a known limitation disqualifies a model.
+ */
+export function catalogModelToolCalling(model: Record<string, unknown> | null | undefined): boolean | undefined {
+  if (!model || typeof model !== "object") return undefined
+  const capabilities = (model as { capabilities?: unknown }).capabilities
+  if (!capabilities || typeof capabilities !== "object") return undefined
+  const toolcall = (capabilities as { toolcall?: unknown }).toolcall
+  return typeof toolcall === "boolean" ? toolcall : undefined
+}
+
+/**
+ * Whether a model can be handed the runtime's arena/council directive. A CLI provider runs its own
+ * vendor agent loop and never receives those tools; a model known to lack tool calling cannot use
+ * them either. Unknown tool-calling capability counts as capable.
+ */
+export function isOrchestratingModel(providerID: string, toolCall: boolean | undefined): boolean {
+  return !isExternalCliProvider(providerID) && toolCall !== false
+}
+
+/** `isOrchestratingModel` with the capability looked up in the catalog; a model it omits is unknown. */
+export function canOrchestrateAgentTeam(
+  model: AgentTeamModelRef,
+  providers?: readonly AgentTeamCatalogProvider[],
+): boolean {
+  if (!providers) return isOrchestratingModel(model.providerID, undefined)
+  return isOrchestratingModel(model.providerID, catalogModelToolCalling(findCatalogModel(providers, model)))
+}
+
+/**
  * The team restricted to models that can run now. A persisted pick whose provider was disconnected,
  * or whose model was removed or became unusable, must not keep overriding the composer model; the
  * picker cannot show it, so the user could not take it out either. The stored team is not changed.
@@ -192,44 +223,70 @@ function needsAgentTeamDirective(team: AgentTeamState): boolean {
  *
  * Exactly one coder is an ordinary single-agent turn on that coder, CLI or not. Otherwise the send
  * carries a directive to call the runtime's `arena`/`council` tools, and only a model the runtime
- * serves itself can follow it: a CLI provider runs its own agent loop without those tools, so the
- * turn stops with no arena/council tool. A CLI lead therefore hands the turn to the first non-CLI
- * coder, or else the first non-CLI QA model; with none, the lead is kept. CLI models may still be
- * arena members or council reviewers — only the orchestrating runner must be non-CLI.
+ * serves itself with tool calling can follow it: a CLI provider runs its own agent loop without
+ * those tools, and a model the catalog marks as unable to call tools has none either, so the turn
+ * stops with no arena/council tool. Such a lead therefore hands the turn to the first coder that can
+ * orchestrate, or else the first such QA model; with none, the lead is kept. Models that cannot
+ * orchestrate may still be arena members or council reviewers — only the runner must be able to.
  *
- * This model may still be a CLI provider: the single coder, or a lead kept because nothing can
- * orchestrate. Such a turn carries no directive — see `agentTeamBlockedReason`, which a sender must
- * consult before attaching one.
+ * This model may still be unable to orchestrate: the single coder, or a lead kept because nothing
+ * can. Such a turn carries no directive — see `agentTeamBlockedReason`, which a sender must consult
+ * before attaching one.
  */
-export function agentTeamRunner(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamModelRef {
+export function agentTeamRunner(
+  team: AgentTeamState,
+  lead: AgentTeamModelRef,
+  providers?: readonly AgentTeamCatalogProvider[],
+): AgentTeamModelRef {
   const coders = activeAgentTeamModels(team, "coder")
   if (coders.length === 1) return coders[0]!
-  if (!needsAgentTeamDirective(team) || !isExternalCliProvider(lead.providerID)) return lead
-  const firstNonCli = (models: readonly AgentTeamModelRef[]) =>
-    models.find((model) => !isExternalCliProvider(model.providerID))
-  return firstNonCli(coders) ?? firstNonCli(activeAgentTeamModels(team, "qa")) ?? lead
+  if (!needsAgentTeamDirective(team)) return lead
+  const canOrchestrate = (model: AgentTeamModelRef) => canOrchestrateAgentTeam(model, providers)
+  if (canOrchestrate(lead)) return lead
+  return [...coders, ...activeAgentTeamModels(team, "qa")].find(canOrchestrate) ?? lead
 }
 
-/** A team step the send has to skip: no non-CLI model is left to call the runtime tools. */
+/** A team step the send has to skip: no model is left that can call the runtime tools. */
 export type AgentTeamBlockedReason = "cliCoderQa" | "noOrchestrator"
+
+/** The orchestration test a caller supplies: see `canOrchestrateAgentTeam`. */
+export type AgentTeamOrchestrator = (model: AgentTeamModelRef) => boolean
+
+/**
+ * `agentTeamBlockedReason` with the orchestration test supplied by the caller. The suggestion
+ * policy has its own capability data and uses this so both agree on what a runnable team is.
+ */
+export function agentTeamBlockedReasonFor(
+  team: AgentTeamState,
+  lead: AgentTeamModelRef,
+  canOrchestrate: AgentTeamOrchestrator,
+): AgentTeamBlockedReason | null {
+  const coders = activeAgentTeamModels(team, "coder")
+  const qa = activeAgentTeamModels(team, "qa")
+  if (qa.length > 0 && coders.length === 1 && !canOrchestrate(coders[0]!)) return "cliCoderQa"
+  if (!needsAgentTeamDirective(team) || canOrchestrate(lead)) return null
+  const members = [...coders, ...qa]
+  return members.every((model) => !canOrchestrate(model)) ? "noOrchestrator" : null
+}
 
 /**
  * Why the team cannot be sent as chosen, or null when it can.
  *
  * - `cliCoderQa`: the single coder writes the code and would orchestrate the QA step itself, but a
- *   CLI provider has no `council` tool. The QA step is skipped and the coder runs the turn alone.
- * - `noOrchestrator`: a directive is needed, the composer model is a CLI provider, and no active
- *   coder or QA model is non-CLI. The whole team is skipped and the composer model runs the turn.
+ *   CLI provider, or a model without tool calling, has no `council` tool. The QA step is skipped and
+ *   the coder runs the turn alone.
+ * - `noOrchestrator`: a directive is needed, the composer model cannot orchestrate, and no active
+ *   coder or QA model can either. The whole team is skipped and the composer model runs the turn.
  *
- * Both mean the same thing on send: no directive, because a CLI model cannot follow one.
+ * Both mean the same thing on send: no directive, because a model that cannot call tools cannot
+ * follow one.
  */
-export function agentTeamBlockedReason(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamBlockedReason | null {
-  const coders = activeAgentTeamModels(team, "coder")
-  const qa = activeAgentTeamModels(team, "qa")
-  if (qa.length > 0 && coders.length === 1 && isExternalCliProvider(coders[0]!.providerID)) return "cliCoderQa"
-  if (!needsAgentTeamDirective(team) || !isExternalCliProvider(lead.providerID)) return null
-  const members = [...coders, ...qa]
-  return members.every((model) => isExternalCliProvider(model.providerID)) ? "noOrchestrator" : null
+export function agentTeamBlockedReason(
+  team: AgentTeamState,
+  lead: AgentTeamModelRef,
+  providers?: readonly AgentTeamCatalogProvider[],
+): AgentTeamBlockedReason | null {
+  return agentTeamBlockedReasonFor(team, lead, (model) => canOrchestrateAgentTeam(model, providers))
 }
 
 /**
@@ -237,10 +294,14 @@ export function agentTeamBlockedReason(team: AgentTeamState, lead: AgentTeamMode
  * model that runs the turn writes the code, which is `agentTeamRunner` rather than necessarily the
  * composer model. A step the send skips cannot review anything, so it is not flagged.
  */
-export function agentTeamSelfReviewModels(team: AgentTeamState, lead?: AgentTeamModelRef | null): AgentTeamModelRef[] {
-  if (lead && agentTeamBlockedReason(team, lead) !== null) return []
+export function agentTeamSelfReviewModels(
+  team: AgentTeamState,
+  lead?: AgentTeamModelRef | null,
+  providers?: readonly AgentTeamCatalogProvider[],
+): AgentTeamModelRef[] {
+  if (lead && agentTeamBlockedReason(team, lead, providers) !== null) return []
   const coders = activeAgentTeamModels(team, "coder")
-  const authors = coders.length > 0 ? coders : lead ? [agentTeamRunner(team, lead)] : []
+  const authors = coders.length > 0 ? coders : lead ? [agentTeamRunner(team, lead, providers)] : []
   return activeAgentTeamModels(team, "qa").filter((model) =>
     authors.some((author) => isSameAgentTeamModel(author, model)),
   )
@@ -299,21 +360,25 @@ function qaStep(qa: readonly AgentTeamModelRef[], after: "arena" | "self"): stri
  * - two coders: the runner orchestrates an arena between them.
  * - QA: a council review of the finished work by the selected models.
  *
- * The model that runs the turn comes from `agentTeamRunner`: a CLI composer model cannot orchestrate
- * because it runs its own agent loop without the runtime's arena/council tools, so a non-CLI team
- * model runs the turn instead. When no such model is left, `agentTeamBlockedReason` names the step
- * to skip and the turn is sent without a directive.
+ * The model that runs the turn comes from `agentTeamRunner`: a composer model that cannot orchestrate
+ * because it runs its own agent loop without the runtime's arena/council tools, or is known to lack
+ * tool calling, hands the turn to a team model that can. When no such model is left,
+ * `agentTeamBlockedReason` names the step to skip and the turn is sent without a directive.
  *
  * The directive is a request to the runner, not a guarantee: the runtime tools enforce their own
  * limits, and the runner is told to report a blocked step instead of working around it.
  */
-export function resolveAgentTeamSend(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamSend {
+export function resolveAgentTeamSend(
+  team: AgentTeamState,
+  lead: AgentTeamModelRef,
+  providers?: readonly AgentTeamCatalogProvider[],
+): AgentTeamSend {
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  const runner = agentTeamRunner(team, lead)
-  // Never hand a directive to a CLI runner: it would be instructions to call tools that model never
-  // receives. The skipped step is reported in the composer instead.
-  if (agentTeamBlockedReason(team, lead) !== null) {
+  const runner = agentTeamRunner(team, lead, providers)
+  // Never hand a directive to a runner that cannot call tools: it would be instructions to call
+  // tools that model never receives. The skipped step is reported in the composer instead.
+  if (agentTeamBlockedReason(team, lead, providers) !== null) {
     return { providerID: runner.providerID, modelID: runner.modelID, directive: null }
   }
   const steps: string[][] = []
@@ -331,8 +396,12 @@ export function resolveAgentTeamSend(team: AgentTeamState, lead: AgentTeamModelR
  * `lead` is the composer model, so a step the send skips is not counted; without it every step of
  * the team is counted.
  */
-export function agentTeamExtraModelCount(team: AgentTeamState, lead?: AgentTeamModelRef | null): number {
-  if (lead && agentTeamBlockedReason(team, lead) !== null) return 0
+export function agentTeamExtraModelCount(
+  team: AgentTeamState,
+  lead?: AgentTeamModelRef | null,
+  providers?: readonly AgentTeamCatalogProvider[],
+): number {
+  if (lead && agentTeamBlockedReason(team, lead, providers) !== null) return 0
   const coders = activeAgentTeamModels(team, "coder")
   return (coders.length >= 2 ? coders.length : 0) + activeAgentTeamModels(team, "qa").length
 }

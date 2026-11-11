@@ -4,9 +4,24 @@ import {
   DEFAULT_WORK_MODE,
   resolveWorkModeSend,
   routeWorkModeInput,
+  workModeBlockedMessageKey,
+  workModeBlockedReason,
   workModeChipColorHex,
+  workModeEnsembleCommand,
   workModeFallbackPrompt,
+  workModeLabel,
 } from "./workMode"
+import type { AgentTeamCatalogProvider, AgentTeamModelRef } from "./agentTeam"
+
+const LEAD: AgentTeamModelRef = { providerID: "alibaba", modelID: "qwen" }
+// Runs its own vendor agent loop, so the runtime never gives it council/arena.
+const CLI_LEAD: AgentTeamModelRef = { providerID: "claude-code", modelID: "claude-fable-5-2" }
+const NO_TOOLS_LEAD: AgentTeamModelRef = { providerID: "alibaba", modelID: "tiny" }
+
+const CATALOG: AgentTeamCatalogProvider[] = [
+  { id: "alibaba", models: [{ id: "qwen" }, { id: "tiny", capabilities: { toolcall: false } }] },
+  { id: "claude-code", models: [{ id: "claude-fable-5-2", capabilities: { toolcall: true } }] },
+]
 
 describe("workMode", () => {
   test("default is agent", () => {
@@ -70,5 +85,71 @@ describe("workMode", () => {
     expect(workModeChipColorHex("agent")).toBe("#22c55e")
     expect(workModeChipColorHex("council")).toBe("#3b82f6")
     expect(workModeChipColorHex("arena")).toBe("#a855f7")
+  })
+})
+
+describe("workModeEnsembleCommand", () => {
+  test("the work-mode remap is the ensemble command", () => {
+    expect(workModeEnsembleCommand("/council rate this", { name: "council" })).toBe("council")
+    expect(workModeEnsembleCommand("/arena compare plans", { name: "arena" })).toBe("arena")
+  })
+
+  test("an explicit ensemble slash is detected without a remap", () => {
+    expect(workModeEnsembleCommand("/council rate this", null)).toBe("council")
+    expect(workModeEnsembleCommand("  /arena compare plans", null)).toBe("arena")
+    expect(workModeEnsembleCommand("/council", null)).toBe("council")
+  })
+
+  test("other sends are not ensemble turns", () => {
+    // Slash commands the user typed pass through untouched and need no runtime tool.
+    expect(workModeEnsembleCommand("/help", null)).toBeNull()
+    expect(workModeEnsembleCommand("/compact", null)).toBeNull()
+    expect(workModeEnsembleCommand("/councils", null)).toBeNull()
+    expect(workModeEnsembleCommand("fix the login bug", null)).toBeNull()
+    expect(workModeEnsembleCommand("", null)).toBeNull()
+  })
+})
+
+describe("workModeBlockedReason", () => {
+  test("agent mode is a plain prompt, so it is never blocked", () => {
+    expect(workModeBlockedReason("agent", CLI_LEAD, CATALOG)).toBeNull()
+    expect(workModeBlockedReason("agent", NO_TOOLS_LEAD, CATALOG)).toBeNull()
+  })
+
+  test("a model that can call tools runs Council and Arena itself", () => {
+    expect(workModeBlockedReason("council", LEAD, CATALOG)).toBeNull()
+    expect(workModeBlockedReason("arena", LEAD, CATALOG)).toBeNull()
+  })
+
+  test("a CLI composer model cannot run either mode", () => {
+    expect(workModeBlockedReason("council", CLI_LEAD, CATALOG)).toBe("cliLead")
+    expect(workModeBlockedReason("arena", CLI_LEAD, CATALOG)).toBe("cliLead")
+    // A CLI provider is reported as such even when its catalog entry claims tool calling.
+    expect(workModeBlockedReason("council", CLI_LEAD)).toBe("cliLead")
+  })
+
+  test("a non-CLI model known to lack tool calling cannot run them either", () => {
+    expect(workModeBlockedReason("council", NO_TOOLS_LEAD, CATALOG)).toBe("noToolCalling")
+    expect(workModeBlockedReason("arena", NO_TOOLS_LEAD, CATALOG)).toBe("noToolCalling")
+  })
+
+  test("unknown capability counts as capable", () => {
+    // The catalog does not list this model at all, and the one it does list says nothing.
+    expect(workModeBlockedReason("council", { providerID: "deepseek", modelID: "v4" }, CATALOG)).toBeNull()
+    expect(workModeBlockedReason("arena", LEAD, [{ id: "alibaba", models: [{ id: "qwen" }] }])).toBeNull()
+    expect(workModeBlockedReason("council", LEAD)).toBeNull()
+  })
+
+  test("no selected model has nothing to block yet", () => {
+    expect(workModeBlockedReason("council", null, CATALOG)).toBeNull()
+    expect(workModeBlockedReason("arena", undefined)).toBeNull()
+  })
+
+  test("labels and message keys name the mode and the reason", () => {
+    expect(workModeLabel("agent")).toBe("Agent")
+    expect(workModeLabel("council")).toBe("Council")
+    expect(workModeLabel("arena")).toBe("Arena")
+    expect(workModeBlockedMessageKey("cliLead")).toBe("chat.workMode.blocked.cliLead")
+    expect(workModeBlockedMessageKey("noToolCalling")).toBe("chat.workMode.blocked.noToolCalling")
   })
 })

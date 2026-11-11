@@ -6,12 +6,15 @@ import {
   agentTeamSendVariant,
   usableAgentTeam,
   agentTeamSelfReviewModels,
+  canOrchestrateAgentTeam,
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
+  isSameAgentTeamModel,
   parseAgentTeam,
   resolveAgentTeamSend,
   setAgentTeamRoleEnabled,
   toggleAgentTeamModel,
+  type AgentTeamCatalogProvider,
   type AgentTeamModelRef,
   type AgentTeamState,
 } from "./agentTeam"
@@ -415,5 +418,99 @@ describe("agentTeamSendVariant", () => {
 
   test("no variant stays no variant", () => {
     expect(agentTeamSendVariant(catalog, A, LEAD, undefined)).toBeUndefined()
+  })
+})
+
+describe("tool-calling capability", () => {
+  // The composer model lacks tool calling here; A and B have it, C/D/E do not. The CLI providers
+  // claim tool calling, which must not make them orchestrators.
+  const TOOL_CATALOG: AgentTeamCatalogProvider[] = [
+    { id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] },
+    { id: "moonshot", models: [{ id: "kimi", capabilities: { toolcall: true } }] },
+    { id: "zhipu", models: [{ id: "glm", capabilities: { toolcall: true } }] },
+    { id: "deepseek", models: [{ id: "v4", capabilities: { toolcall: false } }] },
+    { id: "minimax", models: [{ id: "m3", capabilities: { toolcall: false } }] },
+    { id: "mistral", models: [{ id: "large", capabilities: { toolcall: false } }] },
+    { id: "claude-code", models: [{ id: "claude-fable-5-2", capabilities: { toolcall: true } }] },
+    { id: "codex-cli", models: [{ id: "codex-large", capabilities: { toolcall: true } }] },
+    { id: "dsh-cli", models: [{ id: "dsh-pro", capabilities: { toolcall: true } }] },
+    { id: "grok-build-cli", models: [{ id: "grok-code", capabilities: { toolcall: true } }] },
+    { id: "kimi-cli", models: [{ id: "kimi-k3", capabilities: { toolcall: true } }] },
+  ]
+
+  test("a composer model that cannot call tools hands the turn to a coder that can", () => {
+    expect(agentTeamRunner(team([C, A], []), LEAD, TOOL_CATALOG)).toEqual(A)
+    const send = resolveAgentTeamSend(team([A, C], []), LEAD, TOOL_CATALOG)
+    expect(send.providerID).toBe(A.providerID)
+    expect(send.directive).toContain("**arena**")
+    // Both coders stay arena members; only the orchestrating runner changes.
+    expect(send.directive).toContain(JSON.stringify([A, C]))
+  })
+
+  test("a tool-less lead with QA only hands council to the first capable reviewer", () => {
+    const send = resolveAgentTeamSend(team([], [C, A]), LEAD, TOOL_CATALOG)
+    expect(send.providerID).toBe(A.providerID)
+    expect(send.directive).toContain("**council**")
+  })
+
+  test("a single coder without tool calling cannot orchestrate its QA, so QA is skipped", () => {
+    expect(agentTeamBlockedReason(team([C], [A, B]), LEAD, TOOL_CATALOG)).toBe("cliCoderQa")
+    expect(resolveAgentTeamSend(team([C], [A, B]), LEAD, TOOL_CATALOG)).toEqual({ ...C, directive: null })
+  })
+
+  test("a team with no capable member is skipped", () => {
+    expect(agentTeamBlockedReason(team([C, D], []), LEAD, TOOL_CATALOG)).toBe("noOrchestrator")
+    expect(agentTeamBlockedReason(team([], [C, E]), LEAD, TOOL_CATALOG)).toBe("noOrchestrator")
+    expect(resolveAgentTeamSend(team([C, D], []), LEAD, TOOL_CATALOG).directive).toBeNull()
+  })
+
+  test("one capable team model is enough, whoever it is", () => {
+    expect(agentTeamBlockedReason(team([C, A], []), LEAD, TOOL_CATALOG)).toBeNull()
+    expect(agentTeamBlockedReason(team([], [C, A]), LEAD, TOOL_CATALOG)).toBeNull()
+  })
+
+  test("a CLI model never orchestrates, whatever its catalog entry says", () => {
+    expect(agentTeamBlockedReason(team([CLI_CODER, CLI_CODER_B], []), CLI_LEAD, TOOL_CATALOG)).toBe("noOrchestrator")
+    expect(agentTeamRunner(team([CLI_CODER, A], []), CLI_LEAD, TOOL_CATALOG)).toEqual(A)
+  })
+
+  test("unknown tool-calling capability counts as capable", () => {
+    const silent: AgentTeamCatalogProvider[] = [{ id: "alibaba", models: [{ id: "qwen" }] }]
+    expect(agentTeamBlockedReason(team([A, B], []), LEAD, silent)).toBeNull()
+    expect(agentTeamRunner(team([A, B], []), LEAD, silent)).toEqual(LEAD)
+    // A model the catalog omits keeps the provider rule only.
+    expect(agentTeamBlockedReason(team([A, B], []), CLI_LEAD, silent)).toBeNull()
+  })
+
+  test("a skipped step costs no extra call and is not flagged as self-review", () => {
+    expect(agentTeamExtraModelCount(team([C], [A, B]), LEAD, TOOL_CATALOG)).toBe(0)
+    expect(agentTeamSelfReviewModels(team([C], [C, A]), LEAD, TOOL_CATALOG)).toEqual([])
+    expect(agentTeamExtraModelCount(team([A, C], []), LEAD, TOOL_CATALOG)).toBe(2)
+  })
+
+  test("a substituted runner is the author when no coder is selected", () => {
+    expect(agentTeamSelfReviewModels(team([], [C, A]), LEAD, TOOL_CATALOG)).toEqual([A])
+  })
+
+  test("never returns a directive with a runner that cannot call tools", () => {
+    const leads = [LEAD, CLI_LEAD, C, CLI_CODER_B]
+    const coderSets = [[], [A], [C], [A, B], [C, A], [C, D], [CLI_CODER, A], [CLI_CODER, CLI_CODER_B]]
+    const qaSets = [[], [A, B], [C, E], [C, A], [CLI_QA, A]]
+    let directives = 0
+    for (const lead of leads) {
+      for (const coders of coderSets) {
+        for (const qa of qaSets) {
+          const state = team(coders, qa)
+          const send = resolveAgentTeamSend(state, lead, TOOL_CATALOG)
+          if (send.directive === null) continue
+          directives++
+          // The runner the send claims to use, and the model it actually sends to, both orchestrate.
+          expect(isSameAgentTeamModel(agentTeamRunner(state, lead, TOOL_CATALOG), send)).toBe(true)
+          expect(isExternalCliProvider(send.providerID)).toBe(false)
+          expect(canOrchestrateAgentTeam(send, TOOL_CATALOG)).toBe(true)
+        }
+      }
+    }
+    expect(directives).toBeGreaterThan(0)
   })
 })

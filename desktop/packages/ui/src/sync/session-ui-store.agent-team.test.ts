@@ -51,14 +51,15 @@ const send = (
     agentTeam: options.withTeam === false ? undefined : useAgentTeamStore.getState().getTeam("/proj"),
   })
 
-const sentMessage = () => sendMessage.mock.calls[0]![0] as {
-  providerID: string
-  modelID: string
-  text: string
-  variant?: string
-  messageId?: string
-  additionalParts?: Array<{ text: string; synthetic?: boolean }>
-}
+const sentMessage = () =>
+  sendMessage.mock.calls[0]![0] as {
+    providerID: string
+    modelID: string
+    text: string
+    variant?: string
+    messageId?: string
+    additionalParts?: Array<{ text: string; synthetic?: boolean }>
+  }
 
 describe("agent team send routing", () => {
   beforeEach(() => {
@@ -237,5 +238,80 @@ describe("agent team send routing", () => {
     expect(sendCommand).toHaveBeenCalledWith(
       expect.objectContaining({ command: "council", providerID: "alibaba", modelID: "qwen" }),
     )
+  })
+
+  test("Council work mode is refused on a CLI composer model instead of sending a request it cannot run", async () => {
+    useWorkModeStore.getState().setMode("/proj", "council")
+
+    await expect(send("rate this module", { lead: CLI_LEAD })).rejects.toThrow("Council needs a non-CLI model")
+
+    // Nothing was sent, and the composer keeps the text: the error is the same one the composer toasts.
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+  })
+
+  test("Arena work mode is refused on a CLI composer model too", async () => {
+    useWorkModeStore.getState().setMode("/proj", "arena")
+
+    await expect(send("compare two plans", { lead: CLI_LEAD })).rejects.toThrow("Arena needs a non-CLI model")
+
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(sendCommand).not.toHaveBeenCalled()
+  })
+
+  test("a model the catalog says cannot call tools is refused with the tool-calling reason", async () => {
+    useConfigStore.setState({
+      providers: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] }],
+    } as never)
+    useWorkModeStore.getState().setMode("/proj", "council")
+    try {
+      await expect(send("rate this module")).rejects.toThrow("Council needs a model with tool calling")
+      expect(sendMessage).not.toHaveBeenCalled()
+    } finally {
+      useConfigStore.setState({ providers: [] } as never)
+    }
+  })
+
+  test("Agent work mode on a CLI model still sends: only the fan-out needs the runtime tools", async () => {
+    await send("fix the login bug", { lead: CLI_LEAD })
+
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "fix the login bug" })
+  })
+
+  test("Council work mode still sends an explicit slash command on a CLI model", async () => {
+    // Only a send routed to the ensemble needs the tool; `/help` is the user's own command.
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "help" }] } as never)
+    useSessionUIStore.setState({ error: null })
+
+    await send("/help", { lead: CLI_LEAD })
+
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "help", ...CLI_LEAD }))
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(useSessionUIStore.getState().error).toBeNull()
+  })
+
+  test("an explicit /council on a CLI model is refused in Agent work mode too", async () => {
+    // The command itself asks for the runtime's council tool, which a CLI model never receives.
+    useWorkModeStore.getState().setMode("/proj", "agent")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+    useSessionUIStore.setState({ error: null })
+
+    await expect(send("/council rate the API", { lead: CLI_LEAD })).rejects.toThrow("Council needs a non-CLI model")
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+  })
+
+  test("an explicit /council on a model that can orchestrate is sent in Agent work mode", async () => {
+    useWorkModeStore.getState().setMode("/proj", "agent")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await send("/council rate the API")
+
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "council", arguments: "rate the API" }))
+    expect(sendMessage).not.toHaveBeenCalled()
   })
 })

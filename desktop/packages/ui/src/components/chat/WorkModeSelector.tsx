@@ -11,9 +11,11 @@ import { Icon } from "@/components/icon/Icon"
 import type { IconName } from "@/components/icon/icons"
 import { cn } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useConfigStore } from "@/stores/useConfigStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
-import { parseWorkMode, type WorkModeId } from "@/lib/workMode"
+import { parseWorkMode, workModeBlockedMessageKey, workModeBlockedReason, type WorkModeId } from "@/lib/workMode"
+import { useI18n } from "@/lib/i18n"
 import { selectLabeledWorkMode, WORK_MODE_CHOICES } from "@/lib/composerControls"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
@@ -53,8 +55,20 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
   const dirKey = normalizeDirectoryKey(currentDirectory)
   const mode = useWorkModeStore((s) => parseWorkMode(s.modeByDirectory[dirKey]))
   const setMode = useWorkModeStore((s) => s.setMode)
+  const providers = useConfigStore((s) => s.providers)
+  const leadProviderId = useConfigStore((s) => s.currentProviderId)
+  const leadModelId = useConfigStore((s) => s.currentModelId)
+  const { t } = useI18n()
   const active = WORK_MODE_CHOICES.find((choice) => choice.id === mode) ?? WORK_MODE_CHOICES[0]!
-  const tooltipLabel = `Work mode: ${active.label}`
+  // Council and Arena hand the turn to the runtime's tools, so the armed mode is unusable on a model
+  // that cannot call them. Say so on the chip instead of letting the send fail.
+  const blocked = workModeBlockedReason(
+    mode,
+    leadProviderId && leadModelId ? { providerID: leadProviderId, modelID: leadModelId } : null,
+    providers,
+  )
+  const warning = blocked ? t(workModeBlockedMessageKey(blocked), { mode: active.label }) : null
+  const tooltipLabel = warning ? `Work mode: ${active.label}. ${warning}` : `Work mode: ${active.label}`
 
   return (
     <DropdownMenu>
@@ -74,12 +88,20 @@ export const WorkModeSelector: React.FC<WorkModeSelectorProps> = ({
             >
               <Icon name={MODE_ICONS[active.id]} className={iconSizeClass} />
               <span className="hidden max-w-[5rem] truncate sm:inline">{active.label}</span>
+              {warning ? (
+                <Icon
+                  name="error-warning"
+                  data-work-mode-warning
+                  className="h-3.5 w-3.5 flex-shrink-0 text-[var(--status-warning)]"
+                />
+              ) : null}
             </button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-[16rem] typography-micro">
           <p className="font-medium">{active.label}</p>
           <p className="text-muted-foreground">{active.hint}</p>
+          {warning ? <p className="text-[var(--status-warning)]">{warning}</p> : null}
         </TooltipContent>
       </Tooltip>
       <DropdownMenuContent align="start" className="min-w-[240px]">
