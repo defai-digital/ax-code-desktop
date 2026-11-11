@@ -495,7 +495,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
           onSetEnabled={onSetEnabled}
         />
       ))}
-      <SuggestControl team={team} lead={lead} compact={compact} nameOf={nameOf} onSetTeam={onSetTeam} />
+      <SuggestControl key={dirKey} team={team} lead={lead} compact={compact} nameOf={nameOf} onSetTeam={onSetTeam} />
       {hint && !compact ? (
         <Tooltip delayDuration={350}>
           <TooltipTrigger asChild>
