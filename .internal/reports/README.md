@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.19 verified publication](RELEASE-2026-11-11-v7.30.19-publication.md): signed four-platform release
+  and independent public readback.
+
 - [Desktop 7.30.19 maintenance candidate](RELEASE-2026-11-11-v7.30.19-candidate.md): composer team integration
   and project-scoped suggestion Undo.
 
