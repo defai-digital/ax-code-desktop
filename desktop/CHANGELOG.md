@@ -8,6 +8,18 @@ All notable changes to this project will be documented in this file.
 
 - Pin the signed AX Code 7.30.24 runtime so the Anthropic (Claude Code) model list no longer gains a duplicate entry named after the `opus`, `sonnet`, `haiku` or `fable` alias configured in Claude Code.
 
+## [7.30.19] - 2026-11-11
+
+### Added
+
+- Choose an optional Coder and QA model team in the composer, with suggestions based on favorites, recents and provider variety.
+
+### Fixed
+
+- Clear suggestion menus and their Undo history when switching projects so one project's previous team cannot replace another project's matching selection.
+- Keep team selection across new chats and apply it only to the originating composer's own send.
+- Exit abandoned startup after a cancelled quit so the single-instance lock does not strand later launches, and report successful startup as complete.
+
 ## [7.30.18] - 2026-11-10
 
 ### Fixed

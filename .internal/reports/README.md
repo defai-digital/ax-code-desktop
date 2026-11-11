@@ -1,5 +1,11 @@
 # Internal reports
 
+- [Desktop 7.30.19 verified publication](RELEASE-2026-11-11-v7.30.19-publication.md): signed four-platform release
+  and independent public readback.
+
+- [Desktop 7.30.19 maintenance candidate](RELEASE-2026-11-11-v7.30.19-candidate.md): composer team integration
+  and project-scoped suggestion Undo.
+
 - [Herdr collaboration gap review and proposed fit](REVIEW-2026-11-10-herdr-collaboration-fit.md): existing AX-native and
   vendor CLI bridge capabilities, three rounds with Claude Opus 5.5/Grok 4.7/Muse Wonder 1.0, reproduced fusion identity
   defects, and a task-first proposal with producer-owned lifecycle and permission qualification.

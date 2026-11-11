@@ -40,6 +40,8 @@ const ui = vi.hoisted(() => {
   return state
 })
 
+const directory = vi.hoisted(() => ({ currentDirectory: "/repo" }))
+
 vi.mock("@/lib/i18n", () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => (params ? `${key} ${JSON.stringify(params)}` : key),
@@ -47,7 +49,7 @@ vi.mock("@/lib/i18n", () => ({
 }))
 vi.mock("@/stores/useDirectoryStore", () => ({
   useDirectoryStore: (selector: (state: { currentDirectory: string }) => unknown) =>
-    selector({ currentDirectory: "/repo" }),
+    selector(directory),
 }))
 vi.mock("@/stores/useConfigStore", () => ({
   useConfigStore: Object.assign((selector: (state: typeof config) => unknown) => selector(config), {
@@ -79,6 +81,7 @@ describe("AgentTeamRow", () => {
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    directory.currentDirectory = "/repo"
     useAgentTeamStore.setState({ teamByDirectory: {} })
     useWorkModeStore.setState({ modeByDirectory: {} })
     ui.favoriteModels = []
@@ -372,6 +375,42 @@ describe("AgentTeamRow", () => {
 
       expect(team().coder).toEqual({ enabled: true, models: [GLM] })
       expect(team().qa).toEqual({ enabled: false, models: [] })
+    })
+
+    test("switching projects closes the suggestion and cannot undo another project's matching team", () => {
+      render()
+      act(() => suggestButton().click())
+      act(() => action("chat.agentTeam.suggest.apply").click())
+      const applied = team()
+      expect(action("chat.agentTeam.suggest.undo")).toBeDefined()
+      act(() => {
+        useAgentTeamStore.getState().setTeam("/other", applied)
+        directory.currentDirectory = "/other"
+      })
+      render()
+
+      expect(document.body.querySelector("[data-agent-team-suggestion]")).toBeNull()
+      act(() => suggestButton().click())
+      expect(action("chat.agentTeam.suggest.undo")).toBeUndefined()
+      expect(useAgentTeamStore.getState().getTeam("/other")).toEqual(applied)
+      expect(useAgentTeamStore.getState().getTeam("/repo")).toEqual(applied)
+    })
+
+    test("a suggestion opened again in another project has no previous project's Undo", () => {
+      render()
+      act(() => suggestButton().click())
+      act(() => action("chat.agentTeam.suggest.apply").click())
+      const applied = team()
+      act(() => suggestButton().click())
+      act(() => {
+        useAgentTeamStore.getState().setTeam("/other", applied)
+        directory.currentDirectory = "/other"
+      })
+      render()
+      act(() => suggestButton().click())
+
+      expect(action("chat.agentTeam.suggest.undo")).toBeUndefined()
+      expect(useAgentTeamStore.getState().getTeam("/other")).toEqual(applied)
     })
 
     test("Undo is withdrawn once the team is changed by hand", () => {
