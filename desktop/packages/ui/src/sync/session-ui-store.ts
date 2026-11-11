@@ -24,7 +24,7 @@ import type {
 } from "@defai-digital/ax-code-sdk/v2/client"
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
-import { axCodeClient } from "@/lib/ax-code/client"
+import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -33,6 +33,14 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionFoldersStore } from "@/stores/useSessionFoldersStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
+import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
+import {
+  agentTeamSendVariant,
+  emptyAgentTeam,
+  isSameAgentTeamModel,
+  resolveAgentTeamSend,
+  type AgentTeamState,
+} from "@/lib/agentTeam"
 import { resolveWorkModeSend, workModeFallbackPrompt } from "@/lib/workMode"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { toast } from "@/components/ui"
@@ -130,6 +138,12 @@ export function routeMessage(params: {
     synthetic?: boolean
     files?: RouteFileInput[]
   }>
+  /**
+   * The Coder/QA team the composer showed for this send. Only the composer passes it: every other
+   * sender (plans, quick dispatch, reviews, retries, queued follow-ups) picked its own model and is
+   * sent exactly as requested.
+   */
+  agentTeam?: AgentTeamState
 }): Promise<void> {
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
@@ -249,29 +263,53 @@ export function routeMessage(params: {
       }
     }
 
+    // Agent team (Coder / QA models picked in the composer) applies to plain prompts in Agent work
+    // mode only: shell and known slash commands returned above, and Council/Arena own their fan-out.
+    // The instructions go in a synthetic part so the user's own message stays exactly what they typed.
+    const lead = { providerID: params.providerID, modelID: params.modelID }
+    const team = resolveAgentTeamSend(
+      workMode === "agent" && params.agentTeam ? params.agentTeam : emptyAgentTeam(),
+      lead,
+    )
+    const additionalParts = team.directive
+      ? [...(params.additionalParts ?? []), { text: team.directive, synthetic: true }]
+      : params.additionalParts
+    const runsOnCoder = !isSameAgentTeamModel(team, lead)
+    const variant = runsOnCoder
+      ? agentTeamSendVariant(useConfigStore.getState().providers, team, lead, params.variant)
+      : params.variant
+    // A turn a Coder ran is not the user's composer pick; record its id before the optimistic
+    // message renders so the composer's model restore can skip it.
+    const messageId = runsOnCoder
+      ? isValidMessageId(params.messageId ?? "")
+        ? params.messageId!
+        : ascendingId("msg")
+      : params.messageId
+    if (runsOnCoder && messageId) useAgentTeamStore.getState().markCoderMessage(messageId)
+
     // Normal prompt — optimistic insert so message appears instantly
     return optimisticSend({
-      messageId: params.messageId,
+      messageId,
       sessionId: params.sessionId,
       directory: params.directory,
       content: params.content,
-      providerID: params.providerID,
-      modelID: params.modelID,
+      providerID: team.providerID,
+      modelID: team.modelID,
       agent: params.agent,
-      variant: params.variant,
+      variant,
       files: params.files,
       send: (messageID) =>
         axCodeClient
           .sendMessage({
             id: params.sessionId,
-            providerID: params.providerID,
-            modelID: params.modelID,
+            providerID: team.providerID,
+            modelID: team.modelID,
             text: params.content,
             agent: params.agent,
             agentMentions: params.agentMentionName ? [{ name: params.agentMentionName }] : undefined,
-            variant: params.variant,
+            variant,
             files: params.files,
-            additionalParts: params.additionalParts,
+            additionalParts,
             messageId: messageID,
           })
           .then(() => {}),
@@ -306,6 +344,8 @@ type SendMessageOptions = {
    * captured text must not be delivered to the current draft's target.
    */
   draftRevision?: number
+  /** The composer's Coder/QA team. Only the composer passes it; see routeMessage. */
+  agentTeam?: AgentTeamState
 }
 
 function notifyMessageSent(sessionId: string): void {
@@ -1249,6 +1289,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           variant,
           inputMode,
           messageId: options?.messageId,
+          agentTeam: options?.agentTeam,
           files,
           additionalParts: mergedAdditionalParts?.map((p) => ({
             text: p.text,
@@ -1326,6 +1367,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       sessionId: targetSessionId,
       directory: currentSessionDirectory,
       messageId: options?.messageId,
+      agentTeam: options?.agentTeam,
       content,
       providerID,
       modelID,
