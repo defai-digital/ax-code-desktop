@@ -50,6 +50,7 @@ import {
   workModeEnsembleCommand,
   workModeFallbackPrompt,
   workModeLabel,
+  type WorkModeBlockedReason,
   type WorkModeId,
 } from "@/lib/workMode"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
@@ -140,19 +141,24 @@ export function attachmentToRouteFileInput(attachment: AttachedFile): RouteFileI
  * - `noToolCalling` is catalog metadata, which can be wrong for a custom or local provider. The
  *   error carries the reason so the composer can offer to send anyway, for that one send.
  */
-function refuseBlockedWorkModeSend(
+function workModeRefusal(
   command: "council" | "arena",
   model: { providerID: string; modelID: string },
   allowUnverifiedToolCalling: boolean | undefined,
-): void {
-  const blocked = workModeBlockedReason(command, model, useConfigStore.getState().providers)
-  if (!blocked) return
-  if (blocked === "noToolCalling" && allowUnverifiedToolCalling) return
-  const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(blocked), {
+): { message: string; reason: WorkModeBlockedReason } | null {
+  const reason = workModeBlockedReason(command, model, useConfigStore.getState().providers)
+  if (!reason) return null
+  if (reason === "noToolCalling" && allowUnverifiedToolCalling) return null
+  const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(reason), {
     mode: workModeLabel(command),
   })
-  useSessionUIStore.setState({ error: message })
-  throw markWorkModeBlockedError(new Error(message), blocked)
+  return { message, reason }
+}
+
+function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
+  if (!refusal) return
+  useSessionUIStore.setState({ error: refusal.message })
+  throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
 }
 
 /**
@@ -183,34 +189,44 @@ async function resolveSlashCommand(
   }
 }
 
-/**
- * The same refusal as `routeMessage`, made before a send creates or changes anything: a new chat
- * would otherwise be left with an empty session (and its worktree) and a message-sent notification
- * for a message that never existed. `routeMessage` stays the backstop for its direct callers.
- */
-async function refuseBlockedWorkModeSendEarly(input: {
+interface WorkModeSendCheck {
   content: string
   workMode: WorkModeId | undefined
   providerID: string
   modelID: string
   inputMode?: "normal" | "shell"
   allowUnverifiedToolCalling?: boolean
-}): Promise<void> {
-  if (input.inputMode === "shell") return
+}
+
+/**
+ * Whether a send would be refused for its work mode, decided without sending or changing anything.
+ * An explicit `/council` or `/arena` waits for the command catalog: one the runtime does not offer
+ * goes out as plain text, which any model can take.
+ */
+async function findWorkModeSendRefusal(
+  input: WorkModeSendCheck,
+): Promise<{ message: string; reason: WorkModeBlockedReason } | null> {
+  if (input.inputMode === "shell") return null
   const model = { providerID: input.providerID, modelID: input.modelID }
   const resolved = resolveWorkModeSend(input.workMode ?? DEFAULT_WORK_MODE, input.content)
   if (resolved.forcedCommand) {
-    refuseBlockedWorkModeSend(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling)
-    return
+    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling)
   }
   const command = workModeEnsembleCommand(resolved.content, null)
   // The catalog is only worth waiting for when this model would be refused the command.
-  if (!command || !workModeBlockedReason(command, model, useConfigStore.getState().providers)) return
-  // An explicit command the runtime does not offer goes out as plain text, which any model can take.
+  const refusal = command ? workModeRefusal(command, model, input.allowUnverifiedToolCalling) : null
+  if (!command || !refusal) return null
   const catalog = await resolveSlashCommand(command)
-  if (catalog.knownCommand || catalog.catalogLoadFailed) {
-    refuseBlockedWorkModeSend(command, model, input.allowUnverifiedToolCalling)
-  }
+  return catalog.knownCommand || catalog.catalogLoadFailed ? refusal : null
+}
+
+/**
+ * The refusal message for a send a caller is about to set up, or null when it may go ahead. For a
+ * sender that creates sessions or worktrees first (Multi-Run): asking before creating anything
+ * leaves no empty run behind, and the answer is the caller's to show, not the composer's.
+ */
+export async function workModeSendRefusalMessage(input: WorkModeSendCheck): Promise<string | null> {
+  return (await findWorkModeSendRefusal(input))?.message ?? null
 }
 
 export function routeMessage(params: {
@@ -247,6 +263,12 @@ export function routeMessage(params: {
   workMode?: WorkModeId
   /** The user chose to send although the catalog says this model cannot call tools. One send only. */
   allowUnverifiedToolCalling?: boolean
+  /**
+   * `sendMessage` already decided this send may go, before it created or announced anything. The
+   * catalog can refresh in between (activating a draft's directory reloads it), and a second
+   * opinion here would refuse after the session exists: the one decision stands.
+   */
+  workModeAdmitted?: boolean
 }): Promise<void> {
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
@@ -272,15 +294,28 @@ export function routeMessage(params: {
     // Note: shell mode returns above, so this path is never shell.
     const workMode = params.workMode ?? DEFAULT_WORK_MODE
     const lead = { providerID: params.providerID, modelID: params.modelID }
-    const resolved = resolveWorkModeSend(workMode, params.content)
+    // A work-mode command carries one argument string and no extra parts. A send that merged
+    // several prompts (queued entries, then the composer text) would lose all but the first, so
+    // the user's own parts are folded into the text the command is built from.
+    const userParts =
+      workMode !== "agent" && !params.content.trimStart().startsWith("/")
+        ? (params.additionalParts ?? []).filter((part) => !part.synthetic)
+        : []
+    const resolved = resolveWorkModeSend(
+      workMode,
+      [params.content, ...userParts.map((part) => part.text)].filter((text) => text.trim()).join("\n\n"),
+    )
     const content = resolved.content
     const forcedCommand = resolved.forcedCommand
+    const commandFiles =
+      userParts.length > 0 ? [...(params.files ?? []), ...userParts.flatMap((part) => part.files ?? [])] : params.files
+    const refuse = (command: "council" | "arena") => {
+      if (!params.workModeAdmitted) throwWorkModeRefusal(workModeRefusal(command, lead, params.allowUnverifiedToolCalling))
+    }
 
     // The work-mode remap always asks for the runtime's council/arena tool: as the slash command, or
     // as the fallback prompt when the connected runtime lacks it. Refuse before anything is loaded.
-    if (forcedCommand) {
-      refuseBlockedWorkModeSend(forcedCommand.name, lead, params.allowUnverifiedToolCalling)
-    }
+    if (forcedCommand) refuse(forcedCommand.name)
 
     // Slash commands — fire and forget, SSE delivers messages and status.
     // content is already trimStart-normalized for explicit slashes (fixes "  /help").
@@ -296,7 +331,7 @@ export function routeMessage(params: {
       // any model can take, so it is not refused.
       const explicitEnsemble = forcedCommand ? null : workModeEnsembleCommand(content, null)
       if (explicitEnsemble && (knownCommand || catalogLoadFailed)) {
-        refuseBlockedWorkModeSend(explicitEnsemble, lead, params.allowUnverifiedToolCalling)
+        refuse(explicitEnsemble)
       }
 
       // Known command, forced work-mode while command catalog not loaded
@@ -311,7 +346,7 @@ export function routeMessage(params: {
           modelID: params.modelID,
           agent: params.agent,
           variant: params.variant,
-          files: params.files,
+          files: commandFiles,
           send: (messageID) =>
             axCodeClient
               .sendCommand({
@@ -322,7 +357,7 @@ export function routeMessage(params: {
                 arguments: cmdArgs,
                 agent: params.agent,
                 variant: params.variant,
-                files: params.files,
+                files: commandFiles,
                 messageId: messageID,
               })
               .then(() => {}),
@@ -342,7 +377,7 @@ export function routeMessage(params: {
           modelID: params.modelID,
           agent: params.agent,
           variant: params.variant,
-          files: params.files,
+          files: commandFiles,
           send: (messageID) =>
             axCodeClient
               .sendMessage({
@@ -352,7 +387,7 @@ export function routeMessage(params: {
                 text: fallback,
                 agent: params.agent,
                 variant: params.variant,
-                files: params.files,
+                files: commandFiles,
                 messageId: messageID,
               })
               .then(() => {}),
@@ -478,6 +513,11 @@ type OpenNewSessionDraftOptions = Partial<NewSessionDraftState> & {
    * revision at the close's +1: createSession's rollback guard compares against it.
    */
   preserveLifecycleRevision?: boolean
+  /**
+   * Keep the directory's work mode. Quick dispatch opens a draft only to send through it and then
+   * restores the previous view; resetting the chip there changed a setting the user never touched.
+   */
+  preserveWorkMode?: boolean
 }
 type SessionUIState = {
   currentSessionId: string | null
@@ -931,8 +971,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // A draft is not a session being watched either: leaving the refs on the previous session suppressed the
     // permission and question signals for it, exactly as leaving the session by any other route did.
     setActiveSession("", "")
-    // New chat always starts in Agent work mode (not sticky council/arena).
-    useWorkModeStore.getState().resetToAgent(directory)
+    // New chat always starts in Agent work mode (not sticky council/arena). A draft opened on the
+    // user's behalf by a sender that has no mode of its own must leave the chip as the user set it.
+    if (!options?.preserveWorkMode) useWorkModeStore.getState().resetToAgent(directory)
 
     // Do not clear attachments here: at this point the active attachment draft is still the
     // session being left, so clearing dropped that session's stash. The composer's
@@ -1288,14 +1329,16 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       }
 
       // Before the session exists: a refused send must leave the draft open and nothing behind.
-      await refuseBlockedWorkModeSendEarly({
-        content,
-        workMode: options?.workMode,
-        providerID,
-        modelID,
-        inputMode,
-        allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
-      })
+      throwWorkModeRefusal(
+        await findWorkModeSendRefusal({
+          content,
+          workMode: options?.workMode,
+          providerID,
+          modelID,
+          inputMode,
+          allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+        }),
+      )
       // The check can wait for the command catalog; the draft may have been replaced meanwhile.
       if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
         set({ error: INVALID_SEND_TARGET_MESSAGE })
@@ -1404,6 +1447,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           agentTeam: options?.agentTeam,
           workMode: options?.workMode,
           allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+          workModeAdmitted: true,
           files,
           additionalParts: mergedAdditionalParts?.map((p) => ({
             text: p.text,
@@ -1443,14 +1487,16 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     const effectiveAgent = trimmedAgent || sessionAgentSelection || configAgentName || undefined
 
     // Before the selection is saved or the message-sent notification goes out for a refused send.
-    await refuseBlockedWorkModeSendEarly({
-      content,
-      workMode: options?.workMode,
-      providerID,
-      modelID,
-      inputMode,
-      allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
-    })
+    throwWorkModeRefusal(
+      await findWorkModeSendRefusal({
+        content,
+        workMode: options?.workMode,
+        providerID,
+        modelID,
+        inputMode,
+        allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      }),
+    )
 
     if (effectiveAgent) {
       useSelectionStore.getState().saveSessionAgentSelection(targetSessionId, effectiveAgent)
@@ -1494,6 +1540,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       agentTeam: options?.agentTeam,
       workMode: options?.workMode,
       allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      workModeAdmitted: true,
       content,
       providerID,
       modelID,

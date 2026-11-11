@@ -337,6 +337,28 @@ describe("suggestions that can actually run", () => {
 })
 
 describe("applyAgentTeamSuggestion", () => {
+  test("a panel the suggestion left out is unticked, with its models remembered", () => {
+    // The preview said the coder cannot run QA; keeping the hand-picked panel ticked contradicted it.
+    const picked = { enabled: true, models: [ref("zhipu", "glm"), ref("deepseek", "v4")] }
+    const team = applyAgentTeamSuggestion(
+      { coder: { enabled: false, models: [] }, qa: picked },
+      { coder: [{ ...ref("claude-code", "fable"), reason: "favorite" }], qa: [], qaSkipped: "coderCannotRunQa" },
+    )
+
+    expect(team.coder).toEqual({ enabled: true, models: [ref("claude-code", "fable")] })
+    expect(team.qa).toEqual({ enabled: false, models: picked.models })
+  })
+
+  test("a catalog that simply cannot fill QA leaves a hand-picked panel alone", () => {
+    const picked = { enabled: true, models: [ref("zhipu", "glm"), ref("deepseek", "v4")] }
+    const team = applyAgentTeamSuggestion(
+      { coder: { enabled: false, models: [] }, qa: picked },
+      { coder: [{ ...ref("kimi", "k3"), reason: "favorite" }], qa: [] },
+    )
+
+    expect(team.qa).toEqual(picked)
+  })
+
   test("turns both roles on with the suggested models", () => {
     const suggestion = suggestAgentTeam({ candidates: CATALOG, favorites: [ref("kimi", "k3")], recents: [] })
     const team = applyAgentTeamSuggestion(emptyAgentTeam(), suggestion)

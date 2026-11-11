@@ -300,13 +300,20 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
 
 /**
  * The team after accepting a suggestion. A role with nothing to suggest keeps what the user had, so
- * a catalog that cannot fill QA does not also clear a QA panel picked by hand.
+ * a catalog that cannot fill QA does not also clear a QA panel picked by hand. A panel the
+ * suggestion left out on purpose (`qaSkipped`) is the exception: the suggested coder cannot run it.
  */
 export function applyAgentTeamSuggestion(team: AgentTeamState, suggestion: AgentTeamSuggestion): AgentTeamState {
   const toRefs = (models: readonly SuggestedAgentTeamModel[]) =>
     models.map(({ providerID, modelID }) => ({ providerID, modelID }))
   return {
     coder: suggestion.coder.length > 0 ? { enabled: true, models: toRefs(suggestion.coder) } : team.coder,
-    qa: suggestion.qa.length > 0 ? { enabled: true, models: toRefs(suggestion.qa) } : team.qa,
+    qa:
+      suggestion.qa.length > 0
+        ? { enabled: true, models: toRefs(suggestion.qa) }
+        : suggestion.qaSkipped
+          ? // The preview said the panel is left out, so it is unticked; its models are remembered.
+            { ...team.qa, enabled: false }
+          : team.qa,
   }
 }

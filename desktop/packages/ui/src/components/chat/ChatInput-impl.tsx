@@ -106,7 +106,7 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { usableAgentTeam, type AgentTeamState } from "@/lib/agentTeam"
-import { workModeBlockedReasonOfError, type WorkModeId } from "@/lib/workMode"
+import { parseWorkMode, workModeBlockedReasonOfError, type WorkModeId } from "@/lib/workMode"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { ProjectSwitcher } from "@/components/chat/ProjectSwitcher"
 import { useSkillsStore } from "@/stores/useSkillsStore"
@@ -1677,6 +1677,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const queuedOnly = options?.queuedOnly ?? false
     const queuedMessageId = options?.queuedMessageId
     const inputSnapshot = getCurrentInputSnapshot()
+    // The mode and team this text is committed under, read with the text itself. The awaits below
+    // (response style, snippets, attachments) can outlive a chip change or a session switch.
+    const submittedWorkMode = composerWorkModeForSend()
+    const submittedAgentTeam = composerAgentTeamForSend()
     // A paste read may have settled while the submit waited for it; this render's
     // closure predates that, so the submit's own attachments come from the live store.
     const liveAttachments = useInputStore.getState().attachedFiles
@@ -2303,6 +2307,19 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       (attachment) => !isInlineServerAttachment(attachment),
     )
 
+    // Every prompt in this send runs in one mode. A queued entry keeps the mode it was queued in
+    // (Agent when it recorded none), not the one the composer is in now. A send that folds queued
+    // entries and the composer text together uses their mode only when they all agree; mixed
+    // modes go out as the plain prompts they are, so nothing is remapped the user did not ask for.
+    const mergedWorkModes = [
+      ...(consumesQueue ? queuedMessagesToSend.map((entry) => parseWorkMode(entry.sendConfig?.workMode)) : []),
+      ...(!queuedOnly && inputSnapshot.hasContent ? [submittedWorkMode] : []),
+    ]
+    const sendWorkMode: WorkModeId =
+      mergedWorkModes.length > 0 && mergedWorkModes.every((mode) => mode === mergedWorkModes[0])
+        ? mergedWorkModes[0]!
+        : "agent"
+
     // The awaits above (response style, snippet expansion, attachment filtering) can
     // outlive a draft retarget, and sendMessage resolves the live draft afterwards.
     // Refuse like the stale-revision check and let the failure path restore the input.
@@ -2330,10 +2347,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             messageId: queuedOnly ? queuedEntryMessageId : undefined,
             // Only a direct send from a composer that shows the team row carries the team. A queued
             // entry is dispatched later, when the team on screen may no longer be the one it was typed under.
-            agentTeam: queuedOnly || isMobile || inputMode === "shell" ? undefined : composerAgentTeamForSend(),
-            // A queued entry runs in the mode it was queued in (Agent when it recorded none), not
-            // the one the composer is in now.
-            workMode: queuedOnly ? capturedSendConfig?.workMode : composerWorkModeForSend(),
+            agentTeam: queuedOnly || isMobile || inputMode === "shell" ? undefined : submittedAgentTeam,
+            workMode: sendWorkMode,
             allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
           },
         )
@@ -2470,7 +2485,17 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           toast.error(rawMessage, {
             action: {
               label: t("chat.workMode.sendAnyway"),
-              onClick: () => void handleSubmitRef.current({ ...options, allowUnverifiedToolCalling: true }),
+              onClick: () => {
+                // The override is for the refused request only. A toast outlives it: the user may
+                // have moved to another chat, or replaced the restored text, since it appeared.
+                const live = useSessionUIStore.getState()
+                const sameTarget =
+                  live.currentSessionId === currentSessionId &&
+                  Boolean(live.newSessionDraft?.open) === newSessionDraftOpen
+                const sameRequest = queuedOnly || messageRef.current === consumedInputSnapshot
+                if (!sameTarget || !sameRequest) return
+                void handleSubmitRef.current({ ...options, allowUnverifiedToolCalling: true })
+              },
             },
           })
           return

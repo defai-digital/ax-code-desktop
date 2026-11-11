@@ -26,8 +26,12 @@ const defaultSessionUpdate = async (args: SessionUpdateArgs) => ({
 const sessionUpdateMock = vi.fn(defaultSessionUpdate)
 const scopedDirectories: string[] = []
 
+const workModeSendRefusalMessageMock =
+  vi.fn<(input: { content: string; providerID: string }) => Promise<string | null>>(async () => null)
+
 vi.doMock("@/sync/session-ui-store", () => ({
   routeMessage: routeMessageMock,
+  workModeSendRefusalMessage: workModeSendRefusalMessageMock,
   useSessionUIStore: {
     getState: () => ({
       setWorktreeMetadata: vi.fn(() => undefined),
@@ -458,6 +462,43 @@ describe("useMultiRunStore multi-run metadata", () => {
 })
 
 describe("useMultiRunStore dispatch", () => {
+  test("a prompt one of its models would be refused starts nothing and reports why", async () => {
+    // The refusal used to come at send time: the run and its worktree already existed and stayed
+    // empty, and the error landed in the composer of whatever chat was open.
+    const { useMultiRunStore } = await import("./useMultiRunStore")
+    routeMessageMock.mockClear()
+    workModeSendRefusalMessageMock.mockImplementation(async (input) =>
+      input.providerID === "claude-code" ? "Council needs a non-CLI model. Pick another model." : null,
+    )
+
+    try {
+      const result = await useMultiRunStore.getState().createMultiRun({
+        name: "Review",
+        isolateRuns: false,
+        groups: [
+          {
+            prompt: "/council rate the API",
+            models: [
+              { providerID: "openai", modelID: "gpt-5" },
+              { providerID: "claude-code", modelID: "claude-fable-5-2" },
+            ],
+          },
+        ],
+      } as never)
+
+      expect(result).toBeNull()
+      expect(routeMessageMock).not.toHaveBeenCalled()
+      expect(useMultiRunStore.getState().error).toBe("Council needs a non-CLI model. Pick another model.")
+      expect(useMultiRunStore.getState().isLoading).toBe(false)
+      // The check sees the prompt the run would send.
+      expect(workModeSendRefusalMessageMock).toHaveBeenCalledWith(
+        expect.objectContaining({ content: "/council rate the API", providerID: "claude-code" }),
+      )
+    } finally {
+      workModeSendRefusalMessageMock.mockImplementation(async () => null)
+    }
+  })
+
   test("reports the runs whose prompt reached the server", async () => {
     // Create and start are two round trips. Reporting the created sessions as started left a run whose
     // send failed showing nothing anywhere: empty session, prompt gone, success returned.

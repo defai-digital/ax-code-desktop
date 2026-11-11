@@ -321,6 +321,55 @@ describe("agent team send routing", () => {
     }
   })
 
+  test("a Council send that merged several prompts carries all of them in the command", async () => {
+    // The command has one argument string and no extra parts: a queued prompt sent together with
+    // the composer text used to lose everything after the first.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/proj",
+      content: "rate the parser",
+      providerID: "alibaba",
+      modelID: "qwen",
+      workMode: "council",
+      files: [{ type: "file", mime: "text/plain", url: "data:,a", filename: "a.txt" }],
+      additionalParts: [
+        { text: "and the lexer", files: [{ type: "file", mime: "text/plain", url: "data:,b", filename: "b.txt" }] },
+        { text: "hidden instructions", synthetic: true },
+      ],
+    })
+
+    const command = sendCommand.mock.calls[0]![0] as { arguments: string; files: Array<{ filename: string }> }
+    expect(command.arguments).toBe("rate the parser\n\nand the lexer")
+    expect(command.files.map((file) => file.filename)).toEqual(["a.txt", "b.txt"])
+  })
+
+  test("a send sendMessage already admitted is not judged again by the backstop", async () => {
+    // Activating a draft's directory reloads the catalog between the two checks; a second opinion
+    // would refuse after the session exists.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/proj",
+      content: "rate this module",
+      ...CLI_LEAD,
+      workMode: "council",
+      workModeAdmitted: true,
+    })
+
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "council", ...CLI_LEAD }))
+  })
+
+  test("a draft opened on the user's behalf leaves the directory's work mode alone", async () => {
+    useWorkModeStore.getState().setMode("/proj", "council")
+
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj", preserveWorkMode: true })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
+  })
+
   test("Agent work mode on a CLI model still sends: only the fan-out needs the runtime tools", async () => {
     await send("fix the login bug", { lead: CLI_LEAD })
 
