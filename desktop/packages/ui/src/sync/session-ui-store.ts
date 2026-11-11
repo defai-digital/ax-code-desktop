@@ -33,6 +33,8 @@ import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionFoldersStore } from "@/stores/useSessionFoldersStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
+import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
+import { emptyAgentTeam, resolveAgentTeamSend } from "@/lib/agentTeam"
 import { resolveWorkModeSend, workModeFallbackPrompt } from "@/lib/workMode"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { toast } from "@/components/ui"
@@ -249,14 +251,25 @@ export function routeMessage(params: {
       }
     }
 
+    // Agent team (Coder / QA models picked in the composer) applies to plain prompts in Agent work
+    // mode only: shell and known slash commands returned above, and Council/Arena own their fan-out.
+    // The instructions go in a synthetic part so the user's own message stays exactly what they typed.
+    const team = resolveAgentTeamSend(
+      workMode === "agent" ? useAgentTeamStore.getState().getTeam(dirForMode) : emptyAgentTeam(),
+      { providerID: params.providerID, modelID: params.modelID },
+    )
+    const additionalParts = team.directive
+      ? [...(params.additionalParts ?? []), { text: team.directive, synthetic: true }]
+      : params.additionalParts
+
     // Normal prompt — optimistic insert so message appears instantly
     return optimisticSend({
       messageId: params.messageId,
       sessionId: params.sessionId,
       directory: params.directory,
       content: params.content,
-      providerID: params.providerID,
-      modelID: params.modelID,
+      providerID: team.providerID,
+      modelID: team.modelID,
       agent: params.agent,
       variant: params.variant,
       files: params.files,
@@ -264,14 +277,14 @@ export function routeMessage(params: {
         axCodeClient
           .sendMessage({
             id: params.sessionId,
-            providerID: params.providerID,
-            modelID: params.modelID,
+            providerID: team.providerID,
+            modelID: team.modelID,
             text: params.content,
             agent: params.agent,
             agentMentions: params.agentMentionName ? [{ name: params.agentMentionName }] : undefined,
             variant: params.variant,
             files: params.files,
-            additionalParts: params.additionalParts,
+            additionalParts,
             messageId: messageID,
           })
           .then(() => {}),
@@ -796,6 +809,8 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     setActiveSession("", "")
     // New chat always starts in Agent work mode (not sticky council/arena).
     useWorkModeStore.getState().resetToAgent(directory)
+    // A team multiplies model calls, so it is opted into per chat; the picked models are remembered.
+    useAgentTeamStore.getState().disableTeam(directory)
 
     // Do not clear attachments here: at this point the active attachment draft is still the
     // session being left, so clearing dropped that session's stash. The composer's
@@ -845,6 +860,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     })
     // Switching project on a new-chat draft should not inherit sticky council/arena.
     useWorkModeStore.getState().resetToAgent(nextDirectory)
+    useAgentTeamStore.getState().disableTeam(nextDirectory)
     void activateConfigForDirectory(nextDirectory)
   },
 

@@ -38,6 +38,7 @@ import { SnippetAutocomplete, type SnippetAutocompleteHandle } from "./SnippetAu
 import { cn, formatDirectoryName, isMacOS } from "@/lib/utils"
 import { ModelControls } from "./ModelControls"
 import { ExecutionModeSelector } from "./ExecutionModeSelector"
+import { AgentTeamRow } from "./AgentTeamRow"
 import { WorkModeSelector } from "./WorkModeSelector"
 import { SandboxToggle } from "./SandboxToggle"
 import { parseAgentMentions } from "@/lib/messages/agentMentions"
@@ -4745,6 +4746,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 />
               </div>
             </div>
+            {/* Optional Coder/QA models sit above the footer so Send stays anchored bottom-right. */}
+            {!isMobile && inputMode !== "shell" && (currentSessionId || newSessionDraftOpen) ? (
+              <AgentTeamRow compact={isNarrowComposer} className="flex-shrink-0 px-2.5 pt-1" />
+            ) : null}
             <div
               className={cn(
                 "bg-transparent flex-shrink-0",

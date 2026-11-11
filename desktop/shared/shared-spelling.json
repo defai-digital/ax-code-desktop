@@ -90,7 +90,8 @@
     "terminalView.quickKeys.enterAria",
     "terminalView.quickKeys.escape",
     "terminalView.quickKeys.tabAria",
-    "webmcp.browser.addressPlaceholder"
+    "webmcp.browser.addressPlaceholder",
+    "chat.agentTeam.qa"
   ],
   "fr": [
     "supervision.missionControl.pr.label",
@@ -346,7 +347,8 @@
     "settings.page.hooks.title",
     "settings.hooks.list.badge.protocol",
     "supervision.missionControl.action.details",
-    "webmcp.tools.journal.digest"
+    "webmcp.tools.journal.digest",
+    "chat.agentTeam.coder"
   ],
   "id": [
     "supervision.missionControl.pr.label",
