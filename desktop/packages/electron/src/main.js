@@ -137,6 +137,7 @@ const {
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
 const { createLaunchAnimationController, ANIMATION_PRIVILEGED_SCHEMES } = require("./launch-animation-controller")
 const { createQuitCoordinator } = require("./quit-coordinator")
+const { createStartupAbortGuard } = require("./startup-abort-guard")
 const {
   QUICK_DISPATCH_ACCELERATOR,
   readQuickDispatchShortcutEnabled,
@@ -304,6 +305,9 @@ if (!hasSingleInstanceLock) {
 }
 
 app.on("second-instance", (_event, argv, cwd) => {
+  // Backstop for #53: a primary whose startup was abandoned outside a quit must not keep
+  // swallowing launches. Exiting releases the lock so the next launch starts cleanly.
+  if (startupGuard.abandoned && !isQuitting && startupGuard.quitCancelled("second-instance")) return
   queueExternalOpenRequest({
     argv,
     cwd,
@@ -1229,12 +1233,34 @@ const stopBackgroundServices = async ({ force = false } = {}) => {
   }
 }
 
+// A startup that returned because a quit was in progress cannot resume when that quit is
+// cancelled, so the guard finishes the exit instead of leaving a windowless primary holding the
+// single-instance lock (#53). Forced: the page that refused closure already blocked a normal quit.
+const startupGuard = createStartupAbortGuard({
+  isQuitting: () => isQuitting,
+  record: (name, details) => recordStartupEvent(name, details, { once: false }),
+  onAbandoned: ({ stage, reason }) => {
+    console.warn(`[electron] startup was abandoned at ${stage} and the quit was cancelled (${reason}); exiting`)
+    isQuitting = true
+    void stopBackgroundServices({ force: true })
+      .catch((error) => console.warn("[electron] cleanup after abandoned startup failed:", error))
+      .finally(() => {
+        releaseQuickDispatchGlobalShortcut()
+        launchAnimations?.dispose()
+        app.exit(0)
+      })
+  },
+})
+
 const quitCoordinator = createQuitCoordinator({
   onStarting: () => {
     isQuitting = true
+    recordStartupEvent("quit.requested", { startupStage: startupGuard.stage }, { once: false })
   },
   onCancelled: () => {
     isQuitting = false
+    recordStartupEvent("quit.cancelled", { startupStage: startupGuard.stage }, { once: false })
+    startupGuard.quitCancelled("browser-closure-refused")
   },
   playEnding: () => launchAnimations?.playEnding(),
   stopServices: stopBackgroundServices,
@@ -1275,6 +1301,8 @@ async function shutdownForExit() {
     launchAnimations?.dispose()
   } catch (error) {
     isQuitting = false
+    // A restart refused by a browser page must not strand a startup that already returned.
+    startupGuard.quitCancelled("shutdown-failed")
     throw error
   }
 }
@@ -3630,10 +3658,6 @@ handleCommand("desktop_get_app_version", async () => app.getVersion(), { safeFor
 // ── App lifecycle ───────────────────────────────────────────────────────────
 let startupFailurePromise = null
 
-function startupWasAborted() {
-  return isQuitting
-}
-
 function handleStartupFailure(err) {
   if (startupFailurePromise) return startupFailurePromise
   const alreadyQuitting = isQuitting
@@ -3659,9 +3683,9 @@ function handleStartupFailure(err) {
 }
 
 app.whenReady().then(async () => {
-  if (!hasSingleInstanceLock || isQuitting) {
-    return
-  }
+  if (!hasSingleInstanceLock) return
+  startupGuard.begin()
+  if (startupGuard.shouldStop()) return
 
   recordStartupEvent("electron.app.ready")
   if (app.isPackaged) {
@@ -3778,6 +3802,7 @@ app.whenReady().then(async () => {
     if (launchAnimations.enabled()) mainWindow.show()
     openingAnimation = launchAnimations.playOpening()
     // Settle the foreground integrity gate before the runtime or server starts.
+    startupGuard.advance("runtime-integrity")
     const bundledIntegrity = await bundledIntegrityCheck
     if (bundledIntegrity.status === "verified") {
       console.log(`[electron] verified bundled ax-code runtime integrity (${bundledIntegrity.entries} entries)`)
@@ -3787,13 +3812,14 @@ app.whenReady().then(async () => {
         durationMs: bundledIntegrity.durationMs,
       })
     }
-    if (isQuitting) return
+    if (startupGuard.shouldStop()) return
+    startupGuard.advance("remote-settings")
     await purgeDisabledRemoteAccessSettings().catch((error) => {
       // Runtime paths already ignore these values, so a read-only legacy
       // settings file must not prevent the local app from starting.
       console.warn("[electron] failed to purge disabled remote settings", error)
     })
-    if (isQuitting) return
+    if (startupGuard.shouldStop()) return
     // S2.5b: main spawns and supervises the ax-code runtime by default, IN
     // PARALLEL with the web server. prepare() resolves the binary and
     // reserves the fixed loopback port up front, so the web fork env (see
@@ -3809,10 +3835,11 @@ app.whenReady().then(async () => {
     // exhaustion dialog (showRuntimeRecoveryFailure), not the
     // startup-failure path — only a prepare() failure (no usable binary, a
     // configuration error) still fails startup here.
+    startupGuard.advance("login-shell-env")
     const loginShellEnv = await loginShellEnvCapture.promise
     // This promise started at process load. The quit coordinator can abort
     // startup while it settles; re-read the flag after the await.
-    if (startupWasAborted()) return
+    if (startupGuard.shouldStop()) return
     loginShellEnvEncoded = resolveForwardedLoginShellEnv(loginShellEnv)
     recordStartupEvent("login-shell-env.captured", { forwarded: loginShellEnvEncoded !== null })
     runtimeSearchEnv = runtimeExecutionEnv(process.env, loginShellEnv)
@@ -3840,12 +3867,13 @@ app.whenReady().then(async () => {
       // A missing runtime is user-recoverable: offer to pick an installed CLI
       // (saved as settings.axCodeBinary) and re-resolve instead of exiting.
       let runtimePort
+      startupGuard.advance("runtime-prepare")
       for (;;) {
         try {
           ;({ port: runtimePort } = await runtimeSupervision.prepare())
           break
         } catch (error) {
-          if (isQuitting) return
+          if (startupGuard.shouldStop()) return
           if (error?.code !== RUNTIME_NOT_FOUND_CODE) throw error
           recordStartupEvent("runtime.supervision.binary-missing", {}, { once: false })
           const outcome = await recoverFromMissingRuntime({
@@ -3863,7 +3891,7 @@ app.whenReady().then(async () => {
         }
       }
       recordStartupEvent("runtime.supervision.prepared", { port: runtimePort }, { once: false })
-      if (isQuitting) return
+      if (startupGuard.shouldStop()) return
       runtimeSupervision.start().catch((error) => {
         // A restart() cancels the in-flight initial start on purpose; that is
         // not a boot failure, and the new start reports its own outcome.
@@ -3885,19 +3913,22 @@ app.whenReady().then(async () => {
         })
       })
     }
-    if (isQuitting) {
+    if (startupGuard.shouldStop()) {
       await stopBackgroundServices()
       return
     }
+    startupGuard.advance("server")
     await launchServer()
-    if (isQuitting) {
+    if (startupGuard.shouldStop()) {
       await stopBackgroundServices()
       return
     }
+    startupGuard.advance("window")
     await createWindow()
-    if (isQuitting) return
+    if (startupGuard.shouldStop()) return
     syncQuickDispatchGlobalShortcutFromSettings(readSettingsRoot())
     desktopStartupComplete = true
+    startupGuard.complete()
     // Best-effort update check — failures must not crash the app. With
     // autoDownload disabled, the in-app dialog (driven by the renderer's
     // periodic check) handles surfacing and downloading; checkForUpdates just
