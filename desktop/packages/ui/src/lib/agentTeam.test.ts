@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest"
 import {
   agentTeamExtraModelCount,
   agentTeamSelfReviewModels,
-  disableAgentTeam,
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
   parseAgentTeam,
@@ -19,6 +18,11 @@ const B: AgentTeamModelRef = { providerID: "zhipu", modelID: "glm" }
 const C: AgentTeamModelRef = { providerID: "deepseek", modelID: "v4" }
 const D: AgentTeamModelRef = { providerID: "minimax", modelID: "m3" }
 const E: AgentTeamModelRef = { providerID: "mistral", modelID: "large" }
+
+/** Both roles unticked, with their models remembered. */
+function unticked(state: AgentTeamState): AgentTeamState {
+  return setAgentTeamRoleEnabled(setAgentTeamRoleEnabled(state, "coder", false), "qa", false)
+}
 
 function team(coders: AgentTeamModelRef[], qa: AgentTeamModelRef[]): AgentTeamState {
   return {
@@ -74,13 +78,6 @@ describe("setAgentTeamRoleEnabled", () => {
   test("a role with no models cannot be turned on", () => {
     expect(setAgentTeamRoleEnabled(emptyAgentTeam(), "qa", true).qa.enabled).toBe(false)
   })
-
-  test("disableAgentTeam turns both roles off and keeps the models", () => {
-    expect(disableAgentTeam(team([A], [B]))).toEqual({
-      coder: { enabled: false, models: [A] },
-      qa: { enabled: false, models: [B] },
-    })
-  })
 })
 
 describe("parseAgentTeam", () => {
@@ -105,7 +102,7 @@ describe("resolveAgentTeamSend", () => {
   })
 
   test("remembered models of an unticked role are ignored", () => {
-    const off = disableAgentTeam(team([A, B], [C]))
+    const off = unticked(team([A, B], [C]))
     expect(resolveAgentTeamSend(off, LEAD)).toEqual({ ...LEAD, directive: null })
   })
 
@@ -148,7 +145,7 @@ describe("resolveAgentTeamSend", () => {
     // The coder half of the team still runs.
     expect(resolveAgentTeamSend(team([A], [C]), LEAD)).toEqual({ ...A, directive: null })
     expect(isAgentTeamRoleIncomplete(team([], [C, D]), "qa")).toBe(false)
-    expect(isAgentTeamRoleIncomplete(disableAgentTeam(one), "qa")).toBe(false)
+    expect(isAgentTeamRoleIncomplete(unticked(one), "qa")).toBe(false)
   })
 
   test("a panel above council's default member limit tells the lead to report dropped reviewers", () => {

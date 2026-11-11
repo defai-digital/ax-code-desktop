@@ -19,7 +19,7 @@ vi.mock("./session-actions", async (importOriginal) => ({
   optimisticSend: (input: { send: (messageID: string) => Promise<void> }) => input.send("message-1"),
 }))
 
-const { routeMessage } = await import("./session-ui-store")
+const { routeMessage, useSessionUIStore } = await import("./session-ui-store")
 const { useAgentTeamStore } = await import("@/stores/useAgentTeamStore")
 const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 const { useCommandsStore } = await import("@/stores/useCommandsStore")
@@ -88,11 +88,29 @@ describe("agent team send routing", () => {
   test("an unticked role sends nothing even though its models are remembered", async () => {
     useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
     useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
-    useAgentTeamStore.getState().disableTeam("/proj")
+    useAgentTeamStore.getState().setRoleEnabled("/proj", "qa", false)
 
     await send()
 
     expect(sentMessage().additionalParts).toBeUndefined()
+  })
+
+  test("starting a new chat keeps the team ticked, while work mode still resets to Agent", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
+    useWorkModeStore.getState().setMode("/proj", "council")
+
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj" })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("agent")
+    const team = useAgentTeamStore.getState().getTeam("/proj")
+    expect(team.coder).toEqual({ enabled: true, models: [KIMI] })
+    expect(team.qa).toEqual({ enabled: true, models: [GLM, DEEPSEEK] })
+
+    await send()
+    expect(sentMessage()).toMatchObject(KIMI)
+    expect(sentMessage().additionalParts?.[0]?.text).toContain("**council**")
   })
 
   test("a team picked for another project does not leak into this send", async () => {

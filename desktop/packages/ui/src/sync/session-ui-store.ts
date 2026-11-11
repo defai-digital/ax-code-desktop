@@ -809,8 +809,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     setActiveSession("", "")
     // New chat always starts in Agent work mode (not sticky council/arena).
     useWorkModeStore.getState().resetToAgent(directory)
-    // A team multiplies model calls, so it is opted into per chat; the picked models are remembered.
-    useAgentTeamStore.getState().disableTeam(directory)
 
     // Do not clear attachments here: at this point the active attachment draft is still the
     // session being left, so clearing dropped that session's stash. The composer's
@@ -860,7 +858,6 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     })
     // Switching project on a new-chat draft should not inherit sticky council/arena.
     useWorkModeStore.getState().resetToAgent(nextDirectory)
-    useAgentTeamStore.getState().disableTeam(nextDirectory)
     void activateConfigForDirectory(nextDirectory)
   },
 

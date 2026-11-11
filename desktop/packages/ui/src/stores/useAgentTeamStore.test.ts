@@ -47,11 +47,11 @@ describe("useAgentTeamStore", () => {
     expect(team.qa).toEqual({ enabled: false, models: [] })
   })
 
-  test("disableTeam turns the roles off for that directory only and remembers the models", () => {
+  test("unticking a role affects that directory only and remembers the models", () => {
     const store = useAgentTeamStore.getState()
     store.toggleModel("/one", "coder", A)
     store.toggleModel("/two", "coder", B)
-    store.disableTeam("/one")
+    store.setRoleEnabled("/one", "coder", false)
 
     expect(useAgentTeamStore.getState().getTeam("/one").coder).toEqual({ enabled: false, models: [A] })
     expect(useAgentTeamStore.getState().getTeam("/two").coder.enabled).toBe(true)

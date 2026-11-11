@@ -114,14 +114,6 @@ export function setAgentTeamRoleEnabled(team: AgentTeamState, role: AgentTeamRol
   return { ...team, [role]: { ...current, enabled: enabled && current.models.length > 0 } }
 }
 
-/** Turn both roles off and keep the remembered models. */
-export function disableAgentTeam(team: AgentTeamState): AgentTeamState {
-  return {
-    coder: { ...team.coder, enabled: false },
-    qa: { ...team.qa, enabled: false },
-  }
-}
-
 /** A ticked role that has too few models to run. It is skipped on send, and the composer says so. */
 export function isAgentTeamRoleIncomplete(team: AgentTeamState, role: AgentTeamRole): boolean {
   return team[role].enabled && team[role].models.length < AGENT_TEAM_MINIMUMS[role]
