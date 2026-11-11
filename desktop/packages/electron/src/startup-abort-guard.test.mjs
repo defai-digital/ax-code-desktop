@@ -72,6 +72,14 @@ describe("startup abort guard", () => {
     expect(onAbandoned).not.toHaveBeenCalled()
   })
 
+  it("reports the stage as complete once startup finished", () => {
+    const { guard } = harness()
+    guard.advance("window")
+    expect(guard.stage).toBe("window")
+    guard.complete()
+    expect(guard.stage).toBe("complete")
+  })
+
   it("logs a slow startup with its stage but takes no action", () => {
     const timers = []
     const record = vi.fn()

@@ -54,6 +54,8 @@ function createStartupAbortGuard({
     },
     complete() {
       completed = true
+      // Later breadcrumbs (a quit after launch) must not name the last startup step as current.
+      stage = "complete"
       clearSlowTimer()
     },
     /**
