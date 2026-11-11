@@ -1,0 +1,52 @@
+{
+  "reviewer": "claude",
+  "round": "final",
+  "status": "completed",
+  "exit_code": 0,
+  "elapsed_seconds": 19.99,
+  "command": [
+    "claude",
+    "--print",
+    "--model",
+    "claude-opus-5-5",
+    "--effort",
+    "high",
+    "--tools",
+    "",
+    "--strict-mcp-config",
+    "--disable-slash-commands",
+    "--no-session-persistence",
+    "--output-format",
+    "json",
+    "--system-prompt",
+    "You are an independent product and architecture reviewer. Read only the supplied evidence and answer directly in English. No tools, planning preamble, filesystem changes, delegation, or web research. State uncertainties and preserve dissent. This is advisory, not approval."
+  ],
+  "input": "final-input.md",
+  "raw_stdout": "/tmp/ax-desktop-herdr-fit-20261110/final-claude.stdout",
+  "raw_stderr": "/tmp/ax-desktop-herdr-fit-20261110/final-claude.stderr",
+  "scope": "Tool-free advisory consultation on supplied evidence; no product execution or approval.",
+  "reported_model_usage": {
+    "claude-opus-5-5": {
+      "inputTokens": 2,
+      "outputTokens": 1883,
+      "cacheReadInputTokens": 0,
+      "cacheCreationInputTokens": 2450,
+      "webSearchRequests": 0,
+      "costUSD": 0.057268,
+      "contextWindow": 1000000,
+      "maxOutputTokens": 128000,
+      "thinkingTokens": 545,
+      "cacheCreationEphemeral5mInputTokens": 0,
+      "cacheCreationEphemeral1hInputTokens": 2450,
+      "canonicalModel": "claude-opus-5-5",
+      "provider": "firstParty",
+      "costBasis": "list"
+    }
+  },
+  "reported_cost_usd": 0.057268,
+  "stop_reason": "end_turn",
+  "output": "final-claude.md",
+  "output_sha256": "81fc8e1f57420fb394cd41101bf51e20dc9add3592a26ee1f06684a8531478a6",
+  "input_sha256": "4d7467eeba3760a9c27bda8f80c4879f75d3a01821b5b134c9d2aee40c74cf9f",
+  "identity_limit": "Requested CLI model and native usage receipt; not an independent attestation of vendor weights."
+}

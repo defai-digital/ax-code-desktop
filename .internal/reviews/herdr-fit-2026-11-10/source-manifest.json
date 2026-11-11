@@ -1,0 +1,318 @@
+{
+  "date": "2026-11-10",
+  "sources": [
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "AGENTS.md",
+      "sha256": "43545aac32132469c2fa15cb15a3c35376ed124a5ba699100f8dec46e711c578",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "config/ax-code-runtime.json",
+      "sha256": "bc3830c47d1588f33db20090409db9eb8baa7960a15d872bb1362a15248be4db",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/package.json",
+      "sha256": "db680095a6163a62dd94ddd75f36f4cb7964dc385d45a80d7fbad261410b08cf",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": ".internal/adr/ADR-002-product-and-source-boundary.md",
+      "sha256": "3c6cd336211c01e64d3d33ed9375543d2e416ee73f9346dd445b1bc79367cd8c",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": ".internal/adr/ADR-007-defer-ax-agent-manager-integration.md",
+      "sha256": "4fab027320d758e18bd822fd84184cfa9b67812d2eee6ed4a2e1c7cfb079f1b3",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/types/multirun.ts",
+      "sha256": "6b817953b3e37b545114fc71e1f4d4b04a77c64e687c236859bc57c0ed5f947c",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/stores/useMultiRunStore.ts",
+      "sha256": "7c5b8cbd9a0e7b48fab4915369d27cc84923c363824edb7830e794373577d655",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/multirun/MultiRunLauncher.tsx",
+      "sha256": "f73a3410d85142b1a671aa18224b806c9a907a04b22ee8168631e47c2d2416f9",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/multirun/AgentSelector.tsx",
+      "sha256": "a288ce4767299aed05082d39a08a95d04f63a8faa284f5508b3478648132bf42",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/multirun/ModelMultiSelect.tsx",
+      "sha256": "47b6963a0b722914c3088eeeda946226d37b5b893a479198ddee206978281a4b",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/multirun/MultiRunFusionDialog.tsx",
+      "sha256": "ea1841f80e3e23cc43cf02a2db6a5598ab1b873997fff26192ff969e1fe7a2ae",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/workMode.ts",
+      "sha256": "e5605ae726198661b56534da191a644d4ec4b9ea34b0d5afa47d64d78091a7db",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/chat/WorkModeSelector.tsx",
+      "sha256": "91d8a5f8e74c698fdb0bc6c8fc5d20001808ee5e18600a2beea0f79f28f58e08",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/hooks/useSupervisionRows.ts",
+      "sha256": "e061765dba208c1d44d2c2eb7a3078528ea664e2de77747e02aaf7c8ab1119e6",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/supervision/rows.ts",
+      "sha256": "2bcac486b4e2d888fbc10d87727e1e1ae44d405e26d4c904812a03ed277766d7",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/supervision/childSessions.ts",
+      "sha256": "67878707bb464649d49d6d081e435f5ca216c5e1d6e5b1c24a78f8e75ceec3f0",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/supervision/sessionState.ts",
+      "sha256": "020cfd18ca088295fec566595e66d66458bae5c7c46d5714ba01787a3e9d8db6",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/supervision/verificationEvidence.ts",
+      "sha256": "8c00c60defa47d8cd58e08dd6adc42b2931a030a4463767e80f4078d0f8e75d9",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/supervision/multiRunGroups.ts",
+      "sha256": "da04de216454c3c0185f3c07b5d245030c95c2af4d61f38d78216d4968d43968",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/supervision/MultiRunCompare.tsx",
+      "sha256": "86fb0ac69a23cd33bf9249d36d4102cbe3d32090ec626dd81d68a66683868be3",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/supervision/SinceYouLeftStrip.tsx",
+      "sha256": "2efa5ec63736870d562f7beafb10f2e22e0e4e1f695a1089a5e4b796248097de",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/supervision/missionControl/MissionControlRow.tsx",
+      "sha256": "51767c6c24546b0bda53596959e8521185004256d973a6e54491c812cfb99a58",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/electron/src/main.js",
+      "sha256": "e71c954fb86ef047b93f1662614ea16ac6b21149e337da024274b53bb91b52f1",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/views/TerminalView.tsx",
+      "sha256": "8a422bfe736efba3285a6564653989e3fd19252513e6ea44ce10b872113cd9ec",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/web/server/lib/terminal/runtime.js",
+      "sha256": "2a604c280b03e1338718fb157e19911c9c0416375dcc5aca0e7bde92a531f888",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": ".internal/reports/PARALLEL-PROJECTS-2026-10-20-runtime-dispatch.md",
+      "sha256": "e0830c289b9ed40b41bf925ea7cba6600ffa23bfe2447942c0eb5483acca0ea4",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": ".internal/reports/UX-2026-11-08-workspace-ux-v1.md",
+      "sha256": "f27835d6bce78653ca0a088d903788cb8dc2799743420e639000b5b95a73715e",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/task.ts",
+      "sha256": "c2abf0786d8f04ff6f35036f4a686f2fd1bd48d53c9c604f712b51e13b219fda"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/task_parallel.ts",
+      "sha256": "b660fbb1e873957fa7d1d804bea7e27e59c333aecdc40db56100eeb7d9476a4d"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/task-model-pool.ts",
+      "sha256": "c72887c3a978384e2533754457fbbd570b6266f5e8eb6fc80e11dfba44120605"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/message_background_task.ts",
+      "sha256": "4da6d493cce224242f46073ebb188ac128c664309c7c683e2c9de7cee94852f0"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/waitfor.ts",
+      "sha256": "d4ca2b7427bbabdfadc4c65617775b3621aa44c1d03f231da0831cf472027828"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/list_background_tasks.ts",
+      "sha256": "a1dbd37214e89d48b95524ffd4913f18d24985a00808d62eab24b1423f8ca247"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/council.ts",
+      "sha256": "9a3b50e8b3bc161836082d1080cf004fcb5314e071720080068dae64cfd5f4d8"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/tool/arena.ts",
+      "sha256": "3719ec4893d828c333457a4c48290e4448ba42f08e904b653e573aca3854ba88"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/provider/cli/config.ts",
+      "sha256": "ddfb418aa44e5793e3a16442bf5d5283616862dc487b5f096fa78224d58eec50"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/provider/cli/prompt.ts",
+      "sha256": "ac44533244eb5e97512329614f67967ebd264ed9cd4b42311572491a4f30c497"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/provider/cli/cli-language-model.ts",
+      "sha256": "c8fedc1acb5f93a67de9b826c10b545ea6373493ae71c8f7c5f6697ffa7dccfc"
+    },
+    {
+      "repository": "ax-code",
+      "ref": "v7.30.16",
+      "commit": "565368bcb237d7814ac7bf725a548565d85e1ccb",
+      "path": "packages/ax-code/src/provider/cli/native-models.ts",
+      "sha256": "772127735047d9f4d27cc023e4726c2edc07801f35f53df38e79ea8ac05edfbb"
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/lib/ax-code/providerApi.ts",
+      "sha256": "383dee0b59cbce72de3bd877a406ca6976949929d69ce9ebe1c0d95c7a561a06",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/sections/providers/ProvidersPage.tsx",
+      "sha256": "13e325d2df37b2a37664af95843bcb5d467d8530a92d6cfb043c649aae51f711",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/docs/content/docs/providers.mdx",
+      "sha256": "4621fea9fac8986785f36e5ed200602cc4b86ababe99ae2e9db235a586b5cffe",
+      "matches_commit": true
+    },
+    {
+      "repository": "ax-code-desktop",
+      "commit": "84d684f8c06f65dc15cae7b5495a94de56efa685",
+      "path": "desktop/packages/ui/src/components/multirun/MultiRunFusionDialog.test.tsx",
+      "sha256": "212a513383fb3aea43d7565b2c62c7fa46bf7d20f4f8a64d28cb7a94422c9099",
+      "matches_commit": true
+    },
+    {
+      "package": "@defai-digital/ax-code-sdk",
+      "version": "2.6.69",
+      "path": "desktop/packages/ui/node_modules/@defai-digital/ax-code-sdk/dist/provider-connect.js",
+      "sha256": "cb906aee2cee210530b0e83fe9800b022cc77e7a464833630b1fee40c2ed97bb"
+    },
+    {
+      "package": "@defai-digital/ax-code-sdk",
+      "version": "2.6.69",
+      "path": "desktop/packages/ui/node_modules/@defai-digital/ax-code-sdk/dist/v2/gen/types.gen.d.ts",
+      "sha256": "f5d7b3be3a40a1c1128925291b8255cfd2682218ac5f101c31e7e2ab58f7fef4"
+    }
+  ]
+}
