@@ -2,31 +2,21 @@ import React, { act } from "react"
 import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
-const config = vi.hoisted(() => ({
-  providers: [
-    {
-      id: "moonshot",
-      name: "Moonshot",
-      models: [{ id: "kimi", name: "Kimi-K3" }],
-    },
-    {
-      id: "zhipu",
-      name: "Zhipu",
-      models: [
-        { id: "glm", name: "GLM-5.2" },
-        { id: "glm-air", name: "GLM-Air" },
-      ],
-    },
-    {
-      id: "alibaba",
-      name: "Alibaba",
-      models: [{ id: "qwen", name: "Qwen3.8-27b" }],
-    },
-  ],
-  currentProviderId: "alibaba",
-  currentModelId: "qwen",
-  modelsMetadata: new Map(),
-}))
+const config = vi.hoisted(() => {
+  const model = (id: string, name: string) => ({ id, name, capabilities: { toolcall: true, reasoning: false } })
+  return {
+    providers: [
+      { id: "moonshot", name: "Moonshot", models: [model("kimi", "Kimi-K3")] },
+      { id: "zhipu", name: "Zhipu", models: [model("glm", "GLM-5.2"), model("glm-air", "GLM-Air")] },
+      { id: "alibaba", name: "Alibaba", models: [model("qwen", "Qwen3.8-27b")] },
+      { id: "deepseek", name: "DeepSeek", models: [model("v4", "DeepSeek-V4")] },
+      { id: "xai", name: "xAI", models: [model("grok", "Grok 4.7")] },
+    ],
+    currentProviderId: "alibaba",
+    currentModelId: "qwen",
+    modelsMetadata: new Map(),
+  }
+})
 
 const ui = vi.hoisted(() => {
   const state = {
@@ -259,6 +249,63 @@ describe("AgentTeamRow", () => {
     expect(roleElement("coder").textContent).not.toContain("Kimi-K3")
     expect(roleElement("coder").textContent).toContain("1/2")
     expect(container.querySelector("[data-agent-team-hint]")).toBeNull()
+  })
+
+  describe("Suggest", () => {
+    const suggestButton = () => container.querySelector<HTMLButtonElement>("[data-agent-team-suggest]")!
+    const section = (role: "coder" | "qa") =>
+      document.body.querySelector<HTMLElement>(`[data-agent-team-suggestion="${role}"]`)!
+    const action = (key: string) =>
+      [...document.body.querySelectorAll<HTMLButtonElement>("button")].find((button) => button.textContent === key)!
+
+    test("previews a team without changing anything until it is applied", () => {
+      ui.favoriteModels = [KIMI]
+      render()
+
+      act(() => suggestButton().click())
+
+      // The favorite leads; the composer model is next, and reviewers are never the coders.
+      expect(section("coder").textContent).toContain("Kimi-K3")
+      expect(section("coder").textContent).toContain("chat.modelControls.favorites")
+      expect(section("coder").textContent).toContain("Qwen3.8-27b")
+      expect(section("qa").textContent).not.toContain("Kimi-K3")
+      expect(section("qa").textContent).not.toContain("Qwen3.8-27b")
+      expect(section("qa").textContent).not.toContain("GLM-Air")
+      expect(team().coder.models).toEqual([])
+      expect(team().qa.models).toEqual([])
+    })
+
+    test("Apply turns both roles on, and Undo restores the previous team", () => {
+      ui.favoriteModels = [KIMI]
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GLM))
+      render()
+      act(() => suggestButton().click())
+
+      act(() => action("chat.agentTeam.suggest.apply").click())
+
+      expect(team().coder).toEqual({ enabled: true, models: [KIMI, QWEN] })
+      expect(team().qa.enabled).toBe(true)
+      expect(team().qa.models).toHaveLength(3)
+      expect(team().qa.models).not.toContainEqual(KIMI)
+      expect(team().qa.models).not.toContainEqual(QWEN)
+      expect(action("chat.agentTeam.suggest.apply").disabled).toBe(true)
+
+      act(() => action("chat.agentTeam.suggest.undo").click())
+
+      expect(team().coder).toEqual({ enabled: true, models: [GLM] })
+      expect(team().qa).toEqual({ enabled: false, models: [] })
+    })
+
+    test("Undo is withdrawn once the team is changed by hand", () => {
+      render()
+      act(() => suggestButton().click())
+      act(() => action("chat.agentTeam.suggest.apply").click())
+      expect(action("chat.agentTeam.suggest.undo")).toBeDefined()
+
+      act(() => useAgentTeamStore.getState().setRoleEnabled("/repo", "qa", false))
+
+      expect(action("chat.agentTeam.suggest.undo")).toBeUndefined()
+    })
   })
 
   test("is not offered in Council or Arena work mode", () => {

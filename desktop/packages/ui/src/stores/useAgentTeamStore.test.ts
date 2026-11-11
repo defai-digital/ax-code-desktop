@@ -35,6 +35,18 @@ describe("useAgentTeamStore", () => {
     expect(useAgentTeamStore.getState().teamByDirectory).toBe(before)
   })
 
+  test("setTeam replaces the team and still enforces the limits", () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", C)
+    useAgentTeamStore.getState().setTeam("/proj", {
+      coder: { enabled: true, models: [A, B, C] },
+      qa: { enabled: false, models: [] },
+    })
+
+    const team = useAgentTeamStore.getState().getTeam("/proj")
+    expect(team.coder).toEqual({ enabled: true, models: [A, B] })
+    expect(team.qa).toEqual({ enabled: false, models: [] })
+  })
+
   test("disableTeam turns the roles off for that directory only and remembers the models", () => {
     const store = useAgentTeamStore.getState()
     store.toggleModel("/one", "coder", A)

@@ -20,6 +20,8 @@ type AgentTeamStoreActions = {
   getTeam: (directory: string | null | undefined) => AgentTeamState
   toggleModel: (directory: string | null | undefined, role: AgentTeamRole, model: AgentTeamModelRef) => void
   setRoleEnabled: (directory: string | null | undefined, role: AgentTeamRole, enabled: boolean) => void
+  /** Replace a directory's team, e.g. with an accepted suggestion or its undo. */
+  setTeam: (directory: string | null | undefined, team: AgentTeamState) => void
   /** Turn both roles off for a directory, keeping the remembered models. Used on new chat. */
   disableTeam: (directory: string | null | undefined) => void
 }
@@ -47,6 +49,7 @@ export const useAgentTeamStore = create<AgentTeamStore>()(
         toggleModel: (directory, role, model) => update(directory, (team) => toggleAgentTeamModel(team, role, model)),
         setRoleEnabled: (directory, role, enabled) =>
           update(directory, (team) => setAgentTeamRoleEnabled(team, role, enabled)),
+        setTeam: (directory, team) => update(directory, () => parseAgentTeam(team)),
         disableTeam: (directory) => update(directory, disableAgentTeam),
       }
     },

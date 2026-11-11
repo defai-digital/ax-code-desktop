@@ -6,6 +6,7 @@ import {
   type ModelPickerEntry,
   type ModelPickerProvider,
 } from "@/components/model-picker/ModelPickerList"
+import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useModelLists } from "@/hooks/useModelLists"
 import {
@@ -23,7 +24,15 @@ import {
   type AgentTeamRole,
   type AgentTeamState,
 } from "@/lib/agentTeam"
+import {
+  applyAgentTeamSuggestion,
+  suggestAgentTeam,
+  type AgentTeamCandidate,
+  type AgentTeamSuggestionReason,
+  type SuggestedAgentTeamModel,
+} from "@/lib/agentTeamSuggest"
 import { useI18n, type I18nKey } from "@/lib/i18n"
+import { getProviderModelDisabledReason } from "@/lib/providerModelAvailability"
 import { cn } from "@/lib/utils"
 import { parseWorkMode } from "@/lib/workMode"
 import { useAgentTeamStore } from "@/stores/useAgentTeamStore"
@@ -44,7 +53,139 @@ const ROLE_LABEL_KEYS: Record<AgentTeamRole, I18nKey> = {
   qa: "chat.agentTeam.qa",
 }
 
+const SUGGESTION_REASON_KEYS: Record<AgentTeamSuggestionReason, I18nKey> = {
+  favorite: "chat.modelControls.favorites",
+  recent: "chat.modelControls.recent",
+  lead: "chat.agentTeam.suggest.reason.lead",
+  otherProvider: "chat.agentTeam.suggest.reason.otherProvider",
+  available: "chat.agentTeam.suggest.reason.available",
+}
+
 const EMPTY_TEAM = emptyAgentTeam()
+
+const sameTeam = (a: AgentTeamState, b: AgentTeamState) => JSON.stringify(a) === JSON.stringify(b)
+
+interface SuggestControlProps {
+  team: AgentTeamState
+  lead: AgentTeamModelRef | null
+  compact: boolean
+  nameOf: (model: AgentTeamModelRef) => string
+  onSetTeam: (team: AgentTeamState) => void
+}
+
+/**
+ * Proposes a Coder and QA team from the user's favorites, recent models and the catalog. The
+ * proposal is shown before it changes anything, and applying it can be undone.
+ */
+const SuggestControl: React.FC<SuggestControlProps> = ({ team, lead, compact, nameOf, onSetTeam }) => {
+  const { t } = useI18n()
+  const [open, setOpen] = React.useState(false)
+  // The team before the last Apply, and the team that Apply produced. Undo is offered only while
+  // the current team is still that result, so it never discards a later manual change.
+  const [applied, setApplied] = React.useState<{ before: AgentTeamState; after: AgentTeamState } | null>(null)
+  const providers = useConfigStore((s) => s.providers)
+  const hiddenModels = useUIStore((s) => s.hiddenModels)
+  const favorites = useUIStore((s) => s.favoriteModels)
+  const recents = useUIStore((s) => s.recentModels)
+
+  const suggestion = React.useMemo(() => {
+    const candidates: AgentTeamCandidate[] = []
+    for (const provider of providers) {
+      for (const model of provider.models) {
+        if (hiddenModels.some((h) => h.providerID === provider.id && h.modelID === model.id)) continue
+        candidates.push({
+          providerID: provider.id,
+          modelID: model.id,
+          toolCall: model.capabilities?.toolcall === true,
+          reasoning: model.capabilities?.reasoning === true,
+          releaseDate: model.release_date || undefined,
+          unavailable: Boolean(getProviderModelDisabledReason(model, provider.id)),
+        })
+      }
+    }
+    return suggestAgentTeam({ candidates, favorites, recents, lead })
+  }, [providers, hiddenModels, favorites, recents, lead])
+
+  const next = applyAgentTeamSuggestion(team, suggestion)
+  const hasSuggestion = suggestion.coder.length > 0 || suggestion.qa.length > 0
+  const alreadyApplied = sameTeam(next, team)
+  const canUndo = applied !== null && sameTeam(applied.after, team)
+
+  const renderModels = (models: readonly SuggestedAgentTeamModel[], emptyKey: I18nKey) =>
+    models.length === 0 ? (
+      <p className="typography-micro text-[var(--status-warning)]">{t(emptyKey)}</p>
+    ) : (
+      models.map((model) => (
+        <p key={`${model.providerID}/${model.modelID}`} className="flex items-baseline justify-between gap-3">
+          <span className="min-w-0 truncate typography-meta">{nameOf(model)}</span>
+          <span className="flex-shrink-0 typography-micro text-muted-foreground">
+            {t(SUGGESTION_REASON_KEYS[model.reason])}
+          </span>
+        </p>
+      ))
+    )
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          data-agent-team-suggest
+          aria-label={t("chat.agentTeam.suggest")}
+          title={t("chat.agentTeam.suggest")}
+          className={cn(
+            // Framed like the role controls beside it, so it reads as a button and not as a caption.
+            "inline-flex h-7 flex-shrink-0 items-center gap-1.5 rounded-md border px-2 typography-micro font-semibold",
+            "border-[var(--interactive-border)] text-foreground hover:bg-[var(--interactive-hover)]",
+            "aria-expanded:bg-[var(--interactive-hover)]",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
+          )}
+        >
+          <Icon name="sparkling" className="h-3.5 w-3.5 flex-shrink-0" />
+          {compact ? null : <span>{t("chat.agentTeam.suggest")}</span>}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="flex w-[min(340px,calc(100vw-2rem))] flex-col gap-2 p-3">
+        <p className="typography-meta font-medium">{t("chat.agentTeam.suggest.title")}</p>
+        <div data-agent-team-suggestion="coder" className="flex flex-col gap-0.5">
+          <p className="typography-micro font-semibold text-muted-foreground">{t("chat.agentTeam.coder")}</p>
+          {renderModels(suggestion.coder, "chat.agentTeam.suggest.noCoder")}
+        </div>
+        <div data-agent-team-suggestion="qa" className="flex flex-col gap-0.5">
+          <p className="typography-micro font-semibold text-muted-foreground">{t("chat.agentTeam.qa")}</p>
+          {renderModels(suggestion.qa, "chat.agentTeam.suggest.noQa")}
+        </div>
+        <p className="typography-micro text-muted-foreground">{t("chat.agentTeam.suggest.note")}</p>
+        <div className="flex items-center justify-end gap-2">
+          {canUndo ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="xs"
+              onClick={() => {
+                onSetTeam(applied.before)
+                setApplied(null)
+              }}
+            >
+              {t("chat.agentTeam.suggest.undo")}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            size="xs"
+            disabled={!hasSuggestion || alreadyApplied}
+            onClick={() => {
+              setApplied({ before: team, after: next })
+              onSetTeam(next)
+            }}
+          >
+            {t("chat.agentTeam.suggest.apply")}
+          </Button>
+        </div>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
 
 interface RoleControlProps {
   role: AgentTeamRole
@@ -272,6 +413,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const team = useAgentTeamStore((s) => s.teamByDirectory[dirKey] ?? EMPTY_TEAM)
   const toggleModel = useAgentTeamStore((s) => s.toggleModel)
   const setRoleEnabled = useAgentTeamStore((s) => s.setRoleEnabled)
+  const setTeam = useAgentTeamStore((s) => s.setTeam)
   const providers = useConfigStore((s) => s.providers)
   const leadProviderId = useConfigStore((s) => s.currentProviderId)
   const leadModelId = useConfigStore((s) => s.currentModelId)
@@ -294,9 +436,17 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
     [currentDirectory, setRoleEnabled],
   )
 
+  const onSetTeam = React.useCallback(
+    (next: AgentTeamState) => setTeam(currentDirectory, next),
+    [currentDirectory, setTeam],
+  )
+  const lead = React.useMemo(
+    () => (leadProviderId && leadModelId ? { providerID: leadProviderId, modelID: leadModelId } : null),
+    [leadProviderId, leadModelId],
+  )
+
   if (workMode !== "agent") return null
 
-  const lead = leadProviderId && leadModelId ? { providerID: leadProviderId, modelID: leadModelId } : null
   const selfReview = agentTeamSelfReviewModels(team, lead)
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
@@ -338,6 +488,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
           onSetEnabled={onSetEnabled}
         />
       ))}
+      <SuggestControl team={team} lead={lead} compact={compact} nameOf={nameOf} onSetTeam={onSetTeam} />
       {hint && !compact ? (
         <Tooltip delayDuration={350}>
           <TooltipTrigger asChild>
