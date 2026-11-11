@@ -15,7 +15,9 @@ import {
   AGENT_TEAM_ROLES,
   COUNCIL_DEFAULT_MAX_MEMBERS,
   activeAgentTeamModels,
+  agentTeamBlockedReason,
   agentTeamExtraModelCount,
+  agentTeamRunner,
   agentTeamSelfReviewModels,
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
@@ -457,24 +459,41 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const selfReview = agentTeamSelfReviewModels(team, lead)
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  const extra = agentTeamExtraModelCount(team)
+  // A CLI composer model cannot call the runtime tools, and a CLI coder cannot orchestrate its own
+  // QA panel: either step is dropped on send, so the row says so instead of promising it.
+  const blocked = lead ? agentTeamBlockedReason(team, lead) : null
+  const runner = lead ? agentTeamRunner(team, lead) : null
+  // Only a team model standing in for the composer pick is a substitution: a single coder is the
+  // ordinary "this coder runs the message" case, and a kept lead is no change at all.
+  const substituted =
+    blocked === null && coders.length !== 1 && runner !== null && lead !== null && !isSameAgentTeamModel(runner, lead)
+  const runnerHint =
+    substituted && runner ? t("chat.agentTeam.hint.runnerSubstituted", { model: nameOf(runner) }) : null
+  const extra = agentTeamExtraModelCount(team, lead)
+  const extraHint = extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : null
 
   // The row states only the cost; what each role does is one hover away.
   const details: string[] = []
+  if (runnerHint) details.push(runnerHint)
   if (coders.length === 1) details.push(t("chat.agentTeam.hint.coderSingle", { model: nameOf(coders[0]!) }))
-  if (coders.length >= 2) details.push(t("chat.agentTeam.hint.coderArena"))
-  if (qa.length > 0) details.push(t("chat.agentTeam.hint.qa"))
+  if (blocked === null && coders.length >= 2) details.push(t("chat.agentTeam.hint.coderArena"))
+  if (blocked === null && qa.length > 0) details.push(t("chat.agentTeam.hint.qa"))
+  // The substituted runner takes the row's visible line, so the cost cue moves into the detail.
+  if (runnerHint && extraHint) details.push(extraHint)
   const warnings: string[] = []
+  if (blocked === "cliCoderQa") warnings.push(t("chat.agentTeam.hint.cliCoderQa"))
+  if (blocked === "noOrchestrator") warnings.push(t("chat.agentTeam.hint.noOrchestrator"))
   if (isAgentTeamRoleIncomplete(team, "qa")) {
     warnings.push(t("chat.agentTeam.hint.qaNeedsMore", { min: AGENT_TEAM_MINIMUMS.qa }))
   }
-  if (qa.length > COUNCIL_DEFAULT_MAX_MEMBERS) {
+  if (blocked === null && qa.length > COUNCIL_DEFAULT_MAX_MEMBERS) {
     warnings.push(t("chat.agentTeam.hint.qaMemberLimit", { limit: COUNCIL_DEFAULT_MAX_MEMBERS }))
   }
   if (selfReview.length > 0) warnings.push(t("chat.agentTeam.selfReview"))
-  const hint =
-    extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : (details[0] ?? warnings[0] ?? "")
+  const hint = runnerHint ?? extraHint ?? details[0] ?? warnings[0] ?? ""
   const warning = warnings.join(" ")
+  // The tooltip is not the accessible name, so the warning and the swapped runner are spoken too.
+  const spoken = [...new Set([warning, hint, runnerHint].filter((line): line is string => Boolean(line)))].join(" ")
 
   return (
     <div
@@ -502,7 +521,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
             <span
               data-agent-team-hint
               data-warning={warning ? "true" : undefined}
-              aria-label={warning && warning !== hint ? `${warning} ${hint}` : undefined}
+              aria-label={spoken || undefined}
               tabIndex={0}
               className={cn(
                 "ml-auto flex min-w-0 items-center gap-1 rounded typography-micro",

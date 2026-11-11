@@ -31,15 +31,22 @@ const { useConfigStore } = await import("@/stores/useConfigStore")
 const KIMI = { providerID: "moonshot", modelID: "kimi" }
 const GLM = { providerID: "zhipu", modelID: "glm" }
 const DEEPSEEK = { providerID: "deepseek", modelID: "v4" }
+// A CLI provider runs its own agent loop, so the runtime never gives it arena/council.
+const CLI_LEAD = { providerID: "claude-code", modelID: "claude-fable-5-2" }
+const CLI_CODER = { providerID: "codex-cli", modelID: "codex-large" }
+const CLI_CODER_B = { providerID: "dsh-cli", modelID: "dsh-pro" }
 
 // The composer passes the team it shows; `withTeam: false` is any other sender.
-const send = (content = "fix the login bug", options: { withTeam?: boolean; variant?: string } = {}) =>
+const send = (
+  content = "fix the login bug",
+  options: { withTeam?: boolean; variant?: string; lead?: { providerID: string; modelID: string } } = {},
+) =>
   routeMessage({
     sessionId: "session-1",
     directory: "/proj",
     content,
-    providerID: "alibaba",
-    modelID: "qwen",
+    providerID: options.lead?.providerID ?? "alibaba",
+    modelID: options.lead?.modelID ?? "qwen",
     variant: options.variant,
     agentTeam: options.withTeam === false ? undefined : useAgentTeamStore.getState().getTeam("/proj"),
   })
@@ -157,6 +164,45 @@ describe("agent team send routing", () => {
     await send()
 
     expect(useAgentTeamStore.getState().coderMessageIds).toEqual([])
+  })
+
+  test("a CLI lead is not given the directive: a non-CLI coder runs the turn and it is recorded", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", KIMI)
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", GLM)
+
+    await send("fix the login bug", { lead: CLI_LEAD })
+
+    const message = sentMessage()
+    // The CLI lead cannot call arena, so the directive goes to the coder; both coders stay members.
+    expect(message).toMatchObject({ ...KIMI, text: "fix the login bug" })
+    expect(message.additionalParts).toHaveLength(1)
+    expect(message.additionalParts![0]!.synthetic).toBe(true)
+    expect(message.additionalParts![0]!.text).toContain("**arena**")
+    expect(message.additionalParts![0]!.text).toContain(JSON.stringify([KIMI, GLM]))
+    // A substituted runner is not the composer pick, so the composer must not adopt it.
+    expect(useAgentTeamStore.getState().isCoderMessage(message.messageId!)).toBe(true)
+  })
+
+  test("a single CLI coder with QA sends no directive: the QA step is skipped", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", CLI_CODER)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", GLM)
+    useAgentTeamStore.getState().toggleModel("/proj", "qa", DEEPSEEK)
+
+    await send()
+
+    // The coder still runs the message; the council instructions a CLI coder cannot follow are dropped.
+    expect(sentMessage()).toMatchObject({ ...CLI_CODER, text: "fix the login bug" })
+    expect(sentMessage().additionalParts).toBeUndefined()
+  })
+
+  test("a CLI lead with an all-CLI team is sent the message alone, with the team skipped", async () => {
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", CLI_CODER)
+    useAgentTeamStore.getState().toggleModel("/proj", "coder", CLI_CODER_B)
+
+    await send("fix the login bug", { lead: CLI_LEAD })
+
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "fix the login bug" })
+    expect(sentMessage().additionalParts).toBeUndefined()
   })
 
   test("the composer's effort variant goes to a coder only when the coder offers it", async () => {
