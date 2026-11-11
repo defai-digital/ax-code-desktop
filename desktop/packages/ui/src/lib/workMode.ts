@@ -2,10 +2,13 @@
  * Work mode: Agent (default) | Council | Arena — multi-model send routing.
  *
  * Re-exports from the public SDK contract with desktop-friendly flat names.
- * Desktop-specific helpers (resolveWorkModeSend, workModeFallbackPrompt) live here.
+ * Desktop-specific helpers (resolveWorkModeSend, workModeEnsembleCommand, workModeBlockedReason,
+ * workModeFallbackPrompt) live here.
  */
 
 import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
+import { canOrchestrateAgentTeam, type AgentTeamCatalogProvider, type AgentTeamModelRef } from "./agentTeam"
+import { isExternalCliProvider } from "./providerModelAvailability"
 
 // ── Re-exports from core ────────────────────────────────────────────────
 export type WorkModeId = WorkMode.Id
@@ -46,6 +49,57 @@ export function resolveWorkModeSend(
     return { content: routed.text, forcedCommand: null }
   }
   return { content: routed.text, forcedCommand: null }
+}
+
+/**
+ * The ensemble command a send is actually routed to, or null when it is not an arena/council turn.
+ *
+ * Work-mode remapping sets `forcedCommand` (`resolveWorkModeSend`); an explicit `/council` or
+ * `/arena` typed by the user goes through untouched in any mode and asks for the same runtime tool.
+ * Every other slash command — `/help`, `/compact`, a custom command — is not an ensemble turn.
+ */
+export function workModeEnsembleCommand(
+  content: string,
+  forcedCommand: { name: "council" | "arena" } | null,
+): "council" | "arena" | null {
+  if (forcedCommand) return forcedCommand.name
+  const head = content.trimStart().split(/\s+/, 1)[0]
+  if (head === "/council") return "council"
+  if (head === "/arena") return "arena"
+  return null
+}
+
+/** Why the armed Council or Arena mode cannot run on the composer model, or null when it can. */
+export type WorkModeBlockedReason = "cliLead" | "noToolCalling"
+
+/** Display name of a work mode, matching the mode selector's label. */
+export function workModeLabel(mode: WorkModeId): string {
+  if (mode === "council") return "Council"
+  if (mode === "arena") return "Arena"
+  return "Agent"
+}
+
+/**
+ * Council and Arena ask the model that runs the turn to call the runtime's `council`/`arena` tools.
+ * A CLI provider runs its own vendor agent loop and never receives those tools, and a model the
+ * catalog marks as unable to call tools cannot use them either, so the turn could not do what the
+ * mode promises. Agent mode is a plain prompt and is never blocked.
+ */
+export function workModeBlockedReason(
+  mode: WorkModeId,
+  lead: AgentTeamModelRef | null | undefined,
+  providers?: readonly AgentTeamCatalogProvider[],
+): WorkModeBlockedReason | null {
+  if (mode === "agent" || !lead) return null
+  if (canOrchestrateAgentTeam(lead, providers)) return null
+  return isExternalCliProvider(lead.providerID) ? "cliLead" : "noToolCalling"
+}
+
+/** Translation key for a blocked-mode warning; the mode name is passed as `{mode}`. */
+export function workModeBlockedMessageKey(
+  reason: WorkModeBlockedReason,
+): "chat.workMode.blocked.cliLead" | "chat.workMode.blocked.noToolCalling" {
+  return reason === "cliLead" ? "chat.workMode.blocked.cliLead" : "chat.workMode.blocked.noToolCalling"
 }
 
 /**

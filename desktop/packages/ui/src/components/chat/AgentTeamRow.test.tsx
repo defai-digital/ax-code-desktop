@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const config = vi.hoisted(() => {
   const model = (id: string, name: string) => ({ id, name, capabilities: { toolcall: true, reasoning: false } })
+  const noTools = (id: string, name: string) => ({ id, name, capabilities: { toolcall: false, reasoning: false } })
   const baseProviders = [
     { id: "moonshot", name: "Moonshot", models: [model("kimi", "Kimi-K3")] },
     { id: "zhipu", name: "Zhipu", models: [model("glm", "GLM-5.2"), model("glm-air", "GLM-Air")] },
@@ -16,10 +17,13 @@ const config = vi.hoisted(() => {
     { id: "claude-code", name: "Claude Code", models: [model("claude-fable", "Claude Fable")] },
     { id: "codex-cli", name: "Codex CLI", models: [model("codex", "Codex Large")] },
   ]
+  // Present in the catalog but known not to call tools, so it cannot run arena/council either.
+  const toolLessProviders = [{ id: "minimax", name: "MiniMax", models: [noTools("m3", "MiniMax-M3")] }]
   return {
     providers: baseProviders,
     baseProviders,
     cliProviders,
+    toolLessProviders,
     currentProviderId: "alibaba",
     currentModelId: "qwen",
     modelsMetadata: new Map(),
@@ -320,6 +324,83 @@ describe("AgentTeamRow", () => {
       expect(hint().dataset.warning).toBeUndefined()
       expect(hint().textContent).toContain('chat.agentTeam.hint.runnerSubstituted {"model":"DeepSeek-V4"}')
       expect(hint().getAttribute("aria-label")).toContain("DeepSeek-V4")
+    })
+
+    test("a narrow composer keeps a skipped step as a focusable warning icon", () => {
+      useCliCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", DEEPSEEK))
+      render(true)
+
+      const shown = hint()
+      expect(shown).not.toBeNull()
+      expect(shown.dataset.warning).toBe("true")
+      // Focusable, and the full warning is the accessible name rather than hidden in a tooltip.
+      expect(shown.getAttribute("tabindex")).toBe("0")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      expect(shown.querySelector("svg")).not.toBeNull()
+      expect(shown.textContent).toBe("")
+    })
+
+    test("a narrow composer keeps a substituted runner visible with its full text", () => {
+      useCliCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", DEEPSEEK))
+      render(true)
+
+      const shown = hint()
+      expect(shown.dataset.warning).toBeUndefined()
+      expect(shown.getAttribute("aria-label")).toContain(
+        'chat.agentTeam.hint.runnerSubstituted {"model":"DeepSeek-V4"}',
+      )
+      expect(shown.querySelector("svg")).not.toBeNull()
+      expect(shown.textContent).toBe("")
+    })
+  })
+
+  describe("tool calling", () => {
+    const MINIMAX = { providerID: "minimax", modelID: "m3" }
+    // The catalog lists a model that is not a CLI provider but is known not to call tools.
+    const useToolLessCatalog = () => {
+      config.providers = [...config.baseProviders, ...config.toolLessProviders]
+      config.currentProviderId = MINIMAX.providerID
+      config.currentModelId = MINIMAX.modelID
+    }
+
+    test("a composer model that cannot call tools names the coder that runs instead", () => {
+      useToolLessCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", KIMI))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", GLM))
+      render()
+
+      const shown = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+      expect(shown.dataset.warning).toBeUndefined()
+      expect(shown.textContent).toContain('chat.agentTeam.hint.runnerSubstituted {"model":"Kimi-K3"}')
+    })
+
+    test("a single tool-less coder with QA warns that QA is skipped", () => {
+      useToolLessCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", MINIMAX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", DEEPSEEK))
+      render()
+
+      const shown = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+      expect(shown.dataset.warning).toBe("true")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+    })
+
+    test("a narrow composer still shows the skipped-step warning", () => {
+      useToolLessCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", MINIMAX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", DEEPSEEK))
+      render(true)
+
+      const shown = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+      expect(shown.dataset.warning).toBe("true")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
     })
   })
 

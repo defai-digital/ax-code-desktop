@@ -41,7 +41,14 @@ import {
   resolveAgentTeamSend,
   type AgentTeamState,
 } from "@/lib/agentTeam"
-import { resolveWorkModeSend, workModeFallbackPrompt } from "@/lib/workMode"
+import {
+  resolveWorkModeSend,
+  workModeBlockedMessageKey,
+  workModeBlockedReason,
+  workModeEnsembleCommand,
+  workModeFallbackPrompt,
+  workModeLabel,
+} from "@/lib/workMode"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { toast } from "@/components/ui"
 import { getSafeStorage } from "@/stores/utils/safeStorage"
@@ -174,6 +181,28 @@ export function routeMessage(params: {
     const content = resolved.content
     const forcedCommand = resolved.forcedCommand
 
+    // Council and Arena ask the model that runs the turn to call the runtime's council/arena tools.
+    // Only a send actually routed to the ensemble needs them: the work-mode remap (`forcedCommand`)
+    // or an explicit `/council`/`/arena` typed in any mode. Any other slash command — `/help`, a
+    // custom command — passes through untouched and is sent normally. A model that cannot call the
+    // tools (a CLI provider, or one the catalog says cannot call tools) would receive a request that
+    // cannot succeed, so refuse instead of sending it.
+    const ensembleCommand = workModeEnsembleCommand(content, forcedCommand)
+    if (ensembleCommand) {
+      const workModeBlocked = workModeBlockedReason(
+        ensembleCommand,
+        { providerID: params.providerID, modelID: params.modelID },
+        useConfigStore.getState().providers,
+      )
+      if (workModeBlocked) {
+        const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(workModeBlocked), {
+          mode: workModeLabel(ensembleCommand),
+        })
+        useSessionUIStore.setState({ error: message })
+        throw new Error(message)
+      }
+    }
+
     // Slash commands — fire and forget, SSE delivers messages and status.
     // content is already trimStart-normalized for explicit slashes (fixes "  /help").
     if (content.startsWith("/") || forcedCommand) {
@@ -267,17 +296,17 @@ export function routeMessage(params: {
     // mode only: shell and known slash commands returned above, and Council/Arena own their fan-out.
     // The instructions go in a synthetic part so the user's own message stays exactly what they typed.
     const lead = { providerID: params.providerID, modelID: params.modelID }
+    const providers = useConfigStore.getState().providers
     const team = resolveAgentTeamSend(
       workMode === "agent" && params.agentTeam ? params.agentTeam : emptyAgentTeam(),
       lead,
+      providers,
     )
     const additionalParts = team.directive
       ? [...(params.additionalParts ?? []), { text: team.directive, synthetic: true }]
       : params.additionalParts
     const runsOnCoder = !isSameAgentTeamModel(team, lead)
-    const variant = runsOnCoder
-      ? agentTeamSendVariant(useConfigStore.getState().providers, team, lead, params.variant)
-      : params.variant
+    const variant = runsOnCoder ? agentTeamSendVariant(providers, team, lead, params.variant) : params.variant
     // A turn a Coder ran is not the user's composer pick; record its id before the optimistic
     // message renders so the composer's model restore can skip it.
     const messageId = runsOnCoder
@@ -357,9 +386,6 @@ function notifyMessageSent(sessionId: string): void {
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-
-
 
 type NewSessionDraftState = {
   open: boolean

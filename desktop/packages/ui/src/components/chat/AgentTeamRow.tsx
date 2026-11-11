@@ -19,6 +19,7 @@ import {
   agentTeamExtraModelCount,
   agentTeamRunner,
   agentTeamSelfReviewModels,
+  catalogModelToolCalling,
   emptyAgentTeam,
   isAgentTeamRoleIncomplete,
   isSameAgentTeamModel,
@@ -100,7 +101,7 @@ const SuggestControl: React.FC<SuggestControlProps> = ({ team, lead, compact, na
         candidates.push({
           providerID: provider.id,
           modelID: model.id,
-          toolCall: model.capabilities?.toolcall === true,
+          toolCall: catalogModelToolCalling(model),
           reasoning: model.capabilities?.reasoning === true,
           releaseDate: model.release_date || undefined,
           unavailable: Boolean(getProviderModelDisabledReason(model, provider.id)),
@@ -456,20 +457,21 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
 
   if (workMode !== "agent") return null
 
-  const selfReview = agentTeamSelfReviewModels(team, lead)
+  const selfReview = agentTeamSelfReviewModels(team, lead, providers)
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  // A CLI composer model cannot call the runtime tools, and a CLI coder cannot orchestrate its own
-  // QA panel: either step is dropped on send, so the row says so instead of promising it.
-  const blocked = lead ? agentTeamBlockedReason(team, lead) : null
-  const runner = lead ? agentTeamRunner(team, lead) : null
+  // A composer model that cannot orchestrate (a CLI provider, or one the catalog says cannot call
+  // tools) cannot run the runtime tools, and neither can such a coder's own QA panel: either step is
+  // dropped on send, so the row says so instead of promising it.
+  const blocked = lead ? agentTeamBlockedReason(team, lead, providers) : null
+  const runner = lead ? agentTeamRunner(team, lead, providers) : null
   // Only a team model standing in for the composer pick is a substitution: a single coder is the
   // ordinary "this coder runs the message" case, and a kept lead is no change at all.
   const substituted =
     blocked === null && coders.length !== 1 && runner !== null && lead !== null && !isSameAgentTeamModel(runner, lead)
   const runnerHint =
     substituted && runner ? t("chat.agentTeam.hint.runnerSubstituted", { model: nameOf(runner) }) : null
-  const extra = agentTeamExtraModelCount(team, lead)
+  const extra = agentTeamExtraModelCount(team, lead, providers)
   const extraHint = extra > 0 ? t("chat.agentTeam.hint.extraModels", { count: extra }) : null
 
   // The row states only the cost; what each role does is one hover away.
@@ -494,6 +496,10 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
   const warning = warnings.join(" ")
   // The tooltip is not the accessible name, so the warning and the swapped runner are spoken too.
   const spoken = [...new Set([warning, hint, runnerHint].filter((line): line is string => Boolean(line)))].join(" ")
+  // A narrow composer hides the cost cue to avoid wrapping, but a skipped step or a substituted
+  // runner changes what the send does, so it stays visible as an icon with its full text.
+  const compactWarning = Boolean(warning || runnerHint)
+  const showHint = compact ? compactWarning : Boolean(hint)
 
   return (
     <div
@@ -515,7 +521,7 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
         />
       ))}
       <SuggestControl key={dirKey} team={team} lead={lead} compact={compact} nameOf={nameOf} onSetTeam={onSetTeam} />
-      {hint && !compact ? (
+      {showHint ? (
         <Tooltip delayDuration={350}>
           <TooltipTrigger asChild>
             <span
@@ -529,8 +535,12 @@ export const AgentTeamRow: React.FC<AgentTeamRowProps> = ({ compact = false, cla
                 warning ? "text-[var(--status-warning)]" : "text-muted-foreground",
               )}
             >
-              {warning ? <Icon name="error-warning" className="h-3.5 w-3.5 flex-shrink-0" /> : null}
-              <span className="truncate">{hint}</span>
+              {compact ? (
+                <Icon name={warning ? "error-warning" : "arrow-left-right"} className="h-3.5 w-3.5 flex-shrink-0" />
+              ) : warning ? (
+                <Icon name="error-warning" className="h-3.5 w-3.5 flex-shrink-0" />
+              ) : null}
+              {compact ? null : <span className="truncate">{hint}</span>}
             </span>
           </TooltipTrigger>
           <TooltipContent side="top" className="max-w-[20rem] typography-micro">

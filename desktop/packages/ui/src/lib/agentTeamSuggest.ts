@@ -11,14 +11,20 @@ import {
   AGENT_TEAM_LIMITS,
   AGENT_TEAM_MINIMUMS,
   COUNCIL_DEFAULT_MAX_MEMBERS,
+  agentTeamBlockedReasonFor,
+  isOrchestratingModel,
   isSameAgentTeamModel,
   type AgentTeamModelRef,
   type AgentTeamState,
 } from "./agentTeam"
 
 export interface AgentTeamCandidate extends AgentTeamModelRef {
-  /** Coders edit files and run commands, so they must support tool calling. */
-  toolCall: boolean
+  /**
+   * Tool calling as the catalog states it: `undefined` when the catalog does not say. Coders edit
+   * files and run commands, so they need it; a model is only ruled out of orchestrating when it is
+   * known to lack it.
+   */
+  toolCall: boolean | undefined
   reasoning: boolean
   /** ISO date; used only to break ties. */
   releaseDate?: string
@@ -92,24 +98,49 @@ function compareRanked(a: Ranked, b: Ranked): number {
   return a.candidate.modelID < b.candidate.modelID ? -1 : 1
 }
 
-function toSuggested(entry: Ranked, reason = entry.reason): SuggestedAgentTeamModel {
-  return { providerID: entry.candidate.providerID, modelID: entry.candidate.modelID, reason }
+/** A ranked pick and the reason shown for it. */
+interface Seat {
+  entry: Ranked
+  reason: AgentTeamSuggestionReason
 }
 
-function suggestCoders(ranked: readonly Ranked[]): SuggestedAgentTeamModel[] {
-  const eligible = ranked.filter((entry) => entry.candidate.toolCall)
+/** The picks before they become a suggestion; the repair pass edits these in place of the ranking. */
+interface DraftTeam {
+  coder: Seat[]
+  qa: Seat[]
+}
+
+function toSuggested(seat: Seat): SuggestedAgentTeamModel {
+  return { providerID: seat.entry.candidate.providerID, modelID: seat.entry.candidate.modelID, reason: seat.reason }
+}
+
+function toSeat(entry: Ranked, reason = entry.reason): Seat {
+  return { entry, reason }
+}
+
+function toRef(seat: Seat): AgentTeamModelRef {
+  return { providerID: seat.entry.candidate.providerID, modelID: seat.entry.candidate.modelID }
+}
+
+/** Whether a candidate can be handed the arena/council directive. */
+function candidateOrchestrates(candidate: AgentTeamCandidate): boolean {
+  return isOrchestratingModel(candidate.providerID, candidate.toolCall)
+}
+
+function suggestCoders(ranked: readonly Ranked[]): Seat[] {
+  const eligible = ranked.filter((entry) => entry.candidate.toolCall === true)
   const first = eligible[0]
   if (!first) return []
   // Two coders are worth their cost when they are likely to differ, so prefer another provider.
   const rest = eligible.slice(1)
   const otherProvider = rest.find((entry) => entry.candidate.providerID !== first.candidate.providerID)
   const second = otherProvider ?? rest[0]
-  if (!second) return [toSuggested(first)]
+  if (!second) return [toSeat(first)]
   const reason = second === otherProvider && second.reason === "available" ? "otherProvider" : second.reason
-  return [toSuggested(first), toSuggested(second, reason)]
+  return [toSeat(first), toSeat(second, reason)]
 }
 
-function suggestQa(ranked: readonly Ranked[], authors: readonly AgentTeamModelRef[]): SuggestedAgentTeamModel[] {
+function suggestQa(ranked: readonly Ranked[], authors: readonly AgentTeamModelRef[]): Seat[] {
   // A reviewer must not be an author. The same model id behind another provider is still the same
   // model, so match on the model id as well; unknown aliases cannot be detected from here.
   const authorModelIds = new Set(authors.map((author) => author.modelID))
@@ -132,11 +163,82 @@ function suggestQa(ranked: readonly Ranked[], authors: readonly AgentTeamModelRe
   if (picked.length < AGENT_TEAM_MINIMUMS.qa) return []
   const authorProviders = new Set(authors.map((author) => author.providerID))
   return picked.map((entry) =>
-    toSuggested(
+    toSeat(
       entry,
       entry.reason === "available" && !authorProviders.has(entry.candidate.providerID) ? "otherProvider" : entry.reason,
     ),
   )
+}
+
+/** The team a sender would assemble from the draft, for the shared blocked-reason test. */
+function draftTeam(draft: DraftTeam): AgentTeamState {
+  const role = (seats: readonly Seat[]) => ({ enabled: seats.length > 0, models: seats.map(toRef) })
+  return { coder: role(draft.coder), qa: role(draft.qa) }
+}
+
+/**
+ * The orchestration test `agentTeamBlockedReasonFor` expects, answered from the candidates rather
+ * than the raw catalog. A model the candidate list omits is not known to lack tool calling.
+ */
+function orchestratorFromCandidates(candidates: readonly AgentTeamCandidate[]) {
+  const byRef = new Map(candidates.map((candidate) => [`${candidate.providerID}/${candidate.modelID}`, candidate]))
+  return (model: AgentTeamModelRef): boolean => {
+    const candidate = byRef.get(`${model.providerID}/${model.modelID}`)
+    return candidate ? candidateOrchestrates(candidate) : isOrchestratingModel(model.providerID, undefined)
+  }
+}
+
+interface ReplacementOptions {
+  /** A coder edits files, so it also needs known tool calling; a reviewer does not. */
+  coderSlot: boolean
+  exclude: readonly Seat[]
+  excludeModelIds?: ReadonlySet<string>
+}
+
+/** The best-ranked model that can orchestrate and is not already seated. */
+function bestOrchestrator(ranked: readonly Ranked[], options: ReplacementOptions): Ranked | undefined {
+  return ranked.find(
+    (entry) =>
+      candidateOrchestrates(entry.candidate) &&
+      (!options.coderSlot || entry.candidate.toolCall === true) &&
+      !(options.excludeModelIds?.has(entry.candidate.modelID) ?? false) &&
+      !options.exclude.some((seat) => isSameAgentTeamModel(toRef(seat), entry.candidate)),
+  )
+}
+
+/**
+ * Keep a suggestion runnable. A team the sender would skip is not a suggestion, so swap in the
+ * best-ranked model that can orchestrate, re-seat QA around a new author, and only leave the team
+ * unchanged when the catalog holds nothing that can run the step.
+ */
+function repairDraftTeam(
+  draft: DraftTeam,
+  ranked: readonly Ranked[],
+  isRunnable: (draft: DraftTeam) => boolean,
+): DraftTeam {
+  if (isRunnable(draft)) return draft
+  const coderReplacement = bestOrchestrator(ranked, { coderSlot: true, exclude: draft.coder })
+  if (coderReplacement) {
+    const coder =
+      draft.coder.length >= 2 ? [...draft.coder.slice(0, -1), toSeat(coderReplacement)] : [toSeat(coderReplacement)]
+    // The new coder writes the code, so it cannot also review it.
+    return { coder, qa: suggestQa(ranked, coder.map(toRef)) }
+  }
+  if (draft.coder.length === 1) {
+    // Nothing here can orchestrate, so the QA step would be skipped: do not promise one.
+    return { ...draft, qa: [] }
+  }
+  // A reviewer can orchestrate the arena or council it takes part in.
+  const authorModelIds = new Set(draft.coder.map((seat) => seat.entry.candidate.modelID))
+  const reviewer = bestOrchestrator(ranked, {
+    coderSlot: false,
+    exclude: [...draft.coder, ...draft.qa],
+    excludeModelIds: authorModelIds,
+  })
+  if (reviewer && draft.qa.length > 0) {
+    return { ...draft, qa: [...draft.qa.slice(0, -1), toSeat(reviewer)] }
+  }
+  return draft
 }
 
 export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggestion {
@@ -146,8 +248,17 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
     .sort(compareRanked)
   const coder = suggestCoders(ranked)
   // With no coder to suggest, the composer model writes the code and so cannot review it.
-  const authors = coder.length > 0 ? coder : input.lead ? [input.lead] : []
-  return { coder, qa: suggestQa(ranked, authors) }
+  const authors = coder.length > 0 ? coder.map(toRef) : input.lead ? [input.lead] : []
+  let draft: DraftTeam = { coder, qa: suggestQa(ranked, authors) }
+  if (input.lead) {
+    const lead = input.lead
+    const isRunnable = (candidate: DraftTeam) =>
+      agentTeamBlockedReasonFor(draftTeam(candidate), lead, orchestratorFromCandidates(input.candidates)) === null
+    draft = repairDraftTeam(draft, ranked, isRunnable)
+    // A team the send would still skip is not a suggestion at all.
+    if (!isRunnable(draft)) return { coder: [], qa: [] }
+  }
+  return { coder: draft.coder.map(toSuggested), qa: draft.qa.map(toSuggested) }
 }
 
 /**
