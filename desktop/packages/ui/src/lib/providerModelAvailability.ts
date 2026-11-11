@@ -115,12 +115,15 @@ export const hasSelectableProviderModel = (
 
 // Providers that drive a separate command-line program on the user's machine. They are real choices
 // when picked or configured, but they depend on a binary Desktop cannot see from the provider list,
-// so an automatic last-resort default must never land on one.
+// so an automatic last-resort default must never land on one. Keep in sync with the runtime's own
+// external-CLI list: a provider missing here looks like an ordinary API provider to every caller.
 const EXTERNAL_CLI_PROVIDER_IDS: ReadonlySet<string> = new Set([
   "claude-code",
   "codex-cli",
-  "muse-cli",
   "grok-build-cli",
+  "kimi-cli",
+  "muse-cli",
+  "dsh-cli",
 ])
 
 export const isExternalCliProvider = (providerId: string | undefined): boolean =>

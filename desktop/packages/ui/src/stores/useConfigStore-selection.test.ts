@@ -74,9 +74,12 @@ describe("resolveFirstSelectableSelection and external-CLI providers", () => {
     { id: "claude-code", models: [model("claude-code")] },
     { id: "codex-cli", models: [model("codex")] },
     { id: "grok-build-cli", models: [model("grok")] },
+    { id: "kimi-cli", models: [model("kimi")] },
     { id: "muse-cli", models: [model("muse")] },
+    { id: "dsh-cli", models: [model("dsh")] },
     { id: "defai", models: [model("deepseek-flash"), model("mimo")] },
   ] as unknown as ProviderWithModelList[]
+  const externalOnly = catalogue.filter((provider) => provider.id !== "defai")
 
   test("never lands on an external CLI even when it is listed first", () => {
     // Regression: a project with no selection fell to the alphabetically first provider,
@@ -89,6 +92,8 @@ describe("resolveFirstSelectableSelection and external-CLI providers", () => {
 
   test("does not promote a preferred external CLI", () => {
     expect(resolveFirstSelectableSelection(catalogue, "codex-cli")).toMatchObject({ currentProviderId: "defai" })
+    expect(resolveFirstSelectableSelection(catalogue, "kimi-cli")).toMatchObject({ currentProviderId: "defai" })
+    expect(resolveFirstSelectableSelection(catalogue, "dsh-cli")).toMatchObject({ currentProviderId: "defai" })
   })
 
   test("still promotes a preferred ordinary provider", () => {
@@ -101,7 +106,7 @@ describe("resolveFirstSelectableSelection and external-CLI providers", () => {
   })
 
   test("returns nothing when only external CLIs are offered, so the user must choose", () => {
-    expect(resolveFirstSelectableSelection(catalogue.slice(0, 4))).toBeNull()
+    expect(resolveFirstSelectableSelection(externalOnly)).toBeNull()
   })
 
   test("skips ordinary providers whose models are all blocked", () => {

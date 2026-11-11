@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Pin the signed AX Code 7.30.24 runtime so the Anthropic (Claude Code) model list no longer gains a duplicate entry named after the `opus`, `sonnet`, `haiku` or `fable` alias configured in Claude Code.
+
 ## [7.30.19] - 2026-11-11
 
 ### Added

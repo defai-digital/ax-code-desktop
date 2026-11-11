@@ -4,9 +4,13 @@
  * Desktop owns only the selection and the request wording. Execution stays in the AX Code runtime:
  * two coders run through its `arena` tool (implement mode, isolated worktrees) and QA models run
  * through its `council` tool (review). A single coder is an ordinary single-agent turn on that model.
+ *
+ * The directive only works on a model the runtime serves itself. CLI providers (`claude-code`,
+ * `codex-cli`, and the like) run their own vendor agent loop and never get the runtime's tools, so
+ * they cannot orchestrate; `agentTeamRunner` picks the non-CLI model that runs such a turn instead.
  */
 
-import { isProviderModelSelectable } from "./providerModelAvailability"
+import { isExternalCliProvider, isProviderModelSelectable } from "./providerModelAvailability"
 
 export type AgentTeamRole = "coder" | "qa"
 
@@ -24,7 +28,11 @@ export interface AgentTeamRoleState {
 export type AgentTeamState = Record<AgentTeamRole, AgentTeamRoleState>
 
 export interface AgentTeamSend {
-  /** Model that runs the turn: the single coder when exactly one is active, otherwise the composer model. */
+  /**
+   * Model that runs the turn: the single coder when exactly one is active, otherwise the composer
+   * model — or, when the composer model is a CLI provider and the team needs a directive, the
+   * non-CLI model that orchestrates it. See `agentTeamRunner`.
+   */
   providerID: string
   modelID: string
   /** Instructions for the runtime, sent as a synthetic part. Null when the team adds nothing to say. */
@@ -174,13 +182,65 @@ export function activeAgentTeamModels(team: AgentTeamState, role: AgentTeamRole)
   return enabled && models.length >= AGENT_TEAM_MINIMUMS[role] ? models : []
 }
 
+/** The team asks for runtime tools only when it fans out: two coders, or a QA panel. */
+function needsAgentTeamDirective(team: AgentTeamState): boolean {
+  return activeAgentTeamModels(team, "coder").length >= 2 || activeAgentTeamModels(team, "qa").length > 0
+}
+
 /**
- * QA models that review their own work. `lead` is the composer model, which writes the code when
- * no coder is selected.
+ * The model that runs the turn.
+ *
+ * Exactly one coder is an ordinary single-agent turn on that coder, CLI or not. Otherwise the send
+ * carries a directive to call the runtime's `arena`/`council` tools, and only a model the runtime
+ * serves itself can follow it: a CLI provider runs its own agent loop without those tools, so the
+ * turn stops with no arena/council tool. A CLI lead therefore hands the turn to the first non-CLI
+ * coder, or else the first non-CLI QA model; with none, the lead is kept. CLI models may still be
+ * arena members or council reviewers — only the orchestrating runner must be non-CLI.
+ *
+ * This model may still be a CLI provider: the single coder, or a lead kept because nothing can
+ * orchestrate. Such a turn carries no directive — see `agentTeamBlockedReason`, which a sender must
+ * consult before attaching one.
+ */
+export function agentTeamRunner(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamModelRef {
+  const coders = activeAgentTeamModels(team, "coder")
+  if (coders.length === 1) return coders[0]!
+  if (!needsAgentTeamDirective(team) || !isExternalCliProvider(lead.providerID)) return lead
+  const firstNonCli = (models: readonly AgentTeamModelRef[]) =>
+    models.find((model) => !isExternalCliProvider(model.providerID))
+  return firstNonCli(coders) ?? firstNonCli(activeAgentTeamModels(team, "qa")) ?? lead
+}
+
+/** A team step the send has to skip: no non-CLI model is left to call the runtime tools. */
+export type AgentTeamBlockedReason = "cliCoderQa" | "noOrchestrator"
+
+/**
+ * Why the team cannot be sent as chosen, or null when it can.
+ *
+ * - `cliCoderQa`: the single coder writes the code and would orchestrate the QA step itself, but a
+ *   CLI provider has no `council` tool. The QA step is skipped and the coder runs the turn alone.
+ * - `noOrchestrator`: a directive is needed, the composer model is a CLI provider, and no active
+ *   coder or QA model is non-CLI. The whole team is skipped and the composer model runs the turn.
+ *
+ * Both mean the same thing on send: no directive, because a CLI model cannot follow one.
+ */
+export function agentTeamBlockedReason(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamBlockedReason | null {
+  const coders = activeAgentTeamModels(team, "coder")
+  const qa = activeAgentTeamModels(team, "qa")
+  if (qa.length > 0 && coders.length === 1 && isExternalCliProvider(coders[0]!.providerID)) return "cliCoderQa"
+  if (!needsAgentTeamDirective(team) || !isExternalCliProvider(lead.providerID)) return null
+  const members = [...coders, ...qa]
+  return members.every((model) => isExternalCliProvider(model.providerID)) ? "noOrchestrator" : null
+}
+
+/**
+ * QA models that review their own work. The authors are the coders; with no coder selected, the
+ * model that runs the turn writes the code, which is `agentTeamRunner` rather than necessarily the
+ * composer model. A step the send skips cannot review anything, so it is not flagged.
  */
 export function agentTeamSelfReviewModels(team: AgentTeamState, lead?: AgentTeamModelRef | null): AgentTeamModelRef[] {
+  if (lead && agentTeamBlockedReason(team, lead) !== null) return []
   const coders = activeAgentTeamModels(team, "coder")
-  const authors = coders.length > 0 ? coders : lead ? [lead] : []
+  const authors = coders.length > 0 ? coders : lead ? [agentTeamRunner(team, lead)] : []
   return activeAgentTeamModels(team, "qa").filter((model) =>
     authors.some((author) => isSameAgentTeamModel(author, model)),
   )
@@ -236,16 +296,26 @@ function qaStep(qa: readonly AgentTeamModelRef[], after: "arena" | "self"): stri
  *
  * - no active role: nothing changes.
  * - one coder: that model runs the turn; no instructions are needed.
- * - two coders: the composer model orchestrates an arena between them.
+ * - two coders: the runner orchestrates an arena between them.
  * - QA: a council review of the finished work by the selected models.
  *
- * The directive is a request to the lead model, not a guarantee: the runtime tools enforce their own
- * limits, and the lead is told to report a blocked step instead of working around it.
+ * The model that runs the turn comes from `agentTeamRunner`: a CLI composer model cannot orchestrate
+ * because it runs its own agent loop without the runtime's arena/council tools, so a non-CLI team
+ * model runs the turn instead. When no such model is left, `agentTeamBlockedReason` names the step
+ * to skip and the turn is sent without a directive.
+ *
+ * The directive is a request to the runner, not a guarantee: the runtime tools enforce their own
+ * limits, and the runner is told to report a blocked step instead of working around it.
  */
 export function resolveAgentTeamSend(team: AgentTeamState, lead: AgentTeamModelRef): AgentTeamSend {
   const coders = activeAgentTeamModels(team, "coder")
   const qa = activeAgentTeamModels(team, "qa")
-  const runner = coders.length === 1 ? coders[0]! : lead
+  const runner = agentTeamRunner(team, lead)
+  // Never hand a directive to a CLI runner: it would be instructions to call tools that model never
+  // receives. The skipped step is reported in the composer instead.
+  if (agentTeamBlockedReason(team, lead) !== null) {
+    return { providerID: runner.providerID, modelID: runner.modelID, directive: null }
+  }
   const steps: string[][] = []
   if (coders.length >= 2) steps.push(coderStep(coders))
   if (qa.length > 0) steps.push(qaStep(qa, coders.length >= 2 ? "arena" : "self"))
@@ -256,8 +326,13 @@ export function resolveAgentTeamSend(team: AgentTeamState, lead: AgentTeamModelR
   return { providerID: runner.providerID, modelID: runner.modelID, directive }
 }
 
-/** Model calls a send plans beyond the one that runs the turn. An upper bound, shown as the cost cue. */
-export function agentTeamExtraModelCount(team: AgentTeamState): number {
+/**
+ * Model calls a send plans beyond the one that runs the turn. An upper bound, shown as the cost cue.
+ * `lead` is the composer model, so a step the send skips is not counted; without it every step of
+ * the team is counted.
+ */
+export function agentTeamExtraModelCount(team: AgentTeamState, lead?: AgentTeamModelRef | null): number {
+  if (lead && agentTeamBlockedReason(team, lead) !== null) return 0
   const coders = activeAgentTeamModels(team, "coder")
   return (coders.length >= 2 ? coders.length : 0) + activeAgentTeamModels(team, "qa").length
 }

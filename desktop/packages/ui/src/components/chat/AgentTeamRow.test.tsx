@@ -4,14 +4,22 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 
 const config = vi.hoisted(() => {
   const model = (id: string, name: string) => ({ id, name, capabilities: { toolcall: true, reasoning: false } })
+  const baseProviders = [
+    { id: "moonshot", name: "Moonshot", models: [model("kimi", "Kimi-K3")] },
+    { id: "zhipu", name: "Zhipu", models: [model("glm", "GLM-5.2"), model("glm-air", "GLM-Air")] },
+    { id: "alibaba", name: "Alibaba", models: [model("qwen", "Qwen3.8-27b")] },
+    { id: "deepseek", name: "DeepSeek", models: [model("v4", "DeepSeek-V4")] },
+    { id: "xai", name: "xAI", models: [model("grok", "Grok 4.7")] },
+  ]
+  // CLI providers run their own agent loop, so the runtime never gives them arena/council.
+  const cliProviders = [
+    { id: "claude-code", name: "Claude Code", models: [model("claude-fable", "Claude Fable")] },
+    { id: "codex-cli", name: "Codex CLI", models: [model("codex", "Codex Large")] },
+  ]
   return {
-    providers: [
-      { id: "moonshot", name: "Moonshot", models: [model("kimi", "Kimi-K3")] },
-      { id: "zhipu", name: "Zhipu", models: [model("glm", "GLM-5.2"), model("glm-air", "GLM-Air")] },
-      { id: "alibaba", name: "Alibaba", models: [model("qwen", "Qwen3.8-27b")] },
-      { id: "deepseek", name: "DeepSeek", models: [model("v4", "DeepSeek-V4")] },
-      { id: "xai", name: "xAI", models: [model("grok", "Grok 4.7")] },
-    ],
+    providers: baseProviders,
+    baseProviders,
+    cliProviders,
     currentProviderId: "alibaba",
     currentModelId: "qwen",
     modelsMetadata: new Map(),
@@ -63,6 +71,9 @@ declare global {
 const KIMI = { providerID: "moonshot", modelID: "kimi" }
 const GLM = { providerID: "zhipu", modelID: "glm" }
 const QWEN = { providerID: "alibaba", modelID: "qwen" }
+const DEEPSEEK = { providerID: "deepseek", modelID: "v4" }
+const CODEX = { providerID: "codex-cli", modelID: "codex" }
+const CLAUDE_FABLE = { providerID: "claude-code", modelID: "claude-fable" }
 
 describe("AgentTeamRow", () => {
   let container: HTMLDivElement
@@ -74,6 +85,9 @@ describe("AgentTeamRow", () => {
     useAgentTeamStore.setState({ teamByDirectory: {} })
     useWorkModeStore.setState({ modeByDirectory: {} })
     ui.favoriteModels = []
+    config.providers = config.baseProviders
+    config.currentProviderId = "alibaba"
+    config.currentModelId = "qwen"
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -258,6 +272,55 @@ describe("AgentTeamRow", () => {
 
     act(() => roleElement("qa").querySelectorAll<HTMLButtonElement>("button")[1]!.click())
     expect(document.body.textContent).toContain('chat.agentTeam.hint.qaMemberLimit {"limit":3}')
+  })
+
+  describe("CLI providers", () => {
+    const hint = () => container.querySelector<HTMLElement>("[data-agent-team-hint]")!
+    // The catalog has to list the CLI models too, or `usableAgentTeam` drops them from the row.
+    const useCliCatalog = () => {
+      config.providers = [...config.baseProviders, ...config.cliProviders]
+      config.currentProviderId = CLAUDE_FABLE.providerID
+      config.currentModelId = CLAUDE_FABLE.modelID
+    }
+
+    test("a single CLI coder with a QA panel warns that QA is skipped", () => {
+      useCliCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", GLM))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", DEEPSEEK))
+      render()
+
+      expect(hint().dataset.warning).toBe("true")
+      expect(hint().getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      // The coder still runs the message, and the dropped QA step is not billed as an extra call.
+      expect(hint().textContent).toContain('chat.agentTeam.hint.coderSingle {"model":"Codex Large"}')
+      expect(hint().getAttribute("aria-label")).not.toContain("chat.agentTeam.hint.extraModels")
+    })
+
+    test("a CLI lead with no non-CLI team model warns that the team is skipped", () => {
+      useCliCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CLAUDE_FABLE))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "qa", CLAUDE_FABLE))
+      render()
+
+      expect(hint().dataset.warning).toBe("true")
+      expect(hint().textContent).toContain("chat.agentTeam.hint.noOrchestrator")
+      expect(hint().getAttribute("aria-label")).not.toContain("chat.agentTeam.hint.extraModels")
+    })
+
+    test("a CLI lead names the team model that runs and coordinates the message", () => {
+      useCliCatalog()
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", CODEX))
+      act(() => useAgentTeamStore.getState().toggleModel("/repo", "coder", DEEPSEEK))
+      render()
+
+      // The non-CLI coder is substituted for the composer pick, and the row says which one.
+      expect(hint().dataset.warning).toBeUndefined()
+      expect(hint().textContent).toContain('chat.agentTeam.hint.runnerSubstituted {"model":"DeepSeek-V4"}')
+      expect(hint().getAttribute("aria-label")).toContain("DeepSeek-V4")
+    })
   })
 
   test("a narrow composer shows counts instead of names", () => {

@@ -1,7 +1,21 @@
 // @vitest-environment node
 
 import { describe, expect, test } from "vitest"
-import { getProviderModelDisabledReason, isProviderModelSelectable } from "./providerModelAvailability"
+import {
+  getProviderModelDisabledReason,
+  isExternalCliProvider,
+  isProviderModelSelectable,
+} from "./providerModelAvailability"
+
+describe("external CLI providers", () => {
+  test("recognizes every provider whose runtime runs its own CLI agent loop", () => {
+    for (const id of ["claude-code", "codex-cli", "grok-build-cli", "kimi-cli", "muse-cli", "dsh-cli"]) {
+      expect(isExternalCliProvider(id)).toBe(true)
+    }
+    expect(isExternalCliProvider("deepseek")).toBe(false)
+    expect(isExternalCliProvider(undefined)).toBe(false)
+  })
+})
 
 describe("provider model availability", () => {
   test("blocks image-only models from the AX Code model picker", () => {
