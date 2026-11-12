@@ -4,16 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.21] - 2026-11-12
+
 ### Fixed
 
-- Honor force-stop requests made before an Electron utility process has spawned.
-- Keep unsaved pages reachable when they veto cleanup after native WebMCP initialization fails.
-- Force-stop stalled server utility processes on Electron 46, including when their shutdown IPC channel is closed.
-- Preserve WebMCP completion and cancellation responses when an older call responds before the new call's native acknowledgement.
+- Preserve queued prompt text when saved attachment lists or entries are malformed, while retaining valid serialized attachments.
+- Honor utility force-stop requests made before spawn and force-stop stalled processes after shutdown IPC failure.
+- Keep unsaved browser pages reachable after a vetoed cleanup of failed native WebMCP initialization.
+- Preserve WebMCP completion and cancellation responses when older calls respond before newer native acknowledgements.
 
 ### Changed
 
-- Evaluate the exact Electron 46.0.0-alpha.9 candidate with public release disabled until stable-engine qualification.
+- Restore stable Electron 45.2.3 for public release after the Electron 46 Alpha evaluation; retain its source fixes and review history.
 
 ## [7.30.20] - 2026-11-12
 

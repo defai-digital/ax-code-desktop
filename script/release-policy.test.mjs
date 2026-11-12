@@ -10,14 +10,13 @@ import {
 } from "./release-policy.mjs"
 
 describe("Desktop release policy", () => {
-  it("blocks public release while evaluating the prerelease Electron candidate", () => {
+  it("records authorized independent public cutover for stable Electron", () => {
     const policy = readReleasePolicy(repositoryRoot)
-    expect(policy.stage).toBe("shadow-only")
-    expect(policy.publicRelease).toMatchObject({ enabled: false, repository: "defai-digital/ax-code-desktop" })
+    expect(policy.stage).toBe("cutover-approved")
+    expect(policy.publicRelease).toMatchObject({ enabled: true, repository: "defai-digital/ax-code-desktop" })
     expect(policy.shadow).toMatchObject({ artifactChannel: "github-actions", signingMode: "explicit-only" })
     expect(policy.cutover).toMatchObject({ repository: "defai-digital/ax-code-desktop", tagPrefix: "v" })
-    expect(() => assertPublicReleaseAuthorized(policy)).toThrow("AX Code Desktop public release is disabled")
-    expect(() => assertPackagePublishingMode(["--mac"], policy)).toThrow("requires exactly one --publish=never")
+    expect(() => assertPublicReleaseAuthorized(policy)).not.toThrow()
   })
 
   it("requires the recorded cutover block at cutover-approved stage", () => {

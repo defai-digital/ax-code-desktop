@@ -62,6 +62,26 @@ export const MESSAGE_QUEUE_MAX_PER_SESSION = 50
 const QUEUE_STORAGE_KEY = "message-queue-store"
 const DISPATCH_CLAIM_PREFIX = "oc.queue.dispatch."
 
+const isPersistedAttachment = (value: unknown): value is AttachedFile => {
+  if (!value || typeof value !== "object") return false
+  const attachment = value as Partial<AttachedFile>
+  return (
+    typeof attachment.id === "string" &&
+    typeof attachment.filename === "string" &&
+    typeof attachment.mimeType === "string" &&
+    typeof attachment.dataUrl === "string" &&
+    typeof attachment.size === "number" &&
+    Number.isFinite(attachment.size) &&
+    attachment.size >= 0 &&
+    ["local", "server", "mcp-resource"].includes(attachment.source ?? "") &&
+    (attachment.serverPath === undefined || typeof attachment.serverPath === "string") &&
+    (attachment.resource === undefined ||
+      (attachment.resource !== null &&
+        typeof attachment.resource.clientName === "string" &&
+        typeof attachment.resource.uri === "string"))
+  )
+}
+
 // A valid-JSON but wrong-shaped persisted payload must not poison the store: the
 // default merge would accept `queuedMessages: null` and the next session lookup
 // would throw on `null[sessionId]`.
@@ -72,15 +92,25 @@ const sanitizePersistedQueues = (value: unknown): Record<string, QueuedMessage[]
   const result: Record<string, QueuedMessage[]> = {}
   for (const [sessionId, queue] of Object.entries(value as Record<string, unknown>)) {
     if (!Array.isArray(queue)) continue
-    const entries = queue.filter((entry): entry is QueuedMessage =>
-      Boolean(
-        entry &&
-          typeof entry === "object" &&
-          typeof (entry as QueuedMessage).id === "string" &&
-          typeof (entry as QueuedMessage).content === "string" &&
-          typeof (entry as QueuedMessage).createdAt === "number",
-      ),
-    )
+    const entries = queue
+      .filter((entry): entry is QueuedMessage =>
+        Boolean(
+          entry &&
+            typeof entry === "object" &&
+            typeof (entry as QueuedMessage).id === "string" &&
+            typeof (entry as QueuedMessage).content === "string" &&
+            typeof (entry as QueuedMessage).createdAt === "number",
+        ),
+      )
+      .map((entry) => {
+        if (entry.attachments === undefined) return entry
+        // A chip is removed before Edit spreads its attachments into the composer. An invalid
+        // list or entry must not throw after that removal and lose the queued prompt.
+        return {
+          ...entry,
+          attachments: Array.isArray(entry.attachments) ? entry.attachments.filter(isPersistedAttachment) : [],
+        }
+      })
     if (entries.length > 0) {
       result[sessionId] = entries
     }

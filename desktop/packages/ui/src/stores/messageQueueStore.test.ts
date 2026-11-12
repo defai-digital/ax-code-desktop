@@ -5,6 +5,7 @@ import {
   releaseQueuedDispatchClaim,
   useMessageQueueStore,
 } from "./messageQueueStore"
+import type { AttachedFile } from "./types/sessionTypes"
 
 describe("messageQueueStore", () => {
   beforeEach(() => {
@@ -210,5 +211,82 @@ describe("messageQueueStore", () => {
     } finally {
       useMessageQueueStore.setState(original, true)
     }
+  })
+
+  it.each([{ length: 1 }, "invalid attachments"])(
+    "restores editable queue text with a malformed attachment list (%j)",
+    async (attachments) => {
+      window.localStorage.setItem(
+        "message-queue-store",
+        JSON.stringify({
+          state: {
+            queuedMessages: {
+              ses_saved: [{ id: "queued-saved", content: "keep this prompt", createdAt: 1, attachments }],
+            },
+          },
+          version: 0,
+        }),
+      )
+      await useMessageQueueStore.persist.rehydrate()
+      const popped = useMessageQueueStore.getState().popToInput("ses_saved", "queued-saved")
+      expect(popped?.content).toBe("keep this prompt")
+      // Editing a chip appends these attachments to the live composer's array.
+      expect(() => [...(popped?.attachments ?? [])]).not.toThrow()
+      expect(popped?.attachments ?? []).toEqual([])
+    },
+  )
+
+  it("keeps valid serialized attachments while dropping malformed attachment entries", async () => {
+    const attachment: AttachedFile = {
+      id: "saved-file",
+      file: new File(["ok"], "saved.txt", { type: "text/plain" }),
+      filename: "saved.txt",
+      mimeType: "text/plain",
+      dataUrl: "data:text/plain;base64,b2s=",
+      size: 2,
+      source: "local",
+    }
+    const serialized = JSON.parse(JSON.stringify(attachment))
+    const server = { ...serialized, source: "server", serverPath: "/tmp/saved.txt" }
+    const resource = {
+      ...serialized,
+      source: "mcp-resource",
+      resource: { clientName: "fixture", uri: "fixture://file" },
+    }
+    window.localStorage.setItem(
+      "message-queue-store",
+      JSON.stringify({
+        state: {
+          queuedMessages: {
+            ses_saved: [
+              {
+                id: "queued-saved",
+                content: "keep this file",
+                createdAt: 1,
+                attachments: [
+                  null,
+                  false,
+                  {},
+                  { ...serialized, id: 5 },
+                  { ...serialized, filename: null },
+                  { ...serialized, resource: null },
+                  { ...serialized, size: -1 },
+                  serialized,
+                  server,
+                  resource,
+                ],
+              },
+            ],
+          },
+        },
+        version: 0,
+      }),
+    )
+    await useMessageQueueStore.persist.rehydrate()
+    expect(useMessageQueueStore.getState().getQueueForSession("ses_saved")[0]?.attachments).toEqual([
+      serialized,
+      server,
+      resource,
+    ])
   })
 })

@@ -249,10 +249,9 @@ pnpm run smoke:launch-animations
 
 ### Electron
 
-Development and packaging currently pin the experimental Electron `46.0.0-alpha.9` candidate.
-Public release is disabled (`shadow-only`) while this prerelease is under evaluation.
-Restore a separately validated stable pin before re-enabling public release. Package targets are macOS 13+ Apple Silicon,
-Windows x64, and Ubuntu Desktop 24.04+ amd64/arm64. After an Electron upgrade, rebuild `node-pty`
+Development and release builds pin the stable Electron `45.2.3`. The Electron 46 Alpha evaluation remains
+recorded in the repository history; public releases require stable-engine qualification. Package targets are
+macOS 13+ Apple Silicon, Windows x64, and Ubuntu Desktop 24.04+ amd64/arm64. After an Electron upgrade, rebuild `node-pty`
 and run the engine smokes:
 
 ```bash
