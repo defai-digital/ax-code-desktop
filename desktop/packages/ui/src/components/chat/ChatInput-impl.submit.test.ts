@@ -625,6 +625,20 @@ describe("queue presses while a pasted read is settling", () => {
     await pending
   })
 
+  test("an entry queued before a model is selected still keeps its work mode", async () => {
+    // The catalog can still be loading when the user queues. Dropping the whole send config then
+    // also dropped the mode, so a Council prompt was later sent as an Agent one.
+    const h = createHarness("explore", { message: "rate this module", sessionId: "session-a", draftOpen: false })
+    h.dependencies.currentProviderId = ""
+    h.dependencies.currentModelId = ""
+    h.dependencies.composerWorkModeForSend = () => "council"
+    const queueMessage = await loadHandler("handleQueueMessage", h.dependencies)
+    await queueMessage()
+
+    // No model is recorded, so the send resolves the session's own.
+    expect(h.addToQueue.mock.calls[0][1].sendConfig).toEqual({ workMode: "council" })
+  })
+
   test("drops a second press while the first waits for the same read", async () => {
     const h = createHarness("explore", { message: "hello", sessionId: "session-a", draftOpen: false })
     let resolveRead!: () => void

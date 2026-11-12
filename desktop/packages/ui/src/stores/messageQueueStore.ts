@@ -19,10 +19,14 @@ export interface QueuedMessage {
    * above the replies that arrived in the meantime.
    */
   messageId?: string
-  /** Send config captured at queue time — used as-is when auto-sending */
+  /**
+   * Send config captured at queue time — used as-is when auto-sending. The model is absent when
+   * none was selected yet (the catalog was still loading): the send then uses the session's own,
+   * and the entry still keeps the work mode it was queued in.
+   */
   sendConfig?: {
-    providerID: string
-    modelID: string
+    providerID?: string
+    modelID?: string
     agent?: string
     variant?: string
     /** The work mode the entry was queued in. Absent means Agent: the entry is sent as typed. */

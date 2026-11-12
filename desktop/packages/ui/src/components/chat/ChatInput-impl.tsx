@@ -1521,17 +1521,19 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       const queued = addToQueue(currentSessionId, {
         content: messageToQueue,
         attachments: attachmentsToQueue.length > 0 ? attachmentsToQueue : undefined,
-        sendConfig:
-          currentProviderId && currentModelId
+        sendConfig: {
+          // With no model selected yet the send resolves the session's own; the mode is still kept.
+          ...(currentProviderId && currentModelId
             ? {
                 providerID: currentProviderId,
                 modelID: currentModelId,
                 agent: currentAgentName ?? undefined,
                 variant: currentVariant ?? undefined,
-                // The mode the text was typed under; a later switch must not change what it runs as.
-                workMode: composerWorkModeForSend(),
               }
-            : undefined,
+            : {}),
+          // The mode the text was typed under; a later switch must not change what it runs as.
+          workMode: composerWorkModeForSend(),
+        },
       })
 
       // A full queue refuses the entry: keep the composer (and its attachments) intact

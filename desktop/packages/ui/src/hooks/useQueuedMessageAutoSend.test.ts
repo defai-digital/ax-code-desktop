@@ -386,6 +386,13 @@ describe("buildQueuedAutoSendPayload", () => {
     }
 
     expect((await send("council")).workMode).toBe("council")
+    // An entry queued before a model was selected records only its mode, and is still sent in it.
+    sendMessageCalls.length = 0
+    const modelless = buildQueuedAutoSendPayload([
+      { id: "queued-2", content: "rate this module", createdAt: 1, sendConfig: { workMode: "council" } },
+    ])
+    await sendQueuedAutoSendPayload("session-original", modelless!, { providerID: "p", modelID: "m" }, "msg_2")
+    expect(((sendMessageCalls[0] as unknown[])[9] as { workMode?: string }).workMode).toBe("council")
     // A persisted entry is untrusted: anything that is not a mode is sent as an Agent prompt.
     expect((await send("everything")).workMode).toBe("agent")
   })
