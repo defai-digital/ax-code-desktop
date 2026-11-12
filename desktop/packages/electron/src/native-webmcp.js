@@ -7,6 +7,7 @@ const { definitionDigest, catalogDigest } = require("../../../shared/webmcp-dige
 
 const CAPABILITY = "desktop.webmcp.v1"
 const MAX_RESULT_BYTES = 65536
+const MAX_EARLY_RESPONSES = 16
 const STOP_ACK_MS = 500
 const boundedStop = async (acknowledged, requestID) => {
   let timer
@@ -208,7 +209,14 @@ class NativeWebMcp {
       const pending = [...this.pending.values()].find((entry) => entry.invocationId === params.invocationId)
       if (pending) pending.finish(response)
       // Responses that race the invokeTool acknowledgement stay bounded on the active call.
-      else for (const entry of this.pending.values()) if (!entry.invocationId) entry.early = response
+      else for (const entry of this.pending.values()) if (!entry.invocationId) {
+        // A late response from an older call must not replace this call's completion
+        // before invokeTool returns its identity. Keep at most 16 capped results per call.
+        if (!entry.early.has(response.invocationId) && entry.early.size >= MAX_EARLY_RESPONSES) {
+          entry.early.delete(entry.early.keys().next().value)
+        }
+        entry.early.set(response.invocationId, response)
+      }
     }
   }
   // Retire the entire affected batch before validation: a rejection anywhere in a batch must
@@ -419,7 +427,7 @@ class NativeWebMcp {
         acknowledge,
         clearDeadline: () => clearTimeout(timer),
         invocationId: null,
-        early: null,
+        early: new Map(),
         finish,
         reject: (outcome = "uncertain", reason = "provider-gone", retain = false) => {
           clearTimeout(timer)
@@ -439,7 +447,9 @@ class NativeWebMcp {
           if (entry.stopping || !this.pending.has(request.requestID)) {
             void this.contents.debugger.sendCommand("WebMCP.cancelInvocation", { invocationId }).catch(() => {})
           }
-          if (entry.early?.invocationId === invocationId) finish(entry.early)
+          const early = entry.early.get(invocationId)
+          entry.early.clear()
+          if (early) finish(early)
         })
         .catch(() => entry.reject())
     })

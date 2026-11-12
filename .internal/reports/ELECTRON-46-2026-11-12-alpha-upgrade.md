@@ -49,6 +49,10 @@ shutdown before escalation. These findings do not authorize new product features
 
 ## Verification
 
+This initial qualification ran on Desktop 7.30.19. Before pushing, the candidate was rebased onto Desktop 7.30.20.
+Subsequent reproduced defects and the integrated candidate's final verification are recorded in the
+[Electron 46 process and WebMCP bug-fix report](BUGFIX-2026-11-12-electron-46-webmcp.md).
+
 | Check | Result |
 | --- | --- |
 | Frozen dependency installation | Passed with the pinned SDK `2.6.69`. |

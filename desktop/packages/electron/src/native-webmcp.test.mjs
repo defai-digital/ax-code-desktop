@@ -437,6 +437,58 @@ test("an unrelated oversized response cannot reject the active invocation", asyn
   f.adapter.close()
 })
 
+test.each([0, 100])("preserves early completion across late unrelated responses (%i prior events)", async (priorEvents) => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  let acknowledge
+  const base = f.contents.debugger.sendCommand
+  f.contents.debugger.sendCommand = (method, args) =>
+    method === "WebMCP.invokeTool" ? new Promise(resolve => { acknowledge = resolve }) : base(method, args)
+  let outcome
+  const execution = f.adapter.execute(f.request()).then(result => { outcome = result }, error => { outcome = error })
+  try {
+    for (let index = 0; index < priorEvents; index++) {
+      f.emit("WebMCP.toolResponded", { invocationId: `unrelated-${index}`, status: "Completed", output: "x".repeat(65537) })
+    }
+    f.emit("WebMCP.toolResponded", { invocationId: "new-call", status: "Completed", output: "current result" })
+    f.emit("WebMCP.toolResponded", { invocationId: "old-call", status: "Completed", output: "obsolete result" })
+    acknowledge({ invocationId: "new-call" })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(outcome).toMatchObject({ status: "Completed", output: "current result" })
+    expect(f.adapter.pending.size).toBe(0)
+    await execution
+  } finally {
+    f.adapter.close()
+    await vi.runOnlyPendingTimersAsync()
+    vi.useRealTimers()
+  }
+})
+
+test("matches an early cancellation response despite an unrelated completion before acknowledgement", async () => {
+  const f = await fixture()
+  vi.useFakeTimers()
+  let acknowledge
+  const base = f.contents.debugger.sendCommand
+  f.contents.debugger.sendCommand = (method, args) =>
+    method === "WebMCP.invokeTool" ? new Promise(resolve => { acknowledge = resolve }) : base(method, args)
+  const request = f.request()
+  const execution = f.adapter.execute(request).catch(error => error)
+  try {
+    const stopping = f.adapter.cancel(request.requestID)
+    f.emit("WebMCP.toolResponded", { invocationId: "new-call", status: "Canceled" })
+    f.emit("WebMCP.toolResponded", { invocationId: "old-call", status: "Completed", output: "old result" })
+    acknowledge({ invocationId: "new-call" })
+    await vi.advanceTimersByTimeAsync(0)
+    expect(await stopping).toEqual({ requestID: request.requestID, state: "stopped" })
+    expect(await execution).toMatchObject({ outcome: "cancelled", reason: "cancelled" })
+    expect(f.adapter.pending.size).toBe(0)
+  } finally {
+    f.adapter.close()
+    await vi.runOnlyPendingTimersAsync()
+    vi.useRealTimers()
+  }
+})
+
 // A command acknowledgement alone does not prove the page acknowledged cancellation.
 test("cancellation awaits the matching page response, not the CDP command reply", async () => {
   const f = await fixture()

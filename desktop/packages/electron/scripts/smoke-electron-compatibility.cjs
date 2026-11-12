@@ -1,12 +1,14 @@
 "use strict"
 
 // Real native ABI and menu checks in the installed Electron process.
-const { app, Menu } = require("electron")
+const { app, Menu, utilityProcess } = require("electron")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
+const { once } = require("node:events")
 const { createNativeLocalizer, localizeMenuTemplate } = require("../src/native-localization")
+const { gracefulStopServerProcess } = require("../src/utility-process-stop")
 const manifest = require("../../../shared/locales.json")
 const locales = Object.keys(manifest.labels)
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "ax-coder-electron-compatibility-"))
@@ -62,6 +64,37 @@ app
         /* The child normally already exited. */
       }
     }
+    const entry = path.join(profile, "ignore-utility-stop.cjs")
+    fs.writeFileSync(entry, [
+      'process.on("SIGTERM", () => process.parentPort.postMessage("term-ignored"))',
+      'process.parentPort.on("message", () => {})',
+      'setInterval(() => {}, 1000)',
+      'process.parentPort.postMessage("ready")',
+    ].join("\n"))
+    const child = utilityProcess.fork(entry)
+    const exited = once(child, "exit")
+    let forceStops = 0
+    let exitTimer
+    try {
+      const [message] = await once(child, "message")
+      assert.equal(message, "ready")
+      await gracefulStopServerProcess(child, { termTimeoutMs: 100, killTimeoutMs: 250 }, {
+        killProcess(pid, signal) {
+          forceStops += 1
+          process.kill(pid, signal)
+        },
+      })
+      await Promise.race([
+        exited,
+        new Promise((_, reject) => {
+          exitTimer = setTimeout(() => reject(new Error("Utility process survived the stop deadline")), 2000)
+        }),
+      ])
+      if (process.platform !== "win32") assert.equal(forceStops, 1)
+    } finally {
+      clearTimeout(exitTimer)
+      if (child.pid) process.kill(child.pid, "SIGKILL")
+    }
     console.log(
       JSON.stringify({
         electron: process.versions.electron,
@@ -72,6 +105,7 @@ app
         arch: process.arch,
         nativeMenus: locales.length,
         ptyRoundTrip: true,
+        utilityProcessStop: true,
         productionQualified: false,
       }),
     )

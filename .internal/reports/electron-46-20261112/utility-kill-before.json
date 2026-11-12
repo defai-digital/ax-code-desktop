@@ -1,0 +1,10 @@
+{
+  "electron": "46.0.0-alpha.9",
+  "aliveAfterNominalKill": true,
+  "messages": [
+    {
+      "type": "ignored-term"
+    }
+  ],
+  "forcedExit": true
+}

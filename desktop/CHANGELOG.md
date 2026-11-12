@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Force-stop stalled server utility processes on Electron 46, including when their shutdown IPC channel is closed.
+- Preserve WebMCP completion and cancellation responses when an older call responds before the new call's native acknowledgement.
+
+### Changed
+
+- Evaluate the exact Electron 46.0.0-alpha.9 candidate with public release disabled until stable-engine qualification.
+
 ## [7.30.20] - 2026-11-12
 
 ### Added

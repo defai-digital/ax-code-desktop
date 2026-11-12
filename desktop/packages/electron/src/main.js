@@ -49,6 +49,7 @@ const { sanitizeDesktopWindowTitle } = require("./desktop-window-title")
 const { collectNativeSearchResults, resolveSearchableNativeRoot } = require("./desktop-file-search")
 const { AX_CODE_INSTALL_DOCS_URL, GITHUB_BUG_REPORT_URL, GITHUB_FEATURE_REQUEST_URL } = require("./support-urls")
 const { createSupervisionFsm } = require("./supervision-fsm")
+const { gracefulStopServerProcess, forceStopUtilityProcess } = require("./utility-process-stop")
 const { buildComputerUseServerEnv } = require("./computer-use-server-env")
 const { applyBundledAxCodeEnv, buildBundledAxCodeEnv } = require("./bundled-ax-code-env")
 const { desktopBrowserRuntimeEnv } = require("./browser-runtime-policy")
@@ -620,50 +621,6 @@ function spawnServerProcess(wire) {
   return child
 }
 
-// Ask the server to shut down gracefully (which also stops the ax-code child it
-// spawned), then ensure the process is gone. A wedged server may ignore the
-// graceful stop and even SIGTERM, so escalate to SIGKILL rather than hang the
-// quit path forever. Resolves once the child exits or a kill is sent.
-function gracefulStopServerProcess(child, { termTimeoutMs, killTimeoutMs }) {
-  return new Promise((resolve) => {
-    let done = false
-    let killTimer = null
-    const finish = () => {
-      if (done) return
-      done = true
-      clearTimeout(termTimer)
-      if (killTimer) clearTimeout(killTimer)
-      resolve()
-    }
-    const termTimer = setTimeout(() => {
-      try {
-        child.kill("SIGTERM")
-      } catch {
-        /* ignore */
-      }
-      killTimer = setTimeout(() => {
-        try {
-          child.kill("SIGKILL")
-        } catch {
-          /* ignore */
-        }
-        finish()
-      }, killTimeoutMs)
-    }, termTimeoutMs)
-    child.once("exit", finish)
-    try {
-      child.postMessage({ type: "stop" })
-    } catch {
-      try {
-        child.kill("SIGTERM")
-      } catch {
-        /* ignore */
-      }
-      finish()
-    }
-  })
-}
-
 function handleServerSupervisionEvent(event) {
   if (event.type === "state-change" && event.to === "degraded") {
     portBeforeServerCrash = serverPort
@@ -718,13 +675,7 @@ const serverSupervision = createSupervisionFsm({
   },
   driver: {
     spawn: (wire) => spawnServerProcess(wire),
-    terminate: (child) => {
-      try {
-        child.kill()
-      } catch {
-        /* the process may already be gone */
-      }
-    },
+    terminate: forceStopUtilityProcess,
     gracefulStop: (child, timeouts) => gracefulStopServerProcess(child, timeouts),
   },
   onEvent: handleServerSupervisionEvent,

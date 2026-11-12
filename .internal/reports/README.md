@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Electron 46 process and WebMCP race fixes](BUGFIX-2026-11-12-electron-46-webmcp.md): reproduced utility-process
+  termination and early WebMCP response races, regression tests, and final candidate validation.
+
 - [Electron 46 alpha candidate review](ELECTRON-46-2026-11-12-alpha-upgrade.md): exact Alpha pin, public-release
   suspension, source-backed feature review, and local engine qualification.
 
