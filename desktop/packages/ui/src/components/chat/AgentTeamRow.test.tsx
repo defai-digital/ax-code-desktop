@@ -443,13 +443,17 @@ describe("AgentTeamRow", () => {
       render()
       act(() => suggestButton().click())
 
+      // The coder picked by hand is the user's own statement for the role, so it stays first and
+      // says so; the favorite takes the second seat.
+      expect(section("coder").textContent).toContain("chat.agentTeam.suggest.reason.rolePick")
+
       act(() => action("chat.agentTeam.suggest.apply").click())
 
-      expect(team().coder).toEqual({ enabled: true, models: [KIMI, QWEN] })
+      expect(team().coder).toEqual({ enabled: true, models: [GLM, KIMI] })
       expect(team().qa.enabled).toBe(true)
       expect(team().qa.models).toHaveLength(3)
+      expect(team().qa.models).not.toContainEqual(GLM)
       expect(team().qa.models).not.toContainEqual(KIMI)
-      expect(team().qa.models).not.toContainEqual(QWEN)
       expect(action("chat.agentTeam.suggest.apply").disabled).toBe(true)
 
       act(() => action("chat.agentTeam.suggest.undo").click())

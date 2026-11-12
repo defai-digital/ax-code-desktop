@@ -59,6 +59,9 @@ const ROLE_LABEL_KEYS: Record<AgentTeamRole, I18nKey> = {
 }
 
 const SUGGESTION_REASON_KEYS: Record<AgentTeamSuggestionReason, I18nKey> = {
+  rolePick: "chat.agentTeam.suggest.reason.rolePick",
+  codingModel: "chat.agentTeam.suggest.reason.codingModel",
+  reasoningModel: "chat.agentTeam.suggest.reason.reasoningModel",
   favorite: "chat.modelControls.favorites",
   recent: "chat.modelControls.recent",
   lead: "chat.agentTeam.suggest.reason.lead",
@@ -104,12 +107,14 @@ const SuggestControl: React.FC<SuggestControlProps> = ({ team, lead, compact, na
           toolCall: catalogModelToolCalling(model),
           reasoning: model.capabilities?.reasoning === true,
           releaseDate: model.release_date || undefined,
+          name: typeof model.name === "string" ? model.name : undefined,
+          contextLimit: typeof model.limit?.context === "number" ? model.limit.context : undefined,
           unavailable: Boolean(getProviderModelDisabledReason(model, provider.id)),
         })
       }
     }
-    return suggestAgentTeam({ candidates, favorites, recents, lead })
-  }, [providers, hiddenModels, favorites, recents, lead])
+    return suggestAgentTeam({ candidates, favorites, recents, lead, team })
+  }, [providers, hiddenModels, favorites, recents, lead, team])
 
   const next = applyAgentTeamSuggestion(team, suggestion)
   const hasSuggestion = suggestion.coder.length > 0 || suggestion.qa.length > 0
