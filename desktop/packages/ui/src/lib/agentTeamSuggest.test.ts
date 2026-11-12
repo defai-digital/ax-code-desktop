@@ -380,3 +380,42 @@ describe("applyAgentTeamSuggestion", () => {
     expect(team.qa).toBe(current.qa)
   })
 })
+
+
+describe("a suggestion that leaves the QA panel out stays applicable", () => {
+  // The composer's Apply button is enabled by `coder.length > 0 || qa.length > 0`, so a suggestion
+  // whose only effect is unticking QA would be shown as "left out" and could never be applied —
+  // the panel the user ticked would survive, and the send would then drop it without saying so.
+  const SEATS = [
+    candidate("kimi", "k3"),
+    candidate("grok", "g47"),
+    candidate("deepseek", "v4"),
+    candidate("zhipu", "glm"),
+  ]
+  const NO_TOOLS = SEATS.map((entry) => ({ ...entry, toolCall: false }))
+  const WITH_CLI = [candidate("claude-code", "fable"), ...SEATS]
+  // No seat can orchestrate: the top coder keeps its place and the panel gives way.
+  const ALL_CLI = [
+    candidate("claude-code", "fable"),
+    candidate("codex-cli", "codex"),
+    candidate("dsh-cli", "dsh"),
+    candidate("kimi-cli", "k3"),
+  ]
+  const CATALOGS = [SEATS, NO_TOOLS, WITH_CLI, ALL_CLI, [candidate("kimi", "k3")], []]
+  const LEADS = [null, ref("kimi", "k3"), ref("claude-code", "fable"), ref("zhipu", "glm")]
+
+  test("every catalog and lead still offers something to apply when the panel is skipped", () => {
+    let skipped = 0
+    for (const candidates of CATALOGS) {
+      for (const lead of LEADS) {
+        const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead })
+        if (!suggestion.qaSkipped) continue
+        skipped += 1
+        expect(suggestion.coder.length).toBeGreaterThan(0)
+        expect(suggestion.qa).toHaveLength(0)
+      }
+    }
+    // The matrix must actually reach the shape it guards, or it proves nothing.
+    expect(skipped).toBeGreaterThan(0)
+  })
+})
