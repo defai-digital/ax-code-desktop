@@ -179,4 +179,36 @@ describe("messageQueueStore", () => {
       ses_mixed: [{ id: "queued-2", content: "ok", createdAt: 2 }],
     })
   })
+
+  it("keeps queue actions callable when persisted data contains action names", async () => {
+    const original = useMessageQueueStore.getState()
+    window.localStorage.setItem(
+      "message-queue-store",
+      JSON.stringify({
+        state: {
+          queuedMessages: { ses_saved: [{ id: "queued-saved", content: "saved", createdAt: 1 }] },
+          queueModeEnabled: true,
+          addToQueue: null,
+          getQueueForSession: "stale data",
+          clearAllQueues: false,
+        },
+        version: 0,
+      }),
+    )
+    try {
+      await useMessageQueueStore.persist.rehydrate()
+      const restored = useMessageQueueStore.getState()
+      expect(restored.addToQueue).toBe(original.addToQueue)
+      expect(restored.getQueueForSession).toBe(original.getQueueForSession)
+      expect(restored.clearAllQueues).toBe(original.clearAllQueues)
+      expect(restored.queueModeEnabled).toBe(true)
+      expect(restored.getQueueForSession("ses_saved")[0]?.content).toBe("saved")
+      expect(restored.addToQueue("ses_saved", { content: "new" })).toBe(true)
+      expect(restored.getQueueForSession("ses_saved")).toHaveLength(2)
+      restored.clearAllQueues()
+      expect(restored.getQueueForSession("ses_saved")).toEqual([])
+    } finally {
+      useMessageQueueStore.setState(original, true)
+    }
+  })
 })

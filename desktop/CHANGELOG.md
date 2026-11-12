@@ -4,7 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.20] - 2026-11-12
+
+### Added
+
+- Suggest Coder and QA teams by role fit while respecting CLI provider orchestration limits.
+
 ### Fixed
+
+- Preserve live queue actions when malformed persisted data contains action names, while restoring validated messages and queue mode.
+- Keep queued work modes and catalog overrides bound to the originating request and project, including sends made before a model is selected.
+- Reject unsupported Council and Arena sends before creating a session and provide translated work mode controls.
+
+### Changed
 
 - Pin the signed AX Code 7.30.24 runtime so the Anthropic (Claude Code) model list no longer gains a duplicate entry named after the `opus`, `sonnet`, `haiku` or `fable` alias configured in Claude Code.
 

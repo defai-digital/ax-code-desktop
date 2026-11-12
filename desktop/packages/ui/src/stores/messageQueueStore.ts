@@ -308,7 +308,8 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           const persisted = persistedState as Partial<MessageQueueState> | undefined
           return {
             ...currentState,
-            ...persisted,
+            // Storage is untrusted data: restore only validated fields so stale or malformed
+            // action-name properties cannot replace the live queue methods.
             queuedMessages: sanitizePersistedQueues(persisted?.queuedMessages),
             queueModeEnabled:
               typeof persisted?.queueModeEnabled === "boolean"
