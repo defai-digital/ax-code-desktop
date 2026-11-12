@@ -27,6 +27,7 @@ const { useAgentTeamStore } = await import("@/stores/useAgentTeamStore")
 const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 const { useCommandsStore } = await import("@/stores/useCommandsStore")
 const { useConfigStore } = await import("@/stores/useConfigStore")
+const { workModeBlockedReasonOfError } = await import("@/lib/workMode")
 
 const KIMI = { providerID: "moonshot", modelID: "kimi" }
 const GLM = { providerID: "zhipu", modelID: "glm" }
@@ -36,12 +37,20 @@ const CLI_LEAD = { providerID: "claude-code", modelID: "claude-fable-5-2" }
 const CLI_CODER = { providerID: "codex-cli", modelID: "codex-large" }
 const CLI_CODER_B = { providerID: "dsh-cli", modelID: "dsh-pro" }
 
-// The composer passes the team it shows; `withTeam: false` is any other sender.
+// The composer passes the team it shows and the mode its chip shows; `withTeam: false` is any other
+// sender, which passes neither.
 const send = (
   content = "fix the login bug",
-  options: { withTeam?: boolean; variant?: string; lead?: { providerID: string; modelID: string } } = {},
+  options: {
+    withTeam?: boolean
+    variant?: string
+    lead?: { providerID: string; modelID: string }
+    allowUnverifiedToolCalling?: boolean
+  } = {},
 ) =>
   routeMessage({
+    workMode: options.withTeam === false ? undefined : useWorkModeStore.getState().getMode("/proj"),
+    allowUnverifiedToolCalling: options.allowUnverifiedToolCalling,
     sessionId: "session-1",
     directory: "/proj",
     content,
@@ -273,6 +282,94 @@ describe("agent team send routing", () => {
     }
   })
 
+  test("a sender with no mode control sends the text it built, whatever the directory's chip says", async () => {
+    // Plans, quick dispatch, Multi-Run and reviews have no chip: a Council directory must not turn
+    // their prompt into /council, nor refuse it on a CLI model.
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await send("run the plan", { withTeam: false, lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "run the plan" })
+  })
+
+  test("the tool-calling refusal can be overridden for one send; the CLI refusal cannot", async () => {
+    useConfigStore.setState({
+      providers: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] }],
+    } as never)
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+    try {
+      // The refusal names its reason, which is what lets the composer offer "Send anyway".
+      const refusal = await send("rate this module").catch((error: unknown) => error)
+      expect(workModeBlockedReasonOfError(refusal)).toBe("noToolCalling")
+
+      // The catalog can be wrong for a custom or local model, so the user may send regardless.
+      await send("rate this module", { allowUnverifiedToolCalling: true })
+      expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "council", modelID: "qwen" }))
+
+      // A CLI provider never receives the tool: there is nothing for an override to be right about.
+      sendCommand.mockClear()
+      const cliRefusal = await send("rate this module", { lead: CLI_LEAD, allowUnverifiedToolCalling: true }).catch(
+        (error: unknown) => error,
+      )
+      expect(workModeBlockedReasonOfError(cliRefusal)).toBe("cliLead")
+      expect(sendCommand).not.toHaveBeenCalled()
+    } finally {
+      useConfigStore.setState({ providers: [] } as never)
+    }
+  })
+
+  test("a Council send that merged several prompts carries all of them in the command", async () => {
+    // The command has one argument string and no extra parts: a queued prompt sent together with
+    // the composer text used to lose everything after the first.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/proj",
+      content: "rate the parser",
+      providerID: "alibaba",
+      modelID: "qwen",
+      workMode: "council",
+      files: [{ type: "file", mime: "text/plain", url: "data:,a", filename: "a.txt" }],
+      additionalParts: [
+        { text: "and the lexer", files: [{ type: "file", mime: "text/plain", url: "data:,b", filename: "b.txt" }] },
+        { text: "hidden instructions", synthetic: true },
+      ],
+    })
+
+    const command = sendCommand.mock.calls[0]![0] as { arguments: string; files: Array<{ filename: string }> }
+    expect(command.arguments).toBe("rate the parser\n\nand the lexer")
+    expect(command.files.map((file) => file.filename)).toEqual(["a.txt", "b.txt"])
+  })
+
+  test("a send sendMessage already admitted is not judged again by the backstop", async () => {
+    // Activating a draft's directory reloads the catalog between the two checks; a second opinion
+    // would refuse after the session exists.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/proj",
+      content: "rate this module",
+      ...CLI_LEAD,
+      workMode: "council",
+      workModeAdmitted: true,
+    })
+
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "council", ...CLI_LEAD }))
+  })
+
+  test("a draft opened on the user's behalf leaves the directory's work mode alone", async () => {
+    useWorkModeStore.getState().setMode("/proj", "council")
+
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj", preserveWorkMode: true })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
+  })
+
   test("Agent work mode on a CLI model still sends: only the fan-out needs the runtime tools", async () => {
     await send("fix the login bug", { lead: CLI_LEAD })
 
@@ -303,6 +400,26 @@ describe("agent team send routing", () => {
     expect(sendCommand).not.toHaveBeenCalled()
     expect(sendMessage).not.toHaveBeenCalled()
     expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+  })
+
+  test("a /council the runtime does not offer is sent as plain text, so a CLI model is not refused", async () => {
+    // Version skew: the catalog is loaded and has no `council`, so the text goes out as a prompt.
+    useCommandsStore.setState({ commands: [{ name: "help" }] } as never)
+
+    await send("/council rate the API", { lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "/council rate the API" })
+  })
+
+  test("/council followed by a newline is not the command, so it is sent as typed on a CLI model", async () => {
+    // The command name is read up to the first space; this one is `council\nrate`, which is unknown.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+
+    await send("/council\nrate the API", { lead: CLI_LEAD })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ ...CLI_LEAD, text: "/council\nrate the API" })
   })
 
   test("an explicit /council on a model that can orchestrate is sent in Agent work mode", async () => {

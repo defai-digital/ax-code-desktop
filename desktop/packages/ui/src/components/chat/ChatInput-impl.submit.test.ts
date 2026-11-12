@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises"
+import { markWorkModeBlockedError, parseWorkMode, workModeBlockedReasonOfError } from "@/lib/workMode"
 import path from "node:path"
 import ts from "typescript"
 import { describe, expect, test, vi } from "vitest"
@@ -163,6 +164,10 @@ function createHarness(command: string, options: HarnessOptions = {}) {
     isMobile: false,
     // No Coder/QA team is ticked in these flows.
     composerAgentTeamForSend: () => undefined,
+    // The chip is in Agent, and no send in these flows is refused for its work mode.
+    composerWorkModeForSend: (() => "agent") as () => "agent" | "council" | "arena",
+    parseWorkMode,
+    workModeBlockedReasonOfError: (() => null) as (error: unknown) => "cliLead" | "noToolCalling" | null,
     restoreConsumedDrafts: vi.fn(),
     useInputStore: inputStore,
     useSessionUIStore: { getState: () => state },
@@ -367,6 +372,118 @@ describe("magic-command submit races", () => {
     )
     expect(h.sent).not.toHaveBeenCalled()
     expect(h.messageRef.current).toBe("hello from project A")
+  })
+})
+
+describe("a Council or Arena send refused for its model", () => {
+  const refusedSend = async (reason: "cliLead" | "noToolCalling") => {
+    const h = createHarness("", { sessionId: "session-1", draftOpen: false, attachments: [] })
+    h.messageRef.current = "rate this module"
+    h.dependencies.workModeBlockedReasonOfError = workModeBlockedReasonOfError
+    h.sent.mockRejectedValueOnce(markWorkModeBlockedError(new Error("Council cannot run on this model"), reason))
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+    await vi.waitFor(() => expect(h.toastError).toHaveBeenCalled())
+    return h
+  }
+
+  test("offers to send anyway when the refusal rests on the catalog's tool-calling flag", async () => {
+    const h = await refusedSend("noToolCalling")
+
+    const [message, data] = h.toastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    expect(message).toBe("Council cannot run on this model")
+    // The text was put back, so the action resubmits it with the override for that one send.
+    expect(h.messageRef.current).toBe("rate this module")
+    data.action.onClick()
+    expect(h.handleSubmitRef.current).toHaveBeenCalledWith({ allowUnverifiedToolCalling: true })
+  })
+
+  test("the offer does nothing once the restored text has been replaced", async () => {
+    const h = await refusedSend("noToolCalling")
+    h.messageRef.current = "a different request"
+
+    const [, data] = h.toastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    data.action.onClick()
+
+    // The override was for the refused request; it must not ride along with other text.
+    expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
+  })
+
+  test("the offer does nothing once another chat is on screen", async () => {
+    const h = await refusedSend("noToolCalling")
+    h.state.currentSessionId = "session-2"
+
+    const [, data] = h.toastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    data.action.onClick()
+
+    expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
+  })
+
+  test("offers nothing for a CLI model, which can never receive the tools", async () => {
+    const h = await refusedSend("cliLead")
+
+    expect(h.toastError).toHaveBeenCalledWith("Council cannot run on this model")
+    expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
+  })
+})
+
+describe("the work mode a send is committed under", () => {
+  const sentMode = (h: ReturnType<typeof createHarness>) => (h.sent.mock.calls[0][9] as { workMode?: string }).workMode
+
+  test("is the chip's mode when the user pressed send, not when the awaited preparation finished", async () => {
+    const h = createHarness("", { sessionId: "session-1", draftOpen: false, attachments: [] })
+    h.messageRef.current = "rate this module"
+    let chip: "agent" | "council" = "council"
+    h.dependencies.composerWorkModeForSend = () => chip
+    let release!: () => void
+    const expanding = new Promise<void>((resolve) => (release = resolve))
+    const expandText = vi.fn(async (text: string) => {
+      await expanding
+      return text
+    })
+    h.dependencies.useSnippetsStore = { getState: () => ({ expandText }) }
+    const submit = await loadSubmit(h.dependencies)
+    const pending = submit()
+    await vi.waitFor(() => expect(expandText).toHaveBeenCalled())
+    // The user switches the chip while the submit is still preparing.
+    chip = "agent"
+    release()
+    await pending
+
+    expect(sentMode(h)).toBe("council")
+  })
+
+  test("a send that folds a queued Agent prompt into Council composer text goes out as plain prompts", async () => {
+    // Remapping the merged send to /council would turn the queued Agent prompt into a council run.
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      attachments: [],
+      queueEntries: [{ id: "queued-1", content: "fix the parser", createdAt: 1 }],
+    })
+    h.messageRef.current = "rate this module"
+    h.dependencies.composerWorkModeForSend = () => "council"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(sentMode(h)).toBe("agent")
+  })
+
+  test("queued entries and composer text that share a mode are sent in it", async () => {
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      attachments: [],
+      queueEntries: [
+        { id: "queued-1", content: "rate the parser", createdAt: 1, sendConfig: { workMode: "council" } },
+      ],
+    })
+    h.messageRef.current = "and the lexer"
+    h.dependencies.composerWorkModeForSend = () => "council"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(sentMode(h)).toBe("council")
   })
 })
 

@@ -53,6 +53,16 @@ describe("suggestAgentTeam", () => {
     expect(suggestion.coder.map((model) => model.reason)).toEqual(["lead", "otherProvider"])
   })
 
+  test("the second coder is never the first coder's model behind another provider", () => {
+    const candidates = [candidate("claude-code", "opus"), candidate("anthropic", "opus"), candidate("zhipu", "glm")]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [ref("claude-code", "opus")], recents: [] })
+
+    expect(ids(suggestion.coder)).toEqual(["claude-code/opus", "zhipu/glm"])
+    // With no other model to compare against, one coder is suggested rather than the same model twice.
+    const alone = suggestAgentTeam({ candidates: candidates.slice(0, 2), favorites: [], recents: [] })
+    expect(alone.coder).toHaveLength(1)
+  })
+
   test("a coder must support tool calling and be available", () => {
     const suggestion = suggestAgentTeam({
       candidates: [
@@ -211,15 +221,89 @@ describe("suggestions that can actually run", () => {
     expect(blockedReason(candidates, CLI_LEAD)).toBeNull()
   })
 
-  test("with nothing that can orchestrate, no team is suggested at all", () => {
+  test("with nothing that can orchestrate, the top coder runs alone and the panel is left out with its reason", () => {
     const candidates = [
       candidate("claude-code", "fable"),
       candidate("codex-cli", "codex"),
       candidate("dsh-cli", "dsh"),
       candidate("kimi-cli", "k3"),
     ]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead: CLI_LEAD })
 
-    expect(suggestAgentTeam({ candidates, favorites: [], recents: [], lead: CLI_LEAD })).toEqual({ coder: [], qa: [] })
+    // No arena and no council can run, but one coder is an ordinary turn on that model.
+    expect(ids(suggestion.coder)).toEqual(["claude-code/fable"])
+    expect(suggestion.qa).toEqual([])
+    expect(suggestion.qaSkipped).toBe("coderCannotRunQa")
+    expect(blockedReason(candidates, CLI_LEAD)).toBeNull()
+  })
+
+  test("a favorite CLI coder is kept and its panel dropped, rather than the coder being replaced", () => {
+    // One model can code. It cannot run a council, and nothing else may take its place as coder.
+    const candidates = [
+      candidate("claude-code", "fable"),
+      candidate("zhipu", "glm", { toolCall: undefined }),
+      candidate("deepseek", "v4", { toolCall: undefined }),
+    ]
+    const suggestion = suggestAgentTeam({
+      candidates,
+      favorites: [ref("claude-code", "fable")],
+      recents: [],
+      lead: ref("zhipu", "glm"),
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["claude-code/fable"])
+    expect(suggestion.qa).toEqual([])
+    expect(suggestion.qaSkipped).toBe("coderCannotRunQa")
+  })
+
+  test("a team that runs as suggested carries no skipped-panel reason", () => {
+    const suggestion = suggestAgentTeam({ candidates: CLI_HEAVY, favorites: [], recents: [], lead: CLI_LEAD })
+
+    expect(suggestion.qa.length).toBeGreaterThan(0)
+    expect(suggestion.qaSkipped).toBeUndefined()
+  })
+
+  test("the top coder is never evicted, and its own model behind another provider is not swapped in", () => {
+    // Both favorites are CLI. The only model that can orchestrate is the top coder's model under
+    // another provider: seating it would compare a model with itself, and replacing the top coder
+    // would override the user's first choice, so the top coder runs alone.
+    const candidates = [candidate("claude-code", "opus"), candidate("codex-cli", "gpt"), candidate("anthropic", "opus")]
+    const lead = ref("claude-code", "opus")
+    const suggestion = suggestAgentTeam({
+      candidates,
+      favorites: [ref("claude-code", "opus"), ref("codex-cli", "gpt")],
+      recents: [],
+      lead,
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["claude-code/opus"])
+    expect(suggestion.qa).toEqual([])
+  })
+
+  test("with no coder, a lead that cannot orchestrate gets no panel whose reviewer would write the code", () => {
+    // Nothing is known to call tools, so there is no coder and the turn would pass to a reviewer:
+    // the lead's own model under another provider, reviewing what it wrote.
+    const candidates = [
+      candidate("claude-code", "opus", { toolCall: undefined }),
+      candidate("custom", "opus", { toolCall: undefined }),
+      candidate("zhipu", "glm", { toolCall: false }),
+      candidate("deepseek", "v4", { toolCall: false }),
+    ]
+    const lead = ref("claude-code", "opus")
+
+    expect(suggestAgentTeam({ candidates, favorites: [], recents: [], lead })).toEqual({ coder: [], qa: [] })
+  })
+
+  test("with no coder, a lead that can orchestrate still gets its QA panel", () => {
+    const candidates = [
+      candidate("kimi", "k3", { toolCall: undefined }),
+      candidate("zhipu", "glm", { toolCall: false }),
+      candidate("deepseek", "v4", { toolCall: false }),
+    ]
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead: ref("kimi", "k3") })
+
+    expect(suggestion.coder).toEqual([])
+    expect(ids(suggestion.qa)).toEqual(["deepseek/v4", "zhipu/glm"])
   })
 
   test("a suggested team is never one the send would skip or run on a model without tools", () => {
@@ -253,6 +337,28 @@ describe("suggestions that can actually run", () => {
 })
 
 describe("applyAgentTeamSuggestion", () => {
+  test("a panel the suggestion left out is unticked, with its models remembered", () => {
+    // The preview said the coder cannot run QA; keeping the hand-picked panel ticked contradicted it.
+    const picked = { enabled: true, models: [ref("zhipu", "glm"), ref("deepseek", "v4")] }
+    const team = applyAgentTeamSuggestion(
+      { coder: { enabled: false, models: [] }, qa: picked },
+      { coder: [{ ...ref("claude-code", "fable"), reason: "favorite" }], qa: [], qaSkipped: "coderCannotRunQa" },
+    )
+
+    expect(team.coder).toEqual({ enabled: true, models: [ref("claude-code", "fable")] })
+    expect(team.qa).toEqual({ enabled: false, models: picked.models })
+  })
+
+  test("a catalog that simply cannot fill QA leaves a hand-picked panel alone", () => {
+    const picked = { enabled: true, models: [ref("zhipu", "glm"), ref("deepseek", "v4")] }
+    const team = applyAgentTeamSuggestion(
+      { coder: { enabled: false, models: [] }, qa: picked },
+      { coder: [{ ...ref("kimi", "k3"), reason: "favorite" }], qa: [] },
+    )
+
+    expect(team.qa).toEqual(picked)
+  })
+
   test("turns both roles on with the suggested models", () => {
     const suggestion = suggestAgentTeam({ candidates: CATALOG, favorites: [ref("kimi", "k3")], recents: [] })
     const team = applyAgentTeamSuggestion(emptyAgentTeam(), suggestion)

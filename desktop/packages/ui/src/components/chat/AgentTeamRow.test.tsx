@@ -295,7 +295,7 @@ describe("AgentTeamRow", () => {
       render()
 
       expect(hint().dataset.warning).toBe("true")
-      expect(hint().getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      expect(hint().getAttribute("aria-label")).toContain("chat.agentTeam.hint.coderCannotRunQa")
       // The coder still runs the message, and the dropped QA step is not billed as an extra call.
       expect(hint().textContent).toContain('chat.agentTeam.hint.coderSingle {"model":"Codex Large"}')
       expect(hint().getAttribute("aria-label")).not.toContain("chat.agentTeam.hint.extraModels")
@@ -338,7 +338,7 @@ describe("AgentTeamRow", () => {
       expect(shown.dataset.warning).toBe("true")
       // Focusable, and the full warning is the accessible name rather than hidden in a tooltip.
       expect(shown.getAttribute("tabindex")).toBe("0")
-      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.coderCannotRunQa")
       expect(shown.querySelector("svg")).not.toBeNull()
       expect(shown.textContent).toBe("")
     })
@@ -388,7 +388,7 @@ describe("AgentTeamRow", () => {
 
       const shown = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
       expect(shown.dataset.warning).toBe("true")
-      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.coderCannotRunQa")
     })
 
     test("a narrow composer still shows the skipped-step warning", () => {
@@ -400,7 +400,7 @@ describe("AgentTeamRow", () => {
 
       const shown = container.querySelector<HTMLElement>("[data-agent-team-hint]")!
       expect(shown.dataset.warning).toBe("true")
-      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.cliCoderQa")
+      expect(shown.getAttribute("aria-label")).toContain("chat.agentTeam.hint.coderCannotRunQa")
     })
   })
 

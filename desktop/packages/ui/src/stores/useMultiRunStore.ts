@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
-import { routeMessage, useSessionUIStore } from "@/sync/session-ui-store"
+import { routeMessage, useSessionUIStore, workModeSendRefusalMessage } from "@/sync/session-ui-store"
 import { devtools } from "zustand/middleware"
 import type { CreateMultiRunParams, CreateMultiRunResult } from "@/types/multirun"
 import { axCodeClient } from "@/lib/ax-code/client"
@@ -180,6 +180,28 @@ export const useMultiRunStore = create<MultiRunStore>()(
         set({ isLoading: true, error: null })
 
         try {
+          // A run is an Agent prompt, but a prompt that is itself `/council` or `/arena` needs a
+          // model that can call that tool. Ask before any session or worktree exists: a refusal at
+          // send time left an empty run behind and put its error in the composer of the open chat.
+          for (let gi = 0; gi < groups.length; gi++) {
+            const prompt = await useSnippetsStore
+              .getState()
+              .expandText(groups[gi].prompt)
+              .catch(() => groups[gi].prompt)
+            for (const model of groups[gi].models) {
+              const refusal = await workModeSendRefusalMessage({
+                content: prompt,
+                workMode: undefined,
+                providerID: model.providerID,
+                modelID: model.modelID,
+              })
+              if (refusal) {
+                set({ error: groups.length > 1 ? `Group ${gi + 1}: ${refusal}` : refusal, isLoading: false })
+                return null
+              }
+            }
+          }
+
           const project = resolveActiveProject()
           if (!project) {
             set({ error: "Select a project", isLoading: false })

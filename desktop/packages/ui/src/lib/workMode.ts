@@ -4,6 +4,9 @@
  * Re-exports from the public SDK contract with desktop-friendly flat names.
  * Desktop-specific helpers (resolveWorkModeSend, workModeEnsembleCommand, workModeBlockedReason,
  * workModeFallbackPrompt) live here.
+ *
+ * The mode is per-directory composer state (`useWorkModeStore`), but a send carries the mode it was
+ * committed under as request data: the send path never reads the live chip.
  */
 
 import { WorkMode } from "@defai-digital/ax-code-sdk/mode"
@@ -52,18 +55,22 @@ export function resolveWorkModeSend(
 }
 
 /**
- * The ensemble command a send is actually routed to, or null when it is not an arena/council turn.
+ * The ensemble command a send asks for, or null when it is not an arena/council turn.
  *
  * Work-mode remapping sets `forcedCommand` (`resolveWorkModeSend`); an explicit `/council` or
  * `/arena` typed by the user goes through untouched in any mode and asks for the same runtime tool.
  * Every other slash command — `/help`, `/compact`, a custom command — is not an ensemble turn.
+ *
+ * The explicit form is read the way `routeMessage` reads a command name: the text up to the first
+ * space, with no leading-whitespace trim. `/council` followed by a newline is therefore not the
+ * command; it is sent as plain text, and must not be refused as an ensemble turn.
  */
 export function workModeEnsembleCommand(
   content: string,
   forcedCommand: { name: "council" | "arena" } | null,
 ): "council" | "arena" | null {
   if (forcedCommand) return forcedCommand.name
-  const head = content.trimStart().split(/\s+/, 1)[0]
+  const head = content.split(" ", 1)[0]
   if (head === "/council") return "council"
   if (head === "/arena") return "arena"
   return null
@@ -93,6 +100,19 @@ export function workModeBlockedReason(
   if (mode === "agent" || !lead) return null
   if (canOrchestrateAgentTeam(lead, providers)) return null
   return isExternalCliProvider(lead.providerID) ? "cliLead" : "noToolCalling"
+}
+
+/** Tag a refusal with its reason, so the composer can tell a catalog doubt from a structural limit. */
+export function markWorkModeBlockedError(error: Error, reason: WorkModeBlockedReason): Error {
+  ;(error as Error & { workModeBlocked?: WorkModeBlockedReason }).workModeBlocked = reason
+  return error
+}
+
+/** The reason a send was refused for its work mode, or null for any other failure. */
+export function workModeBlockedReasonOfError(error: unknown): WorkModeBlockedReason | null {
+  if (!error || typeof error !== "object") return null
+  const reason = (error as { workModeBlocked?: unknown }).workModeBlocked
+  return reason === "cliLead" || reason === "noToolCalling" ? reason : null
 }
 
 /** Translation key for a blocked-mode warning; the mode name is passed as `{mode}`. */

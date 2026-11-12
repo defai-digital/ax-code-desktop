@@ -42,12 +42,16 @@ import {
   type AgentTeamState,
 } from "@/lib/agentTeam"
 import {
+  DEFAULT_WORK_MODE,
+  markWorkModeBlockedError,
   resolveWorkModeSend,
   workModeBlockedMessageKey,
   workModeBlockedReason,
   workModeEnsembleCommand,
   workModeFallbackPrompt,
   workModeLabel,
+  type WorkModeBlockedReason,
+  type WorkModeId,
 } from "@/lib/workMode"
 import { isLegacyWorkSession, WORK_SESSION_SEND_DISABLED } from "@/lib/workSession"
 import { toast } from "@/components/ui"
@@ -127,6 +131,104 @@ export function attachmentToRouteFileInput(attachment: AttachedFile): RouteFileI
 // Send routing — shell mode, slash commands, or normal prompt
 // ---------------------------------------------------------------------------
 
+/**
+ * Council and Arena ask the model that runs the turn to call the runtime's council/arena tools, so a
+ * send on a model that cannot call them is refused: the error is stored for the composer and thrown
+ * so the caller keeps the text. The two reasons are not equally certain:
+ *
+ * - `cliLead` is structural. A CLI provider runs its own agent loop and never receives the tools,
+ *   so there is nothing to override.
+ * - `noToolCalling` is catalog metadata, which can be wrong for a custom or local provider. The
+ *   error carries the reason so the composer can offer to send anyway, for that one send.
+ */
+function workModeRefusal(
+  command: "council" | "arena",
+  model: { providerID: string; modelID: string },
+  allowUnverifiedToolCalling: boolean | undefined,
+): { message: string; reason: WorkModeBlockedReason } | null {
+  const reason = workModeBlockedReason(command, model, useConfigStore.getState().providers)
+  if (!reason) return null
+  if (reason === "noToolCalling" && allowUnverifiedToolCalling) return null
+  const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(reason), {
+    mode: workModeLabel(command),
+  })
+  return { message, reason }
+}
+
+function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
+  if (!refusal) return
+  useSessionUIStore.setState({ error: refusal.message })
+  throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
+}
+
+/**
+ * How a slash command name stands against the runtime's command catalog. Commands are single-home
+ * in useCommandsStore (SPEC-2026-08-30 S4.6) — the per-directory sync `command` slice is gone. The
+ * store is not boot-loaded, so it is loaded lazily on the first slash-command send (its in-flight
+ * dedup + TTL cache make repeat sends cheap).
+ */
+async function resolveSlashCommand(
+  name: string,
+): Promise<{ knownCommand: boolean; commandsLoaded: boolean; catalogLoadFailed: boolean }> {
+  let storeCommands = useCommandsStore.getState().commands
+  let catalogLoadFailed = false
+  if (storeCommands.length === 0) {
+    const loaded = await useCommandsStore.getState().loadCommands()
+    storeCommands = useCommandsStore.getState().commands
+    // A FAILED load (store still empty after awaiting) must not degrade a real slash command into
+    // plain text: the caller routes it through the command path anyway and lets the server
+    // validate — it rejects unknown commands cleanly, while a silently mis-sent prompt is never
+    // recoverable as a command.
+    catalogLoadFailed = !loaded && storeCommands.length === 0
+  }
+  return {
+    knownCommand: Boolean(storeCommands.find((command) => command.name === name)),
+    // Empty lists usually mean "not synced yet"; do not treat that as "command missing".
+    commandsLoaded: storeCommands.length > 0,
+    catalogLoadFailed,
+  }
+}
+
+interface WorkModeSendCheck {
+  content: string
+  workMode: WorkModeId | undefined
+  providerID: string
+  modelID: string
+  inputMode?: "normal" | "shell"
+  allowUnverifiedToolCalling?: boolean
+}
+
+/**
+ * Whether a send would be refused for its work mode, decided without sending or changing anything.
+ * An explicit `/council` or `/arena` waits for the command catalog: one the runtime does not offer
+ * goes out as plain text, which any model can take.
+ */
+async function findWorkModeSendRefusal(
+  input: WorkModeSendCheck,
+): Promise<{ message: string; reason: WorkModeBlockedReason } | null> {
+  if (input.inputMode === "shell") return null
+  const model = { providerID: input.providerID, modelID: input.modelID }
+  const resolved = resolveWorkModeSend(input.workMode ?? DEFAULT_WORK_MODE, input.content)
+  if (resolved.forcedCommand) {
+    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling)
+  }
+  const command = workModeEnsembleCommand(resolved.content, null)
+  // The catalog is only worth waiting for when this model would be refused the command.
+  const refusal = command ? workModeRefusal(command, model, input.allowUnverifiedToolCalling) : null
+  if (!command || !refusal) return null
+  const catalog = await resolveSlashCommand(command)
+  return catalog.knownCommand || catalog.catalogLoadFailed ? refusal : null
+}
+
+/**
+ * The refusal message for a send a caller is about to set up, or null when it may go ahead. For a
+ * sender that creates sessions or worktrees first (Multi-Run): asking before creating anything
+ * leaves no empty run behind, and the answer is the caller's to show, not the composer's.
+ */
+export async function workModeSendRefusalMessage(input: WorkModeSendCheck): Promise<string | null> {
+  return (await findWorkModeSendRefusal(input))?.message ?? null
+}
+
 export function routeMessage(params: {
   sessionId: string
   directory?: string | null
@@ -151,6 +253,22 @@ export function routeMessage(params: {
    * sent exactly as requested.
    */
   agentTeam?: AgentTeamState
+  /**
+   * The work mode the user committed this text under: the composer's mode at submit, or the mode a
+   * queued entry was queued in. It is request data, not a live read of the directory's chip, so a
+   * later mode switch cannot turn a waiting Agent prompt into a Council run, and a sender that has
+   * no mode control (plans, quick dispatch, Multi-Run, reviews) sends the text it built. Omitted
+   * means Agent. An explicit `/council` or `/arena` in the text is a command under any mode.
+   */
+  workMode?: WorkModeId
+  /** The user chose to send although the catalog says this model cannot call tools. One send only. */
+  allowUnverifiedToolCalling?: boolean
+  /**
+   * `sendMessage` already decided this send may go, before it created or announced anything. The
+   * catalog can refresh in between (activating a draft's directory reloads it), and a second
+   * opinion here would refuse after the session exists: the one decision stands.
+   */
+  workModeAdmitted?: boolean
 }): Promise<void> {
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
@@ -174,34 +292,30 @@ export function routeMessage(params: {
     // Work mode (Agent | Council | Arena) — multi-model send routing.
     // Explicit slash commands stay unchanged; free-text is remapped when mode ≠ agent.
     // Note: shell mode returns above, so this path is never shell.
-    // Prefer explicit directory, else current project directory so mode selection sticks.
-    const dirForMode = params.directory ?? useDirectoryStore.getState().currentDirectory
-    const workMode = useWorkModeStore.getState().getMode(dirForMode)
-    const resolved = resolveWorkModeSend(workMode, params.content)
+    const workMode = params.workMode ?? DEFAULT_WORK_MODE
+    const lead = { providerID: params.providerID, modelID: params.modelID }
+    // A work-mode command carries one argument string and no extra parts. A send that merged
+    // several prompts (queued entries, then the composer text) would lose all but the first, so
+    // the user's own parts are folded into the text the command is built from.
+    const userParts =
+      workMode !== "agent" && !params.content.trimStart().startsWith("/")
+        ? (params.additionalParts ?? []).filter((part) => !part.synthetic)
+        : []
+    const resolved = resolveWorkModeSend(
+      workMode,
+      [params.content, ...userParts.map((part) => part.text)].filter((text) => text.trim()).join("\n\n"),
+    )
     const content = resolved.content
     const forcedCommand = resolved.forcedCommand
-
-    // Council and Arena ask the model that runs the turn to call the runtime's council/arena tools.
-    // Only a send actually routed to the ensemble needs them: the work-mode remap (`forcedCommand`)
-    // or an explicit `/council`/`/arena` typed in any mode. Any other slash command — `/help`, a
-    // custom command — passes through untouched and is sent normally. A model that cannot call the
-    // tools (a CLI provider, or one the catalog says cannot call tools) would receive a request that
-    // cannot succeed, so refuse instead of sending it.
-    const ensembleCommand = workModeEnsembleCommand(content, forcedCommand)
-    if (ensembleCommand) {
-      const workModeBlocked = workModeBlockedReason(
-        ensembleCommand,
-        { providerID: params.providerID, modelID: params.modelID },
-        useConfigStore.getState().providers,
-      )
-      if (workModeBlocked) {
-        const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(workModeBlocked), {
-          mode: workModeLabel(ensembleCommand),
-        })
-        useSessionUIStore.setState({ error: message })
-        throw new Error(message)
-      }
+    const commandFiles =
+      userParts.length > 0 ? [...(params.files ?? []), ...userParts.flatMap((part) => part.files ?? [])] : params.files
+    const refuse = (command: "council" | "arena") => {
+      if (!params.workModeAdmitted) throwWorkModeRefusal(workModeRefusal(command, lead, params.allowUnverifiedToolCalling))
     }
+
+    // The work-mode remap always asks for the runtime's council/arena tool: as the slash command, or
+    // as the fallback prompt when the connected runtime lacks it. Refuse before anything is loaded.
+    if (forcedCommand) refuse(forcedCommand.name)
 
     // Slash commands — fire and forget, SSE delivers messages and status.
     // content is already trimStart-normalized for explicit slashes (fixes "  /help").
@@ -210,26 +324,15 @@ export function routeMessage(params: {
       const cmdName = forcedCommand?.name ?? head.slice(1)
       const cmdArgs = forcedCommand?.arguments ?? tail.join(" ")
 
-      // Commands are single-home in useCommandsStore (SPEC-2026-08-30 S4.6) —
-      // the per-directory sync `command` slice is gone. The store is not
-      // boot-loaded, so load lazily on the first slash-command send (its
-      // in-flight dedup + TTL cache make repeat sends cheap).
-      let storeCommands = useCommandsStore.getState().commands
-      let catalogLoadFailed = false
-      if (storeCommands.length === 0) {
-        const loaded = await useCommandsStore.getState().loadCommands()
-        storeCommands = useCommandsStore.getState().commands
-        // A FAILED load (store still empty after awaiting) must not degrade
-        // a real slash command into plain text: route it through the command
-        // path anyway and let the server validate — it rejects unknown
-        // commands cleanly, while a silently mis-sent prompt is never
-        // recoverable as a command. When the load succeeded, the normal
-        // known/unknown logic below applies unchanged.
-        catalogLoadFailed = !loaded && storeCommands.length === 0
+      const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(cmdName)
+
+      // An explicit `/council` or `/arena` asks for the same tool only when it is sent as that
+      // command. One the runtime does not offer falls through below and is sent as plain text, which
+      // any model can take, so it is not refused.
+      const explicitEnsemble = forcedCommand ? null : workModeEnsembleCommand(content, null)
+      if (explicitEnsemble && (knownCommand || catalogLoadFailed)) {
+        refuse(explicitEnsemble)
       }
-      const knownCommand = Boolean(storeCommands.find((c) => c.name === cmdName))
-      // Empty lists usually mean "not synced yet"; do not treat that as "command missing".
-      const commandsLoaded = storeCommands.length > 0
 
       // Known command, forced work-mode while command catalog not loaded
       // yet, or any slash command while the catalog load failed.
@@ -243,7 +346,7 @@ export function routeMessage(params: {
           modelID: params.modelID,
           agent: params.agent,
           variant: params.variant,
-          files: params.files,
+          files: commandFiles,
           send: (messageID) =>
             axCodeClient
               .sendCommand({
@@ -254,7 +357,7 @@ export function routeMessage(params: {
                 arguments: cmdArgs,
                 agent: params.agent,
                 variant: params.variant,
-                files: params.files,
+                files: commandFiles,
                 messageId: messageID,
               })
               .then(() => {}),
@@ -274,7 +377,7 @@ export function routeMessage(params: {
           modelID: params.modelID,
           agent: params.agent,
           variant: params.variant,
-          files: params.files,
+          files: commandFiles,
           send: (messageID) =>
             axCodeClient
               .sendMessage({
@@ -284,7 +387,7 @@ export function routeMessage(params: {
                 text: fallback,
                 agent: params.agent,
                 variant: params.variant,
-                files: params.files,
+                files: commandFiles,
                 messageId: messageID,
               })
               .then(() => {}),
@@ -295,7 +398,6 @@ export function routeMessage(params: {
     // Agent team (Coder / QA models picked in the composer) applies to plain prompts in Agent work
     // mode only: shell and known slash commands returned above, and Council/Arena own their fan-out.
     // The instructions go in a synthetic part so the user's own message stays exactly what they typed.
-    const lead = { providerID: params.providerID, modelID: params.modelID }
     const providers = useConfigStore.getState().providers
     const team = resolveAgentTeamSend(
       workMode === "agent" && params.agentTeam ? params.agentTeam : emptyAgentTeam(),
@@ -375,6 +477,10 @@ type SendMessageOptions = {
   draftRevision?: number
   /** The composer's Coder/QA team. Only the composer passes it; see routeMessage. */
   agentTeam?: AgentTeamState
+  /** The work mode this text was committed under; see routeMessage. Omitted means Agent. */
+  workMode?: WorkModeId
+  /** Send although the catalog says the model cannot call tools; see routeMessage. */
+  allowUnverifiedToolCalling?: boolean
 }
 
 function notifyMessageSent(sessionId: string): void {
@@ -407,6 +513,11 @@ type OpenNewSessionDraftOptions = Partial<NewSessionDraftState> & {
    * revision at the close's +1: createSession's rollback guard compares against it.
    */
   preserveLifecycleRevision?: boolean
+  /**
+   * Keep the directory's work mode. Quick dispatch opens a draft only to send through it and then
+   * restores the previous view; resetting the chip there changed a setting the user never touched.
+   */
+  preserveWorkMode?: boolean
 }
 type SessionUIState = {
   currentSessionId: string | null
@@ -860,8 +971,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     // A draft is not a session being watched either: leaving the refs on the previous session suppressed the
     // permission and question signals for it, exactly as leaving the session by any other route did.
     setActiveSession("", "")
-    // New chat always starts in Agent work mode (not sticky council/arena).
-    useWorkModeStore.getState().resetToAgent(directory)
+    // New chat always starts in Agent work mode (not sticky council/arena). A draft opened on the
+    // user's behalf by a sender that has no mode of its own must leave the chip as the user set it.
+    if (!options?.preserveWorkMode) useWorkModeStore.getState().resetToAgent(directory)
 
     // Do not clear attachments here: at this point the active attachment draft is still the
     // session being left, so clearing dropped that session's stash. The composer's
@@ -1216,6 +1328,23 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 
+      // Before the session exists: a refused send must leave the draft open and nothing behind.
+      throwWorkModeRefusal(
+        await findWorkModeSendRefusal({
+          content,
+          workMode: options?.workMode,
+          providerID,
+          modelID,
+          inputMode,
+          allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+        }),
+      )
+      // The check can wait for the command catalog; the draft may have been replaced meanwhile.
+      if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
+        set({ error: INVALID_SEND_TARGET_MESSAGE })
+        throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      }
+
       const created = await get().createSession(draft.title, draftDirectoryOverride, draft.parentID ?? null)
       if (!created?.id) throw new Error("Failed to create session")
 
@@ -1316,6 +1445,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
           inputMode,
           messageId: options?.messageId,
           agentTeam: options?.agentTeam,
+          workMode: options?.workMode,
+          allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+          workModeAdmitted: true,
           files,
           additionalParts: mergedAdditionalParts?.map((p) => ({
             text: p.text,
@@ -1353,6 +1485,18 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       throw new Error(WORK_SESSION_SEND_DISABLED)
     }
     const effectiveAgent = trimmedAgent || sessionAgentSelection || configAgentName || undefined
+
+    // Before the selection is saved or the message-sent notification goes out for a refused send.
+    throwWorkModeRefusal(
+      await findWorkModeSendRefusal({
+        content,
+        workMode: options?.workMode,
+        providerID,
+        modelID,
+        inputMode,
+        allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      }),
+    )
 
     if (effectiveAgent) {
       useSelectionStore.getState().saveSessionAgentSelection(targetSessionId, effectiveAgent)
@@ -1394,6 +1538,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       directory: currentSessionDirectory,
       messageId: options?.messageId,
       agentTeam: options?.agentTeam,
+      workMode: options?.workMode,
+      allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      workModeAdmitted: true,
       content,
       providerID,
       modelID,

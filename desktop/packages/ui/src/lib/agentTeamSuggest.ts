@@ -14,6 +14,7 @@ import {
   agentTeamBlockedReasonFor,
   isOrchestratingModel,
   isSameAgentTeamModel,
+  type AgentTeamBlockedReason,
   type AgentTeamModelRef,
   type AgentTeamState,
 } from "./agentTeam"
@@ -42,6 +43,11 @@ export interface AgentTeamSuggestion {
   coder: SuggestedAgentTeamModel[]
   /** Empty when fewer than two reviewers remain: a one-member council cannot run. */
   qa: SuggestedAgentTeamModel[]
+  /**
+   * Set when a panel was available but is left out because the suggested coder could not run it.
+   * The coder is the user's first preference, so the panel gives way and the preview says why.
+   */
+  qaSkipped?: AgentTeamBlockedReason
 }
 
 export interface AgentTeamSuggestInput {
@@ -108,6 +114,7 @@ interface Seat {
 interface DraftTeam {
   coder: Seat[]
   qa: Seat[]
+  qaSkipped?: AgentTeamBlockedReason
 }
 
 function toSuggested(seat: Seat): SuggestedAgentTeamModel {
@@ -132,7 +139,9 @@ function suggestCoders(ranked: readonly Ranked[]): Seat[] {
   const first = eligible[0]
   if (!first) return []
   // Two coders are worth their cost when they are likely to differ, so prefer another provider.
-  const rest = eligible.slice(1)
+  // The same model id behind another provider is still the same model, and an arena that compares
+  // a model with itself is not worth its cost.
+  const rest = eligible.slice(1).filter((entry) => entry.candidate.modelID !== first.candidate.modelID)
   const otherProvider = rest.find((entry) => entry.candidate.providerID !== first.candidate.providerID)
   const second = otherProvider ?? rest[0]
   if (!second) return [toSeat(first)]
@@ -207,9 +216,29 @@ function bestOrchestrator(ranked: readonly Ranked[], options: ReplacementOptions
 }
 
 /**
- * Keep a suggestion runnable. A team the sender would skip is not a suggestion, so swap in the
- * best-ranked model that can orchestrate, re-seat QA around a new author, and only leave the team
- * unchanged when the catalog holds nothing that can run the step.
+ * The second coder's replacement when neither coder can orchestrate. The top-ranked coder is the
+ * user's first preference and is never the one to give way. The newcomer must be a different model:
+ * the same model id behind another provider would make the arena compare a model with itself.
+ */
+function replaceSecondCoder(coders: readonly Seat[], ranked: readonly Ranked[]): Seat[] | null {
+  const top = coders[0]
+  if (!top || coders.length < 2) return null
+  const replacement = bestOrchestrator(ranked, {
+    coderSlot: true,
+    exclude: coders,
+    excludeModelIds: new Set([top.entry.candidate.modelID]),
+  })
+  return replacement ? [top, toSeat(replacement)] : null
+}
+
+/**
+ * Keep a suggestion runnable without overriding the user's first choice. A team the sender would
+ * skip is not a suggestion, so the pass gives up optional structure before it gives up the
+ * top-ranked coder:
+ *
+ * - one coder that cannot run its QA panel keeps the coder and drops the panel, and says why;
+ * - two coders with no orchestrator swap the second for one that can, else seat a reviewer that
+ *   can, else fall back to the top coder alone.
  */
 function repairDraftTeam(
   draft: DraftTeam,
@@ -217,28 +246,28 @@ function repairDraftTeam(
   isRunnable: (draft: DraftTeam) => boolean,
 ): DraftTeam {
   if (isRunnable(draft)) return draft
-  const coderReplacement = bestOrchestrator(ranked, { coderSlot: true, exclude: draft.coder })
-  if (coderReplacement) {
-    const coder =
-      draft.coder.length >= 2 ? [...draft.coder.slice(0, -1), toSeat(coderReplacement)] : [toSeat(coderReplacement)]
+  if (draft.coder.length < 2) {
+    // The coder cannot orchestrate, so the QA step would be skipped: do not promise one.
+    return { ...draft, qa: [], qaSkipped: draft.qa.length > 0 ? "coderCannotRunQa" : undefined }
+  }
+  const coder = replaceSecondCoder(draft.coder, ranked)
+  if (coder) {
     // The new coder writes the code, so it cannot also review it.
     return { coder, qa: suggestQa(ranked, coder.map(toRef)) }
   }
-  if (draft.coder.length === 1) {
-    // Nothing here can orchestrate, so the QA step would be skipped: do not promise one.
-    return { ...draft, qa: [] }
-  }
-  // A reviewer can orchestrate the arena or council it takes part in.
-  const authorModelIds = new Set(draft.coder.map((seat) => seat.entry.candidate.modelID))
+  // A reviewer can orchestrate the arena or council it takes part in. It must be a model that is
+  // neither an author nor already on the panel under another provider.
+  const kept = draft.qa.slice(0, -1)
   const reviewer = bestOrchestrator(ranked, {
     coderSlot: false,
     exclude: [...draft.coder, ...draft.qa],
-    excludeModelIds: authorModelIds,
+    excludeModelIds: new Set([...draft.coder, ...kept].map((seat) => seat.entry.candidate.modelID)),
   })
   if (reviewer && draft.qa.length > 0) {
-    return { ...draft, qa: [...draft.qa.slice(0, -1), toSeat(reviewer)] }
+    return { ...draft, qa: [...kept, toSeat(reviewer)] }
   }
-  return draft
+  // Nothing can run an arena or a panel here. One coder is an ordinary turn on that model.
+  return { coder: draft.coder.slice(0, 1), qa: [], qaSkipped: draft.qa.length > 0 ? "coderCannotRunQa" : undefined }
 }
 
 export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggestion {
@@ -252,24 +281,39 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
   let draft: DraftTeam = { coder, qa: suggestQa(ranked, authors) }
   if (input.lead) {
     const lead = input.lead
+    const canOrchestrate = orchestratorFromCandidates(input.candidates)
+    // With no coder, the model that runs the turn writes the code. A lead that cannot orchestrate
+    // hands the turn to a reviewer, which would then review its own work: suggest no panel instead.
+    if (draft.coder.length === 0 && !canOrchestrate(lead)) return { coder: [], qa: [] }
     const isRunnable = (candidate: DraftTeam) =>
-      agentTeamBlockedReasonFor(draftTeam(candidate), lead, orchestratorFromCandidates(input.candidates)) === null
+      agentTeamBlockedReasonFor(draftTeam(candidate), lead, canOrchestrate) === null
     draft = repairDraftTeam(draft, ranked, isRunnable)
     // A team the send would still skip is not a suggestion at all.
     if (!isRunnable(draft)) return { coder: [], qa: [] }
   }
-  return { coder: draft.coder.map(toSuggested), qa: draft.qa.map(toSuggested) }
+  return {
+    coder: draft.coder.map(toSuggested),
+    qa: draft.qa.map(toSuggested),
+    ...(draft.qaSkipped ? { qaSkipped: draft.qaSkipped } : {}),
+  }
 }
 
 /**
  * The team after accepting a suggestion. A role with nothing to suggest keeps what the user had, so
- * a catalog that cannot fill QA does not also clear a QA panel picked by hand.
+ * a catalog that cannot fill QA does not also clear a QA panel picked by hand. A panel the
+ * suggestion left out on purpose (`qaSkipped`) is the exception: the suggested coder cannot run it.
  */
 export function applyAgentTeamSuggestion(team: AgentTeamState, suggestion: AgentTeamSuggestion): AgentTeamState {
   const toRefs = (models: readonly SuggestedAgentTeamModel[]) =>
     models.map(({ providerID, modelID }) => ({ providerID, modelID }))
   return {
     coder: suggestion.coder.length > 0 ? { enabled: true, models: toRefs(suggestion.coder) } : team.coder,
-    qa: suggestion.qa.length > 0 ? { enabled: true, models: toRefs(suggestion.qa) } : team.qa,
+    qa:
+      suggestion.qa.length > 0
+        ? { enabled: true, models: toRefs(suggestion.qa) }
+        : suggestion.qaSkipped
+          ? // The preview said the panel is left out, so it is unticked; its models are remembered.
+            { ...team.qa, enabled: false }
+          : team.qa,
   }
 }

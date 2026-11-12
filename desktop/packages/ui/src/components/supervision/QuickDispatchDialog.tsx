@@ -111,6 +111,8 @@ const startQuickDispatch = async (input: {
   session.openNewSessionDraft({
     selectedProjectId: input.project.id,
     directoryOverride: input.project.path,
+    // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
+    preserveWorkMode: true,
   })
 
   const known = knownSessionIds(previousSessionId)

@@ -8,6 +8,24 @@ vi.mock("./session-actions", async (importOriginal) => {
 })
 
 const { useSessionUIStore, getNewSessionDraftRevision } = await import("./session-ui-store")
+const { useCommandsStore } = await import("@/stores/useCommandsStore")
+
+// The composer's submit: the mode its chip showed travels with the send.
+const composerSend = (content: string, workMode?: "agent" | "council" | "arena") =>
+  useSessionUIStore
+    .getState()
+    .sendMessage(
+      content,
+      "claude-code",
+      "claude-fable-5-2",
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { workMode },
+    )
 
 const draft = () => ({
   open: true,
@@ -153,5 +171,50 @@ describe("createSession draft rollback", () => {
         }),
     ).rejects.toThrow("Cannot send message without an active session or draft")
     expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
+  test("a Council send the model cannot run is refused before the session is created", async () => {
+    // The refusal used to come after the create: the draft was gone and an empty session was left.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))
+
+    try {
+      await expect(composerSend("rate this module", "council")).rejects.toThrow("Council needs a non-CLI model")
+
+      expect(createSessionAction).not.toHaveBeenCalled()
+      expect(fetchSpy).not.toHaveBeenCalled()
+      expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
+      expect(useSessionUIStore.getState().currentSessionId).toBeNull()
+      expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+    } finally {
+      fetchSpy.mockRestore()
+    }
+  })
+
+  test("an explicit /council waits for the command catalog and is refused before the session is created", async () => {
+    // With the catalog not loaded yet the refusal used to be left to routeMessage, after the create.
+    const loadCommands = vi.fn(async () => {
+      useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+
+    await expect(composerSend("/council rate the API", "agent")).rejects.toThrow("Council needs a non-CLI model")
+
+    expect(loadCommands).toHaveBeenCalledTimes(1)
+    expect(createSessionAction).not.toHaveBeenCalled()
+    expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
+  })
+
+  test("an existing session refuses the same send before the message-sent notification goes out", async () => {
+    useSessionUIStore.setState({ newSessionDraft: { open: false } as never, currentSessionId: "session-1" })
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))
+
+    try {
+      await expect(composerSend("compare two plans", "arena")).rejects.toThrow("Arena needs a non-CLI model")
+
+      expect(fetchSpy).not.toHaveBeenCalled()
+    } finally {
+      fetchSpy.mockRestore()
+    }
   })
 })

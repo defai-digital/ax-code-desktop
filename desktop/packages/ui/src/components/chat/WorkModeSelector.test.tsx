@@ -93,6 +93,19 @@ describe("WorkModeSelector", () => {
     expect(chip().getAttribute("aria-label")).toContain("chat.workMode.blocked.noToolCalling")
   })
 
+  test("the chip's accessible name comes from the catalog, with and without a warning", () => {
+    render()
+    expect(chip().getAttribute("aria-label")).toBe('chat.workMode.tooltip {"mode":"Agent"}')
+
+    config.currentProviderId = "claude-code"
+    config.currentModelId = "fable"
+    act(() => useWorkModeStore.getState().setMode("/repo", "council"))
+    render()
+    // One translated sentence: the warning is a placeholder, not text appended to English.
+    expect(chip().getAttribute("aria-label")).toMatch(/^chat\.workMode\.tooltipBlocked /)
+    expect(chip().getAttribute("aria-label")).not.toContain("Work mode")
+  })
+
   test("a model that can call tools runs both modes without a warning", () => {
     act(() => useWorkModeStore.getState().setMode("/repo", "council"))
     render()
