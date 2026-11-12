@@ -90,10 +90,42 @@ app
           exitTimer = setTimeout(() => reject(new Error("Utility process survived the stop deadline")), 2000)
         }),
       ])
-      if (process.platform !== "win32") assert.equal(forceStops, 1)
+      // Stable Electron can force-stop in kill() itself; newer engines may need the
+      // fallback. Both must exit before the deadline without signaling a retired PID.
+      assert.ok(forceStops === 0 || forceStops === 1)
     } finally {
       clearTimeout(exitTimer)
       if (child.pid) process.kill(child.pid, "SIGKILL")
+    }
+    const resistantChild = utilityProcess.fork(entry)
+    const resistantExit = once(resistantChild, "exit")
+    let resistantExitTimer
+    try {
+      assert.equal((await once(resistantChild, "message"))[0], "ready")
+      if (process.platform !== "win32") {
+        const ignored = once(resistantChild, "message")
+        process.kill(resistantChild.pid, "SIGTERM")
+        assert.equal((await ignored)[0], "term-ignored")
+        assert.ok(resistantChild.pid > 0)
+      }
+      let explicitForceStops = 0
+      assert.equal(forceStopUtilityProcess(resistantChild, {
+        killProcess(pid, signal) {
+          explicitForceStops += 1
+          assert.equal(signal, "SIGKILL")
+          process.kill(pid, signal)
+        },
+      }), true)
+      await Promise.race([
+        resistantExit,
+        new Promise((_, reject) => {
+          resistantExitTimer = setTimeout(() => reject(new Error("A forced utility process survived")), 2000)
+        }),
+      ])
+      assert.equal(explicitForceStops, 1)
+    } finally {
+      clearTimeout(resistantExitTimer)
+      if (resistantChild.pid) process.kill(resistantChild.pid, "SIGKILL")
     }
     const pendingChild = utilityProcess.fork(entry)
     const pendingExit = once(pendingChild, "exit")
@@ -121,6 +153,7 @@ app
         nativeMenus: locales.length,
         ptyRoundTrip: true,
         utilityProcessStop: true,
+        utilityForceStop: true,
         utilityPreSpawnStop: true,
         productionQualified: false,
       }),
