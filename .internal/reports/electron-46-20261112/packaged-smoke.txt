@@ -1,0 +1,6 @@
+Command: pnpm run smoke:packaged -- --app /tmp/ax-desktop-electron-46-alpha9-20261112/package/mac-arm64/AX Code.app --artifacts /tmp/ax-desktop-electron-46-alpha9-20261112/packaged-smoke
+Platform: macOS arm64
+Electron: 46.0.0-alpha.9
+
+Bundled ax-code runtime smoke passed (v7.30.24)
+Packaged app smoke passed

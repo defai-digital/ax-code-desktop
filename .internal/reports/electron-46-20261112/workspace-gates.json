@@ -1,0 +1,44 @@
+{
+  "platform": "darwin",
+  "arch": "arm64",
+  "gates": [
+    {
+      "gate": "check:boundaries",
+      "code": 0,
+      "seconds": 25
+    },
+    {
+      "gate": "check:locales",
+      "code": 0,
+      "seconds": 1
+    },
+    {
+      "gate": "typecheck",
+      "code": 0,
+      "seconds": 35
+    },
+    {
+      "gate": "lint",
+      "code": 0,
+      "seconds": 9
+    },
+    {
+      "gate": "test",
+      "code": 0,
+      "log": "test-final-retry.log"
+    },
+    {
+      "gate": "build",
+      "code": 0,
+      "seconds": 47
+    }
+  ],
+  "tests": {
+    "passed": 9513,
+    "skipped": 12
+  },
+  "packagedE2e": {
+    "passed": 10
+  },
+  "rawLogs": "/tmp/ax-desktop-electron-46-alpha9-20261112"
+}

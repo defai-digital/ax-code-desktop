@@ -19,7 +19,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
   const url = String(input)
   if (url.includes("/provider/ax-engine/models")) {
-    if (pending) return pending
+    // Directory updates can overlap requests; each fetch must receive its own readable body.
+    if (pending) return (await pending).clone()
     if (failed) return json({ error: "Runtime unavailable" }, 500)
     return json({
       eligibility: { supported, platform: supported ? "darwin" : "linux", arch: "arm64", blockers: [], warnings: [] },

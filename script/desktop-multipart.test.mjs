@@ -1,7 +1,8 @@
-import { test } from "vitest"
+import { test, vi } from "vitest"
 import assert from "node:assert/strict"
 import crypto from "node:crypto"
 import { handle } from "../.internal/deploy/multipart-worker.mjs"
+import * as releasePolicy from "./release-policy.mjs"
 const payload = Buffer.from("qualified bytes"),
   sha = crypto.createHash("sha256").update(payload).digest("hex")
 const manifest = { key: { size: payload.length, parts: [{ size: payload.length, sha256: sha }] } }
@@ -95,7 +96,15 @@ test("abort owns its exact key and upload ID", async () => {
 
 test("staging requires signed qualification before credentials or Cloudflare access", async () => {
   const { stageMultipart } = await import("../.internal/deploy/multipart.mjs")
-  await assert.rejects(stageMultipart("/nonexistent/desktop-release", "/nonexistent/qualification.json"), /ENOENT/)
+  const authorize = releasePolicy.assertPublicReleaseAuthorized
+  const guard = vi
+    .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
+    .mockImplementation(() => authorize({ stage: "cutover-approved", publicRelease: { enabled: true } }))
+  try {
+    await assert.rejects(stageMultipart("/nonexistent/desktop-release", "/nonexistent/qualification.json"), /ENOENT/)
+  } finally {
+    guard.mockRestore()
+  }
 })
 
 test("active multipart updates require a public gateway and staging still requires a disabled one", async () => {

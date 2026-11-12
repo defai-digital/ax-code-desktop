@@ -10,12 +10,14 @@ import {
 } from "./release-policy.mjs"
 
 describe("Desktop release policy", () => {
-  it("records authorized independent public cutover", () => {
+  it("blocks public release while evaluating the prerelease Electron candidate", () => {
     const policy = readReleasePolicy(repositoryRoot)
-    expect(policy.stage).toBe("cutover-approved")
-    expect(policy.publicRelease).toMatchObject({ enabled: true, repository: "defai-digital/ax-code-desktop" })
+    expect(policy.stage).toBe("shadow-only")
+    expect(policy.publicRelease).toMatchObject({ enabled: false, repository: "defai-digital/ax-code-desktop" })
     expect(policy.shadow).toMatchObject({ artifactChannel: "github-actions", signingMode: "explicit-only" })
     expect(policy.cutover).toMatchObject({ repository: "defai-digital/ax-code-desktop", tagPrefix: "v" })
+    expect(() => assertPublicReleaseAuthorized(policy)).toThrow("AX Code Desktop public release is disabled")
+    expect(() => assertPackagePublishingMode(["--mac"], policy)).toThrow("requires exactly one --publish=never")
   })
 
   it("requires the recorded cutover block at cutover-approved stage", () => {
@@ -24,6 +26,8 @@ describe("Desktop release policy", () => {
       const policy = JSON.parse(
         fs.readFileSync(path.join(repositoryRoot, "config/desktop-release-policy.json"), "utf8"),
       )
+      policy.stage = "cutover-approved"
+      policy.publicRelease.enabled = true
       delete policy.cutover
       fs.mkdirSync(path.join(directory, "config"), { recursive: true })
       fs.writeFileSync(path.join(directory, "config/desktop-release-policy.json"), JSON.stringify(policy))
@@ -42,6 +46,8 @@ describe("Desktop release policy", () => {
         const policy = JSON.parse(
           fs.readFileSync(path.join(repositoryRoot, "config/desktop-release-policy.json"), "utf8"),
         )
+        policy.stage = "cutover-approved"
+        policy.publicRelease.enabled = true
         mutate(policy)
         fs.mkdirSync(path.join(directory, "config"), { recursive: true })
         fs.writeFileSync(path.join(directory, "config/desktop-release-policy.json"), JSON.stringify(policy))

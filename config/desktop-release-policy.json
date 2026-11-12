@@ -1,8 +1,8 @@
 {
   "schema": "ax-coder.desktop-release-policy.v1",
-  "stage": "cutover-approved",
+  "stage": "shadow-only",
   "publicRelease": {
-    "enabled": true,
+    "enabled": false,
     "repository": "defai-digital/ax-code-desktop",
     "tagPrefix": "v"
   },

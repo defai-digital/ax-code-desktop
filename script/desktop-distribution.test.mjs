@@ -226,7 +226,15 @@ describe("Desktop distribution preparation and mirror", () => {
       }
       return objects.has(key) ? new Response(objects.get(key)) : new Response("missing", { status: 404 })
     })
-    await upload(output, qualification)
+    const authorize = releasePolicy.assertPublicReleaseAuthorized
+    const guard = vi
+      .spyOn(releasePolicy, "assertPublicReleaseAuthorized")
+      .mockImplementation(() => authorize({ stage: "cutover-approved", publicRelease: { enabled: true } }))
+    try {
+      await upload(output, qualification)
+    } finally {
+      guard.mockRestore()
+    }
     expect(objects.get(`releases/download/v${version}/${target}`)).toEqual(original)
     expect(puts.at(-1)).toBe("latest.txt")
   })

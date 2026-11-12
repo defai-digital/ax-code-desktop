@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Electron 46 alpha candidate review](ELECTRON-46-2026-11-12-alpha-upgrade.md): exact Alpha pin, public-release
+  suspension, source-backed feature review, and local engine qualification.
+
 - [Desktop 7.30.20 verified publication](RELEASE-2026-11-12-v7.30.20-publication.md): signed four-platform release
   and independent public readback.
 
