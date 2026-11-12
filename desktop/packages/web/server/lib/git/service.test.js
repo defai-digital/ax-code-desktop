@@ -8,6 +8,11 @@ import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { simpleGit } from "simple-git"
 
+// Every test here runs real git against a temp repository, and the time a spawn takes is a property
+// of the machine, not of the code under test: the default 5000ms bound failed on a slower host while
+// the same test finished in about 6s. A genuine hang still fails, just later.
+vi.setConfig({ testTimeout: 30_000 })
+
 vi.mock("child_process", async (importOriginal) => {
   const actual = await importOriginal()
   const execFile = vi.fn(actual.execFile)
