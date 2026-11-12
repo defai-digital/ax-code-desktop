@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.20 verified publication](RELEASE-2026-11-12-v7.30.20-publication.md): signed four-platform release
+  and independent public readback.
+
 - [Desktop 7.30.19 verified publication](RELEASE-2026-11-11-v7.30.19-publication.md): signed four-platform release
   and independent public readback.
 
