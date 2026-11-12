@@ -1,5 +1,8 @@
 # Internal reports
 
+- [Desktop 7.30.21 verified publication](RELEASE-2026-11-12-v7.30.21-publication.md): signed four-platform release
+  and independent public readback.
+
 - [WebMCP and Electron 46 CLI-assisted follow-up](BUGFIX-2026-11-12-webmcp-cli-follow-up.md): Grok/Muse consultation,
   pre-spawn utility stop and failed-initialization page recovery, with reproduced evidence and regression tests.
 
