@@ -656,16 +656,20 @@ describe("a suggestion that leaves the QA panel out stays applicable", () => {
 
   test("every catalog and lead still offers something to apply when the panel is skipped", () => {
     let skipped = 0
+    let cliOnlyWithCliLead = 0
     for (const candidates of CATALOGS) {
       for (const lead of LEADS) {
         const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead })
         if (!suggestion.qaSkipped) continue
         skipped += 1
+        if (candidates === ALL_CLI && lead?.providerID === "claude-code") cliOnlyWithCliLead += 1
         expect(suggestion.coder.length).toBeGreaterThan(0)
         expect(suggestion.qa).toHaveLength(0)
       }
     }
-    // The matrix must actually reach the shape it guards, or it proves nothing.
+    // The matrix must actually reach the shape it guards, or it proves nothing — and one cell
+    // supplying every hit would leave the rest vacuous, so the reachable cell is pinned by name.
     expect(skipped).toBeGreaterThan(0)
+    expect(cliOnlyWithCliLead).toBeGreaterThan(0)
   })
 })

@@ -489,6 +489,22 @@ describe("the work mode a send is committed under", () => {
     expect(sentMode(h)).toBe("council")
   })
 
+  test("an attachment-only send with no queue keeps the chip's mode", async () => {
+    // With nothing queued the chip's mode is the only one in the send, so narrowing the merge must
+    // not change what a plain attachment-only send reports.
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      message: "",
+      attachments: [{ id: "attachment", name: "notes.txt", mime: "text/plain", data: "notes" }],
+    })
+    h.dependencies.composerWorkModeForSend = () => "council"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(sentMode(h)).toBe("council")
+  })
+
   test("queued entries and composer text that share a mode are sent in it", async () => {
     const h = createHarness("", {
       sessionId: "session-1",
