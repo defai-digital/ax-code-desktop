@@ -586,6 +586,67 @@ describe("suggestions that can actually run", () => {
   })
 })
 
+describe("suggestions keep to their own rules", () => {
+  test("two coders the user picked are not split up to fill the panel", () => {
+    const candidates = [
+      candidate("a", "alpha", { reasoning: true }),
+      candidate("b", "beta", { reasoning: true }),
+      candidate("c", "gamma", { reasoning: true }),
+    ]
+    const team = { ...emptyAgentTeam(), coder: { enabled: true, models: [ref("a", "alpha"), ref("b", "beta")] } }
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], team })
+
+    // One model is left to review, which is too few for a panel; the user's second coder stays.
+    expect(ids(suggestion.coder)).toEqual(["a/alpha", "b/beta"])
+    expect(suggestion.qa).toEqual([])
+  })
+
+  test("a small tier never takes the optional second coder seat, even beside another small tier", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [candidate("a", "alpha-flash"), candidate("b", "beta-mini")],
+      favorites: [ref("a", "alpha-flash")],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["a/alpha-flash"])
+  })
+
+  test("a context window the catalog leaves at 0 is unknown, not small", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("a", "alpha", { contextLimit: 0, releaseDate: "2026-09-01" }),
+        candidate("a", "older", { contextLimit: 200_000, releaseDate: "2026-01-01" }),
+      ],
+      favorites: [],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)[0]).toBe("a/alpha")
+  })
+
+  test("a coder that cannot run the panel the user already has leaves that panel out", () => {
+    // Nothing is left to suggest for QA, so applying would keep the user's panel — which the only
+    // coder, a CLI, cannot run. The send would skip it, so the suggestion unticks it and says why.
+    const candidates = [candidate("claude-code", "opus"), candidate("codex-cli", "codex")]
+    const lead = ref("claude-code", "opus")
+    const team = {
+      coder: { enabled: false, models: [] },
+      qa: { enabled: true, models: [ref("claude-code", "opus"), ref("codex-cli", "codex")] },
+    }
+    const suggestion = suggestAgentTeam({ candidates, favorites: [], recents: [], lead, team })
+
+    expect(suggestion.coder.length).toBeGreaterThan(0)
+    expect(suggestion.qa).toEqual([])
+    expect(suggestion.qaSkipped).toBe("coderCannotRunQa")
+    const applied = applyAgentTeamSuggestion(team, suggestion)
+    const providers: AgentTeamCatalogProvider[] = [
+      { id: "claude-code", models: [{ id: "opus" }] },
+      { id: "codex-cli", models: [{ id: "codex" }] },
+    ]
+    expect(agentTeamBlockedReason(applied, lead, providers)).toBeNull()
+  })
+})
+
 describe("applyAgentTeamSuggestion", () => {
   test("a panel the suggestion left out is unticked, with its models remembered", () => {
     // The preview said the coder cannot run QA; keeping the hand-picked panel ticked contradicted it.

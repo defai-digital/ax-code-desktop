@@ -211,7 +211,9 @@ function rank(input: AgentTeamSuggestInput, role: AgentTeamRole, candidate: Agen
   const pickedForOtherRole = !rolePick && indexOfModel(input.team?.[otherRole].models ?? [], candidate) >= 0
   // The user's own pick for the role is never second-guessed by what a name suggests.
   const unsuited = !rolePick && (traits.light || traits.router)
-  const tightContext = candidate.contextLimit !== undefined && candidate.contextLimit < TIGHT_CONTEXT_TOKENS
+  // Catalogs write an unknown window as 0; only a stated one can be called small.
+  const tightContext =
+    candidate.contextLimit !== undefined && candidate.contextLimit > 0 && candidate.contextLimit < TIGHT_CONTEXT_TOKENS
   // A vendor coding CLI is a coding agent whatever its model is called. An alias named for coding
   // still does not say which model answers.
   const fits =
@@ -319,8 +321,8 @@ function suggestCoders(ranked: readonly Ranked[]): Seat[] {
   const rest = eligible.slice(1).filter((entry) => entry.traits.family !== first.traits.family)
   const otherProvider = leadingClass(rest).find((entry) => entry.candidate.providerID !== first.candidate.providerID)
   const second = otherProvider ?? rest[0]
-  // The second coder is optional, so it is not filled with a model the first one outclasses.
-  if (!second || (second.unsuited && !first.unsuited)) return [toSeat(first)]
+  // The second coder is optional, so it is never a small tier or an alias, whatever the first is.
+  if (!second || second.unsuited) return [toSeat(first)]
   const reason = second === otherProvider && second.reason === "available" ? "otherProvider" : second.reason
   return [toSeat(first), toSeat(second, reason)]
 }
@@ -465,7 +467,9 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
   }
   let draft = draftFor(suggestCoders(ranked.coder))
   const suitedReviewers = (team: DraftTeam) => team.qa.filter((seat) => !seat.entry.unsuited).length
-  if (draft.coder.length > 1 && suitedReviewers(draft) < AGENT_TEAM_MINIMUMS.qa) {
+  // Two coders the user picked themselves stay two coders: their pick is not moved to the panel.
+  const secondCoderIsOwnPick = draft.coder[1]?.entry.rolePick === true
+  if (draft.coder.length > 1 && !secondCoderIsOwnPick && suitedReviewers(draft) < AGENT_TEAM_MINIMUMS.qa) {
     // A second coder that uses up the reviewers costs the team its review, or leaves it to a small
     // tier. One coder with a panel checks the work; two coders without one only produce it twice.
     const reviewed = draftFor(draft.coder.slice(0, 1))
@@ -483,6 +487,14 @@ export function suggestAgentTeam(input: AgentTeamSuggestInput): AgentTeamSuggest
     draft = repairDraftTeam(draft, ranked, isRunnable)
     // A team the send would still skip is not a suggestion at all.
     if (!isRunnable(draft)) return { coder: [], qa: [] }
+    // With no panel to suggest, applying keeps the panel the user has. A suggested coder that
+    // cannot run that panel would leave a team the send skips, so the panel is left out and says why.
+    if (input.team && draft.coder.length > 0 && draft.qa.length === 0 && !draft.qaSkipped) {
+      const kept: AgentTeamState = { ...draftTeam(draft), qa: input.team.qa }
+      if (agentTeamBlockedReasonFor(kept, lead, canOrchestrate) === "coderCannotRunQa") {
+        draft = { ...draft, qaSkipped: "coderCannotRunQa" }
+      }
+    }
   }
   return {
     coder: draft.coder.map(toSuggested),
