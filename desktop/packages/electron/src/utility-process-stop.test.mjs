@@ -41,6 +41,31 @@ describe("utility process stop", () => {
     expect(child.pid).toBeUndefined()
   })
 
+  test("a force stop requested before spawn terminates the same handle once its PID is available", () => {
+    const { child, killProcess } = fixture()
+    child.pid = undefined
+    child.kill.mockReturnValue(false)
+    expect(forceStopUtilityProcess(child, { killProcess })).toBe(false)
+    forceStopUtilityProcess(child, { killProcess })
+    child.pid = 23456
+    child.emit("spawn")
+    expect(killProcess).toHaveBeenCalledExactlyOnceWith(23456, "SIGKILL")
+    expect(child.listenerCount("spawn")).toBe(0)
+    expect(child.listenerCount("exit")).toBe(0)
+  })
+
+  test("a failed spawn retires a deferred force stop without signaling another PID", () => {
+    const { child, killProcess } = fixture()
+    child.pid = undefined
+    forceStopUtilityProcess(child, { killProcess })
+    child.emit("exit", 1)
+    expect(child.listenerCount("spawn")).toBe(0)
+    expect(child.listenerCount("exit")).toBe(0)
+    child.pid = 23456
+    child.emit("spawn")
+    expect(killProcess).not.toHaveBeenCalled()
+  })
+
   test("still escalates when the stop message cannot be delivered", async () => {
     vi.useFakeTimers()
     const { child, killProcess } = fixture()
@@ -80,6 +105,7 @@ describe("utility process stop", () => {
     const { child, killProcess } = fixture()
     const stopping = gracefulStopServerProcess(child, { termTimeoutMs: 20, killTimeoutMs: 30 }, { killProcess })
     child.pid = undefined
+    child.emit("exit", 0)
     await vi.advanceTimersByTimeAsync(50)
     await stopping
     expect(killProcess).not.toHaveBeenCalled()

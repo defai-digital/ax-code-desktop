@@ -1,0 +1,45 @@
+{
+  "reviewer": "muse",
+  "round": "challenge",
+  "exit_code": 0,
+  "status": "completed",
+  "seconds": 25.83,
+  "command": [
+    "muse",
+    "exec",
+    "--model",
+    "muse-wonder-1.0",
+    "--prompt-file",
+    "/tmp/ax-desktop-webmcp-cli-20261112/muse-challenge-input.txt",
+    "--preset",
+    "empty",
+    "--disable-write",
+    "--disable-shell",
+    "--disable-web-tools",
+    "--disable-reminders",
+    "--disable-request-user-input",
+    "--no-foreign-personal-context",
+    "--no-session-log",
+    "--max-model-steps",
+    "1",
+    "--json"
+  ],
+  "tool_policy": "Tool-free advisory review",
+  "input": "muse-challenge-input.txt",
+  "input_sha256": "41d131d495a0e7258e8b58b41d3c303f78987e9ac4d2974f7535e7bae7fff2e7",
+  "output": "muse-challenge.md",
+  "output_sha256": "cdfb317e3412df0aed1ced09f5ff1698687f52f785f59ae970c39f568d8a2d3e",
+  "reported_model_usage": [
+    {
+      "model": "muse-wonder-1.0",
+      "input_tokens": 21653,
+      "cached_tokens": 0,
+      "output_tokens": 3047,
+      "reasoning_tokens": 2125,
+      "calls": 1
+    }
+  ],
+  "identity_limit": "CLI usage-reported model identity; advisory review, not independent attestation",
+  "verbatim_output_sha256": "cdfb317e3412df0aed1ced09f5ff1698687f52f785f59ae970c39f568d8a2d3e",
+  "output_normalization": "Trailing whitespace removed; wording unchanged"
+}

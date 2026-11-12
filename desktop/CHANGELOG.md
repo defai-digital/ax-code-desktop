@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
+- Honor force-stop requests made before an Electron utility process has spawned.
+- Keep unsaved pages reachable when they veto cleanup after native WebMCP initialization fails.
 - Force-stop stalled server utility processes on Electron 46, including when their shutdown IPC channel is closed.
 - Preserve WebMCP completion and cancellation responses when an older call responds before the new call's native acknowledgement.
 

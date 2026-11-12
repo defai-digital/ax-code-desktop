@@ -1,0 +1,7 @@
+{
+  "electron": "46.0.0-alpha.9",
+  "pidBeforeStop": "undefined",
+  "stopped": false,
+  "ready": true,
+  "survivedStop": true
+}

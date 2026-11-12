@@ -1,0 +1,10 @@
+{
+  "electron": "46.0.0-alpha.9",
+  "initialCreateRejected": true,
+  "vetoed": true,
+  "guestAlive": true,
+  "listedPanes": 0,
+  "livePanes": 1,
+  "nativeAvailable": null,
+  "error": null
+}

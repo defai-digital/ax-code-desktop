@@ -1,0 +1,44 @@
+{
+  "reviewer": "muse",
+  "status": "completed",
+  "exit_code": 0,
+  "seconds": 136.57,
+  "command": [
+    "muse",
+    "exec",
+    "--model",
+    "muse-wonder-1.0",
+    "--prompt-file",
+    "/tmp/ax-desktop-webmcp-cli-20261112/muse-input.txt",
+    "--preset",
+    "empty",
+    "--disable-write",
+    "--disable-shell",
+    "--disable-web-tools",
+    "--disable-reminders",
+    "--disable-request-user-input",
+    "--no-foreign-personal-context",
+    "--no-session-log",
+    "--max-model-steps",
+    "1",
+    "--json"
+  ],
+  "tool_policy": "Tool-free advisory review of an explicitly supplied source packet",
+  "input": "muse-input.txt",
+  "input_sha256": "31d7d479ddc69fd98c729a597bff9abd02d35be5b661fd49936293d90f4fa14e",
+  "output": "muse.md",
+  "output_sha256": "d322c3faf97c3aa94f1d709f582d925fdfac7280ee18bfda80e0b3d3c3064546",
+  "reported_model_usage": [
+    {
+      "model": "muse-wonder-1.0",
+      "input_tokens": 49260,
+      "cached_tokens": 0,
+      "output_tokens": 16172,
+      "reasoning_tokens": 13939,
+      "calls": 1
+    }
+  ],
+  "identity_limit": "CLI usage-reported model identity; advisory review, not independent attestation",
+  "verbatim_output_sha256": "0c1047966baabbd0912be342554e921f98369740fa664dad0a658b6e5c1737f5",
+  "output_normalization": "Trailing whitespace removed; wording unchanged"
+}

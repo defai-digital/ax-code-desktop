@@ -1,7 +1,7 @@
 "use strict"
 
 // Controlled engine qualification only. Never imported by the desktop runtime.
-const { app, BrowserWindow, WebContentsView } = require("electron")
+const { app, BrowserWindow, WebContentsView, session } = require("electron")
 const assert = require("node:assert/strict")
 const fs = require("node:fs")
 const http = require("node:http")
@@ -310,6 +310,43 @@ async function run() {
     report.checks[`adapterInterrupt${operation}`] = true
   }
   adapter.close()
+  // A controlled initialization failure must preserve a vetoing page with an
+  // addressable manual pane, rather than leaving an invisible pool entry.
+  const { createDesktopWebMcpBrowser } = require("../src/desktop-webmcp-browser.js")
+  const originalStart = NativeWebMcp.prototype.start
+  let failedGuest
+  NativeWebMcp.prototype.start = async function () {
+    failedGuest = this.contents
+    await failedGuest.executeJavaScript(
+      'window.onbeforeunload = event => { event.preventDefault(); event.returnValue = "" }; document.body.appendChild(document.createElement("input")).focus()',
+      true,
+    )
+    throw new Error("Controlled native initialization failure")
+  }
+  try {
+    const browser = createDesktopWebMcpBrowser({
+      BrowserWindow, WebContentsView, session, getRuntime: () => null, getAuthorization: () => "",
+    })
+    const retained = await browser.command(window.webContents, {
+      action: "create", directory: profile, sessionID: "ses_recovery", url: `${origin}/empty`,
+    })
+    assert.equal(retained.nativeAvailable, false)
+    assert.equal(retained.error, "operation-failed")
+    assert.equal(failedGuest.isDestroyed(), false)
+    const listed = await browser.command(window.webContents, { action: "list" })
+    assert.equal(listed.views.length, 1)
+    assert.equal(listed.views[0].id, retained.id)
+    const closing = { action: "close", id: retained.id }
+    const confirmation = await browser.command(window.webContents, closing)
+    assert.equal(confirmation.confirmationRequired, true)
+    await browser.command(window.webContents, { ...closing, closeConfirmation: confirmation.closeConfirmation })
+    await waitFor(() => failedGuest.isDestroyed(), "explicit recovery page disposal")
+    assert.equal(browser.poolStats().liveViews, 0)
+    report.checks.initializationVetoRecovery = true
+  } finally {
+    NativeWebMcp.prototype.start = originalStart
+    if (failedGuest && !failedGuest.isDestroyed()) failedGuest.close({ waitForBeforeUnload: false })
+  }
   report.passed = true
 }
 

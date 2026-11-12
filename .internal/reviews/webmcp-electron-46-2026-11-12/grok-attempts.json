@@ -1,0 +1,67 @@
+{
+  "cli_version": "grok 1.0.77",
+  "model_list_probe": "Authenticated; grok-4.7 and grok-4.7-build-fast listed as available",
+  "substantive_result_received": false,
+  "attempts": [
+    {
+      "attempt": "grok",
+      "requested_model": "grok-4.7",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 420.51,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free advisory review of an explicitly supplied source packet"
+    },
+    {
+      "attempt": "grok-retry",
+      "requested_model": "grok-4.7",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 240.53,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free advisory review"
+    },
+    {
+      "attempt": "grok-final",
+      "requested_model": "grok-4.7",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 180.67,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free advisory review with an isolated leader socket"
+    },
+    {
+      "attempt": "grok-fast",
+      "requested_model": "grok-4.7-build-fast",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 120.45,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free advisory review using an installed available model"
+    },
+    {
+      "attempt": "grok-single",
+      "requested_model": "grok-4.7-build-fast",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 90.82,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free advisory review using explicit single-turn invocation"
+    },
+    {
+      "attempt": "grok-tty",
+      "requested_model": "grok-4.7-build-fast",
+      "status": "timeout",
+      "exit_code": 143,
+      "seconds": 60.55,
+      "stdout_bytes": 0,
+      "stderr_bytes": 0,
+      "tool_policy": "Tool-free explicit single-turn review with TTY input"
+    }
+  ]
+}

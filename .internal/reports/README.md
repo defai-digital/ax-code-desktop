@@ -1,5 +1,8 @@
 # Internal reports
 
+- [WebMCP and Electron 46 CLI-assisted follow-up](BUGFIX-2026-11-12-webmcp-cli-follow-up.md): Grok/Muse consultation,
+  pre-spawn utility stop and failed-initialization page recovery, with reproduced evidence and regression tests.
+
 - [Electron 46 process and WebMCP race fixes](BUGFIX-2026-11-12-electron-46-webmcp.md): reproduced utility-process
   termination and early WebMCP response races, regression tests, and final candidate validation.
 

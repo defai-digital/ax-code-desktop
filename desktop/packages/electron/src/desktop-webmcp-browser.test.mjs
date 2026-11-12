@@ -2807,6 +2807,37 @@ test("a failed first create does not retain ownership of another window's profil
   }
 })
 
+test("a page that vetoes failed native initialization remains reachable for explicit disposal and retry", async () => {
+  const f = fixture()
+  const start = vi.spyOn(NativeWebMcp.prototype, "start").mockImplementationOnce(async function () {
+    const guest = this.contents
+    guest.emit("before-input-event", {}, { type: "keyDown" })
+    guest.close.mockImplementationOnce(() => guest.emit("will-prevent-unload", {}))
+    throw new Error("fixture setup failure")
+  })
+  try {
+    const { sender, status } = await f.create()
+    expect(status).toMatchObject({ nativeAvailable: false, error: "operation-failed" })
+    expect(await f.controller.command(sender, { action: "status", id: status.id })).toMatchObject({ visible: true })
+    const listed = await f.controller.command(sender, { action: "list" })
+    expect(listed.views).toContainEqual(expect.objectContaining({ id: status.id }))
+    expect(f.guests[0].isDestroyed()).toBe(false)
+    const args = { action: "clearProject", directory: "/tmp/project" }
+    const confirmation = await f.controller.command(sender, args)
+    expect(confirmation.confirmationRequired).toBe(true)
+    expect([...f.partitions.values()][0].clearStorageData).not.toHaveBeenCalled()
+    await f.controller.command(sender, { ...args, closeConfirmation: confirmation.closeConfirmation })
+    expect(f.guests[0].isDestroyed()).toBe(true)
+    const retried = await f.controller.command(sender, {
+      action: "create", directory: "/tmp/project", sessionID: "ses_fixture", url: "https://example.com/",
+    })
+    expect(retried).toMatchObject({ nativeAvailable: true, error: null })
+    expect(f.guests).toHaveLength(2)
+  } finally {
+    start.mockRestore()
+  }
+})
+
 test("a failed later create preserves a window's earlier profile ownership", async () => {
   const f = fixture()
   const first = await f.create()

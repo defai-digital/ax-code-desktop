@@ -8,7 +8,7 @@ const os = require("node:os")
 const path = require("node:path")
 const { once } = require("node:events")
 const { createNativeLocalizer, localizeMenuTemplate } = require("../src/native-localization")
-const { gracefulStopServerProcess } = require("../src/utility-process-stop")
+const { gracefulStopServerProcess, forceStopUtilityProcess } = require("../src/utility-process-stop")
 const manifest = require("../../../shared/locales.json")
 const locales = Object.keys(manifest.labels)
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), "ax-coder-electron-compatibility-"))
@@ -95,6 +95,21 @@ app
       clearTimeout(exitTimer)
       if (child.pid) process.kill(child.pid, "SIGKILL")
     }
+    const pendingChild = utilityProcess.fork(entry)
+    const pendingExit = once(pendingChild, "exit")
+    let pendingExitTimer
+    try {
+      forceStopUtilityProcess(pendingChild)
+      await Promise.race([
+        pendingExit,
+        new Promise((_, reject) => {
+          pendingExitTimer = setTimeout(() => reject(new Error("A stopped utility process spawned late")), 2000)
+        }),
+      ])
+    } finally {
+      clearTimeout(pendingExitTimer)
+      if (pendingChild.pid) process.kill(pendingChild.pid, "SIGKILL")
+    }
     console.log(
       JSON.stringify({
         electron: process.versions.electron,
@@ -106,6 +121,7 @@ app
         nativeMenus: locales.length,
         ptyRoundTrip: true,
         utilityProcessStop: true,
+        utilityPreSpawnStop: true,
         productionQualified: false,
       }),
     )

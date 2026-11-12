@@ -1159,8 +1159,20 @@ function createDesktopWebMcpBrowser({
       owner.contentView.removeChildView(view)
       entry.ready = true
     } catch (error) {
-      await close(entry)
-      throw new Error(`Native browser initialization failed: ${webMcpDisplayText(error instanceof Error ? error.message : "Unknown initialization failure")}`)
+      try {
+        await close(entry)
+      } catch {
+        if (!entry.closed && !contents.isDestroyed()) {
+          // A page may veto cleanup after native setup fails. Keep its manual
+          // controls and profile ownership reachable without enabling agent work.
+          entry.adapter.close()
+          if (entry.owner && !entry.owner.isDestroyed()) entry.owner.contentView.removeChildView(view)
+          entry.ready = true
+          entry.error = "operation-failed"
+        }
+      }
+      if (!entry.ready)
+        throw new Error(`Native browser initialization failed: ${webMcpDisplayText(error instanceof Error ? error.message : "Unknown initialization failure")}`)
     } finally {
       initializing.delete(sender.id)
       const selected = views.get(shown.get(sender.id))
