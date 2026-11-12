@@ -559,8 +559,10 @@ type SessionUIState = {
       force?: boolean
       /**
        * Keep the target directory's work mode. A stale draft target corrected for the user is not a
-       * project switch, so it must not reset the chip the user set. Automatic or background callers
-       * MUST pass `true`: resetting is the default, and it is only correct for a user's own switch.
+       * project switch, so it must not reset the chip the user set. The mode is stored per
+       * directory, so a correction that points at a different directory shows that one's saved mode.
+       * Automatic or background callers MUST pass `true`: resetting is the default, and it is only
+       * correct for a user's own switch.
        */
       preserveWorkMode?: boolean
     },

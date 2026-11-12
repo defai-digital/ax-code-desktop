@@ -4185,7 +4185,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       return
     }
     // A target the branch list no longer offers is re-pointed at the project root. That is a
-    // correction of a stale target, not the user switching project, so it leaves the chip alone.
+    // correction of a stale target, not the user switching project, so it does not reset the chip.
+    // The mode is stored per directory, so a correction that changes directory shows the corrected
+    // directory's own saved mode; a correction that stays in it keeps the mode the user set.
     setNewSessionDraftTarget(
       {
         projectId: selectedDraftProject.id,
