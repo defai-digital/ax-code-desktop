@@ -370,6 +370,58 @@ describe("agent team send routing", () => {
     expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
   })
 
+  test("re-pointing a stale draft target leaves the directory's work mode alone", () => {
+    // The composer re-points a target the branch list no longer offers at the project root while
+    // the draft is open. That is a correction, not the user switching project, so the chip keeps
+    // the mode the user set instead of dropping back to Agent.
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj", preserveWorkMode: true })
+
+    useSessionUIStore
+      .getState()
+      .setNewSessionDraftTarget({ projectId: "proj", directoryOverride: "/proj" }, { preserveWorkMode: true })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
+  })
+
+  test("the draft kept open while a session is created leaves the mode alone", () => {
+    // ChatContainer opens this generic draft mid-send, with both flags: it keeps the composer
+    // mounted, so it must keep the chip too instead of reverting the user's Council pick.
+    useWorkModeStore.getState().setMode("/proj", "council")
+
+    useSessionUIStore
+      .getState()
+      .openNewSessionDraft({ directoryOverride: "/proj", preserveLifecycleRevision: true, preserveWorkMode: true })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
+  })
+
+  test("a correction that changes the target adopts the corrected directory's own mode", () => {
+    // The chip is per directory: a stale worktree target re-pointed at the project root shows the
+    // root's saved mode, and neither directory's stored mode is rewritten by the correction.
+    useWorkModeStore.getState().setMode("/proj", "arena")
+    useWorkModeStore.getState().setMode("/wt", "council")
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/wt", preserveWorkMode: true })
+
+    useSessionUIStore
+      .getState()
+      .setNewSessionDraftTarget({ projectId: "proj", directoryOverride: "/proj" }, { preserveWorkMode: true })
+
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("arena")
+    expect(useWorkModeStore.getState().getMode("/wt")).toBe("council")
+  })
+
+  test("switching project on a new-chat draft still starts the destination in Agent", () => {
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useWorkModeStore.getState().setMode("/other", "arena")
+    useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj", preserveWorkMode: true })
+
+    useSessionUIStore.getState().setNewSessionDraftTarget({ projectId: "other", directoryOverride: "/other" })
+
+    expect(useWorkModeStore.getState().getMode("/other")).toBe("agent")
+    expect(useWorkModeStore.getState().getMode("/proj")).toBe("council")
+  })
+
   test("Agent work mode on a CLI model still sends: only the fan-out needs the runtime tools", async () => {
     await send("fix the login bug", { lead: CLI_LEAD })
 

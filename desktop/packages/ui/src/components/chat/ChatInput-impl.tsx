@@ -4178,10 +4178,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (valid) {
       return
     }
-    setNewSessionDraftTarget({
-      projectId: selectedDraftProject.id,
-      directoryOverride: selectedDraftProject.path,
-    })
+    // A target the branch list no longer offers is re-pointed at the project root. That is a
+    // correction of a stale target, not the user switching project, so it leaves the chip alone.
+    setNewSessionDraftTarget(
+      {
+        projectId: selectedDraftProject.id,
+        directoryOverride: selectedDraftProject.path,
+      },
+      { preserveWorkMode: true },
+    )
   }, [
     draftBranchItems,
     newSessionDraft?.bootstrapPendingDirectory,
