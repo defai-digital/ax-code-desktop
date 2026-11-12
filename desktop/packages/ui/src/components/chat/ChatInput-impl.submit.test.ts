@@ -420,6 +420,26 @@ describe("a Council or Arena send refused for its model", () => {
     expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
   })
 
+  test("the offer does nothing once the draft points at another project", async () => {
+    const h = createHarness("", { attachments: [] })
+    h.messageRef.current = "rate this module"
+    h.dependencies.workModeBlockedReasonOfError = workModeBlockedReasonOfError
+    h.sent.mockRejectedValueOnce(
+      markWorkModeBlockedError(new Error("Council cannot run on this model"), "noToolCalling"),
+    )
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+    await vi.waitFor(() => expect(h.toastError).toHaveBeenCalled())
+    // Still a draft with the same text, so only the target tells the two requests apart.
+    h.state.newSessionDraft.selectedProjectId = "project-b"
+    h.state.newSessionDraft.directoryOverride = "/projects/b"
+
+    const [, data] = h.toastError.mock.calls[0] as [string, { action: { onClick: () => void } }]
+    data.action.onClick()
+
+    expect(h.handleSubmitRef.current).not.toHaveBeenCalled()
+  })
+
   test("offers nothing for a CLI model, which can never receive the tools", async () => {
     const h = await refusedSend("cliLead")
 

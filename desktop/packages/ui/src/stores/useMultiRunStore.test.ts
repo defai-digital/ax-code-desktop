@@ -158,11 +158,15 @@ vi.doMock("./useDirectoryStore", () => ({
   },
 }))
 
+let activeProjectId = "project-1"
 vi.doMock("./useProjectsStore", () => ({
   useProjectsStore: {
     getState: () => ({
-      activeProjectId: "project-1",
-      projects: [{ id: "project-1", path: "/repo" }],
+      activeProjectId,
+      projects: [
+        { id: "project-1", path: "/repo" },
+        { id: "project-2", path: "/other" },
+      ],
     }),
   },
 }))
@@ -495,6 +499,32 @@ describe("useMultiRunStore dispatch", () => {
         expect.objectContaining({ content: "/council rate the API", providerID: "claude-code" }),
       )
     } finally {
+      workModeSendRefusalMessageMock.mockImplementation(async () => null)
+    }
+  })
+
+  test("a project switch while the prompt is checked does not move the run to the new project", async () => {
+    // The check awaits the snippet expansion and the command catalog. Reading the active project
+    // after it created the run, and its worktrees, in whatever project was selected by then.
+    const { useMultiRunStore } = await import("./useMultiRunStore")
+    routeMessageMock.mockClear()
+    workModeSendRefusalMessageMock.mockImplementation(async () => {
+      activeProjectId = "project-2"
+      return null
+    })
+
+    try {
+      const result = await useMultiRunStore.getState().createMultiRun({
+        name: "Fix thing",
+        isolateRuns: false,
+        groups: [{ prompt: "Fix it", models: [{ providerID: "openai", modelID: "gpt-5" }] }],
+      } as never)
+
+      expect(result?.sessionIds).toHaveLength(1)
+      expect(routeMessageMock).toHaveBeenCalledTimes(1)
+      expect(routeMessageMock).toHaveBeenCalledWith(expect.objectContaining({ directory: "/repo" }))
+    } finally {
+      activeProjectId = "project-1"
       workModeSendRefusalMessageMock.mockImplementation(async () => null)
     }
   })

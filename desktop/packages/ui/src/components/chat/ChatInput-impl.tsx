@@ -2495,9 +2495,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 // The override is for the refused request only. A toast outlives it: the user may
                 // have moved to another chat, or replaced the restored text, since it appeared.
                 const live = useSessionUIStore.getState()
+                // A draft retargeted to another project is another request too.
                 const sameTarget =
                   live.currentSessionId === currentSessionId &&
-                  Boolean(live.newSessionDraft?.open) === newSessionDraftOpen
+                  Boolean(live.newSessionDraft?.open) === newSessionDraftOpen &&
+                  isDraftTargetCurrent()
                 const sameRequest = queuedOnly || messageRef.current === consumedInputSnapshot
                 if (!sameTarget || !sameRequest) return
                 void handleSubmitRef.current({ ...options, allowUnverifiedToolCalling: true })

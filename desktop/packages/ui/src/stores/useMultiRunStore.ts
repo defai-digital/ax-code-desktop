@@ -180,6 +180,14 @@ export const useMultiRunStore = create<MultiRunStore>()(
         set({ isLoading: true, error: null })
 
         try {
+          // The project the run was started in, read before anything is awaited: the checks below
+          // can outlive a project switch, and the run must not be created in the project switched to.
+          const project = resolveActiveProject()
+          if (!project) {
+            set({ error: "Select a project", isLoading: false })
+            return null
+          }
+
           // A run is an Agent prompt, but a prompt that is itself `/council` or `/arena` needs a
           // model that can call that tool. Ask before any session or worktree exists: a refusal at
           // send time left an empty run behind and put its error in the composer of the open chat.
@@ -200,12 +208,6 @@ export const useMultiRunStore = create<MultiRunStore>()(
                 return null
               }
             }
-          }
-
-          const project = resolveActiveProject()
-          if (!project) {
-            set({ error: "Select a project", isLoading: false })
-            return null
           }
 
           const directory = project.path
