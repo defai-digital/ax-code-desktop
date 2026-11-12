@@ -2311,9 +2311,12 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // (Agent when it recorded none), not the one the composer is in now. A send that folds queued
     // entries and the composer text together uses their mode only when they all agree; mixed
     // modes go out as the plain prompts they are, so nothing is remapped the user did not ask for.
+    // The composer joins that merge only when it adds text to the send: a file or a review comment
+    // with no typed text is not a prompt, so its chip must not downgrade a queued entry's mode.
+    const composerContributesText = inputSnapshot.message.trim().length > 0 || hasDrafts
     const mergedWorkModes = [
       ...(consumesQueue ? queuedMessagesToSend.map((entry) => parseWorkMode(entry.sendConfig?.workMode)) : []),
-      ...(!queuedOnly && inputSnapshot.hasContent ? [submittedWorkMode] : []),
+      ...(!queuedOnly && composerContributesText ? [submittedWorkMode] : []),
     ]
     const sendWorkMode: WorkModeId =
       mergedWorkModes.length > 0 && mergedWorkModes.every((mode) => mode === mergedWorkModes[0])
@@ -4178,10 +4181,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (valid) {
       return
     }
-    setNewSessionDraftTarget({
-      projectId: selectedDraftProject.id,
-      directoryOverride: selectedDraftProject.path,
-    })
+    // A target the branch list no longer offers is re-pointed at the project root. That is a
+    // correction of a stale target, not the user switching project, so it leaves the chip alone.
+    setNewSessionDraftTarget(
+      {
+        projectId: selectedDraftProject.id,
+        directoryOverride: selectedDraftProject.path,
+      },
+      { preserveWorkMode: true },
+    )
   }, [
     draftBranchItems,
     newSessionDraft?.bootstrapPendingDirectory,

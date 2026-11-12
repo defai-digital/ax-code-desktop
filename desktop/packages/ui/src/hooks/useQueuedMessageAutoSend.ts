@@ -7,7 +7,8 @@ import {
   type QueuedMessage,
 } from "@/stores/messageQueueStore"
 import { toast } from "@/components/ui"
-import { formatMessage, useI18nStore } from "@/lib/i18n/store"
+import { formatMessage, useI18nStore, type I18nDictionary } from "@/lib/i18n/store"
+import { workModeBlockedReasonOfError } from "@/lib/workMode"
 import { ascendingId } from "@/lib/ax-code/client"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
@@ -247,6 +248,20 @@ export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean })
   return { releaseClaim: true, restoreEntry: !input.queueHasEntry }
 }
 
+/**
+ * What to tell the user when a queued entry's send failed.
+ *
+ * A work-mode refusal carries the same reason the composer shows, and the chip still offers
+ * "Send anyway" for the catalog case, so reporting the generic failure hid why the entry did not
+ * go out at all.
+ */
+export function queuedAutoSendFailureMessage(error: unknown, dictionary: I18nDictionary): string {
+  if (workModeBlockedReasonOfError(error) && error instanceof Error && error.message.trim()) {
+    return error.message
+  }
+  return formatMessage(dictionary, "chat.queuedMessage.sendFailed")
+}
+
 export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?: boolean }) {
   const enabled = typeof enabledOrOptions === "boolean" ? enabledOrOptions : (enabledOrOptions?.enabled ?? true)
   const queuedMessages = useMessageQueueStore((state) => state.queuedMessages)
@@ -433,7 +448,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         // The entry is restored below and waits for a manual retry from the
         // chip; without a visible notice the user has no way to know the
         // send failed. A stable toast id dedupes a flapping failure.
-        toast.error(formatMessage(useI18nStore.getState().dictionary, "chat.queuedMessage.sendFailed"), {
+        toast.error(queuedAutoSendFailureMessage(error, useI18nStore.getState().dictionary), {
           id: "queued-auto-send-failed",
         })
         // Let this or another window try again.

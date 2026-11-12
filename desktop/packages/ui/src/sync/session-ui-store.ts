@@ -555,7 +555,15 @@ type SessionUIState = {
   closeNewSessionDraft: () => void
   setNewSessionDraftTarget: (
     target: { projectId?: string | null; selectedProjectId?: string | null; directoryOverride?: string | null },
-    options?: { force?: boolean },
+    options?: {
+      force?: boolean
+      /**
+       * Keep the target directory's work mode. A stale draft target corrected for the user is not a
+       * project switch, so it must not reset the chip the user set. Automatic or background callers
+       * MUST pass `true`: resetting is the default, and it is only correct for a user's own switch.
+       */
+      preserveWorkMode?: boolean
+    },
   ) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
   acknowledgeSessionAbort: (sessionId: string) => void
@@ -1009,7 +1017,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     })
   },
 
-  setNewSessionDraftTarget: (target) => {
+  setNewSessionDraftTarget: (target, options) => {
     let nextDirectory: string | null = null
     set((s) => {
       nextDirectory = normalizePath(target.directoryOverride ?? s.newSessionDraft.directoryOverride)
@@ -1021,8 +1029,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         },
       }
     })
-    // Switching project on a new-chat draft should not inherit sticky council/arena.
-    useWorkModeStore.getState().resetToAgent(nextDirectory)
+    // Switching project on a new-chat draft should not inherit sticky council/arena. Correcting a
+    // stale target for the user is not a switch: it must leave the chip as the user set it.
+    if (!options?.preserveWorkMode) useWorkModeStore.getState().resetToAgent(nextDirectory)
     void activateConfigForDirectory(nextDirectory)
   },
 

@@ -131,6 +131,7 @@ function createHarness(command: string, options: HarnessOptions = {}) {
     sanitizeAttachmentsForSend: (attachments?: TestAttachment[]) => attachments ?? [],
     sendableAttachedFiles: files,
     attachedFiles: files,
+    hasDrafts: false,
     inlineCommentSessionKey: null,
     linkedIssue: null,
     linkedPr: null,
@@ -467,6 +468,25 @@ describe("the work mode a send is committed under", () => {
     await submit()
 
     expect(sentMode(h)).toBe("agent")
+  })
+
+  test("an attachment alone does not take a queued Council entry out of its mode", async () => {
+    // The merge joins the composer only when it adds text: a file with no text is not a prompt, so
+    // it must not mix an Agent chip into a Council queued entry and downgrade the whole send.
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      message: "",
+      attachments: [{ id: "attachment", name: "notes.txt", mime: "text/plain", data: "notes" }],
+      queueEntries: [
+        { id: "queued-1", content: "rate the parser", createdAt: 1, sendConfig: { workMode: "council" } },
+      ],
+    })
+    h.dependencies.composerWorkModeForSend = () => "agent"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(sentMode(h)).toBe("council")
   })
 
   test("queued entries and composer text that share a mode are sent in it", async () => {

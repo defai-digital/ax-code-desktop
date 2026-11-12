@@ -657,8 +657,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
       // surface blank (and the composer gone) until the request settles. Keep a generic
       // draft open during that window, but do not move the lifecycle revision: createSession
       // restores the original draft only when it can see exactly the close's +1. On success
-      // selecting the created session closes this generic draft.
-      openNewSessionDraft(draftCreateInFlight ? { preserveLifecycleRevision: true } : undefined)
+      // selecting the created session closes this generic draft. This draft is opened for the
+      // user mid-send, so it must also keep the work mode chip they set.
+      openNewSessionDraft(draftCreateInFlight ? { preserveLifecycleRevision: true, preserveWorkMode: true } : undefined)
     }
   }, [autoOpenDraft, currentSessionId, draftOpen, draftCreateInFlight, openNewSessionDraft])
 
