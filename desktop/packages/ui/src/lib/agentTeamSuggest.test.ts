@@ -5,7 +5,12 @@ import {
   type AgentTeamCatalogProvider,
   type AgentTeamModelRef,
 } from "./agentTeam"
-import { applyAgentTeamSuggestion, suggestAgentTeam, type AgentTeamCandidate } from "./agentTeamSuggest"
+import {
+  agentTeamModelTraits,
+  applyAgentTeamSuggestion,
+  suggestAgentTeam,
+  type AgentTeamCandidate,
+} from "./agentTeamSuggest"
 
 function candidate(providerID: string, modelID: string, extra: Partial<AgentTeamCandidate> = {}): AgentTeamCandidate {
   return { providerID, modelID, toolCall: true, reasoning: false, unavailable: false, ...extra }
@@ -113,13 +118,25 @@ describe("suggestAgentTeam", () => {
 
   test("QA is not suggested when fewer than two reviewers remain", () => {
     const suggestion = suggestAgentTeam({
-      candidates: [candidate("kimi", "k3"), candidate("grok", "g47"), candidate("zhipu", "glm")],
+      candidates: [candidate("kimi", "k3"), candidate("grok", "g47")],
       favorites: [],
       recents: [],
     })
 
     expect(suggestion.coder).toHaveLength(2)
     expect(suggestion.qa).toEqual([])
+  })
+
+  test("a second coder gives way when it would leave the team without a review panel", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [candidate("kimi", "k3"), candidate("grok", "g47"), candidate("zhipu", "glm")],
+      favorites: [ref("kimi", "k3")],
+      recents: [],
+    })
+
+    // Three models cannot fill an arena and a council: one coder with two reviewers is the team.
+    expect(ids(suggestion.coder)).toEqual(["kimi/k3"])
+    expect(ids(suggestion.qa)).toEqual(["grok/g47", "zhipu/glm"])
   })
 
   test("with no coder available the composer model is the author and is kept out of QA", () => {
@@ -151,6 +168,238 @@ describe("suggestAgentTeam", () => {
 
   test("an empty catalog suggests nothing", () => {
     expect(suggestAgentTeam({ candidates: [], favorites: [], recents: [] })).toEqual({ coder: [], qa: [] })
+  })
+})
+
+describe("role-aware suggestions", () => {
+  const reasons = (models: readonly { reason: string }[]) => models.map((model) => model.reason)
+  // A gateway and a local engine as users have them: a router alias, fast tiers, a coding model in
+  // two quantizations, and general reasoning models.
+  const MIXED = [
+    candidate("gateway", "coding-dev-auto"),
+    candidate("gateway", "glm-5.3-flash", { reasoning: true }),
+    candidate("gateway", "MiniMax-M3.1-Flash", { reasoning: true }),
+    candidate("gateway", "glm-5.3", { reasoning: true }),
+    candidate("gateway", "k3.1-pro", { reasoning: true }),
+    candidate("other", "nvidia/nemotron-3-ultra-550b-a55b", { reasoning: true }),
+    candidate("ax-engine", "tiel-coder-35b-axq-mxfp4"),
+    candidate("ax-engine", "tiel-coder-35b-axq-mxfp8"),
+  ]
+
+  test("with no history a coding model codes and reasoning models review", () => {
+    const suggestion = suggestAgentTeam({ candidates: MIXED, favorites: [], recents: [] })
+
+    expect(ids(suggestion.coder)).toEqual(["ax-engine/tiel-coder-35b-axq-mxfp8", "gateway/glm-5.3"])
+    expect(reasons(suggestion.coder)).toEqual(["codingModel", "otherProvider"])
+    expect(ids(suggestion.qa)).toEqual(["other/nvidia/nemotron-3-ultra-550b-a55b", "gateway/k3.1-pro"])
+    expect(reasons(suggestion.qa)).toEqual(["reasoningModel", "reasoningModel"])
+  })
+
+  test("a router alias and fast tiers are seated only when nothing else is left", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("gateway", "coding-dev-auto", { releaseDate: "2026-09-01" }),
+        candidate("gateway", "glm-5.3-flash", { reasoning: true, releaseDate: "2026-09-01" }),
+        candidate("gateway", "glm-5.3", { releaseDate: "2025-01-01" }),
+        candidate("gateway", "k3.1-pro", { releaseDate: "2025-01-01" }),
+        candidate("gateway", "deepseek-v4", { releaseDate: "2025-01-01" }),
+      ],
+      favorites: [],
+      recents: [],
+    })
+
+    // Newer, reasoning-flagged and alphabetically first: the old order led with the alias and the
+    // flash tier. Three models suit the roles, so one codes and two review rather than two coding
+    // with the flash tier and the alias as their panel.
+    expect(ids(suggestion.coder)).toEqual(["gateway/deepseek-v4"])
+    expect(ids(suggestion.qa)).toEqual(["gateway/glm-5.3", "gateway/k3.1-pro"])
+  })
+
+  test("a fast tier fills a seat the panel needs to run, and no optional one", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("a", "alpha"),
+        candidate("b", "beta"),
+        candidate("c", "gamma-flash"),
+        candidate("d", "delta-mini"),
+      ],
+      favorites: [],
+      recents: [],
+    })
+
+    // Two suited models cannot fill a panel after a coder is seated, so the arena stays and the
+    // panel reaches its minimum of two with the fast tiers; nothing asks for a third.
+    expect(ids(suggestion.coder)).toEqual(["a/alpha", "b/beta"])
+    expect(ids(suggestion.qa)).toEqual(["c/gamma-flash", "d/delta-mini"])
+    expect(reasons(suggestion.qa)).toEqual(["otherProvider", "otherProvider"])
+  })
+
+  test("a favorite fast-tier model does not take a seat from a model that suits the role", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: MIXED,
+      favorites: [ref("gateway", "MiniMax-M3.1-Flash"), ref("gateway", "k3.1-pro")],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["ax-engine/tiel-coder-35b-axq-mxfp8", "gateway/k3.1-pro"])
+    expect(ids([...suggestion.coder, ...suggestion.qa])).not.toContain("gateway/MiniMax-M3.1-Flash")
+  })
+
+  test("role fit comes before a composer-wide favorite, which then orders the models that fit", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: MIXED,
+      favorites: [ref("gateway", "glm-5.3"), ref("gateway", "k3.1-pro")],
+      recents: [],
+    })
+
+    // The coding model codes; the favorites are general models and take the next coder seat in the
+    // user's order. Favorites are not role statements, so neither displaces the coding model.
+    expect(ids(suggestion.coder)).toEqual(["ax-engine/tiel-coder-35b-axq-mxfp8", "gateway/glm-5.3"])
+    expect(reasons(suggestion.coder)).toEqual(["codingModel", "favorite"])
+    // Among reasoning reviewers the remaining favorite is seated with the one from another provider.
+    expect(ids(suggestion.qa)).toEqual(["other/nvidia/nemotron-3-ultra-550b-a55b", "gateway/k3.1-pro"])
+    expect(reasons(suggestion.qa)).toEqual(["reasoningModel", "reasoningModel"])
+  })
+
+  test("a vendor coding CLI counts as a coder whatever its model is called", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("gateway", "glm-5.3", { reasoning: true }),
+        candidate("gateway", "k3.1-pro", { reasoning: true }),
+        candidate("other", "nemotron", { reasoning: true }),
+        candidate("claude-code", "opus", { reasoning: true }),
+      ],
+      favorites: [],
+      recents: [],
+      lead: ref("gateway", "glm-5.3"),
+    })
+
+    expect(ids(suggestion.coder)[0]).toBe("claude-code/opus")
+    expect(reasons(suggestion.coder)[0]).toBe("codingModel")
+    expect(ids(suggestion.qa)).not.toContain("claude-code/opus")
+  })
+
+  test("the user's own picks for a role come first and stay in that role", () => {
+    const team = {
+      coder: { enabled: true, models: [ref("gateway", "glm-5.3-flash")] },
+      // Unticked, but still the user's statement of what reviews well.
+      qa: { enabled: false, models: [ref("gateway", "k3.1-pro"), ref("gateway", "glm-5.3")] },
+    }
+    const suggestion = suggestAgentTeam({
+      candidates: MIXED,
+      // Favorites would otherwise make the QA picks the coders.
+      favorites: [ref("gateway", "k3.1-pro"), ref("gateway", "glm-5.3")],
+      recents: [],
+      team,
+    })
+
+    // A fast tier the user chose as coder is their call, not a name to second-guess.
+    expect(ids(suggestion.coder)).toEqual(["gateway/glm-5.3-flash", "ax-engine/tiel-coder-35b-axq-mxfp8"])
+    expect(reasons(suggestion.coder)).toEqual(["rolePick", "codingModel"])
+    expect(ids(suggestion.qa).slice(0, 2)).toEqual(["gateway/k3.1-pro", "gateway/glm-5.3"])
+    expect(reasons(suggestion.qa).slice(0, 2)).toEqual(["rolePick", "rolePick"])
+  })
+
+  test("a team the user filled by hand is suggested back unchanged", () => {
+    const team = {
+      coder: { enabled: true, models: [ref("gateway", "k3.1-pro"), ref("ax-engine", "tiel-coder-35b-axq-mxfp4")] },
+      qa: {
+        enabled: true,
+        models: [ref("gateway", "glm-5.3"), ref("other", "nvidia/nemotron-3-ultra-550b-a55b")],
+      },
+    }
+    const suggestion = suggestAgentTeam({ candidates: MIXED, favorites: [], recents: [], team })
+
+    expect(ids(suggestion.coder)).toEqual(ids(team.coder.models))
+    expect(ids(suggestion.qa).slice(0, 2)).toEqual(ids(team.qa.models))
+    // The quantization the user chose stands for the model, not the wider one.
+    expect(ids(suggestion.qa)).not.toContain("ax-engine/tiel-coder-35b-axq-mxfp8")
+  })
+
+  test("two quantizations of one model are never both coders, nor author and reviewer", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("ax-engine", "tiel-coder-35b-axq-mxfp4"),
+        candidate("ax-engine", "tiel-coder-35b-axq-mxfp8"),
+        candidate("gateway", "glm-5.3"),
+        candidate("gateway", "k3.1-pro"),
+      ],
+      favorites: [ref("ax-engine", "tiel-coder-35b-axq-mxfp4"), ref("ax-engine", "tiel-coder-35b-axq-mxfp8")],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["ax-engine/tiel-coder-35b-axq-mxfp4"])
+    expect(ids(suggestion.qa)).toEqual(["gateway/glm-5.3", "gateway/k3.1-pro"])
+  })
+
+  test("another provider is preferred only among models that suit the role", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [candidate("a", "c1"), candidate("a", "c2"), candidate("b", "nano")],
+      favorites: [ref("a", "c1"), ref("a", "c2")],
+      recents: [],
+      lead: ref("a", "c1"),
+    })
+
+    // The old order seated `b/nano` second for being behind another provider.
+    expect(ids(suggestion.coder)).toEqual(["a/c1", "a/c2"])
+    expect(suggestion.qa).toEqual([])
+  })
+
+  test("a context window too small for the work ranks after one that is not stated", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("a", "alpha", { contextLimit: 8_000 }),
+        candidate("a", "beta"),
+        candidate("a", "gamma", { contextLimit: 200_000 }),
+      ],
+      favorites: [],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)).toEqual(["a/beta"])
+    expect(ids(suggestion.qa)).toEqual(["a/gamma", "a/alpha"])
+  })
+
+  test("the display name carries the same hints as the id", () => {
+    const suggestion = suggestAgentTeam({
+      candidates: [
+        candidate("a", "m-1", { name: "Alpha Flash" }),
+        candidate("a", "m-2", { name: "Beta Coder" }),
+        candidate("a", "m-3", { name: "Gamma" }),
+        candidate("a", "m-4", { name: "Delta" }),
+      ],
+      favorites: [],
+      recents: [],
+    })
+
+    expect(ids(suggestion.coder)[0]).toBe("a/m-2")
+    expect(ids([...suggestion.coder, ...suggestion.qa])).not.toContain("a/m-1")
+  })
+
+  test("traits are read from whole tokens and ignore case, namespace and packaging", () => {
+    expect(agentTeamModelTraits("tiel-coder-35b-axq-mxfp4")).toMatchObject({
+      family: "tiel-coder-35b",
+      coding: true,
+      light: false,
+      router: false,
+      precision: 4,
+    })
+    expect(agentTeamModelTraits("tiel-coder-35b-axq-mxfp8").family).toBe("tiel-coder-35b")
+    expect(agentTeamModelTraits("NVIDIA/Nemotron-3-Ultra").family).toBe("nemotron-3-ultra")
+    expect(agentTeamModelTraits("llama-3:q4_k_m").family).toBe("llama-3")
+    expect(agentTeamModelTraits("MiniMax-M3.1-Flash").light).toBe(true)
+    expect(agentTeamModelTraits("m", "Claude Haiku 5.5").light).toBe(true)
+    expect(agentTeamModelTraits("coding-dev-auto")).toMatchObject({ coding: true, router: true })
+    // Substrings are not hints: `minimax` is not `mini`, `encoder` is not `coder`, `autumn` is not `auto`.
+    expect(agentTeamModelTraits("minimax-encoder-autumn")).toMatchObject({ coding: false, light: false, router: false })
+    expect(agentTeamModelTraits("glm-5.3").precision).toBe(Number.POSITIVE_INFINITY)
+    // An id that is nothing but packaging keeps itself rather than collapsing to an empty family.
+    expect(agentTeamModelTraits("gguf").family).toBe("gguf")
+  })
+
+  test("role-aware order is the same whatever the catalog order", () => {
+    const expected = suggestAgentTeam({ candidates: MIXED, favorites: [], recents: [] })
+    expect(suggestAgentTeam({ candidates: [...MIXED].reverse(), favorites: [], recents: [] })).toEqual(expected)
   })
 })
 
@@ -188,7 +437,8 @@ describe("suggestions that can actually run", () => {
     const suggestion = suggestAgentTeam({ candidates: CLI_HEAVY, favorites: [], recents: [], lead: CLI_LEAD })
 
     expect(ids(suggestion.coder)).toEqual(["claude-code/fable", "zhipu/glm"])
-    expect(suggestion.qa.map((model) => model.providerID)).toEqual(["codex-cli", "dsh-cli", "grok-build-cli"])
+    // `codex` is named as a coding model, so the general models are seated as reviewers before it.
+    expect(suggestion.qa.map((model) => model.providerID)).toEqual(["dsh-cli", "grok-build-cli", "kimi-cli"])
     expect(blockedReason(CLI_HEAVY, CLI_LEAD)).toBeNull()
   })
 
