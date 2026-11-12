@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import type { Agent } from "@defai-digital/ax-code-sdk/v2"
 import type { QueuedMessage } from "../stores/messageQueueStore"
+import { markWorkModeBlockedError } from "@/lib/workMode"
 
 const RECENT_ABORT_WINDOW_MS_DELTA = 500
 
@@ -11,6 +12,7 @@ const claimHookRef: { current: ClaimHook } = { current: null }
 let visibleAgents: Agent[] = []
 const sendMessageCalls: unknown[][] = []
 let sendShouldFail = false
+let sendFailure: Error | null = null
 
 /** Options argument of the captured sendMessage call (content is index 0). */
 const sendOptionsOf = (index: number) => sendMessageCalls[index]?.[9] as { sessionId?: string; messageId?: string }
@@ -52,6 +54,7 @@ vi.doMock("@/sync/session-ui-store", () => ({
     getState: () => ({
       sendMessage: (...args: unknown[]) => {
         sendMessageCalls.push(args)
+        if (sendFailure) return Promise.reject(sendFailure)
         return sendShouldFail ? Promise.reject(new Error("send failed")) : Promise.resolve()
       },
       sessionAbortFlags: mockSessionAbortFlags,
@@ -412,6 +415,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     renderTick = 0
     sendMessageCalls.length = 0
     sendShouldFail = false
+    sendFailure = null
     toastErrorMock.mockClear()
     mockSessionAbortFlags.clear()
     claimHookRef.current = null
@@ -591,6 +595,25 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     // The entry is restored for a manual retry, and the failure is visible
     // instead of console-only.
     expect(toastErrorMock).toHaveBeenCalledWith("chat.queuedMessage.sendFailed", { id: "queued-auto-send-failed" })
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
+  })
+
+  test("a refused queued send reports the refusal, not a generic failure", async () => {
+    // A work-mode refusal carries the reason the composer shows, and the chip still offers
+    // "Send anyway" for the catalog case. Reporting "failed" hid why the entry did not go out.
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1", workMode: "council" },
+    })
+
+    sendFailure = markWorkModeBlockedError(new Error("Council needs a non-CLI model"), "cliLead")
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(toastErrorMock).toHaveBeenCalledWith("Council needs a non-CLI model", { id: "queued-auto-send-failed" })
+    // The entry still waits for a manual retry from the chip, which is where the reason shows.
     expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
   })
 
@@ -788,6 +811,7 @@ describe("useQueuedMessageAutoSend cross-window claim", () => {
     renderTick = 0
     sendMessageCalls.length = 0
     sendShouldFail = false
+    sendFailure = null
     claimHookRef.current = null
     mockSessionAbortFlags.clear()
     statusState.current = { "session-a": { type: "busy" } }
