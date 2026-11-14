@@ -49,3 +49,18 @@ desktop/packages/electron/.dev-bin/
 
 # Local agent guidance. Keep the working copy; do not publish it.
 /AGENTS.md
+
+# Internal product records stay on disk. Do not publish them.
+# Release scripts and the extraction map stay tracked because CI reads them.
+/WX15-HANDOFF.md
+/.internal/README.md
+/.internal/prd/
+/.internal/adr/
+/.internal/spec/
+/.internal/plans/
+/.internal/reviews/
+/.internal/reference/
+/.internal/reports/*
+!/.internal/reports/extraction/
+/.internal/reports/extraction/*
+!/.internal/reports/extraction/commit-map.txt

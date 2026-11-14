@@ -6,9 +6,6 @@ requests, and opens the official viewer window. This page is the routing contrac
 repository: it records where status, problems, design, and evidence live, and deliberately does not copy volatile
 status into prose.
 
-Recorded audit for the state described below:
-`.internal/reports/WIKI-2026-10-26-ax-wiki-contract-and-viewer-export.md`.
-
 ## Ownership
 
 | Concern                                                             | Owner                | Reference                                                                                                                                                                     |
@@ -20,8 +17,7 @@ Recorded audit for the state described below:
 | Agent routing contract                                              | this document        | `docs/ax-wiki.md`                                                                                                                                                             |
 
 Desktop does not compile or validate pages itself. Build wiki / Refresh only forwards a request to the runtime, and
-the viewer is a sandboxed window that loads a temporary offline export produced by `wiki viz --export` (ADR-018;
-`.internal/reports/INTEGRATION-2026-10-17-official-wiki-viewer.md`). The tab owns a single maintenance poll (1500 ms at
+the viewer is a sandboxed window that loads a temporary offline export produced by `wiki viz --export`. The tab owns a single maintenance poll (1500 ms at
 audit time) and refetches the visualization only when the runtime reports a new revision.
 
 Design intent: Desktop owns presentation and lifecycle; the runtime owns content, validation, and rendering. The tab
@@ -55,9 +51,8 @@ Authority order, highest first:
 
 1. Current source at `HEAD`, exercised behavior, and gate output.
 2. `config/*.json` and package manifests (the pins, not a page's restatement of them).
-3. Accepted PRD, ADR, and spec records under `.internal/`.
-4. Generated wiki pages and the injected `<repo_wiki>` prompt block — navigation only.
-5. Status quoted in prose anywhere; status is output of a command, never a stored fact.
+3. Generated wiki pages and the injected `<repo_wiki>` prompt block — navigation only.
+4. Status quoted in prose anywhere; status is output of a command, never a stored fact.
 
 A page can be internally consistent, cite real files, and still be wrong about the repository because it was built at
 an older head. Regeneration is the only repair. Hand edits are overwritten by the next build and hide staleness.
@@ -71,9 +66,9 @@ from generated prose:
 | ---------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Current release and recent changes | `desktop/CHANGELOG.md`                                                           | Newest version and its dated entries                      |
 | Current implementation and pins    | `package.json`, `config/*.json`                                                  | Actual manifests, not versions quoted in a page           |
-| Open or fixed problems             | `.internal/reports/README.md`, then newest `BUG-*.md` reports                    | Reproduction, owner, fix commit, and remaining limits     |
-| Product and architecture decisions | `.internal/prd/README.md`, `.internal/adr/README.md`, `.internal/spec/README.md` | Accepted versus proposed or superseded records            |
-| Verification and release state     | `.internal/reports/README.md`, then newest `RELEASE-*.md` and review reports     | Exact commit, gates, platforms, and unqualified scenarios |
+| Open or fixed problems             | `desktop/CHANGELOG.md` and the current source                                | Reproduction in source and the newest changelog entry |
+| Product and architecture decisions | current source and `docs/`                                                       | The shipped behavior                                  |
+| Verification and release state     | `desktop/CHANGELOG.md`, `config/desktop-release-policy.json`                     | Version, pins, and the release policy                 |
 
 Read the smallest current record that answers the question, then inspect its cited source. Do not treat a report's age
 or title alone as proof that a problem is still open or fixed.
@@ -91,17 +86,20 @@ The following wiki-specific findings are durable until their owners close them:
 
 ## Tracked evidence and ignored output
 
-| Kind                                               | Tracked                           | Gitignored                                                |
-| -------------------------------------------------- | --------------------------------- | --------------------------------------------------------- |
-| Documentation and reports                          | `docs/`, `.internal/reports/*.md` | —                                                         |
-| Release runs, verification JSON, logs, screenshots | —                                 | `.internal/releases/`                                     |
-| Generated wiki                                     | —                                 | `.ax-wiki/`                                               |
-| Scratch and reference material                     | —                                 | `.tmp/`, `.internal/reference/*/`, `.ax-code/memory.json` |
+| Kind                                               | Tracked                                      | Gitignored                                                                                                      |
+| -------------------------------------------------- | -------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| Documentation                                      | `docs/`                                      | —                                                                                                               |
+| Release deploy scripts                             | `.internal/deploy/`                          | —                                                                                                               |
+| Source extraction map                              | `.internal/reports/extraction/commit-map.txt` | —                                                                                                              |
+| Product requirements, decisions, plans, and reviews | —                                           | `.internal/prd/`, `.internal/adr/`, `.internal/spec/`, `.internal/plans/`, `.internal/reviews/`, and `.internal/reports/` except the extraction map |
+| Release runs, verification JSON, logs, screenshots | —                                           | `.internal/releases/`                                                                                           |
+| Generated wiki                                     | —                                            | `.ax-wiki/`                                                                                                     |
+| Scratch and reference material                     | —                                            | `.tmp/`, `.internal/reference/`, `.ax-code/`, `/AGENTS.md`, `/WX15-HANDOFF.md`                                 |
 
 Rules that follow from this:
 
-- Anything an agent must be able to find later goes into a tracked report or document. Release evidence under
-  `.internal/releases/` does not survive a fresh clone and is invisible to CI.
+- Product requirements, decisions, specifications, plans, reports, and reviews stay on disk and are not published.
+  Release evidence under `.internal/releases/` does not survive a fresh clone and is invisible to CI.
 - Never commit `.ax-wiki/`; never copy a generated page into `docs/`; a page never replaces this contract.
 - This page is the tracked contract; the generated pages are disposable local output.
 
@@ -158,12 +156,10 @@ Consequences:
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Current pins (app, SDK, runtime)               | `package.json`, `config/ax-code-runtime.json`, `config/ax-code-sdk.json`                                                                 |
 | Wiki health, freshness, page count             | `ax-code wiki status` / `doctor` / `lint`                                                                                                |
-| Recorded audit, reproduction, handoffs         | `.internal/reports/WIKI-2026-10-26-ax-wiki-contract-and-viewer-export.md`                                                                |
 | Desktop tab, polling, refresh, viewer behavior | `desktop/packages/ui/src/components/views/WikiGraphView.tsx`, `.../wiki/useWikiGraph.ts`, `desktop/packages/electron/src/wiki-viewer.js` |
-| Viewer security and sandboxing                 | `.internal/adr/ADR-018-renderer-security-baseline.md`, `.internal/reports/INTEGRATION-2026-10-17-official-wiki-viewer.md`                |
+| Viewer security and sandboxing                 | `desktop/packages/electron/src/wiki-viewer.js`                                                                                           |
 | UI verification procedure for wiki changes     | `docs/development-webmcp.md`                                                                                                             |
 
 ## Related documents
 
 - `docs/development-webmcp.md` — repeatable UI verification for renderer changes.
-- `.internal/reports/README.md` — report rules and the report index.

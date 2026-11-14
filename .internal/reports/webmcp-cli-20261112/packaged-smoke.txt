@@ -1,6 +1,0 @@
-
-> ax-coder@7.30.20 smoke:packaged /Users/akiralam/code/ax-code-desktop
-> node desktop/packages/electron/scripts/smoke-packaged-app.mjs -- --app '/tmp/ax-desktop-webmcp-cli-20261112/package/mac-arm64/AX Code.app' --artifacts /tmp/ax-desktop-webmcp-cli-20261112/packaged-smoke
-
-Bundled ax-code runtime smoke passed (v7.30.24)
-Packaged app smoke passed

@@ -1,3 +1,0 @@
-muse: workspace root: /Users/akiralam/code/ax-code-desktop (cwd default)
-muse: warning: rules file at /Users/akiralam/code/ax-code-desktop/AGENTS.md exists, but the workspace is untrusted, so it is skipped for this session; restart with --trust-workspace to load project rules
-muse: Agent delegation: auto unavailable: workspace is untrusted.
