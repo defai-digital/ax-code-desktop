@@ -7,6 +7,7 @@ import { createAtomicJsonWriter } from "./atomic-json-writer.js"
 function fixture() {
   const file = {
     writeFile: vi.fn().mockResolvedValue(undefined),
+    sync: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   }
   const filesystem = {
@@ -20,56 +21,102 @@ function fixture() {
 }
 
 describe("atomic JSON replacement", () => {
+  function sequentialNames(...suffixes) {
+    let index = 0
+    return (filePath) => `${filePath}.${suffixes[Math.min(index++, suffixes.length - 1)]}`
+  }
+
   for (const kind of ["file", "symlink"]) {
     it.skipIf(kind === "symlink" && process.platform === "win32")(
-      `preserves an occupied ${kind} temporary path and the last valid settings`,
+      `skips an occupied ${kind} temporary path and preserves it`,
       async () => {
         const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomic-json-collision-"))
-        const now = vi.spyOn(Date, "now").mockReturnValue(123456789)
-        const random = vi.spyOn(Math, "random").mockReturnValue(0.25)
         const file = path.join(dir, "settings.json")
-        const temporary = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const occupied = `${file}.occupied`
         const otherFile = path.join(dir, "other-writer.json")
         try {
           await fs.writeFile(file, '{"previous":true}')
           await fs.writeFile(otherFile, "other writer's content")
-          if (kind === "symlink") await fs.symlink(otherFile, temporary)
-          else await fs.writeFile(temporary, "occupied temporary file")
+          if (kind === "symlink") await fs.symlink(otherFile, occupied)
+          else await fs.writeFile(occupied, "occupied temporary file")
 
-          await expect(createAtomicJsonWriter()(file, { next: true })).rejects.toMatchObject({ code: "EEXIST" })
+          const write = createAtomicJsonWriter({ temporaryName: sequentialNames("occupied", "fresh") })
+          await write(file, { next: true })
 
-          expect(await fs.readFile(file, "utf8")).toBe('{"previous":true}')
+          expect(JSON.parse(await fs.readFile(file, "utf8"))).toEqual({ next: true })
           expect(await fs.readFile(otherFile, "utf8")).toBe("other writer's content")
-          if (kind === "symlink") expect(await fs.readlink(temporary)).toBe(otherFile)
-          else expect(await fs.readFile(temporary, "utf8")).toBe("occupied temporary file")
+          if (kind === "symlink") expect(await fs.readlink(occupied)).toBe(otherFile)
+          else expect(await fs.readFile(occupied, "utf8")).toBe("occupied temporary file")
+          await expect(fs.access(`${file}.fresh`)).rejects.toMatchObject({ code: "ENOENT" })
         } finally {
-          now.mockRestore()
-          random.mockRestore()
           await fs.rm(dir, { recursive: true, force: true })
         }
       },
     )
   }
 
-  it("does not remove an occupied temporary path when JSON serialization fails", async () => {
-    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomic-json-serialization-"))
-    const now = vi.spyOn(Date, "now").mockReturnValue(123456789)
-    const random = vi.spyOn(Math, "random").mockReturnValue(0.25)
+  it("gives up after bounded collisions and keeps the last valid settings", async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), "atomic-json-collision-"))
     const file = path.join(dir, "settings.json")
-    const temporary = `${file}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    const circular = {}
-    circular.self = circular
     try {
       await fs.writeFile(file, '{"previous":true}')
-      await fs.writeFile(temporary, "other writer's content")
-      await expect(createAtomicJsonWriter()(file, circular)).rejects.toThrow()
+      await fs.writeFile(`${file}.occupied`, "occupied temporary file")
+      const temporaryName = vi.fn(() => `${file}.occupied`)
+      await expect(createAtomicJsonWriter({ temporaryName })(file, { next: true })).rejects.toMatchObject({
+        code: "EEXIST",
+      })
+      expect(temporaryName).toHaveBeenCalledTimes(4)
       expect(await fs.readFile(file, "utf8")).toBe('{"previous":true}')
-      expect(await fs.readFile(temporary, "utf8")).toBe("other writer's content")
+      expect(await fs.readFile(`${file}.occupied`, "utf8")).toBe("occupied temporary file")
     } finally {
-      now.mockRestore()
-      random.mockRestore()
       await fs.rm(dir, { recursive: true, force: true })
     }
+  })
+
+  it("rejects values without a JSON representation before touching the filesystem", async () => {
+    for (const value of [undefined, () => {}, Symbol("x")]) {
+      const f = fixture()
+      await expect(createAtomicJsonWriter(f)("/profile/settings.json", value)).rejects.toBeInstanceOf(TypeError)
+      expect(f.filesystem.mkdir).not.toHaveBeenCalled()
+      expect(f.filesystem.open).not.toHaveBeenCalled()
+    }
+  })
+
+  it("does not create or remove any temporary path when JSON serialization fails", async () => {
+    const f = fixture()
+    const circular = {}
+    circular.self = circular
+    await expect(createAtomicJsonWriter(f)("/profile/settings.json", circular)).rejects.toThrow()
+    expect(f.filesystem.open).not.toHaveBeenCalled()
+    expect(f.filesystem.rm).not.toHaveBeenCalled()
+  })
+
+  it("flushes the temporary file before closing and renaming it", async () => {
+    const f = fixture()
+    await createAtomicJsonWriter(f)("/profile/settings.json", { a: 1 })
+    const order = (mock) => mock.mock.invocationCallOrder[0]
+    expect(order(f.file.writeFile)).toBeLessThan(order(f.file.sync))
+    expect(order(f.file.sync)).toBeLessThan(order(f.file.close))
+    expect(order(f.file.close)).toBeLessThan(order(f.filesystem.rename))
+  })
+
+  it("reports the write error when closing also fails", async () => {
+    const f = fixture()
+    const error = Object.assign(new Error("disk full"), { code: "ENOSPC" })
+    f.file.writeFile.mockRejectedValue(error)
+    f.file.close.mockRejectedValue(Object.assign(new Error("bad descriptor"), { code: "EBADF" }))
+    await expect(createAtomicJsonWriter(f)("/profile/settings.json", {})).rejects.toBe(error)
+    expect(f.filesystem.rename).not.toHaveBeenCalled()
+    expect(f.filesystem.rm).toHaveBeenCalledTimes(1)
+  })
+
+  it("reports a close failure after a successful write without renaming", async () => {
+    const f = fixture()
+    const error = Object.assign(new Error("io"), { code: "EIO" })
+    f.file.close.mockRejectedValue(error)
+    await expect(createAtomicJsonWriter(f)("/profile/settings.json", {})).rejects.toBe(error)
+    expect(f.filesystem.rename).not.toHaveBeenCalled()
+    expect(f.filesystem.rm).toHaveBeenCalledTimes(1)
   })
 
   it.skipIf(process.platform === "win32")("writes the file owner-only, replacing a readable one", async () => {
