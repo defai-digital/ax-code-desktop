@@ -46,3 +46,6 @@ desktop/packages/electron/.dev-bin/
 # never committed). It is per-session runtime state, so the whole directory is ignored: project
 # configuration lives in config/ and .internal/, not here.
 .ax-code/
+
+# Local agent guidance. Keep the working copy; do not publish it.
+/AGENTS.md

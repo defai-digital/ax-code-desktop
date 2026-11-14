@@ -88,8 +88,6 @@ desktop/packages/
   electron/  Electron app shell and native packaging
 ```
 
-See [AGENTS.md](./AGENTS.md) for detailed architecture reference.
-
 ## Not a developer?
 
 You can still help:

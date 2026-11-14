@@ -14,7 +14,7 @@ Recorded audit for the state described below:
 | Concern                                                             | Owner                | Reference                                                                                                                                                                     |
 | ------------------------------------------------------------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Generation, page plan, source hashes, freshness, lint, status       | AX Code runtime      | `ax-code wiki …`; runtime pinned in `config/ax-code-runtime.json`                                                                                                             |
-| `<repo_wiki>` prompt injection and the AX-WIKI block in `AGENTS.md` | AX Code runtime      | runtime-managed; see [Freshness and source authority](#freshness-and-source-authority)                                                                                        |
+| `<repo_wiki>` prompt injection and the runtime AX-WIKI block        | AX Code runtime      | runtime-managed; see [Freshness and source authority](#freshness-and-source-authority)                                                                                        |
 | Wiki tab, maintenance polling, Build/Refresh, viewer launch         | Desktop              | `desktop/packages/ui/src/components/views/WikiGraphView.tsx`, `desktop/packages/ui/src/components/views/wiki/useWikiGraph.ts`, `desktop/packages/electron/src/wiki-viewer.js` |
 | Generated pages and manifest                                        | runtime build output | `.ax-wiki/` (gitignored)                                                                                                                                                      |
 | Agent routing contract                                              | this document        | `docs/ax-wiki.md`                                                                                                                                                             |
@@ -54,7 +54,7 @@ When only the packaged app is present, the same commands run through the bundled
 Authority order, highest first:
 
 1. Current source at `HEAD`, exercised behavior, and gate output.
-2. `AGENTS.md`, `config/*.json`, and package manifests (the pins, not a page's restatement of them).
+2. `config/*.json` and package manifests (the pins, not a page's restatement of them).
 3. Accepted PRD, ADR, and spec records under `.internal/`.
 4. Generated wiki pages and the injected `<repo_wiki>` prompt block — navigation only.
 5. Status quoted in prose anywhere; status is output of a command, never a stored fact.
@@ -165,6 +165,5 @@ Consequences:
 
 ## Related documents
 
-- `AGENTS.md` — repository policy, gates, and the runtime-managed AX Wiki block.
 - `docs/development-webmcp.md` — repeatable UI verification for renderer changes.
 - `.internal/reports/README.md` — report rules and the report index.
