@@ -4,8 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.23] - 2026-11-14
+
 ### Fixed
 
+- Restore only validated Todo cache data without replacing live actions, and bound restored session caches before rendering.
 - Flush preference files to disk before replacing them, so a crash cannot leave settings empty or truncated.
 - Retry an occupied temporary preference path under a fresh name instead of dropping the save.
 - Report the original write failure when closing the temporary preference file also fails.
