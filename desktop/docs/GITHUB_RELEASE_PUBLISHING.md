@@ -1,91 +1,72 @@
 # GitHub release publishing
 
-Public release ownership has not moved to AX Code Desktop. Do not create or push a Desktop release tag from this
-repository during Phase 2. The current AX Code-owned release remains the rollback source while independent CI,
-signing, updater, upgrade, and rollback gates are built and verified.
+AX Code Desktop owns its independent releases in `defai-digital/ax-code-desktop`. The current
+`config/desktop-release-policy.json` records an approved cutover and `v` tag prefix. The Phase 2 handoff is historical;
+its proposed `release:desktop` command and `desktop-v` tags are not this repository's current release interface.
 
-The commands below describe the guarded release flow that must be ported and tested in shadow mode before
-cutover. They are not currently enabled AX Code Desktop release commands.
+Release approval applies to a qualified candidate. It does not waive CI, signing, installation, upgrade, rollback,
+data/credential continuity or human approval for a newer version. Source commits and branch pushes do not publish
+an app release.
 
-From the release-owning repository, the legacy guarded entry was:
+## Prepare and verify the source
 
-```bash
-pnpm run release:desktop -- --version 0.8.0
-```
-
-Before running it, bump the package versions, add the matching
-`CHANGELOG.md` section, and commit those changes. The script intentionally does
-not edit source files during publishing; it validates that the prepared release
-commit is safe to tag.
-
-That first run is a dry-run preflight. It validates package versions,
-`CHANGELOG.md`, Git state, GitHub authentication, docs, tests, type-checking,
-linting, and build output. It does not create a tag or mutate GitHub.
-
-After all cutover gates pass, the future release owner will expose an equivalent explicit publish step:
+Run from the repository root:
 
 ```bash
-pnpm run release:desktop -- --version 0.8.0 --publish
+pnpm install --frozen-lockfile
+pnpm run check:boundaries
+pnpm run check:locales
+pnpm run docs:validate
+pnpm run typecheck
+pnpm run lint
+pnpm run test
+pnpm run build
+pnpm run release:preflight
 ```
 
-The publish path:
+`release:preflight` is read-only. Review its report, the exact candidate commit, version, runtime/SDK pins and CI
+results. It does not sign, upload, tag or publish. Shared tests under `desktop/shared` are included in `pnpm run test`.
 
-1. Verifies the worktree is clean and `HEAD` matches the release branch on
-   `origin`.
-2. Verifies the local and remote `desktop-v<version>` tag do not already exist.
-3. Verifies the GitHub Release does not already exist.
-4. Runs `pnpm run docs:validate`, `pnpm run test`, `pnpm run type-check`,
-   `pnpm run lint`, and `pnpm run build`.
-5. Creates and pushes the annotated `desktop-v<version>` tag.
-6. Waits for `.github/workflows/desktop-release.yml` to finish.
-7. The workflow signs each release asset with `desktop/scripts/minisign-artifacts.sh`
-   using the shared `AX_CODE_MINISIGN_SECRET_KEY_B64` and
-   `AX_CODE_MINISIGN_PASSWORD` GitHub Actions secrets (with the legacy
-   `AX_CODE_DESKTOP_MINISIGN_*` names as fallbacks).
-8. The workflow uploads the generated `.minisig` files and canonical
-   `docs/release/ax-minisign.pub` key.
-9. A separate job re-downloads the draft assets, requires signature coverage,
-   and verifies every Minisign signature against that committed key.
-10. The workflow publishes the release only after those checks pass.
+## Produce a signed shadow candidate
 
-If the GitHub workflow succeeded before signatures were uploaded, or you need
-to repair signature assets manually, rerun only the local signature upload step:
+The manually dispatched workflow is `.github/workflows/desktop-shadow.yml`. After reviewing the source, request a
+signed candidate for the reviewed branch or tag:
 
 ```bash
-pnpm run release:desktop -- --version 0.8.0 --signatures-only --publish
+gh workflow run desktop-shadow.yml --ref <reviewed-branch-or-tag> -f signing_mode=required -f confirm_shadow_only=true
 ```
 
-On macOS, the local repair path can read the minisign passphrase from Apple
-Keychain when `AX_CODE_DESKTOP_MINISIGN_PASSWORD` is not set. See
-`docs/MINISIGN.md` for the Keychain item names.
+Record the workflow's resolved source SHA and verify it matches the candidate. Shadow runs produce qualification
+artifacts; they do not create a tag, publish a GitHub Release or advance the public update channel. Unsigned shadow
+output is useful for investigation but cannot qualify a public release.
 
-Local macOS packaging defaults to the `ax-notary` notarytool Keychain profile
-and Developer team `N5ZUZDUJS6`. Store the Apple ID credentials once with
-`xcrun notarytool store-credentials ax-notary`; the packaging process passes
-only the profile name to electron-builder and does not read or commit the
-app-specific password. Set `APPLE_KEYCHAIN_PROFILE` to another profile to
-override it, or set it to an empty value to keep an ad hoc local package
-unnotarized. GitHub Actions continues to use its explicit App Store Connect API
-key secrets.
+Supported installer targets are macOS arm64, Windows x64, Ubuntu x64 and Ubuntu arm64. Review actual native
+installation, updater, upgrade/rollback and data/credential continuity receipts for the exact signed artifacts.
+A successful build or mocked installer test does not replace those receipts.
 
-Use `--skip-signing` only for emergency releases where detached minisign
-signatures are intentionally not being published. Use `--skip-local-validation`
-only after the same validation commands have already passed on the exact commit
-being tagged.
+## Publish the qualified candidate
 
-## Platform trust checklist
+Follow the tracked [distribution operations guide](../../.internal/deploy/README.md) for preparation, verification,
+signed qualification and upload to the active Cloudflare/R2 channel. Large installers use its qualified multipart
+upload path. Read the current policy and operator help before running a publication command.
 
-Before broad promotion, make the release notes explicit about native platform
-trust:
+GitHub Release assets and the download/update channel must refer to the same reviewed commit, version and signed
+inventory. Require explicit approval before creating the `v<version>` tag or publishing. Verify anonymous downloads,
+platform signatures and update metadata after publication. A branch push alone is not release completion.
 
-- macOS: state whether artifacts are Developer ID signed and notarized, or
-  whether users should expect Gatekeeper/manual quarantine remediation.
-- Windows: state whether artifacts are Authenticode-signed and whether
-  SmartScreen may show an unknown-publisher or low-reputation warning.
-- minisign: confirm every downloadable artifact has a matching `.minisig` and
-  that the pinned public key in `docs/MINISIGN.md` is still current.
-- Scope: describe minisign as artifact-integrity verification only. It does not
-  replace macOS notarization, Windows Authenticode, SmartScreen reputation, or
-  Electron update signing.
-- First launch: include user-facing first-run guidance for any expected
-  Gatekeeper or SmartScreen warning.
+Keep signing material in approved credential stores or CI secrets. Never place credentials in source, command logs,
+reports or artifacts. Use the existing pinned signing identity; do not generate a replacement key for an update.
+See [Minisign operations](MINISIGN.md) and [the security policy](../SECURITY.md).
+
+## Platform trust and completion
+
+- macOS artifacts require the approved Developer ID signature and notarization.
+- Windows artifacts require the approved Authenticode identity.
+- Every supported installer and required metadata file needs the pinned Minisign verification coverage.
+- Detached Minisign signatures do not replace platform trust or updater qualification.
+- Record the exact source SHA, CI run, artifact hashes and native receipts with the release evidence.
+- Reconcile local and remote Git state separately from artifact publication and public verification.
+
+Historical handoff details remain in Git history. Local private governance/evidence records are intentionally not
+published; the checked-in policy, workflows, verification tools and distribution guide define the available public
+operating interface.

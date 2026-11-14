@@ -1,16 +1,6 @@
 import { readdir, readFile } from "node:fs/promises"
 import path from "node:path"
-
-const desktopRoot = path.resolve(import.meta.dirname, "..", "..")
-const workspaceRoot = path.resolve(desktopRoot, "..")
-const docsRoot = path.join(desktopRoot, "packages", "docs")
-const contentRoot = path.join(docsRoot, "content", "docs")
-const sidebarPath = path.join(docsRoot, "sidebar.config.json")
-const policyOnlyPaths = [
-  path.join(workspaceRoot, "README.md"),
-  path.join(desktopRoot, "README.md"),
-  path.join(desktopRoot, "packages", "web", "README.md"),
-]
+import { fileURLToPath } from "node:url"
 
 async function walk(dir) {
   const entries = await readdir(dir, { withFileTypes: true })
@@ -28,7 +18,7 @@ function toPosix(value) {
   return value.split(path.sep).join("/")
 }
 
-function routeFromFile(filePath) {
+function routeFromFile(contentRoot, filePath) {
   const relative = toPosix(path.relative(contentRoot, filePath))
   const withoutExt = relative.replace(/\.mdx$/, "")
 
@@ -65,7 +55,16 @@ const policyChecks = [
   },
 ]
 
-async function run() {
+export async function validateDocs(workspaceRoot = path.resolve(import.meta.dirname, "..", "..", "..")) {
+  const desktopRoot = path.join(workspaceRoot, "desktop")
+  const docsRoot = path.join(desktopRoot, "packages", "docs")
+  const contentRoot = path.join(docsRoot, "content", "docs")
+  const sidebarPath = path.join(docsRoot, "sidebar.config.json")
+  const policyOnlyPaths = [
+    path.join(workspaceRoot, "README.md"),
+    path.join(desktopRoot, "README.md"),
+    path.join(desktopRoot, "packages", "web", "README.md"),
+  ]
   const filePaths = (await walk(contentRoot)).filter((p) => p.endsWith(".mdx"))
   const routeSet = new Set()
   const errors = []
@@ -73,7 +72,7 @@ async function run() {
   for (const filePath of filePaths) {
     const body = await readFile(filePath, "utf8")
     const relative = toPosix(path.relative(workspaceRoot, filePath))
-    const route = routeFromFile(filePath)
+    const route = routeFromFile(contentRoot, filePath)
     routeSet.add(route)
 
     if (!hasFrontmatterKey(body, "title")) {
@@ -109,18 +108,26 @@ async function run() {
     }
   }
 
-  if (errors.length > 0) {
-    console.error("Docs validation failed:")
-    for (const error of errors) {
-      console.error(`- ${error}`)
-    }
-    process.exit(1)
-  }
-
-  console.log(`Docs validation passed: ${filePaths.length} pages, ${links.length} sidebar links.`)
+  return { errors, pageCount: filePaths.length, linkCount: links.length }
 }
 
-run().catch((error) => {
-  console.error(error)
-  process.exit(1)
-})
+async function run() {
+  const result = await validateDocs()
+  if (result.errors.length > 0) {
+    console.error("Docs validation failed:")
+    for (const error of result.errors) {
+      console.error(`- ${error}`)
+    }
+    process.exitCode = 1
+    return
+  }
+
+  console.log(`Docs validation passed: ${result.pageCount} pages, ${result.linkCount} sidebar links.`)
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  run().catch((error) => {
+    console.error(error)
+    process.exitCode = 1
+  })
+}

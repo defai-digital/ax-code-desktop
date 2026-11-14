@@ -38,6 +38,10 @@ jobs:
         with:
           node-version: "26"
 
+      # This also runs for documentation-only changes, before application checks are selected.
+      - name: Validate documentation
+        run: node desktop/scripts/docs/validate-docs.mjs
+
       - name: Select checks from the complete Git diff
         id: scope
         env:
@@ -108,6 +112,9 @@ jobs:
         run: pnpm install --frozen-lockfile
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Test shared helpers on the native platform
+        run: pnpm run test:shared
 
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native

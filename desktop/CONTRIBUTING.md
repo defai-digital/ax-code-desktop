@@ -45,12 +45,15 @@ Dev API routing mirrors packaged mode (S2.4, SPEC-2026-08-29-desktop-process-mod
 
 ### Shared UI (`packages/ui`)
 
-No dev server — this is a source-level library consumed by other packages. During development, `pnpm run dev` runs type-checking in watch mode.
+No separate dev server — this is a source-level library consumed by the web renderer. Run
+`pnpm --dir desktop/packages/ui run type-check` to check it, or its `dev` script for type-checking in watch mode.
 
 ## Before Submitting
 
 ```bash
 pnpm run check:boundaries  # Must pass
+pnpm run check:locales     # Must pass
+pnpm run docs:validate     # Must pass, including documentation-only changes
 pnpm run typecheck         # Must pass
 pnpm run lint              # Must pass
 pnpm run test              # Must pass
@@ -86,7 +89,12 @@ desktop/packages/
   ui/        Shared React components, hooks, stores, and theme system
   web/       Web server (Express) + frontend (Vite) + CLI
   electron/  Electron app shell and native packaging
+  akitty-web/ In-app terminal library
+  docs/      User documentation source (not a workspace package)
 ```
+
+Use the [documentation index](../docs/README.md) for reference guides and the
+[repository layout](../docs/repository-layout.md) for script placement, shared tooling and test discovery rules.
 
 ## Not a developer?
 

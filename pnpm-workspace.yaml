@@ -3,11 +3,20 @@ packages:
 
 catalog:
   "@electron/asar": "3.4.1"
+  "@eslint/js": "9.39.5"
+  "@tailwindcss/postcss": "4.3.3"
   "@types/node": "26.6.5"
   "electron-builder": "26.15.3"
+  "eslint": "9.39.5"
+  "eslint-plugin-react-hooks": "5.2.0"
+  "eslint-plugin-react-refresh": "0.4.26"
   "fast-glob": "3.3.3"
+  "globals": "16.5.0"
   "resedit": "1.7.2"
+  "tsx": "4.23.15"
   "typescript": "5.9.3"
+  "typescript-eslint": "8.71.2"
+  "vitest": "4.1.12"
 
 onlyBuiltDependencies:
   - electron

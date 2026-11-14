@@ -1,7 +1,7 @@
 # Docs Authoring Guide
 
-This directory is source content for AX Code Desktop public docs. This repository has no build, validation script, or
-packaging workflow for it.
+This directory is source content for AX Code Desktop public docs. Source validation runs here; website rendering and
+publication happen downstream.
 
 ## Voice & style
 
@@ -82,8 +82,8 @@ running.
 
 ## Add a new docs page
 
-1. Create a new file in `packages/docs/content/docs/`.
-   - Example: `packages/docs/content/docs/remote-access.mdx`
+1. Create a new file in `desktop/packages/docs/content/docs/`.
+   - Example: `desktop/packages/docs/content/docs/remote-access.mdx`
 2. Add frontmatter at top:
 
    ```mdx
@@ -101,7 +101,7 @@ running.
 
 ## Add a new sidebar section
 
-Edit `packages/docs/sidebar.config.json`.
+Edit `desktop/packages/docs/sidebar.config.json`.
 
 Example:
 
@@ -178,9 +178,15 @@ languages, but this docs package does not.
 
 ### Validate
 
-This repository has no docs validation script. There is no `docs:validate` script in the root `package.json`, and this
-directory has no `package.json`. After adding or changing a page, check the rules above yourself: every `.mdx` page
-needs `title` and `description` frontmatter, and every sidebar `link` must resolve to a page.
+From the repository root, run:
+
+```bash
+pnpm run docs:validate
+```
+
+The validator checks `title` and `description` frontmatter, sidebar routes and supported-platform policy. CI runs it
+even for documentation-only changes. This content directory has no `package.json`; the command belongs to the root
+workspace. Rendering and visual checks still happen in the downstream website repository.
 
 ## Sync into the website
 
@@ -188,8 +194,8 @@ The downstream website renders/deploys docs via Starlight in `apps/docs`.
 
 After docs content updates here:
 
-1. copy `packages/docs/content/docs/*` -> `apps/docs/src/content/docs/*`
-2. map `packages/docs/sidebar.config.json` into `apps/docs/astro.config.mjs` sidebar
+1. copy `desktop/packages/docs/content/docs/*` -> `apps/docs/src/content/docs/*`
+2. map `desktop/packages/docs/sidebar.config.json` into `apps/docs/astro.config.mjs` sidebar
 3. run docs checks/build in website repo
 
 This repository does not automate that handoff. There is no docs packaging workflow and no docs-source tarball here.
