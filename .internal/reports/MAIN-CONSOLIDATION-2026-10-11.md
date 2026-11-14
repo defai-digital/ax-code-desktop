@@ -21,6 +21,10 @@ No force push, branch deletion, worktree deletion, or public release is required
 | Detached markdown worktree at `2835ca94`                    | All 41 authored source/evidence files match main byte-for-byte. No second code change is needed. Dependency/build symlinks remain local.                                                   |
 | Detached localization Grok/Muse worktrees at `2835ca94`     | Complete drafts and source catalogs from both worktrees are retained in hash-verified archives. Keep main's newer reviewed translations and additional keys.                               |
 
+The `issue-assets/42/` screenshot was removed from the current tree because it
+shows a private coding session. Do not restore that file. Older commits and
+release tags still contain the blob.
+
 The four linked worktrees still referenced the old `ax-coder-old` location.
 `git worktree repair` restored their Git metadata links before inspection.
 No worktree contents were reset, stashed, cleaned, or deleted.
