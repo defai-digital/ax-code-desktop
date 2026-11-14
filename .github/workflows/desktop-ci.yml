@@ -38,6 +38,10 @@ jobs:
         with:
           node-version: "26"
 
+      # This also runs for documentation-only changes, before application checks are selected.
+      - name: Validate documentation
+        run: node desktop/scripts/docs/validate-docs.mjs
+
       - name: Select checks from the complete Git diff
         id: scope
         env:

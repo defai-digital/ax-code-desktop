@@ -1,7 +1,8 @@
 # AX Code Desktop Docs Source
 
-This directory is source content for AX Code Desktop public docs. This repository has no build, validation script, or
-packaging workflow for it.
+This directory is source content for AX Code Desktop public docs. Run `pnpm run docs:validate` from the repository
+root to check the source. CI runs the validator for every change. This repository does not render or package the docs
+website; see the [documentation index](../../../docs/README.md) for contributor references.
 
 ## Layout
 

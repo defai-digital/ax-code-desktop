@@ -143,6 +143,11 @@ Package layout:
 | `packages/ui`       | Shared React UI, stores, hooks, and components              |
 | `packages/web`      | Local web runtime used by development and desktop packaging |
 | `packages/electron` | Desktop shell (Electron)                                    |
+| `packages/akitty-web` | In-app terminal library                                  |
+
+`packages/docs` contains user documentation source, not a workspace package. See the
+[documentation index](../docs/README.md) and [repository layout](../docs/repository-layout.md) for directory and
+test ownership.
 
 In `pnpm run dev`, the Electron main process spawns and supervises the ax-code runtime by default
 (`AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0` restores web-supervised mode). The Vite dev server routes

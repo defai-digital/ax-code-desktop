@@ -267,6 +267,7 @@ Workspace windows keep webview support for the existing browser preview. Startup
 
 Workspace notes for the UI, web runtime, and Electron shell are in [desktop/README.md](desktop/README.md).
 Contribution setup is in [desktop/CONTRIBUTING.md](desktop/CONTRIBUTING.md).
+The [documentation index](docs/README.md) links architecture, repository layout, UI verification and release guides.
 
 ## License
 

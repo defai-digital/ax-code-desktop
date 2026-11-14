@@ -1,10 +1,9 @@
 # Docs source deployment
 
-This directory is source content for AX Code Desktop public docs. This repository has no build, validation script, or
-packaging workflow for it.
+This directory is source content for AX Code Desktop public docs. Run `pnpm run docs:validate` from the repository
+root before handing content to the downstream website. CI validates the source for every change.
 
-There is no `package.json` here, and the root `package.json` has no docs script. `.github/workflows/docs-source.yml` is
-not in this repository. Nothing here validates the pages, builds a docs-source tarball, uploads a release asset, or
-dispatches a website rebuild.
+There is no `package.json` here or `.github/workflows/docs-source.yml` in this repository. Validation does not build
+a docs-source tarball, upload a release asset, or dispatch a website rebuild.
 
 Rendering and hosting, when they happen, are outside this repository.
