@@ -113,6 +113,9 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Test shared helpers on the native platform
+        run: pnpm run test:shared
+
       - name: Rebuild native modules for Electron
         run: pnpm --filter @ax-code/electron run rebuild:native
 
