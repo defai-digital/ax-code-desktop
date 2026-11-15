@@ -1881,7 +1881,18 @@ export function SyncProvider(props: { sdk: AxCodeClient; directory: string; chil
 export function useDirectoryChildStore(directory?: string): StoreApi<DirectoryStore> {
   const system = useSyncSystem()
   const dir = directory ?? system.directory
-  return system.childStores.ensureChild(dir)
+  const initialStore = system.childStores.ensureChild(dir)
+  const [current, setCurrent] = React.useState({ dir, store: initialStore })
+  React.useEffect(() => {
+    const updateStore = () => {
+      const store = system.childStores.getChild(dir) ?? system.childStores.ensureChild(dir)
+      if (store !== current.store) setCurrent({ dir, store })
+    }
+    const unsubscribe = system.childStores.subscribeRegistry(updateStore)
+    updateStore()
+    return unsubscribe
+  }, [system.childStores, dir, current.store])
+  return current.dir === dir ? current.store : initialStore
 }
 
 /** Select from the current directory's store */
@@ -2013,13 +2024,8 @@ export function useSession(sessionID?: string | null, directory?: string) {
   }, [childStores, directory, sessionID])
 
   const subscribe = useCallback(
-    (notify: () => void) => {
-      if (directory) {
-        return childStores.ensureChild(directory).subscribe(notify)
-      }
-      return childStores.subscribeAll(notify)
-    },
-    [childStores, directory],
+    (notify: () => void) => childStores.subscribeAll(notify),
+    [childStores],
   )
 
   return React.useSyncExternalStore(subscribe, getSnapshot, getSnapshot)

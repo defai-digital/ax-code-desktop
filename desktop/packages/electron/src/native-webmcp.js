@@ -291,6 +291,11 @@ class NativeWebMcp {
         this.changed()
         return
       }
+      if (tool.outputSchema !== undefined && tool.outputSchema !== null && !plainObject(tool.outputSchema)) {
+        this.catalogRejection = catalogRejection("invalid-schema", name)
+        this.changed()
+        return
+      }
       if (tool.annotations !== undefined && tool.annotations !== null && !plainObject(tool.annotations)) {
         this.catalogRejection = catalogRejection("invalid-schema", name)
         this.changed()
@@ -301,6 +306,7 @@ class NativeWebMcp {
         description: tool.description,
         frameId: tool.frameId,
         ...(tool.inputSchema ? { inputSchema: tool.inputSchema } : {}),
+        ...(tool.outputSchema ? { outputSchema: tool.outputSchema } : {}),
         ...(tool.annotations ? { annotations: tool.annotations } : {}),
       }
       try {

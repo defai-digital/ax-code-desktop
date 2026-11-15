@@ -111,6 +111,7 @@ async function check() {
     form: tool.backendNodeId !== undefined,
     annotations: tool.annotations ?? {},
     inputSchema: tool.inputSchema ?? null,
+    outputSchema: tool.outputSchema ?? null,
   }))
   save()
   let contaminated = false

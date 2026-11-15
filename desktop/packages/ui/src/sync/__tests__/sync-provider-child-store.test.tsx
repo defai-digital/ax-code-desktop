@@ -1,7 +1,7 @@
 import React from "react"
 import { createRoot } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
-import { SyncProvider } from "../sync-context-impl"
+import { SyncProvider, useSession, useSessions } from "../sync-context-impl"
 import { useGitStore } from "@/stores/useGitStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { getSyncChildStores } from "../sync-refs"
@@ -115,6 +115,42 @@ describe("SyncProvider child-store lifetime", () => {
     mounted = false
     await Promise.resolve()
     expect(manager.children.size).toBe(0)
+  })
+
+  test("directory hooks follow a store that is disposed and recreated", async () => {
+    function SessionTitle() {
+      return React.createElement(
+        React.Fragment,
+        null,
+        React.createElement("span", null, useSession("session", "/other")?.title ?? "missing"),
+        React.createElement("span", null, "|"),
+        React.createElement("span", null, useSessions("/other").find((entry) => entry.id === "session")?.title ?? "missing"),
+      )
+    }
+    React.act(() => root.render(
+      React.createElement(SyncProvider, { sdk: stubSdk, directory: "/repo", children: React.createElement(SessionTitle) }),
+    ))
+    const manager = getSyncChildStores()
+    try {
+      const original = manager.ensureChild("/other", { bootstrap: false })
+      React.act(() => original.setState({ session: [{ id: "session", time: { created: 1, updated: 1 }, title: "before" } as never] }))
+      expect(container.textContent).toBe("before|before")
+
+      React.act(() => {
+        expect(manager.disposeDirectory("/other")).toBe(true)
+      })
+      await React.act(async () => { await Promise.resolve() })
+      expect(container.textContent).toBe("missing|missing")
+
+      React.act(() => {
+        const replacement = manager.ensureChild("/other", { bootstrap: false })
+        replacement.setState({ session: [{ id: "session", time: { created: 1, updated: 1 }, title: "after" } as never] })
+      })
+      await React.act(async () => { await Promise.resolve() })
+      expect(container.textContent).toBe("after|after")
+    } finally {
+      manager.disposeAll()
+    }
   })
 
 })

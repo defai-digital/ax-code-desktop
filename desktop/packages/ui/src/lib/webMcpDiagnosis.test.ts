@@ -15,9 +15,12 @@ async function executeExport(snippet: string, output: unknown, onInput?: (input:
   await new AsyncFunction("document", snippet)({
     modelContext: {
       getTools: async () => [tool],
-      executeTool: async (selected: unknown, input: string) => {
+      executeTool: async (selected: unknown, input: unknown) => {
         expect(selected).toBe(tool)
-        onInput?.(JSON.parse(input))
+        expect(input).not.toBeNull()
+        expect(typeof input).toBe("object")
+        expect(Array.isArray(input)).toBe(false)
+        onInput?.(input)
         return output
       },
     },
@@ -172,9 +175,10 @@ describe("webMcpRegressionExport", () => {
     await new AsyncFunction("document", "injected", exported.snippet)(
       { modelContext: {
         getTools: async () => [tool],
-        executeTool: async (selected: unknown, argumentsJson: string) => {
+        executeTool: async (selected: unknown, argumentsObject: unknown) => {
           expect(selected).toBe(tool)
-          received = JSON.parse(argumentsJson)
+          expect(typeof argumentsObject).toBe("object")
+          received = argumentsObject
           return "{}"
         },
       } },
@@ -184,12 +188,13 @@ describe("webMcpRegressionExport", () => {
     expect(received).toEqual(input)
   })
 
-  test("calls executeTool with a JSON string and offers the equivalent --run argument", async () => {
+  test("calls executeTool with an input object and offers the equivalent --run argument", async () => {
     const exported = webMcpRegressionExport({
       tool: "echo",
       input: { title: "Ship the beta" },
       outcome: "completed",
     })
+    expect(exported!.snippet).toContain("executeTool(tool, JSON.parse(")
     await executeExport(exported!.snippet, "{}", (input) => expect(input).toEqual({ title: "Ship the beta" }))
     expect(exported?.runArgument).toBe(`--run 'echo={"title":"Ship the beta"}'`)
     const spec = exported!.runArgument.slice("--run ".length)
@@ -207,6 +212,19 @@ describe("webMcpRegressionExport", () => {
 
     expect(webMcpRegressionExport({ tool: "", input: { title: "x" }, outcome: "completed" })).toBeNull()
     expect(webMcpRegressionExport({ tool: "add_task", input: [] as never, outcome: "completed" })).toBeNull()
+  })
+
+  test("an own __proto__ input key reaches executeTool as data, not as a prototype", async () => {
+    const input = JSON.parse('{"__proto__":{"polluted":true},"title":"Ship the beta"}') as Record<string, unknown>
+    const exported = webMcpRegressionExport({ tool: "echo", input, outcome: "completed" })!
+    let received: Record<string, unknown> | undefined
+    await executeExport(exported.snippet, "{}", (actual) => {
+      received = actual as Record<string, unknown>
+    })
+    expect(Object.hasOwn(received!, "__proto__")).toBe(true)
+    expect(received!["__proto__"]).toEqual({ polluted: true })
+    expect(Object.getPrototypeOf(received!)).toBe(Object.prototype)
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
   })
 })
 

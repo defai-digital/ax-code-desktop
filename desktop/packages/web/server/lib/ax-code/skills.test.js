@@ -412,6 +412,54 @@ describe("skill name safety", () => {
     }
   })
 
+  it("does not delete a skill outside the project through a linked project directory", async () => {
+    if (process.platform === "win32") return
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-delete-link-"))
+    try {
+      const project = path.join(root, "project")
+      const outside = path.join(root, "outside")
+      const skillDir = path.join(outside, "skills", "linked")
+      await fsPromises.mkdir(project, { recursive: true })
+      await fsPromises.mkdir(skillDir, { recursive: true })
+      const skillPath = path.join(skillDir, "SKILL.md")
+      await fsPromises.writeFile(skillPath, ["---", "name: linked", "description: Linked", "---", "", "Body.", ""].join("\n"))
+      await fsPromises.symlink(outside, path.join(project, ".ax-code"))
+
+      expect(() => deleteSkill("linked", project, { scope: "project", source: "ax-code" })).toThrow(
+        "must be inside the project",
+      )
+      expect(await fsPromises.readFile(skillPath, "utf8")).toContain("name: linked")
+    } finally {
+      await fsPromises.rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it("does not delete a supporting file outside the project through a linked skill directory", async () => {
+    if (process.platform === "win32") return
+    const root = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-skill-update-link-"))
+    try {
+      const project = path.join(root, "project")
+      const outside = path.join(root, "outside")
+      const skillDir = path.join(outside, "skills", "linked")
+      await fsPromises.mkdir(project, { recursive: true })
+      await fsPromises.mkdir(path.join(skillDir, "notes"), { recursive: true })
+      await fsPromises.writeFile(
+        path.join(skillDir, "SKILL.md"),
+        ["---", "name: linked", "description: Linked", "---", "", "Body.", ""].join("\n"),
+      )
+      const supportingPath = path.join(skillDir, "notes", "keep.txt")
+      await fsPromises.writeFile(supportingPath, "keep")
+      await fsPromises.symlink(outside, path.join(project, ".ax-code"))
+
+      expect(() =>
+        updateSkill("linked", { supportingFiles: [{ path: "notes/keep.txt", delete: true }] }, project),
+      ).toThrow("must be inside the project")
+      expect(await fsPromises.readFile(supportingPath, "utf8")).toBe("keep")
+    } finally {
+      await fsPromises.rm(root, { recursive: true, force: true })
+    }
+  })
+
   it("refuses a bad create request before writing any of the skill", async () => {
     // A supporting-file path outside the skill was refused only after SKILL.md was written, so the client saw a
     // failed create and its retry hit "already exists"; a missing description left an empty directory behind.

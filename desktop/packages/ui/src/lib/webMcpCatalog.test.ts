@@ -107,6 +107,20 @@ test("marks removed and changed native run identities stale without matching dis
 })
 
 
+test("retains a display outputSchema and counts an output-only edit as a definition change", () => {
+  const outputSchema = { type: "object", properties: { total: { type: "integer" } } }
+  const described = { name: "echo", description: "Echo", outputSchema }
+  const read = readWebMcpCatalog([described]).catalog[0]
+  expect(read.outputSchema).toEqual(outputSchema)
+  expect(read.digest).not.toBe(readWebMcpCatalog([{ name: "echo", description: "Echo" }]).catalog[0].digest)
+  const sized = readWebMcpCatalog([
+    tool("first", "d", { inputSchema: { type: "object" } }),
+    tool("second", "d", { outputSchema: { pad: "x".repeat(262144) } }),
+  ])
+  expect(sized.catalog.map((entry) => entry.name)).toEqual(["first"])
+  expect(sized.catalogLimit).toEqual({ total: 2, shown: 1, truncation: "bytes" })
+})
+
 test("preserves native definition identity separately from the frame-independent catalog digest", () => {
   const original = nativeWebMcpTool(tool("echo"), "frame-1")
   const reloaded = nativeWebMcpTool(tool("echo"), "frame-2")

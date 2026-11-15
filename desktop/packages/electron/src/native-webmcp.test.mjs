@@ -2,7 +2,7 @@ import { describe, expect, test, vi } from "vitest"
 import { EventEmitter } from "node:events"
 import { randomUUID } from "node:crypto"
 import { createRequire } from "node:module"
-const { NativeWebMcp, definitionDigest } = createRequire(import.meta.url)("./native-webmcp.js")
+const { NativeWebMcp, definitionDigest, catalogDigest } = createRequire(import.meta.url)("./native-webmcp.js")
 
 const fixtureTool = { name: "echo", description: "Echo fixture data", frameId: "top", inputSchema: { type: "object" } }
 async function fixture() {
@@ -409,6 +409,30 @@ test("names a rejected catalog and keeps the browser connected", async () => {
   f.adapter.close()
 })
 
+test("retains outputSchema, validates it like inputSchema, and counts it in both digests", async () => {
+  const f = await fixture()
+  const outputSchema = { type: "object", properties: { total: { type: "integer" } } }
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, outputSchema }] })
+  const accepted = f.adapter.snapshot().tools.find((tool) => tool.name === "echo")
+  expect(accepted.outputSchema).toEqual(outputSchema)
+  expect(f.adapter.catalogRejection).toBeNull()
+  // An output-only edit is a definition change for stale evidence and the builder identity.
+  expect(definitionDigest(accepted)).not.toBe(definitionDigest(fixtureTool))
+  expect(catalogDigest(accepted)).not.toBe(catalogDigest(fixtureTool))
+
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, outputSchema: [] }] })
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "invalid-schema", tool: "echo" })
+
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, outputSchema: { value: "x".repeat(33000) } }] })
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "definition-too-large", tool: "echo" })
+
+  const cycle = { type: "object" }
+  cycle.self = cycle
+  f.emit("WebMCP.toolsAdded", { tools: [{ ...fixtureTool, outputSchema: cycle }] })
+  expect(f.adapter.catalogRejection).toEqual({ code: "invalid-catalog", reason: "invalid-schema", tool: "echo" })
+  f.adapter.close()
+})
+
 test("a form tool is not stored on the invocation digest, and hints do not authorize a call", async () => {
   const f = await fixture()
   f.emit("WebMCP.toolsAdded", {
@@ -731,7 +755,9 @@ const rejectedReplacements = [
   ["invalid-description", () => [{ ...fixtureTool, description: "x".repeat(4097) }]],
   ["missing-description", () => [{ ...fixtureTool, description: undefined }]],
   ["invalid-schema", () => [{ ...fixtureTool, inputSchema: [] }]],
+  ["invalid-output-schema", () => [{ ...fixtureTool, outputSchema: [] }]],
   ["invalid-annotations", () => [{ ...fixtureTool, annotations: [] }]],
+  ["output-definition-too-large", () => [{ ...fixtureTool, outputSchema: { value: "x".repeat(33000) } }]],
   ["definition-too-large", () => [{ ...fixtureTool, inputSchema: { value: "x".repeat(33000) } }]],
   [
     "cycle",

@@ -159,7 +159,8 @@ export function webMcpRegressionExport(entry: {
     'if (!tool) throw new Error("tool not registered")',
     "let result",
     "let rejected = false",
-    `try { result = await document.modelContext.executeTool(tool, JSON.stringify(${encoded})) } catch { rejected = true }`,
+    // JSON.parse preserves own __proto__ keys while passing the object input required by the native API.
+    `try { result = await document.modelContext.executeTool(tool, JSON.parse(${JSON.stringify(encoded)})) } catch { rejected = true }`,
     'if (typeof result === "string") { try { result = JSON.parse(result) } catch { /* Plain text is a normal output. */ } }',
     'if (result?.untrusted === true && result.result && typeof result.result === "object") result = result.result',
     'const status = typeof result?.status === "string" ? result.status.trim().toLowerCase() : ""',
