@@ -42,7 +42,12 @@ export function mergeSessionListPage<T extends SessionListEntry>(
     // share state, archive flag): the page was read before that event.
     const beforeUpdated = knownBeforeRequest?.get(session.id)
     const currentUpdated = currentEntry.time?.updated
-    if (typeof beforeUpdated === "number" && typeof currentUpdated === "number" && currentUpdated > beforeUpdated) {
+    const pageUpdated = session.time?.updated
+    const updatedAfterRequest =
+      typeof beforeUpdated === "number" && typeof currentUpdated === "number" && currentUpdated > beforeUpdated
+    const newerThanPage =
+      typeof currentUpdated === "number" && typeof pageUpdated === "number" && currentUpdated > pageUpdated
+    if (updatedAfterRequest || newerThanPage) {
       merged.push(currentEntry)
       continue
     }
