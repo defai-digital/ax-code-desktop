@@ -2,6 +2,7 @@
 
 const fs = require("fs")
 const path = require("path")
+const { applyAxEngineInstallEnv } = require("./ax-engine-install-env")
 
 // ── Bundled ax-code runtime env ─────────────────────────────────────────────
 // Packaged builds ship the pinned ax-code CLI runtime as an extraResource
@@ -45,14 +46,17 @@ function buildBundledAxCodeEnv({
 // inherited value so a user-exported AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY
 // cannot leak through `...process.env` and make a dev/OSS build report the
 // runtime source as "bundled".
-function applyBundledAxCodeEnv(env, bundled) {
+function applyBundledAxCodeEnv(env, bundled, options = {}) {
   const result = { ...env }
   if (bundled.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY) {
     result.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY = bundled.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY
   } else {
     delete result.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY
   }
-  return result
+  return applyAxEngineInstallEnv(result, {
+    ...options,
+    enabled: Boolean(bundled.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY),
+  })
 }
 
 module.exports = { applyBundledAxCodeEnv, buildBundledAxCodeEnv }

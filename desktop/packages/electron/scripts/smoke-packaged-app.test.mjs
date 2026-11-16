@@ -1,6 +1,7 @@
 import path from "node:path"
 import { describe, expect, test } from "vitest"
 import {
+  assertPinnedAxEngineStatus,
   buildSmokeAppArgs,
   buildSmokeBundleIdentifier,
   bundledAxCodeLauncherPath,
@@ -23,10 +24,17 @@ describe("smoke-packaged-app args", () => {
   })
 
   test("expects the independently pinned runtime rather than the Desktop release version", async () => {
-    expect(await readExpectedBundledAxCodeVersion({})).toBe("7.30.24")
+    expect(await readExpectedBundledAxCodeVersion({})).toBe("7.30.29")
     expect(await readExpectedBundledAxCodeVersion({ AX_CODE_DESKTOP_SMOKE_EXPECTED_AX_CODE_VERSION: "v7.24.3" })).toBe(
       "7.24.3",
     )
+  })
+  test("checks the actual managed installer target rather than binary availability", () => {
+    expect(() => assertPinnedAxEngineStatus({ dependency: { available: false, pinnedVersion: "8.0.6" } }, "8.0.6"))
+      .not.toThrow()
+    expect(() => assertPinnedAxEngineStatus({ dependency: { available: true, pinnedVersion: "8.0.4" } }, "8.0.6"))
+      .toThrow("did not select the pinned AX Engine")
+    expect(() => assertPinnedAxEngineStatus({}, "8.0.6")).toThrow("did not select the pinned AX Engine")
   })
   test("uses an isolated Electron profile", () => {
     expect(buildSmokeAppArgs({ userDataDir: "/tmp/ax-code-smoke-user-data" })).toEqual([
