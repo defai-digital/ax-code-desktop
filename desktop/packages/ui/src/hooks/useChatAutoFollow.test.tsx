@@ -493,3 +493,302 @@ describe("useChatAutoFollow collapsed activity", () => {
     expect(result?.state).toBe(vertical ? "released" : "following")
   })
 })
+
+// Reading history while the session streams: the reader's own scroll must win.
+// These pin the two failures a user reported — the view refusing to scroll up
+// and snapping back to the live tail after stopping mid-history.
+describe("useChatAutoFollow reader scroll intent", () => {
+  let container: HTMLDivElement
+  let root: ReturnType<typeof createRoot>
+  let result: ReturnType<typeof useChatAutoFollow> | null = null
+  let frames: Map<number, FrameRequestCallback>
+  let nextFrameId: number
+  let scrollHeight = 5000
+
+  const Probe = () => {
+    const follow = useChatAutoFollow({
+      currentSessionId: "session-a",
+      sessionMessageCount: 4,
+      sessionIsWorking: true,
+      isMobile: false,
+    })
+    result = follow
+    return React.createElement("div", { ref: follow.scrollRef }, React.createElement("div", { "data-message-id": "m1" }))
+  }
+
+  const render = () => {
+    React.act(() => {
+      root.render(React.createElement(Probe))
+    })
+  }
+
+  const flushFrame = () => {
+    const frame = frames.entries().next().value as [number, FrameRequestCallback] | undefined
+    if (!frame) return false
+    frames.delete(frame[0])
+    React.act(() => {
+      frame[1](0)
+    })
+    return true
+  }
+
+  const flushFrames = (limit = 200) => {
+    for (let index = 0; index < limit; index += 1) {
+      const frame = frames.entries().next().value as [number, FrameRequestCallback] | undefined
+      if (!frame) return
+      frames.delete(frame[0])
+      React.act(() => {
+        frame[1](0)
+      })
+    }
+  }
+
+  // 900px viewport over taller content, so "the end" and the 90px bottom zone
+  // (which covers the tail spacer) are different positions.
+  const setLayout = (scrollTop: number) => {
+    const scrollContainer = container.firstElementChild as HTMLDivElement
+    Object.defineProperty(scrollContainer, "clientHeight", { configurable: true, get: () => 900 })
+    Object.defineProperty(scrollContainer, "scrollHeight", { configurable: true, get: () => scrollHeight })
+    scrollContainer.scrollTop = scrollTop
+    return scrollContainer
+  }
+
+  const dispatchScroll = (target: HTMLElement) => {
+    React.act(() => {
+      target.dispatchEvent(new Event("scroll"))
+    })
+  }
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    frames = new Map()
+    nextFrameId = 1
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation((callback) => {
+      const id = nextFrameId++
+      frames.set(id, callback)
+      return id
+    })
+    vi.spyOn(window, "cancelAnimationFrame").mockImplementation((id) => {
+      frames.delete(id)
+    })
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    result = null
+    scrollHeight = 5000
+    useUIStore.setState({ activityRenderMode: "summary" })
+  })
+
+  afterEach(() => {
+    React.act(() => {
+      root.unmount()
+    })
+    container.remove()
+    useUIStore.setState({ activityRenderMode: uiSnapshot.activityRenderMode })
+    vi.restoreAllMocks()
+  })
+
+  test("keeps the reader's position through streaming growth after a wheel scroll-up", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+    expect(result?.state).toBe("following")
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -400 }))
+    })
+    scrollContainer.scrollTop = 2500
+    dispatchScroll(scrollContainer)
+    scrollContainer.scrollTop = 2600
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+
+    scrollHeight = 5400
+    React.act(() => {
+      result?.notifyContentChange("text")
+    })
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(2600)
+    expect(result?.state).toBe("released")
+  })
+
+  test("keeps a scrollbar drag position instead of following it back to the end", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    // One event at the end is the position the follow loop's own write leaves.
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("following")
+
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(2000)
+    expect(result?.state).toBe("released")
+    expect(result?.showScrollButton).toBe(true)
+  })
+
+  test("honours a drag that lands inside the follow write window", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    // goToBottom writes the end and starts the settle burst; the drag arrives
+    // while those writes are still in flight.
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(2000)
+    expect(result?.state).toBe("released")
+  })
+
+  test("does not re-pin a reader who stopped inside the bottom zone", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    // 50px above the end: inside the 90px bottom zone, but not at the end.
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 }))
+    })
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+    expect(result?.showScrollButton).toBe(true)
+
+    // The grace window expires and the session keeps streaming.
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 4060
+    dispatchScroll(scrollContainer)
+    flushFrames()
+
+    expect(result?.state).toBe("released")
+    expect(scrollContainer.scrollTop).toBe(4060)
+  })
+
+  test("releases a native scrollbar drag that stays inside the bottom zone", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(scrollContainer.scrollTop).toBe(4050)
+    expect(result?.showScrollButton).toBe(true)
+  })
+
+  test("keeps following when content shrink clamps the browser to the true end", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+
+    scrollHeight = 4800
+    scrollContainer.scrollTop = 3900
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("following")
+    expect(scrollContainer.scrollTop).toBe(3900)
+  })
+
+  test("follows again once the reader scrolls down from a released tail", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 }))
+    })
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+
+    // Downward input says the reader wants the live tail again.
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }))
+    })
+    scrollContainer.scrollTop = 4090
+    dispatchScroll(scrollContainer)
+
+    expect(result?.state).toBe("following")
+  })
+
+  test("keeps a Shift+Space reader release until Space resumes following", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { key: " ", shiftKey: true }))
+    })
+    expect(result?.state).toBe("released")
+
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 4060
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(scrollContainer.scrollTop).toBe(4060)
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
+    })
+    scrollContainer.scrollTop = 4090
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("following")
+  })
+
+  test("follows again once the reader returns to the true end by dragging", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -300 }))
+    })
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 4100
+    dispatchScroll(scrollContainer)
+
+    expect(result?.state).toBe("following")
+  })
+
+  test("a drag during an in-flight follow animation keeps the dragged position", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    // Content arrives, so the follow loop is mid-transit toward the end.
+    scrollHeight = 5600
+    React.act(() => {
+      result?.notifyContentChange("text")
+    })
+    flushFrame()
+    expect(result?.state).toBe("following")
+
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(2000)
+    expect(result?.state).toBe("released")
+  })
+
+})
