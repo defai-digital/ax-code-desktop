@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.25] - 2026-11-16
+
+### Fixed
+
+- Preserve the reader's chat position when dragging the native scrollbar during automatic following or reading within the bottom spacer.
+- Resume following when the reader returns to the end or scrolls downward, while keeping the return-to-latest action available.
+- Treat Shift+Space as upward navigation so streaming cannot reclaim the viewport after backward paging.
+
 ## [7.30.24] - 2026-11-15
 
 ### Changed

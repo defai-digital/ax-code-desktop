@@ -110,6 +110,17 @@ with a large CRLF message, an incremental append, and finalization. Fresh DOM ch
 headings; Worker request/response receipts and light/dark screenshots are saved. No model call or runtime write
 occurs. Recorded Worker round trips include queueing and transfer and are diagnostic samples, not a performance SLA.
 
+For chat reader scroll intent, run after building:
+
+```sh
+node desktop/packages/electron/scripts/e2e/chat-reader-scroll-webmcp.mjs --artifacts /tmp/ax-chat-reader-scroll
+```
+
+Native WebMCP opens an isolated fixture conversation. Chromium wheel, Shift+Space and native scrollbar drag inputs
+then move its real scroll container while renderer fixture events append content. Fresh geometry reads verify that
+the reader's position holds beyond the re-pin grace period and that End restores following. Light/dark screenshots
+and a JSON receipt record each case. This uses actual browser layout and input handling without a live model account.
+
 To attribute large-Markdown cost before proposing parser changes, run after building:
 
 ```sh

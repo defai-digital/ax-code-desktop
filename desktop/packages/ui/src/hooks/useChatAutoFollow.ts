@@ -117,7 +117,10 @@ const isScrollKey = (event: KeyboardEvent): boolean => {
 }
 
 const isReleaseKey = (event: KeyboardEvent): boolean => {
-  return isScrollKey(event) && (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home")
+  return (
+    isScrollKey(event) &&
+    (event.key === "ArrowUp" || event.key === "PageUp" || event.key === "Home" || (event.key === " " && event.shiftKey))
+  )
 }
 
 const nestedScrollableCanConsume = (root: HTMLElement, target: EventTarget | null, deltaY?: number): boolean => {
@@ -626,9 +629,8 @@ export const useChatAutoFollow = ({
     const previousTop = lastScrollTopRef.current
     lastScrollTopRef.current = currentTop
 
-    updateOverflowAndButton()
-
     if (programmatic) {
+      updateOverflowAndButton()
       return
     }
 
@@ -662,6 +664,7 @@ export const useChatAutoFollow = ({
       startFollowLoop()
     }
 
+    updateOverflowAndButton()
     queueSave()
   }, [
     isMobile,

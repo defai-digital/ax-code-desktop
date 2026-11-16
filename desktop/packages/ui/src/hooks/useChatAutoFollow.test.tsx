@@ -626,6 +626,7 @@ describe("useChatAutoFollow reader scroll intent", () => {
 
     expect(scrollContainer.scrollTop).toBe(2000)
     expect(result?.state).toBe("released")
+    expect(result?.showScrollButton).toBe(true)
   })
 
   test("honours a drag that lands inside the follow write window", () => {
@@ -689,6 +690,33 @@ describe("useChatAutoFollow reader scroll intent", () => {
     scrollContainer.scrollTop = 4090
     dispatchScroll(scrollContainer)
 
+    expect(result?.state).toBe("following")
+  })
+
+  test("keeps a Shift+Space reader release until Space resumes following", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { key: " ", shiftKey: true }))
+    })
+    expect(result?.state).toBe("released")
+
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 4060
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(scrollContainer.scrollTop).toBe(4060)
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new KeyboardEvent("keydown", { key: " " }))
+    })
+    scrollContainer.scrollTop = 4090
+    dispatchScroll(scrollContainer)
     expect(result?.state).toBe("following")
   })
 
