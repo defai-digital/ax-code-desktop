@@ -522,6 +522,16 @@ describe("useChatAutoFollow reader scroll intent", () => {
     })
   }
 
+  const flushFrame = () => {
+    const frame = frames.entries().next().value as [number, FrameRequestCallback] | undefined
+    if (!frame) return false
+    frames.delete(frame[0])
+    React.act(() => {
+      frame[1](0)
+    })
+    return true
+  }
+
   const flushFrames = (limit = 200) => {
     for (let index = 0; index < limit; index += 1) {
       const frame = frames.entries().next().value as [number, FrameRequestCallback] | undefined
@@ -659,4 +669,65 @@ describe("useChatAutoFollow reader scroll intent", () => {
     expect(result?.state).toBe("released")
     expect(scrollContainer.scrollTop).toBe(4060)
   })
+  test("follows again once the reader scrolls down from a released tail", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -40 }))
+    })
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+
+    // Downward input says the reader wants the live tail again.
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: 40 }))
+    })
+    scrollContainer.scrollTop = 4090
+    dispatchScroll(scrollContainer)
+
+    expect(result?.state).toBe("following")
+  })
+
+  test("follows again once the reader returns to the true end by dragging", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+
+    React.act(() => {
+      scrollContainer.dispatchEvent(new WheelEvent("wheel", { deltaY: -300 }))
+    })
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    expect(result?.state).toBe("released")
+
+    vi.spyOn(performance, "now").mockReturnValue(performance.now() + 5000)
+    scrollContainer.scrollTop = 4100
+    dispatchScroll(scrollContainer)
+
+    expect(result?.state).toBe("following")
+  })
+
+  test("a drag during an in-flight follow animation keeps the dragged position", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    // Content arrives, so the follow loop is mid-transit toward the end.
+    scrollHeight = 5600
+    React.act(() => {
+      result?.notifyContentChange("text")
+    })
+    flushFrame()
+    expect(result?.state).toBe("following")
+
+    scrollContainer.scrollTop = 2000
+    dispatchScroll(scrollContainer)
+    flushFrames()
+
+    expect(scrollContainer.scrollTop).toBe(2000)
+    expect(result?.state).toBe("released")
+  })
+
 })

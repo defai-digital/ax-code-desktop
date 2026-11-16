@@ -272,6 +272,10 @@ export const useChatAutoFollow = ({
 
   // A scroll event is ours only when it still reports the position our own write
   // produced. Browsers round scrollTop, so allow a sub-pixel tolerance.
+  // Writes from outside this hook (history-prepend compensation, navigation
+  // scrolls) are deliberately not marked: they raise scrollTop, and the
+  // remaining downward adjustments are clamps that land at the end, where the
+  // release branch's !isNearBottom guard already refuses to end the follow.
   const isOwnScrollWrite = React.useCallback(
     (currentTop: number) => {
       if (!isInProgrammaticWindow()) return false
