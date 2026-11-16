@@ -8,7 +8,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
-- Bundle the signed AX Code 7.30.29 runtime and select the verified AX Engine 8.0.6 release through its official managed installer on Apple Silicon. Explicit installer overrides and configured binaries retain precedence.
+- Bundle the signed AX Code 7.30.30 runtime and select the verified AX Engine 8.0.6 release through its official managed installer on Apple Silicon. Explicit installer overrides and configured binaries retain precedence.
 
 ### Fixed
 
