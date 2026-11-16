@@ -64,6 +64,10 @@ const FOLLOW_STOP_SNAP_PX = Math.ceil(1 / LERP)
 const TOUCH_FINGER_DOWN_THRESHOLD = 2
 const SETTLE_BURST_DURATION_MS = 280
 const REPIN_GRACE_AFTER_RELEASE_MS = 1200
+// No content is hidden below the fold within this distance. The bottom "zone"
+// above is wider than this on purpose (it covers the tail spacer), so a reader
+// who scrolled up and stopped in the spacer is near the bottom but not at it.
+const AT_END_EPSILON_PX = 2
 
 // The bottom of the chat has an empty spacer (10vh on desktop, 40px on mobile)
 // — its height is exactly how far above scrollHeight the user can be while still
@@ -84,11 +88,18 @@ const isNearBottom = (el: HTMLElement, isMobile: boolean): boolean => {
   return distanceFromBottom(el) <= computeBottomZoneThreshold(isMobile, el)
 }
 
+const isAtEnd = (el: HTMLElement): boolean => {
+  return distanceFromBottom(el) <= AT_END_EPSILON_PX
+}
+
 const isScrollKey = (event: KeyboardEvent): boolean => {
   if (event.altKey || event.ctrlKey || event.metaKey) {
     return false
   }
-  if (event.target instanceof Element && event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) {
+  if (
+    event.target instanceof Element &&
+    event.target.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')
+  ) {
     return false
   }
   switch (event.key) {
@@ -114,7 +125,8 @@ const nestedScrollableCanConsume = (root: HTMLElement, target: EventTarget | nul
   for (let nested: Element | null = target; nested && nested !== root; nested = nested.parentElement) {
     if (!(nested instanceof HTMLElement) || nested.scrollHeight <= nested.clientHeight) continue
     const style = window.getComputedStyle(nested)
-    if (!nested.hasAttribute("data-scrollable") && !/^(auto|scroll|overlay)$/.test(style.overflowY || style.overflow)) continue
+    if (!nested.hasAttribute("data-scrollable") && !/^(auto|scroll|overlay)$/.test(style.overflowY || style.overflow))
+      continue
     if (deltaY === undefined) return true
     if (deltaY < 0 ? nested.scrollTop > 0 : nested.scrollTop + nested.clientHeight < nested.scrollHeight) return true
   }
@@ -170,11 +182,19 @@ export const useChatAutoFollow = ({
   const currentSessionIdRef = React.useRef(currentSessionId)
   currentSessionIdRef.current = currentSessionId
 
+  // Set when the reader scrolled up themselves. Proximity to the bottom must not
+  // re-arm the follow while this holds: a reader who stops reading a few lines
+  // above the end sits inside the bottom zone, and the re-pin used to grab the
+  // viewport back on the next streamed chunk. Cleared by downward scroll input or
+  // an explicit resume-to-latest, so returning to the end still follows again.
+  const userReleasedRef = React.useRef(false)
+
   React.useEffect(() => {
     // Turn ids are session-scoped; dropping the latches on a switch keeps them bounded.
     followedTurnStopsRef.current.clear()
     followStopEligibilityRef.current.clear()
     heldAtFollowStopRef.current = false
+    userReleasedRef.current = false
     // The unseen baseline is the message count of the session it was taken in. A new
     // session that is restored already released (its viewport position was saved in
     // this app run) would otherwise count its whole history against the previous
@@ -184,6 +204,12 @@ export const useChatAutoFollow = ({
 
   const lastSessionIdRef = React.useRef<string | null>(null)
   const programmaticWriteUntilRef = React.useRef(0)
+  // The exact position our own last write produced. A scroll event is only ours
+  // when it still sits on that value; any other position inside the write window
+  // is the reader, and guessing from timing alone dropped their gesture: the
+  // follow write that precedes a scrollbar drag made the drag look programmatic,
+  // so the view snapped back to the bottom.
+  const lastProgrammaticWriteTopRef = React.useRef(Number.NEGATIVE_INFINITY)
   const followRafRef = React.useRef<number | null>(null)
   const settledFramesRef = React.useRef(0)
   const lastScrollTopRef = React.useRef(0)
@@ -233,15 +259,26 @@ export const useChatAutoFollow = ({
     setState(next)
   }, [])
 
-  const markProgrammaticWrite = React.useCallback(() => {
+  const markProgrammaticWrite = React.useCallback((writtenTop?: number) => {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
     programmaticWriteUntilRef.current = now + PROGRAMMATIC_WRITE_WINDOW_MS
+    lastProgrammaticWriteTopRef.current = typeof writtenTop === "number" ? writtenTop : Number.NEGATIVE_INFINITY
   }, [])
 
   const isInProgrammaticWindow = React.useCallback(() => {
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
     return now < programmaticWriteUntilRef.current
   }, [])
+
+  // A scroll event is ours only when it still reports the position our own write
+  // produced. Browsers round scrollTop, so allow a sub-pixel tolerance.
+  const isOwnScrollWrite = React.useCallback(
+    (currentTop: number) => {
+      if (!isInProgrammaticWindow()) return false
+      return Math.abs(currentTop - lastProgrammaticWriteTopRef.current) <= 2
+    },
+    [isInProgrammaticWindow],
+  )
 
   const stopFollowLoop = React.useCallback(() => {
     if (followRafRef.current !== null && typeof window !== "undefined") {
@@ -292,9 +329,9 @@ export const useChatAutoFollow = ({
 
     if (stoppedAtTurn && stoppedAtTurnKey && Math.abs(delta) <= FOLLOW_STOP_SNAP_PX) {
       if (current !== target) {
-        markProgrammaticWrite()
         container.scrollTop = target
-        lastScrollTopRef.current = target
+        lastScrollTopRef.current = container.scrollTop
+        markProgrammaticWrite(container.scrollTop)
       }
       followedTurnStopsRef.current.add(stoppedAtTurnKey)
       releaseFromFollowStopRef.current()
@@ -303,9 +340,9 @@ export const useChatAutoFollow = ({
 
     if (Math.abs(delta) <= SETTLE_EPSILON) {
       if (current !== target) {
-        markProgrammaticWrite()
         container.scrollTop = target
-        lastScrollTopRef.current = target
+        lastScrollTopRef.current = container.scrollTop
+        markProgrammaticWrite(container.scrollTop)
       }
       settledFramesRef.current += 1
       if (settledFramesRef.current >= SETTLE_FRAMES) {
@@ -318,9 +355,9 @@ export const useChatAutoFollow = ({
 
     settledFramesRef.current = 0
     const next = current + delta * LERP
-    markProgrammaticWrite()
     container.scrollTop = next
     lastScrollTopRef.current = container.scrollTop
+    markProgrammaticWrite(container.scrollTop)
     followRafRef.current = window.requestAnimationFrame(tickFollow)
   }, [markProgrammaticWrite, stopFollowLoop])
 
@@ -339,9 +376,9 @@ export const useChatAutoFollow = ({
       if (!container) return
       const max = Math.max(0, container.scrollHeight - container.clientHeight)
       const clamped = Math.max(0, Math.min(target, max))
-      markProgrammaticWrite()
       container.scrollTop = clamped
       lastScrollTopRef.current = container.scrollTop
+      markProgrammaticWrite(container.scrollTop)
     },
     [markProgrammaticWrite],
   )
@@ -364,9 +401,9 @@ export const useChatAutoFollow = ({
       if (!c) return
       const target = Math.max(0, c.scrollHeight - c.clientHeight)
       if (Math.abs(c.scrollTop - target) > SETTLE_EPSILON) {
-        markProgrammaticWrite()
         c.scrollTop = target
-        lastScrollTopRef.current = target
+        lastScrollTopRef.current = c.scrollTop
+        markProgrammaticWrite(c.scrollTop)
       }
       const now = typeof performance !== "undefined" ? performance.now() : Date.now()
       if (now < until) {
@@ -393,6 +430,9 @@ export const useChatAutoFollow = ({
   }, [])
 
   const releaseFromUserIntent = React.useCallback(() => {
+    // The reader moved the viewport themselves: keep it where they put it, even
+    // while that still sits inside the bottom zone.
+    userReleasedRef.current = true
     if (stateRef.current === "following") {
       stopFollowLoop()
       stopSettleBurst()
@@ -420,12 +460,12 @@ export const useChatAutoFollow = ({
       const container = scrollRef.current
       if (container && options?.reason === "reader") {
         const turns = container.querySelectorAll("section[data-turn-id]")
-        const turnId = options.turnId === undefined
-          ? turns.item(turns.length - 1)?.getAttribute("data-turn-id")
-          : options.turnId
+        const turnId =
+          options.turnId === undefined ? turns.item(turns.length - 1)?.getAttribute("data-turn-id") : options.turnId
         if (turnId) followedTurnStopsRef.current.add(turnId)
       }
       heldAtFollowStopRef.current = false
+      userReleasedRef.current = false
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       if (!container) return
@@ -491,6 +531,7 @@ export const useChatAutoFollow = ({
 
     if (!saved || isAtBottomSnapshot(saved, isMobile, container)) {
       heldAtFollowStopRef.current = false
+      userReleasedRef.current = false
       setStateValue("following")
       lastUserReleaseAtRef.current = 0
       const target = Math.max(0, container.scrollHeight - container.clientHeight)
@@ -565,15 +606,18 @@ export const useChatAutoFollow = ({
       setShowScrollButton(false)
       return
     }
-    const showButton = stateRef.current === "released" && !isNearBottom(container, isMobile)
+    // The tail spacer makes "near the bottom" wider than "at the end": a released
+    // reader who stopped in that blank space still has nothing hidden below, so
+    // keep the way back to the live tail visible.
+    const showButton = stateRef.current === "released" && !isAtEnd(container)
     setShowScrollButton(showButton)
-  }, [isMobile])
+  }, [])
 
   const handleScrollEvent = React.useCallback(() => {
     const container = scrollRef.current
     if (!container) return
 
-    const programmatic = isInProgrammaticWindow()
+    const programmatic = isOwnScrollWrite(container.scrollTop)
     const currentTop = container.scrollTop
     const previousTop = lastScrollTopRef.current
     lastScrollTopRef.current = currentTop
@@ -589,6 +633,9 @@ export const useChatAutoFollow = ({
     // a user gesture — real gestures have their own handlers below. Only a
     // scroll that actually leaves the bottom releases the follow state.
     if (currentTop < previousTop && stateRef.current === "following" && !isNearBottom(container, isMobile)) {
+      // A drag has no wheel or key event of its own, so this is the only place
+      // that sees it: hold the released position like a real gesture.
+      userReleasedRef.current = true
       stopFollowLoop()
       stopSettleBurst()
       lastUserReleaseAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now()
@@ -597,11 +644,15 @@ export const useChatAutoFollow = ({
 
     const now = typeof performance !== "undefined" ? performance.now() : Date.now()
     const inGrace = now - lastUserReleaseAtRef.current < REPIN_GRACE_AFTER_RELEASE_MS
+    // Returning all the way to the end resumes the follow. Stopping inside the
+    // bottom zone after scrolling up oneself does not: that reader is looking at
+    // the tail they chose, and the next streamed chunk used to drag them down.
     if (
       stateRef.current === "released" &&
       isNearBottom(container, isMobile) &&
       !inGrace &&
-      !heldAtFollowStopRef.current
+      !heldAtFollowStopRef.current &&
+      (!userReleasedRef.current || isAtEnd(container))
     ) {
       setStateValue("following")
       startFollowLoop()
@@ -609,8 +660,8 @@ export const useChatAutoFollow = ({
 
     queueSave()
   }, [
-    isInProgrammaticWindow,
     isMobile,
+    isOwnScrollWrite,
     queueSave,
     setStateValue,
     startFollowLoop,
@@ -627,11 +678,18 @@ export const useChatAutoFollow = ({
     const endFollowStopHold = () => {
       heldAtFollowStopRef.current = false
     }
+    // Downward input is the reader coming back to the end: let the follow re-arm.
+    const endUserRelease = () => {
+      userReleasedRef.current = false
+    }
 
     const handleWheel = (event: WheelEvent) => {
       if (event.deltaY === 0 || nestedScrollableCanConsume(container, event.target, event.deltaY)) return
       endFollowStopHold()
-      if (event.deltaY >= 0) return
+      if (event.deltaY >= 0) {
+        endUserRelease()
+        return
+      }
       releaseFromUserIntent()
     }
 
@@ -650,9 +708,16 @@ export const useChatAutoFollow = ({
       touchLastY = touch.clientY
       if (previousY === null) return
       const fingerDelta = touch.clientY - previousY
-      if (Math.abs(fingerDelta) <= TOUCH_FINGER_DOWN_THRESHOLD || nestedScrollableCanConsume(container, event.target, -fingerDelta)) return
+      if (
+        Math.abs(fingerDelta) <= TOUCH_FINGER_DOWN_THRESHOLD ||
+        nestedScrollableCanConsume(container, event.target, -fingerDelta)
+      )
+        return
       endFollowStopHold()
-      if (fingerDelta <= TOUCH_FINGER_DOWN_THRESHOLD) return
+      if (fingerDelta <= TOUCH_FINGER_DOWN_THRESHOLD) {
+        endUserRelease()
+        return
+      }
       releaseFromUserIntent()
     }
     const handleTouchEnd = () => {
@@ -662,7 +727,10 @@ export const useChatAutoFollow = ({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isScrollKey(event)) return
       endFollowStopHold()
-      if (!isReleaseKey(event)) return
+      if (!isReleaseKey(event)) {
+        endUserRelease()
+        return
+      }
       releaseFromUserIntent()
     }
 
