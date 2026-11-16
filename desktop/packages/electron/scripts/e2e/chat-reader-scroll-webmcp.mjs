@@ -145,6 +145,35 @@ const outcome = await runHarness({
         )
         await pause(1500)
       }
+      const dragScrollbar = async (tail, targetY) => {
+        const thumbHeight = Math.max(20, (tail.viewport * tail.viewport) / tail.height)
+        const mouseX = tail.x + tail.width - 5
+        const thumbY = tail.y + tail.viewport - thumbHeight / 2
+        await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: mouseX, y: thumbY })
+        await session.send("Input.dispatchMouseEvent", {
+          type: "mousePressed",
+          button: "left",
+          buttons: 1,
+          clickCount: 1,
+          x: mouseX,
+          y: thumbY,
+        })
+        await session.send("Input.dispatchMouseEvent", {
+          type: "mouseMoved",
+          button: "left",
+          buttons: 1,
+          x: mouseX,
+          y: targetY,
+        })
+        await session.send("Input.dispatchMouseEvent", {
+          type: "mouseReleased",
+          button: "left",
+          buttons: 0,
+          clickCount: 1,
+          x: mouseX,
+          y: targetY,
+        })
+      }
       const append = async (label) => {
         const before = await metrics()
         await session.evaluate(
@@ -196,34 +225,25 @@ const outcome = await runHarness({
         if (Math.abs(keyGrown.top - keyHeld.top) > 2) throw new Error("Streaming moved Shift+Space position")
         await capture(theme + "-shift-space-held")
         await end()
+        const nearTail = await metrics()
+        const nearThumbHeight = Math.max(20, (nearTail.viewport * nearTail.viewport) / nearTail.height)
+        const nearThumbY = nearTail.y + nearTail.viewport - nearThumbHeight / 2
+        await dragScrollbar(nearTail, nearThumbY - Math.max(1, (40 * nearTail.viewport) / nearTail.height))
+        await audit.wait(`(${scroll}).scrollTop < ${nearTail.top - 5}`, "small native scrollbar drag")
+        await pause(1500)
+        const nearDragHeld = await capture(theme + "-native-small-drag-held")
+        if (
+          nearDragHeld.max - nearDragHeld.top <= 2 ||
+          nearDragHeld.max - nearDragHeld.top > Math.max(48, nearDragHeld.viewport * 0.1)
+        ) {
+          throw new Error("Small native drag did not remain in the bottom zone: " + JSON.stringify(nearDragHeld))
+        }
+        const nearDragGrown = await append(theme + " small drag")
+        if (Math.abs(nearDragGrown.top - nearDragHeld.top) > 2)
+          throw new Error("Streaming moved small native drag position")
+        await end()
         const tail = await metrics()
-        const thumbHeight = Math.max(20, (tail.viewport * tail.viewport) / tail.height)
-        const mouseX = tail.x + tail.width - 5
-        const thumbY = tail.y + tail.viewport - thumbHeight / 2
-        await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x: mouseX, y: thumbY })
-        await session.send("Input.dispatchMouseEvent", {
-          type: "mousePressed",
-          button: "left",
-          buttons: 1,
-          clickCount: 1,
-          x: mouseX,
-          y: thumbY,
-        })
-        await session.send("Input.dispatchMouseEvent", {
-          type: "mouseMoved",
-          button: "left",
-          buttons: 1,
-          x: mouseX,
-          y: tail.y + tail.viewport / 2,
-        })
-        await session.send("Input.dispatchMouseEvent", {
-          type: "mouseReleased",
-          button: "left",
-          buttons: 0,
-          clickCount: 1,
-          x: mouseX,
-          y: tail.y + tail.viewport / 2,
-        })
+        await dragScrollbar(tail, tail.y + tail.viewport / 2)
         await audit.wait(`(${scroll}).scrollTop < ${tail.top - 100}`, "native scrollbar drag")
         await pause(400)
         const dragHeld = await metrics()
@@ -241,6 +261,7 @@ const outcome = await runHarness({
           theme,
           wheel: { held, grown },
           keyboard: { held: keyHeld, grown: keyGrown },
+          smallDrag: { held: nearDragHeld, grown: nearDragGrown },
           drag: { held: dragHeld, grown: dragGrown },
           resumed: { beforeSettle: resumed, final: await capture(theme + "-following-again") },
         })

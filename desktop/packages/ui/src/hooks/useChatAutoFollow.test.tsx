@@ -670,6 +670,39 @@ describe("useChatAutoFollow reader scroll intent", () => {
     expect(result?.state).toBe("released")
     expect(scrollContainer.scrollTop).toBe(4060)
   })
+
+  test("releases a native scrollbar drag that stays inside the bottom zone", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+
+    scrollContainer.scrollTop = 4050
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("released")
+    expect(scrollContainer.scrollTop).toBe(4050)
+    expect(result?.showScrollButton).toBe(true)
+  })
+
+  test("keeps following when content shrink clamps the browser to the true end", () => {
+    render()
+    const scrollContainer = setLayout(4100)
+    flushFrames()
+    React.act(() => {
+      result?.goToBottom("instant")
+    })
+
+    scrollHeight = 4800
+    scrollContainer.scrollTop = 3900
+    dispatchScroll(scrollContainer)
+    flushFrames()
+    expect(result?.state).toBe("following")
+    expect(scrollContainer.scrollTop).toBe(3900)
+  })
+
   test("follows again once the reader scrolls down from a released tail", () => {
     render()
     const scrollContainer = setLayout(4100)

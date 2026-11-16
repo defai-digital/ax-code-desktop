@@ -278,7 +278,7 @@ export const useChatAutoFollow = ({
   // Writes from outside this hook (history-prepend compensation, navigation
   // scrolls) are deliberately not marked: they raise scrollTop, and the
   // remaining downward adjustments are clamps that land at the end, where the
-  // release branch's !isNearBottom guard already refuses to end the follow.
+  // release branch's isAtEnd guard already refuses to end the follow.
   const isOwnScrollWrite = React.useCallback(
     (currentTop: number) => {
       if (!isInProgrammaticWindow()) return false
@@ -634,11 +634,10 @@ export const useChatAutoFollow = ({
       return
     }
 
-    // A scroll-up while already near the bottom is the browser clamping
-    // scrollTop after content above shrank (a collapsing activity block), not
-    // a user gesture — real gestures have their own handlers below. Only a
-    // scroll that actually leaves the bottom releases the follow state.
-    if (currentTop < previousTop && stateRef.current === "following" && !isNearBottom(container, isMobile)) {
+    // Content shrink clamps scrollTop to the true end. A native scrollbar drag
+    // can stop anywhere in the wider bottom zone without a wheel/key event, so
+    // proximity alone cannot distinguish that reader input from a clamp.
+    if (currentTop < previousTop && stateRef.current === "following" && !isAtEnd(container)) {
       // A drag has no wheel or key event of its own, so this is the only place
       // that sees it: hold the released position like a real gesture.
       userReleasedRef.current = true
