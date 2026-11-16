@@ -3095,6 +3095,25 @@ test("catalog bounds display schema strings separately from exact executable sch
   expect(schema).toEqual(original)
 })
 
+test("projects a redacted display outputSchema and keeps an output-only edit in both digests", () => {
+  const outputSchema = {
+    type: "object",
+    description: "token=OUTPUT_SECRET",
+    properties: { total: { type: "integer", default: "API key: OUTPUT_SECRET" } },
+  }
+  const tool = { name: "echo", description: "Echo", frameId: "top", inputSchema: { type: "object" }, outputSchema }
+  const projected = projectToolCatalog([tool]).catalog[0]
+  expect(projected.outputSchema).toEqual({
+    type: "object",
+    description: "[redacted]",
+    properties: { total: { type: "integer", default: "[redacted]" } },
+  })
+  // Display only: output construction and validation never run in Desktop, so no executable copy is projected.
+  expect(projected).not.toHaveProperty("outputExecutionSchema")
+  expect(projected.digest).not.toBe(projectToolCatalog([{ ...tool, outputSchema: undefined }]).catalog[0].digest)
+  expect(projected.definitionDigest).not.toBe(projectToolCatalog([{ ...tool, outputSchema: undefined }]).catalog[0].definitionDigest)
+})
+
 describe("shutdown honors project browser refusal", () => {
   test.each(["restart", "quit", "clean quit"])("%s gates process exit and service teardown", async (action) => {
     const { requireBrowserClosure, restartDesktop } = createRequire(import.meta.url)("./browser-shutdown.js")

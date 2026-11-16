@@ -21,6 +21,8 @@ export interface WebMcpToolDefinition {
   name: string
   description: string
   inputSchema?: unknown
+  /** Redacted, bounded display schema for the tool's output. Desktop never validates output against it. */
+  outputSchema?: unknown
   /** Exact schema for manual input construction and validation, never a display document. */
   executionSchema?: unknown
   annotations?: WebMcpToolAnnotations
@@ -149,10 +151,12 @@ export function webMcpDefinitionDigest(tool: {
   name: string
   description: string
   inputSchema?: unknown
+  outputSchema?: unknown
   annotations?: WebMcpToolAnnotations
 }): string {
   const identity: Record<string, unknown> = { name: tool.name, description: tool.description }
   if (tool.inputSchema !== undefined) identity.inputSchema = tool.inputSchema
+  if (tool.outputSchema !== undefined) identity.outputSchema = tool.outputSchema
   if (tool.annotations !== undefined) identity.annotations = tool.annotations
   let canonical = `${tool.name}\0${tool.description.length}`
   try {
@@ -194,7 +198,7 @@ const byteSize = (value: unknown): number => {
 
 const readTool = (entry: unknown): WebMcpToolDefinition | null => {
   if (!isRecord(entry)) return null
-  const { name, description, inputSchema } = entry
+  const { name, description, inputSchema, outputSchema } = entry
   // Reject oversized definitions instead of cutting a credential before the display redactor sees it.
   if (
     typeof name !== "string" || !name || name.length > 256 ||
@@ -206,6 +210,7 @@ const readTool = (entry: unknown): WebMcpToolDefinition | null => {
     kind: readKind(entry.kind),
   }
   if (inputSchema !== undefined) tool.inputSchema = inputSchema
+  if (outputSchema !== undefined) tool.outputSchema = outputSchema
   if (entry.executionSchema !== undefined) tool.executionSchema = entry.executionSchema
   const annotations = readWebMcpAnnotations(entry.annotations)
   if (annotations) tool.annotations = annotations

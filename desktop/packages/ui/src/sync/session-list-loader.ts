@@ -32,13 +32,14 @@ export async function refreshDirectorySessionList({ sdk, directory, store, signa
   // Preserve the bootstrap warmup guard: HTTP can be empty while events already populated the store.
   if (rootPage.length === 0 && current.session.length > 0) return
   const sessions = mergeSessionListPage(rootPage, current.session, knownBeforeRequest)
+  const sessionTotal = sessions.reduce((total, session) => total + (session.parentID ? 0 : 1), 0)
   const unchanged =
     sessions.length === current.session.length &&
     sessions.every((session, index) => haveEquivalentSyncSnapshots(session, current.session[index]))
-  if (unchanged && current.sessionTotal === rootPage.length && current.limit === Math.max(rootPage.length, 50)) return
+  if (unchanged && current.sessionTotal === sessionTotal && current.limit === Math.max(rootPage.length, 50)) return
   store.setState({
     session: unchanged ? current.session : sessions,
-    sessionTotal: rootPage.length,
+    sessionTotal,
     limit: Math.max(rootPage.length, 50),
   })
 }

@@ -81,10 +81,11 @@ an input.
 
 **Regression export.** From a journal run, or from the agent's call when its input is a JSON object, **Copy test** copies
 a snippet that loads the tool with `document.modelContext.getTools()` and calls it through
-`document.modelContext.executeTool` with `JSON.stringify(...)`, then asserts the recorded outcome. **Copy --run
-argument** copies the same input for `pnpm run webmcp:check`. Export is available only for completed and
-application-error outcomes. Timeout, cancellation, uncertain transport, and admission failures have no export because a
-standalone page call cannot reproduce the adapter deadline, cancellation, or admission context.
+`document.modelContext.executeTool` with the input as an object, rebuilt with `JSON.parse(...)` so every own key,
+including `__proto__`, stays a data property. The snippet then asserts the recorded outcome. **Copy --run argument**
+copies the same input for `pnpm run webmcp:check`. Export is available only for completed and application-error
+outcomes. Timeout, cancellation, uncertain transport, and admission failures have no export because a standalone page
+call cannot reproduce the adapter deadline, cancellation, or admission context.
 
 - Run `add_task` with a title and watch the list update.
 - Run it with a title of only spaces. The form sends it exactly as typed, the page's own check rejects it, and the panel shows
@@ -166,6 +167,10 @@ engine in AX Code Desktop does not, so the example does not fall back to it.)
 - Avoid `pattern` and `patternProperties`. The next AX Code runtime contract rejects them (a page-supplied regular expression
   could stall the agent); validate formats in your `execute` function instead. The page tools panel names those keywords as
   advice. It does not block **Try it**, and it is not the runtime's schema check.
+- `outputSchema` is propagated like `inputSchema`: the catalog retains a redacted display copy, and registration digests,
+  stale-result checks, and `pnpm run webmcp:check` reports include it. An output-only edit is a definition change, so
+  results recorded against the previous definition are marked stale. It counts toward the 32 KiB definition limit.
+  Desktop does not validate tool output against this schema.
 - The project browser's page tools panel shows at most 64 tools, and fewer if their definitions together exceed 256 KiB.
   It says "Showing N of M" when it stops. The browser itself accepts up to 128 tools and 256 KiB; past that, the panel
   names the catalog as too large instead of dropping tools quietly or disconnecting.
@@ -176,13 +181,20 @@ engine in AX Code Desktop does not, so the example does not fall back to it.)
 - Use **Try it** for each tool, including a wrong input.
 - Ask the agent to perform a task using only page tools and check **Agent calls**: a tool the agent never chooses usually needs a
   clearer name or description.
-- Automated tests can call tools in the page from your browser test runner. Pass the input as a JSON string; the browser engine
-  bundled with AX Code Desktop answers an object with `UnknownError: Failed to parse input arguments`. The result is a JSON
-  string too:
+- Automated tests can call tools in the page from your browser test runner. Pass the input as an object; the browser engine
+  bundled with AX Code Desktop answers a JSON string with `UnknownError: Failed to parse input arguments` for the obsolete
+  string-input form. A result is not always JSON, so parse it only when your tool returns JSON:
 
   ```js
   const tool = (await document.modelContext.getTools()).find((candidate) => candidate.name === "add_task")
-  const result = JSON.parse(await document.modelContext.executeTool(tool, JSON.stringify({ title: "Ship the beta" })))
+  let result = await document.modelContext.executeTool(tool, { title: "Ship the beta" })
+  if (typeof result === "string") {
+    try {
+      result = JSON.parse(result)
+    } catch {
+      // Plain text is a normal output.
+    }
+  }
   ```
 
   The page tools panel copies this shape from a journal run or from the agent's call, and it copies the matching

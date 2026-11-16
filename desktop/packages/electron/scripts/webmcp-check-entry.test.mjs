@@ -175,6 +175,7 @@ test("checker readiness only includes top-level registrations, even with collidi
 test.each([
   { description: "Changed description" },
   { inputSchema: { type: "object", properties: { count: { type: "number" } } } },
+  { outputSchema: { type: "object", properties: { total: { type: "number" } } } },
   { annotations: { readOnlyHint: true } },
   { backendNodeId: 23 },
 ])("checker restarts settling when an existing definition changes: %j", async (change) => {
@@ -190,6 +191,7 @@ test.each([
   expect(report().tools[0]).toMatchObject({
     description: change.description ?? initial.description,
     inputSchema: change.inputSchema ?? initial.inputSchema,
+    outputSchema: change.outputSchema ?? null,
     annotations: change.annotations ?? {},
     form: change.backendNodeId !== undefined,
   })

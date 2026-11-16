@@ -19,6 +19,7 @@ const definitionDigest = (tool) => createHash("sha256").update(canonical(tool)).
 const catalogIdentity = (tool) => {
   const identity = { name: tool.name, description: tool.description }
   if (tool.inputSchema !== undefined) identity.inputSchema = tool.inputSchema
+  if (tool.outputSchema !== undefined) identity.outputSchema = tool.outputSchema
   if (tool.annotations !== undefined) identity.annotations = tool.annotations
   return identity
 }

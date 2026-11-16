@@ -527,6 +527,7 @@ function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
   if (path.basename(existing.path) !== "SKILL.md") {
     throw new Error(`Skill "${skillName}" target must be a SKILL.md file`)
   }
+  if (existing.scope === SKILL_SCOPE.PROJECT) assertProjectResourceContained(workingDirectory, existing.path)
 
   const mdPath = existing.path
   const mdDir = path.dirname(mdPath)
@@ -644,6 +645,10 @@ function deleteSkill(skillName, workingDirectory, target = {}) {
       scope: containingRoot.scope,
       source: containingRoot.source,
     })
+  }
+
+  for (const [directory, { scope }] of directories) {
+    if (scope === SKILL_SCOPE.PROJECT) assertProjectResourceContained(workingDirectory, directory)
   }
 
   let deleted = false

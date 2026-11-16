@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.24] - 2026-11-15
+
+### Changed
+
+- Bundle the signed AX Code 7.30.29 runtime and select the verified AX Engine 8.0.6 release through its official managed installer on Apple Silicon. Explicit installer overrides and configured binaries retain precedence.
+
+### Fixed
+
+- Preserve newer session events while paginated lists are loading and reconnect mounted views when directory stores are replaced.
+- Retain WebMCP output schemas across native discovery, catalog identity and display; reject malformed schemas and oversized definitions consistently.
+- Refuse project skill paths that escape through symbolic links and preserve unrelated plugin installations during deletion.
+
 ## [7.30.23] - 2026-11-14
 
 ### Fixed

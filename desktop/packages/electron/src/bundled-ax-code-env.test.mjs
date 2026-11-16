@@ -72,6 +72,7 @@ describe("applyBundledAxCodeEnv", () => {
     const env = applyBundledAxCodeEnv(
       { PATH: "/usr/bin" },
       { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: "/app/ax-code/bin/ax-code" },
+      { platform: "linux", arch: "x64" },
     )
 
     expect(env).toEqual({
@@ -92,5 +93,33 @@ describe("applyBundledAxCodeEnv", () => {
 
   test("leaves the env untouched when nothing was staged and nothing was inherited", () => {
     expect(applyBundledAxCodeEnv({ PATH: "/usr/bin" }, {})).toEqual({ PATH: "/usr/bin" })
+  })
+
+  test("selects the verified engine release for a packaged Apple Silicon runtime", () => {
+    const pin = require("../../../../config/ax-engine-runtime.json")
+    const original = { PATH: "/usr/bin" }
+    const env = applyBundledAxCodeEnv(
+      original,
+      { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: "/app/ax-code/bin/ax-code" },
+      { platform: "darwin", arch: "arm64" },
+    )
+    expect(env).toMatchObject({
+      AX_ENGINE_INSTALL_VERSION: pin.version,
+      AX_ENGINE_INSTALL_URL: pin.artifact.url,
+      AX_ENGINE_INSTALL_SHA256: pin.artifact.sha256,
+      AX_ENGINE_INSTALL_TEAM_ID: pin.appleTeamId,
+    })
+    expect(original).toEqual({ PATH: "/usr/bin" })
+  })
+
+  test("keeps an explicit installer override together without mixing release defaults", () => {
+    const env = applyBundledAxCodeEnv(
+      { AX_ENGINE_INSTALL_URL: "https://example.test/custom.tar.gz" },
+      { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: "/app/ax-code/bin/ax-code" },
+      { platform: "darwin", arch: "arm64" },
+    )
+    expect(env.AX_ENGINE_INSTALL_URL).toBe("https://example.test/custom.tar.gz")
+    expect(env).not.toHaveProperty("AX_ENGINE_INSTALL_SHA256")
+    expect(env).not.toHaveProperty("AX_ENGINE_INSTALL_VERSION")
   })
 })

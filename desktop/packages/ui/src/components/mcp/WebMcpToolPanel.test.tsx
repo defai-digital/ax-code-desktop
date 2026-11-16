@@ -800,7 +800,7 @@ test("compare shows the transcript arguments beside the manual run and flags dif
   expect(view.container.querySelector("[data-webmcp-definition-diff]")).not.toBeNull()
   const snippet = view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-snippet]")
   expect(snippet?.textContent).toContain("document.modelContext.executeTool")
-  expect(snippet?.textContent).toContain("JSON.stringify(")
+  expect(snippet?.textContent).toContain("executeTool(tool, JSON.parse(")
   expect(view.container.querySelector("[data-webmcp-export='manual'] [data-webmcp-export-run]")?.textContent).toContain(
     "--run ",
   )
@@ -924,7 +924,7 @@ test("recorded empty arguments enable structured comparison and a runnable agent
   await new AsyncFunction("document", snippet)({ modelContext: {
     getTools: async () => [{ name: "add_numbers" }], executeTool,
   } })
-  expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: "add_numbers" }), "{}")
+  expect(executeTool).toHaveBeenCalledWith(expect.objectContaining({ name: "add_numbers" }), {})
 })
 
 test("nested JSON credentials stay out of rendered manual results and copied exports", async () => {

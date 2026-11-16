@@ -69,6 +69,10 @@ function projectToolCatalog(tools, kinds = new Map(), identities = new Map(), or
         // Only input construction uses this exact copy; display and diagnosis use inputSchema.
         executionSchema: structuredClone(tool.inputSchema),
       } : {}),
+      ...(tool.outputSchema ? {
+        // Display only: Desktop never constructs or validates an output.
+        outputSchema: webMcpDisplaySchema(tool.outputSchema),
+      } : {}),
       ...(annotations ? { annotations } : {}),
       kind: kinds.get(tool.name) === "form" ? "form" : "script",
       digest: catalogDigest(tool),

@@ -269,6 +269,19 @@ describe("ax-code plugins data layer", () => {
     expect(fs.readdirSync(outsideDir)).toEqual([])
   })
 
+  test("does not delete through a project plugin directory that links out of the project", () => {
+    if (process.platform === "win32") return
+    const outsideDir = fs.mkdtempSync(path.join(rootDir, "outside-"))
+    const outsideFile = path.join(outsideDir, "plugins", "linked.js")
+    fs.mkdirSync(path.dirname(outsideFile), { recursive: true })
+    fs.writeFileSync(outsideFile, "keep")
+    fs.symlinkSync(outsideDir, path.join(projectDir, ".ax-code"))
+    const id = plugins.encodePluginId("file", "project:linked.js")
+
+    expect(thrownBy(() => plugins.deletePluginDirFile(id, projectDir))).toHaveProperty("code", "EINVAL")
+    expect(fs.readFileSync(outsideFile, "utf8")).toBe("keep")
+  })
+
   test("rejects duplicate plugin dir files unless overwrite is true", () => {
     plugins.writePluginDirFile({ fileName: "dup.js", content: "one", scope: "project" }, projectDir)
     expect(() =>

@@ -19,6 +19,12 @@ const execFileAsync = promisify(execFile)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const DEFAULT_TIMEOUT_MS = 45_000
 
+export const assertPinnedAxEngineStatus = (body, expectedVersion) => {
+  if (body?.dependency?.pinnedVersion !== expectedVersion) {
+    throw new Error(`Packaged runtime did not select the pinned AX Engine ${expectedVersion}`)
+  }
+}
+
 const parseTimeoutMs = (value, fallback = DEFAULT_TIMEOUT_MS) => {
   const parsed = Number(String(value || "").trim())
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback
@@ -425,6 +431,13 @@ const runBundledAxCodePhase = async ({ args, smokeAppPath, executable, tmpDir })
     const version = String(body?.axCodeVersion || "").replace(/^v/, "")
     if (expectedVersion && version !== expectedVersion) {
       throw new Error(`bundled runtime version ${version || "(unknown)"} does not match the pinned ${expectedVersion}`)
+    }
+    if (process.platform === "darwin" && process.arch === "arm64") {
+      const pin = JSON.parse(await fs.readFile(new URL("../../../../config/ax-engine-runtime.json", import.meta.url)))
+      const engine = await fetchJson(`http://127.0.0.1:${serverPort}/api/provider/ax-engine/models`, 30_000)
+      if (!engine.response.ok) throw new Error(`AX Engine status failed with ${engine.response.status}`)
+      assertPinnedAxEngineStatus(engine.body, pin.version)
+      console.log(`Packaged runtime selects verified AX Engine ${pin.version} through the official managed installer`)
     }
     console.log(`Bundled ax-code runtime smoke passed (v${version || "unknown"})`)
   } catch (error) {

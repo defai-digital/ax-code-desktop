@@ -429,6 +429,7 @@ function deletePluginDirFile(id, workingDirectory) {
   if (!fs.existsSync(target.absolutePath)) {
     throw codedError(`Plugin file "${target.fileName}" not found`, "NOT_FOUND")
   }
+  assertPluginPathContained(target.absolutePath, target.scope, workingDirectory)
   fs.unlinkSync(target.absolutePath)
 }
 

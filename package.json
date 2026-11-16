@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "ax-coder",
-  "version": "7.30.23",
+  "version": "7.30.24",
   "description": "Persistent desktop supervision for AX Code projects.",
   "private": true,
   "type": "module",
@@ -33,7 +33,7 @@
     "check:source-text-tests": "node desktop/scripts/check-source-text-tests.mjs",
     "check:no-sibling-dependencies": "node script/check-no-sibling-dependencies.mjs",
     "check:source-ownership": "node script/source-ownership-contract.mjs",
-    "check:runtime-pin": "node script/runtime-pin.mjs",
+    "check:runtime-pin": "node script/runtime-pin.mjs && node script/ax-engine-pin.mjs",
     "check:release-policy": "node script/release-policy.mjs check",
     "check:release-contract": "node script/desktop-release-contract.mjs",
     "check:boundaries": "pnpm run check:desktop-boundaries && pnpm run check:desktop-store-boundaries && pnpm run check:desktop-electron-runtime && pnpm run check:desktop-endpoint-contracts && pnpm run check:desktop-ipc-contracts && pnpm run check:desktop-package-tests && pnpm run check:source-text-tests && pnpm run check:no-sibling-dependencies && pnpm run check:source-ownership && pnpm run check:runtime-pin && pnpm run check:release-policy && pnpm run check:release-contract",

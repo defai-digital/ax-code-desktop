@@ -43,6 +43,7 @@ describe("refreshDirectorySessionList", () => {
     list.mockResolvedValue({ data: [external, session] })
     await refresh()
     expect(store.getState().session).toEqual([child, external, session])
+    expect(store.getState().sessionTotal).toBe(2)
   })
 
   test("preserves sessions on SDK errors and retains status for bootstrap retry", async () => {
@@ -77,5 +78,49 @@ describe("refreshDirectorySessionList", () => {
     })
     await refresh()
     expect(store.getState().session[0]).toBe(newer)
+  })
+
+  test("does not overwrite newer metadata for a session discovered during the request", async () => {
+    const { store, list, refresh } = setup()
+    const current = { ...session, id: "created", title: "Event title", time: { created: 1, updated: 200 } }
+    const stalePage = { ...current, title: "Page title", time: { created: 1, updated: 100 } }
+    list.mockImplementationOnce(async () => {
+      store.setState({ session: [current, session], sessionTotal: 2 })
+      return { data: [session, stalePage] }
+    })
+    await refresh()
+    expect(store.getState().session[0]).toBe(current)
+  })
+
+  test("counts a root session created while the request is in flight", async () => {
+    const { store, list, refresh } = setup()
+    const created = { ...session, id: "created", title: "Created" }
+    list.mockImplementationOnce(async () => {
+      store.setState({ session: [created, session], sessionTotal: 2 })
+      return { data: [session] }
+    })
+    await refresh()
+    expect(store.getState().session).toEqual([created, session])
+    expect(store.getState().sessionTotal).toBe(2)
+  })
+
+  test("does not count a root session deleted while the request is in flight", async () => {
+    const { store, list, refresh } = setup()
+    list.mockImplementationOnce(async () => {
+      store.setState({ session: [], sessionTotal: 0 })
+      return { data: [session] }
+    })
+    await refresh()
+    expect(store.getState().session).toEqual([])
+    expect(store.getState().sessionTotal).toBe(0)
+  })
+
+  test("repairs a stale total without replacing an unchanged session snapshot", async () => {
+    const { store, refresh } = setup()
+    const sessions = store.getState().session
+    store.setState({ sessionTotal: 0 })
+    await refresh()
+    expect(store.getState().session).toBe(sessions)
+    expect(store.getState().sessionTotal).toBe(1)
   })
 })

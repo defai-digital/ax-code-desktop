@@ -60,6 +60,14 @@ the catalog and regenerate the lockfile with pnpm. Version differences must have
 The SDK remains exactly pinned and checked against `config/ax-code-sdk.json`. Security overrides remain the patch
 ratchet. Never edit `pnpm-lock.yaml` by hand.
 
+Signed producer artifacts are pinned separately: `config/ax-code-runtime.json` selects the bundled AX Code runtime,
+and `config/ax-engine-runtime.json` selects the official AX Engine managed-install archive for Apple Silicon.
+Packaged Electron launches supply the engine pin through AX Code's existing `AX_ENGINE_INSTALL_*` interface; AX Code
+continues to own eligibility, installation, update decisions and execution. Explicit installer overrides are kept as
+one group, and configured/PATH binaries keep the runtime's existing precedence. Development and unsupported hosts
+receive no installer defaults. `check:runtime-pin` validates both pins; packaging embeds the engine selection in the
+main bundle rather than importing sibling runtime source.
+
 ## Incremental module organization
 
 Keep tests and small feature-specific helpers close to their consumers. Before extracting from a large module,

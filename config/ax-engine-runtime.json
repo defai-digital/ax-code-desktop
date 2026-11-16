@@ -1,0 +1,17 @@
+{
+  "schema": "ax-code-desktop.ax-engine-runtime.v1",
+  "version": "8.0.6",
+  "repository": "defai-digital/ax-engine",
+  "releaseTag": "v8.0.6",
+  "platform": "darwin",
+  "arch": "arm64",
+  "artifact": {
+    "filename": "ax-engine-v8.0.6-macos-arm64.tar.gz",
+    "url": "https://github.com/defai-digital/ax-engine/releases/download/v8.0.6/ax-engine-v8.0.6-macos-arm64.tar.gz",
+    "size": 93746046,
+    "sha256": "01355484c55fbed24caab3ea13467924346f5edd7b74129df9c96dca9eeb9116",
+    "signatureSize": 424,
+    "signatureSha256": "9d4ace9baed103f6a9db526ffe348bc47f308346ec08290b233c40f74ca8b5c7"
+  },
+  "appleTeamId": "N5ZUZDUJS6"
+}
