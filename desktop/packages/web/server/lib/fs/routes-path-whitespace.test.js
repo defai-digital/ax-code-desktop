@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { createSettingsNormalizationRuntime } from "../ax-code/settings-normalization-runtime.js"
+import { createCoreFileAdapter } from "./core-file-adapter.js"
 import { registerFsRoutes } from "./routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
@@ -11,7 +12,7 @@ afterEach(async () => {
   await Promise.all(directories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true })))
 })
 
-async function fixture() {
+async function fixture(coreFileAdapter) {
   const directory = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "ax-code-path-spaces-")))
   directories.push(directory)
   const filename = path.join(directory, "notes.txt ")
@@ -33,7 +34,7 @@ async function fixture() {
     buildAugmentedPath: () => "",
     resolveGitBinaryForSpawn: () => "git",
     openchamberUserConfigRoot: path.join(directory, ".config"),
-    coreFileAdapter: { list },
+    coreFileAdapter: coreFileAdapter ?? { list },
   })
   const call = async (method, route, input) => {
     const response = createMockResponse()
@@ -77,6 +78,22 @@ describe.skipIf(process.platform === "win32")("literal filesystem path whitespac
     const response = await call("GET", "list", { path: folder })
     expect(response.statusCode).toBe(200)
     expect(list).toHaveBeenCalledWith({ path: folder, directory })
+  })
+
+  it("preserves the requested directory through the real runtime adapter", async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => [] }))
+    const adapter = createCoreFileAdapter({ fetchImpl, getBaseUrl: () => "http://127.0.0.1:4090/" })
+    const { directory, call } = await fixture(adapter)
+    const folder = path.join(directory, "folder ")
+    await fs.mkdir(folder)
+    await fs.mkdir(folder.trimEnd())
+
+    const response = await call("GET", "list", { path: folder })
+
+    expect(response.statusCode).toBe(200)
+    const [url, init] = fetchImpl.mock.calls[0]
+    expect(url.searchParams.get("path")).toBe("folder ")
+    expect(init.headers["x-ax-code-directory"]).toBe(encodeURIComponent(directory))
   })
 
   it.each(["read", "raw", "stat"])("%s still rejects an empty path", async (route) => {

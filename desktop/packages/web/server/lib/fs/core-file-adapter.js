@@ -66,8 +66,9 @@ const toPosix = (value) => value.split(path.sep).join("/")
  * is passed through unchanged so the runtime can reject it.
  */
 export const toRuntimeRelativePath = (targetPath, directory) => {
-  const target = asTrimmedString(targetPath)
-  const base = asTrimmedString(directory)
+  // Filesystem paths are literal: trimming can select a different sibling after the route authorized the original.
+  const target = typeof targetPath === "string" ? targetPath : ""
+  const base = typeof directory === "string" ? directory : ""
   if (!target || !base || !path.isAbsolute(target) || !path.isAbsolute(base)) return target
   const relative = path.relative(base, target)
   if (relative === "") return "."
@@ -98,7 +99,7 @@ export const createCoreFileAdapter = ({
       url.searchParams.set(key, String(value))
     }
     const headers = { ...(typeof getHeaders === "function" ? getHeaders() : {}) }
-    const directory = asTrimmedString(extras.directory)
+    const directory = typeof extras.directory === "string" ? extras.directory : ""
     if (directory) {
       headers["x-ax-code-directory"] = encodeURIComponent(directory)
     }

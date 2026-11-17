@@ -96,6 +96,23 @@ describe("core file adapter", () => {
     expect(fetchImpl.mock.calls[1][1].headers["x-ax-code-directory"]).toBe(encodeURIComponent("/Users/dev"))
   })
 
+  it.each(["list", "read", "raw"])("%s preserves literal whitespace in paths and directory headers", async (method) => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ type: "text", content: "requested" }) }))
+    const adapter = createCoreFileAdapter({ fetchImpl, getBaseUrl: () => "http://127.0.0.1:4090/" })
+    const directory = path.resolve("/repo ")
+    await adapter[method]({ path: path.join(directory, " notes.txt "), directory })
+    await adapter[method]({ path: " notes.txt ", directory })
+    await adapter[method]({ path: directory, directory })
+
+    const urls = fetchImpl.mock.calls.map(([url]) => new URL(String(url)))
+    expect(urls.map((url) => url.searchParams.get("path"))).toEqual([" notes.txt ", " notes.txt ", "."])
+    for (const [, init] of fetchImpl.mock.calls) {
+      expect(init.headers["x-ax-code-directory"]).toBe(encodeURIComponent(directory))
+    }
+    const outside = path.resolve("/repo/notes.txt ")
+    expect(toRuntimeRelativePath(outside, directory)).toBe(outside)
+  })
+
   it("gives up on a runtime that accepts the request and never answers", async () => {
     // The renderer shares one in-flight listing per directory, so a hung request hung every later listing too.
     const fetchImpl = vi.fn(

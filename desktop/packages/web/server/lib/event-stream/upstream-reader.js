@@ -134,6 +134,7 @@ export function createUpstreamSseReader({
   let running = null
   let stopped = false
   let activeController = null
+  let reconnectController = null
   let lastEventId = typeof initialLastEventId === "string" ? initialLastEventId : ""
   let stopListenerAttached = false
 
@@ -152,6 +153,8 @@ export function createUpstreamSseReader({
   function stop() {
     stopped = true
     detachStopListener()
+    // The active fetch is already gone between attempts; cancel the retry wait as well.
+    reconnectController?.abort()
     if (activeController && !activeController.signal.aborted) {
       activeController.abort()
     }
@@ -164,6 +167,8 @@ export function createUpstreamSseReader({
 
     attachStopListener()
     stopped = false
+    reconnectController = new AbortController()
+    const reconnectSignal = reconnectController.signal
     running = (async () => {
       let reconnectAttempt = 0
       let connectedAt = 0
@@ -237,7 +242,7 @@ export function createUpstreamSseReader({
             })
             await cancelResponseBody(response)
             reconnectAttempt += 1
-            await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), signal)
+            await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), reconnectSignal)
             continue
           }
 
@@ -312,8 +317,9 @@ export function createUpstreamSseReader({
             // Only the incomplete tail counts toward the ceiling: a chunk may carry
             // many complete events. A tail that is still growing past it is one
             // event too large to hold (or a peer that never ends a block).
-            if (buffer.length > maxBufferBytes && !stopped && !signal?.aborted) {
-              oversize = { eventId: readLeadingEventId(buffer), bytes: buffer.length }
+            const bufferedBytes = Buffer.byteLength(buffer, "utf8")
+            if (bufferedBytes > maxBufferBytes && !stopped && !signal?.aborted) {
+              oversize = { eventId: readLeadingEventId(buffer), bytes: bufferedBytes }
               // A writer that leads with `id:` can be advanced past right away;
               // one that trails it is advanced when the tail settles below.
               if (oversize.eventId) lastEventId = oversize.eventId
@@ -383,11 +389,12 @@ export function createUpstreamSseReader({
             reconnectAttempt = 0
           }
           reconnectAttempt += 1
-          await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), signal)
+          await waitForReconnectDelay(resolveReconnectDelay(reconnectDelayMs, reconnectAttempt), reconnectSignal)
         }
       }
     })().finally(() => {
       detachStopListener()
+      reconnectController = null
       running = null
     })
 
