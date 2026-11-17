@@ -155,10 +155,11 @@ describe("focused global browser hand-off", () => {
 })
 
 describe("getContextPanelFileNameFromPath", () => {
-  test("returns null for missing or blank paths", () => {
+  test("returns null for missing paths and preserves whitespace-only filenames", () => {
     expect(getContextPanelFileNameFromPath(null)).toBeNull()
     expect(getContextPanelFileNameFromPath("")).toBeNull()
-    expect(getContextPanelFileNameFromPath("   ")).toBeNull()
+    expect(getContextPanelFileNameFromPath("   ")).toBe("   ")
+    expect(getContextPanelFileNameFromPath("/repo/ report.txt ")).toBe(" report.txt ")
   })
 
   test("returns the last segment of POSIX and Windows paths", () => {

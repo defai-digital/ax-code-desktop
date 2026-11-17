@@ -6,6 +6,22 @@ describe("useFilesViewTabsStore", () => {
     useFilesViewTabsStore.setState({ byRoot: {} })
   })
 
+  test("keeps literal whitespace through file selection, close and stale-path removal", () => {
+    const root = "/repo"
+    const plain = "/repo/file.txt"
+    const spaced = "/repo/file.txt "
+    const store = useFilesViewTabsStore.getState()
+    store.addOpenPath(root, plain)
+    store.addOpenPath(root, spaced)
+    store.setSelectedPath(root, spaced)
+    expect(useFilesViewTabsStore.getState().byRoot[root]?.openPaths).toEqual([plain, spaced])
+    expect(useFilesViewTabsStore.getState().byRoot[root]?.selectedPath).toBe(spaced)
+    store.removeUnselectedOpenPath(root, plain)
+    expect(useFilesViewTabsStore.getState().byRoot[root]?.openPaths).toEqual([spaced])
+    store.removeOpenPath(root, spaced)
+    expect(useFilesViewTabsStore.getState().byRoot[root]?.openPaths).toEqual([])
+  })
+
   test("ignores runtime paths outside the requested root", () => {
     const root = "/repo"
     const store = useFilesViewTabsStore.getState()

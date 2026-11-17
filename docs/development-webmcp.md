@@ -1,5 +1,15 @@
 # Test the Desktop UI with WebMCP
 
+To verify context-panel file identity and persisted tab state on POSIX hosts:
+
+```sh
+node desktop/packages/electron/scripts/e2e/context-panel-state-webmcp.mjs --artifacts /tmp/ax-context-panel-state
+```
+
+This isolated fixture creates distinct plain/trailing-space filenames, restores both tabs, selects and closes the
+spaced file through native WebMCP, verifies actual editor content and reload behavior, and records fresh state/DOM
+plus light/dark screenshots. It writes only disposable fixture files and executes no model.
+
 To verify scheduled-task startup failures and recovery:
 
 ```sh

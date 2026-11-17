@@ -172,6 +172,11 @@ Important properties:
 
 ## Store boundary enforcement
 
+Context-panel state transforms and restore validation live in `lib/contextPanelState`; `useUIStore` owns the
+actions and persisted map. Current-version merges and legacy migration use the same validator. It bounds roots/tabs,
+preserves literal file identity and empty-panel width preferences, and never restores browser navigation.
+The Files renderer and `useFilesViewTabsStore` share `lib/filesViewPath` rather than duplicating path normalization.
+
 Store boundaries are enforced by `script/check-desktop-store-boundaries.ts`
 (repo check `pnpm run check:desktop-store-boundaries`, also wired into the
 desktop CI workflows), not just by convention:

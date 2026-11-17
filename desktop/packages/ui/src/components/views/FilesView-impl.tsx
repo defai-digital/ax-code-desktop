@@ -981,7 +981,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
 
   const loadDirectory = React.useCallback(
     async (dirPath: string) => {
-      const normalizedDir = normalizePath(dirPath.trim())
+      const normalizedDir = normalizePath(dirPath)
       if (!normalizedDir) {
         return
       }

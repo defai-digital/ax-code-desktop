@@ -83,6 +83,10 @@ The config store owns provider selection and cached metadata state. External cat
 in `ui/src/lib/modelsDevMetadata.ts`, and settings defaults share the adapter in `lib/configDefaults.ts`.
 The metadata loader under `stores/utils/` coordinates cancellation and request ownership without importing stores.
 
+Context-panel normalization, tab transforms and restore validation live in `ui/src/lib/contextPanelState.ts`;
+the UI store keeps actions and persistence ownership. Renderer and Files tab state share `lib/filesViewPath.ts`.
+The older component path-helper module remains a compatibility re-export.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

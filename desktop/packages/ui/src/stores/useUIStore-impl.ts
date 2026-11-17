@@ -19,7 +19,19 @@ import {
   type MonoFontOption,
   type UiFontOption,
 } from "@/lib/fontOptions"
-import { normalizeProjectPath } from "@/lib/projectResolution"
+import {
+  normalizeContextPanelDirectoryKey as normalizeDirectoryPath,
+  normalizeContextTargetPath,
+  clampContextPanelWidth,
+  touchContextPanelState,
+  upsertContextPanelTab,
+  closeContextPanelTab,
+  reorderContextPanelTabs,
+  sanitizeContextPanelByDirectory,
+  clampContextPanelRoots,
+  type ContextPanelTabDescriptor,
+  type ContextPanelDirectoryState,
+} from "@/lib/contextPanelState"
 import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
 
@@ -37,22 +49,8 @@ const readSessionGrid = (): SessionGridState => {
   }
 }
 type RightSidebarTab = "git" | "files" | "context"
-export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
-
-const CONTEXT_PANEL_MODES = new Set<ContextPanelMode>([
-  "diff",
-  "file",
-  "context",
-  "plan",
-  "chat",
-  "preview",
-  "browser",
-  "dashboard",
-])
-
-export const isContextPanelMode = (mode: unknown): mode is ContextPanelMode => {
-  return typeof mode === "string" && CONTEXT_PANEL_MODES.has(mode as ContextPanelMode)
-}
+export { isContextPanelMode } from "@/lib/contextPanelState"
+export type { ContextPanelMode } from "@/lib/contextPanelState"
 
 type MermaidRenderingMode = "svg" | "ascii"
 type UserMessageRenderingMode = "markdown" | "plain"
@@ -60,35 +58,6 @@ type ActivityRenderMode = "collapsed" | "summary"
 type SessionRetentionAction = "archive" | "delete"
 
 type WeekStartPreference = "auto" | "sunday" | "monday"
-
-type ContextPanelTab = {
-  id: string
-  mode: ContextPanelMode
-  targetPath: string | null
-  dedupeKey: string
-  label: string | null
-  readOnly: boolean
-  stagedDiff: boolean
-  touchedAt: number
-}
-
-type ContextPanelTabDescriptor = {
-  mode: ContextPanelMode
-  targetPath?: string | null
-  dedupeKey?: string | null
-  label?: string | null
-  readOnly?: boolean
-  stagedDiff?: boolean
-}
-
-type ContextPanelDirectoryState = {
-  isOpen: boolean
-  expanded: boolean
-  tabs: ContextPanelTab[]
-  activeTabId: string | null
-  width: number
-  touchedAt: number
-}
 
 type PendingFileNavigation = {
   path: string
@@ -150,390 +119,8 @@ const MAX_DIFF_FILE_LAYOUTS = 500
 export const diffLayoutKey = (directory: string | null | undefined, filePath: string): string =>
   `${(directory ?? "").replace(/\\/g, "/").replace(/\/+$/, "")}\u0000${filePath}`
 
-const CONTEXT_PANEL_DEFAULT_WIDTH = 380
-const CONTEXT_PANEL_MIN_WIDTH = 380
-const CONTEXT_PANEL_MAX_WIDTH = 1400
-const CONTEXT_PANEL_MAX_TABS = 12
-const CONTEXT_PANEL_MAX_LABEL_LENGTH = 120
 const LEFT_SIDEBAR_MIN_WIDTH = 280
 const RIGHT_SIDEBAR_MIN_WIDTH = 360
-
-const normalizeDirectoryPath = (value: string): string => {
-  return normalizeProjectPath(value) ?? ""
-}
-
-const clampContextPanelWidth = (width: number): number => {
-  if (!Number.isFinite(width)) {
-    return CONTEXT_PANEL_DEFAULT_WIDTH
-  }
-
-  return Math.min(CONTEXT_PANEL_MAX_WIDTH, Math.max(CONTEXT_PANEL_MIN_WIDTH, Math.round(width)))
-}
-
-const normalizeContextTargetPath = (value: string | null | undefined): string | null => {
-  if (typeof value !== "string") {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  return trimmed.replace(/\\/g, "/")
-}
-
-const normalizeContextTabLabel = (value: string | null | undefined): string | null => {
-  if (typeof value !== "string") {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  return trimmed.length > CONTEXT_PANEL_MAX_LABEL_LENGTH ? trimmed.slice(0, CONTEXT_PANEL_MAX_LABEL_LENGTH) : trimmed
-}
-
-const buildDefaultContextPanelTabDedupeKey = (mode: ContextPanelMode, targetPath: string | null): string => {
-  if (mode === "file") {
-    return targetPath || mode
-  }
-
-  if (mode === "preview") {
-    return targetPath || mode
-  }
-
-  if (mode === "dashboard") {
-    return mode
-  }
-
-  return mode
-}
-
-const normalizeContextPanelTabDedupeKey = (
-  mode: ContextPanelMode,
-  targetPath: string | null,
-  dedupeKey: string | null | undefined,
-): string => {
-  if (typeof dedupeKey === "string") {
-    const trimmed = dedupeKey.trim()
-    if (trimmed) {
-      return trimmed
-    }
-  }
-
-  return buildDefaultContextPanelTabDedupeKey(mode, targetPath)
-}
-
-const buildContextPanelTabID = (mode: ContextPanelMode, dedupeKey: string): string => {
-  return dedupeKey === mode ? mode : `${mode}:${dedupeKey}`
-}
-
-const createContextPanelTab = (descriptor: ContextPanelTabDescriptor): ContextPanelTab => {
-  const normalizedTargetPath = normalizeContextTargetPath(descriptor.targetPath)
-  const dedupeKey = normalizeContextPanelTabDedupeKey(descriptor.mode, normalizedTargetPath, descriptor.dedupeKey)
-  return {
-    id: buildContextPanelTabID(descriptor.mode, dedupeKey),
-    mode: descriptor.mode,
-    targetPath: normalizedTargetPath,
-    dedupeKey,
-    label: normalizeContextTabLabel(descriptor.label),
-    readOnly: descriptor.readOnly === true,
-    stagedDiff: descriptor.stagedDiff === true,
-    touchedAt: Date.now(),
-  }
-}
-
-const clampContextPanelTabs = (
-  tabs: ContextPanelTab[],
-  maxTabs: number,
-  activeTabId: string | null,
-): ContextPanelTab[] => {
-  if (tabs.length <= maxTabs) {
-    return tabs
-  }
-
-  const tabsByTouch = [...tabs].sort((a, b) => a.touchedAt - b.touchedAt)
-  const removable = tabsByTouch.filter((tab) => tab.id !== activeTabId)
-  const removeCount = tabs.length - maxTabs
-  if (removeCount <= 0 || removable.length === 0) {
-    return tabs.slice(-maxTabs)
-  }
-
-  const removeSet = new Set(removable.slice(0, removeCount).map((tab) => tab.id))
-  return tabs.filter((tab) => !removeSet.has(tab.id))
-}
-
-const sanitizeContextPanelTabs = (tabs: unknown): ContextPanelTab[] => {
-  if (!Array.isArray(tabs)) {
-    return []
-  }
-
-  const result: ContextPanelTab[] = []
-  const seen = new Set<string>()
-
-  for (const entry of tabs) {
-    if (!entry || typeof entry !== "object") {
-      continue
-    }
-
-    const candidate = entry as {
-      mode?: unknown
-      targetPath?: unknown
-      dedupeKey?: unknown
-      label?: unknown
-      readOnly?: unknown
-      stagedDiff?: unknown
-      touchedAt?: unknown
-    }
-
-    if (!isContextPanelMode(candidate.mode)) {
-      continue
-    }
-
-    const targetPath = normalizeContextTargetPath(
-      typeof candidate.targetPath === "string" ? candidate.targetPath : null,
-    )
-    const dedupeKey = normalizeContextPanelTabDedupeKey(
-      candidate.mode,
-      targetPath,
-      typeof candidate.dedupeKey === "string" ? candidate.dedupeKey : null,
-    )
-    const id = buildContextPanelTabID(candidate.mode, dedupeKey)
-    if (!id || seen.has(id)) {
-      continue
-    }
-
-    seen.add(id)
-    result.push({
-      id,
-      mode: candidate.mode,
-      targetPath,
-      dedupeKey,
-      label: normalizeContextTabLabel(typeof candidate.label === "string" ? candidate.label : null),
-      readOnly: candidate.readOnly === true,
-      stagedDiff: candidate.stagedDiff === true,
-      touchedAt:
-        typeof candidate.touchedAt === "number" && Number.isFinite(candidate.touchedAt)
-          ? candidate.touchedAt
-          : Date.now(),
-    })
-  }
-
-  return result
-}
-
-const resolveActiveContextPanelTabID = (tabs: ContextPanelTab[], activeTabId: string | null): string | null => {
-  if (activeTabId && tabs.some((tab) => tab.id === activeTabId)) {
-    return activeTabId
-  }
-
-  if (tabs.length === 0) {
-    return null
-  }
-
-  return tabs[tabs.length - 1].id
-}
-
-const touchContextPanelState = (prev?: ContextPanelDirectoryState): ContextPanelDirectoryState => {
-  if (prev) {
-    const tabs = sanitizeContextPanelTabs(prev.tabs)
-    const activeTabId = resolveActiveContextPanelTabID(tabs, prev.activeTabId)
-    return {
-      ...prev,
-      isOpen: tabs.length > 0 ? prev.isOpen : false,
-      tabs,
-      activeTabId,
-      touchedAt: Date.now(),
-    }
-  }
-
-  return {
-    isOpen: false,
-    expanded: false,
-    tabs: [],
-    activeTabId: null,
-    width: CONTEXT_PANEL_DEFAULT_WIDTH,
-    touchedAt: Date.now(),
-  }
-}
-
-const upsertContextPanelTab = (
-  current: ContextPanelDirectoryState,
-  descriptor: ContextPanelTabDescriptor,
-): ContextPanelDirectoryState => {
-  const nextTab = createContextPanelTab(descriptor)
-  const existingIndex = current.tabs.findIndex((tab) => tab.id === nextTab.id)
-  // New context-panel tabs open leftmost on the strip (active immediately).
-  const tabs =
-    existingIndex === -1
-      ? [nextTab, ...current.tabs]
-      : current.tabs.map((tab, index) =>
-          index === existingIndex
-            ? {
-                ...tab,
-                mode: nextTab.mode,
-                targetPath: nextTab.targetPath || tab.targetPath,
-                dedupeKey: nextTab.dedupeKey,
-                label: nextTab.label,
-                stagedDiff: nextTab.stagedDiff,
-                readOnly: nextTab.readOnly,
-                touchedAt: Date.now(),
-              }
-            : tab,
-        )
-
-  const activeTabId = nextTab.id
-  const clampedTabs = clampContextPanelTabs(tabs, CONTEXT_PANEL_MAX_TABS, activeTabId)
-
-  return {
-    ...current,
-    isOpen: true,
-    tabs: clampedTabs,
-    activeTabId: resolveActiveContextPanelTabID(clampedTabs, activeTabId),
-    touchedAt: Date.now(),
-  }
-}
-
-const closeContextPanelTab = (current: ContextPanelDirectoryState, tabID: string): ContextPanelDirectoryState => {
-  const nextTabs = current.tabs.filter((tab) => tab.id !== tabID)
-  const nextActiveTabId =
-    current.activeTabId === tabID
-      ? (nextTabs[nextTabs.length - 1]?.id ?? null)
-      : resolveActiveContextPanelTabID(nextTabs, current.activeTabId)
-
-  return {
-    ...current,
-    tabs: nextTabs,
-    activeTabId: nextActiveTabId,
-    isOpen: nextTabs.length > 0 ? current.isOpen : false,
-    touchedAt: Date.now(),
-  }
-}
-
-const reorderContextPanelTabs = (
-  current: ContextPanelDirectoryState,
-  activeTabID: string,
-  overTabID: string,
-): ContextPanelDirectoryState => {
-  if (activeTabID === overTabID) {
-    return current
-  }
-
-  const fromIndex = current.tabs.findIndex((tab) => tab.id === activeTabID)
-  const toIndex = current.tabs.findIndex((tab) => tab.id === overTabID)
-  if (fromIndex === -1 || toIndex === -1) {
-    return current
-  }
-
-  const tabs = [...current.tabs]
-  const [moved] = tabs.splice(fromIndex, 1)
-  if (!moved) {
-    return current
-  }
-
-  tabs.splice(toIndex, 0, moved)
-
-  return {
-    ...current,
-    tabs,
-    touchedAt: Date.now(),
-  }
-}
-
-const setContextPanelTabTargetPath = (
-  current: ContextPanelDirectoryState,
-  tabID: string,
-  targetPath: string,
-): ContextPanelDirectoryState => ({
-  ...current,
-  tabs: current.tabs.map((tab) => (tab.id === tabID ? { ...tab, targetPath } : tab)),
-})
-
-const sanitizeContextPanelByDirectory = (value: unknown): Record<string, ContextPanelDirectoryState> => {
-  if (!value || typeof value !== "object") {
-    return {}
-  }
-
-  const source = value as Record<string, unknown>
-  const next: Record<string, ContextPanelDirectoryState> = {}
-
-  for (const [rawDirectory, rawState] of Object.entries(source)) {
-    const directory = normalizeDirectoryPath(rawDirectory)
-    if (!directory || !rawState || typeof rawState !== "object") {
-      continue
-    }
-
-    const candidate = rawState as {
-      isOpen?: unknown
-      expanded?: unknown
-      tabs?: unknown
-      activeTabId?: unknown
-      width?: unknown
-      touchedAt?: unknown
-      mode?: unknown
-      targetPath?: unknown
-      dedupeKey?: unknown
-      label?: unknown
-    }
-
-    let tabs = sanitizeContextPanelTabs(candidate.tabs)
-    let activeTabId = typeof candidate.activeTabId === "string" ? candidate.activeTabId : null
-
-    if (tabs.length === 0 && isContextPanelMode(candidate.mode)) {
-      tabs = [
-        createContextPanelTab({
-          mode: candidate.mode,
-          targetPath: typeof candidate.targetPath === "string" ? candidate.targetPath : null,
-          dedupeKey: typeof candidate.dedupeKey === "string" ? candidate.dedupeKey : null,
-          label: typeof candidate.label === "string" ? candidate.label : null,
-        }),
-      ]
-      activeTabId = tabs[0]?.id ?? null
-    }
-
-    const resolvedActiveTabId = resolveActiveContextPanelTabID(tabs, activeTabId)
-    const clampedTabs = clampContextPanelTabs(tabs, CONTEXT_PANEL_MAX_TABS, resolvedActiveTabId)
-    if (clampedTabs.length === 0) {
-      continue
-    }
-
-    next[directory] = {
-      isOpen: candidate.isOpen === true,
-      expanded: candidate.expanded === true,
-      tabs: clampedTabs,
-      activeTabId: resolveActiveContextPanelTabID(clampedTabs, resolvedActiveTabId),
-      width: clampContextPanelWidth(
-        typeof candidate.width === "number" ? candidate.width : CONTEXT_PANEL_DEFAULT_WIDTH,
-      ),
-      touchedAt:
-        typeof candidate.touchedAt === "number" && Number.isFinite(candidate.touchedAt)
-          ? candidate.touchedAt
-          : Date.now(),
-    }
-  }
-
-  return next
-}
-
-const clampContextPanelRoots = (
-  byDirectory: Record<string, ContextPanelDirectoryState>,
-  maxRoots: number,
-): Record<string, ContextPanelDirectoryState> => {
-  const entries = Object.entries(byDirectory)
-  if (entries.length <= maxRoots) {
-    return byDirectory
-  }
-
-  entries.sort((a, b) => (b[1]?.touchedAt ?? 0) - (a[1]?.touchedAt ?? 0))
-  const next: Record<string, ContextPanelDirectoryState> = {}
-  for (const [directory, state] of entries.slice(0, maxRoots)) {
-    next[directory] = state
-  }
-  return next
-}
 
 // The browser lives in a single global panel (not per-directory) so it stays
 // open/consistent as the user switches projects. Its chip is rendered into the
@@ -722,7 +309,6 @@ interface UIStore {
   focusContextBrowser: () => void
   setContextBrowserUrl: (url: string) => void
   openContextDashboard: (directory: string) => void
-  setContextPanelTabTargetPath: (directory: string, tabID: string, targetPath: string) => void
   setActiveContextPanelTab: (directory: string, tabID: string) => void
   reorderContextPanelTabs: (directory: string, activeTabID: string, overTabID: string) => void
   closeContextPanelTab: (directory: string, tabID: string) => void
@@ -1154,13 +740,13 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: upsertContextPanelTab(current, tab),
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         openContextDiff: (directory, filePath, staged = false) => {
           const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedFilePath = (filePath || "").trim()
+          const normalizedFilePath = normalizeContextTargetPath(filePath, "diff")
           if (!normalizedDirectory || !normalizedFilePath) {
             return
           }
@@ -1289,25 +875,9 @@ export const useUIStore = create<UIStore>()(
           })
         },
 
-        setContextPanelTabTargetPath: (directory, tabID, targetPath) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
-          if (!normalizedDirectory || !normalizedTabID) return
-          set((state) => {
-            const current = state.contextPanelByDirectory[normalizedDirectory]
-            if (!current) return state
-            return {
-              contextPanelByDirectory: {
-                ...state.contextPanelByDirectory,
-                [normalizedDirectory]: setContextPanelTabTargetPath(current, normalizedTabID, targetPath),
-              },
-            }
-          })
-        },
-
         setActiveContextPanelTab: (directory, tabID) => {
           const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
+          const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
           }
@@ -1339,14 +909,14 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20), ...(browserPatch ?? {}) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory), ...(browserPatch ?? {}) }
           })
         },
 
         reorderContextPanelTabs: (directory, activeTabID, overTabID) => {
           const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedActiveTabID = (activeTabID || "").trim()
-          const normalizedOverTabID = (overTabID || "").trim()
+          const normalizedActiveTabID = (activeTabID || "")
+          const normalizedOverTabID = (overTabID || "")
           if (!normalizedDirectory || !normalizedActiveTabID || !normalizedOverTabID) {
             return
           }
@@ -1371,13 +941,13 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: next,
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         closeContextPanelTab: (directory, tabID) => {
           const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
+          const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
           }
@@ -1394,7 +964,7 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: closeContextPanelTab(current, normalizedTabID),
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
@@ -1418,7 +988,7 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
@@ -1439,7 +1009,7 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
@@ -1460,7 +1030,7 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
@@ -2319,53 +1889,10 @@ export const useUIStore = create<UIStore>()(
             }
           }
 
-          if (version < 6) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
-          if (version < 7) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
           if (version < 8) {
             if (state.gitChangesViewMode !== "flat" && state.gitChangesViewMode !== "tree") {
               state.gitChangesViewMode = "flat"
             }
-          }
-
-          if (version < 10) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
-          // v10 -> v11: the browser moved from a per-directory context-panel tab to a
-          // single global panel. Drain the most recently touched per-directory browser
-          // tab's URL into the new global slice, then strip browser tabs everywhere.
-          if (version < 11) {
-            const byDirectory = state.contextPanelByDirectory
-            let drainedUrl = ""
-            let drainedTouchedAt = -Infinity
-            if (byDirectory && typeof byDirectory === "object") {
-              for (const dirState of Object.values(byDirectory as Record<string, ContextPanelDirectoryState>)) {
-                const tabs = Array.isArray(dirState?.tabs) ? dirState.tabs : []
-                for (const tab of tabs) {
-                  if (tab?.mode === "browser") {
-                    const touched = typeof tab.touchedAt === "number" ? tab.touchedAt : 0
-                    if (touched >= drainedTouchedAt) {
-                      drainedTouchedAt = touched
-                      drainedUrl = typeof tab.targetPath === "string" ? tab.targetPath : ""
-                    }
-                  }
-                }
-                if (Array.isArray(dirState?.tabs)) {
-                  dirState.tabs = dirState.tabs.filter((tab) => tab?.mode !== "browser")
-                  if (dirState.activeTabId && !dirState.tabs.some((tab) => tab.id === dirState.activeTabId)) {
-                    dirState.activeTabId = dirState.tabs[dirState.tabs.length - 1]?.id ?? null
-                  }
-                }
-              }
-            }
-            state.browserPanel = { isOpen: false, url: drainedUrl, focused: false }
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
           }
 
           // Browser navigation is intentionally session-only. Restoring a URL
@@ -2507,6 +2034,8 @@ export const useUIStore = create<UIStore>()(
           if (!isPersistedSplitPaneRightTab(merged.splitPaneRightTab)) {
             merged.splitPaneRightTab = currentState.splitPaneRightTab
           }
+          merged.contextPanelByDirectory = sanitizeContextPanelByDirectory(merged.contextPanelByDirectory)
+          merged.browserPanel = currentState.browserPanel
           merged.sessionGrid = readSessionGrid()
           return merged
         },

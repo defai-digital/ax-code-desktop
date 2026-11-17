@@ -1,6 +1,6 @@
 import type { useI18n } from "@/lib/i18n"
-import { normalizeProjectPath } from "@/lib/projectResolution"
-import type { ContextPanelMode } from "@/stores/useUIStore"
+
+import type { ContextPanelMode } from "@/lib/contextPanelState"
 
 export type ContextPanelTranslateFn = ReturnType<typeof useI18n>["t"]
 
@@ -8,7 +8,7 @@ export const CONTEXT_PANEL_TAB_LABEL_MAX_CHARS = 24
 
 // Store writes and panel reads must agree on the directory key, so this delegates
 // to the canonical project-path normalization (drive-letter case, drive roots).
-export const normalizeContextPanelDirectoryKey = (value: string): string => normalizeProjectPath(value) ?? ""
+export { normalizeContextPanelDirectoryKey } from "@/lib/contextPanelState"
 
 export interface ContextPanelTabTouchSnapshot {
   directoryKey: string
@@ -44,7 +44,7 @@ export const getContextPanelFileNameFromPath = (path: string | null): string | n
     return null
   }
 
-  const normalized = path.replace(/\\/g, "/").trim()
+  const normalized = path.replace(/\\/g, "/")
   if (!normalized) {
     return null
   }

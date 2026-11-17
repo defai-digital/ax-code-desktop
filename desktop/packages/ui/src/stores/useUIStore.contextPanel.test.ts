@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, test } from "vitest"
+import { beforeEach, describe, expect, test, vi } from "vitest"
 
 import { isContextPanelMode, useUIStore } from "./useUIStore"
 
@@ -142,5 +142,94 @@ describe("useUIStore context panel", () => {
     const tabs = useUIStore.getState().contextPanelByDirectory[directory]?.tabs
     expect(tabs).toHaveLength(1)
     expect(tabs?.[0]?.readOnly).toBe(false)
+  })
+
+  test("keeps distinct literal file paths, navigation and opaque tab actions", () => {
+    const directory = "/workspace/project"
+    const file = "/workspace/project/ report.txt "
+    const store = useUIStore.getState()
+    store.openContextFileAtLine(directory, file, 8, 2)
+    store.openContextFile(directory, file.trimEnd())
+    const id = `file:${file}`
+    const otherId = `file:${file.trimEnd()}`
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs).toHaveLength(2)
+    store.setActiveContextPanelTab(directory, id)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.activeTabId).toBe(id)
+    store.reorderContextPanelTabs(directory, id, otherId)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs.map((tab) => tab.id)).toEqual([id, otherId])
+    store.closeContextPanelTab(directory, id)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs.map((tab) => tab.id)).toEqual([otherId])
+    store.openContextFileAtLine(directory, file, 8, 2)
+    expect(useUIStore.getState().pendingFileNavigation).toEqual({ path: file, line: 8, column: 2 })
+  })
+
+  test("keeps the literal diff target", () => {
+    const directory = "/workspace/project"
+    useUIStore.getState().openContextDiff(directory, "/workspace/project/report.txt ")
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs[0]?.targetPath).toBe(
+      "/workspace/project/report.txt ",
+    )
+  })
+
+  test("can activate, reorder and close restored tab IDs with trailing whitespace", () => {
+    const directory = "/workspace/project"
+    useUIStore.getState().openContextFile(directory, "/workspace/project/plain.txt")
+    const panel = useUIStore.getState().contextPanelByDirectory[directory]!
+    const id = "file:/workspace/project/report.txt "
+    useUIStore.setState({
+      contextPanelByDirectory: {
+        [directory]: {
+          ...panel,
+          tabs: [
+            ...panel.tabs,
+            {
+              ...panel.tabs[0]!,
+              id,
+              dedupeKey: "/workspace/project/report.txt ",
+              targetPath: "/workspace/project/report.txt ",
+            },
+          ],
+        },
+      },
+    })
+    useUIStore.getState().setActiveContextPanelTab(directory, id)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.activeTabId).toBe(id)
+    useUIStore.getState().reorderContextPanelTabs(directory, id, panel.tabs[0]!.id)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs[0]?.id).toBe(id)
+    useUIStore.getState().closeContextPanelTab(directory, id)
+    expect(useUIStore.getState().contextPanelByDirectory[directory]?.tabs).toHaveLength(1)
+  })
+
+  test("keeps the opened directory when root timestamps tie", () => {
+    const clock = vi.spyOn(Date, "now").mockReturnValue(100)
+    try {
+      for (let index = 0; index < 21; index += 1) useUIStore.getState().openContextFile(`/repo/${index}`, "file.txt")
+      const panels = useUIStore.getState().contextPanelByDirectory
+      expect(Object.keys(panels)).toHaveLength(20)
+      expect(panels["/repo/20"]?.isOpen).toBe(true)
+    } finally {
+      clock.mockRestore()
+    }
+  })
+
+  test("validates current-version panel payloads and ignores stored browser navigation", () => {
+    const merge = useUIStore.persist.getOptions().merge!
+    const current = { ...useUIStore.getState(), browserPanel: { isOpen: false, url: "", focused: false } }
+    const merged = merge(
+      {
+        browserPanel: { isOpen: true, url: "https://example.com/private", focused: true },
+        contextPanelByDirectory: { "/repo": { tabs: "invalid", isOpen: true, width: -1 } },
+      },
+      current,
+    )
+    expect(merged.contextPanelByDirectory).toEqual({})
+    expect(merged.browserPanel).toEqual(current.browserPanel)
+  })
+
+  test("does not restore a current-version persisted browser URL", () => {
+    const merge = useUIStore.persist.getOptions().merge!
+    const current = { ...useUIStore.getState(), browserPanel: { isOpen: false, url: "", focused: false } }
+    const merged = merge({ browserPanel: { isOpen: true, url: "https://example.com/private", focused: true } }, current)
+    expect(merged.browserPanel).toEqual(current.browserPanel)
   })
 })
