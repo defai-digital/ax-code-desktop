@@ -43,6 +43,41 @@ describe("resolveReconnectDelay", () => {
   })
 })
 
+describe("createUpstreamSseReader cancellation during reconnect", () => {
+  it.each(["unavailable", "closed", "failed"])("stops immediately after an %s attempt", async (outcome) => {
+    vi.useFakeTimers()
+    const reader = createUpstreamSseReader({
+      buildUrl: () => "http://127.0.0.1:4096/global/event",
+      reconnectDelayMs: 5000,
+      stallTimeoutMs: 0,
+      fetchImpl: vi.fn(async () => {
+        if (outcome === "failed") throw new Error("offline")
+        if (outcome === "unavailable") return { ok: false, status: 503 }
+        return createSseResponse({ blocks: [] })
+      }),
+    })
+    let finished = false
+    const running = reader.start().then(() => {
+      finished = true
+    })
+    try {
+      await vi.advanceTimersByTimeAsync(0)
+      expect(finished).toBe(false)
+
+      reader.stop()
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(finished).toBe(true)
+      expect(vi.getTimerCount()).toBe(0)
+    } finally {
+      reader.stop()
+      await vi.advanceTimersByTimeAsync(5000)
+      await running
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("createUpstreamSseReader buffer ceiling", () => {
   it("drops a stream that never completes an event block instead of buffering forever", async () => {
     const errors = []
@@ -138,6 +173,18 @@ describe("createUpstreamSseReader oversized events", () => {
     expect(result.oversize[0].eventId).toBe("2")
     expect(result.oversize[0].bytes).toBeGreaterThan(512)
     expect(result.reader.getLastEventId()).toBe("3")
+  })
+
+  it("measures the incomplete event ceiling in UTF-8 bytes", async () => {
+    const big = evt("2", "漢".repeat(200))
+    expect(big.length).toBeLessThan(512)
+    expect(Buffer.byteLength(big)).toBeGreaterThan(512)
+    const result = await collect({ blocks: [big.slice(0, -2), "\n\n", evt("3")], stopAfter: 1 })
+
+    expect(result.events).toEqual(["3"])
+    expect(result.oversize).toEqual([{ eventId: "2", bytes: Buffer.byteLength(big) }])
+    expect(result.errors).toEqual([])
+    expect(result.attempts).toBe(1)
   })
 
   it("finds the separator when it straddles two chunks while skipping", async () => {
@@ -510,9 +557,7 @@ describe("createUpstreamSseReader", () => {
       await vi.advanceTimersByTimeAsync(1)
       expect(fetchCount).toBe(4)
 
-      // `stop()` ends the loop only once the pending delay resolves, which fake timers advance by hand.
       reader.stop()
-      await vi.advanceTimersByTimeAsync(1000)
       await started
     } finally {
       vi.useRealTimers()
