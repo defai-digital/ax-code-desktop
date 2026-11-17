@@ -1,4 +1,5 @@
 import type { ModelMetadata } from "@/types"
+import type { ProviderModel } from "@/types/providerModels"
 
 type LiveProviderModel = Record<string, unknown> & { id?: string; name?: string }
 
@@ -33,3 +34,42 @@ export const mergeModelMetadataWithLiveModel = (
     },
   }
 }
+
+export const buildModelMetadataKey = (providerId: string, modelId: string) => {
+  const normalizedProvider = providerId?.toLowerCase?.() ?? ""
+  if (!normalizedProvider || !modelId) {
+    return ""
+  }
+  return `${normalizedProvider}/${modelId}`
+}
+
+const mapModalities = (
+  cap: { text: boolean; audio: boolean; image: boolean; video: boolean; pdf: boolean } | undefined,
+): string[] => {
+  if (!cap) return []
+  const result: string[] = []
+  if (cap.text) result.push("text")
+  if (cap.audio) result.push("audio")
+  if (cap.image) result.push("image")
+  if (cap.video) result.push("video")
+  if (cap.pdf) result.push("pdf")
+  return result
+}
+
+export const deriveModelMetadata = (providerId: string, model: ProviderModel): ModelMetadata => ({
+  id: model.id,
+  providerId,
+  name: model.name,
+  tool_call: model.capabilities?.toolcall,
+  reasoning: model.capabilities?.reasoning,
+  temperature: model.capabilities?.temperature,
+  attachment: model.capabilities?.attachment,
+  modalities: model.capabilities
+    ? {
+        input: mapModalities(model.capabilities.input),
+        output: mapModalities(model.capabilities.output),
+      }
+    : undefined,
+  limit: model.limit,
+  release_date: model.release_date,
+})

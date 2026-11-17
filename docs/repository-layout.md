@@ -79,6 +79,10 @@ or accessing repository state, including index entries preserved during selected
 checks that both patch images name the declared file before index mutation. `service.js` retains orchestration and
 its public API.
 
+The config store owns provider selection and cached metadata state. External catalog parsing/HTTP fallback lives
+in `ui/src/lib/modelsDevMetadata.ts`, and settings defaults share the adapter in `lib/configDefaults.ts`.
+The metadata loader under `stores/utils/` coordinates cancellation and request ownership without importing stores.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

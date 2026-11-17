@@ -86,7 +86,14 @@ config`, `GlobalState.providers/providerAuth/config`) and the
 | agents                            | `useAgentsStore`                    | Real CRUD + loads; pure helpers (`filterVisibleAgents`, `isAgentHidden`, `isAgentBuiltIn`) live in `src/lib/agents.ts` |
 | commands                          | `useCommandsStore`                  | Slash-command send path lazy-loads it on first use                                                                     |
 | MCP status/config                 | `useMcpStore` / `useMcpConfigStore` | —                                                                                                                      |
-| settings defaults                 | `useConfigStore`                    | `loadAgents` keeps the settings fetch + default selection resolution, sourcing the agents list from `useAgentsStore`   |
+| settings defaults                 | `useConfigStore`                    | `loadAgents` resolves defaults loaded through `lib/configDefaults`, sourcing agents from `useAgentsStore` |
+
+The config store owns the model metadata map, while `lib/modelsDevMetadata` validates and fetches the external
+catalog (same-origin proxy, then public fallback). Pure keys and live-provider metadata derivation live in
+`lib/modelMetadata`. `stores/utils/modelMetadataLoader` coalesces requests and cancels invalidated loads;
+generation and request-ownership guards prevent late responses or finalizers from replacing fresh state.
+Joining an in-flight provider request still starts a new catalog read when metadata was invalidated.
+Settings normalization is shared by the registered-runtime and HTTP adapters in `lib/configDefaults`.
 
 `useConfigStore-impl` may not import `useAgentsStore` (R1 ratchet), so it
 reaches the agents list through the `AgentsSource` bridge in
