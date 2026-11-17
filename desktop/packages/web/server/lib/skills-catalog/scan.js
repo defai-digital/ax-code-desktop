@@ -2,7 +2,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-import { assertGitAvailable, cloneRepo, looksLikeAuthError, runGit } from "./git.js"
+import { assertGitAvailable, cloneRepo, runGit } from "./git.js"
 import { parseSkillRepoSource } from "./source.js"
 import {
   getCatalogItemFromSkillDocument,
@@ -33,14 +33,7 @@ export async function scanSkillsRepository({ source, subpath, defaultSubpath, id
   try {
     const cloned = await cloneRepo({ cloneUrl, identity, tempDir: tempBase })
     if (!cloned.ok) {
-      const msg = `${cloned.error?.stderr || ""}\n${cloned.error?.message || ""}`.trim()
-      if (looksLikeAuthError(msg)) {
-        return {
-          ok: false,
-          error: { kind: "authRequired", message: "Authentication required to access this repository", sshOnly: true },
-        }
-      }
-      return { ok: false, error: { kind: "networkError", message: msg || "Failed to clone repository" } }
+      return cloned
     }
 
     const patterns = effectiveSubpath

@@ -103,12 +103,7 @@ const SYNC_INTERNAL_MODULES = ["child-store", "event-reducer", "event-pipeline",
  * R2 frozen exceptions — external imports of sync internals that predate this
  * check. MAY ONLY SHRINK; remove the import, not the rule.
  */
-export const SYNC_INTERNAL_IMPORT_EXCEPTIONS: readonly { file: string; target: string }[] = [
-  // ReconnectBanner triggers an immediate reconnect via the pipeline's
-  // retry-now command. Grandfathered; a later sub-step moves this command
-  // onto the documented public surface.
-  { file: `${UI_SRC}/components/ui/ReconnectBanner.tsx`, target: "event-pipeline" },
-]
+export const SYNC_INTERNAL_IMPORT_EXCEPTIONS: readonly { file: string; target: string }[] = []
 
 /**
  * R3 registered consumers of the unified event transport client. Everyone

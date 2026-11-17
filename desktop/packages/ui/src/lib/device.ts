@@ -133,20 +133,6 @@ export function getDeviceInfo(): DeviceInfo {
   }
 }
 
-export function isMobileDeviceViaCSS(): boolean {
-  if (typeof window === "undefined") return false
-
-  if (typeof window !== "undefined" && isDesktopShell()) {
-    return false
-  }
-
-  const root = document.documentElement
-  const isMobileValue =
-    root.style.getPropertyValue("--is-mobile") || getComputedStyle(root).getPropertyValue("--is-mobile")
-
-  return isMobileValue === "1" || isMobileValue === "true"
-}
-
 export function useDeviceInfo(): DeviceInfo {
   const [deviceInfo, setDeviceInfo] = React.useState<DeviceInfo>(() => {
     if (typeof window === "undefined") {

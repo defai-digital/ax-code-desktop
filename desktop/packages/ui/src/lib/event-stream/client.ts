@@ -13,7 +13,8 @@
 
 import { computeBackoffDelay, defaultIsPermanentHttpStatus, extractHttpStatus } from "./backoff"
 import { createHeartbeat, type Heartbeat } from "./heartbeat"
-import { SYNC_RETRY_NOW_EVENT, SYSTEM_RESUME_EVENT, isHidden, isOffline, waitForRetry } from "./visibility"
+import { SYNC_RETRY_NOW_EVENT } from "./commands"
+import { SYSTEM_RESUME_EVENT, isHidden, isOffline, waitForRetry } from "./visibility"
 import { runWebSocketAttempt } from "./adapters/websocket"
 import { runEventSourceAttempt } from "./adapters/event-source"
 import { runSdkSseAttempt } from "./adapters/sdk-sse"

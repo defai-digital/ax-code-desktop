@@ -179,6 +179,7 @@ desktop CI workflows), not just by convention:
   `src/sync/event-pipeline`, or `src/sync/sync-context-impl`. Use the public
   surface instead: `sync-context` hooks, `sync-refs`, `session-actions`, and
   the other documented sync modules.
+  UI reconnect actions use `lib/event-stream/commands`; there are no R2 exceptions.
 - **R3 transport consumer registry** — `src/lib/event-stream/client` may only
   be imported by its registered consumers (currently the sync pipeline,
   `lib/event-stream/subscribe.ts`, and its own test). Everything else uses
