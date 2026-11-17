@@ -11,6 +11,8 @@ This module provides Git repository operations for the web server runtime, inclu
   - `routes.js`: Express route registration for `/api/git/*` endpoints.
   - `service.js`: Core Git operations (repository, branch, worktree, commit, merge/rebase, status/diff, log).
   - `output-parsers.js`: Pure parsers for object IDs, NUL-delimited index/tree/name-status records and binary numstat.
+  - `patch-validation.js`: Pure single-file hunk validation, including literal Git header paths and both image targets.
+    The service retains index mutation queues and Git execution; validation never reads files or runs processes.
   - `credentials.js`: Git credentials management.
   - `identity-storage.js`: Git identity (user.name, user.email) storage.
   - `worktree-runtime-client.js`: The AX Code SDK client factory for runtime-owned worktree operations, and the

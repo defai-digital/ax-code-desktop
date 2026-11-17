@@ -75,7 +75,9 @@ identify a cohesive responsibility with a small input/output contract. Preserve 
 ordering and side effects, then run both focused tests and the full gates.
 
 The Git service's `output-parsers.js` is one such extraction: it handles Git output records without running commands
-or accessing repository state. `service.js` retains orchestration and its public API.
+or accessing repository state, including index entries preserved during selected-file commits. `patch-validation.js`
+checks that both patch images name the declared file before index mutation. `service.js` retains orchestration and
+its public API.
 
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
