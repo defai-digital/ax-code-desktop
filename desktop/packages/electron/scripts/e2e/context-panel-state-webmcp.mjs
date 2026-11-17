@@ -38,6 +38,12 @@ const outcome = await runHarness({
       })
       if (!response.ok) throw new Error('Could not seed the fixture workspace preference')
       localStorage.setItem('lastDirectory', directory)
+      localStorage.setItem('files-view-tabs-store', JSON.stringify({version:2,state:{
+        setSelectedPath:'legacy persisted value', byRoot:{[directory]:{
+          openPaths:[${JSON.stringify(tabs[0].targetPath)}, 42, '/outside/file.txt'],
+          selectedPath:${JSON.stringify(tabs[1].targetPath)}, expandedPaths:[directory, '/outside'], touchedAt:1
+        }}
+      }}))
       const saved = JSON.parse(localStorage.getItem('ui-store') || '{}')
       localStorage.setItem('ui-store', JSON.stringify({version:15,state:{...saved.state,
         activeMainTab:'chat', isRightSidebarOpen:false, isSidebarOpen:true, splitPaneEnabled:false,
@@ -62,12 +68,23 @@ const outcome = await runHarness({
         "spaced file content",
       )
 
+      await audit.wait(`(() => {
+        const files = JSON.parse(localStorage.getItem('files-view-tabs-store') || '{}').state
+        const root = files?.byRoot[${JSON.stringify(directory)}]
+        return root?.openPaths.length===2 && root.openPaths.includes(${JSON.stringify(tabs[0].targetPath)})
+          && root.openPaths.includes(${JSON.stringify(tabs[1].targetPath)})
+          && root.selectedPath===${JSON.stringify(tabs[1].targetPath)}
+          && root.expandedPaths.length===1 && root.expandedPaths[0]===${JSON.stringify(directory)}
+          && !Object.hasOwn(files, 'setSelectedPath')
+      })()`, "validated Files restore and live selection")
+
       const capture = async (name) => {
         const state = await audit.all()
         const inspection = await session.evaluate(`({
         tabs:Array.from(document.querySelectorAll('[data-context-panel] [role="tab"]')).map(e=>({title:e.title,selected:e.getAttribute('aria-selected')})),
         content:${visibleContent}, theme:document.documentElement.className,
-        persisted:JSON.parse(localStorage.getItem('ui-store') || '{}').state?.contextPanelByDirectory
+        persisted:JSON.parse(localStorage.getItem('ui-store') || '{}').state?.contextPanelByDirectory,
+        filesPersisted:JSON.parse(localStorage.getItem('files-view-tabs-store') || '{}').state
       })`)
         if (args.artifacts) {
           await fs.mkdir(args.artifacts, { recursive: true })
@@ -103,7 +120,7 @@ const outcome = await runHarness({
       return {
         name: "context-panel-state",
         ok: true,
-        detail: "Literal file selection, close and restore; light/dark DOM/screenshots",
+        detail: "Validated Files restore, literal file selection, close and reload; light/dark DOM/screenshots",
       }
     },
   ],

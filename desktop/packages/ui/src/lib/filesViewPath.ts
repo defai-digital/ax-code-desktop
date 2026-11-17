@@ -30,7 +30,7 @@ export const isFilesViewPathWithinRoot = (path: string, root: string): boolean =
 export const filesViewPathsEqual = (left: string, right: string): boolean =>
   isFilesViewPathWithinRoot(left, right) && isFilesViewPathWithinRoot(right, left)
 
-const normalizeComparableFilesViewPath = (value: string): string => {
+export const getFilesViewPathIdentityKey = (value: string): string => {
   const normalized = normalizeFilesViewPath(value)
   return normalized.startsWith("//") || /^[A-Za-z]:\//.test(normalized) ? normalized.toLowerCase() : normalized
 }
@@ -65,8 +65,8 @@ export const getFilesViewDisplayPath = (root: string | null, path: string): stri
     return normalizedFilePath
   }
 
-  const comparableFilePath = normalizeComparableFilesViewPath(normalizedFilePath)
-  const comparableRoot = normalizeComparableFilesViewPath(normalizedRoot)
+  const comparableFilePath = getFilesViewPathIdentityKey(normalizedFilePath)
+  const comparableRoot = getFilesViewPathIdentityKey(normalizedRoot)
   const relative = normalizedFilePath.slice(normalizedRoot.length)
   if (comparableFilePath === comparableRoot) {
     return "."

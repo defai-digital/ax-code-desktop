@@ -85,7 +85,12 @@ The metadata loader under `stores/utils/` coordinates cancellation and request o
 
 Context-panel normalization, tab transforms and restore validation live in `ui/src/lib/contextPanelState.ts`;
 the UI store keeps actions and persistence ownership. Renderer and Files tab state share `lib/filesViewPath.ts`.
-The older component path-helper module remains a compatibility re-export.
+The older component path-helper module remains a compatibility re-export. Files tab payload validation and root
+retention live in `lib/filesViewTabsState.ts`; the Files store restores only validated data and owns mutations.
+
+Settings metadata retires the former Magic Prompts and Snippets settings destinations to Home. Their editor pages
+and private selection/draft state have been removed. Composer prompt/snippet loading and expansion remain active;
+server configuration APIs and legacy settings redirects keep their existing contracts.
 
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to

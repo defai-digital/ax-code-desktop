@@ -340,3 +340,13 @@ After meaningful Git/PR store changes, verify manually:
 4. Worktree sessions still show branch labels in header.
 5. Expanded sidebar projects/worktrees can show PR state without requiring prior selection.
 6. Hidden surfaces do not reintroduce live background work.
+
+### Files tabs and retired settings state
+
+`useFilesViewTabsStore` owns mutations and persistence; `lib/filesViewTabsState.ts` validates migrated and
+current-version payloads, limits retained roots and preserves the root being acted on. Files path identity is shared
+with renderer helpers, including case-insensitive drive/UNC matching. Persistence restores data only, never actions.
+
+The retired Magic Prompts selection store and Snippets editor draft/CRUD state have been removed. `useSnippetsStore`
+continues to own composer snippet loading, directory cache invalidation, lookup and expansion. Server CRUD APIs are
+separate contracts and remain available. Retired settings slugs still resolve to Home.

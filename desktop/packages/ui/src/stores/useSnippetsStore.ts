@@ -9,35 +9,10 @@ import { retainedPayloadSize } from "@/lib/retainedPayloadSize"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 import { setConfigCacheEntry } from "./utils/configCache"
 
-export type SnippetScope = "global" | "project"
-
-interface SnippetDraft {
-  name: string
-  scope: SnippetScope
-  content?: string
-  aliases?: string[]
-  description?: string
-}
-
 interface SnippetsStore {
   snippets: Snippet[]
   isLoading: boolean
-  selectedSnippetName: string | null
-  snippetDraft: SnippetDraft | null
-
-  setSelectedSnippet: (name: string | null) => void
-  setSnippetDraft: (draft: SnippetDraft | null) => void
   loadSnippets: () => Promise<boolean>
-  createSnippet: (
-    name: string,
-    content: string,
-    options?: { aliases?: string[]; description?: string; scope?: SnippetScope },
-  ) => Promise<boolean>
-  updateSnippet: (
-    name: string,
-    updates: { content?: string; aliases?: string[]; description?: string },
-  ) => Promise<boolean>
-  deleteSnippet: (name: string) => Promise<boolean>
   expandText: (text: string) => Promise<string>
   getSnippetByName: (name: string) => Snippet | undefined
 }
@@ -67,12 +42,6 @@ export const useSnippetsStore = create<SnippetsStore>()(
     (set, get) => ({
       snippets: [],
       isLoading: false,
-      selectedSnippetName: null,
-      snippetDraft: null,
-
-      setSelectedSnippet: (name) => set({ selectedSnippetName: name }),
-      setSnippetDraft: (draft) => set({ snippetDraft: draft }),
-
       loadSnippets: async () => {
         const directory = getRequestDirectory()
         const cacheKey = getDirectoryCacheKey(directory)
@@ -137,95 +106,6 @@ export const useSnippetsStore = create<SnippetsStore>()(
             if (snippetsLoadOwners.get(cacheKey) === owner) snippetsLoadOwners.delete(cacheKey)
           }
         })
-      },
-
-      createSnippet: async (name, content, options = {}) => {
-        try {
-          const directory = getRequestDirectory()
-          const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
-          const response = await fetch(
-            `${API_ENDPOINTS.config.snippet.replace(":name", encodeURIComponent(name))}${queryParams}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
-              },
-              body: JSON.stringify({
-                content,
-                aliases: options.aliases,
-                description: options.description,
-                scope: options.scope,
-              }),
-            },
-          )
-          if (!response.ok) {
-            const payload = await response.json().catch(() => null)
-            if (response.status === 409) {
-              return await get().updateSnippet(name, {
-                content,
-                aliases: options.aliases,
-                description: options.description,
-              })
-            }
-            throw new Error(payload?.error || "Failed to create snippet")
-          }
-          clearSnippetsDirectoryCache(directory)
-          await get().loadSnippets()
-          return true
-        } catch (error) {
-          console.error("[SnippetsStore] Failed to create:", error)
-          return false
-        }
-      },
-
-      updateSnippet: async (name, updates) => {
-        try {
-          const directory = getRequestDirectory()
-          const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
-          const response = await fetch(
-            `${API_ENDPOINTS.config.snippet.replace(":name", encodeURIComponent(name))}${queryParams}`,
-            {
-              method: "PATCH",
-              headers: {
-                "Content-Type": "application/json",
-                ...(directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : {}),
-              },
-              body: JSON.stringify(updates),
-            },
-          )
-          if (!response.ok)
-            throw new Error((await response.json().catch(() => null))?.error || "Failed to update snippet")
-          clearSnippetsDirectoryCache(directory)
-          await get().loadSnippets()
-          return true
-        } catch (error) {
-          console.error("[SnippetsStore] Failed to update:", error)
-          return false
-        }
-      },
-
-      deleteSnippet: async (name) => {
-        try {
-          const directory = getRequestDirectory()
-          const queryParams = directory ? `?directory=${encodeURIComponent(directory)}` : ""
-          const response = await fetch(
-            `${API_ENDPOINTS.config.snippet.replace(":name", encodeURIComponent(name))}${queryParams}`,
-            {
-              method: "DELETE",
-              headers: directory ? { "x-ax-code-directory": encodeDirectoryHeader(directory) } : undefined,
-            },
-          )
-          if (!response.ok)
-            throw new Error((await response.json().catch(() => null))?.error || "Failed to delete snippet")
-          if (get().selectedSnippetName === name) set({ selectedSnippetName: null })
-          clearSnippetsDirectoryCache(directory)
-          await get().loadSnippets()
-          return true
-        } catch (error) {
-          console.error("[SnippetsStore] Failed to delete:", error)
-          return false
-        }
       },
 
       expandText: async (text) => {
