@@ -21,6 +21,14 @@ const runtimeAPIs = {
 
 vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => runtimeAPIs }))
 vi.mock("@/hooks/useDeviceInfo", () => ({ useDeviceInfo: () => ({ isMobile: false, hasTouchInput: false }) }))
+// The section receives its repository as a prop. Real directory discovery starts
+// background settings writes that can outlive the test environment.
+vi.mock("@/stores/useDirectoryStore", () => ({
+  useDirectoryStore: {
+    getState: () => ({ currentDirectory: "/repo" }),
+    subscribe: () => () => {},
+  },
+}))
 
 const { getGitHubPrStatusKey, useGitHubPrStatusStore } = await import("@/stores/useGitHubPrStatusStore")
 const { useGitHubAuthStore } = await import("@/stores/useGitHubAuthStore")

@@ -227,10 +227,8 @@ export const useChatAutoFollow = ({
   const settleBurstRafRef = React.useRef<number | null>(null)
   const lastUserReleaseAtRef = React.useRef(0)
   const releaseFromFollowStopRef = React.useRef<() => void>(() => {})
-  // Set when the follow stopped at a turn. Until the reader scrolls themselves,
-  // reaching the end does not re-arm following: when the turn settles, its row
-  // re-measures and the browser can clamp the scroll position to the end,
-  // which would otherwise pull the reader away from the start they are reading.
+  // Hold the turn top during generation, even if a row re-measure clamps the
+  // viewport to the end. Completion resumes following unless the reader took over.
   const heldAtFollowStopRef = React.useRef(false)
   // When restoreSnapshot is invoked while ChatViewport is still hydrating
   // (skeleton rendered, no scroll container yet), we record the session here
@@ -421,6 +419,7 @@ export const useChatAutoFollow = ({
   }, [markProgrammaticWrite, stopSettleBurst])
 
   const releaseAutoFollow = React.useCallback(() => {
+    heldAtFollowStopRef.current = false
     stopFollowLoop()
     stopSettleBurst()
     unseenBaseRef.current = sessionMessageCountRef.current
@@ -589,8 +588,10 @@ export const useChatAutoFollow = ({
   React.useEffect(() => {
     if (sessionIsWorking && stateRef.current === "following") {
       startFollowLoop()
+    } else if (!sessionIsWorking && heldAtFollowStopRef.current && !userReleasedRef.current) {
+      goToBottom("smooth")
     }
-  }, [sessionIsWorking, startFollowLoop])
+  }, [sessionIsWorking, startFollowLoop, goToBottom])
 
   // Replay a deferred restoreSnapshot once ChatViewport mounts.
   React.useEffect(() => {
@@ -637,10 +638,12 @@ export const useChatAutoFollow = ({
     // Content shrink clamps scrollTop to the true end. A native scrollbar drag
     // can stop anywhere in the wider bottom zone without a wheel/key event, so
     // proximity alone cannot distinguish that reader input from a clamp.
-    if (currentTop < previousTop && stateRef.current === "following" && !isAtEnd(container)) {
+    const leftAutomaticStop = heldAtFollowStopRef.current && currentTop !== previousTop
+    if ((leftAutomaticStop || (currentTop < previousTop && stateRef.current === "following")) && !isAtEnd(container)) {
       // A drag has no wheel or key event of its own, so this is the only place
       // that sees it: hold the released position like a real gesture.
       userReleasedRef.current = true
+      heldAtFollowStopRef.current = false
       stopFollowLoop()
       stopSettleBurst()
       lastUserReleaseAtRef.current = typeof performance !== "undefined" ? performance.now() : Date.now()

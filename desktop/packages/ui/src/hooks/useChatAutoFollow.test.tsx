@@ -131,6 +131,32 @@ describe("useChatAutoFollow collapsed activity", () => {
     expect(result?.showScrollButton).toBe(true)
   })
 
+  test.each([
+    ["untouched", 900, "following"],
+    ["wheel", 300, "released"],
+    ["drag up", 230, "released"],
+    ["drag down", 430, "released"],
+    ["navigation", 300, "released"],
+  ] as const)("finishes a collapsed turn with the %s reader position", (action, top, state) => {
+    render()
+    const el = setLayout(300)
+    flushFrames()
+    expect(el.scrollTop).toBe(300)
+    React.act(() => {
+      if (action === "wheel") el.dispatchEvent(new WheelEvent("wheel", { deltaY: -20 }))
+      if (action === "drag up" || action === "drag down") {
+        el.scrollTop = top
+        el.dispatchEvent(new Event("scroll"))
+      }
+      if (action === "navigation") result?.releaseAutoFollow()
+    })
+    sessionIsWorking = false
+    render()
+    flushFrames()
+    expect(result?.state).toBe(state)
+    expect(el.scrollTop).toBe(top)
+  })
+
   test("does not count a new session's messages against the previous session's baseline", () => {
     render()
     const scrollContainer = setLayout(300)
