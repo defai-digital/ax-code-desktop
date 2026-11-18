@@ -2109,6 +2109,7 @@ class AxCodeService {
       const response = await fetch(buildAxCodeApiUrl(this.baseUrl, API_ENDPOINTS.fs.home), {
         method: HTTP_DEFAULTS.method.get,
         headers: HTTP_DEFAULTS.headers.acceptJson,
+        signal: AbortSignal.timeout(SDK_REQUEST_TIMEOUT_MS),
       })
 
       if (!response.ok) {

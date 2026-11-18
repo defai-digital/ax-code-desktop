@@ -4,10 +4,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-const { registerCurrentDevicePasskey, cancelPasskeyCeremony } = vi.hoisted(() => ({
-  registerCurrentDevicePasskey: vi.fn(),
-  cancelPasskeyCeremony: vi.fn(),
-}))
+const { registerCurrentDevicePasskey, cancelPasskeyCeremony, syncSettings, restoreDirectory, discoverHome } =
+  vi.hoisted(() => ({
+    registerCurrentDevicePasskey: vi.fn(),
+    cancelPasskeyCeremony: vi.fn(),
+    syncSettings: vi.fn<() => Promise<void>>(async () => {}),
+    restoreDirectory: vi.fn(),
+    discoverHome: vi.fn(async () => ""),
+  }))
 
 vi.mock("@simplewebauthn/browser", () => ({ browserSupportsWebAuthn: () => true }))
 vi.mock("@/lib/passkeys", () => ({
@@ -18,8 +22,14 @@ vi.mock("@/lib/passkeys", () => ({
   defaultPasskeyStatus: { enabled: false, hasPasskeys: false },
   isPasskeyCeremonyAbort: (error: unknown) => (error as { name?: string } | null)?.name === "AbortError",
 }))
-vi.mock("@/lib/persistence", () => ({ syncDesktopSettings: vi.fn(async () => {}), initializeAppearancePreferences: vi.fn(async () => {}) }))
-vi.mock("@/lib/directoryPersistence", () => ({ applyPersistedDirectoryPreferences: vi.fn(async () => {}) }))
+vi.mock("@/lib/persistence", () => ({
+  syncDesktopSettings: syncSettings,
+  initializeAppearancePreferences: vi.fn(async () => {}),
+}))
+vi.mock("@/stores/useDirectoryStore", () => ({
+  refreshDirectoryHome: discoverHome,
+  restoreDirectoryPreferences: restoreDirectory,
+}))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }))
 
 const { SessionAuthGate } = await import("./SessionAuthGate")
@@ -35,6 +45,9 @@ describe("SessionAuthGate", () => {
     root = createRoot(container)
     registerCurrentDevicePasskey.mockReset()
     cancelPasskeyCeremony.mockReset()
+    syncSettings.mockClear()
+    restoreDirectory.mockClear()
+    discoverHome.mockClear()
     window.localStorage.clear()
     // The gate offers passkey setup only in a secure context; jsdom does not provide one.
     Object.defineProperty(window, "isSecureContext", { value: true, configurable: true })
@@ -95,6 +108,26 @@ describe("SessionAuthGate", () => {
     })
     await act(async () => {})
   }
+
+  test("restores directory preferences after authentication and settings hydration", async () => {
+    let finishSettings = () => {}
+    syncSettings.mockImplementationOnce(
+      () => new Promise<void>((resolve) => { finishSettings = resolve }),
+    )
+    await render()
+    expect(discoverHome).not.toHaveBeenCalled()
+    expect(restoreDirectory).not.toHaveBeenCalled()
+
+    await typePassword("fixture password")
+    await clickUnlock()
+    expect(syncSettings).toHaveBeenCalledOnce()
+    expect(restoreDirectory).not.toHaveBeenCalled()
+
+    await act(async () => finishSettings())
+    expect(restoreDirectory).toHaveBeenCalledOnce()
+    expect(discoverHome).toHaveBeenCalledOnce()
+    expect(restoreDirectory.mock.invocationCallOrder[0]).toBeLessThan(discoverHome.mock.invocationCallOrder[0])
+  })
 
   test("reports the failure the server answered with instead of a network screen", async () => {
     // A 500 (or any refusal that is neither a wrong password nor a rate limit) put the gate on the generic network

@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui"
 import { syncDesktopSettings, initializeAppearancePreferences } from "@/lib/persistence"
-import { applyPersistedDirectoryPreferences } from "@/lib/directoryPersistence"
+import { refreshDirectoryHome, restoreDirectoryPreferences } from "@/stores/useDirectoryStore"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
 import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { Icon } from "@/components/icon/Icon"
@@ -136,7 +136,6 @@ interface ErrorScreenProps {
 
 export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) => {
   const { t } = useI18n()
-  const skipAuth = false
   const [state, setState] = React.useState<GateState>("pending")
   const [password, setPassword] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -148,7 +147,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   const [trustDevice, setTrustDevice] = React.useState<boolean>(() => readStoredTrustDevice())
   const [activePasskeyAction, setActivePasskeyAction] = React.useState<"auth" | "register" | null>(null)
   const passwordInputRef = React.useRef<HTMLInputElement | null>(null)
-  const hasResyncedRef = React.useRef(skipAuth)
+  const hasResyncedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -158,10 +157,6 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [trustDevice])
 
   const refreshPasskeyStatus = React.useCallback(async () => {
-    if (skipAuth) {
-      return defaultPasskeyStatus
-    }
-
     try {
       const nextStatus = await fetchPasskeyStatus()
       setPasskeyStatus(nextStatus)
@@ -170,14 +165,10 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
       setPasskeyStatus(defaultPasskeyStatus)
       return defaultPasskeyStatus
     }
-  }, [skipAuth])
+  }, [])
 
   React.useEffect(() => {
     let cancelled = false
-
-    if (skipAuth) {
-      return
-    }
 
     void (async () => {
       try {
@@ -200,16 +191,12 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
     return () => {
       cancelled = true
     }
-  }, [skipAuth])
+  }, [])
 
   const checkStatus = React.useCallback(async () => {
     // The message belongs to the attempt that produced it. The error screen renders it as the detail, and only the
     // `ok` and `401` branches used to clear it, so a 429 or a transport failure showed the previous failure's text.
     setErrorMessage("")
-    if (skipAuth) {
-      setState("authenticated")
-      return
-    }
 
     setState((prev) => (prev === "authenticated" ? prev : "pending"))
     try {
@@ -247,20 +234,17 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
       console.warn("Failed to check session status:", error)
       setState("error")
     }
-  }, [refreshPasskeyStatus, skipAuth])
+  }, [refreshPasskeyStatus])
 
   React.useEffect(() => {
-    if (skipAuth) {
-      return
-    }
     void checkStatus()
-  }, [checkStatus, skipAuth])
+  }, [checkStatus])
 
   React.useEffect(() => {
-    if (!skipAuth && state === "locked") {
+    if (state === "locked") {
       hasResyncedRef.current = false
     }
-  }, [skipAuth, state])
+  }, [state])
 
   React.useEffect(() => {
     if (state === "locked" && passwordInputRef.current) {
@@ -270,18 +254,15 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [state])
 
   React.useEffect(() => {
-    if (skipAuth) {
-      return
-    }
     if (state === "authenticated" && !hasResyncedRef.current) {
       hasResyncedRef.current = true
       void (async () => {
         await syncDesktopSettings()
-        await initializeAppearancePreferences()
-        await applyPersistedDirectoryPreferences()
-      })()
+        restoreDirectoryPreferences()
+        await Promise.all([initializeAppearancePreferences(), refreshDirectoryHome()])
+      })().catch((error) => console.warn("Failed to initialize authenticated preferences:", error))
     }
-  }, [skipAuth, state])
+  }, [state])
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()

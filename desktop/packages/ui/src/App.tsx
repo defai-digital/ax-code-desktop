@@ -396,7 +396,6 @@ function App({ apis }: AppProps) {
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
   const setDirectory = useDirectoryStore((state) => state.setDirectory)
-  const isSwitchingDirectory = useDirectoryStore((state) => state.isSwitchingDirectory)
   const [showMemoryDebug, setShowMemoryDebug] = React.useState(false)
   const refreshGitHubAuthStatus = useGitHubAuthStore((state) => state.refreshStatus)
   const [isEmbeddedVisible, setIsEmbeddedVisible] = React.useState(true)
@@ -671,9 +670,6 @@ function App({ apis }: AppProps) {
     if (isUnsupportedMobile) {
       return
     }
-    if (isSwitchingDirectory) {
-      return
-    }
 
     if (!isConnected) {
       return
@@ -681,7 +677,7 @@ function App({ apis }: AppProps) {
     axCodeClient.setDirectory(currentDirectory)
 
     // Session loading is handled by the sync system's bootstrap — no manual loadSessions needed.
-  }, [currentDirectory, isSwitchingDirectory, isConnected, isUnsupportedMobile])
+  }, [currentDirectory, isConnected, isUnsupportedMobile])
 
   React.useEffect(() => {
     if (embeddedSessionChat || isUnsupportedMobile || !isConnected || !hasLoadedGlobalSessions) {
@@ -726,7 +722,7 @@ function App({ apis }: AppProps) {
   // (a selected session may claim its own project) settles first.
   useSessionDirectoryGuard({
     directory: currentDirectory,
-    enabled: !embeddedSessionChat && !isUnsupportedMobile && isConnected && !isSwitchingDirectory,
+    enabled: !embeddedSessionChat && !isUnsupportedMobile && isConnected,
   })
 
   React.useEffect(() => {
@@ -776,7 +772,7 @@ function App({ apis }: AppProps) {
       return
     }
 
-    setDirectory(embeddedSessionChat.directory, { showOverlay: false })
+    setDirectory(embeddedSessionChat.directory)
   }, [currentDirectory, embeddedSessionChat, setDirectory])
 
   React.useEffect(() => {
@@ -898,12 +894,12 @@ function App({ apis }: AppProps) {
 
   React.useEffect(() => {
     if (typeof window === "undefined") return
-    if (!isInitialized || isSwitchingDirectory) return
+    if (!isInitialized) return
     if (appReadyDispatchedRef.current) return
     appReadyDispatchedRef.current = true
     ;(window as unknown as { __openchamberAppReady?: boolean }).__openchamberAppReady = true
     window.dispatchEvent(new Event("openchamber:app-ready"))
-  }, [isInitialized, isSwitchingDirectory])
+  }, [isInitialized])
 
   // useEventStream replaced by SyncProvider + SyncBridge
 

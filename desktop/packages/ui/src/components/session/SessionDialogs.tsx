@@ -389,7 +389,7 @@ export const SessionDialogs: React.FC = () => {
         }
 
         if (normalizeProjectDirectory(currentDirectory) === normalizedWorktreePath && normalizedProjectPath) {
-          useDirectoryStore.getState().setDirectory(normalizedProjectPath, { showOverlay: false })
+          useDirectoryStore.getState().setDirectory(normalizedProjectPath)
         }
 
         return removal

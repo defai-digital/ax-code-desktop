@@ -1,7 +1,6 @@
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import { axCodeClient } from "@/lib/ax-code/client"
-import { getDesktopHomeDirectory } from "@/lib/desktop"
 import { updateDesktopSettings } from "@/lib/persistence"
 import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useFileSearchStore } from "@/stores/useFileSearchStore"
@@ -16,17 +15,16 @@ interface DirectoryNavigationStore {
   homeDirectory: string
   hasPersistedDirectory: boolean
   isHomeReady: boolean
-  isSwitchingDirectory: boolean
 
-  setDirectory: (path: string, options?: { showOverlay?: boolean }) => void
+  setDirectory: (path: string) => void
   goBack: () => void
   goForward: () => void
   goToParent: () => void
   goHome: () => Promise<void>
-  synchronizeHomeDirectory: (path: string) => void
+  synchronizeHomeDirectory: (path: string, persist?: boolean) => void
 }
 
-let cachedHomeDirectory: string | null = null
+let navigationRevision = 0
 const safeStorage = getSafeStorage()
 // Secondary renderers navigate independently; only the main renderer owns the startup project preference.
 const persistLastDirectory = (directory: string) => {
@@ -42,9 +40,6 @@ const persistLastDirectory = (directory: string) => {
   safeStorage.setItem("lastDirectory", directory)
   void updateDesktopSettings({ lastDirectory: directory })
 }
-
-const persistedLastDirectory = safeStorage.getItem("lastDirectory")
-const initialHasPersistedDirectory = typeof persistedLastDirectory === "string" && persistedLastDirectory.length > 0
 
 const invalidateFileSearchCache = (scope?: string | null) => {
   try {
@@ -62,24 +57,6 @@ const resolveDirectoryPath = (path: string, homeDir?: string | null): string =>
   normalizeDirectoryPath(expandHomePath(path, homeDir))
 
 const isFilesystemRoot = (path: string): boolean => path === "/" || /^[A-Z]:\/$/.test(path)
-
-const getStoredHomeDirectory = (): string | null => {
-  const raw = safeStorage.getItem("homeDirectory")
-  if (typeof raw !== "string" || raw.trim().length === 0) {
-    return null
-  }
-  const normalized = normalizeDirectoryPath(raw)
-  return normalized.length > 0 ? normalized : null
-}
-
-const getStoredLastDirectory = (): string | null => {
-  const raw = safeStorage.getItem("lastDirectory")
-  if (typeof raw !== "string" || raw.trim().length === 0) {
-    return null
-  }
-  const normalized = normalizeDirectoryPath(raw)
-  return normalized.length > 0 ? normalized : null
-}
 
 const getProcessHomeDirectory = (): string | null => {
   if (typeof process === "undefined") {
@@ -103,321 +80,191 @@ const getProcessHomeDirectory = (): string | null => {
   return null
 }
 
-const getHomeDirectory = () => {
-  if (typeof window !== "undefined") {
-    if (cachedHomeDirectory) return cachedHomeDirectory
-
-    // Reject "/" (filesystem root) as a home candidate. The desktop shell or a
-    // stale settings.json can report homeDirectory="/" before the real home is
-    // resolved asynchronously; accepting it here makes every directory-scoped
-    // request fire with directory=/, which the server rejects with 400
-    // ("Directory is not allowed") — breaking the Providers panel, fs, project,
-    // and skills endpoints. normalizeHomeCandidate already treats "/" as invalid;
-    // mirror that so async home resolution can seed a real path instead.
-    const desktopHome = normalizeHomeCandidate(window.__AX_CODE_DESKTOP_HOME__)
-
-    if (desktopHome) {
-      cachedHomeDirectory = desktopHome
-      safeStorage.setItem("homeDirectory", desktopHome)
-      return desktopHome
-    }
-
-    const storedHome = normalizeHomeCandidate(getStoredHomeDirectory())
-    if (storedHome) {
-      cachedHomeDirectory = storedHome
-      return storedHome
-    }
-  }
-
-  const processHome = normalizeHomeCandidate(getProcessHomeDirectory())
-  if (processHome) {
-    return processHome
-  }
-  // No real home available yet. Return "" rather than "/" so the module-init
-  // `if (initialCurrentDirectory)` guard skips setting a bad directory and async
-  // home resolution (synchronizeHomeDirectory) can fill in the real path.
-  return ""
-}
-
 const normalizeHomeCandidate = (value?: string | null) => {
-  if (typeof value !== "string") {
-    return null
-  }
-  const normalized = normalizeDirectoryPath(value)
-  if (!normalized) {
-    return null
-  }
-  if (normalized === "/") {
-    return null
-  }
-  return normalized
+  const normalized = normalizeProjectPath(value)
+  return normalized === "/" ? null : normalized
 }
 
-const persistResolvedHome = (resolved: string) => {
-  cachedHomeDirectory = resolved
-  if (typeof window !== "undefined") {
-    safeStorage.setItem("homeDirectory", resolved)
-  }
-  void updateDesktopSettings({ homeDirectory: resolved })
-  return resolved
-}
+const getHomeDirectory = () =>
+  normalizeHomeCandidate(typeof window === "undefined" ? undefined : window.__AX_CODE_DESKTOP_HOME__) ??
+  normalizeHomeCandidate(safeStorage.getItem("homeDirectory")) ??
+  normalizeHomeCandidate(getProcessHomeDirectory()) ??
+  ""
 
-const initializeHomeDirectory = async () => {
-  const acceptCandidate = (candidate?: string | null) => {
-    const normalized = normalizeHomeCandidate(candidate)
-    return normalized ? persistResolvedHome(normalized) : null
-  }
-
+const discoverHomeDirectory = async () => {
   try {
-    const fsHome = await axCodeClient.getFilesystemHome()
-    const resolved = acceptCandidate(fsHome)
-    if (resolved) {
-      return resolved
-    }
-  } catch (filesystemError) {
-    console.warn("Failed to obtain filesystem home directory:", filesystemError)
-  }
-
-  try {
-    const info = await axCodeClient.getSystemInfo()
-    const resolved = acceptCandidate(info?.homeDirectory)
-    if (resolved) {
-      return resolved
-    }
+    const home = normalizeHomeCandidate(await axCodeClient.getFilesystemHome())
+    if (home) return home
   } catch (error) {
-    console.warn("Failed to get home directory from system info:", error)
+    console.warn("Failed to obtain filesystem home directory:", error)
   }
 
   try {
-    const desktopHome = await getDesktopHomeDirectory()
-    const resolved = acceptCandidate(desktopHome)
-    if (resolved) {
-      return resolved
-    }
-  } catch (desktopError) {
-    console.warn("Failed to obtain desktop-integrated home directory:", desktopError)
+    const home = normalizeHomeCandidate((await axCodeClient.getSystemInfo()).homeDirectory)
+    if (home) return home
+  } catch (error) {
+    console.warn("Failed to obtain home directory from system info:", error)
   }
 
-  const fallback = getHomeDirectory()
-  const resolvedFallback = acceptCandidate(fallback)
-  if (resolvedFallback) {
-    return resolvedFallback
-  }
+  return useDirectoryStore.getState().homeDirectory || getHomeDirectory()
+}
 
-  return fallback
+const scopeDirectory = (directory: string) => {
+  axCodeClient.setDirectory(directory)
+  invalidateFileSearchCache()
 }
 
 const initialHomeDirectory = getHomeDirectory()
-const initialCurrentDirectory = (() => {
-  const persisted = getStoredLastDirectory()
-  if (persisted) {
-    return resolveDirectoryPath(persisted, initialHomeDirectory)
-  }
-  return initialHomeDirectory
-})()
+const savedDirectory = normalizeProjectPath(safeStorage.getItem("lastDirectory"))
+const initialCurrentDirectory = savedDirectory
+  ? resolveDirectoryPath(savedDirectory, initialHomeDirectory)
+  : initialHomeDirectory
 
 if (initialCurrentDirectory) {
   axCodeClient.setDirectory(initialCurrentDirectory)
 }
-const initialIsHomeReady = Boolean(initialHomeDirectory && initialHomeDirectory !== "/")
+const initialIsHomeReady = Boolean(initialHomeDirectory)
 
 export const useDirectoryStore = create<DirectoryNavigationStore>()(
   devtools(
-    (set, get) => ({
-      currentDirectory: initialCurrentDirectory,
-      directoryHistory: [initialCurrentDirectory],
-      historyIndex: 0,
-      homeDirectory: initialHomeDirectory,
-      hasPersistedDirectory: initialHasPersistedDirectory,
-      isHomeReady: initialIsHomeReady,
-      isSwitchingDirectory: false,
+    (set, get) => {
+      const navigate = (directoryHistory: string[], historyIndex: number) => {
+        navigationRevision += 1
+        const currentDirectory = directoryHistory[historyIndex]
+        scopeDirectory(currentDirectory)
+        persistLastDirectory(currentDirectory)
+        set({ currentDirectory, directoryHistory, historyIndex, hasPersistedDirectory: true, isHomeReady: true })
+      }
 
-      setDirectory: (path: string, options?: { showOverlay?: boolean }) => {
-        void options
-        const homeDir = cachedHomeDirectory || get().homeDirectory || safeStorage.getItem("homeDirectory")
-        const resolvedPath = resolveDirectoryPath(path, homeDir)
-        if (streamDebugEnabled()) {
-          console.log("[DirectoryStore] setDirectory called with path:", resolvedPath)
-        }
+      return {
+        currentDirectory: initialCurrentDirectory,
+        directoryHistory: [initialCurrentDirectory],
+        historyIndex: 0,
+        homeDirectory: initialHomeDirectory,
+        hasPersistedDirectory: Boolean(savedDirectory),
+        isHomeReady: initialIsHomeReady,
 
-        axCodeClient.setDirectory(resolvedPath)
-        invalidateFileSearchCache()
+        setDirectory: (path: string) => {
+          const state = get()
+          const directory = resolveDirectoryPath(path, state.homeDirectory)
+          if (streamDebugEnabled()) {
+            console.log("[DirectoryStore] setDirectory called with path:", directory)
+          }
+          if (state.directoryHistory[state.historyIndex] === directory) {
+            navigate(state.directoryHistory, state.historyIndex)
+            return
+          }
+          const history = [...state.directoryHistory.slice(0, state.historyIndex + 1), directory]
+          navigate(history, history.length - 1)
+        },
 
-        // After the state change, as goBack/goForward do: a Zustand updater has to be pure, and these
-        // are writes (local storage and an IPC call) that a middleware replaying the updater would
-        // otherwise repeat.
-        persistLastDirectory(resolvedPath)
+        goBack: () => {
+          const { directoryHistory, historyIndex } = get()
+          if (historyIndex > 0) navigate(directoryHistory, historyIndex - 1)
+        },
 
-        set((state) => {
-          if (resolvedPath === state.currentDirectory && state.directoryHistory[state.historyIndex] === resolvedPath) {
-            // Re-selecting the current directory must not push a duplicate
-            // history entry: Back would first "navigate" to the same path.
-            return {
-              currentDirectory: resolvedPath,
-              hasPersistedDirectory: true,
-              isHomeReady: true,
-              isSwitchingDirectory: false,
-            }
+        goForward: () => {
+          const { directoryHistory, historyIndex } = get()
+          if (historyIndex < directoryHistory.length - 1) navigate(directoryHistory, historyIndex + 1)
+        },
+
+        goToParent: () => {
+          const { currentDirectory, setDirectory } = get()
+          const homeDir = get().homeDirectory || getHomeDirectory()
+          const normalizedCurrentDirectory = normalizeDirectoryPath(currentDirectory)
+          const normalizedHomeDirectory = normalizeDirectoryPath(homeDir)
+
+          if (normalizedCurrentDirectory === normalizedHomeDirectory || isFilesystemRoot(normalizedCurrentDirectory)) {
+            return
           }
 
-          const newHistory = [...state.directoryHistory.slice(0, state.historyIndex + 1), resolvedPath]
+          const cleanPath = normalizedCurrentDirectory.endsWith("/")
+            ? normalizedCurrentDirectory.slice(0, -1)
+            : normalizedCurrentDirectory
 
-          return {
-            currentDirectory: resolvedPath,
-            directoryHistory: newHistory,
-            historyIndex: newHistory.length - 1,
-            hasPersistedDirectory: true,
-            isHomeReady: true,
-            isSwitchingDirectory: false,
+          const lastSlash = cleanPath.lastIndexOf("/")
+          if (lastSlash === -1) {
+            if (homeDir) setDirectory(homeDir)
+          } else if (lastSlash === 0) {
+            setDirectory("/")
+          } else {
+            setDirectory(cleanPath.substring(0, lastSlash))
           }
-        })
-      },
+        },
 
-      goBack: () => {
-        const state = get()
-        if (state.historyIndex > 0) {
-          const newIndex = state.historyIndex - 1
-          const newDirectory = state.directoryHistory[newIndex]
+        goHome: async () => {
+          const revision = navigationRevision
+          const home = get().homeDirectory || (await refreshDirectoryHome())
+          if (home && revision === navigationRevision) get().setDirectory(home)
+        },
 
-          axCodeClient.setDirectory(newDirectory)
-          invalidateFileSearchCache()
+        synchronizeHomeDirectory: (path: string, persist = true) => {
+          const homeDirectory = normalizeHomeCandidate(path)
+          if (!homeDirectory) return
 
-          persistLastDirectory(newDirectory)
+          const state = get()
+          const homeChanged = homeDirectory !== state.homeDirectory
+          if (persist && safeStorage.getItem("homeDirectory") !== homeDirectory) {
+            safeStorage.setItem("homeDirectory", homeDirectory)
+            void updateDesktopSettings({ homeDirectory })
+          }
+          if (!homeChanged && state.isHomeReady) return
 
+          const replaceDefault =
+            navigationRevision === 0 &&
+            !safeStorage.getItem("lastDirectory") &&
+            (!state.currentDirectory || state.currentDirectory === "/" || state.currentDirectory === state.homeDirectory)
+          const currentDirectory = replaceDefault
+            ? homeDirectory
+            : resolveDirectoryPath(state.currentDirectory, homeDirectory)
+          const directoryHistory = replaceDefault
+            ? [currentDirectory]
+            : state.directoryHistory.map((entry) => resolveDirectoryPath(entry, homeDirectory))
+          if (currentDirectory !== state.currentDirectory) scopeDirectory(currentDirectory)
           set({
-            currentDirectory: newDirectory,
-            historyIndex: newIndex,
-            hasPersistedDirectory: true,
+            homeDirectory,
+            currentDirectory,
+            directoryHistory,
+            historyIndex: replaceDefault ? 0 : state.historyIndex,
             isHomeReady: true,
-            isSwitchingDirectory: false,
           })
-        }
-      },
-
-      goForward: () => {
-        const state = get()
-        if (state.historyIndex < state.directoryHistory.length - 1) {
-          const newIndex = state.historyIndex + 1
-          const newDirectory = state.directoryHistory[newIndex]
-
-          axCodeClient.setDirectory(newDirectory)
-          invalidateFileSearchCache()
-
-          persistLastDirectory(newDirectory)
-
-          set({
-            currentDirectory: newDirectory,
-            historyIndex: newIndex,
-            hasPersistedDirectory: true,
-            isHomeReady: true,
-            isSwitchingDirectory: false,
-          })
-        }
-      },
-
-      goToParent: () => {
-        const { currentDirectory, setDirectory } = get()
-        const homeDir = cachedHomeDirectory || get().homeDirectory || getHomeDirectory()
-        const normalizedCurrentDirectory = normalizeDirectoryPath(currentDirectory)
-        const normalizedHomeDirectory = normalizeDirectoryPath(homeDir)
-
-        if (normalizedCurrentDirectory === normalizedHomeDirectory || isFilesystemRoot(normalizedCurrentDirectory)) {
-          return
-        }
-
-        const cleanPath = normalizedCurrentDirectory.endsWith("/")
-          ? normalizedCurrentDirectory.slice(0, -1)
-          : normalizedCurrentDirectory
-
-        const lastSlash = cleanPath.lastIndexOf("/")
-        if (lastSlash === -1) {
-          const home = cachedHomeDirectory || getHomeDirectory()
-          setDirectory(home)
-        } else if (lastSlash === 0) {
-          setDirectory("/")
-        } else {
-          setDirectory(cleanPath.substring(0, lastSlash))
-        }
-      },
-
-      goHome: async () => {
-        const homeDir = cachedHomeDirectory || get().homeDirectory || (await initializeHomeDirectory())
-        get().setDirectory(homeDir)
-      },
-
-      synchronizeHomeDirectory: (homePath: string) => {
-        const state = get()
-        const resolvedHome = normalizeHomeCandidate(homePath)
-        if (!resolvedHome) {
-          const existingHomeReady = Boolean(normalizeHomeCandidate(state.homeDirectory))
-          if (!state.isHomeReady && existingHomeReady) {
-            set({ isHomeReady: true })
-          }
-          return
-        }
-
-        cachedHomeDirectory = resolvedHome
-        const needsUpdate = state.homeDirectory !== resolvedHome
-        const savedLastDirectory = safeStorage.getItem("lastDirectory")
-        const hasSavedLastDirectory = typeof savedLastDirectory === "string" && savedLastDirectory.length > 0
-        const shouldReplaceCurrent =
-          !hasSavedLastDirectory &&
-          (state.currentDirectory === "/" || state.currentDirectory === state.homeDirectory || !state.currentDirectory)
-
-        if (!needsUpdate && !shouldReplaceCurrent) {
-          if (!state.isHomeReady) {
-            set({ isHomeReady: true })
-          }
-          return
-        }
-
-        const resolvedReady = typeof resolvedHome === "string" && resolvedHome !== "" && resolvedHome !== "/"
-
-        const resolvedCurrent = state.currentDirectory
-          ? resolveDirectoryPath(state.currentDirectory, resolvedHome)
-          : state.currentDirectory
-        const resolvedHistory = state.directoryHistory.map((entry) => resolveDirectoryPath(entry, resolvedHome))
-        const historyChanged = resolvedHistory.some((entry, index) => entry !== state.directoryHistory[index])
-        const currentChanged = Boolean(resolvedCurrent && resolvedCurrent !== state.currentDirectory)
-
-        const updates: Partial<DirectoryNavigationStore> = {
-          homeDirectory: resolvedHome,
-          hasPersistedDirectory: hasSavedLastDirectory,
-          isHomeReady: resolvedReady,
-        }
-
-        if (shouldReplaceCurrent) {
-          updates.currentDirectory = resolvedHome
-          updates.directoryHistory = [resolvedHome]
-          updates.historyIndex = 0
-          updates.isSwitchingDirectory = false
-        } else if (currentChanged || historyChanged) {
-          updates.currentDirectory = resolvedCurrent as string
-          updates.directoryHistory = resolvedHistory
-          updates.historyIndex = Math.min(state.historyIndex, resolvedHistory.length - 1)
-          updates.isSwitchingDirectory = false
-        }
-
-        set(() => updates as Partial<DirectoryNavigationStore>)
-
-        if ((shouldReplaceCurrent || currentChanged) && resolvedReady) {
-          const nextDirectory = shouldReplaceCurrent ? resolvedHome : (resolvedCurrent as string)
-          axCodeClient.setDirectory(nextDirectory)
-          invalidateFileSearchCache()
-          persistLastDirectory(nextDirectory)
-        }
-
-        void updateDesktopSettings({ homeDirectory: resolvedHome })
-      },
-    }),
-    {
-      name: "directory-store",
+        },
+      }
     },
+    { name: "directory-store" },
   ),
 )
 
-if (typeof window !== "undefined") {
-  initializeHomeDirectory().then((home) => {
-    useDirectoryStore.getState().synchronizeHomeDirectory(home)
+export function restoreDirectoryPreferences() {
+  const savedHome = safeStorage.getItem("homeDirectory")
+  if (savedHome) useDirectoryStore.getState().synchronizeHomeDirectory(savedHome, false)
+
+  // An embedded window or the reader may select a directory before the settings request resolves.
+  const savedDirectory = safeStorage.getItem("lastDirectory")
+  if (navigationRevision !== 0 || !savedDirectory) return
+
+  const state = useDirectoryStore.getState()
+  const currentDirectory = resolveDirectoryPath(savedDirectory, state.homeDirectory)
+  if (!currentDirectory) return
+  if (currentDirectory !== state.currentDirectory) scopeDirectory(currentDirectory)
+  useDirectoryStore.setState({
+    currentDirectory,
+    directoryHistory: [currentDirectory],
+    historyIndex: 0,
+    hasPersistedDirectory: true,
   })
+}
+
+let homeDiscovery: Promise<string> | null = null
+
+export function refreshDirectoryHome() {
+  homeDiscovery ??= discoverHomeDirectory()
+    .then((home) => {
+      useDirectoryStore.getState().synchronizeHomeDirectory(home)
+      return home
+    })
+    .finally(() => {
+      homeDiscovery = null
+    })
+  return homeDiscovery
 }

@@ -864,9 +864,10 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
 
     try {
       if (resolvedDir && directoryState.currentDirectory !== resolvedDir) {
-        directoryState.setDirectory(resolvedDir, { showOverlay: false })
+        directoryState.setDirectory(resolvedDir)
+      } else {
+        axCodeClient.setDirectory(resolvedDir ?? undefined)
       }
-      axCodeClient.setDirectory(resolvedDir ?? undefined)
     } catch (e) {
       console.warn("Failed to set ax-code directory for session switch:", e)
     }
