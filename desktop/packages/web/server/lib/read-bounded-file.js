@@ -9,22 +9,35 @@ const inside = (root, target) => {
   return relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
 }
 
-/** Verify and read one handle: path replacement and file growth must not bypass type, containment or size checks. */
+const matchesHandle = (entry, stat) => entry.isFile() && entry.dev === stat.dev && entry.ino === stat.ino
+
+const openNoFollow = async (filePath, label, fsPromises) => {
+  try {
+    return await fsPromises.open(
+      filePath,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0),
+    )
+  } catch (error) {
+    if (error?.code === "ELOOP" || error?.code === "EISDIR") fail("NOT_REGULAR_FILE", `${label} is not a regular file`)
+    throw error
+  }
+}
+
+/** Validate the opened descriptor before reading any bytes. */
 export async function readBoundedRegularFile(filePath, { maxBytes, root, label = "File", fsPromises = fs.promises }) {
-  const entry = await fsPromises.lstat(filePath)
-  if (!entry.isFile()) fail("NOT_REGULAR_FILE", `${label} is not a regular file`)
-  const target = await fsPromises.realpath(filePath)
   const rootReal = root === undefined ? undefined : await fsPromises.realpath(root)
-  if (rootReal !== undefined && !inside(rootReal, target)) fail("OUTSIDE_ROOT", `${label} is outside its root`)
-  const handle = await fsPromises.open(
-    filePath,
-    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) | (fs.constants.O_NONBLOCK || 0),
-  )
+  const handle = await openNoFollow(filePath, label, fsPromises)
   try {
     const stat = await handle.stat()
     if (!stat.isFile()) fail("NOT_REGULAR_FILE", `${label} is not a regular file`)
-    if (stat.dev !== entry.dev || stat.ino !== entry.ino || await fsPromises.realpath(filePath) !== target)
+    const entry = await fsPromises.lstat(filePath)
+    if (!entry.isFile()) fail("NOT_REGULAR_FILE", `${label} is not a regular file`)
+    const target = await fsPromises.realpath(filePath)
+    if (rootReal !== undefined && !inside(rootReal, target)) fail("OUTSIDE_ROOT", `${label} is outside its root`)
+    const canonicalEntry = await fsPromises.lstat(target)
+    if (!matchesHandle(entry, stat) || !matchesHandle(canonicalEntry, stat)) {
       fail("FILE_CHANGED", `${label} changed while opening`)
+    }
     if (stat.size > maxBytes) fail("FILE_TOO_LARGE", `${label} is too large`)
     // Probe beyond the checked size, keeping allocation bounded even if a writer grows the file during the read.
     const buffer = Buffer.alloc(stat.size + 1)

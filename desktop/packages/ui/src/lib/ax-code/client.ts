@@ -1857,7 +1857,7 @@ class AxCodeService {
   }
 
   // Health Check - using /health endpoint for detailed status
-  async checkHealth(): Promise<boolean> {
+  async checkHealth(signal?: AbortSignal): Promise<boolean> {
     try {
       // Health endpoint is at root, not under /api
       let healthUrl: string
@@ -1870,9 +1870,9 @@ class AxCodeService {
       } else {
         healthUrl = `${normalizedBase}${API_ENDPOINTS.debug.rootHealth}`
       }
-      const response = await fetch(healthUrl)
+      const response = await fetch(healthUrl, { signal })
       if (!response.ok) {
-        response.body?.cancel()
+        void response.body?.cancel().catch(() => {})
         return false
       }
 

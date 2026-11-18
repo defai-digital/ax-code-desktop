@@ -29,12 +29,38 @@ it("refuses a different regular file substituted after lstat", async () => {
   await fs.promises.writeFile(file, "public")
   await fs.promises.writeFile(replacement, "private")
   const lstat = fs.promises.lstat.bind(fs.promises)
+  let changed = false
   vi.spyOn(fs.promises, "lstat").mockImplementation(async (...args) => {
     const entry = await lstat(...args)
-    if (args[0] === file) await fs.promises.rename(replacement, file)
+    if (args[0] === file && !changed) {
+      changed = true
+      await fs.promises.rename(replacement, file)
+    }
     return entry
   })
   await expect(readBoundedRegularFile(file, { maxBytes: 100 })).rejects.toMatchObject({ code: "FILE_CHANGED" })
+})
+
+it("rejects a stale descriptor if the named file was replaced while opening", async () => {
+  const file = path.join(directory, "content")
+  const replacement = path.join(directory, "replacement")
+  await fs.promises.writeFile(file, "previous draft")
+  await fs.promises.writeFile(replacement, "current draft")
+  const open = fs.promises.open.bind(fs.promises)
+  let read
+  let close
+  vi.spyOn(fs.promises, "open").mockImplementation(async (...args) => {
+    const handle = await open(...args)
+    await fs.promises.rename(replacement, file)
+    read = vi.spyOn(handle, "read")
+    close = vi.spyOn(handle, "close")
+    return handle
+  })
+  await expect(readBoundedRegularFile(file, { maxBytes: 100, root: directory })).rejects.toMatchObject({
+    code: "FILE_CHANGED",
+  })
+  expect(read).not.toHaveBeenCalled()
+  expect(close).toHaveBeenCalledOnce()
 })
 
 it("bounds reads if a file grows after its handle was checked and closes that handle", async () => {

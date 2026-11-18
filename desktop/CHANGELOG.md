@@ -4,6 +4,21 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.26] - 2026-11-18
+
+### Fixed
+
+- Preserve literal file, project, and executable paths, including names that end in spaces.
+- Keep configuration reloads pending until Electron confirms the replacement runtime. Bound stalled health requests so users can retry.
+- Verify the opened file against the current directory entry before reading it, and reject replacements without reading stale content.
+- Scope pull request status, session activity, and verification evidence to the selected project and remote.
+- Refresh runtime compatibility before opening reports and keep the selected report context during navigation.
+- Cancel event-stream reconnect waits promptly and measure incomplete event limits in UTF-8 bytes.
+
+### Changed
+
+- Consolidate renderer and runtime boundaries, and remove retired editors and plugin configuration surfaces from Desktop.
+
 ## [7.30.25] - 2026-11-16
 
 ### Fixed
