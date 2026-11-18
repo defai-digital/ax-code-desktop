@@ -1,3 +1,5 @@
+import { createAtomicJsonWriter, parseJsonObject } from "../../../../../shared/json-file.cjs"
+
 const FILE_VERSION = 1
 const MAX_PROMPT_TEXT_LENGTH = 200_000
 const PROMPT_ID_PATTERN = /^[a-z0-9._-]{1,160}$/
@@ -6,9 +8,8 @@ const normalizePromptID = (id) => (typeof id === "string" ? id.trim() : "")
 
 const overridesToMap = (value) => {
   const overrides = new Map()
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return overrides
-  }
+  if (value === undefined) return overrides
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("Magic prompts data is corrupted")
 
   for (const [key, entry] of Object.entries(value)) {
     if (!PROMPT_ID_PATTERN.test(key) || typeof entry !== "string") {
@@ -19,80 +20,45 @@ const overridesToMap = (value) => {
   return overrides
 }
 
-const sanitizeOverrides = (value) => {
-  return Object.fromEntries(overridesToMap(value))
-}
-
-const serializeState = (state) => {
-  const overrides =
-    state.overrides instanceof Map ? Object.fromEntries(state.overrides) : sanitizeOverrides(state.overrides)
-  return {
-    version: FILE_VERSION,
-    overrides,
-  }
-}
+const serializeState = (overrides) => ({
+  version: FILE_VERSION,
+  overrides: Object.fromEntries(overrides),
+})
 
 export const createMagicPromptRuntime = (dependencies) => {
-  const { fsPromises, path, filePath } = dependencies
+  const { fsPromises, filePath } = dependencies
+  const writeJsonFile = createAtomicJsonWriter({ filesystem: fsPromises })
 
   let writeLock = Promise.resolve()
 
-  const readMutablePromptState = async () => {
+  const readOverrides = async () => {
     let raw
     try {
       raw = await fsPromises.readFile(filePath, "utf8")
     } catch (error) {
       if (error && typeof error === "object" && error.code === "ENOENT") {
-        return { version: FILE_VERSION, overrides: new Map() }
+        return new Map()
       }
       throw error
     }
 
-    try {
-      const parsed = JSON.parse(raw)
-      return {
-        version: FILE_VERSION,
-        overrides: overridesToMap(parsed?.overrides),
-      }
-    } catch (error) {
-      // A file that cannot be parsed is not "no overrides": the client treats the empty snapshot as
-      // authoritative, and the next write would replace every stored override with the one being edited
-      // (session-folders refuses for the same reason). Failing here is what keeps the bytes on disk.
-      throw new Error(`Magic prompts data is corrupted: ${error instanceof Error ? error.message : error}`)
-    }
+    const { overrides } = parseJsonObject(raw, "Magic prompts")
+    return overridesToMap(overrides)
   }
 
-  const readPromptState = async () => serializeState(await readMutablePromptState())
+  const readPromptState = async () => serializeState(await readOverrides())
 
-  const writePromptState = async (state) => {
-    // Temp file and rename, the way every sibling persistence path in this tree writes: `writeFile` truncates the
-    // target in place, so a process killed — or a disk that fills — halfway through a write leaves partial JSON
-    // behind, and every later read refuses that file as corrupted. The only in-app recovery from there is
-    // `resetAllOverrides`, which throws away every stored override.
-    await fsPromises.mkdir(path.dirname(filePath), { recursive: true })
-    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    let renamed = false
-    try {
-      await fsPromises.writeFile(temporaryPath, JSON.stringify(serializeState(state), null, 2), "utf8")
-      await fsPromises.rename(temporaryPath, filePath)
-      renamed = true
-    } finally {
-      if (!renamed) {
-        await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
-      }
-    }
-  }
-
-  const persist = async (mutator) => {
+  const save = (getNextState) => {
     const run = async () => {
-      const current = await readMutablePromptState()
-      const next = await mutator(current)
-      await writePromptState(next)
-      return serializeState(next)
+      const snapshot = serializeState(await getNextState())
+      await writeJsonFile(filePath, snapshot)
+      return snapshot
     }
     writeLock = writeLock.then(run, run)
     return writeLock
   }
+
+  const persist = (mutator) => save(async () => mutator(await readOverrides()))
 
   const setOverride = async (id, text) => {
     const normalizedId = normalizePromptID(id)
@@ -109,14 +75,7 @@ export const createMagicPromptRuntime = (dependencies) => {
       throw new Error("Prompt text is too long")
     }
 
-    return persist(async (state) => {
-      const nextOverrides = new Map(state.overrides)
-      nextOverrides.set(normalizedId, text)
-      return {
-        version: FILE_VERSION,
-        overrides: nextOverrides,
-      }
-    })
+    return persist((overrides) => overrides.set(normalizedId, text))
   }
 
   const resetOverride = async (id) => {
@@ -125,16 +84,9 @@ export const createMagicPromptRuntime = (dependencies) => {
       throw new Error("Invalid prompt id")
     }
 
-    return persist(async (state) => {
-      if (!state.overrides.has(normalizedId)) {
-        return state
-      }
-      const nextOverrides = new Map(state.overrides)
-      nextOverrides.delete(normalizedId)
-      return {
-        version: FILE_VERSION,
-        overrides: nextOverrides,
-      }
+    return persist((overrides) => {
+      overrides.delete(normalizedId)
+      return overrides
     })
   }
 
@@ -143,13 +95,7 @@ export const createMagicPromptRuntime = (dependencies) => {
     // read refuses a file it cannot parse — so going through `persist` left a truncated file with no way to
     // clear it from the app at all (`setOverride`, `resetOverride` and the read all answered the same
     // error). It writes under the same lock as every other write.
-    const run = async () => {
-      const next = { version: FILE_VERSION, overrides: new Map() }
-      await writePromptState(next)
-      return serializeState(next)
-    }
-    writeLock = writeLock.then(run, run)
-    return writeLock
+    return save(() => new Map())
   }
 
   return {

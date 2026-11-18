@@ -1,5 +1,9 @@
+import { createAtomicTextWriter } from "../../../../../shared/json-file.cjs"
+
 export const createThemeRuntime = (dependencies) => {
   const { fsPromises, path, themesDir, maxThemeJsonBytes, logger } = dependencies
+
+  const writeTextFile = createAtomicTextWriter({ filesystem: fsPromises })
 
   const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
   const isNonEmptyString = (value) => asTrimmedString(value).length > 0
@@ -223,7 +227,6 @@ export const createThemeRuntime = (dependencies) => {
       throw new Error("Theme JSON exceeds the size limit")
     }
 
-    await fsPromises.mkdir(themesDir, { recursive: true })
     const filePath = path.join(themesDir, `${id}.json`)
     let existingText = null
     try {
@@ -245,21 +248,7 @@ export const createThemeRuntime = (dependencies) => {
       }
     }
 
-    const temporaryPath = path.join(
-      themesDir,
-      `.${id}.${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}.tmp`,
-    )
-    try {
-      await fsPromises.writeFile(temporaryPath, serialized, { encoding: "utf8", flag: "wx" })
-      await fsPromises.rename(temporaryPath, filePath)
-    } finally {
-      try {
-        await fsPromises.unlink(temporaryPath)
-      } catch (error) {
-        if (error?.code !== "ENOENT") throw error
-      }
-    }
-
+    await writeTextFile(filePath, serialized)
     return normalized
   }
 

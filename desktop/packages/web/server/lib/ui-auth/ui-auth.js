@@ -2,7 +2,7 @@ import crypto from "crypto"
 import { SignJWT, jwtVerify } from "jose"
 import fs from "fs"
 import path from "path"
-import os from "os"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 import { createUiPasskeys } from "./ui-passkeys.js"
 
 import { UI_SESSION_COOKIE_NAME, resolveUiSessionCookieName } from "./ui-session-cookie.js"
@@ -325,9 +325,7 @@ export const derivePasswordBinding = (normalizedPassword, jwtSecret) =>
 
 const isTrustedDeviceRequest = (value) => value === true
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
+const AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
 const JWT_SECRET_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "jwt-secret")
 
 // HS256 with a short key is guessable: a captured session cookie could be

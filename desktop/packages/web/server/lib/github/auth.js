@@ -1,15 +1,11 @@
 import crypto from "crypto"
 import fs from "fs"
 import path from "path"
-import os from "os"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
-
-const STORAGE_DIR = AX_CODE_DESKTOP_DATA_DIR
+const STORAGE_DIR = getDesktopDataDir()
 const STORAGE_FILE = path.join(STORAGE_DIR, "github-auth.json")
-const SETTINGS_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "settings.json")
+const SETTINGS_FILE = path.join(STORAGE_DIR, "settings.json")
 
 const DEFAULT_GITHUB_CLIENT_ID = "Ov23lizomPOC3eFYo56r"
 const DEFAULT_GITHUB_SCOPES = "repo read:org workflow read:user user:email"

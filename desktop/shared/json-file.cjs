@@ -6,11 +6,24 @@ const path = require("node:path")
 
 const MAX_TEMPORARY_NAME_ATTEMPTS = 4
 
+// JSON syntax errors can include source values. Give callers a diagnostic they
+// can safely return or log, and keep malformed roots out of read-modify-write.
+function parseJsonObject(raw, label) {
+  let value
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    throw new Error(`${label} data is corrupted`)
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error(`${label} data is corrupted`)
+  return value
+}
+
 function defaultTemporaryName(filePath) {
   return `${filePath}.tmp-${process.pid}-${Date.now()}-${crypto.randomBytes(6).toString("hex")}`
 }
 
-function createAtomicJsonWriter({
+function createAtomicTextWriter({
   filesystem = fs,
   platform = process.platform,
   wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -31,10 +44,7 @@ function createAtomicJsonWriter({
     }
   }
 
-  return async function writeJsonFile(filePath, data) {
-    const serialized = JSON.stringify(data, null, 2)
-    // JSON.stringify returns undefined for undefined, functions and symbols; reject before touching the disk.
-    if (typeof serialized !== "string") throw new TypeError("Cannot write a value that has no JSON representation")
+  return async function writeTextFile(filePath, serialized) {
     await filesystem.mkdir(path.dirname(filePath), { recursive: true })
     const { tmp, file } = await openTemporaryFile(filePath)
     try {
@@ -72,4 +82,13 @@ function createAtomicJsonWriter({
   }
 }
 
-module.exports = { createAtomicJsonWriter }
+function createAtomicJsonWriter(options) {
+  const writeText = createAtomicTextWriter(options)
+  return async (filePath, data) => {
+    const serialized = JSON.stringify(data, null, 2)
+    if (typeof serialized !== "string") throw new TypeError("Cannot write a value that has no JSON representation")
+    await writeText(filePath, serialized)
+  }
+}
+
+module.exports = { createAtomicJsonWriter, createAtomicTextWriter, parseJsonObject }

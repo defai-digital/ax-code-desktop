@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import crypto from "crypto"
 import fsPromises from "fs/promises"
 import os from "os"
@@ -37,6 +37,40 @@ const createRuntime = async (overrides = {}) => {
 }
 
 describe("settings runtime", () => {
+  it("preserves a settings file with a non-object root on the next save", async () => {
+    const { runtime, settingsFilePath, cleanup } = await createRuntime()
+    try {
+      await fsPromises.writeFile(settingsFilePath, '["stored"]')
+      await expect(runtime.persistSettings({ themeId: "ax-dark" })).rejects.toThrow(/corrupted/i)
+      expect(await fsPromises.readFile(settingsFilePath, "utf8")).toBe('["stored"]')
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it.skipIf(process.platform === "win32")("publishes owner-only standalone settings", async () => {
+    const { runtime, settingsFilePath, cleanup } = await createRuntime()
+    try {
+      await fsPromises.writeFile(settingsFilePath, "{}", { mode: 0o644 })
+      await runtime.persistSettings({ themeId: "ax-dark" })
+      expect((await fsPromises.stat(settingsFilePath)).mode & 0o777).toBe(0o600)
+    } finally {
+      await cleanup()
+    }
+  })
+
+  it("keeps unrecognized input values out of save diagnostics", async () => {
+    const { runtime, cleanup } = await createRuntime()
+    const log = vi.spyOn(console, "log").mockImplementation(() => {})
+    try {
+      await runtime.persistSettings({ extraSetting: "private-fixture-value" })
+      expect(JSON.stringify(log.mock.calls)).not.toContain("private-fixture-value")
+    } finally {
+      log.mockRestore()
+      await cleanup()
+    }
+  })
+
   it("refuses a corrupted settings file instead of overwriting it with migration defaults", async () => {
     const { runtime, settingsFilePath, cleanup } = await createRuntime()
     try {
@@ -293,40 +327,18 @@ describe("settings runtime", () => {
     }
   })
 
-  it.skipIf(process.platform !== "win32")("falls back when Windows blocks atomic settings replacement", async () => {
-    const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), "oc-settings-runtime-"))
-    const settingsFilePath = path.join(tempRoot, "settings.json")
-    const wrappedFs = {
-      ...fsPromises,
-      rename: async () => {
-        const error = new Error("operation not permitted")
-        error.code = "EPERM"
-        throw error
-      },
-    }
-    const runtime = createSettingsRuntime({
-      fsPromises: wrappedFs,
-      path,
-      crypto,
-      SETTINGS_FILE_PATH: settingsFilePath,
-      sanitizeProjects: (projects) => (Array.isArray(projects) ? projects : []),
-      sanitizeSettingsUpdate: (settings) => settings,
-      mergePersistedSettings: (_current, changes) => changes,
-      normalizeSettingsPaths: (settings) => ({ settings, changed: false }),
-      normalizeStringArray: (values) =>
-        Array.isArray(values) ? values.filter((value) => typeof value === "string") : [],
-      formatSettingsResponse: (settings) => settings,
-      resolveDirectoryCandidate: (value) => value,
+  it("keeps the previous file when settings replacement stays locked", async () => {
+    const locked = Object.assign(new Error("file locked"), { code: "EPERM" })
+    const { runtime, settingsFilePath, tempRoot, cleanup } = await createRuntime({
+      fsPromises: { ...fsPromises, rename: vi.fn().mockRejectedValue(locked) },
     })
-
     try {
-      await runtime.writeSettingsToDisk({ theme: "dark" })
-
-      await expect(fsPromises.readFile(settingsFilePath, "utf8")).resolves.toBe(
-        JSON.stringify({ theme: "dark" }, null, 2),
-      )
+      await fsPromises.writeFile(settingsFilePath, '{"previous":true}')
+      await expect(runtime.writeSettingsToDisk({ theme: "dark" })).rejects.toBe(locked)
+      expect(await fsPromises.readFile(settingsFilePath, "utf8")).toBe('{"previous":true}')
+      expect(await fsPromises.readdir(tempRoot)).toEqual(["settings.json"])
     } finally {
-      await fsPromises.rm(tempRoot, { recursive: true, force: true })
+      await cleanup()
     }
   })
 

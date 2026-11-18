@@ -1,6 +1,5 @@
 import crypto from "crypto"
 import fs from "fs"
-import os from "os"
 import path from "path"
 import {
   generateAuthenticationOptions,
@@ -8,6 +7,7 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 import { getRequestOrigin, getRequestRpId } from "../security/request-origin.js"
 import { isLoopbackHostname, normalizeLoopbackHttpOrigin } from "../security/local-only.js"
 
@@ -16,9 +16,7 @@ const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000
 const DEFAULT_RP_NAME = "AX Code"
 export const MAX_PENDING_CHALLENGES = 256
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
+const AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
 
 const PASSKEY_STORE_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "ui-passkeys.json")
 

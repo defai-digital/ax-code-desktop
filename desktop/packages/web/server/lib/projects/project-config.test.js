@@ -154,6 +154,18 @@ describe("project-config runtime", () => {
     }
   })
 
+  it("preserves a config with a malformed root when migration tries to replace tasks", async () => {
+    const { runtime, tempRoot, cleanup } = await createRuntime()
+    try {
+      const file = path.join(tempRoot, "legacy.json")
+      await writeFile(file, '["original"]')
+      await expect(runtime.replaceScheduledTasks("legacy", [])).rejects.toThrow(/corrupted/i)
+      expect(await readFile(file, "utf8")).toBe('["original"]')
+    } finally {
+      await cleanup()
+    }
+  })
+
   it("removes its temporary file when the replace fails", async () => {
     // A replace that fails after the temporary copy was written (EXDEV, a locked target, EPERM on Windows).
     const { runtime, tempRoot, cleanup } = await createRuntime({

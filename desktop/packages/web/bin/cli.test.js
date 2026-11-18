@@ -30,6 +30,7 @@ import {
   stopInstanceProcess,
   followFile,
   readTailWithSize,
+  readDesktopLocalPortFromSettings,
   commands,
   parseArgs,
   terminateProcessTree,
@@ -334,6 +335,21 @@ describe("startup quoting", () => {
 })
 
 describe("port selection", () => {
+  it.skipIf(process.platform === "win32")("reads the port from the literal Desktop profile directory", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "desktop-profile-"))
+    try {
+      for (const [name, port] of [["profile", 3101], ["profile ", 3102]]) {
+        fs.mkdirSync(path.join(root, name))
+        fs.writeFileSync(path.join(root, name, "settings.json"), JSON.stringify({ desktopLocalPort: port }))
+      }
+      vi.stubEnv("AX_CODE_DESKTOP_DATA_DIR", path.join(root, "profile "))
+      expect(readDesktopLocalPortFromSettings()).toBe(3102)
+    } finally {
+      vi.unstubAllEnvs()
+      fs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it("falls back by scanning upward instead of asking the OS for a random port", async () => {
     const selected = await resolveAvailablePort(3100, false, undefined, undefined, {
       isPortAvailable: async (port) => port !== 3100,

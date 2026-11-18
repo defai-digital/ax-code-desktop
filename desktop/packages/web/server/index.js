@@ -7,6 +7,7 @@ import http from "http"
 import { fileURLToPath } from "url"
 import os from "os"
 import crypto from "crypto"
+import { getDesktopDataDir } from "../../../shared/desktop-data-dir.mjs"
 import { createUiAuth } from "./lib/ui-auth/ui-auth.js"
 import { createRequestSecurityRuntime } from "./lib/security/request-security.js"
 import { assertNoActiveLegacyPublicTunnels } from "./lib/security/legacy-tunnel.js"
@@ -217,9 +218,7 @@ const maybeCacheSessionInfoFromEvent = (...args) => notificationTemplateRuntime.
 const buildTemplateVariables = (...args) => notificationTemplateRuntime.buildTemplateVariables(...args)
 const getCachedZenModels = (...args) => notificationTemplateRuntime.getCachedZenModels(...args)
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
+const AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
 const SETTINGS_FILE_PATH = path.join(AX_CODE_DESKTOP_DATA_DIR, "settings.json")
 
 const settingsHelpers = createSettingsHelpers({

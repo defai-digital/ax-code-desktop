@@ -1,3 +1,4 @@
+import { createAtomicJsonWriter, parseJsonObject } from "../../../../../shared/json-file.cjs"
 import { createProjectIdFromPath } from "../projects/project-id.js"
 import { projectConfigFileStemOf } from "../projects/project-config.js"
 import { normalizePathSeparators } from "../../../../../shared/path-values.mjs"
@@ -32,25 +33,6 @@ const removeDisabledRemoteAccessSettings = (settings) => {
     changed = true
   }
   return { settings: changed ? next : settings, changed }
-}
-
-/**
- * The same keys the write path drops, with their values hidden. `persistSettings`
- * logged the raw request body before stripping them, so `desktopUiPassword` and
- * `desktopLocalClientToken` were printed verbatim to the server's stdout, which
- * Electron main captures. Kept here so the log still names what the request carried.
- */
-const redactDisabledRemoteAccessSettings = (settings) => {
-  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
-    return settings
-  }
-  const next = { ...settings }
-  for (const key of DISABLED_REMOTE_SETTINGS_KEYS) {
-    if (Object.prototype.hasOwnProperty.call(next, key)) {
-      next[key] = "[redacted]"
-    }
-  }
-  return next
 }
 
 const ensureNotificationTemplateShape = (templates) => {
@@ -127,8 +109,7 @@ export const createSettingsRuntime = (deps) => {
   const readJsonFile = async (filePath) => {
     try {
       const raw = await fsPromises.readFile(filePath, "utf8")
-      const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === "object" ? parsed : null
+      return parseJsonObject(raw, "Project config")
     } catch (error) {
       if (error && typeof error === "object" && error.code === "ENOENT") {
         return null
@@ -137,20 +118,7 @@ export const createSettingsRuntime = (deps) => {
     }
   }
 
-  const writeJsonFile = async (filePath, value) => {
-    await fsPromises.mkdir(path.dirname(filePath), { recursive: true })
-    // tmp + rename, same as project-config.js: a crash mid-write otherwise leaves a
-    // truncated JSON that every later read treats as corrupt.
-    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-    try {
-      await fsPromises.writeFile(temporaryPath, JSON.stringify(value, null, 2), "utf8")
-      await fsPromises.rename(temporaryPath, filePath)
-    } catch (error) {
-      // Otherwise every failed attempt (a full disk, a locked target) leaves a full copy behind.
-      await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
-      throw error
-    }
-  }
+  const writeJsonFile = createAtomicJsonWriter({ filesystem: fsPromises })
 
   const uniqueStrings = (values) =>
     Array.from(
@@ -549,82 +517,10 @@ export const createSettingsRuntime = (deps) => {
       console.warn("Failed to read settings file:", error)
       throw error
     }
-    try {
-      const parsed = JSON.parse(raw)
-      if (parsed && typeof parsed === "object") {
-        return parsed
-      }
-      throw new Error("settings.json does not contain an object")
-    } catch (error) {
-      // A corrupted file is not "no settings": reading it as {} lets the migration
-      // write-back and persistSettings replace every stored project and preference
-      // with defaults (session-folders and magic-prompts refuse for the same reason).
-      // Failing here is what keeps the bytes on disk.
-      throw new Error(`Settings data is corrupted: ${error instanceof Error ? error.message : error}`)
-    }
+    return parseJsonObject(raw, "Settings")
   }
 
-  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-  const isTransientWindowsReplaceError = (error) => {
-    if (process.platform !== "win32" || !error || typeof error !== "object") {
-      return false
-    }
-    return error.code === "EPERM" || error.code === "EACCES" || error.code === "EBUSY"
-  }
-
-  const replaceFile = async (tmp, target) => {
-    const maxAttempts = process.platform === "win32" ? 6 : 1
-    let lastError = null
-
-    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-      try {
-        await fsPromises.rename(tmp, target)
-        return
-      } catch (error) {
-        lastError = error
-        if (!isTransientWindowsReplaceError(error) || attempt === maxAttempts) {
-          break
-        }
-        await sleep(25 * attempt)
-      }
-    }
-
-    if (!isTransientWindowsReplaceError(lastError)) {
-      throw lastError
-    }
-
-    // Windows can transiently reject atomic replacement when another process
-    // briefly opens the target file. Preserve atomic rename everywhere it works,
-    // but fall back to a direct replacement so settings persistence does not
-    // get permanently wedged on Windows desktop installs.
-    await fsPromises.copyFile(tmp, target)
-    await fsPromises.rm(tmp, { force: true })
-  }
-
-  const writeSettingsToDiskLocal = async (settings) => {
-    try {
-      await fsPromises.mkdir(path.dirname(SETTINGS_FILE_PATH), { recursive: true })
-      // Atomic write: Electron main and the web server can read this file
-      // concurrently. A partial read during a non-atomic writeFile would make
-      // a later read-modify-write wipe the settings file.
-      // Only used in standalone web mode — in desktop (utilityProcess) mode
-      // Electron main is the sole writer of settings.json and every write
-      // delegates to it via the settingsWriter (S2.3).
-      const tmp = `${SETTINGS_FILE_PATH}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-      try {
-        await fsPromises.writeFile(tmp, JSON.stringify(settings, null, 2), "utf8")
-        await replaceFile(tmp, SETTINGS_FILE_PATH)
-      } catch (error) {
-        // A stranded copy holds the whole settings payload, secrets included, and one is left per failure.
-        await fsPromises.rm(tmp, { force: true }).catch(() => {})
-        throw error
-      }
-    } catch (error) {
-      console.warn("Failed to write settings file:", error)
-      throw error
-    }
-  }
+  const writeSettingsToDiskLocal = (settings) => writeJsonFile(SETTINGS_FILE_PATH, settings)
 
   // Every settings.json write path (persistSettings and the migration
   // write-back) routes through the writer abstraction so the web layer never
@@ -632,8 +528,6 @@ export const createSettingsRuntime = (deps) => {
   const writeSettingsToDisk = settingsWriter ? (settings) => settingsWriter.write(settings) : writeSettingsToDiskLocal
 
   const validateProjectEntries = async (projects) => {
-    console.log(`[validateProjectEntries] Starting validation for ${projects.length} projects`)
-
     if (!Array.isArray(projects)) {
       console.warn("[validateProjectEntries] Input is not an array, returning empty")
       return []
@@ -641,7 +535,7 @@ export const createSettingsRuntime = (deps) => {
 
     const validations = projects.map(async (project) => {
       if (!project || typeof project.path !== "string" || project.path.length === 0) {
-        console.error("[validateProjectEntries] Invalid project entry: missing or empty path", project)
+        console.error("[validateProjectEntries] Invalid project entry: missing or empty path")
         return null
       }
       try {
@@ -907,10 +801,8 @@ export const createSettingsRuntime = (deps) => {
       // inherit the rejection and skip its callback.
       .catch(() => undefined)
       .then(async () => {
-        console.log(
-          "[persistSettings] Called with changes:",
-          JSON.stringify(redactDisabledRemoteAccessSettings(changes), null, 2),
-        )
+        const discardedKeys = DISABLED_REMOTE_SETTINGS_KEYS.filter((key) => Object.hasOwn(changes ?? {}, key))
+        if (discardedKeys.length) console.log("[persistSettings] Ignoring disabled settings:", discardedKeys)
         const current = await readSettingsFromDisk()
         console.log(
           "[persistSettings] Current projects count:",

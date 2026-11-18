@@ -4,6 +4,12 @@ import path from "path"
 import { registerSessionFoldersRoutes } from "./routes.js"
 import { createMockResponse, createRouteRegistry } from "../../test-helpers/route-harness.js"
 
+const fileHandle = (writeFile = async () => {}) => ({
+  writeFile,
+  sync: async () => {},
+  close: async () => {},
+})
+
 describe("session folders routes", () => {
   it("answers with an error instead of an empty snapshot when the stored file is corrupted", async () => {
     // The client's disk hydration treats an empty snapshot as authoritative, so a
@@ -28,13 +34,13 @@ describe("session folders routes", () => {
     expect(response.body.error).toMatch(/corrupt/i)
   })
 
-  it("treats a zero-byte stored file as corrupt rather than as no folders", async () => {
+  it.each(["", "null", "[]"])("rejects a stored file without a snapshot object (%j)", async (raw) => {
     // `!raw` conflated "the file is missing" with "the file is there and empty": a file truncated by a
     // non-atomic writer answered 200 with the empty snapshot, which the client treats as authoritative and
     // writes back — the same data-loss cascade the branch above refuses for unparseable JSON.
     const { app, getRoute } = createRouteRegistry()
     const fsPromises = {
-      readFile: vi.fn(async () => ""),
+      readFile: vi.fn(async () => raw),
     }
 
     registerSessionFoldersRoutes(app, {
@@ -83,9 +89,9 @@ describe("session folders routes", () => {
         throw Object.assign(new Error("Not found"), { code: "ENOENT" })
       }),
       mkdir: vi.fn(async () => {}),
-      writeFile: vi.fn(async (tempPath) => {
+      open: vi.fn(async (tempPath) => {
         tempPaths.push(tempPath)
-        await new Promise((resolve) => setTimeout(resolve, 0))
+        return fileHandle()
       }),
       rename: vi.fn(async () => {}),
     }
@@ -115,11 +121,11 @@ describe("session folders routes", () => {
         throw Object.assign(new Error("Not found"), { code: "ENOENT" })
       }),
       mkdir: vi.fn(async () => {}),
-      writeFile: vi.fn(async () => {}),
+      open: vi.fn(async () => fileHandle()),
       rename: vi.fn(async () => {
         throw new Error("rename failed")
       }),
-      unlink: vi.fn(async () => {}),
+      rm: vi.fn(async () => {}),
     }
 
     registerSessionFoldersRoutes(app, {
@@ -134,7 +140,7 @@ describe("session folders routes", () => {
     await handler({ body: { version: 1, updatedAt: 1 } }, response)
 
     expect(response.statusCode).toBe(500)
-    expect(fsPromises.unlink).toHaveBeenCalledWith(expect.stringContaining("sessions-directories.json.tmp-"))
+    expect(fsPromises.rm).toHaveBeenCalledWith(expect.stringContaining("sessions-directories.json.tmp-"), { force: true })
   })
 
   const createMergeHarness = (baseSnapshot) => {
@@ -143,9 +149,9 @@ describe("session folders routes", () => {
     const fsPromises = {
       mkdir: vi.fn(async () => {}),
       readFile: vi.fn(async () => JSON.stringify(baseSnapshot)),
-      writeFile: vi.fn(async (_tempPath, serialized) => {
+      open: vi.fn(async () => fileHandle(async (serialized) => {
         written = JSON.parse(serialized)
-      }),
+      })),
       rename: vi.fn(async () => {}),
     }
     registerSessionFoldersRoutes(app, { fsPromises, path, openchamberDataDir: "/tmp/openchamber-test" })
@@ -173,7 +179,7 @@ describe("session folders routes", () => {
     expect(failed.body.error).toBe("Snapshot read failed")
     expect(readWritten()).toBeNull()
     expect(fsPromises.mkdir).not.toHaveBeenCalled()
-    expect(fsPromises.writeFile).not.toHaveBeenCalled()
+    expect(fsPromises.open).not.toHaveBeenCalled()
     expect(fsPromises.rename).not.toHaveBeenCalled()
 
     const retried = createMockResponse()
@@ -411,7 +417,7 @@ describe("session folders routes", () => {
       expect(response.statusCode).toBe(409)
       expect(response.body.current).toEqual(stored)
       expect(readWritten()).toBeNull()
-      expect(fsPromises.writeFile).not.toHaveBeenCalled()
+      expect(fsPromises.open).not.toHaveBeenCalled()
     })
 
     it("still merges a write without baseRevision and advances the revision", async () => {
@@ -435,7 +441,7 @@ describe("session folders routes", () => {
       const response = createMockResponse()
       await handler({ body: { version: 1, baseRevision, foldersMap: {} } }, response)
       expect(response.statusCode).toBe(400)
-      expect(fsPromises.writeFile).not.toHaveBeenCalled()
+      expect(fsPromises.open).not.toHaveBeenCalled()
     })
   })
 })

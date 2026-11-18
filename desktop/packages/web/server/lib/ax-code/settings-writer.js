@@ -1,3 +1,5 @@
+import { randomUUID } from "crypto"
+
 // S2.3 (SPEC-2026-08-29-desktop-process-model-collapse §2 D5): Electron main is
 // the sole writer of settings.json. This module is the single entry point for
 // every web-side settings.json write, with two backends:
@@ -8,7 +10,7 @@
 //   through its serialized read-modify-write chain and atomic tmp+rename).
 // - local: standalone web mode (no parentPort exists — plain node or a
 //   child_process.fork IPC parent that is not Electron main). Uses the
-//   pre-existing local atomic writer unchanged.
+//   host atomic JSON writer.
 //
 // Protocol (same channel as the existing "ready"/"stop" messages):
 //   request : { type: "settings-write", id, settings }
@@ -25,7 +27,7 @@ export const createSettingsWriter = ({
   parentPort,
   localWrite,
   timeoutMs = SETTINGS_WRITE_TIMEOUT_MS,
-  createRequestId = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+  createRequestId = randomUUID,
   setTimer = setTimeout,
   clearTimer = clearTimeout,
 }) => {
@@ -51,7 +53,7 @@ export const createSettingsWriter = ({
     if (!entry) return
     pending.delete(msg.id)
     clearTimer(entry.timer)
-    if (msg.ok) {
+    if (msg.ok === true) {
       entry.resolve()
     } else {
       entry.reject(
