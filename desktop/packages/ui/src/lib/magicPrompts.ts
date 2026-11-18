@@ -51,11 +51,6 @@ interface MagicPromptDefinition {
   placeholders?: Array<{ key: string; description: string }>
 }
 
-interface MagicPromptOverridesPayload {
-  version: number
-  overrides: Record<string, string>
-}
-
 const API_ENDPOINT = API_ENDPOINTS.magicPrompts
 
 const MAGIC_PROMPT_DEFINITIONS: readonly MagicPromptDefinition[] = [
@@ -837,7 +832,7 @@ const normalizeOverridesPayload = (payload: unknown): Record<string, string> => 
   return result
 }
 
-export const fetchMagicPromptOverrides = async (): Promise<Record<string, string>> => {
+const fetchMagicPromptOverrides = async (): Promise<Record<string, string>> => {
   if (cachedOverrides) {
     return cachedOverrides
   }
@@ -863,7 +858,7 @@ export const fetchMagicPromptOverrides = async (): Promise<Record<string, string
 
   return inFlightOverridesRequest
 }
-export const getMagicPromptDefinition = (id: MagicPromptId): MagicPromptDefinition => {
+const getMagicPromptDefinition = (id: MagicPromptId): MagicPromptDefinition => {
   const definition = MAGIC_PROMPT_DEFINITION_BY_ID.get(id)
   if (!definition) {
     throw new Error(`Unknown magic prompt id: ${id}`)
@@ -871,17 +866,8 @@ export const getMagicPromptDefinition = (id: MagicPromptId): MagicPromptDefiniti
   return definition
 }
 
-export const getDefaultMagicPromptTemplate = (id: MagicPromptId): string => {
+const getDefaultMagicPromptTemplate = (id: MagicPromptId): string => {
   return getMagicPromptDefinition(id).template
-}
-
-/** Visible magic prompts only. Instruction templates stay out of slash search. */
-export function listSearchableMagicPrompts(): Array<{ id: MagicPromptId; name: string; description: string }> {
-  return MAGIC_PROMPT_DEFINITIONS.filter((definition) => definition.id.endsWith(".visible")).map((definition) => ({
-    id: definition.id,
-    name: definition.title,
-    description: definition.description,
-  }))
 }
 
 const getEffectiveMagicPromptTemplate = async (id: MagicPromptId): Promise<string> => {
@@ -896,59 +882,4 @@ const getEffectiveMagicPromptTemplate = async (id: MagicPromptId): Promise<strin
 export const renderMagicPrompt = async (id: MagicPromptId, variables: Record<string, string> = {}): Promise<string> => {
   const template = await getEffectiveMagicPromptTemplate(id)
   return replaceTemplateVariables(template, variables)
-}
-
-export const saveMagicPromptOverride = async (
-  id: MagicPromptId,
-  text: string,
-): Promise<MagicPromptOverridesPayload> => {
-  const response = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
-    method: HTTP_DEFAULTS.method.put,
-    headers: HTTP_DEFAULTS.headers.acceptAndContentTypeJson,
-    body: JSON.stringify({ text }),
-  })
-  if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}))
-    throw new Error((errorPayload as { error?: string })?.error || "Failed to save magic prompt")
-  }
-  const payload = await response.json()
-  cachedOverrides = normalizeOverridesPayload(payload)
-  return {
-    version: typeof payload?.version === "number" ? payload.version : 1,
-    overrides: cachedOverrides,
-  }
-}
-
-export const resetMagicPromptOverride = async (id: MagicPromptId): Promise<MagicPromptOverridesPayload> => {
-  const response = await fetch(`${API_ENDPOINT}/${encodeURIComponent(id)}`, {
-    method: HTTP_DEFAULTS.method.delete,
-    headers: HTTP_DEFAULTS.headers.acceptJson,
-  })
-  if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}))
-    throw new Error((errorPayload as { error?: string })?.error || "Failed to reset magic prompt")
-  }
-  const payload = await response.json()
-  cachedOverrides = normalizeOverridesPayload(payload)
-  return {
-    version: typeof payload?.version === "number" ? payload.version : 1,
-    overrides: cachedOverrides,
-  }
-}
-
-export const resetAllMagicPromptOverrides = async (): Promise<MagicPromptOverridesPayload> => {
-  const response = await fetch(API_ENDPOINT, {
-    method: HTTP_DEFAULTS.method.delete,
-    headers: HTTP_DEFAULTS.headers.acceptJson,
-  })
-  if (!response.ok) {
-    const errorPayload = await response.json().catch(() => ({}))
-    throw new Error((errorPayload as { error?: string })?.error || "Failed to reset all magic prompts")
-  }
-  const payload = await response.json()
-  cachedOverrides = normalizeOverridesPayload(payload)
-  return {
-    version: typeof payload?.version === "number" ? payload.version : 1,
-    overrides: cachedOverrides,
-  }
 }

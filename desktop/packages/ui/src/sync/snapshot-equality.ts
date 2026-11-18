@@ -1,5 +1,6 @@
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import type { SessionStatus } from "@defai-digital/ax-code-sdk/v2/client"
+import { shallowRecordEqual } from "@/lib/shallowRecordEqual"
 import { isPlainRecord } from "@/lib/record"
 
 // ---------------------------------------------------------------------------
@@ -90,7 +91,7 @@ function areSessionSnapshotsEqual(left: Session, right: Session): boolean {
     left.share?.url === right.share?.url &&
     areSessionPermissionsEqual(left.permission, right.permission) &&
     areSessionRevertsEqual(left.revert, right.revert) &&
-    areFlatUnknownRecordsEqual(left.metadata, right.metadata) &&
+    shallowRecordEqual(left.metadata, right.metadata) &&
     areUnknownSessionKeysEqual(left, right)
   )
 }
@@ -150,21 +151,6 @@ function areSessionRevertsEqual(left: Session["revert"] | undefined, right: Sess
     left.snapshot === right.snapshot &&
     left.diff === right.diff
   )
-}
-
-function areFlatUnknownRecordsEqual(
-  left: Record<string, unknown> | undefined,
-  right: Record<string, unknown> | undefined,
-): boolean {
-  if (left === right) return true
-  if (!left || !right) return false
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-  for (const key of leftKeys) {
-    if (!Object.is(left[key], right[key])) return false
-  }
-  return true
 }
 
 function areUnknownSessionKeysEqual(left: Session, right: Session): boolean {

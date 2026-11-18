@@ -103,6 +103,13 @@ readers between serialization and hydration. UI, Config and permission preferenc
 window navigation, pending work and runtime metadata remain live state. Custom queue/feed/review/terminal restorers
 retain their domain-specific recovery rules. `lib/mainTabs.ts` owns tab identity types without a store import.
 
+Shared value contracts also live outside store and sync ownership: `lib/shallowRecordEqual.ts` compares own keys and
+shallow values; `lib/desktopServerOrigin.ts` resolves the live Desktop server for configuration and Git HTTP calls;
+`lib/worktrees/worktreeName.ts` owns worktree slugging. `lib/floatingMenu.ts` keeps window close guards consistent.
+Onboarding shares install command rendering, clipboard feedback and CLI health reads within its component directory.
+Plain diff fallbacks share a lightweight component without eagerly importing the full diff renderer.
+The retired Magic Prompts editor's mutation/search APIs are removed; runtime prompt rendering still reads legacy overrides.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

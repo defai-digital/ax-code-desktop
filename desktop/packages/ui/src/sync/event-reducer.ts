@@ -1,4 +1,3 @@
-import { recordWebMcpApprovalReceipt, recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import type {
   Event,
   Message,
@@ -10,6 +9,8 @@ import type {
   SessionStatus,
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import { shallowRecordEqual } from "@/lib/shallowRecordEqual"
+import { recordWebMcpApprovalReceipt, recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import { getValidMessagePartEndTime } from "@/lib/messagePartFields"
 import { noteServerSessionStatus } from "./session-status-events"
 import { noteBlockingRequestEvent } from "./blocking-request-events"
@@ -98,7 +99,6 @@ function getUpdatedDeltaFields(previous: Part, next: Part) {
   }
   return dedupeFields
 }
-
 
 function getToolStatus(part: Part): string | undefined {
   if (part.type !== "tool") {
@@ -242,7 +242,7 @@ function areMessageErrorsEqual(
 ): boolean {
   if (left === right) return true
   if (!left || !right || left.name !== right.name) return false
-  return areFlatRecordsEqual(left.data, right.data)
+  return shallowRecordEqual(left.data, right.data)
 }
 
 function areOutputFormatsEqual(
@@ -251,7 +251,7 @@ function areOutputFormatsEqual(
 ): boolean {
   if (left === right) return true
   if (!left || !right || left.type !== right.type) return false
-  return areFlatRecordsEqual(left as Record<string, unknown>, right as Record<string, unknown>)
+  return shallowRecordEqual(left as Record<string, unknown>, right as Record<string, unknown>)
 }
 
 function areUserSummariesEqual(
@@ -283,21 +283,6 @@ function areStringBooleanRecordsEqual(
   if (leftKeys.length !== rightKeys.length) return false
   for (const key of leftKeys) {
     if (left[key] !== right[key]) return false
-  }
-  return true
-}
-
-function areFlatRecordsEqual(
-  left: Record<string, unknown> | undefined,
-  right: Record<string, unknown> | undefined,
-): boolean {
-  if (left === right) return true
-  if (!left || !right) return false
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-  for (const key of leftKeys) {
-    if (!Object.is(left[key], right[key])) return false
   }
   return true
 }

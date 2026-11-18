@@ -202,3 +202,9 @@ describe("haveEquivalentSyncSnapshots", () => {
     })
   })
 })
+
+test("metadata with different own keys is not an equal session snapshot even when values are undefined", () => {
+  const left = createSession("s", { metadata: { previous: undefined } })
+  const right = createSession("s", { metadata: { replacement: undefined } })
+  expect(haveEquivalentSyncSnapshots(left, right)).toBe(false)
+})

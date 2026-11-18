@@ -1,3 +1,4 @@
+import { slugifyWorktreeName } from "@/lib/worktrees/worktreeName"
 import { substituteCommandVariables } from "@/lib/openchamberConfig"
 import type { ProjectRef } from "@/lib/openchamberConfig"
 import type { WorktreeMetadata } from "@/types/worktree"
@@ -46,21 +47,6 @@ const deriveCanonicalWorktreeFields = (
 }
 
 export type { ProjectRef }
-
-const slugifyWorktreeName = (value: string): string => {
-  return value
-    .trim()
-    .replace(/^refs\/heads\//, "")
-    .replace(/^heads\//, "")
-    .replace(/\s+/g, "-")
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .join("-")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
-}
 
 const normalizeBranchName = (value: string): string => {
   return value

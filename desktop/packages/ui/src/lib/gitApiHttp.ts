@@ -1,3 +1,5 @@
+import { resolveDesktopServerOrigin } from "@/lib/desktopServerOrigin"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import type {
   GitStatus,
   GitDiffResponse,
@@ -37,18 +39,6 @@ import type {
   ResetToCommitResponse,
 } from "./api/types"
 import { HTTP_DEFAULTS } from "./http"
-import { normalizeProjectPath } from "@/lib/projectResolution"
-
-const resolveBaseOrigin = (): string => {
-  if (typeof window === "undefined") {
-    return ""
-  }
-  const desktopOrigin = window.__AX_CODE_DESKTOP_DESKTOP_SERVER__?.origin
-  if (desktopOrigin) {
-    return desktopOrigin
-  }
-  return window.location.origin
-}
 
 const API_BASE = HTTP_DEFAULTS.apiPath.git
 const GIT_STATUS_CACHE_TTL_MS = 1200
@@ -82,7 +72,7 @@ function buildUrl(
   directory: string | null | undefined,
   params?: Record<string, string | number | boolean | undefined>,
 ): string {
-  const url = new URL(path, resolveBaseOrigin())
+  const url = new URL(path, resolveDesktopServerOrigin())
   if (directory) {
     url.searchParams.set("directory", directory)
   }

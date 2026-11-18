@@ -1,92 +1,43 @@
 import React from "react"
+import { API_ENDPOINTS } from "@/lib/http"
 import { isDesktopShell, isTauriShell, startDesktopWindowDrag } from "@/lib/desktop"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Icon } from "@/components/icon/Icon"
 import { updateDesktopSettings } from "@/lib/persistence"
-import { copyTextToClipboard } from "@/lib/clipboard"
 import { restartDesktopApp } from "@/lib/desktop"
 import { toast } from "@/components/ui"
 import { openExternalUrl } from "@/lib/url"
-import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { desktopHostsGet, desktopHostsSet } from "@/lib/desktopHosts"
 import { useI18n } from "@/lib/i18n"
-import type { OnboardingPlatform } from "./types"
 import { clearReplaceableTimeout, resetReplaceableTimeout } from "@/lib/replaceableTimeout"
+import { useInstallCommandCopy } from "./useInstallCommandCopy"
+import { InstallCommandDisplay } from "./InstallCommandDisplay"
+import { checkCliAvailability } from "./cliHealth"
+import type { OnboardingPlatform } from "./types"
 import {
   getBinaryPathPlaceholder,
-  getInstallCommand,
-  getInstallCommandHighlights,
   getInstallDocsUrl,
 } from "./installCommands"
 
 const POLL_INTERVAL_MS = 2500
-const FEEDBACK_RESET_DELAY_MS = 2000
 
 type ChooserScreenProps = {
   /** Callback when CLI becomes available */
   onCliAvailable?: () => void
 }
 
-function InstallCommandDisplay({
-  platform,
-  onCopy,
-  copyTitle,
-}: {
-  platform: OnboardingPlatform
-  onCopy: () => void
-  copyTitle: string
-}) {
-  const highlights = getInstallCommandHighlights(platform)
-  return (
-    <div className="flex items-center justify-between gap-3 w-full">
-      <code className="flex-1 text-left overflow-x-auto whitespace-nowrap">
-        {highlights.map((part, index) => {
-          if (part.kind === "keyword") {
-            return (
-              <span key={index} style={{ color: "var(--syntax-keyword)" }}>
-                {part.text}
-              </span>
-            )
-          }
-          if (part.kind === "string") {
-            return (
-              <span key={index} style={{ color: "var(--syntax-string)" }}>
-                {part.text}
-              </span>
-            )
-          }
-          return (
-            <span key={index} className="text-muted-foreground">
-              {part.text}
-            </span>
-          )
-        })}
-      </code>
-      <button
-        onClick={onCopy}
-        className="inline-flex items-center text-muted-foreground hover:text-foreground transition-colors shrink-0"
-        title={copyTitle}
-        aria-label={copyTitle}
-      >
-        <Icon name="file-copy" className="h-4 w-4" />
-      </button>
-    </div>
-  )
-}
-
 export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
   const { t } = useI18n()
-  const [copied, setCopied] = React.useState(false)
   const [isDesktopApp, setIsDesktopApp] = React.useState(false)
   const [isApplyingPath, setIsApplyingPath] = React.useState(false)
   const [isManualChecking, setIsManualChecking] = React.useState(false)
   const [axCodeBinary, setAxCodeBinary] = React.useState("")
   const [applyError, setApplyError] = React.useState<string | null>(null)
   const [platform, setPlatform] = React.useState<OnboardingPlatform>("unknown")
+  const { copied, handleCopy } = useInstallCommandCopy(platform)
   const [advancedOpen, setAdvancedOpen] = React.useState(false)
   const [troubleOpen, setTroubleOpen] = React.useState(false)
-  const copiedResetTimerRef = React.useRef<number | null>(null)
   const applyingResetTimerRef = React.useRef<number | null>(null)
 
   React.useEffect(() => {
@@ -95,7 +46,6 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
 
   React.useEffect(() => {
     return () => {
-      copiedResetTimerRef.current = clearReplaceableTimeout(copiedResetTimerRef.current)
       applyingResetTimerRef.current = clearReplaceableTimeout(applyingResetTimerRef.current)
     }
   }, [])
@@ -148,18 +98,6 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     [isDesktopApp],
   )
 
-  const checkCliAvailability = React.useCallback(async (): Promise<boolean> => {
-    try {
-      const response = await fetch(API_ENDPOINTS.debug.rootHealth, {
-        method: HTTP_DEFAULTS.method.get,
-      })
-      if (!response.ok) return false
-      const data = await response.json()
-      return data.axCodeRunning === true || data.isAxCodeReady === true
-    } catch {
-      return false
-    }
-  }, [])
 
   const persistLocalChoice = React.useCallback(async () => {
     if (!isTauriShell()) return
@@ -223,7 +161,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
       cancelled = true
       if (timer) clearTimeout(timer)
     }
-  }, [checkCliAvailability, announceAvailable, reportCheckFailure])
+  }, [announceAvailable, reportCheckFailure])
 
   const handleManualCheck = React.useCallback(async () => {
     setIsManualChecking(true)
@@ -244,7 +182,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     } finally {
       setIsManualChecking(false)
     }
-  }, [checkCliAvailability, announceAvailable, reportCheckFailure, t])
+  }, [announceAvailable, reportCheckFailure, t])
 
   const handleBrowse = React.useCallback(async () => {
     if (typeof window === "undefined") return
@@ -299,22 +237,6 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     }
   }, [axCodeBinary, persistLocalChoice, t])
 
-  const handleCopy = React.useCallback(async () => {
-    const result = await copyTextToClipboard(getInstallCommand(platform))
-    if (result.ok) {
-      setCopied(true)
-      copiedResetTimerRef.current = resetReplaceableTimeout(
-        copiedResetTimerRef.current,
-        () => {
-          setCopied(false)
-          copiedResetTimerRef.current = null
-        },
-        FEEDBACK_RESET_DELAY_MS,
-      )
-    } else {
-      console.error("Failed to copy:", result.error)
-    }
-  }, [platform])
 
   const handleOpenDocs = React.useCallback(() => {
     void openExternalUrl(getInstallDocsUrl(platform))
@@ -359,18 +281,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
           </p>
 
           <div className="app-region-no-drag rounded-lg border border-border bg-background/60 backdrop-blur-sm px-4 py-3 font-mono typography-ui-label">
-            {copied ? (
-              <div className="flex items-center gap-2" style={{ color: "var(--status-success)" }}>
-                <Icon name="check" className="h-4 w-4" />
-                {t("onboarding.common.status.copiedToClipboard")}
-              </div>
-            ) : (
-              <InstallCommandDisplay
-                platform={platform}
-                onCopy={handleCopy}
-                copyTitle={t("onboarding.common.copyToClipboard")}
-              />
-            )}
+            <InstallCommandDisplay platform={platform} copied={copied} onCopy={handleCopy} layout="spread" />
           </div>
 
           <div className="app-region-no-drag flex items-center justify-between gap-2">

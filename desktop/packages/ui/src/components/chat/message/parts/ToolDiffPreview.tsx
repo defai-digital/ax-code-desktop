@@ -1,5 +1,6 @@
 import React from "react"
 import { PatchDiff } from "@pierre/diffs/react"
+import { PlainDiffFallback } from "./PlainDiffFallback"
 
 import { usePierreThemeConfig } from "../usePierreThemeConfig"
 import type { ToolDiffPreviewProps } from "./LazyToolDiffPreview"
@@ -20,18 +21,6 @@ const TOOL_DIFF_METRICS = {
   hunkSeparatorHeight: 24,
   spacing: 0,
 }
-
-const PlainDiffFallback: React.FC<{ diff: string }> = ({ diff }) => (
-  <pre
-    className="m-0 overflow-auto whitespace-pre-wrap break-words rounded-lg p-2 typography-code"
-    style={{
-      backgroundColor: "var(--syntax-base-background)",
-      color: "var(--syntax-base-foreground)",
-    }}
-  >
-    {diff}
-  </pre>
-)
 
 class DiffPreviewErrorBoundary extends React.Component<
   {
