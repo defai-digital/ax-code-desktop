@@ -38,6 +38,7 @@ const makeStatus = (remoteName: string, number: number): GitHubPullRequestStatus
 
 describe("useGitHubPrStatusStore", () => {
   beforeEach(() => {
+    localStorage.removeItem("openchamber.github-pr-status")
     vi.resetModules()
   })
 
@@ -82,6 +83,93 @@ describe("useGitHubPrStatusStore", () => {
     expect(prStatus.mock.calls.map((call) => call[2])).toEqual(["origin", "upstream"])
     expect(useGitHubPrStatusStore.getState().entries[originKey]?.status?.pr?.number).toBe(11)
     expect(useGitHubPrStatusStore.getState().entries[upstreamKey]?.status?.pr?.number).toBe(22)
+  })
+
+  test.each(["success", "failure"])("ignores old remote %s after a watched key is rebound", async (completion) => {
+    const { useGitHubPrStatusStore } = await loadStore()
+    let resolveOld!: (status: GitHubPullRequestStatus) => void
+    let rejectOld!: (error: Error) => void
+    const old = new Promise<GitHubPullRequestStatus>((resolve, reject) => {
+      resolveOld = resolve
+      rejectOld = reject
+    })
+    const prStatus = vi.fn((_directory: string, _branch: string, remote?: string) =>
+      remote === "origin" ? old : Promise.resolve(makeStatus("upstream", 22)),
+    )
+    const github = { prStatus } as unknown as GitHubAPI
+    const store = useGitHubPrStatusStore.getState()
+    const params = {
+      directory: "/workspace/repo", branch: "feature", canShow: true,
+      github, githubAuthChecked: true, githubConnected: true,
+    }
+    store.setParams("watch", { ...params, remoteName: "origin" })
+    const previous = store.refresh("watch", { force: true })
+    store.setParams("watch", { ...params, remoteName: "upstream" })
+    await store.refresh("watch", { force: true })
+    if (completion === "success") resolveOld(makeStatus("origin", 11))
+    else rejectOld(new Error("old remote request failed"))
+    await previous
+
+    const current = useGitHubPrStatusStore.getState().entries.watch
+    expect(current.status?.pr?.number).toBe(22)
+    expect(current.error).toBeNull()
+    expect(current.identity?.remoteName).toBe("upstream")
+    expect(current.isLoading).toBe(false)
+  })
+
+  test("applies fresh status and preserves a body loaded during the read", async () => {
+    const { useGitHubPrStatusStore } = await loadStore()
+    let resolve!: (status: GitHubPullRequestStatus) => void
+    const prStatus = vi.fn<GitHubAPI["prStatus"]>(() =>
+      new Promise<GitHubPullRequestStatus>((done) => { resolve = done }),
+    )
+    const store = useGitHubPrStatusStore.getState()
+    store.setParams("watch", {
+      directory: "/repo", branch: "feature", remoteName: "origin", canShow: true,
+      github: { prStatus } as unknown as GitHubAPI, githubAuthChecked: true, githubConnected: true,
+    })
+    const old = makeStatus("origin", 22)
+    store.updateStatus("watch", () => old)
+
+    const pending = store.refresh("watch")
+    store.updateStatus("watch", () => ({ ...old, pr: { ...old.pr!, body: "Loaded body" } }))
+    resolve({ ...old, pr: { ...old.pr!, title: "Fresh title" } })
+    await pending
+
+    expect(useGitHubPrStatusStore.getState().entries.watch.status?.pr).toMatchObject({
+      title: "Fresh title", body: "Loaded body",
+    })
+  })
+
+  test("a timed-out status read releases the scope and cannot delay a new read", async () => {
+    vi.useFakeTimers()
+    try {
+      vi.setSystemTime(100_000)
+      const { useGitHubPrStatusStore } = await loadStore()
+      const prStatus = vi.fn<GitHubAPI["prStatus"]>()
+        .mockImplementationOnce((_directory, _branch, _remote, options) =>
+          new Promise((resolve) => {
+            options?.signal?.addEventListener("abort", () => resolve(makeStatus("origin", 99)), { once: true })
+          }),
+        )
+        .mockResolvedValueOnce(makeStatus("origin", 22))
+      const store = useGitHubPrStatusStore.getState()
+      store.setParams("watch", {
+        directory: "/repo", branch: "feature", remoteName: "origin", canShow: true,
+        github: { prStatus } as unknown as GitHubAPI, githubAuthChecked: true, githubConnected: true,
+      })
+      const first = store.refresh("watch")
+      await vi.advanceTimersByTimeAsync(20_000)
+      await first
+      expect(useGitHubPrStatusStore.getState().entries.watch).toMatchObject({
+        lastRefreshAt: 0, status: null, isLoading: false,
+      })
+      await store.refresh("watch")
+      expect(prStatus).toHaveBeenCalledTimes(2)
+      expect(useGitHubPrStatusStore.getState().entries.watch.status?.pr?.number).toBe(22)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   test("keeps only the most recently tracked entries", async () => {

@@ -1,5 +1,6 @@
 import type { GitHubChecksSummary, GitHubPullRequest, GitHubPullRequestStatus, GitHubRepoRef } from "./api/types"
 import { isPlainRecord } from "./record"
+import { shallowRecordEqual } from "./shallowRecordEqual"
 
 const optionalString = (value: unknown): boolean => value === undefined || typeof value === "string"
 const nullableString = (value: unknown): boolean => value == null || typeof value === "string"
@@ -42,4 +43,31 @@ export const restoreCachedPullRequestStatus = (value: unknown): GitHubPullReques
   )
     return null
   return value as GitHubPullRequestStatus
+}
+
+
+/** An omitted body can be carried only for the same pull request. */
+export function carryPullRequestBody(
+  previous: GitHubPullRequestStatus | null,
+  next: GitHubPullRequestStatus,
+): GitHubPullRequestStatus {
+  const before = previous?.pr
+  const after = next.pr
+  if (!before || !after || before.number !== after.number || before.url !== after.url || after.body?.trim()) return next
+  if (!before.body?.trim()) return next
+  return { ...next, pr: { ...after, body: before.body } }
+}
+
+
+/** Body hydration can race a status read without superseding the status itself. */
+export function hasPullRequestStatusChanged(
+  before: GitHubPullRequestStatus | null | undefined,
+  after: GitHubPullRequestStatus | null,
+): boolean {
+  if (before === after) return false
+  if (!before || !after) return true
+  if (!shallowRecordEqual({ ...before, pr: undefined }, { ...after, pr: undefined })) return true
+  if (before.pr === after.pr) return false
+  if (!before.pr || !after.pr) return true
+  return !shallowRecordEqual({ ...before.pr, body: undefined }, { ...after.pr, body: undefined })
 }

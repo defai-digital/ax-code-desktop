@@ -1,52 +1,56 @@
 import React from "react"
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
-import type { GitHubAPI, GitHubPullRequestStatus } from "@/lib/api/types"
+import type { GitHubAPI } from "@/lib/api/types"
+import { carryPullRequestBody, hasPullRequestStatusChanged } from "@/lib/cachedPullRequestStatus"
+import { pullRequestScopeKey, type PullRequestScope } from "@/lib/pullRequestScope"
 import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import {
   createPullRequestCache,
   projectPullRequest,
   PULL_REQUEST_FRESH_MS,
-  pullRequestKey,
   type PullRequestTarget,
 } from "@/lib/supervision/pullRequestCache"
 import type { SupervisionRow } from "@/lib/supervision/rows"
-import { useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
+import { getPrStatusScope, useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
 import { useGitAllBranches } from "@/stores/useGitStore"
+
+type PrEntries = ReturnType<typeof useGitHubPrStatusStore.getState>["entries"]
+
+function preferredEntry(entries: PrEntries, directory: string, branch: string) {
+  const branchScope = pullRequestScopeKey({ directory, branch, remoteName: null })
+  let preferred: { storeKey: string; entry: PrEntries[string]; scope: PullRequestScope } | undefined
+  for (const [storeKey, entry] of Object.entries(entries)) {
+    const scope = getPrStatusScope(entry)
+    if (!entry.status?.pr || !scope || pullRequestScopeKey({ ...scope, remoteName: null }) !== branchScope) continue
+    if (!preferred || entry.lastRefreshAt > preferred.entry.lastRefreshAt) preferred = { storeKey, entry, scope }
+  }
+  return preferred
+}
+
+function ownsTarget(entries: PrEntries, target: PullRequestTarget) {
+  const preferred = preferredEntry(entries, target.directory, target.branch)
+  return preferred?.storeKey === target.storeKey && pullRequestScopeKey(preferred.scope) === pullRequestScopeKey(target)
+    ? preferred.entry
+    : undefined
+}
 
 function makeCache(github?: GitHubAPI) {
   return createPullRequestCache(async (target, signal) => {
     const store = useGitHubPrStatusStore.getState()
-    const entry = store.entries[target.storeKey]
+    const entry = ownsTarget(store.entries, target)
     const api = github ?? entry?.params?.github
     if (!entry || !api) throw new Error("PR runtime unavailable")
-    const remote = entry.resolvedRemoteName ?? entry.identity?.remoteName ?? entry.params?.remoteName ?? undefined
-    // Use the existing runtime endpoint and its server cache; do not force a discovery or bypass its TTL.
-    const startedAt = Date.now()
-    const status = await api.prStatus(target.directory, target.branch, remote, { signal })
+    const status = await api.prStatus(target.directory, target.branch, target.remoteName ?? undefined, { signal })
     if (signal.aborted) throw new Error("aborted")
-    // Share the successful read with PullRequestSection, without persisting any new credential material.
-    const current = useGitHubPrStatusStore.getState().entries[target.storeKey]
-    const identity = current?.params ?? current?.identity
-    if (
-      identity &&
-      pullRequestKey(identity.directory, identity.branch) === pullRequestKey(target.directory, target.branch)
-    ) {
-      if (current.lastRefreshAt > startedAt) return projectPullRequest(current.status)
-      // Keep a body PullRequestSection already loaded when this board read omits it.
-      store.updateStatus(target.storeKey, (previous) => withCarriedBody(previous, status), Date.now())
+    const current = ownsTarget(useGitHubPrStatusStore.getState().entries, target)
+    if (!current) throw new Error("PR scope changed")
+    if (current.lastRefreshAt !== entry.lastRefreshAt || hasPullRequestStatusChanged(entry.status, current.status)) {
+      return projectPullRequest(current.status)
     }
+    // Keep a body the PR section already loaded for this PR.
+    store.updateStatus(target.storeKey, (previous) => carryPullRequestBody(previous, status), Date.now())
     return projectPullRequest(status)
   })
-}
-function withCarriedBody(
-  previous: GitHubPullRequestStatus | null | undefined,
-  next: GitHubPullRequestStatus,
-): GitHubPullRequestStatus {
-  const prevPr = previous?.pr
-  const nextPr = next.pr
-  if (!nextPr || !prevPr || nextPr.number !== prevPr.number || nextPr.body?.trim()) return next
-  if (typeof prevPr.body !== "string" || !prevPr.body.trim()) return next
-  return { ...next, pr: { ...nextPr, body: prevPr.body } }
 }
 
 const caches = new WeakMap<GitHubAPI, ReturnType<typeof makeCache>>()
@@ -93,26 +97,16 @@ export function useMissionControlPullRequests(rows: readonly SupervisionRow[]) {
       const directory = row.directory
       const branch = byDirectory.get(getProjectPathIdentityKey(directory))?.trim()
       if (!directory || !branch) continue
-      // Prefer the most recently refreshed remote if several remotes know the same branch.
-      const known = Object.entries(entries)
-        .filter(([, entry]) => {
-          const identity = entry.params ?? entry.identity
-          return (
-            identity &&
-            getProjectPathIdentityKey(identity.directory) === getProjectPathIdentityKey(directory) &&
-            identity.branch?.trim() === branch &&
-            Boolean(entry.status?.pr)
-          )
-        })
-        .sort((a, b) => b[1].lastRefreshAt - a[1].lastRefreshAt)[0]
+      const known = preferredEntry(entries, directory, branch)
       if (!known) continue
       result.set(row.sessionId, {
         directory,
         branch,
-        storeKey: known[0],
-        pr: projectPullRequest(known[1].status),
-        fetchedAt: known[1].lastRefreshAt,
-        stale: Boolean(known[1].error),
+        remoteName: known.scope.remoteName,
+        storeKey: known.storeKey,
+        pr: projectPullRequest(known.entry.status),
+        fetchedAt: known.entry.lastRefreshAt,
+        stale: Boolean(known.entry.error),
       })
     }
     return result
@@ -122,7 +116,7 @@ export function useMissionControlPullRequests(rows: readonly SupervisionRow[]) {
       rows.map((row) => {
         const target = targets.get(row.sessionId)
         if (!target) return row
-        const cached = snapshot.get(pullRequestKey(target.directory, target.branch))
+        const cached = snapshot.get(pullRequestScopeKey(target))
         const entry = cached && cached.fetchedAt >= target.fetchedAt ? cached : target
         const pr = entry.pr
           ? { ...entry.pr, stale: ("stale" in entry && entry.stale === true) || clock - entry.fetchedAt >= PULL_REQUEST_FRESH_MS }

@@ -1,4 +1,4 @@
-import { withTimeout } from "@/lib/asyncTimeout"
+import { readWithDeadline } from "@/lib/asyncTimeout"
 
 export interface SessionReadTarget {
   sessionId: string
@@ -164,11 +164,6 @@ export function createSessionReadCache<Target extends SessionReadTarget, Data, V
     }
   }
 
-  async function request(input: SessionReadInput) {
-    // An adapter can throw before returning a promise.
-    return config.request(input)
-  }
-
   async function read(
     sessionId: string,
     directory: string,
@@ -177,16 +172,8 @@ export function createSessionReadCache<Target extends SessionReadTarget, Data, V
     previous: SessionReadEntry<Value> | undefined,
   ) {
     let entry: SessionReadEntry<Value>
-    const controller = new AbortController()
     try {
-      const result = await withTimeout(
-        request({ sessionID: sessionId, directory, signal: controller.signal }),
-        timeoutMs,
-        () => {
-          controller.abort()
-          throw new Error("Session read timed out")
-        },
-      )
+      const result = await readWithDeadline((signal) => config.request({ sessionID: sessionId, directory, signal }), timeoutMs)
       if (result.error) throw new Error("Session read failed")
       const value = config.project(result.data)
       const fetchedAt = now()

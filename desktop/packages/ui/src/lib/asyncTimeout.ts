@@ -36,3 +36,13 @@ export const withTimeout = <T>(
     )
   })
 }
+
+/** Release the caller at the deadline even if a read ignores or resolves on abort. */
+export function readWithDeadline<T>(read: (signal: AbortSignal) => Promise<T>, timeoutMs: number): Promise<T> {
+  const controller = new AbortController()
+  const invoke = async () => read(controller.signal)
+  return withTimeout(invoke(), timeoutMs, () => {
+    controller.abort()
+    throw new Error("Read timed out")
+  })
+}
