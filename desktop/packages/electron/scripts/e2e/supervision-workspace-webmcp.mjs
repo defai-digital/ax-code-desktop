@@ -52,8 +52,13 @@ const outcome = await runHarness({
     const prFixtures = new Map()
     for (const [index, target] of targets.entries()) {
       const branch = (await exec("git", ["-C", target.directory, "branch", "--show-current"])).stdout.trim()
-      const status = { connected: true, branch, pr: { number: 123 + index, state: index ? "merged" : "open", draft: false },
-        checks: { total: 1, state: "failure", failed: 1, passed: 0, pending: 0 } }
+      const number = 123 + index
+      const status = {
+        connected: true, branch,
+        pr: { number, title: "Fixture pull request", url: `https://example.invalid/pull/${number}`,
+          state: index ? "merged" : "open", draft: false, base: "main", head: branch },
+        checks: { total: 1, state: "failure", failure: 1, success: 0, pending: 0 },
+      }
       for (const directory of pathForms(target.directory)) {
         prFixtures.set(directory, status)
         prEntries[`${directory}::${branch}`] = { status, identity: { directory, branch, remoteName: null },
@@ -61,17 +66,40 @@ const outcome = await runHarness({
       }
     }
     await session.evaluate(`localStorage.setItem('openchamber.github-pr-status', ${JSON.stringify(JSON.stringify({ state: { entries: prEntries }, version: 0 }))}); true`)
-    const prErrors = []
+    const readErrors = []
+    const riskTargets = new Map(targets.map((target, index) => [target.id, {
+      directories: pathForms(target.directory), passed: index === 1,
+    }]))
+    const riskRequests = new Set()
     session.on("Fetch.requestPaused", event => {
       void (async () => {
         const url = new URL(event.request.url)
-        const fixture = prFixtures.get(url.searchParams.get("directory"))
-        if (!fixture || event.request.method !== "GET") throw new Error("PR request escaped fixture scope")
+        const directory = url.searchParams.get("directory")
+        const riskId = url.pathname.match(/\/session\/([^/]+)\/risk$/)?.[1]
+        let fixture
+        if (riskId) {
+          const id = decodeURIComponent(riskId)
+          const target = riskTargets.get(id)
+          if (!target || !target.directories.includes(directory) || url.searchParams.get("envelopes") !== "true") {
+            throw new Error("Risk request escaped fixture scope")
+          }
+          fixture = { envelopes: [{
+            schemaVersion: 1, workflow: "qa",
+            result: { passed: target.passed, status: target.passed ? "passed" : "failed" },
+          }] }
+          riskRequests.add(id)
+        } else {
+          fixture = prFixtures.get(directory)
+        }
+        if (!fixture || event.request.method !== "GET") throw new Error("Read request escaped fixture scope")
         await session.send("Fetch.fulfillRequest", { requestId: event.requestId, responseCode: 200,
           responseHeaders: [{ name: "Content-Type", value: "application/json" }], body: Buffer.from(JSON.stringify(fixture)).toString("base64") })
-      })().catch(error => prErrors.push(String(error)))
+      })().catch(error => readErrors.push(String(error)))
     })
-    await session.send("Fetch.enable", { patterns: [{ urlPattern: "*/api/github/pr/status*", requestStage: "Request" }] })
+    await session.send("Fetch.enable", { patterns: [
+      { urlPattern: "*/api/github/pr/status*", requestStage: "Request" },
+      ...targets.map(({ id }) => ({ urlPattern: `*/session/${encodeURIComponent(id)}/risk?*`, requestStage: "Request" })),
+    ] })
     await session.send("Page.reload", { ignoreCache: true })
     await journeyBoot({ session })
     await audit.client.enable()
@@ -93,6 +121,9 @@ const outcome = await runHarness({
           kind: root.hasAttribute('data-session-grid') ? 'session-grid' : root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
           width: root.clientWidth, scrollWidth: root.scrollWidth, text: root.innerText,
           groups: Array.from(root.querySelectorAll('[role="rowgroup"]')).map(e => ({ name:e.getAttribute('aria-label'), rows:Array.from(e.querySelectorAll('.mission-control-row')).map(row=>row.id) })),
+          verification: Array.from(root.querySelectorAll('.mission-control-row [data-checks-state]')).map(chip => ({
+            row: chip.closest('.mission-control-row')?.id, state: chip.dataset.checksState, total: chip.dataset.checksTotal
+          })),
           files: Array.from(root.querySelectorAll('[data-review-file]')).map(e => ({ path:e.dataset.reviewFile, current:e.getAttribute('aria-current'), viewed:e.querySelector('input[type="checkbox"]')?.checked })),
           progress: root.querySelector('[role="progressbar"]')?.getAttribute('aria-label'),
           reviewScope: root.querySelector('[data-review-scope] [aria-checked="true"]')?.textContent,
@@ -422,6 +453,11 @@ const outcome = await runHarness({
     }
     // Select the fixture project through its observed session action, then open a fresh draft.
     await openBoard()
+    for (const [index, target] of targets.entries()) {
+      const selector = `#mission-row-${target.id} [data-checks-state="${index === 0 ? "failed" : "passed"}"][data-checks-total="1"]`
+      await audit.wait(`Boolean(document.querySelector(${JSON.stringify(selector)})?.checkVisibility())`, "directory-scoped verification count")
+    }
+    if (riskRequests.size !== targets.length) throw new Error("Missing targeted risk reads")
     await rowAction("Open —", targets[0])
     await audit.wait(`${JSON.stringify(pathForms(targets[0].directory))}.includes(document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory'))`, "selected project")
     const newSessionName = await session.evaluate(String.raw`document.querySelector('[data-sidebar-new-session]')?.textContent.replace(/\s+/g,' ').trim()`)
@@ -744,7 +780,7 @@ const outcome = await runHarness({
       return frames.length === 2 && frames.every((frame, index) => new URL(frame.src).searchParams.get('sessionId') === ${JSON.stringify(targets.map(target => target.id))}[index] && frame.contentDocument?.querySelector('[data-chat-input]')?.checkVisibility())
     })()`, "Shift+Enter keeps current session first and opens chosen PR session beside it")
     await capture("palette-split-open")
-    if (prErrors.length) throw new Error(prErrors.join("; "))
+    if (readErrors.length) throw new Error(readErrors.join("; "))
 
     return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, PR/CI multi-select counts, PR number/state palette search, keyboard host/project scope and Shift+Enter split-open, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts, and session-grid drag, keyboard reorder, split, and pop-out" }
   }],

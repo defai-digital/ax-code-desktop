@@ -1,4 +1,5 @@
 import { activityPreview, type ActivityMessage, type ActivityPart, type ActivityPreview } from "./activityPreview"
+import type { SessionReadTarget } from "./sessionReadCache"
 
 export interface ActivityMessageRecord {
   info: ActivityMessage
@@ -28,23 +29,7 @@ export function remoteActivityPreview(page: readonly ActivityMessageRecord[]): A
   })
 }
 
-export interface RemoteActivityEntry {
-  preview: ActivityPreview | null
-  /** Row revision of the latest successful read; a failed read does not advance it, so that revision is read again. */
-  updatedAt: number
-  /** The latest read failed: `preview` is older text and is shown as possibly outdated. */
-  stale?: boolean
-  /** When the read that produced `preview` succeeded; kept across failed reads of the same directory. */
-  succeededAt?: number
-  fetchedAt: number
-  /** The directory read; a session that moved to another directory is read again. */
-  directory: string
-}
-
-export interface RemoteActivityTarget {
-  sessionId: string
-  directory: string | null
-  updatedAt: number
+export interface RemoteActivityTarget extends SessionReadTarget {
   activity?: ActivityPreview | null
 }
 
