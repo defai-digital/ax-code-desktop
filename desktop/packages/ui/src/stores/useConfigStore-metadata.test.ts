@@ -2,6 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { useConfigStore } from "./useConfigStore"
 
+// Directory discovery would share the fetch mock and consume a catalog response.
+vi.mock("./useDirectoryStore", () => ({
+  useDirectoryStore: {
+    getState: () => ({ currentDirectory: "/metadata-test" }),
+    subscribe: () => () => {},
+  },
+}))
+
 const deferred = <T>() => {
   let resolve!: (value: T) => void
   const promise = new Promise<T>((done) => {
