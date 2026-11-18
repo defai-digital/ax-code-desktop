@@ -14,6 +14,10 @@ describe("dashboard report path", () => {
     expect(dashboardReportRoot("")).toBe("/dre-graph")
   })
 
+  test.each(["7.24.1junk", "8..1", "8.0.0+"])("falls back when the version is malformed: %s", (version) => {
+    expect(buildDashboardUrl(null, "/project", "", version)).toBe("/dre-graph?directory=%2Fproject")
+  })
+
   test("builds the session report with the directory query", () => {
     expect(buildDashboardUrl("ses_1", "/workspace/project", "http://127.0.0.1:4310", "7.24.1")).toBe(
       "http://127.0.0.1:4310/run-report/session/ses_1?directory=%2Fworkspace%2Fproject",

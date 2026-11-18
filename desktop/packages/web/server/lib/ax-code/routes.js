@@ -1,5 +1,5 @@
 import { createProjectIdFromPath } from "../projects/project-id.js"
-import { compareVersions, evaluateAxCodeCompatibility, MIN_SUPPORTED_AX_CODE_VERSION } from "./version-compat.js"
+import { evaluateAxCodeCompatibility } from "./version-compat.js"
 import { AX_CODE_CONFIG_DIR } from "./shared.js"
 import { readDirectoryHeader } from "./project-directory-runtime.js"
 import fs from "fs"
@@ -99,12 +99,6 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
     const trimmed = value.trim()
     return trimmed || null
-  }
-
-  const fetchLatestAxCodeVersion = async () => {
-    // ax-code is not distributed via npm or public GitHub releases.
-    // Version update checks are disabled.
-    return null
   }
 
   const resolvedBinarySource = () =>
@@ -410,13 +404,10 @@ export const registerAxCodeRoutes = (app, dependencies) => {
 
   app.get("/api/ax-code/upgrade-status", async (_req, res) => {
     try {
-      const [healthResponse, latestVersion] = await Promise.all([
-        fetch(buildAxCodeUrl("/global/health", ""), {
-          method: "GET",
-          headers: { Accept: "application/json", ...getAxCodeAuthHeaders() },
-        }),
-        fetchLatestAxCodeVersion(),
-      ])
+      const healthResponse = await fetch(buildAxCodeUrl("/global/health", ""), {
+        method: "GET",
+        headers: { Accept: "application/json", ...getAxCodeAuthHeaders() },
+      })
       const health = await healthResponse.json().catch(() => null)
       if (!healthResponse.ok) {
         console.warn("ax-code upgrade status probe failed:", health?.error || healthResponse.statusText)
@@ -425,24 +416,14 @@ export const registerAxCodeRoutes = (app, dependencies) => {
           error: "Failed to read ax-code version",
         })
       }
-      const currentVersion = typeof health?.version === "string" ? health.version.replace(/^v/, "") : null
-      const compatibility = evaluateAxCodeCompatibility(currentVersion)
-      if (!currentVersion || !latestVersion) {
-        return res.json({
-          available: null,
-          currentVersion,
-          latestVersion: latestVersion || null,
-          minSupportedVersion: MIN_SUPPORTED_AX_CODE_VERSION,
-          compatible: compatibility.compatible,
-          binarySource: resolvedBinarySource(),
-        })
-      }
-      const available = compareVersions(latestVersion, currentVersion) > 0
+      const compatibility = evaluateAxCodeCompatibility(health?.version)
+      // Preserve build metadata in the status display. Compatibility ignores it.
+      const currentVersion = compatibility.version === null ? null : health.version.trim().replace(/^v/, "")
       return res.json({
-        available,
+        available: null,
         currentVersion,
-        latestVersion,
-        minSupportedVersion: MIN_SUPPORTED_AX_CODE_VERSION,
+        latestVersion: null,
+        minSupportedVersion: compatibility.minSupportedVersion,
         compatible: compatibility.compatible,
         binarySource: resolvedBinarySource(),
       })
