@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.27] - 2026-11-18
+
+### Fixed
+
+- Resume chat auto-follow when a long response finishes in Collapsed Activity mode. Readers who scroll or navigate keep their position.
+- Preserve existing Desktop settings, project data, Git identities, GitHub accounts and passkeys when their files cannot be read or saved. Report GitHub credential storage failures to the caller.
+- Require password-protected sessions to load their saved revocations before accepting traffic.
+
 ## [7.30.26] - 2026-11-18
 
 ### Fixed
