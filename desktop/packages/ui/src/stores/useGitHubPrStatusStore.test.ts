@@ -138,10 +138,36 @@ describe("pruneExpiredPrRefreshTimestamps", () => {
     const timestamps = new Map<string, number>([
       ["stale", 0],
       ["fresh", 80_000],
+      ["future", 100_000],
     ])
 
     pruneExpiredPrRefreshTimestamps(timestamps, 90_000)
 
     expect([...timestamps.keys()]).toEqual(["fresh"])
   })
+})
+
+test("refreshes again after the wall clock moves behind the previous refresh", async () => {
+  const clock = vi.spyOn(Date, "now").mockReturnValue(100_000)
+  try {
+    const { getGitHubPrStatusKey, useGitHubPrStatusStore } = await loadStore()
+    const prStatus = vi.fn(async () => makeStatus("origin", 1))
+    const key = getGitHubPrStatusKey("/clock-rollback", "feature", "origin")
+    useGitHubPrStatusStore.getState().ensureEntry(key)
+    useGitHubPrStatusStore.getState().setParams(key, {
+      directory: "/clock-rollback",
+      branch: "feature",
+      remoteName: "origin",
+      canShow: true,
+      github: { prStatus: prStatus as GitHubAPI["prStatus"] } as RuntimeAPIs["github"],
+      githubAuthChecked: true,
+      githubConnected: true,
+    })
+    await useGitHubPrStatusStore.getState().refresh(key, { force: true })
+    clock.mockReturnValue(99_000)
+    await useGitHubPrStatusStore.getState().refresh(key)
+    expect(prStatus).toHaveBeenCalledTimes(2)
+  } finally {
+    clock.mockRestore()
+  }
 })

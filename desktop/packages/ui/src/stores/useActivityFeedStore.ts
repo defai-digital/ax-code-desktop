@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 import {
   ACTIVITY_FEED_PREVIEW_LIMIT,
   coalesceUnreadActivity,
@@ -134,6 +135,7 @@ export const useActivityFeedStore = create<ActivityFeedState>()(
         sessionSeenAt: pruneSessionSeenAt(state.sessionSeenAt, state.events),
       }),
       merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["events", "seenAt", "sessionSeenAt"])) return current
         const stored = persisted as Partial<ActivityFeedState> | null
         const seenAt = restoreSeenAt(stored?.seenAt)
         const sessionSeenAt = restoreSessionSeenAt(stored?.sessionSeenAt)

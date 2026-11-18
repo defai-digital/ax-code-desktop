@@ -1,8 +1,19 @@
-import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
-import { ratiosForLayout, rememberLayoutRatios } from "@/lib/supervision/sessionGridPreferences"
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
+import type { MainTab } from "@/lib/mainTabs"
+import {
+  uiPreferencePersistence,
+  MAX_DIFF_FILE_LAYOUTS,
+  type UIPreferences,
+  type RightSidebarTab,
+  type MermaidRenderingMode,
+  type UserMessageRenderingMode,
+  type ActivityRenderMode,
+  type SessionRetentionAction,
+  type WeekStartPreference,
+} from "@/lib/uiPreferences"
+import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
+import { ratiosForLayout, rememberLayoutRatios } from "@/lib/supervision/sessionGridPreferences"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
 import {
   createMenuDialogRequest,
@@ -30,12 +41,11 @@ import {
   sanitizeContextPanelByDirectory,
   clampContextPanelRoots,
   type ContextPanelTabDescriptor,
-  type ContextPanelDirectoryState,
 } from "@/lib/contextPanelState"
-import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
+import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
 
-export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki" | "board" | "session-grid"
+export type { MainTab } from "@/lib/mainTabs"
 // Session storage scopes the grid to this window and survives renderer reloads.
 const SESSION_GRID_KEY = "openchamber.session-grid.v1"
 const readSessionGrid = (): SessionGridState => {
@@ -48,16 +58,8 @@ const readSessionGrid = (): SessionGridState => {
     return emptySessionGrid()
   }
 }
-type RightSidebarTab = "git" | "files" | "context"
 export { isContextPanelMode } from "@/lib/contextPanelState"
 export type { ContextPanelMode } from "@/lib/contextPanelState"
-
-type MermaidRenderingMode = "svg" | "ascii"
-type UserMessageRenderingMode = "markdown" | "plain"
-type ActivityRenderMode = "collapsed" | "summary"
-type SessionRetentionAction = "archive" | "delete"
-
-type WeekStartPreference = "auto" | "sunday" | "monday"
 
 type PendingFileNavigation = {
   path: string
@@ -109,8 +111,6 @@ const isLegacyDefaultTemplates = (value: unknown): boolean => {
   )
 }
 
-const MAX_DIFF_FILE_LAYOUTS = 500
-
 /**
  * Per-file diff layout overrides are keyed by project as well as path: git paths are relative to
  * the repository, so `src/index.ts` in two projects shared one override, and every path ever
@@ -154,25 +154,10 @@ const normalizeBrowserPanelState = (value: unknown): BrowserPanelState => {
   }
 }
 
-interface UIStore {
-  theme: "light" | "dark" | "system"
+interface UIStore extends UIPreferences {
   isMultiRunLauncherOpen: boolean
   multiRunLauncherPrefillPrompt: string
-  isSidebarOpen: boolean
-  sidebarWidth: number
-  hasManuallyResizedLeftSidebar: boolean
-  isRightSidebarOpen: boolean
-  rightSidebarWidth: number
-  hasManuallyResizedRightSidebar: boolean
-  rightSidebarTab: RightSidebarTab
-  contextPanelByDirectory: Record<string, ContextPanelDirectoryState>
   browserPanel: BrowserPanelState
-  isBottomTerminalOpen: boolean
-  isBottomTerminalExpanded: boolean
-  bottomTerminalHeight: number
-  hasManuallyResizedBottomTerminal: boolean
-  notesPanelHeight: number
-  todoPanelHeight: number
   isSessionSwitcherOpen: boolean
   isSessionDropdownOpen: boolean
   activeMainTab: MainTab
@@ -189,9 +174,6 @@ interface UIStore {
   isMobile: boolean
   isCommandPaletteOpen: boolean
   isCommandPaletteSearchMode: boolean
-  splitPaneEnabled: boolean
-  splitPaneRatio: number
-  splitPaneRightTab: Exclude<MainTab, "chat" | "session-grid">
   isHelpDialogOpen: boolean
   isAboutDialogOpen: boolean
   aboutDialogMenuRequest?: MenuDialogRequest
@@ -201,90 +183,13 @@ interface UIStore {
   isSettingsDialogOpen: boolean
   settingsDialogMenuRequest?: MenuDialogRequest
   isModelSelectorOpen: boolean
-
-  // Settings IA (new shell)
-  settingsPage: string
-  settingsHasOpenedOnce: boolean
-  settingsProjectsSelectedId: string | null
-  showReasoningTraces: boolean
-  collapsibleThinkingBlocks: boolean
   groupReasoningBlocks: boolean
-  activityRenderMode: ActivityRenderMode
-  showDeletionDialog: boolean
-  autoDeleteEnabled: boolean
-  autoDeleteAfterDays: number
-  sessionRetentionAction: SessionRetentionAction
-  autoDeleteLastRunAt: number | null
-  messageLimit: number
-  fontSize: number
-  // Global draft welcome starters; null = unset (use the default built-in set).
-  globalDraftStarters: DraftStarterRef[] | null
-  terminalFontSize: number
-  uiFont: UiFontOption
-  monoFont: MonoFontOption
-  padding: number
-  cornerRadius: number
   inputBarOffset: number
-
-  favoriteModels: Array<{ providerID: string; modelID: string }>
-  hiddenModels: Array<{ providerID: string; modelID: string }>
-  collapsedModelProviders: string[]
-  recentModels: Array<{ providerID: string; modelID: string }>
-  recentAgents: string[]
-  recentEfforts: Record<string, string[]>
-
-  diffLayoutPreference: "dynamic" | "inline" | "side-by-side"
-  diffFileLayout: Record<string, "inline" | "side-by-side">
-  diffWrapLines: boolean
-  diffViewMode: "single" | "stacked"
-  gitChangesViewMode: "flat" | "tree"
   isTimelineDialogOpen: boolean
   isCrossSessionSearchOpen: boolean
   pendingMessageNavigation: PendingMessageNavigation | null
   isImagePreviewOpen: boolean
-  nativeNotificationsEnabled: boolean
-  notificationMode: "always" | "hidden-only"
-  notifyOnSubtasks: boolean
-
-  // Event toggles (which events trigger notifications)
-  notifyOnCompletion: boolean
-  notifyOnError: boolean
-  notifyOnQuestion: boolean
-  notifyOnPermission: boolean
-  /** Opt-in Alt+Space shortcut that opens quick dispatch. Off unless the user enables it. */
-  quickDispatchGlobalShortcut: boolean
-
-  // Per-event notification templates
-  notificationTemplates: {
-    completion: { title: string; message: string }
-    error: { title: string; message: string }
-    question: { title: string; message: string }
-    subtask: { title: string; message: string }
-  }
-
-  // Summarization settings
-  summarizeLastMessage: boolean
-  summaryThreshold: number // chars — messages longer than this get summarized
-  summaryLength: number // chars — target length for summary
-  maxLastMessageLength: number // chars — truncate {last_message} when summarization is off
-
-  showTerminalQuickKeysOnDesktop: boolean
-  persistChatDraft: boolean
-  showAxCodeUpdateNotifications: boolean
-  inputSpellcheckEnabled: boolean
-  wideChatLayoutEnabled: boolean
-  showToolFileIcons: boolean
-  showExpandedBashTools: boolean
-  showExpandedEditTools: boolean
-  showTurnChangedFiles: boolean
-  timeFormatPreference: TimeFormatPreference
-  weekStartPreference: WeekStartPreference
-  mermaidRenderingMode: MermaidRenderingMode
-  userMessageRenderingMode: UserMessageRenderingMode
-  stickyUserHeader: boolean
-  showSplitAssistantMessageActions: boolean
   isExpandedInput: boolean
-  shortcutOverrides: Record<string, ShortcutCombo>
 
   setTheme: (theme: "light" | "dark" | "system") => void
   toggleSidebar: () => void
@@ -1934,107 +1839,14 @@ export const useUIStore = create<UIStore>()(
 
           return state
         },
-        partialize: (state) => ({
-          theme: state.theme,
-          isSidebarOpen: state.isSidebarOpen,
-          sidebarWidth: state.sidebarWidth,
-          // Persist the "manually resized" flags alongside the widths. Without them the
-          // flags hydrate to false on restart and the first sidebar open/toggle resets the
-          // width back to the minimum, silently reverting the user's custom size.
-          hasManuallyResizedLeftSidebar: state.hasManuallyResizedLeftSidebar,
-          isRightSidebarOpen: state.isRightSidebarOpen,
-          rightSidebarWidth: state.rightSidebarWidth,
-          hasManuallyResizedRightSidebar: state.hasManuallyResizedRightSidebar,
-          rightSidebarTab: state.rightSidebarTab,
-          contextPanelByDirectory: state.contextPanelByDirectory,
-          isBottomTerminalOpen: state.isBottomTerminalOpen,
-          isBottomTerminalExpanded: state.isBottomTerminalExpanded,
-          bottomTerminalHeight: state.bottomTerminalHeight,
-          hasManuallyResizedBottomTerminal: state.hasManuallyResizedBottomTerminal,
-          notesPanelHeight: state.notesPanelHeight,
-          todoPanelHeight: state.todoPanelHeight,
-          isSessionSwitcherOpen: state.isSessionSwitcherOpen,
-          // activeMainTab intentionally NOT persisted: the deliberate policy is
-          // that a fresh load always starts on chat (see Header's one-time
-          // reset), so a persisted non-chat value would always be discarded.
-          settingsPage: state.settingsPage,
-          settingsHasOpenedOnce: state.settingsHasOpenedOnce,
-          settingsProjectsSelectedId: state.settingsProjectsSelectedId,
-          isSessionCreateDialogOpen: state.isSessionCreateDialogOpen,
-          // Dialog open flags and menu requests are intentionally not persisted
-          showReasoningTraces: state.showReasoningTraces,
-          collapsibleThinkingBlocks: state.collapsibleThinkingBlocks,
-          activityRenderMode: state.activityRenderMode,
-          showDeletionDialog: state.showDeletionDialog,
-          autoDeleteEnabled: state.autoDeleteEnabled,
-          autoDeleteAfterDays: state.autoDeleteAfterDays,
-          sessionRetentionAction: state.sessionRetentionAction,
-          autoDeleteLastRunAt: state.autoDeleteLastRunAt,
-          messageLimit: state.messageLimit,
-          fontSize: state.fontSize,
-          globalDraftStarters: state.globalDraftStarters,
-          terminalFontSize: state.terminalFontSize,
-          uiFont: state.uiFont,
-          monoFont: state.monoFont,
-          padding: state.padding,
-          cornerRadius: state.cornerRadius,
-          favoriteModels: state.favoriteModels,
-          hiddenModels: state.hiddenModels,
-          collapsedModelProviders: state.collapsedModelProviders,
-          recentModels: state.recentModels,
-          recentAgents: state.recentAgents,
-          recentEfforts: state.recentEfforts,
-          diffLayoutPreference: state.diffLayoutPreference,
-          diffFileLayout: state.diffFileLayout,
-          diffWrapLines: state.diffWrapLines,
-          diffViewMode: state.diffViewMode,
-          gitChangesViewMode: state.gitChangesViewMode,
-          nativeNotificationsEnabled: state.nativeNotificationsEnabled,
-          notificationMode: state.notificationMode,
-          showTerminalQuickKeysOnDesktop: state.showTerminalQuickKeysOnDesktop,
-          notifyOnSubtasks: state.notifyOnSubtasks,
-          notifyOnCompletion: state.notifyOnCompletion,
-          notifyOnError: state.notifyOnError,
-          notifyOnQuestion: state.notifyOnQuestion,
-          notifyOnPermission: state.notifyOnPermission,
-          quickDispatchGlobalShortcut: state.quickDispatchGlobalShortcut,
-          notificationTemplates: state.notificationTemplates,
-          summarizeLastMessage: state.summarizeLastMessage,
-          summaryThreshold: state.summaryThreshold,
-          summaryLength: state.summaryLength,
-          maxLastMessageLength: state.maxLastMessageLength,
-          persistChatDraft: state.persistChatDraft,
-          showAxCodeUpdateNotifications: state.showAxCodeUpdateNotifications,
-          inputSpellcheckEnabled: state.inputSpellcheckEnabled,
-          wideChatLayoutEnabled: state.wideChatLayoutEnabled,
-          showToolFileIcons: state.showToolFileIcons,
-          showExpandedBashTools: state.showExpandedBashTools,
-          showExpandedEditTools: state.showExpandedEditTools,
-          showTurnChangedFiles: state.showTurnChangedFiles,
-          timeFormatPreference: state.timeFormatPreference,
-          weekStartPreference: state.weekStartPreference,
-          mermaidRenderingMode: state.mermaidRenderingMode,
-          userMessageRenderingMode: state.userMessageRenderingMode,
-          stickyUserHeader: state.stickyUserHeader,
-          showSplitAssistantMessageActions: state.showSplitAssistantMessageActions,
-          shortcutOverrides: state.shortcutOverrides,
-          splitPaneEnabled: state.splitPaneEnabled,
-          splitPaneRatio: state.splitPaneRatio,
-          splitPaneRightTab: state.splitPaneRightTab,
-        }),
+        partialize: (state: UIStore) => uiPreferencePersistence.partialize(state),
         // Version stays at 15 so an older files/git/diff/terminal/plan/context value is not
         // rewritten by migrate. Unknown values (and a future tab we do not know) fall back
         // to the in-memory default without discarding the rest of the persisted UI state.
-        merge: (persistedState, currentState) => {
-          if (!persistedState || typeof persistedState !== "object") return currentState
-          const merged: UIStore = {
-            ...currentState,
-            ...(persistedState as Partial<UIStore>),
-          }
-          if (!isPersistedSplitPaneRightTab(merged.splitPaneRightTab)) {
-            merged.splitPaneRightTab = currentState.splitPaneRightTab
-          }
-          merged.contextPanelByDirectory = sanitizeContextPanelByDirectory(merged.contextPanelByDirectory)
+        merge: (persistedState, currentState: UIStore) => {
+          const restored = uiPreferencePersistence.merge(persistedState, currentState)
+          if (restored === currentState) return currentState
+          const merged: UIStore = { ...currentState, ...restored }
           merged.browserPanel = currentState.browserPanel
           merged.sessionGrid = readSessionGrid()
           return merged

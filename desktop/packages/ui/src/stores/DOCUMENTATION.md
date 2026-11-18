@@ -73,6 +73,15 @@ Dev mode logs a single-line diff whenever an event would change the store
 entry — that log is now the regression alarm (a diff means an event disagreed
 with store state, which should be rare).
 
+## Persistence ownership
+
+Persisted JSON is untrusted data. The field contracts in `src/lib/persistedFields.ts`,
+`uiPreferences.ts`, `configPreferences.ts`, and `permissionPreferences.ts` own both serialization and restoration.
+Restore only declared data fields; actions, active requests, catalogues, runtime metadata, and window navigation
+remain live state. Missing or unrelated snapshots must preserve the current state without restore side effects.
+Feature caches with recovery semantics keep their own validated decoders, including bounded rows and timestamp checks.
+Keep storage keys, versions, and supported legacy migrations stable when changing these contracts.
+
 ## Config-domain ownership (S4.6 — single homes)
 
 Each config domain has exactly one home store (SPEC-2026-08-30, decision D2).

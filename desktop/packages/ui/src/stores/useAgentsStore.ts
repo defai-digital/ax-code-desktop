@@ -12,8 +12,7 @@ import {
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
 import { withTimeout } from "@/lib/asyncTimeout"
 import { createSingleFlight } from "@/lib/singleFlight"
-import { getSafeStorage } from "./utils/safeStorage"
-import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -28,6 +27,8 @@ import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 import { buildRecordSignature } from "@/stores/utils/signature"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
+import { getSafeStorage } from "./utils/safeStorage"
+import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 
 const AGENTS_LOAD_CACHE_TTL_MS = 5000
 // A load whose requests never settle (the runtime wedged behind the local server)
@@ -517,9 +518,7 @@ export const useAgentsStore = create<AgentsStore>()(
       {
         name: "agents-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({
-          selectedAgentName: state.selectedAgentName,
-        }),
+        ...createPersistedFields<AgentsStore>({ selectedAgentName: persistedNullableString }),
       },
     ),
     {

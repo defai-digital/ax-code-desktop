@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 
 import {
   filesViewPathsEqual,
@@ -195,7 +196,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           byRoot: sanitizeFilesViewRoots(isPlainRecord(persistedState) ? persistedState.byRoot : undefined),
         }),
         merge: (persistedState, currentState) => {
-          if (!isPlainRecord(persistedState)) return currentState
+          if (!hasPersistedFields(persistedState, ["byRoot"])) return currentState
           return { ...currentState, byRoot: sanitizeFilesViewRoots(persistedState.byRoot) }
         },
         partialize: (state) => ({ byRoot: state.byRoot }),

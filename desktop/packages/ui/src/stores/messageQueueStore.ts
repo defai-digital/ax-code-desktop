@@ -1,9 +1,10 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
-import type { AttachedFile } from "./types/sessionTypes"
+import { hasPersistedFields } from "@/lib/persistedFields"
 import { updateDesktopSettings } from "@/lib/persistence"
 import type { WorkModeId } from "@/lib/workMode"
+import { getSafeStorage } from "./utils/safeStorage"
+import type { AttachedFile } from "./types/sessionTypes"
 
 export interface QueuedMessage {
   id: string
@@ -335,6 +336,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           queueModeEnabled: state.queueModeEnabled,
         }),
         merge: (persistedState, currentState) => {
+          if (!hasPersistedFields(persistedState, ["queuedMessages", "queueModeEnabled"])) return currentState
           const persisted = persistedState as Partial<MessageQueueState> | undefined
           return {
             ...currentState,

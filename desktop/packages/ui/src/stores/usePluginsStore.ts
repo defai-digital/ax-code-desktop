@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
@@ -8,6 +8,7 @@ import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { createSingleFlight } from "@/lib/singleFlight"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { getSafeStorage } from "./utils/safeStorage"
 import { setConfigCacheEntry } from "./utils/configCache"
 
 export type PluginScope = "user" | "project"
@@ -417,7 +418,7 @@ export const usePluginsStore = create<PluginsStore>()(
       {
         name: "plugins-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({ selectedId: state.selectedId }),
+        ...createPersistedFields<PluginsStore>({ selectedId: persistedNullableString }),
       },
     ),
     { name: "plugins-store" },

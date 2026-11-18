@@ -98,6 +98,11 @@ payloads cannot authorize whole-list writes. `lib/contentHash.ts` preserves exis
 `lib/messagePartFields.ts` supplies payload field access without importing sync internals into presentation.
 `lib/runtimeFilesApi.ts` centralizes the live injected Files API lookup used by command/config adapters.
 
+Persisted data uses a separate contract from live store actions. `lib/persistedFields.ts` shares declared fields and
+readers between serialization and hydration. UI, Config and permission preference payloads live in library modules;
+window navigation, pending work and runtime metadata remain live state. Custom queue/feed/review/terminal restorers
+retain their domain-specific recovery rules. `lib/mainTabs.ts` owns tab identity types without a store import.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

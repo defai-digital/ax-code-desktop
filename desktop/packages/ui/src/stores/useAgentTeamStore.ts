@@ -1,5 +1,7 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
+import { isPlainRecord } from "@/lib/record"
 import {
   emptyAgentTeam,
   parseAgentTeam,
@@ -70,12 +72,11 @@ export const useAgentTeamStore = create<AgentTeamStore>()(
       partialize: (state) => ({ teamByDirectory: state.teamByDirectory, coderMessageIds: state.coderMessageIds }),
       // Persisted state is untrusted: re-validate refs and limits on load.
       merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["teamByDirectory", "coderMessageIds"])) return current
         const saved = persisted as Partial<AgentTeamStoreState> | undefined
         const stored = saved?.teamByDirectory
-        const teamByDirectory: Record<string, AgentTeamState> = {}
-        if (stored && typeof stored === "object") {
-          for (const [key, value] of Object.entries(stored)) teamByDirectory[key] = parseAgentTeam(value)
-        }
+        const teamByDirectory = isPlainRecord(stored)
+          ? Object.fromEntries(Object.entries(stored).map(([key, value]) => [key, parseAgentTeam(value)])) : {}
         const coderMessageIds = Array.isArray(saved?.coderMessageIds)
           ? saved.coderMessageIds.filter((id): id is string => typeof id === "string" && id.length > 0)
           : []

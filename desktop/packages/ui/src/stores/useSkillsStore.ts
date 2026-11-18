@@ -3,12 +3,13 @@ import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import { emitConfigChange, scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
 import { createSingleFlight } from "@/lib/singleFlight"
-import { getSafeStorage } from "./utils/safeStorage"
-import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { parseConfigPathGroup } from "@/lib/configPathGroup"
 import { getAxCodeCurrentDirectory } from "@/lib/ax-code/currentDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { getSafeStorage } from "./utils/safeStorage"
+import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { setConfigCacheEntry } from "./utils/configCache"
 
 export type SkillScope = "user" | "project"
@@ -500,9 +501,7 @@ export const useSkillsStore = create<SkillsStore>()(
       {
         name: "skills-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({
-          selectedSkillName: state.selectedSkillName,
-        }),
+        ...createPersistedFields<SkillsStore>({ selectedSkillName: persistedNullableString }),
       },
     ),
     {

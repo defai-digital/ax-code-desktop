@@ -1,7 +1,8 @@
 import { useEffect, type RefObject } from "react"
-import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
+import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 
 import { contentHash53 } from "@/lib/contentHash"
 import type { GitStatus } from "@/lib/api/types"
@@ -282,6 +283,7 @@ export const useReviewProgressStore = create<ReviewProgressState>()(
       storage: createJSONStorage(() => getSafeStorage()),
       partialize: (state) => ({ marks: state.marks }),
       merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["marks"])) return current
         const marks = readPersistedMarks(persisted)
         return marks === null ? current : { ...current, marks }
       },

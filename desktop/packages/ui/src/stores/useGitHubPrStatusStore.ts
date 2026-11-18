@@ -1,6 +1,9 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
+import { isPlainRecord } from "@/lib/record"
 import type { GitHubPullRequestStatus, RuntimeAPIs } from "@/lib/api/types"
+import { restoreCachedPullRequestStatus } from "@/lib/cachedPullRequestStatus"
 import { mapWithConcurrency } from "@/lib/concurrency"
 import { getSafeStorage } from "./utils/safeStorage"
 
@@ -14,6 +17,9 @@ const PR_OPEN_STABLE_INTERVAL_MS = 5 * 60_000
 const PR_STATUS_REFRESH_CONCURRENCY = 4
 const PR_PERSIST_TTL_MS = 12 * 60 * 60_000
 const PR_STATUS_STORAGE_KEY = "openchamber.github-pr-status"
+
+const isFreshTimestamp = (at: number, now: number, ttl: number): boolean =>
+  Number.isFinite(at) && at > 0 && at <= now && now - at < ttl
 
 const isTerminalPrState = (state: string | null | undefined): boolean => state === "closed" || state === "merged"
 const isPendingChecks = (status: GitHubPullRequestStatus | null): boolean => {
@@ -141,7 +147,7 @@ const lastRefreshBySignature = new Map<string, number>()
 // signatures refreshed inside the TTL instead of every signature ever refreshed.
 export const pruneExpiredPrRefreshTimestamps = (timestamps: Map<string, number>, now: number): void => {
   for (const [signature, at] of timestamps) {
-    if (now - at >= PR_REVALIDATE_TTL_MS) {
+    if (!isFreshTimestamp(at, now, PR_REVALIDATE_TTL_MS)) {
       timestamps.delete(signature)
     }
   }
@@ -263,15 +269,36 @@ const toPersistedEntry = (entry: PrStatusEntry): PersistedPrStatusEntry => ({
   resolvedRemoteName: entry.resolvedRemoteName ?? entry.status?.resolvedRemoteName ?? null,
 })
 
-const hydrateEntry = (entry: PersistedPrStatusEntry | undefined): PrStatusEntry => ({
-  ...createEntry(),
-  status: entry?.status ?? null,
-  isInitialStatusResolved: entry?.isInitialStatusResolved ?? false,
-  lastRefreshAt: entry?.lastRefreshAt ?? 0,
-  lastDiscoveryPollAt: entry?.lastDiscoveryPollAt ?? 0,
-  identity: entry?.identity ?? null,
-  resolvedRemoteName: entry?.resolvedRemoteName ?? entry?.status?.resolvedRemoteName ?? null,
-})
+const hydrateEntry = (value: unknown): PrStatusEntry => {
+  if (!isPlainRecord(value)) return createEntry()
+  const status = restoreCachedPullRequestStatus(value.status)
+  const invalidStatus = value.status != null && status === null
+  const timestamp = (raw: unknown) =>
+    !invalidStatus && typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= Date.now() ? raw : 0
+  const rawIdentity = value.identity
+  let identity: PrEntryIdentity | null = null
+  if (
+    isPlainRecord(rawIdentity) && typeof rawIdentity.directory === "string"
+    && typeof rawIdentity.branch === "string"
+    && (rawIdentity.remoteName == null || typeof rawIdentity.remoteName === "string")
+  ) {
+    identity = {
+      directory: rawIdentity.directory,
+      branch: rawIdentity.branch,
+      remoteName: typeof rawIdentity.remoteName === "string" ? rawIdentity.remoteName : null,
+    }
+  }
+  return {
+    ...createEntry(),
+    status,
+    isInitialStatusResolved: !invalidStatus && value.isInitialStatusResolved === true,
+    lastRefreshAt: timestamp(value.lastRefreshAt),
+    lastDiscoveryPollAt: timestamp(value.lastDiscoveryPollAt),
+    identity,
+    resolvedRemoteName: typeof value.resolvedRemoteName === "string"
+      ? value.resolvedRemoteName : (status?.resolvedRemoteName ?? null),
+  }
+}
 
 export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
   persist(
@@ -350,7 +377,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           const hasPr = Boolean(entry.status?.pr)
           if (!hasPr) {
             const now = Date.now()
-            if (now - entry.lastDiscoveryPollAt < PR_DISCOVERY_INTERVAL_MS) {
+            if (isFreshTimestamp(entry.lastDiscoveryPollAt, now, PR_DISCOVERY_INTERVAL_MS)) {
               return
             }
             set((state) => {
@@ -373,13 +400,12 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
             return
           }
 
-          const elapsed = Date.now() - entry.lastRefreshAt
           const nextInterval = isPendingChecks(entry.status)
             ? PR_OPEN_BUSY_INTERVAL_MS
             : entry.status?.checks && entry.status.checks.state !== "pending"
               ? PR_OPEN_STABLE_INTERVAL_MS
               : PR_OPEN_DEFAULT_INTERVAL_MS
-          if (elapsed < nextInterval) {
+          if (isFreshTimestamp(entry.lastRefreshAt, Date.now(), nextInterval)) {
             return
           }
 
@@ -439,7 +465,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           return
         }
         const lastRefreshAt = lastRefreshBySignature.get(signature) ?? 0
-        if (!options?.force && Date.now() - lastRefreshAt < PR_REVALIDATE_TTL_MS) {
+        if (!options?.force && isFreshTimestamp(lastRefreshAt, Date.now(), PR_REVALIDATE_TTL_MS)) {
           return
         }
         if (inFlightBySignature.has(signature)) {
@@ -672,14 +698,14 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
                 return false
               }
               const freshness = Math.max(entry.lastRefreshAt, entry.lastDiscoveryPollAt)
-              return freshness === 0 || Date.now() - freshness < PR_PERSIST_TTL_MS
+              return freshness === 0 || isFreshTimestamp(freshness, Date.now(), PR_PERSIST_TTL_MS)
             })
             .map(([key, entry]) => [key, toPersistedEntry(entry)]),
         ),
       }),
       merge: (persistedState, currentState) => {
-        const persistedEntries =
-          (persistedState as { entries?: Record<string, PersistedPrStatusEntry> } | undefined)?.entries ?? {}
+        if (!hasPersistedFields(persistedState, ["entries"])) return currentState
+        const persistedEntries = isPlainRecord(persistedState.entries) ? persistedState.entries : {}
         const current = currentState as GitHubPrStatusStore
         return {
           ...current,

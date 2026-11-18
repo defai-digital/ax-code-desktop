@@ -1,5 +1,15 @@
 # Test the Desktop UI with WebMCP
 
+To verify startup with malformed and stale persisted data:
+
+```sh
+node desktop/packages/electron/scripts/e2e/persistence-boundaries-webmcp.mjs --artifacts /tmp/ax-persistence-boundaries
+```
+
+This disposable profile seeds stale action fields, malformed preferences and obsolete navigation into local storage.
+It verifies startup, live Config methods and metadata, Settings pages, light/dark rendering and clean reload after a
+preference write. It does not run a model or approve permissions.
+
 To verify prompt editor derivation and Skills catalog read refusal:
 
 ```sh

@@ -1,4 +1,4 @@
-import type { MainTab } from "@/stores/useUIStore"
+import type { MainTab } from "@/lib/mainTabs"
 
 /**
  * Tabs that may be restored into the split pane. Adding a MainTab without a key here fails

@@ -1,8 +1,9 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
-
+import { createPersistedFields } from "@/lib/persistedFields"
+import { isPlainRecord } from "@/lib/record"
 import type { InlineCommentDraft, InlineCommentSource } from "@/lib/messages/inlineCommentDraft"
+import { getSafeStorage } from "./utils/safeStorage"
 
 // The draft types live in lib/ so other stores can use them without importing this store (store boundary R1).
 export type { InlineCommentDraft, InlineCommentSource } from "@/lib/messages/inlineCommentDraft"
@@ -109,10 +110,10 @@ const sanitizeDraft = (input: unknown): InlineCommentDraft | null => {
 }
 
 const sanitizeDraftMap = (input: unknown): Record<string, InlineCommentDraft[]> => {
-  if (!input || typeof input !== "object") return {}
+  if (!isPlainRecord(input)) return {}
 
   const entries = Object.entries(input as Record<string, unknown>)
-  const result: Record<string, InlineCommentDraft[]> = {}
+  const result = new Map<string, InlineCommentDraft[]>()
 
   for (const [sessionKey, sessionDrafts] of entries) {
     if (sessionKey === LEGACY_UNSCOPED_DRAFT_KEY) continue
@@ -124,11 +125,11 @@ const sanitizeDraftMap = (input: unknown): Record<string, InlineCommentDraft[]> 
       .filter((draft) => draft.sessionKey === sessionKey)
 
     if (sanitized.length > 0) {
-      result[sessionKey] = sanitized
+      result.set(sessionKey, sanitized)
     }
   }
 
-  return result
+  return Object.fromEntries(result)
 }
 
 /**
@@ -262,6 +263,9 @@ export const useInlineCommentDraftStore = create<InlineCommentDraftStore>()(
         name: "openchamber-inline-comment-drafts",
         storage: createJSONStorage(() => getSafeStorage()),
         version: 2,
+        ...createPersistedFields<InlineCommentDraftStore>({
+          drafts: (value, current) => isPlainRecord(value) ? sanitizeDraftMap(value) : current,
+        }),
         migrate: (persistedState: unknown) => {
           if (!persistedState || typeof persistedState !== "object") {
             return { drafts: {} }

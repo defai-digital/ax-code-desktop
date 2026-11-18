@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
 import type { Todo } from "@defai-digital/ax-code-sdk/v2/client"
+import { hasPersistedFields } from "@/lib/persistedFields"
 import { getSafeStorage } from "./utils/safeStorage"
 
 const MAX_SESSIONS = 50
@@ -94,7 +95,7 @@ export const useTodosPersistStore = create<TodosPersistState>()(
         // partialize limits writes, but the default hydration merge still accepts arbitrary saved keys.
         // Restore only validated data so stale JSON cannot replace actions or crash StatusRow's task rendering.
         merge: (persistedState, currentState) => {
-          if (!persistedState || typeof persistedState !== "object" || Array.isArray(persistedState)) {
+          if (!hasPersistedFields(persistedState, ["sessions"])) {
             return currentState
           }
           const saved = persistedState as Record<string, unknown>

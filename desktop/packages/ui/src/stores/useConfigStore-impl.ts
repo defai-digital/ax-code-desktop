@@ -1,9 +1,15 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import {
+  configPreferencePersistence,
+  restoreConfigDirectories,
+  type ConfigPreferences,
+  type DirectoryScopedConfig,
+} from "@/lib/configPreferences"
+import { isPlainRecord } from "@/lib/record"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
 import type { ModelMetadata } from "@/types"
-import { getSafeStorage } from "./utils/safeStorage"
 import { getAgentsSource } from "@/lib/agents"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
@@ -23,6 +29,7 @@ import { loadConfigDefaults } from "@/lib/configDefaults"
 import { buildModelMetadataKey, deriveModelMetadata } from "@/lib/modelMetadata"
 import { fetchModelsDevMetadata } from "@/lib/modelsDevMetadata"
 import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
+import { getSafeStorage } from "./utils/safeStorage"
 import { createModelMetadataLoader } from "./utils/modelMetadataLoader"
 
 const modelMetadataLoader = createModelMetadataLoader(fetchModelsDevMetadata)
@@ -141,37 +148,12 @@ const resolveInitialDirectoryKey = (): string => {
   return toDirectoryKey(directory)
 }
 
-interface DirectoryScopedConfig {
-  providers: ProviderWithModelList[]
-  currentProviderId: string
-  currentModelId: string
-  currentVariant?: string | undefined
-  currentAgentName: string | undefined
-  selectedProviderId: string
-  agentModelSelections: { [agentName: string]: { providerId: string; modelId: string } }
-  defaultProviders: { [key: string]: string }
-  /**
-   * "manual" once the user picked the provider, model or agent for this project.
-   * A manual pick survives the defaults cascade in loadAgents; an "auto" one is
-   * replaced by the settings default / agent preference as documented.
-   */
-  selectionSource?: "auto" | "manual"
-}
-
-interface ConfigStore {
+interface ConfigStore extends ConfigPreferences {
   activeDirectoryKey: string
-  directoryScoped: Record<string, DirectoryScopedConfig>
 
   providers: ProviderWithModelList[]
   providersLoading: boolean
   providersError: string | null
-  currentProviderId: string
-  currentModelId: string
-  currentVariant: string | undefined
-  currentAgentName: string | undefined
-  selectedProviderId: string
-  agentModelSelections: { [agentName: string]: { providerId: string; modelId: string } }
-  defaultProviders: { [key: string]: string }
   /**
    * Boot status: set when `initializeApp` fails after the server was reached
    * (e.g. initApp/provider/agent load threw). NOT connection state — the
@@ -181,14 +163,6 @@ interface ConfigStore {
   initializationError: string | null
   isInitialized: boolean
   modelsMetadata: Map<string, ModelMetadata>
-  // OpenChamber settings-based defaults (take precedence over agent preferences)
-  settingsDefaultModel: string | undefined // format: "provider/model"
-  settingsDefaultVariant: string | undefined
-  settingsDefaultAgent: string | undefined
-  settingsAutoCreateWorktree: boolean
-  settingsGitmojiEnabled: boolean
-  settingsDefaultFileViewerPreview: boolean
-  settingsZenModel: string | undefined
 
   activateDirectory: (directory: string | null | undefined) => Promise<void>
   /** Drop all per-project provider snapshots (auth is global; caches must not stay stale). */
@@ -468,6 +442,7 @@ export const useConfigStore = create<ConfigStore>()(
               providers: [],
               currentProviderId: "",
               currentModelId: "",
+              currentVariant: undefined,
               currentAgentName: undefined,
               selectedProviderId: "",
               agentModelSelections: {},
@@ -1647,35 +1622,14 @@ export const useConfigStore = create<ConfigStore>()(
         // snapshots so stale lists do not linger in persisted state.
         version: 1,
         migrate: (persisted) => {
-          const state = persisted as { directoryScoped?: Record<string, Record<string, unknown>> } | undefined
-          for (const snapshot of Object.values(state?.directoryScoped ?? {})) {
-            delete snapshot.agents
-            // Provider catalogues are re-fetched on activation and were the bulk of every
-            // snapshot; persisting them grew localStorage until safeStorage gave up entirely.
-            snapshot.providers = []
-          }
-          return state
+          if (!isPlainRecord(persisted)) return {}
+          return { ...persisted, directoryScoped: restoreConfigDirectories(persisted.directoryScoped, {}) }
         },
-        partialize: (state) => ({
-          activeDirectoryKey: state.activeDirectoryKey,
-          directoryScoped: Object.fromEntries(
-            Object.entries(state.directoryScoped).map(([key, snapshot]) => [key, { ...snapshot, providers: [] }]),
-          ),
-          currentProviderId: state.currentProviderId,
-          currentModelId: state.currentModelId,
-          currentVariant: state.currentVariant,
-          currentAgentName: state.currentAgentName,
-          selectedProviderId: state.selectedProviderId,
-          agentModelSelections: state.agentModelSelections,
-          defaultProviders: state.defaultProviders,
-          settingsDefaultModel: state.settingsDefaultModel,
-          settingsDefaultVariant: state.settingsDefaultVariant,
-          settingsDefaultAgent: state.settingsDefaultAgent,
-          settingsAutoCreateWorktree: state.settingsAutoCreateWorktree,
-          settingsGitmojiEnabled: state.settingsGitmojiEnabled,
-          settingsDefaultFileViewerPreview: state.settingsDefaultFileViewerPreview,
-          settingsZenModel: state.settingsZenModel,
-        }),
+        partialize: (state: ConfigStore) => configPreferencePersistence.partialize(state),
+        merge: (persisted, current: ConfigStore) => {
+          const restored = configPreferencePersistence.merge(persisted, current)
+          return restored === current ? current : { ...current, ...restored }
+        },
       },
     ),
   ),

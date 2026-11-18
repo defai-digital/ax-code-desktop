@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 import type { InlineCommentDraft } from "@/lib/messages/inlineCommentDraft"
 import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { getSafeStorage } from "./utils/safeStorage"
@@ -145,10 +146,10 @@ export const useReviewThreadStore = create<ReviewThreadState>()(
       version: 1,
       storage: createJSONStorage(() => getSafeStorage()),
       partialize: (state) => ({ threadsByDirectory: state.threadsByDirectory }),
-      merge: (persisted, current) => ({
-        ...current,
-        threadsByDirectory: restoreBoundedThreads((persisted as Partial<ReviewThreadState> | null)?.threadsByDirectory),
-      }),
+      merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["threadsByDirectory"])) return current
+        return { ...current, threadsByDirectory: restoreBoundedThreads(persisted.threadsByDirectory) }
+      },
     },
   ),
 )
