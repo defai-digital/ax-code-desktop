@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
 
 import { waitForAxCodeConnection } from "./axCodeConnection"
 
@@ -49,5 +49,32 @@ describe("waitForAxCodeConnection", () => {
     }
 
     expect(thrown).toBe(error)
+    expect(currentTime).toBe(500)
+  })
+
+  test("cancels a stalled health request at the deadline and ignores a late success", async () => {
+    vi.useFakeTimers()
+    const stalled = Promise.withResolvers<boolean>()
+    let signal: AbortSignal | undefined
+    try {
+      const wait = waitForAxCodeConnection(undefined, {
+        maxWaitMs: 1000,
+        checkHealth: (probeSignal?: AbortSignal) => {
+          signal = probeSignal
+          return stalled.promise
+        },
+        updateMessage: () => undefined,
+      })
+      const result = wait.then(() => "ready", () => "timed out")
+      const deadline = new Promise<string>((resolve) => setTimeout(() => resolve("still waiting"), 1001))
+      await vi.advanceTimersByTimeAsync(1001)
+      expect(await Promise.race([result, deadline])).toBe("timed out")
+      expect(signal?.aborted).toBe(true)
+      stalled.resolve(true)
+      expect(await result).toBe("timed out")
+    } finally {
+      stalled.resolve(false)
+      vi.useRealTimers()
+    }
   })
 })
