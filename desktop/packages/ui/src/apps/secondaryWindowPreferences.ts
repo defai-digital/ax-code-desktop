@@ -1,7 +1,6 @@
 import { startAppearanceAutoSave } from "@/lib/appearanceAutoSave"
-import { applyPersistedDirectoryPreferences } from "@/lib/directoryPersistence"
 import { initializeLocale } from "@/lib/i18n"
-import { initializeAppearancePreferences, syncDesktopSettings } from "@/lib/persistence"
+import { initializeAppearancePreferences } from "@/lib/persistence"
 import { startModelPrefsAutoSave } from "@/lib/modelPrefsAutoSave"
 import { startTypographyWatcher } from "@/lib/typographyWatcher"
 import { useUIStore } from "@/stores/useUIStore"
@@ -30,10 +29,6 @@ export const initializeSecondaryWindowPreferences = (logPrefix: string) => {
 
   void initializeAppearancePreferences()
     .then(() => {
-      void Promise.all([syncDesktopSettings(), applyPersistedDirectoryPreferences()]).catch((err) => {
-        console.error(`[${logPrefix}] settings init failed:`, err)
-      })
-
       startAppearanceAutoSave()
       startModelPrefsAutoSave()
       startTypographyWatcher()

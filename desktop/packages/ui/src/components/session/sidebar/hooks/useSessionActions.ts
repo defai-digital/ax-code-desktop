@@ -25,7 +25,7 @@ type Args = {
   setSessionSearchQuery: (value: string) => void
   setIsSessionSearchOpen: (open: boolean) => void
   setActiveProjectIdOnly: (id: string) => void
-  setDirectory: (directory: string, options?: { showOverlay?: boolean }) => void
+  setDirectory: (directory: string) => void
   setCurrentSession: (sessionId: string | null, directoryHint?: string | null) => void
   updateSessionTitle: (id: string, title: string) => Promise<void>
   shareSession: (id: string) => Promise<Session | null>
@@ -82,7 +82,7 @@ export const useSessionActions = (args: Args) => {
       }
 
       if (sessionDirectory && sessionDirectory !== args.currentDirectory) {
-        args.setDirectory(sessionDirectory, { showOverlay: false })
+        args.setDirectory(sessionDirectory)
       }
 
       if (sessionId === args.currentSessionId) {

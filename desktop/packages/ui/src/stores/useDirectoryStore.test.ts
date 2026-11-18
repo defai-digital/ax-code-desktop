@@ -29,6 +29,7 @@ const importStore = async () => {
   const setDirectoryMock = vi.fn()
   const updateDesktopSettingsMock = vi.fn(async () => undefined)
   const invalidateDirectoryMock = vi.fn()
+  const getFilesystemHomeMock = vi.fn<() => Promise<string | null>>(async () => null)
 
   vi.doMock("./utils/safeStorage", () => ({
     getSafeStorage: () => storage,
@@ -37,7 +38,7 @@ const importStore = async () => {
   vi.doMock("@/lib/ax-code/client", () => ({
     axCodeClient: {
       setDirectory: setDirectoryMock,
-      getFilesystemHome: vi.fn(() => new Promise<never>(() => undefined)),
+      getFilesystemHome: getFilesystemHomeMock,
       getSystemInfo: vi.fn(async () => ({ homeDirectory: "" })),
     },
   }))
@@ -67,6 +68,7 @@ const importStore = async () => {
   return {
     ...storeModule,
     invalidateDirectoryMock,
+    getFilesystemHomeMock,
     setDirectoryMock,
     updateDesktopSettingsMock,
     values,
@@ -84,6 +86,53 @@ describe("useDirectoryStore", () => {
     vi.resetModules()
   })
 
+  test("does not run discovery or write host settings on import", async () => {
+    const { getFilesystemHomeMock, updateDesktopSettingsMock } = await importStore()
+    expect(getFilesystemHomeMock).not.toHaveBeenCalled()
+    expect(updateDesktopSettingsMock).not.toHaveBeenCalled()
+  })
+
+  test("restores a saved literal directory without rewriting it or appending to history", async () => {
+    const { restoreDirectoryPreferences, useDirectoryStore, updateDesktopSettingsMock, values } = await importStore()
+    values.set("homeDirectory", "/home/fixture")
+    values.set("lastDirectory", "~/project ")
+
+    restoreDirectoryPreferences()
+
+    expect(useDirectoryStore.getState()).toMatchObject({
+      currentDirectory: "/home/fixture/project ",
+      directoryHistory: ["/home/fixture/project "],
+      homeDirectory: "/home/fixture",
+    })
+    expect(updateDesktopSettingsMock).not.toHaveBeenCalled()
+  })
+
+  test("ignores a startup directory snapshot after a window selects a directory", async () => {
+    const { restoreDirectoryPreferences, useDirectoryStore, setDirectoryMock, values } = await importStore()
+    useDirectoryStore.getState().setDirectory("/active")
+    values.set("lastDirectory", "/stale")
+
+    restoreDirectoryPreferences()
+
+    expect(useDirectoryStore.getState().currentDirectory).toBe("/active")
+    expect(setDirectoryMock).toHaveBeenLastCalledWith("/active")
+  })
+
+  test("coalesces concurrent discovery and persists only the changed home", async () => {
+    const { refreshDirectoryHome, getFilesystemHomeMock, updateDesktopSettingsMock, useDirectoryStore } =
+      await importStore()
+    getFilesystemHomeMock.mockResolvedValue("/host/home")
+    useDirectoryStore.getState().setDirectory("/active")
+    updateDesktopSettingsMock.mockClear()
+
+    await Promise.all([refreshDirectoryHome(), refreshDirectoryHome()])
+    await refreshDirectoryHome()
+
+    expect(getFilesystemHomeMock).toHaveBeenCalledTimes(2)
+    expect(updateDesktopSettingsMock.mock.calls).toEqual([[{ homeDirectory: "/host/home" }]])
+    expect(useDirectoryStore.getState()).toMatchObject({ homeDirectory: "/host/home", currentDirectory: "/active" })
+  })
+
   test("ignores invalid synchronized home directories", async () => {
     const { setDirectoryMock, updateDesktopSettingsMock, useDirectoryStore, values } = await importStore()
     const initialState = {
@@ -93,7 +142,6 @@ describe("useDirectoryStore", () => {
       homeDirectory: "/Users/alice",
       hasPersistedDirectory: true,
       isHomeReady: true,
-      isSwitchingDirectory: false,
     }
 
     for (const candidate of ["", "   ", "/"]) {
@@ -121,7 +169,6 @@ describe("useDirectoryStore", () => {
       homeDirectory: "/Users/alice",
       hasPersistedDirectory: true,
       isHomeReady: true,
-      isSwitchingDirectory: false,
     })
 
     useDirectoryStore.getState().synchronizeHomeDirectory("/Users/alice-new///")
@@ -145,7 +192,6 @@ describe("useDirectoryStore", () => {
       homeDirectory: "C:/Users/alice",
       hasPersistedDirectory: true,
       isHomeReady: true,
-      isSwitchingDirectory: false,
     })
 
     useDirectoryStore.getState().goToParent()
@@ -165,7 +211,6 @@ describe("useDirectoryStore", () => {
       homeDirectory: "C:/Users/alice",
       hasPersistedDirectory: true,
       isHomeReady: true,
-      isSwitchingDirectory: false,
     })
     setDirectoryMock.mockClear()
 

@@ -1,6 +1,5 @@
 import { create } from "zustand"
 import { devtools } from "zustand/middleware"
-import { axCodeClient } from "@/lib/ax-code/client"
 import type { ProjectEntry } from "@/lib/api/types"
 import type { DesktopSettings } from "@/lib/desktop"
 import { updateDesktopSettings } from "@/lib/persistence"
@@ -409,8 +408,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         if (activateFirst && nextActiveId && nextActiveId !== previousActiveId) {
           const active = nextProjects.find((project) => project.id === nextActiveId)
           if (active) {
-            axCodeClient.setDirectory(active.path)
-            useDirectoryStore.getState().setDirectory(active.path, { showOverlay: false })
+            useDirectoryStore.getState().setDirectory(active.path)
           }
         }
 
@@ -450,8 +448,7 @@ export const useProjectsStore = create<ProjectsStore>()(
           if (nextActiveId !== current.activeProjectId) {
             const nextActive = nextProjects.find((project) => project.id === nextActiveId)
             if (nextActive) {
-              axCodeClient.setDirectory(nextActive.path)
-              useDirectoryStore.getState().setDirectory(nextActive.path, { showOverlay: false })
+              useDirectoryStore.getState().setDirectory(nextActive.path)
             }
           }
         } else {
@@ -477,8 +474,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         set({ projects: nextProjects, activeProjectId: id })
         persistProjects(nextProjects, id)
 
-        axCodeClient.setDirectory(target.path)
-        useDirectoryStore.getState().setDirectory(target.path, { showOverlay: false })
+        useDirectoryStore.getState().setDirectory(target.path)
       },
 
       setActiveProjectIdOnly: (id: string) => {
@@ -766,8 +762,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         if (incomingActive && (activeChanged || nextActivePath !== previousActivePath)) {
           const activeProject = incomingProjects.find((project) => project.id === incomingActive)
           if (activeProject) {
-            axCodeClient.setDirectory(activeProject.path)
-            useDirectoryStore.getState().setDirectory(activeProject.path, { showOverlay: false })
+            useDirectoryStore.getState().setDirectory(activeProject.path)
           }
         }
       },

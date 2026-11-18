@@ -99,7 +99,7 @@ const startQuickDispatch = async (input: {
       if (current.newSessionDraft.open) current.closeNewSessionDraft()
       current.setCurrentSession(null)
       if (previousDirectoryPath && useDirectoryStore.getState().currentDirectory !== previousDirectoryPath) {
-        useDirectoryStore.getState().setDirectory(previousDirectoryPath, { showOverlay: false })
+        useDirectoryStore.getState().setDirectory(previousDirectoryPath)
       }
     }
     const directoryToRestore = previousSessionDirectory ?? previousDirectoryPath

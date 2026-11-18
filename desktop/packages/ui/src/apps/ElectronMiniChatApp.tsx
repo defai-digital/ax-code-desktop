@@ -116,14 +116,14 @@ const MiniChatBootstrap: React.FC<{ config: MiniChatConfig }> = ({ config }) => 
       directoryBootstrappedRef.current = true
       return
     }
-    setDirectory(config.directory, { showOverlay: false })
+    setDirectory(config.directory)
     directoryBootstrappedRef.current = true
   }, [config.directory, config.mode, currentDirectory, setDirectory])
 
   React.useEffect(() => {
     if (config.mode !== "draft" || !draftOpen || currentSessionId) return
     if (!draftDirectory || currentDirectory === draftDirectory) return
-    setDirectory(draftDirectory, { showOverlay: false })
+    setDirectory(draftDirectory)
   }, [config.mode, currentDirectory, currentSessionId, draftDirectory, draftOpen, setDirectory])
 
   React.useEffect(() => {

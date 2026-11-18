@@ -390,7 +390,6 @@ export const debugUtils = {
         homeDirectory: directoryState.homeDirectory || null,
         isHomeReady: directoryState.isHomeReady,
         hasPersistedDirectory: directoryState.hasPersistedDirectory,
-        isSwitchingDirectory: directoryState.isSwitchingDirectory,
       },
       projects: {
         total: projectsState.projects.length,

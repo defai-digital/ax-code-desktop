@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest"
+import { describe, expect, test } from "vitest"
 
 import { useMessageQueueStore } from "./messageQueueStore"
 import { usePermissionStore } from "./permissionStore"
@@ -22,15 +22,6 @@ import { useTerminalStore } from "./useTerminalStore"
 import { useTodosPersistStore } from "./useTodosPersistStore"
 import { useUIStore } from "./useUIStore-impl"
 import { useWorkModeStore } from "./useWorkModeStore"
-
-// Directory discovery starts network requests at module load. These restore tests
-// only need a current directory and a subscription for the config store.
-vi.mock("./useDirectoryStore", () => ({
-  useDirectoryStore: {
-    getState: () => ({ currentDirectory: "/fixture" }),
-    subscribe: () => () => {},
-  },
-}))
 
 // Adapt heterogeneous store APIs only in this shared behavioral probe; each merge receives its own live state.
 interface RestoreProbe {

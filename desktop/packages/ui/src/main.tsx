@@ -8,8 +8,7 @@ import { SessionAuthGate } from "./components/auth/SessionAuthGate"
 import { ThemeSystemProvider } from "./contexts/ThemeSystemContext"
 import { ThemeProvider } from "./components/providers/ThemeProvider"
 import "./lib/debug"
-import { syncDesktopSettings, initializeAppearancePreferences } from "./lib/persistence"
-import { applyPersistedDirectoryPreferences } from "./lib/directoryPersistence"
+import { initializeAppearancePreferences } from "./lib/persistence"
 import { initializeLocale, I18nProvider } from "./lib/i18n"
 import { recordDesktopStartupEvent } from "./lib/desktop"
 import { scheduleRendererPaintMilestone } from "./lib/rendererPaintMilestone"
@@ -50,11 +49,6 @@ recordRendererPaintMilestone()
 // for faster time-to-first-paint.
 void initializeAppearancePreferences()
   .then(() => {
-    void Promise.all([syncDesktopSettings(), applyPersistedDirectoryPreferences()]).catch((err) => {
-      console.error("[main] settings init failed:", err)
-    })
-
-    // Start watchers regardless of whether secondary settings succeed.
     void import("./lib/appearanceAutoSave")
       .then(({ startAppearanceAutoSave }) => startAppearanceAutoSave())
       .catch((err) => {

@@ -141,7 +141,7 @@ const initializeSessionForWorktree = (
   const configState = useConfigStore.getState()
   sessionStore.setWorktreeMetadata(sessionId, metadata)
   applyDefaultAgentAndModelSelection(sessionId, configState)
-  useDirectoryStore.getState().setDirectory(metadata.path, { showOverlay: false })
+  useDirectoryStore.getState().setDirectory(metadata.path)
 }
 
 const createInstantWorktreeDraft = async (options?: {
@@ -237,7 +237,7 @@ const createInstantWorktreeDraft = async (options?: {
         title: options?.title,
         initialPrompt: options?.initialPrompt,
       })
-      useDirectoryStore.getState().setDirectory(preview.path, { showOverlay: false })
+      useDirectoryStore.getState().setDirectory(preview.path)
     }
 
     const setupCommands = await getWorktreeSetupCommands(projectRef)
@@ -259,7 +259,7 @@ const createInstantWorktreeDraft = async (options?: {
       title: options?.title,
       initialPrompt: options?.initialPrompt,
     })
-    useDirectoryStore.getState().setDirectory(metadata.path, { showOverlay: false })
+    useDirectoryStore.getState().setDirectory(metadata.path)
 
     return metadata.path
   } catch (error) {
@@ -275,7 +275,7 @@ const createInstantWorktreeDraft = async (options?: {
     if (previewDirectory) {
       const directoryStore = useDirectoryStore.getState()
       if (directoryStore.currentDirectory === previewDirectory) {
-        directoryStore.setDirectory(projectDirectory, { showOverlay: false })
+        directoryStore.setDirectory(projectDirectory)
       }
       const draft = useSessionUIStore.getState().newSessionDraft
       if (draft?.directoryOverride === previewDirectory) {
