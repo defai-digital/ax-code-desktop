@@ -1,4 +1,5 @@
 import { API_ENDPOINTS } from "@/lib/http"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 /**
  * Normalize a path the way chat-rendered file references handle them: forward
@@ -11,7 +12,7 @@ export const normalizePath = (value: string): string => {
     return ""
   }
 
-  const withSlashes = source.replace(/\\/g, "/")
+  const withSlashes = normalizePathSeparators(source)
   const hadUncPrefix = withSlashes.startsWith("//")
 
   let normalized = withSlashes.replace(/\/+/g, "/")

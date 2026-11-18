@@ -1,8 +1,9 @@
+import { normalizePathSeparators } from "@/lib/pathValues"
 export const normalizeWorktreePath = (value: string): string => {
   if (!value) {
     return ""
   }
-  const replaced = value.replace(/\\/g, "/")
+  const replaced = normalizePathSeparators(value)
   if (/^\/+$/.test(replaced)) {
     return "/"
   }

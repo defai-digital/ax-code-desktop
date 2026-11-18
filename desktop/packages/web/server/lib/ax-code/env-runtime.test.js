@@ -260,16 +260,19 @@ describe("AX Code env runtime", () => {
     expect(state.resolvedAxCodeBinarySource).toBe("settings")
   })
 
-  it("trims configured executable AX Code binary settings", async () => {
-    const dir = createTempDir("openchamber-ax-code-trimmed-bin-")
+  itIf(process.platform !== "win32")("preserves a configured literal binary path instead of selecting its plain sibling", async () => {
+    const dir = createTempDir("openchamber-ax-code-literal-bin-")
     const binary = path.join(dir, "ax-code")
     fs.writeFileSync(binary, "#!/bin/sh\nexit 0\n")
     fs.chmodSync(binary, 0o755)
-    const { runtime, state } = createRuntime({ axCodeBinary: ` ${binary} ` })
+    const literalBinary = `${binary} `
+    fs.writeFileSync(literalBinary, "#!/bin/sh\nexit 0\n")
+    fs.chmodSync(literalBinary, 0o755)
+    const { runtime, state } = createRuntime({ axCodeBinary: literalBinary })
 
-    await expect(runtime.applyAxCodeBinaryFromSettings({ strict: true })).resolves.toBe(binary)
-    expect(process.env.AX_CODE_BINARY).toBe(binary)
-    expect(state.resolvedAxCodeBinary).toBe(binary)
+    await expect(runtime.applyAxCodeBinaryFromSettings({ strict: true })).resolves.toBe(literalBinary)
+    expect(process.env.AX_CODE_BINARY).toBe(literalBinary)
+    expect(state.resolvedAxCodeBinary).toBe(literalBinary)
     expect(state.resolvedAxCodeBinarySource).toBe("settings")
   })
 

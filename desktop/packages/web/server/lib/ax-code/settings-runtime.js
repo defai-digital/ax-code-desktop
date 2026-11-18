@@ -1,5 +1,6 @@
 import { createProjectIdFromPath } from "../projects/project-id.js"
 import { projectConfigFileStemOf } from "../projects/project-config.js"
+import { normalizePathSeparators } from "../../../../../shared/path-values.mjs"
 
 const DEFAULT_NOTIFICATION_TEMPLATES = {
   completion: { title: "{agent_name} is ready", message: "{model_name} completed the task" },
@@ -183,7 +184,7 @@ export const createSettingsRuntime = (deps) => {
       if (!entry || typeof entry !== "object" || typeof entry.path !== "string") {
         return entry
       }
-      const trimmedPath = entry.path.trim()
+      const trimmedPath = entry.path
       const relativePath = path.relative(fromDir, trimmedPath)
       if (relativePath && (relativePath.startsWith("..") || path.isAbsolute(relativePath))) {
         return entry
@@ -431,7 +432,7 @@ export const createSettingsRuntime = (deps) => {
 
     const basenameOf = (projectPath) => {
       if (typeof projectPath !== "string") return ""
-      const normalized = projectPath.replace(/\\/g, "/").replace(/\/+$/g, "")
+      const normalized = normalizePathSeparators(projectPath).replace(/\/+$/g, "")
       const idx = normalized.lastIndexOf("/")
       return (idx >= 0 ? normalized.slice(idx + 1) : normalized).toLowerCase()
     }

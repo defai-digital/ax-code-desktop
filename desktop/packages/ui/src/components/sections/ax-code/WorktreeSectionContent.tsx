@@ -1,4 +1,5 @@
 import React from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -193,7 +194,7 @@ export const WorktreeSectionContent: React.FC<WorktreeSectionContentProps> = ({
   // Delete worktree handler
   const handleDeleteWorktree = React.useCallback(
     (worktree: WorktreeMetadata) => {
-      const normalize = (value: string): string => value.replace(/\\/g, "/").replace(/\/+$/, "")
+      const normalize = (value: string): string => normalizePathSeparators(value).replace(/\/+$/, "")
       const normalizedWorktreePath = normalize(worktree.path)
 
       // Find sessions linked to this worktree by:

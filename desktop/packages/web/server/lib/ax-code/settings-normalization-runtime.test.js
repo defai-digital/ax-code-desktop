@@ -100,7 +100,7 @@ describe("settings normalization runtime - symlink resolution", () => {
       expect(result[0].id).toBe("proj1")
     })
 
-    it("trims project identity and display fields", () => {
+    it("keeps literal project paths while trimming identity and display fields", () => {
       const runtime = createTestRuntime()
 
       const result = runtime.sanitizeProjects([
@@ -117,7 +117,7 @@ describe("settings normalization runtime - symlink resolution", () => {
       expect(result).toEqual([
         {
           id: "project-1",
-          path: "/workspace/project",
+          path: " /workspace/project ",
           label: "Project",
           icon: "folder",
           color: "blue",
@@ -221,7 +221,7 @@ describe("settings normalization runtime - symlink resolution", () => {
       })
 
       expect(result.changed).toBe(true)
-      expect(result.settings.approvedDirectories).toEqual(["/workspace/project"])
+      expect(result.settings.approvedDirectories).toEqual([" /workspace/project ", "/workspace/project"])
     })
   })
 })

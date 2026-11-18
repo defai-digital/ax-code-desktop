@@ -1,4 +1,5 @@
 import { resolveSupervisionEvidence, type SessionSummaryLike } from "./sessionState"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 /** The part of a git status that attribution reads. */
 export interface DirtyTreeLike {
@@ -7,19 +8,16 @@ export interface DirtyTreeLike {
   files: ReadonlyArray<{ path: string }>
 }
 
-const normalizePath = (value: string): string =>
-  value
-    .trim()
-    .replace(/\\/g, "/")
-    .replace(/^(\.\/)+/, "")
+const normalizePath = (value: string, root?: string): string =>
+  normalizePathSeparators(value, root).replace(/^(\.\/)+/, "")
 
 /** Paths the runtime named in a session summary. Empty when it reported counts only. */
-function summaryFilePaths(summary: SessionSummaryLike | null | undefined): string[] {
+function summaryFilePaths(summary: SessionSummaryLike | null | undefined, root?: string): string[] {
   const diffs = Array.isArray(summary?.diffs) ? summary.diffs : []
   const paths: string[] = []
   for (const diff of diffs) {
     if (typeof diff.file !== "string") continue
-    const path = normalizePath(diff.file)
+    const path = normalizePath(diff.file, root)
     if (path.length > 0) paths.push(path)
   }
   return paths
@@ -50,8 +48,8 @@ export function sessionChangesStillUncommitted(
 ): boolean {
   if (!status || status.isClean) return false
   if (resolveSupervisionEvidence(summary) === null) return false
-  const named = summaryFilePaths(summary)
+  const named = summaryFilePaths(summary, status.worktreeRoot)
   if (named.length === 0) return true
-  const dirty = status.files.map((file) => normalizePath(file.path))
+  const dirty = status.files.map((file) => normalizePath(file.path, status.worktreeRoot))
   return named.some((path) => dirty.some((statusPath) => samePath(statusPath, path, status.worktreeRoot)))
 }

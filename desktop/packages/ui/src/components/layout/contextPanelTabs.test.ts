@@ -36,7 +36,7 @@ describe("normalizeContextPanelDirectoryKey", () => {
 
   test("keeps a lone root slash", () => {
     expect(normalizeContextPanelDirectoryKey("/")).toBe("/")
-    expect(normalizeContextPanelDirectoryKey("///")).toBe("")
+    expect(normalizeContextPanelDirectoryKey("///")).toBe("/")
   })
 
   test("uppercases Windows drive letters and keeps drive roots", () => {

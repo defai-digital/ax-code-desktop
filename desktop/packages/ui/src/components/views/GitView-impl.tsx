@@ -4,6 +4,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import type { GitIdentityProfile, CommitFileEntry, GitStatus } from "@/lib/api/types"
 import { useGitIdentitiesStore } from "@/stores/useGitIdentitiesStore"
 import { useShallow } from "zustand/react/shallow"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import {
@@ -216,7 +217,7 @@ const matchGitmojiFromSubject = (subject: string, gitmojis: GitmojiEntry[]): Git
 
 const gitViewSnapshots = new Map<string, GitViewSnapshot>()
 
-const normalizePath = (value?: string | null): string => (value || "").replace(/\\/g, "/").replace(/\/+$/, "")
+const normalizePath = (value?: string | null): string => normalizePathSeparators((value || "")).replace(/\/+$/, "")
 
 const isStagedStatusFile = (file: GitStatus["files"][number]): boolean => {
   const indexStatus = file.index?.trim()

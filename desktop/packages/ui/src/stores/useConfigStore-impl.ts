@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import { readDirectoryPath } from "@/lib/pathValues"
 import {
   configPreferencePersistence,
   restoreConfigDirectories,
@@ -133,7 +134,7 @@ const probeAxCodeHealth = async (timeoutMs = CONNECTION_PROBE_TIMEOUT_MS): Promi
 const DIRECTORY_KEY_GLOBAL = "__global__"
 
 const toDirectoryKey = (directory: string | null | undefined): string => {
-  const trimmed = typeof directory === "string" ? directory.trim() : ""
+  const trimmed = readDirectoryPath(directory) ?? ""
   return trimmed.length > 0 ? trimmed : DIRECTORY_KEY_GLOBAL
 }
 

@@ -74,7 +74,7 @@ export const AxCodeCliSettings: React.FC = () => {
         directory: false,
       })
       if (typeof selected === "string" && selected.trim().length > 0) {
-        setValue(selected.trim())
+        setValue(selected)
       }
     } catch {
       // ignore

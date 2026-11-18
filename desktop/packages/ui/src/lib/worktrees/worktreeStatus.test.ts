@@ -31,11 +31,11 @@ vi.doMock("@/lib/gitApi", () => ({
 
 const { getRootBranch, invalidateResolvedProjectRootCache } = await import("./worktreeStatus")
 
-// Helper: a single `git rev-parse --absolute-git-dir --git-common-dir` reply.
-const revParse = (absoluteGitDir: string, commonDir: string): WorktreeStatusExecResult => ({
-  command: "git rev-parse --absolute-git-dir --git-common-dir",
+// Each path-valued response retains its newline framing.
+const revParse = (absoluteGitDir: string): WorktreeStatusExecResult => ({
+  command: "git rev-parse --absolute-git-dir",
   success: true,
-  stdout: `${absoluteGitDir}\n${commonDir}`,
+  stdout: `${absoluteGitDir}\n`,
 })
 
 describe("worktreeStatus.getRootBranch", () => {
@@ -48,7 +48,7 @@ describe("worktreeStatus.getRootBranch", () => {
   })
 
   test("derives root from absolute-git-dir and returns its branch", async () => {
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
     statusImpl = () => ({ current: "main" })
 
     expect(await getRootBranch("/repo")).toBe("main")
@@ -56,7 +56,7 @@ describe("worktreeStatus.getRootBranch", () => {
   })
 
   test("caches root resolution across repeated calls", async () => {
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
     statusImpl = () => ({ current: "main" })
 
     await getRootBranch("/repo")
@@ -68,7 +68,7 @@ describe("worktreeStatus.getRootBranch", () => {
   })
 
   test("dedupes concurrent resolutions of the same directory", async () => {
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
     statusImpl = () => ({ current: "main" })
 
     await Promise.all([getRootBranch("/repo"), getRootBranch("/repo"), getRootBranch("/repo")])
@@ -77,7 +77,7 @@ describe("worktreeStatus.getRootBranch", () => {
   })
 
   test("invalidation forces re-resolution", async () => {
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
     statusImpl = () => ({ current: "main" })
 
     await getRootBranch("/repo")
@@ -97,7 +97,7 @@ describe("worktreeStatus.getRootBranch", () => {
 
   test("resolves a linked worktree to its primary root and fetches that branch", async () => {
     // Worktree's own git dir lives under the primary repo's .git/worktrees.
-    execImpl = () => revParse("/repo/.git/worktrees/wt", "/repo/.git")
+    execImpl = () => revParse("/repo/.git/worktrees/wt")
     statusImpl = () => ({ current: "main" })
 
     // knownBranch is the *worktree* branch, which must NOT be returned for the root.
@@ -118,10 +118,10 @@ describe("worktreeStatus.getRootBranch", () => {
     // A worktree topology change invalidates the cache while the resolve runs.
     invalidateResolvedProjectRootCache()
     // Now let the original resolve settle — it must NOT populate the cache.
-    releaseExec(revParse("/repo/.git", ".git"))
+    releaseExec(revParse("/repo/.git"))
     await pending
 
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
     await getRootBranch("/repo")
 
     // Second call recomputes because the stale in-flight result was discarded.
@@ -129,7 +129,7 @@ describe("worktreeStatus.getRootBranch", () => {
   })
 
   test("bounds the root cache by evicting the least-recently-used entry past the count cap", async () => {
-    execImpl = (_command, cwd) => revParse(`${cwd}/.git`, ".git")
+    execImpl = (_command, cwd) => revParse(`${cwd}/.git`)
     statusImpl = () => ({ current: "main" })
 
     for (let i = 0; i < 500; i += 1) {
@@ -146,8 +146,22 @@ describe("worktreeStatus.getRootBranch", () => {
     expect(execCalls.length).toBe(afterFill + 2)
   })
 
+  test.each(["/repo ", "/repo\nline", "/repo\\literal", "/repo\r"])("keeps path output bytes for %j", async (directory) => {
+    execImpl = () => revParse(`${directory}/.git`)
+    await getRootBranch(directory)
+    expect(statusCalls).toEqual([directory])
+    expect(execCalls[0].command).toBe("git rev-parse --absolute-git-dir")
+  })
+
+  test("a nonstandard Windows Git directory falls back to the separate common-dir path", async () => {
+    execImpl = (command) => ({ command, success: true, stdout: command.endsWith("--absolute-git-dir") ? "C:/metadata/custom\r\n" : ".git\r\n" })
+    await getRootBranch("C:/repo")
+    expect(statusCalls).toEqual(["C:/repo"])
+    expect(execCalls.map(({ command }) => command)).toEqual(["git rev-parse --absolute-git-dir", "git rev-parse --git-common-dir"])
+  })
+
   test("uses knownBranch fast-path when the directory is its own root", async () => {
-    execImpl = () => revParse("/repo/.git", ".git")
+    execImpl = () => revParse("/repo/.git")
 
     expect(await getRootBranch("/repo", { knownBranch: "develop" })).toBe("develop")
     // No git status round-trip needed in the fast path.

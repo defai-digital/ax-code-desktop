@@ -15,6 +15,7 @@ import { Icon } from "@/components/icon/Icon"
 import { DirectoryExplorerDialog } from "./DirectoryExplorerDialog"
 import { cn, formatPathForDisplay } from "@/lib/utils"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import type { WorktreeMetadata } from "@/types/worktree"
 import { getWorktreeStatus } from "@/lib/worktrees/worktreeStatus"
 import { removeProjectWorktree, type WorktreeRemovalResult } from "@/lib/worktrees/worktreeManager"
@@ -34,7 +35,7 @@ const normalizeProjectDirectory = (path: string | null | undefined): string => {
   if (!path) {
     return ""
   }
-  const replaced = path.replace(/\\/g, "/")
+  const replaced = normalizePathSeparators(path)
   if (replaced === "/") {
     return "/"
   }

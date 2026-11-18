@@ -1,5 +1,6 @@
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 import { useGlobalSessionsStore, resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -25,7 +26,7 @@ type SwitcherItemsOptions = {
 
 const normalize = (value: string | null | undefined): string | null => {
   if (!value) return null
-  const replaced = value.replace(/\\/g, "/")
+  const replaced = normalizePathSeparators(value)
   if (replaced === "/") return "/"
   return replaced.length > 1 ? replaced.replace(/\/+$/, "") : replaced
 }

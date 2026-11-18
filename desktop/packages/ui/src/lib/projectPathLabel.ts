@@ -1,11 +1,12 @@
+import { normalizePathSeparators } from "@/lib/pathValues"
 /** Compact a display path without making registered sibling directories indistinguishable. */
 export function compactProjectPath(path: string, peers: readonly string[]): string {
-  const segments = path.replace(/\\/g, "/").split("/").filter(Boolean)
+  const segments = normalizePathSeparators(path).split("/").filter(Boolean)
   if (segments.length <= 2) return path
   let count = 2
   while (count < segments.length) {
     const suffix = segments.slice(-count).join("/")
-    const collision = peers.some((peer) => peer !== path && peer.replace(/\\/g, "/").endsWith(`/${suffix}`))
+    const collision = peers.some((peer) => peer !== path && normalizePathSeparators(peer).endsWith(`/${suffix}`))
     if (!collision) return `…/${suffix}`
     count += 1
   }

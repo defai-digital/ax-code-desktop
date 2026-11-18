@@ -120,3 +120,12 @@ Future candidates include chat submission and attachment handling, file-view ope
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or
 runtime ownership follow the repository's product and architecture review process.
+
+
+`desktop/shared/path-values.mjs` owns environment-neutral literal directory values, Windows separator handling,
+project-path canonicalization, home expansion and path-output framing. UI and host project IDs share that canonical
+value. Host settings and Git share the injected `server/lib/directory-path.js` home adapter. Filesystem names from
+pickers, APIs, storage and Git retain whitespace and POSIX backslashes; labels, refs and URI text have separate parsers.
+Directory scopes still reject blanks. Git file lists discard empty names only, and host containment and literal
+pathspec checks continue to authorize the exact target. Path-valued Git output retains all pathname bytes and removes
+only its framing terminator; worktree lists use NUL records.

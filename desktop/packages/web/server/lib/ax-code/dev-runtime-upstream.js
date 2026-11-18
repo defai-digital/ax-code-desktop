@@ -23,7 +23,7 @@ import fs from "node:fs"
 export const DEV_RUNTIME_UPSTREAM_FILE_ENV = "AX_CODE_DESKTOP_DEV_UPSTREAM_FILE"
 
 const normalizeFilePath = (filePath) =>
-  typeof filePath === "string" && filePath.trim().length > 0 ? filePath.trim() : null
+  typeof filePath === "string" && filePath.trim().length > 0 ? filePath : null
 
 const buildUpstreamPayload = (origin, getAxCodeAuthHeaders) => {
   const payload = {

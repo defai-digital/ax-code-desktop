@@ -217,7 +217,7 @@ const readEmbeddedSessionChatConfig = (): EmbeddedSessionChatConfig | null => {
   }
 
   const directoryRaw = params.get("directory")
-  const directory = typeof directoryRaw === "string" && directoryRaw.trim().length > 0 ? directoryRaw.trim() : null
+  const directory = typeof directoryRaw === "string" && directoryRaw.trim().length > 0 ? directoryRaw : null
 
   return {
     sessionId,

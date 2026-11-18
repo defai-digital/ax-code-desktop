@@ -3,6 +3,7 @@
 // keys, and behavior must stay byte-identical.
 
 import type { AttachedFile } from "@/stores/types/sessionTypes"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import type { MentionRange } from "./composerHighlight"
 
 const FILE_MENTION_TOKEN = /^@[^\s]+$/
@@ -169,8 +170,8 @@ export const toProjectRelativeMentionPath = (
   absolutePath: string,
   rootDirectory: string | null | undefined,
 ): string => {
-  const normalizedAbsolutePath = absolutePath.replace(/\\/g, "/").trim()
-  const normalizedRoot = (rootDirectory || "").replace(/\\/g, "/").replace(/\/+$/, "")
+  const normalizedAbsolutePath = normalizePathSeparators(absolutePath)
+  const normalizedRoot = normalizePathSeparators((rootDirectory || "")).replace(/\/+$/, "")
   if (!normalizedRoot) {
     return normalizedAbsolutePath
   }
@@ -237,14 +238,14 @@ export const resolveFileMentionPath = (
   file: { name: string; path: string; relativePath?: string },
   rootDirectory: string | null | undefined,
 ): string =>
-  file.relativePath && file.relativePath.trim().length > 0
-    ? file.relativePath.trim()
+  file.relativePath && file.relativePath.length > 0
+    ? file.relativePath
     : toProjectRelativeMentionPath(file.path, rootDirectory) || file.name
 
 const FILE_URI_PREFIX = "file://"
 
 const encodeFilePath = (filepath: string): string => {
-  let normalized = filepath.replace(/\\/g, "/")
+  let normalized = normalizePathSeparators(filepath)
   if (/^[A-Za-z]:/.test(normalized)) {
     normalized = `/${normalized}`
   }
@@ -258,7 +259,7 @@ const encodeFilePath = (filepath: string): string => {
 }
 
 export const toServerFileUrl = (filepath: string): string => {
-  const normalized = filepath.replace(/\\/g, "/").trim()
+  const normalized = normalizePathSeparators(filepath)
   if (normalized.toLowerCase().startsWith(FILE_URI_PREFIX)) {
     return normalized
   }
@@ -308,13 +309,13 @@ export const extractInlineFileMentions = (
       continue
     }
 
-    const normalizedMentionPath = mentionPath.replace(/\\/g, "/").replace(/^\.\//, "").replace(/^\/+/, "")
+    const normalizedMentionPath = normalizePathSeparators(mentionPath).replace(/^\.\//, "").replace(/^\/+/, "")
     if (!normalizedMentionPath) {
       continue
     }
 
     const serverPath = mentionPath.startsWith("/")
-      ? mentionPath.replace(/\\/g, "/")
+      ? normalizePathSeparators(mentionPath)
       : root
         ? `${root}/${normalizedMentionPath}`
         : null
@@ -406,4 +407,24 @@ export const filterMissingInlineAttachments = async (
     return attachments
   }
   return attachments.filter((attachment) => !missing.has(attachment))
+}
+
+
+export const normalizeDroppedFilePath = (rawPath: string): string => {
+  const input = rawPath.trim()
+  if (!input.toLowerCase().startsWith("file://")) return rawPath
+  let path: string
+  try {
+    const url = new URL(input)
+    const host = url.hostname && url.hostname !== "localhost" ? `//${url.hostname}` : ""
+    path = `${host}${url.pathname}`
+    if (!host && /^\/[A-Za-z]:\//.test(path)) path = path.slice(1)
+  } catch {
+    path = input.replace(/^file:\/\//i, "")
+  }
+  try {
+    return decodeURIComponent(path)
+  } catch {
+    return path
+  }
 }

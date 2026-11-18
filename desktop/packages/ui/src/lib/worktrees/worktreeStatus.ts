@@ -1,4 +1,5 @@
 import { getGitStatus } from "@/lib/gitApi"
+import { readPathOutput } from "@/lib/pathValues"
 import { execCommand } from "@/lib/execCommands"
 import { normalizeWorktreePath } from "@/lib/worktrees/path"
 import type { WorktreeMetadata } from "@/types/worktree"
@@ -7,7 +8,7 @@ const toAbsolutePath = (baseDir: string, maybeRelativePath: string): string => {
   const normalizedBase = normalizeWorktreePath(baseDir)
   const normalizedInput = normalizeWorktreePath(maybeRelativePath)
   if (!normalizedInput) return normalizedBase
-  if (normalizedInput.startsWith("/")) return normalizedInput
+  if (normalizedInput.startsWith("/") || /^[A-Za-z]:\//.test(normalizedInput)) return normalizedInput
 
   const stack = normalizedBase.split("/").filter(Boolean)
   const parts = normalizedInput.split("/").filter(Boolean)
@@ -19,7 +20,10 @@ const toAbsolutePath = (baseDir: string, maybeRelativePath: string): string => {
     }
     stack.push(part)
   }
-  return `/${stack.join("/")}`
+  let prefix = "/"
+  if (normalizedBase.startsWith("//")) prefix = "//"
+  else if (/^[A-Za-z]:\//.test(normalizedBase)) prefix = ""
+  return `${prefix}${stack.join("/")}`
 }
 
 const derivePrimaryWorktreeRootFromGitDir = (gitDir: string): string | null => {
@@ -108,35 +112,23 @@ export function invalidateResolvedProjectRootCache(directory?: string): void {
 }
 
 const computeProjectRoot = async (directory: string): Promise<string> => {
-  // A single `git rev-parse` invocation returns both paths (absolute-git-dir on
-  // the first line, git-common-dir on the second), halving subprocess spawns
-  // versus issuing the two queries separately. In a non-git directory the whole
-  // command fails, mirroring the previous fall-through to `directory`.
-  const result = await execCommand("git rev-parse --absolute-git-dir --git-common-dir", directory)
-  if (!result.success) {
-    return directory
-  }
-
-  const lines = (result.stdout || "")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-
-  const absoluteGitDir = normalizeWorktreePath(lines[0] || "")
+  // Query one path at a time: line-splitting a combined response is ambiguous
+  // when a real directory name contains a newline. Most roots need only the first query.
+  const result = await execCommand("git rev-parse --absolute-git-dir", directory)
+  if (!result.success) return directory
+  const platform = /^(?:[A-Za-z]:|\\\\|\/\/)/.test(directory) ? "win32" : undefined
+  const absoluteGitDir = normalizeWorktreePath(readPathOutput(result.stdout, platform))
   if (absoluteGitDir) {
-    const rootFromAbsoluteGitDir = derivePrimaryWorktreeRootFromGitDir(absoluteGitDir)
-    if (rootFromAbsoluteGitDir) {
-      return rootFromAbsoluteGitDir
-    }
+    const root = derivePrimaryWorktreeRootFromGitDir(absoluteGitDir)
+    if (root) return root
   }
 
-  const rawCommonDir = normalizeWorktreePath(lines[1] || "")
+  const common = await execCommand("git rev-parse --git-common-dir", directory)
+  if (!common.success) return directory
+  const rawCommonDir = normalizeWorktreePath(readPathOutput(common.stdout, platform))
   if (rawCommonDir) {
-    const commonDir = toAbsolutePath(directory, rawCommonDir)
-    const rootFromCommonDir = derivePrimaryWorktreeRootFromGitDir(commonDir)
-    if (rootFromCommonDir) {
-      return rootFromCommonDir
-    }
+    const root = derivePrimaryWorktreeRootFromGitDir(toAbsolutePath(directory, rawCommonDir))
+    if (root) return root
   }
 
   return directory

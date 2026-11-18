@@ -1,3 +1,4 @@
+import { normalizePathSeparators } from "@/lib/pathValues"
 interface ConfigPathGroupOptions {
   segment: string
   minimumPartsForGroup: number
@@ -8,7 +9,7 @@ export const parseConfigPathGroup = (
   options: ConfigPathGroupOptions,
 ): string | undefined => {
   if (!path) return undefined
-  const normalizedPath = path.replace(/\\/g, "/")
+  const normalizedPath = normalizePathSeparators(path)
   const marker = `/${options.segment}/`
   const idx = normalizedPath.lastIndexOf(marker)
   if (idx === -1) return undefined

@@ -1,4 +1,5 @@
 import React from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { isIMECompositionEvent } from "@/lib/ime"
 import { DIRECTORY_SELECTION_CANCELLED } from "@/lib/desktop"
 import {
@@ -25,7 +26,11 @@ import { axCodeClient } from "@/lib/ax-code/client"
 import { API_ENDPOINTS } from "@/lib/http"
 import { setDirectoryShowHidden, useDirectoryShowHidden } from "@/lib/directoryShowHidden"
 import { useI18n } from "@/lib/i18n"
-import { normalizeDirectoryExplorerProjectPathKey as normalizeDirectoryPath } from "./DirectoryExplorerDialog-paths"
+import {
+  ensureBrowseDirectoryPath,
+  normalizeDirectoryExplorerHome,
+  normalizeDirectoryExplorerProjectPathKey as normalizeDirectoryPath,
+} from "./DirectoryExplorerDialog-paths"
 import { inspectGitRepositories, type GitRepositoryHints } from "@/lib/gitApi"
 import { isChildHintDismissed, useRepositoryHintStore } from "@/stores/useRepositoryHintStore"
 
@@ -49,7 +54,7 @@ type BrowseRow =
 
 const isRootPath = (value: string): boolean => value === "/"
 
-const normalizeSeparators = (value: string): string => value.replace(/\\/g, "/")
+const normalizeSeparators = (value: string): string => normalizePathSeparators(value)
 
 const trimTrailingSeparators = (value: string): string => {
   if (!value || isRootPath(value)) return value
@@ -62,11 +67,6 @@ const trimTrailingSeparators = (value: string): string => {
 
 const hasTrailingPathSeparator = (value: string): boolean => value.endsWith("/")
 
-const ensureBrowseDirectoryPath = (value: string): string => {
-  const trimmed = value.trim()
-  if (!trimmed || hasTrailingPathSeparator(trimmed)) return trimmed
-  return `${trimmed}/`
-}
 
 const getLastPathSeparatorIndex = (value: string): number => value.lastIndexOf("/")
 
@@ -83,7 +83,7 @@ const getBrowseLeafPathSegment = (value: string): string => {
 }
 
 const getBrowseParentPath = (value: string): string | null => {
-  const trimmed = trimTrailingSeparators(value.trim())
+  const trimmed = trimTrailingSeparators(value)
   if (!trimmed || trimmed === "~" || trimmed === "~/" || trimmed === "/") return null
   const lastSeparator = getLastPathSeparatorIndex(trimmed)
   if (lastSeparator < 0) return null
@@ -98,7 +98,7 @@ const appendBrowsePathSegment = (currentPath: string, segment: string): string =
   `${getBrowseDirectoryPath(currentPath)}${segment}/`
 
 const displayPathToAbsolutePath = (value: string, homeDirectory: string): string => {
-  const trimmed = value.trim()
+  const trimmed = value
   if (trimmed === "~") return homeDirectory
   if (trimmed.startsWith("~/")) return `${homeDirectory}${trimmed.slice(1)}`
   return trimmed
@@ -125,9 +125,8 @@ const resolveFreshFilesystemHome = async (): Promise<string | null> => {
     })
     if (response.ok) {
       const data = (await response.json()) as { home?: unknown }
-      if (typeof data.home === "string" && data.home.trim().length > 0) {
-        return normalizeSeparators(data.home.trim())
-      }
+      const home = normalizeDirectoryExplorerHome(data.home)
+      if (home) return home
     }
   } catch {
     // Fall back to the client helper below.

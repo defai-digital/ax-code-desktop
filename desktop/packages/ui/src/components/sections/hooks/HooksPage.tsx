@@ -93,7 +93,7 @@ const HooksWorkspaceView: React.FC<{
   const { t } = useI18n()
   const notice = deriveHooksTrustNotice(workspace)
   const status = deriveHooksFileStatus(workspace.file)
-  const path = workspace.file.path.trim()
+  const path = workspace.file.path
 
   return (
     <div className="space-y-6">
@@ -219,7 +219,7 @@ export const HooksPage: React.FC = () => {
   const runtime = React.useContext(RuntimeAPIContext)
   // SettingsProjectSelector writes the active project here, the same directory MCP reads.
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
-  const directory = currentDirectory.trim()
+  const directory = currentDirectory
   const [workspace, setWorkspace] = React.useState<HookWorkspace | null>(null)
   const [loading, setLoading] = React.useState(directory.length > 0)
   const [error, setError] = React.useState<string | null>(null)

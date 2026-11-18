@@ -620,7 +620,7 @@ export const registerAxCodeProxy = (app, deps) => {
           const settingsRaw = await fs.promises.readFile(settingsPath, "utf8")
           const settings = JSON.parse(settingsRaw)
           projectDirs = (settings.projects || [])
-            .map((project) => (typeof project?.path === "string" ? project.path.trim() : ""))
+            .map((project) => (typeof project?.path === "string" ? project.path : ""))
             .filter(Boolean)
         } catch {}
 

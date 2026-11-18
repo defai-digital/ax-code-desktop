@@ -1,4 +1,5 @@
 import React, { useRef, memo } from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { useInputStore } from "@/sync/input-store"
 import type { AttachedFile } from "@/sync/session-ui-store"
 import { useUIStore } from "@/stores/useUIStore"
@@ -93,7 +94,7 @@ const ImagePreview = memo(({ file, onRemove, onShowPopup, gallery, index = 0 }: 
   const imageUrl = isLocalImagePreview ? file.dataUrl : file.serverPath || ""
 
   const extractFilename = (path: string): string => {
-    const normalized = path.replace(/\\/g, "/")
+    const normalized = normalizePathSeparators(path)
     const parts = normalized.split("/")
     return parts[parts.length - 1] || path
   }
@@ -195,7 +196,7 @@ const useFileDetails = (file: AttachedFile) => {
   }
 
   const extractFilename = (path: string): string => {
-    const normalized = path.replace(/\\/g, "/")
+    const normalized = normalizePathSeparators(path)
     const parts = normalized.split("/")
     const filename = parts[parts.length - 1]
     return filename || path
@@ -338,7 +339,7 @@ export const MessageFilesDisplay = memo(({ files, onShowPopup, compact = false }
   const extractFilename = (path?: string): string => {
     if (!path) return "Unnamed file"
 
-    const normalized = path.replace(/\\/g, "/")
+    const normalized = normalizePathSeparators(path)
     const parts = normalized.split("/")
     const filename = parts[parts.length - 1]
 

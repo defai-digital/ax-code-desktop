@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { hasPersistedFields } from "@/lib/persistedFields"
 import { isPlainRecord } from "@/lib/record"
 import type { GitHubPullRequestStatus, RuntimeAPIs } from "@/lib/api/types"
@@ -659,7 +660,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           new Set(
             targets
               .map((target) => {
-                const directory = target.directory.trim()
+                const directory = readDirectoryPath(target.directory) ?? ""
                 const branch = target.branch.trim()
                 if (!directory || !branch) {
                   return null

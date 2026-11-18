@@ -65,7 +65,7 @@ export const pruneExpiredCacheEntries = <T>(cache: Map<string, { value: T; expir
 }
 
 const normalizeDirectoryKey = (directory: string): string => normalizeProjectPath(directory) ?? ""
-const normalizeGitFilePaths = (filePaths: string[]): string[] => filePaths.map((path) => path.trim()).filter(Boolean)
+const normalizeGitFilePaths = (filePaths: string[]): string[] => filePaths.filter((path) => path.length > 0)
 
 function buildUrl(
   path: string,

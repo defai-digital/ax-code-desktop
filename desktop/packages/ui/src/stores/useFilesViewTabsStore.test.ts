@@ -10,6 +10,20 @@ describe("useFilesViewTabsStore", () => {
     vi.restoreAllMocks()
   })
 
+  test("actions keep spaced roots separate and reject a sibling file outside its root", () => {
+    const plain = "/literal-root/repo"
+    const spaced = `${plain} `
+    const store = useFilesViewTabsStore.getState()
+    store.setSelectedPath(plain, `${plain}/plain.txt`)
+    store.setSelectedPath(spaced, `${spaced}/spaced.txt `)
+    store.setSelectedPath(spaced, `${plain}/plain.txt`)
+    store.removeOpenPath(spaced, `${spaced}/spaced.txt `)
+    const roots = useFilesViewTabsStore.getState().byRoot
+    expect(roots[plain].selectedPath).toBe(`${plain}/plain.txt`)
+    expect(roots[spaced].selectedPath).toBeNull()
+    expect(roots[spaced].openPaths).toEqual([])
+  })
+
   test("keeps the root being opened when root timestamps tie", () => {
     vi.spyOn(Date, "now").mockReturnValue(123)
     for (let index = 0; index < 21; index++) {

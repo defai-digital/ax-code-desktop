@@ -491,3 +491,19 @@ describe("explicit isolation scope and write ordering", () => {
     expect(calls.at(-1)).toBe("/a:read-only")
   })
 })
+
+
+test("directory listing cache keeps literal roots and returned POSIX backslashes distinct", async () => {
+  const listDirectory = vi.fn(async (directory: string) => ({
+    entries: [{ name: "back\\slash.txt", path: `${directory}/back\\slash.txt`, isDirectory: false }],
+  }))
+  window.__AX_CODE_DESKTOP_RUNTIME_APIS__ = {
+    runtime: { platform: "desktop", isDesktop: true }, files: { listDirectory },
+  } as unknown as RuntimeAPIs
+  const plain = "/literal-cache/repo"
+  const spaced = `${plain} `
+  expect((await axCodeClient.listLocalDirectory(plain))[0].path).toBe(`${plain}/back\\slash.txt`)
+  expect((await axCodeClient.listLocalDirectory(spaced))[0].path).toBe(`${spaced}/back\\slash.txt`)
+  await axCodeClient.listLocalDirectory(plain)
+  expect(listDirectory.mock.calls.map(([directory]) => directory)).toEqual([plain, spaced])
+})

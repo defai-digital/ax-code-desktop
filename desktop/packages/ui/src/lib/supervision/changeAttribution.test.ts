@@ -21,7 +21,8 @@ describe("sessionChangesStillUncommitted", () => {
 
   test("path spelling differences do not hide a match", () => {
     expect(sessionChangesStillUncommitted(named("./src/a.ts"), tree("src/a.ts"))).toBe(true)
-    expect(sessionChangesStillUncommitted(named("src\\a.ts"), tree("src/a.ts"))).toBe(true)
+    expect(sessionChangesStillUncommitted(named("src\\a.ts"), tree("src/a.ts"))).toBe(false)
+    expect(sessionChangesStillUncommitted(named("src\\a.ts"), { ...tree("src/a.ts"), worktreeRoot: "C:/work" })).toBe(true)
     expect(sessionChangesStillUncommitted(named("/work/app/src/a.ts"), { ...tree("src/a.ts"), worktreeRoot: "/work/app" })).toBe(true)
   })
 

@@ -61,6 +61,9 @@ describe("skills-catalog shared helpers", () => {
     expect(normalizeRepoRelativePath("skills/../review-code")).toBeNull()
     expect(normalizeRepoRelativePath("skills\\review-code")).toBeNull()
     expect(normalizeRepoRelativePath("")).toBeNull()
+    expect(normalizeRepoRelativePath("skills/review-code ")).toBe("skills/review-code ")
+    expect(isRepoPathInside("skills /review-code", "skills")).toBe(false)
+    expect(isRepoPathInside("skills/../outside", "skills")).toBe(false)
   })
 
   it("checks repository path containment without sibling prefix matches", () => {

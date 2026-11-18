@@ -7,12 +7,12 @@ export const getActiveConfigDirectory = (sourceLabel: string): string | null => 
     const activeProject = projectsStore.getActiveProject?.()
 
     if (activeProject?.path?.trim()) {
-      return activeProject.path.trim()
+      return activeProject.path
     }
 
     const clientDirectory = axCodeClient.getDirectory()
     if (clientDirectory?.trim()) {
-      return clientDirectory.trim()
+      return clientDirectory
     }
   } catch (error) {
     console.warn(`[${sourceLabel}] Error resolving config directory:`, error)

@@ -1,3 +1,9 @@
+// Git terminates a path-valued response with one LF. On POSIX, a preceding
+// CR may belong to the directory name itself; only Windows uses CRLF framing.
+import { readPathOutput } from "../../../../../shared/path-values.mjs"
+
+export const parseGitPathOutput = (raw, platform = process.platform) => readPathOutput(raw, platform)
+
 const GIT_BLOB_ID_PATTERN = /^[0-9a-f]{40}(?:[0-9a-f]{24})?$/i
 
 export const normalizeGitBlobId = (value) => {

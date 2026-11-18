@@ -30,7 +30,7 @@ import { fitImageToFrame, naturalSizeForUrl, type ImageNaturalSize } from "./ima
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { API_ENDPOINTS } from "@/lib/http"
-import { loadMermaidDataUrlSource } from "./toolOutputDialogMermaidSource"
+import { isSafeMermaidLocalPath, loadMermaidDataUrlSource } from "./toolOutputDialogMermaidSource"
 import { usePierreThemeConfig, type PierreThemeConfig } from "./usePierreThemeConfig"
 
 export interface ToolOutputDialogProps {
@@ -627,23 +627,6 @@ const MermaidPreviewDialog: React.FC<{
       return null
     }
 
-    const isSafeLocalPath = (path: string): boolean => {
-      if (!path || /[\0\r\n]/.test(path)) {
-        return false
-      }
-
-      const normalized = path.replace(/\\/g, "/")
-      const segments = normalized.split("/").filter(Boolean)
-      if (segments.includes("..")) {
-        return false
-      }
-
-      if (normalized.startsWith("/")) {
-        return true
-      }
-
-      return /^[A-Za-z]:\//.test(normalized)
-    }
 
     const decodeLoose = (value: string): string => {
       // Percent-encoded URL paths are UTF-8 sequences: decoding each %XX as a
@@ -666,12 +649,12 @@ const MermaidPreviewDialog: React.FC<{
       if (/^\/[A-Za-z]:\//.test(pathname)) {
         pathname = pathname.slice(1)
       }
-      return isSafeLocalPath(pathname) ? pathname : null
+      return isSafeMermaidLocalPath(pathname) ? pathname : null
     }
 
     const stripped = input.replace(/^file:\/\//i, "")
     const decoded = decodeLoose(stripped)
-    return isSafeLocalPath(decoded) ? decoded : isSafeLocalPath(stripped) ? stripped : null
+    return isSafeMermaidLocalPath(decoded) ? decoded : isSafeMermaidLocalPath(stripped) ? stripped : null
   }, [])
 
   const loadMermaidSource = React.useCallback(async () => {

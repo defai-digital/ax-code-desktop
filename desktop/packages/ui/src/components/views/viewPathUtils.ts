@@ -1,4 +1,5 @@
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 export const normalizeViewPath = (value?: string | null): string => normalizeProjectPath(value) ?? ""
 
@@ -17,7 +18,7 @@ const isAbsolutePath = (value: string): boolean => {
 
 export const toViewAbsolutePath = (directory: string, filePath: string): string => {
   const normalizedDirectory = normalizeViewPath(directory)
-  const normalizedFilePath = filePath.replace(/\\/g, "/")
+  const normalizedFilePath = normalizePathSeparators(filePath, normalizedDirectory)
   if (isAbsolutePath(normalizedFilePath)) {
     return normalizeViewPath(normalizedFilePath)
   }

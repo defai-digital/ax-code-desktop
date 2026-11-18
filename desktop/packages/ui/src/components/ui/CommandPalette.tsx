@@ -28,6 +28,7 @@ import { getContextFileOpenFailureMessage, validateContextFileOpen } from "@/lib
 import { toast } from "@/components/ui"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { canUseLocalElectronDesktopIPC, invokeDesktop, isDesktopShell, isWebRuntime } from "@/lib/desktop"
@@ -66,7 +67,7 @@ type FileHit = { path: string; name: string; relativePath: string }
 
 const normalizePath = (value: string): string => {
   if (!value) return ""
-  const raw = value.replace(/\\/g, "/")
+  const raw = normalizePathSeparators(value)
   const hadUncPrefix = raw.startsWith("//")
   let normalized = raw.replace(/\/+/g, "/")
   if (hadUncPrefix && !normalized.startsWith("//")) normalized = `/${normalized}`

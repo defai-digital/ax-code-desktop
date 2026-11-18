@@ -767,7 +767,7 @@ export const composerOwnsActivatedDirectory = (
   activatedDirectory: string | null,
 ): boolean => {
   const activatedKey =
-    activatedDirectory && activatedDirectory.trim().length > 0 ? activatedDirectory.trim() : "__global__"
+    activatedDirectory && activatedDirectory.trim().length > 0 ? activatedDirectory : "__global__"
   return activeDirectoryKey === activatedKey
 }
 

@@ -26,6 +26,7 @@ import {
   shouldRetry,
   getRetryDelayMs,
 } from "./provider-tracker"
+import { normalizePathSeparators, normalizeProjectPath, readDirectoryPath } from "../../../../../shared/path-values.mjs"
 
 // Use relative path by default (works with both dev and nginx proxy server)
 // Can be overridden with VITE_AX_CODE_URL for absolute URLs in special deployments
@@ -277,7 +278,7 @@ type DirectorySwitchResult = {
   models?: unknown[]
 }
 
-const normalizeFsPath = (path: string): string => path.replace(/\\/g, "/")
+const normalizeFsPath = normalizePathSeparators
 const FS_LIST_CACHE_TTL_MS = 400
 
 // Directory listings are cached for 400ms and the map is only ever *read* for freshness, so every
@@ -390,30 +391,7 @@ class AxCodeService {
   }
 
   private normalizeCandidatePath(path?: string | null): string | null {
-    if (typeof path !== "string") {
-      return null
-    }
-
-    const trimmed = path.trim()
-    if (!trimmed) {
-      return null
-    }
-
-    // Normalize backslashes and uppercase the Windows drive letter so that
-    // d:\MyProject and D:\MyProject resolve to the same canonical form.
-    const normalized = trimmed
-      .replace(/\\/g, "/")
-      .replace(/^([a-z]):/, (_, letter: string) => letter.toUpperCase() + ":")
-    const driveRoot = normalized.match(/^([A-Z]:)\/+$/)
-    if (driveRoot) {
-      return `${driveRoot[1]}/`
-    }
-    if (/^[A-Z]:$/.test(normalized)) {
-      return `${normalized}/`
-    }
-    const withoutTrailingSlash = normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
-
-    return withoutTrailingSlash || null
+    return normalizeProjectPath(path)
   }
 
   private invalidateListDirectoryCacheForPath(path?: string | null): void {
@@ -1343,7 +1321,7 @@ class AxCodeService {
       const base = this.baseUrl.replace(/\/+$/, "")
       const url = new URL(API_ENDPOINTS.session.status, `${base}/`)
 
-      const trimmedDirectory = typeof directory === "string" ? directory.trim() : ""
+      const trimmedDirectory = readDirectoryPath(directory) ?? ""
       if (trimmedDirectory.length > 0) {
         url.searchParams.set("directory", trimmedDirectory)
       }
@@ -1409,12 +1387,7 @@ class AxCodeService {
 
   // Tools
   async listToolIds(options?: { directory?: string | null }): Promise<string[]> {
-    const directory =
-      typeof options?.directory === "string"
-        ? options.directory.trim()
-        : this.currentDirectory
-          ? this.currentDirectory.trim()
-          : ""
+    const directory = readDirectoryPath(options?.directory ?? this.currentDirectory) ?? ""
 
     const result = await this.client.tool.ids(directory ? { directory } : undefined)
     if (result.error) {
@@ -1567,7 +1540,7 @@ class AxCodeService {
     const fetches: Array<Promise<PermissionRequest[]>> = []
 
     const fetchForDirectory = async (directory?: string | null): Promise<PermissionRequest[]> => {
-      const trimmed = typeof directory === "string" ? directory.trim() : ""
+      const trimmed = readDirectoryPath(directory) ?? ""
       const result = await this.client.permission.list(trimmed ? { directory: trimmed } : undefined)
       if (result.error) {
         throw new Error(`permission.list failed: ${formatSdkError(result.error)}`)
@@ -1645,7 +1618,7 @@ class AxCodeService {
     const fetches: Array<Promise<QuestionRequest[]>> = []
 
     const fetchForDirectory = async (directory?: string | null): Promise<QuestionRequest[]> => {
-      const trimmed = typeof directory === "string" ? directory.trim() : ""
+      const trimmed = readDirectoryPath(directory) ?? ""
       const result = await this.client.question.list(trimmed ? { directory: trimmed } : undefined)
       if (result.error) {
         throw new Error(`question.list failed: ${formatSdkError(result.error)}`)
@@ -1985,7 +1958,7 @@ class AxCodeService {
     directoryPath: string | null | undefined,
     options?: { respectGitignore?: boolean },
   ): Promise<FilesystemEntry[]> {
-    const normalizedDirectoryPath = typeof directoryPath === "string" ? normalizeFsPath(directoryPath.trim()) : ""
+    const normalizedDirectoryPath = typeof directoryPath === "string" ? normalizeFsPath(directoryPath) : ""
     const cacheKey = `${normalizedDirectoryPath}|${options?.respectGitignore ? "1" : "0"}`
     const now = Date.now()
     const cached = this.listDirectoryCache.get(cacheKey)
@@ -2090,7 +2063,7 @@ class AxCodeService {
   ): Promise<ProjectFileSearchHit[]> {
     const directory =
       typeof options?.directory === "string" && options.directory.trim().length > 0
-        ? options.directory.trim()
+        ? options.directory
         : this.currentDirectory
     const normalizedDirectory = directory ? normalizeFsPath(directory) : null
     const scopedClient = directory ? this.getScopedApiClient(directory) : this.client

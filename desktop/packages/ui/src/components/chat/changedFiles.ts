@@ -1,4 +1,5 @@
 import type { ToolPart } from "@defai-digital/ax-code-sdk/v2"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 import type { GitStatus } from "@/lib/api/types"
 import { combinedDiffStatsForPath } from "@/lib/git/diffStats"
@@ -34,7 +35,7 @@ export const isSyntheticDiffFile = (file: ChangedFileEntry): boolean => !isGitFi
 
 const normalizeChangedFilePath = (value: string): string => {
   if (!value) return ""
-  const raw = value.replace(/\\/g, "/")
+  const raw = normalizePathSeparators(value)
   const hadUncPrefix = raw.startsWith("//")
   let normalized = raw.replace(/\/+/g, "/").replace(/^([a-z]):/, (_, letter: string) => letter.toUpperCase() + ":")
   if (hadUncPrefix && !normalized.startsWith("//")) {

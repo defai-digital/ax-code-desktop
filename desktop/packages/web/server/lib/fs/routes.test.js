@@ -976,8 +976,8 @@ describe("fs exec git-read cache", () => {
     const first = await callExec(handler, { commands: [command], cwd: "/repo" })
     const second = await callExec(handler, { commands: [command], cwd: "/repo" })
 
-    expect(first.body.results[0].stdout).toBe("/repo/.git\n.git")
-    expect(second.body.results[0].stdout).toBe("/repo/.git\n.git")
+    expect(first.body.results[0].stdout).toBe("/repo/.git\n.git\n")
+    expect(second.body.results[0].stdout).toBe("/repo/.git\n.git\n")
     expect(second.body.success).toBe(true)
     // Spawned once; the second request is served from cache.
     expect(calls.length).toBe(1)
@@ -997,8 +997,8 @@ describe("fs exec git-read cache", () => {
     closeNext()
     const [firstRes, secondRes] = await Promise.all([first, second])
 
-    expect(firstRes.body.results[0].stdout).toBe("/repo/.git\n.git")
-    expect(secondRes.body.results[0].stdout).toBe("/repo/.git\n.git")
+    expect(firstRes.body.results[0].stdout).toBe("/repo/.git\n.git\n")
+    expect(secondRes.body.results[0].stdout).toBe("/repo/.git\n.git\n")
     expect(calls.length).toBe(1)
   })
 

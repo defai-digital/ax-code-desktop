@@ -14,6 +14,7 @@
 
 import { create } from "zustand"
 import type { HookCompleted } from "@defai-digital/ax-code-sdk/v2/client"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { defineStore } from "@/lib/store-registry"
 
 export const HOOK_RUN_LIMIT = 50
@@ -54,8 +55,7 @@ const HOOK_OUTCOMES = new Set(["ok", "failed", "blocked", "ask", "rewritten"])
  */
 const normalizeHookDirectory = (rawDirectory: string): string => {
   if (!rawDirectory || rawDirectory === "global") return rawDirectory
-  const normalized = rawDirectory.replace(/\\/g, "/").replace(/^([a-z]):/, (_, l: string) => l.toUpperCase() + ":")
-  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
+  return normalizeProjectPath(rawDirectory) ?? ""
 }
 
 /** Append a run, dropping the oldest entries past the ring-buffer bound. */

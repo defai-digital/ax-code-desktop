@@ -5,6 +5,7 @@
  */
 
 import { getRuntimeFilesAPI } from "./runtimeFilesApi"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { getDesktopHomeDirectory } from "./desktop"
 import { createProjectIdFromPath } from "./projectId"
@@ -92,13 +93,13 @@ const AX_CODE_DESKTOP_ACTION_PLATFORM_SET = new Set<OpenChamberProjectActionPlat
 
 const normalize = (value: string): string => {
   if (!value) return ""
-  const replaced = value.replace(/\\/g, "/")
+  const replaced = normalizePathSeparators(value)
   return replaced === "/" ? "/" : replaced.replace(/\/+$/, "")
 }
 
 const joinPath = (base: string, segment: string): string => {
   const normalizedBase = normalize(base)
-  const cleanSegment = segment.replace(/\\/g, "/").replace(/^\/+/, "").replace(/\/+$/, "")
+  const cleanSegment = normalizePathSeparators(segment).replace(/^\/+/, "").replace(/\/+$/, "")
   if (!normalizedBase || normalizedBase === "/") {
     return `/${cleanSegment}`
   }
@@ -240,7 +241,7 @@ const getUserProjectsDirectory = async (): Promise<string | null> => {
 }
 
 const resolveConfigProjectId = (project: ProjectRef): string | null => {
-  const projectDirectory = typeof project?.path === "string" ? project.path.trim() : ""
+  const projectDirectory = typeof project?.path === "string" ? project.path : ""
   const normalizedProject = projectDirectory ? normalize(projectDirectory) : ""
   if (!normalizedProject) return null
   return createProjectIdFromPath(normalizedProject) || null
@@ -334,7 +335,7 @@ const sanitizeProjectPlanFileLinks = (value: unknown): OpenChamberProjectPlanFil
     }
 
     const id = typeof record.id === "string" ? record.id.trim() : ""
-    const path = typeof record.path === "string" ? record.path.trim() : ""
+    const path = typeof record.path === "string" ? record.path : ""
     const createdAt =
       typeof record.createdAt === "number" && Number.isFinite(record.createdAt) && record.createdAt >= 0
         ? record.createdAt
@@ -567,7 +568,7 @@ export const parseProjectPlanMarkdown = (raw: string): { title: string; body: st
  * Returns null if file doesn't exist or is invalid.
  */
 async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberConfig | null> {
-  const projectDirectory = typeof project?.path === "string" ? project.path.trim() : ""
+  const projectDirectory = typeof project?.path === "string" ? project.path : ""
   if (!projectDirectory) {
     return null
   }
@@ -639,7 +640,7 @@ async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberCo
  * avoid a read-then-write race clobbering a concurrent server update.
  */
 async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberConfig): Promise<boolean> {
-  const projectDirectory = typeof project?.path === "string" ? project.path.trim() : ""
+  const projectDirectory = typeof project?.path === "string" ? project.path : ""
   if (!projectDirectory) {
     return false
   }
@@ -700,7 +701,7 @@ async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberCo
 const configWriteQueues = new Map<string, Promise<unknown>>()
 
 const runConfigWrite = <T>(project: ProjectRef, task: () => Promise<T>): Promise<T> => {
-  const key = typeof project?.path === "string" ? project.path.trim() : ""
+  const key = typeof project?.path === "string" ? project.path : ""
   const previous = key ? (configWriteQueues.get(key) ?? Promise.resolve()) : Promise.resolve()
   const run = previous.then(task, task)
   if (key) {
@@ -805,7 +806,7 @@ async function getProjectPlanFiles(project: ProjectRef): Promise<OpenChamberProj
  * touched when it really sits inside that directory.
  */
 const resolveStoredPlanPath = async (project: ProjectRef, path: string): Promise<string | null> => {
-  const trimmedPath = typeof path === "string" ? path.trim() : ""
+  const trimmedPath = typeof path === "string" ? path : ""
   if (!trimmedPath) {
     return null
   }

@@ -1,9 +1,11 @@
 import { projectPathMatchesRoot } from "@/lib/projectResolution"
+import { normalizePathSeparators } from "../../../../shared/path-values.mjs"
 
 export const normalizeFilesViewPath = (value: string): string => {
   if (!value) return ""
 
-  const raw = value.replace(/\\/g, "/")
+  const raw = normalizePathSeparators(value)
+  if (/^\/+$/.test(raw)) return "/"
   const hadUncPrefix = raw.startsWith("//")
 
   let normalized = raw.replace(/\/+/g, "/")

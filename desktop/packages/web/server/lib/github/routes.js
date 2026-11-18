@@ -13,6 +13,7 @@ import {
   sanitizeGitHubSearchText,
 } from "./board-query.js"
 import { advanceGitHubAccountCacheEpoch, getGitHubAccountCacheEpoch } from "./account-cache-epoch.js"
+import { readDirectoryPath } from "../../../../../shared/path-values.mjs"
 
 const PR_STATUS_CACHE_TTL_MS = 90_000
 const GITHUB_LIST_PAGE_SIZE = 50
@@ -481,7 +482,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/pr/status", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const branch = typeof req.query?.branch === "string" ? req.query.branch.trim() : ""
       const remote = typeof req.query?.remote === "string" ? req.query.remote.trim() : "origin"
       const force = req.query?.force === "true" || req.query?.force === "1"
@@ -700,7 +701,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/pr/create", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const title = typeof req.body?.title === "string" ? req.body.title.trim() : ""
       const head = typeof req.body?.head === "string" ? req.body.head.trim() : ""
       const requestedBase = typeof req.body?.base === "string" ? req.body.base.trim() : ""
@@ -910,7 +911,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/pr/update", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const number = readPositiveInteger(req.body?.number)
       const title = typeof req.body?.title === "string" ? req.body.title.trim() : ""
       const body = typeof req.body?.body === "string" ? req.body.body : undefined
@@ -989,7 +990,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/pr/merge", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const number = readPositiveInteger(req.body?.number)
       const method = req.body?.method === undefined ? "merge" : req.body.method
       if (!directory || !number) {
@@ -1041,7 +1042,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/pr/ready", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const number = readPositiveInteger(req.body?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
@@ -1097,7 +1098,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/repo/upstream", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       if (!directory) {
         return res.status(400).json({ error: "directory is required" })
       }
@@ -1212,7 +1213,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/issues/list", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const page = typeof req.query?.page === "string" ? Number(req.query.page) : 1
       if (!directory) {
         return res.status(400).json({ error: "directory is required" })
@@ -1323,7 +1324,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/issues/get", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const number = readPositiveInteger(req.query?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
@@ -1393,7 +1394,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/issues/comments", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const number = readPositiveInteger(req.query?.number)
       if (!directory || !number) {
         return res.status(400).json({ error: "directory and number are required" })
@@ -1448,7 +1449,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/issues/comments", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const number = readPositiveInteger(req.body?.number)
       const body = typeof req.body?.body === "string" ? req.body.body.trim() : ""
       if (!directory || !number) {
@@ -1496,7 +1497,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/issues/state", async (req, res) => {
     try {
-      const directory = typeof req.body?.directory === "string" ? req.body.directory.trim() : ""
+      const directory = readDirectoryPath(req.body?.directory) ?? ""
       const number = readPositiveInteger(req.body?.number)
       const state = req.body?.state === "open" || req.body?.state === "closed" ? req.body.state : ""
       if (!directory || !number) {
@@ -1543,7 +1544,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/pulls/list", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const page = typeof req.query?.page === "string" ? Number(req.query.page) : 1
       if (!directory) {
         return res.status(400).json({ error: "directory is required" })
@@ -1656,7 +1657,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/pulls/context", async (req, res) => {
     try {
-      const directory = typeof req.query?.directory === "string" ? req.query.directory.trim() : ""
+      const directory = readDirectoryPath(req.query?.directory) ?? ""
       const number = readPositiveInteger(req.query?.number)
       const includeDiff = req.query?.diff === "1" || req.query?.diff === "true"
       const includeCheckDetails = req.query?.checkDetails === "1" || req.query?.checkDetails === "true"

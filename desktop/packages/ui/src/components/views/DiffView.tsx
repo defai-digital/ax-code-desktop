@@ -1325,7 +1325,7 @@ export const DiffView: React.FC<DiffViewProps> = ({
       return
     }
 
-    const normalizedTarget = targetFilePath?.trim()
+    const normalizedTarget = targetFilePath
     if (!normalizedTarget) {
       return
     }

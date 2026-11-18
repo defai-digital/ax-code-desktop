@@ -3,8 +3,8 @@ import { describe, expect, test } from "vitest"
 import { DEFAULT_DIRECTORY_CACHE_KEY, getDirectoryCacheKey } from "./cacheKey"
 
 describe("getDirectoryCacheKey", () => {
-  test("uses trimmed directory values", () => {
-    expect(getDirectoryCacheKey(" /repo ")).toBe("/repo")
+  test("preserves literal directory values", () => {
+    expect(getDirectoryCacheKey(" /repo ")).toBe(" /repo ")
   })
 
   test("falls back for missing or blank directories", () => {

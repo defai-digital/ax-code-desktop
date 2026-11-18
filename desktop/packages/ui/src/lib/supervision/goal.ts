@@ -52,7 +52,7 @@ export function normalizeSessionGoal(value: unknown): SessionGoalSnapshot | null
   const timeBudgetSeconds = nonNegativeNumber(value.timeBudgetSeconds)
   const remainingTokens = nonNegativeNumber(value.remainingTokens)
   const remainingTimeSeconds = nonNegativeNumber(value.remainingTimeSeconds)
-  const planPath = typeof value.planPath === "string" && value.planPath.trim() ? value.planPath.trim() : undefined
+  const planPath = typeof value.planPath === "string" && value.planPath.trim() ? value.planPath : undefined
   return {
     sessionId,
     objective: objective.length > SESSION_GOAL_OBJECTIVE_LIMIT ? objective.slice(0, SESSION_GOAL_OBJECTIVE_LIMIT) : objective,

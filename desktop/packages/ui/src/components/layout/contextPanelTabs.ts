@@ -1,4 +1,5 @@
 import type { useI18n } from "@/lib/i18n"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 import type { ContextPanelMode } from "@/lib/contextPanelState"
 
@@ -44,7 +45,7 @@ export const getContextPanelFileNameFromPath = (path: string | null): string | n
     return null
   }
 
-  const normalized = path.replace(/\\/g, "/")
+  const normalized = normalizePathSeparators(path)
   if (!normalized) {
     return null
   }

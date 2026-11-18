@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { normalizeDirectoryExplorerProjectPathKey } from "./DirectoryExplorerDialog-paths"
+import { ensureBrowseDirectoryPath, normalizeDirectoryExplorerHome, normalizeDirectoryExplorerProjectPathKey } from "./DirectoryExplorerDialog-paths"
 
 describe("DirectoryExplorerDialog path keys", () => {
   test("keeps POSIX project paths case-sensitive", () => {
@@ -17,4 +17,13 @@ describe("DirectoryExplorerDialog path keys", () => {
     expect(normalizeDirectoryExplorerProjectPathKey("//Server/Share/Repo")).toBe("//server/share/repo")
     expect(normalizeDirectoryExplorerProjectPathKey("\\\\server\\share\\repo\\")).toBe("//server/share/repo")
   })
+})
+
+
+test("browse scope and fresh home reject blanks while retaining literal boundary whitespace", () => {
+  expect(ensureBrowseDirectoryPath("  ")).toBe("")
+  expect(ensureBrowseDirectoryPath("/repo ")).toBe("/repo /")
+  expect(normalizeDirectoryExplorerHome("  ")).toBeNull()
+  expect(normalizeDirectoryExplorerHome({ home: "/repo" })).toBeNull()
+  expect(normalizeDirectoryExplorerHome("/home/user ")).toBe("/home/user ")
 })

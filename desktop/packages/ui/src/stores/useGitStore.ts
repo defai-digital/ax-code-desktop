@@ -769,7 +769,7 @@ export const useGitStore = create<GitStore>()(
       },
 
       moveStatusPathsOptimistically: (directory, paths, direction) => {
-        const normalizedPaths = new Set(paths.map((path) => path.trim()).filter(Boolean))
+        const normalizedPaths = new Set(paths.filter((path) => path.length > 0))
         if (normalizedPaths.size === 0) {
           return null
         }

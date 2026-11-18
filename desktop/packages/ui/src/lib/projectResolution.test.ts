@@ -140,3 +140,17 @@ describe("projectPathMatchesRoot", () => {
     expect(projectPathMatchesRoot("d:/Repo/src/a.ts", "C:/Repo")).toBe(false)
   })
 })
+
+
+describe("literal project directory identity", () => {
+  test("distinguishes adjacent real directory names that differ by trailing whitespace", () => {
+    const entries = [project("plain", "/workspace/repo"), project("spaced", "/workspace/repo ")]
+    expect(resolveProjectForDirectory(entries, "/workspace/repo ")?.id).toBe("spaced")
+    expect(resolveProjectForDirectory(entries, "/workspace/repo /src")?.id).toBe("spaced")
+    expect(resolveProjectForDirectory(entries, "/workspace/repo/src")?.id).toBe("plain")
+  })
+  test("does not treat a POSIX backslash as a directory separator", () => {
+    const entries = [project("slash", "/workspace/a/b"), project("literal", "/workspace/a\\b")]
+    expect(resolveProjectForDirectory(entries, "/workspace/a\\b")?.id).toBe("literal")
+  })
+})

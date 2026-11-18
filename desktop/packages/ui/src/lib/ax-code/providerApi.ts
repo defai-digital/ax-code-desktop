@@ -126,7 +126,7 @@ export const isRestartingError = (error: unknown): boolean => isRecord(error) &&
 export const getCurrentDirectory = (): string | null => {
   const dir = axCodeClient.getDirectory()
   if (typeof dir === "string" && dir.trim().length > 0) {
-    return dir.trim()
+    return dir
   }
   return null
 }

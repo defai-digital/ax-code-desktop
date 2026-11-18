@@ -41,7 +41,7 @@ export const parseMcpOAuthCallbackContext = (
   const directory = params.get("directory")
   return {
     name: server.trim(),
-    directory: typeof directory === "string" && directory.trim() ? directory.trim() : null,
+    directory: typeof directory === "string" && directory.trim() ? directory : null,
   }
 }
 

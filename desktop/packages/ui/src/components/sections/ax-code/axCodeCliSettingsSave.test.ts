@@ -3,7 +3,7 @@ import { describe, expect, test, vi } from "vitest"
 import { saveAxCodeCliSettings } from "./axCodeCliSettingsSave"
 
 describe("saveAxCodeCliSettings", () => {
-  test("trims and saves the configured binary path before reloading AX Code", async () => {
+  test("preserves and saves the configured binary path before reloading AX Code", async () => {
     const updateDesktopSettings = vi.fn(async () => undefined)
     const reloadAxCodeConfiguration = vi.fn(async () => undefined)
 
@@ -15,7 +15,7 @@ describe("saveAxCodeCliSettings", () => {
     })
 
     expect(result).toEqual({ status: "saved" })
-    expect(updateDesktopSettings).toHaveBeenCalledWith({ axCodeBinary: "/opt/homebrew/bin/ax-code" })
+    expect(updateDesktopSettings).toHaveBeenCalledWith({ axCodeBinary: "  /opt/homebrew/bin/ax-code  " })
     expect(reloadAxCodeConfiguration).toHaveBeenCalledWith({
       message: "Restarting AX Code...",
       mode: "projects",

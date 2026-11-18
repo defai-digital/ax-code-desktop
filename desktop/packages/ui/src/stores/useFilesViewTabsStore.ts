@@ -63,7 +63,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           byRoot: {},
 
           addOpenPath: (root, path) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const normalizedPath = normalizePath(path || "")
             if (!normalizedRoot || !normalizedPath || !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)) return
             updateRoot(normalizedRoot, (current) => {
@@ -78,7 +78,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           removeOpenPath: (root, path) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const normalizedPath = normalizePath(path || "")
             if (!normalizedRoot || !normalizedPath) return
             updateRoot(
@@ -99,7 +99,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           removeOpenPathsByPrefix: (root, prefixPath) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const prefix = normalizePath(prefixPath || "")
             if (!normalizedRoot || !prefix) return
             updateRoot(
@@ -122,7 +122,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           removeUnselectedOpenPath: (root, path) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const normalizedPath = normalizePath(path || "")
             const current = getRoot(normalizedRoot)
             if (!normalizedRoot || !normalizedPath || !current) return
@@ -133,7 +133,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           setSelectedPath: (root, path) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const normalizedPath = path ? normalizePath(path) : null
             if (!normalizedRoot || (normalizedPath && !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)))
               return
@@ -149,7 +149,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           ensureSelectedPath: (root) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             if (!normalizedRoot) return
             const current = getRoot(normalizedRoot)
             if (!current || current.selectedPath || !current.openPaths[0]) return
@@ -157,7 +157,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           },
 
           toggleExpandedPath: (root, path) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             const normalizedPath = normalizePath(path || "")
             if (!normalizedRoot || !normalizedPath || !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)) return
             updateRoot(normalizedRoot, (current) => {
@@ -174,7 +174,7 @@ export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
           expandPath: (root, path) => get().expandPaths(root, [path]),
 
           expandPaths: (root, paths) => {
-            const normalizedRoot = normalizePath((root || "").trim())
+            const normalizedRoot = normalizePath(root || "")
             if (!normalizedRoot || !paths?.length) return
             const incoming = paths
               .map((path) => normalizePath(path || ""))

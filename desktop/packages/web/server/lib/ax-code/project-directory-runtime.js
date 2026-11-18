@@ -38,7 +38,7 @@ export const createProjectDirectoryRuntime = (dependencies) => {
     if (typeof value !== "string") {
       return null
     }
-    const trimmed = value.trim()
+    const trimmed = value.trim() ? value : ""
     if (!trimmed) {
       return null
     }

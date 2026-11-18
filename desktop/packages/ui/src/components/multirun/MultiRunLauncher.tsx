@@ -861,7 +861,7 @@ const RunGroupCard: React.FC<RunGroupCardProps> = ({
       const textarea = promptTextareaRef.current
       const cursorPosition = textarea?.selectionStart ?? prompt.length
       const mentionPath =
-        file.relativePath && file.relativePath.trim().length > 0 ? file.relativePath.trim() : file.path || file.name
+        file.relativePath && file.relativePath.length > 0 ? file.relativePath : file.path || file.name
 
       const { newMessage: nextPrompt, nextCursor } = insertTriggerAtCursor(prompt, cursorPosition, mentionPath, "@")
 

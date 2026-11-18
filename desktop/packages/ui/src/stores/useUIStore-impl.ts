@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import type { MainTab } from "@/lib/mainTabs"
 import {
   uiPreferencePersistence,
@@ -117,7 +118,7 @@ const isLegacyDefaultTemplates = (value: unknown): boolean => {
  * toggled stayed in the persisted map forever.
  */
 export const diffLayoutKey = (directory: string | null | undefined, filePath: string): string =>
-  `${(directory ?? "").replace(/\\/g, "/").replace(/\/+$/, "")}\u0000${filePath}`
+  `${normalizePathSeparators((directory ?? "")).replace(/\/+$/, "")}\u0000${filePath}`
 
 const LEFT_SIDEBAR_MIN_WIDTH = 280
 const RIGHT_SIDEBAR_MIN_WIDTH = 360
@@ -632,7 +633,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPanelTab: (directory, tab) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -650,7 +651,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextDiff: (directory, filePath, staged = false) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedFilePath = normalizeContextTargetPath(filePath, "diff")
           if (!normalizedDirectory || !normalizedFilePath) {
             return
@@ -665,7 +666,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextFile: (directory, filePath) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedFilePath = normalizeContextTargetPath(filePath)
           if (!normalizedDirectory || !normalizedFilePath) {
             return
@@ -677,7 +678,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextFileAtLine: (directory, filePath, line, column) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedFilePath = normalizeContextTargetPath(filePath)
           const normalizedLine = Number.isFinite(line) ? Math.max(1, Math.trunc(line)) : 1
           const normalizedColumn = Number.isFinite(column) ? Math.max(1, Math.trunc(column as number)) : 1
@@ -695,7 +696,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextOverview: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -704,7 +705,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPlan: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -713,7 +714,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPreview: (directory, url) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedUrl = (url || "").trim()
           if (!normalizedDirectory || !normalizedUrl) {
             return
@@ -771,7 +772,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextDashboard: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) return
           get().openContextPanelTab(normalizedDirectory, {
             mode: "dashboard",
@@ -781,7 +782,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         setActiveContextPanelTab: (directory, tabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
@@ -819,7 +820,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         reorderContextPanelTabs: (directory, activeTabID, overTabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedActiveTabID = (activeTabID || "")
           const normalizedOverTabID = (overTabID || "")
           if (!normalizedDirectory || !normalizedActiveTabID || !normalizedOverTabID) {
@@ -851,7 +852,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         closeContextPanelTab: (directory, tabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
@@ -874,7 +875,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         closeContextPanel: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -898,7 +899,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         toggleContextPanelExpanded: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -919,7 +920,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         setContextPanelWidth: (directory, width) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }

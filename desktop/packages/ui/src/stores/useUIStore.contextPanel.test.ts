@@ -27,6 +27,19 @@ describe("useUIStore context panel", () => {
     useUIStore.setState({ contextPanelByDirectory: {} })
   })
 
+  test("context actions never merge literal directory scopes", () => {
+    const plain = "/literal-root/repo"
+    const spaced = `${plain} `
+    useUIStore.getState().openContextFile(plain, `${plain}/plain.txt`)
+    useUIStore.getState().openContextFile(spaced, `${spaced}/spaced.txt `)
+    const roots = useUIStore.getState().contextPanelByDirectory
+    expect(Object.keys(roots)).toEqual([plain, spaced])
+    expect(roots[plain].tabs[0].targetPath).toBe(`${plain}/plain.txt`)
+    expect(roots[spaced].tabs[0].targetPath).toBe(`${spaced}/spaced.txt `)
+    useUIStore.getState().closeContextPanel(spaced)
+    expect(useUIStore.getState().contextPanelByDirectory[plain].isOpen).toBe(true)
+  })
+
   test("opens a deduped dashboard tab for a directory", () => {
     const directory = "/workspace/project"
 

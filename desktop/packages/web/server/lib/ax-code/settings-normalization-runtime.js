@@ -1,28 +1,11 @@
+import { createDirectoryPathNormalizer } from "../directory-path.js"
+
 export const createSettingsNormalizationRuntime = (dependencies) => {
   const { os, path, processLike, realpathSync } = dependencies
 
   const asTrimmedString = (value) => (typeof value === "string" ? value.trim() : "")
 
-  const normalizeDirectoryPath = (value) => {
-    if (typeof value !== "string") {
-      return value
-    }
-
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return trimmed
-    }
-
-    if (trimmed === "~") {
-      return os.homedir()
-    }
-
-    if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-      return path.join(os.homedir(), trimmed.slice(2))
-    }
-
-    return trimmed
-  }
+  const normalizeDirectoryPath = createDirectoryPathNormalizer(os, path)
 
   // Resolve symlinks, falling back to the original value on failure.
   const safeRealpathSync = (value) => {
@@ -46,7 +29,7 @@ export const createSettingsNormalizationRuntime = (dependencies) => {
       return normalized
     }
 
-    const trimmed = normalized.trim()
+    const trimmed = normalized
     if (!trimmed) {
       return trimmed
     }
@@ -108,7 +91,7 @@ export const createSettingsNormalizationRuntime = (dependencies) => {
 
       const candidate = entry
       const id = asTrimmedString(candidate.id)
-      const rawPath = asTrimmedString(candidate.path)
+      const rawPath = typeof candidate.path === "string" && candidate.path.trim() ? candidate.path : ""
       const resolvedPath = rawPath ? safeRealpathSync(path.resolve(normalizeDirectoryPath(rawPath))) : ""
       const normalizedPath = resolvedPath ? normalizePathForPersistence(resolvedPath, { resolveRealpath: false }) : ""
       const label = asTrimmedString(candidate.label)

@@ -1,6 +1,7 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import type { Agent, PermissionConfig } from "@defai-digital/ax-code-sdk/v2"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { axCodeClient } from "@/lib/ax-code/client"
 import {
   emitConfigChange,
@@ -163,7 +164,7 @@ export const useAgentsStore = create<AgentsStore>()(
           // directory override" — do not fall back in that case.
           const configDirectory =
             options && "directory" in options
-              ? options.directory?.trim() || null
+              ? readDirectoryPath(options.directory)
               : getActiveConfigDirectory("AgentsStore")
           const cacheKey = getDirectoryCacheKey(configDirectory)
           const now = Date.now()

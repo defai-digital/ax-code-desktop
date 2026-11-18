@@ -10,11 +10,13 @@ import { readBoundedRegularFile } from "../read-bounded-file.js"
 import { patchTargetsDeclaredPath } from "./patch-validation.js"
 import {
   normalizeGitBlobId,
+  parseGitPathOutput,
   parseGitStageRecords,
   parseGitTreeRecords,
   parseIsBinaryFromNumstat,
   parseGitNameStatusZ,
 } from "./output-parsers.js"
+import { createDirectoryPathNormalizer } from "../directory-path.js"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 // The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
@@ -111,7 +113,7 @@ export function recordWorktreeRuntimeEvent(event) {
   if (!status) {
     return false
   }
-  const directory = typeof event?.directory === "string" ? event.directory.trim() : ""
+  const directory = typeof event?.directory === "string" ? event.directory : ""
   if (!directory || directory === "global") {
     return false
   }
@@ -468,26 +470,7 @@ const createGit = async (directory) => {
   })
 }
 
-const normalizeDirectoryPath = (value) => {
-  if (typeof value !== "string") {
-    return value
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return trimmed
-  }
-
-  if (trimmed === "~") {
-    return os.homedir()
-  }
-
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return path.join(os.homedir(), trimmed.slice(2))
-  }
-
-  return trimmed
-}
+const normalizeDirectoryPath = createDirectoryPathNormalizer(os, path)
 
 const getGitIndexMutationQueueKey = (directory) => {
   const normalized = normalizeDirectoryPath(directory)
@@ -560,7 +543,7 @@ export const validateRepositoryFilePaths = (directoryPath, filePaths, pathTools 
   }
 }
 
-const toGitPath = (value) => value.replace(/\\/g, "/")
+const toGitPath = (value) => (path.sep === "\\" ? value.replace(/\\/g, "/") : value)
 
 const isInsideOrSameDirectory = (root, target) => {
   const relative = path.relative(root, target)
@@ -577,7 +560,7 @@ export const resolveRepositoryFilePath = (repoRoot, filePath) => {
 
 const resolveGitRepositoryRoot = async (directoryPath, git) => {
   const topLevel = await git.raw(["rev-parse", "--show-toplevel"])
-  const normalizedTopLevel = topLevel.trim()
+  const normalizedTopLevel = parseGitPathOutput(topLevel)
   return path.isAbsolute(normalizedTopLevel)
     ? path.resolve(normalizedTopLevel)
     : path.resolve(directoryPath, normalizedTopLevel)
@@ -593,10 +576,10 @@ const createRepositoryGitContext = async (directory) => {
 
 const resolveGitInternalPath = async (repoRoot, git, gitPath) => {
   const resolved = await git.raw(["rev-parse", "--git-path", gitPath])
-  const rawPath = resolved.trim()
+  const rawPath = parseGitPathOutput(resolved)
   const absolutePath = path.isAbsolute(rawPath) ? path.resolve(rawPath) : path.resolve(repoRoot, rawPath)
   const gitDirRaw = await git.raw(["rev-parse", "--absolute-git-dir"]).catch(() => "")
-  const gitDir = gitDirRaw.trim()
+  const gitDir = parseGitPathOutput(gitDirRaw)
   if (!path.isAbsolute(gitDir)) throw new Error("Git did not return an absolute metadata directory")
 
   const relative = path.relative(gitDir, absolutePath)
@@ -737,9 +720,7 @@ const slugWorktreeName = (value) => {
 }
 
 const parseWorktreePorcelain = (raw) => {
-  const lines = String(raw || "")
-    .split("\n")
-    .map((line) => line.trim())
+  const lines = String(raw || "").split("\0")
   const entries = []
   let current = null
 
@@ -756,7 +737,7 @@ const parseWorktreePorcelain = (raw) => {
       if (current?.worktree) {
         entries.push(current)
       }
-      current = { worktree: line.substring("worktree ".length).trim() }
+      current = { worktree: line.substring("worktree ".length) }
       continue
     }
 
@@ -1210,14 +1191,14 @@ const resolveWorktreeProjectContext = async (directory) => {
   // repository, and every worktree command runs from it. Refusing here left a bare checkout unable to
   // create, preview or validate a worktree at all.
   const topResult = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"])
-  const sandbox = topResult.success ? path.resolve(directoryPath, topResult.stdout.trim()) : directoryPath
+  const sandbox = topResult.success ? path.resolve(directoryPath, parseGitPathOutput(topResult.stdout)) : directoryPath
 
   const commonResult = await runGitCommandOrThrow(
     sandbox,
     ["rev-parse", "--git-common-dir"],
     "Failed to resolve git common directory",
   )
-  const commonDir = path.resolve(sandbox, commonResult.stdout.trim())
+  const commonDir = path.resolve(sandbox, parseGitPathOutput(commonResult.stdout))
   // For a work tree the common directory is its `.git`, whose parent is the primary worktree; a bare
   // repository answers with itself, and its parent would hand the project to the wrong directory.
   const primaryWorktree = commonDir === sandbox ? sandbox : path.dirname(commonDir)
@@ -1235,7 +1216,7 @@ const resolveWorktreeProjectContext = async (directory) => {
 const listWorktreeEntries = async (directory) => {
   const rawResult = await runGitCommandOrThrow(
     directory,
-    ["worktree", "list", "--porcelain"],
+    ["worktree", "list", "--porcelain", "-z"],
     "Failed to list git worktrees",
   )
   return parseWorktreePorcelain(rawResult.stdout)
@@ -1480,7 +1461,7 @@ const applyUpstreamConfiguration = async (args) => {
  * which takes minutes per refresh and cannot be aborted (the reads there have no timeout).
  */
 export const isRefusedRepositoryRoot = (toplevelPath, homePath = os.homedir()) => {
-  const resolvedTop = typeof toplevelPath === "string" ? toplevelPath.trim() : ""
+  const resolvedTop = typeof toplevelPath === "string" ? toplevelPath : ""
   if (!resolvedTop) {
     return false
   }
@@ -1513,7 +1494,7 @@ export async function isGitRepository(directory) {
   }
 
   const toplevel = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"]).catch(() => null)
-  const toplevelPath = toplevel?.success ? String(toplevel.stdout ?? "").trim() : ""
+  const toplevelPath = toplevel?.success ? parseGitPathOutput(toplevel.stdout) : ""
   if (!toplevelPath) {
     // A bare repository has no working tree to compare; keep the previous answer for it.
     return true
@@ -2123,7 +2104,7 @@ export async function getStatus(directory, options = {}) {
 
     return {
       current: status.current,
-      worktreeRoot: repoRoot.replace(/\\/g, "/"),
+      worktreeRoot: toGitPath(repoRoot),
       headOid,
       tracking,
       ahead,
@@ -3891,7 +3872,7 @@ export async function getWorktrees(directory) {
     const repoRoot = await resolveGitRepositoryRoot(directoryPath, directoryGit).catch(() => directoryPath)
     const result = await runGitCommandOrThrow(
       repoRoot,
-      ["worktree", "list", "--porcelain"],
+      ["worktree", "list", "--porcelain", "-z"],
       "Failed to list git worktrees",
     )
     return parseWorktreePorcelain(result.stdout)
@@ -4230,7 +4211,7 @@ export async function createWorktree(directory, input = {}, deps = {}) {
     "Failed to create git worktree",
   )
 
-  const worktreePath = typeof created?.directory === "string" ? created.directory.trim() : ""
+  const worktreePath = typeof created?.directory === "string" ? created.directory : ""
   if (!worktreePath) {
     throw new Error("The runtime did not report the new worktree's directory")
   }
@@ -4600,7 +4581,7 @@ export async function isLinkedWorktree(directory) {
     // `--git-common-dir` relative to the working directory (`../.git`), so comparing the raw strings called it a
     // linked worktree. Both are resolved against the directory and through symlinks before comparing.
     const cwd = normalizeDirectoryPath(directory)
-    const resolveGitPath = (output) => fsp.realpath(path.resolve(cwd, output.trim()))
+    const resolveGitPath = (output) => fsp.realpath(path.resolve(cwd, parseGitPathOutput(output)))
     const [gitDir, gitCommonDir] = await Promise.all([
       git.raw(["rev-parse", "--git-dir"]).then(resolveGitPath),
       git.raw(["rev-parse", "--git-common-dir"]).then(resolveGitPath),

@@ -2,6 +2,7 @@ import React from "react"
 import { DndContext, PointerSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from "@dnd-kit/sortable"
 import { CSS as DndCSS } from "@dnd-kit/utilities"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { toast } from "@/components/ui"
 import { Checkbox } from "@/components/ui/checkbox"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -712,8 +713,8 @@ export const ProjectNotesTodoPanel: React.FC<ProjectNotesTodoPanelProps> = ({
 
   const handleOpenPlan = React.useCallback(
     (plan: ProjectPlanListItem) => {
-      const projectPath = projectRef?.path?.trim()
-      const panelDirectory = currentDirectory?.trim() || projectPath
+      const projectPath = readDirectoryPath(projectRef?.path)
+      const panelDirectory = readDirectoryPath(currentDirectory) || projectPath
       if (!panelDirectory) {
         return
       }

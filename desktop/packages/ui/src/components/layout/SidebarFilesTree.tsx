@@ -313,7 +313,7 @@ export const SidebarFilesTree: React.FC = () => {
   const { t } = useI18n()
   const { files } = useRuntimeAPIs()
   const currentDirectory = useEffectiveDirectory() ?? ""
-  const root = normalizePath(currentDirectory.trim())
+  const root = normalizePath(currentDirectory)
   const showHidden = useDirectoryShowHidden()
   const showGitignored = useFilesViewShowGitignored()
   const searchFiles = useFileSearchStore((state) => state.searchFiles)
@@ -431,7 +431,7 @@ export const SidebarFilesTree: React.FC = () => {
 
   const loadDirectory = React.useCallback(
     async (dirPath: string) => {
-      const normalizedDir = normalizePath(dirPath.trim())
+      const normalizedDir = normalizePath(dirPath)
       if (!normalizedDir) return
 
       if (loadedDirsRef.current.has(normalizedDir) || inFlightDirsRef.current.has(normalizedDir)) return

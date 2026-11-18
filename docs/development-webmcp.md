@@ -35,7 +35,8 @@ To verify context-panel file identity and persisted tab state on POSIX hosts:
 node desktop/packages/electron/scripts/e2e/context-panel-state-webmcp.mjs --artifacts /tmp/ax-context-panel-state
 ```
 
-This isolated fixture creates distinct plain/trailing-space filenames, restores both tabs, selects and closes the
+This isolated fixture registers distinct plain/trailing-space project roots and creates literal filenames under the
+spaced root, restores both tabs, selects and closes the
 spaced file through native WebMCP, verifies actual editor content and reload behavior, and records fresh state/DOM
 plus light/dark screenshots. It writes only disposable fixture files and executes no model.
 

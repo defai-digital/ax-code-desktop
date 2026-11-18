@@ -1,4 +1,5 @@
 import React from "react"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -50,7 +51,7 @@ export function GitHubIssuePickerDialog({
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
 
   const projectDirectory = React.useMemo(() => {
-    return activeProject?.path?.trim() || currentDirectory?.trim() || null
+    return readDirectoryPath(activeProject?.path) || readDirectoryPath(currentDirectory) || null
   }, [activeProject?.path, currentDirectory])
 
   const [query, setQuery] = React.useState("")

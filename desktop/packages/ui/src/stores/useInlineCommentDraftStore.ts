@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { createPersistedFields } from "@/lib/persistedFields"
 import { isPlainRecord } from "@/lib/record"
 import type { InlineCommentDraft, InlineCommentSource } from "@/lib/messages/inlineCommentDraft"
@@ -54,7 +55,7 @@ export const buildInlineCommentSessionKey = ({
   const normalizedSessionId = normalizeKeyPart(sessionId)
   if (normalizedSessionId) return normalizedSessionId
 
-  const normalizedDirectory = normalizeKeyPart(draftDirectory)
+  const normalizedDirectory = normalizeProjectPath(draftDirectory)
   if (normalizedDirectory) return `draft:${normalizedDirectory}`
 
   const normalizedProjectId = normalizeKeyPart(draftProjectId)

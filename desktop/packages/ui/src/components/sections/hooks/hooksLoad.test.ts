@@ -23,13 +23,13 @@ describe("fetchHookWorkspace", () => {
     vi.restoreAllMocks()
   })
 
-  it("loads hooks for the trimmed directory", async () => {
+  it("loads hooks for the literal directory", async () => {
     hooksGet.mockResolvedValue({ data: workspace })
     vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ hooks: { get: hooksGet } } as never)
 
     await expect(fetchHookWorkspace("  /repo/app  ")).resolves.toEqual(workspace)
-    expect(axCodeClient.getScopedSdkClient).toHaveBeenCalledWith("/repo/app")
-    expect(hooksGet).toHaveBeenCalledWith({ directory: "/repo/app" }, { throwOnError: true })
+    expect(axCodeClient.getScopedSdkClient).toHaveBeenCalledWith("  /repo/app  ")
+    expect(hooksGet).toHaveBeenCalledWith({ directory: "  /repo/app  " }, { throwOnError: true })
   })
 
   it("rejects a blank directory before calling the client", async () => {

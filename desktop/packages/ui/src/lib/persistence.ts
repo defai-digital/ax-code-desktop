@@ -10,6 +10,7 @@ import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { sanitizeStarterRefs } from "@/lib/draftStarters"
 import { normalizeProjectIconBackground } from "@/lib/projectMeta"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
+import { normalizeProjectPath } from "../../../../shared/path-values.mjs"
 
 const persistToLocalStorage = (settings: DesktopSettings) => {
   if (typeof window === "undefined") {
@@ -158,10 +159,10 @@ const sanitizeProjects = (value: unknown): DesktopSettings["projects"] | undefin
     if (!entry || typeof entry !== "object") continue
     const candidate = entry as Record<string, unknown>
 
-    const rawPath = typeof candidate.path === "string" ? candidate.path.trim() : ""
+    const rawPath = typeof candidate.path === "string" ? candidate.path : ""
     if (!rawPath) continue
 
-    const normalizedPath = rawPath === "/" ? rawPath : rawPath.replace(/\\/g, "/").replace(/\/+$/, "")
+    const normalizedPath = normalizeProjectPath(rawPath)
     if (!normalizedPath) continue
 
     const id = createProjectIdFromPath(normalizedPath)

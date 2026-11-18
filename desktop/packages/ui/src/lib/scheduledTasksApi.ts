@@ -1,4 +1,5 @@
 import { axCodeClient } from "@/lib/ax-code/client"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "@/lib/http"
 import { ScheduledTaskRejectedError } from "@/lib/scheduledTaskErrors"
@@ -130,7 +131,7 @@ const formatSdkError = (error: unknown, fallback: string): string => {
 }
 
 const ensureDirectory = (directory: string): string => {
-  const trimmed = typeof directory === "string" ? directory.trim() : ""
+  const trimmed = typeof directory === "string" ? readDirectoryPath(directory) : ""
   if (!trimmed) {
     throw new Error("directory is required")
   }

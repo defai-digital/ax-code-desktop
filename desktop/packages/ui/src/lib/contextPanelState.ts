@@ -1,4 +1,5 @@
 import { normalizeProjectPath } from "./projectResolution"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { isPlainRecord } from "./record"
 
 export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
@@ -75,7 +76,7 @@ export const normalizeContextTargetPath = (
   }
 
   const target = mode === "file" || mode === "diff" ? value : value.trim()
-  return target.length > 0 ? target.replace(/\\/g, "/") : null
+  return target.length > 0 ? normalizePathSeparators(target) : null
 }
 
 const normalizeContextTabLabel = (value: string | null | undefined): string | null => {

@@ -45,6 +45,16 @@ describe("useProjectsStore path identity", () => {
     expect(useProjectsStore.getState().projects).toHaveLength(1)
   })
 
+  test("keeps literal trailing-space project roots distinct through registration and settings hydration", () => {
+    const plain = useProjectsStore.getState().addProject("/workspace/repo")
+    const spaced = useProjectsStore.getState().addProject("/workspace/repo ")
+    expect(spaced?.path).toBe("/workspace/repo ")
+    expect(spaced?.id).not.toBe(plain?.id)
+    expect(useProjectsStore.getState().projects).toHaveLength(2)
+    useProjectsStore.getState().synchronizeFromSettings({ projects: [plain!, spaced!] })
+    expect(useProjectsStore.getState().projects.map(project => project.path)).toEqual(["/workspace/repo", "/workspace/repo "])
+  })
+
   test("allows POSIX projects that differ by case", () => {
     const first = useProjectsStore.getState().addProject("/Users/Alice/Repo")
     const second = useProjectsStore.getState().addProject("/users/alice/repo")

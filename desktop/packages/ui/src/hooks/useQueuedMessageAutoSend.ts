@@ -1,4 +1,5 @@
 import React from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { parseWorkMode } from "@/lib/workMode"
 import {
   claimQueuedDispatch,
@@ -329,12 +330,11 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       // file. Extract them here exactly as the composer does; a failure here must never stop
       // the queued prompt from being delivered.
       try {
-        const root = (
+        const root = normalizePathSeparators((
           useSessionUIStore.getState().getDirectoryForSession(sessionId) ||
           axCodeClient.getDirectory() ||
           ""
-        )
-          .replace(/\\/g, "/")
+        ))
           .replace(/\/+$/, "")
         if (root && payload.primaryText.includes("@")) {
           const confirmed = loadConfirmedMentions(sessionId)

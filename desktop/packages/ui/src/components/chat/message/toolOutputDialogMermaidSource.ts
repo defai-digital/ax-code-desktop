@@ -26,3 +26,10 @@ export const decodeMermaidDataUrl = (value: string): string => {
 export const loadMermaidDataUrlSource = (value: string): Promise<string> => {
   return Promise.resolve().then(() => decodeMermaidDataUrl(value))
 }
+
+
+export const isSafeMermaidLocalPath = (path: string): boolean => {
+  if (!path || /[\0\r\n]/.test(path)) return false
+  if (path.split(/[\\/]/).includes("..")) return false
+  return path.startsWith("/") || path.startsWith("\\\\") || /^[A-Za-z]:[\\/]/.test(path)
+}

@@ -1,4 +1,5 @@
 import type { ProjectEntry } from "@/lib/api/types"
+import { readDirectoryPath } from "@/lib/pathValues"
 import type { DraftStarterRef } from "@/lib/draftStarters"
 import type { ShortcutCombo } from "@/lib/shortcuts"
 import { getDesktopBridge, hasDesktopBridge } from "./desktopBridge"
@@ -576,7 +577,7 @@ export const openDesktopPath = async (path: string, app?: string | null): Promis
     return false
   }
 
-  const trimmed = path?.trim()
+  const trimmed = readDirectoryPath(path)
   if (!trimmed) {
     return false
   }
@@ -598,7 +599,7 @@ export const revealDesktopPath = async (path: string): Promise<boolean> => {
     return false
   }
 
-  const trimmed = path?.trim()
+  const trimmed = readDirectoryPath(path)
   if (!trimmed) {
     return false
   }
@@ -650,7 +651,7 @@ export const openDesktopProjectInApp = async (
     return false
   }
 
-  const trimmedProjectPath = projectPath?.trim()
+  const trimmedProjectPath = readDirectoryPath(projectPath)
   const trimmedAppId = appId?.trim()
   const trimmedAppName = appName?.trim()
 
@@ -676,7 +677,7 @@ export const openDesktopFileInApp = async (filePath: string, appId: string, appN
     return false
   }
 
-  const trimmedFilePath = filePath?.trim()
+  const trimmedFilePath = readDirectoryPath(filePath)
   const trimmedAppId = appId?.trim()
   const trimmedAppName = appName?.trim()
 

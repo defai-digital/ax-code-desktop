@@ -214,7 +214,7 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
       if (typeof runtimePath !== "string" || !runtimePath.trim() || runtimePath.startsWith("wsl:")) {
         return { path: null, source }
       }
-      return { path: runtimePath.trim(), source }
+      return { path: runtimePath, source }
     } catch {
       return { path: null, source: null }
     }

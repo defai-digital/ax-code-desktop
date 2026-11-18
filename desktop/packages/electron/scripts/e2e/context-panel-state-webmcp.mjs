@@ -15,11 +15,14 @@ const outcome = await runHarness({
     journeyBoot,
     async function contextPanelState({ session, e2e }) {
       if (process.platform === "win32") throw new Error("This journey requires POSIX trailing-space filenames")
-      const directory = e2e.scenario.session.directory
+      const plainDirectory = e2e.scenario.session.directory
+      const directory = `${plainDirectory} `
       assertPathInsideDirectory(directory, path.dirname(e2e.stubOriginPath), "Context-panel fixture directory")
       const names = ["report.txt", "report.txt "]
       const markers = ["PLAIN TARGET", "LITERAL SPACED TARGET"]
       await fs.mkdir(directory, { recursive: true })
+      await fs.mkdir(plainDirectory, { recursive: true })
+      await fs.writeFile(path.join(plainDirectory, "report.txt "), "WRONG SIBLING TARGET\n")
       for (const [index, name] of names.entries()) await fs.writeFile(path.join(directory, name), markers[index] + "\n")
       const tabs = names.map((name, index) => ({
         id: `file:${path.join(directory, name)}`,
@@ -33,11 +36,16 @@ const outcome = await runHarness({
       }))
       await session.evaluate(`(async () => {
       const directory = ${JSON.stringify(directory)}
+      const projects = [${JSON.stringify(plainDirectory)}, directory].map(path => ({
+        id: 'path_' + btoa(path).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, ''), path
+      }))
       const response = await fetch('/api/config/settings', {
-        method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({lastDirectory:directory})
+        method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify({lastDirectory:directory,projects,activeProjectId:projects[1].id})
       })
       if (!response.ok) throw new Error('Could not seed the fixture workspace preference')
       localStorage.setItem('lastDirectory', directory)
+      localStorage.setItem('projects', JSON.stringify(projects))
+      localStorage.setItem('activeProjectId', projects[1].id)
       localStorage.setItem('files-view-tabs-store', JSON.stringify({version:2,state:{
         setSelectedPath:'legacy persisted value', byRoot:{[directory]:{
           openPaths:[${JSON.stringify(tabs[0].targetPath)}, 42, '/outside/file.txt'],
@@ -56,6 +64,12 @@ const outcome = await runHarness({
       await journeyBoot({ session })
       const audit = new SettingsWebMcpAudit(session)
       await audit.client.enable()
+      await audit.wait(`(() => {
+        const projects = JSON.parse(localStorage.getItem('projects') || '[]')
+        return projects.length===2 && projects[0].id!==projects[1].id
+          && projects.some(p=>p.path===${JSON.stringify(directory)})
+          && localStorage.getItem('lastDirectory')===${JSON.stringify(directory)}
+      })()`, "distinct literal project roots after hydration")
       const selectedTitle = `document.querySelector('[data-context-panel] [role="tab"][aria-selected="true"]')?.title`
       const visibleContent = `Array.from(document.querySelectorAll('[data-context-panel] .cm-content')).filter(e=>e.checkVisibility()).map(e=>e.textContent).join(' ')`
       await audit.wait(
@@ -120,7 +134,7 @@ const outcome = await runHarness({
       return {
         name: "context-panel-state",
         ok: true,
-        detail: "Validated Files restore, literal file selection, close and reload; light/dark DOM/screenshots",
+        detail: "Validated distinct literal project roots, Files restore, file selection, close and reload; light/dark DOM/screenshots",
       }
     },
   ],

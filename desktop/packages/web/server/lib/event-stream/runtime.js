@@ -101,7 +101,7 @@ export function createMessageStreamWsRuntime({
     const requestUrl = new URL(rawUrl, "http://127.0.0.1")
     const isGlobalStream = pathname === MESSAGE_STREAM_GLOBAL_WS_PATH
     const requestedLastEventId = requestUrl.searchParams.get("lastEventId")?.trim() || ""
-    const requestedDirectory = requestUrl.searchParams.get("directory")?.trim() || ""
+    const requestedDirectory = requestUrl.searchParams.get("directory") || ""
 
     if (isGlobalStream) {
       globalBridge.accept(socket, {

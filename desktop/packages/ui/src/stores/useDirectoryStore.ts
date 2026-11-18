@@ -7,6 +7,7 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useFileSearchStore } from "@/stores/useFileSearchStore"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { getSafeStorage } from "./utils/safeStorage"
+import { expandHomePath } from "../../../../shared/path-values.mjs"
 
 interface DirectoryNavigationStore {
   currentDirectory: string
@@ -57,24 +58,8 @@ const normalizeDirectoryPath = (value: string): string => {
   return normalizeProjectPath(value) ?? ""
 }
 
-const resolveTildePath = (path: string, homeDir?: string | null): string => {
-  const trimmed = path.trim()
-  if (!trimmed.startsWith("~")) {
-    return trimmed
-  }
-  if (trimmed === "~") {
-    return homeDir || trimmed
-  }
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return homeDir ? `${homeDir}${trimmed.slice(1)}` : trimmed
-  }
-  return trimmed
-}
-
-const resolveDirectoryPath = (path: string, homeDir?: string | null): string => {
-  const expanded = resolveTildePath(path, homeDir)
-  return normalizeDirectoryPath(expanded)
-}
+const resolveDirectoryPath = (path: string, homeDir?: string | null): string =>
+  normalizeDirectoryPath(expandHomePath(path, homeDir))
 
 const isFilesystemRoot = (path: string): boolean => path === "/" || /^[A-Z]:\/$/.test(path)
 

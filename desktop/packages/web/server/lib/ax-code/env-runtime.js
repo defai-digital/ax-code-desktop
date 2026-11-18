@@ -1103,7 +1103,7 @@ export const createAxCodeEnvRuntime = (deps) => {
     if (typeof raw !== "string") {
       return null
     }
-    const trimmed = normalizeDirectoryPath(raw).trim()
+    const trimmed = normalizeDirectoryPath(raw)
     if (!trimmed) {
       return ""
     }
