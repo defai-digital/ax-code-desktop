@@ -51,6 +51,7 @@ import { createAxCodeResolutionRuntime } from "./lib/ax-code/ax-code-resolution-
 import { createBootstrapRuntime } from "./lib/ax-code/bootstrap-runtime.js"
 import { createSessionRuntime } from "./lib/ax-code/session-runtime.js"
 import { createRuntimeBusyReporter } from "./lib/ax-code/runtime-busy-reporter.js"
+import { createMainRuntimeRestartClient } from "./lib/ax-code/runtime-restart-client.js"
 import { createAxCodeWatcherRuntime } from "./lib/ax-code/watcher.js"
 import { createScheduledTaskConvergence } from "./lib/scheduled-task-convergence/convergence.js"
 import { createServerStartupRuntime } from "./lib/ax-code/server-startup-runtime.js"
@@ -996,19 +997,11 @@ const reportRuntimeOriginToMain = (origin, details = {}) => {
   } catch {}
 }
 
-// S2.5c (SPEC-2026-08-29-desktop-process-model-collapse §5 S2.5): when main
-// supervises the runtime the web lifecycle runs in external mode and cannot
-// restart the process itself — a settings.axCodeBinary change can only take
-// effect if main restarts the supervised runtime with re-resolution. The
-// lifecycle's refresh path posts this request; main serializes restarts.
-// Inert outside the Electron utilityProcess.
-const requestMainRuntimeRestart = (reason) => {
-  const parentPort = process.parentPort ?? null
-  if (!parentPort || typeof parentPort.postMessage !== "function") return
-  try {
-    parentPort.postMessage({ type: "runtime-restart-request", reason: String(reason || "configuration change") })
-  } catch {}
-}
+// Only main-supervised launches delegate restart ownership to Electron.
+const requestMainRuntimeRestart =
+  process.env.AX_CODE_DESKTOP_MAIN_SUPERVISES_RUNTIME === "1"
+    ? createMainRuntimeRestartClient(process.parentPort)
+    : null
 
 // S2.4b (SPEC-2026-08-29-desktop-process-model-collapse §2 D3): in dev, the
 // Vite dev server is a separate process tree, so the utilityProcess channel
@@ -1371,14 +1364,15 @@ async function main(options = {}) {
     getHealthSnapshot: () => {
       const launchSpec =
         resolvedAxCodeBinary && !useWslForAxCode ? resolveManagedAxCodeLaunchSpec(resolvedAxCodeBinary) : null
+      const runtimeReady = isAxCodeReady && !isRestartingAxCode
       return {
         axCodePort,
-        axCodeRunning: Boolean(axCodePort && isAxCodeReady && !isRestartingAxCode),
+        axCodeRunning: Boolean(axCodePort && runtimeReady),
         axCodeSecureConnection: isAxCodeConnectionSecure(),
         axCodeAuthSource: axCodeAuthSource || null,
         axCodeApiPrefix: "",
         axCodeApiPrefixDetected: true,
-        isAxCodeReady,
+        isAxCodeReady: runtimeReady,
         lastAxCodeError,
         lastAxCodeLaunchDiagnostics,
         axCodeBinaryResolved: resolvedAxCodeBinary || null,

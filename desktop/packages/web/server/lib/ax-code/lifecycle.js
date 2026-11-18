@@ -763,6 +763,8 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   }
 
   let activeStartSlot = null
+  let pendingSupervisedRefreshes = 0
+  let supervisedRefreshTail = Promise.resolve()
 
   const startAxCode = async () => {
     // Join a start already in flight: bootstrap and a config-change restart
@@ -882,7 +884,9 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         }
       }
 
-      if (state.isExternalAxCode) {
+      if (state.isExternalAxCode || env.ENV_CONFIGURED_AX_CODE_HOST) {
+        // The configured host already owns execution during cold boot, before discovery has finished.
+        state.isExternalAxCode = true
         console.log("Re-probing external ax-code server...")
         // The host URL's own port is the fallback when no explicit
         // AX_CODE_PORT was configured alongside AX_CODE_HOST.
@@ -892,6 +896,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         const healthy = await managedAxCodeRuntime.probeExternalServer(probePort, probeOrigin)
         if (healthy) {
           console.log(`External ax-code server on port ${probePort} is healthy`)
+          state.axCodeBaseUrl = probeOrigin ?? null
           setAxCodePortInternal(probePort)
           state.isAxCodeReady = true
           state.lastAxCodeError = null
@@ -999,7 +1004,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       throw error
     } finally {
       state.currentRestartPromise = null
-      state.isRestartingAxCode = false
+      state.isRestartingAxCode = pendingSupervisedRefreshes > 0
     }
   }
 
@@ -1096,30 +1101,30 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     throw new Error(`Agent "${agentName}" not available after ax-code restart`)
   }
 
-  const refreshAxCodeAfterConfigChange = async (reason, options = {}) => {
+  const refreshRuntimeConfig = async (reason, options, supervised) => {
     const { agentName, readyTimeoutMs } = options
     const effectiveReadyTimeoutMs = Number.isFinite(readyTimeoutMs) && readyTimeoutMs > 0 ? readyTimeoutMs : undefined
 
     console.log(`Refreshing ax-code after ${reason}`)
-    clearResolvedAxCodeBinary()
-    await applyAxCodeBinaryFromSettings()
-
-    // S2.5c: in external mode under the Electron utilityProcess, main
-    // supervises the runtime — a settings.axCodeBinary change can only take
-    // effect if MAIN restarts the supervised process (a local re-probe keeps
-    // talking to the old binary). Ask main to restart with re-resolution
-    // (serialized/rate-limited there); the re-probe below then converges on
-    // the restarted runtime via the fixed port.
-    if (state.isExternalAxCode && typeof requestMainRuntimeRestart === "function") {
-      requestMainRuntimeRestart(reason)
-    }
-
-    await restartAxCode()
-
     try {
+      clearResolvedAxCodeBinary()
+      await applyAxCodeBinaryFromSettings()
+
+      if (supervised) {
+        if (state.isShuttingDown) throw new Error("Shutdown in progress")
+        state.isAxCodeReady = false
+        try {
+          // The fixed port can still answer from the previous process until main completes the restart.
+          await requestMainRuntimeRestart(reason, effectiveReadyTimeoutMs)
+        } finally {
+          // Drain older probes before either verifying the replacement or publishing its failure.
+          await state.currentRestartPromise?.catch(() => {})
+        }
+        if (state.isShuttingDown) throw new Error("Shutdown in progress")
+      }
+
+      await restartAxCode()
       await waitForAxCodeReady(effectiveReadyTimeoutMs)
-      state.isAxCodeReady = true
-      state.axCodeNotReadySince = 0
 
       if (agentName) {
         await waitForAgentPresence(agentName)
@@ -1130,9 +1135,31 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     } catch (error) {
       state.isAxCodeReady = false
       state.axCodeNotReadySince = Date.now()
+      state.lastAxCodeError = error instanceof Error ? error.message : String(error)
       console.error(`Failed to refresh ax-code after ${reason}:`, error.message)
       throw error
     }
+  }
+
+  const refreshAxCodeAfterConfigChange = (reason, options = {}) => {
+    if (typeof requestMainRuntimeRestart !== "function") {
+      return refreshRuntimeConfig(reason, options, false)
+    }
+
+    // Keep readiness closed across queued requests and their post-restart checks.
+    clearBootstrapRetryTimer()
+    pendingSupervisedRefreshes += 1
+    state.isRestartingAxCode = true
+    state.isAxCodeReady = false
+    state.axCodeNotReadySince = Date.now()
+    const refresh = supervisedRefreshTail
+      .then(() => refreshRuntimeConfig(reason, options, true))
+      .finally(() => {
+        pendingSupervisedRefreshes -= 1
+        state.isRestartingAxCode = pendingSupervisedRefreshes > 0
+      })
+    supervisedRefreshTail = refresh.catch(() => {})
+    return refresh
   }
 
   // ── Bounded auto-retry after a failed bootstrap ─────────────────────────
