@@ -1,4 +1,5 @@
 import * as React from "react"
+import { readLiteralPath } from "@/lib/pathValues"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
@@ -36,7 +37,7 @@ export const AxCodeCliSettings: React.FC = () => {
         if (cancelled || !data) {
           return
         }
-        const next = typeof data.axCodeBinary === "string" ? data.axCodeBinary.trim() : ""
+        const next = readLiteralPath(data.axCodeBinary) ?? ""
         setValue(next)
       } catch {
         // ignore

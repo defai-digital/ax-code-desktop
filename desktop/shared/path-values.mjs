@@ -6,8 +6,10 @@ export const normalizePathSeparators = (value, directory = "") => {
   return windowsPath || windowsRelative ? value.replace(/\\/g, "/") : value
 }
 
-export const readDirectoryPath = (value) =>
+export const readLiteralPath = (value) =>
   typeof value === "string" && value.trim().length > 0 ? value : null
+
+export const readDirectoryPath = readLiteralPath
 
 export const normalizeProjectPath = (value) => {
   const literal = readDirectoryPath(value)

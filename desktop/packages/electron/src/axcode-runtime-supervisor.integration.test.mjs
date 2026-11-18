@@ -1,6 +1,10 @@
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import net from "node:net"
 import { createRequire } from "node:module"
 import { expect, test } from "vitest"
+import { buildStubRuntimeScript } from "../scripts/e2e/stub-runtime.mjs"
 
 const require = createRequire(import.meta.url)
 const { createAxCodeRuntimeSupervision, resolveRuntimeBinary } = require("./axcode-runtime-supervisor.js")
@@ -84,3 +88,42 @@ testWithBinary(
   },
   120_000,
 )
+
+
+test.skipIf(process.platform === "win32")("starts and restarts the exact configured executable", async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "ax-supervisor-literal-"))
+  const plain = path.join(root, "ax-code")
+  const spaced = `${plain} `
+  let configured = spaced
+  const env = { PATH: process.env.PATH, AX_CODE_BINARY: plain }
+  const supervision = createAxCodeRuntimeSupervision({
+    env,
+    cwd: root,
+    settingsReader: () => ({ axCodeBinary: configured }),
+    getPassword: () => PASSWORD,
+  })
+  const readVersion = async (origin) => {
+    const response = await fetch(`${origin}/global/health`, {
+      headers: { Authorization: AUTHORIZATION },
+      signal: AbortSignal.timeout(10_000),
+    })
+    expect(response.ok).toBe(true)
+    return (await response.json()).version
+  }
+
+  try {
+    await fs.writeFile(plain, buildStubRuntimeScript({ version: "7.30.29" }), { mode: 0o755 })
+    await fs.writeFile(spaced, buildStubRuntimeScript({ version: "7.30.30" }), { mode: 0o755 })
+    const first = await supervision.start()
+    expect(await readVersion(first.origin)).toBe("7.30.30")
+    configured = plain
+    const second = await supervision.restart({ reprepare: true })
+    expect(second.origin).toBe(first.origin)
+    expect(await readVersion(second.origin)).toBe("7.30.29")
+    expect(supervision.state).toBe("healthy")
+  } finally {
+    await supervision.stop()
+    await fs.rm(root, { recursive: true, force: true })
+  }
+  expect(await canConnect(supervision.port)).toBe(false)
+}, 35_000)

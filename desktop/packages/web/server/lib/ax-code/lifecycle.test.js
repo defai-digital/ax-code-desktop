@@ -150,6 +150,55 @@ const createRuntime = (overrides = {}) => {
 }
 
 describe("ax-code lifecycle", () => {
+  it.skipIf(process.platform === "win32")("spawns the literal selected executable when the SDK would trim it", async () => {
+    const binary = "/fixture/runtime/ax-code "
+    process.env.AX_CODE_BINARY = binary
+    const child = new EventEmitter()
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    child.exitCode = null
+    child.signalCode = null
+    child.kill = vi.fn((signal) => {
+      child.signalCode = signal
+      child.emit("close")
+    })
+    spawnMock.mockImplementation(() => {
+      queueMicrotask(() => child.stdout.emit("data", "ax-code server listening on http://127.0.0.1:45678\n"))
+      return child
+    })
+    const waitForReady = vi.fn(async () => true)
+    const runtime = createRuntime({ waitForReady })
+    const server = await runtime.startAxCode()
+    try {
+      expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+      expect(spawnMock).toHaveBeenCalledWith(
+        binary,
+        ["serve", "--hostname", "127.0.0.1", "--port", "45678"],
+        expect.objectContaining({
+          env: expect.objectContaining({
+            AX_CODE_SERVER_PASSWORD: "password",
+            AX_CODE_SERVER_USERNAME: "ax-code",
+            AX_CODE_PROJECT: "/tmp/project",
+          }),
+        }),
+      )
+      expect(waitForReady).toHaveBeenCalledWith("http://127.0.0.1:45678", 10000)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it.skipIf(process.platform === "win32")("keeps loopback binding mandatory when a literal path bypasses the SDK", async () => {
+    process.env.AX_CODE_BINARY = "/fixture/runtime/ax-code "
+    const runtime = createRuntime({
+      env: { ENV_CONFIGURED_AX_CODE_HOSTNAME: "0.0.0.0", ENV_CONFIGURED_AX_CODE_PORT: 45678 },
+    })
+
+    await expect(runtime.startAxCode()).rejects.toThrow("requires a loopback hostname")
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+  })
+
   it("launches managed ax-code through the SDK headless backend with the managed PATH", async () => {
     delete process.env.AX_CODE_BINARY
     startHeadlessBackendMock.mockResolvedValueOnce({

@@ -6,6 +6,7 @@ import os from "os"
 import path from "path"
 import { spawn, spawnSync } from "child_process"
 import { fileURLToPath, pathToFileURL } from "url"
+import { readLiteralPath } from "../../../shared/path-values.mjs"
 import { isModuleCliExecution } from "./cli-entry.js"
 import { assertLocalOnlyHostname, isLoopbackHostname } from "../server/lib/security/local-only.js"
 import {
@@ -825,8 +826,9 @@ function collectStartupEnv(options = {}) {
 
   if (options.envSnapshot !== false) {
     const axCodeBinary = process.env.AX_CODE_BINARY || searchPathFor("ax-code")
-    if (typeof axCodeBinary === "string" && axCodeBinary.trim().length > 0) {
-      env.AX_CODE_BINARY = axCodeBinary.trim()
+    const configuredBinary = readLiteralPath(axCodeBinary)
+    if (configuredBinary) {
+      env.AX_CODE_BINARY = configuredBinary
     }
   }
   const uiPassword = hasUiPasswordConfigured(options.uiPassword) ? options.uiPassword : undefined

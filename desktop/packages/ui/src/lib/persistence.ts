@@ -10,7 +10,7 @@ import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { sanitizeStarterRefs } from "@/lib/draftStarters"
 import { normalizeProjectIconBackground } from "@/lib/projectMeta"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
-import { normalizeProjectPath } from "../../../../shared/path-values.mjs"
+import { normalizeProjectPath, readLiteralPath } from "../../../../shared/path-values.mjs"
 
 const persistToLocalStorage = (settings: DesktopSettings) => {
   if (typeof window === "undefined") {
@@ -621,8 +621,7 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
   }
 
   if (typeof candidate.axCodeBinary === "string") {
-    const trimmed = candidate.axCodeBinary.trim()
-    result.axCodeBinary = trimmed.length > 0 ? trimmed : undefined
+    result.axCodeBinary = readLiteralPath(candidate.axCodeBinary) ?? undefined
   }
   if (typeof candidate.desktopLanAccessEnabled === "boolean") {
     result.desktopLanAccessEnabled = candidate.desktopLanAccessEnabled

@@ -305,6 +305,23 @@ describe("AX Code env runtime", () => {
     }
   })
 
+  itIf(originalPlatform !== "win32")("preserves a WSL path from CRLF discovery and explicit settings", async () => {
+    setPlatform("win32")
+    const dir = createTempDir("ax-code-wsl-")
+    const executable = path.join(dir, "wsl.exe")
+    fs.writeFileSync(executable, "#!/bin/sh\nprintf '/opt/ax code/ax-code \\r\\n'\n", { mode: 0o755 })
+    process.env.WSL_BINARY = executable
+    const fromDiscovery = createRuntime({ axCodeBinary: executable })
+    const fromSettings = createRuntime({ axCodeBinary: "wsl: /opt/ax code/ax-code " })
+
+    await expect(fromDiscovery.runtime.applyAxCodeBinaryFromSettings({ strict: true })).resolves.toBe(
+      "wsl:/opt/ax code/ax-code ",
+    )
+    await expect(fromSettings.runtime.applyAxCodeBinaryFromSettings({ strict: true })).resolves.toBe(
+      "wsl:/opt/ax code/ax-code ",
+    )
+  })
+
   it("launches Windows cmd shims through cmd call without embedded quotes", () => {
     setPlatform("win32")
     process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe"
@@ -320,7 +337,7 @@ describe("AX Code env runtime", () => {
     })
   })
 
-  it("trims managed AX Code launch spec paths", () => {
+  it("does not reinterpret a spaced native path as a different Windows cmd shim", () => {
     setPlatform("win32")
     process.env.ComSpec = "C:\\Windows\\System32\\cmd.exe"
     const dir = createTempDir("openchamber-ax-code-trimmed-cmd-")
@@ -328,11 +345,8 @@ describe("AX Code env runtime", () => {
     fs.writeFileSync(shim, "@echo off\r\nexit /b 0\r\n")
     const { runtime } = createRuntime({})
 
-    expect(runtime.resolveManagedAxCodeLaunchSpec(` ${shim} `)).toEqual({
-      binary: "C:\\Windows\\System32\\cmd.exe",
-      args: ["/d", "/s", "/c", "call", shim],
-      wrapperType: "cmd-wrapper",
-    })
+    const spaced = ` ${shim} `
+    expect(runtime.resolveManagedAxCodeLaunchSpec(spaced)).toEqual({ binary: spaced, args: [], wrapperType: null })
   })
 
   it("resolves npm AX Code cmd shims to the packaged Windows executable", () => {
@@ -365,6 +379,33 @@ describePosix("bundled ax-code runtime resolution", () => {
     fs.chmodSync(bin, 0o755)
     return { dir, bin }
   }
+
+  it("preserves a literal environment override through resolution and launch", () => {
+    const { dir, bin } = createExecutable("ax-env-bin-")
+    const spaced = `${bin} `
+    fs.copyFileSync(bin, spaced)
+    fs.chmodSync(spaced, 0o755)
+    process.env.AX_CODE_BINARY = spaced
+    process.env.PATH = dir
+    const { runtime, state } = createRuntime({})
+
+    expect(runtime.resolveAxCodeCliPath()).toBe(spaced)
+    expect(runtime.ensureAxCodeCliEnv()).toBe(spaced)
+    expect(runtime.resolveManagedAxCodeLaunchSpec(spaced)).toEqual({ binary: spaced, args: [], wrapperType: null })
+    expect(state.resolvedAxCodeBinarySource).toBe("env")
+  })
+
+  it("matches the literal bundled launcher before its PATH sibling", () => {
+    const { dir, bin } = createExecutable("ax-bundle-bin-")
+    const spaced = `${bin} `
+    fs.copyFileSync(bin, spaced)
+    fs.chmodSync(spaced, 0o755)
+    delete process.env.AX_CODE_BINARY
+    process.env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY = spaced
+    process.env.PATH = dir
+    const { runtime } = createRuntime({})
+    expect(runtime.resolveAxCodeCliPath()).toBe(spaced)
+  })
 
   it("resolves the bundled runtime with source 'bundled' ahead of PATH", () => {
     const bundled = createExecutable("ax-bundled-bin-")

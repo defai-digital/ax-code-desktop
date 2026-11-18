@@ -2,6 +2,8 @@ import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from "node:child_proce
 import nodeFs from "node:fs"
 import nodeOs from "node:os"
 import nodePath from "node:path"
+import { readBundledAxCodeBinary } from "../../../../../shared/ax-code-binary-paths.mjs"
+import { readLiteralPath } from "../../../../../shared/path-values.mjs"
 import { compareAxCodeVersions, parseAxCodeVersion } from "../../../../../shared/ax-code-version.mjs"
 
 // ── Standalone AX Code CLI/TUI ──────────────────────────────────────────────
@@ -160,10 +162,7 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
   // The bundled launcher lives inside the app bundle; it is never the user's
   // own CLI even when a PATH entry points into the app resources.
   const isBundledLauncher = (candidate) => {
-    const bundled =
-      typeof env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY === "string"
-        ? env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY.trim()
-        : ""
+    const bundled = readBundledAxCodeBinary(env)
     if (!bundled) return false
     const bundledReal = realpath(bundled)
     const candidateReal = realpath(candidate)
@@ -213,9 +212,9 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
   const readRuntime = async () => {
     try {
       const runtime = await getRuntimeBinary()
-      const runtimePath = typeof runtime === "string" ? runtime : runtime?.path
+      const runtimePath = readLiteralPath(typeof runtime === "string" ? runtime : runtime?.path)
       const source = typeof runtime === "object" && typeof runtime?.source === "string" ? runtime.source : null
-      if (typeof runtimePath !== "string" || !runtimePath.trim() || runtimePath.startsWith("wsl:")) {
+      if (!runtimePath || runtimePath.startsWith("wsl:")) {
         return { path: null, source }
       }
       return { path: runtimePath, source }

@@ -1,4 +1,5 @@
 import React from "react"
+import { readLiteralPath } from "@/lib/pathValues"
 import { API_ENDPOINTS } from "@/lib/http"
 import { isDesktopShell, isTauriShell, startDesktopWindowDrag } from "@/lib/desktop"
 import { Input } from "@/components/ui/input"
@@ -88,7 +89,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
         if (!response.ok) return
         const data = (await response.json().catch(() => null)) as null | { axCodeBinary?: unknown }
         if (!data || cancelled) return
-        const value = typeof data.axCodeBinary === "string" ? data.axCodeBinary.trim() : ""
+        const value = readLiteralPath(data.axCodeBinary) ?? ""
         if (value) {
           setAxCodeBinary(value)
         }
@@ -139,7 +140,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
         directory: false,
       })
       if (typeof selected === "string" && selected.trim().length > 0) {
-        setAxCodeBinary(selected.trim())
+        setAxCodeBinary(selected)
       }
     } catch {
       // ignore
@@ -149,7 +150,7 @@ export function LocalSetupScreen({ onBack, onCliAvailable }: LocalSetupScreenPro
   const handleApplyPath = React.useCallback(async () => {
     setIsRetrying(true)
     try {
-      await updateDesktopSettings({ axCodeBinary: axCodeBinary.trim() })
+      await updateDesktopSettings({ axCodeBinary: readLiteralPath(axCodeBinary) ?? "" })
 
       // In desktop boot flow, always restart the entire Tauri app so Rust
       // can re-evaluate the boot outcome with the updated binary path.

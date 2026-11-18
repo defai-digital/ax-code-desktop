@@ -113,6 +113,21 @@ describe("createAxCodeCliInstallRuntime", () => {
     expect(status.canUpgrade).toBe(false)
   })
 
+  it("does not mistake a user's PATH install for the bundle's spaced launcher", async () => {
+    const bundled = "/fixture/app/bin/ax-code "
+    const { runtime, cli } = createRuntime({
+      executables: ["/fixture/app/bin/ax-code", CLI],
+      pathValue: "/fixture/app/bin",
+      env: { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: bundled },
+      fs: {
+        ...createFs(["/fixture/app/bin/ax-code", CLI]),
+        realpathSync: (candidate) => candidate === bundled ? "/fixture/bundle/bin/ax-code" : candidate,
+      },
+    })
+    expect((await runtime.getStatus()).path).toBe("/fixture/app/bin/ax-code")
+    expect(cli.calls[0]).toEqual(["/fixture/app/bin/ax-code", "--version"])
+  })
+
   it("prefers the PATH entry and skips the bundled launcher", () => {
     const bundled = "/Applications/AX Code.app/Contents/Resources/ax-code/bin/ax-code"
     const { runtime } = createRuntime({

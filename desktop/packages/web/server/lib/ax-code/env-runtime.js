@@ -2,6 +2,8 @@ import { execFile, spawnSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { readAxCodeBinaryOverrides, readBundledAxCodeBinary } from "../../../../../shared/ax-code-binary-paths.mjs"
+import { readLiteralPath } from "../../../../../shared/path-values.mjs"
 import { mergePathValues } from "./path-utils.js"
 
 // Must match electron/src/login-shell-env.js LOGIN_SHELL_ENV_UNAVAILABLE.
@@ -11,6 +13,7 @@ const HOST_LOGIN_SHELL_ENV_UNAVAILABLE = "unavailable"
 // snapshot is an optional convenience, so give each shell the same budget as a
 // login-shell capture and fall through to the next candidate.
 const WINDOWS_ENV_SNAPSHOT_TIMEOUT_MS = 2_000
+const readExecutableOutputLines = (stdout) => (stdout || "").split(/\r?\n/).filter((line) => readLiteralPath(line))
 
 export const createAxCodeEnvRuntime = (deps) => {
   const {
@@ -64,27 +67,26 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const resolveWindowsExecutablePath = (candidate) => {
-    if (process.platform !== "win32" || typeof candidate !== "string" || candidate.trim().length === 0) {
+    if (process.platform !== "win32" || !readLiteralPath(candidate)) {
       return candidate
     }
 
-    const trimmed = candidate.trim()
-    const ext = path.extname(trimmed).toLowerCase()
+    const ext = path.extname(candidate).toLowerCase()
     if (ext) {
-      return isExecutable(trimmed) ? trimmed : null
+      return isExecutable(candidate) ? candidate : null
     }
 
     const pathExt = process.env.PATHEXT || process.env.PathExt || ".COM;.EXE;.BAT;.CMD"
     for (const rawExt of pathExt.split(";")) {
       const normalizedExt = rawExt.trim()
       if (!normalizedExt) continue
-      const withExt = `${trimmed}${normalizedExt.startsWith(".") ? normalizedExt : `.${normalizedExt}`}`
+      const withExt = `${candidate}${normalizedExt.startsWith(".") ? normalizedExt : `.${normalizedExt}`}`
       if (isExecutable(withExt)) {
         return withExt
       }
     }
 
-    return isExecutable(trimmed) ? trimmed : null
+    return isExecutable(candidate) ? candidate : null
   }
 
   const searchPathFor = (binaryName) => {
@@ -123,12 +125,12 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const prependToPath = (dir) => {
-    const trimmed = asTrimmedString(dir)
-    if (!trimmed) return
+    const directory = readLiteralPath(dir)
+    if (!directory) return
     const current = process.env.PATH || ""
     const parts = current.split(path.delimiter).filter(Boolean)
-    if (parts.includes(trimmed)) return
-    process.env.PATH = [trimmed, ...parts].join(path.delimiter)
+    if (parts.includes(directory)) return
+    process.env.PATH = [directory, ...parts].join(path.delimiter)
   }
 
   const getWindowsShellEnvSnapshot = () => {
@@ -363,10 +365,8 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const isWslExecutableValue = (value) => {
-    if (typeof value !== "string") return false
-    const trimmed = value.trim()
-    if (!trimmed) return false
-    return /(^|[\\/])wsl(\.exe)?$/i.test(trimmed)
+    const candidate = readLiteralPath(value)
+    return candidate !== null && /(^|[\\/])wsl(\.exe)?$/i.test(candidate)
   }
 
   const clearWslAxCodeResolution = () => {
@@ -382,7 +382,7 @@ export const createAxCodeEnvRuntime = (deps) => {
     }
 
     const explicit = [process.env.WSL_BINARY, process.env.AX_CODE_DESKTOP_WSL_BINARY]
-      .map(asTrimmedString)
+      .map(readLiteralPath)
       .filter(Boolean)
 
     for (const candidate of explicit) {
@@ -447,11 +447,7 @@ export const createAxCodeEnvRuntime = (deps) => {
         return null
       }
 
-      const lines = (result.stdout || "")
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-      const found = lines[0] || ""
+      const [found] = readExecutableOutputLines(result.stdout)
       if (!found) {
         return null
       }
@@ -474,7 +470,7 @@ export const createAxCodeEnvRuntime = (deps) => {
 
     state.useWslForAxCode = true
     state.resolvedWslBinary = resolvedWsl
-    state.resolvedWslAxCodePath = asTrimmedString(axCodePath) || "ax-code"
+    state.resolvedWslAxCodePath = readLiteralPath(axCodePath) || "ax-code"
     state.resolvedWslDistro = asTrimmedString(distro) || ENV_CONFIGURED_AX_CODE_WSL_DISTRO
     state.resolvedAxCodeBinary = `wsl:${state.resolvedWslAxCodePath}`
     state.resolvedAxCodeBinarySource = source
@@ -484,14 +480,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const resolveAxCodeCliPath = () => {
-    const explicit = [
-      process.env.AX_CODE_BINARY,
-      process.env.AX_CODE_PATH,
-      process.env.AX_CODE_DESKTOP_AX_CODE_PATH,
-      process.env.AX_CODE_DESKTOP_AX_CODE_BIN,
-    ]
-      .map(asTrimmedString)
-      .filter(Boolean)
+    const explicit = readAxCodeBinaryOverrides(process.env)
 
     for (const candidate of explicit) {
       if (isExecutable(candidate)) {
@@ -506,7 +495,7 @@ export const createAxCodeEnvRuntime = (deps) => {
     // settings/explicit env overrides, higher than PATH. Dev builds and
     // placeholder-staged builds never set the variable, so this is a no-op
     // outside packaged releases.
-    const bundled = asTrimmedString(process.env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY)
+    const bundled = readBundledAxCodeBinary(process.env)
     if (bundled && isExecutable(bundled)) {
       clearWslAxCodeResolution()
       state.resolvedAxCodeBinarySource = "bundled"
@@ -568,11 +557,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const lines = (result.stdout || "")
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-          const found = lines.find((line) => isExecutable(line))
+          const found = readExecutableOutputLines(result.stdout).find(isExecutable)
           if (found) {
             clearWslAxCodeResolution()
             state.resolvedAxCodeBinarySource = "where"
@@ -602,7 +587,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const found = (result.stdout || "").trim().split(/\s+/).pop() || ""
+          const found = readExecutableOutputLines(result.stdout).at(-1)
           if (found && isExecutable(found)) {
             clearWslAxCodeResolution()
             state.resolvedAxCodeBinarySource = "shell"
@@ -617,7 +602,7 @@ export const createAxCodeEnvRuntime = (deps) => {
 
   const resolveNodeCliPath = () => {
     const explicit = [process.env.NODE_BINARY, process.env.AX_CODE_DESKTOP_NODE_BINARY]
-      .map(asTrimmedString)
+      .map(readLiteralPath)
       .filter(Boolean)
 
     for (const candidate of explicit) {
@@ -646,11 +631,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const lines = (result.stdout || "")
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-          const found = lines.find((line) => isExecutable(line))
+          const found = readExecutableOutputLines(result.stdout).find(isExecutable)
           if (found) return found
         }
       } catch {}
@@ -667,7 +648,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const found = (result.stdout || "").trim().split(/\s+/).pop() || ""
+          const found = readExecutableOutputLines(result.stdout).at(-1)
           if (found && isExecutable(found)) {
             return found
           }
@@ -680,7 +661,7 @@ export const createAxCodeEnvRuntime = (deps) => {
 
   const resolveBunCliPath = () => {
     const explicit = [process.env.BUN_BINARY, process.env.AX_CODE_DESKTOP_BUN_BINARY]
-      .map(asTrimmedString)
+      .map(readLiteralPath)
       .filter(Boolean)
 
     for (const candidate of explicit) {
@@ -725,11 +706,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const lines = (result.stdout || "")
-            .split(/\r?\n/)
-            .map((line) => line.trim())
-            .filter(Boolean)
-          const found = lines.find((line) => isExecutable(line))
+          const found = readExecutableOutputLines(result.stdout).find(isExecutable)
           if (found) return found
         }
       } catch {}
@@ -746,7 +723,7 @@ export const createAxCodeEnvRuntime = (deps) => {
           windowsHide: true,
         })
         if (result.status === 0) {
-          const found = (result.stdout || "").trim().split(/\s+/).pop() || ""
+          const found = readExecutableOutputLines(result.stdout).at(-1)
           if (found && isExecutable(found)) {
             return found
           }
@@ -790,17 +767,10 @@ export const createAxCodeEnvRuntime = (deps) => {
   const WINDOWS_BATCH_EXTENSIONS = new Set([".cmd", ".bat", ".com"])
 
   const normalizeExecutableCandidate = (value) => {
-    if (typeof value !== "string") {
-      return null
-    }
-    const trimmed = value.trim()
-    if (!trimmed) {
-      return null
-    }
-    if (process.platform === "win32") {
-      return resolveWindowsExecutablePath(trimmed)
-    }
-    return isExecutable(trimmed) ? trimmed : null
+    const candidate = readLiteralPath(value)
+    if (!candidate) return null
+    if (process.platform === "win32") return resolveWindowsExecutablePath(candidate)
+    return isExecutable(candidate) ? candidate : null
   }
 
   const getWindowsNativeAxCodePackageNames = () => {
@@ -934,7 +904,7 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const resolveManagedAxCodeLaunchSpec = (axCodePath) => {
-    const fallbackBinary = asTrimmedString(axCodePath) || "ax-code"
+    const fallbackBinary = readLiteralPath(axCodePath) || "ax-code"
 
     if (process.platform !== "win32") {
       return { binary: fallbackBinary, args: [], wrapperType: null }
@@ -1055,8 +1025,8 @@ export const createAxCodeEnvRuntime = (deps) => {
   }
 
   const createConfiguredAxCodeBinaryError = (raw, normalized) => {
-    const configured = asTrimmedString(raw)
-    const candidate = asTrimmedString(normalized) || configured
+    const configured = readLiteralPath(raw) ?? ""
+    const candidate = readLiteralPath(normalized) ?? configured
     const messageSuffix =
       "AX Code Desktop needs the standalone ax-code CLI. Install it and set settings.axCodeBinary to the CLI path, for example ~/.ax-code/bin/ax-code, or leave the setting empty to use PATH lookup."
     const error = (() => {
@@ -1103,20 +1073,20 @@ export const createAxCodeEnvRuntime = (deps) => {
     if (typeof raw !== "string") {
       return null
     }
-    const trimmed = normalizeDirectoryPath(raw)
-    if (!trimmed) {
+    const candidate = normalizeDirectoryPath(raw)
+    if (!candidate) {
       return ""
     }
 
     try {
-      const stat = fs.statSync(trimmed)
+      const stat = fs.statSync(candidate)
       if (stat.isDirectory()) {
         const bin = process.platform === "win32" ? "ax-code.exe" : "ax-code"
-        return path.join(trimmed, bin)
+        return path.join(candidate, bin)
       }
     } catch {}
 
-    return trimmed
+    return candidate
   }
 
   const applyAxCodeBinaryFromSettings = async (options = {}) => {
@@ -1140,15 +1110,15 @@ export const createAxCodeEnvRuntime = (deps) => {
         return null
       }
 
-      const raw = asTrimmedString(settings.axCodeBinary)
-      const explicitWslPath =
-        process.platform === "win32" && typeof raw === "string" ? raw.match(/^wsl:\s*(.+)$/i) : null
+      const raw = readLiteralPath(settings.axCodeBinary)
+      const wslPrefix = process.platform === "win32" ? raw?.match(/^\s*wsl:\s*/i)?.[0] : null
+      const explicitWslPath = wslPrefix ? readLiteralPath(raw.slice(wslPrefix.length)) : null
 
-      if (explicitWslPath && explicitWslPath[1] && explicitWslPath[1].trim().length > 0) {
+      if (explicitWslPath) {
         const probe = probeWslForAxCode()
         const applied = applyWslAxCodeResolution({
           wslBinary: probe?.wslBinary || resolveWslExecutablePath(),
-          axCodePath: explicitWslPath[1].trim(),
+          axCodePath: explicitWslPath,
           source: "settings-wsl-path",
           distro: probe?.distro || ENV_CONFIGURED_AX_CODE_WSL_DISTRO,
         })
@@ -1210,7 +1180,7 @@ export const createAxCodeEnvRuntime = (deps) => {
       return state.resolvedAxCodeBinary
     }
 
-    const existing = asTrimmedString(process.env.AX_CODE_BINARY)
+    const existing = readLiteralPath(process.env.AX_CODE_BINARY)
     if (existing && isExecutable(existing)) {
       clearWslAxCodeResolution()
       state.resolvedAxCodeBinary = existing
@@ -1252,7 +1222,7 @@ export const createAxCodeEnvRuntime = (deps) => {
     }
 
     const explicit = [process.env.GIT_BINARY, process.env.AX_CODE_DESKTOP_GIT_BINARY]
-      .map(asTrimmedString)
+      .map(readLiteralPath)
       .filter(Boolean)
     for (const candidate of explicit) {
       if (isExecutable(candidate)) {
@@ -1266,18 +1236,18 @@ export const createAxCodeEnvRuntime = (deps) => {
       if (typeof candidate !== "string") {
         return ""
       }
-      const trimmed = candidate.trim()
-      if (!trimmed) {
+      const literal = readLiteralPath(candidate)
+      if (!literal) {
         return ""
       }
-      const ext = path.extname(trimmed).toLowerCase()
+      const ext = path.extname(literal).toLowerCase()
       if (ext === ".cmd" || ext === ".bat" || ext === ".com") {
-        const exeCandidate = trimmed.slice(0, -ext.length) + ".exe"
+        const exeCandidate = literal.slice(0, -ext.length) + ".exe"
         if (isExecutable(exeCandidate)) {
           return exeCandidate
         }
       }
-      return trimmed
+      return literal
     }
 
     const pathCandidate = normalizeGitCandidate(searchPathFor("git"))
@@ -1291,7 +1261,7 @@ export const createAxCodeEnvRuntime = (deps) => {
     }
 
     const programRoots = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"], process.env.LocalAppData]
-      .map(asTrimmedString)
+      .map(readLiteralPath)
       .filter(Boolean)
     for (const root of programRoots) {
       const installCandidates = [

@@ -1,4 +1,5 @@
 import React from "react"
+import { readLiteralPath } from "@/lib/pathValues"
 import { API_ENDPOINTS } from "@/lib/http"
 import { isDesktopShell, isTauriShell, startDesktopWindowDrag } from "@/lib/desktop"
 import { Input } from "@/components/ui/input"
@@ -74,7 +75,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
         if (!response.ok) return
         const data = (await response.json().catch(() => null)) as null | { axCodeBinary?: unknown }
         if (!data || cancelled) return
-        const value = typeof data.axCodeBinary === "string" ? data.axCodeBinary.trim() : ""
+        const value = readLiteralPath(data.axCodeBinary) ?? ""
         if (value) setAxCodeBinary(value)
       } catch {
         // ignore
@@ -200,7 +201,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
         directory: false,
       })
       if (typeof selected === "string" && selected.trim().length > 0) {
-        setAxCodeBinary(selected.trim())
+        setAxCodeBinary(selected)
       }
     } catch {
       // ignore
@@ -211,7 +212,7 @@ export function ChooserScreen({ onCliAvailable }: ChooserScreenProps) {
     setIsApplyingPath(true)
     setApplyError(null)
     try {
-      await updateDesktopSettings({ axCodeBinary: axCodeBinary.trim() })
+      await updateDesktopSettings({ axCodeBinary: readLiteralPath(axCodeBinary) ?? "" })
       if (isTauriShell()) {
         await persistLocalChoice()
         if (!(await restartDesktopApp())) {
