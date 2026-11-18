@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 import type { InlineCommentDraft } from "@/lib/messages/inlineCommentDraft"
 import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { getSafeStorage } from "./utils/safeStorage"
@@ -16,7 +17,7 @@ export const MAX_REVIEW_THREADS = 200
 export const MAX_REVIEW_THREAD_DIRECTORIES = 30
 /** A thread keeps at most this much of the commented code; re-anchoring searches for this prefix. */
 export const MAX_REVIEW_THREAD_SNIPPET = 4000
-export const EMPTY_REVIEW_THREADS: ReviewThread[] = []
+const EMPTY_REVIEW_THREADS: ReviewThread[] = []
 
 function bounded(threads: ReviewThread[]): ReviewThread[] {
   const evict = [...threads].sort(
@@ -145,10 +146,10 @@ export const useReviewThreadStore = create<ReviewThreadState>()(
       version: 1,
       storage: createJSONStorage(() => getSafeStorage()),
       partialize: (state) => ({ threadsByDirectory: state.threadsByDirectory }),
-      merge: (persisted, current) => ({
-        ...current,
-        threadsByDirectory: restoreBoundedThreads((persisted as Partial<ReviewThreadState> | null)?.threadsByDirectory),
-      }),
+      merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["threadsByDirectory"])) return current
+        return { ...current, threadsByDirectory: restoreBoundedThreads(persisted.threadsByDirectory) }
+      },
     },
   ),
 )

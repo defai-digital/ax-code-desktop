@@ -1,5 +1,6 @@
 import React from "react"
 import { Dialog } from "@base-ui/react/dialog"
+import { hasOpenFloatingMenu } from "@/lib/floatingMenu"
 import { cn } from "@/lib/utils"
 import { MultiRunLauncher } from "@/components/multirun"
 import { Icon } from "@/components/icon/Icon"
@@ -15,15 +16,6 @@ export const MultiRunWindow: React.FC<MultiRunWindowProps> = ({ open, onOpenChan
   const descriptionId = React.useId()
   const { t } = useI18n()
 
-  const hasOpenFloatingMenu = React.useCallback(() => {
-    if (typeof document === "undefined") {
-      return false
-    }
-
-    return Boolean(
-      document.querySelector('[data-slot="dropdown-menu-content"][data-open], [data-slot="select-content"][data-open]'),
-    )
-  }, [])
 
   // The launcher's own Escape handler closes through this too: calling `onOpenChange(false)` directly
   // walked past the guard above, so closing while a floating menu was open discarded the launcher's
@@ -33,7 +25,7 @@ export const MultiRunWindow: React.FC<MultiRunWindowProps> = ({ open, onOpenChan
       return
     }
     onOpenChange(false)
-  }, [hasOpenFloatingMenu, onOpenChange])
+  }, [onOpenChange])
 
   return (
     <Dialog.Root

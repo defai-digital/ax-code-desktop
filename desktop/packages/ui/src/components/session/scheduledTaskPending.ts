@@ -40,7 +40,7 @@ export const pendingRank = (family: ScheduledTaskFamily): number => {
   return typeof family.nextRunAt === "number" ? 2 : 3
 }
 
-export const comparePendingEntries = (a: PendingScheduleEntry, b: PendingScheduleEntry): number => {
+const comparePendingEntries = (a: PendingScheduleEntry, b: PendingScheduleEntry): number => {
   const rankA = pendingRank(a.family)
   const rank = rankA - pendingRank(b.family)
   if (rank !== 0) return rank

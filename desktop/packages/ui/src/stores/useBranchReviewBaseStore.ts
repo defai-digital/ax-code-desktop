@@ -1,7 +1,7 @@
 import { create } from "zustand"
-import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { createJSONStorage, persist } from "zustand/middleware"
-
+import { hasPersistedFields } from "@/lib/persistedFields"
+import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { getSafeStorage } from "./utils/safeStorage"
 
 export const BRANCH_REVIEW_BASE_STORAGE_KEY = "ax-code-branch-review-base-v1"
@@ -61,10 +61,10 @@ export const useBranchReviewBaseStore = create<BranchReviewBaseState>()(
       version: 1,
       storage: createJSONStorage(() => getSafeStorage()),
       partialize: (state) => ({ bases: state.bases }),
-      merge: (persisted, current) => ({
-        ...current,
-        bases: readBases((persisted as { bases?: unknown } | null)?.bases),
-      }),
+      merge: (persisted, current) => {
+        if (!hasPersistedFields(persisted, ["bases"])) return current
+        return { ...current, bases: readBases(persisted.bases) }
+      },
     },
   ),
 )

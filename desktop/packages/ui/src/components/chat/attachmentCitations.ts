@@ -1,3 +1,4 @@
+import { normalizePathSeparators } from "@/lib/pathValues"
 interface ImageAttachmentCandidate {
   name: string
   type?: string
@@ -40,7 +41,7 @@ const normalizeFilenameKey = (filename: string): string => filename.trim().toLow
 const isUnsafeFilenameChar = (char: string): boolean => char.charCodeAt(0) < 32 || '<>:"/\\|?*[]'.includes(char)
 
 const sanitizeFilename = (name: string): string => {
-  const basename = name.replace(/\\/g, "/").split("/").pop() ?? ""
+  const basename = normalizePathSeparators(name).split("/").pop() ?? ""
   return Array.from(basename)
     .map((char) => (isUnsafeFilenameChar(char) ? "-" : char))
     .join("")

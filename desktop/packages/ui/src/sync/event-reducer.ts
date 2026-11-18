@@ -1,4 +1,3 @@
-import { recordWebMcpApprovalReceipt, recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
 import type {
   Event,
   Message,
@@ -10,6 +9,9 @@ import type {
   SessionStatus,
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import { shallowRecordEqual } from "@/lib/shallowRecordEqual"
+import { recordWebMcpApprovalReceipt, recordWebMcpApproval } from "@/stores/useWebMcpApprovalOutcome"
+import { getValidMessagePartEndTime } from "@/lib/messagePartFields"
 import { noteServerSessionStatus } from "./session-status-events"
 import { noteBlockingRequestEvent } from "./blocking-request-events"
 import { Binary } from "./binary"
@@ -98,36 +100,6 @@ function getUpdatedDeltaFields(previous: Part, next: Part) {
   return dedupeFields
 }
 
-function getPartEndTime(part: Part): number | undefined {
-  const stateEnd = (part as { state?: { time?: { end?: unknown } } }).state?.time?.end
-  if (typeof stateEnd === "number") {
-    return stateEnd
-  }
-
-  const timeEnd = (part as { time?: { end?: unknown } }).time?.end
-  return typeof timeEnd === "number" ? timeEnd : undefined
-}
-
-function getPartStartTime(part: Part): number | undefined {
-  const stateStart = (part as { state?: { time?: { start?: unknown } } }).state?.time?.start
-  if (typeof stateStart === "number") {
-    return stateStart
-  }
-
-  const timeStart = (part as { time?: { start?: unknown } }).time?.start
-  return typeof timeStart === "number" ? timeStart : undefined
-}
-
-function getValidPartEndTime(part: Part): number | undefined {
-  const endTime = getPartEndTime(part)
-  if (typeof endTime !== "number") return undefined
-
-  const startTime = getPartStartTime(part)
-  if (typeof startTime === "number" && endTime < startTime) return undefined
-
-  return endTime
-}
-
 function getToolStatus(part: Part): string | undefined {
   if (part.type !== "tool") {
     return undefined
@@ -152,8 +124,8 @@ export function shouldPreserveExistingPart(previous: Part, next: Part): boolean 
     return true
   }
 
-  const previousEnd = getValidPartEndTime(previous)
-  const nextEnd = getValidPartEndTime(next)
+  const previousEnd = getValidMessagePartEndTime(previous)
+  const nextEnd = getValidMessagePartEndTime(next)
   if (typeof previousEnd === "number" && typeof nextEnd !== "number") {
     return true
   }
@@ -270,7 +242,7 @@ function areMessageErrorsEqual(
 ): boolean {
   if (left === right) return true
   if (!left || !right || left.name !== right.name) return false
-  return areFlatRecordsEqual(left.data, right.data)
+  return shallowRecordEqual(left.data, right.data)
 }
 
 function areOutputFormatsEqual(
@@ -279,7 +251,7 @@ function areOutputFormatsEqual(
 ): boolean {
   if (left === right) return true
   if (!left || !right || left.type !== right.type) return false
-  return areFlatRecordsEqual(left as Record<string, unknown>, right as Record<string, unknown>)
+  return shallowRecordEqual(left as Record<string, unknown>, right as Record<string, unknown>)
 }
 
 function areUserSummariesEqual(
@@ -311,21 +283,6 @@ function areStringBooleanRecordsEqual(
   if (leftKeys.length !== rightKeys.length) return false
   for (const key of leftKeys) {
     if (left[key] !== right[key]) return false
-  }
-  return true
-}
-
-function areFlatRecordsEqual(
-  left: Record<string, unknown> | undefined,
-  right: Record<string, unknown> | undefined,
-): boolean {
-  if (left === right) return true
-  if (!left || !right) return false
-  const leftKeys = Object.keys(left)
-  const rightKeys = Object.keys(right)
-  if (leftKeys.length !== rightKeys.length) return false
-  for (const key of leftKeys) {
-    if (!Object.is(left[key], right[key])) return false
   }
   return true
 }

@@ -54,6 +54,7 @@ export const createWebGitAPI = (): GitAPI => ({
   updateGitIdentity: gitApiHttp.updateGitIdentity,
   deleteGitIdentity: gitApiHttp.deleteGitIdentity,
   getRemotes: gitApiHttp.getRemotes,
+  getRemoteUrl: gitApiHttp.getRemoteUrl,
   rebase: gitApiHttp.rebase,
   abortRebase: gitApiHttp.abortRebase,
   continueRebase: gitApiHttp.continueRebase,

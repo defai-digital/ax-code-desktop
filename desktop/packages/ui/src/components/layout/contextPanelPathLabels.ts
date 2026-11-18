@@ -1,7 +1,9 @@
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
 
+import { normalizeFilesViewPath } from "@/lib/filesViewPath"
+
 export const getContextPanelRelativePathLabel = (filePath: string | null, directory: string): string => {
-  const normalizedFile = normalizeProjectPath(filePath)
+  const normalizedFile = normalizeFilesViewPath(filePath ?? "")
   if (!normalizedFile) {
     return ""
   }

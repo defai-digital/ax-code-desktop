@@ -111,7 +111,7 @@ describe("useGlobalSessionsStore", () => {
       expect(
         resolveGlobalSessionDirectory(
           makeSession("ses_a", {
-            directory: " c:\\Users\\Alice\\Project\\ ",
+            directory: "c:\\Users\\Alice\\Project\\",
             project: { worktree: "/fallback/worktree" },
           }),
         ),

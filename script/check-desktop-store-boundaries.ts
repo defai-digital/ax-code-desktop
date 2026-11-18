@@ -13,8 +13,7 @@
  * - R2 sync internals encapsulation: files outside src/sync/ may not import
  *   the sync internals (child-store, event-reducer, event-pipeline,
  *   sync-context-impl). Use the public surface instead (sync-context hooks,
- *   sync-refs, session-actions, …). The exception list is frozen and may
- *   only shrink.
+ *   sync-refs, session-actions, …). No external exceptions remain.
  * - R3 transport consumer registry: src/lib/event-stream/client (the unified
  *   Slice 1 transport) may only be imported by the registered consumers
  *   below. Everyone else uses lib/event-stream/subscribe.ts.
@@ -89,7 +88,6 @@ export const STORE_TO_STORE_IMPORT_ALLOWLIST: readonly string[] = [
   "useMultiRunStore -> useDirectoryStore",
   "useMultiRunStore -> useProjectsStore",
   "useMultiRunStore -> useSnippetsStore",
-  "usePluginsStore -> useAgentsStore",
   "useProjectsStore -> useDirectoryStore",
   "useSessionRollbackStore -> useDirectoryStore",
   "useSkillsCatalogStore -> useSkillsStore",
@@ -98,17 +96,6 @@ export const STORE_TO_STORE_IMPORT_ALLOWLIST: readonly string[] = [
 
 /** R2 sync-internal modules (extension-less basenames under src/sync/). */
 const SYNC_INTERNAL_MODULES = ["child-store", "event-reducer", "event-pipeline", "sync-context-impl"]
-
-/**
- * R2 frozen exceptions — external imports of sync internals that predate this
- * check. MAY ONLY SHRINK; remove the import, not the rule.
- */
-export const SYNC_INTERNAL_IMPORT_EXCEPTIONS: readonly { file: string; target: string }[] = [
-  // ReconnectBanner triggers an immediate reconnect via the pipeline's
-  // retry-now command. Grandfathered; a later sub-step moves this command
-  // onto the documented public surface.
-  { file: `${UI_SRC}/components/ui/ReconnectBanner.tsx`, target: "event-pipeline" },
-]
 
 /**
  * R3 registered consumers of the unified event transport client. Everyone
@@ -253,7 +240,6 @@ export function analyzeSyncInternalImports(file: string, source: string): StoreB
     if (!resolved || path.posix.dirname(resolved) !== SYNC_DIR) continue
     const target = path.posix.basename(resolved)
     if (!SYNC_INTERNAL_MODULES.includes(target)) continue
-    if (SYNC_INTERNAL_IMPORT_EXCEPTIONS.some((entry) => entry.file === fileRel && entry.target === target)) continue
     violations.push(violation(file, item, "R2", STORE_BOUNDARY_REASONS.syncInternal, sourceLines))
   }
   return violations

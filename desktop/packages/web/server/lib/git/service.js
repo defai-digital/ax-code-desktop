@@ -7,13 +7,16 @@ import { promisify } from "util"
 import { createHash, randomUUID } from "crypto"
 
 import { readBoundedRegularFile } from "../read-bounded-file.js"
+import { patchTargetsDeclaredPath } from "./patch-validation.js"
 import {
   normalizeGitBlobId,
+  parseGitPathOutput,
   parseGitStageRecords,
   parseGitTreeRecords,
   parseIsBinaryFromNumstat,
   parseGitNameStatusZ,
 } from "./output-parsers.js"
+import { createDirectoryPathNormalizer } from "../directory-path.js"
 const fsp = fs.promises
 const execFileAsync = promisify(execFile)
 // The null device `git diff --no-index` is asked to compare against. One of the three call sites selected it per
@@ -110,7 +113,7 @@ export function recordWorktreeRuntimeEvent(event) {
   if (!status) {
     return false
   }
-  const directory = typeof event?.directory === "string" ? event.directory.trim() : ""
+  const directory = typeof event?.directory === "string" ? event.directory : ""
   if (!directory || directory === "global") {
     return false
   }
@@ -467,26 +470,7 @@ const createGit = async (directory) => {
   })
 }
 
-const normalizeDirectoryPath = (value) => {
-  if (typeof value !== "string") {
-    return value
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return trimmed
-  }
-
-  if (trimmed === "~") {
-    return os.homedir()
-  }
-
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return path.join(os.homedir(), trimmed.slice(2))
-  }
-
-  return trimmed
-}
+const normalizeDirectoryPath = createDirectoryPathNormalizer(os, path)
 
 const getGitIndexMutationQueueKey = (directory) => {
   const normalized = normalizeDirectoryPath(directory)
@@ -559,7 +543,7 @@ export const validateRepositoryFilePaths = (directoryPath, filePaths, pathTools 
   }
 }
 
-const toGitPath = (value) => value.replace(/\\/g, "/")
+const toGitPath = (value) => (path.sep === "\\" ? value.replace(/\\/g, "/") : value)
 
 const isInsideOrSameDirectory = (root, target) => {
   const relative = path.relative(root, target)
@@ -576,7 +560,7 @@ export const resolveRepositoryFilePath = (repoRoot, filePath) => {
 
 const resolveGitRepositoryRoot = async (directoryPath, git) => {
   const topLevel = await git.raw(["rev-parse", "--show-toplevel"])
-  const normalizedTopLevel = topLevel.trim()
+  const normalizedTopLevel = parseGitPathOutput(topLevel)
   return path.isAbsolute(normalizedTopLevel)
     ? path.resolve(normalizedTopLevel)
     : path.resolve(directoryPath, normalizedTopLevel)
@@ -592,10 +576,10 @@ const createRepositoryGitContext = async (directory) => {
 
 const resolveGitInternalPath = async (repoRoot, git, gitPath) => {
   const resolved = await git.raw(["rev-parse", "--git-path", gitPath])
-  const rawPath = resolved.trim()
+  const rawPath = parseGitPathOutput(resolved)
   const absolutePath = path.isAbsolute(rawPath) ? path.resolve(rawPath) : path.resolve(repoRoot, rawPath)
   const gitDirRaw = await git.raw(["rev-parse", "--absolute-git-dir"]).catch(() => "")
-  const gitDir = gitDirRaw.trim()
+  const gitDir = parseGitPathOutput(gitDirRaw)
   if (!path.isAbsolute(gitDir)) throw new Error("Git did not return an absolute metadata directory")
 
   const relative = path.relative(gitDir, absolutePath)
@@ -736,9 +720,7 @@ const slugWorktreeName = (value) => {
 }
 
 const parseWorktreePorcelain = (raw) => {
-  const lines = String(raw || "")
-    .split("\n")
-    .map((line) => line.trim())
+  const lines = String(raw || "").split("\0")
   const entries = []
   let current = null
 
@@ -755,7 +737,7 @@ const parseWorktreePorcelain = (raw) => {
       if (current?.worktree) {
         entries.push(current)
       }
-      current = { worktree: line.substring("worktree ".length).trim() }
+      current = { worktree: line.substring("worktree ".length) }
       continue
     }
 
@@ -1209,14 +1191,14 @@ const resolveWorktreeProjectContext = async (directory) => {
   // repository, and every worktree command runs from it. Refusing here left a bare checkout unable to
   // create, preview or validate a worktree at all.
   const topResult = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"])
-  const sandbox = topResult.success ? path.resolve(directoryPath, topResult.stdout.trim()) : directoryPath
+  const sandbox = topResult.success ? path.resolve(directoryPath, parseGitPathOutput(topResult.stdout)) : directoryPath
 
   const commonResult = await runGitCommandOrThrow(
     sandbox,
     ["rev-parse", "--git-common-dir"],
     "Failed to resolve git common directory",
   )
-  const commonDir = path.resolve(sandbox, commonResult.stdout.trim())
+  const commonDir = path.resolve(sandbox, parseGitPathOutput(commonResult.stdout))
   // For a work tree the common directory is its `.git`, whose parent is the primary worktree; a bare
   // repository answers with itself, and its parent would hand the project to the wrong directory.
   const primaryWorktree = commonDir === sandbox ? sandbox : path.dirname(commonDir)
@@ -1234,7 +1216,7 @@ const resolveWorktreeProjectContext = async (directory) => {
 const listWorktreeEntries = async (directory) => {
   const rawResult = await runGitCommandOrThrow(
     directory,
-    ["worktree", "list", "--porcelain"],
+    ["worktree", "list", "--porcelain", "-z"],
     "Failed to list git worktrees",
   )
   return parseWorktreePorcelain(rawResult.stdout)
@@ -1479,7 +1461,7 @@ const applyUpstreamConfiguration = async (args) => {
  * which takes minutes per refresh and cannot be aborted (the reads there have no timeout).
  */
 export const isRefusedRepositoryRoot = (toplevelPath, homePath = os.homedir()) => {
-  const resolvedTop = typeof toplevelPath === "string" ? toplevelPath.trim() : ""
+  const resolvedTop = typeof toplevelPath === "string" ? toplevelPath : ""
   if (!resolvedTop) {
     return false
   }
@@ -1512,7 +1494,7 @@ export async function isGitRepository(directory) {
   }
 
   const toplevel = await runGitCommand(directoryPath, ["rev-parse", "--show-toplevel"]).catch(() => null)
-  const toplevelPath = toplevel?.success ? String(toplevel.stdout ?? "").trim() : ""
+  const toplevelPath = toplevel?.success ? parseGitPathOutput(toplevel.stdout) : ""
   if (!toplevelPath) {
     // A bare repository has no working tree to compare; keep the previous answer for it.
     return true
@@ -2122,7 +2104,7 @@ export async function getStatus(directory, options = {}) {
 
     return {
       current: status.current,
-      worktreeRoot: repoRoot.replace(/\\/g, "/"),
+      worktreeRoot: toGitPath(repoRoot),
       headOid,
       tracking,
       ahead,
@@ -3405,125 +3387,6 @@ export async function unstageFiles(directory, paths) {
   })
 }
 
-// The patch names the file it edits; the route validated a declared path, so a patch whose
-// post-image names a different file must be rejected rather than silently editing that one.
-// A deletion patch instead carries the target in its `--- a/<path>` pre-image line.
-// git writes a header path that needs escaping (non-ASCII, quotes, control
-// characters) as a C-style quoted string with octal byte escapes.
-const C_QUOTE_ESCAPES = { a: 7, b: 8, f: 12, n: 10, r: 13, t: 9, v: 11, '"': 34, "\\": 92 }
-const unquoteGitHeaderPath = (value) => {
-  if (!value.startsWith('"') || !value.endsWith('"') || value.length < 2) {
-    return value
-  }
-  const bytes = []
-  const body = value.slice(1, -1)
-  for (let index = 0; index < body.length; index += 1) {
-    const character = body[index]
-    if (character !== "\\") {
-      bytes.push(...Buffer.from(character, "utf8"))
-      continue
-    }
-    const next = body[index + 1]
-    if (/[0-7]/.test(next ?? "")) {
-      bytes.push(parseInt(body.slice(index + 1, index + 4), 8))
-      index += 3
-      continue
-    }
-    bytes.push(C_QUOTE_ESCAPES[next] ?? next.charCodeAt(0))
-    index += 1
-  }
-  return Buffer.from(bytes).toString("utf8")
-}
-
-const HUNK_HEADER_PATTERN = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/
-
-/**
- * The file sections a patch declares: its `--- `/`+++ ` header pairs that are not part of a hunk body.
- *
- * A hunk body is content — its lines start with ` `, `+`, `-` or `\` — and a removed `-- old` line directly above
- * the added `++ new` line that replaces it renders as `--- old` / `+++ new`, which reads exactly like a header.
- * The body is consumed by the line counts its `@@ ` header declares (a `\ No newline` marker is not among them, so
- * it is skipped), and only pairs outside every body are sections. Counting `diff --git` lines is not enough on
- * its own: a patch can start another file's section straight at a `--- `/`+++ ` pair.
- *
- * The two counts are tracked separately because a context line belongs to both: draining them together would
- * consume `oldCount + newCount` lines for a body of `max(oldCount, newCount)` and read the lines that follow the
- * hunk as body. That both hid a second file section — the guard counts sections, so it saw only one — and read a
- * later hunk's own `--- x`/`+++ y` body lines as a second section.
- */
-const declaredFileSections = (lines) => {
-  const sections = []
-  // Lines outside every hunk body, which is where git reads extended headers.
-  const headerLines = []
-  let index = 0
-  while (index < lines.length) {
-    const hunk = HUNK_HEADER_PATTERN.exec(lines[index])
-    if (hunk) {
-      let oldRemaining = hunk[1] === undefined ? 1 : Number(hunk[1])
-      let newRemaining = hunk[2] === undefined ? 1 : Number(hunk[2])
-      index += 1
-      while ((oldRemaining > 0 || newRemaining > 0) && index < lines.length) {
-        const line = lines[index]
-        if (line.startsWith("\\ ")) {
-          index += 1
-          continue
-        }
-        if (!line.startsWith("+")) {
-          oldRemaining -= 1
-        }
-        if (!line.startsWith("-")) {
-          newRemaining -= 1
-        }
-        index += 1
-      }
-      continue
-    }
-    if (lines[index].startsWith("--- ") && (lines[index + 1] ?? "").startsWith("+++ ")) {
-      sections.push({ preImage: lines[index], postImage: lines[index + 1] })
-      index += 2
-      continue
-    }
-    headerLines.push(lines[index])
-    index += 1
-  }
-  return { sections, headerLines }
-}
-
-// A `diff --git` section that only renames, copies, or deletes or adds an empty file carries no `---`/`+++` pair,
-// so counting pairs missed it: a hunk for the declared file followed by `rename from o` / `rename to moved` passed
-// the one-file guard and `git apply --cached` renamed another file in the index. A hunk never renames or copies.
-const FOREIGN_SECTION_HEADER_PATTERN = /^(rename from |rename to |copy from |copy to )/
-
-const hasForeignSectionHeader = (headerLines) =>
-  headerLines.filter((line) => line.startsWith("diff --git ")).length > 1 ||
-  headerLines.some((line) => FOREIGN_SECTION_HEADER_PATTERN.test(line))
-
-const patchTargetsDeclaredPath = (patchText, repoPath) => {
-  const allLines = patchText.split("\n")
-  // One file only: a second section would let the patch edit another file, whether it carries its own
-  // `diff --git` line or starts straight at a `--- `/`+++ ` pair.
-  const { sections, headerLines } = declaredFileSections(allLines)
-  if (sections.length !== 1 || hasForeignSectionHeader(headerLines)) {
-    return false
-  }
-  const [section] = sections
-  const postImage = section?.postImage
-  if (!postImage) {
-    return false
-  }
-
-  const postImagePath = unquoteGitHeaderPath(postImage.slice(4).trim())
-  if (postImagePath === `b/${repoPath}`) {
-    return true
-  }
-
-  if (postImagePath === "/dev/null") {
-    return unquoteGitHeaderPath((section.preImage ?? "").slice(4).trim()) === `a/${repoPath}`
-  }
-
-  return false
-}
-
 const applyHunkPatchToIndex = async (directory, filePath, patch, direction) => {
   const action = direction === "unstage" ? "unstage" : "stage"
   const patchText = typeof patch === "string" ? patch : ""
@@ -3568,42 +3431,17 @@ export async function unstageHunk(directory, filePath, patch) {
  * left unstaged into the next commit and can never restore a staged state that differs from the file.
  */
 const readStagedIndexEntries = async (git, paths) => {
-  const entries = new Map()
+  let entries = new Map()
   try {
     // -z so a path with quotes or newlines is still one record.
     const raw = await git.raw(["ls-files", "--stage", "-z", "--", ...paths.map(literalPathspec)])
-    for (const record of raw.split("\0")) {
-      if (!record) {
-        continue
-      }
-      const tabIndex = record.indexOf("\t")
-      if (tabIndex < 0) {
-        continue
-      }
-      const [mode, object, stage] = record.slice(0, tabIndex).split(" ")
-      // Stage 0 only: an unmerged path has no single entry to restore.
-      if (stage !== "0" || !mode || !object) {
-        continue
-      }
-      entries.set(record.slice(tabIndex + 1), { mode, object })
-    }
+    entries = parseGitStageRecords(raw)
     // A staged deletion has no index entry at all — `ls-files --stage` lists nothing for a path that is
     // gone — so the loop above records nothing for it and the path came back unstaged after the commit.
     // HEAD is what distinguishes "deleted" from "never tracked".
     const headRaw = await git.raw(["ls-tree", "--full-tree", "-z", "HEAD", "--", ...paths.map(literalPathspec)]).catch(() => "")
-    for (const record of String(headRaw || "").split("\0")) {
-      if (!record) {
-        continue
-      }
-      const headTabIndex = record.indexOf("\t")
-      if (headTabIndex < 0) {
-        continue
-      }
-      const [headMode, , headObject] = record.slice(0, headTabIndex).split(" ")
-      const headPath = record.slice(headTabIndex + 1)
-      if (!headMode || !headObject || entries.has(headPath)) {
-        continue
-      }
+    for (const headPath of parseGitTreeRecords(headRaw).keys()) {
+      if (entries.has(headPath)) continue
       entries.set(headPath, { deletion: true })
     }
   } catch (error) {
@@ -3626,7 +3464,7 @@ const restoreStagedIndexEntries = async (git, paths, entries) => {
     }
     // `--add` is required for an entry that is not in the index anymore (a staged addition that was
     // just unstaged); the three-argument form passes the path without any comma-delimited parsing.
-    await git.raw(["update-index", "--add", "--cacheinfo", entry.mode, entry.object, filePath])
+    await git.raw(["update-index", "--add", "--cacheinfo", entry.mode, entry.id, filePath])
   }
 }
 
@@ -4034,7 +3872,7 @@ export async function getWorktrees(directory) {
     const repoRoot = await resolveGitRepositoryRoot(directoryPath, directoryGit).catch(() => directoryPath)
     const result = await runGitCommandOrThrow(
       repoRoot,
-      ["worktree", "list", "--porcelain"],
+      ["worktree", "list", "--porcelain", "-z"],
       "Failed to list git worktrees",
     )
     return parseWorktreePorcelain(result.stdout)
@@ -4373,7 +4211,7 @@ export async function createWorktree(directory, input = {}, deps = {}) {
     "Failed to create git worktree",
   )
 
-  const worktreePath = typeof created?.directory === "string" ? created.directory.trim() : ""
+  const worktreePath = typeof created?.directory === "string" ? created.directory : ""
   if (!worktreePath) {
     throw new Error("The runtime did not report the new worktree's directory")
   }
@@ -4743,7 +4581,7 @@ export async function isLinkedWorktree(directory) {
     // `--git-common-dir` relative to the working directory (`../.git`), so comparing the raw strings called it a
     // linked worktree. Both are resolved against the directory and through symlinks before comparing.
     const cwd = normalizeDirectoryPath(directory)
-    const resolveGitPath = (output) => fsp.realpath(path.resolve(cwd, output.trim()))
+    const resolveGitPath = (output) => fsp.realpath(path.resolve(cwd, parseGitPathOutput(output)))
     const [gitDir, gitCommonDir] = await Promise.all([
       git.raw(["rev-parse", "--git-dir"]).then(resolveGitPath),
       git.raw(["rev-parse", "--git-common-dir"]).then(resolveGitPath),

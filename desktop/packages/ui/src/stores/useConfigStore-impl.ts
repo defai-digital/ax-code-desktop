@@ -1,13 +1,19 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import { readDirectoryPath } from "@/lib/pathValues"
+import {
+  configPreferencePersistence,
+  restoreConfigDirectories,
+  type ConfigPreferences,
+  type DirectoryScopedConfig,
+} from "@/lib/configPreferences"
+import { isPlainRecord } from "@/lib/record"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
 import type { ModelMetadata } from "@/types"
-import { getSafeStorage } from "./utils/safeStorage"
 import { getAgentsSource } from "@/lib/agents"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
-import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { updateDesktopSettings } from "@/lib/persistence"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
@@ -19,98 +25,24 @@ import {
   isProviderModelSelectable,
 } from "@/lib/providerModelAvailability"
 import type { ProviderModel, ProviderWithModelList } from "@/types/providerModels"
-import { API_ENDPOINTS } from "@/lib/http"
 import { withTimeout } from "@/lib/asyncTimeout"
-import { isRecord } from "@/lib/record"
+import { loadConfigDefaults } from "@/lib/configDefaults"
+import { buildModelMetadataKey, deriveModelMetadata } from "@/lib/modelMetadata"
+import { fetchModelsDevMetadata } from "@/lib/modelsDevMetadata"
 import { selectIsConnected, useConnectionStore } from "@/lib/event-stream/connection-state"
+import { getSafeStorage } from "./utils/safeStorage"
+import { createModelMetadataLoader } from "./utils/modelMetadataLoader"
 
-const MODELS_DEV_API_URL = "https://models.dev/api.json"
-const MODELS_DEV_PROXY_URL = API_ENDPOINTS.openchamber.modelsMetadata
-const MODEL_COST_METADATA_ENABLED = false
+const modelMetadataLoader = createModelMetadataLoader(fetchModelsDevMetadata)
 
 const FALLBACK_PROVIDER_ID = "opencode"
 const FALLBACK_MODEL_ID = "big-pickle"
 const GIT_UTILITY_PROVIDER_ID = "opencode"
 const GIT_UTILITY_PREFERRED_MODEL_ID = "big-pickle"
 
-interface OpenChamberDefaults {
-  defaultModel?: string
-  defaultVariant?: string
-  defaultAgent?: string
-  autoCreateWorktree?: boolean
-  gitmojiEnabled?: boolean
-  defaultFileViewerPreview?: boolean
-  zenModel?: string
-}
-
-const fetchOpenChamberDefaults = async (): Promise<OpenChamberDefaults> => {
-  try {
-    // 1. Runtime settings API (VSCode)
-    const runtimeSettings = getRegisteredRuntimeAPIs()?.settings
-    if (runtimeSettings) {
-      try {
-        const result = await runtimeSettings.load()
-        const data = result?.settings
-        if (data) {
-          const defaultModel = typeof data?.defaultModel === "string" ? data.defaultModel.trim() : ""
-          const defaultVariant = typeof data?.defaultVariant === "string" ? data.defaultVariant.trim() : ""
-          const defaultAgent = typeof data?.defaultAgent === "string" ? data.defaultAgent.trim() : ""
-          const gitmojiEnabled = typeof data?.gitmojiEnabled === "boolean" ? data.gitmojiEnabled : undefined
-          const defaultFileViewerPreview =
-            typeof data?.defaultFileViewerPreview === "boolean" ? data.defaultFileViewerPreview : undefined
-          const zenModel = typeof data?.zenModel === "string" ? data.zenModel.trim() : ""
-
-          return {
-            defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
-            defaultVariant: defaultVariant.length > 0 ? defaultVariant : undefined,
-            defaultAgent: defaultAgent.length > 0 ? defaultAgent : undefined,
-            autoCreateWorktree: typeof data?.autoCreateWorktree === "boolean" ? data.autoCreateWorktree : undefined,
-            gitmojiEnabled,
-            defaultFileViewerPreview,
-            zenModel: zenModel.length > 0 ? zenModel : undefined,
-          }
-        }
-      } catch {
-        // Fall through to fetch
-      }
-    }
-
-    // 2. Fetch API (Web/server)
-    const response = await fetch(API_ENDPOINTS.config.settings, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    })
-    if (!response.ok) {
-      return {}
-    }
-    const data = await response.json()
-    const defaultModel = typeof data?.defaultModel === "string" ? data.defaultModel.trim() : ""
-    const defaultVariant = typeof data?.defaultVariant === "string" ? data.defaultVariant.trim() : ""
-    const defaultAgent = typeof data?.defaultAgent === "string" ? data.defaultAgent.trim() : ""
-    const gitmojiEnabled = typeof data?.gitmojiEnabled === "boolean" ? data.gitmojiEnabled : undefined
-    const defaultFileViewerPreview =
-      typeof data?.defaultFileViewerPreview === "boolean" ? data.defaultFileViewerPreview : undefined
-    const zenModel = typeof data?.zenModel === "string" ? data.zenModel.trim() : ""
-
-    return {
-      defaultModel: defaultModel.length > 0 ? defaultModel : undefined,
-      defaultVariant: defaultVariant.length > 0 ? defaultVariant : undefined,
-      defaultAgent: defaultAgent.length > 0 ? defaultAgent : undefined,
-      autoCreateWorktree: typeof data?.autoCreateWorktree === "boolean" ? data.autoCreateWorktree : undefined,
-      gitmojiEnabled,
-      defaultFileViewerPreview,
-      zenModel: zenModel.length > 0 ? zenModel : undefined,
-    }
-  } catch {
-    return {}
-  }
-}
-
 const parseModelString = (modelString: string): { providerId: string; modelId: string } | null => {
   return parseModelIdentifier(modelString)
 }
-
-const normalizeProviderId = (value: string) => value?.toLowerCase?.() ?? ""
 
 type GitModelSelection = { providerId: string; modelId: string }
 
@@ -188,244 +120,6 @@ const resolveGitGenerationModelSelection = ({
   return null
 }
 
-interface ModelsDevModelEntry {
-  id?: string
-  name?: string
-  tool_call?: boolean
-  reasoning?: boolean
-  temperature?: boolean
-  attachment?: boolean
-  modalities?: {
-    input?: string[]
-    output?: string[]
-  }
-  cost?: {
-    input?: number
-    output?: number
-    cache_read?: number
-    cache_write?: number
-  }
-  limit?: {
-    context?: number
-    output?: number
-  }
-  knowledge?: string
-  release_date?: string
-  last_updated?: string
-}
-
-interface ModelsDevProviderEntry {
-  id?: string
-  models?: Record<string, ModelsDevModelEntry | undefined>
-}
-
-const isStringArray = (value: unknown): value is string[] =>
-  Array.isArray(value) && value.every((item) => typeof item === "string")
-
-const isModelsDevModelEntry = (value: unknown): value is ModelsDevModelEntry => {
-  if (!isRecord(value)) {
-    return false
-  }
-  const candidate = value as ModelsDevModelEntry
-  if (candidate.modalities) {
-    const { input, output } = candidate.modalities
-    if (input && !isStringArray(input)) {
-      return false
-    }
-    if (output && !isStringArray(output)) {
-      return false
-    }
-  }
-  return true
-}
-
-const isModelsDevProviderEntry = (value: unknown): value is ModelsDevProviderEntry => {
-  if (!isRecord(value)) {
-    return false
-  }
-  const candidate = value as ModelsDevProviderEntry
-  return candidate.models === undefined || isRecord(candidate.models)
-}
-
-const buildModelMetadataKey = (providerId: string, modelId: string) => {
-  const normalizedProvider = normalizeProviderId(providerId)
-  if (!normalizedProvider || !modelId) {
-    return ""
-  }
-  return `${normalizedProvider}/${modelId}`
-}
-
-const mapModalities = (
-  cap: { text: boolean; audio: boolean; image: boolean; video: boolean; pdf: boolean } | undefined,
-): string[] => {
-  if (!cap) return []
-  const result: string[] = []
-  if (cap.text) result.push("text")
-  if (cap.audio) result.push("audio")
-  if (cap.image) result.push("image")
-  if (cap.video) result.push("video")
-  if (cap.pdf) result.push("pdf")
-  return result
-}
-
-const deriveModelMetadata = (providerId: string, model: ProviderModel): ModelMetadata => ({
-  id: model.id,
-  providerId,
-  name: model.name,
-  tool_call: model.capabilities?.toolcall,
-  reasoning: model.capabilities?.reasoning,
-  temperature: model.capabilities?.temperature,
-  attachment: model.capabilities?.attachment,
-  modalities: model.capabilities
-    ? {
-        input: mapModalities(model.capabilities.input),
-        output: mapModalities(model.capabilities.output),
-      }
-    : undefined,
-  limit: model.limit,
-  release_date: model.release_date,
-})
-
-const transformModelsDevResponse = (payload: unknown): Map<string, ModelMetadata> => {
-  const metadataMap = new Map<string, ModelMetadata>()
-
-  if (!isRecord(payload)) {
-    return metadataMap
-  }
-
-  for (const [providerKey, providerValue] of Object.entries(payload)) {
-    if (!isModelsDevProviderEntry(providerValue)) {
-      continue
-    }
-
-    const providerId =
-      typeof providerValue.id === "string" && providerValue.id.length > 0 ? providerValue.id : providerKey
-    const models = providerValue.models
-    if (!models || !isRecord(models)) {
-      continue
-    }
-
-    for (const [modelKey, modelValue] of Object.entries(models)) {
-      if (!isModelsDevModelEntry(modelValue)) {
-        continue
-      }
-
-      const resolvedModelId = typeof modelKey === "string" && modelKey.length > 0 ? modelKey : modelValue.id
-
-      if (!resolvedModelId || typeof resolvedModelId !== "string" || resolvedModelId.length === 0) {
-        continue
-      }
-
-      const metadata: ModelMetadata = {
-        id: typeof modelValue.id === "string" && modelValue.id.length > 0 ? modelValue.id : resolvedModelId,
-        providerId,
-        name: typeof modelValue.name === "string" ? modelValue.name : undefined,
-        tool_call: typeof modelValue.tool_call === "boolean" ? modelValue.tool_call : undefined,
-        reasoning: typeof modelValue.reasoning === "boolean" ? modelValue.reasoning : undefined,
-        temperature: typeof modelValue.temperature === "boolean" ? modelValue.temperature : undefined,
-        attachment: typeof modelValue.attachment === "boolean" ? modelValue.attachment : undefined,
-        modalities: modelValue.modalities
-          ? {
-              input: isStringArray(modelValue.modalities.input) ? modelValue.modalities.input : undefined,
-              output: isStringArray(modelValue.modalities.output) ? modelValue.modalities.output : undefined,
-            }
-          : undefined,
-        ...(MODEL_COST_METADATA_ENABLED ? { cost: modelValue.cost } : {}),
-        limit: modelValue.limit,
-        knowledge: typeof modelValue.knowledge === "string" ? modelValue.knowledge : undefined,
-        release_date: typeof modelValue.release_date === "string" ? modelValue.release_date : undefined,
-        last_updated: typeof modelValue.last_updated === "string" ? modelValue.last_updated : undefined,
-      }
-
-      const key = buildModelMetadataKey(providerId, resolvedModelId)
-      if (key) {
-        metadataMap.set(key, metadata)
-      }
-    }
-  }
-
-  return metadataMap
-}
-
-const fetchModelsDevMetadata = async (): Promise<Map<string, ModelMetadata>> => {
-  if (typeof fetch !== "function") {
-    return new Map()
-  }
-
-  const sources = [MODELS_DEV_PROXY_URL, MODELS_DEV_API_URL]
-
-  for (const source of sources) {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : undefined
-    const timeout = controller ? setTimeout(() => controller.abort(), 8000) : undefined
-
-    try {
-      const isAbsoluteUrl = /^https?:\/\//i.test(source)
-      const requestInit: RequestInit = {
-        signal: controller?.signal,
-        headers: {
-          Accept: "application/json",
-        },
-        cache: "no-store",
-      }
-
-      if (isAbsoluteUrl) {
-        requestInit.mode = "cors"
-      } else {
-        requestInit.credentials = "same-origin"
-      }
-
-      const response = await fetch(source, requestInit)
-
-      if (!response.ok) {
-        throw new Error(`Metadata request to ${source} returned status ${response.status}`)
-      }
-
-      const data = await response.json()
-      return transformModelsDevResponse(data)
-    } catch (error: unknown) {
-      if ((error as Error)?.name === "AbortError") {
-        console.warn(`Model metadata request aborted (${source})`)
-      } else {
-        console.warn(`Failed to fetch model metadata from ${source}:`, error)
-      }
-    } finally {
-      if (timeout) {
-        clearTimeout(timeout)
-      }
-    }
-  }
-
-  return new Map()
-}
-
-let modelsMetadataInFlight: Promise<Map<string, ModelMetadata>> | null = null
-
-const ensureModelsMetadataFetch = (
-  getModelsMetadata: () => Map<string, ModelMetadata>,
-  setModelsMetadata: (metadata: Map<string, ModelMetadata>) => void,
-) => {
-  const existing = getModelsMetadata()
-  if (existing.size > 0) {
-    return
-  }
-
-  if (modelsMetadataInFlight) {
-    return
-  }
-
-  modelsMetadataInFlight = fetchModelsDevMetadata()
-    .then((metadata) => {
-      if (metadata.size > 0) {
-        setModelsMetadata(metadata)
-      }
-      return metadata
-    })
-    .catch(() => new Map<string, ModelMetadata>())
-    .finally(() => {
-      modelsMetadataInFlight = null
-    })
-}
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 const CONNECTION_PROBE_TIMEOUT_MS = 800
 
@@ -440,7 +134,7 @@ const probeAxCodeHealth = async (timeoutMs = CONNECTION_PROBE_TIMEOUT_MS): Promi
 const DIRECTORY_KEY_GLOBAL = "__global__"
 
 const toDirectoryKey = (directory: string | null | undefined): string => {
-  const trimmed = typeof directory === "string" ? directory.trim() : ""
+  const trimmed = readDirectoryPath(directory) ?? ""
   return trimmed.length > 0 ? trimmed : DIRECTORY_KEY_GLOBAL
 }
 
@@ -455,37 +149,12 @@ const resolveInitialDirectoryKey = (): string => {
   return toDirectoryKey(directory)
 }
 
-interface DirectoryScopedConfig {
-  providers: ProviderWithModelList[]
-  currentProviderId: string
-  currentModelId: string
-  currentVariant?: string | undefined
-  currentAgentName: string | undefined
-  selectedProviderId: string
-  agentModelSelections: { [agentName: string]: { providerId: string; modelId: string } }
-  defaultProviders: { [key: string]: string }
-  /**
-   * "manual" once the user picked the provider, model or agent for this project.
-   * A manual pick survives the defaults cascade in loadAgents; an "auto" one is
-   * replaced by the settings default / agent preference as documented.
-   */
-  selectionSource?: "auto" | "manual"
-}
-
-interface ConfigStore {
+interface ConfigStore extends ConfigPreferences {
   activeDirectoryKey: string
-  directoryScoped: Record<string, DirectoryScopedConfig>
 
   providers: ProviderWithModelList[]
   providersLoading: boolean
   providersError: string | null
-  currentProviderId: string
-  currentModelId: string
-  currentVariant: string | undefined
-  currentAgentName: string | undefined
-  selectedProviderId: string
-  agentModelSelections: { [agentName: string]: { providerId: string; modelId: string } }
-  defaultProviders: { [key: string]: string }
   /**
    * Boot status: set when `initializeApp` fails after the server was reached
    * (e.g. initApp/provider/agent load threw). NOT connection state — the
@@ -495,14 +164,6 @@ interface ConfigStore {
   initializationError: string | null
   isInitialized: boolean
   modelsMetadata: Map<string, ModelMetadata>
-  // OpenChamber settings-based defaults (take precedence over agent preferences)
-  settingsDefaultModel: string | undefined // format: "provider/model"
-  settingsDefaultVariant: string | undefined
-  settingsDefaultAgent: string | undefined
-  settingsAutoCreateWorktree: boolean
-  settingsGitmojiEnabled: boolean
-  settingsDefaultFileViewerPreview: boolean
-  settingsZenModel: string | undefined
 
   activateDirectory: (directory: string | null | undefined) => Promise<void>
   /** Drop all per-project provider snapshots (auth is global; caches must not stay stale). */
@@ -680,6 +341,12 @@ const scheduleOfflineActivationRetry = (directory: string | null | undefined) =>
   })
 }
 
+const ensureModelMetadata = (): void => {
+  void modelMetadataLoader.ensure(useConfigStore.getState().modelsMetadata, (modelsMetadata) => {
+    useConfigStore.setState({ modelsMetadata })
+  })
+}
+
 export const useConfigStore = create<ConfigStore>()(
   devtools(
     persist(
@@ -776,6 +443,7 @@ export const useConfigStore = create<ConfigStore>()(
               providers: [],
               currentProviderId: "",
               currentModelId: "",
+              currentVariant: undefined,
               currentAgentName: undefined,
               selectedProviderId: "",
               agentModelSelections: {},
@@ -799,6 +467,8 @@ export const useConfigStore = create<ConfigStore>()(
         },
 
         loadProviders: async (options) => {
+          // Metadata has its own lifetime: joining a provider request must still refresh an invalidated catalog.
+          ensureModelMetadata()
           const directoryKey = toDirectoryKey(options?.directory ?? fromDirectoryKey(get().activeDirectoryKey))
 
           // Dedup: if a load is already in-flight for this directory, reuse it
@@ -825,10 +495,7 @@ export const useConfigStore = create<ConfigStore>()(
             // (possibly empty) list loads instead of surfacing a load error.
             for (let attempt = 0; attempt < 12; attempt++) {
               try {
-                ensureModelsMetadataFetch(
-                  () => get().modelsMetadata,
-                  (metadata) => set({ modelsMetadata: metadata }),
-                )
+                ensureModelMetadata()
                 const apiResult = await withTimeout(
                   axCodeClient.withDirectory(fromDirectoryKey(directoryKey), () => axCodeClient.getProviders()),
                   PROVIDER_FETCH_TIMEOUT_MS,
@@ -1307,7 +974,7 @@ export const useConfigStore = create<ConfigStore>()(
                 // Load agents and fetch OpenChamber settings in parallel
                 const [loaded, openChamberDefaults] = await Promise.all([
                   source.loadAgents({ directory: fromDirectoryKey(directoryKey) }),
-                  fetchOpenChamberDefaults(),
+                  loadConfigDefaults(),
                 ])
                 if (!loaded) {
                   throw new Error("agents list load failed")
@@ -1640,7 +1307,7 @@ export const useConfigStore = create<ConfigStore>()(
         },
 
         invalidateModelMetadataCache: () => {
-          modelsMetadataInFlight = null
+          modelMetadataLoader.invalidate()
           set({ modelsMetadata: new Map<string, ModelMetadata>() })
         },
 
@@ -1956,35 +1623,14 @@ export const useConfigStore = create<ConfigStore>()(
         // snapshots so stale lists do not linger in persisted state.
         version: 1,
         migrate: (persisted) => {
-          const state = persisted as { directoryScoped?: Record<string, Record<string, unknown>> } | undefined
-          for (const snapshot of Object.values(state?.directoryScoped ?? {})) {
-            delete snapshot.agents
-            // Provider catalogues are re-fetched on activation and were the bulk of every
-            // snapshot; persisting them grew localStorage until safeStorage gave up entirely.
-            snapshot.providers = []
-          }
-          return state
+          if (!isPlainRecord(persisted)) return {}
+          return { ...persisted, directoryScoped: restoreConfigDirectories(persisted.directoryScoped, {}) }
         },
-        partialize: (state) => ({
-          activeDirectoryKey: state.activeDirectoryKey,
-          directoryScoped: Object.fromEntries(
-            Object.entries(state.directoryScoped).map(([key, snapshot]) => [key, { ...snapshot, providers: [] }]),
-          ),
-          currentProviderId: state.currentProviderId,
-          currentModelId: state.currentModelId,
-          currentVariant: state.currentVariant,
-          currentAgentName: state.currentAgentName,
-          selectedProviderId: state.selectedProviderId,
-          agentModelSelections: state.agentModelSelections,
-          defaultProviders: state.defaultProviders,
-          settingsDefaultModel: state.settingsDefaultModel,
-          settingsDefaultVariant: state.settingsDefaultVariant,
-          settingsDefaultAgent: state.settingsDefaultAgent,
-          settingsAutoCreateWorktree: state.settingsAutoCreateWorktree,
-          settingsGitmojiEnabled: state.settingsGitmojiEnabled,
-          settingsDefaultFileViewerPreview: state.settingsDefaultFileViewerPreview,
-          settingsZenModel: state.settingsZenModel,
-        }),
+        partialize: (state: ConfigStore) => configPreferencePersistence.partialize(state),
+        merge: (persisted, current: ConfigStore) => {
+          const restored = configPreferencePersistence.merge(persisted, current)
+          return restored === current ? current : { ...current, ...restored }
+        },
       },
     ),
   ),

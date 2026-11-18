@@ -505,7 +505,7 @@ function createSkill(skillName, config, workingDirectory, scope) {
 function updateSkill(skillName, updates, workingDirectory, targetPath = null) {
   ensureDirs()
 
-  const requestedPath = typeof targetPath === "string" && targetPath.trim() ? path.resolve(targetPath.trim()) : null
+  const requestedPath = typeof targetPath === "string" && targetPath.trim() ? path.resolve(targetPath) : null
   let existing
   if (requestedPath && fs.existsSync(requestedPath)) {
     // The client-supplied path only disambiguates between skills the server

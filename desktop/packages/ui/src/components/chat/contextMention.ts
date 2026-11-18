@@ -7,10 +7,8 @@ import { detectMentionQueryAtCursor } from "./chatInputMentions"
 
 export const CONTEXT_MENTION_MAX_LINES = 200
 export const CONTEXT_MENTION_MAX_BYTES = 16 * 1024
-export const CONTEXT_MENTION_MAX_STATUS_FILES = 40
+const CONTEXT_MENTION_MAX_STATUS_FILES = 40
 
-export const DEFAULT_TAIL_TRUNCATION_NOTE = "Truncated to the last 200 lines and 16 KB."
-export const DEFAULT_HEAD_TRUNCATION_NOTE = "Truncated to the first 200 lines and 16 KB."
 export const UNCOMMITTED_CHANGES_LABEL = "Uncommitted changes"
 
 const textEncoder = new TextEncoder()
@@ -179,7 +177,7 @@ export interface TerminalMentionTarget {
   output: string
 }
 
-export const joinTerminalChunks = (chunks: Array<{ data: string }> | null | undefined): string =>
+const joinTerminalChunks = (chunks: Array<{ data: string }> | null | undefined): string =>
   (chunks ?? []).map((chunk) => chunk.data).join("")
 
 export const terminalMentionTargets = (
@@ -258,7 +256,7 @@ export const resolveUncommittedContext = async (
   directory: string,
 ): Promise<{ text: string; truncated: boolean } | null> => {
   const status = await git.getGitStatus(directory, { mode: "light" })
-  const files = (status.files ?? []).filter((file) => file.path.trim().length > 0)
+  const files = (status.files ?? []).filter((file) => file.path.length > 0)
   if (files.length === 0 || status.isClean) return null
 
   const limited = files.slice(0, CONTEXT_MENTION_MAX_STATUS_FILES)

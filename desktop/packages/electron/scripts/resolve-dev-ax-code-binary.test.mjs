@@ -38,6 +38,13 @@ describe("resolveDevAxCodeBinary", () => {
     ).toBe(explicit)
   })
 
+  it.skipIf(process.platform === "win32")("does not substitute a plain executable for the explicit spaced path", () => {
+    const directory = makeTempDir("ax-dev-literal-")
+    makeExecutable(directory)
+    const spaced = makeExecutable(directory, "ax-code ")
+    expect(resolveDevAxCodeBinary({ env: { AX_CODE_BINARY: spaced, PATH: directory } })).toBe(spaced)
+  })
+
   it("uses PATH when AX_CODE_BINARY is absent", () => {
     const pathDir = makeTempDir("ax-dev-cli-path-")
     const binary = makeExecutable(pathDir)

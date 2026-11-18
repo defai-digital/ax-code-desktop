@@ -1,10 +1,7 @@
-const normalizeProjectPathForId = (value) => {
-  if (typeof value !== "string") return ""
-  return value.replace(/\\/g, "/").replace(/\/+$/g, "") || value
-}
+import { normalizeProjectPath } from "../../../../../shared/path-values.mjs"
 
 export const createProjectIdFromPath = (projectPath) => {
-  const normalized = normalizeProjectPathForId(projectPath).trim()
+  const normalized = normalizeProjectPath(projectPath)
   if (!normalized) {
     return ""
   }

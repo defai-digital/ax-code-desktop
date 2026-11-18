@@ -49,6 +49,7 @@ vi.mock("@openchamber/ui/api/gitApiHttp", () => ({
   updateGitIdentity: vi.fn(),
   deleteGitIdentity: vi.fn(),
   getRemotes: vi.fn(),
+  getRemoteUrl: vi.fn(),
   rebase: vi.fn(),
   abortRebase: vi.fn(),
   continueRebase: vi.fn(),
@@ -88,4 +89,18 @@ describe("createWebGitAPI", () => {
 
     expect(api.getGitBranchDiff).toBe(http.getGitBranchDiff)
   })
+})
+
+it("forwards the remote URL capability used directly by the Git view", async () => {
+  const http = await import("@openchamber/ui/api/gitApiHttp")
+  const { createWebGitAPI } = await import("./git")
+  const api = createWebGitAPI()
+  expect(api.getRemoteUrl).toBeTypeOf("function")
+  vi.mocked(http.getRemoteUrl).mockResolvedValueOnce("https://example.invalid/repo.git")
+  await expect(api.getRemoteUrl!("/workspace/repo ", "upstream")).resolves.toBe("https://example.invalid/repo.git")
+  expect(http.getRemoteUrl).toHaveBeenLastCalledWith("/workspace/repo ", "upstream")
+  vi.mocked(http.getRemoteUrl).mockRejectedValueOnce(new Error("offline"))
+  await expect(api.getRemoteUrl!("/workspace/repo")).rejects.toThrow("offline")
+  vi.mocked(http.getRemoteUrl).mockResolvedValueOnce(null)
+  await expect(api.getRemoteUrl!("/workspace/repo")).resolves.toBeNull()
 })

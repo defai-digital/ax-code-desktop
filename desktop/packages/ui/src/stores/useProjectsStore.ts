@@ -4,7 +4,7 @@ import { axCodeClient } from "@/lib/ax-code/client"
 import type { ProjectEntry } from "@/lib/api/types"
 import type { DesktopSettings } from "@/lib/desktop"
 import { updateDesktopSettings } from "@/lib/persistence"
-import { getProjectPathIdentityKey } from "@/lib/projectResolution"
+import { normalizeProjectPath as normalizePath, getProjectPathIdentityKey } from "@/lib/projectResolution"
 import { createProjectIdFromPath } from "@/lib/projectId"
 import { getSafeStorage } from "./utils/safeStorage"
 import { useDirectoryStore } from "./useDirectoryStore"
@@ -12,6 +12,7 @@ import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { normalizeProjectIconBackground, PROJECT_COLORS } from "@/lib/projectMeta"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
+import { expandHomePath } from "../../../../shared/path-values.mjs"
 
 /** Pick a color key that's least used among existing projects */
 const pickAutoColor = (projects: ProjectEntry[]): string => {
@@ -74,37 +75,9 @@ const safeStorage = getSafeStorage()
 const PROJECTS_STORAGE_KEY = "projects"
 const ACTIVE_PROJECT_STORAGE_KEY = "activeProjectId"
 
-const resolveTildePath = (value: string, homeDir?: string | null): string => {
-  const trimmed = value.trim()
-  if (!trimmed.startsWith("~")) {
-    return trimmed
-  }
-  if (!homeDir) {
-    return trimmed
-  }
-  if (trimmed === "~") {
-    return homeDir
-  }
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return `${homeDir}${trimmed.slice(1)}`
-  }
-  return trimmed
-}
-
 const normalizeProjectPath = (value: string): string => {
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return ""
-  }
-
   const homeDirectory = safeStorage.getItem("homeDirectory") || useDirectoryStore.getState().homeDirectory || ""
-  const expanded = resolveTildePath(trimmed, homeDirectory)
-
-  const normalized = expanded.replace(/\\/g, "/")
-  if (normalized === "/") {
-    return "/"
-  }
-  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
+  return normalizePath(expandHomePath(value, homeDirectory)) ?? ""
 }
 
 const deriveProjectLabel = (path: string): string => {
@@ -182,7 +155,7 @@ const sanitizeProjects = (value: unknown): ProjectEntry[] => {
     if (!entry || typeof entry !== "object") continue
     const candidate = entry as Record<string, unknown>
 
-    const rawPath = typeof candidate.path === "string" ? candidate.path.trim() : ""
+    const rawPath = typeof candidate.path === "string" ? candidate.path : ""
     if (!rawPath) continue
 
     const normalizedPath = normalizeProjectPath(rawPath)
@@ -463,7 +436,7 @@ export const useProjectsStore = create<ProjectsStore>()(
 
         // Clean up worktree entries for the removed project
         if (project) {
-          const normalizedPath = project.path.replace(/\\/g, "/").replace(/\/+$/, "") || "/"
+          const normalizedPath = normalizeProjectPath(project.path).replace(/\/+$/, "") || "/"
           useSessionUIStore.setState((s) => {
             const next = new Map(s.availableWorktreesByProject)
             next.delete(normalizedPath)

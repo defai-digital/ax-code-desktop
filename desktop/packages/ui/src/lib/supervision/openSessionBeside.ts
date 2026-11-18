@@ -1,4 +1,5 @@
 import { normalizeProjectPath } from "@/lib/projectResolution"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useUIStore } from "@/stores/useUIStore"
 
@@ -10,7 +11,7 @@ const BESIDE_WIDTH_SHARE = 0.5
  * showing and remembers the session's own directory. Returns false when there is no project to show it in.
  */
 export function openSessionBeside(target: { sessionId: string; directory: string | null; title: string }): boolean {
-  const sessionDirectory = target.directory?.trim() || null
+  const sessionDirectory = readDirectoryPath(target.directory) || null
   const panelDirectory = useDirectoryStore.getState().currentDirectory || sessionDirectory
   if (!target.sessionId || !panelDirectory) return false
   useUIStore.getState().openContextPanelTab(panelDirectory, {

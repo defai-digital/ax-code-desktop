@@ -124,7 +124,11 @@ This module provides ax-code server integration utilities for the web server run
 
 - `createAxCodeLifecycleRuntime(dependencies)`: creates lifecycle runtime for managed/external ax-code process orchestration.
   - Optional `onRuntimeOriginChange(origin, details)` dependency (S2.4a): invoked, deduped, whenever the managed runtime's loopback origin is assigned (ready/restart/external), cleared (down), when the bootstrap retry-exhausted flag changes, and once after bootstrap. `origin` is `"http://127.0.0.1:<port>"`-shaped (or the external base URL) and `null` when the runtime is unavailable; it never carries credentials. `details.exhausted` mirrors the readiness gate's retry-exhausted state so main's 503 payload can flip from `{restarting:true}` to `{restarting:false}` once the bootstrap retry budget is spent. In desktop mode the web server forwards these as `{ type: "runtime-origin", origin, exhausted }` messages to Electron main over the utilityProcess channel (same channel as "ready"/"settings-write") so main's app:// protocol handler can reverse-proxy runtime-shaped prefixes straight to the runtime. In dev (S2.4b), the same transitions additionally drive `dev-runtime-upstream.js`: the origin plus the current Basic credential are mirrored to the `AX_CODE_DESKTOP_DEV_UPSTREAM_FILE` JSON file the Vite dev proxy re-reads (the file stays origin+credential only — the dev proxy falls back to the web-server hop, whose readiness gate already carries the exhausted semantics).
-  - Optional `requestMainRuntimeRestart(reason)` dependency (S2.5c): invoked by `refreshAxCodeAfterConfigChange` when the runtime is external and main-supervised — a `settings.axCodeBinary` change can only take effect if main restarts the supervised runtime with re-resolution. The web server forwards it as a `{ type: "runtime-restart-request", reason }` utilityProcess message; main serializes restarts. Inert outside the Electron utilityProcess.
+  - Optional `requestMainRuntimeRestart(reason, timeoutMs)` dependency (S2.5c). A main-supervised configuration refresh
+    sends `{ type: "runtime-restart-request", id, reason }` over the utility process channel. Readiness stays pending
+    until main replies with a matching `{ type: "runtime-restart-result", id, ok, error? }` and Web verifies the
+    replacement. Requests received during a main restart share one follow-up. Channel closure and timeout fail the
+    request. Standalone Web and the Web-managed desktop escape hatch do not delegate restart ownership.
 - Returned API:
   - `startAxCode()`
   - `restartAxCode()`

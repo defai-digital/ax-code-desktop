@@ -15,12 +15,11 @@ export function validateSkillName(skillName) {
 }
 
 export function normalizeRepoRelativePath(repoRelPosixPath) {
-  const raw = String(repoRelPosixPath || "").trim()
+  const raw = String(repoRelPosixPath || "")
   if (!raw) return null
   if (raw.includes("\\")) return null
   const parts = raw
     .split("/")
-    .map((part) => part.trim())
     .filter(Boolean)
   if (parts.length === 0 || parts.some((part) => part === "." || part === "..")) {
     return null

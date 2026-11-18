@@ -1,5 +1,54 @@
 # Test the Desktop UI with WebMCP
 
+To verify the restored Dashboard and its Refresh action:
+
+```sh
+node desktop/packages/electron/scripts/e2e/dashboard-version-webmcp.mjs --artifacts /tmp/ax-dashboard-versions
+```
+
+The disposable profile restores a Dashboard tab. It confirms a malformed runtime version uses the legacy route,
+then supplies a valid version and uses Refresh to select the current route for the same directory.
+
+To verify the renderer's Git remote capability and repository-scoped identity filtering:
+
+```sh
+node desktop/packages/electron/scripts/e2e/git-remote-capability-webmcp.mjs --artifacts /tmp/ax-git-remote-capability
+```
+
+The disposable repository uses controlled Git read responses. It confirms the real view requests its directory's
+remote URL and offers the matching identity in both themes, without selecting it or issuing Git mutations.
+
+To verify startup with malformed and stale persisted data:
+
+```sh
+node desktop/packages/electron/scripts/e2e/persistence-boundaries-webmcp.mjs --artifacts /tmp/ax-persistence-boundaries
+```
+
+This disposable profile seeds stale action fields, malformed preferences and obsolete navigation into local storage.
+It verifies startup, live Config methods and metadata, Settings pages, light/dark rendering and clean reload after a
+preference write. It does not run a model or approve permissions.
+
+To verify prompt editor derivation and Skills catalog read refusal:
+
+```sh
+node desktop/packages/electron/scripts/e2e/editor-catalog-boundaries-webmcp.mjs --artifacts /tmp/ax-editor-catalog
+```
+
+This isolated journey selects a command through the actual scheduled-task editor in both themes, checks catalog form
+rendering, and injects a malformed settings read followed by a successful controlled scan. It verifies refusal before
+any catalog write, uses fresh DOM/state plus screenshots, and creates no schedules, clones or model executions.
+
+To verify context-panel file identity and persisted tab state on POSIX hosts:
+
+```sh
+node desktop/packages/electron/scripts/e2e/context-panel-state-webmcp.mjs --artifacts /tmp/ax-context-panel-state
+```
+
+This isolated fixture registers distinct plain/trailing-space project roots and creates literal filenames under the
+spaced root, restores both tabs, selects and closes the
+spaced file through native WebMCP, verifies actual editor content and reload behavior, and records fresh state/DOM
+plus light/dark screenshots. It writes only disposable fixture files and executes no model.
+
 To verify scheduled-task startup failures and recovery:
 
 ```sh

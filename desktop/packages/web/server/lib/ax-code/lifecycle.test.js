@@ -150,6 +150,55 @@ const createRuntime = (overrides = {}) => {
 }
 
 describe("ax-code lifecycle", () => {
+  it.skipIf(process.platform === "win32")("spawns the literal selected executable when the SDK would trim it", async () => {
+    const binary = "/fixture/runtime/ax-code "
+    process.env.AX_CODE_BINARY = binary
+    const child = new EventEmitter()
+    child.stdout = new EventEmitter()
+    child.stderr = new EventEmitter()
+    child.exitCode = null
+    child.signalCode = null
+    child.kill = vi.fn((signal) => {
+      child.signalCode = signal
+      child.emit("close")
+    })
+    spawnMock.mockImplementation(() => {
+      queueMicrotask(() => child.stdout.emit("data", "ax-code server listening on http://127.0.0.1:45678\n"))
+      return child
+    })
+    const waitForReady = vi.fn(async () => true)
+    const runtime = createRuntime({ waitForReady })
+    const server = await runtime.startAxCode()
+    try {
+      expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+      expect(spawnMock).toHaveBeenCalledWith(
+        binary,
+        ["serve", "--hostname", "127.0.0.1", "--port", "45678"],
+        expect.objectContaining({
+          env: expect.objectContaining({
+            AX_CODE_SERVER_PASSWORD: "password",
+            AX_CODE_SERVER_USERNAME: "ax-code",
+            AX_CODE_PROJECT: "/tmp/project",
+          }),
+        }),
+      )
+      expect(waitForReady).toHaveBeenCalledWith("http://127.0.0.1:45678", 10000)
+    } finally {
+      await server.close()
+    }
+  })
+
+  it.skipIf(process.platform === "win32")("keeps loopback binding mandatory when a literal path bypasses the SDK", async () => {
+    process.env.AX_CODE_BINARY = "/fixture/runtime/ax-code "
+    const runtime = createRuntime({
+      env: { ENV_CONFIGURED_AX_CODE_HOSTNAME: "0.0.0.0", ENV_CONFIGURED_AX_CODE_PORT: 45678 },
+    })
+
+    await expect(runtime.startAxCode()).rejects.toThrow("requires a loopback hostname")
+    expect(spawnMock).not.toHaveBeenCalled()
+    expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+  })
+
   it("launches managed ax-code through the SDK headless backend with the managed PATH", async () => {
     delete process.env.AX_CODE_BINARY
     startHeadlessBackendMock.mockResolvedValueOnce({
@@ -879,13 +928,159 @@ describe("ax-code lifecycle", () => {
 
       await runtime.refreshAxCodeAfterConfigChange("settings saved")
 
-      // The restart request goes to main alongside the local re-probe: only
-      // main can make a settings.axCodeBinary change take effect.
-      expect(requestMainRuntimeRestart).toHaveBeenCalledWith("settings saved")
+      expect(requestMainRuntimeRestart).toHaveBeenCalledWith("settings saved", undefined)
       expect(state.isAxCodeReady).toBe(true)
 
       runtime.shutdown()
     } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("holds readiness across queued main-supervised refreshes and surfaces the last failure", async () => {
+    const state = Object.assign(createLifecycleState(), {
+      isExternalAxCode: true,
+      isAxCodeReady: true,
+      axCodePort: 45678,
+      axCodeBaseUrl: "http://127.0.0.1:45678",
+    })
+    const first = Promise.withResolvers()
+    const second = Promise.withResolvers()
+    const requestMainRuntimeRestart = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise)
+    const probe = vi.fn(async () => ({
+      ok: true,
+      body: { cancel: vi.fn(async () => undefined) },
+      json: async () => ({ healthy: true }),
+    }))
+    vi.stubGlobal("fetch", probe)
+    const runtime = createRuntime({ state, requestMainRuntimeRestart })
+
+    const earlier = runtime.refreshAxCodeAfterConfigChange("first save")
+    const later = runtime.refreshAxCodeAfterConfigChange("second save", { readyTimeoutMs: 500 })
+    const settled = Promise.allSettled([earlier, later])
+    try {
+      await vi.waitFor(() => expect(requestMainRuntimeRestart).toHaveBeenCalledTimes(1))
+      first.resolve()
+      await earlier
+      await vi.waitFor(() => expect(requestMainRuntimeRestart).toHaveBeenLastCalledWith("second save", 500))
+      expect(state.isRestartingAxCode).toBe(true)
+      const firstProbeCount = probe.mock.calls.length
+      second.reject(new Error("Managed restart failed"))
+      await expect(later).rejects.toThrow("Managed restart failed")
+      expect(probe).toHaveBeenCalledTimes(firstProbeCount)
+      expect(state.isRestartingAxCode).toBe(false)
+      expect(state.isAxCodeReady).toBe(false)
+      expect(state.lastAxCodeError).toBe("Managed restart failed")
+    } finally {
+      first.resolve()
+      second.resolve()
+      await settled
+      runtime.shutdown()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("re-probes the replacement after an older external probe fails", async () => {
+    const state = Object.assign(createLifecycleState(), {
+      isExternalAxCode: true,
+      axCodePort: 45678,
+      axCodeBaseUrl: "http://127.0.0.1:45678",
+    })
+    const oldResponse = Promise.withResolvers()
+    const requestMainRuntimeRestart = vi.fn(async () => undefined)
+    const probe = vi.fn(async () => ({
+      ok: true,
+      body: { cancel: vi.fn(async () => undefined) },
+      json: async () => ({ healthy: true, version: "7.30.31" }),
+    })).mockReturnValueOnce(oldResponse.promise)
+    vi.stubGlobal("fetch", probe)
+    const runtime = createRuntime({ state, requestMainRuntimeRestart })
+    const earlier = runtime.restartAxCode()
+    const refresh = runtime.refreshAxCodeAfterConfigChange("settings saved")
+    const settled = Promise.allSettled([earlier, refresh])
+    try {
+      await vi.waitFor(() => expect(requestMainRuntimeRestart).toHaveBeenCalledTimes(1))
+      oldResponse.resolve({ ok: false })
+      await expect(earlier).rejects.toThrow("is not responding")
+      await expect(refresh).resolves.toBeUndefined()
+      expect(state.isAxCodeReady).toBe(true)
+      expect(state.detectedAxCodeVersion).toBe("7.30.31")
+    } finally {
+      oldResponse.resolve({ ok: false })
+      await settled
+      runtime.shutdown()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("does not publish a previous probe's late success after main rejects the restart", async () => {
+    const state = Object.assign(createLifecycleState(), {
+      isExternalAxCode: true,
+      axCodePort: 45678,
+      axCodeBaseUrl: "http://127.0.0.1:45678",
+    })
+    const oldResponse = Promise.withResolvers()
+    const restartResult = Promise.withResolvers()
+    const requestMainRuntimeRestart = vi.fn(() => restartResult.promise)
+    vi.stubGlobal("fetch", vi.fn(() => oldResponse.promise))
+    const runtime = createRuntime({ state, requestMainRuntimeRestart })
+    const earlier = runtime.restartAxCode()
+    const refresh = runtime.refreshAxCodeAfterConfigChange("settings saved")
+    const settled = Promise.allSettled([earlier, refresh])
+    const oldHealth = { ok: true, json: async () => ({ healthy: true }) }
+    try {
+      await vi.waitFor(() => expect(requestMainRuntimeRestart).toHaveBeenCalledTimes(1))
+      restartResult.reject(new Error("Replacement failed"))
+      // Give the restart result a turn to settle before the old server answers.
+      await new Promise((resolve) => setImmediate(resolve))
+      oldResponse.resolve(oldHealth)
+      await earlier
+      await expect(refresh).rejects.toThrow("Replacement failed")
+      expect(state.isAxCodeReady).toBe(false)
+      expect(state.lastAxCodeError).toBe("Replacement failed")
+    } finally {
+      oldResponse.resolve(oldHealth)
+      restartResult.resolve()
+      await settled
+      runtime.shutdown()
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("keeps a main-supervised config refresh down while the previous runtime still answers", async () => {
+    const state = createLifecycleState()
+    state.isExternalAxCode = true
+    state.isAxCodeReady = true
+    state.axCodePort = 45678
+    state.axCodeBaseUrl = "http://127.0.0.1:45678"
+    let confirmRestart
+    const restartAck = new Promise((resolve) => {
+      confirmRestart = resolve
+    })
+    const requestMainRuntimeRestart = vi.fn(() => restartAck)
+    const probe = vi.fn(async () => ({
+      ok: true,
+      body: { cancel: vi.fn(async () => undefined) },
+      json: async () => ({ healthy: true }),
+    }))
+    vi.stubGlobal("fetch", probe)
+    const runtime = createRuntime({ state, requestMainRuntimeRestart })
+    const refresh = runtime.refreshAxCodeAfterConfigChange("settings saved")
+
+    try {
+      await vi.waitFor(() => expect(requestMainRuntimeRestart).toHaveBeenCalledTimes(1))
+      expect(probe).not.toHaveBeenCalled()
+      expect(state.isAxCodeReady).toBe(false)
+      expect(state.isRestartingAxCode).toBe(true)
+      confirmRestart()
+      await refresh
+      expect(probe).toHaveBeenCalled()
+      expect(state.isAxCodeReady).toBe(true)
+      expect(state.isRestartingAxCode).toBe(false)
+    } finally {
+      confirmRestart()
+      await refresh
+      runtime.shutdown()
       vi.unstubAllGlobals()
     }
   })
@@ -913,6 +1108,34 @@ describe("ax-code lifecycle", () => {
 
       runtime.shutdown()
     } finally {
+      vi.unstubAllGlobals()
+    }
+  })
+
+  it("honors the configured runtime owner before external discovery finishes", async () => {
+    const state = createLifecycleState()
+    const host = new URL("http://localhost:45678")
+    const requestMainRuntimeRestart = vi.fn(async () => undefined)
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      body: { cancel: vi.fn(async () => undefined) },
+      json: async () => ({ healthy: true }),
+    })))
+    const runtime = createRuntime({
+      state,
+      requestMainRuntimeRestart,
+      env: { ENV_CONFIGURED_AX_CODE_PORT: 45678, ENV_CONFIGURED_AX_CODE_HOST: host },
+    })
+    try {
+      await runtime.refreshAxCodeAfterConfigChange("early configuration reload")
+      expect(requestMainRuntimeRestart).toHaveBeenCalledTimes(1)
+      expect(startHeadlessBackendMock).not.toHaveBeenCalled()
+      expect(spawnMock).not.toHaveBeenCalled()
+      expect(state.isExternalAxCode).toBe(true)
+      expect(state.isAxCodeReady).toBe(true)
+      expect(state.axCodeBaseUrl).toBe(host.origin)
+    } finally {
+      runtime.shutdown()
       vi.unstubAllGlobals()
     }
   })

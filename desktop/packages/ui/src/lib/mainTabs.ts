@@ -1,0 +1,11 @@
+export type MainTab =
+  | "chat"
+  | "plan"
+  | "git"
+  | "diff"
+  | "terminal"
+  | "files"
+  | "context"
+  | "wiki"
+  | "board"
+  | "session-grid"

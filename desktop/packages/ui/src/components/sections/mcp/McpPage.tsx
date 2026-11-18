@@ -471,7 +471,7 @@ const buildMcpOAuthRedirectUri = (name?: string | null, directory?: string | nul
     url.searchParams.set("server", name.trim())
   }
   if (typeof directory === "string" && directory.trim()) {
-    url.searchParams.set("directory", directory.trim())
+    url.searchParams.set("directory", directory)
   }
   return url.toString()
 }
@@ -487,7 +487,7 @@ const queuePendingMcpAuthContext = async (input: {
     body: JSON.stringify({
       state: input.state,
       name: input.name,
-      directory: typeof input.directory === "string" && input.directory.trim() ? input.directory.trim() : null,
+      directory: typeof input.directory === "string" && input.directory.trim() ? input.directory : null,
     }),
   })
 
@@ -512,7 +512,7 @@ const getPendingMcpAuthContext = async (
 
   return {
     name: payload.name.trim(),
-    directory: typeof payload.directory === "string" && payload.directory.trim() ? payload.directory.trim() : null,
+    directory: typeof payload.directory === "string" && payload.directory.trim() ? payload.directory : null,
   }
 }
 
@@ -539,7 +539,7 @@ const normalizeMcpAuthErrorMessage = (
 }
 
 const buildMcpRuntimeActionKey = (name: string | null, directory?: string | null): string => {
-  const normalizedDirectory = typeof directory === "string" && directory.trim() ? directory.trim() : "__global__"
+  const normalizedDirectory = typeof directory === "string" && directory.trim() ? directory : "__global__"
   return `${name ?? "__none__"}::${normalizedDirectory}`
 }
 

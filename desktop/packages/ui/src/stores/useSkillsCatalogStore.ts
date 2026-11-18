@@ -498,7 +498,7 @@ export const useSkillsCatalogStore = create<SkillsCatalogState>()(
         try {
           const directoryOverride =
             typeof options?.directory === "string" && options.directory.trim().length > 0
-              ? options.directory.trim()
+              ? options.directory
               : null
           const currentDirectory = directoryOverride ?? getAxCodeCurrentDirectory()
           const queryParams = currentDirectory ? `?directory=${encodeURIComponent(currentDirectory)}` : ""

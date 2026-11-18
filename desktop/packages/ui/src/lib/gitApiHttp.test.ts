@@ -82,7 +82,7 @@ describe("gitApiHttp index mutations", () => {
       expect(calls).toHaveLength(1)
       expect(String(calls[0].input)).toBe("http://localhost:3000/api/git/stage?directory=%2Frepo")
       expect(calls[0].init?.method).toBe("POST")
-      expect(JSON.parse(String(calls[0].init?.body))).toEqual({ paths: ["a.ts", "b.ts"] })
+      expect(JSON.parse(String(calls[0].init?.body))).toEqual({ paths: [" a.ts ", "b.ts"] })
     } finally {
       restoreMocks()
     }
@@ -97,7 +97,7 @@ describe("gitApiHttp index mutations", () => {
       expect(calls).toHaveLength(1)
       expect(String(calls[0].input)).toBe("http://localhost:3000/api/git/unstage?directory=%2Frepo")
       expect(calls[0].init?.method).toBe("POST")
-      expect(JSON.parse(String(calls[0].init?.body))).toEqual({ paths: ["a.ts", "b.ts"] })
+      expect(JSON.parse(String(calls[0].init?.body))).toEqual({ paths: [" a.ts ", "  ", "b.ts"] })
     } finally {
       restoreMocks()
     }
@@ -156,7 +156,7 @@ describe("gitApiHttp index mutations", () => {
     installWindowMock()
     const calls = installFetchMock()
     try {
-      const stageError = await captureError(() => stageGitFiles("/repo", [" ", ""]))
+      const stageError = await captureError(() => stageGitFiles("/repo", [""]))
       const unstageError = await captureError(() => unstageGitFiles("/repo", []))
 
       expect(stageError).toBeInstanceOf(Error)

@@ -14,6 +14,7 @@
 
 import { create } from "zustand"
 import type { HookCompleted } from "@defai-digital/ax-code-sdk/v2/client"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { defineStore } from "@/lib/store-registry"
 
 export const HOOK_RUN_LIMIT = 50
@@ -32,8 +33,8 @@ export type HookDirectoryCounters = {
   failed: number
 }
 
-export const EMPTY_HOOK_RUNS: readonly HookRun[] = []
-export const EMPTY_HOOK_COUNTERS: HookDirectoryCounters = Object.freeze({ blocked: 0, failed: 0 })
+const EMPTY_HOOK_RUNS: readonly HookRun[] = []
+const EMPTY_HOOK_COUNTERS: HookDirectoryCounters = Object.freeze({ blocked: 0, failed: 0 })
 
 type HookActivityStore = {
   runsBySession: Record<string, HookRun[]>
@@ -52,10 +53,9 @@ const HOOK_OUTCOMES = new Set(["ok", "failed", "blocked", "ask", "rewritten"])
  * Mirrors normalizeEventDirectory in sync/event-routing (stores must not
  * import the sync layer).
  */
-export const normalizeHookDirectory = (rawDirectory: string): string => {
+const normalizeHookDirectory = (rawDirectory: string): string => {
   if (!rawDirectory || rawDirectory === "global") return rawDirectory
-  const normalized = rawDirectory.replace(/\\/g, "/").replace(/^([a-z]):/, (_, l: string) => l.toUpperCase() + ":")
-  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
+  return normalizeProjectPath(rawDirectory) ?? ""
 }
 
 /** Append a run, dropping the oldest entries past the ring-buffer bound. */

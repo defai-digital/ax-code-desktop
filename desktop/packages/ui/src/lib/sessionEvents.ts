@@ -1,4 +1,5 @@
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { readDirectoryPath } from "@/lib/pathValues"
 import type { WorktreeMetadata } from "@/types/worktree"
 
 type SessionDeleteRequest = {
@@ -65,7 +66,7 @@ export const sessionEvents = {
     }
   },
   requestGitRefresh(hint: GitRefreshHint) {
-    if (!hint.directory.trim()) {
+    if (!readDirectoryPath(hint.directory)) {
       return
     }
     gitRefreshListeners.forEach((listener) => listener(hint))

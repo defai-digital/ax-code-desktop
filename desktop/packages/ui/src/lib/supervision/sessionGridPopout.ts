@@ -75,7 +75,7 @@ export async function popOutGridSlot(sessionId: string, directory: string, failu
   }
 }
 
-export function requestMiniChatReturn(sessionId: string, directory: string): boolean {
+function requestMiniChatReturn(sessionId: string, directory: string): boolean {
   if (typeof BroadcastChannel === "undefined") return false
   try {
     const channel = new BroadcastChannel(MINI_CHAT_PRESENCE_CHANNEL)

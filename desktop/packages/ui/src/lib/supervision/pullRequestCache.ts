@@ -1,5 +1,6 @@
 import type { GitHubPullRequestStatus } from "@/lib/api/types"
-import { getProjectPathIdentityKey, normalizeProjectPath } from "@/lib/projectResolution"
+import { readWithDeadline } from "@/lib/asyncTimeout"
+import { pullRequestScopeKey, type PullRequestScope } from "@/lib/pullRequestScope"
 
 export interface MissionPullRequest {
   number: number
@@ -30,12 +31,7 @@ export function projectPullRequest(status: GitHubPullRequestStatus | null): Miss
   }
 }
 
-export const pullRequestKey = (directory: string, branch: string) =>
-  JSON.stringify([getProjectPathIdentityKey(normalizeProjectPath(directory)), branch.trim()])
-
-export interface PullRequestTarget {
-  directory: string
-  branch: string
+export interface PullRequestTarget extends PullRequestScope {
   storeKey: string
   pr: MissionPullRequest | null
   fetchedAt: number
@@ -92,12 +88,13 @@ export function createPullRequestCache(
     for (const consumer of consumers)
       for (const row of consumer.rows) {
         if (!row.directory || !row.branch) continue
-        const key = pullRequestKey(row.directory, row.branch)
+        const key = pullRequestScopeKey(row)
         const entry = entries.get(key)
         const deadline = Math.max(
           failedUntil.get(key) ?? -Infinity,
           consumer.attempted.get(key) ?? -Infinity,
-          Math.max(entry?.fetchedAt ?? -Infinity, row.fetchedAt) + (entry?.stale ? failureBackoffMs : minRefetchMs),
+          row.fetchedAt + minRefetchMs,
+          entry && !entry.stale ? entry.fetchedAt + minRefetchMs : -Infinity,
         )
         if (deadline > now()) {
           schedule(deadline)
@@ -112,37 +109,30 @@ export function createPullRequestCache(
       }
   }
   async function fetch(row: PullRequestTarget, key: string) {
-    const controller = new AbortController()
-    let timer: ReturnType<typeof setTimeout> | undefined
     const previous = entries.get(key) ?? { pr: row.pr, fetchedAt: row.fetchedAt }
     let result: PullRequestEntry
     try {
-      const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => {
-          controller.abort()
-          reject(new Error("timeout"))
-        }, timeoutMs)
-      })
-      const pr = await Promise.race([fetchStatus(row, controller.signal), timeout])
+      const pr = await readWithDeadline((signal) => fetchStatus(row, signal), timeoutMs)
       result = { pr, fetchedAt: now() }
       failedUntil.delete(key)
     } catch {
       // Never retain or log SDK errors: they can contain credentials.
-      result = { pr: previous.pr, fetchedAt: now(), stale: true }
+      result = { ...previous, stale: true }
       failedUntil.delete(key)
       failedUntil.set(key, now() + failureBackoffMs)
       while (failedUntil.size > 1000) failedUntil.delete(failedUntil.keys().next().value!)
-    } finally {
-      clearTimeout(timer)
     }
     const nextAt = now() + (result.stale ? failureBackoffMs : minRefetchMs)
     for (const consumer of consumers)
-      if (consumer.rows.some((target) => pullRequestKey(target.directory, target.branch) === key)) {
+      if (consumer.rows.some((target) => pullRequestScopeKey(target) === key)) {
         consumer.attempted.set(key, nextAt)
       }
-    publish(key, result)
     pending.delete(key)
-    pump()
+    try {
+      publish(key, result)
+    } finally {
+      pump()
+    }
   }
   return {
     getSnapshot: () => entries,
@@ -157,8 +147,9 @@ export function createPullRequestCache(
       consumers.add(consumer)
       return {
         update(rows: readonly PullRequestTarget[]) {
+          if (!consumers.has(consumer)) return
           consumer.rows = rows
-          const keys = new Set(rows.map((row) => pullRequestKey(row.directory, row.branch)))
+          const keys = new Set(rows.map((row) => pullRequestScopeKey(row)))
           for (const key of consumer.attempted.keys()) if (!keys.has(key)) consumer.attempted.delete(key)
           pump()
         },

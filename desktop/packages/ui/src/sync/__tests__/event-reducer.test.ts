@@ -1116,3 +1116,11 @@ test("a legacy overlapping delta consumes its dedupe marker before the next delt
   applyDirectoryEvent(draft, event)
   expect((draft.part.get("msg_1")?.[0] as { text: string }).text).toBe("hellohello")
 })
+
+test("message error data with changed undefined keys must update the stored message", () => {
+  const initial = assistantMessage({ error: { name: "APIError", data: { message: "same", isRetryable: false, statusCode: undefined } } })
+  const next = assistantMessage({ error: { name: "APIError", data: { message: "same", isRetryable: false, responseHeaders: undefined } } })
+  const draft = state({ message: { ses_1: [initial] } })
+  expect(applyDirectoryEvent(draft, { type: "message.updated", properties: { info: next } } as Event)).toBe(true)
+  expect(draft.message.ses_1[0]).toBe(next)
+})

@@ -1,21 +1,22 @@
 import { create } from "zustand"
 import { createJSONStorage, devtools, persist } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 
-import { projectPathMatchesRoot } from "@/lib/projectResolution"
+import {
+  filesViewPathsEqual,
+  isFilesViewPathWithinRoot,
+  normalizeFilesViewPath as normalizePath,
+} from "@/lib/filesViewPath"
+import { clampFilesViewRoots, mergeFilesViewPaths, sanitizeFilesViewRoots } from "@/lib/filesViewTabsState"
+import type { FilesViewRootTabsState } from "@/lib/filesViewTabsState"
+import { isPlainRecord } from "@/lib/record"
 import { getSafeStorage } from "./utils/safeStorage"
 
-type RootTabsState = {
-  openPaths: string[]
-  selectedPath: string | null
-  expandedPaths: string[]
-  touchedAt: number
+interface FilesViewTabsState {
+  byRoot: Record<string, FilesViewRootTabsState>
 }
 
-type FilesViewTabsState = {
-  byRoot: Record<string, RootTabsState>
-}
-
-type FilesViewTabsActions = {
+interface FilesViewTabsActions {
   addOpenPath: (root: string, path: string) => void
   removeOpenPath: (root: string, path: string) => void
   removeOpenPathsByPrefix: (root: string, prefixPath: string) => void
@@ -30,429 +31,173 @@ type FilesViewTabsActions = {
 
 type FilesViewTabsStore = FilesViewTabsState & FilesViewTabsActions
 
-const normalizePath = (value: string): string => {
-  if (!value) return ""
-
-  const raw = value.replace(/\\/g, "/")
-  const hadUncPrefix = raw.startsWith("//")
-
-  let normalized = raw.replace(/\/+/g, "/")
-  if (hadUncPrefix && !normalized.startsWith("//")) {
-    normalized = `/${normalized}`
-  }
-
-  const isUnixRoot = normalized === "/"
-  const isWindowsDriveRoot = /^[A-Za-z]:\/$/.test(normalized)
-  if (!isUnixRoot && !isWindowsDriveRoot) {
-    normalized = normalized.replace(/\/+$/, "")
-  }
-
-  return normalized
-}
-
-const toComparablePath = (value: string): string => {
-  if (/^[A-Za-z]:\//.test(value)) {
-    return value.toLowerCase()
-  }
-  return value
-}
-
-const isPathWithinRoot = (path: string, root: string): boolean => {
-  const normalizedRoot = normalizePath(root)
-  const normalizedPath = normalizePath(path)
-  if (!normalizedRoot || !normalizedPath) return false
-  return projectPathMatchesRoot(normalizedPath, normalizedRoot)
-}
-
-const mergeUniquePaths = (existing: readonly string[], incoming: readonly string[]): string[] =>
-  Array.from(new Set([...existing, ...incoming]))
-
-const sanitizeRootPaths = (input: unknown, root: string): string[] => {
-  if (!Array.isArray(input)) {
-    return []
-  }
-
-  return Array.from(
-    new Set(
-      input
-        .filter((value): value is string => typeof value === "string")
-        .map((value) => normalizePath(value))
-        .filter((value) => isPathWithinRoot(value, root)),
-    ),
-  )
-}
-
-const sanitizeByRoot = (input: unknown): Record<string, RootTabsState> => {
-  if (!input || typeof input !== "object") {
-    return {}
-  }
-
-  const source = input as Record<string, unknown>
-  const next: Record<string, RootTabsState> = {}
-
-  for (const [rawRoot, rawState] of Object.entries(source)) {
-    const root = normalizePath(rawRoot)
-    if (!root || !rawState || typeof rawState !== "object") {
-      continue
-    }
-
-    const state = rawState as {
-      openPaths?: unknown
-      selectedPath?: unknown
-      expandedPaths?: unknown
-      touchedAt?: unknown
-    }
-
-    const openPaths = sanitizeRootPaths(state.openPaths, root)
-    const expandedPaths = sanitizeRootPaths(state.expandedPaths, root)
-
-    const selectedPathCandidate = typeof state.selectedPath === "string" ? normalizePath(state.selectedPath) : null
-
-    const selectedPath =
-      selectedPathCandidate && isPathWithinRoot(selectedPathCandidate, root)
-        ? selectedPathCandidate
-        : (openPaths[0] ?? null)
-
-    const touchedAt =
-      typeof state.touchedAt === "number" && Number.isFinite(state.touchedAt) ? state.touchedAt : Date.now()
-
-    const existing = next[root]
-    if (existing) {
-      const mergedOpenPaths = mergeUniquePaths(existing.openPaths, openPaths)
-      const mergedExpandedPaths = mergeUniquePaths(existing.expandedPaths, expandedPaths)
-      const mergedSelectedPath = existing.selectedPath ?? selectedPath ?? mergedOpenPaths[0] ?? null
-      next[root] = {
-        openPaths: mergedOpenPaths,
-        selectedPath: mergedSelectedPath,
-        expandedPaths: mergedExpandedPaths,
-        touchedAt: Math.max(existing.touchedAt, touchedAt),
-      }
-      continue
-    }
-
-    next[root] = {
-      openPaths,
-      selectedPath,
-      expandedPaths,
-      touchedAt,
-    }
-  }
-
-  return next
-}
-
-const clampRoots = (byRoot: Record<string, RootTabsState>, maxRoots: number): Record<string, RootTabsState> => {
-  const entries = Object.entries(byRoot)
-  if (entries.length <= maxRoots) {
-    return byRoot
-  }
-
-  entries.sort((a, b) => (b[1]?.touchedAt ?? 0) - (a[1]?.touchedAt ?? 0))
-  const next: Record<string, RootTabsState> = {}
-  for (const [root, state] of entries.slice(0, maxRoots)) {
-    next[root] = state
-  }
-  return next
-}
-
-const touchRoot = (prev: RootTabsState | undefined): RootTabsState => {
-  if (prev) {
-    return { ...prev, touchedAt: Date.now() }
-  }
-  return { openPaths: [], selectedPath: null, expandedPaths: [], touchedAt: Date.now() }
-}
+type RootUpdate = (current: FilesViewRootTabsState) => FilesViewRootTabsState
 
 export const useFilesViewTabsStore = create<FilesViewTabsStore>()(
   devtools(
     persist(
-      (set, get) => ({
-        byRoot: {},
-
-        addOpenPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPath = normalizePath((path || "").trim())
-          if (!normalizedRoot || !normalizedPath || !isPathWithinRoot(normalizedPath, normalizedRoot)) {
-            return
-          }
-
+      (set, get) => {
+        const getRoot = (root: string) => {
+          const byRoot = get().byRoot
+          return Object.hasOwn(byRoot, root) ? byRoot[root] : undefined
+        }
+        const updateRoot = (root: string, update: RootUpdate, create = true) => {
           set((state) => {
-            const prev = state.byRoot[normalizedRoot]
-            const current = touchRoot(prev)
-            const exists = current.openPaths.includes(normalizedPath)
-            const nextOpenPaths = exists ? current.openPaths : [...current.openPaths, normalizedPath]
-            const nextSelectedPath = current.selectedPath ?? normalizedPath
-
-            if (prev && exists && prev.selectedPath === nextSelectedPath) {
-              return state
+            const previous = Object.hasOwn(state.byRoot, root) ? state.byRoot[root] : undefined
+            if (!previous && !create) return state
+            const current = previous ?? { openPaths: [], selectedPath: null, expandedPaths: [], touchedAt: 0 }
+            const next = update(current)
+            if (next === current) return state
+            return {
+              byRoot: clampFilesViewRoots(
+                {
+                  ...state.byRoot,
+                  [root]: { ...next, touchedAt: Date.now() },
+                },
+                root,
+              ),
             }
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
-                ...current,
-                openPaths: nextOpenPaths,
-                selectedPath: nextSelectedPath,
-              },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
           })
-        },
+        }
+        return {
+          byRoot: {},
 
-        removeOpenPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPath = normalizePath((path || "").trim())
-          if (!normalizedRoot || !normalizedPath) {
-            return
-          }
-
-          set((state) => {
-            const current = state.byRoot[normalizedRoot]
-            if (!current) {
-              return state
-            }
-
-            const comparablePath = toComparablePath(normalizedPath)
-            const isMatchingPath = (candidate: string) => toComparablePath(candidate) === comparablePath
-            const selectedPathMatches = current.selectedPath ? isMatchingPath(current.selectedPath) : false
-            if (!current.openPaths.some(isMatchingPath) && !selectedPathMatches) {
-              return state
-            }
-
-            const openPaths = current.openPaths.filter((p) => !isMatchingPath(p))
-            const selectedPath = selectedPathMatches ? (openPaths[0] ?? null) : current.selectedPath
-
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
+          addOpenPath: (root, path) => {
+            const normalizedRoot = normalizePath(root || "")
+            const normalizedPath = normalizePath(path || "")
+            if (!normalizedRoot || !normalizedPath || !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)) return
+            updateRoot(normalizedRoot, (current) => {
+              const exists = current.openPaths.some((candidate) => filesViewPathsEqual(candidate, normalizedPath))
+              if (exists && current.selectedPath) return current
+              return {
                 ...current,
-                openPaths,
-                selectedPath,
-                touchedAt: Date.now(),
+                openPaths: exists ? current.openPaths : [...current.openPaths, normalizedPath],
+                selectedPath: current.selectedPath ?? normalizedPath,
+              }
+            })
+          },
+
+          removeOpenPath: (root, path) => {
+            const normalizedRoot = normalizePath(root || "")
+            const normalizedPath = normalizePath(path || "")
+            if (!normalizedRoot || !normalizedPath) return
+            updateRoot(
+              normalizedRoot,
+              (current) => {
+                const matches = (candidate: string) => filesViewPathsEqual(candidate, normalizedPath)
+                const selectedMatches = current.selectedPath ? matches(current.selectedPath) : false
+                if (!current.openPaths.some(matches) && !selectedMatches) return current
+                const openPaths = current.openPaths.filter((candidate) => !matches(candidate))
+                return {
+                  ...current,
+                  openPaths,
+                  selectedPath: selectedMatches ? (openPaths[0] ?? null) : current.selectedPath,
+                }
               },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
+              false,
+            )
+          },
 
-        removeOpenPathsByPrefix: (root, prefixPath) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPrefix = normalizePath((prefixPath || "").trim())
-          if (!normalizedRoot || !normalizedPrefix) {
-            return
-          }
+          removeOpenPathsByPrefix: (root, prefixPath) => {
+            const normalizedRoot = normalizePath(root || "")
+            const prefix = normalizePath(prefixPath || "")
+            if (!normalizedRoot || !prefix) return
+            updateRoot(
+              normalizedRoot,
+              (current) => {
+                const withinPrefix = (candidate: string) => isFilesViewPathWithinRoot(candidate, prefix)
+                const openPaths = current.openPaths.filter((candidate) => !withinPrefix(candidate))
+                if (openPaths.length === current.openPaths.length) return current
+                return {
+                  ...current,
+                  openPaths,
+                  selectedPath:
+                    current.selectedPath && withinPrefix(current.selectedPath)
+                      ? (openPaths[0] ?? null)
+                      : current.selectedPath,
+                }
+              },
+              false,
+            )
+          },
 
-          set((state) => {
-            const current = state.byRoot[normalizedRoot]
-            if (!current) {
-              return state
-            }
+          removeUnselectedOpenPath: (root, path) => {
+            const normalizedRoot = normalizePath(root || "")
+            const normalizedPath = normalizePath(path || "")
+            const current = getRoot(normalizedRoot)
+            if (!normalizedRoot || !normalizedPath || !current) return
+            // Without a selection the first open path is on screen and must keep its error tab.
+            const shownPath = current.selectedPath ?? current.openPaths[0] ?? null
+            if (shownPath && filesViewPathsEqual(shownPath, normalizedPath)) return
+            get().removeOpenPath(normalizedRoot, normalizedPath)
+          },
 
-            const comparablePrefix = toComparablePath(normalizedPrefix)
-            const comparablePrefixWithSlash = comparablePrefix.endsWith("/") ? comparablePrefix : `${comparablePrefix}/`
-            const isWithinPrefix = (candidate: string) => {
-              const comparablePath = toComparablePath(candidate)
-              return comparablePath === comparablePrefix || comparablePath.startsWith(comparablePrefixWithSlash)
-            }
-            const openPaths = current.openPaths.filter((p) => !isWithinPrefix(p))
-            if (openPaths.length === current.openPaths.length) {
-              return state
-            }
+          setSelectedPath: (root, path) => {
+            const normalizedRoot = normalizePath(root || "")
+            const normalizedPath = path ? normalizePath(path) : null
+            if (!normalizedRoot || (normalizedPath && !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)))
+              return
+            updateRoot(normalizedRoot, (current) => {
+              const openPaths =
+                normalizedPath && !current.openPaths.some((candidate) => filesViewPathsEqual(candidate, normalizedPath))
+                  ? [...current.openPaths, normalizedPath]
+                  : current.openPaths
+              if (getRoot(normalizedRoot) && current.selectedPath === normalizedPath && openPaths === current.openPaths)
+                return current
+              return { ...current, openPaths, selectedPath: normalizedPath }
+            })
+          },
 
-            const selectedPath =
-              current.selectedPath && isWithinPrefix(current.selectedPath)
-                ? (openPaths[0] ?? null)
-                : current.selectedPath
+          ensureSelectedPath: (root) => {
+            const normalizedRoot = normalizePath(root || "")
+            if (!normalizedRoot) return
+            const current = getRoot(normalizedRoot)
+            if (!current || current.selectedPath || !current.openPaths[0]) return
+            get().setSelectedPath(normalizedRoot, current.openPaths[0])
+          },
 
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
+          toggleExpandedPath: (root, path) => {
+            const normalizedRoot = normalizePath(root || "")
+            const normalizedPath = normalizePath(path || "")
+            if (!normalizedRoot || !normalizedPath || !isFilesViewPathWithinRoot(normalizedPath, normalizedRoot)) return
+            updateRoot(normalizedRoot, (current) => {
+              const matches = (candidate: string) => filesViewPathsEqual(candidate, normalizedPath)
+              return {
                 ...current,
-                openPaths,
-                selectedPath,
-                touchedAt: Date.now(),
-              },
-            }
+                expandedPaths: current.expandedPaths.some(matches)
+                  ? current.expandedPaths.filter((candidate) => !matches(candidate))
+                  : [...current.expandedPaths, normalizedPath],
+              }
+            })
+          },
 
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
+          expandPath: (root, path) => get().expandPaths(root, [path]),
 
-        removeUnselectedOpenPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const comparablePath = toComparablePath(normalizePath((path || "").trim()))
-          const current = get().byRoot[normalizedRoot]
-          if (!normalizedRoot || !comparablePath || !current) {
-            return
-          }
-
-          // With nothing selected the editor shows the first open path, so that one is on
-          // screen too and its tab has to stay to report the failure.
-          const shownPath = current.selectedPath ?? current.openPaths[0] ?? null
-          if (shownPath && toComparablePath(shownPath) === comparablePath) {
-            return
-          }
-
-          get().removeOpenPath(normalizedRoot, path)
-        },
-
-        setSelectedPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPath = path ? normalizePath(path.trim()) : null
-          if (!normalizedRoot || (normalizedPath && !isPathWithinRoot(normalizedPath, normalizedRoot))) {
-            return
-          }
-
-          set((state) => {
-            const prev = state.byRoot[normalizedRoot]
-            const current = touchRoot(prev)
-            const openPaths =
-              normalizedPath && !current.openPaths.includes(normalizedPath)
-                ? [...current.openPaths, normalizedPath]
-                : current.openPaths
-
-            if (prev && prev.selectedPath === normalizedPath && openPaths === prev.openPaths) {
-              return state
-            }
-
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
-                ...current,
-                openPaths,
-                selectedPath: normalizedPath,
-              },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
-
-        ensureSelectedPath: (root) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          if (!normalizedRoot) {
-            return
-          }
-
-          const current = get().byRoot[normalizedRoot]
-          if (!current || current.selectedPath) {
-            return
-          }
-
-          const first = current.openPaths[0] ?? null
-          if (!first) {
-            return
-          }
-
-          get().setSelectedPath(normalizedRoot, first)
-        },
-
-        toggleExpandedPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPath = normalizePath((path || "").trim())
-          if (!normalizedRoot || !normalizedPath || !isPathWithinRoot(normalizedPath, normalizedRoot)) {
-            return
-          }
-
-          set((state) => {
-            const prev = state.byRoot[normalizedRoot]
-            const current = touchRoot(prev)
-            const isExpanded = current.expandedPaths.includes(normalizedPath)
-            const nextExpandedPaths = isExpanded
-              ? current.expandedPaths.filter((p) => p !== normalizedPath)
-              : [...current.expandedPaths, normalizedPath]
-
-            if (
-              prev &&
-              prev.expandedPaths === nextExpandedPaths &&
-              prev.selectedPath === current.selectedPath &&
-              prev.openPaths === current.openPaths
-            ) {
-              return state
-            }
-
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
-                ...current,
-                expandedPaths: nextExpandedPaths,
-              },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
-
-        expandPath: (root, path) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          const normalizedPath = normalizePath((path || "").trim())
-          if (!normalizedRoot || !normalizedPath || !isPathWithinRoot(normalizedPath, normalizedRoot)) {
-            return
-          }
-
-          set((state) => {
-            const prev = state.byRoot[normalizedRoot]
-            const current = touchRoot(prev)
-            const isExpanded = current.expandedPaths.includes(normalizedPath)
-
-            if (isExpanded && prev) {
-              return state
-            }
-
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
-                ...current,
-                expandedPaths: [...current.expandedPaths, normalizedPath],
-              },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
-
-        expandPaths: (root, paths) => {
-          const normalizedRoot = normalizePath((root || "").trim())
-          if (!normalizedRoot || !paths || paths.length === 0) {
-            return
-          }
-
-          const normalizedPaths = paths
-            .map((p) => normalizePath((p || "").trim()))
-            .filter((p) => p && isPathWithinRoot(p, normalizedRoot))
-          if (normalizedPaths.length === 0) {
-            return
-          }
-
-          set((state) => {
-            const prev = state.byRoot[normalizedRoot]
-            const current = touchRoot(prev)
-            const existingPaths = new Set(current.expandedPaths)
-            const newPaths = normalizedPaths.filter((p) => !existingPaths.has(p))
-
-            if (newPaths.length === 0) {
-              return state
-            }
-
-            const byRoot = {
-              ...state.byRoot,
-              [normalizedRoot]: {
-                ...current,
-                expandedPaths: [...current.expandedPaths, ...newPaths],
-              },
-            }
-            return { byRoot: clampRoots(byRoot, 20) }
-          })
-        },
-      }),
+          expandPaths: (root, paths) => {
+            const normalizedRoot = normalizePath(root || "")
+            if (!normalizedRoot || !paths?.length) return
+            const incoming = paths
+              .map((path) => normalizePath(path || ""))
+              .filter((path) => path && isFilesViewPathWithinRoot(path, normalizedRoot))
+            if (!incoming.length) return
+            updateRoot(normalizedRoot, (current) => {
+              const expandedPaths = mergeFilesViewPaths(current.expandedPaths, incoming)
+              if (expandedPaths.length === current.expandedPaths.length) return current
+              return { ...current, expandedPaths }
+            })
+          },
+        }
+      },
       {
         name: "files-view-tabs-store",
         version: 2,
         storage: createJSONStorage(() => getSafeStorage()),
-        migrate: (persistedState) => {
-          if (!persistedState || typeof persistedState !== "object") {
-            return { byRoot: {} }
-          }
-
-          const rawByRoot = (persistedState as { byRoot?: unknown }).byRoot
-          return {
-            byRoot: sanitizeByRoot(rawByRoot),
-          }
+        migrate: (persistedState) => ({
+          byRoot: sanitizeFilesViewRoots(isPlainRecord(persistedState) ? persistedState.byRoot : undefined),
+        }),
+        merge: (persistedState, currentState) => {
+          if (!hasPersistedFields(persistedState, ["byRoot"])) return currentState
+          return { ...currentState, byRoot: sanitizeFilesViewRoots(persistedState.byRoot) }
         },
         partialize: (state) => ({ byRoot: state.byRoot }),
       },

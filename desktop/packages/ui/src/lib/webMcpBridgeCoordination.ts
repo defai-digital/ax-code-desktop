@@ -1,4 +1,5 @@
 import { redactWebMcpText } from "../../../../shared/webmcp-redaction.mjs"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
 import { useMcpStore } from "@/stores/useMcpStore"
 
@@ -25,7 +26,7 @@ const bumpResumeEpoch = (key: string): number => {
   return next
 }
 
-const directoryKey = (directory: string | null | undefined): string => (directory ?? "").trim().replace(/[\\/]+$/, "")
+const directoryKey = (directory: string | null | undefined): string => normalizeProjectPath(directory) ?? ""
 
 /** A server is a Chrome bridge when it carries a `webmcp` profile or is the pre-registered `webmcp` entry. */
 export const isChromeBridgeServer = (server: { name: string; webmcp?: unknown }): boolean =>

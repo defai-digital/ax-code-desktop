@@ -5,6 +5,8 @@ const require = createRequire(import.meta.url)
 const { createRuntimeRestartRequestHandler } = require("./runtime-restart-request.js")
 
 const flushMicrotasks = () => new Promise((resolve) => setImmediate(resolve))
+const sendRestart = (handler, id = "request", reply = () => {}) =>
+  handler.handleMessage({ type: "runtime-restart-request", id }, reply)
 
 function createLogger() {
   const logs = []
@@ -33,9 +35,11 @@ describe("runtime restart request handler", () => {
       logger,
     })
 
-    expect(handler.handleMessage({ type: "runtime-restart-request" })).toBe(true)
+    const replies = []
+    expect(sendRestart(handler, "first", (reply) => replies.push(reply))).toBe(true)
     expect(restarts).toEqual([{ reprepare: true }])
     await flushMicrotasks()
+    expect(replies).toEqual([{ type: "runtime-restart-result", id: "first", ok: true }])
     expect(logs.some((line) => line.includes("restarted"))).toBe(true)
   })
 
@@ -60,12 +64,15 @@ describe("runtime restart request handler", () => {
       logger: createLogger().logger,
     })
 
-    handler.handleMessage({ type: "runtime-restart-request" })
+    const replies = []
+    const reply = (message) => replies.push(message)
+    sendRestart(handler, "first", reply)
     await flushMicrotasks()
     expect(handler.inFlight).toBe(true)
-    handler.handleMessage({ type: "runtime-restart-request" })
-    handler.handleMessage({ type: "runtime-restart-request" })
+    sendRestart(handler, "second", reply)
+    sendRestart(handler, "third", reply)
     expect(restarts).toHaveLength(1)
+    expect(replies).toEqual([])
 
     const releaseFirst = release
     releaseFirst()
@@ -75,18 +82,22 @@ describe("runtime restart request handler", () => {
     // settings — no matter how many requests queued up behind it.
     expect(restarts).toHaveLength(2)
     expect(handler.inFlight).toBe(true)
+    expect(replies.map(({ id }) => id)).toEqual(["first"])
 
     const releaseSecond = release
     releaseSecond()
     await flushMicrotasks()
     expect(restarts).toHaveLength(2)
     expect(handler.inFlight).toBe(false)
+    expect(replies.map(({ id }) => id)).toEqual(["first", "second", "third"])
   })
 
   test("a missing supervision (escape-hatch mode) consumes the message without restarting", () => {
     const handler = createRuntimeRestartRequestHandler({ getSupervision: () => null, logger: createLogger().logger })
-    expect(handler.handleMessage({ type: "runtime-restart-request" })).toBe(true)
+    const replies = []
+    expect(sendRestart(handler, "missing", (reply) => replies.push(reply))).toBe(true)
     expect(handler.inFlight).toBe(false)
+    expect(replies).toMatchObject([{ id: "missing", ok: false }])
   })
 
   test("a rejecting restart is logged and releases the in-flight gate", async () => {
@@ -96,11 +107,13 @@ describe("runtime restart request handler", () => {
       logger,
     })
 
-    handler.handleMessage({ type: "runtime-restart-request" })
+    const replies = []
+    sendRestart(handler, "failed", (reply) => replies.push(reply))
     await flushMicrotasks()
     await flushMicrotasks()
     expect(errors.some((line) => line.includes("boom"))).toBe(true)
     expect(handler.inFlight).toBe(false)
+    expect(replies).toMatchObject([{ id: "failed", ok: false }])
   })
 
   test("requires a getSupervision function", () => {

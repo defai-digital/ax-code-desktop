@@ -10,7 +10,7 @@ function shellQuote(value) {
   return `'${String(value).replace(/'/g, "'\\''")}'`
 }
 
-export function looksLikeAuthError(message) {
+function looksLikeAuthError(message) {
   const text = String(message || "")
   return (
     /permission denied/i.test(text) ||
@@ -82,10 +82,14 @@ export async function cloneRepo({ cloneUrl, identity, tempDir, timeoutMs = DEFAU
   const fallbackResult = await runGit(fallback, { identity, timeoutMs })
   if (fallbackResult.ok) return { ok: true }
 
-  return {
-    ok: false,
-    error: fallbackResult,
+  const message = `${fallbackResult.stderr || ""}\n${fallbackResult.message || ""}`.trim()
+  if (looksLikeAuthError(message)) {
+    return {
+      ok: false,
+      error: { kind: "authRequired", message: "Authentication required to access this repository", sshOnly: true },
+    }
   }
+  return { ok: false, error: { kind: "networkError", message: message || "Failed to clone repository" } }
 }
 
 export async function assertGitAvailable() {

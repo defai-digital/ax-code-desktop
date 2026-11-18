@@ -3,7 +3,7 @@
  * status verbatim: it does not judge whether an objective was met and does not infer a status the runtime did
  * not report.
  */
-export const SESSION_GOAL_STATUSES = ["active", "paused", "complete", "blocked", "budget_limited"] as const
+const SESSION_GOAL_STATUSES = ["active", "paused", "complete", "blocked", "budget_limited"] as const
 
 export type SessionGoalStatus = (typeof SESSION_GOAL_STATUSES)[number]
 
@@ -52,7 +52,7 @@ export function normalizeSessionGoal(value: unknown): SessionGoalSnapshot | null
   const timeBudgetSeconds = nonNegativeNumber(value.timeBudgetSeconds)
   const remainingTokens = nonNegativeNumber(value.remainingTokens)
   const remainingTimeSeconds = nonNegativeNumber(value.remainingTimeSeconds)
-  const planPath = typeof value.planPath === "string" && value.planPath.trim() ? value.planPath.trim() : undefined
+  const planPath = typeof value.planPath === "string" && value.planPath.trim() ? value.planPath : undefined
   return {
     sessionId,
     objective: objective.length > SESSION_GOAL_OBJECTIVE_LIMIT ? objective.slice(0, SESSION_GOAL_OBJECTIVE_LIMIT) : objective,

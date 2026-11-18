@@ -3,6 +3,7 @@ import os from "node:os"
 import path from "node:path"
 import { inspectGitRepositories } from "./repository-scan.js"
 import { subscribeWorktreeRuntimeEvents } from "./worktree-runtime-client.js"
+import { readDirectoryPath } from "../../../../../shared/path-values.mjs"
 
 // Revisions reach git as bare argv entries, and git parses a leading "-" as an option rather than a
 // revision — `to=--output=<path>` makes `git log` overwrite that file and report an empty history.
@@ -132,7 +133,7 @@ export function registerGitRoutes(app, options = {}) {
   // repositories directly inside it. It only checks for `.git` entries. The upward search stays
   // inside the home folder; outside it only the folder itself is considered.
   app.get("/api/git/repositories", async (req, res) => {
-    const directory = typeof req.query.directory === "string" ? req.query.directory.trim() : ""
+    const directory = readDirectoryPath(req.query.directory) ?? ""
     if (!directory || directory.includes("\0") || !path.isAbsolute(directory)) {
       return res.status(400).json({ error: "absolute directory parameter is required" })
     }

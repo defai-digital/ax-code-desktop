@@ -73,6 +73,15 @@ Dev mode logs a single-line diff whenever an event would change the store
 entry — that log is now the regression alarm (a diff means an event disagreed
 with store state, which should be rare).
 
+## Persistence ownership
+
+Persisted JSON is untrusted data. The field contracts in `src/lib/persistedFields.ts`,
+`uiPreferences.ts`, `configPreferences.ts`, and `permissionPreferences.ts` own both serialization and restoration.
+Restore only declared data fields; actions, active requests, catalogues, runtime metadata, and window navigation
+remain live state. Missing or unrelated snapshots must preserve the current state without restore side effects.
+Feature caches with recovery semantics keep their own validated decoders, including bounded rows and timestamp checks.
+Keep storage keys, versions, and supported legacy migrations stable when changing these contracts.
+
 ## Config-domain ownership (S4.6 — single homes)
 
 Each config domain has exactly one home store (SPEC-2026-08-30, decision D2).
@@ -86,7 +95,14 @@ config`, `GlobalState.providers/providerAuth/config`) and the
 | agents                            | `useAgentsStore`                    | Real CRUD + loads; pure helpers (`filterVisibleAgents`, `isAgentHidden`, `isAgentBuiltIn`) live in `src/lib/agents.ts` |
 | commands                          | `useCommandsStore`                  | Slash-command send path lazy-loads it on first use                                                                     |
 | MCP status/config                 | `useMcpStore` / `useMcpConfigStore` | —                                                                                                                      |
-| settings defaults                 | `useConfigStore`                    | `loadAgents` keeps the settings fetch + default selection resolution, sourcing the agents list from `useAgentsStore`   |
+| settings defaults                 | `useConfigStore`                    | `loadAgents` resolves defaults loaded through `lib/configDefaults`, sourcing agents from `useAgentsStore` |
+
+The config store owns the model metadata map, while `lib/modelsDevMetadata` validates and fetches the external
+catalog (same-origin proxy, then public fallback). Pure keys and live-provider metadata derivation live in
+`lib/modelMetadata`. `stores/utils/modelMetadataLoader` coalesces requests and cancels invalidated loads;
+generation and request-ownership guards prevent late responses or finalizers from replacing fresh state.
+Joining an in-flight provider request still starts a new catalog read when metadata was invalidated.
+Settings normalization is shared by the registered-runtime and HTTP adapters in `lib/configDefaults`.
 
 `useConfigStore-impl` may not import `useAgentsStore` (R1 ratchet), so it
 reaches the agents list through the `AgentsSource` bridge in
@@ -165,6 +181,11 @@ Important properties:
 
 ## Store boundary enforcement
 
+Context-panel state transforms and restore validation live in `lib/contextPanelState`; `useUIStore` owns the
+actions and persisted map. Current-version merges and legacy migration use the same validator. It bounds roots/tabs,
+preserves literal file identity and empty-panel width preferences, and never restores browser navigation.
+The Files renderer and `useFilesViewTabsStore` share `lib/filesViewPath` rather than duplicating path normalization.
+
 Store boundaries are enforced by `script/check-desktop-store-boundaries.ts`
 (repo check `pnpm run check:desktop-store-boundaries`, also wired into the
 desktop CI workflows), not just by convention:
@@ -179,6 +200,7 @@ desktop CI workflows), not just by convention:
   `src/sync/event-pipeline`, or `src/sync/sync-context-impl`. Use the public
   surface instead: `sync-context` hooks, `sync-refs`, `session-actions`, and
   the other documented sync modules.
+  UI reconnect actions use `lib/event-stream/commands`; there are no R2 exceptions.
 - **R3 transport consumer registry** — `src/lib/event-stream/client` may only
   be imported by its registered consumers (currently the sync pipeline,
   `lib/event-stream/subscribe.ts`, and its own test). Everything else uses
@@ -327,3 +349,13 @@ After meaningful Git/PR store changes, verify manually:
 4. Worktree sessions still show branch labels in header.
 5. Expanded sidebar projects/worktrees can show PR state without requiring prior selection.
 6. Hidden surfaces do not reintroduce live background work.
+
+### Files tabs and retired settings state
+
+`useFilesViewTabsStore` owns mutations and persistence; `lib/filesViewTabsState.ts` validates migrated and
+current-version payloads, limits retained roots and preserves the root being acted on. Files path identity is shared
+with renderer helpers, including case-insensitive drive/UNC matching. Persistence restores data only, never actions.
+
+The retired Magic Prompts selection store and Snippets editor draft/CRUD state have been removed. `useSnippetsStore`
+continues to own composer snippet loading, directory cache invalidation, lookup and expansion. Server CRUD APIs are
+separate contracts and remain available. Retired settings slugs still resolve to Home.

@@ -18,8 +18,8 @@ describe("fetchSessionGoal", () => {
     vi.spyOn(axCodeClient, "getScopedSdkClient").mockReturnValue({ session: { goal } } as never)
 
     await expect(fetchSessionGoal(" ses_1 ", "  /repo  ")).resolves.toEqual(payload)
-    expect(axCodeClient.getScopedSdkClient).toHaveBeenCalledWith("/repo")
-    expect(goal).toHaveBeenCalledWith({ sessionID: "ses_1", directory: "/repo" })
+    expect(axCodeClient.getScopedSdkClient).toHaveBeenCalledWith("  /repo  ")
+    expect(goal).toHaveBeenCalledWith({ sessionID: "ses_1", directory: "  /repo  " })
   })
 
   test("a null body is a session with no goal", async () => {

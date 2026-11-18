@@ -126,7 +126,7 @@ describe("useMcpStore", () => {
   test("normalizes scoped directory keys for Windows paths", async () => {
     const { getScopedApiClient, statusRequests, useMcpStore } = await importStore()
 
-    const refresh = useMcpStore.getState().refresh({ directory: " c:\\Repo\\ " })
+    const refresh = useMcpStore.getState().refresh({ directory: "c:\\Repo\\" })
     await Promise.resolve()
 
     statusRequests[0].resolve({ data: { server: status("connected") } })

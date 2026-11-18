@@ -2213,6 +2213,59 @@ const writeTwoEditFile = (repo) => {
 }
 
 describe("stageHunk and unstageHunk", () => {
+  it.each(["trailing ", "emoji😀\n.txt"])("stages and unstages literal header paths %j", async (name) => {
+    if (!canRunGit() || process.platform === "win32") return
+    const repo = createHunkTestRepo()
+    fs.writeFileSync(path.join(repo, name), "old\n")
+    runGit(repo, ["add", "--", name])
+    runGit(repo, ["commit", "-m", "base"])
+    fs.writeFileSync(path.join(repo, name), "new\n")
+    const patch = runGit(repo, ["-c", "core.quotePath=false", "diff", "--", name])
+
+    await stageHunk(repo, name, patch)
+    expect(runGit(repo, ["show", `:${name}`])).toBe("new\n")
+    expect(runGit(repo, ["diff", "--name-only", "-z"])).toBe("")
+    await unstageHunk(repo, name, patch)
+    expect(runGit(repo, ["diff", "--cached", "--name-only", "-z"])).toBe("")
+    expect(fs.readFileSync(path.join(repo, name), "utf8")).toBe("new\n")
+  })
+
+  it.each([
+    ["stage", stageHunk, "old\n"],
+    ["unstage", unstageHunk, "new\n"],
+  ])("rejects a foreign pre-image on %s without deleting index entries", async (_action, applyHunk, declaredContent) => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    for (const name of ["declared.txt", "other.txt"]) fs.writeFileSync(path.join(repo, name), "old\n")
+    fs.writeFileSync(path.join(repo, "declared.txt"), declaredContent)
+    runGit(repo, ["add", "."])
+    runGit(repo, ["commit", "-m", "base"])
+    const patch = [
+      "diff --git a/other.txt b/declared.txt",
+      "--- a/other.txt",
+      "+++ b/declared.txt",
+      "@@ -1 +1 @@",
+      "-old",
+      "+new",
+      "",
+    ].join("\n")
+
+    await expect(applyHunk(repo, "declared.txt", patch)).rejects.toMatchObject({ statusCode: 400 })
+    expect(runGit(repo, ["diff", "--cached", "--name-only", "-z"])).toBe("")
+    expect(runGit(repo, ["show", ":other.txt"])).toBe("old\n")
+    expect(runGit(repo, ["show", ":declared.txt"])).toBe(declaredContent)
+  })
+
+  it("refuses malformed quoted headers as a request error", async () => {
+    if (!canRunGit()) return
+    const repo = createHunkTestRepo()
+    writeTwoEditFile(repo)
+    const patch = '--- a/file.txt\n+++ "b/file.txt\\"\n@@ -1 +1 @@\n-old\n+new\n'
+
+    await expect(stageHunk(repo, "file.txt", patch)).rejects.toMatchObject({ statusCode: 400 })
+    expect(runGit(repo, ["diff", "--cached", "--name-only", "-z"])).toBe("")
+  })
+
   it("stages a single hunk without staging the rest of the file", async () => {
     if (!canRunGit()) return
     const repo = createHunkTestRepo()

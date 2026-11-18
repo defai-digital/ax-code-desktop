@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { decodeMermaidDataUrl, loadMermaidDataUrlSource } from "./toolOutputDialogMermaidSource"
+import { decodeMermaidDataUrl, isSafeMermaidLocalPath, loadMermaidDataUrlSource } from "./toolOutputDialogMermaidSource"
 
 describe("Mermaid data URL source loading", () => {
   test("decodes percent-encoded data URLs", () => {
@@ -29,4 +29,14 @@ describe("Mermaid data URL UTF-8 handling", () => {
       "graph TD;A[流程]-->B",
     )
   })
+})
+
+
+test("local Mermaid sources retain the absolute-path and traversal refusal boundary", () => {
+  expect(isSafeMermaidLocalPath("/repo/diagram ")).toBe(true)
+  expect(isSafeMermaidLocalPath("\\\\server\\share\\diagram.mmd")).toBe(true)
+  expect(isSafeMermaidLocalPath("C:\\repo\\diagram.mmd")).toBe(true)
+  for (const path of ["..\\secret", "/repo\\..\\secret", "C:/repo/../secret", "relative", "/repo\nfile"]) {
+    expect(isSafeMermaidLocalPath(path)).toBe(false)
+  }
 })

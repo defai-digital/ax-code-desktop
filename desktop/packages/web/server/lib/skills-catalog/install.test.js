@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 vi.mock("./git.js", () => ({
   assertGitAvailable: vi.fn(async () => ({ ok: true })),
   cloneRepo: vi.fn(),
-  looksLikeAuthError: () => false,
   runGit: vi.fn(async () => ({ ok: true, stdout: "", stderr: "" })),
 }))
 
@@ -58,6 +57,22 @@ describe("git skill installation", () => {
       selections: selections.map((skillDir) => ({ skillDir })),
       ...extra,
     })
+
+  test("passes through clone failures and removes the temporary checkout", async () => {
+    let checkoutDirectory
+    const failure = {
+      ok: false,
+      error: { kind: "authRequired", message: "Authentication required to access this repository", sshOnly: true },
+    }
+    cloneRepo.mockImplementationOnce(async ({ tempDir }) => {
+      checkoutDirectory = tempDir
+      return failure
+    })
+
+    await expect(install(["skills/review"])).resolves.toEqual(failure)
+    await expect(fsPromises.stat(checkoutDirectory)).rejects.toMatchObject({ code: "ENOENT" })
+    expect(await fsPromises.readdir(userSkillDir)).toEqual([])
+  })
 
   test("installs each selected directory into its own target", async () => {
     await writeSkill(cloneDir, "skills/review", "Review Code")

@@ -72,8 +72,7 @@ The following functions are internal helpers used by exported functions:
 ### Git Helpers (`git.js`)
 
 - `runGit(args, options)`: Execute git command with optional SSH identity, timeout, and max buffer. Returns `{ ok, stdout, stderr, message, code, signal }`.
-- `cloneRepo({ cloneUrl, identity, tempDir, timeoutMs? })`: Clone git repository with preferred partial clone (`--filter=blob:none`) and fallback. Uses non-interactive mode.
-- `looksLikeAuthError(message)`: Detect if error message indicates authentication failure (permission denied, publickey, etc.).
+- `cloneRepo({ cloneUrl, identity, tempDir, timeoutMs? })`: Clone git repository with preferred partial clone (`--filter=blob:none`) and fallback. Uses non-interactive mode. Failures return the catalog's `{ ok: false, error }` shape with `authRequired` or `networkError`; scan and install pass it through without reclassifying it.
 - `assertGitAvailable()`: Check if git is available in PATH.
 
 ### Shared Helpers (`shared.js`)
@@ -189,7 +188,7 @@ The following functions are internal helpers used by exported functions:
 
 - All exported functions return `{ ok, ... }` result objects, not throw.
 - Error kinds: `authRequired`, `networkError`, `conflicts`, `invalidSource`, `unknown`.
-- Use `looksLikeAuthError` to detect SSH/HTTPS auth failures for better UX.
+- Pass through `cloneRepo` failures; it classifies SSH/HTTPS authentication errors at the Git boundary.
 - Log errors to console for debugging but return structured errors to callers.
 
 ### Testing

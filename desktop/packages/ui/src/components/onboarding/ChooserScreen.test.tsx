@@ -116,7 +116,7 @@ describe("ChooserScreen custom binary path", () => {
 
     await act(async () => {
       const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")?.set
-      setter?.call(input, "/opt/ax-code/bin/ax-code")
+      setter?.call(input, "/opt/ax-code/bin/ax-code ")
       input.dispatchEvent(new Event("input", { bubbles: true }))
     })
 
@@ -125,6 +125,7 @@ describe("ChooserScreen custom binary path", () => {
     })
     await act(async () => {})
 
+    expect(updateDesktopSettings).toHaveBeenCalledWith({ axCodeBinary: "/opt/ax-code/bin/ax-code " })
     expect(restartDesktopApp).toHaveBeenCalled()
     const alert = container.querySelector('[role="alert"]')
     expect(alert?.textContent).toContain(dict["onboarding.desktopRecovery.error.actionFailed"])

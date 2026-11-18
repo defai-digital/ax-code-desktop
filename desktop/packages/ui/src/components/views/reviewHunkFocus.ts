@@ -121,7 +121,7 @@ function scrollParent(container: ParentNode): HTMLElement | null {
 }
 
 /** True when the anchor's line element is already the focused row. */
-export function reviewHunkLineIsMarked(container: ParentNode, anchor: ReviewHunkAnchor): boolean {
+function reviewHunkLineIsMarked(container: ParentNode, anchor: ReviewHunkAnchor): boolean {
   for (const root of searchRoots(container)) {
     const line = findLine(root, anchor)
     if (line?.getAttribute(FOCUS_ATTR) === "line") return true

@@ -1,4 +1,5 @@
 import type { HookWorkspace } from "@defai-digital/ax-code-sdk/v2"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { isPlainRecord } from "@/lib/record"
 
@@ -33,7 +34,7 @@ function isHookWorkspace(value: unknown): value is HookWorkspace {
 }
 
 export async function fetchHookWorkspace(directory: string): Promise<HookWorkspace> {
-  const trimmed = directory.trim()
+  const trimmed = readDirectoryPath(directory) ?? ""
   if (!trimmed) {
     throw new Error("A project directory is required")
   }

@@ -1,8 +1,20 @@
-import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
-import { ratiosForLayout, rememberLayoutRatios } from "@/lib/supervision/sessionGridPreferences"
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
+import { normalizePathSeparators } from "@/lib/pathValues"
+import type { MainTab } from "@/lib/mainTabs"
+import {
+  uiPreferencePersistence,
+  MAX_DIFF_FILE_LAYOUTS,
+  type UIPreferences,
+  type RightSidebarTab,
+  type MermaidRenderingMode,
+  type UserMessageRenderingMode,
+  type ActivityRenderMode,
+  type SessionRetentionAction,
+  type WeekStartPreference,
+} from "@/lib/uiPreferences"
+import { emptySessionGrid, restoreSessionGrid, type SessionGridState } from "@/lib/supervision/sessionGrid"
+import { ratiosForLayout, rememberLayoutRatios } from "@/lib/supervision/sessionGridPreferences"
 import { SEMANTIC_TYPOGRAPHY, getTypographyVariable, type SemanticTypographyKey } from "@/lib/typography"
 import {
   createMenuDialogRequest,
@@ -19,11 +31,22 @@ import {
   type MonoFontOption,
   type UiFontOption,
 } from "@/lib/fontOptions"
-import { normalizeProjectPath } from "@/lib/projectResolution"
-import { isPersistedSplitPaneRightTab } from "@/lib/wiki/splitTab"
+import {
+  normalizeContextPanelDirectoryKey as normalizeDirectoryPath,
+  normalizeContextTargetPath,
+  clampContextPanelWidth,
+  touchContextPanelState,
+  upsertContextPanelTab,
+  closeContextPanelTab,
+  reorderContextPanelTabs,
+  sanitizeContextPanelByDirectory,
+  clampContextPanelRoots,
+  type ContextPanelTabDescriptor,
+} from "@/lib/contextPanelState"
 import type { TimeFormatPreference } from "@/lib/timeFormat"
+import { getSafeStorage, getSafeSessionStorage } from "./utils/safeStorage"
 
-export type MainTab = "chat" | "plan" | "git" | "diff" | "terminal" | "files" | "context" | "wiki" | "board" | "session-grid"
+export type { MainTab } from "@/lib/mainTabs"
 // Session storage scopes the grid to this window and survives renderer reloads.
 const SESSION_GRID_KEY = "openchamber.session-grid.v1"
 const readSessionGrid = (): SessionGridState => {
@@ -36,59 +59,8 @@ const readSessionGrid = (): SessionGridState => {
     return emptySessionGrid()
   }
 }
-type RightSidebarTab = "git" | "files" | "context"
-export type ContextPanelMode = "diff" | "file" | "context" | "plan" | "chat" | "preview" | "browser" | "dashboard"
-
-const CONTEXT_PANEL_MODES = new Set<ContextPanelMode>([
-  "diff",
-  "file",
-  "context",
-  "plan",
-  "chat",
-  "preview",
-  "browser",
-  "dashboard",
-])
-
-export const isContextPanelMode = (mode: unknown): mode is ContextPanelMode => {
-  return typeof mode === "string" && CONTEXT_PANEL_MODES.has(mode as ContextPanelMode)
-}
-
-type MermaidRenderingMode = "svg" | "ascii"
-type UserMessageRenderingMode = "markdown" | "plain"
-type ActivityRenderMode = "collapsed" | "summary"
-type SessionRetentionAction = "archive" | "delete"
-
-type WeekStartPreference = "auto" | "sunday" | "monday"
-
-type ContextPanelTab = {
-  id: string
-  mode: ContextPanelMode
-  targetPath: string | null
-  dedupeKey: string
-  label: string | null
-  readOnly: boolean
-  stagedDiff: boolean
-  touchedAt: number
-}
-
-type ContextPanelTabDescriptor = {
-  mode: ContextPanelMode
-  targetPath?: string | null
-  dedupeKey?: string | null
-  label?: string | null
-  readOnly?: boolean
-  stagedDiff?: boolean
-}
-
-type ContextPanelDirectoryState = {
-  isOpen: boolean
-  expanded: boolean
-  tabs: ContextPanelTab[]
-  activeTabId: string | null
-  width: number
-  touchedAt: number
-}
+export { isContextPanelMode } from "@/lib/contextPanelState"
+export type { ContextPanelMode } from "@/lib/contextPanelState"
 
 type PendingFileNavigation = {
   path: string
@@ -140,400 +112,16 @@ const isLegacyDefaultTemplates = (value: unknown): boolean => {
   )
 }
 
-const MAX_DIFF_FILE_LAYOUTS = 500
-
 /**
  * Per-file diff layout overrides are keyed by project as well as path: git paths are relative to
  * the repository, so `src/index.ts` in two projects shared one override, and every path ever
  * toggled stayed in the persisted map forever.
  */
 export const diffLayoutKey = (directory: string | null | undefined, filePath: string): string =>
-  `${(directory ?? "").replace(/\\/g, "/").replace(/\/+$/, "")}\u0000${filePath}`
+  `${normalizePathSeparators((directory ?? "")).replace(/\/+$/, "")}\u0000${filePath}`
 
-const CONTEXT_PANEL_DEFAULT_WIDTH = 380
-const CONTEXT_PANEL_MIN_WIDTH = 380
-const CONTEXT_PANEL_MAX_WIDTH = 1400
-const CONTEXT_PANEL_MAX_TABS = 12
-const CONTEXT_PANEL_MAX_LABEL_LENGTH = 120
 const LEFT_SIDEBAR_MIN_WIDTH = 280
 const RIGHT_SIDEBAR_MIN_WIDTH = 360
-
-const normalizeDirectoryPath = (value: string): string => {
-  return normalizeProjectPath(value) ?? ""
-}
-
-const clampContextPanelWidth = (width: number): number => {
-  if (!Number.isFinite(width)) {
-    return CONTEXT_PANEL_DEFAULT_WIDTH
-  }
-
-  return Math.min(CONTEXT_PANEL_MAX_WIDTH, Math.max(CONTEXT_PANEL_MIN_WIDTH, Math.round(width)))
-}
-
-const normalizeContextTargetPath = (value: string | null | undefined): string | null => {
-  if (typeof value !== "string") {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  return trimmed.replace(/\\/g, "/")
-}
-
-const normalizeContextTabLabel = (value: string | null | undefined): string | null => {
-  if (typeof value !== "string") {
-    return null
-  }
-
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-
-  return trimmed.length > CONTEXT_PANEL_MAX_LABEL_LENGTH ? trimmed.slice(0, CONTEXT_PANEL_MAX_LABEL_LENGTH) : trimmed
-}
-
-const buildDefaultContextPanelTabDedupeKey = (mode: ContextPanelMode, targetPath: string | null): string => {
-  if (mode === "file") {
-    return targetPath || mode
-  }
-
-  if (mode === "preview") {
-    return targetPath || mode
-  }
-
-  if (mode === "dashboard") {
-    return mode
-  }
-
-  return mode
-}
-
-const normalizeContextPanelTabDedupeKey = (
-  mode: ContextPanelMode,
-  targetPath: string | null,
-  dedupeKey: string | null | undefined,
-): string => {
-  if (typeof dedupeKey === "string") {
-    const trimmed = dedupeKey.trim()
-    if (trimmed) {
-      return trimmed
-    }
-  }
-
-  return buildDefaultContextPanelTabDedupeKey(mode, targetPath)
-}
-
-const buildContextPanelTabID = (mode: ContextPanelMode, dedupeKey: string): string => {
-  return dedupeKey === mode ? mode : `${mode}:${dedupeKey}`
-}
-
-const createContextPanelTab = (descriptor: ContextPanelTabDescriptor): ContextPanelTab => {
-  const normalizedTargetPath = normalizeContextTargetPath(descriptor.targetPath)
-  const dedupeKey = normalizeContextPanelTabDedupeKey(descriptor.mode, normalizedTargetPath, descriptor.dedupeKey)
-  return {
-    id: buildContextPanelTabID(descriptor.mode, dedupeKey),
-    mode: descriptor.mode,
-    targetPath: normalizedTargetPath,
-    dedupeKey,
-    label: normalizeContextTabLabel(descriptor.label),
-    readOnly: descriptor.readOnly === true,
-    stagedDiff: descriptor.stagedDiff === true,
-    touchedAt: Date.now(),
-  }
-}
-
-const clampContextPanelTabs = (
-  tabs: ContextPanelTab[],
-  maxTabs: number,
-  activeTabId: string | null,
-): ContextPanelTab[] => {
-  if (tabs.length <= maxTabs) {
-    return tabs
-  }
-
-  const tabsByTouch = [...tabs].sort((a, b) => a.touchedAt - b.touchedAt)
-  const removable = tabsByTouch.filter((tab) => tab.id !== activeTabId)
-  const removeCount = tabs.length - maxTabs
-  if (removeCount <= 0 || removable.length === 0) {
-    return tabs.slice(-maxTabs)
-  }
-
-  const removeSet = new Set(removable.slice(0, removeCount).map((tab) => tab.id))
-  return tabs.filter((tab) => !removeSet.has(tab.id))
-}
-
-const sanitizeContextPanelTabs = (tabs: unknown): ContextPanelTab[] => {
-  if (!Array.isArray(tabs)) {
-    return []
-  }
-
-  const result: ContextPanelTab[] = []
-  const seen = new Set<string>()
-
-  for (const entry of tabs) {
-    if (!entry || typeof entry !== "object") {
-      continue
-    }
-
-    const candidate = entry as {
-      mode?: unknown
-      targetPath?: unknown
-      dedupeKey?: unknown
-      label?: unknown
-      readOnly?: unknown
-      stagedDiff?: unknown
-      touchedAt?: unknown
-    }
-
-    if (!isContextPanelMode(candidate.mode)) {
-      continue
-    }
-
-    const targetPath = normalizeContextTargetPath(
-      typeof candidate.targetPath === "string" ? candidate.targetPath : null,
-    )
-    const dedupeKey = normalizeContextPanelTabDedupeKey(
-      candidate.mode,
-      targetPath,
-      typeof candidate.dedupeKey === "string" ? candidate.dedupeKey : null,
-    )
-    const id = buildContextPanelTabID(candidate.mode, dedupeKey)
-    if (!id || seen.has(id)) {
-      continue
-    }
-
-    seen.add(id)
-    result.push({
-      id,
-      mode: candidate.mode,
-      targetPath,
-      dedupeKey,
-      label: normalizeContextTabLabel(typeof candidate.label === "string" ? candidate.label : null),
-      readOnly: candidate.readOnly === true,
-      stagedDiff: candidate.stagedDiff === true,
-      touchedAt:
-        typeof candidate.touchedAt === "number" && Number.isFinite(candidate.touchedAt)
-          ? candidate.touchedAt
-          : Date.now(),
-    })
-  }
-
-  return result
-}
-
-const resolveActiveContextPanelTabID = (tabs: ContextPanelTab[], activeTabId: string | null): string | null => {
-  if (activeTabId && tabs.some((tab) => tab.id === activeTabId)) {
-    return activeTabId
-  }
-
-  if (tabs.length === 0) {
-    return null
-  }
-
-  return tabs[tabs.length - 1].id
-}
-
-const touchContextPanelState = (prev?: ContextPanelDirectoryState): ContextPanelDirectoryState => {
-  if (prev) {
-    const tabs = sanitizeContextPanelTabs(prev.tabs)
-    const activeTabId = resolveActiveContextPanelTabID(tabs, prev.activeTabId)
-    return {
-      ...prev,
-      isOpen: tabs.length > 0 ? prev.isOpen : false,
-      tabs,
-      activeTabId,
-      touchedAt: Date.now(),
-    }
-  }
-
-  return {
-    isOpen: false,
-    expanded: false,
-    tabs: [],
-    activeTabId: null,
-    width: CONTEXT_PANEL_DEFAULT_WIDTH,
-    touchedAt: Date.now(),
-  }
-}
-
-const upsertContextPanelTab = (
-  current: ContextPanelDirectoryState,
-  descriptor: ContextPanelTabDescriptor,
-): ContextPanelDirectoryState => {
-  const nextTab = createContextPanelTab(descriptor)
-  const existingIndex = current.tabs.findIndex((tab) => tab.id === nextTab.id)
-  // New context-panel tabs open leftmost on the strip (active immediately).
-  const tabs =
-    existingIndex === -1
-      ? [nextTab, ...current.tabs]
-      : current.tabs.map((tab, index) =>
-          index === existingIndex
-            ? {
-                ...tab,
-                mode: nextTab.mode,
-                targetPath: nextTab.targetPath || tab.targetPath,
-                dedupeKey: nextTab.dedupeKey,
-                label: nextTab.label,
-                stagedDiff: nextTab.stagedDiff,
-                readOnly: nextTab.readOnly,
-                touchedAt: Date.now(),
-              }
-            : tab,
-        )
-
-  const activeTabId = nextTab.id
-  const clampedTabs = clampContextPanelTabs(tabs, CONTEXT_PANEL_MAX_TABS, activeTabId)
-
-  return {
-    ...current,
-    isOpen: true,
-    tabs: clampedTabs,
-    activeTabId: resolveActiveContextPanelTabID(clampedTabs, activeTabId),
-    touchedAt: Date.now(),
-  }
-}
-
-const closeContextPanelTab = (current: ContextPanelDirectoryState, tabID: string): ContextPanelDirectoryState => {
-  const nextTabs = current.tabs.filter((tab) => tab.id !== tabID)
-  const nextActiveTabId =
-    current.activeTabId === tabID
-      ? (nextTabs[nextTabs.length - 1]?.id ?? null)
-      : resolveActiveContextPanelTabID(nextTabs, current.activeTabId)
-
-  return {
-    ...current,
-    tabs: nextTabs,
-    activeTabId: nextActiveTabId,
-    isOpen: nextTabs.length > 0 ? current.isOpen : false,
-    touchedAt: Date.now(),
-  }
-}
-
-const reorderContextPanelTabs = (
-  current: ContextPanelDirectoryState,
-  activeTabID: string,
-  overTabID: string,
-): ContextPanelDirectoryState => {
-  if (activeTabID === overTabID) {
-    return current
-  }
-
-  const fromIndex = current.tabs.findIndex((tab) => tab.id === activeTabID)
-  const toIndex = current.tabs.findIndex((tab) => tab.id === overTabID)
-  if (fromIndex === -1 || toIndex === -1) {
-    return current
-  }
-
-  const tabs = [...current.tabs]
-  const [moved] = tabs.splice(fromIndex, 1)
-  if (!moved) {
-    return current
-  }
-
-  tabs.splice(toIndex, 0, moved)
-
-  return {
-    ...current,
-    tabs,
-    touchedAt: Date.now(),
-  }
-}
-
-const setContextPanelTabTargetPath = (
-  current: ContextPanelDirectoryState,
-  tabID: string,
-  targetPath: string,
-): ContextPanelDirectoryState => ({
-  ...current,
-  tabs: current.tabs.map((tab) => (tab.id === tabID ? { ...tab, targetPath } : tab)),
-})
-
-const sanitizeContextPanelByDirectory = (value: unknown): Record<string, ContextPanelDirectoryState> => {
-  if (!value || typeof value !== "object") {
-    return {}
-  }
-
-  const source = value as Record<string, unknown>
-  const next: Record<string, ContextPanelDirectoryState> = {}
-
-  for (const [rawDirectory, rawState] of Object.entries(source)) {
-    const directory = normalizeDirectoryPath(rawDirectory)
-    if (!directory || !rawState || typeof rawState !== "object") {
-      continue
-    }
-
-    const candidate = rawState as {
-      isOpen?: unknown
-      expanded?: unknown
-      tabs?: unknown
-      activeTabId?: unknown
-      width?: unknown
-      touchedAt?: unknown
-      mode?: unknown
-      targetPath?: unknown
-      dedupeKey?: unknown
-      label?: unknown
-    }
-
-    let tabs = sanitizeContextPanelTabs(candidate.tabs)
-    let activeTabId = typeof candidate.activeTabId === "string" ? candidate.activeTabId : null
-
-    if (tabs.length === 0 && isContextPanelMode(candidate.mode)) {
-      tabs = [
-        createContextPanelTab({
-          mode: candidate.mode,
-          targetPath: typeof candidate.targetPath === "string" ? candidate.targetPath : null,
-          dedupeKey: typeof candidate.dedupeKey === "string" ? candidate.dedupeKey : null,
-          label: typeof candidate.label === "string" ? candidate.label : null,
-        }),
-      ]
-      activeTabId = tabs[0]?.id ?? null
-    }
-
-    const resolvedActiveTabId = resolveActiveContextPanelTabID(tabs, activeTabId)
-    const clampedTabs = clampContextPanelTabs(tabs, CONTEXT_PANEL_MAX_TABS, resolvedActiveTabId)
-    if (clampedTabs.length === 0) {
-      continue
-    }
-
-    next[directory] = {
-      isOpen: candidate.isOpen === true,
-      expanded: candidate.expanded === true,
-      tabs: clampedTabs,
-      activeTabId: resolveActiveContextPanelTabID(clampedTabs, resolvedActiveTabId),
-      width: clampContextPanelWidth(
-        typeof candidate.width === "number" ? candidate.width : CONTEXT_PANEL_DEFAULT_WIDTH,
-      ),
-      touchedAt:
-        typeof candidate.touchedAt === "number" && Number.isFinite(candidate.touchedAt)
-          ? candidate.touchedAt
-          : Date.now(),
-    }
-  }
-
-  return next
-}
-
-const clampContextPanelRoots = (
-  byDirectory: Record<string, ContextPanelDirectoryState>,
-  maxRoots: number,
-): Record<string, ContextPanelDirectoryState> => {
-  const entries = Object.entries(byDirectory)
-  if (entries.length <= maxRoots) {
-    return byDirectory
-  }
-
-  entries.sort((a, b) => (b[1]?.touchedAt ?? 0) - (a[1]?.touchedAt ?? 0))
-  const next: Record<string, ContextPanelDirectoryState> = {}
-  for (const [directory, state] of entries.slice(0, maxRoots)) {
-    next[directory] = state
-  }
-  return next
-}
 
 // The browser lives in a single global panel (not per-directory) so it stays
 // open/consistent as the user switches projects. Its chip is rendered into the
@@ -567,25 +155,10 @@ const normalizeBrowserPanelState = (value: unknown): BrowserPanelState => {
   }
 }
 
-interface UIStore {
-  theme: "light" | "dark" | "system"
+interface UIStore extends UIPreferences {
   isMultiRunLauncherOpen: boolean
   multiRunLauncherPrefillPrompt: string
-  isSidebarOpen: boolean
-  sidebarWidth: number
-  hasManuallyResizedLeftSidebar: boolean
-  isRightSidebarOpen: boolean
-  rightSidebarWidth: number
-  hasManuallyResizedRightSidebar: boolean
-  rightSidebarTab: RightSidebarTab
-  contextPanelByDirectory: Record<string, ContextPanelDirectoryState>
   browserPanel: BrowserPanelState
-  isBottomTerminalOpen: boolean
-  isBottomTerminalExpanded: boolean
-  bottomTerminalHeight: number
-  hasManuallyResizedBottomTerminal: boolean
-  notesPanelHeight: number
-  todoPanelHeight: number
   isSessionSwitcherOpen: boolean
   isSessionDropdownOpen: boolean
   activeMainTab: MainTab
@@ -602,9 +175,6 @@ interface UIStore {
   isMobile: boolean
   isCommandPaletteOpen: boolean
   isCommandPaletteSearchMode: boolean
-  splitPaneEnabled: boolean
-  splitPaneRatio: number
-  splitPaneRightTab: Exclude<MainTab, "chat" | "session-grid">
   isHelpDialogOpen: boolean
   isAboutDialogOpen: boolean
   aboutDialogMenuRequest?: MenuDialogRequest
@@ -614,90 +184,13 @@ interface UIStore {
   isSettingsDialogOpen: boolean
   settingsDialogMenuRequest?: MenuDialogRequest
   isModelSelectorOpen: boolean
-
-  // Settings IA (new shell)
-  settingsPage: string
-  settingsHasOpenedOnce: boolean
-  settingsProjectsSelectedId: string | null
-  showReasoningTraces: boolean
-  collapsibleThinkingBlocks: boolean
   groupReasoningBlocks: boolean
-  activityRenderMode: ActivityRenderMode
-  showDeletionDialog: boolean
-  autoDeleteEnabled: boolean
-  autoDeleteAfterDays: number
-  sessionRetentionAction: SessionRetentionAction
-  autoDeleteLastRunAt: number | null
-  messageLimit: number
-  fontSize: number
-  // Global draft welcome starters; null = unset (use the default built-in set).
-  globalDraftStarters: DraftStarterRef[] | null
-  terminalFontSize: number
-  uiFont: UiFontOption
-  monoFont: MonoFontOption
-  padding: number
-  cornerRadius: number
   inputBarOffset: number
-
-  favoriteModels: Array<{ providerID: string; modelID: string }>
-  hiddenModels: Array<{ providerID: string; modelID: string }>
-  collapsedModelProviders: string[]
-  recentModels: Array<{ providerID: string; modelID: string }>
-  recentAgents: string[]
-  recentEfforts: Record<string, string[]>
-
-  diffLayoutPreference: "dynamic" | "inline" | "side-by-side"
-  diffFileLayout: Record<string, "inline" | "side-by-side">
-  diffWrapLines: boolean
-  diffViewMode: "single" | "stacked"
-  gitChangesViewMode: "flat" | "tree"
   isTimelineDialogOpen: boolean
   isCrossSessionSearchOpen: boolean
   pendingMessageNavigation: PendingMessageNavigation | null
   isImagePreviewOpen: boolean
-  nativeNotificationsEnabled: boolean
-  notificationMode: "always" | "hidden-only"
-  notifyOnSubtasks: boolean
-
-  // Event toggles (which events trigger notifications)
-  notifyOnCompletion: boolean
-  notifyOnError: boolean
-  notifyOnQuestion: boolean
-  notifyOnPermission: boolean
-  /** Opt-in Alt+Space shortcut that opens quick dispatch. Off unless the user enables it. */
-  quickDispatchGlobalShortcut: boolean
-
-  // Per-event notification templates
-  notificationTemplates: {
-    completion: { title: string; message: string }
-    error: { title: string; message: string }
-    question: { title: string; message: string }
-    subtask: { title: string; message: string }
-  }
-
-  // Summarization settings
-  summarizeLastMessage: boolean
-  summaryThreshold: number // chars — messages longer than this get summarized
-  summaryLength: number // chars — target length for summary
-  maxLastMessageLength: number // chars — truncate {last_message} when summarization is off
-
-  showTerminalQuickKeysOnDesktop: boolean
-  persistChatDraft: boolean
-  showAxCodeUpdateNotifications: boolean
-  inputSpellcheckEnabled: boolean
-  wideChatLayoutEnabled: boolean
-  showToolFileIcons: boolean
-  showExpandedBashTools: boolean
-  showExpandedEditTools: boolean
-  showTurnChangedFiles: boolean
-  timeFormatPreference: TimeFormatPreference
-  weekStartPreference: WeekStartPreference
-  mermaidRenderingMode: MermaidRenderingMode
-  userMessageRenderingMode: UserMessageRenderingMode
-  stickyUserHeader: boolean
-  showSplitAssistantMessageActions: boolean
   isExpandedInput: boolean
-  shortcutOverrides: Record<string, ShortcutCombo>
 
   setTheme: (theme: "light" | "dark" | "system") => void
   toggleSidebar: () => void
@@ -721,8 +214,6 @@ interface UIStore {
   closeContextBrowser: () => void
   focusContextBrowser: () => void
   setContextBrowserUrl: (url: string) => void
-  openContextDashboard: (directory: string) => void
-  setContextPanelTabTargetPath: (directory: string, tabID: string, targetPath: string) => void
   setActiveContextPanelTab: (directory: string, tabID: string) => void
   reorderContextPanelTabs: (directory: string, activeTabID: string, overTabID: string) => void
   closeContextPanelTab: (directory: string, tabID: string) => void
@@ -1141,7 +632,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPanelTab: (directory, tab) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1154,13 +645,13 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: upsertContextPanelTab(current, tab),
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         openContextDiff: (directory, filePath, staged = false) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedFilePath = (filePath || "").trim()
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
+          const normalizedFilePath = normalizeContextTargetPath(filePath, "diff")
           if (!normalizedDirectory || !normalizedFilePath) {
             return
           }
@@ -1174,7 +665,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextFile: (directory, filePath) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedFilePath = normalizeContextTargetPath(filePath)
           if (!normalizedDirectory || !normalizedFilePath) {
             return
@@ -1186,7 +677,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextFileAtLine: (directory, filePath, line, column) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedFilePath = normalizeContextTargetPath(filePath)
           const normalizedLine = Number.isFinite(line) ? Math.max(1, Math.trunc(line)) : 1
           const normalizedColumn = Number.isFinite(column) ? Math.max(1, Math.trunc(column as number)) : 1
@@ -1204,7 +695,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextOverview: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1213,7 +704,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPlan: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1222,7 +713,7 @@ export const useUIStore = create<UIStore>()(
         },
 
         openContextPreview: (directory, url) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           const normalizedUrl = (url || "").trim()
           if (!normalizedDirectory || !normalizedUrl) {
             return
@@ -1279,35 +770,9 @@ export const useUIStore = create<UIStore>()(
           )
         },
 
-        openContextDashboard: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          if (!normalizedDirectory) return
-          get().openContextPanelTab(normalizedDirectory, {
-            mode: "dashboard",
-            dedupeKey: "dashboard",
-            label: "Dashboard",
-          })
-        },
-
-        setContextPanelTabTargetPath: (directory, tabID, targetPath) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
-          if (!normalizedDirectory || !normalizedTabID) return
-          set((state) => {
-            const current = state.contextPanelByDirectory[normalizedDirectory]
-            if (!current) return state
-            return {
-              contextPanelByDirectory: {
-                ...state.contextPanelByDirectory,
-                [normalizedDirectory]: setContextPanelTabTargetPath(current, normalizedTabID, targetPath),
-              },
-            }
-          })
-        },
-
         setActiveContextPanelTab: (directory, tabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
+          const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
           }
@@ -1339,14 +804,14 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20), ...(browserPatch ?? {}) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory), ...(browserPatch ?? {}) }
           })
         },
 
         reorderContextPanelTabs: (directory, activeTabID, overTabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedActiveTabID = (activeTabID || "").trim()
-          const normalizedOverTabID = (overTabID || "").trim()
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
+          const normalizedActiveTabID = (activeTabID || "")
+          const normalizedOverTabID = (overTabID || "")
           if (!normalizedDirectory || !normalizedActiveTabID || !normalizedOverTabID) {
             return
           }
@@ -1371,13 +836,13 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: next,
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         closeContextPanelTab: (directory, tabID) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
-          const normalizedTabID = (tabID || "").trim()
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
+          const normalizedTabID = (tabID || "")
           if (!normalizedDirectory || !normalizedTabID) {
             return
           }
@@ -1394,12 +859,12 @@ export const useUIStore = create<UIStore>()(
               [normalizedDirectory]: closeContextPanelTab(current, normalizedTabID),
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         closeContextPanel: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1418,12 +883,12 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         toggleContextPanelExpanded: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1439,12 +904,12 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
         setContextPanelWidth: (directory, width) => {
-          const normalizedDirectory = normalizeDirectoryPath((directory || "").trim())
+          const normalizedDirectory = normalizeDirectoryPath(directory || "")
           if (!normalizedDirectory) {
             return
           }
@@ -1460,7 +925,7 @@ export const useUIStore = create<UIStore>()(
               },
             }
 
-            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, 20) }
+            return { contextPanelByDirectory: clampContextPanelRoots(byDirectory, normalizedDirectory) }
           })
         },
 
@@ -2319,53 +1784,10 @@ export const useUIStore = create<UIStore>()(
             }
           }
 
-          if (version < 6) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
-          if (version < 7) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
           if (version < 8) {
             if (state.gitChangesViewMode !== "flat" && state.gitChangesViewMode !== "tree") {
               state.gitChangesViewMode = "flat"
             }
-          }
-
-          if (version < 10) {
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
-          }
-
-          // v10 -> v11: the browser moved from a per-directory context-panel tab to a
-          // single global panel. Drain the most recently touched per-directory browser
-          // tab's URL into the new global slice, then strip browser tabs everywhere.
-          if (version < 11) {
-            const byDirectory = state.contextPanelByDirectory
-            let drainedUrl = ""
-            let drainedTouchedAt = -Infinity
-            if (byDirectory && typeof byDirectory === "object") {
-              for (const dirState of Object.values(byDirectory as Record<string, ContextPanelDirectoryState>)) {
-                const tabs = Array.isArray(dirState?.tabs) ? dirState.tabs : []
-                for (const tab of tabs) {
-                  if (tab?.mode === "browser") {
-                    const touched = typeof tab.touchedAt === "number" ? tab.touchedAt : 0
-                    if (touched >= drainedTouchedAt) {
-                      drainedTouchedAt = touched
-                      drainedUrl = typeof tab.targetPath === "string" ? tab.targetPath : ""
-                    }
-                  }
-                }
-                if (Array.isArray(dirState?.tabs)) {
-                  dirState.tabs = dirState.tabs.filter((tab) => tab?.mode !== "browser")
-                  if (dirState.activeTabId && !dirState.tabs.some((tab) => tab.id === dirState.activeTabId)) {
-                    dirState.activeTabId = dirState.tabs[dirState.tabs.length - 1]?.id ?? null
-                  }
-                }
-              }
-            }
-            state.browserPanel = { isOpen: false, url: drainedUrl, focused: false }
-            state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)
           }
 
           // Browser navigation is intentionally session-only. Restoring a URL
@@ -2407,106 +1829,15 @@ export const useUIStore = create<UIStore>()(
 
           return state
         },
-        partialize: (state) => ({
-          theme: state.theme,
-          isSidebarOpen: state.isSidebarOpen,
-          sidebarWidth: state.sidebarWidth,
-          // Persist the "manually resized" flags alongside the widths. Without them the
-          // flags hydrate to false on restart and the first sidebar open/toggle resets the
-          // width back to the minimum, silently reverting the user's custom size.
-          hasManuallyResizedLeftSidebar: state.hasManuallyResizedLeftSidebar,
-          isRightSidebarOpen: state.isRightSidebarOpen,
-          rightSidebarWidth: state.rightSidebarWidth,
-          hasManuallyResizedRightSidebar: state.hasManuallyResizedRightSidebar,
-          rightSidebarTab: state.rightSidebarTab,
-          contextPanelByDirectory: state.contextPanelByDirectory,
-          isBottomTerminalOpen: state.isBottomTerminalOpen,
-          isBottomTerminalExpanded: state.isBottomTerminalExpanded,
-          bottomTerminalHeight: state.bottomTerminalHeight,
-          hasManuallyResizedBottomTerminal: state.hasManuallyResizedBottomTerminal,
-          notesPanelHeight: state.notesPanelHeight,
-          todoPanelHeight: state.todoPanelHeight,
-          isSessionSwitcherOpen: state.isSessionSwitcherOpen,
-          // activeMainTab intentionally NOT persisted: the deliberate policy is
-          // that a fresh load always starts on chat (see Header's one-time
-          // reset), so a persisted non-chat value would always be discarded.
-          settingsPage: state.settingsPage,
-          settingsHasOpenedOnce: state.settingsHasOpenedOnce,
-          settingsProjectsSelectedId: state.settingsProjectsSelectedId,
-          isSessionCreateDialogOpen: state.isSessionCreateDialogOpen,
-          // Dialog open flags and menu requests are intentionally not persisted
-          showReasoningTraces: state.showReasoningTraces,
-          collapsibleThinkingBlocks: state.collapsibleThinkingBlocks,
-          activityRenderMode: state.activityRenderMode,
-          showDeletionDialog: state.showDeletionDialog,
-          autoDeleteEnabled: state.autoDeleteEnabled,
-          autoDeleteAfterDays: state.autoDeleteAfterDays,
-          sessionRetentionAction: state.sessionRetentionAction,
-          autoDeleteLastRunAt: state.autoDeleteLastRunAt,
-          messageLimit: state.messageLimit,
-          fontSize: state.fontSize,
-          globalDraftStarters: state.globalDraftStarters,
-          terminalFontSize: state.terminalFontSize,
-          uiFont: state.uiFont,
-          monoFont: state.monoFont,
-          padding: state.padding,
-          cornerRadius: state.cornerRadius,
-          favoriteModels: state.favoriteModels,
-          hiddenModels: state.hiddenModels,
-          collapsedModelProviders: state.collapsedModelProviders,
-          recentModels: state.recentModels,
-          recentAgents: state.recentAgents,
-          recentEfforts: state.recentEfforts,
-          diffLayoutPreference: state.diffLayoutPreference,
-          diffFileLayout: state.diffFileLayout,
-          diffWrapLines: state.diffWrapLines,
-          diffViewMode: state.diffViewMode,
-          gitChangesViewMode: state.gitChangesViewMode,
-          nativeNotificationsEnabled: state.nativeNotificationsEnabled,
-          notificationMode: state.notificationMode,
-          showTerminalQuickKeysOnDesktop: state.showTerminalQuickKeysOnDesktop,
-          notifyOnSubtasks: state.notifyOnSubtasks,
-          notifyOnCompletion: state.notifyOnCompletion,
-          notifyOnError: state.notifyOnError,
-          notifyOnQuestion: state.notifyOnQuestion,
-          notifyOnPermission: state.notifyOnPermission,
-          quickDispatchGlobalShortcut: state.quickDispatchGlobalShortcut,
-          notificationTemplates: state.notificationTemplates,
-          summarizeLastMessage: state.summarizeLastMessage,
-          summaryThreshold: state.summaryThreshold,
-          summaryLength: state.summaryLength,
-          maxLastMessageLength: state.maxLastMessageLength,
-          persistChatDraft: state.persistChatDraft,
-          showAxCodeUpdateNotifications: state.showAxCodeUpdateNotifications,
-          inputSpellcheckEnabled: state.inputSpellcheckEnabled,
-          wideChatLayoutEnabled: state.wideChatLayoutEnabled,
-          showToolFileIcons: state.showToolFileIcons,
-          showExpandedBashTools: state.showExpandedBashTools,
-          showExpandedEditTools: state.showExpandedEditTools,
-          showTurnChangedFiles: state.showTurnChangedFiles,
-          timeFormatPreference: state.timeFormatPreference,
-          weekStartPreference: state.weekStartPreference,
-          mermaidRenderingMode: state.mermaidRenderingMode,
-          userMessageRenderingMode: state.userMessageRenderingMode,
-          stickyUserHeader: state.stickyUserHeader,
-          showSplitAssistantMessageActions: state.showSplitAssistantMessageActions,
-          shortcutOverrides: state.shortcutOverrides,
-          splitPaneEnabled: state.splitPaneEnabled,
-          splitPaneRatio: state.splitPaneRatio,
-          splitPaneRightTab: state.splitPaneRightTab,
-        }),
+        partialize: (state: UIStore) => uiPreferencePersistence.partialize(state),
         // Version stays at 15 so an older files/git/diff/terminal/plan/context value is not
         // rewritten by migrate. Unknown values (and a future tab we do not know) fall back
         // to the in-memory default without discarding the rest of the persisted UI state.
-        merge: (persistedState, currentState) => {
-          if (!persistedState || typeof persistedState !== "object") return currentState
-          const merged: UIStore = {
-            ...currentState,
-            ...(persistedState as Partial<UIStore>),
-          }
-          if (!isPersistedSplitPaneRightTab(merged.splitPaneRightTab)) {
-            merged.splitPaneRightTab = currentState.splitPaneRightTab
-          }
+        merge: (persistedState, currentState: UIStore) => {
+          const restored = uiPreferencePersistence.merge(persistedState, currentState)
+          if (restored === currentState) return currentState
+          const merged: UIStore = { ...currentState, ...restored }
+          merged.browserPanel = currentState.browserPanel
           merged.sessionGrid = readSessionGrid()
           return merged
         },

@@ -14,15 +14,15 @@ import { setBoundedCacheEntry } from "@/lib/boundedCache"
 /** How many of the project's most recent sessions a scan covers. */
 export const CROSS_SESSION_SEARCH_MAX_SESSIONS = 50
 /** How many sessions are fetched in parallel while scanning. */
-export const CROSS_SESSION_SEARCH_CONCURRENCY = 4
+const CROSS_SESSION_SEARCH_CONCURRENCY = 4
 /** Upper bound on returned hits so a common word cannot flood the list. */
-export const CROSS_SESSION_SEARCH_MAX_RESULTS = 200
+const CROSS_SESSION_SEARCH_MAX_RESULTS = 200
 /** Messages requested per session; the SDK caps `limit` at 500. */
 export const CROSS_SESSION_SEARCH_MESSAGES_LIMIT = 500
 /** Characters of context kept on each side of a match in a snippet. */
-export const CROSS_SESSION_SEARCH_SNIPPET_CONTEXT = 48
+const CROSS_SESSION_SEARCH_SNIPPET_CONTEXT = 48
 /** Sessions whose extracted text is kept for cheap re-searches. */
-export const CROSS_SESSION_SEARCH_CACHE_MAX = 60
+const CROSS_SESSION_SEARCH_CACHE_MAX = 60
 
 export type SearchableMessage = {
   messageId: string
@@ -65,7 +65,7 @@ export type CrossSessionSearchResult = CrossSessionSearchProgress & {
 type SessionMessageRecord = { info: Message; parts: Part[] }
 
 /** Collapse runs of whitespace so matches and snippets stay on one line. */
-export const normalizeSearchText = (text: string): string => text.replace(/\s+/g, " ").trim()
+const normalizeSearchText = (text: string): string => text.replace(/\s+/g, " ").trim()
 
 /**
  * The first match of `needle` (already lowercased) in `text`, as the span of `text` it matched, or null.

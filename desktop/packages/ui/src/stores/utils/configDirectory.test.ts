@@ -25,18 +25,18 @@ describe("getActiveConfigDirectory", () => {
     clientDirectory = null
   })
 
-  test("returns the trimmed active project path first", () => {
+  test("returns the literal active project path first", () => {
     activeProjectPath = " /workspace/project "
     clientDirectory = "/fallback"
 
-    expect(getActiveConfigDirectory("TestStore")).toBe("/workspace/project")
+    expect(getActiveConfigDirectory("TestStore")).toBe(" /workspace/project ")
   })
 
   test("falls back to the ax-code client directory", () => {
     activeProjectPath = "  "
     clientDirectory = " /fallback/project "
 
-    expect(getActiveConfigDirectory("TestStore")).toBe("/fallback/project")
+    expect(getActiveConfigDirectory("TestStore")).toBe(" /fallback/project ")
   })
 
   test("returns null when neither source has a directory", () => {

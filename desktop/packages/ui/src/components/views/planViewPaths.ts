@@ -1,4 +1,5 @@
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
+import { expandHomePath } from "@/lib/pathValues"
 
 export const normalizePlanPath = (value: string): string => normalizeProjectPath(value) ?? ""
 
@@ -22,15 +23,7 @@ export const buildHomePlanPath = (created: number, slug: string): string => {
   return `~/.ax-code/plans/${created}-${slug}.md`
 }
 
-export const resolveTildePlanPath = (path: string, homeDir: string | null): string => {
-  const trimmed = path.trim()
-  if (!trimmed.startsWith("~")) return trimmed
-  if (trimmed === "~") return homeDir || trimmed
-  if (trimmed.startsWith("~/") || trimmed.startsWith("~\\")) {
-    return homeDir ? `${homeDir}${trimmed.slice(1)}` : trimmed
-  }
-  return trimmed
-}
+export const resolveTildePlanPath = (path: string, homeDir: string | null): string => expandHomePath(path, homeDir)
 
 export const toPlanDisplayPath = (
   resolvedPath: string,

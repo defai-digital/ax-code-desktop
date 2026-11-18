@@ -106,7 +106,7 @@ export const createSettingsHelpers = (dependencies) => {
     // Accept empty-string to clear (we persist an empty string sentinel so the running
     // process can reliably drop a previously applied AX_CODE_BINARY override).
     if (typeof candidate.axCodeBinary === "string") {
-      const normalized = normalizeDirectoryPath(candidate.axCodeBinary).trim()
+      const normalized = normalizeDirectoryPath(candidate.axCodeBinary)
       result.axCodeBinary = normalized
     }
     if (Array.isArray(candidate.projects)) {

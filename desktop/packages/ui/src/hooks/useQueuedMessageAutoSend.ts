@@ -1,4 +1,5 @@
 import React from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { parseWorkMode } from "@/lib/workMode"
 import {
   claimQueuedDispatch,
@@ -255,7 +256,7 @@ export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean })
  * "Send anyway" for the catalog case, so reporting the generic failure hid why the entry did not
  * go out at all.
  */
-export function queuedAutoSendFailureMessage(error: unknown, dictionary: I18nDictionary): string {
+function queuedAutoSendFailureMessage(error: unknown, dictionary: I18nDictionary): string {
   if (workModeBlockedReasonOfError(error) && error instanceof Error && error.message.trim()) {
     return error.message
   }
@@ -329,12 +330,11 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       // file. Extract them here exactly as the composer does; a failure here must never stop
       // the queued prompt from being delivered.
       try {
-        const root = (
+        const root = normalizePathSeparators((
           useSessionUIStore.getState().getDirectoryForSession(sessionId) ||
           axCodeClient.getDirectory() ||
           ""
-        )
-          .replace(/\\/g, "/")
+        ))
           .replace(/\/+$/, "")
         if (root && payload.primaryText.includes("@")) {
           const confirmed = loadConfirmedMentions(sessionId)

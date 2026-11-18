@@ -14,7 +14,7 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 export const SESSION_GOAL_READ_CONCURRENCY = 4
 
 /** The first read plus one retry. Further failures wait for the next recovery. */
-export const SESSION_GOAL_READ_ATTEMPTS = 2
+const SESSION_GOAL_READ_ATTEMPTS = 2
 
 export type GoalReadTarget = {
   sessionId: string

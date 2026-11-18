@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { createEventTransport } from "./client"
 import type { SdkSseDriver, TransportError, TransportState, WsDriver } from "./types"
-import { SYNC_RETRY_NOW_EVENT, SYSTEM_RESUME_EVENT } from "./visibility"
+import { SYNC_RETRY_NOW_EVENT } from "./commands"
+import { SYSTEM_RESUME_EVENT } from "./visibility"
 import {
   FakeWebSocket,
   installFakeWebSocket,

@@ -239,19 +239,23 @@ describe("ax-code routes", () => {
     }
   })
 
-  it("returns null compatibility when the runtime version is unavailable", async () => {
+  it.each([undefined, "7.24.1junk", "7.24.bad"])("returns unknown runtime status for %s", async (version) => {
     const { app } = createApp()
     const originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ healthy: true }),
+      json: async () => ({ healthy: true, version }),
     }))
 
     try {
       const response = await request(app).get("/api/ax-code/upgrade-status").expect(200)
 
-      expect(response.body.currentVersion).toBeNull()
-      expect(response.body.compatible).toBeNull()
+      expect(response.body).toMatchObject({
+        available: null,
+        currentVersion: null,
+        compatible: null,
+        latestVersion: null,
+      })
     } finally {
       globalThis.fetch = originalFetch
     }
@@ -264,13 +268,13 @@ describe("ax-code routes", () => {
     const originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ healthy: true, version: "7.9.12" }),
+      json: async () => ({ healthy: true, version: "v7.9.12+fixture.1" }),
     }))
 
     try {
       const response = await request(app).get("/api/ax-code/upgrade-status").expect(200)
 
-      expect(response.body.binarySource).toBe("bundled")
+      expect(response.body).toMatchObject({ binarySource: "bundled", currentVersion: "7.9.12+fixture.1" })
     } finally {
       globalThis.fetch = originalFetch
     }

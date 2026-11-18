@@ -15,19 +15,17 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Icon } from "@/components/icon/Icon"
-import { API_ENDPOINTS } from "@/lib/http"
 
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore"
 import { useShallow } from "zustand/react/shallow"
 import { cn } from "@/lib/utils"
 import type { SkillsCatalogItem } from "@/lib/api/types"
 
-import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { updateDesktopSettings } from "@/lib/persistence"
-import type { DesktopSettings, SkillCatalogConfig } from "@/lib/desktop"
 import { useI18n } from "@/lib/i18n"
 import { useEffectiveDirectory } from "@/hooks/useEffectiveDirectory"
 
+import { loadCatalogSettings } from "./catalogSettings"
 import { AddCatalogDialog } from "./AddCatalogDialog"
 import { InstallSkillDialog } from "./InstallSkillDialog"
 
@@ -39,28 +37,6 @@ interface SkillsCatalogPageProps {
   showModeTabs?: boolean
 }
 
-const loadSettings = async (): Promise<DesktopSettings | null> => {
-  try {
-    const runtimeSettings = getRegisteredRuntimeAPIs()?.settings
-    if (runtimeSettings) {
-      const result = await runtimeSettings.load()
-      return (result?.settings || {}) as DesktopSettings
-    }
-
-    const response = await fetch(API_ENDPOINTS.config.settings, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    })
-
-    if (!response.ok) {
-      return null
-    }
-
-    return (await response.json().catch(() => null)) as DesktopSettings | null
-  } catch {
-    return null
-  }
-}
 
 export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onModeChange, showModeTabs = true }) => {
   const { t } = useI18n()
@@ -150,11 +126,11 @@ export const SkillsCatalogPage: React.FC<SkillsCatalogPageProps> = ({ mode, onMo
 
     setIsRemovingCatalog(true)
     try {
-      const settings = await loadSettings()
+      const settings = await loadCatalogSettings()
       // A failed read must not be treated as "no catalogs": writing [] would wipe
       // every custom catalog in settings.json.
       if (!settings) return
-      const catalogs = (Array.isArray(settings.skillCatalogs) ? settings.skillCatalogs : []) as SkillCatalogConfig[]
+      const catalogs = settings.skillCatalogs ?? []
       const updated = catalogs.filter((c) => c.id !== selectedSourceId)
       await updateDesktopSettings({ skillCatalogs: updated })
       await loadCatalog({ refresh: true })

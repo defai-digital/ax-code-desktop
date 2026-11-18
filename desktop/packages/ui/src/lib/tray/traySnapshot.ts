@@ -5,6 +5,7 @@
  */
 
 import { truncateToCodeUnits } from "@/lib/textTruncate"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 export type TraySessionStatus = "idle" | "busy" | "retry"
 
@@ -94,7 +95,7 @@ const DEFAULT_MAX_SESSIONS = 8
 const DEFAULT_MAX_APPROVALS = 10
 
 const basenameOf = (value: string): string => {
-  const normalized = value.replace(/\\/g, "/").replace(/\/+$/, "")
+  const normalized = normalizePathSeparators(value).replace(/\/+$/, "")
   const index = normalized.lastIndexOf("/")
   return index >= 0 ? normalized.slice(index + 1) : normalized
 }

@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { createPersistedFields, persistedRecord } from "@/lib/persistedFields"
 import { initialWorkModeForNewChat, parseWorkMode, type WorkModeId } from "@/lib/workMode"
 import { normalizeDirectoryKey } from "@/stores/utils/directoryKey"
 
@@ -52,7 +53,9 @@ export const useWorkModeStore = create<WorkModeStore>()(
     }),
     {
       name: "ax-code-work-mode",
-      partialize: (state) => ({ modeByDirectory: state.modeByDirectory }),
+      ...createPersistedFields<WorkModeStore>({
+        modeByDirectory: persistedRecord(value => typeof value === "string" ? parseWorkMode(value) : undefined),
+      }),
     },
   ),
 )

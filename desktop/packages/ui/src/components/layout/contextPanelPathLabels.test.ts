@@ -3,6 +3,9 @@ import { describe, expect, test } from "vitest"
 import { getContextPanelRelativePathLabel } from "./contextPanelPathLabels"
 
 describe("context panel path labels", () => {
+  test("keeps literal filename whitespace in path tooltips", () => {
+    expect(getContextPanelRelativePathLabel("/repo/ report.txt ", "/repo")).toBe(" report.txt ")
+  })
   test("labels Windows child paths relative to the directory when casing differs", () => {
     expect(getContextPanelRelativePathLabel("c:/users/alice/project/src/app.ts", "C:/Users/Alice/Project")).toBe(
       "src/app.ts",

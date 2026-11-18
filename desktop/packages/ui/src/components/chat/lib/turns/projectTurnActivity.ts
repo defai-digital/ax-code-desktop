@@ -1,29 +1,9 @@
+import { getMessagePartEndTime, getMessagePartText } from "@/lib/messagePartFields"
 import { ACTIVITY_STANDALONE_TOOL_NAMES } from "./constants"
 import type { ChatMessageEntry, TurnActivityGroup, TurnActivityRecord, TurnPartRecord } from "./types"
 
 const isStandaloneTool = (toolName: unknown): boolean => {
   return typeof toolName === "string" && ACTIVITY_STANDALONE_TOOL_NAMES.has(toolName.toLowerCase())
-}
-
-const getPartEndTime = (part: unknown): number | undefined => {
-  const stateEnd = (part as { state?: { time?: { end?: unknown } } }).state?.time?.end
-  if (typeof stateEnd === "number") {
-    return stateEnd
-  }
-  const timeEnd = (part as { time?: { end?: unknown } }).time?.end
-  return typeof timeEnd === "number" ? timeEnd : undefined
-}
-
-const getPartText = (part: unknown): string | undefined => {
-  const text = (part as { text?: unknown }).text
-  if (typeof text === "string" && text.trim().length > 0) {
-    return text
-  }
-  const content = (part as { content?: unknown }).content
-  if (typeof content === "string" && content.trim().length > 0) {
-    return content
-  }
-  return undefined
 }
 
 const getMessageFinish = (message: ChatMessageEntry): string | undefined => {
@@ -43,7 +23,7 @@ const buildTurnPartRecord = (
     messageId,
     part,
     partIndex,
-    endedAt: getPartEndTime(part),
+    endedAt: getMessagePartEndTime(part),
   }
 }
 
@@ -74,7 +54,7 @@ export const projectTurnActivity = (input: ProjectActivityInput): ProjectActivit
         return
       }
 
-      if (part.type === "reasoning" && getPartText(part)) {
+      if (part.type === "reasoning" && getMessagePartText(part)) {
         hasReasoning = true
       }
     })
@@ -92,7 +72,7 @@ export const projectTurnActivity = (input: ProjectActivityInput): ProjectActivit
     message.parts.forEach((part, partIndex) => {
       const isTool = part.type === "tool"
 
-      const text = part.type === "reasoning" || part.type === "text" ? getPartText(part) : undefined
+      const text = part.type === "reasoning" || part.type === "text" ? getMessagePartText(part) : undefined
       const partId = part.id ?? `${message.info.id}-part-${partIndex}-${part.type}`
 
       const toolName = isTool ? (part as { tool?: unknown }).tool : undefined

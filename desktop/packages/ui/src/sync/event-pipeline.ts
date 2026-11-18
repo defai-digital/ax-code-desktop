@@ -26,7 +26,6 @@ import { isLoopbackHostname } from "@/lib/loopback"
 import { markStreamConnected, markStreamDisconnected, useConnectionStore } from "@/lib/event-stream/connection-state"
 import { isAbortError, type SdkSseDriver, type TransportError, type WsDriver } from "@/lib/event-stream/types"
 import type { MessageStreamWsFrame } from "@/lib/event-stream/adapters/websocket"
-import { SYNC_RETRY_NOW_EVENT as TRANSPORT_SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/visibility"
 const MAX_QUEUED_EVENTS = 512
 const MAX_QUEUED_EVENTS_HARD = MAX_QUEUED_EVENTS * 4
 const MAX_EVENTS_PER_SLICE = 128
@@ -50,23 +49,6 @@ const RETRY_BACKOFF_CAP_VISIBLE_MS = 5_000
 const RETRY_BACKOFF_CAP_HIDDEN_OR_OFFLINE_MS = 60_000
 const RETRY_BACKOFF_MAX_EXPONENT = 8
 const ABSOLUTE_URL_PATTERN = /^[a-zA-Z][a-zA-Z\d+\-.]*:\/\//
-
-/**
- * Window event the UI dispatches to interrupt the reconnect backoff and force
- * an immediate reconnect attempt (e.g. a "retry now" action on the reconnect
- * banner). Handled exactly like `openchamber:system-resume`.
- */
-export const SYNC_RETRY_NOW_EVENT = TRANSPORT_SYNC_RETRY_NOW_EVENT
-
-/** Ask the active event pipeline to reconnect immediately. */
-export function requestSyncRetryNow(): void {
-  const view = globalThis.window
-  if (typeof view === "undefined") return
-  const dispatch = view.dispatchEvent
-  const EventCtor = globalThis.Event
-  if (typeof dispatch !== "function" || typeof EventCtor !== "function") return
-  dispatch.call(view, new EventCtor(SYNC_RETRY_NOW_EVENT))
-}
 
 export type EventPipelineInput = {
   sdk: AxCodeClient

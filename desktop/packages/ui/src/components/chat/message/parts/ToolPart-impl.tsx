@@ -1,3 +1,6 @@
+import React from "react"
+import type { AnimationPlaybackControls } from "motion"
+import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { useWebMcpApprovalReceipts } from "@/stores/useWebMcpApprovalOutcome"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { webMcpKnownDefinitions } from "@/lib/webMcpCatalog"
@@ -6,13 +9,8 @@ import { collectWebMcpCalls } from "@/lib/webMcpCalls"
 import { webMcpFailureSummary } from "@/lib/webMcpFailureSummary"
 import { WebMcpCallDiagnosis } from "@/components/mcp/WebMcpCallDiagnosis"
 import { useWebMcpApprovalOutcomes } from "@/stores/useWebMcpApprovalOutcome"
-import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
-import React from "react"
-import type { AnimationPlaybackControls } from "motion"
 import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import { cn } from "@/lib/utils"
-import { SimpleMarkdownRenderer } from "../../MarkdownRenderer"
-import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
 import {
   describeWebMcpCall,
   desktopWebMcpResultFailed,
@@ -23,11 +21,8 @@ import {
   withoutNextActionLine,
   type WebMcpCallDescription,
 } from "@/lib/toolHelpers"
-import type { ToolPart as ToolPartType, ToolState as ToolStateUnion } from "@defai-digital/ax-code-sdk/v2"
 import { toolDisplayStyles } from "@/lib/typography"
 import { LazySyntaxHighlighter as SyntaxHighlighter } from "@/components/ui/LazySyntaxHighlighter"
-import { VirtualizedToolOutput } from "../VirtualizedToolOutput"
-import { shouldVirtualizeToolOutput } from "../toolOutputText"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useDirectorySync, useSessionMessageRecords, useEnsureSessionMessages } from "@/sync/sync-context"
@@ -41,11 +36,19 @@ import { ScrollShadow } from "@/components/ui/ScrollShadow"
 import { Text } from "@/components/ui/text"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
 import type { ContentChangeReason } from "@/hooks/useChatAutoFollow"
-import type { ToolPopupContent } from "../types"
-
-import { formatInputForDisplay, tryParseJsonOutput } from "../toolRenderers"
 import { JsonTreeViewer } from "@/components/ui/JsonTreeViewer"
 import { Icon } from "@/components/icon/Icon"
+import { useI18n } from "@/lib/i18n"
+import type { I18nKey } from "@/lib/i18n/messages/en"
+import { PlainDiffFallback } from "./PlainDiffFallback"
+import { redactWebMcpText } from "../../../../../../../shared/webmcp-redaction.mjs"
+import { SimpleMarkdownRenderer } from "../../MarkdownRenderer"
+
+import { useStreamingTextThrottle } from "../../hooks/useStreamingTextThrottle"
+import { VirtualizedToolOutput } from "../VirtualizedToolOutput"
+import { shouldVirtualizeToolOutput } from "../toolOutputText"
+import type { ToolPopupContent } from "../types"
+import { formatInputForDisplay, tryParseJsonOutput } from "../toolRenderers"
 import { DiffViewToggle } from "../DiffViewToggle"
 import { useDefaultDiffViewMode } from "../useDefaultDiffViewMode"
 import type { DiffViewMode } from "../types"
@@ -56,8 +59,6 @@ import { getToolIcon } from "./toolPresentation"
 import { useDurationTickerNow } from "./useDurationTicker"
 import { resolveFallbackTaskSessionId } from "./resolveFallbackTaskSessionId"
 import { areRenderRelevantPartsEqual } from "../renderCompare"
-import { useI18n } from "@/lib/i18n"
-import type { I18nKey } from "@/lib/i18n/messages/en"
 import { getDiffPatchEntries, getPatchText, isRecord } from "./toolDiffUtils"
 import { LazyToolDiffPreview as DiffPreview } from "./LazyToolDiffPreview"
 import { getToolRelativePath, toAbsoluteToolPath } from "./toolPathDisplay"
@@ -639,18 +640,6 @@ const renderAnimatedPathWithIcon = (path: string, animate = true, grow = true, s
     </span>
   )
 }
-
-const PlainDiffFallback: React.FC<{ diff: string }> = ({ diff }) => (
-  <pre
-    className="m-0 overflow-auto whitespace-pre-wrap break-words rounded-lg p-2 typography-code"
-    style={{
-      backgroundColor: "var(--syntax-base-background)",
-      color: "var(--syntax-base-foreground)",
-    }}
-  >
-    {diff}
-  </pre>
-)
 
 interface ToolExpandedContentProps {
   part: ToolPartType

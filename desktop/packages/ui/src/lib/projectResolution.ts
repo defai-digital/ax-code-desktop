@@ -1,17 +1,8 @@
 import type { ProjectEntry } from "@/lib/api/types"
 import type { WorktreeMetadata } from "@/types/worktree"
+import { normalizeProjectPath } from "../../../../shared/path-values.mjs"
 
-export const normalizeProjectPath = (value?: string | null): string | null => {
-  if (typeof value !== "string") return null
-  const trimmed = value.trim()
-  if (!trimmed) return null
-  const replaced = trimmed.replace(/\\/g, "/").replace(/^([a-z]):/, (_, letter: string) => letter.toUpperCase() + ":")
-  if (replaced === "/") return "/"
-  const driveRoot = replaced.match(/^([A-Z]:)\/+$/)
-  if (driveRoot) return `${driveRoot[1]}/`
-  if (/^[A-Z]:$/.test(replaced)) return `${replaced}/`
-  return replaced.length > 1 ? replaced.replace(/\/+$/, "") : replaced
-}
+export { normalizeProjectPath } from "../../../../shared/path-values.mjs"
 
 const toComparableProjectPath = (path: string): string =>
   path.startsWith("//") || /^[A-Za-z]:\//.test(path) ? path.toLowerCase() : path

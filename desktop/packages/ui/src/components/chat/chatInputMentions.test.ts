@@ -11,6 +11,7 @@ import {
   insertMentionAtCursor,
   insertTriggerAtCursor,
   loadConfirmedMentions,
+  normalizeDroppedFilePath,
   pruneConfirmedMentions,
   resolveFileMentionDeletion,
   resolveFileMentionPath,
@@ -450,15 +451,15 @@ describe("buildMentionDropInsertion", () => {
 })
 
 describe("resolveFileMentionPath", () => {
-  test("prefers a trimmed relativePath when present", () => {
+  test("preserves a literal relativePath when present", () => {
     expect(
       resolveFileMentionPath({ name: "app.ts", path: "/repo/src/app.ts", relativePath: " src/app.ts " }, "/repo"),
-    ).toBe("src/app.ts")
+    ).toBe(" src/app.ts ")
   })
 
   test("falls back to the project-relative absolute path", () => {
     expect(resolveFileMentionPath({ name: "app.ts", path: "/repo/src/app.ts" }, "/repo")).toBe("src/app.ts")
-    expect(resolveFileMentionPath({ name: "app.ts", path: "/repo/src/app.ts", relativePath: "  " }, "/repo")).toBe(
+    expect(resolveFileMentionPath({ name: "app.ts", path: "/repo/src/app.ts", relativePath: "" }, "/repo")).toBe(
       "src/app.ts",
     )
   })
@@ -518,4 +519,19 @@ describe("filterMissingInlineAttachments", () => {
     expect(result).toEqual([picked])
     expect(lister).not.toHaveBeenCalled()
   })
+})
+
+
+test("drop parsing distinguishes URI framing from literal filesystem bytes", () => {
+  expect(normalizeDroppedFilePath("  file:///tmp/report.txt%20  \n")).toBe("/tmp/report.txt ")
+  expect(normalizeDroppedFilePath("/tmp/report.txt ")).toBe("/tmp/report.txt ")
+  expect(normalizeDroppedFilePath("file://server/share/report.txt%20")).toBe("//server/share/report.txt ")
+  expect(normalizeDroppedFilePath("file://localhost/tmp/report.txt")).toBe("/tmp/report.txt")
+  expect(normalizeDroppedFilePath(" /tmp/report.txt ")).toBe(" /tmp/report.txt ")
+  expect(normalizeDroppedFilePath("file:///tmp/%E0%A4%A")).toBe("/tmp/%E0%A4%A")
+})
+
+
+test("a whitespace-only relative file name is literal mention data", () => {
+  expect(resolveFileMentionPath({ name: "  ", path: "/repo/  ", relativePath: "  " }, "/repo")).toBe("  ")
 })

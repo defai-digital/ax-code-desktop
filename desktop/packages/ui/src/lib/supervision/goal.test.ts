@@ -40,7 +40,7 @@ describe("normalizeSessionGoal", () => {
       remainingTokens: 3800,
       timeBudgetSeconds: 600,
       remainingTimeSeconds: 510,
-      planPath: ".ax-code/plan.md",
+      planPath: " .ax-code/plan.md ",
       createdAt: 1000,
       updatedAt: 2000,
     })

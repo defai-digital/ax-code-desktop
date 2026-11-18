@@ -177,7 +177,7 @@ const RANK_CLASS_LENGTH = 3
  * The QA panel stops at council's default member limit. A larger panel is cut down by the runtime
  * unless the project raises the limit, so suggesting one would promise a reviewer that does not run.
  */
-export const SUGGESTED_QA_COUNT = Math.min(AGENT_TEAM_LIMITS.qa, COUNCIL_DEFAULT_MAX_MEMBERS)
+const SUGGESTED_QA_COUNT = Math.min(AGENT_TEAM_LIMITS.qa, COUNCIL_DEFAULT_MAX_MEMBERS)
 
 function indexOfModel(list: readonly AgentTeamModelRef[], model: AgentTeamModelRef): number {
   return list.findIndex((entry) => isSameAgentTeamModel(entry, model))

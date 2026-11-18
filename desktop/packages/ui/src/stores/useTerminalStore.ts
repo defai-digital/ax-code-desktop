@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
+import { hasPersistedFields } from "@/lib/persistedFields"
 
 import { closeTerminal } from "@/lib/terminalApi"
 import { normalizeProjectPath } from "@/lib/projectResolution"
@@ -716,7 +717,7 @@ export const useTerminalStore = create<TerminalStore>()(
           nextTabId: state.nextTabId,
         }),
         merge: (persistedState, currentState) => {
-          if (!isRecord(persistedState)) {
+          if (!hasPersistedFields(persistedState, ["sessions", "nextTabId"])) {
             return currentState
           }
 

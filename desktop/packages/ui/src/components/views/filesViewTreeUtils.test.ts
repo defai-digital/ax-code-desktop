@@ -51,7 +51,8 @@ describe("ignore rules", () => {
     expect(shouldIgnoreFilesViewPath("node_modules")).toBe(true)
     expect(shouldIgnoreFilesViewPath("a/node_modules")).toBe(true)
     expect(shouldIgnoreFilesViewPath("a/node_modules/pkg")).toBe(true)
-    expect(shouldIgnoreFilesViewPath("a\\node_modules\\pkg")).toBe(true)
+    expect(shouldIgnoreFilesViewPath("C:\\a\\node_modules\\pkg")).toBe(true)
+    expect(shouldIgnoreFilesViewPath("/work/a\\node_modules\\pkg")).toBe(false)
   })
 
   test("does not ignore similarly named directories", () => {

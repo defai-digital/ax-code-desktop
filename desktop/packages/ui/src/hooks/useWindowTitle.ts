@@ -1,4 +1,5 @@
 import React from "react"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useAttentionStore } from "@/stores/useAttentionStore"
 import { isDesktopShell, isTauriShell } from "@/lib/desktop"
@@ -12,7 +13,7 @@ const formatProjectLabel = (label: string): string => {
 }
 
 const getProjectNameFromPath = (path: string): string => {
-  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "")
+  const normalized = normalizePathSeparators(path).replace(/\/+$/, "")
   const segments = normalized.split("/").filter(Boolean)
   return segments[segments.length - 1] ?? ""
 }

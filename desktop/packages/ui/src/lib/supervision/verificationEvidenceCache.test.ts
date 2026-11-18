@@ -39,9 +39,7 @@ describe("verification evidence cache", () => {
     expect(fetchRisk.mock.calls.some((call) => call[0].sessionID === "d")).toBe(false)
 
     requests[0]?.resolve({ data: failedPayload })
-    await Promise.resolve()
-    await Promise.resolve()
-    expect(fetchRisk).toHaveBeenCalledTimes(3)
+    await vi.waitFor(() => expect(fetchRisk).toHaveBeenCalledTimes(3))
     expect(verificationEvidenceFor("a", "/repo", cache.getSnapshot())).toEqual({
       state: "failed",
       passed: 0,
@@ -51,6 +49,7 @@ describe("verification evidence cache", () => {
     expect(JSON.stringify([...cache.getSnapshot().values()])).not.toContain("secret command output")
     expect(verificationEvidenceFor("a", "/other", cache.getSnapshot())).toBeNull()
     consumer.dispose()
+    requests.slice(1).forEach(({ resolve }) => resolve({ data: failedPayload }))
   })
 
   test("a failed read keeps the older result marked stale, does not advance its revision, and reads again after a backoff", async () => {
@@ -109,6 +108,68 @@ describe("verification evidence cache", () => {
       clock = 1000
       await vi.advanceTimersByTimeAsync(990)
       expect(fetchRisk.mock.calls.filter((call) => call[0].sessionID === "b")).toHaveLength(2)
+      consumer.dispose()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("a read for a directory the session left cannot replace current verification", async () => {
+    type Result = Awaited<ReturnType<FetchSessionRisk>>
+    let resolveOld!: (value: Result) => void
+    const old = new Promise<Result>((resolve) => {
+      resolveOld = resolve
+    })
+    const fetchRisk = vi.fn<FetchSessionRisk>(({ directory }) =>
+      directory === "/old" ? old : Promise.resolve({ data: failedPayload }),
+    )
+    const cache = createVerificationEvidenceCache(fetchRisk, { minRefetchMs: 0 })
+    const consumer = cache.mount()
+    const current = { sessionId: "a", directory: "/current", updatedAt: 1 }
+    consumer.update([current])
+    await vi.waitFor(() => expect(cache.getSnapshot().get("a")?.checks?.state).toBe("failed"))
+
+    consumer.update([{ ...current, directory: "/old", updatedAt: 2 }])
+    consumer.update([current])
+    const snapshots: (string | undefined)[] = []
+    const unsubscribe = cache.subscribe(() => snapshots.push(cache.getSnapshot().get("a")?.directory))
+    resolveOld({ data: { envelopes: [] } })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    expect(snapshots).not.toContain("/old")
+    expect(cache.getSnapshot().get("a")).toMatchObject({ directory: "/current", checks: { state: "failed" } })
+    expect(fetchRisk).toHaveBeenCalledTimes(2)
+    unsubscribe()
+    consumer.dispose()
+  })
+
+  test("a deadline frees a slot even when risk ignores abort and discards its late result", async () => {
+    vi.useFakeTimers()
+    try {
+      type Result = Awaited<ReturnType<FetchSessionRisk>>
+      let resolveLate!: (value: Result) => void
+      const late = new Promise<Result>((resolve) => {
+        resolveLate = resolve
+      })
+      const blocked = new Promise<Result>(() => {})
+      const fetchRisk = vi.fn<FetchSessionRisk>(({ sessionID }) => {
+        if (sessionID === "a") return late
+        if (sessionID === "b") return blocked
+        return Promise.resolve({ data: failedPayload })
+      })
+      const cache = createVerificationEvidenceCache(fetchRisk, { timeoutMs: 100 })
+      const consumer = cache.mount()
+      consumer.update(["a", "b", "c"].map((sessionId) => ({ sessionId, directory: "/repo", updatedAt: 1 })))
+
+      await vi.advanceTimersByTimeAsync(100)
+      expect(fetchRisk.mock.calls[0][0].signal.aborted).toBe(true)
+      expect(fetchRisk.mock.calls.map(([input]) => input.sessionID)).toEqual(["a", "b", "c"])
+      expect(verificationEvidenceFor("c", "/repo", cache.getSnapshot())?.state).toBe("failed")
+      expect(cache.getSnapshot().get("a")).toMatchObject({ stale: true, checks: null })
+
+      resolveLate({ data: failedPayload })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(cache.getSnapshot().get("a")).toMatchObject({ stale: true, checks: null })
       consumer.dispose()
     } finally {
       vi.useRealTimers()

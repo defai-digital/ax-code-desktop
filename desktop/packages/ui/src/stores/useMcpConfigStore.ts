@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { startConfigUpdate, finishConfigUpdate } from "@/lib/configUpdate"
@@ -8,6 +8,7 @@ import { createSingleFlight } from "@/lib/singleFlight"
 import { refreshAfterAxCodeRestart } from "@/stores/useAgentsStore"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
+import { getSafeStorage } from "./utils/safeStorage"
 import { setConfigCacheEntry } from "./utils/configCache"
 
 export type McpScope = "user" | "project"
@@ -423,7 +424,7 @@ export const useMcpConfigStore = create<McpConfigStore>()(
       {
         name: "mcp-config-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({ selectedMcpName: state.selectedMcpName }),
+        ...createPersistedFields<McpConfigStore>({ selectedMcpName: persistedNullableString }),
       },
     ),
     { name: "mcp-config-store" },

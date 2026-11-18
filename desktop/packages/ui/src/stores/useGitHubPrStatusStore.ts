@@ -1,6 +1,12 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { readDirectoryPath } from "@/lib/pathValues"
+import { hasPersistedFields } from "@/lib/persistedFields"
+import { isPlainRecord } from "@/lib/record"
 import type { GitHubPullRequestStatus, RuntimeAPIs } from "@/lib/api/types"
+import { carryPullRequestBody, hasPullRequestStatusChanged, restoreCachedPullRequestStatus } from "@/lib/cachedPullRequestStatus"
+import { readWithDeadline } from "@/lib/asyncTimeout"
+import { pullRequestScopeKey, type PullRequestScope } from "@/lib/pullRequestScope"
 import { mapWithConcurrency } from "@/lib/concurrency"
 import { getSafeStorage } from "./utils/safeStorage"
 
@@ -12,8 +18,12 @@ const PR_OPEN_BUSY_INTERVAL_MS = 60_000
 const PR_OPEN_DEFAULT_INTERVAL_MS = 2 * 60_000
 const PR_OPEN_STABLE_INTERVAL_MS = 5 * 60_000
 const PR_STATUS_REFRESH_CONCURRENCY = 4
+const PR_STATUS_TIMEOUT_MS = 20_000
 const PR_PERSIST_TTL_MS = 12 * 60 * 60_000
 const PR_STATUS_STORAGE_KEY = "openchamber.github-pr-status"
+
+const isFreshTimestamp = (at: number, now: number, ttl: number): boolean =>
+  Number.isFinite(at) && at > 0 && at <= now && now - at < ttl
 
 const isTerminalPrState = (state: string | null | undefined): boolean => state === "closed" || state === "merged"
 const isPendingChecks = (status: GitHubPullRequestStatus | null): boolean => {
@@ -31,7 +41,7 @@ const isPendingChecks = (status: GitHubPullRequestStatus | null): boolean => {
 // dropped.
 const MAX_PR_STATUS_ENTRIES = 50
 
-export const boundPrStatusEntries = (
+const boundPrStatusEntries = (
   entries: Record<string, PrStatusEntry>,
   keepKey?: string,
 ): Record<string, PrStatusEntry> => {
@@ -91,12 +101,6 @@ type PrRuntimeParams = {
   githubConnected: boolean | null
 }
 
-type PrEntryIdentity = {
-  directory: string
-  branch: string
-  remoteName: string | null
-}
-
 type PrStatusEntry = {
   status: GitHubPullRequestStatus | null
   isLoading: boolean
@@ -106,7 +110,7 @@ type PrStatusEntry = {
   lastDiscoveryPollAt: number
   watchers: number
   params: PrRuntimeParams | null
-  identity: PrEntryIdentity | null
+  identity: PullRequestScope | null
   resolvedRemoteName: string | null
 }
 
@@ -141,7 +145,7 @@ const lastRefreshBySignature = new Map<string, number>()
 // signatures refreshed inside the TTL instead of every signature ever refreshed.
 export const pruneExpiredPrRefreshTimestamps = (timestamps: Map<string, number>, now: number): void => {
   for (const [signature, at] of timestamps) {
-    if (now - at >= PR_REVALIDATE_TTL_MS) {
+    if (!isFreshTimestamp(at, now, PR_REVALIDATE_TTL_MS)) {
       timestamps.delete(signature)
     }
   }
@@ -159,7 +163,7 @@ const createEntry = (): PrStatusEntry => ({
   resolvedRemoteName: null,
 })
 
-const getIdentityFromEntry = (entry: PrStatusEntry | null | undefined): PrEntryIdentity | null => {
+export const getPrStatusScope = (entry: PrStatusEntry | null | undefined): PullRequestScope | null => {
   if (entry?.params?.directory && entry.params.branch) {
     return {
       directory: entry.params.directory,
@@ -174,11 +178,11 @@ const getIdentityFromEntry = (entry: PrStatusEntry | null | undefined): PrEntryI
 }
 
 const getSignatureFromEntry = (entry: PrStatusEntry | null | undefined): string | null => {
-  const identity = getIdentityFromEntry(entry)
+  const identity = getPrStatusScope(entry)
   if (!identity?.directory || !identity.branch) {
     return null
   }
-  return getGitHubPrStatusKey(identity.directory, identity.branch, identity.remoteName)
+  return pullRequestScopeKey(identity)
 }
 
 const getKeysBySignature = (entries: Record<string, PrStatusEntry>, signature: string): string[] => {
@@ -188,25 +192,18 @@ const getKeysBySignature = (entries: Record<string, PrStatusEntry>, signature: s
 }
 
 const mergeParams = (entry: PrStatusEntry, next: PrRuntimeParams): PrStatusEntry => {
-  const remoteName =
-    next.remoteName ?? entry.params?.remoteName ?? entry.resolvedRemoteName ?? entry.identity?.remoteName ?? null
+  const previous = getPrStatusScope(entry)
+  const { directory, branch } = next
+  const previousBranch = previous && pullRequestScopeKey({ ...previous, remoteName: null })
+  const sameBranch = previousBranch === pullRequestScopeKey({ directory, branch, remoteName: null })
+  const remoteName = next.remoteName?.trim() || (sameBranch ? previous?.remoteName : null) || null
+  const identity = { directory, branch, remoteName }
+  const changedScope = previous && pullRequestScopeKey(previous) !== pullRequestScopeKey(identity)
   return {
-    ...entry,
-    params: entry.params
-      ? {
-          ...entry.params,
-          ...next,
-          remoteName,
-        }
-      : {
-          ...next,
-          remoteName,
-        },
-    identity: {
-      directory: next.directory,
-      branch: next.branch,
-      remoteName,
-    },
+    ...(changedScope ? createEntry() : entry),
+    watchers: entry.watchers,
+    params: { ...entry.params, ...next, remoteName },
+    identity,
   }
 }
 
@@ -259,19 +256,40 @@ const toPersistedEntry = (entry: PrStatusEntry): PersistedPrStatusEntry => ({
   isInitialStatusResolved: entry.isInitialStatusResolved,
   lastRefreshAt: entry.lastRefreshAt,
   lastDiscoveryPollAt: entry.lastDiscoveryPollAt,
-  identity: getIdentityFromEntry(entry),
+  identity: getPrStatusScope(entry),
   resolvedRemoteName: entry.resolvedRemoteName ?? entry.status?.resolvedRemoteName ?? null,
 })
 
-const hydrateEntry = (entry: PersistedPrStatusEntry | undefined): PrStatusEntry => ({
-  ...createEntry(),
-  status: entry?.status ?? null,
-  isInitialStatusResolved: entry?.isInitialStatusResolved ?? false,
-  lastRefreshAt: entry?.lastRefreshAt ?? 0,
-  lastDiscoveryPollAt: entry?.lastDiscoveryPollAt ?? 0,
-  identity: entry?.identity ?? null,
-  resolvedRemoteName: entry?.resolvedRemoteName ?? entry?.status?.resolvedRemoteName ?? null,
-})
+const hydrateEntry = (value: unknown): PrStatusEntry => {
+  if (!isPlainRecord(value)) return createEntry()
+  const status = restoreCachedPullRequestStatus(value.status)
+  const invalidStatus = value.status != null && status === null
+  const timestamp = (raw: unknown) =>
+    !invalidStatus && typeof raw === "number" && Number.isFinite(raw) && raw >= 0 && raw <= Date.now() ? raw : 0
+  const rawIdentity = value.identity
+  let identity: PullRequestScope | null = null
+  if (
+    isPlainRecord(rawIdentity) && typeof rawIdentity.directory === "string"
+    && typeof rawIdentity.branch === "string"
+    && (rawIdentity.remoteName == null || typeof rawIdentity.remoteName === "string")
+  ) {
+    identity = {
+      directory: rawIdentity.directory,
+      branch: rawIdentity.branch,
+      remoteName: typeof rawIdentity.remoteName === "string" ? rawIdentity.remoteName : null,
+    }
+  }
+  return {
+    ...createEntry(),
+    status,
+    isInitialStatusResolved: !invalidStatus && value.isInitialStatusResolved === true,
+    lastRefreshAt: timestamp(value.lastRefreshAt),
+    lastDiscoveryPollAt: timestamp(value.lastDiscoveryPollAt),
+    identity,
+    resolvedRemoteName: typeof value.resolvedRemoteName === "string"
+      ? value.resolvedRemoteName : (status?.resolvedRemoteName ?? null),
+  }
+}
 
 export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
   persist(
@@ -350,7 +368,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           const hasPr = Boolean(entry.status?.pr)
           if (!hasPr) {
             const now = Date.now()
-            if (now - entry.lastDiscoveryPollAt < PR_DISCOVERY_INTERVAL_MS) {
+            if (isFreshTimestamp(entry.lastDiscoveryPollAt, now, PR_DISCOVERY_INTERVAL_MS)) {
               return
             }
             set((state) => {
@@ -373,13 +391,12 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
             return
           }
 
-          const elapsed = Date.now() - entry.lastRefreshAt
           const nextInterval = isPendingChecks(entry.status)
             ? PR_OPEN_BUSY_INTERVAL_MS
             : entry.status?.checks && entry.status.checks.state !== "pending"
               ? PR_OPEN_STABLE_INTERVAL_MS
               : PR_OPEN_DEFAULT_INTERVAL_MS
-          if (elapsed < nextInterval) {
+          if (isFreshTimestamp(entry.lastRefreshAt, Date.now(), nextInterval)) {
             return
           }
 
@@ -439,7 +456,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           return
         }
         const lastRefreshAt = lastRefreshBySignature.get(signature) ?? 0
-        if (!options?.force && Date.now() - lastRefreshAt < PR_REVALIDATE_TTL_MS) {
+        if (!options?.force && isFreshTimestamp(lastRefreshAt, Date.now(), PR_REVALIDATE_TTL_MS)) {
           return
         }
         if (inFlightBySignature.has(signature)) {
@@ -452,179 +469,90 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         }
 
         inFlightBySignature.add(signature)
-        const refreshStartedAt = Date.now()
-        pruneExpiredPrRefreshTimestamps(lastRefreshBySignature, refreshStartedAt)
-        lastRefreshBySignature.set(signature, refreshStartedAt)
-
-        set((prev) => {
-          const nextEntries = { ...prev.entries }
-          signatureKeys.forEach((signatureKey) => {
-            const current = nextEntries[signatureKey]
-            if (!current) {
-              return
+        const publishScoped = (update: (current: PrStatusEntry, entryKey: string) => PrStatusEntry) => {
+          set((state) => {
+            let entries: GitHubPrStatusStore["entries"] | undefined
+            for (const entryKey of signatureKeys) {
+              const current = state.entries[entryKey]
+              if (!current || getSignatureFromEntry(current) !== signature) continue
+              const next = update(current, entryKey)
+              if (next === current) continue
+              entries ??= { ...state.entries }
+              delete entries[entryKey]
+              entries[entryKey] = next
             }
-            // Re-insert so the refresh counts as a touch: object key order drives eviction.
-            delete nextEntries[signatureKey]
-            nextEntries[signatureKey] = {
-              ...current,
-              lastRefreshAt: Date.now(),
-              isLoading: options?.silent ? current.isLoading : true,
-              error: null,
-            }
+            return entries ? { entries } : state
           })
-          return {
-            entries: nextEntries,
-          }
+        }
+        const markSuccess = (refreshTime: number) => {
+          pruneExpiredPrRefreshTimestamps(lastRefreshBySignature, refreshTime)
+          lastRefreshBySignature.set(signature, refreshTime)
+        }
+        const settle = (current: PrStatusEntry): PrStatusEntry => ({
+          ...current,
+          isLoading: options?.silent ? current.isLoading : false,
+          isInitialStatusResolved: options?.markInitialResolved === false ? current.isInitialStatusResolved : true,
         })
 
         if (params.githubAuthChecked && params.githubConnected === false) {
-          set((prev) => {
-            const nextEntries = { ...prev.entries }
-            signatureKeys.forEach((signatureKey) => {
-              const current = nextEntries[signatureKey]
-              if (!current) {
-                return
-              }
-              // Re-insert so the refresh counts as a touch: object key order drives eviction.
-              delete nextEntries[signatureKey]
-              nextEntries[signatureKey] = {
-                ...current,
-                status: { connected: false },
-                error: null,
-                isLoading: options?.silent ? current.isLoading : false,
-                isInitialStatusResolved:
-                  options?.markInitialResolved === false ? current.isInitialStatusResolved : true,
-              }
-            })
-            return {
-              entries: nextEntries,
-            }
-          })
+          const now = Date.now()
+          publishScoped((current) => ({ ...settle(current), status: { connected: false }, error: null, lastRefreshAt: now }))
+          markSuccess(now)
           inFlightBySignature.delete(signature)
           return
         }
 
-        if (!params.github?.prStatus) {
-          set((prev) => {
-            const nextEntries = { ...prev.entries }
-            signatureKeys.forEach((signatureKey) => {
-              const current = nextEntries[signatureKey]
-              if (!current) {
-                return
-              }
-              // Re-insert so the refresh counts as a touch: object key order drives eviction.
-              delete nextEntries[signatureKey]
-              nextEntries[signatureKey] = {
-                ...current,
-                status: null,
-                error: "GitHub runtime API unavailable",
-                isLoading: options?.silent ? current.isLoading : false,
-                isInitialStatusResolved:
-                  options?.markInitialResolved === false ? current.isInitialStatusResolved : true,
-              }
-            })
-            return {
-              entries: nextEntries,
-            }
-          })
+        const api = params.github
+        if (!api) {
           inFlightBySignature.delete(signature)
           return
         }
-
+        const before = get().entries
+        const hasNewerStatus = (current: PrStatusEntry, entryKey: string) =>
+          current.lastRefreshAt !== before[entryKey]?.lastRefreshAt ||
+          hasPullRequestStatusChanged(before[entryKey]?.status, current.status)
+        publishScoped((current) => ({ ...current, isLoading: options?.silent ? current.isLoading : true, error: null }))
+        set((state) => ({
+          activeRequestCount: state.activeRequestCount + 1,
+          totalRequestCount: state.totalRequestCount + 1,
+        }))
         try {
-          set((prev) => ({
-            ...prev,
-            activeRequestCount: prev.activeRequestCount + 1,
-            totalRequestCount: prev.totalRequestCount + 1,
-          }))
-          const next = await params.github.prStatus(params.directory, params.branch, params.remoteName ?? undefined, {
-            force: options?.force,
-          })
-          set((prev) => {
-            const nextEntries = { ...prev.entries }
-            signatureKeys.forEach((signatureKey) => {
-              const current = nextEntries[signatureKey]
-              if (!current) {
-                return
-              }
-
-              const prevPr = current.status?.pr
-              const nextPr = next.pr
-              const shouldCarryBody = Boolean(
-                nextPr &&
-                  prevPr &&
-                  nextPr.number === prevPr.number &&
-                  (!nextPr.body || !nextPr.body.trim()) &&
-                  typeof prevPr.body === "string" &&
-                  prevPr.body.trim().length > 0,
-              )
-
-              const status =
-                shouldCarryBody && nextPr && prevPr?.body
-                  ? {
-                      ...next,
-                      pr: {
-                        ...nextPr,
-                        body: prevPr.body,
-                      },
-                    }
-                  : next
-
-              const resolvedRemoteName =
-                status.resolvedRemoteName ?? current.resolvedRemoteName ?? params.remoteName ?? null
-              const identity = getIdentityFromEntry(current) ?? {
+          const next = await readWithDeadline(
+            (signal) => api.prStatus(params.directory, params.branch, params.remoteName ?? undefined, {
+              force: options?.force,
+              signal,
+            }),
+            PR_STATUS_TIMEOUT_MS,
+          )
+          const now = Date.now()
+          let refreshed = false
+          publishScoped((current, entryKey) => {
+            if (hasNewerStatus(current, entryKey)) return settle(current)
+            refreshed = true
+            const status = carryPullRequestBody(current.status, next)
+            const resolvedRemoteName = status.resolvedRemoteName ?? current.resolvedRemoteName ?? params.remoteName ?? null
+            return {
+              ...settle(current),
+              status,
+              error: null,
+              lastRefreshAt: now,
+              resolvedRemoteName,
+              identity: {
                 directory: params.directory,
                 branch: params.branch,
-                remoteName: params.remoteName ?? null,
-              }
-
-              // Re-insert so the refresh counts as a touch: object key order drives eviction.
-              delete nextEntries[signatureKey]
-              nextEntries[signatureKey] = {
-                ...current,
-                status,
-                error: null,
-                isLoading: options?.silent ? current.isLoading : false,
-                isInitialStatusResolved:
-                  options?.markInitialResolved === false ? current.isInitialStatusResolved : true,
-                resolvedRemoteName,
-                identity: {
-                  ...identity,
-                  remoteName: resolvedRemoteName ?? identity.remoteName ?? null,
-                },
-              }
-            })
-
-            return {
-              entries: nextEntries,
+                remoteName: params.remoteName ?? resolvedRemoteName,
+              },
             }
           })
+          if (refreshed) markSuccess(now)
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error)
-          set((prev) => {
-            const nextEntries = { ...prev.entries }
-            signatureKeys.forEach((signatureKey) => {
-              const current = nextEntries[signatureKey]
-              if (!current) {
-                return
-              }
-              // Re-insert so the refresh counts as a touch: object key order drives eviction.
-              delete nextEntries[signatureKey]
-              nextEntries[signatureKey] = {
-                ...current,
-                error: message || "Failed to load PR status",
-                isLoading: options?.silent ? current.isLoading : false,
-                isInitialStatusResolved:
-                  options?.markInitialResolved === false ? current.isInitialStatusResolved : true,
-              }
-            })
-            return {
-              entries: nextEntries,
-            }
-          })
+          publishScoped((current, entryKey) => hasNewerStatus(current, entryKey)
+            ? settle(current)
+            : { ...settle(current), error: message || "Failed to load PR status" })
         } finally {
           inFlightBySignature.delete(signature)
-          set((prev) => ({ ...prev, activeRequestCount: Math.max(0, prev.activeRequestCount - 1) }))
+          set((state) => ({ activeRequestCount: Math.max(0, state.activeRequestCount - 1) }))
         }
       },
 
@@ -633,7 +561,7 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
           new Set(
             targets
               .map((target) => {
-                const directory = target.directory.trim()
+                const directory = readDirectoryPath(target.directory) ?? ""
                 const branch = target.branch.trim()
                 if (!directory || !branch) {
                   return null
@@ -667,19 +595,19 @@ export const useGitHubPrStatusStore = create<GitHubPrStatusStore>()(
         entries: Object.fromEntries(
           Object.entries(state.entries)
             .filter(([, entry]) => {
-              const identity = getIdentityFromEntry(entry)
+              const identity = getPrStatusScope(entry)
               if (!identity?.directory || !identity.branch) {
                 return false
               }
               const freshness = Math.max(entry.lastRefreshAt, entry.lastDiscoveryPollAt)
-              return freshness === 0 || Date.now() - freshness < PR_PERSIST_TTL_MS
+              return freshness === 0 || isFreshTimestamp(freshness, Date.now(), PR_PERSIST_TTL_MS)
             })
             .map(([key, entry]) => [key, toPersistedEntry(entry)]),
         ),
       }),
       merge: (persistedState, currentState) => {
-        const persistedEntries =
-          (persistedState as { entries?: Record<string, PersistedPrStatusEntry> } | undefined)?.entries ?? {}
+        if (!hasPersistedFields(persistedState, ["entries"])) return currentState
+        const persistedEntries = isPlainRecord(persistedState.entries) ? persistedState.entries : {}
         const current = currentState as GitHubPrStatusStore
         return {
           ...current,

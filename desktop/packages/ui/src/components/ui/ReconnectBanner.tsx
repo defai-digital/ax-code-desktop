@@ -1,6 +1,6 @@
 import React from "react"
 import { Icon } from "@/components/icon/Icon"
-import { requestSyncRetryNow } from "@/sync/event-pipeline"
+import { requestSyncRetryNow } from "@/lib/event-stream/commands"
 import { useConnectionStore } from "@/lib/event-stream/connection-state"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"

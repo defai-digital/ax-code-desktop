@@ -154,7 +154,7 @@ describe("useSessionRollbackStore", () => {
 
   test("normalizes scoped directory keys for rollback point refresh", async () => {
     const { getScopedApiClient, rollbackPoints, rollbackRequests, useSessionRollbackStore } = await importStore()
-    const refresh = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: " c:\\Repo\\ " })
+    const refresh = useSessionRollbackStore.getState().refreshPoints("ses_1", { directory: "c:\\Repo\\" })
     await Promise.resolve()
 
     rollbackRequests[0].resolve({ data: [point(3, "write")] })

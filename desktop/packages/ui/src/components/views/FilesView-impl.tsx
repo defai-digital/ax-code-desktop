@@ -567,7 +567,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
   const showGitignored = useFilesViewShowGitignored()
 
   const currentDirectory = useEffectiveDirectory() ?? ""
-  const root = normalizePath(currentDirectory.trim())
+  const root = normalizePath(currentDirectory)
   // Live root for async continuations: a save that resolves after a project switch
   // must not write its file's content into the newly displayed file's state.
   const rootRef = React.useRef(root)
@@ -981,7 +981,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
 
   const loadDirectory = React.useCallback(
     async (dirPath: string) => {
-      const normalizedDir = normalizePath(dirPath.trim())
+      const normalizedDir = normalizePath(dirPath)
       if (!normalizedDir) {
         return
       }

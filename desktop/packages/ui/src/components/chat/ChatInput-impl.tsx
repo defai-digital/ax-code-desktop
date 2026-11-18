@@ -142,6 +142,7 @@ import {
   insertTriggerAtCursor,
   isInlineServerAttachment,
   loadConfirmedMentions,
+  normalizeDroppedFilePath as normalizeDroppedPath,
   resolveFileMentionDeletion,
   resolveFileMentionPath,
   saveConfirmedMentions,
@@ -156,6 +157,8 @@ import {
   findAttachmentCitationRanges,
 } from "./attachmentCitations"
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+import { normalizePathSeparators } from "@/lib/pathValues"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 
 /** The mode the chip shows. A send carries it as request data; the send path never reads the chip. */
 const composerWorkModeForSend = (): WorkModeId =>
@@ -239,20 +242,7 @@ const getRevertedPreview = (parts: Part[], fallback: string): string => {
   return filePart?.filename ? `[${filePart.filename}]` : fallback
 }
 
-const normalizePath = (value?: string | null): string | null => {
-  if (typeof value !== "string") {
-    return null
-  }
-  const trimmed = value.trim()
-  if (!trimmed) {
-    return null
-  }
-  const normalized = trimmed.replace(/\\/g, "/")
-  if (normalized === "/") {
-    return "/"
-  }
-  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
-}
+const normalizePath = normalizeProjectPath
 
 // Mirrors the refusal sendMessage raises for a stale send target, so a draft that was
 // retargeted while its prompt rendered fails through the same recovery path.
@@ -1254,7 +1244,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   const extractInlineFileMentions = React.useCallback(
     (rawText: string): { sanitizedText: string; attachments: AttachedFile[] } => {
       const clientDirectory = axCodeClient.getDirectory() || ""
-      const root = (chatSearchDirectory || clientDirectory).replace(/\\/g, "/").replace(/\/+$/, "")
+      const root = normalizePathSeparators((chatSearchDirectory || clientDirectory)).replace(/\/+$/, "")
       return extractInlineFileMentionsFromText(rawText, {
         root,
         isKnownAgent: (name) => knownAgentNamesRef.current.has(name),
@@ -3506,27 +3496,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     return fromItems
   }, [])
 
-  const normalizeDroppedPath = React.useCallback((rawPath: string): string => {
-    const input = rawPath.trim()
-    if (!input.toLowerCase().startsWith("file://")) {
-      return input
-    }
-
-    try {
-      let pathname = decodeURIComponent(new URL(input).pathname || "")
-      if (/^\/[A-Za-z]:\//.test(pathname)) {
-        pathname = pathname.slice(1)
-      }
-      return pathname || input
-    } catch {
-      const stripped = input.replace(/^file:\/\//i, "")
-      try {
-        return decodeURIComponent(stripped)
-      } catch {
-        return stripped
-      }
-    }
-  }, [])
 
   const handleDragEnter = (e: React.DragEvent) => {
     if (!hasDraggedFiles(e.dataTransfer)) {
@@ -3747,7 +3716,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       cancelled = true
       if (unlisten) unlisten()
     }
-  }, [addAttachedFile, normalizeDroppedPath, t])
+  }, [addAttachedFile, t])
 
   const fileInputRef = React.useRef<HTMLInputElement>(null)
 

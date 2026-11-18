@@ -8,6 +8,7 @@
  */
 import fs from "node:fs"
 import path from "node:path"
+import { readLiteralPath } from "../../../shared/path-values.mjs"
 
 export const isExecutable = (filePath, accessSync = fs.accessSync, statSync = fs.statSync) => {
   try {
@@ -47,7 +48,7 @@ export function resolveDevAxCodeBinary(options = {}) {
   const executable =
     options.isExecutable ?? ((file) => isExecutable(file, fsp.accessSync.bind(fsp), fsp.statSync.bind(fsp)))
 
-  const explicit = typeof env.AX_CODE_BINARY === "string" ? env.AX_CODE_BINARY.trim() : ""
+  const explicit = readLiteralPath(env.AX_CODE_BINARY)
   if (explicit) {
     if (executable(explicit)) return explicit
     warn(`[electron-dev] AX_CODE_BINARY="${explicit}" is not executable; falling back to PATH`)

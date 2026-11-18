@@ -73,8 +73,3 @@ export const useSessionGoalStore = defineStore(
     clear: () => set({ goals: {}, known: {}, eventSeq: {} }),
   })),
 )
-
-/** The goal for one session, or null; re-renders only when that goal changes. */
-export function useSessionGoal(sessionId: string | null | undefined): SessionGoalSnapshot | null {
-  return useSessionGoalStore((state) => (sessionId ? (state.goals[sessionId] ?? null) : null))
-}

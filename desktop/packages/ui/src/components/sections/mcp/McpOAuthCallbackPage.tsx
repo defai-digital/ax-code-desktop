@@ -78,7 +78,7 @@ const fetchPendingAuthContext = async (
 
   return {
     name: payload.name.trim(),
-    directory: typeof payload.directory === "string" && payload.directory.trim() ? payload.directory.trim() : null,
+    directory: typeof payload.directory === "string" && payload.directory.trim() ? payload.directory : null,
   }
 }
 

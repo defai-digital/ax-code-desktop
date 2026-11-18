@@ -6,7 +6,6 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 vi.mock("./git.js", () => ({
   assertGitAvailable: vi.fn(async () => ({ ok: true })),
   cloneRepo: vi.fn(),
-  looksLikeAuthError: () => false,
   runGit: vi.fn(),
 }))
 
@@ -66,5 +65,18 @@ describe("skills repository scan", () => {
 
     expect(result.ok).toBe(false)
     expect(result.error?.message).toContain("maxBuffer")
+  })
+
+  test("passes through clone failures and removes the temporary checkout", async () => {
+    let checkoutDirectory
+    const failure = { ok: false, error: { kind: "networkError", message: "Connection timed out" } }
+    cloneRepo.mockImplementationOnce(async ({ tempDir }) => {
+      checkoutDirectory = tempDir
+      return failure
+    })
+
+    await expect(scanSkillsRepository({ source: "owner/repo" })).resolves.toEqual(failure)
+    await expect(fsPromises.stat(checkoutDirectory)).rejects.toMatchObject({ code: "ENOENT" })
+    expect(runGit).not.toHaveBeenCalled()
   })
 })

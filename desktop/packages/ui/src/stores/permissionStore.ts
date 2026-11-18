@@ -1,33 +1,25 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
+import { permissionPreferencePersistence, type PermissionPreferences } from "@/lib/permissionPreferences"
+import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
+import { axCodeClient } from "@/lib/ax-code/client"
+import { respondToPermission, waitForConnectionOrThrow } from "@/sync/session-actions"
+import { useSessionUIStore } from "@/sync/session-ui-store"
+import { API_ENDPOINTS } from "@/lib/http"
 import {
   autoRespondsPermission,
   resolveSessionLineage,
   type PermissionAutoAcceptMap,
 } from "./utils/permissionAutoAccept"
 import { getSafeStorage } from "./utils/safeStorage"
-import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
-import { axCodeClient } from "@/lib/ax-code/client"
-import { respondToPermission, waitForConnectionOrThrow } from "@/sync/session-actions"
-import { useSessionUIStore } from "@/sync/session-ui-store"
-import { API_ENDPOINTS } from "@/lib/http"
 import { createAutoAcceptSync } from "./utils/autoAcceptSync"
 import {
   registerSessionAutoAcceptInheritHandler,
   registerSessionAutoAcceptSeedHandler,
 } from "./utils/sessionAutoAcceptSeed"
 
-interface PermissionState {
-  autoAccept: PermissionAutoAcceptMap
-  /**
-   * The choice made in the new-chat composer before a session exists. Newly
-   * created root sessions record it as their own setting; sessions that
-   * already existed stay off unless the user turns them on. Persisted so the
-   * choice survives a restart.
-   */
-  defaultAutoAccept: boolean
-}
+type PermissionState = PermissionPreferences
 
 interface PermissionActions {
   isSessionAutoAccepting: (sessionId: string) => boolean
@@ -53,67 +45,6 @@ interface PermissionActions {
 }
 
 type PermissionStore = PermissionState & PermissionActions
-
-const coerceAutoAcceptValue = (value: unknown): boolean => {
-  if (typeof value === "boolean") {
-    return value
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === "true") {
-      return true
-    }
-    if (normalized === "false") {
-      return false
-    }
-  }
-
-  if (typeof value === "number") {
-    return value === 1
-  }
-
-  return false
-}
-
-// Newly created root sessions start with auto-accept on. A persisted value
-// that is missing or unreadable keeps that default instead of silently turning
-// the feature off.
-const coerceDefaultAutoAccept = (value: unknown): boolean => {
-  if (typeof value === "boolean") {
-    return value
-  }
-
-  if (typeof value === "string") {
-    const normalized = value.trim().toLowerCase()
-    if (normalized === "true") {
-      return true
-    }
-    if (normalized === "false") {
-      return false
-    }
-  }
-
-  if (typeof value === "number") {
-    return value === 1
-  }
-
-  return true
-}
-
-const isLegacyDirectoryAutoAcceptKey = (key: string): boolean => key.endsWith("/*")
-
-const extractSessionIdFromLegacyKey = (key: string): string | null => {
-  const trimmed = key.trim()
-  if (!trimmed) {
-    return null
-  }
-  const lastSlash = trimmed.lastIndexOf("/")
-  if (lastSlash === -1 || lastSlash === trimmed.length - 1) {
-    return trimmed
-  }
-  return trimmed.slice(lastSlash + 1)
-}
 
 const resolveSessionScope = (sessionID: string, sessions: Session[]): Set<string> => {
   const map = new Map<string, Session>()
@@ -494,52 +425,10 @@ export const usePermissionStore = create<PermissionStore>()(
       {
         name: "permission-store",
         storage: getStorage(),
-        partialize: (state) => ({
-          autoAccept: state.autoAccept,
-          defaultAutoAccept: state.defaultAutoAccept,
-        }),
-        merge: (persistedState, currentState) => {
-          const merged = {
-            ...currentState,
-            ...(persistedState as Partial<PermissionStore>),
-          }
-
-          const persisted = Object.entries(merged.autoAccept || {})
-          const nextAutoAccept: PermissionAutoAcceptMap = {}
-
-          for (const [rawKey, rawEnabled] of persisted) {
-            if (rawKey.includes("/") || isLegacyDirectoryAutoAcceptKey(rawKey)) {
-              continue
-            }
-            nextAutoAccept[rawKey] = coerceAutoAcceptValue(rawEnabled)
-          }
-
-          for (const [rawKey, rawEnabled] of persisted) {
-            if (isLegacyDirectoryAutoAcceptKey(rawKey)) {
-              continue
-            }
-            if (!rawKey.includes("/")) {
-              continue
-            }
-
-            const sessionId = extractSessionIdFromLegacyKey(rawKey)
-            if (!sessionId) {
-              continue
-            }
-            if (Object.prototype.hasOwnProperty.call(nextAutoAccept, sessionId)) {
-              continue
-            }
-
-            const normalized = coerceAutoAcceptValue(rawEnabled)
-            const existing = nextAutoAccept[sessionId]
-            nextAutoAccept[sessionId] = existing === true ? true : normalized
-          }
-
-          return {
-            ...merged,
-            autoAccept: nextAutoAccept,
-            defaultAutoAccept: coerceDefaultAutoAccept(merged.defaultAutoAccept),
-          }
+        partialize: (state: PermissionStore) => permissionPreferencePersistence.partialize(state),
+        merge: (persisted, current: PermissionStore) => {
+          const restored = permissionPreferencePersistence.merge(persisted, current)
+          return restored === current ? current : { ...current, ...restored }
         },
         onRehydrateStorage: () => (state) => {
           if (!state) return

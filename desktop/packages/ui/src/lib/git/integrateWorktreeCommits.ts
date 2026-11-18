@@ -41,7 +41,7 @@ type IntegrateResult =
   | { kind: "conflict"; state: IntegrateInProgress; details: IntegrateConflictDetails }
 
 const shellQuote = (value: string): string => {
-  const v = value.trim()
+  const v = value
   if (!v) return "''"
   return `'${v.replace(/'/g, `'\\''`)}'`
 }
@@ -75,9 +75,9 @@ const assertCommandCompleted = (result: CommandExecResult, action: string): void
 type GitWorktreeEntry = { path: string; branchRef: string | null }
 
 async function listGitWorktrees(repoRoot: string): Promise<GitWorktreeEntry[]> {
-  const out = await execCommand("git worktree list --porcelain", repoRoot)
+  const out = await execCommand("git worktree list --porcelain -z", repoRoot)
   assertCommandCompleted(out, "Unable to list worktrees")
-  const lines = (out.stdout || "").split(/\r?\n/)
+  const lines = (out.stdout || "").split("\0")
 
   const entries: GitWorktreeEntry[] = []
   let current: GitWorktreeEntry | null = null
@@ -85,7 +85,7 @@ async function listGitWorktrees(repoRoot: string): Promise<GitWorktreeEntry[]> {
   for (const line of lines) {
     if (line.startsWith("worktree ")) {
       if (current) entries.push(current)
-      current = { path: line.slice("worktree ".length).trim(), branchRef: null }
+      current = { path: line.slice("worktree ".length), branchRef: null }
       continue
     }
     if (!current) continue

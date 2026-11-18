@@ -1,4 +1,5 @@
 import { axCodeClient } from "@/lib/ax-code/client"
+import { readDirectoryPath } from "@/lib/pathValues"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 
 /**
@@ -8,7 +9,7 @@ import { formatSdkError } from "@/lib/ax-code/sdkError"
 export async function fetchSessionGoal(sessionId: string, directory?: string | null): Promise<unknown> {
   const trimmedSession = sessionId.trim()
   if (!trimmedSession) throw new Error("A session id is required")
-  const trimmedDirectory = typeof directory === "string" ? directory.trim() : ""
+  const trimmedDirectory = typeof directory === "string" ? readDirectoryPath(directory) : ""
   const client = trimmedDirectory ? axCodeClient.getScopedSdkClient(trimmedDirectory) : axCodeClient.getSdkClient()
   const response = await client.session.goal({
     sessionID: trimmedSession,

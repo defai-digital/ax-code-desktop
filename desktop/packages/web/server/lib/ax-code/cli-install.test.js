@@ -26,7 +26,7 @@ const createFs = (executables) => ({
 })
 
 // Fake CLI: answers `upgrade check --json`, `--version` and `upgrade`.
-const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", check = true, upgradeCode = 0, hang = false, hangCheck = false, checkError = null } = {}) => {
+const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", check = true, upgradeCode = 0, hang = false, hangCheck = false, checkError = null, banner = (version) => version } = {}) => {
   let index = 0
   const calls = []
   const killers = new Map()
@@ -57,7 +57,7 @@ const createCli = ({ versions = ["7.25.0"], latest = "7.26.0", method = "curl", 
         reply(upToDate ? 0 : 1, JSON.stringify({ current, latest: checkError ? null : latestNow, upToDate: checkError ? null : upToDate, method, error: checkError }))
       }
     } else if (args[0] === "--version") {
-      reply(0, `${current}\n`)
+      reply(0, `${banner(current)}\n`)
     } else if (args[0] === "upgrade") {
       index += 1
       reply(upgradeCode, "\u001b[32m◇ Upgraded\u001b[0m")
@@ -113,6 +113,21 @@ describe("createAxCodeCliInstallRuntime", () => {
     expect(status.canUpgrade).toBe(false)
   })
 
+  it("does not mistake a user's PATH install for the bundle's spaced launcher", async () => {
+    const bundled = "/fixture/app/bin/ax-code "
+    const { runtime, cli } = createRuntime({
+      executables: ["/fixture/app/bin/ax-code", CLI],
+      pathValue: "/fixture/app/bin",
+      env: { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: bundled },
+      fs: {
+        ...createFs(["/fixture/app/bin/ax-code", CLI]),
+        realpathSync: (candidate) => candidate === bundled ? "/fixture/bundle/bin/ax-code" : candidate,
+      },
+    })
+    expect((await runtime.getStatus()).path).toBe("/fixture/app/bin/ax-code")
+    expect(cli.calls[0]).toEqual(["/fixture/app/bin/ax-code", "--version"])
+  })
+
   it("prefers the PATH entry and skips the bundled launcher", () => {
     const bundled = "/Applications/AX Code.app/Contents/Resources/ax-code/bin/ax-code"
     const { runtime } = createRuntime({
@@ -158,6 +173,30 @@ describe("createAxCodeCliInstallRuntime", () => {
     expect(cli.calls).toEqual([[CLI, "--version"]])
     expect((await runtime.startUpgrade()).reason).toBe("manual-upgrade-required")
     expect(cli.calls.every((call) => call[1] === "--version")).toBe(true)
+  })
+
+  it("reads the version token from an ANSI-decorated AX Code banner", async () => {
+    const cli = createCli({ banner: (version) => `\u001b[32mAX Code version v${version} (commit abc)\u001b[0m` })
+    const { runtime } = createRuntime({ cli })
+    expect(await runtime.getStatus()).toMatchObject({
+      currentVersion: "7.25.0", checkSupported: true, updateAvailable: true,
+    })
+    expect(cli.calls[1]).toEqual([CLI, "upgrade", "check", "--json"])
+  })
+
+  it("does not run an upgrade capability probe for a malformed version banner", async () => {
+    const { runtime, cli } = createRuntime({ cli: createCli({ banner: (version) => `ax-code ${version}junk (commit abc)` }) })
+    expect(await runtime.getStatus()).toMatchObject({ currentVersion: null, canUpgrade: false, error: "unreadable" })
+    expect(cli.calls).toEqual([[CLI, "--version"]])
+  })
+
+  it.each(["7.26.0junk", null])("refuses an upgrade with an unverified target: %s", async (latest) => {
+    const { runtime, cli } = createRuntime({ cli: createCli({ latest }) })
+    expect(await runtime.getStatus()).toMatchObject({
+      currentVersion: "7.25.0", latestVersion: null, updateAvailable: null, error: "check-failed",
+    })
+    expect(await runtime.startUpgrade()).toMatchObject({ accepted: false })
+    expect(cli.calls.some(([, command, argument]) => command === "upgrade" && argument === "--method")).toBe(false)
   })
 
   it("reports a failed check without JSON as check-failed", async () => {
@@ -314,6 +353,13 @@ describe("createAxCodeCliInstallRuntime", () => {
     const { runtime } = createRuntime({ cli: createCli({ versions: ["7.27.0-rc.1"], latest: "7.26.1" }) })
     expect((await runtime.getStatus({ refresh: true })).updateAvailable).toBe(true)
     await runtime.startUpgrade()
+    await runtime.whenIdle()
+    expect((await runtime.getStatus()).upgrade).toMatchObject({ state: "failed", reason: "upgrade-failed" })
+  })
+
+  it("does not report success when the re-probed binary version is malformed", async () => {
+    const { runtime } = createRuntime({ cli: createCli({ versions: ["7.25.0", "7.26.0junk"] }) })
+    expect(await runtime.startUpgrade()).toMatchObject({ accepted: true })
     await runtime.whenIdle()
     expect((await runtime.getStatus()).upgrade).toMatchObject({ state: "failed", reason: "upgrade-failed" })
   })

@@ -1,4 +1,5 @@
 import type { DesktopSettings } from "@/lib/desktop"
+import { readDirectoryPath } from "@/lib/pathValues"
 
 type UpdateDesktopSettings = (changes: Partial<DesktopSettings>) => Promise<void>
 
@@ -18,7 +19,7 @@ export const saveAxCodeCliSettings = async ({
   reloadAxCodeConfiguration: ReloadAxCodeConfiguration
 }): Promise<SaveAxCodeCliSettingsResult> => {
   try {
-    await updateDesktopSettings({ axCodeBinary: binaryPath.trim() })
+    await updateDesktopSettings({ axCodeBinary: readDirectoryPath(binaryPath) ?? "" })
     await reloadAxCodeConfiguration({
       message: reloadMessage,
       mode: "projects",

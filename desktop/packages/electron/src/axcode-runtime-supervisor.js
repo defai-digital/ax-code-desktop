@@ -56,6 +56,8 @@ const fs = require("fs")
 const net = require("net")
 const path = require("path")
 const { createSupervisionFsm } = require("./supervision-fsm")
+const { readAxCodeBinaryOverrides, readBundledAxCodeBinary } = require("../../../shared/ax-code-binary-paths.mjs")
+const { readLiteralPath } = require("../../../shared/path-values.mjs")
 const { getRuntimeAuthPassword } = require("./runtime-auth-password")
 
 const RUNTIME_HOSTNAME = "127.0.0.1"
@@ -110,15 +112,6 @@ function computeInitialStartRetryDelayMs(attemptNumber, config = START_RETRY) {
   return Math.min(config.baseDelayMs * 3 ** (attemptNumber - 1), config.capDelayMs)
 }
 
-// Explicit env overrides, highest precedence after settings — same list as the
-// web lifecycle's resolveAxCodeCliPath (env-runtime.js).
-const BINARY_ENV_KEYS = [
-  "AX_CODE_BINARY",
-  "AX_CODE_PATH",
-  "AX_CODE_DESKTOP_AX_CODE_PATH",
-  "AX_CODE_DESKTOP_AX_CODE_BIN",
-]
-
 const trim = (value) => (typeof value === "string" ? value.trim() : "")
 
 const defaultIsExecutable = (candidate) => {
@@ -143,7 +136,7 @@ const defaultIsExecutable = (candidate) => {
 // a user-selected installation path must not be expanded as cmd variables.
 function resolveSpawnInvocation(binary, args, platform, env) {
   if (platform === "win32" && /\.(cmd|bat)$/i.test(binary)) {
-    const comspec = trim(env.ComSpec) || trim(env.COMSPEC) || "cmd.exe"
+    const comspec = readLiteralPath(env.ComSpec) || readLiteralPath(env.COMSPEC) || "cmd.exe"
     const quoted = ['"%AX_CODE_DESKTOP_RUNTIME_LAUNCHER%"', ...args].join(" ")
     return {
       command: comspec,
@@ -185,17 +178,16 @@ const searchPathEnvValue = (env, platform) => {
 // explicit env vars > bundled staged binary > ax-code on PATH. Returns
 // { binary, source } or null when nothing executable is found.
 function resolveRuntimeBinary({ env, settings, isExecutable = defaultIsExecutable, platform = process.platform }) {
-  const fromSettings = trim(settings && settings.axCodeBinary)
+  const fromSettings = readLiteralPath(settings?.axCodeBinary)
   if (fromSettings && isExecutable(fromSettings)) {
     return { binary: fromSettings, source: "settings" }
   }
-  for (const key of BINARY_ENV_KEYS) {
-    const candidate = trim(env[key])
-    if (candidate && isExecutable(candidate)) {
+  for (const candidate of readAxCodeBinaryOverrides(env)) {
+    if (isExecutable(candidate)) {
       return { binary: candidate, source: "env" }
     }
   }
-  const bundled = trim(env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY)
+  const bundled = readBundledAxCodeBinary(env)
   if (bundled && isExecutable(bundled)) {
     return { binary: bundled, source: "bundled" }
   }

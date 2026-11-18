@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
+import { createPersistedFields, persistedRecord } from "@/lib/persistedFields"
 import { getSafeStorage } from "./utils/safeStorage"
 
 /** Most folders anyone dismisses hints for; the oldest entries go first. */
@@ -46,6 +47,17 @@ export const useRepositoryHintStore = create<RepositoryHintStore>()(
       name: "repository-hints",
       storage: createJSONStorage(() => getSafeStorage()),
       version: 1,
+      ...createPersistedFields<RepositoryHintStore>({
+        dismissedChildren: persistedRecord(
+          (value) => Array.isArray(value)
+            ? value.filter((entry): entry is string => typeof entry === "string") : undefined,
+          MAX_REMEMBERED_FOLDERS,
+        ),
+        dismissedParent: persistedRecord(
+          (value) => typeof value === "string" ? value : undefined,
+          MAX_REMEMBERED_FOLDERS,
+        ),
+      }),
     },
   ),
 )

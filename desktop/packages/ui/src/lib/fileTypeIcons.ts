@@ -1,4 +1,5 @@
 import { getLanguageFromExtension } from "@/lib/toolHelpers"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { FILE_TYPE_ICON_IDS } from "@/lib/fileTypeIconIds"
 import type { ThemeVariant } from "@/types/theme"
 // Referenced as an external asset URL (not inlined) so the ~1MB sprite stays
@@ -168,7 +169,7 @@ const isNonEmptyString = (value: unknown): value is string => {
 }
 
 const resolveIconName = (filePath: string, extension?: string): string => {
-  const normalizedPath = filePath.replace(/\\/g, "/")
+  const normalizedPath = normalizePathSeparators(filePath)
   const fileName = normalizedPath.split("/").pop()?.toLowerCase() || ""
 
   if (fileNameIconMap[fileName]) {

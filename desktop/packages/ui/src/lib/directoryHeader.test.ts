@@ -38,3 +38,9 @@ describe("encodeDirectoryHeader", () => {
     expect(headers.get("x-ax-code-directory")).toBe(encodeURIComponent("/Users/a/项目"))
   })
 })
+
+
+test.each(["/workspace/repo ", " /workspace/repo", "/workspace/repo\t"])("fetch header serialization preserves literal boundary whitespace: %j", directory => {
+  const serialized = new Headers({ "x-ax-code-directory": encodeDirectoryHeader(directory) }).get("x-ax-code-directory")
+  expect(decodeURIComponent(serialized!)).toBe(directory)
+})

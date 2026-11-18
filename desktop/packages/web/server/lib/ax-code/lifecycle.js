@@ -1,6 +1,7 @@
 import { spawn, spawnSync } from "node:child_process"
 import net from "node:net"
 import { startHeadlessBackend, isLoopbackHostname as isSdkLoopbackHostname } from "@defai-digital/ax-code-sdk/headless"
+import { readLiteralPath } from "../../../../../shared/path-values.mjs"
 import { createManagedAxCodeRuntimeAdapter } from "./managed-ax-code-runtime.js"
 import { evaluateAxCodeCompatibility } from "./version-compat.js"
 import { discardResponseBody } from "../discard-response-body.js"
@@ -296,11 +297,6 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     args,
     signal,
   }) => {
-    state.lastAxCodeLaunchDiagnostics = {
-      ...state.lastAxCodeLaunchDiagnostics,
-      via: "legacy-spawn",
-    }
-
     const child = spawn(binary, args, {
       cwd,
       env: processEnv,
@@ -396,6 +392,8 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       }
     })
 
+    child.stdout?.resume?.()
+    child.stderr?.resume?.()
     return {
       url,
       async close() {
@@ -413,79 +411,36 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     shellEnvKeysCount = 0,
     signal,
   }) => {
-    let binary = (process.env.AX_CODE_BINARY || "ax-code").trim() || "ax-code"
+    let binary = readLiteralPath(process.env.AX_CODE_BINARY) ?? "ax-code"
     let args = ["serve", "--hostname", hostname, "--port", String(port ?? 0)]
     let launchWrapperType = null
-    const pathSep = process.platform === "win32" ? ";" : ":"
+    const windows = process.platform === "win32"
+    const pathSep = windows ? ";" : ":"
 
-    // Windows/WSL: use legacy spawn path
-    if (process.platform === "win32") {
-      if (state.useWslForAxCode) {
-        const wslBinary = state.resolvedWslBinary || resolveWslExecutablePath()
-        if (!wslBinary) {
-          throw new Error("WSL executable not found while attempting to launch ax-code from WSL")
-        }
-        const wslAxCode = state.resolvedWslAxCodePath?.trim() || "ax-code"
-        binary = wslBinary
-        args = buildWslExecArgs(
-          [wslAxCode, "serve", "--hostname", hostname, "--port", String(port ?? 0)],
-          state.resolvedWslDistro,
-        )
-      } else {
-        const launchSpec = resolveManagedAxCodeLaunchSpec(binary)
-        if (launchSpec?.binary) {
-          if (launchSpec.wrapperType) {
-            console.log(`Launching ax-code via ${launchSpec.wrapperType}: ${launchSpec.binary}`)
-          }
-          launchWrapperType = launchSpec.wrapperType || null
-          binary = launchSpec.binary
-          args = [...(Array.isArray(launchSpec.args) ? launchSpec.args : []), ...args]
-        }
+    if (windows && state.useWslForAxCode) {
+      const wslBinary = state.resolvedWslBinary || resolveWslExecutablePath()
+      if (!wslBinary) {
+        throw new Error("WSL executable not found while attempting to launch ax-code from WSL")
       }
-
-      const pathEntryCount = countPathEntries(processEnv?.PATH, pathSep)
-      state.lastAxCodeLaunchDiagnostics = {
-        launchedAt: new Date().toISOString(),
-        binary,
-        args,
-        cwd,
-        hostname,
-        port,
-        wrapperType: launchWrapperType,
-        pathEntryCount,
-        hasShellEnv: shellEnvKeysCount > 0,
-        shellEnvKeysCount,
-        via: "legacy-spawn",
+      const wslAxCode = readLiteralPath(state.resolvedWslAxCodePath) ?? "ax-code"
+      binary = wslBinary
+      args = buildWslExecArgs([wslAxCode, ...args], state.resolvedWslDistro)
+    } else {
+      const launchSpec = resolveManagedAxCodeLaunchSpec(binary)
+      if (launchSpec?.binary) {
+        launchWrapperType = launchSpec.wrapperType || null
+        binary = launchSpec.binary
+        args = [...(Array.isArray(launchSpec.args) ? launchSpec.args : []), ...args]
       }
-      console.log("[AX Code] Launching managed server (Windows)", state.lastAxCodeLaunchDiagnostics)
-      markStartup(
-        "ax-code.process.launched",
-        {
-          via: "legacy-spawn",
-          platform: "win32",
-          hostname,
-          port: port || "auto",
-          wrapperType: launchWrapperType,
-        },
-        { source: "web-server", milestone: "ax-code.process.launched" },
-      )
-      return createManagedAxCodeServerProcessLegacy({ hostname, port, timeout, cwd, env: processEnv, binary, args, signal })
     }
 
-    // macOS/Linux: use the SDK-owned headless launcher for all managed CLI
-    // shapes. The workspace SDK accepts explicit binary/args, so wrapper
-    // launches and custom binary names still get SDK readiness/auth/shutdown
-    // behavior instead of the older stdout-parsing spawn path.
-    const launchSpec = resolveManagedAxCodeLaunchSpec(binary)
-    if (launchSpec?.binary) {
-      launchWrapperType = launchSpec.wrapperType || null
-      binary = launchSpec.binary
-      args = [...(Array.isArray(launchSpec.args) ? launchSpec.args : []), ...args]
+    // SDK 2.6.69 trims options.binary before spawn, which can select a different executable.
+    const directSpawn = windows || binary.trim() !== binary
+    if (!windows && directSpawn && !isSdkLoopbackHostname(hostname)) {
+      throw new Error(`Managed AX Code HTTP API requires a loopback hostname. Refusing hostname ${hostname}.`)
     }
-
-    const envPath = typeof processEnv?.PATH === "string" ? processEnv.PATH : process.env.PATH || ""
-    const password = processEnv?.AX_CODE_SERVER_PASSWORD
-    const pathEntryCount = countPathEntries(envPath, pathSep)
+    const via = directSpawn ? "legacy-spawn" : "sdk-headless"
+    const envPath = processEnv?.PATH ?? process.env.PATH ?? ""
     state.lastAxCodeLaunchDiagnostics = {
       launchedAt: new Date().toISOString(),
       binary,
@@ -494,16 +449,17 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       hostname,
       port,
       wrapperType: launchWrapperType,
-      pathEntryCount,
+      pathEntryCount: countPathEntries(envPath, pathSep),
       hasShellEnv: shellEnvKeysCount > 0,
       shellEnvKeysCount,
-      via: "sdk-headless",
+      via,
     }
-    console.log("[AX Code] Launching managed server via SDK", state.lastAxCodeLaunchDiagnostics)
+    console.log("[AX Code] Launching managed server", state.lastAxCodeLaunchDiagnostics)
     markStartup(
       "ax-code.process.launched",
       {
-        via: "sdk-headless",
+        via,
+        platform: process.platform,
         hostname,
         port: port || "auto",
         wrapperType: launchWrapperType,
@@ -511,12 +467,24 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       { source: "web-server", milestone: "ax-code.process.launched" },
     )
 
-    // Strip AX_CODE_SERVER_PASSWORD from the env spread — the SDK sets it from
-    // auth.password, so passing it twice is confusing and redundant. Also strip the
-    // embedded-browser marker: its token lives only in the supervised runtime's env,
-    // so inheriting the marker alone leaves the runtime with neither the project
-    // browser (403, no token) nor the Chrome bridge (embedded mode blocks it).
-    const { AX_CODE_SERVER_PASSWORD: _pass, AX_CODE_BROWSER_MODE: _browserMode, ...sdkEnv } = processEnv ?? {}
+    // The embedded-browser token belongs to the supervised runtime. Inheriting
+    // its mode alone would disable both the project browser and Chrome bridge.
+    const { AX_CODE_BROWSER_MODE: _browserMode, ...launchEnv } = processEnv ?? {}
+    if (directSpawn) {
+      return createManagedAxCodeServerProcessLegacy({
+        hostname,
+        port,
+        timeout,
+        cwd,
+        env: windows ? launchEnv : { ...launchEnv, AX_CODE_SERVER_USERNAME: "ax-code", AX_CODE_PROJECT: cwd },
+        binary,
+        args,
+        signal,
+      })
+    }
+
+    // The SDK sets AX_CODE_SERVER_PASSWORD from auth.password.
+    const { AX_CODE_SERVER_PASSWORD: password, ...sdkEnv } = launchEnv
 
     let handle
     try {
@@ -795,6 +763,8 @@ export const createAxCodeLifecycleRuntime = (deps) => {
   }
 
   let activeStartSlot = null
+  let pendingSupervisedRefreshes = 0
+  let supervisedRefreshTail = Promise.resolve()
 
   const startAxCode = async () => {
     // Join a start already in flight: bootstrap and a config-change restart
@@ -914,7 +884,9 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         }
       }
 
-      if (state.isExternalAxCode) {
+      if (state.isExternalAxCode || env.ENV_CONFIGURED_AX_CODE_HOST) {
+        // The configured host already owns execution during cold boot, before discovery has finished.
+        state.isExternalAxCode = true
         console.log("Re-probing external ax-code server...")
         // The host URL's own port is the fallback when no explicit
         // AX_CODE_PORT was configured alongside AX_CODE_HOST.
@@ -924,6 +896,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
         const healthy = await managedAxCodeRuntime.probeExternalServer(probePort, probeOrigin)
         if (healthy) {
           console.log(`External ax-code server on port ${probePort} is healthy`)
+          state.axCodeBaseUrl = probeOrigin ?? null
           setAxCodePortInternal(probePort)
           state.isAxCodeReady = true
           state.lastAxCodeError = null
@@ -1031,7 +1004,7 @@ export const createAxCodeLifecycleRuntime = (deps) => {
       throw error
     } finally {
       state.currentRestartPromise = null
-      state.isRestartingAxCode = false
+      state.isRestartingAxCode = pendingSupervisedRefreshes > 0
     }
   }
 
@@ -1128,30 +1101,30 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     throw new Error(`Agent "${agentName}" not available after ax-code restart`)
   }
 
-  const refreshAxCodeAfterConfigChange = async (reason, options = {}) => {
+  const refreshRuntimeConfig = async (reason, options, supervised) => {
     const { agentName, readyTimeoutMs } = options
     const effectiveReadyTimeoutMs = Number.isFinite(readyTimeoutMs) && readyTimeoutMs > 0 ? readyTimeoutMs : undefined
 
     console.log(`Refreshing ax-code after ${reason}`)
-    clearResolvedAxCodeBinary()
-    await applyAxCodeBinaryFromSettings()
-
-    // S2.5c: in external mode under the Electron utilityProcess, main
-    // supervises the runtime — a settings.axCodeBinary change can only take
-    // effect if MAIN restarts the supervised process (a local re-probe keeps
-    // talking to the old binary). Ask main to restart with re-resolution
-    // (serialized/rate-limited there); the re-probe below then converges on
-    // the restarted runtime via the fixed port.
-    if (state.isExternalAxCode && typeof requestMainRuntimeRestart === "function") {
-      requestMainRuntimeRestart(reason)
-    }
-
-    await restartAxCode()
-
     try {
+      clearResolvedAxCodeBinary()
+      await applyAxCodeBinaryFromSettings()
+
+      if (supervised) {
+        if (state.isShuttingDown) throw new Error("Shutdown in progress")
+        state.isAxCodeReady = false
+        try {
+          // The fixed port can still answer from the previous process until main completes the restart.
+          await requestMainRuntimeRestart(reason, effectiveReadyTimeoutMs)
+        } finally {
+          // Drain older probes before either verifying the replacement or publishing its failure.
+          await state.currentRestartPromise?.catch(() => {})
+        }
+        if (state.isShuttingDown) throw new Error("Shutdown in progress")
+      }
+
+      await restartAxCode()
       await waitForAxCodeReady(effectiveReadyTimeoutMs)
-      state.isAxCodeReady = true
-      state.axCodeNotReadySince = 0
 
       if (agentName) {
         await waitForAgentPresence(agentName)
@@ -1162,9 +1135,31 @@ export const createAxCodeLifecycleRuntime = (deps) => {
     } catch (error) {
       state.isAxCodeReady = false
       state.axCodeNotReadySince = Date.now()
+      state.lastAxCodeError = error instanceof Error ? error.message : String(error)
       console.error(`Failed to refresh ax-code after ${reason}:`, error.message)
       throw error
     }
+  }
+
+  const refreshAxCodeAfterConfigChange = (reason, options = {}) => {
+    if (typeof requestMainRuntimeRestart !== "function") {
+      return refreshRuntimeConfig(reason, options, false)
+    }
+
+    // Keep readiness closed across queued requests and their post-restart checks.
+    clearBootstrapRetryTimer()
+    pendingSupervisedRefreshes += 1
+    state.isRestartingAxCode = true
+    state.isAxCodeReady = false
+    state.axCodeNotReadySince = Date.now()
+    const refresh = supervisedRefreshTail
+      .then(() => refreshRuntimeConfig(reason, options, true))
+      .finally(() => {
+        pendingSupervisedRefreshes -= 1
+        state.isRestartingAxCode = pendingSupervisedRefreshes > 0
+      })
+    supervisedRefreshTail = refresh.catch(() => {})
+    return refresh
   }
 
   // ── Bounded auto-retry after a failed bootstrap ─────────────────────────

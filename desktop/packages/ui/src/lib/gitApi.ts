@@ -138,18 +138,6 @@ export async function unstageGitFiles(directory: string, filePaths: string[]): P
   return gitHttp.unstageGitFiles(directory, filePaths)
 }
 
-export async function stageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
-  const runtime = getRuntimeGit()
-  if (runtime?.stageGitHunk) return runtime.stageGitHunk(directory, filePath, patch)
-  return gitHttp.stageGitHunk(directory, filePath, patch)
-}
-
-export async function unstageGitHunk(directory: string, filePath: string, patch: string): Promise<void> {
-  const runtime = getRuntimeGit()
-  if (runtime?.unstageGitHunk) return runtime.unstageGitHunk(directory, filePath, patch)
-  return gitHttp.unstageGitHunk(directory, filePath, patch)
-}
-
 export async function getGitBranches(directory: string): Promise<import("./api/types").GitBranch> {
   const runtime = getRuntimeGit()
   if (runtime) return runtime.getGitBranches(directory)
@@ -270,8 +258,8 @@ export async function generatePullRequestDescription(
         const response = await getCommitFiles(directory, commit.hash)
         const files = Array.isArray(response?.files) ? response.files : []
         for (const file of files) {
-          if (typeof file?.path === "string" && file.path.trim().length > 0) {
-            filesSet.add(file.path.trim())
+          if (typeof file?.path === "string" && file.path.length > 0) {
+            filesSet.add(file.path)
           }
         }
       } catch (error) {
@@ -400,7 +388,7 @@ const runStructuredGenerationInActiveSession = async ({
     modelID: generationSession.modelID,
     agent: generationSession.agent,
   })
-  const trimmedDirectory = typeof directory === "string" ? directory.trim() : ""
+  const trimmedDirectory = typeof directory === "string" ? directory : ""
   const visiblePromptText = typeof visiblePrompt === "string" ? visiblePrompt.trim() : ""
   const hiddenPromptText = typeof hiddenPrompt === "string" ? hiddenPrompt.trim() : ""
   const promptParts: Array<{ type: "text"; text: string; synthetic?: boolean }> = []

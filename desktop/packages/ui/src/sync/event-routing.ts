@@ -1,6 +1,7 @@
 import { getProjectPathIdentityKey } from "@/lib/projectResolution"
 import type { Event, Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import type { ChildStoreManager } from "./child-store"
 import type { State } from "./types"
 
@@ -29,9 +30,7 @@ export const normalizeEventDirectory = (rawDirectory: string): string => {
   if (!rawDirectory || rawDirectory === "global") {
     return rawDirectory
   }
-  const normalized = rawDirectory.replace(/\\/g, "/").replace(/^([a-z]):/, (_, l: string) => l.toUpperCase() + ":")
-  // Strip trailing slashes to match child store keys (normalizeDirectoryPath in useDirectoryStore)
-  return normalized.length > 1 ? normalized.replace(/\/+$/, "") : normalized
+  return normalizeProjectPath(rawDirectory) ?? ""
 }
 
 export const getSessionIdFromPayload = (event: Event): string | null => {

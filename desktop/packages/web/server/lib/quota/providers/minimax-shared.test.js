@@ -1,6 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { transformMinimaxWindows } from "./minimax-shared.js"
 
+const authFile = vi.hoisted(() => ({ readAuthFile: vi.fn() }))
+vi.mock("../../ax-code/auth.js", () => authFile)
+
 describe("MiniMax quota transforms", () => {
   it("treats usage counts as consumed quota for both MiniMax regions", () => {
     const windows = transformMinimaxWindows({
@@ -33,19 +36,21 @@ describe("MiniMax quota transforms", () => {
 })
 
 describe("minimax providers", () => {
-  const authFile = vi.hoisted(() => ({ readAuthFile: vi.fn() }))
-  vi.mock("../../ax-code/auth.js", () => authFile)
-
   afterEach(() => {
     vi.unstubAllGlobals()
     authFile.readAuthFile.mockReset()
   })
 
   it.each([
-    ["minimax-coding-plan", "MiniMax Token Plan", "https://api.minimax.io/"],
-    ["minimax-cn-coding-plan", "MiniMax Token Plan (China)", "https://www.minimaxi.com/"],
-  ])("%s keeps its identity and endpoint", async (providerId, providerName, endpointPrefix) => {
-    const provider = await import(`./${providerId}.js`)
+    [() => import("./minimax-coding-plan.js"), "minimax-coding-plan", "MiniMax Token Plan", "https://api.minimax.io/"],
+    [
+      () => import("./minimax-cn-coding-plan.js"),
+      "minimax-cn-coding-plan",
+      "MiniMax Token Plan (China)",
+      "https://www.minimaxi.com/",
+    ],
+  ])("provider %# keeps its identity and endpoint", async (loadProvider, providerId, providerName, endpointPrefix) => {
+    const provider = await loadProvider()
     expect(provider.providerId).toBe(providerId)
     expect(provider.providerName).toBe(providerName)
     expect(provider.aliases).toEqual([providerId])

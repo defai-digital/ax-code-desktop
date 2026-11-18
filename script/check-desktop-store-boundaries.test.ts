@@ -113,12 +113,15 @@ describe("R2 sync internals encapsulation", () => {
     ).toEqual([])
   })
 
-  test("honors the frozen ReconnectBanner exception only for event-pipeline", () => {
+  test("requires ReconnectBanner to use the public retry command", () => {
     const banner = componentFile("ui", "ReconnectBanner.tsx")
 
-    expect(analyzeSyncInternalImports(banner, 'import { requestSyncRetryNow } from "@/sync/event-pipeline"')).toEqual(
-      [],
-    )
+    expect(
+      analyzeSyncInternalImports(banner, 'import { requestSyncRetryNow } from "@/sync/event-pipeline"'),
+    ).toHaveLength(1)
+    expect(
+      analyzeSyncInternalImports(banner, 'import { requestSyncRetryNow } from "@/lib/event-stream/commands"'),
+    ).toEqual([])
     expect(analyzeSyncInternalImports(banner, 'import { ChildStoreManager } from "@/sync/child-store"')).toHaveLength(1)
   })
 })

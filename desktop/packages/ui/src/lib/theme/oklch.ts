@@ -39,7 +39,7 @@ export function parseHex(value: string): Rgba {
   }
 }
 
-export function toHex(color: Rgba): string {
+function toHex(color: Rgba): string {
   const channel = (value: number) =>
     Math.max(0, Math.min(255, Math.round(value)))
       .toString(16)

@@ -4,14 +4,15 @@ import { axCodeClient } from "@/lib/ax-code/client"
 import { startConfigUpdate, finishConfigUpdate, updateConfigUpdateMessage } from "@/lib/configUpdate"
 import { emitConfigChange, scopeMatches, subscribeToConfigChanges } from "@/lib/configSync"
 import { createSingleFlight } from "@/lib/singleFlight"
-import { getSafeStorage } from "./utils/safeStorage"
-import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { encodeDirectoryHeader } from "@/lib/directoryHeader"
 import { streamDebugEnabled } from "@/stores/utils/streamDebug"
 import { getActiveConfigDirectory } from "@/stores/utils/configDirectory"
 import { getDirectoryCacheKey } from "@/stores/utils/cacheKey"
 import { buildRecordSignature } from "@/stores/utils/signature"
+import { getSafeStorage } from "./utils/safeStorage"
+import { sleep, waitForAxCodeConnection } from "./utils/axCodeConnection"
 import { setConfigCacheEntry } from "./utils/configCache"
 
 export type CommandScope = "user" | "project"
@@ -474,9 +475,7 @@ export const useCommandsStore = create<CommandsStore>()(
       {
         name: "commands-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({
-          selectedCommandName: state.selectedCommandName,
-        }),
+        ...createPersistedFields<CommandsStore>({ selectedCommandName: persistedNullableString }),
       },
     ),
     {

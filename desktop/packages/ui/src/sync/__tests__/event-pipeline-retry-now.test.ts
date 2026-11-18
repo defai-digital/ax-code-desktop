@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest"
 import type { EventPipelineInput } from "../event-pipeline"
-import { createEventPipeline, requestSyncRetryNow, SYNC_RETRY_NOW_EVENT } from "../event-pipeline"
+import { requestSyncRetryNow, SYNC_RETRY_NOW_EVENT } from "@/lib/event-stream/commands"
+import { createEventPipeline } from "../event-pipeline"
 import { createEventTarget, type TestEventTarget } from "./event-pipeline-test-helpers"
 
 const savedDocument = globalThis.document

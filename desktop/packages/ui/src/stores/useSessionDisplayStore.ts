@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import { persist } from "zustand/middleware"
+import { createPersistedFields, persistedBoolean, persistedEnum } from "@/lib/persistedFields"
 
 type SessionDisplayMode = "default" | "minimal"
 
@@ -43,11 +44,11 @@ export const useSessionDisplayStore = create<SessionDisplayStore>()(
     }),
     {
       name: "session-display-mode",
-      partialize: (state) => ({
-        displayMode: state.displayMode,
-        showRecentSection: state.showRecentSection,
-        showScheduledSection: state.showScheduledSection,
-        scheduledSectionCollapsed: state.scheduledSectionCollapsed,
+      ...createPersistedFields<SessionDisplayStore>({
+        displayMode: persistedEnum(["default", "minimal"]),
+        showRecentSection: persistedBoolean,
+        showScheduledSection: persistedBoolean,
+        scheduledSectionCollapsed: persistedBoolean,
       }),
     },
   ),

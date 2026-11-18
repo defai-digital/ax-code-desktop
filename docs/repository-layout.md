@@ -75,9 +75,57 @@ identify a cohesive responsibility with a small input/output contract. Preserve 
 ordering and side effects, then run both focused tests and the full gates.
 
 The Git service's `output-parsers.js` is one such extraction: it handles Git output records without running commands
-or accessing repository state. `service.js` retains orchestration and its public API.
+or accessing repository state, including index entries preserved during selected-file commits. `patch-validation.js`
+checks that both patch images name the declared file before index mutation. `service.js` retains orchestration and
+its public API.
+
+The config store owns provider selection and cached metadata state. External catalog parsing/HTTP fallback lives
+in `ui/src/lib/modelsDevMetadata.ts`, and settings defaults share the adapter in `lib/configDefaults.ts`.
+The metadata loader under `stores/utils/` coordinates cancellation and request ownership without importing stores.
+
+Context-panel normalization, tab transforms and restore validation live in `ui/src/lib/contextPanelState.ts`;
+the UI store keeps actions and persistence ownership. Renderer and Files tab state share `lib/filesViewPath.ts`.
+The older component path-helper module remains a compatibility re-export. Files tab payload validation and root
+retention live in `lib/filesViewTabsState.ts`; the Files store restores only validated data and owns mutations.
+
+Settings metadata retires the former Magic Prompts and Snippets settings destinations to Home. Their editor pages
+and private selection/draft state have been removed. Composer prompt/snippet loading and expansion remain active;
+server configuration APIs and legacy settings redirects keep their existing contracts.
+
+`components/chat/promptAutocomplete.ts` derives command/snippet/mention state for prompt editors. Editors retain
+insertion, focus and display state. Skills catalog settings reads share a fresh, fail-closed adapter so malformed
+payloads cannot authorize whole-list writes. `lib/contentHash.ts` preserves existing diff/review identities;
+`lib/messagePartFields.ts` supplies payload field access without importing sync internals into presentation.
+`lib/runtimeFilesApi.ts` centralizes the live injected Files API lookup used by command/config adapters.
+
+Persisted data uses a separate contract from live store actions. `lib/persistedFields.ts` shares declared fields and
+readers between serialization and hydration. UI, Config and permission preference payloads live in library modules;
+window navigation, pending work and runtime metadata remain live state. Custom queue/feed/review/terminal restorers
+retain their domain-specific recovery rules. `lib/mainTabs.ts` owns tab identity types without a store import.
+
+Shared value contracts also live outside store and sync ownership: `lib/shallowRecordEqual.ts` compares own keys and
+shallow values; `lib/desktopServerOrigin.ts` resolves the live Desktop server for configuration and Git HTTP calls;
+`lib/worktrees/worktreeName.ts` owns worktree slugging. `lib/floatingMenu.ts` keeps window close guards consistent.
+Onboarding shares install command rendering, clipboard feedback and CLI health reads within its component directory.
+Plain diff fallbacks share a lightweight component without eagerly importing the full diff renderer.
+The retired Magic Prompts editor's mutation/search APIs are removed; runtime prompt rendering still reads legacy overrides.
+
+Implementation-only value helpers stay private to their modules. Preserve supported UI primitive composition APIs
+and explicit worker/application entrypoints when auditing exports. A directory's `index.ts` alone does not prove it
+is a production entrypoint. The retired Plugins settings UI and store are removed; the service/runtime plugin API
+and old persisted JSON are retained. The renderer Git adapter exposes the remote URL reader used by identity filtering.
+Built-in prompt templates retain byte identity after removal of retired editor metadata.
 
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or
 runtime ownership follow the repository's product and architecture review process.
+
+
+`desktop/shared/path-values.mjs` owns environment-neutral literal directory values, Windows separator handling,
+project-path canonicalization, home expansion and path-output framing. UI and host project IDs share that canonical
+value. Host settings and Git share the injected `server/lib/directory-path.js` home adapter. Filesystem names from
+pickers, APIs, storage and Git retain whitespace and POSIX backslashes; labels, refs and URI text have separate parsers.
+Directory scopes still reject blanks. Git file lists discard empty names only, and host containment and literal
+pathspec checks continue to authorize the exact target. Path-valued Git output retains all pathname bytes and removes
+only its framing terminator; worktree lists use NUL records.

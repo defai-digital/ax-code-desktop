@@ -1,5 +1,8 @@
 import { EventEmitter } from "node:events"
 import childProcess from "node:child_process"
+import fs from "node:fs/promises"
+import os from "node:os"
+import path from "node:path"
 import { createRequire } from "node:module"
 import { describe, expect, test, vi } from "vitest"
 
@@ -190,6 +193,24 @@ async function startHealthy(ctx) {
 
 describe("resolveRuntimeBinary", () => {
   const isExecutable = (candidate) => candidate.startsWith("/exec/")
+
+  test.skipIf(process.platform === "win32")("preserves distinct executable paths for settings, environment and bundle", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ax-runtime-literal-"))
+    try {
+      const plain = path.join(directory, "ax-code")
+      const spaced = `${plain} `
+      for (const file of [plain, spaced]) await fs.writeFile(file, "#!/bin/sh\nexit 0\n", { mode: 0o755 })
+      for (const [settings, env, source] of [
+        [{ axCodeBinary: spaced }, { AX_CODE_BINARY: plain }, "settings"],
+        [{}, { AX_CODE_BINARY: spaced, AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: plain }, "env"],
+        [{}, { AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY: spaced, PATH: directory }, "bundled"],
+      ]) {
+        expect(resolveRuntimeBinary({ settings, env })).toEqual({ binary: spaced, source })
+      }
+    } finally {
+      await fs.rm(directory, { recursive: true, force: true })
+    }
+  })
 
   test("settings.axCodeBinary wins over every other source", () => {
     const resolved = resolveRuntimeBinary({

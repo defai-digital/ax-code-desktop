@@ -42,7 +42,7 @@ export function multiRunGroupKeyFromParsed(parsed: MultiRunTitleIdentity | null)
   return parsed.runGroup ? `${parsed.groupSlug}/${parsed.runGroup}` : parsed.groupSlug
 }
 
-export function multiRunLaneLabel(parsed: Pick<MultiRunTitleIdentity, "providerID" | "modelID" | "index">): string {
+function multiRunLaneLabel(parsed: Pick<MultiRunTitleIdentity, "providerID" | "modelID" | "index">): string {
   const base = `${parsed.providerID}/${parsed.modelID}`
   return parsed.index ? `${base} #${parsed.index}` : base
 }
@@ -51,7 +51,7 @@ export function multiRunLaneLabel(parsed: Pick<MultiRunTitleIdentity, "providerI
  * Compare-view key for a row: the metadata group when the session records one, otherwise the key
  * parsed from the title. Null for fusion sessions and rows that are not multi-run lanes.
  */
-export function multiRunGroupKey(
+function multiRunGroupKey(
   identity: MultiRunIdentity | null | undefined,
   parsed: MultiRunTitleIdentity | null,
 ): string | null {

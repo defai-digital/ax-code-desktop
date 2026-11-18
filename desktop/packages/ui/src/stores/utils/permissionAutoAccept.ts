@@ -1,6 +1,7 @@
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 
-export type PermissionAutoAcceptMap = Record<string, boolean>
+import type { PermissionAutoAcceptMap } from "@/lib/permissionPreferences"
+export type { PermissionAutoAcceptMap } from "@/lib/permissionPreferences"
 
 const buildSessionMap = (sessions: Session[]): Map<string, Session> => {
   const map = new Map<string, Session>()

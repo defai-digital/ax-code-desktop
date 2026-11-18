@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest"
 import type { GitHubPullRequestStatus } from "@/lib/api/types"
-import { createPullRequestCache, projectPullRequest, pullRequestKey, type PullRequestTarget } from "./pullRequestCache"
+import { pullRequestScopeKey } from "@/lib/pullRequestScope"
+import { createPullRequestCache, projectPullRequest, type PullRequestTarget } from "./pullRequestCache"
 import { filterMissionFacets } from "./missionControl"
 import type { SupervisionRow } from "./rows"
 
@@ -9,9 +10,11 @@ const target = (branch = "feature"): PullRequestTarget => ({
   directory: "/repo",
   branch,
   storeKey: branch,
+  remoteName: null,
   pr,
   fetchedAt: 0,
 })
+const pullRequestKey = (directory: string, branch: string) => pullRequestScopeKey({ directory, branch, remoteName: null })
 const flush = async () => {
   for (let i = 0; i < 12; i++) await Promise.resolve()
 }
@@ -73,7 +76,7 @@ describe("bounded PR demand", () => {
     const demand = cache.mount()
     demand.update([target()])
     await flush()
-    expect(cache.getSnapshot().get(pullRequestKey("/repo", "feature"))).toEqual({ pr, fetchedAt: 100_000, stale: true })
+    expect(cache.getSnapshot().get(pullRequestKey("/repo", "feature"))).toEqual({ pr, fetchedAt: 0, stale: true })
     demand.update([target()])
     demand.dispose()
     const again = cache.mount()
@@ -87,6 +90,22 @@ describe("bounded PR demand", () => {
     expect(cache.getSnapshot().get(pullRequestKey("/repo", "feature"))?.stale).toBeUndefined()
     again.dispose()
   })
+  test("treats a response produced on abort as a timeout", async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(100_000)
+    const fetch = vi.fn((_target: PullRequestTarget, signal: AbortSignal) =>
+      new Promise<typeof pr>((resolve) => {
+        signal.addEventListener("abort", () => resolve({ ...pr, number: 99 }), { once: true })
+      }),
+    )
+    const cache = createPullRequestCache(fetch, { timeoutMs: 100 })
+    const demand = cache.mount()
+    demand.update([target()])
+    await vi.advanceTimersByTimeAsync(100)
+    expect(cache.getSnapshot().get(pullRequestKey("/repo", "feature"))).toMatchObject({ pr, stale: true })
+    demand.dispose()
+  })
+
   test("aborts stuck requests, frees slots and ignores late completion", async () => {
     vi.useFakeTimers()
     vi.setSystemTime(100_000)

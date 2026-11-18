@@ -6,11 +6,11 @@ import { normalizeProjectPath } from "@/lib/projectResolution"
 import { classifyWikiVisualization, type WikiLoadState } from "./snapshot"
 
 /** Agent name the TUI sends when the user explicitly asks for generation. */
-export const WIKI_BUILD_AGENT = "build"
+const WIKI_BUILD_AGENT = "build"
 
 export const WIKI_MAINTENANCE_POLL_MS = 1500
 
-export function wikiClient(directory: string | null | undefined) {
+function wikiClient(directory: string | null | undefined) {
   const normalized = normalizeProjectPath(directory)
   if (!normalized) return axCodeClient.getApiClient()
   return axCodeClient.getScopedApiClient(normalized)

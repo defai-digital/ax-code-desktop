@@ -1,6 +1,6 @@
 import { create } from "zustand"
 import { devtools, persist, createJSONStorage } from "zustand/middleware"
-import { getSafeStorage } from "./utils/safeStorage"
+import { createPersistedFields, persistedNullableString } from "@/lib/persistedFields"
 import {
   getGitIdentities,
   createGitIdentity,
@@ -13,6 +13,7 @@ import type { DiscoveredGitCredential, GitIdentityAuthType, GitIdentityProfile }
 import { updateDesktopSettings } from "@/lib/persistence"
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { API_ENDPOINTS } from "@/lib/http"
+import { getSafeStorage } from "./utils/safeStorage"
 
 export type { DiscoveredGitCredential, GitIdentityAuthType, GitIdentityProfile }
 
@@ -239,9 +240,7 @@ export const useGitIdentitiesStore = create<GitIdentitiesStore>()(
       {
         name: "git-identities-store",
         storage: createJSONStorage(() => getSafeStorage()),
-        partialize: (state) => ({
-          selectedProfileId: state.selectedProfileId,
-        }),
+        ...createPersistedFields<GitIdentitiesStore>({ selectedProfileId: persistedNullableString }),
       },
     ),
     {

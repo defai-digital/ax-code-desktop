@@ -1,4 +1,6 @@
 import React from "react"
+import { readDirectoryPath } from "@/lib/pathValues"
+import { normalizePathSeparators } from "@/lib/pathValues"
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 import { RuntimeAPIProvider } from "@/contexts/RuntimeAPIProvider"
 import { registerRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
@@ -45,7 +47,7 @@ const readMiniChatConfig = (): MiniChatConfig => {
   const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : new URLSearchParams()
   const mode = params.get("mode") === "session" ? "session" : "draft"
   const sessionId = params.get("sessionId")?.trim() || null
-  const directory = params.get("directory")?.trim() || null
+  const directory = readDirectoryPath(params.get("directory")) || null
   const projectId = params.get("projectId")?.trim() || null
   return { mode, sessionId, directory, projectId }
 }
@@ -178,7 +180,7 @@ const MiniChatBootstrap: React.FC<{ config: MiniChatConfig }> = ({ config }) => 
 
       await Promise.all(
         projects.map(async (project) => {
-          const projectPath = project.path.replace(/\\/g, "/").replace(/\/+$/, "")
+          const projectPath = normalizePathSeparators(project.path).replace(/\/+$/, "")
           if (!projectPath) return
           try {
             const cachedIsGitRepo = useGitStore.getState().directories.get(projectPath)?.isGitRepo

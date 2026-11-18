@@ -529,6 +529,7 @@ function spawnServerProcess(wire) {
         // is what guarantees the web never managed-spawns a second runtime.
         // The runtime password is already shared via AX_CODE_SERVER_PASSWORD
         // above.
+        AX_CODE_DESKTOP_MAIN_SUPERVISES_RUNTIME: runtimeSupervision ? "1" : "0",
         ...(runtimeSupervision
           ? {
               AX_CODE_PORT: String(runtimeSupervision.port),
@@ -562,8 +563,14 @@ function spawnServerProcess(wire) {
     if (settingsWriteHandler.handleMessage(msg)) return
     // S2.5c: configuration-driven runtime restart requests (settings.
     // axCodeBinary changes) restart the main-supervised runtime with
-    // re-resolution; serialized and a no-op in escape-hatch mode.
-    if (runtimeRestartRequests.handleMessage(msg)) return
+    // re-resolution. Correlated replies belong to the requesting utility process.
+    if (msg?.type === "runtime-restart-request") {
+      if (serverChild !== child) return
+      runtimeRestartRequests.handleMessage(msg, (reply) => {
+        if (serverChild === child) child.postMessage(reply)
+      })
+      return
+    }
     if (msg?.type === "runtime-busy") {
       // S2.5c: the web server reports its active-session count so the
       // supervisor's wedged-kill can honor the busy-session restart grace.

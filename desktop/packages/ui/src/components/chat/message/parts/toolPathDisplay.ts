@@ -1,4 +1,5 @@
 import { normalizeProjectPath, projectPathMatchesRoot } from "@/lib/projectResolution"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 export const normalizeToolDisplayPath = (value: string): string => normalizeProjectPath(value) ?? ""
 
@@ -57,7 +58,7 @@ export const toAbsoluteToolPath = (currentDirectory: string, filePath: string): 
     return normalizeToolDisplayPath(filePath)
   }
 
-  const normalizedPath = normalizeToolDisplayPath(filePath)
+  const normalizedPath = normalizeToolDisplayPath(normalizePathSeparators(filePath, currentDirectory))
   if (!normalizedPath) {
     return ""
   }

@@ -1,5 +1,6 @@
 import React from "react"
 import { Dialog } from "@base-ui/react/dialog"
+import { hasOpenFloatingMenu } from "@/lib/floatingMenu"
 import { cn } from "@/lib/utils"
 import { useI18n } from "@/lib/i18n"
 import { useCancelTransientMenuFocusOut, MenuDialogTimingContext, useMenuDialogCommit } from "@/lib/menuDialogFocus"
@@ -26,15 +27,6 @@ export const SettingsWindow: React.FC<SettingsWindowProps> = ({ open, onOpenChan
   const descriptionId = React.useId()
   const timing = React.useMemo(() => ({ open, request: menuRequest }), [open, menuRequest])
 
-  const hasOpenFloatingMenu = React.useCallback(() => {
-    if (typeof document === "undefined") {
-      return false
-    }
-
-    return Boolean(
-      document.querySelector('[data-slot="dropdown-menu-content"][data-open], [data-slot="select-content"][data-open]'),
-    )
-  }, [])
 
   const handleOpenChange = useCancelTransientMenuFocusOut(
     open,

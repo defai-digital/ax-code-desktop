@@ -15,7 +15,7 @@ const AUTO_PAUSED_ERROR_PREFIX = "auto-paused"
  * failures). The runtime records that only as a prefixed task-level error, so
  * the member's `taskError` is read, never the latest run's error.
  */
-export const isPausedByFailurePolicy = (task: Pick<ScheduledTask, "status" | "taskError">): boolean =>
+const isPausedByFailurePolicy = (task: Pick<ScheduledTask, "status" | "taskError">): boolean =>
   task.status === "paused" && (task.taskError?.startsWith(AUTO_PAUSED_ERROR_PREFIX) ?? false)
 
 /**

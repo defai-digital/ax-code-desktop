@@ -2,7 +2,9 @@ import { spawn as nodeSpawn, spawnSync as nodeSpawnSync } from "node:child_proce
 import nodeFs from "node:fs"
 import nodeOs from "node:os"
 import nodePath from "node:path"
-import { compareVersions } from "./version-compat.js"
+import { readBundledAxCodeBinary } from "../../../../../shared/ax-code-binary-paths.mjs"
+import { readLiteralPath } from "../../../../../shared/path-values.mjs"
+import { compareAxCodeVersions, parseAxCodeVersion } from "../../../../../shared/ax-code-version.mjs"
 
 // ── Standalone AX Code CLI/TUI ──────────────────────────────────────────────
 // Packaged Desktop runs its own pinned runtime, which only an app update
@@ -62,10 +64,9 @@ export const buildCliEnv = (env, pathValue) => {
 const ANSI_PATTERN = /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007]*\u0007/g
 export const stripAnsi = (value) => String(value ?? "").replace(ANSI_PATTERN, "")
 
-const trimVersion = (value) => {
-  if (typeof value !== "string") return null
-  const match = value.trim().match(/v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)/)
-  return match ? match[1] : null
+const readCliVersion = (value) => {
+  const parsed = parseAxCodeVersion(value)
+  return parsed && parsed.parts.length >= 3 ? parsed.version : null
 }
 
 // Parses the JSON report of `ax-code upgrade check --json`, whatever the exit
@@ -82,13 +83,18 @@ export const parseUpgradeCheckReport = (stdout) => {
   } catch {
     return null
   }
-  if (!report || typeof report !== "object" || typeof report.current !== "string") return null
+  if (!report || typeof report !== "object") return null
+  const current = readCliVersion(report.current)
+  const latest = readCliVersion(report.latest)
+  const error = typeof report.error === "string" ? report.error.trim() || null : null
+  const upToDate = typeof report.upToDate === "boolean" ? report.upToDate : null
+  if (!current || (report.latest != null && !latest) || (upToDate === false && !latest && !error)) return null
   return {
-    current: trimVersion(report.current),
-    latest: typeof report.latest === "string" ? trimVersion(report.latest) : null,
-    upToDate: typeof report.upToDate === "boolean" ? report.upToDate : null,
+    current,
+    latest,
+    upToDate,
     method: typeof report.method === "string" ? report.method : "unknown",
-    error: typeof report.error === "string" && report.error.trim() ? report.error.trim() : null,
+    error,
   }
 }
 
@@ -156,10 +162,7 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
   // The bundled launcher lives inside the app bundle; it is never the user's
   // own CLI even when a PATH entry points into the app resources.
   const isBundledLauncher = (candidate) => {
-    const bundled =
-      typeof env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY === "string"
-        ? env.AX_CODE_DESKTOP_BUNDLED_AX_CODE_BINARY.trim()
-        : ""
+    const bundled = readBundledAxCodeBinary(env)
     if (!bundled) return false
     const bundledReal = realpath(bundled)
     const candidateReal = realpath(candidate)
@@ -209,12 +212,12 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
   const readRuntime = async () => {
     try {
       const runtime = await getRuntimeBinary()
-      const runtimePath = typeof runtime === "string" ? runtime : runtime?.path
+      const runtimePath = readLiteralPath(typeof runtime === "string" ? runtime : runtime?.path)
       const source = typeof runtime === "object" && typeof runtime?.source === "string" ? runtime.source : null
-      if (typeof runtimePath !== "string" || !runtimePath.trim() || runtimePath.startsWith("wsl:")) {
+      if (!runtimePath || runtimePath.startsWith("wsl:")) {
         return { path: null, source }
       }
-      return { path: runtimePath.trim(), source }
+      return { path: runtimePath, source }
     } catch {
       return { path: null, source: null }
     }
@@ -303,7 +306,10 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
   const probeVersion = async (cliPath) => {
     const result = await runCli(cliPath, ["--version"], VERSION_TIMEOUT_MS)
     if (result.code !== 0) return null
-    return trimVersion(stripAnsi(result.stdout).split(/\r?\n/).find((line) => line.trim()) || "")
+    const banner = stripAnsi(result.stdout).split(/\r?\n/).find((line) => line.trim())?.trim() ?? ""
+    // The human banner may frame the version with the product name and a build note.
+    const framed = /^(?:ax[- ]code(?:[ \t]+version)?[ \t]+)?(\S+)(?:[ \t]+\([^()]*\))?$/i.exec(banner)
+    return readCliVersion(framed?.[1])
   }
 
   const checkCli = async (found, others, runtime) => {
@@ -331,7 +337,9 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
     const installedVersion = await probeVersion(found.path)
     if (!installedVersion) return versionOnly(null, null, "unreadable")
     // Older CLIs have no machine-readable check; report the version only.
-    if (compareVersions(installedVersion, MIN_CHECK_VERSION) < 0) return versionOnly(installedVersion, false, null)
+    const checkSupport = compareAxCodeVersions(installedVersion, MIN_CHECK_VERSION)
+    if (checkSupport === null) return versionOnly(installedVersion, null, "unreadable")
+    if (checkSupport < 0) return versionOnly(installedVersion, false, null)
 
     const result = await runCli(found.path, ["upgrade", "check", "--json"], CHECK_TIMEOUT_MS)
     const report = result.timedOut ? null : parseUpgradeCheckReport(result.stdout)
@@ -343,7 +351,7 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
     const blockedReason = method === "unknown" ? "unknown-method" : method === "brew" && base.isRuntimeBinary ? "runtime-in-use" : null
     return {
       ...base,
-      currentVersion: report.current || installedVersion,
+      currentVersion: report.current,
       latestVersion: report.latest,
       updateAvailable,
       method,
@@ -433,24 +441,18 @@ export const createAxCodeCliInstallRuntime = (dependencies = {}) => {
     // have completed.
     const after = await refreshStatus()
     const upgradedBinary = after.path === before.path ? after : await checkCli({ path: before.path, onPath: before.onPath }, [], await readRuntime())
-    const advanced =
-      upgradedBinary.currentVersion &&
-      before.currentVersion &&
-      compareVersions(upgradedBinary.currentVersion, before.currentVersion) > 0
+    const advancement = compareAxCodeVersions(upgradedBinary.currentVersion, before.currentVersion)
     // Done means current, or at least at the version the check announced (a
     // release published mid-upgrade does not turn that into a failure). The
     // announced version only counts when it was newer than the installed one:
     // a CLI already at or past it (a prerelease, or a release that was pulled)
     // satisfies the target without anything having been installed.
-    const targetIsNewer =
-      Boolean(before.latestVersion) &&
-      Boolean(before.currentVersion) &&
-      compareVersions(before.latestVersion, before.currentVersion) > 0
+    const announcedOrder = compareAxCodeVersions(before.latestVersion, before.currentVersion)
+    const targetOrder = compareAxCodeVersions(upgradedBinary.currentVersion, before.latestVersion)
     const current = upgradedBinary.updateAvailable === false
-    const reachedTarget =
-      targetIsNewer && Boolean(upgradedBinary.currentVersion)
-        ? compareVersions(upgradedBinary.currentVersion, before.latestVersion) >= 0
-        : advanced
+    const reachedTarget = announcedOrder !== null && announcedOrder > 0
+      ? targetOrder !== null && targetOrder >= 0
+      : advancement !== null && advancement > 0
     if (result.timedOut || !(current || reachedTarget)) {
       logger.warn?.(`[ax-code cli] upgrade did not reach ${before.latestVersion || "the latest version"}: ${output.slice(-2000)}`)
       return { state: "failed", reason: result.timedOut ? "timeout" : "upgrade-failed" }

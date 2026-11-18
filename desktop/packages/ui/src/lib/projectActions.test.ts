@@ -4,7 +4,7 @@ import { normalizeProjectActionDirectory, toProjectActionRunKey } from "./projec
 
 describe("normalizeProjectActionDirectory", () => {
   test("normalizes separators, drive casing, and trailing slashes", () => {
-    expect(normalizeProjectActionDirectory(" c:\\Repo\\scripts\\ ")).toBe("C:/Repo/scripts")
+    expect(normalizeProjectActionDirectory("c:\\Repo\\scripts\\")).toBe("C:/Repo/scripts")
   })
 
   test("keeps roots and empty values stable", () => {

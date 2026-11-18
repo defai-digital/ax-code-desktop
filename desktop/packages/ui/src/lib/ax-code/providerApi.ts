@@ -1,9 +1,10 @@
 import { providerConnectCategory } from "@defai-digital/ax-code-sdk/provider-connect"
 import type { ProviderCustomListResponse } from "@defai-digital/ax-code-sdk/v2"
+import { resolveDesktopServerOrigin } from "@/lib/desktopServerOrigin"
 import { API_ENDPOINTS, replacePathParams } from "@/lib/http"
 import { isRecord } from "@/lib/record"
-import { axCodeClient } from "./client"
 import type { ProviderSources } from "@/components/sections/providers/types"
+import { axCodeClient } from "./client"
 
 export {
   AX_TRUST_PROVIDER_OPTION_ID,
@@ -125,30 +126,14 @@ export const isRestartingError = (error: unknown): boolean => isRecord(error) &&
 export const getCurrentDirectory = (): string | null => {
   const dir = axCodeClient.getDirectory()
   if (typeof dir === "string" && dir.trim().length > 0) {
-    return dir.trim()
+    return dir
   }
   return null
 }
 
-// In the desktop app the renderer is served from its own local origin, which is
-// NOT the AX Code server. A bare relative "/api/..." fetch would resolve against
-// that renderer origin and never reach the server, surfacing as "Unable to load
-// provider list" / "Failed to load provider authentication methods". Resolve the
-// AX Code server origin first (mirrors gitApiHttp.ts resolveBaseOrigin), falling
-// back to window.location.origin on web where they coincide.
-const resolveBaseOrigin = (): string => {
-  if (typeof window === "undefined") {
-    return ""
-  }
-  const desktopOrigin = window.__AX_CODE_DESKTOP_DESKTOP_SERVER__?.origin
-  if (desktopOrigin) {
-    return desktopOrigin
-  }
-  return window.location.origin
-}
-
+// Provider configuration is Desktop-owned; resolve its server origin rather than the coding runtime origin.
 export const buildDirectoryUrl = (path: string, directory: string | null): string => {
-  const origin = resolveBaseOrigin()
+  const origin = resolveDesktopServerOrigin()
   // On the server (no window) there is no origin to resolve against; keep the
   // relative path and append the query manually.
   if (!origin) {
@@ -491,7 +476,7 @@ export const connectPrivateGpu = async (
 }
 export const disconnectProviderAuth = async (providerId: string, directory: string | null, scope = "all") => {
   const baseUrl = buildDirectoryUrl(replacePathParams(API_ENDPOINTS.provider.authAll, { providerId }), directory)
-  const origin = resolveBaseOrigin()
+  const origin = resolveDesktopServerOrigin()
   const url = new URL(baseUrl, !origin ? "http://localhost" : origin)
   url.searchParams.set("scope", scope)
   const requestUrl = !origin ? `${url.pathname}${url.search}` : url.toString()

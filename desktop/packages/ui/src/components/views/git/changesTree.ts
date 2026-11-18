@@ -1,4 +1,5 @@
 import type { GitStatus } from "@/lib/api/types"
+import { normalizePathSeparators } from "@/lib/pathValues"
 
 export const TREE_INDENT_PX = 14
 
@@ -25,7 +26,7 @@ export type FlattenedTreeRow =
       file: GitStatus["files"][number]
     }
 
-const normalizePathForTree = (value: string): string => value.replace(/\\/g, "/").replace(/^\/+/, "").trim()
+const normalizePathForTree = (value: string): string => normalizePathSeparators(value).replace(/^\/+/, "")
 
 const createDirectoryNode = (path: string, name: string): ChangesTreeDirectoryNode => ({
   id: `dir:${path}`,

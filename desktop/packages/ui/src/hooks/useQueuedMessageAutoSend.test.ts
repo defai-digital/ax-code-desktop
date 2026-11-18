@@ -89,7 +89,6 @@ vi.doMock("@/sync/sync-context", () => ({
 }))
 
 vi.doMock("@/sync/sync-refs", () => ({
-  getSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
   getGlobalSyncSessionStatus: (sessionId: string) => statusState.current[sessionId],
 }))
 

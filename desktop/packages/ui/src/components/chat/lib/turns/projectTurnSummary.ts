@@ -1,3 +1,4 @@
+import { getMessagePartText } from "@/lib/messagePartFields"
 import type { ChatMessageEntry, TurnDiffStats, TurnSummaryRecord } from "./types"
 
 interface SummaryDiff {
@@ -8,18 +9,6 @@ interface SummaryDiff {
 interface UserSummaryPayload {
   body?: string | null
   diffs?: SummaryDiff[] | null
-}
-
-const getTextFromPart = (part: unknown): string | undefined => {
-  const text = (part as { text?: unknown }).text
-  if (typeof text === "string" && text.trim().length > 0) {
-    return text
-  }
-  const content = (part as { content?: unknown }).content
-  if (typeof content === "string" && content.trim().length > 0) {
-    return content
-  }
-  return undefined
 }
 
 export const projectTurnSummary = (assistantMessages: ChatMessageEntry[]): TurnSummaryRecord => {
@@ -34,7 +23,7 @@ export const projectTurnSummary = (assistantMessages: ChatMessageEntry[]): TurnS
       const part = assistantMessage.parts[partIndex]
       if (!part || part.type !== "text") continue
 
-      const text = getTextFromPart(part)
+      const text = getMessagePartText(part)
       if (!text) continue
 
       return {
@@ -53,7 +42,7 @@ export const projectTurnSummary = (assistantMessages: ChatMessageEntry[]): TurnS
       const part = assistantMessage.parts[partIndex]
       if (!part || part.type !== "text") continue
 
-      const text = getTextFromPart(part)
+      const text = getMessagePartText(part)
       if (!text) continue
 
       return {

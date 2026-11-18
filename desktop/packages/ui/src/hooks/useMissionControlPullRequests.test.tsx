@@ -34,12 +34,12 @@ const status: GitHubPullRequestStatus = {
   },
   checks: { state: "pending", total: 1, success: 0, failure: 0, pending: 1 },
 }
-function known(directory: string, branch: string, github: GitHubAPI, key = directory) {
+function known(directory: string, branch: string, github: GitHubAPI, key = directory, remoteName = "origin") {
   const store = useGitHubPrStatusStore.getState()
   store.setParams(key, {
     directory,
     branch,
-    remoteName: "origin",
+    remoteName,
     canShow: true,
     github,
     githubAuthChecked: true,
@@ -190,6 +190,29 @@ test("a late response after timeout cannot write into the shared PR cache", asyn
   expect(container.textContent).toBe("42")
 })
 
+test("a timeout does not make an older board snapshot newer than a shared read", async () => {
+  const fetch = vi.fn(() => new Promise<GitHubPullRequestStatus>(() => {}))
+  const github = { prStatus: fetch } as unknown as GitHubAPI
+  known("/repo", "feature", github)
+  branches = new Map([["/repo", "feature"]])
+  const rows = [row("a")]
+  function Harness() {
+    const { rows: projected, setVisibleRows } = useMissionControlPullRequests(rows)
+    React.useEffect(() => setVisibleRows(rows), [setVisibleRows])
+    const pr = projected[0].pullRequest
+    return <span>{pr?.number}:{String(pr?.stale)}</span>
+  }
+  const { container } = render(<Harness />)
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1_000)
+    useGitHubPrStatusStore.getState().updateStatus("/repo", () => ({
+      ...status, pr: { ...status.pr!, number: 88 },
+    }), Date.now())
+    await vi.advanceTimersByTimeAsync(19_000)
+  })
+  expect(container.textContent).toBe("88:false")
+})
+
 test("a slower board response does not overwrite a newer PR read from the existing integration", async () => {
   let finish!: (value: GitHubPullRequestStatus) => void
   const github = {
@@ -214,7 +237,6 @@ test("a slower board response does not overwrite a newer PR read from the existi
     </RuntimeAPIContext.Provider>,
   )
   await act(async () => {
-    vi.setSystemTime(100_100)
     useGitHubPrStatusStore
       .getState()
       .updateStatus("/repo", () => ({ ...status, pr: { ...status.pr!, number: 99 } }), Date.now())
@@ -223,6 +245,39 @@ test("a slower board response does not overwrite a newer PR read from the existi
   })
   expect(useGitHubPrStatusStore.getState().entries["/repo"].status?.pr?.number).toBe(99)
   expect(container.textContent).toBe("99")
+})
+
+test("a former remote's board read cannot replace the newly preferred remote", async () => {
+  let finish!: (value: GitHubPullRequestStatus) => void
+  const fetch = vi.fn(() => new Promise<GitHubPullRequestStatus>((resolve) => { finish = resolve }))
+  const github = { prStatus: fetch } as unknown as GitHubAPI
+  known("/repo", "feature", github, "origin")
+  branches = new Map([["/repo", "feature"]])
+  const rows = [row("a")]
+  function Harness() {
+    const { rows: projected, setVisibleRows } = useMissionControlPullRequests(rows)
+    React.useEffect(() => setVisibleRows(rows), [setVisibleRows])
+    return <span>{projected[0].pullRequest?.number}</span>
+  }
+  const { container } = render(
+    <RuntimeAPIContext.Provider value={{ github } as RuntimeAPIs}>
+      <Harness />
+    </RuntimeAPIContext.Provider>,
+  )
+  expect(fetch).toHaveBeenCalledWith("/repo", "feature", "origin", { signal: expect.any(AbortSignal) })
+  await act(async () => {
+    known("/repo", "feature", github, "upstream", "upstream")
+    useGitHubPrStatusStore.getState().updateStatus("upstream", () => ({
+      ...status, pr: { ...status.pr!, number: 88 },
+    }), Date.now())
+  })
+  expect(container.textContent).toBe("88")
+  await act(async () => {
+    vi.setSystemTime(100_100)
+    finish({ ...status, pr: { ...status.pr!, number: 99 } })
+  })
+  expect(container.textContent).toBe("88")
+  expect(useGitHubPrStatusStore.getState().entries.origin.status?.pr?.number).toBe(42)
 })
 
 test("a board read without a body keeps the body the PR section loaded, and the chip ages into stale", async () => {

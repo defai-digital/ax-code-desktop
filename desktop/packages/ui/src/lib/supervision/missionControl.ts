@@ -96,13 +96,13 @@ export interface MissionPrFilter {
 }
 
 /** Stale/absent PR data is unknown. Completed PRs cannot have actionable failing checks. */
-export function missionPrChecks(pr: SupervisionRow["pullRequest"]): MissionCheckState | null {
+function missionPrChecks(pr: SupervisionRow["pullRequest"]): MissionCheckState | null {
   if (!pr || pr.stale) return null
   if ((pr.state === "merged" || pr.state === "closed") && pr.checks === "failed") return null
   return pr.checks ?? "none"
 }
 
-export function matchesMissionPr(row: Pick<SupervisionRow, "pullRequest">, filter?: MissionPrFilter): boolean {
+function matchesMissionPr(row: Pick<SupervisionRow, "pullRequest">, filter?: MissionPrFilter): boolean {
   const pr = row.pullRequest
   return (
     (!filter?.states.length || Boolean(pr && !pr.stale && filter.states.includes(pr.state))) &&

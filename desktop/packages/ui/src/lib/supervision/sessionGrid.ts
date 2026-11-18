@@ -48,9 +48,9 @@ export interface PlacedSplitter {
   minimumFirst: number
   minimumSecond: number
 }
-export const GRID_MIN_WIDTH = 320
+const GRID_MIN_WIDTH = 320
 export const GRID_GAP = 6
-export const GRID_MAX_SLOTS = 4
+const GRID_MAX_SLOTS = 4
 const EDGE_FRACTION = 0.25
 const SPLIT_ID = /^s\d+$/
 export const emptySessionGrid = (): SessionGridState => ({
@@ -217,7 +217,7 @@ export function resizeGridSlots(
 const leaf = (slot: number): GridLeaf => ({ kind: "leaf", slot })
 
 /** The preset binary tree. Layout 4 shares one column ratio across both rows, matching the aligned preset geometry. */
-export function presetTree(layout: SessionGridLayout, ratios: SessionGridState["ratios"]): GridNode {
+function presetTree(layout: SessionGridLayout, ratios: SessionGridState["ratios"]): GridNode {
   if (layout === 1) return leaf(0)
   if (layout === 2)
     return { kind: "split", id: "s1", axis: "column", ratio: ratios.columns, first: leaf(0), second: leaf(1) }
@@ -416,7 +416,7 @@ function sameShape(left: GridNode, right: GridNode): boolean {
  * Move `from` onto an edge of `target`, collapsing the gap it leaves. The pane count does not change, so a grid that
  * is already at four sessions can still be rearranged.
  */
-export function placeGridSlot(tree: GridNode, from: number, target: number, edge: GridEdge): GridNode | null {
+function placeGridSlot(tree: GridNode, from: number, target: number, edge: GridEdge): GridNode | null {
   if (from === target) return null
   const detached = detachLeaf(tree, from)
   if (!detached) return null

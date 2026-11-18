@@ -1,4 +1,5 @@
-import type { CommandExecResult, FilesAPI, RuntimeAPIs } from "@/lib/api/types"
+import type { CommandExecResult } from "@/lib/api/types"
+import { getRuntimeFilesAPI } from "./runtimeFilesApi"
 import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 
@@ -6,22 +7,6 @@ type ExecCommandsResult = { success: boolean; results: CommandExecResult[] }
 
 const DEFAULT_BASE_URL = import.meta.env.VITE_AX_CODE_URL || HTTP_DEFAULTS.apiPath.base
 
-const getBaseUrl = (): string => {
-  if (typeof DEFAULT_BASE_URL === "string" && DEFAULT_BASE_URL.startsWith("/")) {
-    return DEFAULT_BASE_URL
-  }
-  return DEFAULT_BASE_URL
-}
-
-function getRuntimeFilesAPI(): FilesAPI | null {
-  if (typeof window === "undefined") return null
-  const apis = (window as typeof window & { __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs })
-    .__AX_CODE_DESKTOP_RUNTIME_APIS__
-  if (apis?.files) {
-    return apis.files
-  }
-  return null
-}
 
 async function execCommands(commands: string[], cwd: string): Promise<ExecCommandsResult> {
   const runtimeFiles = getRuntimeFilesAPI()
@@ -29,7 +14,7 @@ async function execCommands(commands: string[], cwd: string): Promise<ExecComman
     return runtimeFiles.execCommands(commands, cwd)
   }
 
-  const response = await fetch(buildAxCodeApiUrl(getBaseUrl(), API_ENDPOINTS.fs.exec), {
+  const response = await fetch(buildAxCodeApiUrl(DEFAULT_BASE_URL, API_ENDPOINTS.fs.exec), {
     method: HTTP_DEFAULTS.method.post,
     headers: HTTP_DEFAULTS.headers.contentTypeJson,
     body: JSON.stringify({ commands, cwd, background: false }),

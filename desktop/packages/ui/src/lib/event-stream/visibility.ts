@@ -3,15 +3,10 @@
  * offline/hidden detection plus the interruptible inter-attempt wait.
  */
 
+import { SYNC_RETRY_NOW_EVENT } from "./commands"
+
 /** Window event the desktop shell fires on OS wake-from-sleep (powerMonitor.resume). */
 export const SYSTEM_RESUME_EVENT = "openchamber:system-resume"
-
-/**
- * Window event the UI dispatches to interrupt the reconnect backoff and force
- * an immediate reconnect attempt (e.g. a "retry now" action on the reconnect
- * banner). Handled exactly like `openchamber:system-resume`.
- */
-export const SYNC_RETRY_NOW_EVENT = "openchamber:sync-retry-now"
 
 export const isOffline = (): boolean =>
   typeof navigator === "object" && navigator !== null && navigator.onLine === false

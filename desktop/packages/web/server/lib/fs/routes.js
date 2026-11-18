@@ -156,7 +156,7 @@ const collectApprovedDirectories = (settings) => {
 }
 
 // Absolute resource paths come from directory entries, where trailing whitespace is part of the name.
-// Settings normalization trims user input and must only apply to shorthand paths such as ~/project.
+// Settings normalization expands home shorthand; absolute entry paths are already exact.
 const normalizeResourcePath = (value, path, normalizeDirectoryPath) =>
   typeof value === "string" && path.isAbsolute(value) ? value : normalizeDirectoryPath(value)
 
@@ -492,7 +492,7 @@ const runCommandInDirectory = ({
         command,
         success: false,
         exitCode: undefined,
-        stdout: stdout.trim(),
+        stdout,
         stderr: stderr.trim(),
         error: (error && error.message) || "Command execution failed",
       })
@@ -505,7 +505,7 @@ const runCommandInDirectory = ({
         command,
         success: exitCode === 0 && !timedOut,
         exitCode,
-        stdout: stdout.trim(),
+        stdout,
         stderr: stderr.trim(),
       }
 
@@ -875,7 +875,7 @@ export const registerFsRoutes = (app, dependencies) => {
     try {
       const { remoteUrl, destinationPath, gitIdentityId } = req.body ?? {}
       const remote = typeof remoteUrl === "string" ? remoteUrl.trim() : ""
-      const destination = typeof destinationPath === "string" ? destinationPath.trim() : ""
+      const destination = typeof destinationPath === "string" ? destinationPath : ""
       if (!remote) {
         return res.status(400).json({ error: "Repository URL is required" })
       }

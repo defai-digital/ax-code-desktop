@@ -1,4 +1,5 @@
 import * as React from "react"
+import { slugifyWorktreeName } from "@/lib/worktrees/worktreeName"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -34,8 +35,6 @@ import { parseModelIdentifier } from "@/lib/modelIdentifier"
 import { rankBranchesForQuery } from "@/lib/worktrees/branchSearch"
 import { useRuntimeAPIs } from "@/hooks/useRuntimeAPIs"
 import { useGitBranches, useGitStore, useGitLoadingBranches } from "@/stores/useGitStore"
-import { GitHubIntegrationDialog } from "./GitHubIntegrationDialog"
-import { resolveGitHubSourceRepoOption } from "./githubSourceRepoOption"
 import { SortableTabsStrip } from "@/components/ui/sortable-tabs-strip"
 import { MobileOverlayPanel } from "@/components/ui/MobileOverlayPanel"
 import { Icon } from "@/components/icon/Icon"
@@ -49,6 +48,8 @@ import type {
 import type { ProjectRef } from "@/lib/worktrees/worktreeManager"
 import { useI18n } from "@/lib/i18n"
 import { getSafeExternalUrl, openExternalUrl } from "@/lib/url"
+import { GitHubIntegrationDialog } from "./GitHubIntegrationDialog"
+import { resolveGitHubSourceRepoOption } from "./githubSourceRepoOption"
 
 type Mode = "new-branch" | "existing-branch"
 
@@ -74,21 +75,6 @@ interface NewBranchState {
 interface ExistingBranchState {
   selectedBranch: string
   worktreeName: string
-}
-
-const slugifyWorktreeName = (value: string): string => {
-  return value
-    .trim()
-    .replace(/^refs\/heads\//, "")
-    .replace(/^heads\//, "")
-    .replace(/\s+/g, "-")
-    .replace(/^\/+|\/+$/g, "")
-    .split("/")
-    .join("-")
-    .replace(/[^A-Za-z0-9._-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 80)
 }
 
 const LAST_SOURCE_BRANCH_KEY = "oc:lastWorktreeSourceBranch"

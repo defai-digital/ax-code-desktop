@@ -108,6 +108,9 @@ export const IdentityDropdown: React.FC<IdentityDropdownProps> = ({
               className="h-8 min-w-0 max-w-[15rem] justify-start gap-1.5 px-2 py-1 typography-ui-label"
               style={{ color: getIdentityColor(activeProfile?.color) }}
               disabled={isDisabled}
+              aria-label={iconOnly
+                ? `${t("gitView.header.identityTooltip")}: ${activeProfile?.name || t("gitView.header.noIdentity")}`
+                : undefined}
             >
               {isApplying ? (
                 <Icon name="loader-4" className="size-4 animate-spin" />

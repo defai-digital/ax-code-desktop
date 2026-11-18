@@ -1,4 +1,5 @@
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
+import { getValidMessagePartEndTime } from "@/lib/messagePartFields"
 import { mergeMessages, keepCompletedMessageOnMerge } from "./optimistic"
 import { shouldPreserveExistingPart } from "./event-reducer"
 import { compareIds, sortPartsById } from "./part-ordering"
@@ -55,35 +56,6 @@ function haveEquivalentPartSnapshots(left: Part[] | undefined, right: Part[]): b
   return true
 }
 
-function getPartEndTime(part: Part): number | undefined {
-  const stateEnd = (part as { state?: { time?: { end?: unknown } } }).state?.time?.end
-  if (typeof stateEnd === "number") {
-    return stateEnd
-  }
-
-  const timeEnd = (part as { time?: { end?: unknown } }).time?.end
-  return typeof timeEnd === "number" ? timeEnd : undefined
-}
-
-function getPartStartTime(part: Part): number | undefined {
-  const stateStart = (part as { state?: { time?: { start?: unknown } } }).state?.time?.start
-  if (typeof stateStart === "number") {
-    return stateStart
-  }
-
-  const timeStart = (part as { time?: { start?: unknown } }).time?.start
-  return typeof timeStart === "number" ? timeStart : undefined
-}
-
-function getValidPartEndTime(part: Part): number | undefined {
-  const endTime = getPartEndTime(part)
-  if (typeof endTime !== "number") return undefined
-
-  const startTime = getPartStartTime(part)
-  if (typeof startTime === "number" && endTime < startTime) return undefined
-
-  return endTime
-}
 
 function getStringField(part: Part, field: "text" | "output"): string | undefined {
   const value = (part as Record<string, unknown>)[field]
@@ -91,7 +63,7 @@ function getStringField(part: Part, field: "text" | "output"): string | undefine
 }
 
 function hasLiveStreamingField(part: Part): boolean {
-  if (getValidPartEndTime(part) !== undefined) return false
+  if (getValidMessagePartEndTime(part) !== undefined) return false
   return STREAMING_PART_FIELDS.some((field) => {
     const value = getStringField(part, field)
     return typeof value === "string" && value.length > 0
@@ -151,7 +123,7 @@ function mergeMaterializedPart(existing: Part | undefined, next: Part): Part {
   // downgrade a settled tool part back to running — no further part event is
   // sent for it, so the card would keep a live timer until the next snapshot.
   if (shouldPreserveExistingPart(existing, next)) return existing
-  if (getValidPartEndTime(next) !== undefined) return carryDedupeMarker(existing, next)
+  if (getValidMessagePartEndTime(next) !== undefined) return carryDedupeMarker(existing, next)
 
   let merged: Part = next
   for (const field of STREAMING_PART_FIELDS) {

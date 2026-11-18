@@ -18,7 +18,7 @@ export type OpenProjectFolderOutcome = "added" | "cancelled" | "dialog" | "faile
 type Translate = (key: I18nKey, params?: Record<string, string | number>) => string
 
 /** True when the native OS folder picker is available to this renderer. */
-export const canUseNativeFolderPicker = (): boolean => isTauriShell() && isDesktopLocalOriginActive()
+const canUseNativeFolderPicker = (): boolean => isTauriShell() && isDesktopLocalOriginActive()
 
 /**
  * The one "open a folder" path shared by the home screen, the sidebar, the
@@ -68,7 +68,7 @@ export async function openProjectFolder({ t }: { t: Translate }): Promise<OpenPr
  * Registers (or re-activates) a project folder and opens a draft session in
  * it with the chat tab active, so the user can type immediately.
  */
-export function startWorkInProject(path: string, { t }: { t: Translate }): OpenProjectFolderOutcome {
+function startWorkInProject(path: string, { t }: { t: Translate }): OpenProjectFolderOutcome {
   const entry = useProjectsStore.getState().addProject(path)
   if (!entry) {
     toast.error(t("directoryExplorerDialog.toast.failedToAddProject"), {

@@ -85,6 +85,9 @@ Bootstrap runs in two scopes:
 
 ## Connection state (S4.7 — single transport-owned phase)
 
+UI reconnect actions call `requestSyncRetryNow` from `lib/event-stream/commands`. The transport consumes that
+command directly; UI components do not import the sync event pipeline.
+
 The canonical connection phase lives in
 `src/lib/event-stream/connection-state.ts` (`useConnectionStore`:
 `phase` = `"connecting" | "connected" | "reconnecting"`,
