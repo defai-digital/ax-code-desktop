@@ -92,6 +92,12 @@ Settings metadata retires the former Magic Prompts and Snippets settings destina
 and private selection/draft state have been removed. Composer prompt/snippet loading and expansion remain active;
 server configuration APIs and legacy settings redirects keep their existing contracts.
 
+`components/chat/promptAutocomplete.ts` derives command/snippet/mention state for prompt editors. Editors retain
+insertion, focus and display state. Skills catalog settings reads share a fresh, fail-closed adapter so malformed
+payloads cannot authorize whole-list writes. `lib/contentHash.ts` preserves existing diff/review identities;
+`lib/messagePartFields.ts` supplies payload field access without importing sync internals into presentation.
+`lib/runtimeFilesApi.ts` centralizes the live injected Files API lookup used by command/config adapters.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

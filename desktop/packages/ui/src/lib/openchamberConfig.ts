@@ -4,7 +4,7 @@
  * Migrates from legacy <project>/.openchamber/openchamber.json.
  */
 
-import type { FilesAPI, RuntimeAPIs } from "./api/types"
+import { getRuntimeFilesAPI } from "./runtimeFilesApi"
 import { buildAxCodeApiUrl } from "./ax-code/baseUrl"
 import { getDesktopHomeDirectory } from "./desktop"
 import { createProjectIdFromPath } from "./projectId"
@@ -21,18 +21,6 @@ const LEGACY_CONFIG_DIR = ".openchamber"
 const USER_PROJECTS_DIR_SEGMENTS = [".config", "openchamber", "projects"]
 const FS_OPTIONAL_QUERY = "optional"
 
-/**
- * Get the runtime Files API if available (Desktop/VSCode).
- */
-function getRuntimeFilesAPI(): FilesAPI | null {
-  if (typeof window === "undefined") return null
-  const apis = (window as typeof window & { __AX_CODE_DESKTOP_RUNTIME_APIS__?: RuntimeAPIs })
-    .__AX_CODE_DESKTOP_RUNTIME_APIS__
-  if (apis?.files) {
-    return apis.files
-  }
-  return null
-}
 
 interface OpenChamberConfig {
   projectPath?: string

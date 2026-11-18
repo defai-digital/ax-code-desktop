@@ -1,5 +1,15 @@
 # Test the Desktop UI with WebMCP
 
+To verify prompt editor derivation and Skills catalog read refusal:
+
+```sh
+node desktop/packages/electron/scripts/e2e/editor-catalog-boundaries-webmcp.mjs --artifacts /tmp/ax-editor-catalog
+```
+
+This isolated journey selects a command through the actual scheduled-task editor in both themes, checks catalog form
+rendering, and injects a malformed settings read followed by a successful controlled scan. It verifies refusal before
+any catalog write, uses fresh DOM/state plus screenshots, and creates no schedules, clones or model executions.
+
 To verify context-panel file identity and persisted tab state on POSIX hosts:
 
 ```sh

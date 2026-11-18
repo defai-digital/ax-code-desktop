@@ -10,6 +10,7 @@ import type {
   SessionStatus,
   Todo,
 } from "@defai-digital/ax-code-sdk/v2/client"
+import { getValidMessagePartEndTime } from "@/lib/messagePartFields"
 import { noteServerSessionStatus } from "./session-status-events"
 import { noteBlockingRequestEvent } from "./blocking-request-events"
 import { Binary } from "./binary"
@@ -98,35 +99,6 @@ function getUpdatedDeltaFields(previous: Part, next: Part) {
   return dedupeFields
 }
 
-function getPartEndTime(part: Part): number | undefined {
-  const stateEnd = (part as { state?: { time?: { end?: unknown } } }).state?.time?.end
-  if (typeof stateEnd === "number") {
-    return stateEnd
-  }
-
-  const timeEnd = (part as { time?: { end?: unknown } }).time?.end
-  return typeof timeEnd === "number" ? timeEnd : undefined
-}
-
-function getPartStartTime(part: Part): number | undefined {
-  const stateStart = (part as { state?: { time?: { start?: unknown } } }).state?.time?.start
-  if (typeof stateStart === "number") {
-    return stateStart
-  }
-
-  const timeStart = (part as { time?: { start?: unknown } }).time?.start
-  return typeof timeStart === "number" ? timeStart : undefined
-}
-
-function getValidPartEndTime(part: Part): number | undefined {
-  const endTime = getPartEndTime(part)
-  if (typeof endTime !== "number") return undefined
-
-  const startTime = getPartStartTime(part)
-  if (typeof startTime === "number" && endTime < startTime) return undefined
-
-  return endTime
-}
 
 function getToolStatus(part: Part): string | undefined {
   if (part.type !== "tool") {
@@ -152,8 +124,8 @@ export function shouldPreserveExistingPart(previous: Part, next: Part): boolean 
     return true
   }
 
-  const previousEnd = getValidPartEndTime(previous)
-  const nextEnd = getValidPartEndTime(next)
+  const previousEnd = getValidMessagePartEndTime(previous)
+  const nextEnd = getValidMessagePartEndTime(next)
   if (typeof previousEnd === "number" && typeof nextEnd !== "number") {
     return true
   }

@@ -3,6 +3,7 @@ import { reviewDirectoryKey } from "@/lib/reviewDirectoryKey"
 import { create } from "zustand"
 import { createJSONStorage, persist } from "zustand/middleware"
 
+import { contentHash53 } from "@/lib/contentHash"
 import type { GitStatus } from "@/lib/api/types"
 import { describeGitChange } from "@/components/views/git/changeDescriptors"
 import { orderReviewRailFiles } from "@/components/views/reviewFileRailTree"
@@ -151,23 +152,9 @@ export function reviewBranchFileSignature(
   }
 }
 
-/** Fast synchronous 53-bit hash over UTF-16 code units; never persist diff text. */
-function contentHash(input: string): string {
-  let first = 0xdeadbeef
-  let second = 0x41c6ce57
-  for (let index = 0; index < input.length; index += 1) {
-    const unit = input.charCodeAt(index)
-    first = Math.imul(first ^ unit, 2654435761)
-    second = Math.imul(second ^ unit, 1597334677)
-  }
-  first = Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
-  second = Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
-  return (4294967296 * (second & 0x1fffff) + (first >>> 0)).toString(16)
-}
-
 /** Versioned signature binds both content sides, status and path without retaining their text. */
 export function reviewContentSignature(before: string, after: string, status: string, path: string): string {
-  return `content-v2:${contentHash(before)}:${contentHash(after)}:${contentHash(JSON.stringify([status, path]))}`
+  return `content-v2:${contentHash53(before)}:${contentHash53(after)}:${contentHash53(JSON.stringify([status, path]))}`
 }
 
 /** Marks kept at most; the oldest are dropped first so a long-lived window cannot grow without bound. */

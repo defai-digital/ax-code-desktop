@@ -1,5 +1,6 @@
 import { diffAcceptRejectHunk, parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs"
 
+import { contentHash53 } from "@/lib/contentHash"
 import { DiffParseError, diffParseClient } from "./diffParseClient"
 
 const DIFF_CACHE_LIMIT = 64
@@ -17,22 +18,9 @@ const diffCache = new Map<string, FileDiffMetadata>()
 // Keys whose parse hit the Worker timeout; remounting the same content must not repeat that work.
 const tooLargeKeys = new Set<string>()
 
-/** 53-bit hash over UTF-16 code units. The cache key never keeps the file text. */
-function fileContentHash(input: string): string {
-  let first = 0xdeadbeef
-  let second = 0x41c6ce57
-  for (let index = 0; index < input.length; index += 1) {
-    const unit = input.charCodeAt(index)
-    first = Math.imul(first ^ unit, 2654435761)
-    second = Math.imul(second ^ unit, 1597334677)
-  }
-  first = Math.imul(first ^ (first >>> 16), 2246822507) ^ Math.imul(second ^ (second >>> 13), 3266489909)
-  second = Math.imul(second ^ (second >>> 16), 2246822507) ^ Math.imul(first ^ (first >>> 13), 3266489909)
-  return (4294967296 * (second & 0x1fffff) + (first >>> 0)).toString(16)
-}
 
 export function fileDiffCacheKey(fileName: string, original: string, modified: string): string {
-  return `${fileName}\0${original.length}:${fileContentHash(original)}\0${modified.length}:${fileContentHash(modified)}`
+  return `${fileName}\0${original.length}:${contentHash53(original)}\0${modified.length}:${contentHash53(modified)}`
 }
 
 export function clearFileHunkCache(): void {

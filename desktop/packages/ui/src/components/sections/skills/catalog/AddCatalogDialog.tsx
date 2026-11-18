@@ -13,42 +13,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
 import { Icon } from "@/components/icon/Icon"
-import { API_ENDPOINTS } from "@/lib/http"
 
-import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { updateDesktopSettings } from "@/lib/persistence"
-import type { DesktopSettings, SkillCatalogConfig } from "@/lib/desktop"
+import type { SkillCatalogConfig } from "@/lib/desktop"
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore"
 import { useGitIdentitiesStore } from "@/stores/useGitIdentitiesStore"
 import { useI18n } from "@/lib/i18n"
+import { loadCatalogSettings } from "./catalogSettings"
 import { guessCatalogLabelFromSource } from "./catalogSourceLabels"
 
 const generateCatalogId = () => `custom:${Date.now()}-${Math.random().toString(16).slice(2)}`
 
 type IdentityOption = { id: string; name: string }
 
-const loadSettings = async (): Promise<DesktopSettings | null> => {
-  try {
-    const runtimeSettings = getRegisteredRuntimeAPIs()?.settings
-    if (runtimeSettings) {
-      const result = await runtimeSettings.load()
-      return (result?.settings || {}) as DesktopSettings
-    }
-
-    const response = await fetch(API_ENDPOINTS.config.settings, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-    })
-
-    if (!response.ok) {
-      return null
-    }
-
-    return (await response.json().catch(() => null)) as DesktopSettings | null
-  } catch {
-    return null
-  }
-}
 
 interface AddCatalogDialogProps {
   open: boolean
@@ -103,15 +80,17 @@ export const AddCatalogDialog: React.FC<AddCatalogDialogProps> = ({ open, onOpen
     setCatalogsLoaded(false)
     void loadDefaultGitIdentityId()
 
+    let active = true
     void (async () => {
-      const settings = await loadSettings()
-      if (!settings) {
+      const settings = await loadCatalogSettings()
+      if (!active || !settings) {
         return
       }
-      const catalogs = Array.isArray(settings.skillCatalogs) ? settings.skillCatalogs : []
-      setExistingCatalogs(catalogs || [])
+      const catalogs = settings.skillCatalogs ?? []
+      setExistingCatalogs(catalogs)
       setCatalogsLoaded(true)
     })()
+    return () => { active = false }
   }, [open, loadDefaultGitIdentityId])
 
   const isDuplicate = React.useMemo(() => {

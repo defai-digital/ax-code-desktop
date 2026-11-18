@@ -1,4 +1,5 @@
 import * as React from "react"
+import { resolvePromptAutocomplete } from "@/components/chat/promptAutocomplete"
 import { STARTUP_TIMEZONE } from "@/lib/startupTimezone"
 import { ScheduledTaskCreateRecoveryRequired } from "@/lib/scheduledTaskErrors"
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog"
@@ -21,7 +22,7 @@ import {
 } from "@/components/chat/CommandAutocomplete"
 import { FileMentionAutocomplete, type FileMentionHandle } from "@/components/chat/FileMentionAutocomplete"
 import { SnippetAutocomplete, type SnippetAutocompleteHandle } from "@/components/chat/SnippetAutocomplete"
-import { detectTriggerQueryAtCursor, insertTriggerAtCursor } from "@/components/chat/chatInputMentions"
+import { insertTriggerAtCursor } from "@/components/chat/chatInputMentions"
 import { Icon } from "@/components/icon/Icon"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -1023,44 +1024,13 @@ export function ScheduledTaskEditorDialog(props: {
   }, [])
 
   const updateAutocompleteState = React.useCallback((value: string, cursorPosition: number) => {
-    if (value.startsWith("/")) {
-      const firstSpace = value.indexOf(" ")
-      const firstNewline = value.indexOf("\n")
-      const commandEnd = Math.min(
-        firstSpace === -1 ? value.length : firstSpace,
-        firstNewline === -1 ? value.length : firstNewline,
-      )
-
-      if (cursorPosition <= commandEnd && firstSpace === -1) {
-        setCommandQuery(value.substring(1, commandEnd))
-        setShowCommandAutocomplete(true)
-        setShowFileMention(false)
-        setShowSnippetAutocomplete(false)
-        return
-      }
-    }
-
-    setShowCommandAutocomplete(false)
-
-    const textBeforeCursor = value.substring(0, cursorPosition)
-    const detectedSnippetQuery = detectTriggerQueryAtCursor(textBeforeCursor, "#")
-    if (detectedSnippetQuery !== null) {
-      setSnippetQuery(detectedSnippetQuery)
-      setShowSnippetAutocomplete(true)
-      setShowFileMention(false)
-      return
-    }
-
-    setShowSnippetAutocomplete(false)
-
-    const detectedMentionQuery = detectTriggerQueryAtCursor(textBeforeCursor, "@")
-    if (detectedMentionQuery !== null) {
-      setMentionQuery(detectedMentionQuery)
-      setShowFileMention(true)
-      return
-    }
-
-    setShowFileMention(false)
+    const result = resolvePromptAutocomplete(value, cursorPosition)
+    setShowCommandAutocomplete(result.kind === "command")
+    setShowSnippetAutocomplete(result.kind === "snippet")
+    setShowFileMention(result.kind === "mention")
+    if (result.kind === "command") setCommandQuery(result.query)
+    if (result.kind === "snippet") setSnippetQuery(result.query)
+    if (result.kind === "mention") setMentionQuery(result.query)
   }, [])
 
   const setPromptValue = React.useCallback((value: string) => {
