@@ -43,8 +43,8 @@ describe("useUIStore context panel", () => {
   test("opens a deduped dashboard tab for a directory", () => {
     const directory = "/workspace/project"
 
-    useUIStore.getState().openContextDashboard(directory)
-    useUIStore.getState().openContextDashboard(directory)
+    useUIStore.getState().openContextPanelTab(directory, { mode: "dashboard", dedupeKey: "dashboard", label: "Dashboard" })
+    useUIStore.getState().openContextPanelTab(directory, { mode: "dashboard", dedupeKey: "dashboard", label: "Dashboard" })
 
     const panel = useUIStore.getState().contextPanelByDirectory[directory]
     expect(panel?.isOpen).toBe(true)
@@ -72,7 +72,7 @@ describe("useUIStore context panel", () => {
       },
     })
 
-    useUIStore.getState().openContextDashboard(directory)
+    useUIStore.getState().openContextPanelTab(directory, { mode: "dashboard", dedupeKey: "dashboard", label: "Dashboard" })
 
     const panel = useUIStore.getState().contextPanelByDirectory[directory]
     expect(panel?.isOpen).toBe(true)

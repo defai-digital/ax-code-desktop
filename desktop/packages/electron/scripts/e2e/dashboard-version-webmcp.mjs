@@ -63,9 +63,13 @@ const outcome = await runHarness({
         { version: "v7.24.1+local.1", root: "run-report", name: "current" },
       ]) {
         fixtureVersion = fixture.version
-        await session.send("Page.reload", { ignoreCache: true })
-        await journeyBoot({ session })
-        await audit.client.enable()
+        if (fixture.name === "malformed") {
+          await session.send("Page.reload", { ignoreCache: true })
+          await journeyBoot({ session })
+          await audit.client.enable()
+        } else {
+          await audit.click("Refresh", { role: "button" })
+        }
         const frame = `document.querySelector('[data-context-panel] iframe[title$="Dashboard"]')`
         await audit.wait(`(() => {
           const frame = ${frame}
@@ -86,7 +90,7 @@ const outcome = await runHarness({
       }
       if (errors.length) throw new Error(errors.join("\n"))
       if (!reports.has("dre-graph") || !reports.has("run-report")) throw new Error("Missing both fixture report requests")
-      return { name: "dashboard-versions", ok: true, detail: "Restored Dashboard chooses the legacy and current routes from validated versions" }
+      return { name: "dashboard-versions", ok: true, detail: "Restored Dashboard falls back for a malformed version and switches to the current route on Refresh" }
     },
   ],
 })

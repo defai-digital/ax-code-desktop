@@ -1,5 +1,14 @@
 # Test the Desktop UI with WebMCP
 
+To verify the restored Dashboard and its Refresh action:
+
+```sh
+node desktop/packages/electron/scripts/e2e/dashboard-version-webmcp.mjs --artifacts /tmp/ax-dashboard-versions
+```
+
+The disposable profile restores a Dashboard tab. It confirms a malformed runtime version uses the legacy route,
+then supplies a valid version and uses Refresh to select the current route for the same directory.
+
 To verify the renderer's Git remote capability and repository-scoped identity filtering:
 
 ```sh

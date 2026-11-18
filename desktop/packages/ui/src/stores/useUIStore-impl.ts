@@ -214,7 +214,6 @@ interface UIStore extends UIPreferences {
   closeContextBrowser: () => void
   focusContextBrowser: () => void
   setContextBrowserUrl: (url: string) => void
-  openContextDashboard: (directory: string) => void
   setActiveContextPanelTab: (directory: string, tabID: string) => void
   reorderContextPanelTabs: (directory: string, activeTabID: string, overTabID: string) => void
   closeContextPanelTab: (directory: string, tabID: string) => void
@@ -769,16 +768,6 @@ export const useUIStore = create<UIStore>()(
           set((state) =>
             state.browserPanel.url === nextUrl ? state : { browserPanel: { ...state.browserPanel, url: nextUrl } },
           )
-        },
-
-        openContextDashboard: (directory) => {
-          const normalizedDirectory = normalizeDirectoryPath(directory || "")
-          if (!normalizedDirectory) return
-          get().openContextPanelTab(normalizedDirectory, {
-            mode: "dashboard",
-            dedupeKey: "dashboard",
-            label: "Dashboard",
-          })
         },
 
         setActiveContextPanelTab: (directory, tabID) => {
