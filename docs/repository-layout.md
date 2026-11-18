@@ -110,6 +110,12 @@ Onboarding shares install command rendering, clipboard feedback and CLI health r
 Plain diff fallbacks share a lightweight component without eagerly importing the full diff renderer.
 The retired Magic Prompts editor's mutation/search APIs are removed; runtime prompt rendering still reads legacy overrides.
 
+Implementation-only value helpers stay private to their modules. Preserve supported UI primitive composition APIs
+and explicit worker/application entrypoints when auditing exports. A directory's `index.ts` alone does not prove it
+is a production entrypoint. The retired Plugins settings UI and store are removed; the service/runtime plugin API
+and old persisted JSON are retained. The renderer Git adapter exposes the remote URL reader used by identity filtering.
+Built-in prompt templates retain byte identity after removal of retired editor metadata.
+
 Future candidates include chat submission and attachment handling, file-view operations, and Electron window/IPC
 setup. Extract them when their behavior can be covered independently. Do not move store or sync modules merely to
 reduce folder size: their import ratchets and single-writer rules must continue to apply. Changes to package or

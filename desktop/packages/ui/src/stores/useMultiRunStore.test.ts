@@ -234,7 +234,6 @@ vi.doMock("@/sync/sync-refs", () => ({
   getSyncMessages: vi.fn(() => []),
   getSyncSessionMaterializationStatus: vi.fn(() => undefined),
   getSyncParts: vi.fn(() => []),
-  getSyncSessionStatus: vi.fn(() => undefined),
   getSyncPermissions: vi.fn(() => []),
   getSyncQuestions: vi.fn(() => []),
   getSyncChildStores: () => ({

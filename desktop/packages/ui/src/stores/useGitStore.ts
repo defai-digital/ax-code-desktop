@@ -20,8 +20,8 @@ const DIFF_PREFETCH_LARGE_FILE_THRESHOLD = 500 // skip prefetch for files with >
 // Diff cache limits to prevent memory bloat with many modified files
 const DIFF_CACHE_MAX_ENTRIES = 30
 const DIFF_CACHE_MAX_TOTAL_SIZE_BYTES = 20 * 1024 * 1024 // 20MB
-export const GIT_DIRECTORY_CACHE_LIMIT = 10
-export const GIT_DIRECTORY_CACHE_MAX_BYTES = 20 * 1024 * 1024
+const GIT_DIRECTORY_CACHE_LIMIT = 10
+const GIT_DIRECTORY_CACHE_MAX_BYTES = 20 * 1024 * 1024
 const GIT_DIRECTORY_IDLE_TTL_MS = 20 * 60 * 1000
 // Repository summaries outlive the working set on purpose (sidebar badges for every project), but
 // every distinct directory string that ever completed a status read would otherwise stay forever.

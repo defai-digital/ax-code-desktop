@@ -42,7 +42,7 @@ export interface WebMcpCatalogLimit {
   truncation: WebMcpCatalogTruncation | null
 }
 
-export const WEBMCP_CATALOG_REJECTION_REASONS = [
+const WEBMCP_CATALOG_REJECTION_REASONS = [
   "duplicate-name",
   "invalid-schema",
   "invalid-name",
@@ -147,7 +147,7 @@ const canonicalJson = (value: unknown, depth = 0): string => {
 }
 
 /** Stable definition identity for drafts, stale results and the registration timeline. */
-export function webMcpDefinitionDigest(tool: {
+function webMcpDefinitionDigest(tool: {
   name: string
   description: string
   inputSchema?: unknown
@@ -175,7 +175,7 @@ export function webMcpDefinitionDigest(tool: {
 const providedDigest = (value: unknown): string | undefined =>
   typeof value === "string" && /^[a-f0-9]{8,64}$/.test(value) ? value : undefined
 
-export function readWebMcpAnnotations(value: unknown): WebMcpToolAnnotations | undefined {
+function readWebMcpAnnotations(value: unknown): WebMcpToolAnnotations | undefined {
   if (!isRecord(value)) return undefined
   const annotations: WebMcpToolAnnotations = {
     readOnlyHint: value.readOnlyHint === true || value.readOnly === true,

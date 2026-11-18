@@ -5,7 +5,7 @@ import { subscribeToNow } from "@/lib/nowTicker"
  * Relative labels are minute-granularity; ticking faster than 30s only adds renders.
  * Every caller of the same interval shares one underlying timer.
  */
-export const RELATIVE_TIME_TICK_MS = 30_000
+const RELATIVE_TIME_TICK_MS = 30_000
 
 /**
  * Wall-clock time that advances while mounted.

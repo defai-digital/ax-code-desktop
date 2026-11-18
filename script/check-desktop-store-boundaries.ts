@@ -88,7 +88,6 @@ export const STORE_TO_STORE_IMPORT_ALLOWLIST: readonly string[] = [
   "useMultiRunStore -> useDirectoryStore",
   "useMultiRunStore -> useProjectsStore",
   "useMultiRunStore -> useSnippetsStore",
-  "usePluginsStore -> useAgentsStore",
   "useProjectsStore -> useDirectoryStore",
   "useSessionRollbackStore -> useDirectoryStore",
   "useSkillsCatalogStore -> useSkillsStore",

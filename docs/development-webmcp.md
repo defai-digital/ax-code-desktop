@@ -1,5 +1,14 @@
 # Test the Desktop UI with WebMCP
 
+To verify the renderer's Git remote capability and repository-scoped identity filtering:
+
+```sh
+node desktop/packages/electron/scripts/e2e/git-remote-capability-webmcp.mjs --artifacts /tmp/ax-git-remote-capability
+```
+
+The disposable repository uses controlled Git read responses. It confirms the real view requests its directory's
+remote URL and offers the matching identity in both themes, without selecting it or issuing Git mutations.
+
 To verify startup with malformed and stale persisted data:
 
 ```sh

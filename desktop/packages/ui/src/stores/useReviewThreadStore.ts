@@ -17,7 +17,7 @@ export const MAX_REVIEW_THREADS = 200
 export const MAX_REVIEW_THREAD_DIRECTORIES = 30
 /** A thread keeps at most this much of the commented code; re-anchoring searches for this prefix. */
 export const MAX_REVIEW_THREAD_SNIPPET = 4000
-export const EMPTY_REVIEW_THREADS: ReviewThread[] = []
+const EMPTY_REVIEW_THREADS: ReviewThread[] = []
 
 function bounded(threads: ReviewThread[]): ReviewThread[] {
   const evict = [...threads].sort(

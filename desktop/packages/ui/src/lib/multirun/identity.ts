@@ -7,12 +7,12 @@
  * Desktop never sends a value the runtime rejects and never trusts one it would not have accepted.
  */
 
-export const MULTI_RUN_METADATA_NAMESPACE = "multiRun"
+const MULTI_RUN_METADATA_NAMESPACE = "multiRun"
 
 /** Runtime `ID` rule: `z.string().min(1).max(160)`. */
 export const MULTI_RUN_ID_MAX_LENGTH = 160
 /** Runtime `MAX_PATH_LENGTH`. */
-export const MULTI_RUN_WORKTREE_MAX_LENGTH = 4096
+const MULTI_RUN_WORKTREE_MAX_LENGTH = 4096
 
 export type MultiRunIdentity = {
   groupId: string

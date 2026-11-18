@@ -84,11 +84,6 @@ export function getSyncParts(messageId: string, directory?: string) {
   return getDirectoryState(directory)?.part.get(messageId) ?? []
 }
 
-/** Read session status from current directory's child store */
-export function getSyncSessionStatus(sessionId: string, directory?: string) {
-  return getDirectoryState(directory)?.session_status[sessionId]
-}
-
 /**
  * Read a session's status from whichever child store owns it. Callers that act on a
  * session outside the active directory must use this: the per-directory read answers

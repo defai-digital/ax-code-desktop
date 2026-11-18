@@ -5,7 +5,7 @@ import type { MainTab } from "@/lib/mainTabs"
  * typecheck. Unknown persisted values fall back to the in-memory default instead of being dropped
  * along with the rest of the UI store.
  */
-export const PERSISTED_SPLIT_PANE_RIGHT_TABS = {
+const PERSISTED_SPLIT_PANE_RIGHT_TABS = {
   plan: true,
   git: true,
   diff: true,

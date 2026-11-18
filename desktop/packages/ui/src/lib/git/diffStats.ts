@@ -7,7 +7,7 @@ import type { GitStatus } from "@/lib/api/types"
 export type GitDiffStats = NonNullable<GitStatus["diffStats"]>
 export type GitDiffStatsScope = "staged" | "working"
 
-export const DIFF_STATS_SCOPES: readonly GitDiffStatsScope[] = ["staged", "working"]
+const DIFF_STATS_SCOPES: readonly GitDiffStatsScope[] = ["staged", "working"]
 
 const NO_STATS = { insertions: 0, deletions: 0 }
 

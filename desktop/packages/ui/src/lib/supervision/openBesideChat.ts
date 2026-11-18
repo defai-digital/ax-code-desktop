@@ -74,10 +74,3 @@ export function continueAfterFilesGuard(next: MainTab): void {
   }
   ui.setActiveMainTab(next)
 }
-
-/** True when the view is currently showing beside the chat. */
-export function isOpenBesideChat(view: BesideChatView): boolean {
-  const ui = useUIStore.getState()
-  if (view === "terminal") return ui.isBottomTerminalOpen
-  return ui.splitPaneEnabled && !ui.isRightSidebarOpen && ui.splitPaneRightTab === view
-}

@@ -4,22 +4,22 @@ export type WebMcpAllowlistScope = WebMcpApprovalRecord["scope"]
 export type WebMcpAllowlistCapability = WebMcpAllowlistScope["capability"]
 
 /** Display rank per capability: listing first, then navigation, read and close. */
-export const WEBMCP_CAPABILITY_RANK: Record<WebMcpAllowlistCapability, number> = {
+const WEBMCP_CAPABILITY_RANK: Record<WebMcpAllowlistCapability, number> = {
   list_pages: 0,
   navigate: 1,
   read: 2,
   close: 3,
 }
 
-export const WEBMCP_ORIGIN_CAPABILITIES: readonly WebMcpAllowlistCapability[] = ["navigate", "read", "close"]
+const WEBMCP_ORIGIN_CAPABILITIES: readonly WebMcpAllowlistCapability[] = ["navigate", "read", "close"]
 export const WEBMCP_ALL_CAPABILITIES: readonly WebMcpAllowlistCapability[] = ["list_pages", "navigate", "read", "close"]
 
-export const WEBMCP_LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"])
+const WEBMCP_LOOPBACK_HOSTS: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "[::1]"])
 
 const MAX_ORIGIN_LENGTH = 2048
 
 /** https: anywhere, or http: on a loopback host. */
-export function webMcpSchemeAllowed(url: URL): boolean {
+function webMcpSchemeAllowed(url: URL): boolean {
   return url.protocol === "https:" || (url.protocol === "http:" && WEBMCP_LOOPBACK_HOSTS.has(url.hostname))
 }
 
@@ -43,14 +43,11 @@ export function grantableOrigin(value: string): string | undefined {
   }
 }
 
-/** TUI-dialog alias: the origin a typed add-box value would grant. */
-export const webMcpAllowlistOrigin = grantableOrigin
-
-export function scopeOrigin(scope: WebMcpAllowlistScope): string {
+function scopeOrigin(scope: WebMcpAllowlistScope): string {
   return scope.capability === "list_pages" ? "" : scope.origin
 }
 
-export function sameScope(a: WebMcpAllowlistScope, b: WebMcpAllowlistScope): boolean {
+function sameScope(a: WebMcpAllowlistScope, b: WebMcpAllowlistScope): boolean {
   if (a.capability === "list_pages" || b.capability === "list_pages") return a.capability === b.capability
   return a.capability === b.capability && a.origin === b.origin
 }
@@ -68,9 +65,6 @@ export function sortWebMcpApprovals(records: readonly WebMcpApprovalRecord[]): W
     return WEBMCP_CAPABILITY_RANK[a.scope.capability] - WEBMCP_CAPABILITY_RANK[b.scope.capability]
   })
 }
-
-/** TUI-dialog alias for {@link sortWebMcpApprovals}. */
-export const webMcpAllowlistRows = sortWebMcpApprovals
 
 export type WebMcpScopeDescription = {
   capability: WebMcpAllowlistCapability

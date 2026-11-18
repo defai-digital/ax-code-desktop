@@ -8,7 +8,7 @@ export type FencedCodeHighlighter = (text: string) => HighlightRange[]
 const noFencedCodeHighlight: FencedCodeHighlighter = () => []
 
 /** Whether the draft contains an opening fence. The loader effect keys off this, not the draft text. */
-export const draftContainsFence = (message: string): boolean => message.includes("```") || message.includes("~~~")
+const draftContainsFence = (message: string): boolean => message.includes("```") || message.includes("~~~")
 
 /**
  * Loads the fenced-code highlighter once a draft contains a fence.

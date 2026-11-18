@@ -463,11 +463,11 @@ export function getReviewRailSnapshot(): ReviewRailSnapshot {
   return snapshot
 }
 
-export function getReviewRailServerSnapshot(): ReviewRailSnapshot {
+function getReviewRailServerSnapshot(): ReviewRailSnapshot {
   return serverSnapshot
 }
 
-export function getReviewRailMode(): ReviewRailMode {
+function getReviewRailMode(): ReviewRailMode {
   return snapshot.mode
 }
 
@@ -536,19 +536,6 @@ export function pruneReviewDirectoryCollapse(directory: string, scope: string, l
   }
   if (!changed) return
   snapshot = { mode: snapshot.mode, width: snapshot.width, collapsed }
-  emit()
-}
-
-export function hydrateReviewRailFromStorage(): void {
-  storageHydrated = true
-  const mode = readStoredMode()
-  const width = readStoredWidth()
-  if (snapshot.mode === mode && snapshot.width === width) return
-  snapshot = {
-    mode,
-    width,
-    collapsed: snapshot.collapsed === serverSnapshot.collapsed ? new Set<string>() : snapshot.collapsed,
-  }
   emit()
 }
 

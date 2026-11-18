@@ -37,7 +37,7 @@ const isPendingChecks = (status: GitHubPullRequestStatus | null): boolean => {
 // dropped.
 const MAX_PR_STATUS_ENTRIES = 50
 
-export const boundPrStatusEntries = (
+const boundPrStatusEntries = (
   entries: Record<string, PrStatusEntry>,
   keepKey?: string,
 ): Record<string, PrStatusEntry> => {

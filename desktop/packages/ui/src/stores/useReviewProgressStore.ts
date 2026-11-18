@@ -186,7 +186,7 @@ export function adjacentReviewFile(
   return ordered[nextIndex].path
 }
 
-export function isReviewEditableTarget(target: EventTarget | null): boolean {
+function isReviewEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false
   if (target.isContentEditable) return true
   const field = target.closest("input, textarea, select, [contenteditable='true']")
@@ -201,13 +201,6 @@ function eventPath(event: KeyboardEvent): EventTarget[] {
 
 export function reviewKeyboardEventInEditableField(event: KeyboardEvent): boolean {
   return eventPath(event).some((node) => isReviewEditableTarget(node))
-}
-
-export function reviewKeyboardEventInTextControl(event: KeyboardEvent): boolean {
-  return eventPath(event).some((node) => {
-    if (!(node instanceof HTMLElement)) return false
-    return node.tagName === "INPUT" || node.tagName === "TEXTAREA"
-  })
 }
 
 type ReviewProgressState = {

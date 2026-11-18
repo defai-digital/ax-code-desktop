@@ -255,7 +255,7 @@ export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean })
  * "Send anyway" for the catalog case, so reporting the generic failure hid why the entry did not
  * go out at all.
  */
-export function queuedAutoSendFailureMessage(error: unknown, dictionary: I18nDictionary): string {
+function queuedAutoSendFailureMessage(error: unknown, dictionary: I18nDictionary): string {
   if (workModeBlockedReasonOfError(error) && error instanceof Error && error.message.trim()) {
     return error.message
   }

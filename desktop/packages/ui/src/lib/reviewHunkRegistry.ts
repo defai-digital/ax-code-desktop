@@ -53,7 +53,7 @@ export function reviewPaneScopeKey(directory: string, scope: string): string {
 }
 
 /** Cache key for one file in one repository. Paths repeat across projects; the directory does not. */
-export function reviewHunkFileKey(directory: string, path: string): string {
+function reviewHunkFileKey(directory: string, path: string): string {
   return `${directory}\0${path}`
 }
 

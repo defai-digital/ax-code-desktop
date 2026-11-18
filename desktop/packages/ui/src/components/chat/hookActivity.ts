@@ -1,6 +1,6 @@
 import type { HookRun } from "@/stores/useHookActivityStore"
 
-export const HOOK_ROW_LIMIT = 3
+const HOOK_ROW_LIMIT = 3
 
 /**
  * The runs worth surfacing in chat: only the ones that stopped or gated a

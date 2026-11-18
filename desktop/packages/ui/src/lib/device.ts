@@ -14,7 +14,7 @@ interface DeviceInfo {
   hasTouchOnlyPointer: boolean
 }
 
-export const BREAKPOINTS = {
+const BREAKPOINTS = {
   xs: 0,
   sm: 640,
   md: 768,

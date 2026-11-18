@@ -55,9 +55,9 @@ export function isPrimaryExecutionMode(mode: string): boolean {
   return (PRIMARY_EXECUTION_MODES as readonly string[]).includes(mode)
 }
 
-export const SESSION_MENU_TOP_ACTIONS = ["rename", "pin", "archive"] as const
+const SESSION_MENU_TOP_ACTIONS = ["rename", "pin", "archive"] as const
 
-export const SESSION_MENU_MORE_ACTIONS = [
+const SESSION_MENU_MORE_ACTIONS = [
   "share",
   "copy-link",
   "unshare",

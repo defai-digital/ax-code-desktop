@@ -89,7 +89,7 @@ type MessageLike = { id?: unknown; role?: unknown; info?: { role?: unknown } }
 export const WEBMCP_CALL_SCAN_MESSAGES = 60
 
 /** The message role, wherever the message shape keeps it. */
-export const messageRole = (message: MessageLike | undefined): string | null => {
+const messageRole = (message: MessageLike | undefined): string | null => {
   const role = message?.role ?? message?.info?.role
   return typeof role === "string" ? role : null
 }

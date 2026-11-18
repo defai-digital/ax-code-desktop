@@ -23,7 +23,7 @@ export function childSessionSummaries(
 }
 
 /** Child agents shown inline under their root row; the rest stay in the row's details. */
-export const INLINE_CHILD_LIMIT = 3
+const INLINE_CHILD_LIMIT = 3
 
 const INLINE_STATE_ORDER: readonly SupervisionState[] = [
   "permission",

@@ -22,7 +22,7 @@ export interface ActivityFeedEvent {
  * Every state a stored event may name. Browser events carry the row's state at the time, whatever it was, so restoring
  * a record accepts the whole vocabulary. Which transitions the feed emits is ACTIVITY_FEED_OUTCOME_STATES.
  */
-export const ACTIVITY_FEED_STATES: readonly SupervisionState[] = [
+const ACTIVITY_FEED_STATES: readonly SupervisionState[] = [
   "permission",
   "question",
   "goal",

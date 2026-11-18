@@ -27,7 +27,7 @@ export type WebMcpDiagnosis =
 const RULES = new Set<WebMcpDiagnosisRule>(["required", "type", "enum", "minimum", "maximum", "minLength", "maxLength"])
 
 /** The kind of a JSON value. Integers are distinguished from other numbers so a fractional misuse is visible. */
-export function webMcpValueKind(value: unknown): WebMcpValueKind {
+function webMcpValueKind(value: unknown): WebMcpValueKind {
   if (value === null) return "null"
   if (Array.isArray(value)) return "array"
   if (typeof value === "string") return "string"

@@ -5,9 +5,7 @@
  * review summaries, and workflow pass rates are not reads.
  */
 
-export const VERIFICATION_EVIDENCE_STATES = ["passed", "failed", "pending", "none"] as const
-
-export type VerificationEvidenceState = (typeof VERIFICATION_EVIDENCE_STATES)[number]
+export type VerificationEvidenceState = "passed" | "failed" | "pending" | "none"
 
 export interface VerificationEvidence {
   state: VerificationEvidenceState

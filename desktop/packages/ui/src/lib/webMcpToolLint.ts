@@ -5,8 +5,8 @@ import type { WebMcpToolDefinition } from "@/lib/webMcpCatalog"
  * Authoring advice for a page-tool builder. Findings never reject a call, a catalog, or a form:
  * the AX Code runtime remains the authority for the schema profile (WX-16).
  */
-export const WEBMCP_LINT_NAME_MAX = 64
-export const WEBMCP_LINT_DESCRIPTION_MAX = 500
+const WEBMCP_LINT_NAME_MAX = 64
+const WEBMCP_LINT_DESCRIPTION_MAX = 500
 /** Keywords the next AX Code runtime contract rejects. A page-supplied regular expression can stall an agent. */
 export const WEBMCP_REJECTED_SCHEMA_KEYWORDS = ["pattern", "patternProperties"] as const
 

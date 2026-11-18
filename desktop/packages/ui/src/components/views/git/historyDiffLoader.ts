@@ -1,6 +1,6 @@
 import { getCommitFileDiff, type CommitFileDiffResponse } from "@/lib/gitApi"
 
-export const HISTORY_DIFF_REQUEST_TIMEOUT_MS = 15000
+const HISTORY_DIFF_REQUEST_TIMEOUT_MS = 15000
 
 export const fetchHistoryCommitFileDiff = (
   directory: string,

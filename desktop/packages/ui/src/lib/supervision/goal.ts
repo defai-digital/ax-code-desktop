@@ -3,7 +3,7 @@
  * status verbatim: it does not judge whether an objective was met and does not infer a status the runtime did
  * not report.
  */
-export const SESSION_GOAL_STATUSES = ["active", "paused", "complete", "blocked", "budget_limited"] as const
+const SESSION_GOAL_STATUSES = ["active", "paused", "complete", "blocked", "budget_limited"] as const
 
 export type SessionGoalStatus = (typeof SESSION_GOAL_STATUSES)[number]
 

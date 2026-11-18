@@ -8,7 +8,7 @@ export interface FilesViewRootTabsState {
   touchedAt: number
 }
 
-export const FILES_VIEW_MAX_ROOTS = 20
+const FILES_VIEW_MAX_ROOTS = 20
 
 export const mergeFilesViewPaths = (existing: readonly string[], incoming: readonly string[]): string[] => {
   const result = [...existing]

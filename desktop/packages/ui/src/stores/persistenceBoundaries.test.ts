@@ -21,7 +21,6 @@ const stores = [
   ["identities", () => import("./useGitIdentitiesStore").then((m) => m.useGitIdentitiesStore)],
   ["inline drafts", () => import("./useInlineCommentDraftStore").then((m) => m.useInlineCommentDraftStore)],
   ["MCP", () => import("./useMcpConfigStore").then((m) => m.useMcpConfigStore)],
-  ["plugins", () => import("./usePluginsStore").then((m) => m.usePluginsStore)],
   ["repository hints", () => import("./useRepositoryHintStore").then((m) => m.useRepositoryHintStore)],
   ["review progress", () => import("./useReviewProgressStore").then((m) => m.useReviewProgressStore)],
   ["review threads", () => import("./useReviewThreadStore").then((m) => m.useReviewThreadStore)],
@@ -182,7 +181,6 @@ test.each([
   ["skills", "selectedSkillName"],
   ["identities", "selectedProfileId"],
   ["MCP", "selectedMcpName"],
-  ["plugins", "selectedId"],
 ])("%s restores only its nullable editor selection", async (name, key) => {
   const entry = stores.find(([storeName]) => storeName === name)
   if (!entry) throw new Error("Missing selection store")

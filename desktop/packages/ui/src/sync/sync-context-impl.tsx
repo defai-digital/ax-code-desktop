@@ -2100,7 +2100,7 @@ const rememberSessionMessageRecordsSnapshot = (
   }
 }
 
-export function dropCachedSessionMessageRecordsSnapshots(
+function dropCachedSessionMessageRecordsSnapshots(
   store: StoreApi<DirectoryStore>,
   sessionIDs: Iterable<string>,
 ): void {

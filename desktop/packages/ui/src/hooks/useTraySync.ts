@@ -125,7 +125,7 @@ const collectApprovals = (sessions: Array<{ id: string; title?: string | null; d
   return approvals
 }
 
-export const buildTraySnapshotFromStores = (): TraySnapshot => {
+const buildTraySnapshotFromStores = (): TraySnapshot => {
   const sessions = getAllSyncSessions().map((session) => ({
     id: session.id,
     title: session.title,
