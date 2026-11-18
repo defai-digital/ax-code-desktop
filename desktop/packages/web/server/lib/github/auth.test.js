@@ -1,6 +1,8 @@
 import fs from "fs"
 import os from "os"
 import path from "path"
+import express from "express"
+import request from "supertest"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 describe("github auth storage", () => {
@@ -199,6 +201,48 @@ describe("github auth storage", () => {
     expect(() => setGitHubAuth({ accessToken: "gho_new", user: { login: "other" } })).toThrow("left unchanged")
     expect(clearGitHubAuth()).toBe(false)
     expect(fs.readFileSync(authFile(), "utf8")).toBe(original)
+  })
+
+  it.each([
+    "",
+    "{}",
+    '[{"accessToken":"fixture-a","user":{"login":"alice"}},{"user":{"login":"damaged"}}]',
+  ])("preserves an incomplete account document on read, login and logout", async (original) => {
+    fs.writeFileSync(authFile(), original)
+    const auth = await importAuth()
+    auth.getGitHubAuthAccounts()
+    expect(fs.readFileSync(authFile(), "utf8")).toBe(original)
+    expect(() => auth.setGitHubAuth({ accessToken: "fixture-b" })).toThrow("left unchanged")
+    expect(auth.clearGitHubAuth()).toBe(false)
+    expect(fs.readFileSync(authFile(), "utf8")).toBe(original)
+  })
+
+  it("reads a legacy single account without rewriting it on a status read", async () => {
+    const original = JSON.stringify({ accessToken: "fixture", user: { login: "alice" } })
+    fs.writeFileSync(authFile(), original)
+    const auth = await importAuth()
+    expect(auth.getGitHubAuth()).toMatchObject({ accountId: "alice", current: true })
+    expect(fs.readFileSync(authFile(), "utf8")).toBe(original)
+    expect(auth.clearGitHubAuth()).toBe(true)
+    expect(fs.existsSync(authFile())).toBe(false)
+  })
+
+  it("reports a damaged account file over HTTP and signs out after the file is repaired", async () => {
+    const { registerGitHubRoutes } = await import("./routes.js")
+    const app = express()
+    registerGitHubRoutes(app)
+    const legacy = { accessToken: "fixture", user: { login: "alice" } }
+    const damaged = JSON.stringify([legacy, null])
+    fs.writeFileSync(authFile(), damaged)
+
+    const status = await request(app).get("/api/github/auth/status").expect(500)
+    expect(status.body.error).toMatch(/GitHub auth file could not be read/)
+    await request(app).delete("/api/github/auth").expect(500)
+    expect(fs.readFileSync(authFile(), "utf8")).toBe(damaged)
+
+    fs.writeFileSync(authFile(), JSON.stringify(legacy))
+    await request(app).delete("/api/github/auth").expect(200, { success: true, removed: true })
+    expect(fs.existsSync(authFile())).toBe(false)
   })
 
   it("removes the temporary token copy when the write fails", async () => {

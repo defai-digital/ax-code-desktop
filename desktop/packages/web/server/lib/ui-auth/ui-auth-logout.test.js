@@ -151,13 +151,13 @@ describe("ui auth sign-out", () => {
     const loginRes = createResponse()
     await auth.handleSessionCreate({ body: { password }, headers: { host: "127.0.0.1:4096" } }, loginRes)
     const token = sessionTokenFrom(loginRes)
-    const realWrite = fs.writeFileSync
+    const realOpen = fs.openSync
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target).includes("revoked-sessions")) {
+    const writeSpy = vi.spyOn(fs, "openSync").mockImplementation((target, ...rest) => {
+      if (rest[0] === "wx" && String(target).includes("revoked-sessions")) {
         throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
       }
-      return realWrite(target, ...rest)
+      return realOpen(target, ...rest)
     })
     try {
       const logoutRes = createResponse()
@@ -173,6 +173,20 @@ describe("ui auth sign-out", () => {
       warn.mockRestore()
       auth.dispose()
     }
+  })
+
+  it("requires a readable revocation list before starting password sessions and retries after repair", async () => {
+    const file = path.join(tempRoot, "revoked-sessions.json")
+    const original = '["fixture",null]'
+    fs.writeFileSync(file, original)
+    const { createUiAuth } = await import("./ui-auth.js")
+
+    expect(() => createUiAuth({ password: "fixture password" })).toThrow(/revoked-sessions\.json/)
+    expect(fs.readFileSync(file, "utf8")).toBe(original)
+    fs.writeFileSync(file, '["fixture"]')
+    const auth = createUiAuth({ password: "fixture password" })
+    expect(auth.enabled).toBe(true)
+    auth.dispose()
   })
 
   it("keeps a signed-out token revoked across a process restart", async () => {

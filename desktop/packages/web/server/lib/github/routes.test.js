@@ -9,7 +9,7 @@ const getGitHubAuthAccounts = vi.fn()
 vi.mock("./index.js", () => ({
   activateGitHubAuth,
   clearGitHubAuth: vi.fn(),
-  clearRejectedGitHubAuth: vi.fn(),
+  clearRejectedGitHubAuth: vi.fn(() => true),
   exchangeDeviceCode: vi.fn(),
   getGitHubAuth: vi.fn(() => null),
   getGitHubAuthAccounts,
@@ -57,6 +57,17 @@ describe("github routes", () => {
     vi.clearAllMocks()
     getGitHubAuthAccounts.mockReturnValue([{ id: "known-account" }])
     clearForkDetectionCache()
+  })
+
+  it("reports an account storage failure when a refused credential cannot be removed", async () => {
+    const github = await import("./index.js")
+    github.getGitHubAuth.mockReturnValueOnce({ accessToken: "fixture", scope: "repo" })
+    github.getOctokitOrNull.mockReturnValueOnce({
+      rest: { users: { getAuthenticated: vi.fn().mockRejectedValue(Object.assign(new Error("refused"), { status: 401 })) } },
+    })
+    github.clearRejectedGitHubAuth.mockReturnValueOnce(false)
+    const response = await request(createApp()).get("/api/github/auth/status").expect(500)
+    expect(response.body).toEqual({ error: "Failed to disconnect GitHub" })
   })
 
   it("does not clear stored credentials on a 403 rate limit", async () => {

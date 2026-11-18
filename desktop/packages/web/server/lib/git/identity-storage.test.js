@@ -51,7 +51,7 @@ describe("git identity storage", () => {
     const { saveProfiles } = await importStorage()
 
     expect(() => saveProfiles({ profiles: [] })).toThrow()
-    expect(fs.readdirSync(storageDir()).filter((name) => name.startsWith(".git-identities."))).toEqual([])
+    expect(fs.readdirSync(storageDir())).toEqual(["git-identities.json"])
   })
 
   it("loads profiles without a preflight existence check", async () => {
@@ -77,6 +77,17 @@ describe("git identity storage", () => {
 
     expect(loadProfiles()).toEqual({ profiles: [] })
   })
+
+  it.each(["[]", "{}", '{"profiles":null}', '{"profiles":[null]}'])(
+    "preserves a malformed identity document on create",
+    async (original) => {
+      fs.mkdirSync(storageDir(), { recursive: true })
+      fs.writeFileSync(storageFile(), original)
+      const { createProfile } = await importStorage()
+      expect(() => createProfile({ id: "new", userName: "User", userEmail: "u@example.org" })).toThrow(/corrupted/)
+      expect(fs.readFileSync(storageFile(), "utf8")).toBe(original)
+    },
+  )
 
   it("refuses profiles that git could not use or the routes could never address", async () => {
     // A numeric id was saved and then matched no update or delete (route ids are strings); an update could

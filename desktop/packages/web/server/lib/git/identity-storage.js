@@ -1,7 +1,8 @@
 import fs from "fs"
 import path from "path"
 import os from "os"
-import crypto from "crypto"
+import { parseJsonObject } from "../../../../../shared/json-file.cjs"
+import { writePrivateFileSync } from "../private-file.js"
 
 const STORAGE_DIR = path.join(os.homedir(), ".config", "openchamber")
 const STORAGE_FILE = path.join(STORAGE_DIR, "git-identities.json")
@@ -13,35 +14,15 @@ function ensureStorageDir() {
   } catch {}
 }
 
-function writeProfilesFile(data) {
-  const tmpFile = path.join(
-    STORAGE_DIR,
-    `.git-identities.${process.pid}.${Date.now()}.${crypto.randomBytes(6).toString("hex")}.tmp`,
-  )
-
-  try {
-    fs.writeFileSync(tmpFile, `${JSON.stringify(data, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
-    try {
-      fs.chmodSync(tmpFile, 0o600)
-    } catch {}
-    fs.renameSync(tmpFile, STORAGE_FILE)
-    try {
-      fs.chmodSync(STORAGE_FILE, 0o600)
-    } catch {}
-  } catch (error) {
-    try {
-      fs.rmSync(tmpFile, { force: true })
-    } catch {}
-    throw error
-  }
-}
-
 export function loadProfiles() {
   ensureStorageDir()
 
   try {
     const content = fs.readFileSync(STORAGE_FILE, "utf8")
-    const data = JSON.parse(content)
+    const data = parseJsonObject(content, "Git identity")
+    if (!Array.isArray(data.profiles) || !data.profiles.every((p) => p && typeof p === "object" && !Array.isArray(p))) {
+      throw new Error("Git identity data is corrupted")
+    }
     return data
   } catch (error) {
     if (error && error.code === "ENOENT") {
@@ -59,7 +40,7 @@ export function saveProfiles(data) {
   ensureStorageDir()
 
   try {
-    writeProfilesFile(data)
+    writePrivateFileSync(STORAGE_FILE, `${JSON.stringify(data, null, 2)}\n`)
     return true
   } catch (error) {
     console.error("Failed to save git identity profiles:", error)
@@ -68,8 +49,7 @@ export function saveProfiles(data) {
 }
 
 export function getProfiles() {
-  const data = loadProfiles()
-  return data.profiles || []
+  return loadProfiles().profiles
 }
 
 export function getProfile(id) {

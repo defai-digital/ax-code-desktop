@@ -81,7 +81,7 @@ describe("ui auth", () => {
     const auth = createUiAuth({ password: "correct horse battery staple" })
 
     // Spy only after init so we observe writes made by the reset call itself.
-    const writeSpy = vi.spyOn(fs, "writeFileSync")
+    const writeSpy = vi.spyOn(fs, "openSync")
     const res = {
       statusCode: 200,
       body: undefined,
@@ -101,7 +101,7 @@ describe("ui auth", () => {
       // The guard must fire before any destructive action.
       expect(res.statusCode).toBe(400)
       // The passkey store must never be rewritten (clearAllPasskeys not reached).
-      const touchedPasskeyStore = writeSpy.mock.calls.some(([target]) => String(target).includes("ui-passkeys"))
+      const touchedPasskeyStore = writeSpy.mock.calls.some(([target, flags]) => flags === "wx" && String(target).includes("ui-passkeys"))
       expect(touchedPasskeyStore).toBe(false)
     } finally {
       auth.dispose()
@@ -189,14 +189,14 @@ describe("ui auth", () => {
 
     const { createUiAuth } = await import("./ui-auth.js")
     const auth = createUiAuth({ password: "correct horse battery staple" })
-    const realWrite = fs.writeFileSync
-    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target).startsWith(secretFile)) {
+    const realOpen = fs.openSync
+    const writeSpy = vi.spyOn(fs, "openSync").mockImplementation((target, ...rest) => {
+      if (rest[0] === "wx" && String(target).startsWith(secretFile)) {
         const error = new Error("EACCES: permission denied")
         error.code = "EACCES"
         throw error
       }
-      return realWrite(target, ...rest)
+      return realOpen(target, ...rest)
     })
 
     try {
@@ -251,16 +251,16 @@ describe("ui auth", () => {
     vi.resetModules()
     const { createUiAuth } = await import("./ui-auth.js")
     const auth = createUiAuth({ password: "correct horse battery staple" })
-    const realWrite = fs.writeFileSync
+    const realOpen = fs.openSync
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target).includes("ui-passkeys")) {
+    vi.spyOn(fs, "openSync").mockImplementation((target, ...rest) => {
+      if (rest[0] === "wx" && String(target).includes("ui-passkeys")) {
         throw Object.assign(new Error(`EACCES: permission denied, open '${target}'`), {
           code: "EACCES",
           syscall: "open",
         })
       }
-      return realWrite(target, ...rest)
+      return realOpen(target, ...rest)
     })
     try {
       const res = createResponse()
@@ -277,13 +277,13 @@ describe("ui auth", () => {
     // Passkeys bound to a secret that exists only in memory would all be wiped on the next start.
     process.env.AX_CODE_DESKTOP_DATA_DIR = tempRoot
     const secretFile = path.join(tempRoot, "jwt-secret")
-    const realWrite = fs.writeFileSync
+    const realOpen = fs.openSync
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target).startsWith(secretFile)) {
+    vi.spyOn(fs, "openSync").mockImplementation((target, ...rest) => {
+      if (rest[0] === "wx" && String(target).startsWith(secretFile)) {
         throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC", syscall: "write" })
       }
-      return realWrite(target, ...rest)
+      return realOpen(target, ...rest)
     })
     vi.resetModules()
 
@@ -337,16 +337,16 @@ describe("ui auth", () => {
     vi.resetModules()
     const { createUiAuth } = await import("./ui-auth.js")
     const auth = createUiAuth({ password: "correct horse battery staple" })
-    const realWrite = fs.writeFileSync
+    const realOpen = fs.openSync
     vi.spyOn(console, "warn").mockImplementation(() => {})
-    vi.spyOn(fs, "writeFileSync").mockImplementation((target, ...rest) => {
-      if (String(target).startsWith(secretFile)) {
+    vi.spyOn(fs, "openSync").mockImplementation((target, ...rest) => {
+      if (rest[0] === "wx" && String(target).startsWith(secretFile)) {
         throw Object.assign(new Error(`ENOSPC: no space left on device, write '${target}'`), {
           code: "ENOSPC",
           syscall: "write",
         })
       }
-      return realWrite(target, ...rest)
+      return realOpen(target, ...rest)
     })
     try {
       const res = createResponse()
