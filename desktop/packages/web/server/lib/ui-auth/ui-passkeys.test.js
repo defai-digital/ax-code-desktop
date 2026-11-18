@@ -109,8 +109,12 @@ describe("ui passkeys", () => {
     }
   })
 
-  it("leaves an unreadable passkey store on disk instead of replacing it with an empty one", async () => {
-    const corrupt = '{"version":1,"passwordBinding":"password-binding","passkeys":['
+  it.each([
+    '{"version":1,"passwordBinding":"password-binding","passkeys":[',
+    '{"passwordBinding":"password-binding","passkeys":{}}',
+    '{"passwordBinding":"password-binding","passkeys":[null]}',
+    '{"passkeys":[{"id":"credential-id","publicKey":"key","rpID":"localhost"}]}',
+  ])("preserves an unreadable passkey store until explicit recovery", async (corrupt) => {
     fs.writeFileSync(storeFile, corrupt, "utf8")
     vi.spyOn(console, "warn").mockImplementation(() => {})
     const passkeys = createUiPasskeys({ passwordBinding: "password-binding", storeFile })

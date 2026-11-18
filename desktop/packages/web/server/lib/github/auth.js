@@ -1,61 +1,20 @@
 import crypto from "crypto"
 import fs from "fs"
 import path from "path"
-import os from "os"
+import { writePrivateFileSync } from "../private-file.js"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
-
-const STORAGE_DIR = AX_CODE_DESKTOP_DATA_DIR
+const STORAGE_DIR = getDesktopDataDir()
 const STORAGE_FILE = path.join(STORAGE_DIR, "github-auth.json")
-const SETTINGS_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "settings.json")
+const SETTINGS_FILE = path.join(STORAGE_DIR, "settings.json")
 
 const DEFAULT_GITHUB_CLIENT_ID = "Ov23lizomPOC3eFYo56r"
 const DEFAULT_GITHUB_SCOPES = "repo read:org workflow read:user user:email"
-
-function ensureStorageDir() {
-  // 0700 like the git identities store beside it: this directory holds the OAuth token.
-  fs.mkdirSync(STORAGE_DIR, { recursive: true, mode: 0o700 })
-}
 
 // Thrown instead of reading an unreadable file as "no accounts": every write rewrites the whole list, so a
 // sign-in would replace each stored account with the new one, and a logout would report success while the
 // token stayed on disk.
 export class GitHubAuthStorageError extends Error {}
-
-function readJsonFile({ strict = false } = {}) {
-  ensureStorageDir()
-  let raw
-  try {
-    raw = fs.readFileSync(STORAGE_FILE, "utf8")
-  } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return null
-    }
-    // The code only: the error object can carry file contents in other runtimes' messages.
-    console.error("Failed to read GitHub auth file:", error?.code || "unknown error")
-    if (strict) throw new GitHubAuthStorageError("The GitHub auth file could not be read; it was left unchanged")
-    return null
-  }
-  const trimmed = raw.trim()
-  if (!trimmed) {
-    return null
-  }
-  let parsed
-  try {
-    parsed = JSON.parse(trimmed)
-  } catch {
-    // The parse message quotes the text around the error, which here is token material.
-    console.error("Failed to read GitHub auth file: invalid JSON")
-    parsed = null
-  }
-  if (!parsed || typeof parsed !== "object") {
-    if (strict) throw new GitHubAuthStorageError("The GitHub auth file is not valid; it was left unchanged")
-    return null
-  }
-  return parsed
-}
 
 function readSettingsJsonFile() {
   try {
@@ -74,36 +33,8 @@ function readSettingsJsonFile() {
   }
 }
 
-function writeJsonFile(payload) {
-  ensureStorageDir()
-
-  // Atomic write so multiple OpenChamber instances can safely share the same file.
-  const tmpFile = `${STORAGE_FILE}.${process.pid}.${Date.now()}.tmp`
-  // Created 0600 rather than written and then chmod'd: this file holds the OAuth access token, the chmod is
-  // best-effort (its failure was swallowed), and a 0644 window is readable by every other local user. The git
-  // identities store beside it passes `mode` for the same reason.
-  try {
-    fs.writeFileSync(tmpFile, JSON.stringify(payload, null, 2), { encoding: "utf8", mode: 0o600 })
-    try {
-      fs.chmodSync(tmpFile, 0o600)
-    } catch {
-      // best-effort
-    }
-    fs.renameSync(tmpFile, STORAGE_FILE)
-  } catch (error) {
-    // The temp file holds the tokens, and logout only removes STORAGE_FILE: a leftover copy would outlive it.
-    try {
-      fs.unlinkSync(tmpFile)
-    } catch {
-      // already gone
-    }
-    throw error
-  }
-  try {
-    fs.chmodSync(STORAGE_FILE, 0o600)
-  } catch {
-    // best-effort
-  }
+function writeAuthList(list) {
+  writePrivateFileSync(STORAGE_FILE, JSON.stringify(list, null, 2))
 }
 
 function resolveAccountId({ user, accessToken, accountId }) {
@@ -129,7 +60,7 @@ function resolveAccountId({ user, accessToken, accountId }) {
 function normalizeAuthEntry(entry) {
   if (!entry || typeof entry !== "object") return null
   const accessToken = typeof entry.accessToken === "string" ? entry.accessToken : ""
-  if (!accessToken) return null
+  if (!accessToken.trim()) return null
   const user =
     entry.user && typeof entry.user === "object"
       ? {
@@ -158,65 +89,26 @@ function normalizeAuthEntry(entry) {
   }
 }
 
-function normalizeAuthList(raw) {
-  const list = (Array.isArray(raw) ? raw : [raw]).map((entry) => normalizeAuthEntry(entry)).filter(Boolean)
-
-  if (!list.length) {
-    return { list: [], changed: false }
-  }
-
-  let changed = false
-  let currentFound = false
-  list.forEach((entry) => {
-    if (entry.current && !currentFound) {
-      currentFound = true
-    } else if (entry.current && currentFound) {
-      entry.current = false
-      changed = true
-    }
-  })
-
-  if (!currentFound && list[0]) {
-    list[0].current = true
-    changed = true
-  }
-
-  list.forEach((entry) => {
-    if (!entry.accountId) {
-      entry.accountId = resolveAccountId(entry)
-      changed = true
-    }
-  })
-
-  return { list, changed }
-}
-
 function readAuthList({ strict = false } = {}) {
-  const data = readJsonFile({ strict })
-  if (!data) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(STORAGE_FILE, "utf8").trim())
+    // Before multiple accounts, the file contained a single account object.
+    const accounts = (Array.isArray(raw) ? raw : [raw]).map(normalizeAuthEntry)
+    if (accounts.includes(null)) throw new GitHubAuthStorageError("Invalid account record")
+    const current = accounts.find((entry) => entry.current) ?? accounts[0]
+    for (const entry of accounts) entry.current = entry === current
+    return accounts
+  } catch (error) {
+    if (error?.code === "ENOENT") return []
+    // Parser messages can contain fragments of credentials.
+    console.error("Failed to read GitHub auth file:", error?.code || "invalid account data")
+    if (strict) throw new GitHubAuthStorageError("The GitHub auth file could not be read; it was left unchanged")
     return []
   }
-  const { list, changed } = normalizeAuthList(data)
-  if (changed) {
-    writeJsonFile(list)
-  }
-  return list
 }
 
-function writeAuthList(list) {
-  writeJsonFile(list)
-}
-
-export function getGitHubAuth() {
-  const list = readAuthList()
-  if (!list.length) {
-    return null
-  }
-  const current = list.find((entry) => entry.current) || list[0]
-  if (!current?.accessToken) {
-    return null
-  }
-  return current
+export function getGitHubAuth(options) {
+  return readAuthList(options).find((entry) => entry.current) ?? null
 }
 
 export function getGitHubAuthAccounts() {
@@ -232,7 +124,7 @@ export function getGitHubAuthAccounts() {
 }
 
 export function setGitHubAuth({ accessToken, scope, tokenType, user, accountId }) {
-  if (!accessToken || typeof accessToken !== "string") {
+  if (typeof accessToken !== "string" || !accessToken.trim()) {
     throw new Error("accessToken is required")
   }
   const normalizedUser =
@@ -317,61 +209,31 @@ export function tagGitHubRequestError(error, credential) {
  */
 export function clearRejectedGitHubAuth(error) {
   const credential = error?.[GITHUB_REQUEST_CREDENTIAL]
-  if (!credential?.accessToken) {
-    return clearGitHubAuth()
-  }
-  try {
-    const list = readAuthList({ strict: true })
-    const index = list.findIndex(
-      (entry) => entry.accountId === credential.accountId && entry.accessToken === credential.accessToken,
-    )
-    if (index === -1) {
-      return true
-    }
-    const [removed] = list.splice(index, 1)
-    if (!list.length) {
-      try {
-        fs.unlinkSync(STORAGE_FILE)
-      } catch (unlinkError) {
-        if (!unlinkError || unlinkError.code !== "ENOENT") throw unlinkError
-      }
-      return true
-    }
-    if (removed.current) {
-      list.forEach((entry, entryIndex) => {
-        entry.current = entryIndex === 0
-      })
-    }
-    writeAuthList(list)
-    return true
-  } catch (failure) {
-    console.error("Failed to clear GitHub auth file:", failure)
-    return false
-  }
+  if (!credential?.accessToken) return clearGitHubAuth()
+  return removeGitHubAccount(
+    (entry) => entry.accountId === credential.accountId && entry.accessToken === credential.accessToken,
+  )
 }
 
 export function clearGitHubAuth() {
+  return removeGitHubAccount((entry) => entry.current)
+}
+
+function removeGitHubAccount(matches) {
   try {
-    const list = readAuthList({ strict: true })
-    if (!list.length) {
-      return true
+    const accounts = readAuthList({ strict: true })
+    const index = accounts.findIndex(matches)
+    if (index < 0) return true
+    const [removed] = accounts.splice(index, 1)
+    if (accounts.length === 0) {
+      fs.rmSync(STORAGE_FILE, { force: true })
+    } else {
+      if (removed.current) accounts[0].current = true
+      writeAuthList(accounts)
     }
-    const remaining = list.filter((entry) => !entry.current)
-    if (!remaining.length) {
-      try {
-        fs.unlinkSync(STORAGE_FILE)
-      } catch (error) {
-        if (!error || error.code !== "ENOENT") throw error
-      }
-      return true
-    }
-    remaining.forEach((entry, index) => {
-      entry.current = index === 0
-    })
-    writeAuthList(remaining)
     return true
   } catch (error) {
-    console.error("Failed to clear GitHub auth file:", error)
+    console.error("Failed to clear GitHub auth file:", error?.code || "storage unavailable")
     return false
   }
 }

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto"
+import { createAtomicJsonWriter, parseJsonObject } from "../../../../../shared/json-file.cjs"
 
 const PROJECT_CONFIG_VERSION = 1
 // A project id is `path_` + base64url of the whole project path (project-id.js), so a long path pushes
@@ -81,8 +82,7 @@ export const createProjectConfigRuntime = (deps) => {
     for (const [index, filePath] of paths.entries()) {
       try {
         const raw = await fsPromises.readFile(filePath, "utf8")
-        const parsed = JSON.parse(raw)
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {}
+        return parseJsonObject(raw, "Project config")
       } catch (error) {
         if (index < paths.length - 1 && (error?.code === "ENOENT" || error?.code === "ENAMETOOLONG")) {
           continue
@@ -100,17 +100,7 @@ export const createProjectConfigRuntime = (deps) => {
     return {}
   }
 
-  // A failed write (a full disk) or rename (the target became a directory) would otherwise leave a full copy
-  // of the config behind under a unique name on every attempt.
-  const writeFileAtomically = async (temporaryPath, filePath, contents) => {
-    try {
-      await fsPromises.writeFile(temporaryPath, contents, "utf8")
-      await fsPromises.rename(temporaryPath, filePath)
-    } catch (error) {
-      await fsPromises.rm(temporaryPath, { force: true }).catch(() => {})
-      throw error
-    }
-  }
+  const writeJsonFile = createAtomicJsonWriter({ filesystem: fsPromises })
 
   // S2.6 (SPEC-2026-08-29-desktop-process-model-collapse §2 D6): the runtime
   // migration rewrites the task list after each project pass and deletes the
@@ -119,9 +109,6 @@ export const createProjectConfigRuntime = (deps) => {
   // other key is preserved verbatim.
   const writeScheduledTasksToDisk = async (projectID, tasks) => {
     const filePath = resolveProjectConfigPath(projectID)
-    const parentDirectory = path.dirname(filePath)
-    const temporaryPath = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-
     const existing = await readRawProjectConfigFromDisk(projectID)
     const merged = {
       ...existing,
@@ -134,8 +121,7 @@ export const createProjectConfigRuntime = (deps) => {
       delete merged.scheduledTasks
     }
 
-    await fsPromises.mkdir(parentDirectory, { recursive: true })
-    await writeFileAtomically(temporaryPath, filePath, JSON.stringify(merged, null, 2))
+    await writeJsonFile(filePath, merged)
     await removeLegacyProjectConfigFile(projectID)
   }
 

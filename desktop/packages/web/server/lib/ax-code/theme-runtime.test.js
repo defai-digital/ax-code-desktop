@@ -248,12 +248,12 @@ describe("theme runtime", () => {
       const runtime = createRuntime({
         fsPromises: {
           ...fsPromises,
-          writeFile: async (...args) => {
+          rename: async (...args) => {
             active += 1
             maxActive = Math.max(maxActive, active)
             await new Promise((resolve) => setTimeout(resolve, 10))
             try {
-              return await fsPromises.writeFile(...args)
+              return await fsPromises.rename(...args)
             } finally {
               active -= 1
             }

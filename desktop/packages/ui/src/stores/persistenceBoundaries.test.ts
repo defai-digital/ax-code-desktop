@@ -1,4 +1,36 @@
-import { describe, expect, test } from "vitest"
+import { describe, expect, test, vi } from "vitest"
+
+import { useMessageQueueStore } from "./messageQueueStore"
+import { usePermissionStore } from "./permissionStore"
+import { useActivityFeedStore } from "./useActivityFeedStore"
+import { useAgentTeamStore } from "./useAgentTeamStore"
+import { useAgentsStore } from "./useAgentsStore"
+import { useBranchReviewBaseStore } from "./useBranchReviewBaseStore"
+import { useCommandsStore } from "./useCommandsStore"
+import { useConfigStore } from "./useConfigStore-impl"
+import { useFilesViewTabsStore } from "./useFilesViewTabsStore"
+import { useGitHubPrStatusStore } from "./useGitHubPrStatusStore"
+import { useGitIdentitiesStore } from "./useGitIdentitiesStore"
+import { useInlineCommentDraftStore } from "./useInlineCommentDraftStore"
+import { useMcpConfigStore } from "./useMcpConfigStore"
+import { isChildHintDismissed, useRepositoryHintStore } from "./useRepositoryHintStore"
+import { useReviewProgressStore } from "./useReviewProgressStore"
+import { useReviewThreadStore } from "./useReviewThreadStore"
+import { useSessionDisplayStore } from "./useSessionDisplayStore"
+import { useSkillsStore } from "./useSkillsStore"
+import { useTerminalStore } from "./useTerminalStore"
+import { useTodosPersistStore } from "./useTodosPersistStore"
+import { useUIStore } from "./useUIStore-impl"
+import { useWorkModeStore } from "./useWorkModeStore"
+
+// Directory discovery starts network requests at module load. These restore tests
+// only need a current directory and a subscription for the config store.
+vi.mock("./useDirectoryStore", () => ({
+  useDirectoryStore: {
+    getState: () => ({ currentDirectory: "/fixture" }),
+    subscribe: () => () => {},
+  },
+}))
 
 // Adapt heterogeneous store APIs only in this shared behavioral probe; each merge receives its own live state.
 interface RestoreProbe {
@@ -8,33 +40,33 @@ interface RestoreProbe {
   }
 }
 const stores = [
-  ["queue", () => import("./messageQueueStore").then((m) => m.useMessageQueueStore)],
-  ["permission", () => import("./permissionStore").then((m) => m.usePermissionStore)],
-  ["activity", () => import("./useActivityFeedStore").then((m) => m.useActivityFeedStore)],
-  ["team", () => import("./useAgentTeamStore").then((m) => m.useAgentTeamStore)],
-  ["agents", () => import("./useAgentsStore").then((m) => m.useAgentsStore)],
-  ["branch review", () => import("./useBranchReviewBaseStore").then((m) => m.useBranchReviewBaseStore)],
-  ["commands", () => import("./useCommandsStore").then((m) => m.useCommandsStore)],
-  ["config", () => import("./useConfigStore-impl").then((m) => m.useConfigStore)],
-  ["files", () => import("./useFilesViewTabsStore").then((m) => m.useFilesViewTabsStore)],
-  ["pull requests", () => import("./useGitHubPrStatusStore").then((m) => m.useGitHubPrStatusStore)],
-  ["identities", () => import("./useGitIdentitiesStore").then((m) => m.useGitIdentitiesStore)],
-  ["inline drafts", () => import("./useInlineCommentDraftStore").then((m) => m.useInlineCommentDraftStore)],
-  ["MCP", () => import("./useMcpConfigStore").then((m) => m.useMcpConfigStore)],
-  ["repository hints", () => import("./useRepositoryHintStore").then((m) => m.useRepositoryHintStore)],
-  ["review progress", () => import("./useReviewProgressStore").then((m) => m.useReviewProgressStore)],
-  ["review threads", () => import("./useReviewThreadStore").then((m) => m.useReviewThreadStore)],
-  ["session display", () => import("./useSessionDisplayStore").then((m) => m.useSessionDisplayStore)],
-  ["skills", () => import("./useSkillsStore").then((m) => m.useSkillsStore)],
-  ["terminal", () => import("./useTerminalStore").then((m) => m.useTerminalStore)],
-  ["todos", () => import("./useTodosPersistStore").then((m) => m.useTodosPersistStore)],
-  ["UI", () => import("./useUIStore-impl").then((m) => m.useUIStore)],
-  ["work mode", () => import("./useWorkModeStore").then((m) => m.useWorkModeStore)],
+  ["queue", useMessageQueueStore],
+  ["permission", usePermissionStore],
+  ["activity", useActivityFeedStore],
+  ["team", useAgentTeamStore],
+  ["agents", useAgentsStore],
+  ["branch review", useBranchReviewBaseStore],
+  ["commands", useCommandsStore],
+  ["config", useConfigStore],
+  ["files", useFilesViewTabsStore],
+  ["pull requests", useGitHubPrStatusStore],
+  ["identities", useGitIdentitiesStore],
+  ["inline drafts", useInlineCommentDraftStore],
+  ["MCP", useMcpConfigStore],
+  ["repository hints", useRepositoryHintStore],
+  ["review progress", useReviewProgressStore],
+  ["review threads", useReviewThreadStore],
+  ["session display", useSessionDisplayStore],
+  ["skills", useSkillsStore],
+  ["terminal", useTerminalStore],
+  ["todos", useTodosPersistStore],
+  ["UI", useUIStore],
+  ["work mode", useWorkModeStore],
 ] as const
 
 describe("persisted data/action boundary", () => {
-  test.each(stores)("%s ignores stored actions and unknown fields", async (_name, load) => {
-    const store = (await load()) as unknown as RestoreProbe
+  test.each(stores)("%s ignores stored actions and unknown fields", (_name, candidate) => {
+    const store = candidate as unknown as RestoreProbe
     const current = store.getState()
     const actions = Object.entries(current).filter(([, value]) => typeof value === "function")
     expect(actions.length).toBeGreaterThan(0)
@@ -45,21 +77,20 @@ describe("persisted data/action boundary", () => {
     for (const [key, action] of actions) expect(restored[key], key).toBe(action)
     expect(restored).not.toHaveProperty("__staleRestoreMarker")
   })
-  test.each(stores)("%s preserves live state when there is no saved snapshot", async (_name, load) => {
-    const store = (await load()) as unknown as RestoreProbe
+  test.each(stores)("%s preserves live state when there is no saved snapshot", (_name, candidate) => {
+    const store = candidate as unknown as RestoreProbe
     const current = store.getState()
     const merge = store.persist.getOptions().merge
     expect(merge?.(undefined, current)).toBe(current)
   })
-  test.each(stores)("%s ignores an unrelated snapshot without changing live state", async (_name, load) => {
-    const store = (await load()) as unknown as RestoreProbe
+  test.each(stores)("%s ignores an unrelated snapshot without changing live state", (_name, candidate) => {
+    const store = candidate as unknown as RestoreProbe
     const current = store.getState()
     expect(store.persist.getOptions().merge?.({ unrelatedLegacyValue: 42 }, current)).toBe(current)
   })
 })
 
-test("UI restores preferences without reviving transient navigation, dialogs or malformed collections", async () => {
-  const { useUIStore } = await import("./useUIStore-impl")
+test("UI restores preferences without reviving transient navigation, dialogs or malformed collections", () => {
   const current = useUIStore.getState()
   const restored = useUIStore.persist.getOptions().merge?.(
     {
@@ -82,8 +113,7 @@ test("UI restores preferences without reviving transient navigation, dialogs or 
   expect(restored?.notificationTemplates.completion).toEqual(current.notificationTemplates.completion)
 })
 
-test("Config restores valid directory choices without restoring server metadata or the previous active directory", async () => {
-  const { useConfigStore } = await import("./useConfigStore-impl")
+test("Config restores valid directory choices without restoring server metadata or the previous active directory", () => {
   const current = useConfigStore.getState()
   const payload = {
     activeDirectoryKey: "/foreign",
@@ -120,13 +150,11 @@ test("Config restores valid directory choices without restoring server metadata 
 })
 
 test("Config migration accepts malformed old directory snapshots without throwing", async () => {
-  const { useConfigStore } = await import("./useConfigStore-impl")
   const migrate = useConfigStore.persist.getOptions().migrate
   await expect(Promise.resolve().then(() => migrate?.({ directoryScoped: { "/bad": null } }, 0))).resolves.toBeDefined()
 })
 
 test("activating a directory with no saved selection clears the previous project's variant", async () => {
-  const { useConfigStore } = await import("./useConfigStore-impl")
   const current = useConfigStore.getState()
   try {
     useConfigStore.setState({ currentVariant: "previous-project-effort", directoryScoped: {} })
@@ -137,8 +165,7 @@ test("activating a directory with no saved selection clears the previous project
   }
 })
 
-test("malformed cached PR fields cannot reach rendering or suppress a fresh read", async () => {
-  const { useGitHubPrStatusStore } = await import("./useGitHubPrStatusStore")
+test("malformed cached PR fields cannot reach rendering or suppress a fresh read", () => {
   const current = useGitHubPrStatusStore.getState()
   const restored = useGitHubPrStatusStore.persist.getOptions().merge?.(
     {
@@ -181,10 +208,10 @@ test.each([
   ["skills", "selectedSkillName"],
   ["identities", "selectedProfileId"],
   ["MCP", "selectedMcpName"],
-])("%s restores only its nullable editor selection", async (name, key) => {
+])("%s restores only its nullable editor selection", (name, key) => {
   const entry = stores.find(([storeName]) => storeName === name)
   if (!entry) throw new Error("Missing selection store")
-  const store = (await entry[1]()) as unknown as RestoreProbe
+  const store = entry[1] as unknown as RestoreProbe
   const current = store.getState()
   const merge = store.persist.getOptions().merge!
   const selected = merge(
@@ -196,8 +223,7 @@ test.each([
   expect(merge({ [key]: 42 }, current)[key]).toBe(current[key])
 })
 
-test("current-version inline draft restore rejects unscoped and malformed rows", async () => {
-  const { useInlineCommentDraftStore } = await import("./useInlineCommentDraftStore")
+test("current-version inline draft restore rejects unscoped and malformed rows", () => {
   const draft = {
     id: "kept",
     sessionKey: "ses_kept",
@@ -223,8 +249,7 @@ test("current-version inline draft restore rejects unscoped and malformed rows",
   expect(restored?.drafts).toEqual({ ses_kept: [expect.objectContaining(draft)] })
 })
 
-test("repository hints validate row shapes and retain only the last 200 folders", async () => {
-  const { useRepositoryHintStore, isChildHintDismissed } = await import("./useRepositoryHintStore")
+test("repository hints validate row shapes and retain only the last 200 folders", () => {
   const children = Object.fromEntries(Array.from({ length: 205 }, (_, index) => [`/repo-${index}`, ["kept", 42]]))
   const restored = useRepositoryHintStore.persist
     .getOptions()
@@ -239,8 +264,7 @@ test("repository hints validate row shapes and retain only the last 200 folders"
   expect(isChildHintDismissed(restored!.dismissedChildren, "/repo-204", ["kept"])).toBe(true)
 })
 
-test("session display validates persisted booleans and leaves its focus counter live", async () => {
-  const { useSessionDisplayStore } = await import("./useSessionDisplayStore")
+test("session display validates persisted booleans and leaves its focus counter live", () => {
   const current = useSessionDisplayStore.getState()
   const restored = useSessionDisplayStore.persist
     .getOptions()
@@ -256,8 +280,7 @@ test("session display validates persisted booleans and leaves its focus counter 
   })
 })
 
-test("a future persisted PR refresh timestamp cannot suppress revalidation after a clock change", async () => {
-  const { useGitHubPrStatusStore } = await import("./useGitHubPrStatusStore")
+test("a future persisted PR refresh timestamp cannot suppress revalidation after a clock change", () => {
   const future = Date.now() + 86_400_000
   const restored = useGitHubPrStatusStore.persist.getOptions().merge?.(
     {

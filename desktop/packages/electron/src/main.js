@@ -558,17 +558,23 @@ function spawnServerProcess(wire) {
     runtimeRetryExhausted = false
   }
 
+  const replyToChild = (reply) => child.postMessage(reply)
+  const settingsWriteHandler = createSettingsWriteHandler({
+    mutateSettingsRoot: (mutate) => {
+      if (serverChild !== child) throw new Error("The desktop web process has been replaced")
+      return mutateSettingsRoot(mutate)
+    },
+    postMessage: replyToChild,
+  })
   child.on("message", (msg) => {
-    // settings-write requests are consumed by the sole-writer handler (S2.3).
+    // A superseded sender still receives a refusal if its channel is open.
     if (settingsWriteHandler.handleMessage(msg)) return
+    if (serverChild !== child) return
     // S2.5c: configuration-driven runtime restart requests (settings.
     // axCodeBinary changes) restart the main-supervised runtime with
     // re-resolution. Correlated replies belong to the requesting utility process.
     if (msg?.type === "runtime-restart-request") {
-      if (serverChild !== child) return
-      runtimeRestartRequests.handleMessage(msg, (reply) => {
-        if (serverChild === child) child.postMessage(reply)
-      })
+      runtimeRestartRequests.handleMessage(msg, replyToChild)
       return
     }
     if (msg?.type === "runtime-busy") {
@@ -1535,33 +1541,29 @@ if (hasSingleInstanceLock) {
 }
 
 // ── Settings persistence ──────────────────────────────────────────────────
-const settingsFilePath = () => {
-  const dataDir =
-    typeof process.env.AX_CODE_DESKTOP_DATA_DIR === "string" && process.env.AX_CODE_DESKTOP_DATA_DIR.trim()
-      ? process.env.AX_CODE_DESKTOP_DATA_DIR.trim()
-      : null
-  if (dataDir) return path.join(dataDir, "settings.json")
-  return path.join(os.homedir(), ".config", "openchamber", "settings.json")
-}
+const { getDesktopDataDir } = require("../../../shared/desktop-data-dir.mjs")
+const { createAtomicJsonWriter, parseJsonObject } = require("../../../shared/json-file.cjs")
+const parseSettingsDocument = (raw) => parseJsonObject(raw, "Settings")
+const settingsFilePath = () => path.join(getDesktopDataDir(), "settings.json")
 
 // A missing file is an empty document; an unreadable or invalid one is not, and callers that write
 // back what they read need to tell the two apart.
-const readJsonFileResult = (filePath) => {
+const readJsonFileResult = (filePath, parse = JSON.parse) => {
   try {
-    return { ok: true, value: JSON.parse(fs.readFileSync(filePath, "utf8")) }
+    return { ok: true, value: parse(fs.readFileSync(filePath, "utf8")) }
   } catch (error) {
     if (error && error.code === "ENOENT") return { ok: true, value: {} }
-    console.warn("[electron] failed to read JSON file", filePath, error)
+    console.warn("[electron] failed to read JSON file", filePath, error.code || error.name)
     return { ok: false, value: null }
   }
 }
 
-const readJsonFile = (filePath) => {
-  const result = readJsonFileResult(filePath)
+const readJsonFile = (filePath, parse) => {
+  const result = readJsonFileResult(filePath, parse)
   return result.ok ? result.value : {}
 }
 
-const writeJsonFile = require("./atomic-json-writer").createAtomicJsonWriter()
+const writeJsonFile = createAtomicJsonWriter()
 
 let languageController
 const getLanguageController = () => {
@@ -1629,10 +1631,7 @@ const animationMenuItem = () => ({
 handleCommand("desktop_language_get", async () => getLanguageController().get())
 handleCommand("desktop_language_set", async (args) => getLanguageController().update(args))
 
-const readSettingsRoot = () => {
-  const root = readJsonFile(settingsFilePath())
-  return root && typeof root === "object" && !Array.isArray(root) ? root : {}
-}
+const readSettingsRoot = () => readJsonFile(settingsFilePath(), parseSettingsDocument)
 
 // Serializes read-modify-write of the settings file so interleaved RMW pairs
 // across awaits don't overwrite each other's just-persisted changes.
@@ -1643,11 +1642,11 @@ const mutateSettingsRoot = (mutator) => {
     // unreadable settings.json and then persisting the mutation would replace the user's theme,
     // projects, runtime path and shortcuts with whatever this one change carries — a window
     // geometry, most often. The failure reaches the caller, which reports it.
-    const read = readJsonFileResult(settingsFilePath())
+    const read = readJsonFileResult(settingsFilePath(), parseSettingsDocument)
     if (!read.ok) {
       throw new Error("settings.json could not be read; the change was not written")
     }
-    const current = read.value && typeof read.value === "object" && !Array.isArray(read.value) ? read.value : {}
+    const current = read.value
     const result = await mutator(current)
     const nextRoot = result ?? current
     await writeJsonFile(settingsFilePath(), nextRoot)
@@ -1659,19 +1658,6 @@ const mutateSettingsRoot = (mutator) => {
   })
   return next
 }
-
-// S2.3 (SPEC-2026-08-29-desktop-process-model-collapse §2 D5): main is the sole
-// writer of settings.json. The web-server utilityProcess delegates every
-// settings mutation here as a "settings-write" message instead of writing the
-// file itself. The handler is created after mutateSettingsRoot because it
-// applies each request through that serialized chain.
-const settingsWriteHandler = createSettingsWriteHandler({
-  mutateSettingsRoot,
-  postMessage: (message) => {
-    if (!serverChild) throw new Error("server process is not running")
-    serverChild.postMessage(message)
-  },
-})
 
 // AX Code Desktop is intentionally local-only. Remote host and SSH settings may
 // remain in an older settings file, but no runtime path reads or activates them.

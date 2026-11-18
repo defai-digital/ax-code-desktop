@@ -23,6 +23,7 @@
 //   one-shots, oversized prompts) are recorded in the marker AND logged so
 //   support can see exactly what was dropped.
 
+import { createAtomicJsonWriter } from "../../../../../shared/json-file.cjs"
 import { transformDesktopScheduledTask } from "./transform.js"
 
 const DEFAULT_MAX_ATTEMPTS = 5
@@ -160,12 +161,8 @@ export const createScheduledTaskConvergence = (deps) => {
     }
   }
 
-  const writeMarker = async (record) => {
-    const temporaryPath = `${markerPath}.tmp-${process.pid}-${Date.now()}`
-    await fsPromises.mkdir(path.dirname(markerPath), { recursive: true })
-    await fsPromises.writeFile(temporaryPath, JSON.stringify(record, null, 2), "utf8")
-    await fsPromises.rename(temporaryPath, markerPath)
-  }
+  const writeJsonFile = createAtomicJsonWriter({ filesystem: fsPromises })
+  const writeMarker = (record) => writeJsonFile(markerPath, record)
 
   // --- project enumeration ------------------------------------------------
   const listProjectConfigFiles = async () => {

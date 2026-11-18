@@ -6,6 +6,7 @@ import os from "os"
 import path from "path"
 import { spawn, spawnSync } from "child_process"
 import { fileURLToPath, pathToFileURL } from "url"
+import { getDesktopDataDir } from "../../../shared/desktop-data-dir.mjs"
 import { readLiteralPath } from "../../../shared/path-values.mjs"
 import { isModuleCliExecution } from "./cli-entry.js"
 import { assertLocalOnlyHostname, isLoopbackHostname } from "../server/lib/security/local-only.js"
@@ -535,22 +536,12 @@ EXAMPLES:
 `)
 }
 
-function getDataDir() {
-  if (
-    typeof process.env.AX_CODE_DESKTOP_DATA_DIR === "string" &&
-    process.env.AX_CODE_DESKTOP_DATA_DIR.trim().length > 0
-  ) {
-    return path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR.trim())
-  }
-  return path.join(os.homedir(), ".config", "openchamber")
-}
-
 function getLogsDir() {
-  return path.join(getDataDir(), "logs")
+  return path.join(getDesktopDataDir(), "logs")
 }
 
 function getSettingsFilePath() {
-  return path.join(getDataDir(), "settings.json")
+  return path.join(getDesktopDataDir(), "settings.json")
 }
 
 function readDesktopLocalPortFromSettings() {
@@ -745,7 +736,7 @@ async function resolveAvailablePort(desiredPort, explicitPort = false, onNotice,
 }
 
 function getRunDir() {
-  const dir = path.join(getDataDir(), "run")
+  const dir = path.join(getDesktopDataDir(), "run")
   fs.mkdirSync(dir, { recursive: true, mode: 0o700 })
   return dir
 }
@@ -807,11 +798,11 @@ function systemdEnvFileQuote(value) {
 }
 
 function getStartupEnvFilePath() {
-  return path.join(getDataDir(), "startup.env")
+  return path.join(getDesktopDataDir(), "startup.env")
 }
 
 function getMacosStartupWrapperPath() {
-  return path.join(getDataDir(), "bin", "AX Code Desktop")
+  return path.join(getDesktopDataDir(), "bin", "AX Code Desktop")
 }
 
 function collectStartupEnv(options = {}) {
@@ -835,11 +826,8 @@ function collectStartupEnv(options = {}) {
   if (uiPassword) {
     env.AX_CODE_DESKTOP_UI_PASSWORD = uiPassword
   }
-  if (
-    typeof process.env.AX_CODE_DESKTOP_DATA_DIR === "string" &&
-    process.env.AX_CODE_DESKTOP_DATA_DIR.trim().length > 0
-  ) {
-    env.AX_CODE_DESKTOP_DATA_DIR = path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR.trim())
+  if (process.env.AX_CODE_DESKTOP_DATA_DIR) {
+    env.AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
   }
   return env
 }

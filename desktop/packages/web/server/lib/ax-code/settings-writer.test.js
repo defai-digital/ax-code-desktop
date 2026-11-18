@@ -37,6 +37,14 @@ describe("settings writer", () => {
     await expect(pending).resolves.toBeUndefined()
   })
 
+  it("requires an explicit boolean success acknowledgement", async () => {
+    const parentPort = new FakeParentPort()
+    const writer = createSettingsWriter({ parentPort, localWrite: vi.fn(), createRequestId: () => "req-1" })
+    const pending = writer.write({ theme: "dark" })
+    parentPort.respond("req-1", { ok: "false" })
+    await expect(pending).rejects.toThrow("Settings write failed")
+  })
+
   it("rejects with the main-process error on a failed response", async () => {
     const parentPort = new FakeParentPort()
     const writer = createSettingsWriter({ parentPort, localWrite: vi.fn(), createRequestId: () => "req-1" })

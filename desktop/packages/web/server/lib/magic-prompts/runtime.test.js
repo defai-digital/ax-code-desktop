@@ -1,7 +1,7 @@
 import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
 
 import { createMagicPromptRuntime } from "./runtime.js"
 
@@ -18,27 +18,23 @@ describe("magic prompt runtime", () => {
     }
   })
 
-  const createRuntime = () =>
+  const createRuntime = (fsPromises = fs) =>
     createMagicPromptRuntime({
-      fsPromises: fs,
-      path,
+      fsPromises,
       filePath: path.join(tempDir, "magic-prompts.json"),
     })
 
   const stateFile = () => path.join(tempDir, "magic-prompts.json")
 
-  it("refuses to write over a state file it cannot parse", async () => {
-    // A truncated file used to read as "no overrides": the client was handed that empty snapshot as
-    // authoritative, and the next edit wrote the file back with only that one override, losing every
-    // other stored one.
-    const runtime = createRuntime()
-    const unfinished = '{ "overrides": { "a.visible": "keep me" '
-    await fs.writeFile(stateFile(), unfinished, "utf8")
-
-    await expect(runtime.setOverride("assistant.visible", "x")).rejects.toThrow(/corrupted/i)
-
-    expect(await fs.readFile(stateFile(), "utf8")).toBe(unfinished)
-  })
+  it.each(['{ "overrides": { "a.visible": "keep me" ', '["original"]', '{"overrides":["original"]}'])(
+    "preserves a damaged state file on ordinary edits",
+    async (unfinished) => {
+      const runtime = createRuntime()
+      await fs.writeFile(stateFile(), unfinished, "utf8")
+      await expect(runtime.setOverride("assistant.visible", "x")).rejects.toThrow(/corrupted/i)
+      expect(await fs.readFile(stateFile(), "utf8")).toBe(unfinished)
+    },
+  )
 
   it("keeps the stored overrides when a write is interrupted", async () => {
     // The state file was written in place, so an interrupted write (a killed process, a full disk) left partial
@@ -47,20 +43,20 @@ describe("magic prompt runtime", () => {
     const runtime = createRuntime()
     await runtime.setOverride("assistant.visible", "keep me")
 
-    const realWriteFile = fs.writeFile
-    const writeFile = vi.spyOn(fs, "writeFile").mockImplementation(async (target, data, encoding) => {
-      if (String(target) === stateFile()) {
-        // What an interrupted in-place write leaves behind.
-        await realWriteFile(target, "", "utf8")
-      }
-      throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" })
+    const failing = createRuntime({
+      ...fs,
+      async open(...args) {
+        const file = await fs.open(...args)
+        return {
+          async writeFile() {
+            await file.writeFile("{")
+            throw Object.assign(new Error("ENOSPC"), { code: "ENOSPC" })
+          },
+          close: () => file.close(),
+        }
+      },
     })
-
-    try {
-      await expect(runtime.setOverride("assistant.visible", "next")).rejects.toThrow(/ENOSPC/)
-    } finally {
-      writeFile.mockRestore()
-    }
+    await expect(failing.setOverride("assistant.visible", "next")).rejects.toThrow(/ENOSPC/)
 
     expect(JSON.parse(await fs.readFile(stateFile(), "utf8"))).toMatchObject({
       overrides: { "assistant.visible": "keep me" },

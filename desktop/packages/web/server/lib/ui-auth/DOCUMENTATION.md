@@ -4,6 +4,10 @@
 
 This module owns AX Code Desktop UI authentication for browser access, including password session auth, WebAuthn passkeys, and trusted-device session handling.
 
+When a UI password is configured, startup reads `revoked-sessions.json` in the Desktop data directory.
+If that file exists and cannot be read or parsed as a list of session IDs, startup stops so that previously
+revoked sessions stay revoked. Restore the file from a trusted backup or correct its permissions before restarting.
+
 ## Entrypoints and structure
 
 - `packages/web/server/lib/ui-auth/ui-auth.js`: UI auth controller runtime, cookie/session issuance, rate limiting, and auth route handlers.

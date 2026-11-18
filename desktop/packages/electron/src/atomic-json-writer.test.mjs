@@ -2,7 +2,7 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { describe, expect, it, vi } from "vitest"
-import { createAtomicJsonWriter } from "./atomic-json-writer.js"
+import { createAtomicJsonWriter } from "../../../shared/json-file.cjs"
 
 function fixture() {
   const file = {

@@ -5,7 +5,6 @@ export const registerMagicPromptRoutes = (app, dependencies) => {
 
   const runtime = createMagicPromptRuntime({
     fsPromises,
-    path,
     filePath: path.join(openchamberDataDir, "magic-prompts.json"),
   })
 

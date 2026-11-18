@@ -1,6 +1,5 @@
 import crypto from "crypto"
 import fs from "fs"
-import os from "os"
 import path from "path"
 import {
   generateAuthenticationOptions,
@@ -8,6 +7,9 @@ import {
   verifyAuthenticationResponse,
   verifyRegistrationResponse,
 } from "@simplewebauthn/server"
+import { parseJsonObject } from "../../../../../shared/json-file.cjs"
+import { writePrivateFileSync } from "../private-file.js"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 import { getRequestOrigin, getRequestRpId } from "../security/request-origin.js"
 import { isLoopbackHostname, normalizeLoopbackHttpOrigin } from "../security/local-only.js"
 
@@ -16,9 +18,7 @@ const DEFAULT_CHALLENGE_TTL_MS = 5 * 60 * 1000
 const DEFAULT_RP_NAME = "AX Code"
 export const MAX_PENDING_CHALLENGES = 256
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
+const AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
 
 const PASSKEY_STORE_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "ui-passkeys.json")
 
@@ -89,15 +89,11 @@ export const createUiPasskeys = ({
   // could sign in again. The reverse order lost the new credential. Mutations run one at a time, as the
   // login rate limiter in ui-auth.js does.
   let mutationTail = Promise.resolve()
-  const withStoreMutationLock = (fn) => {
-    const result = mutationTail.then(fn, fn)
-    mutationTail = result.then(
-      () => {},
-      () => {},
-    )
+  const runLocked = (fn) => {
+    const result = mutationTail.then(fn)
+    mutationTail = result.catch(() => {})
     return result
   }
-  const runLocked = (fn) => withStoreMutationLock(() => fn())
 
   const ensureStoreDirectory = () => {
     const storeDirectory = path.dirname(storeFile)
@@ -105,7 +101,6 @@ export const createUiPasskeys = ({
     try {
       fs.chmodSync(storeDirectory, 0o700)
     } catch {}
-    return storeDirectory
   }
 
   const persistStore = (store) => {
@@ -114,27 +109,8 @@ export const createUiPasskeys = ({
       error.statusCode = 503
       throw error
     }
-    const storeDirectory = ensureStoreDirectory()
-    const tmpFile = path.join(
-      storeDirectory,
-      `.ui-passkeys.${process.pid}.${Date.now()}.${crypto.randomBytes(6).toString("hex")}.tmp`,
-    )
-
-    try {
-      fs.writeFileSync(tmpFile, `${JSON.stringify(store, null, 2)}\n`, { encoding: "utf8", mode: 0o600 })
-      try {
-        fs.chmodSync(tmpFile, 0o600)
-      } catch {}
-      fs.renameSync(tmpFile, storeFile)
-      try {
-        fs.chmodSync(storeFile, 0o600)
-      } catch {}
-    } catch (error) {
-      try {
-        fs.rmSync(tmpFile, { force: true })
-      } catch {}
-      throw error
-    }
+    ensureStoreDirectory()
+    writePrivateFileSync(storeFile, `${JSON.stringify(store, null, 2)}\n`)
   }
 
   const createEmptyStore = () => ({
@@ -157,19 +133,20 @@ export const createUiPasskeys = ({
 
   // Returns the parsed file, or null when there is no store yet. Throws a storeUnreadable error otherwise.
   const readStoreFile = () => {
-    let parsed
     try {
-      parsed = JSON.parse(fs.readFileSync(storeFile, "utf8"))
+      const parsed = parseJsonObject(fs.readFileSync(storeFile, "utf8"), "Passkey")
+      if (!Array.isArray(parsed.passkeys)) throw new Error("Invalid passkey list")
+      if (parsed.passkeys.length && !asTrimmedString(parsed.passwordBinding)) {
+        throw new Error("Enrolled passkeys require a password binding")
+      }
+      const passkeys = parsed.passkeys.map(parseStoredPasskey)
+      if (passkeys.includes(null)) throw new Error("Invalid passkey record")
+      return { ...parsed, passkeys }
     } catch (error) {
       if (error?.code === "ENOENT") return null
-      console.warn("[UI Passkeys] Failed to read passkey store:", error?.code || error?.message || error)
+      console.warn("[UI Passkeys] Failed to read passkey store:", error?.code || "invalid passkey data")
       throw createStoreUnreadableError(error)
     }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      console.warn("[UI Passkeys] Passkey store is not a JSON object")
-      throw createStoreUnreadableError()
-    }
-    return parsed
   }
 
   const loadStore = () => {
@@ -182,7 +159,7 @@ export const createUiPasskeys = ({
         version: DEFAULT_STORE_VERSION,
         userID: decodeUserId(parsed.userID) ? parsed.userID : store.userID,
         passwordBinding: typeof parsed.passwordBinding === "string" ? parsed.passwordBinding : "",
-        passkeys: Array.isArray(parsed.passkeys) ? parsed.passkeys.map(parseStoredPasskey).filter(Boolean) : [],
+        passkeys: parsed.passkeys,
       }
     } else {
       shouldPersistInitialStore = true
@@ -347,9 +324,9 @@ export const createUiPasskeys = ({
       if (error?.storeUnreadable) return null
       throw error
     }
-    if (!parsed || !Array.isArray(parsed.passkeys)) return 0
+    if (!parsed) return 0
     if (!readOnly && parsed.passwordBinding !== passwordBinding) return 0
-    return parsed.passkeys.map(parseStoredPasskey).filter(Boolean).length
+    return parsed.passkeys.length
   }
 
   const clearAllPasskeys = () => runLocked(clearAllPasskeysUnlocked)

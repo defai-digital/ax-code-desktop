@@ -153,6 +153,14 @@ export function registerGitHubRoutes(app) {
     return githubLibraries
   }
 
+  const respondToRejectedCredential = async (error, res, respond = () => res.json({ connected: false })) => {
+    const { clearRejectedGitHubAuth } = await getGitHubLibraries()
+    const removed = clearRejectedGitHubAuth(error)
+    await clearGitHubAccountScopedCaches()
+    if (!removed) return res.status(500).json({ error: "Failed to disconnect GitHub" })
+    return respond()
+  }
+
   const getGitHubUserSummary = async (octokit) => {
     const me = await octokit.rest.users.getAuthenticated()
 
@@ -194,8 +202,8 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/auth/status", async (_req, res) => {
     try {
-      const { getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth, getGitHubAuthAccounts } = await getGitHubLibraries()
-      const auth = getGitHubAuth()
+      const { getGitHubAuth, getOctokitOrNull, getGitHubAuthAccounts } = await getGitHubLibraries()
+      const auth = getGitHubAuth({ strict: true })
       const accounts = getGitHubAuthAccounts()
       if (!auth?.accessToken) {
         return res.json({ connected: false, accounts })
@@ -212,11 +220,9 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearRejectedGitHubAuth(error)
-          // The token is gone: cached PR/repo data belongs to the account that just
-          // stopped being current, so it must not outlive the switch.
-          await clearGitHubAccountScopedCaches()
-          return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
+          return await respondToRejectedCredential(error, res, () =>
+            res.json({ connected: false, accounts: getGitHubAuthAccounts() }),
+          )
         }
         // A non-auth failure (network, a GitHub 5xx, a rate limit) keeps the
         // credentials, so the stored snapshot must be reported as stale rather than
@@ -391,7 +397,7 @@ export function registerGitHubRoutes(app) {
 
   app.post("/api/github/auth/activate", async (req, res) => {
     try {
-      const { activateGitHubAuth, getGitHubAuth, getOctokitOrNull, clearRejectedGitHubAuth, getGitHubAuthAccounts } =
+      const { activateGitHubAuth, getGitHubAuth, getOctokitOrNull, getGitHubAuthAccounts } =
         await getGitHubLibraries()
       const accountId = resolveGitHubActivationAccountId(req.body?.accountId, getGitHubAuthAccounts())
       const activated = activateGitHubAuth(accountId)
@@ -416,9 +422,9 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearRejectedGitHubAuth(error)
-          await clearGitHubAccountScopedCaches()
-          return res.json({ connected: false, accounts: getGitHubAuthAccounts() })
+          return await respondToRejectedCredential(error, res, () =>
+            res.json({ connected: false, accounts: getGitHubAuthAccounts() }),
+          )
         }
       }
 
@@ -455,7 +461,7 @@ export function registerGitHubRoutes(app) {
 
   app.get("/api/github/me", async (_req, res) => {
     try {
-      const { getOctokitOrNull, clearRejectedGitHubAuth } = await getGitHubLibraries()
+      const { getOctokitOrNull } = await getGitHubLibraries()
       const octokit = getOctokitOrNull()
       if (!octokit) {
         return res.status(401).json({ error: "GitHub not connected" })
@@ -465,9 +471,9 @@ export function registerGitHubRoutes(app) {
         user = await getGitHubUserSummary(octokit)
       } catch (error) {
         if (isGitHubAuthInvalid(error)) {
-          clearRejectedGitHubAuth(error)
-          await clearGitHubAccountScopedCaches()
-          return res.status(401).json({ error: "GitHub token expired or revoked" })
+          return await respondToRejectedCredential(error, res, () =>
+            res.status(401).json({ error: "GitHub token expired or revoked" }),
+          )
         }
         throw error
       }
@@ -667,10 +673,7 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (error?.status === 403) {
         // GitHub's own reason (the organization restricts OAuth apps, or the API is rate-limited) is
@@ -1309,10 +1312,7 @@ export function registerGitHubRoutes(app) {
       // and report the account as disconnected: answering 500 left the app connected to a token that
       // no longer works until some other call happened to notice.
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (error?.status === 403) {
         return res.status(403).json({ error: gitHubRefusalMessage(error) })
@@ -1379,10 +1379,7 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (isGitHubClientRefusal(error)) {
         return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
@@ -1431,10 +1428,7 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, comments })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (isGitHubClientRefusal(error)) {
         return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
@@ -1482,10 +1476,7 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, comment: mapIssueComment(result?.data) })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (error?.status === 403 || error?.status === 404 || error?.status === 422) {
         return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
@@ -1527,10 +1518,7 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, issue: mapIssueState(result?.data) })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (error?.status === 403 || error?.status === 404 || error?.status === 422) {
         return res.status(error.status).json({ error: gitHubRefusalMessage(error) })
@@ -1642,10 +1630,7 @@ export function registerGitHubRoutes(app) {
       return res.json({ connected: true, repo, prs: allPrs, page: effectivePage, hasMore: anyHasMore })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (error?.status === 403) {
         return res.status(403).json({ error: gitHubRefusalMessage(error) })
@@ -2005,10 +1990,7 @@ export function registerGitHubRoutes(app) {
       })
     } catch (error) {
       if (error?.status === 401) {
-        const { clearRejectedGitHubAuth } = await getGitHubLibraries()
-        clearRejectedGitHubAuth(error)
-        await clearGitHubAccountScopedCaches()
-        return res.json({ connected: false })
+        return respondToRejectedCredential(error, res)
       }
       if (isGitHubClientRefusal(error)) {
         return res.status(error.status).json({ error: gitHubRefusalMessage(error) })

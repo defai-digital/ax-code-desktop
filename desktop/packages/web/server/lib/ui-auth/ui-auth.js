@@ -2,7 +2,8 @@ import crypto from "crypto"
 import { SignJWT, jwtVerify } from "jose"
 import fs from "fs"
 import path from "path"
-import os from "os"
+import { writePrivateFileSync } from "../private-file.js"
+import { getDesktopDataDir } from "../../../../../shared/desktop-data-dir.mjs"
 import { createUiPasskeys } from "./ui-passkeys.js"
 
 import { UI_SESSION_COOKIE_NAME, resolveUiSessionCookieName } from "./ui-session-cookie.js"
@@ -30,32 +31,22 @@ const revokedSessionIds = new Set()
 let revokedSessionIdsLoaded = false
 
 const loadRevokedSessionIds = () => {
-  if (revokedSessionIdsLoaded) {
-    return
+  if (revokedSessionIdsLoaded) return
+  try {
+    const ids = JSON.parse(fs.readFileSync(REVOKED_SESSIONS_FILE, "utf8"))
+    if (!Array.isArray(ids) || !ids.every((id) => typeof id === "string" && id.length > 0)) {
+      throw new Error("Invalid revocation list")
+    }
+    for (const id of ids) revokedSessionIds.add(id)
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw new Error("Cannot load revoked-sessions.json for password authentication")
   }
   revokedSessionIdsLoaded = true
-  try {
-    const raw = fs.readFileSync(path.join(AX_CODE_DESKTOP_DATA_DIR, "revoked-sessions.json"), "utf8")
-    const parsed = JSON.parse(raw)
-    if (Array.isArray(parsed)) {
-      for (const id of parsed) {
-        if (typeof id === "string" && id) {
-          revokedSessionIds.add(id)
-        }
-      }
-    }
-  } catch {
-    // No revocation file yet (or unreadable): nothing persisted to restore.
-  }
 }
 
 const persistRevokedSessionIds = () => {
   try {
-    fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
-    const file = path.join(AX_CODE_DESKTOP_DATA_DIR, "revoked-sessions.json")
-    const tmp = `${file}.${process.pid}.tmp`
-    fs.writeFileSync(tmp, JSON.stringify([...revokedSessionIds]), { mode: 0o600 })
-    fs.renameSync(tmp, file)
+    writePrivateFileSync(REVOKED_SESSIONS_FILE, JSON.stringify([...revokedSessionIds]))
     return true
   } catch (error) {
     console.warn("[JWT] Failed to persist revoked sessions:", error?.code || error?.message || error)
@@ -325,10 +316,9 @@ export const derivePasswordBinding = (normalizedPassword, jwtSecret) =>
 
 const isTrustedDeviceRequest = (value) => value === true
 
-const AX_CODE_DESKTOP_DATA_DIR = process.env.AX_CODE_DESKTOP_DATA_DIR
-  ? path.resolve(process.env.AX_CODE_DESKTOP_DATA_DIR)
-  : path.join(os.homedir(), ".config", "openchamber")
+const AX_CODE_DESKTOP_DATA_DIR = getDesktopDataDir()
 const JWT_SECRET_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "jwt-secret")
+const REVOKED_SESSIONS_FILE = path.join(AX_CODE_DESKTOP_DATA_DIR, "revoked-sessions.json")
 
 // HS256 with a short key is guessable: a captured session cookie could be
 // forged offline. Require 256 bits and treat anything shorter as absent.
@@ -353,17 +343,7 @@ const resolveEnvJwtSecret = () => {
 // Temp file plus rename: a crash or a full disk part way through a plain write left a truncated secret, which
 // the next start read as too short and replaced — signing everyone out and orphaning every passkey.
 function writeJwtSecretFile(secret) {
-  fs.mkdirSync(AX_CODE_DESKTOP_DATA_DIR, { recursive: true })
-  const tmp = `${JWT_SECRET_FILE}.${process.pid}.${crypto.randomBytes(6).toString("hex")}.tmp`
-  try {
-    fs.writeFileSync(tmp, secret, { mode: 0o600 })
-    fs.renameSync(tmp, JWT_SECRET_FILE)
-  } catch (error) {
-    try {
-      fs.rmSync(tmp, { force: true })
-    } catch {}
-    throw error
-  }
+  writePrivateFileSync(JWT_SECRET_FILE, secret)
 }
 
 // `ephemeral` marks a secret used only for this run because the stored one exists but could not be read. The
@@ -418,39 +398,29 @@ function persistJwtSecret(secret) {
 export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessionTtlMs = SESSION_TTL_MS } = {}) => {
   const normalizedPassword = normalizePassword(password)
 
+  const setSessionCookie = (req, res, token, ttlMs = sessionTtlMs) => {
+    const secure = isSecureRequest(req)
+    const maxAgeSeconds = Math.floor(ttlMs / 1000)
+    const header = buildCookie({
+      name: resolveUiSessionCookieName(req, cookieName),
+      value: encodeURIComponent(token),
+      maxAge: maxAgeSeconds,
+      secure,
+    })
+    res.setHeader("Set-Cookie", header)
+  }
+
+  const clearSessionCookie = (req, res) => setSessionCookie(req, res, "", 0)
+
+  const getTokenFromRequest = (req) => {
+    const name = resolveUiSessionCookieName(req, cookieName)
+    return parseCookies(req.headers.cookie)[name] || null
+  }
+
   if (!normalizedPassword) {
-    const setSessionCookie = (req, res, token, ttlMs = sessionTtlMs) => {
-      const secure = isSecureRequest(req)
-      const maxAgeSeconds = Math.floor(ttlMs / 1000)
-      const header = buildCookie({
-        name: resolveUiSessionCookieName(req, cookieName),
-        value: encodeURIComponent(token),
-        maxAge: maxAgeSeconds,
-        secure,
-      })
-      res.setHeader("Set-Cookie", header)
-    }
-
-    // The logout route is registered whether or not a UI password is, and this branch is the one that has no
-    // password: it needs the cookie cleared like the enabled branch does, or the random token `ensureSessionToken`
-    // hands out here outlives the sign-out.
-    const clearSessionCookieForDisabledAuth = (req, res) => {
-      const secure = isSecureRequest(req)
-      const header = buildCookie({
-        name: resolveUiSessionCookieName(req, cookieName),
-        value: "",
-        maxAge: 0,
-        secure,
-      })
-      res.setHeader("Set-Cookie", header)
-    }
-
     const ensureSessionToken = async (req, res) => {
-      const cookies = parseCookies(req.headers.cookie)
-      const name = resolveUiSessionCookieName(req, cookieName)
-      if (cookies[name]) {
-        return cookies[name]
-      }
+      const current = getTokenFromRequest(req)
+      if (current) return current
       const token = crypto.randomBytes(32).toString("base64url")
       setSessionCookie(req, res, token, sessionTtlMs)
       return token
@@ -468,7 +438,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
       // Every other handler has a stub in this branch; this one was missing while its route is always
       // registered, so signing out answered a TypeError and the cookie stayed.
       handleSessionLogout: (req, res) => {
-        clearSessionCookieForDisabledAuth(req, res)
+        clearSessionCookie(req, res)
         res.json({ authenticated: false })
       },
       handlePasskeyStatus: (_req, res) => {
@@ -500,6 +470,7 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     }
   }
 
+  loadRevokedSessionIds()
   const salt = crypto.randomBytes(16)
   const expectedHash = crypto.scryptSync(normalizedPassword, salt, 64)
   const initialSecret = getOrCreateJwtSecret()
@@ -507,7 +478,6 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
   // A secret for this run only derives a binding the stored passkeys do not match; the store must not be
   // rewritten to match it.
   let jwtSecretEphemeral = initialSecret.ephemeral
-  loadRevokedSessionIds()
   let passwordBinding = derivePasswordBinding(normalizedPassword, jwtSecret)
   const resolveSessionTtlMs = (trustDevice) => (trustDevice ? TRUSTED_DEVICE_SESSION_TTL_MS : sessionTtlMs)
   let passkeyController = createUiPasskeys({ passwordBinding, readOnly: jwtSecretEphemeral })
@@ -523,38 +493,6 @@ export const createUiAuth = ({ password, cookieName = SESSION_COOKIE_NAME, sessi
     jwtSecret = persistJwtSecret(nextSecret)
     jwtSecretEphemeral = false
     rebuildPasskeyController()
-  }
-
-  const getTokenFromRequest = (req) => {
-    const cookies = parseCookies(req.headers.cookie)
-    const name = resolveUiSessionCookieName(req, cookieName)
-    if (cookies[name]) {
-      return cookies[name]
-    }
-    return null
-  }
-
-  const setSessionCookie = (req, res, token, ttlMs) => {
-    const secure = isSecureRequest(req)
-    const maxAgeSeconds = Math.floor(ttlMs / 1000)
-    const header = buildCookie({
-      name: resolveUiSessionCookieName(req, cookieName),
-      value: encodeURIComponent(token),
-      maxAge: maxAgeSeconds,
-      secure,
-    })
-    res.setHeader("Set-Cookie", header)
-  }
-
-  const clearSessionCookie = (req, res) => {
-    const secure = isSecureRequest(req)
-    const header = buildCookie({
-      name: resolveUiSessionCookieName(req, cookieName),
-      value: "",
-      maxAge: 0,
-      secure,
-    })
-    res.setHeader("Set-Cookie", header)
   }
 
   const verifyPassword = (candidate) => {

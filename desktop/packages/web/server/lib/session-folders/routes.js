@@ -1,4 +1,8 @@
+import { createAtomicJsonWriter, parseJsonObject } from "../../../../../shared/json-file.cjs"
+
 const MAX_BODY_BYTES = 4 * 1024 * 1024
+
+const emptySnapshot = () => ({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: 0 })
 
 // The file's write counter. A missing or malformed one reads as 0, which is what a file written before
 // revisions existed holds.
@@ -10,22 +14,20 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
 
   const filePath = path.join(openchamberDataDir, "sessions-directories.json")
 
-  const ensureDir = async () => {
-    await fsPromises.mkdir(path.dirname(filePath), { recursive: true })
-  }
+  const writeJsonFile = createAtomicJsonWriter({ filesystem: fsPromises })
 
-  const readSnapshot = async () => {
+  const readSnapshot = async ({ recoverCorrupt = false } = {}) => {
     const raw = await fsPromises.readFile(filePath, "utf8").catch((error) => {
       if (error && error.code === "ENOENT") return null
       throw error
     })
     if (raw === null) return null
     try {
-      return JSON.parse(raw)
+      return parseJsonObject(raw, "Session folders")
     } catch (error) {
       // An explicit save may recover malformed JSON, but a filesystem read
       // failure must propagate: replacing an unread snapshot could erase it.
-      if (error instanceof SyntaxError) return null
+      if (recoverCorrupt) return null
       throw error
     }
   }
@@ -119,25 +121,8 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
 
   app.get("/api/session-folders", async (_req, res) => {
     try {
-      const raw = await fsPromises.readFile(filePath, "utf8").catch((error) => {
-        if (error && error.code === "ENOENT") return null
-        throw error
-      })
-      // Only a missing file is "no folders yet": a file that exists and is empty is not valid JSON, and an
-      // empty snapshot is authoritative to the client, so it would replace the user's layout with nothing. It
-      // falls through to the parse below and is reported the same way as any other corrupt file.
-      if (raw === null) {
-        return res.json({ version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: 0 })
-      }
-      try {
-        const parsed = JSON.parse(raw)
-        return res.json({ ...parsed, revision: readRevision(parsed) })
-      } catch {
-        // A corrupted file must not read as "no folders": the client treats the empty
-        // snapshot as authoritative and a follow-up write would replace the user's
-        // folders with nothing. Fail loudly so the client keeps its own copy.
-        return res.status(500).json({ error: "Session folders data is corrupted" })
-      }
+      const snapshot = await readSnapshot()
+      return res.json(snapshot ? { ...snapshot, revision: readRevision(snapshot) } : emptySnapshot())
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to read session folders"
       return res.status(500).json({ error: message })
@@ -160,31 +145,17 @@ export const registerSessionFoldersRoutes = (app, dependencies) => {
     let conflict = null
     let savedRevision = null
     const write = writeQueue.catch(() => undefined).then(async () => {
-      const base = await readSnapshot()
+      const base = await readSnapshot({ recoverCorrupt: true })
       const currentRevision = readRevision(base)
       if (hasBaseRevision && body.baseRevision !== currentRevision) {
         conflict = base
           ? { ...base, revision: currentRevision }
-          : { version: 1, foldersMap: {}, collapsedFolderIds: [], updatedAt: 0, revision: currentRevision }
+          : emptySnapshot()
         return
       }
       const merged = { ...mergeSnapshots(base, body, { authoritative: hasBaseRevision }), revision: currentRevision + 1 }
-      const serialized = JSON.stringify(merged, null, 2)
-
-      let tmp
-      let saved = false
-      try {
-        await ensureDir()
-        tmp = `${filePath}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2)}`
-        await fsPromises.writeFile(tmp, serialized, "utf8")
-        await fsPromises.rename(tmp, filePath)
-        saved = true
-        savedRevision = merged.revision
-      } finally {
-        if (tmp && !saved) {
-          await fsPromises.unlink(tmp).catch(() => {})
-        }
-      }
+      await writeJsonFile(filePath, merged)
+      savedRevision = merged.revision
     })
     writeQueue = write
 
