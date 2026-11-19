@@ -461,21 +461,31 @@ describe('Scrolling Methods', () => {
     // Scroll to line 15
     term.scrollToLine(15);
 
-    expect((term as any).viewportY).toBe(15);
+    expect(term.getViewportY()).toBe(term.wasmTerm!.getScrollbackLength() - 15);
+  });
+
+  test('scrollToLine() uses the oldest retained row as its origin', () => {
+    for (let i = 0; i < 50; i++) term.write(`Line ${i}\r\n`);
+    term.scrollToTop();
+    const top = term.getViewportY();
+    term.scrollToBottom();
+    term.scrollToLine(0);
+    expect(term.getViewportY()).toBe(top);
+    term.scrollToLine(term.wasmTerm!.getScrollbackLength());
+    expect(term.getViewportY()).toBe(0);
   });
 
   test('scrollToLine() should clamp to valid range', async () => {
-    // Write limited content
-    for (let i = 0; i < 10; i++) {
+    // Write enough content to make the two ends distinguishable.
+    for (let i = 0; i < 50; i++) {
       term.write(`Line ${i}\r\n`);
     }
 
     // Try to scroll beyond buffer
     term.scrollToLine(1000);
 
-    // Should be clamped
-    const scrollbackLength = term.wasmTerm!.getScrollbackLength();
-    expect((term as any).viewportY).toBeLessThanOrEqual(scrollbackLength);
+    // Lines beyond the retained history clamp to the bottom.
+    expect(term.getViewportY()).toBe(0);
   });
 
   test('scrollToLine() should handle negative values', async () => {
@@ -487,8 +497,69 @@ describe('Scrolling Methods', () => {
     // Try negative line
     term.scrollToLine(-5);
 
-    // Should be clamped to 0 (bottom)
-    expect((term as any).viewportY).toBe(0);
+    // Negative line indices clamp to the oldest retained row.
+    expect(term.getViewportY()).toBe(term.wasmTerm!.getScrollbackLength());
+  });
+
+  test('scrollLines() should reject non-finite amounts with RangeError', async () => {
+    // Build scrollback and park the viewport at a known spot
+    for (let i = 0; i < 50; i++) {
+      term.write(`Line ${i}\r\n`);
+    }
+    term.scrollLines(-5);
+
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      expect(() => term.scrollLines(amount)).toThrow(RangeError);
+    }
+
+    // Rejected calls must leave the viewport untouched
+    expect((term as any).viewportY).toBe(5);
+  });
+
+  test('scrollToLine() should reject non-finite lines with RangeError', async () => {
+    for (let i = 0; i < 50; i++) {
+      term.write(`Line ${i}\r\n`);
+    }
+    term.scrollLines(-5);
+
+    for (const line of [NaN, Infinity, -Infinity]) {
+      expect(() => term.scrollToLine(line)).toThrow(RangeError);
+    }
+
+    expect((term as any).viewportY).toBe(5);
+  });
+
+  test('scrollPages() should reject non-finite amounts with RangeError', async () => {
+    for (let i = 0; i < 50; i++) {
+      term.write(`Line ${i}\r\n`);
+    }
+    term.scrollLines(-5);
+
+    for (const amount of [NaN, Infinity, -Infinity]) {
+      expect(() => term.scrollPages(amount)).toThrow(RangeError);
+    }
+
+    expect((term as any).viewportY).toBe(5);
+  });
+
+  test('scrollLines() should accept fractional amounts', async () => {
+    for (let i = 0; i < 50; i++) {
+      term.write(`Line ${i}\r\n`);
+    }
+
+    term.scrollLines(-2.5);
+
+    expect((term as any).viewportY).toBe(2.5);
+  });
+
+  test('scrollToLine() should accept fractional lines', async () => {
+    for (let i = 0; i < 50; i++) {
+      term.write(`Line ${i}\r\n`);
+    }
+
+    term.scrollToLine(2.5);
+
+    expect(term.getViewportY()).toBe(term.wasmTerm!.getScrollbackLength() - 2.5);
   });
 });
 

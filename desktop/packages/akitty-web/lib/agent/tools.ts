@@ -7,7 +7,7 @@
  * and a rule for who controls the terminal, none of which this package can enforce from the browser.
  */
 
-import { type OutputOptions, TerminalReader } from './reader';
+import { boundedTitle, type OutputOptions, TerminalReader } from './reader';
 import type { TerminalSessionSource } from './registry';
 
 export const UNTRUSTED_NOTICE =
@@ -45,6 +45,20 @@ function failure(error: unknown): { error: string } {
   return { error: error instanceof Error ? error.message : String(error) };
 }
 
+/**
+ * The schemas advertise `additionalProperties: false`, and execution enforces the same rule because a protocol layer
+ * may forward keys the schema never declared. The error counts the offending keys instead of naming them, so a caller
+ * cannot make the tool echo an arbitrarily long string.
+ */
+function rejectUnknownKeys(args: Record<string, unknown>, allowed: readonly string[]): void {
+  const unknown = Object.keys(args).filter((key) => !allowed.includes(key));
+  if (unknown.length === 0) return;
+  const permitted = allowed.length === 0 ? 'none' : allowed.join(', ');
+  throw new RangeError(
+    `input has ${unknown.length} unknown ${unknown.length === 1 ? 'key' : 'keys'}; allowed keys: ${permitted}`
+  );
+}
+
 export function createTerminalTools(source: TerminalSessionSource): TerminalTool[] {
   const resolve = (args: Record<string, unknown>): TerminalReader => {
     let id = args.session_id;
@@ -61,15 +75,19 @@ export function createTerminalTools(source: TerminalSessionSource): TerminalTool
     }
     if (typeof id !== 'string') throw new RangeError('session_id must be a string');
     const terminal = source.get(id);
-    if (!terminal) throw new RangeError(`Unknown session_id "${id}". Call list_sessions.`);
+    // Ids are opaque and may be arbitrarily long, so only the echoed value is bounded. boundedTitle also keeps the
+    // message from ending on half a surrogate pair.
+    if (!terminal) throw new RangeError(`Unknown session_id "${boundedTitle(id)}". Call list_sessions.`);
     return new TerminalReader(terminal);
   };
 
   const guarded =
-    (run: (args: Record<string, unknown>) => Record<string, unknown>) =>
+    (allowed: readonly string[], run: (args: Record<string, unknown>) => Record<string, unknown>) =>
     (input: unknown): Record<string, unknown> => {
       try {
-        return { ...run(asObject(input)), notice: UNTRUSTED_NOTICE };
+        const args = asObject(input);
+        rejectUnknownKeys(args, allowed);
+        return { ...run(args), notice: UNTRUSTED_NOTICE };
       } catch (error) {
         return failure(error);
       }
@@ -81,7 +99,7 @@ export function createTerminalTools(source: TerminalSessionSource): TerminalTool
       description: 'List the open terminal sessions with their size, title and current revision.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
       annotations,
-      execute: guarded(() => {
+      execute: guarded([], () => {
         const listed = source.list();
         const sessions = listed.slice(0, MAX_SESSIONS_LISTED).map((info) => {
           const terminal = source.get(info.id);
@@ -90,7 +108,7 @@ export function createTerminalTools(source: TerminalSessionSource): TerminalTool
             ...(terminal && {
               cols: terminal.cols,
               rows: terminal.rows,
-              title: terminal.title,
+              title: boundedTitle(terminal.title),
               revision: terminal.writeRevision,
             }),
           };
@@ -109,7 +127,7 @@ export function createTerminalTools(source: TerminalSessionSource): TerminalTool
         additionalProperties: false,
       },
       annotations,
-      execute: guarded((args) => ({ ...resolve(args).readScreen() })),
+      execute: guarded(['session_id'], (args) => ({ ...resolve(args).readScreen() })),
     },
     {
       name: 'read_output',
@@ -137,7 +155,7 @@ export function createTerminalTools(source: TerminalSessionSource): TerminalTool
         additionalProperties: false,
       },
       annotations,
-      execute: guarded((args) => {
+      execute: guarded(['session_id', 'lines', 'offset', 'max_chars'], (args) => {
         const options: OutputOptions = {
           lines: args.lines as number | undefined,
           offset: args.offset as number | undefined,

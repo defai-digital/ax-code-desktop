@@ -1,10 +1,10 @@
 /**
  * Opt-in timing probe (AKITTY_WEB_PROBE=1 npx vitest run lib/hotpath.probe.test.ts). It prints numbers and asserts
- * nothing; "old" re-creates the pre-cache behavior by invalidating the viewport cache before every row read.
+ * nothing; "uncached" simulates repeated viewport decoding in the current engine by invalidating the viewport cache before every row read.
  */
 
 import { describe, test } from 'vitest';
-import { Ghostty } from './ghostty';
+import { AkittyEngine } from './engine';
 
 const enabled = process.env.AKITTY_WEB_PROBE === '1';
 
@@ -18,19 +18,19 @@ function time(label: string, iterations: number, fn: () => void): void {
 
 describe.skipIf(!enabled)('web hot path probe', () => {
   test('full-screen reads and writes', async () => {
-    const ghostty = await Ghostty.load();
-    const term = ghostty.createTerminal(200, 50);
+    const engine = await AkittyEngine.load();
+    const term = engine.createTerminal(200, 50);
     let screen = '';
     for (let y = 0; y < 50; y++) screen += `\x1b[3${y % 8}mline ${y} ${'lorem ipsum dolor sit amet '.repeat(7)}\x1b[0m\r\n`;
     term.write(screen);
 
-    time('read 50 rows, old (parse + copy per row)', 100, () => {
+    time('read 50 rows, uncached (decode viewport per row)', 100, () => {
       for (let y = 0; y < 50; y++) {
         (term as any).viewportValid = false;
         term.getLine(y);
       }
     });
-    time('read 50 rows, new (one parse, shared cells)', 100, () => {
+    time('read 50 rows, pooled (one decode, shared cells)', 100, () => {
       (term as any).viewportValid = false;
       for (let y = 0; y < 50; y++) term.getLineView(y);
     });

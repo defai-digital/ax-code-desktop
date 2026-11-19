@@ -14,6 +14,7 @@
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { Terminal } from './terminal';
+import { SelectionManager } from './selection-manager';
 import { createIsolatedTerminal } from './test-helpers';
 
 /**
@@ -57,6 +58,141 @@ describe('SelectionManager', () => {
       container.parentNode.removeChild(container);
       container = null;
     }
+  });
+
+  test('copy preserves logical lines, significant spaces and wide-cell overlaps', async () => {
+    for (const [input, startCol, startRow, length, expected] of [
+      ['ab  cd', 0, 0, 6, 'ab  cd'],
+      ['abc中', 0, 0, 6, 'abc中'],
+      ['a中b', 2, 0, 2, '中b'],
+      ['ab  ', 0, 0, 3, 'ab '],
+      ['ab\u00a0', 0, 0, 4, 'ab\u00a0'],
+      ['ab\r\ncd', 0, 0, 6, 'ab\ncd'],
+      ['abcd\r\nefgh\r\nijkl', 3, 2, 20, 'l'],
+    ] as const) {
+      const term = await createIsolatedTerminal({ cols: 4, rows: 3 });
+      term.open(container!);
+      try {
+        term.write(input);
+        term.select(startCol, startRow, length);
+        expect(term.getSelection(), JSON.stringify(input)).toBe(expected);
+      } finally { term.dispose(); }
+    }
+  });
+
+  test('a click without dragging neither selects a character nor copies it', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 3 });
+    term.open(container!);
+    const manager = (term as any).selectionManager;
+    const copied: string[] = [];
+    manager.copy = async (value: string) => { copied.push(value); };
+    try {
+      term.write('ABC');
+      const canvas = (term as any).renderer.getCanvas() as HTMLCanvasElement;
+      canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      document.dispatchEvent(new MouseEvent('mouseup', { button: 0, bubbles: true }));
+      expect(copied).toEqual([]);
+      expect(term.getSelection()).toBe('');
+      expect(term.hasSelection()).toBe(false);
+      expect(term.getSelectionPosition()).toBeUndefined();
+    } finally { term.dispose(); }
+  });
+
+  test('the selection API includes a single cell', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 3 });
+    term.open(container!);
+    try {
+      term.write('ABC');
+      term.select(0, 0, 1);
+      expect(term.getSelection()).toBe('A');
+      expect(term.hasSelection()).toBe(true);
+      expect(term.getSelectionPosition()).toEqual({ start: { x: 0, y: 0 }, end: { x: 0, y: 0 } });
+    } finally { term.dispose(); }
+  });
+
+  test('zero and negative selection lengths clear the held range', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 3 });
+    term.open(container!);
+    try {
+      term.write('ABC');
+      for (const length of [0, -1, 0.5]) {
+        term.select(0, 0, 2);
+        term.select(1, 0, length);
+        expect(term.getSelection()).toBe('');
+        expect(term.hasSelection()).toBe(false);
+        expect(term.getSelectionPosition()).toBeUndefined();
+      }
+    } finally { term.dispose(); }
+  });
+
+  test('non-finite selection arguments fail without replacing the held range', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 3 });
+    term.open(container!);
+    try {
+      term.write('ABC'); term.select(0, 0, 2);
+      for (const value of [NaN, Infinity, -Infinity]) {
+        for (const args of [[value, 0, 1], [0, value, 1], [0, 0, value]]) {
+          expect(() => term.select(args[0], args[1], args[2])).toThrow(RangeError);
+          expect(term.getSelection()).toBe('AB');
+        }
+        expect(() => term.selectLines(value, 0)).toThrow(RangeError);
+        expect(() => term.selectLines(0, value)).toThrow(RangeError);
+        expect(term.getSelection()).toBe('AB');
+      }
+    } finally { term.dispose(); }
+  });
+
+  test('auto-scroll preserves the drag endpoint at both retained-buffer boundaries', async () => {
+    for (const [history, direction] of [[false, -1], [true, -1], [true, 1]] as const) {
+      const term = await createIsolatedTerminal({ cols: 8, rows: 3, scrollback: 20 });
+      term.open(container!);
+      try {
+        term.write(history ? 'a中bc\r\na中bc\r\na中bc\r\na中bc\r\na中bc' : 'a中bc');
+        if (direction < 0) term.scrollToTop();
+        const base = term.wasmTerm!.getScrollbackLength() - term.getViewportY();
+        const row = direction < 0 ? 0 : 2;
+        setSelectionAbsolute(term, 2, base + row, 3, base + row);
+        const manager = (term as any).selectionManager;
+        const before = manager.getSelection();
+        expect(before).toBe('中b');
+        manager.isSelecting = true; manager.autoScroll(direction);
+        await new Promise(resolve => setTimeout(resolve, 120));
+        expect(manager.getSelection()).toBe(before);
+      } finally { term.dispose(); }
+    }
+  });
+
+  test('selection follows retained row identity when bounded history evicts rows', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 2, scrollback: 2 });
+    term.open(container!);
+    try {
+      term.write('zero\r\none\r\ntwo\r\nthree');
+      term.scrollToTop();
+      term.select(0, 1, 3);
+      expect(term.getSelection()).toBe('one');
+      term.write('\r\nfour');
+      expect(term.getSelection()).toBe('one');
+      term.write('\r\nfive');
+      expect(term.getSelection()).toBe('');
+      expect(term.hasSelection()).toBe(false);
+    } finally { term.dispose(); }
+  });
+
+  test('selection highlights both wide columns and clears after resize reflow', async () => {
+    const term = await createIsolatedTerminal({ cols: 8, rows: 3 });
+    term.open(container!);
+    try {
+      term.write('a中bc');
+      term.select(2, 0, 2);
+      expect(term.getSelectionPosition()).toEqual({ start: { x: 1, y: 0 }, end: { x: 3, y: 0 } });
+      expect(term.getSelection()).toBe('中b');
+      term.select(0, 0, 2);
+      expect(term.getSelectionPosition()).toEqual({ start: { x: 0, y: 0 }, end: { x: 2, y: 0 } });
+      expect(term.getSelection()).toBe('a中');
+      term.resize(4, 3);
+      expect(term.getSelection()).toBe('');
+      expect(term.hasSelection()).toBe(false);
+    } finally { term.dispose(); }
   });
 
   describe('Construction', () => {
@@ -117,13 +253,13 @@ describe('SelectionManager', () => {
       term.dispose();
     });
 
-    test('hasSelection returns false for single cell selection', async () => {
+    test('hasSelection returns false for an uncommitted single-cell anchor', async () => {
       if (!container) return;
 
       const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
       term.open(container);
 
-      // Same start and end = no real selection
+      // A mouse-down anchor at one cell is not an explicit API range
       setSelectionAbsolute(term, 5, 0, 5, 0);
 
       const selMgr = (term as any).selectionManager;
@@ -233,6 +369,42 @@ describe('SelectionManager', () => {
       expect(text).toContain('Line 000');
       expect(text).toContain('Line 001');
       expect(text).toContain('Line 002');
+
+      term.dispose();
+    });
+
+    test('getSelection omits the spacer cell after a wide character (漢a)', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+
+      // 漢 is two cells wide, so cell 1 is its zero-width spacer; "a" is cell 2.
+      term.write('漢a\r\n');
+
+      const scrollbackLen = term.wasmTerm!.getScrollbackLength();
+      setSelectionAbsolute(term, 0, scrollbackLen, 2, scrollbackLen);
+
+      const selMgr = (term as any).selectionManager;
+      expect(selMgr.getSelection()).toBe('漢a');
+
+      term.dispose();
+    });
+
+    test('getSelection omits the spacer cell before a trailing wide character (a漢b)', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+
+      // Cells: 0="a", 1="漢", 2=spacer, 3="b".
+      term.write('a漢b\r\n');
+
+      const scrollbackLen = term.wasmTerm!.getScrollbackLength();
+      setSelectionAbsolute(term, 0, scrollbackLen, 3, scrollbackLen);
+
+      const selMgr = (term as any).selectionManager;
+      expect(selMgr.getSelection()).toBe('a漢b');
 
       term.dispose();
     });
@@ -581,6 +753,106 @@ describe('SelectionManager', () => {
       document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       outside.remove();
       expect(selMgr.mouseDownTarget).toBeNull();
+    });
+  });
+
+  describe('Canvas listener cleanup', () => {
+    test('dispose() removes the five canvas selection listeners with identical references', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+      const selMgr = (term as any).selectionManager;
+      const canvas = (term as any).renderer.getCanvas() as HTMLCanvasElement;
+
+      // Capture registration through the DOM API, independent of private field names.
+      const stored: Array<[string, EventListenerOrEventListenerObject]> = [];
+      const originalAdd = canvas.addEventListener;
+      canvas.addEventListener = function (type: string, callback: any, options?: any) {
+        stored.push([type, callback]); return originalAdd.call(this, type, callback, options);
+      } as typeof canvas.addEventListener;
+      let manager: SelectionManager;
+      try { manager = new SelectionManager(term, (term as any).renderer, term.wasmTerm!, term.textarea!); }
+      finally { canvas.addEventListener = originalAdd; }
+      expect(stored.map(([type]) => type)).toEqual(expect.arrayContaining(['mousedown', 'mousemove', 'mouseleave', 'mouseenter', 'dblclick']));
+
+      const removed: Array<[string, unknown]> = [];
+      const origRemove = canvas.removeEventListener;
+      (canvas as any).removeEventListener = function (type: string, listener: any, options?: any) {
+        removed.push([type, listener]);
+        return origRemove.call(this, type, listener, options);
+      };
+      try {
+        manager!.dispose();
+      } finally {
+        canvas.removeEventListener = origRemove;
+      }
+
+      for (const [type, handler] of stored) {
+        const match = removed.find(([, removedHandler]) => removedHandler === handler);
+        expect(match?.[0]).toBe(type);
+      }
+
+      term.dispose();
+    });
+
+    test('a disposed manager no longer reacts to canvas selection events', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+      term.write('Hello World\r\n');
+
+      const selMgr = (term as any).selectionManager;
+      const canvas = (term as any).renderer.getCanvas() as HTMLCanvasElement;
+
+      // The live manager reacts to a canvas mousedown: it starts a selection.
+      canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      expect(selMgr.isSelecting).toBe(true);
+
+      selMgr.dispose();
+
+      // Reset every observable the handlers mutate, so any remaining listener
+      // would be visible as a state change after the events below.
+      selMgr.isSelecting = false;
+      selMgr.selectionStart = null;
+      selMgr.selectionEnd = null;
+      selMgr.mouseDownTarget = null;
+      selMgr.dirtySelectionRows.clear();
+
+      canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      canvas.dispatchEvent(new MouseEvent('mousemove', { bubbles: true }));
+      canvas.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }));
+      canvas.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }));
+      canvas.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
+
+      expect(selMgr.isSelecting).toBe(false);
+      expect(selMgr.selectionStart).toBeNull();
+      expect(selMgr.hasSelection()).toBe(false);
+
+      term.dispose();
+    });
+
+    test('repeated dispose() is safe and keeps the manager inert', async () => {
+      if (!container) return;
+
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container);
+      const selMgr = (term as any).selectionManager;
+      const canvas = (term as any).renderer.getCanvas() as HTMLCanvasElement;
+
+      expect(() => {
+        selMgr.dispose();
+        selMgr.dispose();
+      }).not.toThrow();
+
+      canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+      document.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+
+      expect(selMgr.isSelecting).toBe(false);
+      expect(selMgr.mouseDownTarget).toBeNull();
+
+      term.dispose();
     });
   });
 });

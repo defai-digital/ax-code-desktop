@@ -1,436 +1,103 @@
-/**
- * Buffer API - xterm.js-compatible buffer access
- *
- * Provides read-only access to terminal buffer contents, cursor state,
- * and viewport position. Wraps Ghostty WASM terminal state.
- *
- * Usage:
- * ```typescript
- * const cell = term.buffer.active.getLine(0)?.getCell(5);
- * console.log(cell?.getChars(), cell?.isBold());
- *
- * if (term.buffer.active.type === 'alternate') {
- *   console.log('Full-screen app running');
- * }
- * ```
- */
-
+/** Read-only terminal buffers, expressed in absolute retained-row coordinates. */
 import { EventEmitter } from './event-emitter';
-import type { GhosttyTerminal } from './ghostty';
-import { graphemeString } from './codepoint';
-import { CellFlags } from './ghostty';
-import type {
-  IBuffer,
-  IBufferCell,
-  IBufferLine,
-  IBufferNamespace,
-  IDisposable,
-  IEvent,
-} from './interfaces';
+import { isRenderableCodepoint } from './codepoint';
+import { CellFlags } from './types';
+import type { TerminalCell } from './types';
+import type { IBuffer, IBufferCell, IBufferLine, IBufferNamespace } from './interfaces';
 import type { Terminal } from './terminal';
-import type { GhosttyCell } from './types';
 
-// ============================================================================
-// BufferNamespace - Top-level buffer API
-// ============================================================================
+type Graphemes = (column: number) => number[] | null;
+const vacant = (): TerminalCell => ({ codepoint: 0, width: 1, flags: 0, fg_r: 204, fg_g: 204, fg_b: 204,
+  bg_r: 0, bg_g: 0, bg_b: 0, hyperlink_id: 0, grapheme_len: 0 });
+const scalar = (value: number): string => isRenderableCodepoint(value) ? String.fromCodePoint(value) : '\ufffd';
+function characters(cell: TerminalCell, column: number, lookup?: Graphemes): string {
+  if (!cell.codepoint || !cell.width) return '';
+  const cluster = cell.grapheme_len ? lookup?.(column) : undefined;
+  return cluster && cluster.length > 1 ? cluster.map(scalar).join('') : scalar(cell.codepoint);
+}
 
-/**
- * Top-level buffer API namespace
- * Provides access to active, normal, and alternate screen buffers
- */
 export class BufferNamespace implements IBufferNamespace {
-  private terminal: Terminal;
-  private bufferChangeEmitter = new EventEmitter<IBuffer>();
-
-  // Lazy-initialized buffer wrappers (stateless, so we can cache them)
-  private _normalBuffer?: Buffer;
-  private _alternateBuffer?: Buffer;
-
-  constructor(terminal: Terminal) {
-    this.terminal = terminal;
+  readonly normal: Buffer;
+  readonly alternate: Buffer;
+  private readonly changes = new EventEmitter<IBuffer>();
+  readonly onBufferChange = this.changes.event;
+  constructor(private readonly terminal: Terminal) {
+    this.normal = new Buffer(terminal, 'normal'); this.alternate = new Buffer(terminal, 'alternate');
   }
-
-  get active(): IBuffer {
-    // Query WASM to determine which buffer is active
-    const wasmTerm = (this.terminal as any).wasmTerm as GhosttyTerminal | undefined;
-    if (!wasmTerm) {
-      return this.normal; // Default to normal if not initialized
-    }
-
-    return wasmTerm.isAlternateScreen() ? this.alternate : this.normal;
-  }
-
-  get normal(): IBuffer {
-    if (!this._normalBuffer) {
-      this._normalBuffer = new Buffer(this.terminal, 'normal');
-    }
-    return this._normalBuffer;
-  }
-
-  get alternate(): IBuffer {
-    if (!this._alternateBuffer) {
-      this._alternateBuffer = new Buffer(this.terminal, 'alternate');
-    }
-    return this._alternateBuffer;
-  }
-
-  get onBufferChange(): IEvent<IBuffer> {
-    return this.bufferChangeEmitter.event;
-  }
-
-  /**
-   * Internal: Fire buffer change event when screen switches
-   * Should be called by Terminal when detecting screen change
-   */
-  _fireBufferChange(buffer: IBuffer): void {
-    this.bufferChangeEmitter.fire(buffer);
-  }
+  get active(): IBuffer { return this.terminal.wasmTerm?.isAlternateScreen() ? this.alternate : this.normal; }
+  _fireBufferChange(buffer: IBuffer): void { this.changes.fire(buffer); }
+  dispose(): void { this.changes.dispose(); }
 }
 
-// ============================================================================
-// Buffer - Represents a terminal buffer (normal or alternate)
-// ============================================================================
-
-/**
- * A terminal buffer (normal or alternate screen)
- */
 export class Buffer implements IBuffer {
-  private terminal: Terminal;
-  private bufferType: 'normal' | 'alternate';
-  private nullCell: BufferCell;
-
-  constructor(terminal: Terminal, type: 'normal' | 'alternate') {
-    this.terminal = terminal;
-    this.bufferType = type;
-
-    // Create a null cell (codepoint=0, default colors, no flags)
-    const nullCellData: GhosttyCell = {
-      codepoint: 0,
-      fg_r: 204,
-      fg_g: 204,
-      fg_b: 204,
-      bg_r: 0,
-      bg_g: 0,
-      bg_b: 0,
-      flags: 0,
-      width: 1,
-      hyperlink_id: 0,
-      grapheme_len: 0,
-    };
-    this.nullCell = new BufferCell(nullCellData, 0);
-  }
-
-  get type(): 'normal' | 'alternate' {
-    return this.bufferType;
-  }
-
-  get cursorX(): number {
-    const wasmTerm = this.getWasmTerm();
-    if (!wasmTerm) return 0;
-    return wasmTerm.getCursor().x;
-  }
-
-  get cursorY(): number {
-    const wasmTerm = this.getWasmTerm();
-    if (!wasmTerm) return 0;
-    return wasmTerm.getCursor().y;
-  }
-
-  get viewportY(): number {
-    // The terminal tracks the scroll offset, fractional during smooth scrolling; buffer rows are whole rows.
-    const raw = this.terminal.getViewportY();
-    return Math.max(0, Math.floor(raw));
-  }
-
-  get baseY(): number {
-    // The alternate screen has no scrollback. On the normal screen, baseY is the scrollback length,
-    // i.e. the line index where the viewport starts when scrolled to the bottom, so baseY + cursorY
-    // is the cursor's absolute row in the buffer.
-    if (this.bufferType === 'alternate') return 0;
-    const wasmTerm = this.getWasmTerm();
-    if (!wasmTerm) return 0;
-    return Math.max(0, wasmTerm.getScrollbackLength());
-  }
-
-  get length(): number {
-    const wasmTerm = this.getWasmTerm();
-    if (!wasmTerm) return 0;
-
-    if (this.bufferType === 'alternate') {
-      // Alternate buffer has no scrollback, just visible rows
-      return wasmTerm.rows;
-    } else {
-      // Normal buffer: scrollback + visible rows
-      const scrollback = wasmTerm.getScrollbackLength();
-      return scrollback + wasmTerm.rows;
-    }
-  }
-
-  getLine(y: number): IBufferLine | undefined {
-    const wasmTerm = this.getWasmTerm();
-    if (!wasmTerm) return undefined;
-
-    // One scrollback query serves both the bounds check and the row lookup.
-    const scrollbackLength = this.bufferType === 'normal' ? wasmTerm.getScrollbackLength() : 0;
-    if (y < 0 || y >= scrollbackLength + wasmTerm.rows) {
-      return undefined;
-    }
-
-    let cells: GhosttyCell[] | null;
-    let isWrapped: boolean;
-    let grapheme: GraphemeLookup;
-
-    if (this.bufferType === 'normal' && y < scrollbackLength) {
-      // Accessing scrollback
-      // WASM getScrollbackLine: offset 0 = oldest, offset (length-1) = newest
-      // Buffer coords: y=0 = oldest, y=(length-1) = newest
-      // So scrollbackOffset = y directly!
-      const scrollbackOffset = y;
-      cells = wasmTerm.getScrollbackLine(scrollbackOffset);
-      // TODO: We'd need WASM API to check if scrollback line is wrapped
-      // For now, assume not wrapped
-      isWrapped = false;
-      grapheme = (x) => wasmTerm.getScrollbackGrapheme(scrollbackOffset, x);
-    } else {
-      // Accessing visible screen
-      const lineNumber = y - scrollbackLength;
-      cells = wasmTerm.getLine(lineNumber);
-      isWrapped = wasmTerm.isRowWrapped(lineNumber);
-      grapheme = (x) => wasmTerm.getGrapheme(lineNumber, x);
-    }
-
-    if (!cells) {
-      return undefined;
-    }
-
-    return new BufferLine(cells, isWrapped, wasmTerm.cols, grapheme);
-  }
-
-  getNullCell(): IBufferCell {
-    return this.nullCell;
-  }
-
-  private getWasmTerm(): GhosttyTerminal | undefined {
-    return (this.terminal as any).wasmTerm as GhosttyTerminal | undefined;
+  private readonly nullCell = new BufferCell(vacant(), 0);
+  constructor(private readonly terminal: Terminal, readonly type: 'normal' | 'alternate') {}
+  private get alternate(): boolean { return this.type === 'alternate'; }
+  get cursorX(): number { return this.terminal.wasmTerm?.getBufferField(this.alternate, 2) ?? 0; }
+  get cursorY(): number { return this.terminal.wasmTerm?.getBufferField(this.alternate, 3) ?? 0; }
+  get viewportY(): number { return this.terminal.buffer.active === this ? Math.max(0, Math.floor(this.terminal.getViewportY())) : 0; }
+  get baseY(): number { return this.terminal.wasmTerm?.getBufferField(this.alternate, 6) ?? 0; }
+  get length(): number { return this.terminal.wasmTerm ? this.baseY + this.terminal.wasmTerm.rows : 0; }
+  getNullCell(): IBufferCell { return this.nullCell; }
+  getLine(row: number): IBufferLine | undefined {
+    const engine = this.terminal.wasmTerm;
+    if (!engine || !Number.isInteger(row) || row < 0) return undefined;
+    const history = engine.getBufferField(this.alternate, 6);
+    if (row >= history + engine.rows) return undefined;
+    const relativeRow = row - history;
+    const cells = engine.getBufferLine(this.alternate, relativeRow);
+    if (!cells) return undefined;
+    const wrapped = engine.isBufferRowWrapped(this.alternate, relativeRow);
+    const lookup: Graphemes = column => engine.getBufferGrapheme(this.alternate, relativeRow, column);
+    return new BufferLine(cells, wrapped, engine.cols, lookup);
   }
 }
 
-/** Looks up the codepoints of the grapheme cluster at a column of one row. */
-type GraphemeLookup = (x: number) => number[] | null;
-
-/**
- * A non-empty cell's text: the whole grapheme cluster when the cell holds one, otherwise its codepoint, with an
- * invalid codepoint shown as U+FFFD.
- */
-function cellText(cell: GhosttyCell, x: number, grapheme?: GraphemeLookup): string {
-  if (cell.grapheme_len > 0 && grapheme) {
-    const codepoints = grapheme(x);
-    if (codepoints && codepoints.length > 1) return graphemeString(codepoints);
-  }
-  const codepoint = cell.codepoint;
-  // Valid: 0x0000 to 0x10FFFF, excluding surrogates (0xD800-0xDFFF)
-  if (codepoint < 0 || codepoint > 0x10ffff || (codepoint >= 0xd800 && codepoint <= 0xdfff)) {
-    return '\uFFFD';
-  }
-  return String.fromCodePoint(codepoint);
-}
-
-// ============================================================================
-// BufferLine - Represents a single line in the buffer
-// ============================================================================
-
-/**
- * A single line in the buffer
- */
 export class BufferLine implements IBufferLine {
-  private cells: GhosttyCell[];
-  private _isWrapped: boolean;
-  private _length: number;
-  private grapheme?: GraphemeLookup;
-
-  constructor(cells: GhosttyCell[], isWrapped: boolean, length: number, grapheme?: GraphemeLookup) {
-    this.cells = cells;
-    this._isWrapped = isWrapped;
-    this._length = length;
-    this.grapheme = grapheme;
+  private readonly clusters = new Map<number, number[]>();
+  constructor(private readonly cells: TerminalCell[], readonly isWrapped: boolean, readonly length: number, lookup?: Graphemes) {
+    // The row and its graphemes form one read result, even after subsequent output.
+    if (lookup) cells.forEach((cell, column) => {
+      if (cell.grapheme_len) { const cluster = lookup(column); if (cluster) this.clusters.set(column, cluster); }
+    });
   }
-
-  get length(): number {
-    return this._length;
+  private readonly lookup: Graphemes = column => this.clusters.get(column) ?? null;
+  getCell(column: number): IBufferCell | undefined {
+    if (!Number.isInteger(column) || column < 0 || column >= this.length) return undefined;
+    return new BufferCell(this.cells[column] ?? vacant(), column, this.lookup);
   }
-
-  get isWrapped(): boolean {
-    return this._isWrapped;
-  }
-
-  getCell(x: number): IBufferCell | undefined {
-    if (x < 0 || x >= this._length) {
-      return undefined;
+  translateToString(trimRight = false, startColumn = 0, endColumn = this.length): string {
+    const start = Math.max(0, Math.min(this.length, Math.floor(startColumn)));
+    const end = Math.max(start, Math.min(this.length, Math.floor(endColumn)));
+    let output = '';
+    for (let column = start; column < end; column++) {
+      const cell = this.cells[column];
+      if (cell?.width === 0) continue;
+      output += !cell?.codepoint ? ' ' : characters(cell, column, this.lookup);
     }
-
-    if (x >= this.cells.length) {
-      // Cell beyond what was returned (empty/null cell)
-      return new BufferCell(
-        {
-          codepoint: 0,
-          fg_r: 204,
-          fg_g: 204,
-          fg_b: 204,
-          bg_r: 0,
-          bg_g: 0,
-          bg_b: 0,
-          flags: 0,
-          width: 1,
-          hyperlink_id: 0,
-          grapheme_len: 0,
-        },
-        x
-      );
-    }
-
-    return new BufferCell(this.cells[x], x, this.grapheme);
-  }
-
-  /**
-   * The line's text, as xterm.js gives it: an empty cell reads as a space, the spacer after a wide character reads as
-   * nothing, and a cell holding a grapheme cluster (combining marks, ZWJ emoji, flags) reads as the whole cluster.
-   */
-  translateToString(trimRight = false, startColumn = 0, endColumn = this._length): string {
-    // Clamp bounds
-    const start = Math.max(0, Math.min(startColumn, this._length));
-    const end = Math.max(start, Math.min(endColumn, this._length));
-
-    let result = '';
-    for (let x = start; x < end; x++) {
-      const cell = this.cells[x];
-      if (!cell) {
-        result += ' ';
-      } else if (cell.width === 0) {
-        continue;
-      } else if (cell.codepoint === 0) {
-        result += ' ';
-      } else {
-        result += cellText(cell, x, this.grapheme);
-      }
-    }
-
-    if (trimRight) {
-      result = result.trimEnd();
-    }
-
-    return result;
+    return trimRight ? output.trimEnd() : output;
   }
 }
 
-// ============================================================================
-// BufferCell - Represents a single cell in the buffer
-// ============================================================================
-
-/**
- * A single cell in the buffer
- */
 export class BufferCell implements IBufferCell {
-  private cell: GhosttyCell;
-  private x: number;
-  private grapheme?: GraphemeLookup;
-
-  constructor(cell: GhosttyCell, x: number, grapheme?: GraphemeLookup) {
-    this.cell = cell;
-    this.x = x;
-    this.grapheme = grapheme;
-  }
-
-  getChars(): string {
-    // Return empty string for null character
-    if (this.cell.codepoint === 0) {
-      return '';
-    }
-    return cellText(this.cell, this.x, this.grapheme);
-  }
-
-  getCode(): number {
-    return this.cell.codepoint;
-  }
-
-  getWidth(): number {
-    return this.cell.width;
-  }
-
-  getFgColorMode(): number {
-    // Return -1 for RGB (we always use RGB in our WASM implementation)
-    // xterm.js uses different values:
-    // 0 = default, 1 = palette 16, 2 = palette 256, 3 = RGB
-    // For simplicity, we return -1 for RGB
-    return -1;
-  }
-
-  getBgColorMode(): number {
-    return -1;
-  }
-
-  getFgColor(): number {
-    // Pack RGB into a single number: 0xRRGGBB
-    return (this.cell.fg_r << 16) | (this.cell.fg_g << 8) | this.cell.fg_b;
-  }
-
-  getBgColor(): number {
-    // Pack RGB into a single number: 0xRRGGBB
-    return (this.cell.bg_r << 16) | (this.cell.bg_g << 8) | this.cell.bg_b;
-  }
-
-  isBold(): number {
-    return (this.cell.flags & CellFlags.BOLD) !== 0 ? 1 : 0;
-  }
-
-  isItalic(): number {
-    return (this.cell.flags & CellFlags.ITALIC) !== 0 ? 1 : 0;
-  }
-
-  isUnderline(): number {
-    return (this.cell.flags & CellFlags.UNDERLINE) !== 0 ? 1 : 0;
-  }
-
-  isStrikethrough(): number {
-    return (this.cell.flags & CellFlags.STRIKETHROUGH) !== 0 ? 1 : 0;
-  }
-
-  isBlink(): number {
-    return (this.cell.flags & CellFlags.BLINK) !== 0 ? 1 : 0;
-  }
-
-  isInverse(): number {
-    return (this.cell.flags & CellFlags.INVERSE) !== 0 ? 1 : 0;
-  }
-
-  isInvisible(): number {
-    return (this.cell.flags & CellFlags.INVISIBLE) !== 0 ? 1 : 0;
-  }
-
-  isFaint(): number {
-    return (this.cell.flags & CellFlags.FAINT) !== 0 ? 1 : 0;
-  }
-
-  /**
-   * Get hyperlink ID for this cell (0 = no link)
-   * Used by link detection system
-   */
-  getHyperlinkId(): number {
-    return this.cell.hyperlink_id;
-  }
-
-  /**
-   * Get the Unicode codepoint for this cell
-   * Used by link detection system
-   */
-  getCodepoint(): number {
-    return this.cell.codepoint;
-  }
-
-  /**
-   * Check if cell has dim/faint attribute
-   * Added for IBufferCell compatibility
-   */
-  isDim(): boolean {
-    return (this.cell.flags & CellFlags.FAINT) !== 0;
-  }
+  constructor(private readonly cell: TerminalCell, private readonly column: number, private readonly lookup?: Graphemes) {}
+  getChars(): string { return characters(this.cell, this.column, this.lookup); }
+  getCode(): number { return this.cell.codepoint; }
+  getCodepoint(): number { return this.getCode(); }
+  getWidth(): number { return this.cell.width; }
+  getFgColorMode(): number { return -1; }
+  getBgColorMode(): number { return -1; }
+  getFgColor(): number { return this.cell.fg_r * 65536 + this.cell.fg_g * 256 + this.cell.fg_b; }
+  getBgColor(): number { return this.cell.bg_r * 65536 + this.cell.bg_g * 256 + this.cell.bg_b; }
+  getHyperlinkId(): number { return this.cell.hyperlink_id; }
+  private flag(flag: CellFlags): number { return Number((this.cell.flags & flag) !== 0); }
+  isBold(): number { return this.flag(CellFlags.BOLD); }
+  isItalic(): number { return this.flag(CellFlags.ITALIC); }
+  isUnderline(): number { return this.flag(CellFlags.UNDERLINE); }
+  isStrikethrough(): number { return this.flag(CellFlags.STRIKETHROUGH); }
+  isBlink(): number { return this.flag(CellFlags.BLINK); }
+  isInverse(): number { return this.flag(CellFlags.INVERSE); }
+  isInvisible(): number { return this.flag(CellFlags.INVISIBLE); }
+  isFaint(): number { return this.flag(CellFlags.FAINT); }
+  isDim(): boolean { return !!this.isFaint(); }
 }

@@ -1,150 +1,57 @@
-/**
- * URL Regex Link Provider
- *
- * Detects plain text URLs using regex pattern matching.
- * Supports common protocols but excludes file paths.
- *
- * This provider runs after OSC8LinkProvider, so explicit hyperlinks
- * take precedence over regex-detected URLs.
- */
+/** Plain URL detection with an explicit UTF-16-to-cell coordinate map. */
+import { cellChar } from '../codepoint';
+import type { ILink, ILinkProvider } from '../types';
 
-import type { IBufferRange, ILink, ILinkProvider } from '../types';
+interface Line { length: number; getCell(column: number): { getCodepoint(): number; getWidth?(): number; getChars?(): string } | undefined }
+export interface ITerminalForUrlProvider { buffer: { active: { getLine(row: number): Line | undefined } } }
 
-/**
- * URL Regex Provider
- *
- * Detects plain text URLs on a single line using regex.
- * Does not support multi-line URLs or file paths.
- *
- * Supported protocols:
- * - https://, http://
- * - mailto:
- * - ftp://, ssh://, git://
- * - tel:, magnet:
- * - gemini://, gopher://, news:
- */
+/** Remove prose punctuation while keeping balanced URL/IPv6 delimiters. */
+function destinationText(value: string): string {
+  const closers: Readonly<Record<string, string>> = { ')': '(', ']': '[', '}': '{' };
+  const openers: Readonly<Record<string, string>> = { '(': ')', '[': ']', '{': '}' };
+  const balance: Record<string, number> = { ')': 0, ']': 0, '}': 0 };
+  for (const ch of value) {
+    if (closers[ch]) balance[ch]++;
+    else if (openers[ch]) balance[openers[ch]]--;
+  }
+  let end = value.length;
+  while (end > 0) {
+    const ch = value[end - 1];
+    if (/[.,;!?]/.test(ch)) { end--; continue; }
+    if (closers[ch] && balance[ch] > 0) { balance[ch]--; end--; continue; }
+    break;
+  }
+  return value.slice(0, end);
+}
+
 export class UrlRegexProvider implements ILinkProvider {
-  /**
-   * URL regex pattern
-   * Matches common protocols followed by valid URL characters
-   * Excludes file paths (no ./ or ../ or bare /)
-   */
-  private static readonly URL_REGEX =
-    /(?:https?:\/\/|mailto:|ftp:\/\/|ssh:\/\/|git:\/\/|tel:|magnet:|gemini:\/\/|gopher:\/\/|news:)[\w\-.~:\/?#@!$&*+,;=%]+/gi;
-
-  /**
-   * Characters to strip from end of URLs
-   * Common punctuation that's unlikely to be part of the URL
-   */
-  private static readonly TRAILING_PUNCTUATION = /[.,;!?)\]]+$/;
-
-  constructor(private terminal: ITerminalForUrlProvider) {}
-
-  /**
-   * Provide all regex-detected URLs on the given row
-   */
-  provideLinks(y: number, callback: (links: ILink[] | undefined) => void): void {
-    const links: ILink[] = [];
-
-    const line = this.terminal.buffer.active.getLine(y);
-    if (!line) {
-      callback(undefined);
-      return;
+  constructor(private readonly host: ITerminalForUrlProvider) {}
+  provideLinks(row: number, callback: (links: ILink[] | undefined) => void): void {
+    const line = this.host.buffer.active.getLine(row);
+    if (!line) { callback(undefined); return; }
+    let source = '';
+    const columns: number[] = [], ends: number[] = [];
+    for (let column = 0; column < line.length; column++) {
+      const cell = line.getCell(column);
+      if (cell?.getWidth?.() === 0) continue;
+      const value = cell?.getCodepoint() ?? 0;
+      const glyph = cell?.getChars?.() || (value < 32 ? ' ' : cellChar(value));
+      const lastColumn = Math.min(line.length - 1, column + Math.max(1, cell?.getWidth?.() ?? 1) - 1);
+      source += glyph;
+      for (let unit = 0; unit < glyph.length; unit++) { columns.push(column); ends.push(lastColumn); }
     }
-
-    // Convert line cells to text
-    const lineText = this.lineToText(line);
-
-    // Reset regex state (global flag maintains state)
-    UrlRegexProvider.URL_REGEX.lastIndex = 0;
-
-    // Find all URL matches in the line
-    let match: RegExpExecArray | null = UrlRegexProvider.URL_REGEX.exec(lineText);
-    while (match !== null) {
-      let url = match[0];
-      const startX = match.index;
-      let endX = match.index + url.length - 1; // Inclusive end
-
-      // Strip trailing punctuation
-      const stripped = url.replace(UrlRegexProvider.TRAILING_PUNCTUATION, '');
-      if (stripped.length < url.length) {
-        url = stripped;
-        endX = startX + url.length - 1;
-      }
-
-      // Skip if URL is too short (e.g., just "http://")
-      if (url.length > 8) {
-        links.push({
-          text: url,
-          range: {
-            start: { x: startX, y },
-            end: { x: endX, y },
-          },
-          activate: (event) => {
-            // Open link if Ctrl/Cmd is pressed
-            if (event.ctrlKey || event.metaKey) {
-              window.open(url, '_blank', 'noopener,noreferrer');
-            }
-          },
-        });
-      }
-
-      // Get next match
-      match = UrlRegexProvider.URL_REGEX.exec(lineText);
+    const results: ILink[] = [];
+    const pattern = /(?:(?:https?|ftp|ssh|git|gemini|gopher):\/\/|(?:mailto|tel|magnet|news):)[^\s<>"'`]+/gi;
+    for (const match of source.matchAll(pattern)) {
+      const destination = destinationText(match[0]);
+      const scheme = /^(?:[a-z]+:\/\/|[a-z]+:)/i.exec(destination)?.[0] ?? '';
+      if (destination.length <= scheme.length) continue;
+      const start = match.index!;
+      results.push({ text: destination, range: { start: { x: columns[start], y: row },
+        end: { x: ends[start + destination.length - 1], y: row } },
+        activate: event => { if (event.ctrlKey || event.metaKey) window.open(destination, '_blank', 'noopener,noreferrer'); } });
     }
-
-    callback(links.length > 0 ? links : undefined);
+    callback(results.length ? results : undefined);
   }
-
-  /**
-   * Convert a buffer line to plain text string
-   */
-  private lineToText(line: IBufferLineForUrlProvider): string {
-    const chars: string[] = [];
-
-    for (let x = 0; x < line.length; x++) {
-      const cell = line.getCell(x);
-      if (!cell) {
-        chars.push(' ');
-        continue;
-      }
-
-      const codepoint = cell.getCodepoint();
-      // Skip null characters and control characters
-      if (codepoint === 0 || codepoint < 32) {
-        chars.push(' ');
-      } else {
-        chars.push(String.fromCodePoint(codepoint));
-      }
-    }
-
-    return chars.join('');
-  }
-
-  dispose(): void {
-    // No resources to clean up
-  }
-}
-
-/**
- * Minimal terminal interface required by UrlRegexProvider
- */
-export interface ITerminalForUrlProvider {
-  buffer: {
-    active: {
-      getLine(y: number): IBufferLineForUrlProvider | undefined;
-    };
-  };
-}
-
-/**
- * Minimal buffer line interface for URL detection
- */
-interface IBufferLineForUrlProvider {
-  length: number;
-  getCell(x: number):
-    | {
-        getCodepoint(): number;
-      }
-    | undefined;
+  dispose(): void {}
 }

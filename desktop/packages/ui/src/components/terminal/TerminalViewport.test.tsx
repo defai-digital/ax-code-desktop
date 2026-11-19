@@ -4,18 +4,23 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest"
 import { TerminalViewport } from "./TerminalViewport"
 import type { TerminalTheme } from "@/lib/terminalTheme"
 
-const state = vi.hoisted(() => ({ screen: "", resets: 0, bracketedPaste: false }))
-vi.mock("./ghosttyLoader", () => ({ getGhostty: async () => ({}) }))
+const state = vi.hoisted(() => ({
+  screen: "",
+  resets: 0,
+  bracketedPaste: false,
+  init: vi.fn<(url: string) => Promise<void>>().mockResolvedValue(undefined),
+}))
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@ax-code/akitty-web", () => ({
+  init: state.init,
   Terminal: class {
     cols = 80
     rows = 24
+    options = { cursorBlink: false }
     open() {}
     loadAddon() {}
     focus() {}
     dispose() {}
-    setOption() {}
     hasBracketedPaste() {
       return state.bracketedPaste
     }
@@ -75,6 +80,7 @@ beforeEach(() => {
   state.screen = ""
   state.resets = 0
   state.bracketedPaste = false
+  state.init.mockReset().mockResolvedValue(undefined)
 })
 afterEach(cleanup)
 const waitFor = async (check: () => void) => {
@@ -96,6 +102,48 @@ const pasteEvent = (target: Element, text: string): Event => {
   })
   return event
 }
+
+test("waits for the AkiTTY WASM asset before writing terminal output", async () => {
+  const { promise, resolve } = Promise.withResolvers<void>()
+  state.init.mockReturnValueOnce(promise)
+  render(
+    <TerminalViewport
+      sessionKey="wasm-startup"
+      chunks={[{ id: 1, data: "initial output" }]}
+      onInput={vi.fn()}
+      onResize={vi.fn()}
+      theme={theme}
+      fontFamily="monospace"
+      fontSize={14}
+      autoFocus={false}
+    />,
+  )
+  expect(state.init).toHaveBeenCalledWith(expect.stringMatching(/\/akitty-vt\.wasm$/))
+  expect(state.screen).toBe("")
+  resolve()
+  await waitFor(() => expect(state.screen).toBe("initial output"))
+})
+
+test("reports a WASM initialization failure and keeps the terminal closed", async () => {
+  const error = new Error("WASM asset unavailable")
+  state.init.mockRejectedValueOnce(error)
+  const onInitializeError = vi.fn()
+  render(
+    <TerminalViewport
+      sessionKey="wasm-failure"
+      chunks={[{ id: 1, data: "initial output" }]}
+      onInput={vi.fn()}
+      onResize={vi.fn()}
+      onInitializeError={onInitializeError}
+      theme={theme}
+      fontFamily="monospace"
+      fontSize={14}
+      autoFocus={false}
+    />,
+  )
+  await waitFor(() => expect(onInitializeError).toHaveBeenCalledWith(error))
+  expect(state.screen).toBe("")
+})
 
 test("replays retained output when the session changes with the same chunk snapshot", async () => {
   const props = {

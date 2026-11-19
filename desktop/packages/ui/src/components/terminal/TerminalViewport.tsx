@@ -1,16 +1,16 @@
 import React from "react"
 import { createPortal } from "react-dom"
-import { Terminal as GhosttyTerminal, FitAddon } from "@ax-code/akitty-web"
+import { FitAddon, init, Terminal } from "@ax-code/akitty-web"
+import akittyWasmUrl from "@ax-code/akitty-web/akitty-vt.wasm?url"
 
 import type { TerminalTheme } from "@/lib/terminalTheme"
-import { getGhosttyTerminalOptions } from "@/lib/terminalTheme"
+import { getAkittyTerminalOptions } from "@/lib/terminalTheme"
 import type { TerminalChunk } from "@/stores/useTerminalStore"
 import { copyTextToClipboard } from "@/lib/clipboard"
 import { cn } from "@/lib/utils"
 import { OverlayScrollbar } from "@/components/ui/OverlayScrollbar"
 import { useI18n } from "@/lib/i18n"
 import { buildPastedInput } from "@/lib/terminalPaste"
-import { getGhostty } from "./ghosttyLoader"
 
 function findScrollableViewport(container: HTMLElement): HTMLElement | null {
   if (typeof window === "undefined") {
@@ -94,7 +94,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
     const { t } = useI18n()
     const containerRef = React.useRef<HTMLDivElement>(null)
     const viewportRef = React.useRef<HTMLElement | null>(null)
-    const terminalRef = React.useRef<GhosttyTerminal | null>(null)
+    const terminalRef = React.useRef<Terminal | null>(null)
     const fitAddonRef = React.useRef<FitAddon | null>(null)
     const inputHandlerRef = React.useRef<(data: string) => void>(onInput)
     const resizeHandlerRef = React.useRef<(cols: number, rows: number) => void>(onResize)
@@ -130,7 +130,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
       (/Android/i.test(navigator.userAgent) ||
         (navigator as { userAgentData?: { platform: string } }).userAgentData?.platform === "Android")
     // Touch devices need a dedicated editable surface so special keys like
-    // Backspace and arrows are captured reliably without relying on Ghostty's
+    // Backspace and arrows are captured reliably without relying on AkiTTY's
     // internal mobile text handling.
     const useHiddenInputOverlay = Boolean(enableTouchScroll)
 
@@ -221,26 +221,14 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         return
       }
 
-      const terminal = terminalRef.current as unknown as {
-        setOption?: (key: string, value: unknown) => void
-        options?: { cursorBlink?: boolean }
-      } | null
-
+      const terminal = terminalRef.current
       if (!terminal) {
         return
       }
 
       try {
-        if (typeof terminal.setOption === "function") {
-          terminal.setOption("cursorBlink", enabled)
-          cursorBlinkStateRef.current = enabled
-          return
-        }
-
-        if (terminal.options) {
-          terminal.options.cursorBlink = enabled
-          cursorBlinkStateRef.current = enabled
-        }
+        terminal.options.cursorBlink = enabled
+        cursorBlinkStateRef.current = enabled
       } catch {
         // ignored
       }
@@ -597,7 +585,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         return
       }
 
-      // Ghostty scrollback is internal (canvas-based). On touch devices we need
+      // AkiTTY scrollback is internal (canvas-based). On touch devices we need
       // to translate touch deltas into terminal scroll calls.
       const terminal = terminalRef.current
       if (!terminal) {
@@ -1025,12 +1013,11 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
 
     React.useEffect(() => {
       let disposed = false
-      let localTerminal: GhosttyTerminal | null = null
+      let localTerminal: Terminal | null = null
       let localResizeObserver: ResizeObserver | null = null
       let localTextareaObserver: MutationObserver | null = null
       let localDisposables: Array<{ dispose: () => void }> = []
       let restorePatchedScrollToBottom: (() => void) | null = null
-      let restoreRenderScrollbar: (() => void) | null = null
       let restoreContainerFocus: (() => void) | null = null
 
       const container = containerRef.current
@@ -1094,14 +1081,14 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
 
       const initialize = async () => {
         try {
-          const ghostty = await getGhostty()
+          await init(akittyWasmUrl)
           if (disposed) {
             return
           }
 
-          const options = getGhosttyTerminalOptions(fontFamily, fontSize, theme, ghostty, false)
+          const options = getAkittyTerminalOptions(fontFamily, fontSize, theme)
 
-          const terminal = new GhosttyTerminal(options)
+          const terminal = new Terminal(options)
           followOutputRef.current = true
 
           if (useHiddenInputOverlay) {
@@ -1127,21 +1114,6 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
 
           terminal.loadAddon(fitAddon)
           terminal.open(container)
-          if (enableTouchScroll) {
-            // Ghostty paints a native canvas scrollbar for ~1.5s on every scroll. It is
-            // not touch-interactive and covers the last character columns, so touch
-            // scrolling uses the dedicated overlay scrollbar instead.
-            const renderer = (
-              terminal as unknown as { renderer?: { renderScrollbar?: (...args: unknown[]) => void } }
-            ).renderer
-            if (renderer && typeof renderer.renderScrollbar === "function") {
-              const originalRenderScrollbar = renderer.renderScrollbar
-              renderer.renderScrollbar = () => {}
-              restoreRenderScrollbar = () => {
-                renderer.renderScrollbar = originalRenderScrollbar
-              }
-            }
-          }
           // Publish the refs only once the terminal is usable. open() can throw (a wasm or
           // renderer failure), and a published ref then pointed at a terminal whose every
           // method throws: the chunks effect read it as live and its reset() tripped the
@@ -1151,9 +1123,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           bumpTerminalReady()
           cursorBlinkStateRef.current = false
 
-          localTerminalTextarea =
-            (terminal as unknown as { textarea?: HTMLTextAreaElement | null }).textarea ??
-            container.querySelector("textarea")
+          localTerminalTextarea = terminal.textarea ?? container.querySelector("textarea")
 
           if (localTerminalTextarea) {
             localTerminalTextarea.addEventListener("focus", handleTerminalTextareaFocus)
@@ -1244,8 +1214,6 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         localDisposables.forEach((disposable) => disposable.dispose())
         restorePatchedScrollToBottom?.()
         restorePatchedScrollToBottom = null
-        restoreRenderScrollbar?.()
-        restoreRenderScrollbar = null
         if (localTerminalTextarea) {
           localTerminalTextarea.removeEventListener("focus", handleTerminalTextareaFocus)
           localTerminalTextarea.removeEventListener("blur", handleTerminalTextareaBlur)
@@ -1404,7 +1372,7 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
         }
 
         // Do not auto-refocus here. In hidden-input mode, forcing focus back can
-        // create a focus ping-pong with Ghostty's internal textbox on mobile.
+        // create a focus ping-pong with AkiTTY's internal textbox on mobile.
         void isInsideTerminal
         void isHiddenInput
       },

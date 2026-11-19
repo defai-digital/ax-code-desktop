@@ -4,12 +4,12 @@
  * Provides utilities for test isolation and setup.
  */
 
-import { Ghostty } from './ghostty';
+import { AkittyEngine } from './engine';
 import type { ITerminalOptions } from './interfaces';
 import { Terminal } from './terminal';
 
 /**
- * Creates a Terminal instance with an isolated Ghostty WASM instance.
+ * Creates a Terminal instance with an isolated AkittyEngine WASM instance.
  * This ensures complete test isolation with no shared state between tests.
  *
  * @param options - Terminal options (cols, rows, etc.)
@@ -30,8 +30,8 @@ import { Terminal } from './terminal';
  * ```
  */
 export async function createIsolatedTerminal(
-  options: Omit<ITerminalOptions, 'ghostty'> = {}
+  options: Omit<ITerminalOptions, 'engine'> = {}
 ): Promise<Terminal> {
-  const ghostty = await Ghostty.load();
-  return new Terminal({ ...options, ghostty });
+  const engine = await AkittyEngine.load();
+  return new Terminal({ ...options, engine });
 }

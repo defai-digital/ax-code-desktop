@@ -1,239 +1,65 @@
-/**
- * FitAddon - Auto-resize terminal to fit container
- *
- * Provides automatic terminal resizing to fit its container element.
- * Compatible with xterm.js FitAddon API.
- *
- * Usage:
- * ```typescript
- * const fitAddon = new FitAddon();
- * term.loadAddon(fitAddon);
- * fitAddon.fit();              // Manual fit
- * fitAddon.observeResize();    // Auto-fit on resize
- * ```
- */
-
+/** Fit a grid into its host's content box without resize feedback loops. */
 import type { ITerminalAddon, ITerminalCore } from '../interfaces';
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-const MINIMUM_COLS = 2;
-const MINIMUM_ROWS = 1;
-const DEFAULT_SCROLLBAR_WIDTH = 15; // Reserve space for future scrollback scrollbar
-const RESIZE_DEBOUNCE_MS = 100; // Debounce time for ResizeObserver
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface ITerminalDimensions {
-  cols: number;
-  rows: number;
+export interface ITerminalDimensions { cols: number; rows: number }
+interface Host extends ITerminalCore {
+  renderer?: { getMetrics(): { width: number; height: number } };
+  resize?(cols: number, rows: number): void;
 }
 
-// ============================================================================
-// FitAddon Class
-// ============================================================================
-
 export class FitAddon implements ITerminalAddon {
-  private _terminal?: ITerminalCore;
-  private _resizeObserver?: ResizeObserver;
-  private _resizeDebounceTimer?: ReturnType<typeof setTimeout>;
-  private _resizeSettleTimer?: ReturnType<typeof setTimeout>;
-  private _isResizing: boolean = false;
+  private host?: Host;
+  private observer?: ResizeObserver;
+  private debounce?: ReturnType<typeof setTimeout>;
+  private settle?: ReturnType<typeof setTimeout>;
+  private resizing = false;
+  private pending = false;
+  private epoch = 0;
 
-  /**
-   * Activate the addon (called by Terminal.loadAddon)
-   */
-  public activate(terminal: ITerminalCore): void {
-    this._terminal = terminal;
+  activate(terminal: ITerminalCore): void { this.dispose(); this.host = terminal as Host; }
+  dispose(): void {
+    this.epoch++;
+    this.observer?.disconnect(); this.observer = undefined;
+    clearTimeout(this.debounce); clearTimeout(this.settle);
+    this.debounce = undefined; this.settle = undefined;
+    this.resizing = false; this.pending = false; this.host = undefined;
   }
-
-  /**
-   * Dispose the addon and clean up resources
-   */
-  public dispose(): void {
-    // Disconnect ResizeObserver
-    if (this._resizeObserver) {
-      this._resizeObserver.disconnect();
-      this._resizeObserver = undefined;
-    }
-
-    // Clear pending debounce timer
-    if (this._resizeDebounceTimer) {
-      clearTimeout(this._resizeDebounceTimer);
-      this._resizeDebounceTimer = undefined;
-    }
-
-    if (this._resizeSettleTimer !== undefined) {
-      clearTimeout(this._resizeSettleTimer);
-      this._resizeSettleTimer = undefined;
-    }
-    this._isResizing = false;
-    this._terminal = undefined;
+  proposeDimensions(): ITerminalDimensions | undefined {
+    const host = this.host, element = host?.element, metrics = host?.renderer?.getMetrics();
+    if (!element || !metrics || !Number.isFinite(metrics.width) || !Number.isFinite(metrics.height) || metrics.width <= 0 || metrics.height <= 0
+      || !(element.clientWidth > 0) || !(element.clientHeight > 0)) return undefined;
+    const style = window.getComputedStyle(element);
+    const padding = (side: string): number => Number.parseFloat(style.getPropertyValue(`padding-${side}`)) || 0;
+    const width = element.clientWidth - padding('left') - padding('right') - 15;
+    const height = element.clientHeight - padding('top') - padding('bottom');
+    const cols = Math.max(2, Math.min(4096, Math.floor(width / metrics.width)));
+    const rows = Math.max(1, Math.min(4096, Math.floor(height / metrics.height), Math.floor(1048576 / cols)));
+    return { cols, rows };
   }
-
-  /**
-   * Fit the terminal to its container
-   *
-   * Calculates optimal dimensions and resizes the terminal.
-   * Does nothing if dimensions cannot be calculated or haven't changed.
-   */
-  public fit(): void {
-    // Prevent re-entrant calls during resize
-    if (this._isResizing) {
-      return;
-    }
-
-    const dims = this.proposeDimensions();
-    if (!dims || !this._terminal) {
-      return;
-    }
-
-    // Access terminal to check current dimensions
-    const terminal = this._terminal as any;
-    const currentCols = terminal.cols;
-    const currentRows = terminal.rows;
-
-    // Check if dimensions actually changed (prevent no-ops and feedback loops).
-    // Current dimensions are authoritative: after an external terminal.resize
-    // the terminal must be re-fit even when the proposal matches the previous
-    // fit. The _isResizing window below keeps our own resize from feeding back
-    // through fit() while the DOM settles.
-    if (dims.cols === currentCols && dims.rows === currentRows) {
-      return;
-    }
-
-    // Set flag to prevent re-entrant calls
-    this._isResizing = true;
-
-    try {
-      // Resize terminal
-      if (terminal.resize && typeof terminal.resize === 'function') {
-        terminal.resize(dims.cols, dims.rows);
-      }
-    } finally {
-      // Clear flag after a short delay to allow DOM to settle
-      this._resizeSettleTimer = setTimeout(() => {
-        this._resizeSettleTimer = undefined;
-        this._isResizing = false;
+  fit(): void {
+    if (this.resizing) { this.pending = true; return; }
+    const size = this.proposeDimensions(), host = this.host;
+    if (!host || !size || size.cols === host.cols && size.rows === host.rows) return;
+    this.resizing = true;
+    const epoch = this.epoch;
+    try { host.resize?.(size.cols, size.rows); }
+    finally {
+      this.settle = setTimeout(() => {
+        if (this.epoch !== epoch) return;
+        this.settle = undefined; this.resizing = false;
+        if (this.pending) { this.pending = false; this.fit(); }
       }, 50);
     }
   }
-
-  /**
-   * Propose dimensions to fit the terminal to its container
-   *
-   * Calculates cols and rows based on:
-   * - Terminal container element dimensions (clientWidth/Height)
-   * - Terminal element padding
-   * - Font metrics (character cell size)
-   * - Scrollbar width reservation
-   *
-   * @returns Proposed dimensions or undefined if cannot calculate
-   */
-  public proposeDimensions(): ITerminalDimensions | undefined {
-    // Need terminal and its DOM element
-    if (!this._terminal?.element) {
-      return undefined;
-    }
-
-    // Access terminal internals to get renderer
-    const terminal = this._terminal as any;
-    const renderer = terminal.renderer;
-
-    if (!renderer || typeof renderer.getMetrics !== 'function') {
-      return undefined;
-    }
-
-    // Get font metrics from renderer
-    const metrics = renderer.getMetrics();
-    if (!metrics || metrics.width === 0 || metrics.height === 0) {
-      return undefined;
-    }
-
-    // Get terminal element (container) dimensions
-    // Use clientWidth/clientHeight to get the INSIDE dimensions (excluding padding)
-    const terminalElement = this._terminal.element;
-
-    // Check if we have clientWidth/clientHeight (DOM element required)
-    if (typeof terminalElement.clientWidth === 'undefined') {
-      return undefined;
-    }
-
-    const elementStyle = window.getComputedStyle(terminalElement);
-
-    // Get the actual content area (inside padding)
-    const paddingTop = Number.parseInt(elementStyle.getPropertyValue('padding-top')) || 0;
-    const paddingBottom = Number.parseInt(elementStyle.getPropertyValue('padding-bottom')) || 0;
-    const paddingLeft = Number.parseInt(elementStyle.getPropertyValue('padding-left')) || 0;
-    const paddingRight = Number.parseInt(elementStyle.getPropertyValue('padding-right')) || 0;
-
-    // Use clientWidth/clientHeight which gives us the inside dimensions
-    // This is stable and doesn't grow with content
-    const containerWidth = terminalElement.clientWidth;
-    const containerHeight = terminalElement.clientHeight;
-
-    // Check for invalid dimensions
-    if (containerWidth === 0 || containerHeight === 0) {
-      return undefined;
-    }
-
-    // Calculate available space (subtract padding since clientWidth includes padding)
-    const availableWidth = containerWidth - paddingLeft - paddingRight - DEFAULT_SCROLLBAR_WIDTH;
-    const availableHeight = containerHeight - paddingTop - paddingBottom;
-
-    // Calculate dimensions (enforce minimums)
-    const cols = Math.max(MINIMUM_COLS, Math.floor(availableWidth / metrics.width));
-    const rows = Math.max(MINIMUM_ROWS, Math.floor(availableHeight / metrics.height));
-
-    return { cols, rows };
-  }
-
-  /**
-   * Observe the terminal's container for resize events
-   *
-   * Sets up a ResizeObserver to automatically call fit() when the
-   * container size changes. Resize events are debounced to avoid
-   * excessive calls during window drag operations.
-   *
-   * Call dispose() to stop observing.
-   */
-  public observeResize(): void {
-    if (!this._terminal?.element) {
-      return;
-    }
-
-    // Already observing
-    if (this._resizeObserver) {
-      return;
-    }
-
-    // Create ResizeObserver that watches for external size changes
-    this._resizeObserver = new ResizeObserver((entries) => {
-      // Ignore resize events while we're actively resizing
-      if (this._isResizing) {
-        return;
-      }
-
-      // Only trigger if the observed element's content rect changed
-      const entry = entries[0];
-      if (!entry) return;
-
-      // Debounce resize events
-      if (this._resizeDebounceTimer) {
-        clearTimeout(this._resizeDebounceTimer);
-      }
-
-      this._resizeDebounceTimer = setTimeout(() => {
-        this.fit();
-      }, RESIZE_DEBOUNCE_MS);
+  observeResize(): void {
+    const element = this.host?.element;
+    if (!element || this.observer || typeof ResizeObserver === 'undefined') return;
+    const epoch = this.epoch;
+    this.observer = new ResizeObserver(entries => {
+      if (epoch !== this.epoch || !entries.length) return;
+      if (this.resizing) { this.pending = true; return; }
+      clearTimeout(this.debounce);
+      this.debounce = setTimeout(() => { if (epoch === this.epoch) this.fit(); }, 100);
     });
-
-    // Observe the terminal element itself (the container we want to fit into)
-    // This gives us stable resize events when the CONTAINER changes, not when our canvas changes
-    this._resizeObserver.observe(this._terminal.element);
+    this.observer.observe(element);
   }
 }
