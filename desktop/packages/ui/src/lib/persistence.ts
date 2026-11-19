@@ -98,11 +98,13 @@ const persistToLocalStorage = (settings: DesktopSettings) => {
   }
 }
 
-const dispatchSettingsSynced = (settings: DesktopSettings): void => {
+export type SettingsSyncedDetail = DesktopSettings & { initialLoad?: true }
+
+const dispatchSettingsSynced = (settings: SettingsSyncedDetail): void => {
   if (typeof window === "undefined") {
     return
   }
-  window.dispatchEvent(new CustomEvent<DesktopSettings>("openchamber:settings-synced", { detail: settings }))
+  window.dispatchEvent(new CustomEvent<SettingsSyncedDetail>("openchamber:settings-synced", { detail: settings }))
 }
 
 const starterRefsKey = (refs: ReturnType<typeof sanitizeStarterRefs> | null): string => JSON.stringify(refs)
@@ -1100,7 +1102,7 @@ export const syncDesktopSettings = async (): Promise<void> => {
       console.warn("applyDesktopUiPreferences failed:", error)
     }
 
-    dispatchSettingsSynced(settings)
+    dispatchSettingsSynced({ ...settings, initialLoad: true })
   }
 
   try {

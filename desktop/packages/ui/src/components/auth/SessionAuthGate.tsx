@@ -5,7 +5,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { toast } from "@/components/ui"
 import { syncDesktopSettings, initializeAppearancePreferences } from "@/lib/persistence"
-import { refreshDirectoryHome, restoreDirectoryPreferences } from "@/stores/useDirectoryStore"
+import { refreshDirectoryHome, restoreDirectoryPreferences, useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useProjectsStore } from "@/stores/useProjectsStore"
 import { AxCodeIcon } from "@/components/ui/AxCodeIcon"
 import { DesktopTitlebarDragStrip } from "@/components/layout/DesktopTitlebarDragStrip"
 import { Icon } from "@/components/icon/Icon"
@@ -136,6 +137,7 @@ interface ErrorScreenProps {
 
 export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) => {
   const { t } = useI18n()
+  const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
   const [state, setState] = React.useState<GateState>("pending")
   const [password, setPassword] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
@@ -258,7 +260,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
       hasResyncedRef.current = true
       void (async () => {
         await syncDesktopSettings()
-        restoreDirectoryPreferences()
+        restoreDirectoryPreferences(useProjectsStore.getState().getActiveProject()?.path)
         await Promise.all([initializeAppearancePreferences(), refreshDirectoryHome()])
       })().catch((error) => console.warn("Failed to initialize authenticated preferences:", error))
     }
@@ -449,7 +451,8 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   const canOfferPasskeySetup = supportsPasskeys && passkeyStatus.enabled
   const canUsePasskey = canOfferPasskeySetup && passkeyStatus.hasPasskeys
 
-  if (state === "pending") {
+  // A fresh renderer may have no local directory before authenticated settings arrive.
+  if (state === "pending" || (state === "authenticated" && !currentDirectory)) {
     return <LoadingScreen />
   }
 

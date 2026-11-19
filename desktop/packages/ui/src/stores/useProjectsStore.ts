@@ -2,6 +2,7 @@ import { create } from "zustand"
 import { devtools } from "zustand/middleware"
 import type { ProjectEntry } from "@/lib/api/types"
 import type { DesktopSettings } from "@/lib/desktop"
+import type { SettingsSyncedDetail } from "@/lib/persistence"
 import { updateDesktopSettings } from "@/lib/persistence"
 import { normalizeProjectPath as normalizePath, getProjectPathIdentityKey } from "@/lib/projectResolution"
 import { createProjectIdFromPath } from "@/lib/projectId"
@@ -66,7 +67,7 @@ interface ProjectsStore {
   /** Reorder by project id so UI sort order can differ safely from the store array. */
   reorderProjectById: (activeId: string, overId: string) => void
   validateProjectPath: (path: string) => ProjectPathValidationResult
-  synchronizeFromSettings: (settings: DesktopSettings) => void
+  synchronizeFromSettings: (settings: SettingsSyncedDetail) => void
   getActiveProject: () => ProjectEntry | null
 }
 
@@ -716,7 +717,7 @@ export const useProjectsStore = create<ProjectsStore>()(
         get().reorderProjects(fromIndex, toIndex)
       },
 
-      synchronizeFromSettings: (settings: DesktopSettings) => {
+      synchronizeFromSettings: (settings: SettingsSyncedDetail) => {
         const incomingProjects = sanitizeProjects(settings.projects ?? [])
         const incomingActive =
           typeof settings.activeProjectId === "string" && settings.activeProjectId.trim()
@@ -753,6 +754,9 @@ export const useProjectsStore = create<ProjectsStore>()(
         set({ projects: incomingProjects, activeProjectId: incomingActive })
         cacheProjects(incomingProjects, incomingActive)
 
+        // The authenticated renderer restores the saved directory after this snapshot.
+        if (settings.initialLoad) return
+
         // `projectsChanged` is true for any field — an icon, a label, a colour no other window can see — so
         // switching the directory on it moved the file tree, the git panel and the terminal to the active
         // project's root every time settings synced. Only a change to the project the directory should follow
@@ -781,7 +785,7 @@ export const useProjectsStore = create<ProjectsStore>()(
 
 if (typeof window !== "undefined") {
   window.addEventListener("openchamber:settings-synced", (event: Event) => {
-    const detail = (event as CustomEvent<DesktopSettings>).detail
+    const detail = (event as CustomEvent<SettingsSyncedDetail>).detail
     if (detail && typeof detail === "object") {
       useProjectsStore.getState().synchronizeFromSettings(detail)
     }

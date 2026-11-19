@@ -235,23 +235,25 @@ export const useDirectoryStore = create<DirectoryNavigationStore>()(
   ),
 )
 
-export function restoreDirectoryPreferences() {
+export function restoreDirectoryPreferences(projectDirectory?: string) {
   const savedHome = safeStorage.getItem("homeDirectory")
   if (savedHome) useDirectoryStore.getState().synchronizeHomeDirectory(savedHome, false)
 
   // An embedded window or the reader may select a directory before the settings request resolves.
-  const savedDirectory = safeStorage.getItem("lastDirectory")
-  if (navigationRevision !== 0 || !savedDirectory) return
+  if (navigationRevision !== 0) return
+  const savedDirectory = normalizeProjectPath(safeStorage.getItem("lastDirectory"))
+  const preferredDirectory = savedDirectory ?? projectDirectory
+  if (!preferredDirectory) return
 
   const state = useDirectoryStore.getState()
-  const currentDirectory = resolveDirectoryPath(savedDirectory, state.homeDirectory)
+  const currentDirectory = resolveDirectoryPath(preferredDirectory, state.homeDirectory)
   if (!currentDirectory) return
   if (currentDirectory !== state.currentDirectory) scopeDirectory(currentDirectory)
   useDirectoryStore.setState({
     currentDirectory,
     directoryHistory: [currentDirectory],
     historyIndex: 0,
-    hasPersistedDirectory: true,
+    hasPersistedDirectory: Boolean(savedDirectory),
   })
 }
 

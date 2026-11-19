@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.28] - 2026-11-18
+
+### Fixed
+
+- Preserve the saved working directory when starting from a fresh browser cache, including literal paths with trailing spaces.
+
+### Changed
+
+- Resolve the home directory and restore preferences after authentication. Importing the directory store no longer starts network requests or writes settings.
+
 ## [7.30.27] - 2026-11-18
 
 ### Fixed
