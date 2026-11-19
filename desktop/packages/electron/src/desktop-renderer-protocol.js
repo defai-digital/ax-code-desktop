@@ -112,7 +112,7 @@ const buildPackagedRendererCsp = ({ inlineScriptHashes = [], proxiedContent = fa
   return [
     `default-src 'self' ${PACKAGED_RENDERER_ORIGIN}`,
     // 'wasm-unsafe-eval' (deliberately not 'unsafe-eval') permits WebAssembly
-    // compilation only — the ghostty-vt terminal renderer compiles a WASM
+    // compilation only — the AkiTTY terminal renderer compiles a WASM
     // module at startup, and workers inherit this policy. Inline scripts are
     // allowed only by the hashes of the document being served (ADR-018).
     scriptSources.join(" "),

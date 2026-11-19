@@ -1,4 +1,4 @@
-import type { Ghostty } from "@ax-code/akitty-web"
+import type { ITerminalOptions } from "@ax-code/akitty-web"
 import type { Theme } from "@/types/theme"
 
 export interface TerminalTheme {
@@ -8,7 +8,6 @@ export interface TerminalTheme {
   cursorAccent: string
   selectionBackground: string
   selectionForeground?: string
-  selectionInactiveBackground?: string
   black: string
   red: string
   green: string
@@ -39,7 +38,6 @@ export function convertThemeToXterm(theme: Theme): TerminalTheme {
 
     selectionBackground: colors.interactive.selection,
     selectionForeground: colors.interactive.selectionForeground,
-    selectionInactiveBackground: colors.interactive.selection + "50",
 
     black: colors.surface.muted,
     red: colors.status.error,
@@ -61,23 +59,14 @@ export function convertThemeToXterm(theme: Theme): TerminalTheme {
   }
 }
 
-/**
- * Get terminal options for Ghostty Web terminal
- */
-export function getGhosttyTerminalOptions(
-  fontFamily: string,
-  fontSize: number,
-  theme: TerminalTheme,
-  ghostty: Ghostty,
-  disableStdin = false,
-) {
+export function getAkittyTerminalOptions(fontFamily: string, fontSize: number, theme: TerminalTheme): ITerminalOptions {
   const powerlineFallbacks =
     '"JetBrainsMonoNL Nerd Font", "FiraCode Nerd Font", "Cascadia Code PL", "Fira Code", "JetBrains Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", "Courier New", monospace'
   const augmentedFontFamily = `${fontFamily}, ${powerlineFallbacks}`
 
   return {
     cursorBlink: false,
-    cursorStyle: "bar" as const,
+    cursorStyle: "bar",
     fontSize,
     lineHeight: 1.15,
     fontFamily: augmentedFontFamily,
@@ -107,7 +96,5 @@ export function getGhosttyTerminalOptions(
       brightWhite: theme.brightWhite,
     },
     scrollback: 10_000,
-    ghostty,
-    disableStdin,
   }
 }

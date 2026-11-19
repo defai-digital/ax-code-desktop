@@ -14,7 +14,7 @@ for (const [file, expected] of Object.entries(manifest.files)) {
     failures.push(`Missing upstream file: ${file}`)
   }
 }
-for (const directory of ["lib", "types", "test", "patches", "scripts"]) {
+for (const directory of ["lib", "types", "test", "scripts"]) {
   for (const file of await readdir(new URL(`${directory}/`, root), { recursive: true, withFileTypes: true })) {
     if (!file.isFile()) continue
     const relative = path.relative(fileURLToPath(root), path.join(file.parentPath, file.name)).split(path.sep).join("/")

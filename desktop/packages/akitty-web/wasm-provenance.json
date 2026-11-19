@@ -1,0 +1,25 @@
+{
+  "schema": 1,
+  "engine": "akitty-vt",
+  "abi": 1,
+  "rust": "1.99.1",
+  "artifact": "akitty-vt.wasm",
+  "sha256": "47fd26cb98997b40b8353b288f23f820ec0a591bcdba35b909ea977c106bc946",
+  "inputs": {
+    "Cargo.lock": "81f112997469bae18b4e55f0bbcb4ef39e62908b308c9878e6d9aea77983e0d2",
+    "Cargo.toml": "0ee4677997ca82430e07acb343c9b37d3f2953c43f6b39c3efffb5c226507958",
+    "crates/akitty-vt/Cargo.toml": "16c6833e8fed57d9a291ad2be1160a67754841960ece98b89ba5605f059012ad",
+    "crates/akitty-vt/examples/benchmark.rs": "1eb1881470b3ef4455a35da9ef79585bce236955ba130da9ed5afc437cc71676",
+    "crates/akitty-vt/src/cell.rs": "40c236942fc0780aa6dff6f817e1160f23b9faf337fc2d80daac4b4216556fcd",
+    "crates/akitty-vt/src/grapheme.rs": "13c3710136d296154f865836e51e5a439548c7bf6f6e9cd8d81dcfdadf1038f4",
+    "crates/akitty-vt/src/key.rs": "6764faf42f76fea8bf7ec11d147d0ed4e2b5b8c83e8485558ff381b0c9e4d3c3",
+    "crates/akitty-vt/src/lib.rs": "601d4a2a73ba68db08cc3f6690e07c5ef029a70f00284b8eabaee188e27dac8c",
+    "crates/akitty-vt/src/parser.rs": "146c8c1b357752d8173cb675b5908955c1e7aaa44086fe256185f3e1ccc7cd7c",
+    "crates/akitty-vt/src/screen.rs": "e2c44402104616fa1b0b53c59731ca9642c483a24a22f7dcf33d92eb10d29194",
+    "crates/akitty-vt/src/terminal.rs": "a307e5c13068dff51aee5806ba424aa4f68457321a0e373b0b149a1be33774da",
+    "crates/akitty-vt/src/wasm.rs": "2969d7a78c7b6eba11e7bb95d568107303e7ec721883033f9ac92e05d6c2fa96",
+    "crates/akitty-vt/tests/contracts.rs": "7fdcdc4cda8408ee1ac5bf0ebcb2b9ece772a092668d632de38efee0b49037f0",
+    "scripts/build-vt-wasm.sh": "c0c8a5b7f8d245819faae89a9bcb085ede3eff51eb944ad6c3f29f2c8c745665",
+    "scripts/rust-toolchain.sh": "038a52444c0404ea605b43804ca1fcc55ecf4ad5bf94cc96b1a0db75d6033e0d"
+  }
+}

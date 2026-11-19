@@ -4,22 +4,22 @@
  */
 
 import { describe, expect, test, vi } from 'vitest';
-import { Ghostty } from './ghostty';
-import type { GhosttyTerminal } from './ghostty';
+import { AkittyEngine } from './engine';
+import type { AkittyTerminal } from './engine';
 import { type IRenderable, CanvasRenderer } from './renderer';
 import { createIsolatedTerminal } from './test-helpers';
-import type { GhosttyCell } from './types';
+import type { TerminalCell } from './types';
 
-async function makeWasm(cols = 20, rows = 5): Promise<GhosttyTerminal> {
-  const ghostty = await Ghostty.load();
-  return ghostty.createTerminal(cols, rows);
+async function makeWasm(cols = 20, rows = 5): Promise<AkittyTerminal> {
+  const engine = await AkittyEngine.load();
+  return engine.createTerminal(cols, rows);
 }
 
-function rowText(cells: GhosttyCell[] | null): string {
+function rowText(cells: TerminalCell[] | null): string {
   return (cells ?? []).map((c) => (c.codepoint ? String.fromCodePoint(c.codepoint) : ' ')).join('').trimEnd();
 }
 
-function countCalls(term: GhosttyTerminal, name: string): { count: () => number } {
+function countCalls(term: AkittyTerminal, name: string): { count: () => number } {
   // The wasm exports object is frozen, so wrap a plain copy of it.
   const target = (term as any).exports;
   const wrapped: Record<string, unknown> = {};
@@ -34,11 +34,11 @@ function countCalls(term: GhosttyTerminal, name: string): { count: () => number 
   return { count: () => calls };
 }
 
-describe('GhosttyTerminal viewport cache', () => {
+describe('AkittyTerminal viewport cache', () => {
   test('reading every row parses the viewport once', async () => {
     const term = await makeWasm();
     term.write('one\r\ntwo\r\nthree');
-    const reads = countCalls(term, 'ghostty_render_state_get_viewport');
+    const reads = countCalls(term, 'akitty_vt_viewport');
 
     const rows = [0, 1, 2, 3, 4].map((y) => rowText(term.getLine(y)));
     expect(rows).toEqual(['one', 'two', 'three', '', '']);
@@ -82,11 +82,11 @@ describe('GhosttyTerminal viewport cache', () => {
   });
 });
 
-describe('GhosttyTerminal lazy row parsing', () => {
+describe('AkittyTerminal lazy row parsing', () => {
   test('a row read parses only that row', async () => {
     const term = await makeWasm(10, 4);
     term.write('aaa\r\nbbb\r\nccc');
-    const pool = (term as any).cellPool as GhosttyCell[];
+    const pool = (term as any).cellPool as TerminalCell[];
     for (const cell of pool) cell.codepoint = 0x2603; // sentinel: rows that are never parsed keep it
     term.write('\r\nddd'); // invalidates the viewport
 
@@ -117,7 +117,7 @@ describe('GhosttyTerminal lazy row parsing', () => {
     const term = await makeWasm(10, 3);
     term.write('one\r\ntwo\r\nthree');
     term.getLineView(1);
-    const reads = countCalls(term, 'ghostty_render_state_get_viewport');
+    const reads = countCalls(term, 'akitty_vt_viewport');
     const all = term.getViewport();
     expect(String.fromCodePoint(all[0].codepoint)).toBe('o');
     expect(String.fromCodePoint(all[20].codepoint)).toBe('t');
@@ -126,10 +126,85 @@ describe('GhosttyTerminal lazy row parsing', () => {
   });
 });
 
-describe('GhosttyTerminal write path', () => {
+describe('AkittyTerminal write path', () => {
+  test('event callbacks observe the new viewport even when they throw', async () => {
+    const term = await makeWasm(10, 2);
+    try {
+      term.write('old');
+      expect(rowText(term.getLineView(0))).toBe('old');
+      expect(() => term.write('\rnew\x1b]2;title\x07', () => {
+        expect(rowText(term.getLineView(0))).toBe('new');
+        throw new Error('listener failed');
+      })).toThrow('listener failed');
+      expect(rowText(term.getLineView(0))).toBe('new');
+      term.clearDirty();
+      expect(() => term.write('\x1b[?1049h\x1b]2;alternate\x07', () => { throw new Error('alternate'); })).toThrow('alternate');
+      expect(term.needsFullRedraw()).toBe(true);
+      expect(rowText(term.getLineView(0))).toBe('');
+    } finally { term.free(); }
+  });
+
+  test('reentrant writes cannot consume the outer write event batch', async () => {
+    const term = await makeWasm();
+    const seen: string[] = [];
+    try {
+      term.write('\x1b]2;first\x07\x07\x1b]2;last\x07', event => {
+        seen.push(event.type === 'title' ? event.title : 'bell');
+        if (event.type === 'title' && event.title === 'first') term.write('nested\x1b]2;inner\x07', inner => {
+          if (inner.type === 'title') seen.push(inner.title);
+        });
+      });
+      expect(seen).toEqual(['first', 'bell', 'last', 'inner']);
+      expect(rowText(term.getLineView(0))).toBe('nested');
+    } finally { term.free(); }
+  });
+
+  test('reentrant writes keep later chunks attached to their original callback', async () => {
+    const term = await makeWasm();
+    const outer: string[] = [], nested: string[] = [];
+    try {
+      // The second title is parsed in the next bounded WASM write. A nested write
+      // from the first title must not take ownership of that later outer event.
+      term.write('\x1b]2;first\x07' + '\0'.repeat(1 << 20) + '\x1b]2;last\x07', event => {
+        if (event.type !== 'title') return;
+        outer.push(event.title);
+        if (event.title === 'first') term.write('\x1b]2;inner\x07', inner => {
+          if (inner.type === 'title') nested.push(inner.title);
+        });
+      });
+      expect(outer).toEqual(['first', 'last']);
+      expect(nested).toEqual(['inner']);
+    } finally { term.free(); }
+  });
+
+  test('a throwing callback does not drop the rest of its event batch', async () => {
+    const term = await makeWasm();
+    const seen: string[] = [];
+    try {
+      expect(() => term.write('\x1b]2;first\x07\x1b]2;last\x07', event => {
+        if (event.type === 'title') seen.push(event.title);
+        if (seen.length === 1) throw new Error('first callback failed');
+      })).toThrow('first callback failed');
+      expect(seen).toEqual(['first', 'last']);
+      term.write('\x1b]2;next\x07', event => { if (event.type === 'title') seen.push(event.title); });
+      expect(seen).toEqual(['first', 'last', 'next']);
+    } finally { term.free(); }
+  });
+
+  test('disposing from a callback stops the remaining callbacks', async () => {
+    const term = await makeWasm();
+    const seen: string[] = [];
+    term.write('\x1b]2;first\x07\x1b]2;last\x07', event => {
+      if (event.type === 'title') seen.push(event.title);
+      term.free();
+    });
+    expect(seen).toEqual(['first']);
+    expect(term.isFreed).toBe(true);
+  });
+
   test('reuses one wasm buffer across writes', async () => {
     const term = await makeWasm();
-    const allocs = countCalls(term, 'ghostty_wasm_alloc_u8_array');
+    const allocs = countCalls(term, 'akitty_vt_alloc');
     for (let i = 0; i < 50; i++) term.write(`line ${i}\r\n`);
     // The first write sizes the buffer; the viewport read allocates once more.
     const duringWrites = allocs.count();
@@ -171,7 +246,7 @@ describe('GhosttyTerminal write path', () => {
 
 // A hand-rolled renderable and a counting context isolate what the renderer decides to draw.
 function makeRenderable(cols: number, rows: number, text: string[]) {
-  const cell = (ch: string, flags = 0): GhosttyCell => ({
+  const cell = (ch: string, flags = 0): TerminalCell => ({
     codepoint: ch === ' ' ? 32 : ch.codePointAt(0)!,
     fg_r: 200,
     fg_g: 200,
@@ -234,6 +309,36 @@ function makeRenderer(options: ConstructorParameters<typeof CanvasRenderer>[1] =
 }
 
 describe('CanvasRenderer work skipping', () => {
+  test('uniform row backgrounds are painted in runs', () => {
+    const { renderer, counts } = makeRenderer();
+    const { renderable } = makeRenderable(200, 4, ['hello']);
+    renderer.render(renderable, true, 0);
+    // One row clear and one background run per row, plus the cursor overlay.
+    expect(counts.fillRect).toBeLessThanOrEqual(10);
+    renderer.dispose();
+  });
+
+  test('a single dirty row avoids full viewport export and clean-row decoding', async () => {
+    const term = await makeWasm(200, 50);
+    const { renderer } = makeRenderer();
+    try {
+      term.write('a'.repeat(9999) + '\x1b[H');
+      renderer.render(term, true, 0);
+      const viewport = countCalls(term, 'akitty_vt_viewport');
+      const rows = countCalls(term, 'akitty_vt_line');
+      const reads = vi.spyOn(term, 'getLineView');
+      term.write('\x1b[Hx');
+      renderer.render(term, false, 0);
+      expect(viewport.count()).toBe(0);
+      expect(rows.count()).toBe(1);
+      expect(reads).toHaveBeenCalledTimes(1);
+      expect(rowText(term.getLineView(0))).toBe('x' + 'a'.repeat(199));
+      // Reading a row not prepared by the renderer still loads a coherent viewport.
+      expect(rowText(term.getLineView(1))).toBe('a'.repeat(200));
+      expect(viewport.count()).toBe(1);
+    } finally { renderer.dispose(); term.free(); }
+  });
+
   test('blank cells are not drawn', async () => {
     const { renderer, counts } = makeRenderer();
     const { renderable } = makeRenderable(40, 10, ['hi there']);
@@ -263,6 +368,124 @@ describe('CanvasRenderer work skipping', () => {
     renderer.dispose?.();
   });
 
+  test.each([1.25, 1.5])('an idle frame after a fractional DPR frame (%s) does not resize', (dpr) => {
+    const { renderer, counts, reset } = makeRenderer({ devicePixelRatio: dpr });
+    const r = renderer as any;
+    // 81 columns at 9px is 729 CSS px: a fractional device-pixel width at both ratios.
+    r.metrics = { width: 9, height: 17, baseline: 13 };
+    const resize = vi.spyOn(r, 'resize');
+    const { renderable } = makeRenderable(81, 4, ['abc']);
+
+    renderer.render(renderable, true, 0);
+    expect(resize).toHaveBeenCalledTimes(1);
+    expect(r.canvas.width).toBe(Math.round(81 * 9 * dpr));
+
+    resize.mockClear();
+    reset();
+    renderer.render(renderable, false, 0);
+    expect(resize).not.toHaveBeenCalled();
+    expect(counts.fillText).toBe(0);
+    expect(counts.fillRect).toBe(0); // unchanged cursor pixels must not accumulate opacity
+    renderer.dispose?.();
+  });
+
+  test('cursor overlays are not repainted on idle or unrelated row damage', () => {
+    const { renderer } = makeRenderer();
+    const { renderable, dirty, lines } = makeRenderable(20, 4, ['abc', 'def']);
+    let overlays = 0;
+    const context = (renderer as any).ctx;
+    context.fillRect = () => { if (context.globalAlpha === 0.5) overlays++; };
+    renderer.render(renderable, true, 0);
+    overlays = 0;
+    renderer.render(renderable, false, 0);
+    expect(overlays).toBe(0);
+    lines[1][0].codepoint = 90; dirty.add(1);
+    renderer.render(renderable, false, 0);
+    expect(overlays).toBe(0);
+    renderer.dispose();
+  });
+
+  test('idle frames do not recompute Rust row damage', async () => {
+    const term = await makeWasm();
+    const { renderer } = makeRenderer();
+    try {
+      renderer.render(term, true, 0);
+      const clears = countCalls(term, 'akitty_vt_clean');
+      for (let i = 0; i < 10; i++) renderer.render(term, false, 0);
+      expect(clears.count()).toBe(0);
+    } finally { renderer.dispose(); term.free(); }
+  });
+
+  test('an idle frame allocates no per-row hashes and reads no rows', () => {
+    const { renderer } = makeRenderer();
+    const { renderable, viewLines } = makeRenderable(20, 4, ['abc']);
+    const dirty = new Set<number>();
+    renderable.isDirty = () => dirty.size > 0;
+    renderer.render(renderable, true, 0);
+    const reads = viewLines();
+
+    renderer.render(renderable, false, 0);
+    expect(viewLines()).toBe(reads);
+    renderer.dispose?.();
+  });
+
+  test('a monitor change rescales the canvas', () => {
+    const original = window.devicePixelRatio;
+    try {
+      window.devicePixelRatio = 1;
+      const { renderer } = makeRenderer();
+      const r = renderer as any;
+      r.metrics = { width: 9, height: 17, baseline: 13 };
+      const { renderable } = makeRenderable(20, 4, ['abc']);
+
+      renderer.render(renderable, true, 0);
+      expect([r.canvas.width, r.canvas.height]).toEqual([180, 68]);
+
+      window.devicePixelRatio = 2;
+      renderer.render(renderable, false, 0);
+      expect(r.devicePixelRatio).toBe(2);
+      expect([r.canvas.width, r.canvas.height]).toEqual([360, 136]);
+      renderer.dispose?.();
+    } finally {
+      window.devicePixelRatio = original;
+    }
+  });
+
+  test('an explicit devicePixelRatio is not overridden by the window', () => {
+    const original = window.devicePixelRatio;
+    try {
+      const { renderer } = makeRenderer({ devicePixelRatio: 1.5 });
+      const r = renderer as any;
+      r.metrics = { width: 9, height: 17, baseline: 13 };
+      const resize = vi.spyOn(r, 'resize');
+      const { renderable } = makeRenderable(20, 4, ['abc']);
+      renderer.render(renderable, true, 0);
+
+      window.devicePixelRatio = 2;
+      resize.mockClear();
+      renderer.render(renderable, false, 0);
+      expect(r.devicePixelRatio).toBe(1.5);
+      expect(resize).not.toHaveBeenCalled();
+      renderer.dispose?.();
+    } finally {
+      window.devicePixelRatio = original;
+    }
+  });
+
+  test('an outside change to the backing store is repaired', () => {
+    const { renderer } = makeRenderer();
+    const r = renderer as any;
+    r.metrics = { width: 9, height: 17, baseline: 13 };
+    const { renderable } = makeRenderable(20, 4, ['abc']);
+    renderer.render(renderable, true, 0);
+
+    // handleFontChange() in terminal.ts sizes the canvas itself, without the DPR scale.
+    r.canvas.width = 10;
+    renderer.render(renderable, false, 0);
+    expect(r.canvas.width).toBe(180);
+    renderer.dispose?.();
+  });
+
   test('a frame with no dirty rows does not poll them', async () => {
     const { renderer } = makeRenderer();
     const { renderable, dirty } = makeRenderable(20, 4, ['abc']);
@@ -285,7 +508,7 @@ describe('CanvasRenderer work skipping', () => {
   test('a still view scrolled into history draws nothing per frame', async () => {
     const { renderer, counts, reset } = makeRenderer();
     const { renderable, dirty } = makeRenderable(20, 4, ['abc']);
-    const history: GhosttyCell[] = Array.from({ length: 20 }, () => ({
+    const history: TerminalCell[] = Array.from({ length: 20 }, () => ({
       codepoint: 'h'.codePointAt(0)!,
       fg_r: 1,
       fg_g: 1,
@@ -337,7 +560,7 @@ describe('CanvasRenderer work skipping', () => {
 describe('CanvasRenderer row reuse', () => {
   // The renderer's record of what each row shows must equal that row's real content after every frame, or a later
   // frame would skip a row whose pixels are stale.
-  function expectBookkeepingMatches(renderer: CanvasRenderer, term: GhosttyTerminal, rows: number): void {
+  function expectBookkeepingMatches(renderer: CanvasRenderer, term: AkittyTerminal, rows: number): void {
     const r = renderer as any;
     r.frameLines = [];
     const expected = Array.from({ length: rows }, (_, y) => r.rowHash(term, y));
@@ -492,6 +715,30 @@ describe('Terminal render loop', () => {
     error.mockRestore();
     term.dispose();
     container.remove();
+  });
+
+  test('a font change resizes the canvas once and keeps the device-pixel scale', async () => {
+    const original = window.devicePixelRatio;
+    try {
+      window.devicePixelRatio = 2;
+      const term = await createIsolatedTerminal({ cols: 20, rows: 4 });
+      const container = document.createElement('div');
+      document.body.appendChild(container);
+      term.open(container);
+
+      const renderer = term.renderer!;
+      const resize = vi.spyOn(renderer as any, 'resize');
+      term.options.fontSize = 18;
+
+      expect(resize).toHaveBeenCalledTimes(1);
+      const { width } = renderer.getMetrics();
+      expect((renderer as any).canvas.width).toBe(Math.round(20 * width * 2));
+
+      term.dispose();
+      container.remove();
+    } finally {
+      window.devicePixelRatio = original;
+    }
   });
 });
 

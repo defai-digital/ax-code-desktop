@@ -21,6 +21,8 @@ export const DEFAULT_OUTPUT_LINES = 200;
 export const MAX_OUTPUT_LINES = 1000;
 export const DEFAULT_OUTPUT_CHARS = 20_000;
 export const MAX_OUTPUT_CHARS = 100_000;
+/** Longest title reported, in UTF-16 code units. A program controls the OSC title, so bound what callers receive. */
+export const MAX_TITLE_CHARS = 128;
 
 export interface ScreenSnapshot {
   /** Changes whenever the terminal was written to or reset; equal values mean the same content. */
@@ -76,6 +78,17 @@ function lineText(buffer: IBuffer, index: number): string {
   return buffer.getLine(index)?.translateToString(true) ?? '';
 }
 
+/**
+ * Caps a terminal title to `MAX_TITLE_CHARS` UTF-16 code units without splitting a surrogate pair, so the result is
+ * still valid text. Shorter titles pass through unchanged.
+ */
+export function boundedTitle(title: string): string {
+  if (title.length <= MAX_TITLE_CHARS) return title;
+  const capped = title.slice(0, MAX_TITLE_CHARS);
+  // Never end on the first half of a surrogate pair.
+  return /[\ud800-\udbff]$/.test(capped) ? capped.slice(0, -1) : capped;
+}
+
 export class TerminalReader {
   constructor(private readonly terminal: ReadableTerminal) {}
 
@@ -92,7 +105,7 @@ export class TerminalReader {
       revision: terminal.writeRevision,
       cols: terminal.cols,
       rows,
-      title: terminal.title,
+      title: boundedTitle(terminal.title),
       buffer: buffer.type,
       cursor: { x: buffer.cursorX, y: buffer.cursorY },
       scrollbackLines: top,

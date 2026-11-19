@@ -1,247 +1,115 @@
-/**
- * Link detection and caching system
- *
- * The LinkDetector coordinates between multiple link providers and caches
- * results for performance. It uses hyperlink_id for intelligent caching
- * since the same hyperlink_id always represents the same link.
- */
-
-import type { IBufferCellPosition, ILink, ILinkProvider } from './types';
-
-/**
- * Manages link detection across multiple providers with intelligent caching
- */
-export class LinkDetector {
-  private providers: ILinkProvider[] = [];
-  private isDisposed = false;
-
-  // Cache links by hyperlink_id for fast lookups
-  // Key format: `h${hyperlinkId}` for OSC 8 links
-  // Key format: `r${row}:${startX}-${endX}` for regex links (future)
-  private linkCache = new Map<string, ILink>();
-
-  // Track which rows have been scanned to avoid redundant provider calls
-  private scannedRows = new Set<number>();
-
-  // Terminal instance for buffer access
-  constructor(private terminal: ITerminalForLinkDetector) {}
-
-  /**
-   * Register a link provider
-   */
-  registerProvider(provider: ILinkProvider): void {
-    this.providers.push(provider);
-    this.invalidateCache(); // New provider may detect different links
-  }
-
-  /**
-   * Get link at the specified buffer position
-   * @param col Column (0-based)
-   * @param row Absolute row in buffer (0-based)
-   * @returns Link at position, or undefined if none
-   */
-  async getLinkAt(col: number, row: number): Promise<ILink | undefined> {
-    if (this.isDisposed) return undefined;
-    // First, check if this cell has a hyperlink_id (fast path for OSC 8)
-    const line = this.terminal.buffer.active.getLine(row);
-    if (!line || col < 0 || col >= line.length) {
-      return undefined;
-    }
-
-    const cell = line.getCell(col);
-    if (!cell) {
-      return undefined;
-    }
-    const hyperlinkId = cell.getHyperlinkId();
-
-    if (hyperlinkId > 0) {
-      // Fast path: check cache by hyperlink_id
-      const cacheKey = `h${hyperlinkId}`;
-      if (this.linkCache.has(cacheKey)) {
-        return this.linkCache.get(cacheKey);
-      }
-    }
-
-    // Slow path: scan this row if not already scanned
-    if (!this.scannedRows.has(row)) {
-      await this.scanRow(row);
-    }
-
-    // Check cache again (hyperlinkId or position-based)
-    if (hyperlinkId > 0) {
-      const cacheKey = `h${hyperlinkId}`;
-      const link = this.linkCache.get(cacheKey);
-      if (link) return link;
-    }
-
-    // Check if any cached link contains this position
-    for (const link of this.linkCache.values()) {
-      if (this.isPositionInLink(col, row, link)) {
-        return link;
-      }
-    }
-
-    return undefined;
-  }
-
-  /**
-   * Scan a row for links using all registered providers
-   */
-  private async scanRow(row: number): Promise<void> {
-    this.scannedRows.add(row);
-
-    const allLinks: ILink[] = [];
-
-    // Query all providers
-    for (const provider of this.providers) {
-      const links = await new Promise<ILink[] | undefined>((resolve) => {
-        provider.provideLinks(row, resolve);
-      });
-
-      if (this.isDisposed) return;
-      if (links) {
-        allLinks.push(...links);
-      }
-    }
-
-    // Cache all discovered links
-    for (const link of allLinks) {
-      this.cacheLink(link);
-    }
-  }
-
-  /**
-   * Cache a link for fast lookup
-   */
-  private cacheLink(link: ILink): void {
-    // Try to get hyperlink_id for this link
-    const { start } = link.range;
-    const line = this.terminal.buffer.active.getLine(start.y);
-    if (line) {
-      const cell = line.getCell(start.x);
-      if (!cell) {
-        // Fallback: cache by position range
-        const { start: s, end: e } = link.range;
-        const cacheKey = `r${s.y}:${s.x}-${e.x}`;
-        this.linkCache.set(cacheKey, link);
-        return;
-      }
-      const hyperlinkId = cell.getHyperlinkId();
-
-      if (hyperlinkId > 0) {
-        // Cache by hyperlink_id (best case - stable across rows)
-        this.linkCache.set(`h${hyperlinkId}`, link);
-        return;
-      }
-    }
-
-    // Fallback: cache by position range
-    // Format: r${row}:${startX}-${endX}
-    const { start: s, end: e } = link.range;
-    const cacheKey = `r${s.y}:${s.x}-${e.x}`;
-    this.linkCache.set(cacheKey, link);
-  }
-
-  /**
-   * Check if a position is within a link's range
-   */
-  private isPositionInLink(col: number, row: number, link: ILink): boolean {
-    const { start, end } = link.range;
-
-    // Check if row is in range
-    if (row < start.y || row > end.y) {
-      return false;
-    }
-
-    // Single-line link
-    if (start.y === end.y) {
-      return col >= start.x && col <= end.x;
-    }
-
-    // Multi-line link
-    if (row === start.y) {
-      return col >= start.x; // First line: from start.x to end of line
-    } else if (row === end.y) {
-      return col <= end.x; // Last line: from start of line to end.x
-    } else {
-      return true; // Middle line: entire line is part of link
-    }
-  }
-
-  /**
-   * Invalidate cache when terminal content changes
-   * Should be called on terminal write, resize, or clear
-   */
-  invalidateCache(): void {
-    this.linkCache.clear();
-    this.scannedRows.clear();
-  }
-
-  /**
-   * Invalidate cache for specific rows
-   * Used when only part of the terminal changed
-   */
-  invalidateRows(startRow: number, endRow: number): void {
-    // Remove scanned markers
-    for (let row = startRow; row <= endRow; row++) {
-      this.scannedRows.delete(row);
-    }
-
-    // Remove cached links in this range
-    // This is conservative - we remove any link that touches these rows
-    const toDelete: string[] = [];
-    for (const [key, link] of this.linkCache.entries()) {
-      const { start, end } = link.range;
-      if (
-        (start.y >= startRow && start.y <= endRow) ||
-        (end.y >= startRow && end.y <= endRow) ||
-        (start.y < startRow && end.y > endRow)
-      ) {
-        toDelete.push(key);
-      }
-    }
-
-    for (const key of toDelete) {
-      this.linkCache.delete(key);
-    }
-  }
-
-  /**
-   * Dispose and cleanup
-   */
-  dispose(): void {
-    if (this.isDisposed) return;
-    this.isDisposed = true;
-    this.linkCache.clear();
-    this.scannedRows.clear();
-
-    // Dispose all providers
-    const failures: unknown[] = [];
-    for (const provider of this.providers) {
-      try { provider.dispose?.(); } catch (error) { failures.push(error); }
-    }
-    this.providers = [];
-    if (failures.length) throw failures[0];
-  }
+/** Ordered asynchronous providers with row-scoped cancellation and range invalidation. */
+import type { ILink, ILinkProvider } from './types';
+export interface ITerminalForLinkDetector { buffer: { active: { getLine(row: number): { length: number } | undefined } } }
+interface Ranked { link: ILink; priority: number }
+interface Scan {
+  controller: AbortController;
+  version: number;
+  start: number;
+  complete: boolean;
+  links: Ranked[];
+  done: Promise<void>;
 }
+const intersects = (link: ILink, first: number, last: number): boolean => link.range.start.y <= last && link.range.end.y >= first;
+const contains = (link: ILink, x: number, y: number): boolean => {
+  const { start, end } = link.range;
+  return y >= start.y && y <= end.y && (y !== start.y || x >= start.x) && (y !== end.y || x <= end.x);
+};
 
-/**
- * Minimal terminal interface required by LinkDetector
- * Keeps coupling low and testing easy
- */
-export interface ITerminalForLinkDetector {
-  buffer: {
-    active: {
-      getLine(y: number):
-        | {
-            length: number;
-            getCell(x: number):
-              | {
-                  getHyperlinkId(): number;
-                }
-              | undefined;
-          }
-        | undefined;
-    };
-  };
+export class LinkDetector {
+  private readonly providers: ILinkProvider[] = [];
+  private readonly scans = new Map<number, Scan>();
+  private readonly changed = new Map<number, number>();
+  private sequence = 0;
+  private closed = false;
+  constructor(private readonly host: ITerminalForLinkDetector) {}
+  registerProvider(provider: ILinkProvider): void { if (!this.closed) { this.providers.push(provider); this.invalidateCache(); } }
+  async getLinkAt(column: number, row: number): Promise<ILink | undefined> {
+    if (this.closed || !Number.isInteger(column) || !Number.isInteger(row) || column < 0 || row < 0) return undefined;
+    const line = this.host.buffer.active.getLine(row);
+    if (!line || column >= line.length) return undefined;
+    let scan = this.scans.get(row);
+    if (!scan) {
+      scan = { controller: new AbortController(), version: this.changed.get(row) ?? 0, start: this.sequence,
+        complete: false, links: [], done: Promise.resolve() };
+      this.scans.set(row, scan);
+      scan.done = this.collect(row, scan);
+    }
+    await scan.done;
+    if (this.closed || scan.controller.signal.aborted || !scan.complete || this.scans.get(row) !== scan) return undefined;
+    let best: Ranked | undefined;
+    for (const candidate of this.scans.values()) {
+      if (!candidate.complete) continue;
+      for (const entry of candidate.links) {
+        if ((!best || entry.priority < best.priority) && contains(entry.link, column, row)) best = entry;
+      }
+    }
+    return best?.link;
+  }
+  private async collect(row: number, scan: Scan): Promise<void> {
+    const results: Ranked[] = [];
+    try {
+      for (let priority = 0; priority < this.providers.length; priority++) {
+        if (scan.controller.signal.aborted) return;
+        const links = await this.ask(this.providers[priority], row, scan.controller.signal);
+        for (const link of links ?? []) results.push({ link, priority });
+      }
+      if (scan.controller.signal.aborted || this.scans.get(row) !== scan || (this.changed.get(row) ?? 0) !== scan.version) return;
+      for (const [changedRow, stamp] of this.changed) {
+        if (stamp > scan.start && results.some(entry => intersects(entry.link, changedRow, changedRow))) {
+          this.scans.delete(row); return;
+        }
+      }
+      scan.links = results; scan.complete = true;
+    } catch (error) {
+      if (this.scans.get(row) === scan) this.scans.delete(row);
+      throw error;
+    }
+  }
+  private ask(provider: ILinkProvider, row: number, signal: AbortSignal): Promise<ILink[] | undefined> {
+    return new Promise((resolve, reject) => {
+      let finished = false;
+      const finish = (links?: ILink[]): void => {
+        if (finished) return;
+        finished = true; signal.removeEventListener('abort', cancel); resolve(links);
+      };
+      const cancel = (): void => finish();
+      signal.addEventListener('abort', cancel, { once: true });
+      if (signal.aborted) { finish(); return; }
+      try { provider.provideLinks(row, finish); }
+      catch (error) { finished = true; signal.removeEventListener('abort', cancel); reject(error); }
+    });
+  }
+  invalidateCache(): void {
+    this.sequence++;
+    for (const scan of this.scans.values()) scan.controller.abort();
+    this.scans.clear(); this.changed.clear();
+  }
+  invalidateRows(first: number, last: number): void {
+    if (!Number.isInteger(first) || !Number.isInteger(last) || first < 0 || last < first) return;
+    const affected = new Set<number>();
+    for (let row = first; row <= Math.min(last, first + 100000); row++) affected.add(row);
+    for (const [row, scan] of this.scans) {
+      const overlaps = scan.links.filter(entry => intersects(entry.link, first, last));
+      if (!overlaps.length) continue;
+      affected.add(row);
+      for (const { link } of overlaps) {
+        for (let y = link.range.start.y; y <= Math.min(link.range.end.y, link.range.start.y + 100000); y++) affected.add(y);
+      }
+    }
+    const stamp = ++this.sequence;
+    for (const row of affected) {
+      this.changed.set(row, stamp);
+      const scan = this.scans.get(row);
+      if (scan) { scan.controller.abort(); this.scans.delete(row); }
+    }
+  }
+  dispose(): void {
+    if (this.closed) return;
+    this.closed = true; this.invalidateCache();
+    let firstError: unknown;
+    for (const provider of this.providers) { try { provider.dispose?.(); } catch (error) { firstError ??= error; } }
+    this.providers.length = 0;
+    if (firstError !== undefined) throw firstError;
+  }
 }

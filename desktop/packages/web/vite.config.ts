@@ -50,26 +50,19 @@ function isHighRiskBuildWarning(warning: unknown): boolean {
   return highRiskBuildWarningPatterns.some((pattern) => pattern.test(message))
 }
 
-function ghosttyWasmAssetPlugin(): Plugin {
-  // TerminalViewport loads this file at runtime rather than importing it, so
-  // Vite cannot discover and emit it as part of the normal module graph.
-  const ghosttyWasmPath = requireFromUi.resolve("@ax-code/akitty-web/ghostty-vt.wasm")
-  const readWasm = () => readFileSync(ghosttyWasmPath)
+function akittyLicenseAssetsPlugin(): Plugin {
+  const akittyRoot = path.dirname(requireFromUi.resolve("@ax-code/akitty-web/akitty-vt.wasm"))
 
   return {
-    name: "emit-ghostty-wasm",
-    configureServer(server) {
-      server.middlewares.use("/ghostty-vt.wasm", (_request, response) => {
-        response.setHeader("Content-Type", "application/wasm")
-        response.end(readWasm())
-      })
-    },
+    name: "emit-akitty-licenses",
     generateBundle() {
-      this.emitFile({
-        type: "asset",
-        fileName: "ghostty-vt.wasm",
-        source: readWasm(),
-      })
+      for (const license of ["LICENSE", "LICENSE-GHOSTTY", "ENGINE_LICENSES.txt"]) {
+        this.emitFile({
+          type: "asset",
+          fileName: `licenses/akitty-web/${license}`,
+          source: readFileSync(path.join(akittyRoot, license)),
+        })
+      }
     },
   }
 }
@@ -148,7 +141,7 @@ export default defineConfig({
       },
     },
     themeStoragePlugin(),
-    ghosttyWasmAssetPlugin(),
+    akittyLicenseAssetsPlugin(),
     // S2.4b: /api, /global, /graph, /dre-graph, /run-report are classified per request with
     // the packaged app:// routing table and forwarded either directly to the
     // ax-code runtime (when the dev upstream file is available) or to the web

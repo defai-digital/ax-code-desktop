@@ -251,6 +251,106 @@ describe('terminal tools', () => {
     expect(result.revision).toEqual(expect.any(Number));
   });
 
+  test('rejects keys the schema does not declare', async () => {
+    const { tools } = await setup(1);
+    // camelCase spellings are not aliases; the schemas advertise snake_case and set additionalProperties: false.
+    for (const input of [{ sessionId: 's0' }, { maxChars: 10 }, { Session_id: 's0' }, { MAX_CHARS: 10 }]) {
+      expect(tools.read_output.execute(input)).toMatchObject({ error: expect.stringContaining('unknown key') });
+    }
+    expect(tools.read_screen.execute({ sessionId: 's0' })).toMatchObject({ error: expect.stringContaining('unknown key') });
+    expect(tools.list_sessions.execute({ verbose: true })).toMatchObject({ error: expect.stringContaining('unknown key') });
+  });
+
+  test('rejects unknown keys even when session_id could default to the only session', async () => {
+    const { tools } = await setup(1);
+    expect(tools.read_screen.execute({})).toMatchObject({ revision: expect.any(Number) });
+    expect(tools.read_screen.execute({ bogus: 1 })).toMatchObject({ error: expect.stringContaining('unknown key') });
+  });
+
+  test('an unknown key error never echoes the key name', async () => {
+    const { tools } = await setup(1);
+    const key = `k${'x'.repeat(10_000)}`;
+    const result = tools.list_sessions.execute({ [key]: 1 });
+    expect(result).toMatchObject({ error: expect.stringContaining('unknown key') });
+    expect(JSON.stringify(result)).not.toContain(key);
+  });
+
+  test('keeps long host session ids opaque', async () => {
+    const registry = new TerminalSessionRegistry();
+    const term = await makeTerminal();
+    term.write('long id');
+    const id = `host-${'x'.repeat(200)}`;
+    registry.add(id, term);
+    const tools = Object.fromEntries(createTerminalTools(registry).map((tool) => [tool.name, tool]));
+
+    expect((tools.list_sessions.execute({}) as any).sessions[0].id).toBe(id);
+    // Host ids are opaque: explicit and default resolution both accept them whatever their length.
+    expect((tools.read_screen.execute({ session_id: id }) as any).lines[0]).toBe('long id');
+    expect((tools.read_screen.execute({}) as any).lines[0]).toBe('long id');
+  });
+
+  test('bounds only the reflected id in an unknown session error', async () => {
+    const { tools } = await setup(1);
+    const unknown = `u${'x'.repeat(10_000)}`;
+    const result = tools.read_screen.execute({ session_id: unknown }) as { error: string };
+    const reflected = /Unknown session_id "([^"]*)"/.exec(result.error)?.[1];
+    expect(reflected).toBeDefined();
+    expect(reflected!.length).toBeLessThanOrEqual(128);
+    expect(JSON.stringify(result)).not.toContain(unknown);
+
+    // A cut that lands inside an emoji must drop the whole pair, not leave half of it behind.
+    const split = tools.read_screen.execute({ session_id: `s${'x'.repeat(126)}😀${'y'.repeat(10_000)}` });
+    const cut = /Unknown session_id "([^"]*)"/.exec((split as { error: string }).error)?.[1];
+    expect(cut).toBe(`s${'x'.repeat(126)}`);
+    expect(/[\ud800-\udbff]$/.test(cut!)).toBe(false);
+  });
+
+  test('caps terminal titles in read_screen and list_sessions', async () => {
+    const registry = new TerminalSessionRegistry();
+    const term = await makeTerminal();
+    const title = 't'.repeat(300);
+    term.write(`\x1b]0;${title}\x07`);
+    registry.add('long', term, 'Long');
+
+    const fromScreen = new TerminalReader(term).readScreen().title;
+    expect(fromScreen).toBe(title.slice(0, 128));
+    expect(fromScreen).toHaveLength(128);
+
+    const tools = Object.fromEntries(createTerminalTools(registry).map((tool) => [tool.name, tool]));
+    const listed = tools.list_sessions.execute({}) as { sessions: { title: string }[] };
+    expect(listed.sessions[0].title).toBe(title.slice(0, 128));
+  });
+
+  test('leaves titles at or below the cap unchanged', async () => {
+    const registry = new TerminalSessionRegistry();
+    const term = await makeTerminal();
+    const title = 'x'.repeat(128);
+    term.write(`\x1b]0;${title}\x07`);
+    registry.add('edge', term);
+
+    const tools = Object.fromEntries(createTerminalTools(registry).map((tool) => [tool.name, tool]));
+    expect(new TerminalReader(term).readScreen().title).toBe(title);
+    expect((tools.list_sessions.execute({}) as any).sessions[0].title).toBe(title);
+  });
+
+  test('a capped title never ends inside a surrogate pair', async () => {
+    const registry = new TerminalSessionRegistry();
+    const term = await makeTerminal();
+    // 127 ASCII units then an emoji: cutting at 128 units would split the emoji's surrogate pair.
+    term.write(`\x1b]0;${'a'.repeat(127)}😀b\x07`);
+    registry.add('emoji', term);
+
+    const tools = Object.fromEntries(createTerminalTools(registry).map((tool) => [tool.name, tool]));
+    const titles = [
+      new TerminalReader(term).readScreen().title,
+      (tools.list_sessions.execute({}) as any).sessions[0].title,
+    ];
+    for (const capped of titles) {
+      expect(capped).toBe('a'.repeat(127));
+      expect(/[\ud800-\udbff]$/.test(capped)).toBe(false);
+    }
+  });
+
   test('output cannot change a tool result into something else', async () => {
     const registry = new TerminalSessionRegistry();
     const term = await makeTerminal(60, 3);

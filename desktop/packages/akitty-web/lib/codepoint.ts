@@ -1,25 +1,14 @@
-/**
- * Codepoint guards for cell text.
- *
- * The wasm reports raw cell codepoints. A value above U+10FFFF or a lone surrogate makes String.fromCodePoint throw a
- * RangeError, which aborted the whole frame (or selection copy) instead of showing one blank cell.
- */
-
-export function isRenderableCodepoint(codepoint: number | null | undefined): codepoint is number {
-  return (
-    typeof codepoint === 'number' &&
-    codepoint > 0 &&
-    codepoint <= 0x10ffff &&
-    !(codepoint >= 0xd800 && codepoint <= 0xdfff)
-  );
+/** Conversion of untrusted numeric cells into valid Unicode text. */
+export function isRenderableCodepoint(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 0x10ffff
+    && (value < 0xd800 || value > 0xdfff);
 }
-
-/** The cell's character, or a space for an empty or invalid codepoint. */
-export function cellChar(codepoint: number | null | undefined): string {
-  return isRenderableCodepoint(codepoint) ? String.fromCodePoint(codepoint) : ' ';
+export function cellChar(value: number | null | undefined): string {
+  if (!isRenderableCodepoint(value)) return ' ';
+  return String.fromCodePoint(value);
 }
-
-/** A grapheme string with invalid codepoints replaced by spaces. */
-export function graphemeString(codepoints: readonly number[]): string {
-  return codepoints.map(cellChar).join('');
+export function graphemeString(values: readonly number[]): string {
+  let result = '';
+  for (const value of values) result += cellChar(value);
+  return result;
 }

@@ -10,8 +10,107 @@
  */
 
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import type { Terminal } from './terminal';
+import { vi } from 'vitest';
+import { AkittyEngine } from './engine';
+import { Terminal } from './terminal';
 import { createIsolatedTerminal } from './test-helpers';
+import { mouseReport } from './mouse';
+
+for (const action of ["reset", "dispose"] as const) {
+  test(`link hover exit cannot enter another link after ${action}`, async () => {
+    const term = await createIsolatedTerminal()
+    const container = document.createElement("div")
+    container.style.cursor = "text"
+    term.open(container)
+    const internal = term as any
+    const entered: boolean[] = []
+    let column = 0
+    const links = [
+      { text: "a", range: { start: { x: 0, y: 0 }, end: { x: 0, y: 0 } }, activate() {},
+        hover(active: boolean) { if (!active) term[action]() } },
+      { text: "b", range: { start: { x: 1, y: 0 }, end: { x: 1, y: 0 } }, activate() {},
+        hover(active: boolean) { entered.push(active) } },
+    ]
+    term.registerLinkProvider({ provideLinks(_row, callback) { callback(links) } })
+    internal.pointer = () => ({ x: column, y: 0 })
+    try {
+      term.write("ab")
+      internal.processMouseMove(new MouseEvent("mousemove"))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(internal.currentHoveredLink).toBe(links[0])
+      column = 1
+      internal.processMouseMove(new MouseEvent("mousemove"))
+      await new Promise(resolve => setTimeout(resolve, 0))
+      expect(entered.filter(Boolean)).toEqual([])
+      expect(container.style.cursor).toBe("text")
+    } finally { term.dispose() }
+  })
+}
+
+test("link hover entry that resets the terminal leaves its new cursor clear", async () => {
+  const term = await createIsolatedTerminal()
+  const container = document.createElement("div")
+  container.style.cursor = "text"
+  term.open(container)
+  const internal = term as any
+  term.registerLinkProvider({ provideLinks(_row, callback) {
+    callback([{ text: "a", range: { start: { x: 0, y: 0 }, end: { x: 0, y: 0 } }, activate() {},
+      hover(active) { if (active) term.reset() } }])
+  } })
+  internal.pointer = () => ({ x: 0, y: 0 })
+  try {
+    term.write("a")
+    internal.processMouseMove(new MouseEvent("mousemove"))
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(container.style.cursor).toBe("text")
+    expect(internal.currentHoveredLink).toBeUndefined()
+  } finally { term.dispose() }
+})
+
+test('legacy mouse releases preserve modifiers and UTF-8 coordinates stay two bytes', () => {
+  expect(mouseReport(16, 2, 1, true, false, false)).toBe('\x1b[M3#"');
+  const report = mouseReport(0, 3000, 3000, false, false, true);
+  expect(Array.from(report.slice(4), ch => ch.codePointAt(0))).toEqual([2047, 2047]);
+});
+
+test('horizontal and stationary wheel events do not generate vertical mouse reports', async () => {
+  const term = await createIsolatedTerminal();
+  const container = document.createElement('div');
+  term.open(container);
+  const reports: string[] = [];
+  term.onData(value => reports.push(value));
+  try {
+    term.write('\x1b[?1000h\x1b[?1006h');
+    container.dispatchEvent(new WheelEvent('wheel', { deltaX: 20, deltaY: 0, clientX: 0, clientY: 0 }));
+    container.dispatchEvent(new WheelEvent('wheel', { deltaY: 0, clientX: 0, clientY: 0 }));
+    expect(reports).toEqual([]);
+  } finally { term.dispose(); }
+});
+
+test("wheel handlers can dispose the terminal without continuing the wheel event", async () => {
+  const term = await createIsolatedTerminal()
+  term.open(document.createElement("div"))
+  term.attachCustomWheelEventHandler(() => { term.dispose(); return false })
+  const wheel = { deltaY: 1, preventDefault() {}, stopPropagation() {} } as WheelEvent
+  try { expect(() => (term as any).handleWheel(wheel)).not.toThrow() }
+  finally { term.dispose() }
+})
+
+test("wheel handlers that reset the terminal leave the replacement viewport untouched", async () => {
+  const term = await createIsolatedTerminal({ rows: 2, smoothScrollDuration: 0 })
+  term.open(document.createElement("div"))
+  term.attachCustomWheelEventHandler(() => {
+    term.reset()
+    term.write("new\r\nterminal\r\nhistory\r\n")
+    return false
+  })
+  const wheel = { deltaY: -1, deltaMode: 1, preventDefault() {}, stopPropagation() {} } as WheelEvent
+  try {
+    (term as any).handleWheel(wheel)
+    expect(term.getScrollbackLength()).toBeGreaterThan(0)
+    expect(term.getViewportY()).toBe(0)
+  } finally { term.dispose() }
+})
 
 /**
  * Helper to convert viewport row to absolute buffer row for selection tests.
@@ -88,6 +187,46 @@ describe('Terminal', () => {
       });
       expect(term.cols).toBe(120);
       expect(term.rows).toBe(40);
+    });
+
+    test('rejects noninteger and out-of-range dimensions before allocating', async () => {
+      const engine = await AkittyEngine.load();
+      const invalid: Array<{ cols: number; rows: number }> = [
+        { cols: 0, rows: 24 },
+        { cols: 80, rows: 0 },
+        { cols: -1, rows: 24 },
+        { cols: 80, rows: -1 },
+        { cols: 80.5, rows: 24 },
+        { cols: 80, rows: 24.5 },
+        { cols: Number.NaN, rows: 24 },
+        { cols: 80, rows: Number.POSITIVE_INFINITY },
+        { cols: Terminal.MAX_DIMENSION + 1, rows: 24 },
+        { cols: 80, rows: Terminal.MAX_DIMENSION + 1 },
+        { cols: Terminal.MAX_DIMENSION, rows: Terminal.MAX_DIMENSION },
+      ];
+
+      for (const dims of invalid) {
+        expect(() => new Terminal({ ...dims, engine })).toThrow(RangeError);
+      }
+    });
+
+    test('accepts the smallest and largest valid dimensions', async () => {
+      const engine = await AkittyEngine.load();
+
+      const smallest = new Terminal({ cols: 1, rows: 1, engine });
+      expect([smallest.cols, smallest.rows]).toEqual([1, 1]);
+      smallest.dispose();
+
+      const largest = new Terminal({
+        cols: Terminal.MAX_DIMENSION,
+        rows: Terminal.MAX_CELLS / Terminal.MAX_DIMENSION,
+        engine,
+      });
+      expect([largest.cols, largest.rows]).toEqual([
+        Terminal.MAX_DIMENSION,
+        Terminal.MAX_CELLS / Terminal.MAX_DIMENSION,
+      ]);
+      largest.dispose();
     });
   });
 
@@ -276,6 +415,212 @@ describe('Terminal', () => {
       term.dispose();
     });
 
+    test('resize() syncs options so a later options.cols assignment keeps the direct rows', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container!);
+
+      const resizeEvents: Array<{ cols: number; rows: number }> = [];
+      term.onResize((event) => resizeEvents.push(event));
+
+      term.resize(100, 30);
+      expect([term.cols, term.rows]).toEqual([100, 30]);
+
+      // A direct resize must publish the committed pair into the mutable options. Without it this
+      // single-column assignment would pair 120 with the constructor's stale row count of 24.
+      term.options.cols = 120;
+
+      const wasmTerm = (term as any).wasmTerm;
+      expect([term.cols, term.rows]).toEqual([120, 30]);
+      expect([term.options.cols, term.options.rows]).toEqual([120, 30]);
+      expect(wasmTerm.getDimensions()).toEqual({ cols: 120, rows: 30 });
+      // No intermediate 120x24 resize may be announced either.
+      expect(resizeEvents).toEqual([
+        { cols: 100, rows: 30 },
+        { cols: 120, rows: 30 },
+      ]);
+
+      term.dispose();
+    });
+
+    test('resize() preserves 80x24 when wasm resize throws once and the retry succeeds', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container!);
+
+      const wasmTerm = (term as any).wasmTerm;
+      const originalResize = wasmTerm.resize.bind(wasmTerm);
+      let attempts = 0;
+      wasmTerm.resize = (cols: number, rows: number) => {
+        attempts++;
+        if (attempts === 1) throw new Error('wasm resize failed');
+        originalResize(cols, rows);
+      };
+
+      expect(() => term.resize(100, 30)).toThrow('wasm resize failed');
+      // The thrown wasm resize must not publish the new size, so the identical
+      // retry below is not treated as a no-op.
+      expect(term.cols).toBe(80);
+      expect(term.rows).toBe(24);
+
+      term.resize(100, 30);
+      expect(term.cols).toBe(100);
+      expect(term.rows).toBe(30);
+      expect(attempts).toBe(2);
+
+      term.dispose();
+    });
+
+    test('resize() keeps the committed 100x30 grid when render throws once', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container!);
+
+      const renderer = (term as any).renderer;
+      const originalRender = renderer.render.bind(renderer);
+      let renderAttempts = 0;
+      renderer.render = (...args: any[]) => {
+        renderAttempts++;
+        if (renderAttempts === 1) throw new Error('render failed');
+        originalRender(...args);
+      };
+
+      // Count invalidations instead of relying on reflowed content, so the assertion is about
+      // the commit path and not about how the wasm reflows this particular text.
+      const detector = (term as any).linkDetector;
+      const originalInvalidate = detector.invalidateCache.bind(detector);
+      let invalidations = 0;
+      detector.invalidateCache = () => {
+        invalidations++;
+        originalInvalidate();
+      };
+
+      const resizeEvents: Array<{ cols: number; rows: number }> = [];
+      term.onResize((event) => resizeEvents.push(event));
+
+      expect(() => term.resize(100, 30)).toThrow('render failed');
+
+      // The renderer accepted the new grid before the paint failed, so nothing is rolled back:
+      // wasm, the public dimensions, the renderer's canvas all describe the new size.
+      const wasmTerm = (term as any).wasmTerm;
+      const metrics = renderer.getMetrics();
+      const canvas = (term as any).canvas;
+      expect([term.cols, term.rows]).toEqual([100, 30]);
+      expect(wasmTerm.getDimensions()).toEqual({ cols: 100, rows: 30 });
+      expect([canvas.width, canvas.height]).toEqual([metrics.width * 100, metrics.height * 30]);
+      expect([canvas.style.width, canvas.style.height]).toEqual([
+        `${metrics.width * 100}px`,
+        `${metrics.height * 30}px`,
+      ]);
+
+      // Links are invalidated even though the frame never painted, and the resize event is not
+      // fired because it describes a painted frame.
+      expect(invalidations).toBe(1);
+      expect(resizeEvents).toEqual([]);
+
+      // A later resize renders the committed grid and reports the final size exactly once.
+      term.resize(120, 40);
+      expect(renderAttempts).toBe(2);
+      expect(wasmTerm.getDimensions()).toEqual({ cols: 120, rows: 40 });
+      expect(invalidations).toBe(2);
+      expect(resizeEvents).toEqual([{ cols: 120, rows: 40 }]);
+
+      term.dispose();
+    });
+
+    test('an identical resize retries a failed paint without reflowing the committed grid again', async () => {
+      for (const viaOptions of [false, true]) {
+        const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+        term.open(container!);
+        try {
+          const renderer = (term as any).renderer;
+          const wasm = (term as any).wasmTerm;
+          const originalRender = renderer.render.bind(renderer);
+          const originalResize = wasm.resize.bind(wasm);
+          let paints = 0, reflows = 0;
+          renderer.render = (...args: any[]) => {
+            paints++;
+            if (paints === 1) throw new Error('temporary paint failure');
+            return originalRender(...args);
+          };
+          wasm.resize = (cols: number, rows: number) => {
+            reflows++;
+            return originalResize(cols, rows);
+          };
+          const events: Array<{ cols: number; rows: number }> = [];
+          term.onResize(event => events.push(event));
+          const request = () => {
+            if (viaOptions) term.options.cols = 100;
+            else term.resize(100, 24);
+          };
+
+          expect(request).toThrow('temporary paint failure');
+          expect([term.cols, term.rows]).toEqual([100, 24]);
+          expect(events).toEqual([]);
+          request();
+          expect(paints).toBe(2);
+          expect(reflows).toBe(1);
+          expect(events).toEqual([{ cols: 100, rows: 24 }]);
+          request();
+          expect(paints).toBe(2);
+          expect(events).toHaveLength(1);
+        } finally {
+          term.dispose();
+        }
+      }
+    });
+
+    test('options.cols assignment keeps 80x24 when wasm resize throws once and the retry succeeds', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      term.open(container!);
+
+      const wasmTerm = (term as any).wasmTerm;
+      const originalResize = wasmTerm.resize.bind(wasmTerm);
+      let attempts = 0;
+      wasmTerm.resize = (cols: number, rows: number) => {
+        attempts++;
+        if (attempts === 1) throw new Error('wasm resize failed');
+        originalResize(cols, rows);
+      };
+
+      expect(() => { term.options.cols = 100; }).toThrow('wasm resize failed');
+      // The rejected assignment must roll the option back, so the options object
+      // and the public dimensions agree on the old grid.
+      expect(term.options.cols).toBe(80);
+      expect(term.cols).toBe(80);
+      expect(term.rows).toBe(24);
+
+      // A rolled-back option differs from the requested value, so the identical
+      // assignment is retried instead of being swallowed by oldValue equality.
+      term.options.cols = 100;
+      expect(term.options.cols).toBe(100);
+      expect(term.cols).toBe(100);
+      expect(term.rows).toBe(24);
+      expect(attempts).toBe(2);
+
+      term.dispose();
+    });
+
+    test('resize() does not return a cached URL link at its old position after reflow', async () => {
+      const term = await createIsolatedTerminal({ cols: 100, rows: 24 });
+      term.open(container!);
+
+      // Soft-wrapped line: at 100 cols the URL lands on wrapped row 1 (cols 20-43).
+      // The hard second line keeps content below it after the reflow.
+      term.write('A'.repeat(120) + 'https://example.com/docs' + '\r\n' + 'Z'.repeat(80));
+      const detector = (term as any).linkDetector;
+      const oldRow = viewportRowToAbsolute(term, 1);
+      const cached = await detector.getLinkAt(20, oldRow);
+      expect(cached?.text).toBe('https://example.com/docs');
+
+      // Widening to 200 cols unwraps the line: the URL moves to row 0 cols 120-143
+      // and the Z line shifts up into the old row.
+      term.resize(200, 24);
+
+      await expect(detector.getLinkAt(20, oldRow)).resolves.toBeUndefined();
+      const moved = await detector.getLinkAt(120, viewportRowToAbsolute(term, 0));
+      expect(moved?.text).toBe('https://example.com/docs');
+
+      term.dispose();
+    });
+
     test('resize() throws if not open', async () => {
       const term = await createIsolatedTerminal();
       expect(() => term.resize(100, 30)).toThrow('must be opened');
@@ -288,6 +633,60 @@ describe('Terminal', () => {
       term.open(container!);
 
       expect(() => term.clear()).not.toThrow();
+
+      term.dispose();
+    });
+
+    test('clear() drops links cached from a real provider', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container!);
+
+      // The registered UrlRegexProvider populates the real link cache for this row.
+      term.write('https://example.com/docs');
+      const detector = (term as any).linkDetector;
+      const row = viewportRowToAbsolute(term, 0);
+      const cached = await detector.getLinkAt(0, row);
+      expect(cached?.text).toBe('https://example.com/docs');
+
+      term.clear();
+
+      // The screen is empty again, so the same lookup must not surface the cached link.
+      await expect(detector.getLinkAt(0, row)).resolves.toBeUndefined();
+
+      term.dispose();
+    });
+
+    test('synchronized output expiry invalidates cached links', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container!);
+      term.write('\x1b[?2026hhttps://example.com/docs');
+      const detector = (term as any).linkDetector;
+      const row = viewportRowToAbsolute(term, 0);
+      await expect(detector.getLinkAt(0, row)).resolves.toBeUndefined();
+      await new Promise(resolve => setTimeout(resolve, 220));
+      const link = await detector.getLinkAt(0, row);
+      expect(link?.text).toBe('https://example.com/docs');
+      term.dispose();
+    });
+
+    test('clear() cancels a pending OSC so a later BEL rings instead of setting the title', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container!);
+
+      const titles: string[] = [];
+      let bells = 0;
+      term.onTitleChange((title) => titles.push(title));
+      term.onBell(() => bells++);
+
+      // Leave an OSC payload unterminated across the write boundary, then clear mid-sequence.
+      term.write('\x1b]2;Stale Title');
+      term.clear();
+
+      // Back in ground state, this BEL must ring rather than terminate the abandoned OSC.
+      term.write('\x07');
+
+      expect(bells).toBe(1);
+      expect(titles).toEqual([]);
 
       term.dispose();
     });
@@ -317,13 +716,115 @@ describe('Terminal', () => {
   });
 
   describe('Lifecycle recovery', () => {
+    test('widening a scrolled terminal keeps the viewport inside the reflowed history', async () => {
+      const term = await createIsolatedTerminal({ cols: 10, rows: 3 });
+      term.open(container);
+      try {
+        term.write('abcdefghij'.repeat(20));
+        term.scrollToTop();
+        const previous = term.getViewportY();
+        const scrolls: number[] = [];
+        term.onScroll(value => scrolls.push(value));
+        term.resize(100, 3);
+        expect(term.getScrollbackLength()).toBeLessThan(previous);
+        expect(term.getViewportY()).toBe(term.getScrollbackLength());
+        expect(scrolls).toEqual([term.getViewportY()]);
+      } finally { term.dispose(); }
+    });
+
+    test('reset from a bell listener stops the remaining bells from the old terminal', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container);
+      let bells = 0;
+      term.onBell(() => { if (++bells === 1) term.reset(); });
+      try {
+        term.write('\x07\x07\x07');
+        expect(bells).toBe(1);
+        term.write('\x07');
+        expect(bells).toBe(2);
+      } finally { term.dispose(); }
+    });
+
+    for (const origin of ['bell', 'title', 'buffer change', 'reply']) {
+      test(`an old write cannot scroll a replacement terminal created by its ${origin} listener`, async () => {
+        const term = await createIsolatedTerminal({ cols: 10, rows: 3 });
+        term.open(container);
+        let restoredViewport = 0, replaced = false;
+        const restore = () => {
+          if (replaced) return;
+          replaced = true; term.reset();
+          term.write(Array.from({ length: 15 }, (_, row) => `new ${row}\r\n`).join(''));
+          term.scrollToTop(); restoredViewport = term.getViewportY();
+        };
+        const input = origin === 'bell' ? '\x07' : origin === 'title' ? '\x1b]2;reset\x07'
+          : origin === 'buffer change' ? '\x1b[?1049h' : '\x1b[6n';
+        if (origin === 'bell') term.onBell(restore);
+        else if (origin === 'title') term.onTitleChange(title => { if (title === 'reset') restore(); });
+        else if (origin === 'buffer change') term.buffer.onBufferChange(restore);
+        else term.onData(restore);
+        try {
+          term.write(input);
+          expect(replaced).toBe(true);
+          expect(restoredViewport).toBeGreaterThan(0);
+          expect(term.getViewportY()).toBe(restoredViewport);
+        } finally { term.dispose(); }
+      });
+    }
+
+    test('reset from a title listener reports the replacement buffer only once', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container);
+      try {
+        term.write('\x1b[?1049h');
+        const changes: string[] = [];
+        term.buffer.onBufferChange(buffer => changes.push(buffer.type));
+        term.onTitleChange(title => { if (title === 'reset') term.reset(); });
+        term.write('\x1b]2;reset\x07');
+        expect(term.buffer.active.type).toBe('normal');
+        expect(changes).toEqual(['normal']);
+      } finally { term.dispose(); }
+    });
+
+    test('a viewport clamp listener can dispose the terminal during resize', async () => {
+      const term = await createIsolatedTerminal({ cols: 10, rows: 3 });
+      term.open(container);
+      try {
+        term.write('abcdefghij'.repeat(20));
+        term.scrollToTop();
+        term.onScroll(() => term.dispose());
+        expect(() => term.resize(100, 3)).not.toThrow();
+        expect(term.wasmTerm).toBeUndefined();
+      } finally { term.dispose(); }
+    });
+
+    test('resize preserves an in-range viewport and stops a wheel target outside the new history', async () => {
+      const term = await createIsolatedTerminal({ cols: 10, rows: 3, smoothScrollDuration: 100 });
+      term.open(container);
+      try {
+        term.write('abcdefghij'.repeat(100));
+        container.dispatchEvent(new WheelEvent('wheel', { deltaY: -30, deltaMode: 1 }));
+        const previous = term.getViewportY();
+        expect(previous).toBeGreaterThan(0);
+        const scrolls: number[] = [];
+        term.onScroll(value => scrolls.push(value));
+        term.resize(100, 3);
+        expect(term.getScrollbackLength()).toBeGreaterThan(previous);
+        expect(term.getScrollbackLength()).toBeLessThan(30);
+        expect(term.getViewportY()).toBe(previous);
+        await new Promise(resolve => setTimeout(resolve, 80));
+        expect(term.getViewportY()).toBe(previous);
+        expect(scrolls).toEqual([]);
+        expect((term as any).scrollAnimationFrame).toBeUndefined();
+      } finally { term.dispose(); }
+    });
+
     test('open can recover after WASM creation fails', async () => {
       const term = await createIsolatedTerminal();
-      const ghostty = (term as any).ghostty;
-      const create = ghostty.createTerminal;
-      ghostty.createTerminal = () => { throw new Error('allocation failed'); };
+      const engine = (term as any).engine;
+      const create = engine.createTerminal;
+      engine.createTerminal = () => { throw new Error('allocation failed'); };
       expect(() => term.open(container)).toThrow('allocation failed');
-      ghostty.createTerminal = create;
+      engine.createTerminal = create;
       expect(() => term.open(container)).not.toThrow();
       term.write('recovered');
       term.dispose();
@@ -337,11 +838,11 @@ describe('Terminal', () => {
       const free = previous.free.bind(previous);
       let freed = false;
       previous.free = () => { freed = true; free(); };
-      const ghostty = (term as any).ghostty;
-      const create = ghostty.createTerminal;
-      ghostty.createTerminal = () => { throw new Error('allocation failed'); };
+      const engine = (term as any).engine;
+      const create = engine.createTerminal;
+      engine.createTerminal = () => { throw new Error('allocation failed'); };
       expect(() => term.reset()).toThrow('allocation failed');
-      ghostty.createTerminal = create;
+      engine.createTerminal = create;
       expect(freed).toBe(false);
       expect(() => term.write(' after')).not.toThrow();
       expect(term.buffer.active.getLine(0)?.translateToString(true)).toBe('before after');
@@ -351,17 +852,19 @@ describe('Terminal', () => {
     test('reset clears a partial drag and stops selection autoscroll', async () => {
       const term = await createIsolatedTerminal();
       term.open(container);
-      const selection = (term as any).selectionManager;
-      selection.selectionStart = { col: 0, absoluteRow: 0 };
-      selection.selectionEnd = { col: 0, absoluteRow: 0 };
-      selection.isSelecting = true;
-      selection.startAutoScroll(1);
-      term.reset();
-      term.write('after');
-      expect(term.getSelection()).toBe('');
-      expect(selection.isSelecting).toBe(false);
-      expect(selection.autoScrollInterval).toBeNull();
-      term.dispose();
+      const canvas = term.renderer!.getCanvas();
+      const stop = vi.spyOn(globalThis, 'clearInterval');
+      try {
+        canvas.dispatchEvent(new MouseEvent('mousedown', { button: 0, bubbles: true }));
+        canvas.dispatchEvent(new MouseEvent('mouseleave', { clientY: canvas.getBoundingClientRect().bottom + 10 }));
+        stop.mockClear();
+        term.reset();
+        term.write('after');
+        expect(term.getSelection()).toBe('');
+        expect(stop).toHaveBeenCalled();
+        document.dispatchEvent(new MouseEvent('mousemove', { clientY: 10000 }));
+        expect(term.getSelection()).toBe('');
+      } finally { term.dispose(); stop.mockRestore(); }
     });
 
     test('reset clears scrollback position and pending smooth scrolling', async () => {
@@ -376,6 +879,145 @@ describe('Terminal', () => {
       expect((term as any).targetViewportY).toBe(0);
       expect((term as any).scrollAnimationFrame).toBeUndefined();
       term.dispose();
+    });
+
+    test('a direct scroll stops a running smooth scroll from pulling the viewport back', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3, smoothScrollDuration: 100 });
+      term.open(container);
+      try {
+        term.write('line\r\n'.repeat(40));
+        (term as any).smoothScrollTo(30);
+        expect((term as any).scrollAnimationFrame).toBeDefined();
+        term.scrollToBottom();
+        expect(term.getViewportY()).toBe(0);
+        // Let any frame the wheel animation left behind run.
+        await new Promise(resolve => setTimeout(resolve, 80));
+        expect(term.getViewportY()).toBe(0);
+        expect((term as any).targetViewportY).toBe(0);
+        expect((term as any).scrollAnimationFrame).toBeUndefined();
+      } finally { term.dispose(); }
+    });
+
+    test('new output preserves scrolled content and the smooth-scroll target', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3, smoothScrollDuration: 100 });
+      term.open(container);
+      const topText = () => term.buffer.active.getLine(term.buffer.active.baseY - Math.floor(term.getViewportY()))!.translateToString(true);
+      try {
+        term.write('line\r\n'.repeat(40));
+        term.scrollLines(-10);
+        (term as any).smoothScrollTo(30);
+        const viewport = term.getViewportY(), target = (term as any).targetViewportY, top = topText();
+        term.write('new output\r\n');
+        expect(term.getViewportY()).toBeCloseTo(viewport + 1);
+        expect((term as any).targetViewportY).toBe(target + 1);
+        expect((term as any).scrollAnimationFrame).toBeDefined();
+        expect(topText()).toBe(top);
+        (term as any).smoothScrollTo(0);
+        const descendingViewport = term.getViewportY(), descendingTop = topText();
+        term.write('still following\r\n');
+        expect(term.getViewportY()).toBeCloseTo(descendingViewport + 1);
+        expect((term as any).targetViewportY).toBe(0);
+        expect(topText()).toBe(descendingTop);
+        term.scrollToBottom();
+        term.write('bottom\r\n');
+        expect(term.getViewportY()).toBe(0);
+      } finally { term.dispose(); }
+    });
+
+    test('new output preserves scrolled content when scrollback is full', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3, scrollback: 10, smoothScrollDuration: 100 });
+      term.open(container);
+      const topText = () => term.buffer.active.getLine(term.buffer.active.baseY - Math.floor(term.getViewportY()))!.translateToString(true);
+      try {
+        term.write('line\r\n'.repeat(40));
+        term.scrollLines(-5);
+        (term as any).smoothScrollTo(8);
+        const viewport = term.getViewportY(), target = (term as any).targetViewportY, top = topText();
+        expect(term.getScrollbackLength()).toBe(10);
+        term.write('new output\r\n');
+        expect(term.getScrollbackLength()).toBe(10);
+        expect(term.getViewportY()).toBeCloseTo(viewport + 1);
+        expect((term as any).targetViewportY).toBe(target + 1);
+        expect(topText()).toBe(top);
+      } finally { term.dispose(); }
+    });
+
+    test('nested writes preserve scrolled content exactly once per new row', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3 });
+      term.open(container);
+      const topText = () => term.buffer.active.getLine(term.buffer.active.baseY - Math.floor(term.getViewportY()))!.translateToString(true);
+      try {
+        term.write('line\r\n'.repeat(20));
+        term.scrollLines(-5);
+        term.onTitleChange(title => { if (title === 'outer') term.write('nested\r\n'); });
+        const viewport = term.getViewportY(), top = topText();
+        term.write('\x1b]2;outer\x07outer\r\n');
+        expect(term.getViewportY()).toBe(viewport + 2);
+        expect(topText()).toBe(top);
+      } finally { term.dispose(); }
+    });
+
+    for (const synchronized of [false, true]) {
+      test(`an output callback can choose a new scroll position (synchronized=${synchronized})`, async () => {
+        const term = await createIsolatedTerminal({ cols: 20, rows: 3 });
+        term.open(container);
+        try {
+          term.write('line\r\n'.repeat(20));
+          term.scrollLines(-5);
+          term.onTitleChange(title => { if (title === 'scroll') term.scrollLines(-3); });
+          term.write(`${synchronized ? '\x1b[?2026h' : ''}\x1b]2;scroll\x07`);
+          if (synchronized) await new Promise(resolve => setTimeout(resolve, 220));
+          expect(term.getViewportY()).toBe(8);
+        } finally { term.dispose(); }
+      });
+    }
+
+    for (const smooth of [false, true]) {
+      test(`callback scrolling stays anchored through later output chunks (smooth=${smooth})`, async () => {
+        const term = await createIsolatedTerminal({ cols: 20, rows: 3, smoothScrollDuration: 100 });
+        term.open(container);
+        let chosenViewport = 0, chosenTarget = 0;
+        try {
+          term.write('line\r\n'.repeat(20));
+          term.scrollLines(-5);
+          term.onTitleChange(title => {
+            if (title !== 'scroll') return;
+            if (smooth) (term as any).smoothScrollTo(8);
+            else term.scrollToTop();
+            chosenViewport = term.getViewportY(); chosenTarget = (term as any).targetViewportY;
+          });
+          term.write('\x1b]2;scroll\x07' + '\0'.repeat(1 << 20) + 'more\r\n');
+          expect(term.getViewportY()).toBeCloseTo(chosenViewport + 1);
+          expect((term as any).targetViewportY).toBe(chosenTarget + 1);
+        } finally { term.dispose(); }
+      });
+    }
+
+    test('synchronized output expiry preserves scrolled content', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3 });
+      term.open(container);
+      const topText = () => term.buffer.active.getLine(term.buffer.active.baseY - Math.floor(term.getViewportY()))!.translateToString(true);
+      try {
+        term.write('line\r\n'.repeat(20));
+        term.scrollLines(-5);
+        const viewport = term.getViewportY(), top = topText();
+        term.write('\x1b[?2026hnew output\r\n');
+        await new Promise(resolve => setTimeout(resolve, 220));
+        expect(term.getViewportY()).toBe(viewport + 1);
+        expect(topText()).toBe(top);
+      } finally { term.dispose(); }
+    });
+
+    test('quick wheel ticks during a smooth scroll add up instead of losing distance', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 3, smoothScrollDuration: 100 });
+      term.open(container);
+      try {
+        term.write('line\r\n'.repeat(100));
+        const wheel = { deltaY: -30, deltaMode: 1, shiftKey: false, preventDefault() {}, stopPropagation() {} } as unknown as WheelEvent;
+        (term as any).handleWheel(wheel);
+        (term as any).handleWheel(wheel);
+        expect((term as any).targetViewportY).toBe(60);
+      } finally { term.dispose(); }
     });
 
     test('dispose clears active link hover even if the hover callback throws', async () => {
@@ -403,6 +1045,62 @@ describe('Terminal', () => {
       term.dispose();
     });
 
+    for (const operation of ['reset', 'resize', 'font'] as const) {
+      test(`${operation} stops when clearing selection disposes the terminal`, async () => {
+        const term = await createIsolatedTerminal();
+        term.open(container); term.write('selected'); term.select(0, 0, 3);
+        term.onSelectionChange(() => { term.dispose(); });
+        expect(() => {
+          if (operation === 'reset') term.reset();
+          else if (operation === 'resize') term.resize(40, 10);
+          else term.options.fontSize = 18;
+        }).not.toThrow();
+        expect(term.wasmTerm).toBeUndefined();
+      });
+    }
+
+    test('reset preserves the terminal created by a selection listener', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container); term.write('selected'); term.select(0, 0, 3);
+      let nested: typeof term.wasmTerm;
+      const subscription = term.onSelectionChange(() => {
+        subscription.dispose(); term.reset(); term.write('replacement'); nested = term.wasmTerm;
+      });
+      term.reset();
+      expect(term.wasmTerm).toBe(nested);
+      term.selectAll();
+      expect(term.getSelection().trim()).toBe('replacement');
+      term.dispose();
+    });
+
+    for (const operation of ['resize', 'font'] as const) {
+      test(`${operation} does not paint a replacement created by its selection listener`, async () => {
+        const term = await createIsolatedTerminal();
+        term.open(container); term.write('selected'); term.select(0, 0, 3);
+        const render = vi.spyOn((term as any).renderer, 'render');
+        const subscription = term.onSelectionChange(() => {
+          subscription.dispose(); term.reset(); term.write('replacement'); render.mockClear();
+        });
+        if (operation === 'resize') {
+          term.resize(40, 10);
+          expect([term.options.cols, term.options.rows]).toEqual([40, 10]);
+        } else term.options.fontSize = 18;
+        expect(render).not.toHaveBeenCalled();
+        term.selectAll(); expect(term.getSelection().trim()).toBe('replacement');
+        term.dispose();
+      });
+    }
+
+    test('typing stops when its selection listener disposes the terminal', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container); term.write('selected'); term.select(0, 0, 3);
+      const sent: string[] = [];
+      term.onData(data => sent.push(data));
+      term.onSelectionChange(() => { term.dispose(); });
+      expect(() => term.input('typed', true)).not.toThrow();
+      expect(sent).toEqual([]);
+    });
+
     test('disposed terminals reject addons before activation', async () => {
       const term = await createIsolatedTerminal();
       term.dispose();
@@ -423,6 +1121,58 @@ describe('Terminal', () => {
       container.dispatchEvent(new WheelEvent('wheel', { deltaY: 100 }));
       expect(sent).toBe('\x1b[B'.repeat(3));
       term.dispose();
+    });
+
+    test('explicit OSC 8 targets take precedence over URL text on the same cells', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container);
+      try {
+        term.write('\x1b]8;;https://target.example\x07https://label.example\x1b]8;;\x07');
+        const detector = (term as any).linkDetector;
+        const link = await detector.getLinkAt(5, 0);
+        expect(link?.text).toBe('https://target.example');
+        expect((await detector.getLinkAt(5, 0))?.text).toBe('https://target.example');
+      } finally { term.dispose(); }
+    });
+
+    test('late hover results cannot replace the link under a newer mouse position', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container);
+      try {
+        const pending: ((link: any) => void)[] = [];
+        (term as any).linkDetector.getLinkAt = () => new Promise(resolve => pending.push(resolve));
+        const makeLink = (text: string) => ({ text, activate() {},
+          range: { start: { x: 0, y: 0 }, end: { x: 1, y: 0 } } });
+        const old = makeLink('old');
+        const current = makeLink('current');
+        (term as any).processMouseMove(new MouseEvent('mousemove'));
+        (term as any).processMouseMove(new MouseEvent('mousemove', { clientX: 20 }));
+        pending[1](current);
+        await Promise.resolve();
+        pending[0](old);
+        await Promise.resolve();
+        expect((term as any).currentHoveredLink).toBe(current);
+      } finally { term.dispose(); }
+    });
+
+    test('leaving the terminal cancels both deferred hover results and queued mouse moves', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container);
+      try {
+        const pending: ((link: any) => void)[] = [];
+        (term as any).linkDetector.getLinkAt = () => new Promise(resolve => pending.push(resolve));
+        (term as any).handleMouseMove(new MouseEvent('mousemove'));
+        (term as any).handleMouseMove(new MouseEvent('mousemove', { clientX: 20 }));
+        (term as any).handleMouseLeave();
+        let entered = false;
+        pending[0]({ activate() {}, hover() { entered = true; },
+          range: { start: { x: 0, y: 0 }, end: { x: 1, y: 0 } } });
+        await new Promise(resolve => setTimeout(resolve, 30));
+        expect(pending).toHaveLength(1);
+        expect(entered).toBe(false);
+        expect((term as any).currentHoveredLink).toBeUndefined();
+        expect(container.style.cursor).not.toBe('pointer');
+      } finally { term.dispose(); }
     });
 
     test('pending link activation and hover stop at disposal', async () => {
@@ -510,6 +1260,24 @@ describe('Terminal', () => {
       expect(container.querySelector('textarea')).toBeNull();
       expect(container.hasAttribute('contenteditable')).toBe(false);
       expect(() => term.dispose()).not.toThrow();
+    });
+
+    test('an addon that closes its terminal during activation is disposed once', async () => {
+      const term = await createIsolatedTerminal();
+      term.open(container!);
+      let disposals = 0;
+      const marker = document.createElement('span');
+      term.loadAddon({
+        activate() { document.body.appendChild(marker); term.dispose(); },
+        dispose() { disposals++; marker.remove(); },
+      });
+      try {
+        expect(disposals).toBe(1);
+        expect(marker.isConnected).toBe(false);
+        expect(term.wasmTerm).toBeUndefined();
+        term.dispose();
+        expect(disposals).toBe(1);
+      } finally { marker.remove(); term.dispose(); }
     });
 
     test('dispose() calls addon dispose', async () => {
@@ -857,6 +1625,37 @@ describe('select()', () => {
       term.dispose();
     });
 
+    test('should fire selectionChange when a selection is cleared, and not when none exists', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      if (!container) return;
+      term.open(container!);
+      let count = 0;
+      term.onSelectionChange(() => { count++; });
+
+      term.clearSelection();
+      expect(count).toBe(0);
+      term.select(0, 0, 10);
+      expect(count).toBe(1);
+      term.clearSelection();
+      expect(term.hasSelection()).toBe(false);
+      expect(count).toBe(2);
+      term.clearSelection();
+      expect(count).toBe(2);
+      term.dispose();
+    });
+
+    test('should fire onRender for painted frames', async () => {
+      const term = await createIsolatedTerminal({ cols: 20, rows: 5 });
+      if (!container) return;
+      const ranges: { start: number; end: number }[] = [];
+      term.onRender(range => { ranges.push(range); });
+      term.open(container!);
+      term.resize(30, 6);
+      expect(ranges.length).toBeGreaterThan(0);
+      expect(ranges[ranges.length - 1]).toEqual({ start: 0, end: 5 });
+      term.dispose();
+    });
+
     test('should clear selection when clicking outside canvas', async () => {
       const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
       // Using shared container from beforeEach
@@ -1147,6 +1946,95 @@ describe('onTitleChange event', () => {
       term.dispose();
     });
   });
+
+  describe('reset()', () => {
+    test('notifies subscribers when reset clears a previously reported title', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      if (!container) return;
+      term.open(container!);
+
+      const titles: string[] = [];
+      term.onTitleChange((title) => {
+        titles.push(title);
+      });
+
+      term.write('\x1b]2;Reported Title\x07');
+      expect(titles).toEqual(['Reported Title']);
+
+      term.reset();
+
+      expect(term.title).toBe('');
+      expect(titles).toEqual(['Reported Title', '']);
+      term.dispose();
+    });
+
+    test('does not emit a duplicate title event when reset runs with an empty title', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      if (!container) return;
+      term.open(container!);
+
+      const titles: string[] = [];
+      term.onTitleChange((title) => {
+        titles.push(title);
+      });
+
+      term.write('\x1b]2;Reported Title\x07');
+      term.reset();
+      term.reset();
+
+      expect(titles).toEqual(['Reported Title', '']);
+      term.dispose();
+    });
+
+    test('rings a BEL written during the title event instead of resurrecting a stale OSC', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      if (!container) return;
+      term.open(container!);
+
+      const titles: string[] = [];
+      let bells = 0;
+      term.onBell(() => bells++);
+      term.onTitleChange((title) => {
+        titles.push(title);
+        // Re-enter the terminal while the synchronous reset title event is firing.
+        if (title === '') term.write('\x07');
+      });
+
+      term.write('\x1b]2;Reported Title\x07');
+      // Unterminated OSC: it would surface "Stale" if its parse state survived the reset.
+      term.write('\x1b]2;Stale');
+      term.reset();
+
+      expect(term.title).toBe('');
+      expect(bells).toBe(1);
+      expect(titles).toEqual(['Reported Title', '']);
+      term.dispose();
+    });
+
+    test('keeps a title continuation written during the reset title event', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+      if (!container) return;
+      term.open(container!);
+
+      const titles: string[] = [];
+      let bells = 0;
+      term.onBell(() => bells++);
+      term.onTitleChange((title) => {
+        titles.push(title);
+        // Start a fresh OSC during the reset title event; it is finished after reset.
+        if (title === '') term.write('\x1b]2;Par');
+      });
+
+      term.write('\x1b]2;Reported Title\x07');
+      term.reset();
+      term.write('tial\x07');
+
+      expect(term.title).toBe('Partial');
+      expect(bells).toBe(0);
+      expect(titles).toEqual(['Reported Title', '', 'Partial']);
+      term.dispose();
+    });
+  });
 });
 
 describe('attachCustomKeyEventHandler()', () => {
@@ -1209,6 +2097,20 @@ describe('Terminal Options', () => {
   });
 
   describe('convertEol and disableStdin', () => {
+    test('convertEol handles byte writes without changing UTF-8 or the input buffer', async () => {
+      const term = await createIsolatedTerminal({ cols: 80, rows: 24, convertEol: true });
+      term.open(container!);
+      try {
+        const bytes = new TextEncoder().encode('first\n中\nlast');
+        const original = bytes.slice();
+        term.write(bytes);
+        expect(term.buffer.active.getLine(0)?.translateToString(true)).toBe('first');
+        expect(term.buffer.active.getLine(1)?.translateToString(true)).toBe('中');
+        expect(term.buffer.active.getLine(2)?.translateToString(true)).toBe('last');
+        expect(bytes).toEqual(original);
+      } finally { term.dispose(); }
+    });
+
     test('convertEol option should convert newlines', async () => {
       const term = await createIsolatedTerminal({ cols: 80, rows: 24, convertEol: true });
       // Using shared container from beforeEach
@@ -1470,7 +2372,6 @@ describe('Buffer Access API', () => {
 
     term.open(container!);
 
-    // Write to main screen (default background = black)
     term.write('MAIN\r\n');
     term.wasmTerm?.update();
     term.wasmTerm?.markClean();
@@ -1497,14 +2398,12 @@ describe('Buffer Access API', () => {
     term.write('\x1b[?1049l');
     term.wasmTerm?.update();
 
-    // CRITICAL: Background colors must be restored to main screen values (black)
     const restoredViewport = term.wasmTerm?.getViewport();
     const firstCell = restoredViewport![0];
 
-    // Main screen cells should have default background (0, 0, 0 = black)
-    expect(firstCell.bg_r).toBe(0);
-    expect(firstCell.bg_g).toBe(0);
-    expect(firstCell.bg_b).toBe(0);
+    expect(firstCell.bg_r).toBe(30);
+    expect(firstCell.bg_g).toBe(30);
+    expect(firstCell.bg_b).toBe(30);
 
     // Verify text is also restored
     expect(String.fromCodePoint(firstCell.codepoint)).toBe('M');
@@ -1575,7 +2474,7 @@ describe('Terminal Config', () => {
       // Scrollback should be limited based on the config
       const scrollbackLength = term.wasmTerm!.getScrollbackLength();
       // With 500 scrollback limit, we wrote 600 lines so scrollback should be capped
-      // The actual value depends on ghostty's implementation but should be around 500
+      // The actual value depends on engine's implementation but should be around 500
       expect(scrollbackLength).toBeLessThan(600);
       expect(scrollbackLength).toBeGreaterThan(450);
     } finally {
@@ -1659,9 +2558,8 @@ describe('Terminal Config', () => {
       // Should still work and have reasonable defaults
       const colors = term.wasmTerm!.getColors();
 
-      // Default colors should be set (light gray foreground, black background)
-      expect(colors.foreground).toBeDefined();
-      expect(colors.background).toBeDefined();
+      expect(colors.foreground).toEqual({ r: 212, g: 212, b: 212 });
+      expect(colors.background).toEqual({ r: 30, g: 30, b: 30 });
     } finally {
       term.dispose();
     }
@@ -2552,27 +3450,19 @@ describe('Options Proxy handleOptionChange', () => {
     const term = await createIsolatedTerminal({ cursorBlink: false });
     term.open(container);
 
-    // Verify initial state
     expect(term.options.cursorBlink).toBe(false);
+    const start = vi.spyOn(globalThis, 'setInterval');
+    const stop = vi.spyOn(globalThis, 'clearInterval');
+    try {
+      term.options.cursorBlink = true;
+      expect(term.options.cursorBlink).toBe(true);
+      expect(start).toHaveBeenLastCalledWith(expect.any(Function), 530);
+      const timer = start.mock.results.at(-1)!.value;
+      term.options.cursorBlink = false;
+      expect(term.options.cursorBlink).toBe(false);
+      expect(stop).toHaveBeenCalledWith(timer);
+    } finally { term.dispose(); start.mockRestore(); stop.mockRestore(); }
 
-    // Enable cursor blink
-    term.options.cursorBlink = true;
-    expect(term.options.cursorBlink).toBe(true);
-
-    // @ts-ignore - accessing private for test
-    const renderer = term.renderer;
-    // @ts-ignore - accessing private for test
-    expect(renderer.cursorBlink).toBe(true);
-    // @ts-ignore - accessing private for test
-    expect(renderer.cursorBlinkInterval).toBeDefined();
-
-    // Disable cursor blink
-    term.options.cursorBlink = false;
-    expect(term.options.cursorBlink).toBe(false);
-    // @ts-ignore - accessing private for test
-    expect(renderer.cursorBlink).toBe(false);
-
-    term.dispose();
   });
 
   test('changing cols/rows triggers resize', async () => {
@@ -2607,6 +3497,100 @@ describe('Options Proxy handleOptionChange', () => {
     expect(term.rows).toBe(40);
 
     term.dispose();
+  });
+
+  test('options.cols assignment keeps the committed grid when render throws once', async () => {
+    if (!container) return;
+
+    const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+    term.open(container);
+
+    const renderer = (term as any).renderer;
+    const originalRender = renderer.render.bind(renderer);
+    let renderAttempts = 0;
+    renderer.render = (...args: any[]) => {
+      renderAttempts++;
+      if (renderAttempts === 1) throw new Error('render failed');
+      originalRender(...args);
+    };
+
+    // Count invalidations instead of relying on reflowed content, so the assertion is about
+    // the commit path and not about how the wasm reflows this particular text.
+    const detector = (term as any).linkDetector;
+    const originalInvalidate = detector.invalidateCache.bind(detector);
+    let invalidations = 0;
+    detector.invalidateCache = () => {
+      invalidations++;
+      originalInvalidate();
+    };
+
+    const resizeEvents: Array<{ cols: number; rows: number }> = [];
+    term.onResize((event) => resizeEvents.push(event));
+
+    // resize() commits the new grid before the forced paint, so the render failure surfaces
+    // to the caller but must not roll the option back: options stay in step with the grid.
+    expect(() => { term.options.cols = 100; }).toThrow('render failed');
+
+    const wasmTerm = (term as any).wasmTerm;
+    const metrics = renderer.getMetrics();
+    const canvas = (term as any).canvas;
+    expect([term.options.cols, term.options.rows]).toEqual([100, 24]);
+    expect([term.cols, term.rows]).toEqual([100, 24]);
+    expect(wasmTerm.getDimensions()).toEqual({ cols: 100, rows: 24 });
+    expect([canvas.width, canvas.height]).toEqual([metrics.width * 100, metrics.height * 24]);
+    expect([canvas.style.width, canvas.style.height]).toEqual([
+      `${metrics.width * 100}px`,
+      `${metrics.height * 24}px`,
+    ]);
+
+    // Links are invalidated even though the frame never painted, and no resize event describes
+    // a frame that failed to render.
+    expect(invalidations).toBe(1);
+    expect(resizeEvents).toEqual([]);
+
+    // A later mutation renders the committed grid and reports the final size exactly once.
+    term.options.cols = 120;
+    expect(renderAttempts).toBe(2);
+    expect(term.options.cols).toBe(120);
+    expect(wasmTerm.getDimensions()).toEqual({ cols: 120, rows: 24 });
+    expect(invalidations).toBe(2);
+    expect(resizeEvents).toEqual([{ cols: 120, rows: 24 }]);
+
+    term.dispose();
+  });
+
+  test('rejected cols/rows assignment rolls back before options or terminal state change', async () => {
+    if (!container) return;
+
+    const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+    term.open(container);
+    let resizeCount = 0;
+    term.onResize(() => resizeCount++);
+
+    for (const key of ['cols', 'rows'] as const) {
+      for (const value of [0, -1, 1.5, Number.NaN, Terminal.MAX_DIMENSION + 1]) {
+        expect(() => {
+          term.options[key] = value;
+        }).toThrow(RangeError);
+        // Both the proxy target and the published grid must be untouched.
+        expect([term.options.cols, term.options.rows]).toEqual([80, 24]);
+        expect([term.cols, term.rows]).toEqual([80, 24]);
+      }
+    }
+    expect(resizeCount).toBe(0);
+
+    term.dispose();
+  });
+
+  test('rejected cols/rows assignment before open leaves options untouched', async () => {
+    const term = await createIsolatedTerminal({ cols: 80, rows: 24 });
+
+    expect(() => {
+      term.options.rows = 0;
+    }).toThrow(RangeError);
+
+    expect([term.options.cols, term.options.rows]).toEqual([80, 24]);
+    expect([term.cols, term.rows]).toEqual([80, 24]);
   });
 
   test('handleOptionChange not called before terminal is open', async () => {
@@ -2908,9 +3892,9 @@ describe('disableStdin', () => {
 // ==========================================================================
 
 describe('unicode API', () => {
-  test('activeVersion returns 15.1', async () => {
+  test('activeVersion reports the owned width table version', async () => {
     const term = await createIsolatedTerminal();
-    expect(term.unicode.activeVersion).toBe('15.1');
+    expect(term.unicode.activeVersion).toBe('18.0');
   });
 
   test('unicode object is readonly', async () => {
@@ -3059,10 +4043,81 @@ describe('Write Behavior', () => {
     term.write('Second', () => callbackOrder.push(2));
     term.write('Third', () => callbackOrder.push(3));
 
-    // Give callbacks time to fire (they use requestAnimationFrame)
+    // Give callbacks time to fire (they are delivered asynchronously)
     await new Promise((r) => setTimeout(r, 50));
 
     expect(callbackOrder).toEqual([1, 2, 3]);
+
+    term.dispose();
+  });
+
+  test('write callbacks are delivered when animation frames never run', async () => {
+    if (!container) return;
+
+    const term = await createIsolatedTerminal();
+    term.open(container);
+
+    let called = 0;
+    // A hidden page never services animation frames; a host awaiting this callback must not stall.
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    try {
+      term.write('Hidden', () => called++);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(called).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+      term.dispose();
+    }
+  });
+
+  test('write callbacks stay asynchronous and ordered when animation frames never run', async () => {
+    if (!container) return;
+
+    const term = await createIsolatedTerminal();
+    term.open(container);
+
+    const callbackOrder: number[] = [];
+    vi.stubGlobal('requestAnimationFrame', () => 0);
+    try {
+      term.write('First', () => callbackOrder.push(1));
+      term.write('Second', () => callbackOrder.push(2));
+      term.write('Third', () => callbackOrder.push(3));
+
+      // Nothing may fire inside the write stack.
+      expect(callbackOrder).toEqual([]);
+
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(callbackOrder).toEqual([1, 2, 3]);
+    } finally {
+      vi.unstubAllGlobals();
+      term.dispose();
+    }
+  });
+
+  test('write callback runs asynchronously after its write is parsed', async () => {
+    if (!container) return;
+
+    const term = await createIsolatedTerminal();
+    term.open(container);
+
+    let called = false;
+    let parsedLine = '';
+    term.write('Parsed', () => {
+      called = true;
+      parsedLine = term.buffer.active.getLine(0)?.translateToString(true) ?? '';
+    });
+
+    // The callback must not run inside write().
+    expect(called).toBe(false);
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(called).toBe(true);
+    // ...and by the time it runs, the write has been parsed into the buffer.
+    expect(parsedLine).toBe('Parsed');
 
     term.dispose();
   });
@@ -3361,6 +4416,29 @@ describe('Title and bell streaming scanner', () => {
     term.write(bytes.slice(8));
 
     expect(term.title).toBe('caf\u00e9');
+  });
+
+  test('a title delivered one byte per write decodes across every possible split', () => {
+    if (!term) return;
+
+    // One byte per write puts the write boundary inside the introducer, the UTF-8 sequences and the terminator.
+    const bytes = new TextEncoder().encode('\x1b]2;h\u00e9llo \u{1f600}\x07');
+    for (const byte of bytes) term.write(new Uint8Array([byte]));
+
+    expect(term.title).toBe('h\u00e9llo \u{1f600}');
+    expect(titles).toEqual(['h\u00e9llo \u{1f600}']);
+    expect(bells).toBe(0);
+  });
+
+  test('a title split across a string and a byte write keeps the pending sequence', () => {
+    if (!term) return;
+
+    term.write('\x1b]2;caf');
+    const rest = new TextEncoder().encode('\u00e9 \u{1f600}\x07');
+    term.write(rest.slice(0, 1));
+    term.write(rest.slice(1));
+
+    expect(term.title).toBe('caf\u00e9 \u{1f600}');
   });
 
   test('OSC 1 (icon name) never becomes the title and its BEL does not ring', () => {

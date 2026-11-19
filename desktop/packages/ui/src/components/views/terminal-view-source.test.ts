@@ -3,7 +3,6 @@ import path from "node:path"
 import { describe, expect, test } from "vitest"
 
 const sourcePath = path.resolve(__dirname, "TerminalView.tsx")
-const viteConfigPath = path.resolve(__dirname, "../../../../web/vite.config.ts")
 
 describe("TerminalView source guards", () => {
   test("creates a terminal session with fallback dimensions instead of rendering a blank dock", async () => {
@@ -48,18 +47,6 @@ describe("TerminalView source guards", () => {
     expect(source).toMatch(/fatalErrorOwnerRef\.current = tabId\n\s*setConnectionError\(t\("terminalView\.error\.connectionFailed"/)
     expect(source).toMatch(/fatalErrorOwnerRef\.current = tabId\n\s*setConnectionError\(error instanceof Error/)
     expect(source).toContain("if (fatalErrorOwnerRef.current !== tabId) {")
-  })
-
-  test("ships the Ghostty runtime asset instead of leaving the terminal renderer blank", async () => {
-    const [terminalViewportSource, viteConfigSource] = await Promise.all([
-      readFile(path.resolve(__dirname, "../terminal/TerminalViewport.tsx"), "utf8"),
-      readFile(viteConfigPath, "utf8"),
-    ])
-
-    expect(viteConfigSource).toContain('requireFromUi.resolve("@ax-code/akitty-web/ghostty-vt.wasm")')
-    expect(viteConfigSource).toContain('fileName: "ghostty-vt.wasm"')
-    expect(viteConfigSource).toContain('server.middlewares.use("/ghostty-vt.wasm"')
-    expect(terminalViewportSource).toContain("onInitializeError")
   })
 
   test("publishes the terminal refs only after the terminal opened successfully", async () => {
@@ -142,22 +129,5 @@ describe("TerminalViewport touch scroll source guards", () => {
     expect(touchCancel).not.toContain("requestAnimationFrame")
     expect(touchCancel).toContain("state.velocity = 0")
     expect(touchCancel).toContain("state.didMove = false")
-  })
-
-  test("suppresses ghostty's native canvas scrollbar in touch mode and restores it on teardown", async () => {
-    const { source } = await readTouchScrollSetup()
-
-    const openAt = source.indexOf("terminal.open(container)")
-    const patchAt = source.indexOf("renderer.renderScrollbar = () => {}")
-    expect(openAt).toBeGreaterThan(-1)
-    expect(patchAt).toBeGreaterThan(openAt)
-    expect(source.slice(openAt, patchAt)).toContain("if (enableTouchScroll) {")
-    expect(source).toContain('typeof renderer.renderScrollbar === "function"')
-    expect(source).toContain("restoreRenderScrollbar = () => {")
-
-    const cleanupAt = source.indexOf("restorePatchedScrollToBottom?.()")
-    expect(cleanupAt).toBeGreaterThan(-1)
-    expect(source.indexOf("restoreRenderScrollbar?.()", cleanupAt)).toBeGreaterThan(cleanupAt)
-    expect(source.indexOf("restoreRenderScrollbar = null", cleanupAt)).toBeGreaterThan(cleanupAt)
   })
 })

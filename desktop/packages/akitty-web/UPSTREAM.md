@@ -1,11 +1,15 @@
 # AkiTTY Web source snapshot
 
-Canonical source: https://github.com/defai-digital/akitty/tree/4daf16ce6cbb394a325b0f706779600bba045a83/packages/akitty-web
+Canonical source: https://github.com/defai-digital/akitty/tree/27ff1eac3650807bcaa76f1f63bba00988c85e31/packages/akitty-web
 
-Desktop consumes the AkiTTY v1.3.0 release (Web package version 0.5.2) at commit `4daf16ce6cbb394a325b0f706779600bba045a83` under ADR-024.
+Desktop consumes the AkiTTY v1.4.1 release (Web package version 0.6.12) at commit
+`27ff1eac3650807bcaa76f1f63bba00988c85e31` under ADR-024.
 `SOURCE.json` records SHA-256 hashes of the imported files. They are byte-identical to that commit, including the
 upstream tests, README and PROVENANCE. The README's npm instructions apply to upstream; in Desktop use pnpm.
-The wasm remains the Ghostty artifact described in PROVENANCE.md; changing terminal ownership does not replace its VT engine.
+The renderer loads `akitty-vt.wasm`, the shared AkiTTY Rust VT engine, as a same-origin asset.
+`wasm-provenance.json` records the binary hash and upstream build inputs. Rebuild the binary in the canonical
+AkiTTY workspace, where the Rust crate and build tooling live. Desktop includes the AkiTTY, historical Ghostty,
+and embedded Rust dependency license texts in the renderer distribution.
 
 Desktop owns only package.json (pnpm catalogs and verification hook), SOURCE.json, UPSTREAM.md and
 scripts/verify-source.mjs. The upstream package-lock.json, the browser Playwright suite (`browser/`,

@@ -3,7 +3,7 @@
  */
 
 import { beforeEach, describe, expect, mock, spyOn, test } from 'bun:test';
-import { Ghostty } from './ghostty';
+import { AkittyEngine } from './engine';
 import { InputHandler } from './input-handler';
 import { Key, KeyAction, Mods } from './types';
 
@@ -156,14 +156,14 @@ function simulateKey(
 }
 
 describe('InputHandler', () => {
-  let ghostty: Ghostty;
+  let engine: AkittyEngine;
   let container: ReturnType<typeof createMockContainer>;
   let dataReceived: string[];
   let bellCalled: boolean;
 
   beforeEach(async () => {
-    // Create a fresh Ghostty WASM instance for complete test isolation
-    ghostty = await Ghostty.load();
+    // Create a fresh AkittyEngine WASM instance for complete test isolation
+    engine = await AkittyEngine.load();
 
     // Create mock container for each test
     container = createMockContainer();
@@ -176,7 +176,7 @@ describe('InputHandler', () => {
   describe('Constructor and Lifecycle', () => {
     test('creates handler and attaches listeners', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -191,7 +191,7 @@ describe('InputHandler', () => {
 
     test('dispose removes listeners and marks inactive', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -207,7 +207,7 @@ describe('InputHandler', () => {
 
     test('dispose is idempotent', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -223,7 +223,7 @@ describe('InputHandler', () => {
 
     test('dispose releases the owned KeyEncoder exactly once', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -233,23 +233,225 @@ describe('InputHandler', () => {
 
       const encoder = (handler as any).encoder;
       expect(typeof encoder.dispose).toBe('function');
-      expect(encoder.encoder).not.toBe(0); // live WASM handle before dispose
+      expect(encoder.encode({ action: 1, key: 97, mods: 0, utf8: 'a' })).toEqual(new Uint8Array([97]));
 
       const disposeSpy = spyOn(encoder, 'dispose');
       handler.dispose();
       expect(disposeSpy).toHaveBeenCalledTimes(1);
-      expect(encoder.encoder).toBe(0); // WASM key encoder actually released
+      expect(encoder.encode({ action: 1, key: 97, mods: 0, utf8: 'a' })).toHaveLength(0); // disposed encoders are inert
 
       handler.dispose(); // second call must not release again
       expect(disposeSpy).toHaveBeenCalledTimes(1);
-      expect(encoder.encoder).toBe(0);
+      expect(encoder.encode({ action: 1, key: 97, mods: 0, utf8: 'a' })).toHaveLength(0);
     });
   });
 
   describe('Printable Characters', () => {
+    test('disposing from onKey stops the current printable key before emitting input', () => {
+      let handler: InputHandler;
+      handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        () => handler.dispose());
+      simulateKey(container, createKeyEvent('KeyA', 'a'));
+      expect(dataReceived).toEqual([]);
+      expect(handler.isActive()).toBe(false);
+    });
+
+    test('disposing from a custom handler stops the current key even when it returns false', () => {
+      let handler: InputHandler;
+      handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, () => { handler.dispose(); return false; });
+      simulateKey(container, createKeyEvent('KeyA', 'a'));
+      expect(dataReceived).toEqual([]);
+      expect(handler.isActive()).toBe(false);
+    });
+
+    test('sends printable characters outside the BMP without replacing them with the physical key', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {});
+      try {
+        simulateKey(container, createKeyEvent('KeyA', '𐐀'));
+        expect(dataReceived).toEqual(['𐐀']);
+      } finally { handler.dispose(); }
+    });
+
+    test('dead keys allow browser composition instead of cancelling the keystroke', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {});
+      try {
+        const dead = createKeyEvent('Quote', 'Dead');
+        simulateKey(container, dead);
+        expect(dead.preventDefault).not.toHaveBeenCalled();
+        expect(dataReceived).toEqual([]);
+        container.dispatchEvent(createCompositionEvent('compositionstart', ''));
+        container.dispatchEvent(createCompositionEvent('compositionend', 'é'));
+        expect(dataReceived).toEqual(['é']);
+      } finally { handler.dispose(); }
+    });
+
+    test('numeric keypad text follows application mode and retains enhanced identities', () => {
+      let application = true;
+      let flags = 0;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, mode => mode === 66 && application, undefined, () => flags);
+      try {
+        simulateKey(container, createKeyEvent('Numpad1', '1'));
+        simulateKey(container, createKeyEvent('NumpadAdd', '+'));
+        application = false;
+        simulateKey(container, createKeyEvent('Numpad1', '1'));
+        flags = 8;
+        simulateKey(container, createKeyEvent('Numpad1', '1'));
+        simulateKey(container, createKeyEvent('NumpadComma', ','));
+        expect(dataReceived).toEqual(['\x1bOq', '\x1bOk', '1', '\x1b[57400;1u', '\x1b[57416;1u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('enhanced keyboard reports layout text instead of physical Latin identities', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => 8);
+      try {
+        simulateKey(container, createKeyEvent('KeyE', 'é'));
+        simulateKey(container, createKeyEvent('KeyE', 'É', { shift: true }));
+        simulateKey(container, createKeyEvent('KeyA', '𐐀'));
+        simulateKey(container, createKeyEvent('', '€'));
+        simulateKey(container, Object.assign(createKeyEvent('KeyQ', '@', { ctrl: true, alt: true }),
+          { getModifierState: (modifier: string) => modifier === 'AltGraph' }));
+        expect(dataReceived).toEqual(['\x1b[233;1u', '\x1b[233;2u', '\x1b[66560;1u', '\x1b[8364;1u', '\x1b[64;1u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('enhanced keyboard retains alternate layout identities and omits text for Ctrl chords', () => {
+      let flags = 12;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => flags);
+      try {
+        simulateKey(container, createKeyEvent('KeyE', 'É', { shift: true }));
+        flags = 24;
+        simulateKey(container, createKeyEvent('KeyC', 'c', { ctrl: true }));
+        expect(dataReceived).toEqual(['\x1b[233:201:101;2u', '\x1b[99;5u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('report-all includes modifier-only events while legacy Ctrl layout text stays usable', () => {
+      let flags = 10;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => flags);
+      try {
+        simulateKey(container, createKeyEvent('ShiftLeft', 'Shift', { shift: true }));
+        container.dispatchEvent({ ...createKeyEvent('ShiftLeft', 'Shift'), type: 'keyup' });
+        flags = 0;
+        simulateKey(container, createKeyEvent('ControlLeft', 'Control', { ctrl: true }));
+        simulateKey(container, createKeyEvent('KeyE', 'é', { ctrl: true }));
+        expect(dataReceived).toEqual(['\x1b[57441;2u', '\x1b[57441;1:3u', 'é']);
+      } finally { handler.dispose(); }
+    });
+
+    test('enhanced keyboard ignores releases for clipboard shortcuts, consumed keys and unmatched presses', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, event => event.code === 'KeyP', undefined, undefined, () => 10);
+      try {
+        for (const modifiers of [{ ctrl: true }, { meta: true }]) {
+          simulateKey(container, createKeyEvent('KeyV', 'v', modifiers));
+          container.dispatchEvent({ ...createKeyEvent('KeyV', 'v'), type: 'keyup' });
+        }
+        simulateKey(container, createKeyEvent('KeyC', 'c', { meta: true }));
+        container.dispatchEvent({ ...createKeyEvent('KeyC', 'c'), type: 'keyup' });
+        simulateKey(container, createKeyEvent('KeyP', 'p'));
+        container.dispatchEvent({ ...createKeyEvent('KeyP', 'p'), type: 'keyup' });
+        container.dispatchEvent({ ...createKeyEvent('ArrowLeft', 'ArrowLeft'), type: 'keyup' });
+        expect(dataReceived).toEqual([]);
+        simulateKey(container, createKeyEvent('KeyV', 'v'));
+        container.dispatchEvent({ ...createKeyEvent('KeyV', 'v', { ctrl: true }), type: 'keyup' });
+        expect(dataReceived).toEqual(['\x1b[118;1u', '\x1b[118;5:3u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('keyboard protocol transitions do not turn old or repeated releases into input', () => {
+      let flags = 0;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => flags);
+      try {
+        simulateKey(container, createKeyEvent('ArrowLeft', 'ArrowLeft'));
+        flags = 2;
+        container.dispatchEvent({ ...createKeyEvent('ArrowLeft', 'ArrowLeft'), type: 'keyup' });
+        expect(dataReceived).toEqual(['\x1b[D']);
+        flags = 10;
+        simulateKey(container, createKeyEvent('KeyA', 'a'));
+        flags = 0;
+        container.dispatchEvent({ ...createKeyEvent('KeyA', 'a'), type: 'keyup' });
+        flags = 10;
+        container.dispatchEvent({ ...createKeyEvent('KeyA', 'a'), type: 'keyup' });
+        expect(dataReceived).toEqual(['\x1b[D', '\x1b[97;1u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('paste shortcuts do not swallow AltGraph text or Ctrl+Alt terminal chords', () => {
+      let flags = 0;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => flags);
+      try {
+        simulateKey(container, Object.assign(createKeyEvent('KeyV', '@', { ctrl: true, alt: true }),
+          { getModifierState: (modifier: string) => modifier === 'AltGraph' }));
+        simulateKey(container, createKeyEvent('KeyV', 'v', { ctrl: true, alt: true }));
+        flags = 8;
+        simulateKey(container, Object.assign(createKeyEvent('KeyV', '@', { ctrl: true, alt: true }),
+          { getModifierState: (modifier: string) => modifier === 'AltGraph' }));
+        expect(dataReceived).toEqual(['@', '\x1b\x16', '\x1b[64;1u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('releasing layout modifiers before a key retains its reported key identity', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, undefined, undefined, () => 10);
+      try {
+        simulateKey(container, Object.assign(createKeyEvent('KeyV', '@', { ctrl: true, alt: true }),
+          { getModifierState: (modifier: string) => modifier === 'AltGraph' }));
+        container.dispatchEvent({ ...createKeyEvent('KeyV', 'v'), type: 'keyup' });
+        expect(dataReceived).toEqual(['\x1b[64;1u', '\x1b[64;1:3u']);
+      } finally { handler.dispose(); }
+    });
+
+    test('Ctrl+Alt chords remain distinct from composed AltGraph text', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {});
+      try {
+        simulateKey(container, createKeyEvent('KeyC', 'c', { ctrl: true, alt: true }));
+        simulateKey(container, Object.assign(createKeyEvent('KeyQ', '@', { ctrl: true, alt: true }),
+          { getModifierState: (modifier: string) => modifier === 'AltGraph' }));
+        expect(dataReceived).toEqual(['\x1b\x03', '@']);
+      } finally { handler.dispose(); }
+    });
+
+    test('Alt preserves uppercase and composed non-ASCII text', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {});
+      try {
+        simulateKey(container, createKeyEvent('KeyA', 'A', { alt: true, shift: true }));
+        simulateKey(container, createKeyEvent('KeyE', 'é', { alt: true }));
+        expect(dataReceived).toEqual(['\x1bA', 'é']);
+      } finally { handler.dispose(); }
+    });
+
+    test('Alt escape prefix follows DEC mode 1036 as it changes', () => {
+      let altEscape = true;
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, mode => mode === 1036 && altEscape);
+      try {
+        simulateKey(container, createKeyEvent('KeyA', 'a', { alt: true }));
+        altEscape = false;
+        simulateKey(container, createKeyEvent('KeyA', 'a', { alt: true }));
+        expect(dataReceived).toEqual(['\x1ba', 'a']);
+      } finally { handler.dispose(); }
+    });
+
+    test('Home and End honor application cursor mode', () => {
+      const handler = new InputHandler(engine, container as any, data => dataReceived.push(data), () => {},
+        undefined, undefined, mode => mode === 1);
+      try {
+        simulateKey(container, createKeyEvent('Home', 'Home'));
+        simulateKey(container, createKeyEvent('End', 'End'));
+        expect(dataReceived).toEqual(['\x1bOH', '\x1bOF']);
+      } finally { handler.dispose(); }
+    });
+
     test('encodes lowercase letters', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -266,7 +468,7 @@ describe('InputHandler', () => {
 
     test('encodes uppercase letters (with shift)', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -280,7 +482,7 @@ describe('InputHandler', () => {
 
     test('encodes digits', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -297,7 +499,7 @@ describe('InputHandler', () => {
 
     test('encodes punctuation', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -314,7 +516,7 @@ describe('InputHandler', () => {
 
     test('encodes space', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -330,7 +532,7 @@ describe('InputHandler', () => {
   describe('IME Composition', () => {
     test('handles composition sequence', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -365,7 +567,7 @@ describe('InputHandler', () => {
 
     test('ignores keydown during composition', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -396,7 +598,7 @@ describe('InputHandler', () => {
 
     test('cleans up text nodes in container after composition', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -428,7 +630,7 @@ describe('InputHandler', () => {
   describe('Control Characters', () => {
     test('encodes Ctrl+A', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -445,7 +647,7 @@ describe('InputHandler', () => {
 
     test('encodes Ctrl+C', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -462,7 +664,7 @@ describe('InputHandler', () => {
 
     test('encodes Ctrl+D', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -479,7 +681,7 @@ describe('InputHandler', () => {
 
     test('encodes Ctrl+Z', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -496,7 +698,7 @@ describe('InputHandler', () => {
 
     test('Cmd+C allows copy (no data sent)', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -515,7 +717,7 @@ describe('InputHandler', () => {
   describe('Special Keys', () => {
     test('encodes Enter', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -532,7 +734,7 @@ describe('InputHandler', () => {
 
     test('encodes Tab', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -549,7 +751,7 @@ describe('InputHandler', () => {
 
     test('encodes Escape', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -566,7 +768,7 @@ describe('InputHandler', () => {
 
     test('encodes Backspace', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -583,10 +785,75 @@ describe('InputHandler', () => {
     });
   });
 
+  describe('Shifted Special Keys', () => {
+    test('Shift+Tab encodes back-tab as ESC[Z instead of a plain tab', () => {
+      const handler = new InputHandler(
+        engine,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        }
+      );
+
+      // Unmodified Tab is still the simple \t path
+      simulateKey(container, createKeyEvent('Tab', 'Tab'));
+      expect(dataReceived[0]).toBe('\t');
+
+      // Shift+Tab must be encoded by AkittyEngine with the Shift modifier (ESC[Z)
+      simulateKey(container, createKeyEvent('Tab', 'Tab', { shift: true }));
+      expect(dataReceived.length).toBe(2);
+      expect(dataReceived[1]).toBe('\x1b[Z');
+    });
+
+    test('Shift+Delete encodes a shifted delete sequence distinct from Delete', () => {
+      const handler = new InputHandler(
+        engine,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        }
+      );
+
+      simulateKey(container, createKeyEvent('Delete', 'Delete'));
+      const unmodified = dataReceived[0];
+      expect(unmodified).toBe('\x1b[3~');
+
+      simulateKey(container, createKeyEvent('Delete', 'Delete', { shift: true }));
+      expect(dataReceived.length).toBe(2);
+      // Shifted delete carries the modifier instead of collapsing to ESC[3~
+      expect(dataReceived[1]).not.toBe(unmodified);
+      expect(dataReceived[1].startsWith('\x1b')).toBe(true);
+      // xterm encodes Shift+Delete as CSI 3;2~
+      expect(dataReceived[1]).toBe('\x1b[3;2~');
+    });
+
+    test('Shift+F1 encodes a shifted function-key sequence distinct from F1', () => {
+      const handler = new InputHandler(
+        engine,
+        container as any,
+        (data) => dataReceived.push(data),
+        () => {
+          bellCalled = true;
+        }
+      );
+
+      simulateKey(container, createKeyEvent('F1', 'F1'));
+      const unmodified = dataReceived[0];
+      expect(unmodified).toBe('\x1bOP');
+
+      simulateKey(container, createKeyEvent('F1', 'F1', { shift: true }));
+      expect(dataReceived.length).toBe(2);
+      expect(dataReceived[1]).not.toBe(unmodified);
+      expect(dataReceived[1].startsWith('\x1b')).toBe(true);
+    });
+  });
+
   describe('Arrow Keys', () => {
     test('encodes Up arrow', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -603,7 +870,7 @@ describe('InputHandler', () => {
 
     test('encodes Down arrow', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -619,7 +886,7 @@ describe('InputHandler', () => {
 
     test('encodes Left arrow', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -635,7 +902,7 @@ describe('InputHandler', () => {
 
     test('encodes Right arrow', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -652,7 +919,7 @@ describe('InputHandler', () => {
     test('sends CSI sequences in normal cursor mode (mode 1 off)', () => {
       // Create handler with getMode callback that returns false (normal mode)
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -679,7 +946,7 @@ describe('InputHandler', () => {
     test('sends SS3 sequences in application cursor mode (mode 1 on)', () => {
       // Create handler with getMode callback that returns true for mode 1
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -707,7 +974,7 @@ describe('InputHandler', () => {
   describe('Function Keys', () => {
     test('encodes F1', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -724,7 +991,7 @@ describe('InputHandler', () => {
 
     test('encodes F12', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -743,7 +1010,7 @@ describe('InputHandler', () => {
   describe('Navigation Keys', () => {
     test('encodes Home', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -759,7 +1026,7 @@ describe('InputHandler', () => {
 
     test('encodes End', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -775,7 +1042,7 @@ describe('InputHandler', () => {
 
     test('encodes PageUp', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -791,7 +1058,7 @@ describe('InputHandler', () => {
 
     test('encodes PageDown', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -807,7 +1074,7 @@ describe('InputHandler', () => {
 
     test('encodes Delete', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -823,7 +1090,7 @@ describe('InputHandler', () => {
 
     test('encodes Insert', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -841,7 +1108,7 @@ describe('InputHandler', () => {
   describe('Event Prevention', () => {
     test('prevents default on printable characters', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -857,7 +1124,7 @@ describe('InputHandler', () => {
 
     test('prevents default on special keys', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -873,7 +1140,7 @@ describe('InputHandler', () => {
 
     test('prevents default on Ctrl+keys', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -891,7 +1158,7 @@ describe('InputHandler', () => {
   describe('Unknown Keys', () => {
     test('ignores unmapped keys', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -910,7 +1177,7 @@ describe('InputHandler', () => {
   describe('Modifier Combinations', () => {
     test('handles Ctrl+Shift combinations', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -927,7 +1194,7 @@ describe('InputHandler', () => {
 
     test('handles Alt combinations', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -946,7 +1213,7 @@ describe('InputHandler', () => {
   describe('Clipboard Operations', () => {
     test('handles paste event', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -965,7 +1232,7 @@ describe('InputHandler', () => {
 
     test('handles multi-line paste', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -984,7 +1251,7 @@ describe('InputHandler', () => {
 
     test('ignores paste with no clipboard data', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1001,7 +1268,7 @@ describe('InputHandler', () => {
 
     test('ignores paste with empty text', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1018,7 +1285,7 @@ describe('InputHandler', () => {
 
     test('allows Ctrl+V to trigger paste', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1034,7 +1301,7 @@ describe('InputHandler', () => {
 
     test('allows Cmd+V to trigger paste', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1053,7 +1320,7 @@ describe('InputHandler', () => {
     test('an optional onPaste receives the text instead of onData', () => {
       const pasted: string[] = [];
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1074,7 +1341,7 @@ describe('InputHandler', () => {
     test('onPaste is invoked exactly once per paste event', () => {
       const pasted: string[] = [];
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {
@@ -1094,7 +1361,7 @@ describe('InputHandler', () => {
 
     test('without onPaste, handlePaste still sends raw text (standalone compatibility)', () => {
       const handler = new InputHandler(
-        ghostty,
+        engine,
         container as any,
         (data) => dataReceived.push(data),
         () => {

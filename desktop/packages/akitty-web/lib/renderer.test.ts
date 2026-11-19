@@ -46,7 +46,7 @@ describe('CanvasRenderer', () => {
 
     test('has selection colors', () => {
       // Selection colors are now solid (not semi-transparent overlay)
-      // Ghostty-style: selection bg = foreground color, selection fg = background color
+      // AkittyEngine-style: selection bg = foreground color, selection fg = background color
       expect(DEFAULT_THEME.selectionBackground).toBe('#d4d4d4');
       expect(DEFAULT_THEME.selectionForeground).toBe('#1e1e1e');
     });
