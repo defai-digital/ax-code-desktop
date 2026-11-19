@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, test, vi } from "vitest"
+import { createProjectIdFromPath } from "@/lib/projectId"
 
 vi.doMock("@/lib/ax-code/client", () => ({
   axCodeClient: {
@@ -176,6 +177,23 @@ describe("useProjectsStore path identity", () => {
     })
 
     expect(useDirectoryStore.getState().currentDirectory).toBe("/p/worktree")
+  })
+
+  test("a startup snapshot populates the registry without navigating to the project root", () => {
+    useDirectoryStore.getState().setDirectory("/fixture/worktree ")
+    vi.mocked(updateDesktopSettings).mockClear()
+    const id = createProjectIdFromPath("/fixture")
+    window.dispatchEvent(new CustomEvent("openchamber:settings-synced", {
+      detail: {
+        initialLoad: true,
+        projects: [{ id, path: "/fixture", addedAt: 1, lastOpenedAt: 1 }],
+        activeProjectId: id,
+        lastDirectory: "/fixture/worktree ",
+      },
+    }))
+    expect(useProjectsStore.getState().getActiveProject()?.path).toBe("/fixture")
+    expect(useDirectoryStore.getState().currentDirectory).toBe("/fixture/worktree ")
+    expect(updateDesktopSettings).not.toHaveBeenCalled()
   })
 
   test("does not move the working directory when another project is removed", () => {

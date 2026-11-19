@@ -118,6 +118,16 @@ describe("useDirectoryStore", () => {
     expect(setDirectoryMock).toHaveBeenLastCalledWith("/active")
   })
 
+  test("uses the active project when no directory is saved without publishing a save", async () => {
+    const { restoreDirectoryPreferences, useDirectoryStore, updateDesktopSettingsMock, values } = await importStore()
+
+    restoreDirectoryPreferences("/fixture/project")
+
+    expect(useDirectoryStore.getState().currentDirectory).toBe("/fixture/project")
+    expect(values.has("lastDirectory")).toBe(false)
+    expect(updateDesktopSettingsMock).not.toHaveBeenCalled()
+  })
+
   test("coalesces concurrent discovery and persists only the changed home", async () => {
     const { refreshDirectoryHome, getFilesystemHomeMock, updateDesktopSettingsMock, useDirectoryStore } =
       await importStore()

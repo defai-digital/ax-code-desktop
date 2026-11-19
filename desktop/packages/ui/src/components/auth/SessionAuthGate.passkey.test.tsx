@@ -4,13 +4,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-const { registerCurrentDevicePasskey, cancelPasskeyCeremony, syncSettings, restoreDirectory, discoverHome } =
+const { registerCurrentDevicePasskey, cancelPasskeyCeremony, syncSettings, restoreDirectory, discoverHome, directoryState } =
   vi.hoisted(() => ({
     registerCurrentDevicePasskey: vi.fn(),
     cancelPasskeyCeremony: vi.fn(),
     syncSettings: vi.fn<() => Promise<void>>(async () => {}),
     restoreDirectory: vi.fn(),
     discoverHome: vi.fn(async () => ""),
+    directoryState: { currentDirectory: "/fixture/project" },
   }))
 
 vi.mock("@simplewebauthn/browser", () => ({ browserSupportsWebAuthn: () => true }))
@@ -29,6 +30,10 @@ vi.mock("@/lib/persistence", () => ({
 vi.mock("@/stores/useDirectoryStore", () => ({
   refreshDirectoryHome: discoverHome,
   restoreDirectoryPreferences: restoreDirectory,
+  useDirectoryStore: (select: (state: typeof directoryState) => string) => select(directoryState),
+}))
+vi.mock("@/stores/useProjectsStore", () => ({
+  useProjectsStore: { getState: () => ({ getActiveProject: () => ({ path: "/fixture/project" }) }) },
 }))
 vi.mock("@/components/ui", () => ({ toast: { error: vi.fn(), success: vi.fn(), message: vi.fn() } }))
 
@@ -48,6 +53,7 @@ describe("SessionAuthGate", () => {
     syncSettings.mockClear()
     restoreDirectory.mockClear()
     discoverHome.mockClear()
+    directoryState.currentDirectory = "/fixture/project"
     window.localStorage.clear()
     // The gate offers passkey setup only in a secure context; jsdom does not provide one.
     Object.defineProperty(window, "isSecureContext", { value: true, configurable: true })
@@ -69,11 +75,11 @@ describe("SessionAuthGate", () => {
     vi.restoreAllMocks()
   })
 
-  const render = async () => {
+  const render = async (children: React.ReactNode = null) => {
     await act(async () => {
       root.render(
         <I18nProvider>
-          <SessionAuthGate>{null}</SessionAuthGate>
+          <SessionAuthGate>{children}</SessionAuthGate>
         </I18nProvider>,
       )
     })
@@ -124,9 +130,23 @@ describe("SessionAuthGate", () => {
     expect(restoreDirectory).not.toHaveBeenCalled()
 
     await act(async () => finishSettings())
-    expect(restoreDirectory).toHaveBeenCalledOnce()
+    expect(restoreDirectory).toHaveBeenCalledExactlyOnceWith("/fixture/project")
     expect(discoverHome).toHaveBeenCalledOnce()
     expect(restoreDirectory.mock.invocationCallOrder[0]).toBeLessThan(discoverHome.mock.invocationCallOrder[0])
+  })
+
+  test("waits for a directory before mounting the authenticated workspace", async () => {
+    directoryState.currentDirectory = ""
+    await render(<div data-workspace />)
+    await typePassword("fixture password")
+    await clickUnlock()
+
+    expect(restoreDirectory).toHaveBeenCalledOnce()
+    expect(container.querySelector("[data-workspace]")).toBeNull()
+
+    directoryState.currentDirectory = "/fixture/project"
+    await render(<div data-workspace />)
+    expect(container.querySelector("[data-workspace]")).not.toBeNull()
   })
 
   test("reports the failure the server answered with instead of a network screen", async () => {
