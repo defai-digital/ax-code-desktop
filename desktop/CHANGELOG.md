@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.29] - 2026-11-19
+
+### Changed
+
+- Updated the embedded terminal to AkiTTY Web 0.6.12 from AkiTTY v1.4.1, using AkiTTY's Rust VT engine compiled to WebAssembly.
+
+### Fixed
+
+- Preserve the current keyboard focus when the embedded terminal opens with autofocus disabled.
+
 ## [7.30.28] - 2026-11-18
 
 ### Fixed

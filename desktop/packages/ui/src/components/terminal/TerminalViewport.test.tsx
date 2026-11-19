@@ -17,10 +17,19 @@ vi.mock("@ax-code/akitty-web", () => ({
     cols = 80
     rows = 24
     options = { cursorBlink: false }
-    open() {}
+    textarea?: HTMLTextAreaElement
+    open(container: HTMLElement) {
+      this.textarea = document.createElement("textarea")
+      container.appendChild(this.textarea)
+      this.focus()
+    }
     loadAddon() {}
-    focus() {}
-    dispose() {}
+    focus() {
+      this.textarea?.focus()
+    }
+    dispose() {
+      this.textarea?.remove()
+    }
     hasBracketedPaste() {
       return state.bracketedPaste
     }
@@ -143,6 +152,39 @@ test("reports a WASM initialization failure and keeps the terminal closed", asyn
   )
   await waitFor(() => expect(onInitializeError).toHaveBeenCalledWith(error))
   expect(state.screen).toBe("")
+})
+
+test("keeps focus outside the terminal until autofocus is enabled", async () => {
+  const props = {
+    sessionKey: "focus",
+    chunks: [{ id: 1, data: "ready" }],
+    onInput: vi.fn(),
+    onResize: vi.fn(),
+    theme,
+    fontFamily: "monospace",
+    fontSize: 14,
+  }
+  const view = render(
+    <>
+      <button type="button">Continue editing</button>
+      <TerminalViewport {...props} autoFocus={false} />
+    </>,
+  )
+  const button = view.container.querySelector("button")
+  expect(button).not.toBeNull()
+  button?.focus()
+  await waitFor(() => {
+    expect(state.screen).toBe("ready")
+    expect(document.activeElement).toBe(button)
+  })
+
+  view.rerender(
+    <>
+      <button type="button">Continue editing</button>
+      <TerminalViewport {...props} autoFocus />
+    </>,
+  )
+  expect(document.activeElement).toBe(view.container.querySelector("textarea"))
 })
 
 test("replays retained output when the session changes with the same chunk snapshot", async () => {

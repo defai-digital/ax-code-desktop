@@ -1091,10 +1091,6 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           const terminal = new Terminal(options)
           followOutputRef.current = true
 
-          if (useHiddenInputOverlay) {
-            terminal.focus = () => {}
-          }
-
           const terminalWithViewport = terminal as unknown as TerminalWithViewport
           if (typeof terminalWithViewport.scrollToBottom === "function") {
             const originalScrollToBottom = terminalWithViewport.scrollToBottom.bind(terminalWithViewport)
@@ -1113,7 +1109,14 @@ const TerminalViewport = React.forwardRef<TerminalController, TerminalViewportPr
           localTerminal = terminal
 
           terminal.loadAddon(fitAddon)
-          terminal.open(container)
+          // AkiTTY focuses on open. The viewport owns autofocus and touch input.
+          const focus = terminal.focus
+          terminal.focus = () => {}
+          try {
+            terminal.open(container)
+          } finally {
+            if (!useHiddenInputOverlay) terminal.focus = focus
+          }
           // Publish the refs only once the terminal is usable. open() can throw (a wasm or
           // renderer failure), and a published ref then pointed at a terminal whose every
           // method throws: the chunks effect read it as live and its reset() tripped the
